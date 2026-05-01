@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from statlean_agent.contracts import (
     BenchmarkTask,
@@ -68,6 +70,56 @@ DEFAULT_PAPER_QUALITY_PROOF_CHAINS = (
             "StatInference.InfluenceFunctionNormalityRoute.asymptoticNormal",
             "StatInference.AIPWInfluenceFunctionNormalityRoute.asymptoticNormal",
         ),
+    },
+)
+
+DEFAULT_REPRODUCIBILITY_ARTIFACTS = (
+    "config/statlean_blueprint.json",
+    "benchmarks/seeds.jsonl",
+    "artifacts/verification/benchmark-seed-reports.jsonl",
+    "artifacts/evaluation/benchmark-seed-attempts.jsonl",
+    "artifacts/evaluation/benchmark-seed-summary.json",
+    "artifacts/evaluation/heldout-baseline.json",
+    "artifacts/evaluation/paper-quality-heldout.json",
+    "artifacts/evaluation/concrete-estimator-chain.json",
+    "artifacts/evaluation/ablation-report.json",
+    "artifacts/training/manifest.json",
+    "artifacts/training/dpo-negative-attempts.jsonl",
+    "artifacts/training/dpo-negative-reports.jsonl",
+    "artifacts/training/grpo-process-tasks.jsonl",
+    "artifacts/curation/theorem-hole-ledger.jsonl",
+    "artifacts/curation/lemma-proposals.jsonl",
+    "artifacts/curation/lemma-proposal-gates.jsonl",
+    "artifacts/curation/lemma-non-vacuity.jsonl",
+    "artifacts/curation/lemma-proof-cost.jsonl",
+    "docs/paper_draft.md",
+)
+
+DEFAULT_REPRODUCIBILITY_COMMANDS = (
+    {
+        "name": "python_tests",
+        "command": "PYTHONPATH=src .venv/bin/python -m pytest",
+        "purpose": "Run the complete Python test suite.",
+    },
+    {
+        "name": "smoke",
+        "command": "PYTHON=.venv/bin/python bash scripts/smoke.sh",
+        "purpose": "Run deterministic benchmark, premise-index, manifest, and blueprint smoke checks.",
+    },
+    {
+        "name": "lean_build",
+        "command": "lake build",
+        "purpose": "Compile the Lean StatInference library and benchmark modules.",
+    },
+    {
+        "name": "blueprint_status",
+        "command": "PYTHONPATH=src .venv/bin/python -m statlean_agent.cli blueprint-status --blueprint config/statlean_blueprint.json",
+        "purpose": "Confirm the executable build blueprint status.",
+    },
+    {
+        "name": "forbidden_lean_shortcuts",
+        "command": "rg -n \"\\b(sorry|admit|unsafe)\\b|^\\s*axiom\\b\" StatInference -g '*.lean'",
+        "purpose": "Fail if promoted Lean sources contain forbidden proof shortcuts.",
     },
 )
 
@@ -605,6 +657,60 @@ def build_ablation_report(
     }
 
 
+def build_reproducibility_bundle(
+    repo_root: Path,
+    blueprint_report: Mapping[str, object],
+    *,
+    artifact_paths: tuple[str, ...] = DEFAULT_REPRODUCIBILITY_ARTIFACTS,
+    validation_commands: tuple[Mapping[str, str], ...] = DEFAULT_REPRODUCIBILITY_COMMANDS,
+    paper_draft_path: str = "docs/paper_draft.md",
+) -> dict[str, object]:
+    """Build a paper-facing reproducibility bundle with artifact hashes."""
+
+    root = repo_root.resolve()
+    artifact_records = [
+        _artifact_record(root, artifact_path)
+        for artifact_path in artifact_paths
+    ]
+    phase = _mapping(blueprint_report.get("current_phase"))
+    milestone = _mapping(blueprint_report.get("current_milestone"))
+    done_phase_count = int(blueprint_report.get("done_phase_count", 0))
+    phase_count = int(blueprint_report.get("phase_count", 0))
+    all_phases_done = phase_count > 0 and done_phase_count == phase_count
+
+    return {
+        "report_id": "reproducibility::p8",
+        "blueprint_id": str(blueprint_report.get("blueprint_id", "")),
+        "blueprint_title": str(blueprint_report.get("title", "")),
+        "phase_count": phase_count,
+        "done_phase_count": done_phase_count,
+        "all_phases_done": all_phases_done,
+        "current_phase": dict(phase),
+        "current_milestone": dict(milestone) if milestone else None,
+        "paper_draft_path": paper_draft_path,
+        "artifact_count": len(artifact_records),
+        "artifacts": artifact_records,
+        "validation_commands": [dict(command) for command in validation_commands],
+        "reproduction_order": [
+            "Install Python development dependencies with pip install -e \".[dev]\".",
+            "Run the validation_commands in order from this report.",
+            "Compare artifact sha256 values against the artifacts table.",
+            "Use docs/paper_draft.md as the paper narrative tied to these artifacts.",
+            "Use config/statlean_blueprint.json as the executable progress contract.",
+        ],
+        "guardrails": [
+            "No promoted StatInference theorem may rely on forbidden proof shortcuts.",
+            "Training artifacts are preparation data, not evidence of a trained model improvement.",
+            "Ablation rows are system-component readiness ablations, not a model-performance claim.",
+            "Statistical semantics and new theorem statements still require human review.",
+        ],
+        "notes": (
+            "P8.M4 reproducibility bundle: hash-pinned artifacts, executable "
+            "validation commands, paper draft linkage, and explicit guardrails."
+        ),
+    }
+
+
 @dataclass
 class _SummaryBucket:
     attempts: int = 0
@@ -884,6 +990,20 @@ def _float(value: object) -> float:
     if isinstance(value, int | float):
         return float(value)
     return 0.0
+
+
+def _artifact_record(repo_root: Path, relative_path: str) -> dict[str, object]:
+    path = repo_root / relative_path
+    if not path.exists():
+        raise ValueError(f"missing reproducibility artifact: {relative_path}")
+    payload = path.read_bytes()
+    text = payload.decode("utf-8")
+    return {
+        "path": relative_path,
+        "sha256": hashlib.sha256(payload).hexdigest(),
+        "byte_count": len(payload),
+        "line_count": text.count("\n") + (0 if text.endswith("\n") or not text else 1),
+    }
 
 
 def _enum_value(value: object) -> str:

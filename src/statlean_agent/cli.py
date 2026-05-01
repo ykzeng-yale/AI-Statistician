@@ -23,9 +23,11 @@ from statlean_agent.curation import (
     build_theorem_hole_lemma_proposals,
 )
 from statlean_agent.evaluation import (
+    DEFAULT_REPRODUCIBILITY_ARTIFACTS,
     build_ablation_report,
     build_concrete_estimator_chain_report,
     build_paper_quality_heldout_report,
+    build_reproducibility_bundle,
     compare_baseline_on_split,
     evaluate_attempts,
     summarize_benchmark_attempts,
@@ -207,6 +209,29 @@ def main(argv: list[str] | None = None) -> int:
         "--output",
         default="artifacts/evaluation/ablation-report.json",
         help="Output ablation report JSON path.",
+    )
+
+    reproducibility_bundle = subparsers.add_parser(
+        "reproducibility-bundle",
+        help="Build the P8 research reproducibility bundle with artifact hashes.",
+    )
+    reproducibility_bundle.add_argument("--repo-root", default=".", help="Repository root.")
+    reproducibility_bundle.add_argument("--blueprint", default="config/statlean_blueprint.json", help="Blueprint JSON path.")
+    reproducibility_bundle.add_argument(
+        "--paper-draft",
+        default="docs/paper_draft.md",
+        help="Paper draft path included in the bundle.",
+    )
+    reproducibility_bundle.add_argument(
+        "--artifact",
+        action="append",
+        dest="artifacts",
+        help="Artifact path to hash. May be repeated. Defaults to the P8 bundle set.",
+    )
+    reproducibility_bundle.add_argument(
+        "--output",
+        default="artifacts/evaluation/reproducibility-bundle.json",
+        help="Output reproducibility bundle JSON path.",
     )
 
     lemma_ledger = subparsers.add_parser(
@@ -566,6 +591,29 @@ def main(argv: list[str] | None = None) -> int:
         print(
             f"wrote {output} full_system_ready={report['full_system_ready']} "
             f"components={len(report['components'])} variants={len(report['ablation_rows'])}"
+        )
+        return 0
+
+    if args.command == "reproducibility-bundle":
+        blueprint_data = load_blueprint(Path(args.blueprint))
+        errors = validate_blueprint(blueprint_data)
+        if errors:
+            for error in errors:
+                print(f"error: {error}")
+            return 1
+        artifact_paths = tuple(args.artifacts) if args.artifacts else DEFAULT_REPRODUCIBILITY_ARTIFACTS
+        report = build_reproducibility_bundle(
+            Path(args.repo_root),
+            blueprint_status(blueprint_data),
+            artifact_paths=artifact_paths,
+            paper_draft_path=args.paper_draft,
+        )
+        output = Path(args.output)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(dumps_json(report) + "\n", encoding="utf-8")
+        print(
+            f"wrote {output} artifacts={report['artifact_count']} "
+            f"all_phases_done={report['all_phases_done']}"
         )
         return 0
 

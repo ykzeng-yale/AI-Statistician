@@ -91,6 +91,16 @@ statlean build-training-manifest \
   --output artifacts/training/manifest.json
 ```
 
+Build the paper reproducibility bundle:
+
+```bash
+statlean reproducibility-bundle \
+  --repo-root . \
+  --blueprint config/statlean_blueprint.json \
+  --paper-draft docs/paper_draft.md \
+  --output artifacts/evaluation/reproducibility-bundle.json
+```
+
 Preview a worktree assignment:
 
 ```bash
@@ -123,6 +133,10 @@ The registry includes:
 Each code-writing agent gets an isolated git worktree and branch. Curated changes are merged only after Lean verification, test validation, and statistical meaning checks.
 
 ## Next Milestones
+
+The initial P0-P8 build blueprint is complete. The next post-P8 work should be
+tracked as a new phase rather than silently expanding the completed milestone
+set.
 
 1. Harden the no-`sorry` `StatInference` library around convergence wrappers, `op(1)`/`Op(1)` calculus, asymptotic normality, and first concrete estimators.
 2. Grow `StatInferBench` from seed tasks into theorem-hole, repair, proof-state, and tactic tasks with dependency-based splits.

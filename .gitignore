@@ -27,6 +27,7 @@ artifacts/*
 !artifacts/evaluation/paper-quality-heldout.json
 !artifacts/evaluation/concrete-estimator-chain.json
 !artifacts/evaluation/ablation-report.json
+!artifacts/evaluation/reproducibility-bundle.json
 !artifacts/curation/
 !artifacts/curation/theorem-hole-ledger.jsonl
 !artifacts/curation/lemma-proposals.jsonl

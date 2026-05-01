@@ -16,6 +16,7 @@ from statlean_agent.evaluation import (
     build_ablation_report,
     build_concrete_estimator_chain_report,
     build_paper_quality_heldout_report,
+    build_reproducibility_bundle,
     compare_baseline_on_split,
     evaluate_attempts,
     summarize_benchmark_attempts,
@@ -368,6 +369,35 @@ def test_build_ablation_report_records_component_evidence() -> None:
     assert report["evidence_summary"]["blocked_placeholder_ledger_entries"] == 1
 
 
+def test_build_reproducibility_bundle_records_artifact_hashes(tmp_path: Path) -> None:
+    artifact = tmp_path / "artifact.json"
+    paper = tmp_path / "paper.md"
+    artifact.write_text('{"ok": true}\n', encoding="utf-8")
+    paper.write_text("# Paper\n", encoding="utf-8")
+
+    bundle = build_reproducibility_bundle(
+        tmp_path,
+        {
+            "blueprint_id": "bp",
+            "title": "Blueprint",
+            "phase_count": 1,
+            "done_phase_count": 1,
+            "current_phase": {"id": "P8", "status": "done"},
+            "current_milestone": None,
+        },
+        artifact_paths=("artifact.json", "paper.md"),
+        paper_draft_path="paper.md",
+    )
+
+    assert bundle["report_id"] == "reproducibility::p8"
+    assert bundle["all_phases_done"] is True
+    assert bundle["artifact_count"] == 2
+    assert [record["path"] for record in bundle["artifacts"]] == ["artifact.json", "paper.md"]
+    assert all(len(record["sha256"]) == 64 for record in bundle["artifacts"])
+    assert bundle["paper_draft_path"] == "paper.md"
+    assert any(command["name"] == "lean_build" for command in bundle["validation_commands"])
+
+
 def test_cli_eval_summary(tmp_path: Path, capsys) -> None:
     benchmarks_path = tmp_path / "benchmarks.jsonl"
     attempts_path = tmp_path / "attempts.jsonl"
@@ -684,6 +714,25 @@ def test_checked_in_ablation_report_artifact() -> None:
         "no_process_reward",
         "no_curation",
     }
+    assert set(report) <= set(schema["properties"])
+
+
+def test_checked_in_reproducibility_bundle_artifact() -> None:
+    report = json.loads(Path("artifacts/evaluation/reproducibility-bundle.json").read_text(encoding="utf-8"))
+    schema = json.loads(Path("schemas/reproducibility_bundle.schema.json").read_text(encoding="utf-8"))
+    artifact_paths = [artifact["path"] for artifact in report["artifacts"]]
+
+    assert report["report_id"] == "reproducibility::p8"
+    assert report["blueprint_id"] == "statleanagent-blueprint"
+    assert report["all_phases_done"] is True
+    assert report["paper_draft_path"] == "docs/paper_draft.md"
+    assert report["artifact_count"] == len(report["artifacts"])
+    assert "docs/paper_draft.md" in artifact_paths
+    assert "artifacts/evaluation/ablation-report.json" in artifact_paths
+    assert all(len(artifact["sha256"]) == 64 for artifact in report["artifacts"])
+    assert any(command["name"] == "smoke" for command in report["validation_commands"])
+    assert any(command["name"] == "forbidden_lean_shortcuts" for command in report["validation_commands"])
+    assert report["current_milestone"] is None
     assert set(report) <= set(schema["properties"])
 
 

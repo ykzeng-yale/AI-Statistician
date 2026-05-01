@@ -28,12 +28,12 @@ def test_cli_blueprint_status(capsys) -> None:
     assert main(["blueprint-status", "--blueprint", "config/statlean_blueprint.json"]) == 0
     output = capsys.readouterr().out
     assert "Current phase: P8" in output
-    assert "Current milestone: P8.M4" in output
+    assert "Current milestone: none" in output
 
     assert main(["blueprint-status", "--blueprint", "config/statlean_blueprint.json", "--json"]) == 0
     json_output = capsys.readouterr().out
     assert '"current_phase"' in json_output
-    assert '"P8.M4"' in json_output
+    assert '"current_milestone": null' in json_output
 
 
 def test_cli_verify_benchmarks_allow_failures(tmp_path: Path, capsys) -> None:
@@ -427,6 +427,61 @@ def test_cli_ablation_report(tmp_path: Path, capsys) -> None:
     assert "variants=6" in output
     assert report["full_system_ready"] is True
     assert report["evidence_summary"]["dpo_rejected_report_count"] == 1
+
+
+def test_cli_reproducibility_bundle(tmp_path: Path, capsys) -> None:
+    blueprint_path = tmp_path / "blueprint.json"
+    artifact_path = tmp_path / "artifact.json"
+    paper_path = tmp_path / "paper.md"
+    output_path = tmp_path / "repro.json"
+    blueprint_path.write_text(
+        json.dumps(
+            {
+                "id": "bp",
+                "target": "target",
+                "phases": [
+                    {
+                        "id": "P8",
+                        "name": "Final",
+                        "status": "done",
+                        "milestones": [{"id": "P8.M4", "name": "Bundle", "status": "done"}],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    artifact_path.write_text('{"ok": true}\n', encoding="utf-8")
+    paper_path.write_text("# Paper\n", encoding="utf-8")
+
+    assert (
+        main(
+            [
+                "reproducibility-bundle",
+                "--repo-root",
+                str(tmp_path),
+                "--blueprint",
+                str(blueprint_path),
+                "--paper-draft",
+                "paper.md",
+                "--artifact",
+                "artifact.json",
+                "--artifact",
+                "paper.md",
+                "--output",
+                str(output_path),
+            ]
+        )
+        == 0
+    )
+
+    output = capsys.readouterr().out
+    report = json.loads(output_path.read_text(encoding="utf-8"))
+    assert "artifacts=2" in output
+    assert "all_phases_done=True" in output
+    assert report["artifact_count"] == 2
+    assert report["all_phases_done"] is True
+    assert report["paper_draft_path"] == "paper.md"
 
 
 def test_cli_eval_attempts(tmp_path: Path, capsys) -> None:

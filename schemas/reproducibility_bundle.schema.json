@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ReproducibilityBundle",
+  "type": "object",
+  "required": [
+    "report_id",
+    "blueprint_id",
+    "blueprint_title",
+    "phase_count",
+    "done_phase_count",
+    "all_phases_done",
+    "current_phase",
+    "current_milestone",
+    "paper_draft_path",
+    "artifact_count",
+    "artifacts",
+    "validation_commands",
+    "reproduction_order",
+    "guardrails",
+    "notes"
+  ],
+  "properties": {
+    "report_id": {"type": "string"},
+    "blueprint_id": {"type": "string"},
+    "blueprint_title": {"type": "string"},
+    "phase_count": {"type": "integer"},
+    "done_phase_count": {"type": "integer"},
+    "all_phases_done": {"type": "boolean"},
+    "current_phase": {"type": "object"},
+    "current_milestone": {"type": ["object", "null"]},
+    "paper_draft_path": {"type": "string"},
+    "artifact_count": {"type": "integer"},
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "sha256", "byte_count", "line_count"],
+        "properties": {
+          "path": {"type": "string"},
+          "sha256": {"type": "string"},
+          "byte_count": {"type": "integer"},
+          "line_count": {"type": "integer"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "validation_commands": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "command", "purpose"],
+        "properties": {
+          "name": {"type": "string"},
+          "command": {"type": "string"},
+          "purpose": {"type": "string"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "reproduction_order": {"type": "array", "items": {"type": "string"}},
+    "guardrails": {"type": "array", "items": {"type": "string"}},
+    "notes": {"type": "string"}
+  },
+  "additionalProperties": false
+}
