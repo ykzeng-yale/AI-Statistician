@@ -17,14 +17,23 @@ Build a verifier-first AI system that can:
 
 ## Current Status
 
-Initial scaffold:
+Current green baseline:
 
-- Lean seed library under `StatInference/`;
-- Python orchestration package under `src/statlean_agent/`;
+- `.venv/bin/pytest` passes the current Python suite;
+- `lake build` completes for the Lean library;
+- strict CI runs Python smoke checks and a Lean build;
+- no accepted `sorry`, `admit`, `axiom`, or unsafe placeholder is part of the
+  baseline;
+- seed `StatInference` modules cover asymptotics, estimators, empirical-process
+  interfaces, causal interfaces, semiparametric interfaces, and benchmark
+  examples;
+- `StatInferBench` has deterministic JSONL seed tasks with train/dev/test
+  splits and CLI support for rendering, listing, and verification;
+- local premise retrieval supports indexing and deterministic search over Lean
+  declarations;
+- SFT/DPO/GRPO manifest generation exists for auditable training experiments;
 - 14-agent registry for formalization, proving, curation, benchmarking, and training;
-- worktree manager for isolated agent branches;
-- reward and curation contracts for Lean-verified proof attempts;
-- project docs for architecture, roadmap, research assessment, benchmark design, and training plan.
+- worktree manager for isolated agent branches.
 
 ## Quick Start
 
@@ -35,6 +44,12 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 pytest
+```
+
+Run the stricter local smoke path used by CI:
+
+```bash
+bash scripts/smoke.sh
 ```
 
 If Lean and Lake are installed:
@@ -84,7 +99,11 @@ statlean assign-worktree --agent formalization --base main --dry-run
 
 ## Architecture
 
-The system uses more than 10 specialized agents. The initial registry includes:
+The system uses more than 10 specialized agents. They are coordination roles,
+not autonomous authorities: agents propose artifacts, while Lean, tests, CI,
+and human reviewers decide what is accepted.
+
+The registry includes:
 
 1. Problem Ingest Agent
 2. Formalization Agent
@@ -103,15 +122,15 @@ The system uses more than 10 specialized agents. The initial registry includes:
 
 Each code-writing agent gets an isolated git worktree and branch. Curated changes are merged only after Lean verification, test validation, and statistical meaning checks.
 
-## First Milestones
+## Next Milestones
 
-1. Build the base `StatInference` Lean library and keep it no-`sorry`.
-2. Formalize statistics-facing wrappers over mathlib convergence and CLT tools.
-3. Prove the first reusable oracle inequality for ERM from uniform deviation.
-4. Add the core interface for asymptotic linearity plus CLT implying asymptotic normality.
-5. Build `StatInferBench` from extracted theorem holes and proof states.
-6. Run baseline provers before training any local model.
-7. Train with SFT, then DPO, then process-reward GRPO using Lean verifier feedback.
+1. Harden the no-`sorry` `StatInference` library around convergence wrappers, `op(1)`/`Op(1)` calculus, asymptotic normality, and first concrete estimators.
+2. Grow `StatInferBench` from seed tasks into theorem-hole, repair, proof-state, and tactic tasks with dependency-based splits.
+3. Improve retrieval so baseline provers reliably use local `StatInference` lemmas.
+4. Keep SFT/DPO/GRPO manifests auditable: every example, pair, and reward task must cite source benchmark and verifier artifacts.
+5. Tighten strict CI around Python smoke checks, Lean builds, deterministic benchmark regeneration, schema validation, and forbidden-token scans.
+6. Add heartbeat monitoring for agent id, worktree, touched files, last validation, stale branches, CI status, and blockers.
+7. Keep the project human-guided: people choose theorem targets, validate statistical assumptions, approve curation, and decide when training runs are scientifically justified.
 
 ## Non-Negotiable Safety Rules
 
@@ -120,3 +139,4 @@ Each code-writing agent gets an isolated git worktree and branch. Curated change
 - No theorem statement weakening to make a proof easier.
 - Every promoted statistics lemma must be non-vacuous and semantically meaningful.
 - Lean verification is necessary but not sufficient: statistical definitions require human review.
+- CI and heartbeat failures are blockers, not warnings to route around.

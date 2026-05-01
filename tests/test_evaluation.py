@@ -1,5 +1,18 @@
-from statlean_agent.contracts import ProofAttempt, VerificationReport, VerificationStatus
-from statlean_agent.evaluation import evaluate_attempts
+import json
+from pathlib import Path
+
+from statlean_agent.cli import main
+from statlean_agent.contracts import (
+    BenchmarkSplit,
+    BenchmarkTask,
+    BenchmarkTaskType,
+    LeanTask,
+    ProofAttempt,
+    VerificationReport,
+    VerificationStatus,
+)
+from statlean_agent.evaluation import evaluate_attempts, summarize_benchmark_attempts
+from statlean_agent.serialization import write_jsonl
 
 
 def test_evaluate_attempts() -> None:
@@ -85,3 +98,147 @@ def test_evaluate_attempts_allows_configured_placeholder_only() -> None:
     assert report.reward_totals["forbidden_admit"] == -10.0
     assert any("draft: allowed placeholder `sorry`" in diagnostic for diagnostic in report.diagnostics)
     assert any("bad: forbidden token `admit`" in diagnostic for diagnostic in report.diagnostics)
+
+
+def test_summarize_benchmark_attempts_by_metadata() -> None:
+    tasks = (
+        _benchmark_task(
+            "accepted",
+            split=BenchmarkSplit.TRAIN,
+            task_type=BenchmarkTaskType.FORMAL_ONLY,
+            domain_tags=("alpha", "beta"),
+        ),
+        _benchmark_task(
+            "unsolved",
+            split=BenchmarkSplit.TRAIN,
+            task_type=BenchmarkTaskType.REPAIR,
+            domain_tags=("alpha",),
+        ),
+        _benchmark_task(
+            "unknown",
+            split=BenchmarkSplit.DEV,
+            task_type=BenchmarkTaskType.FORMALIZATION,
+            domain_tags=("beta",),
+        ),
+    )
+    attempts = (
+        ProofAttempt("accepted", "agent", "theorem ok : True := by trivial"),
+        ProofAttempt("unsolved", "agent", "theorem stuck : True := by exact True.intro"),
+        ProofAttempt("unknown", "agent", "theorem missing : True := by exact missing_decl"),
+    )
+    reports = (
+        VerificationReport("accepted", VerificationStatus.ACCEPTED),
+        VerificationReport("unsolved", VerificationStatus.REJECTED, first_error="unsolved goals"),
+        VerificationReport("unknown", VerificationStatus.ERROR, first_error="unknown declaration missing_decl"),
+    )
+
+    summary = summarize_benchmark_attempts(tasks, attempts, reports)
+
+    assert summary["total"] == {
+        "attempts": 3,
+        "passed": 1,
+        "failed": 2,
+        "mean_reward": 7.0 / 3.0,
+        "failure_categories": {"unknown_declaration": 1, "unsolved_goals": 1},
+    }
+    assert [row["split"] for row in summary["by_split"]] == ["dev", "train"]
+    by_split = {row["split"]: row for row in summary["by_split"]}
+    assert by_split["train"]["passed"] == 1
+    assert by_split["train"]["failed"] == 1
+    assert by_split["train"]["mean_reward"] == 4.25
+    assert by_split["train"]["failure_categories"] == {"unsolved_goals": 1}
+    assert by_split["dev"]["failure_categories"] == {"unknown_declaration": 1}
+
+    assert [row["domain"] for row in summary["by_domain"]] == ["alpha", "beta"]
+    by_domain = {row["domain"]: row for row in summary["by_domain"]}
+    assert by_domain["alpha"]["attempts"] == 2
+    assert by_domain["beta"]["attempts"] == 2
+    assert by_domain["alpha"]["mean_reward"] == 4.25
+    assert by_domain["beta"]["mean_reward"] == 4.25
+
+    assert [row["task_type"] for row in summary["by_task_type"]] == [
+        "formal_only",
+        "formalization",
+        "repair",
+    ]
+
+
+def test_summarize_benchmark_attempts_categorizes_policy_violation() -> None:
+    tasks = (_benchmark_task("draft", domain_tags=("alpha",)),)
+    attempts = (ProofAttempt("draft", "agent", "theorem draft : True := by\n  sorry"),)
+    reports = (VerificationReport("draft", VerificationStatus.ACCEPTED),)
+
+    summary = summarize_benchmark_attempts(tasks, attempts, reports)
+
+    assert summary["total"]["passed"] == 0
+    assert summary["total"]["failed"] == 1
+    assert summary["total"]["mean_reward"] == -11.5
+    assert summary["total"]["failure_categories"] == {"policy_violation": 1}
+
+    allowed_summary = summarize_benchmark_attempts(
+        (_benchmark_task("draft", domain_tags=("alpha",), allowed_sorry=True),),
+        attempts,
+        reports,
+    )
+    assert allowed_summary["total"]["passed"] == 1
+    assert allowed_summary["total"]["failure_categories"] == {}
+
+
+def test_cli_eval_summary(tmp_path: Path, capsys) -> None:
+    benchmarks_path = tmp_path / "benchmarks.jsonl"
+    attempts_path = tmp_path / "attempts.jsonl"
+    reports_path = tmp_path / "reports.jsonl"
+    write_jsonl(benchmarks_path, [_benchmark_task("task", domain_tags=("alpha",))])
+    write_jsonl(attempts_path, [ProofAttempt("task", "agent", "theorem ok : True := by trivial")])
+    write_jsonl(reports_path, [VerificationReport("task", VerificationStatus.ACCEPTED)])
+
+    assert (
+        main(
+            [
+                "eval-summary",
+                "--benchmarks",
+                str(benchmarks_path),
+                "--attempts",
+                str(attempts_path),
+                "--reports",
+                str(reports_path),
+            ]
+        )
+        == 0
+    )
+    summary = json.loads(capsys.readouterr().out)
+    assert summary["total"]["passed"] == 1
+    assert summary["by_domain"] == [
+        {
+            "attempts": 1,
+            "domain": "alpha",
+            "failed": 0,
+            "failure_categories": {},
+            "mean_reward": 10.0,
+            "passed": 1,
+        }
+    ]
+
+
+def _benchmark_task(
+    task_id: str,
+    *,
+    split: BenchmarkSplit = BenchmarkSplit.DEV,
+    task_type: BenchmarkTaskType = BenchmarkTaskType.FORMAL_ONLY,
+    domain_tags: tuple[str, ...] = ("domain",),
+    allowed_sorry: bool = False,
+) -> BenchmarkTask:
+    return BenchmarkTask(
+        task_id=task_id,
+        task_type=task_type,
+        split=split,
+        difficulty="S1",
+        domain_tags=domain_tags,
+        lean_task=LeanTask(
+            task_id=task_id,
+            imports=(),
+            namespace="StatInference.Benchmarks",
+            statement="example : True := by\n  trivial",
+            allowed_sorry=allowed_sorry,
+        ),
+    )

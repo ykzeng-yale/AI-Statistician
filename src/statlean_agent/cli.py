@@ -8,7 +8,7 @@ from pathlib import Path
 from statlean_agent.agents import AGENT_REGISTRY, get_agent
 from statlean_agent.benchmarks import load_benchmarks, seed_benchmarks
 from statlean_agent.contracts import ProofAttempt, VerificationReport
-from statlean_agent.evaluation import evaluate_attempts
+from statlean_agent.evaluation import evaluate_attempts, summarize_benchmark_attempts
 from statlean_agent.orchestrator import DEFAULT_WORKFLOW
 from statlean_agent.retrieval import PremiseRecord, build_premise_index, search_premises
 from statlean_agent.serialization import dataclass_from_dict, dumps_json, read_jsonl, write_jsonl
@@ -50,6 +50,11 @@ def main(argv: list[str] | None = None) -> int:
     eval_attempts = subparsers.add_parser("eval-attempts", help="Evaluate proof attempts and reports.")
     eval_attempts.add_argument("--attempts", required=True, help="ProofAttempt JSONL path.")
     eval_attempts.add_argument("--reports", required=True, help="VerificationReport JSONL path.")
+
+    eval_summary = subparsers.add_parser("eval-summary", help="Summarize benchmark attempts by metadata.")
+    eval_summary.add_argument("--benchmarks", default="benchmarks/seeds.jsonl", help="BenchmarkTask JSONL path.")
+    eval_summary.add_argument("--attempts", required=True, help="ProofAttempt JSONL path.")
+    eval_summary.add_argument("--reports", required=True, help="VerificationReport JSONL path.")
 
     index_premises = subparsers.add_parser("index-premises", help="Index local Lean declarations.")
     index_premises.add_argument("--root", default=".", help="Repository root.")
@@ -129,6 +134,15 @@ def main(argv: list[str] | None = None) -> int:
             dataclass_from_dict(VerificationReport, record) for record in read_jsonl(Path(args.reports))
         )
         print(dumps_json(evaluate_attempts(attempts, reports)))
+        return 0
+
+    if args.command == "eval-summary":
+        tasks = load_benchmarks(Path(args.benchmarks))
+        attempts = tuple(dataclass_from_dict(ProofAttempt, record) for record in read_jsonl(Path(args.attempts)))
+        reports = tuple(
+            dataclass_from_dict(VerificationReport, record) for record in read_jsonl(Path(args.reports))
+        )
+        print(dumps_json(summarize_benchmark_attempts(tasks, attempts, reports)))
         return 0
 
     if args.command == "index-premises":

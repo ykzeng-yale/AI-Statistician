@@ -2,15 +2,18 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "PremiseRecord",
   "type": "object",
-  "required": ["name", "kind", "module", "file", "line"],
+  "required": ["name", "kind", "module", "file", "line", "full_name", "module_tags", "name_tags", "domain_tags"],
   "properties": {
     "name": {"type": "string"},
     "kind": {"type": "string"},
     "module": {"type": "string"},
     "file": {"type": "string"},
     "line": {"type": "integer"},
-    "imports": {"type": "array", "items": {"type": "string"}}
+    "full_name": {"type": "string"},
+    "imports": {"type": "array", "items": {"type": "string"}},
+    "module_tags": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "name_tags": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "domain_tags": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
   },
   "additionalProperties": false
 }
-

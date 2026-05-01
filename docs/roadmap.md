@@ -1,132 +1,113 @@
 # Roadmap
 
-## Phase 0: Repository and Toolchain
+## Current Green Baseline
 
-Target: 1 to 2 weeks.
+The repository has a usable verifier-first baseline:
 
-Deliverables:
+- Python tests pass locally through the repo virtualenv: `.venv/bin/pytest`.
+- Lean builds locally with `lake build`.
+- CI runs a strict Python smoke path and a Lean build path.
+- `StatInference/` contains seed Lean modules for asymptotics, estimators,
+  empirical process interfaces, causal interfaces, semiparametric interfaces,
+  and benchmark-facing examples.
+- `StatInferBench` has deterministic JSONL seed tasks with train/dev/test
+  splits and CLI support for regeneration, rendering, listing, and verification.
+- Retrieval is available through local premise indexing and deterministic
+  premise search.
+- Training manifest generation exists for SFT, DPO, and GRPO experiments.
 
-- Lake project pinned to Lean/mathlib.
-- Python package with typed contracts and CLI.
-- CI for Python tests and optional Lean build.
-- Agent registry with at least 12 roles.
-- Worktree strategy for code-writing agents.
+This baseline is only green if Python tests, benchmark determinism checks, and
+Lean build all pass. Do not promote documentation, code, or training artifacts
+that describe an unverified state.
 
-Go/no-go:
+## Next Milestones
 
-- `pytest` passes.
-- `statlean list-agents` works.
-- `lake build` works on a machine with Lean and mathlib cache.
+### 1. Harden `StatInference`
 
-## Phase 1: Seed Lean Library
-
-Target: month 1.
-
-Deliverables:
-
-- `StatInference.Asymptotics.Basic`
-- `StatInference.Asymptotics.Op`
-- `StatInference.Asymptotics.AsymptoticNormal`
-- `StatInference.Estimator.Basic`
-- `StatInference.Estimator.AsymptoticLinear`
-- first deterministic ERM oracle inequality.
-
-Go/no-go:
-
-- no `sorry`;
-- no unreviewed axioms;
-- no theorem statement that hides the target conclusion in assumptions.
-
-## Phase 2: Asymptotic Inference Backbone
-
-Target: months 2 to 3.
-
-Deliverables:
+Keep the library no-`sorry` and no unreviewed axioms while expanding:
 
 - mathlib-backed wrappers for convergence in probability and distribution;
 - `op(1)` and `Op(1)` calculus;
 - Slutsky and continuous mapping theorem wrappers;
-- concrete bridge from asymptotic linearity plus CLT to asymptotic normality.
+- asymptotic linearity plus CLT implying asymptotic normality;
+- first concrete estimator path, preferably Hajek/IPW ratio ATE under
+  high-level overlap and unconfoundedness assumptions.
 
-Initial statistical theorem:
+### 2. Grow `StatInferBench`
 
-```text
-asymptotic linearity + CLT + negligible remainder
-=> asymptotic normality
-```
+Move beyond seed projection tasks into theorem-hole, repair, proof-state, and
+tactic tasks. Splits must be by theorem dependency, not random rows.
 
-## Phase 3: First Concrete Estimator
-
-Target: months 3 to 4.
-
-Recommended target: Hajeck/IPW ratio estimator for ATE under high-level assumptions.
-
-Deliverables:
-
-- potential outcome interface;
-- overlap and unconfoundedness assumption interfaces;
-- ratio linearization lemma;
-- empirical average notation;
-- influence-function statement;
-- asymptotic normality theorem under abstract CLT conditions.
-
-## Phase 4: StatInferBench
-
-Target: months 4 to 5.
-
-Deliverables:
-
-- JSONL benchmark format;
-- theorem-hole tasks;
-- repair tasks;
-- proof-state/tactic tasks;
-- train/dev/test split by theorem dependency, not just random split.
-
-Metrics:
+Track at minimum:
 
 - pass@1, pass@8, pass@32;
 - valid tactic rate;
-- local lemma usage;
+- local `StatInference` lemma usage;
 - unknown identifier rate;
 - verifier calls per solved theorem;
 - proof length;
 - curation acceptance rate.
 
-## Phase 5: Baseline Evaluation
+### 3. Improve Retrieval
 
-Target: month 5.
+Make retrieval useful enough that baseline provers can find local statistics
+lemmas without hand-prompting.
 
-Baselines:
+Required work:
 
-- DeepSeek-Prover-V2 7B;
-- Kimina prover models;
-- ReProver/LeanDojo baseline;
-- whole-proof generation without retrieval;
-- retrieval-augmented proof search.
+- index theorem names, types, modules, line numbers, tags, and dependencies;
+- record which retrieved premises were used by successful proofs;
+- evaluate retrieval-augmented proof search against whole-proof generation;
+- prioritize retrieval and SFT before RL if models ignore local lemmas.
 
-Decision criterion:
+### 4. Make Training Manifests Auditable
 
-- If baseline models cannot use local `StatInference` lemmas, prioritize retrieval and SFT before RL.
+The training path is SFT, then DPO, then GRPO. Do not start RL before benchmark
+and curation gates exist.
 
-## Phase 6: Domain Training
+Manifest requirements:
 
-Target: months 5 to 6.
+- SFT examples come from verified proof traces and adjacent mathlib probability
+  tasks.
+- DPO pairs use Lean-labeled accepted/rejected attempts.
+- GRPO tasks use process rewards from Lean feedback.
+- Every manifest records source benchmark hashes, verifier status, base model,
+  and reward configuration.
 
-Training order:
+### 5. Tighten CI And Heartbeats
 
-1. SFT on local proof traces and adjacent mathlib probability proofs.
-2. DPO on Lean-labeled good/bad attempts.
-3. GRPO with process rewards from Lean.
+Strict CI should fail on:
 
-Do not start RL before the benchmark and curation gates exist.
+- Python test failures or smoke-script failures;
+- Lean build failures;
+- nondeterministic benchmark regeneration;
+- schema-invalid benchmark, verifier, or training artifacts;
+- new unapproved `sorry`, `admit`, `axiom`, or `unsafe` usage.
+
+Heartbeat monitoring should report:
+
+- agent id, worktree or branch, current task, changed files, and last validation;
+- stale agents or worktrees;
+- CI status, benchmark freshness, manifest freshness, and blocker notes;
+- unexpected edits outside an agent's allowed paths.
+
+### 6. Keep The System Human-Guided
+
+Lean checks formal validity relative to definitions and assumptions. It does not
+decide whether a statistical definition is useful, whether a theorem is
+non-vacuous, or whether a training run should be trusted.
+
+Humans must approve:
+
+- target theorem selection;
+- statistical assumptions and theorem strength;
+- promotion of lemmas into `StatInference`;
+- benchmark split policy and held-out sets;
+- baseline comparisons and training launch decisions.
 
 ## 12-Month Ambition
 
-By month 12, the system should support:
-
-- asymptotic normality for sample mean style examples;
-- an abstract M-estimation or Z-estimation consistency theorem;
-- an IPW/AIPW theorem under high-level assumptions;
-- a first `StatInferBench` paper-quality benchmark;
-- a domain-adapted prover that improves over general Lean provers on held-out statistical inference tasks.
-
+By month 12, the system should have a no-`sorry` statistics library, a
+paper-quality `StatInferBench`, retrieval-augmented prover baselines, and a
+domain-adapted prover that improves over general Lean provers on held-out
+statistical inference tasks.

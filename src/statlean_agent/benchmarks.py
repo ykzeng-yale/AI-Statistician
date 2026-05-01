@@ -137,6 +137,85 @@ SEED_BENCHMARKS: tuple[BenchmarkTask, ...] = (
         expected_premises=("StatInference.asymptotic_normality_of_bridge",),
     ),
     BenchmarkTask(
+        task_id="slutsky_bridge_projection_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.TRAIN,
+        difficulty="S1",
+        domain_tags=("convergence", "slutsky"),
+        natural_language="Apply the abstract Slutsky bridge from distributional convergence and a negligible perturbation.",
+        lean_task=LeanTask(
+            task_id="slutsky_bridge_projection_seed",
+            imports=("StatInference.Asymptotics.Convergence",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example (b : StatInference.SlutskyBridge) "
+                "(hmain : b.main_convergence.statement) "
+                "(hsmall : b.perturbation_small.statement) : "
+                "b.combined_convergence := by\n"
+                "  exact StatInference.convergence_of_slutsky_bridge b hmain hsmall"
+            ),
+            tags=("slutsky", "convergence", "bridge"),
+            dependencies=("StatInference.convergence_of_slutsky_bridge",),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=("StatInference.convergence_of_slutsky_bridge",),
+    ),
+    BenchmarkTask(
+        task_id="delta_method_bridge_projection_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S1",
+        domain_tags=("convergence", "delta_method"),
+        natural_language="Apply the abstract delta-method bridge from linearization, linear-part convergence, and negligible remainder.",
+        lean_task=LeanTask(
+            task_id="delta_method_bridge_projection_seed",
+            imports=("StatInference.Asymptotics.Convergence",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example (b : StatInference.DeltaMethodBridge) "
+                "(hlin : b.linearization_statement) "
+                "(hconv : b.linear_part_convergence.statement) "
+                "(hrem : b.remainder_small.statement) : "
+                "b.transformed_convergence := by\n"
+                "  exact StatInference.convergence_of_delta_method_bridge b hlin hconv hrem"
+            ),
+            tags=("delta_method", "convergence", "bridge"),
+            dependencies=("StatInference.convergence_of_delta_method_bridge",),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=("StatInference.convergence_of_delta_method_bridge",),
+    ),
+    BenchmarkTask(
+        task_id="asymptotic_linear_clt_bridge_projection_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S1",
+        domain_tags=("asymptotic_normality", "clt", "asymptotic_linearity"),
+        natural_language="Apply the central asymptotic-linearity plus CLT bridge.",
+        lean_task=LeanTask(
+            task_id="asymptotic_linear_clt_bridge_projection_seed",
+            imports=("StatInference.Asymptotics.Convergence",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example (b : StatInference.AsymptoticLinearCLTBridge) "
+                "(hal : b.asymptotic_linear_statement) "
+                "(hclt : b.clt.statement) "
+                "(hrem : b.negligible_remainder.statement) : "
+                "b.asymptotic_normality := by\n"
+                "  exact StatInference.asymptotic_normality_of_asymptoticLinear_clt_bridge "
+                "b hal hclt hrem"
+            ),
+            tags=("asymptotic_linearity", "clt", "bridge"),
+            dependencies=(
+                "StatInference.asymptotic_normality_of_asymptoticLinear_clt_bridge",
+            ),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=(
+            "StatInference.asymptotic_normality_of_asymptoticLinear_clt_bridge",
+        ),
+    ),
+    BenchmarkTask(
         task_id="causal_identification_bridge_projection",
         task_type=BenchmarkTaskType.FORMAL_ONLY,
         split=BenchmarkSplit.TRAIN,
@@ -330,6 +409,111 @@ SEED_BENCHMARKS: tuple[BenchmarkTask, ...] = (
             expected_patterns=("exact",),
         ),
         expected_premises=("StatInference.AsymptoticLinearEstimator.statement",),
+    ),
+    BenchmarkTask(
+        task_id="m_estimator_approximate_minimizer_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.TRAIN,
+        difficulty="S1",
+        domain_tags=("estimator_interface", "m_estimation", "erm_consistency"),
+        natural_language="Project the comparator-specific approximate-minimizer inequality from an M-estimator.",
+        lean_task=LeanTask(
+            task_id="m_estimator_approximate_minimizer_seed",
+            imports=("StatInference.Estimator.MEstimator",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Sample : Nat -> Type*} {Parameter : Type*} "
+                "(m : StatInference.MEstimator Sample Parameter) "
+                "(n : Nat) (sample : Sample n) (comparator : Parameter) : "
+                "m.empirical_risk.risk n sample (m.estimate n sample) <= "
+                "m.empirical_risk.risk n sample comparator + m.tolerance n := by\n"
+                "  exact StatInference.MEstimator.approximateMinimizer_le "
+                "m n sample comparator"
+            ),
+            tags=("m_estimator", "approximate_minimizer", "projection"),
+            dependencies=("StatInference.MEstimator.approximateMinimizer_le",),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=("StatInference.MEstimator.approximateMinimizer_le",),
+    ),
+    BenchmarkTask(
+        task_id="m_estimator_oracle_excess_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S2",
+        domain_tags=("estimator_interface", "m_estimation", "erm_consistency"),
+        natural_language="Apply the deterministic oracle excess-risk bound for an M-estimator with uniform deviation.",
+        lean_task=LeanTask(
+            task_id="m_estimator_oracle_excess_seed",
+            imports=("StatInference.Estimator.MEstimator",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Sample : Nat -> Type*} {Parameter : Type*} "
+                "(interface : StatInference.MEstimatorWithOracle Sample Parameter) "
+                "(n : Nat) (sample : Sample n) : "
+                "StatInference.excessRisk interface.populationRisk interface.oracle "
+                "(interface.m_estimator.estimate n sample) <= "
+                "2 * interface.uniform_deviation.deviation n + "
+                "interface.m_estimator.tolerance n := by\n"
+                "  exact StatInference.MEstimatorWithOracle.oracleExcessRiskBound "
+                "interface n sample"
+            ),
+            tags=("m_estimator", "oracle", "excess_risk"),
+            dependencies=("StatInference.MEstimatorWithOracle.oracleExcessRiskBound",),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=("StatInference.MEstimatorWithOracle.oracleExcessRiskBound",),
+    ),
+    BenchmarkTask(
+        task_id="z_estimator_to_m_estimator_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.TRAIN,
+        difficulty="S1",
+        domain_tags=("estimator_interface", "z_estimation", "m_estimation"),
+        natural_language="Convert a discrepancy-based Z-estimator into the corresponding M-estimator interface.",
+        lean_task=LeanTask(
+            task_id="z_estimator_to_m_estimator_seed",
+            imports=("StatInference.Estimator.ZEstimator",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Sample : Nat -> Type*} {Parameter Moment : Type*} "
+                "(z : StatInference.ZEstimator Sample Parameter Moment) : "
+                "StatInference.MEstimator Sample Parameter := by\n"
+                "  exact z.toMEstimator"
+            ),
+            tags=("z_estimator", "m_estimator", "conversion"),
+            dependencies=("StatInference.ZEstimator.toMEstimator",),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=("StatInference.ZEstimator.toMEstimator",),
+    ),
+    BenchmarkTask(
+        task_id="z_estimator_oracle_excess_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S2",
+        domain_tags=("estimator_interface", "z_estimation", "erm_consistency"),
+        natural_language="Apply the deterministic oracle excess-residual-risk bound for a Z-estimator.",
+        lean_task=LeanTask(
+            task_id="z_estimator_oracle_excess_seed",
+            imports=("StatInference.Estimator.ZEstimator",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Sample : Nat -> Type*} {Parameter Moment : Type*} "
+                "(interface : StatInference.ZEstimatorWithOracle Sample Parameter Moment) "
+                "(n : Nat) (sample : Sample n) : "
+                "StatInference.excessRisk interface.populationRisk interface.oracle "
+                "(interface.z_estimator.estimate n sample) <= "
+                "2 * interface.uniform_deviation.deviation n + "
+                "interface.z_estimator.tolerance n := by\n"
+                "  exact StatInference.ZEstimatorWithOracle.oracleExcessRiskBound "
+                "interface n sample"
+            ),
+            tags=("z_estimator", "oracle", "excess_risk"),
+            dependencies=("StatInference.ZEstimatorWithOracle.oracleExcessRiskBound",),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=("StatInference.ZEstimatorWithOracle.oracleExcessRiskBound",),
     ),
     BenchmarkTask(
         task_id="empirical_process_measurability_seed",
