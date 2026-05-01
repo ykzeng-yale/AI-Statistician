@@ -62,6 +62,56 @@ SEED_BENCHMARKS: tuple[BenchmarkTask, ...] = (
         expected_premises=("StatInference.excess_risk_bound_of_uniform_deviation",),
     ),
     BenchmarkTask(
+        task_id="erm_sequence_excess_bound_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S3",
+        domain_tags=("erm_consistency", "asymptotic_calculus"),
+        natural_language="Lift the deterministic ERM excess-risk bound to a sequence of empirical risks.",
+        lean_task=LeanTask(
+            task_id="erm_sequence_excess_bound_seed",
+            imports=("StatInference.Asymptotics.Basic",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {I : Type*} (R : I -> Real) (Rn : Nat -> I -> Real) "
+                "(fhat : Nat -> I) (f : I) (eps delta : Nat -> Real) "
+                "(h_uniform : forall n g, |Rn n g - R g| <= delta n) "
+                "(h_erm : forall n, Rn n (fhat n) <= Rn n f + eps n) : "
+                "forall n, R (fhat n) - R f <= 2 * delta n + eps n := by\n"
+                "  exact StatInference.oracle_excess_sequence_bound "
+                "R Rn fhat f eps delta h_uniform h_erm"
+            ),
+            tags=("oracle_inequality", "sequence_bound", "excess_risk"),
+            dependencies=("StatInference.oracle_excess_sequence_bound",),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=("StatInference.oracle_excess_sequence_bound",),
+    ),
+    BenchmarkTask(
+        task_id="oracle_bound_tendsto_zero_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S2",
+        domain_tags=("erm_consistency", "asymptotic_calculus", "convergence"),
+        natural_language="Show the deterministic ERM oracle bound converges to zero when both components do.",
+        lean_task=LeanTask(
+            task_id="oracle_bound_tendsto_zero_seed",
+            imports=("StatInference.Asymptotics.Basic",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example (eps delta : Nat -> Real) "
+                "(h_delta : Tendsto delta atTop (nhds 0)) "
+                "(h_eps : Tendsto eps atTop (nhds 0)) : "
+                "Tendsto (fun n => 2 * delta n + eps n) atTop (nhds 0) := by\n"
+                "  exact StatInference.oracle_bound_tendsto_zero eps delta h_delta h_eps"
+            ),
+            tags=("oracle_inequality", "tendsto", "convergence"),
+            dependencies=("StatInference.oracle_bound_tendsto_zero",),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=("StatInference.oracle_bound_tendsto_zero",),
+    ),
+    BenchmarkTask(
         task_id="asymptotic_bridge_projection",
         task_type=BenchmarkTaskType.FORMAL_ONLY,
         split=BenchmarkSplit.TRAIN,

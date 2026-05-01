@@ -47,4 +47,23 @@ theorem excess_risk_bound_of_uniform_deviation
   have h := oracle_ineq_of_uniform_deviation R Rn fhat f eps delta h_uniform h_erm
   nlinarith
 
+/-- Sequence-level excess-risk bound for approximate ERM under uniform deviation. -/
+theorem oracle_excess_sequence_bound
+    {ι : Type*} (R : ι -> ℝ) (Rn : ℕ -> ι -> ℝ) (fhat : ℕ -> ι) (f : ι)
+    (eps delta : ℕ -> ℝ)
+    (h_uniform : ∀ n g, |Rn n g - R g| ≤ delta n)
+    (h_erm : ∀ n, Rn n (fhat n) ≤ Rn n f + eps n) :
+    ∀ n, R (fhat n) - R f ≤ 2 * delta n + eps n := by
+  intro n
+  exact excess_risk_bound_of_uniform_deviation
+    R (Rn n) (fhat n) f (eps n) (delta n) (h_uniform n) (h_erm n)
+
+/-- If uniform-deviation and ERM-error bounds vanish, then their oracle bound vanishes. -/
+theorem oracle_bound_tendsto_zero
+    (eps delta : ℕ -> ℝ)
+    (h_delta : Tendsto delta atTop (𝓝 0))
+    (h_eps : Tendsto eps atTop (𝓝 0)) :
+    Tendsto (fun n => 2 * delta n + eps n) atTop (𝓝 0) := by
+  simpa using (h_delta.const_mul 2).add h_eps
+
 end StatInference

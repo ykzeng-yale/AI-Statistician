@@ -45,8 +45,8 @@ def test_cli_verify_benchmarks_allow_failures(tmp_path: Path, capsys) -> None:
         == 0
     )
     output = capsys.readouterr().out
-    assert "verified=4" in output
-    assert len(read_jsonl(output_path)) == 4
+    assert "verified=6" in output
+    assert len(read_jsonl(output_path)) == 6
 
 
 def test_cli_eval_attempts(tmp_path: Path, capsys) -> None:
