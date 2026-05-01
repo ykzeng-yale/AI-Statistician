@@ -144,7 +144,7 @@
     {
       "id": "P3",
       "name": "Asymptotic Estimator Library",
-      "status": "in_progress",
+      "status": "done",
       "objective": "Connect asymptotic linearity, CLT, Slutsky, M/Z-estimation, and influence expansion into reusable estimator proof paths.",
       "milestones": [
         {
@@ -180,16 +180,26 @@
             "benchmarks m_estimator_argmin_consistency_bound_seed and m_estimator_argmin_consistency_eventual_seed accepted locally"
           ]
         },
-        {"id": "P3.M4", "status": "pending", "name": "Delta-method theorem family for estimator transformations"}
+        {
+          "id": "P3.M4",
+          "status": "done",
+          "name": "Delta-method theorem family for estimator transformations",
+          "evidence": [
+            "StatInference.Estimator.DeltaMethod defines ParameterTransformation and DeltaMethodEstimatorRoute for transformed estimators.",
+            "DeltaMethodEstimatorRoute.toDeltaMethodBridge exposes estimator transformations as the generic delta-method bridge.",
+            "DeltaMethodEstimatorRoute.transformedConvergence proves transformed-estimator convergence from the transform relation, linear-part convergence, and negligible remainder.",
+            "benchmarks delta_method_estimator_bridge_seed and delta_method_estimator_convergence_seed accepted locally"
+          ]
+        }
       ],
       "next_actions": [
-        "Build the delta-method theorem family for estimator transformations."
+        "P3 is complete; continue to causal and semiparametric inference in P4."
       ]
     },
     {
       "id": "P4",
       "name": "Causal And Semiparametric Inference",
-      "status": "pending",
+      "status": "in_progress",
       "objective": "Build potential outcomes, IPW/AIPW/TMLE-style bridges, influence functions, and Neyman orthogonality with explicit assumptions.",
       "milestones": [
         {"id": "P4.M1", "status": "pending", "name": "ATE identification sanity and non-vacuity examples"},
@@ -198,7 +208,7 @@
         {"id": "P4.M4", "status": "pending", "name": "Influence-function asymptotic normality route"}
       ],
       "next_actions": [
-        "Start with IPW/Hajek after P1 ratio algebra and P3 asymptotic-linearity route exist."
+        "Build ATE identification sanity and non-vacuity examples."
       ]
     },
     {

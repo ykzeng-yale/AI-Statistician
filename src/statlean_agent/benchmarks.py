@@ -622,6 +622,76 @@ SEED_BENCHMARKS: tuple[BenchmarkTask, ...] = (
         expected_premises=("StatInference.convergence_of_delta_method_bridge",),
     ),
     BenchmarkTask(
+        task_id="delta_method_estimator_bridge_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S3",
+        domain_tags=("convergence", "delta_method", "estimator_transformation"),
+        natural_language=(
+            "Expose an estimator-level delta-method route as the generic "
+            "delta-method convergence bridge."
+        ),
+        lean_task=LeanTask(
+            task_id="delta_method_estimator_bridge_seed",
+            imports=("StatInference.Estimator.DeltaMethod",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Sample : Nat -> Type*} "
+                "{Parameter Transformed LinearPart Remainder : Type*} "
+                "(route : StatInference.DeltaMethodEstimatorRoute "
+                "Sample Parameter Transformed LinearPart Remainder) : "
+                "StatInference.DeltaMethodBridge := by\n"
+                "  exact StatInference.DeltaMethodEstimatorRoute.toDeltaMethodBridge "
+                "route"
+            ),
+            tags=("delta_method", "estimator_transformation", "bridge"),
+            dependencies=(
+                "StatInference.DeltaMethodEstimatorRoute.toDeltaMethodBridge",
+            ),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=(
+            "StatInference.DeltaMethodEstimatorRoute.toDeltaMethodBridge",
+        ),
+    ),
+    BenchmarkTask(
+        task_id="delta_method_estimator_convergence_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S4",
+        domain_tags=("convergence", "delta_method", "estimator_transformation"),
+        natural_language=(
+            "Apply the estimator-level delta method: the estimator-transform "
+            "relation, linear-part convergence, and negligible remainder imply "
+            "transformed-estimator convergence."
+        ),
+        lean_task=LeanTask(
+            task_id="delta_method_estimator_convergence_seed",
+            imports=("StatInference.Estimator.DeltaMethod",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Sample : Nat -> Type*} "
+                "{Parameter Transformed LinearPart Remainder : Type*} "
+                "(route : StatInference.DeltaMethodEstimatorRoute "
+                "Sample Parameter Transformed LinearPart Remainder) "
+                "(h_transform : route.estimator_transformation_statement) "
+                "(h_linear : route.linear_part_convergence.statement) "
+                "(h_remainder : route.remainder_small.statement) : "
+                "route.transformed_convergence := by\n"
+                "  exact StatInference.DeltaMethodEstimatorRoute.transformedConvergence "
+                "route h_transform h_linear h_remainder"
+            ),
+            tags=("delta_method", "estimator_transformation", "convergence"),
+            dependencies=(
+                "StatInference.DeltaMethodEstimatorRoute.transformedConvergence",
+            ),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=(
+            "StatInference.DeltaMethodEstimatorRoute.transformedConvergence",
+        ),
+    ),
+    BenchmarkTask(
         task_id="asymptotic_linear_clt_bridge_projection_seed",
         task_type=BenchmarkTaskType.FORMAL_ONLY,
         split=BenchmarkSplit.DEV,
