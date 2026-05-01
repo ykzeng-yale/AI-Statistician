@@ -100,9 +100,9 @@ SEED_BENCHMARKS: tuple[BenchmarkTask, ...] = (
             namespace="StatInference.Benchmarks",
             statement=(
                 "example (eps delta : Nat -> Real) "
-                "(h_delta : Tendsto delta atTop (nhds 0)) "
-                "(h_eps : Tendsto eps atTop (nhds 0)) : "
-                "Tendsto (fun n => 2 * delta n + eps n) atTop (nhds 0) := by\n"
+                "(h_delta : Filter.Tendsto delta Filter.atTop (nhds 0)) "
+                "(h_eps : Filter.Tendsto eps Filter.atTop (nhds 0)) : "
+                "Filter.Tendsto (fun n => 2 * delta n + eps n) Filter.atTop (nhds 0) := by\n"
                 "  exact StatInference.oracle_bound_tendsto_zero eps delta h_delta h_eps"
             ),
             tags=("oracle_inequality", "tendsto", "convergence"),

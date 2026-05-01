@@ -6,6 +6,7 @@ import StatInference
 
 namespace StatInference.Benchmarks
 
+open Filter
 open StatInference
 
 example {ι : Type*} (R Rn : ι -> ℝ) (fhat f : ι) (eps delta : ℝ)

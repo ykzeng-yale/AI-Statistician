@@ -11,6 +11,7 @@ new axioms.
 
 namespace StatInference
 
+open Filter
 open scoped Topology
 
 /-- A marker that a proposition has been verified by Lean. This is intentionally
