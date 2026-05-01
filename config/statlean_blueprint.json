@@ -315,7 +315,7 @@
     {
       "id": "P6",
       "name": "Domain Adaptation Training Pipeline",
-      "status": "in_progress",
+      "status": "done",
       "objective": "Prepare auditable SFT, DPO, and GRPO data generation from verified traces and Lean-labeled attempts.",
       "milestones": [
         {
@@ -355,16 +355,26 @@
             "schemas/grpo_process_task.schema.json documents the process-task artifact and tests enforce reward-policy/verifier metadata."
           ]
         },
-        {"id": "P6.M4", "status": "pending", "name": "Baseline prover comparison on held-out StatInferBench"}
+        {
+          "id": "P6.M4",
+          "status": "done",
+          "name": "Baseline prover comparison on held-out StatInferBench",
+          "evidence": [
+            "compare_baseline_on_split records held-out split metrics, per-task effective verifier status, reward components, failure category, expected-premise recall, and allowed-placeholder policy.",
+            "baseline-comparison CLI generated artifacts/evaluation/heldout-baseline.json for the seed-registry baseline on the test split.",
+            "The checked-in held-out report covers 2/2 test tasks, passes 2/2, reports pass_rate=1.0, mean_premise_recall=1.0, and contains no failure categories.",
+            "schemas/baseline_comparison.schema.json documents the baseline comparison artifact shape and tests enforce checked-in held-out coverage."
+          ]
+        }
       ],
       "next_actions": [
-        "Run a baseline comparison over held-out StatInferBench tasks and record pass/fail metrics for the seed-registry/verifier baseline."
+        "P6 is complete; continue to curator-gated progressive library growth in P7."
       ]
     },
     {
       "id": "P7",
       "name": "Progressive Library Growth",
-      "status": "pending",
+      "status": "in_progress",
       "objective": "Add a curator-gated mechanism for lemma mining, duplicate detection, non-vacuity examples, and downstream-use tracking.",
       "milestones": [
         {"id": "P7.M1", "status": "pending", "name": "Lemma proposal schema"},

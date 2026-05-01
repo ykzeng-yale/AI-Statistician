@@ -12,7 +12,7 @@ from statlean_agent.contracts import (
     VerificationReport,
     VerificationStatus,
 )
-from statlean_agent.evaluation import evaluate_attempts, summarize_benchmark_attempts
+from statlean_agent.evaluation import compare_baseline_on_split, evaluate_attempts, summarize_benchmark_attempts
 from statlean_agent.serialization import dataclass_from_dict, read_jsonl, write_jsonl
 
 
@@ -195,6 +195,52 @@ def test_summarize_benchmark_attempts_categorizes_policy_violation() -> None:
     assert allowed_summary["total"]["failure_categories"] == {}
 
 
+def test_compare_baseline_on_split_records_heldout_rows() -> None:
+    tasks = (
+        _benchmark_task(
+            "train-task",
+            split=BenchmarkSplit.TRAIN,
+            domain_tags=("asymptotic_calculus",),
+        ),
+        _benchmark_task(
+            "test-task",
+            split=BenchmarkSplit.TEST,
+            domain_tags=("empirical_process",),
+        ),
+    )
+    attempts = (
+        ProofAttempt("train-task", "seed-registry", "theorem train : True := by trivial"),
+        ProofAttempt(
+            "test-task",
+            "seed-registry",
+            "theorem test : True := by trivial",
+            premises_used=("StatInference.seed",),
+        ),
+    )
+    reports = (
+        VerificationReport("train-task", VerificationStatus.ACCEPTED),
+        VerificationReport("test-task", VerificationStatus.ACCEPTED, locally_valid_steps=1),
+    )
+
+    comparison = compare_baseline_on_split(
+        tasks,
+        attempts,
+        reports,
+        baseline="seed-registry",
+        split="test",
+    )
+
+    assert comparison["comparison_id"] == "seed-registry::test"
+    assert comparison["benchmark_task_count"] == 1
+    assert comparison["passed"] == 1
+    assert comparison["failed"] == 0
+    assert comparison["pass_rate"] == 1.0
+    assert comparison["status_counts"]["accepted"] == 1
+    assert comparison["rows"][0]["task_id"] == "test-task"
+    assert comparison["rows"][0]["split"] == "test"
+    assert comparison["rows"][0]["effective_status"] == "accepted"
+
+
 def test_cli_eval_summary(tmp_path: Path, capsys) -> None:
     benchmarks_path = tmp_path / "benchmarks.jsonl"
     attempts_path = tmp_path / "attempts.jsonl"
@@ -252,6 +298,61 @@ def test_cli_eval_summary(tmp_path: Path, capsys) -> None:
     assert json.loads(summary_path.read_text(encoding="utf-8")) == summary
 
 
+def test_cli_baseline_comparison(tmp_path: Path, capsys) -> None:
+    benchmarks_path = tmp_path / "benchmarks.jsonl"
+    attempts_path = tmp_path / "attempts.jsonl"
+    reports_path = tmp_path / "reports.jsonl"
+    comparison_path = tmp_path / "comparison.json"
+    write_jsonl(
+        benchmarks_path,
+        [_benchmark_task("task", split=BenchmarkSplit.TEST, domain_tags=("alpha",))],
+    )
+    write_jsonl(attempts_path, [ProofAttempt("task", "seed-registry", "theorem ok : True := by trivial")])
+    write_jsonl(reports_path, [VerificationReport("task", VerificationStatus.ACCEPTED)])
+
+    assert (
+        main(
+            [
+                "baseline-comparison",
+                "--benchmarks",
+                str(benchmarks_path),
+                "--attempts",
+                str(attempts_path),
+                "--reports",
+                str(reports_path),
+                "--split",
+                "test",
+            ]
+        )
+        == 0
+    )
+    comparison = json.loads(capsys.readouterr().out)
+    assert comparison["baseline"] == "seed-registry"
+    assert comparison["benchmark_task_count"] == 1
+    assert comparison["passed"] == 1
+
+    assert (
+        main(
+            [
+                "baseline-comparison",
+                "--benchmarks",
+                str(benchmarks_path),
+                "--attempts",
+                str(attempts_path),
+                "--reports",
+                str(reports_path),
+                "--split",
+                "test",
+                "--output",
+                str(comparison_path),
+            ]
+        )
+        == 0
+    )
+    assert "wrote" in capsys.readouterr().out
+    assert json.loads(comparison_path.read_text(encoding="utf-8")) == comparison
+
+
 def test_checked_in_eval_artifacts_cover_current_seed_registry() -> None:
     attempts = tuple(
         dataclass_from_dict(ProofAttempt, record)
@@ -278,6 +379,30 @@ def test_checked_in_eval_artifacts_cover_current_seed_registry() -> None:
     by_task_type = {row["task_type"]: row for row in summary["by_task_type"]}
     assert by_task_type["subgoal_completion"]["attempts"] == 3
     assert by_task_type["subgoal_completion"]["passed"] == 3
+
+
+def test_checked_in_heldout_baseline_artifact() -> None:
+    comparison = json.loads(Path("artifacts/evaluation/heldout-baseline.json").read_text(encoding="utf-8"))
+    schema = json.loads(Path("schemas/baseline_comparison.schema.json").read_text(encoding="utf-8"))
+    test_ids = [task.task_id for task in SEED_BENCHMARKS if task.split is BenchmarkSplit.TEST]
+
+    assert comparison["baseline"] == "seed-registry"
+    assert comparison["split"] == "test"
+    assert comparison["task_ids"] == test_ids
+    assert comparison["benchmark_task_count"] == len(test_ids)
+    assert comparison["passed"] == len(test_ids)
+    assert comparison["failed"] == 0
+    assert comparison["pass_rate"] == 1.0
+    assert comparison["status_counts"] == {
+        "accepted": len(test_ids),
+        "rejected": 0,
+        "timeout": 0,
+        "error": 0,
+    }
+    assert all(row["effective_status"] == "accepted" for row in comparison["rows"])
+    assert all(row["agent_key"] == "seed-registry" for row in comparison["rows"])
+    assert all(row["premise_recall"] == 1.0 for row in comparison["rows"])
+    assert set(comparison) <= set(schema["properties"])
 
 
 def _benchmark_task(

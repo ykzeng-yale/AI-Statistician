@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BaselineComparison",
+  "type": "object",
+  "required": [
+    "comparison_id",
+    "baseline",
+    "split",
+    "benchmark_task_count",
+    "passed",
+    "failed",
+    "pass_rate",
+    "mean_reward",
+    "mean_premise_recall",
+    "status_counts",
+    "failure_categories",
+    "task_ids",
+    "rows"
+  ],
+  "properties": {
+    "comparison_id": {"type": "string"},
+    "baseline": {"type": "string"},
+    "split": {"type": "string"},
+    "benchmark_task_count": {"type": "integer", "minimum": 0},
+    "passed": {"type": "integer", "minimum": 0},
+    "failed": {"type": "integer", "minimum": 0},
+    "pass_rate": {"type": "number", "minimum": 0, "maximum": 1},
+    "mean_reward": {"type": "number"},
+    "mean_premise_recall": {"type": "number", "minimum": 0, "maximum": 1},
+    "status_counts": {
+      "type": "object",
+      "required": ["accepted", "rejected", "timeout", "error"],
+      "properties": {
+        "accepted": {"type": "integer", "minimum": 0},
+        "rejected": {"type": "integer", "minimum": 0},
+        "timeout": {"type": "integer", "minimum": 0},
+        "error": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "failure_categories": {
+      "type": "object",
+      "additionalProperties": {"type": "integer", "minimum": 1}
+    },
+    "task_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "task_id",
+          "task_type",
+          "split",
+          "difficulty",
+          "domain_tags",
+          "agent_key",
+          "reported_status",
+          "effective_status",
+          "passed",
+          "reward",
+          "reward_components",
+          "first_error",
+          "failure_category",
+          "expected_premises",
+          "premises_used",
+          "premise_recall",
+          "allowed_placeholders"
+        ],
+        "properties": {
+          "task_id": {"type": "string"},
+          "task_type": {"type": "string"},
+          "split": {"type": "string"},
+          "difficulty": {"type": "string"},
+          "domain_tags": {"type": "array", "items": {"type": "string"}},
+          "agent_key": {"type": "string"},
+          "reported_status": {"type": "string"},
+          "effective_status": {"type": "string"},
+          "passed": {"type": "boolean"},
+          "reward": {"type": "number"},
+          "reward_components": {
+            "type": "object",
+            "additionalProperties": {"type": "number"}
+          },
+          "first_error": {"type": ["string", "null"]},
+          "failure_category": {"type": ["string", "null"]},
+          "expected_premises": {"type": "array", "items": {"type": "string"}},
+          "premises_used": {"type": "array", "items": {"type": "string"}},
+          "premise_recall": {"type": "number", "minimum": 0, "maximum": 1},
+          "allowed_placeholders": {"type": "array", "items": {"type": "string"}}
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

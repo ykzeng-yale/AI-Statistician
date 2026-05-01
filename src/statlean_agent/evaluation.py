@@ -159,6 +159,121 @@ def summarize_benchmark_attempts(
     }
 
 
+def compare_baseline_on_split(
+    tasks: tuple[BenchmarkTask, ...],
+    attempts: tuple[ProofAttempt, ...],
+    reports: tuple[VerificationReport, ...],
+    *,
+    baseline: str,
+    split: str,
+    allowed_placeholders_by_task: Mapping[str, Iterable[str]] | None = None,
+) -> dict[str, object]:
+    """Build a held-out baseline report from paired attempts and verifier reports."""
+
+    if len(attempts) != len(reports):
+        raise ValueError("attempts and reports must have the same length")
+
+    task_by_id = _task_index(tasks)
+    split_tasks = tuple(task for task in tasks if _enum_value(task.split) == split)
+    if not split_tasks:
+        raise ValueError(f"no benchmark tasks found for split `{split}`")
+
+    pairs_by_task: dict[str, tuple[ProofAttempt, VerificationReport]] = {}
+    for attempt, report in zip(attempts, reports, strict=True):
+        if attempt.agent_key != baseline:
+            continue
+        if attempt.task_id in pairs_by_task:
+            raise ValueError(f"duplicate attempt for baseline `{baseline}` and task `{attempt.task_id}`")
+        pairs_by_task[attempt.task_id] = (attempt, report)
+
+    allowed_by_task = _allowed_placeholders_by_task(tasks)
+    if allowed_placeholders_by_task is not None:
+        allowed_by_task.update({
+            task_id: tuple(tokens)
+            for task_id, tokens in allowed_placeholders_by_task.items()
+        })
+
+    rows: list[dict[str, object]] = []
+    status_counts = _empty_status_counts()
+    reward_total = 0.0
+    premise_recall_total = 0.0
+    failure_categories: dict[str, int] = {}
+
+    for task in split_tasks:
+        pair = pairs_by_task.get(task.task_id)
+        if pair is None:
+            raise ValueError(f"missing attempt for baseline `{baseline}` and task `{task.task_id}`")
+        attempt, report = pair
+        if report.task_id != attempt.task_id:
+            raise ValueError(
+                f"attempt `{attempt.task_id}` paired with report for `{report.task_id}`"
+            )
+        if task_by_id.get(attempt.task_id) is None:
+            raise ValueError(f"unknown benchmark task id: {attempt.task_id}")
+
+        allowed_placeholders = tuple(allowed_by_task.get(task.task_id, ()))
+        effective_status, reward_breakdown, first_error, violations = _evaluate_attempt_record(
+            attempt,
+            report,
+            allowed_placeholders=allowed_placeholders,
+        )
+        failure_category = _failure_category(
+            effective_status,
+            first_error=first_error,
+            diagnostics=report.diagnostics,
+            violations=violations,
+        )
+        if failure_category:
+            failure_categories[failure_category] = failure_categories.get(failure_category, 0) + 1
+
+        expected_premises = tuple(task.expected_premises)
+        premises_used = tuple(attempt.premises_used)
+        premise_recall = _premise_recall(expected_premises, premises_used)
+        premise_recall_total += premise_recall
+        status_counts[effective_status.value] += 1
+        reward_total += reward_breakdown.total
+
+        rows.append(
+            {
+                "task_id": task.task_id,
+                "task_type": _enum_value(task.task_type),
+                "split": _enum_value(task.split),
+                "difficulty": task.difficulty,
+                "domain_tags": list(task.domain_tags),
+                "agent_key": attempt.agent_key,
+                "reported_status": _enum_value(report.status),
+                "effective_status": effective_status.value,
+                "passed": effective_status is VerificationStatus.ACCEPTED,
+                "reward": reward_breakdown.total,
+                "reward_components": dict(sorted(reward_breakdown.components.items())),
+                "first_error": first_error,
+                "failure_category": failure_category,
+                "expected_premises": list(expected_premises),
+                "premises_used": list(premises_used),
+                "premise_recall": premise_recall,
+                "allowed_placeholders": list(allowed_placeholders),
+            }
+        )
+
+    total = len(rows)
+    passed = status_counts[VerificationStatus.ACCEPTED.value]
+    return {
+        "comparison_id": f"{baseline}::{split}",
+        "baseline": baseline,
+        "split": split,
+        "benchmark_task_count": total,
+        "passed": passed,
+        "failed": total - passed,
+        "pass_rate": passed / total if total else 0.0,
+        "mean_reward": reward_total / total if total else 0.0,
+        "mean_premise_recall": premise_recall_total / total if total else 0.0,
+        "status_counts": status_counts,
+        "failure_categories": dict(sorted(failure_categories.items())),
+        "task_ids": [row["task_id"] for row in rows],
+        "rows": rows,
+    }
+
+
 @dataclass
 class _SummaryBucket:
     attempts: int = 0
@@ -382,3 +497,10 @@ def _normalize_status(
 
     diagnostics.append(f"{task_id}: unknown verification status `{status}` counted as error")
     return VerificationStatus.ERROR
+
+
+def _premise_recall(expected: tuple[str, ...], used: tuple[str, ...]) -> float:
+    if not expected:
+        return 1.0
+    used_set = set(used)
+    return sum(1 for premise in expected if premise in used_set) / len(expected)

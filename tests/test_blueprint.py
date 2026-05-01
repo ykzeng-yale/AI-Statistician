@@ -10,10 +10,10 @@ def test_real_blueprint_selects_next_unfinished_milestone() -> None:
     status = blueprint_status(blueprint)
 
     assert status["valid"] is True
-    assert status["current_phase"]["id"] == "P6"
-    assert status["current_milestone"]["id"] == "P6.M4"
+    assert status["current_phase"]["id"] == "P7"
+    assert status["current_milestone"]["id"] == "P7.M1"
     assert "continue" in render_blueprint_status(blueprint)
-    assert any("baseline comparison" in action for action in status["next_actions"])
+    assert any("lemma" in action.lower() for action in status["next_actions"])
 
 
 def test_blueprint_validation_rejects_duplicate_ids_and_bad_status() -> None:

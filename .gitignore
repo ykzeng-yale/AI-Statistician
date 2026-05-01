@@ -23,6 +23,7 @@ artifacts/*
 !artifacts/evaluation/
 !artifacts/evaluation/benchmark-seed-attempts.jsonl
 !artifacts/evaluation/benchmark-seed-summary.json
+!artifacts/evaluation/heldout-baseline.json
 !artifacts/curation/
 !artifacts/curation/theorem-hole-ledger.jsonl
 !artifacts/training/
