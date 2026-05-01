@@ -10,3 +10,4 @@ import StatInference.Estimator.ZEstimator
 import StatInference.Causal.PotentialOutcomes
 import StatInference.Semiparametric.InfluenceFunction
 import StatInference.EmpiricalProcess.Basic
+import StatInference.EmpiricalProcess.Average

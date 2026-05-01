@@ -91,13 +91,22 @@
       "status": "in_progress",
       "objective": "Build empirical measures, finite-class GC, covering-number interfaces, and the first reusable Glivenko-Cantelli theorem family.",
       "milestones": [
-        {"id": "P2.M1", "status": "pending", "name": "Empirical average and empirical risk notation"},
+        {
+          "id": "P2.M1",
+          "status": "done",
+          "name": "Empirical average and empirical risk notation",
+          "evidence": [
+            "StatInference.EmpiricalProcess.Average defines empiricalAverage, empiricalRiskOfLoss, indexedEmpiricalRiskOfLoss, and empiricalRiskSequenceOfSamples.",
+            "StatInference.empiricalRiskSequence_excess_bound_of_uniform_deviation connects loss-based empirical risk notation to the deterministic ERM excess-risk theorem.",
+            "benchmarks empirical_average_unfold_seed and empirical_risk_sequence_oracle_seed accepted locally"
+          ]
+        },
         {"id": "P2.M2", "status": "pending", "name": "Finite union/finite class uniform deviation bound interface"},
         {"id": "P2.M3", "status": "pending", "name": "GC class preservation for subclasses/projections"},
         {"id": "P2.M4", "status": "pending", "name": "Covering-number and Rademacher-compatible benchmark tasks"}
       ],
       "next_actions": [
-        "Build empirical average and empirical risk notation on top of the completed P1 deterministic theorem layer."
+        "Build the finite-union and finite-class uniform deviation interface on top of empirical risk notation."
       ]
     },
     {

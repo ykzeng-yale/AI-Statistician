@@ -273,6 +273,75 @@ SEED_BENCHMARKS: tuple[BenchmarkTask, ...] = (
         expected_premises=("StatInference.scaled_hajekRatio_sub_target_eq_residual_div",),
     ),
     BenchmarkTask(
+        task_id="empirical_average_unfold_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S2",
+        domain_tags=("empirical_process", "empirical_average", "notation"),
+        natural_language=(
+            "Unfold the empirical average notation into a finite sample sum "
+            "divided by sample size."
+        ),
+        lean_task=LeanTask(
+            task_id="empirical_average_unfold_seed",
+            imports=("StatInference.EmpiricalProcess.Average",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Observation : Type*} {n : Nat} "
+                "(sample : StatInference.SampleAt Observation n) "
+                "(statistic : Observation -> Real) : "
+                "StatInference.empiricalAverage sample statistic = "
+                "(Finset.sum Finset.univ (fun i : Fin n => statistic (sample i))) / "
+                "(n : Real) := by\n"
+                "  exact StatInference.empiricalAverage_eq_sum_div sample statistic"
+            ),
+            tags=("empirical_average", "finite_sample_sum", "notation"),
+            dependencies=("StatInference.empiricalAverage_eq_sum_div",),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=("StatInference.empiricalAverage_eq_sum_div",),
+    ),
+    BenchmarkTask(
+        task_id="empirical_risk_sequence_oracle_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S4",
+        domain_tags=("empirical_process", "empirical_risk", "erm_consistency"),
+        natural_language=(
+            "Use empirical risk generated from a loss and sample sequence as "
+            "the empirical-risk input to the deterministic ERM excess bound."
+        ),
+        lean_task=LeanTask(
+            task_id="empirical_risk_sequence_oracle_seed",
+            imports=("StatInference.EmpiricalProcess.Average",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Observation Candidate : Type*} "
+                "(samples : forall n, StatInference.SampleAt Observation n) "
+                "(loss : Candidate -> Observation -> Real) "
+                "(populationRisk : Candidate -> Real) "
+                "(fhat : Nat -> Candidate) (comparator : Candidate) "
+                "(eps radius : Nat -> Real) "
+                "(h_uniform : StatInference.EmpiricalDeviationSequence "
+                "populationRisk "
+                "(StatInference.empiricalRiskSequenceOfSamples samples loss) radius) "
+                "(h_erm : forall n, "
+                "StatInference.empiricalRiskSequenceOfSamples samples loss n (fhat n) <= "
+                "StatInference.empiricalRiskSequenceOfSamples samples loss n comparator + eps n) : "
+                "forall n, populationRisk (fhat n) - populationRisk comparator <= "
+                "2 * radius n + eps n := by\n"
+                "  exact StatInference.empiricalRiskSequence_excess_bound_of_uniform_deviation "
+                "samples loss populationRisk fhat comparator eps radius h_uniform h_erm"
+            ),
+            tags=("empirical_risk", "loss", "oracle_inequality"),
+            dependencies=("StatInference.empiricalRiskSequence_excess_bound_of_uniform_deviation",),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=(
+            "StatInference.empiricalRiskSequence_excess_bound_of_uniform_deviation",
+        ),
+    ),
+    BenchmarkTask(
         task_id="asymptotic_bridge_projection",
         task_type=BenchmarkTaskType.FORMAL_ONLY,
         split=BenchmarkSplit.TRAIN,
