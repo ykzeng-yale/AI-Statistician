@@ -652,6 +652,77 @@ SEED_BENCHMARKS: tuple[BenchmarkTask, ...] = (
         ),
     ),
     BenchmarkTask(
+        task_id="indexed_asymptotic_linear_clt_route_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S4",
+        domain_tags=("asymptotic_normality", "clt", "asymptotic_linearity"),
+        natural_language=(
+            "Apply the explicit indexed estimator route: expansion match, "
+            "expansion statement, negligible remainder, and CLT imply "
+            "asymptotic normality."
+        ),
+        lean_task=LeanTask(
+            task_id="indexed_asymptotic_linear_clt_route_seed",
+            imports=("StatInference.Estimator.Normality",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Sample : Nat -> Type*} "
+                "{Parameter InfluenceFunction LinearPart Remainder : Type*} "
+                "(route : StatInference.IndexedAsymptoticLinearCLTRoute "
+                "Sample Parameter InfluenceFunction LinearPart Remainder) "
+                "(h_match : route.estimator.estimator_matches_expansion) "
+                "(h_expansion : route.estimator.expansion.expansion_statement) "
+                "(h_remainder : route.estimator.remainder_negligible.statement) "
+                "(h_clt : route.clt.statement) : "
+                "route.asymptotic_normality := by\n"
+                "  exact StatInference.IndexedAsymptoticLinearCLTRoute.asymptoticNormal "
+                "route h_match h_expansion h_remainder h_clt"
+            ),
+            tags=("indexed_estimator", "asymptotic_linearity", "clt_route"),
+            dependencies=(
+                "StatInference.IndexedAsymptoticLinearCLTRoute.asymptoticNormal",
+            ),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=(
+            "StatInference.IndexedAsymptoticLinearCLTRoute.asymptoticNormal",
+        ),
+    ),
+    BenchmarkTask(
+        task_id="indexed_asymptotic_linear_clt_bridge_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S3",
+        domain_tags=("asymptotic_normality", "clt", "bridge"),
+        natural_language=(
+            "Expose an explicit indexed asymptotic-linearity route as the "
+            "generic asymptotic-linearity plus CLT bridge."
+        ),
+        lean_task=LeanTask(
+            task_id="indexed_asymptotic_linear_clt_bridge_seed",
+            imports=("StatInference.Estimator.Normality",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Sample : Nat -> Type*} "
+                "{Parameter InfluenceFunction LinearPart Remainder : Type*} "
+                "(route : StatInference.IndexedAsymptoticLinearCLTRoute "
+                "Sample Parameter InfluenceFunction LinearPart Remainder) : "
+                "StatInference.AsymptoticLinearCLTBridge := by\n"
+                "  exact StatInference.IndexedAsymptoticLinearCLTRoute.toAsymptoticLinearCLTBridge "
+                "route"
+            ),
+            tags=("indexed_estimator", "clt_bridge", "normality_route"),
+            dependencies=(
+                "StatInference.IndexedAsymptoticLinearCLTRoute.toAsymptoticLinearCLTBridge",
+            ),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=(
+            "StatInference.IndexedAsymptoticLinearCLTRoute.toAsymptoticLinearCLTBridge",
+        ),
+    ),
+    BenchmarkTask(
         task_id="causal_identification_bridge_projection",
         task_type=BenchmarkTaskType.FORMAL_ONLY,
         split=BenchmarkSplit.TRAIN,

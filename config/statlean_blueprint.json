@@ -147,13 +147,23 @@
       "status": "in_progress",
       "objective": "Connect asymptotic linearity, CLT, Slutsky, M/Z-estimation, and influence expansion into reusable estimator proof paths.",
       "milestones": [
-        {"id": "P3.M1", "status": "pending", "name": "Asymptotic linearity plus CLT theorem with explicit assumptions"},
+        {
+          "id": "P3.M1",
+          "status": "done",
+          "name": "Asymptotic linearity plus CLT theorem with explicit assumptions",
+          "evidence": [
+            "StatInference.Estimator.Normality defines IndexedAsymptoticLinearCLTRoute with explicit estimator expansion, CLT, negligible remainder, and normality bridge fields.",
+            "IndexedAsymptoticLinearCLTRoute.asymptoticLinear extracts asymptotic linearity from expansion matching, expansion proof, and negligible remainder.",
+            "IndexedAsymptoticLinearCLTRoute.asymptoticNormal proves expansion + negligible remainder + CLT imply the route's asymptotic-normality statement.",
+            "benchmarks indexed_asymptotic_linear_clt_route_seed and indexed_asymptotic_linear_clt_bridge_seed accepted locally"
+          ]
+        },
         {"id": "P3.M2", "status": "pending", "name": "Z-estimator differentiability/linearization bridge"},
         {"id": "P3.M3", "status": "pending", "name": "M-estimator argmin consistency bridge"},
         {"id": "P3.M4", "status": "pending", "name": "Delta-method theorem family for estimator transformations"}
       ],
       "next_actions": [
-        "Build the asymptotic linearity plus CLT theorem with explicit assumptions."
+        "Build the Z-estimator differentiability/linearization bridge on top of the explicit asymptotic-normality route."
       ]
     },
     {
