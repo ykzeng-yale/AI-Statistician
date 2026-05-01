@@ -24,6 +24,7 @@ artifacts/*
 !artifacts/evaluation/benchmark-seed-attempts.jsonl
 !artifacts/evaluation/benchmark-seed-summary.json
 !artifacts/evaluation/heldout-baseline.json
+!artifacts/evaluation/paper-quality-heldout.json
 !artifacts/curation/
 !artifacts/curation/theorem-hole-ledger.jsonl
 !artifacts/curation/lemma-proposals.jsonl

@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PaperQualityHeldoutReport",
+  "type": "object",
+  "required": [
+    "report_id",
+    "baseline",
+    "split",
+    "heldout_task_count",
+    "heldout_pass_rate",
+    "heldout_domains",
+    "failure_taxonomy",
+    "baseline_comparison",
+    "non_seed_proof_chains",
+    "non_seed_chain_count",
+    "non_seed_chain_passed",
+    "non_seed_chain_pass_rate",
+    "notes"
+  ],
+  "properties": {
+    "report_id": {"type": "string"},
+    "baseline": {"type": "string"},
+    "split": {"type": "string"},
+    "heldout_task_count": {"type": "integer"},
+    "heldout_pass_rate": {"type": "number"},
+    "heldout_domains": {"type": "array", "items": {"type": "string"}},
+    "failure_taxonomy": {"type": "object"},
+    "baseline_comparison": {"type": "object"},
+    "non_seed_proof_chains": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "chain_id",
+          "name",
+          "source_module",
+          "benchmark_task_ids",
+          "required_declarations",
+          "accepted_task_ids",
+          "missing_task_ids",
+          "pass_rate",
+          "status"
+        ],
+        "properties": {
+          "chain_id": {"type": "string"},
+          "name": {"type": "string"},
+          "source_module": {"type": "string"},
+          "benchmark_task_ids": {"type": "array", "items": {"type": "string"}},
+          "required_declarations": {"type": "array", "items": {"type": "string"}},
+          "accepted_task_ids": {"type": "array", "items": {"type": "string"}},
+          "missing_task_ids": {"type": "array", "items": {"type": "string"}},
+          "pass_rate": {"type": "number"},
+          "status": {"type": "string"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "non_seed_chain_count": {"type": "integer"},
+    "non_seed_chain_passed": {"type": "integer"},
+    "non_seed_chain_pass_rate": {"type": "number"},
+    "notes": {"type": "string"}
+  },
+  "additionalProperties": false
+}

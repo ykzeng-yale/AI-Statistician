@@ -21,7 +21,12 @@ from statlean_agent.curation import (
     build_theorem_hole_lemma_ledger,
     build_theorem_hole_lemma_proposals,
 )
-from statlean_agent.evaluation import compare_baseline_on_split, evaluate_attempts, summarize_benchmark_attempts
+from statlean_agent.evaluation import (
+    build_paper_quality_heldout_report,
+    compare_baseline_on_split,
+    evaluate_attempts,
+    summarize_benchmark_attempts,
+)
 from statlean_agent.orchestrator import DEFAULT_WORKFLOW
 from statlean_agent.retrieval import PremiseRecord, build_premise_index, search_premises
 from statlean_agent.serialization import dataclass_from_dict, dumps_json, read_jsonl, write_jsonl
@@ -108,6 +113,21 @@ def main(argv: list[str] | None = None) -> int:
     baseline_compare.add_argument("--baseline", default="seed-registry", help="ProofAttempt agent_key to evaluate.")
     baseline_compare.add_argument("--split", default="test", help="Benchmark split to evaluate.")
     baseline_compare.add_argument("--output", help="Optional comparison JSON output path.")
+
+    paper_heldout = subparsers.add_parser(
+        "paper-quality-heldout",
+        help="Build a paper-quality held-out report with proof-chain coverage.",
+    )
+    paper_heldout.add_argument("--benchmarks", default="benchmarks/seeds.jsonl", help="BenchmarkTask JSONL path.")
+    paper_heldout.add_argument("--attempts", required=True, help="ProofAttempt JSONL path.")
+    paper_heldout.add_argument("--reports", required=True, help="VerificationReport JSONL path.")
+    paper_heldout.add_argument("--baseline", default="seed-registry", help="ProofAttempt agent_key to evaluate.")
+    paper_heldout.add_argument("--split", default="test", help="Benchmark split to evaluate.")
+    paper_heldout.add_argument(
+        "--output",
+        default="artifacts/evaluation/paper-quality-heldout.json",
+        help="Output paper-quality held-out JSON path.",
+    )
 
     lemma_ledger = subparsers.add_parser(
         "build-lemma-ledger",
@@ -403,6 +423,29 @@ def main(argv: list[str] | None = None) -> int:
             print(f"wrote {output}")
         else:
             print(encoded)
+        return 0
+
+    if args.command == "paper-quality-heldout":
+        tasks = load_benchmarks(Path(args.benchmarks))
+        attempts = tuple(dataclass_from_dict(ProofAttempt, record) for record in read_jsonl(Path(args.attempts)))
+        reports = tuple(
+            dataclass_from_dict(VerificationReport, record) for record in read_jsonl(Path(args.reports))
+        )
+        report = build_paper_quality_heldout_report(
+            tasks,
+            attempts,
+            reports,
+            baseline=args.baseline,
+            split=args.split,
+        )
+        output = Path(args.output)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(dumps_json(report) + "\n", encoding="utf-8")
+        print(
+            f"wrote {output} heldout_tasks={report['heldout_task_count']} "
+            f"heldout_pass_rate={report['heldout_pass_rate']} "
+            f"non_seed_chains={report['non_seed_chain_passed']}/{report['non_seed_chain_count']}"
+        )
         return 0
 
     if args.command == "build-lemma-ledger":

@@ -12,7 +12,12 @@ from statlean_agent.contracts import (
     VerificationReport,
     VerificationStatus,
 )
-from statlean_agent.evaluation import compare_baseline_on_split, evaluate_attempts, summarize_benchmark_attempts
+from statlean_agent.evaluation import (
+    build_paper_quality_heldout_report,
+    compare_baseline_on_split,
+    evaluate_attempts,
+    summarize_benchmark_attempts,
+)
 from statlean_agent.serialization import dataclass_from_dict, read_jsonl, write_jsonl
 
 
@@ -241,6 +246,47 @@ def test_compare_baseline_on_split_records_heldout_rows() -> None:
     assert comparison["rows"][0]["effective_status"] == "accepted"
 
 
+def test_build_paper_quality_heldout_report_includes_failure_taxonomy_and_chains() -> None:
+    test_task = _benchmark_task("test-task", split=BenchmarkSplit.TEST, domain_tags=("empirical_process",))
+    chain_task = _benchmark_task("chain-task", split=BenchmarkSplit.DEV, domain_tags=("ipw",))
+    tasks = (test_task, chain_task)
+    attempts = (
+        ProofAttempt("test-task", "seed-registry", "theorem test : True := by trivial"),
+        ProofAttempt("chain-task", "seed-registry", "theorem chain : True := by trivial"),
+    )
+    reports = (
+        VerificationReport("test-task", VerificationStatus.ACCEPTED),
+        VerificationReport("chain-task", VerificationStatus.ACCEPTED),
+    )
+
+    report = build_paper_quality_heldout_report(
+        tasks,
+        attempts,
+        reports,
+        baseline="seed-registry",
+        split="test",
+        proof_chains=(
+            {
+                "chain_id": "unit_chain",
+                "name": "Unit chain",
+                "source_module": "StatInference.Unit",
+                "benchmark_task_ids": ("chain-task",),
+                "required_declarations": ("StatInference.Unit.ok",),
+            },
+        ),
+    )
+
+    assert report["report_id"] == "paper-quality::seed-registry::test"
+    assert report["heldout_task_count"] == 1
+    assert report["heldout_pass_rate"] == 1.0
+    assert report["failure_taxonomy"]["failed"] == 0
+    assert report["failure_taxonomy"]["failure_categories"] == {}
+    assert report["non_seed_chain_count"] == 1
+    assert report["non_seed_chain_passed"] == 1
+    assert report["non_seed_proof_chains"][0]["status"] == "passed"
+    assert report["non_seed_proof_chains"][0]["required_declarations"] == ["StatInference.Unit.ok"]
+
+
 def test_cli_eval_summary(tmp_path: Path, capsys) -> None:
     benchmarks_path = tmp_path / "benchmarks.jsonl"
     attempts_path = tmp_path / "attempts.jsonl"
@@ -353,6 +399,52 @@ def test_cli_baseline_comparison(tmp_path: Path, capsys) -> None:
     assert json.loads(comparison_path.read_text(encoding="utf-8")) == comparison
 
 
+def test_cli_paper_quality_heldout(tmp_path: Path, capsys) -> None:
+    benchmarks_path = tmp_path / "benchmarks.jsonl"
+    attempts_path = tmp_path / "attempts.jsonl"
+    reports_path = tmp_path / "reports.jsonl"
+    output_path = tmp_path / "paper-heldout.json"
+    main(["seed-benchmarks", "--output", str(benchmarks_path)])
+    main(
+        [
+            "materialize-benchmark-attempts",
+            "--benchmarks",
+            str(benchmarks_path),
+            "--output",
+            str(attempts_path),
+        ]
+    )
+    reports = [
+        VerificationReport(record["task_id"], VerificationStatus.ACCEPTED)
+        for record in read_jsonl(benchmarks_path)
+    ]
+    write_jsonl(reports_path, reports)
+
+    assert (
+        main(
+            [
+                "paper-quality-heldout",
+                "--benchmarks",
+                str(benchmarks_path),
+                "--attempts",
+                str(attempts_path),
+                "--reports",
+                str(reports_path),
+                "--output",
+                str(output_path),
+            ]
+        )
+        == 0
+    )
+
+    output = capsys.readouterr().out
+    report = json.loads(output_path.read_text(encoding="utf-8"))
+    assert "heldout_tasks=2" in output
+    assert "non_seed_chains=3/3" in output
+    assert report["heldout_task_count"] == 2
+    assert report["non_seed_chain_pass_rate"] == 1.0
+
+
 def test_checked_in_eval_artifacts_cover_current_seed_registry() -> None:
     attempts = tuple(
         dataclass_from_dict(ProofAttempt, record)
@@ -403,6 +495,27 @@ def test_checked_in_heldout_baseline_artifact() -> None:
     assert all(row["agent_key"] == "seed-registry" for row in comparison["rows"])
     assert all(row["premise_recall"] == 1.0 for row in comparison["rows"])
     assert set(comparison) <= set(schema["properties"])
+
+
+def test_checked_in_paper_quality_heldout_artifact() -> None:
+    report = json.loads(Path("artifacts/evaluation/paper-quality-heldout.json").read_text(encoding="utf-8"))
+    schema = json.loads(Path("schemas/paper_quality_heldout.schema.json").read_text(encoding="utf-8"))
+    test_ids = [task.task_id for task in SEED_BENCHMARKS if task.split is BenchmarkSplit.TEST]
+
+    assert report["report_id"] == "paper-quality::seed-registry::test"
+    assert report["baseline"] == "seed-registry"
+    assert report["split"] == "test"
+    assert report["heldout_task_count"] == len(test_ids)
+    assert report["heldout_pass_rate"] == 1.0
+    assert report["failure_taxonomy"]["failed"] == 0
+    assert report["failure_taxonomy"]["failure_categories"] == {}
+    assert report["baseline_comparison"]["task_ids"] == test_ids
+    assert report["non_seed_chain_count"] == 3
+    assert report["non_seed_chain_passed"] == 3
+    assert report["non_seed_chain_pass_rate"] == 1.0
+    assert all(chain["status"] == "passed" for chain in report["non_seed_proof_chains"])
+    assert all(chain["required_declarations"] for chain in report["non_seed_proof_chains"])
+    assert set(report) <= set(schema["properties"])
 
 
 def _benchmark_task(

@@ -436,13 +436,24 @@
       "status": "in_progress",
       "objective": "Demonstrate that the system improves statistical theorem formalization over general Lean provers and produces reusable Lean statistics infrastructure.",
       "milestones": [
-        {"id": "P8.M1", "status": "pending", "name": "Held-out benchmark and baseline results"},
+        {
+          "id": "P8.M1",
+          "status": "done",
+          "name": "Held-out benchmark and baseline results",
+          "evidence": [
+            "build_paper_quality_heldout_report composes held-out baseline comparison, failure taxonomy, and audited non-seed proof-chain coverage.",
+            "paper-quality-heldout CLI generated artifacts/evaluation/paper-quality-heldout.json for the seed-registry baseline on the test split.",
+            "The paper-quality report covers 2/2 held-out test tasks with pass_rate=1.0 and an explicit empty failure taxonomy.",
+            "The report audits three non-seed reusable StatInference theorem chains: IPW/Hajek linearization, AIPW product-rate remainder, and influence-function normality.",
+            "schemas/paper_quality_heldout.schema.json documents the report and tests enforce checked-in held-out coverage plus proof-chain pass coverage."
+          ]
+        },
         {"id": "P8.M2", "status": "pending", "name": "One concrete estimator proof chain"},
         {"id": "P8.M3", "status": "pending", "name": "Ablations for retrieval, SFT, DPO, process reward, and curation"},
         {"id": "P8.M4", "status": "pending", "name": "Research paper draft and reproducibility bundle"}
       ],
       "next_actions": [
-        "Run paper-quality held-out benchmark and baseline results for P8.M1, including non-seed proof chains and failure taxonomy."
+        "Promote one concrete estimator proof chain into a paper-quality no-sorry demonstration for P8.M2."
       ]
     }
   ]

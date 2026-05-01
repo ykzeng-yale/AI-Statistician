@@ -16,6 +16,60 @@ from statlean_agent.contracts import (
 from statlean_agent.rewards import aggregate_reward_breakdowns, scan_policy_tokens, score_attempt
 
 
+DEFAULT_PAPER_QUALITY_PROOF_CHAINS = (
+    {
+        "chain_id": "ipw_hajek_linearization_chain",
+        "name": "IPW/Hajek identification plus scaled linearization",
+        "source_module": "StatInference.Causal.IPW",
+        "benchmark_task_ids": (
+            "ipw_identification_certificate_seed",
+            "ipw_hajek_scaled_linearization_route_seed",
+            "constant_ipw_hajek_route_seed",
+            "constant_ipw_hajek_exact_target_seed",
+        ),
+        "required_declarations": (
+            "StatInference.IPWHajekLinearizationRoute.identifies",
+            "StatInference.IPWHajekLinearizationRoute.scaledLinearization",
+            "StatInference.constantIPWHajekLinearizationRoute",
+        ),
+    },
+    {
+        "chain_id": "aipw_product_rate_chain",
+        "name": "AIPW double robustness plus orthogonal product-rate remainder",
+        "source_module": "StatInference.Causal.AIPW",
+        "benchmark_task_ids": (
+            "aipw_double_robust_identification_seed",
+            "aipw_product_rate_remainder_seed",
+            "aipw_orthogonal_score_seed",
+            "aipw_second_order_remainder_seed",
+            "trivial_aipw_product_rate_route_seed",
+        ),
+        "required_declarations": (
+            "StatInference.AIPWOrthogonalProductRateRoute.identifies",
+            "StatInference.AIPWOrthogonalProductRateRoute.secondOrderRemainderSmall",
+            "StatInference.trivialAIPWOrthogonalProductRateRoute",
+        ),
+    },
+    {
+        "chain_id": "influence_function_normality_chain",
+        "name": "Influence-function asymptotic-linearity and normality route",
+        "source_module": "StatInference.Semiparametric.Normality",
+        "benchmark_task_ids": (
+            "influence_function_normality_route_seed",
+            "influence_function_normality_bridge_seed",
+            "aipw_influence_function_normality_route_seed",
+            "trivial_influence_function_normality_seed",
+            "trivial_aipw_influence_function_normality_seed",
+        ),
+        "required_declarations": (
+            "StatInference.InfluenceFunctionNormalityRoute.asymptoticLinear",
+            "StatInference.InfluenceFunctionNormalityRoute.asymptoticNormal",
+            "StatInference.AIPWInfluenceFunctionNormalityRoute.asymptoticNormal",
+        ),
+    },
+)
+
+
 def evaluate_attempts(
     attempts: tuple[ProofAttempt, ...],
     reports: tuple[VerificationReport, ...],
@@ -274,6 +328,59 @@ def compare_baseline_on_split(
     }
 
 
+def build_paper_quality_heldout_report(
+    tasks: tuple[BenchmarkTask, ...],
+    attempts: tuple[ProofAttempt, ...],
+    reports: tuple[VerificationReport, ...],
+    *,
+    baseline: str,
+    split: str,
+    proof_chains: tuple[Mapping[str, object], ...] = DEFAULT_PAPER_QUALITY_PROOF_CHAINS,
+) -> dict[str, object]:
+    """Build a paper-facing held-out report with theorem-chain coverage."""
+
+    baseline_report = compare_baseline_on_split(
+        tasks,
+        attempts,
+        reports,
+        baseline=baseline,
+        split=split,
+    )
+    chain_reports = [
+        _proof_chain_report(chain, tasks, reports)
+        for chain in proof_chains
+    ]
+    chain_count = len(chain_reports)
+    chain_passed = sum(1 for report in chain_reports if report["status"] == "passed")
+    heldout_domains = tuple(
+        sorted({tag for row in baseline_report["rows"] for tag in row["domain_tags"]})
+    )
+
+    return {
+        "report_id": f"paper-quality::{baseline}::{split}",
+        "baseline": baseline,
+        "split": split,
+        "heldout_task_count": baseline_report["benchmark_task_count"],
+        "heldout_pass_rate": baseline_report["pass_rate"],
+        "heldout_domains": list(heldout_domains),
+        "failure_taxonomy": {
+            "failed": baseline_report["failed"],
+            "status_counts": baseline_report["status_counts"],
+            "failure_categories": baseline_report["failure_categories"],
+        },
+        "baseline_comparison": baseline_report,
+        "non_seed_proof_chains": chain_reports,
+        "non_seed_chain_count": chain_count,
+        "non_seed_chain_passed": chain_passed,
+        "non_seed_chain_pass_rate": chain_passed / chain_count if chain_count else 0.0,
+        "notes": (
+            "P8.M1 report: held-out baseline rows remain split-based, while "
+            "non-seed proof chains audit reusable StatInference theorem routes "
+            "that are not themselves benchmark items."
+        ),
+    }
+
+
 @dataclass
 class _SummaryBucket:
     attempts: int = 0
@@ -472,6 +579,37 @@ def _rows(label: str, buckets: Mapping[str, _SummaryBucket]) -> list[dict[str, o
     for key in sorted(buckets):
         rows.append({label: key, **buckets[key].to_row()})
     return rows
+
+
+def _proof_chain_report(
+    chain: Mapping[str, object],
+    tasks: tuple[BenchmarkTask, ...],
+    reports: tuple[VerificationReport, ...],
+) -> dict[str, object]:
+    task_ids = tuple(str(task_id) for task_id in chain.get("benchmark_task_ids", ()))
+    report_by_task = {report.task_id: report for report in reports}
+    known_task_ids = {task.task_id for task in tasks}
+    accepted_task_ids = tuple(
+        task_id
+        for task_id in task_ids
+        if task_id in known_task_ids
+        and report_by_task.get(task_id, VerificationReport(task_id, VerificationStatus.ERROR)).status
+        is VerificationStatus.ACCEPTED
+    )
+    missing_task_ids = tuple(task_id for task_id in task_ids if task_id not in accepted_task_ids)
+    pass_rate = len(accepted_task_ids) / len(task_ids) if task_ids else 0.0
+    status = "passed" if task_ids and not missing_task_ids else "blocked"
+    return {
+        "chain_id": str(chain["chain_id"]),
+        "name": str(chain["name"]),
+        "source_module": str(chain["source_module"]),
+        "benchmark_task_ids": list(task_ids),
+        "required_declarations": list(chain.get("required_declarations", ())),
+        "accepted_task_ids": list(accepted_task_ids),
+        "missing_task_ids": list(missing_task_ids),
+        "pass_rate": pass_rate,
+        "status": status,
+    }
 
 
 def _enum_value(value: object) -> str:
