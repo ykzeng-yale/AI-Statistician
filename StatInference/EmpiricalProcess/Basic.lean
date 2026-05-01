@@ -14,75 +14,75 @@ namespace StatInference
 open Filter
 open scoped Topology
 
-/-- A uniform finite-sample deviation bound over an entire index type. -/
-def UniformDeviationBound {Index : Type*}
+/-- A uniform finite-sample deviation bound over an entire empirical-process index type. -/
+def EmpiricalDeviationBound {Index : Type*}
     (populationRisk empiricalRisk : Index -> ℝ) (radius : ℝ) : Prop :=
   ∀ index, |empiricalRisk index - populationRisk index| ≤ radius
 
 /-- A uniform finite-sample deviation bound restricted to an indexed class. -/
-def UniformDeviationBoundOn {Index : Type*} (indexClass : Set Index)
+def EmpiricalDeviationBoundOn {Index : Type*} (indexClass : Set Index)
     (populationRisk empiricalRisk : Index -> ℝ) (radius : ℝ) : Prop :=
   ∀ index, index ∈ indexClass ->
     |empiricalRisk index - populationRisk index| ≤ radius
 
-namespace UniformDeviationBound
+namespace EmpiricalDeviationBound
 
 theorem apply_at {Index : Type*} {populationRisk empiricalRisk : Index -> ℝ}
-    {radius : ℝ} (h : UniformDeviationBound populationRisk empiricalRisk radius)
+    {radius : ℝ} (h : EmpiricalDeviationBound populationRisk empiricalRisk radius)
     (index : Index) :
     |empiricalRisk index - populationRisk index| ≤ radius :=
   h index
 
 theorem toOn {Index : Type*} {populationRisk empiricalRisk : Index -> ℝ}
     {radius : ℝ}
-    (h : UniformDeviationBound populationRisk empiricalRisk radius)
+    (h : EmpiricalDeviationBound populationRisk empiricalRisk radius)
     (indexClass : Set Index) :
-    UniformDeviationBoundOn indexClass populationRisk empiricalRisk radius := by
+    EmpiricalDeviationBoundOn indexClass populationRisk empiricalRisk radius := by
   intro index _hindex
   exact h index
 
-end UniformDeviationBound
+end EmpiricalDeviationBound
 
-namespace UniformDeviationBoundOn
+namespace EmpiricalDeviationBoundOn
 
 theorem apply_at {Index : Type*} {indexClass : Set Index}
     {populationRisk empiricalRisk : Index -> ℝ} {radius : ℝ}
-    (h : UniformDeviationBoundOn indexClass populationRisk empiricalRisk radius)
+    (h : EmpiricalDeviationBoundOn indexClass populationRisk empiricalRisk radius)
     {index : Index} (hindex : index ∈ indexClass) :
     |empiricalRisk index - populationRisk index| ≤ radius :=
   h index hindex
 
 theorem mono {Index : Type*} {largerClass smallerClass : Set Index}
     {populationRisk empiricalRisk : Index -> ℝ} {radius : ℝ}
-    (h : UniformDeviationBoundOn largerClass populationRisk empiricalRisk radius)
+    (h : EmpiricalDeviationBoundOn largerClass populationRisk empiricalRisk radius)
     (hsubset : smallerClass ⊆ largerClass) :
-    UniformDeviationBoundOn smallerClass populationRisk empiricalRisk radius := by
+    EmpiricalDeviationBoundOn smallerClass populationRisk empiricalRisk radius := by
   intro index hindex
   exact h index (hsubset hindex)
 
-end UniformDeviationBoundOn
+end EmpiricalDeviationBoundOn
 
 /-- A sequence of uniform deviation bounds over an entire index type. -/
-def UniformDeviationSequence {Index : Type*}
+def EmpiricalDeviationSequence {Index : Type*}
     (populationRisk : Index -> ℝ) (empiricalRisk : ℕ -> Index -> ℝ)
     (radius : ℕ -> ℝ) : Prop :=
   ∀ sampleSize,
-    UniformDeviationBound populationRisk (empiricalRisk sampleSize)
+    EmpiricalDeviationBound populationRisk (empiricalRisk sampleSize)
       (radius sampleSize)
 
 /-- A sequence of uniform deviation bounds restricted to an indexed class. -/
-def UniformDeviationSequenceOn {Index : Type*} (indexClass : Set Index)
+def EmpiricalDeviationSequenceOn {Index : Type*} (indexClass : Set Index)
     (populationRisk : Index -> ℝ) (empiricalRisk : ℕ -> Index -> ℝ)
     (radius : ℕ -> ℝ) : Prop :=
   ∀ sampleSize,
-    UniformDeviationBoundOn indexClass populationRisk
+    EmpiricalDeviationBoundOn indexClass populationRisk
       (empiricalRisk sampleSize) (radius sampleSize)
 
-namespace UniformDeviationSequence
+namespace EmpiricalDeviationSequence
 
 theorem apply_at {Index : Type*} {populationRisk : Index -> ℝ}
     {empiricalRisk : ℕ -> Index -> ℝ} {radius : ℕ -> ℝ}
-    (h : UniformDeviationSequence populationRisk empiricalRisk radius)
+    (h : EmpiricalDeviationSequence populationRisk empiricalRisk radius)
     (sampleSize : ℕ) (index : Index) :
     |empiricalRisk sampleSize index - populationRisk index| ≤
       radius sampleSize :=
@@ -90,20 +90,20 @@ theorem apply_at {Index : Type*} {populationRisk : Index -> ℝ}
 
 theorem toOn {Index : Type*} {populationRisk : Index -> ℝ}
     {empiricalRisk : ℕ -> Index -> ℝ} {radius : ℕ -> ℝ}
-    (h : UniformDeviationSequence populationRisk empiricalRisk radius)
+    (h : EmpiricalDeviationSequence populationRisk empiricalRisk radius)
     (indexClass : Set Index) :
-    UniformDeviationSequenceOn indexClass populationRisk empiricalRisk radius := by
+    EmpiricalDeviationSequenceOn indexClass populationRisk empiricalRisk radius := by
   intro sampleSize
-  exact UniformDeviationBound.toOn (h sampleSize) indexClass
+  exact EmpiricalDeviationBound.toOn (h sampleSize) indexClass
 
-end UniformDeviationSequence
+end EmpiricalDeviationSequence
 
-namespace UniformDeviationSequenceOn
+namespace EmpiricalDeviationSequenceOn
 
 theorem apply_at {Index : Type*} {indexClass : Set Index}
     {populationRisk : Index -> ℝ} {empiricalRisk : ℕ -> Index -> ℝ}
     {radius : ℕ -> ℝ}
-    (h : UniformDeviationSequenceOn indexClass populationRisk empiricalRisk radius)
+    (h : EmpiricalDeviationSequenceOn indexClass populationRisk empiricalRisk radius)
     (sampleSize : ℕ) {index : Index} (hindex : index ∈ indexClass) :
     |empiricalRisk sampleSize index - populationRisk index| ≤
       radius sampleSize :=
@@ -112,13 +112,13 @@ theorem apply_at {Index : Type*} {indexClass : Set Index}
 theorem mono {Index : Type*} {largerClass smallerClass : Set Index}
     {populationRisk : Index -> ℝ} {empiricalRisk : ℕ -> Index -> ℝ}
     {radius : ℕ -> ℝ}
-    (h : UniformDeviationSequenceOn largerClass populationRisk empiricalRisk radius)
+    (h : EmpiricalDeviationSequenceOn largerClass populationRisk empiricalRisk radius)
     (hsubset : smallerClass ⊆ largerClass) :
-    UniformDeviationSequenceOn smallerClass populationRisk empiricalRisk radius := by
+    EmpiricalDeviationSequenceOn smallerClass populationRisk empiricalRisk radius := by
   intro sampleSize
-  exact UniformDeviationBoundOn.mono (h sampleSize) hsubset
+  exact EmpiricalDeviationBoundOn.mono (h sampleSize) hsubset
 
-end UniformDeviationSequenceOn
+end EmpiricalDeviationSequenceOn
 
 structure EmpiricalProcessSpec (Index Observation Value : Type*) where
   process : Index -> Observation -> Value
@@ -141,7 +141,7 @@ structure GlivenkoCantelliClass {Index : Type*} (indexClass : Set Index)
     (populationRisk : Index -> ℝ) (empiricalRisk : ℕ -> Index -> ℝ) where
   radius : ℕ -> ℝ
   uniform_deviation :
-    UniformDeviationSequenceOn indexClass populationRisk empiricalRisk radius
+    EmpiricalDeviationSequenceOn indexClass populationRisk empiricalRisk radius
   radius_tendsto_zero : Tendsto radius atTop (𝓝 0)
 
 namespace GlivenkoCantelliClass
@@ -160,14 +160,14 @@ def project {Index : Type*} {largerClass smallerClass : Set Index}
     (hsubset : smallerClass ⊆ largerClass) :
     GlivenkoCantelliClass smallerClass populationRisk empiricalRisk where
   radius := gc.radius
-  uniform_deviation := UniformDeviationSequenceOn.mono gc.uniform_deviation hsubset
+  uniform_deviation := EmpiricalDeviationSequenceOn.mono gc.uniform_deviation hsubset
   radius_tendsto_zero := gc.radius_tendsto_zero
 
-theorem toUniformDeviationSequence {Index : Type*}
+theorem toEmpiricalDeviationSequence {Index : Type*}
     {populationRisk : Index -> ℝ} {empiricalRisk : ℕ -> Index -> ℝ}
     (gc : GlivenkoCantelliClass (Set.univ : Set Index)
       populationRisk empiricalRisk) :
-    UniformDeviationSequence populationRisk empiricalRisk gc.radius := by
+    EmpiricalDeviationSequence populationRisk empiricalRisk gc.radius := by
   intro sampleSize index
   exact gc.uniform_deviation sampleSize index trivial
 
@@ -210,9 +210,9 @@ theorem uniformDeviation {Index : Type*}
     {populationRisk empiricalRisk : Index -> ℝ} {radius : ℝ}
     (projection : FiniteClassProjection largerClass projectedClass)
     (h :
-      UniformDeviationBoundOn largerClass populationRisk empiricalRisk radius) :
-    UniformDeviationBoundOn projectedClass populationRisk empiricalRisk radius :=
-  UniformDeviationBoundOn.mono h projection.subset
+      EmpiricalDeviationBoundOn largerClass populationRisk empiricalRisk radius) :
+    EmpiricalDeviationBoundOn projectedClass populationRisk empiricalRisk radius :=
+  EmpiricalDeviationBoundOn.mono h projection.subset
 
 theorem uniformDeviationSequence {Index : Type*}
     {largerClass projectedClass : Set Index}
@@ -220,9 +220,9 @@ theorem uniformDeviationSequence {Index : Type*}
     {radius : ℕ -> ℝ}
     (projection : FiniteClassProjection largerClass projectedClass)
     (h :
-      UniformDeviationSequenceOn largerClass populationRisk empiricalRisk radius) :
-    UniformDeviationSequenceOn projectedClass populationRisk empiricalRisk radius :=
-  UniformDeviationSequenceOn.mono h projection.subset
+      EmpiricalDeviationSequenceOn largerClass populationRisk empiricalRisk radius) :
+    EmpiricalDeviationSequenceOn projectedClass populationRisk empiricalRisk radius :=
+  EmpiricalDeviationSequenceOn.mono h projection.subset
 
 def glivenkoCantelli {Index : Type*}
     {largerClass projectedClass : Set Index}
@@ -245,7 +245,7 @@ structure UniformDeviationTheoremSkeleton {Index : Type*}
   assumptions : Prop
   derive_uniform_deviation :
     assumptions ->
-      UniformDeviationSequenceOn indexClass populationRisk empiricalRisk radius
+      EmpiricalDeviationSequenceOn indexClass populationRisk empiricalRisk radius
 
 namespace UniformDeviationTheoremSkeleton
 
@@ -254,7 +254,7 @@ def run {Index : Type*} {indexClass : Set Index}
     (skeleton :
       UniformDeviationTheoremSkeleton indexClass populationRisk empiricalRisk)
     (hassumptions : skeleton.assumptions) :
-    UniformDeviationSequenceOn indexClass populationRisk empiricalRisk
+    EmpiricalDeviationSequenceOn indexClass populationRisk empiricalRisk
       skeleton.radius :=
   skeleton.derive_uniform_deviation hassumptions
 
@@ -271,7 +271,7 @@ structure GlivenkoCantelliTheoremSkeleton {Index : Type*}
   assumptions : Prop
   derive_uniform_deviation :
     assumptions ->
-      UniformDeviationSequenceOn indexClass populationRisk empiricalRisk radius
+      EmpiricalDeviationSequenceOn indexClass populationRisk empiricalRisk radius
   derive_radius_tendsto_zero :
     assumptions -> Tendsto radius atTop (𝓝 0)
 
@@ -301,7 +301,7 @@ structure UniformDeviationOracleBenchmark (Index : Type*) where
   ermError : ℕ -> ℝ
   deviation : ℕ -> ℝ
   uniform_deviation :
-    UniformDeviationSequence populationRisk empiricalRisk deviation
+    EmpiricalDeviationSequence populationRisk empiricalRisk deviation
   approximateERM :
     ∀ sampleSize,
       empiricalRisk sampleSize (estimator sampleSize) ≤
