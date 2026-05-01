@@ -342,6 +342,75 @@ SEED_BENCHMARKS: tuple[BenchmarkTask, ...] = (
         ),
     ),
     BenchmarkTask(
+        task_id="finite_union_no_failure_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S3",
+        domain_tags=("empirical_process", "finite_union", "uniform_deviation"),
+        natural_language=(
+            "Convert absence of the finite-union deviation failure event into "
+            "a restricted-class uniform-deviation bound."
+        ),
+        lean_task=LeanTask(
+            task_id="finite_union_no_failure_seed",
+            imports=("StatInference.EmpiricalProcess.Finite",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Index : Type*} {indexClass : Set Index} "
+                "(populationRisk empiricalRisk : Index -> Real) (radius : Real) "
+                "(hno_failure : ¬ StatInference.DeviationFailureEventOn "
+                "indexClass populationRisk empiricalRisk radius) : "
+                "StatInference.EmpiricalDeviationBoundOn "
+                "indexClass populationRisk empiricalRisk radius := by\n"
+                "  exact StatInference.empiricalDeviationBoundOn_of_not_deviationFailureEventOn "
+                "hno_failure"
+            ),
+            tags=("finite_union", "failure_event", "uniform_deviation"),
+            dependencies=(
+                "StatInference.empiricalDeviationBoundOn_of_not_deviationFailureEventOn",
+            ),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=(
+            "StatInference.empiricalDeviationBoundOn_of_not_deviationFailureEventOn",
+        ),
+    ),
+    BenchmarkTask(
+        task_id="finite_union_sequence_excess_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S4",
+        domain_tags=("empirical_process", "finite_union", "erm_consistency"),
+        natural_language=(
+            "Use a sequence of finite-union no-failure certificates as the "
+            "uniform-deviation input to the approximate ERM excess-risk bound."
+        ),
+        lean_task=LeanTask(
+            task_id="finite_union_sequence_excess_seed",
+            imports=("StatInference.EmpiricalProcess.Finite",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Index : Type*} {indexClass : Set Index} "
+                "{populationRisk : Index -> Real} {empiricalRisk : Nat -> Index -> Real} "
+                "(certificate : StatInference.FiniteUnionDeviationSequence "
+                "indexClass populationRisk empiricalRisk) "
+                "(fhat : Nat -> Index) (comparator : Index) (eps : Nat -> Real) "
+                "(hfhat : forall n, fhat n ∈ indexClass) "
+                "(hcomparator : comparator ∈ indexClass) "
+                "(h_erm : forall n, empiricalRisk n (fhat n) <= "
+                "empiricalRisk n comparator + eps n) : "
+                "forall n, populationRisk (fhat n) - populationRisk comparator <= "
+                "2 * certificate.radius n + eps n := by\n"
+                "  exact StatInference.FiniteUnionDeviationSequence.excessRiskBound "
+                "certificate fhat comparator eps hfhat hcomparator h_erm"
+            ),
+            tags=("finite_union", "oracle_inequality", "excess_risk"),
+            dependencies=("StatInference.FiniteUnionDeviationSequence.excessRiskBound",),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=("StatInference.FiniteUnionDeviationSequence.excessRiskBound",),
+    ),
+    BenchmarkTask(
         task_id="asymptotic_bridge_projection",
         task_type=BenchmarkTaskType.FORMAL_ONLY,
         split=BenchmarkSplit.TRAIN,

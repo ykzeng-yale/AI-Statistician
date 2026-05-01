@@ -101,12 +101,23 @@
             "benchmarks empirical_average_unfold_seed and empirical_risk_sequence_oracle_seed accepted locally"
           ]
         },
-        {"id": "P2.M2", "status": "pending", "name": "Finite union/finite class uniform deviation bound interface"},
+        {
+          "id": "P2.M2",
+          "status": "done",
+          "name": "Finite union/finite class uniform deviation bound interface",
+          "evidence": [
+            "StatInference.EmpiricalProcess.Finite defines DeviationFailureEventOn as the finite-union failure event for restricted-class deviations.",
+            "StatInference.empiricalDeviationBoundOn_of_not_deviationFailureEventOn converts no-failure evidence into EmpiricalDeviationBoundOn.",
+            "StatInference.FiniteUnionDeviationSequence packages finite-class no-failure certificates and converts them into EmpiricalDeviationSequenceOn.",
+            "StatInference.FiniteUnionDeviationSequence.excessRiskBound feeds the finite-union certificate into the approximate-ERM excess-risk theorem.",
+            "benchmarks finite_union_no_failure_seed and finite_union_sequence_excess_seed accepted locally"
+          ]
+        },
         {"id": "P2.M3", "status": "pending", "name": "GC class preservation for subclasses/projections"},
         {"id": "P2.M4", "status": "pending", "name": "Covering-number and Rademacher-compatible benchmark tasks"}
       ],
       "next_actions": [
-        "Build the finite-union and finite-class uniform deviation interface on top of empirical risk notation."
+        "Build GC class preservation for subclasses and projections on top of the finite-union deviation interface."
       ]
     },
     {
