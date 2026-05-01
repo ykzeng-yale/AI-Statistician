@@ -12,3 +12,4 @@ import StatInference.Semiparametric.InfluenceFunction
 import StatInference.EmpiricalProcess.Basic
 import StatInference.EmpiricalProcess.Average
 import StatInference.EmpiricalProcess.Finite
+import StatInference.EmpiricalProcess.Preservation

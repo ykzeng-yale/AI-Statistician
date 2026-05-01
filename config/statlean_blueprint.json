@@ -113,11 +113,22 @@
             "benchmarks finite_union_no_failure_seed and finite_union_sequence_excess_seed accepted locally"
           ]
         },
-        {"id": "P2.M3", "status": "pending", "name": "GC class preservation for subclasses/projections"},
+        {
+          "id": "P2.M3",
+          "status": "done",
+          "name": "GC class preservation for subclasses/projections",
+          "evidence": [
+            "StatInference.EmpiricalProcess.Preservation defines FiniteClassMarker.project for finite subclasses.",
+            "DeviationFailureEventOn.mono and not_of_not_larger preserve finite-union failure/no-failure evidence under subclass projection.",
+            "FiniteUnionDeviationCertificate.project and FiniteUnionDeviationSequence.project reuse finite-union certificates on subclasses.",
+            "FiniteClassUniformConvergence.project and projectToGlivenkoCantelliClass preserve finite-class GC certificates under subclass projection.",
+            "benchmarks finite_class_gc_projection_seed and finite_union_projection_seed accepted locally"
+          ]
+        },
         {"id": "P2.M4", "status": "pending", "name": "Covering-number and Rademacher-compatible benchmark tasks"}
       ],
       "next_actions": [
-        "Build GC class preservation for subclasses and projections on top of the finite-union deviation interface."
+        "Add covering-number and Rademacher-compatible benchmark tasks that can drive the next empirical-process library layer."
       ]
     },
     {

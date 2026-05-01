@@ -411,6 +411,71 @@ SEED_BENCHMARKS: tuple[BenchmarkTask, ...] = (
         expected_premises=("StatInference.FiniteUnionDeviationSequence.excessRiskBound",),
     ),
     BenchmarkTask(
+        task_id="finite_class_gc_projection_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S4",
+        domain_tags=("empirical_process", "glivenko_cantelli", "projection"),
+        natural_language=(
+            "Project a finite-class uniform-convergence certificate to a "
+            "subclass and expose it as a GC class."
+        ),
+        lean_task=LeanTask(
+            task_id="finite_class_gc_projection_seed",
+            imports=("StatInference.EmpiricalProcess.Preservation",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Index : Type*} {largerClass smallerClass : Set Index} "
+                "{populationRisk : Index -> Real} {empiricalRisk : Nat -> Index -> Real} "
+                "(finite_gc : StatInference.FiniteClassUniformConvergence "
+                "largerClass populationRisk empiricalRisk) "
+                "(hsubset : smallerClass ⊆ largerClass) : "
+                "StatInference.GlivenkoCantelliClass smallerClass populationRisk empiricalRisk := by\n"
+                "  exact StatInference.FiniteClassUniformConvergence.projectToGlivenkoCantelliClass "
+                "finite_gc hsubset"
+            ),
+            tags=("finite_class", "gc_projection", "subclass"),
+            dependencies=(
+                "StatInference.FiniteClassUniformConvergence.projectToGlivenkoCantelliClass",
+            ),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=(
+            "StatInference.FiniteClassUniformConvergence.projectToGlivenkoCantelliClass",
+        ),
+    ),
+    BenchmarkTask(
+        task_id="finite_union_projection_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S4",
+        domain_tags=("empirical_process", "finite_union", "projection"),
+        natural_language=(
+            "Project a sequence of finite-union no-failure certificates to a "
+            "subclass."
+        ),
+        lean_task=LeanTask(
+            task_id="finite_union_projection_seed",
+            imports=("StatInference.EmpiricalProcess.Preservation",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Index : Type*} {largerClass smallerClass : Set Index} "
+                "{populationRisk : Index -> Real} {empiricalRisk : Nat -> Index -> Real} "
+                "(certificate : StatInference.FiniteUnionDeviationSequence "
+                "largerClass populationRisk empiricalRisk) "
+                "(hsubset : smallerClass ⊆ largerClass) : "
+                "StatInference.FiniteUnionDeviationSequence "
+                "smallerClass populationRisk empiricalRisk := by\n"
+                "  exact StatInference.FiniteUnionDeviationSequence.project "
+                "certificate hsubset"
+            ),
+            tags=("finite_union", "subclass", "projection"),
+            dependencies=("StatInference.FiniteUnionDeviationSequence.project",),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=("StatInference.FiniteUnionDeviationSequence.project",),
+    ),
+    BenchmarkTask(
         task_id="asymptotic_bridge_projection",
         task_type=BenchmarkTaskType.FORMAL_ONLY,
         split=BenchmarkSplit.TRAIN,
