@@ -1122,6 +1122,173 @@ SEED_BENCHMARKS: tuple[BenchmarkTask, ...] = (
         ),
     ),
     BenchmarkTask(
+        task_id="influence_function_normality_route_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S4",
+        domain_tags=(
+            "semiparametric",
+            "influence_function",
+            "asymptotic_normality",
+        ),
+        natural_language=(
+            "Apply the generic influence-function normality route: verified "
+            "influence function plus CLT and negligible remainder imply "
+            "asymptotic normality."
+        ),
+        lean_task=LeanTask(
+            task_id="influence_function_normality_route_seed",
+            imports=("StatInference.Semiparametric.Normality",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Model Parameter Observation EstimatorObj : Type*} "
+                "(route : StatInference.InfluenceFunctionNormalityRoute "
+                "Model Parameter Observation EstimatorObj) "
+                "(h_clt : route.clt.statement) "
+                "(h_remainder : route.negligible_remainder.statement) : "
+                "route.asymptotic_normality := by\n"
+                "  exact StatInference.InfluenceFunctionNormalityRoute.asymptoticNormal "
+                "route h_clt h_remainder"
+            ),
+            tags=("influence_function", "asymptotic_normality", "clt"),
+            dependencies=("StatInference.InfluenceFunctionNormalityRoute.asymptoticNormal",),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=("StatInference.InfluenceFunctionNormalityRoute.asymptoticNormal",),
+    ),
+    BenchmarkTask(
+        task_id="influence_function_normality_bridge_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S3",
+        domain_tags=(
+            "semiparametric",
+            "influence_function",
+            "asymptotic_bridge",
+        ),
+        natural_language=(
+            "Expose an influence-function normality route as the generic "
+            "asymptotic-linearity plus CLT bridge."
+        ),
+        lean_task=LeanTask(
+            task_id="influence_function_normality_bridge_seed",
+            imports=("StatInference.Semiparametric.Normality",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Model Parameter Observation EstimatorObj : Type*} "
+                "(route : StatInference.InfluenceFunctionNormalityRoute "
+                "Model Parameter Observation EstimatorObj) : "
+                "StatInference.AsymptoticLinearCLTBridge := by\n"
+                "  exact StatInference.InfluenceFunctionNormalityRoute."
+                "toAsymptoticLinearCLTBridge route"
+            ),
+            tags=("influence_function", "clt_bridge", "asymptotic_normality"),
+            dependencies=(
+                "StatInference.InfluenceFunctionNormalityRoute.toAsymptoticLinearCLTBridge",
+            ),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=(
+            "StatInference.InfluenceFunctionNormalityRoute.toAsymptoticLinearCLTBridge",
+        ),
+    ),
+    BenchmarkTask(
+        task_id="aipw_influence_function_normality_route_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S4",
+        domain_tags=("aipw", "influence_function", "asymptotic_normality"),
+        natural_language=(
+            "Apply the AIPW influence-function normality route after CLT and "
+            "negligible-remainder obligations are supplied."
+        ),
+        lean_task=LeanTask(
+            task_id="aipw_influence_function_normality_route_seed",
+            imports=("StatInference.Semiparametric.Normality",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Model Parameter Observation EstimatorObj : Type*} "
+                "(route : StatInference.AIPWInfluenceFunctionNormalityRoute "
+                "Model Parameter Observation EstimatorObj) "
+                "(h_clt : route.clt.statement) "
+                "(h_remainder : route.negligible_remainder.statement) : "
+                "route.asymptotic_normality := by\n"
+                "  exact StatInference.AIPWInfluenceFunctionNormalityRoute."
+                "asymptoticNormal route h_clt h_remainder"
+            ),
+            tags=("aipw", "influence_function", "asymptotic_normality"),
+            dependencies=(
+                "StatInference.AIPWInfluenceFunctionNormalityRoute.asymptoticNormal",
+            ),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=(
+            "StatInference.AIPWInfluenceFunctionNormalityRoute.asymptoticNormal",
+        ),
+    ),
+    BenchmarkTask(
+        task_id="trivial_influence_function_normality_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S3",
+        domain_tags=("semiparametric", "influence_function", "non_vacuity"),
+        natural_language=(
+            "Use the concrete trivial influence-function route as a "
+            "non-vacuity witness for semiparametric normality."
+        ),
+        lean_task=LeanTask(
+            task_id="trivial_influence_function_normality_seed",
+            imports=("StatInference.Semiparametric.Normality",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example : "
+                "StatInference.trivialInfluenceFunctionNormalityRoute."
+                "asymptotic_normality := by\n"
+                "  exact StatInference."
+                "trivialInfluenceFunctionNormalityRoute_asymptoticNormal"
+            ),
+            tags=("influence_function", "non_vacuity", "asymptotic_normality"),
+            dependencies=(
+                "StatInference.trivialInfluenceFunctionNormalityRoute_asymptoticNormal",
+            ),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=(
+            "StatInference.trivialInfluenceFunctionNormalityRoute_asymptoticNormal",
+        ),
+    ),
+    BenchmarkTask(
+        task_id="trivial_aipw_influence_function_normality_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S3",
+        domain_tags=("aipw", "influence_function", "non_vacuity"),
+        natural_language=(
+            "Use the concrete trivial AIPW influence-function normality route "
+            "as a non-vacuity witness."
+        ),
+        lean_task=LeanTask(
+            task_id="trivial_aipw_influence_function_normality_seed",
+            imports=("StatInference.Semiparametric.Normality",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example : "
+                "StatInference.trivialAIPWInfluenceFunctionNormalityRoute."
+                "asymptotic_normality := by\n"
+                "  exact StatInference."
+                "trivialAIPWInfluenceFunctionNormalityRoute_asymptoticNormal"
+            ),
+            tags=("aipw", "influence_function", "non_vacuity"),
+            dependencies=(
+                "StatInference.trivialAIPWInfluenceFunctionNormalityRoute_asymptoticNormal",
+            ),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=(
+            "StatInference.trivialAIPWInfluenceFunctionNormalityRoute_asymptoticNormal",
+        ),
+    ),
+    BenchmarkTask(
         task_id="erm_sequence_fixed_index_seed",
         task_type=BenchmarkTaskType.FORMAL_ONLY,
         split=BenchmarkSplit.DEV,

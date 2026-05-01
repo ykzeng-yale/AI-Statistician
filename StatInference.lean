@@ -16,6 +16,7 @@ import StatInference.Causal.AIPW
 import StatInference.Causal.IPW
 import StatInference.Causal.PotentialOutcomes
 import StatInference.Semiparametric.InfluenceFunction
+import StatInference.Semiparametric.Normality
 import StatInference.EmpiricalProcess.Basic
 import StatInference.EmpiricalProcess.Average
 import StatInference.EmpiricalProcess.Finite

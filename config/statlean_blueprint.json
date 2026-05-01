@@ -199,7 +199,7 @@
     {
       "id": "P4",
       "name": "Causal And Semiparametric Inference",
-      "status": "in_progress",
+      "status": "done",
       "objective": "Build potential outcomes, IPW/AIPW/TMLE-style bridges, influence functions, and Neyman orthogonality with explicit assumptions.",
       "milestones": [
         {
@@ -237,16 +237,27 @@
             "benchmarks aipw_double_robust_identification_seed, aipw_product_rate_remainder_seed, aipw_orthogonal_score_seed, aipw_second_order_remainder_seed, and trivial_aipw_product_rate_route_seed accepted locally"
           ]
         },
-        {"id": "P4.M4", "status": "pending", "name": "Influence-function asymptotic normality route"}
+        {
+          "id": "P4.M4",
+          "status": "done",
+          "name": "Influence-function asymptotic normality route",
+          "evidence": [
+            "StatInference.Semiparametric.Normality defines InfluenceFunctionNormalityRoute from verified influence functions, target/regularity certificates, CLT, and negligible-remainder obligations to asymptotic normality.",
+            "InfluenceFunctionNormalityRoute.toAsymptoticLinearCLTBridge exposes the semiparametric route as the generic asymptotic-linearity plus CLT bridge.",
+            "AIPWInfluenceFunctionNormalityRoute composes AIPW influence-function verification with the generic semiparametric normality route.",
+            "trivialInfluenceFunctionNormalityRoute and trivialAIPWInfluenceFunctionNormalityRoute provide concrete non-vacuity witnesses.",
+            "benchmarks influence_function_normality_route_seed, influence_function_normality_bridge_seed, aipw_influence_function_normality_route_seed, trivial_influence_function_normality_seed, and trivial_aipw_influence_function_normality_seed accepted locally"
+          ]
+        }
       ],
       "next_actions": [
-        "Build the influence-function asymptotic normality route by composing verified influence functions, asymptotic linearity, and CLT handoff interfaces."
+        "P4 is complete; continue to proof-agent and benchmark loop hardening in P5."
       ]
     },
     {
       "id": "P5",
       "name": "Proof Agent And Benchmark Loop",
-      "status": "pending",
+      "status": "in_progress",
       "objective": "Turn the library into a measurable proof-agent loop with theorem-hole tasks, repair tasks, premise-use metrics, and failure taxonomy.",
       "milestones": [
         {"id": "P5.M1", "status": "pending", "name": "Benchmark tasks beyond projection examples"},
@@ -255,7 +266,7 @@
         {"id": "P5.M4", "status": "pending", "name": "Curated lemma growth ledger"}
       ],
       "next_actions": [
-        "Each new theorem family must add at least one non-projection benchmark."
+        "Build non-projection theorem-hole benchmark tasks and verifier artifacts for the expanded P1-P4 statistical inference library."
       ]
     },
     {
