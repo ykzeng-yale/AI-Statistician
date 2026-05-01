@@ -28,12 +28,12 @@ def test_cli_blueprint_status(capsys) -> None:
     assert main(["blueprint-status", "--blueprint", "config/statlean_blueprint.json"]) == 0
     output = capsys.readouterr().out
     assert "Current phase: P9" in output
-    assert "Current milestone: P9.M3" in output
+    assert "Current milestone: P9.M4" in output
 
     assert main(["blueprint-status", "--blueprint", "config/statlean_blueprint.json", "--json"]) == 0
     json_output = capsys.readouterr().out
     assert '"current_phase"' in json_output
-    assert '"P9.M3"' in json_output
+    assert '"P9.M4"' in json_output
 
 
 def test_cli_verify_benchmarks_allow_failures(tmp_path: Path, capsys) -> None:
@@ -398,6 +398,65 @@ def test_cli_external_baseline_plan(tmp_path: Path, capsys) -> None:
     assert plan["ready_baseline_count"] == 1
     assert plan["blocked_baseline_count"] == 4
     assert plan["baselines"][0]["attempts_path"].startswith("tmp-external/")
+
+
+def test_cli_external_baseline_results(tmp_path: Path, capsys) -> None:
+    benchmark_path = tmp_path / "seeds.jsonl"
+    plan_path = tmp_path / "external-plan.json"
+    output_path = tmp_path / "external-results.json"
+    attempts_path = tmp_path / "attempts.jsonl"
+    reports_path = tmp_path / "reports.jsonl"
+    main(["seed-benchmarks", "--output", str(benchmark_path)])
+    main(["external-baseline-plan", "--benchmarks", str(benchmark_path), "--output", str(plan_path)])
+    write_jsonl(
+        attempts_path,
+        [
+            ProofAttempt(
+                "erm_zero_deviation_exact_risk_seed",
+                "seed-registry",
+                "theorem ok : True := by trivial",
+            ),
+            ProofAttempt(
+                "donsker_statement_seed",
+                "seed-registry",
+                "theorem ok : True := by trivial",
+            ),
+        ],
+    )
+    write_jsonl(
+        reports_path,
+        [
+            VerificationReport("erm_zero_deviation_exact_risk_seed", VerificationStatus.ACCEPTED),
+            VerificationReport("donsker_statement_seed", VerificationStatus.ACCEPTED),
+        ],
+    )
+
+    assert (
+        main(
+            [
+                "external-baseline-results",
+                "--benchmarks",
+                str(benchmark_path),
+                "--plan",
+                str(plan_path),
+                "--seed-attempts",
+                str(attempts_path),
+                "--seed-reports",
+                str(reports_path),
+                "--output",
+                str(output_path),
+            ]
+        )
+        == 0
+    )
+
+    output = capsys.readouterr().out
+    results = json.loads(output_path.read_text(encoding="utf-8"))
+    assert "external_results=5" in output
+    assert "ingested=1" in output
+    assert "blocked=4" in output
+    assert results["best_available_baseline"] == "seed-registry"
+    assert results["rows"][0]["source"] == "checked_in_seed_registry_fallback"
 
 
 def test_cli_ablation_report(tmp_path: Path, capsys) -> None:

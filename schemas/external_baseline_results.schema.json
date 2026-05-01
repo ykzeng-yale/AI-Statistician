@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ExternalBaselineResults",
+  "type": "object",
+  "required": [
+    "report_id",
+    "plan_report_id",
+    "split",
+    "baseline_count",
+    "ingested_count",
+    "blocked_count",
+    "best_available_baseline",
+    "rows",
+    "comparison_policy",
+    "notes"
+  ],
+  "properties": {
+    "report_id": {"type": "string"},
+    "plan_report_id": {"type": "string"},
+    "split": {"type": "string"},
+    "baseline_count": {"type": "integer"},
+    "ingested_count": {"type": "integer"},
+    "blocked_count": {"type": "integer"},
+    "best_available_baseline": {"type": ["string", "null"]},
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "baseline_id",
+          "display_name",
+          "runner_type",
+          "planned_status",
+          "source",
+          "attempts_path",
+          "reports_path",
+          "summary_path",
+          "target_task_count",
+          "ingestion_status",
+          "evaluated_task_count",
+          "passed",
+          "failed",
+          "pass_rate",
+          "mean_reward",
+          "mean_premise_recall",
+          "status_counts",
+          "failure_categories",
+          "blocked_reasons"
+        ],
+        "properties": {
+          "baseline_id": {"type": "string"},
+          "display_name": {"type": "string"},
+          "runner_type": {"type": "string"},
+          "planned_status": {"type": "string"},
+          "source": {"type": "string"},
+          "attempts_path": {"type": "string"},
+          "reports_path": {"type": "string"},
+          "summary_path": {"type": "string"},
+          "target_task_count": {"type": "integer"},
+          "ingestion_status": {"type": "string"},
+          "evaluated_task_count": {"type": "integer"},
+          "passed": {"type": "integer"},
+          "failed": {"type": "integer"},
+          "pass_rate": {"type": "number"},
+          "mean_reward": {"type": "number"},
+          "mean_premise_recall": {"type": "number"},
+          "status_counts": {"type": "object", "additionalProperties": {"type": "integer"}},
+          "failure_categories": {"type": "object", "additionalProperties": {"type": "integer"}},
+          "blocked_reasons": {"type": "array", "items": {"type": "string"}}
+        },
+        "additionalProperties": false
+      }
+    },
+    "comparison_policy": {"type": "string"},
+    "notes": {"type": "string"}
+  },
+  "additionalProperties": false
+}

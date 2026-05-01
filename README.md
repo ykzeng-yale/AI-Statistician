@@ -110,6 +110,15 @@ statlean external-baseline-plan \
   --output artifacts/evaluation/external-baseline-plan.json
 ```
 
+Ingest available external baseline results:
+
+```bash
+statlean external-baseline-results \
+  --benchmarks benchmarks/seeds.jsonl \
+  --plan artifacts/evaluation/external-baseline-plan.json \
+  --output artifacts/evaluation/external-baseline-results.json
+```
+
 Build the theorem-hole no-placeholder promotion queue:
 
 ```bash
@@ -152,8 +161,8 @@ Each code-writing agent gets an isolated git worktree and branch. Curated change
 ## Next Milestones
 
 The initial P0-P8 build blueprint is complete. Post-P8 work is tracked in P9;
-external baseline planning and theorem-hole proof promotion are complete, and
-the next loop is external baseline result ingestion.
+external baseline planning, theorem-hole proof promotion, and baseline result
+ingestion are complete. The next loop is empirical-process expansion targets.
 
 1. Harden the no-`sorry` `StatInference` library around convergence wrappers, `op(1)`/`Op(1)` calculus, asymptotic normality, and first concrete estimators.
 2. Grow `StatInferBench` from seed tasks into theorem-hole, repair, proof-state, and tactic tasks with dependency-based splits.

@@ -16,6 +16,7 @@ from statlean_agent.evaluation import (
     build_ablation_report,
     build_concrete_estimator_chain_report,
     build_external_baseline_plan,
+    build_external_baseline_results,
     build_paper_quality_heldout_report,
     build_reproducibility_bundle,
     compare_baseline_on_split,
@@ -427,6 +428,44 @@ def test_build_external_baseline_plan_records_blocked_model_runs() -> None:
     assert "pass_at_32" in plan["metrics"]
 
 
+def test_build_external_baseline_results_ingests_seed_and_blocks_missing_models() -> None:
+    tasks = (
+        _benchmark_task("test-task", split=BenchmarkSplit.TEST, domain_tags=("test_domain",)),
+    )
+    plan = build_external_baseline_plan(tasks, split="test")
+    attempts = (
+        ProofAttempt(
+            "test-task",
+            "seed-registry",
+            "theorem test : True := by trivial",
+            premises_used=("StatInference.seed",),
+        ),
+    )
+    reports = (
+        VerificationReport("test-task", VerificationStatus.ACCEPTED, locally_valid_steps=1),
+    )
+
+    results = build_external_baseline_results(
+        tasks,
+        plan,
+        {"seed-registry": attempts},
+        {"seed-registry": reports},
+        source_by_baseline={"seed-registry": "unit_fallback"},
+    )
+
+    assert results["report_id"] == "external-baseline-results::test"
+    assert results["baseline_count"] == 5
+    assert results["ingested_count"] == 1
+    assert results["blocked_count"] == 4
+    assert results["best_available_baseline"] == "seed-registry"
+    seed_row = results["rows"][0]
+    assert seed_row["ingestion_status"] == "ingested"
+    assert seed_row["source"] == "unit_fallback"
+    assert seed_row["pass_rate"] == 1.0
+    assert {row["ingestion_status"] for row in results["rows"][1:]} == {"blocked_by_plan_status"}
+    assert all(row["blocked_reasons"] for row in results["rows"][1:])
+
+
 def test_cli_eval_summary(tmp_path: Path, capsys) -> None:
     benchmarks_path = tmp_path / "benchmarks.jsonl"
     attempts_path = tmp_path / "attempts.jsonl"
@@ -767,6 +806,26 @@ def test_checked_in_external_baseline_plan_artifact() -> None:
     assert set(report) <= set(schema["properties"])
 
 
+def test_checked_in_external_baseline_results_artifact() -> None:
+    report = json.loads(Path("artifacts/evaluation/external-baseline-results.json").read_text(encoding="utf-8"))
+    schema = json.loads(Path("schemas/external_baseline_results.schema.json").read_text(encoding="utf-8"))
+
+    assert report["report_id"] == "external-baseline-results::test"
+    assert report["plan_report_id"] == "external-baseline-plan::test"
+    assert report["baseline_count"] == 5
+    assert report["ingested_count"] == 1
+    assert report["blocked_count"] == 4
+    assert report["best_available_baseline"] == "seed-registry"
+    seed_row = report["rows"][0]
+    assert seed_row["baseline_id"] == "seed-registry"
+    assert seed_row["ingestion_status"] == "ingested"
+    assert seed_row["source"] == "checked_in_seed_registry_fallback"
+    assert seed_row["evaluated_task_count"] == 2
+    assert {row["ingestion_status"] for row in report["rows"][1:]} == {"blocked_by_plan_status"}
+    assert all(row["blocked_reasons"] for row in report["rows"][1:])
+    assert set(report) <= set(schema["properties"])
+
+
 def test_checked_in_theorem_hole_promotion_queue_artifact() -> None:
     report = json.loads(Path("artifacts/curation/theorem-hole-promotion-queue.json").read_text(encoding="utf-8"))
     schema = json.loads(Path("schemas/theorem_hole_promotion_queue.schema.json").read_text(encoding="utf-8"))
@@ -797,11 +856,12 @@ def test_checked_in_reproducibility_bundle_artifact() -> None:
     assert "docs/paper_draft.md" in artifact_paths
     assert "artifacts/evaluation/ablation-report.json" in artifact_paths
     assert "artifacts/evaluation/external-baseline-plan.json" in artifact_paths
+    assert "artifacts/evaluation/external-baseline-results.json" in artifact_paths
     assert "artifacts/curation/theorem-hole-promotion-queue.json" in artifact_paths
     assert all(len(artifact["sha256"]) == 64 for artifact in report["artifacts"])
     assert any(command["name"] == "smoke" for command in report["validation_commands"])
     assert any(command["name"] == "forbidden_lean_shortcuts" for command in report["validation_commands"])
-    assert report["current_milestone"]["id"] == "P9.M3"
+    assert report["current_milestone"]["id"] == "P9.M4"
     assert set(report) <= set(schema["properties"])
 
 

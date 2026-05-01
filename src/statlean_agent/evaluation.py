@@ -84,6 +84,7 @@ DEFAULT_REPRODUCIBILITY_ARTIFACTS = (
     "artifacts/evaluation/concrete-estimator-chain.json",
     "artifacts/evaluation/ablation-report.json",
     "artifacts/evaluation/external-baseline-plan.json",
+    "artifacts/evaluation/external-baseline-results.json",
     "artifacts/training/manifest.json",
     "artifacts/training/dpo-negative-attempts.jsonl",
     "artifacts/training/dpo-negative-reports.jsonl",
@@ -107,7 +108,7 @@ DEFAULT_EXTERNAL_BASELINES = (
         "command_template": (
             "statlean materialize-benchmark-attempts --benchmarks {benchmarks} --output {attempts} "
             "--agent-key seed-registry && statlean verify-attempts --attempts {attempts} "
-            "--reports {reports} --benchmarks {benchmarks}"
+            "--output {reports} --benchmarks {benchmarks}"
         ),
     },
     {
@@ -825,6 +826,66 @@ def build_external_baseline_plan(
     }
 
 
+def build_external_baseline_results(
+    tasks: tuple[BenchmarkTask, ...],
+    plan: Mapping[str, object],
+    attempts_by_baseline: Mapping[str, tuple[ProofAttempt, ...]],
+    reports_by_baseline: Mapping[str, tuple[VerificationReport, ...]],
+    *,
+    source_by_baseline: Mapping[str, str] | None = None,
+) -> dict[str, object]:
+    """Normalize available external baseline results against the planned split."""
+
+    split = str(plan.get("split", "test"))
+    baselines = tuple(_mapping(row) for row in plan.get("baselines", ()))
+    source_by_baseline = source_by_baseline or {}
+    rows = [
+        _external_baseline_result_row(
+            tasks,
+            baseline,
+            split=split,
+            attempts=attempts_by_baseline.get(str(baseline.get("baseline_id", ""))),
+            reports=reports_by_baseline.get(str(baseline.get("baseline_id", ""))),
+            source=source_by_baseline.get(str(baseline.get("baseline_id", "")), "missing"),
+        )
+        for baseline in baselines
+    ]
+    ingested_rows = [row for row in rows if row["ingestion_status"] == "ingested"]
+    blocked_rows = [row for row in rows if row["ingestion_status"] != "ingested"]
+    best = max(
+        ingested_rows,
+        key=lambda row: (
+            float(row["pass_rate"]),
+            float(row["mean_premise_recall"]),
+            str(row["baseline_id"]),
+        ),
+        default=None,
+    )
+
+    return {
+        "report_id": f"external-baseline-results::{split}",
+        "plan_report_id": str(plan.get("report_id", "")),
+        "split": split,
+        "baseline_count": len(rows),
+        "ingested_count": len(ingested_rows),
+        "blocked_count": len(blocked_rows),
+        "best_available_baseline": best["baseline_id"] if best else None,
+        "rows": rows,
+        "comparison_policy": (
+            "Each external baseline must provide ProofAttempt and VerificationReport "
+            "JSONL records over the planned split. Results are compared with "
+            "compare_baseline_on_split, so policy violations, premise recall, "
+            "failure taxonomy, and effective pass rate match the seed-registry "
+            "evaluation path."
+        ),
+        "notes": (
+            "P9.M3 ingestion: seed-registry is ingested from checked-in verifier "
+            "artifacts when planned external-baseline files are not present; model "
+            "baselines remain blocked until adapters produce attempt/report JSONL."
+        ),
+    }
+
+
 @dataclass
 class _SummaryBucket:
     attempts: int = 0
@@ -1150,6 +1211,94 @@ def _external_baseline_row(
             reports=reports_path,
             summary=summary_path,
         ),
+    }
+
+
+def _external_baseline_result_row(
+    tasks: tuple[BenchmarkTask, ...],
+    baseline: Mapping[str, object],
+    *,
+    split: str,
+    attempts: tuple[ProofAttempt, ...] | None,
+    reports: tuple[VerificationReport, ...] | None,
+    source: str,
+) -> dict[str, object]:
+    baseline_id = str(baseline.get("baseline_id", ""))
+    base_row = {
+        "baseline_id": baseline_id,
+        "display_name": str(baseline.get("display_name", "")),
+        "runner_type": str(baseline.get("runner_type", "")),
+        "planned_status": str(baseline.get("status", "")),
+        "source": source,
+        "attempts_path": str(baseline.get("attempts_path", "")),
+        "reports_path": str(baseline.get("reports_path", "")),
+        "summary_path": str(baseline.get("summary_path", "")),
+        "target_task_count": int(baseline.get("target_task_count", 0)),
+    }
+    if attempts is None or reports is None:
+        missing = []
+        if attempts is None:
+            missing.append(str(baseline.get("attempts_path", "")))
+        if reports is None:
+            missing.append(str(baseline.get("reports_path", "")))
+        planned_status = str(baseline.get("status", ""))
+        ingestion_status = (
+            "blocked_missing_results"
+            if planned_status == "ready"
+            else "blocked_by_plan_status"
+        )
+        return {
+            **base_row,
+            "ingestion_status": ingestion_status,
+            "evaluated_task_count": 0,
+            "passed": 0,
+            "failed": 0,
+            "pass_rate": 0.0,
+            "mean_reward": 0.0,
+            "mean_premise_recall": 0.0,
+            "status_counts": _empty_status_counts(),
+            "failure_categories": {},
+            "blocked_reasons": [
+                *(str(requirement) for requirement in _sequence(baseline.get("requires"))),
+                *(f"missing result file: {path}" for path in missing if path),
+            ],
+        }
+
+    try:
+        comparison = compare_baseline_on_split(
+            tasks,
+            attempts,
+            reports,
+            baseline=baseline_id,
+            split=split,
+        )
+    except ValueError as error:
+        return {
+            **base_row,
+            "ingestion_status": "ingestion_error",
+            "evaluated_task_count": 0,
+            "passed": 0,
+            "failed": 0,
+            "pass_rate": 0.0,
+            "mean_reward": 0.0,
+            "mean_premise_recall": 0.0,
+            "status_counts": _empty_status_counts(),
+            "failure_categories": {},
+            "blocked_reasons": [str(error)],
+        }
+
+    return {
+        **base_row,
+        "ingestion_status": "ingested",
+        "evaluated_task_count": int(comparison["benchmark_task_count"]),
+        "passed": int(comparison["passed"]),
+        "failed": int(comparison["failed"]),
+        "pass_rate": float(comparison["pass_rate"]),
+        "mean_reward": float(comparison["mean_reward"]),
+        "mean_premise_recall": float(comparison["mean_premise_recall"]),
+        "status_counts": dict(_mapping(comparison["status_counts"])),
+        "failure_categories": dict(_mapping(comparison["failure_categories"])),
+        "blocked_reasons": [],
     }
 
 

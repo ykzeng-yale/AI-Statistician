@@ -28,6 +28,7 @@ artifacts/*
 !artifacts/evaluation/concrete-estimator-chain.json
 !artifacts/evaluation/ablation-report.json
 !artifacts/evaluation/external-baseline-plan.json
+!artifacts/evaluation/external-baseline-results.json
 !artifacts/evaluation/reproducibility-bundle.json
 !artifacts/curation/
 !artifacts/curation/theorem-hole-ledger.jsonl

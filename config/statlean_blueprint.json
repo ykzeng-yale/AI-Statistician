@@ -521,8 +521,15 @@
         },
         {
           "id": "P9.M3",
-          "status": "pending",
-          "name": "External baseline result ingestion and comparison"
+          "status": "done",
+          "name": "External baseline result ingestion and comparison",
+          "evidence": [
+            "build_external_baseline_results normalizes external ProofAttempt and VerificationReport JSONL files against the same held-out split used by seed-registry.",
+            "external-baseline-results CLI generated artifacts/evaluation/external-baseline-results.json, ingesting seed-registry through checked-in fallback artifacts and marking four model/agent baselines blocked until adapters produce attempt/report files.",
+            "The report records per-baseline ingestion status, pass rate, mean reward, premise recall, failure taxonomy, source artifact, and blocked reasons.",
+            "The seed-registry command template in external-baseline-plan was corrected to use verify-attempts --output for reproducible report generation.",
+            "schemas/external_baseline_results.schema.json documents the artifact and tests enforce checked-in result coverage."
+          ]
         },
         {
           "id": "P9.M4",
@@ -531,7 +538,7 @@
         }
       ],
       "next_actions": [
-        "Build P9.M3 external baseline result ingestion so future ReProver, DeepSeek-Prover, Kimina, and coding-agent attempt files can be normalized, verified, and compared against seed-registry."
+        "Build P9.M4 empirical-process expansion targets for bracketing, VC, and Donsker interfaces so the next Lean-statistics library layer is explicitly scoped."
       ]
     }
   ]

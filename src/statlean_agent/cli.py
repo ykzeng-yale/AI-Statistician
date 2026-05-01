@@ -28,6 +28,7 @@ from statlean_agent.evaluation import (
     build_ablation_report,
     build_concrete_estimator_chain_report,
     build_external_baseline_plan,
+    build_external_baseline_results,
     build_paper_quality_heldout_report,
     build_reproducibility_bundle,
     compare_baseline_on_split,
@@ -136,6 +137,37 @@ def main(argv: list[str] | None = None) -> int:
         "--output",
         default="artifacts/evaluation/external-baseline-plan.json",
         help="Output external baseline plan JSON path.",
+    )
+
+    external_results = subparsers.add_parser(
+        "external-baseline-results",
+        help="Ingest and compare available external baseline attempt/report files.",
+    )
+    external_results.add_argument("--benchmarks", default="benchmarks/seeds.jsonl", help="BenchmarkTask JSONL path.")
+    external_results.add_argument(
+        "--plan",
+        default="artifacts/evaluation/external-baseline-plan.json",
+        help="External baseline plan JSON path.",
+    )
+    external_results.add_argument(
+        "--repo-root",
+        default=".",
+        help="Repository root used to resolve plan result paths.",
+    )
+    external_results.add_argument(
+        "--seed-attempts",
+        default="artifacts/evaluation/benchmark-seed-attempts.jsonl",
+        help="Fallback seed-registry ProofAttempt JSONL path.",
+    )
+    external_results.add_argument(
+        "--seed-reports",
+        default="artifacts/verification/benchmark-seed-reports.jsonl",
+        help="Fallback seed-registry VerificationReport JSONL path.",
+    )
+    external_results.add_argument(
+        "--output",
+        default="artifacts/evaluation/external-baseline-results.json",
+        help="Output external baseline results JSON path.",
     )
 
     paper_heldout = subparsers.add_parser(
@@ -578,6 +610,60 @@ def main(argv: list[str] | None = None) -> int:
         print(
             f"wrote {output} baselines={plan['baseline_count']} "
             f"ready={plan['ready_baseline_count']} target_tasks={plan['target_task_count']}"
+        )
+        return 0
+
+    if args.command == "external-baseline-results":
+        tasks = load_benchmarks(Path(args.benchmarks))
+        plan = json.loads(Path(args.plan).read_text(encoding="utf-8"))
+        root = Path(args.repo_root)
+        attempts_by_baseline: dict[str, tuple[ProofAttempt, ...]] = {}
+        reports_by_baseline: dict[str, tuple[VerificationReport, ...]] = {}
+        source_by_baseline: dict[str, str] = {}
+
+        for baseline in plan.get("baselines", ()):
+            if not isinstance(baseline, dict):
+                continue
+            baseline_id = str(baseline.get("baseline_id", ""))
+            attempts_path = root / str(baseline.get("attempts_path", ""))
+            reports_path = root / str(baseline.get("reports_path", ""))
+            if attempts_path.exists() and reports_path.exists():
+                attempts_by_baseline[baseline_id] = tuple(
+                    dataclass_from_dict(ProofAttempt, record)
+                    for record in read_jsonl(attempts_path)
+                )
+                reports_by_baseline[baseline_id] = tuple(
+                    dataclass_from_dict(VerificationReport, record)
+                    for record in read_jsonl(reports_path)
+                )
+                source_by_baseline[baseline_id] = "planned_result_files"
+                continue
+
+            if baseline_id == "seed-registry":
+                attempts_by_baseline[baseline_id] = tuple(
+                    dataclass_from_dict(ProofAttempt, record)
+                    for record in read_jsonl(Path(args.seed_attempts))
+                )
+                reports_by_baseline[baseline_id] = tuple(
+                    dataclass_from_dict(VerificationReport, record)
+                    for record in read_jsonl(Path(args.seed_reports))
+                )
+                source_by_baseline[baseline_id] = "checked_in_seed_registry_fallback"
+
+        report = build_external_baseline_results(
+            tasks,
+            plan,
+            attempts_by_baseline,
+            reports_by_baseline,
+            source_by_baseline=source_by_baseline,
+        )
+        output = Path(args.output)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(dumps_json(report) + "\n", encoding="utf-8")
+        print(
+            f"external_results={report['baseline_count']} ingested={report['ingested_count']} "
+            f"blocked={report['blocked_count']} best={report['best_available_baseline']} "
+            f"output={args.output}"
         )
         return 0
 
