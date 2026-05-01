@@ -28,12 +28,12 @@ def test_cli_blueprint_status(capsys) -> None:
     assert main(["blueprint-status", "--blueprint", "config/statlean_blueprint.json"]) == 0
     output = capsys.readouterr().out
     assert "Current phase: P7" in output
-    assert "Current milestone: P7.M2" in output
+    assert "Current milestone: P7.M3" in output
 
     assert main(["blueprint-status", "--blueprint", "config/statlean_blueprint.json", "--json"]) == 0
     json_output = capsys.readouterr().out
     assert '"current_phase"' in json_output
-    assert '"P7.M2"' in json_output
+    assert '"P7.M3"' in json_output
 
 
 def test_cli_verify_benchmarks_allow_failures(tmp_path: Path, capsys) -> None:
@@ -237,6 +237,37 @@ def test_cli_build_lemma_proposals(tmp_path: Path, capsys) -> None:
     assert {record["proposed_by"] for record in records} == {"test-miner"}
     assert {record["status"] for record in records} == {"needs_no_sorry_proof"}
     assert all("non_vacuity_example" in record["required_gates"] for record in records)
+
+
+def test_cli_check_lemma_proposals(tmp_path: Path, capsys) -> None:
+    benchmark_path = tmp_path / "seeds.jsonl"
+    proposals_path = tmp_path / "lemma-proposals.jsonl"
+    gates_path = tmp_path / "lemma-proposal-gates.jsonl"
+    main(["seed-benchmarks", "--output", str(benchmark_path)])
+    main(["build-lemma-proposals", "--benchmarks", str(benchmark_path), "--output", str(proposals_path)])
+
+    assert (
+        main(
+            [
+                "check-lemma-proposals",
+                "--proposals",
+                str(proposals_path),
+                "--output",
+                str(gates_path),
+                "--root",
+                ".",
+            ]
+        )
+        == 0
+    )
+
+    output = capsys.readouterr().out
+    records = read_jsonl(gates_path)
+    assert "proposal_gate_reports=3" in output
+    assert "passed=3" in output
+    assert {record["status"] for record in records} == {"passed"}
+    assert all(not record["unused_imports"] for record in records)
+    assert all(not record["missing_imports"] for record in records)
 
 
 def test_cli_eval_attempts(tmp_path: Path, capsys) -> None:

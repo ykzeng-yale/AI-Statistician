@@ -389,12 +389,23 @@
             "schemas/lemma_proposal.schema.json documents the proposal artifact and tests enforce checked-in proposal coverage."
           ]
         },
-        {"id": "P7.M2", "status": "pending", "name": "Duplicate and import-minimality checks"},
+        {
+          "id": "P7.M2",
+          "status": "done",
+          "name": "Duplicate and import-minimality checks",
+          "evidence": [
+            "LemmaProposalGateReport contract records duplicate-name matches, duplicate-statement matches, imports added, required imports, unused imports, missing imports, pass/fail status, and required changes.",
+            "build_lemma_proposal_gate_reports compares proposal names/statements against current proposals and the local StatInference premise index.",
+            "Import-minimality is checked by resolving each proposal's expected premises to premise-index modules and comparing those required modules with candidate imports_added.",
+            "check-lemma-proposals CLI generated artifacts/curation/lemma-proposal-gates.jsonl with three passing proposal gate reports.",
+            "schemas/lemma_proposal_gate_report.schema.json documents the gate artifact and tests enforce duplicate/import failure behavior plus checked-in passing reports."
+          ]
+        },
         {"id": "P7.M3", "status": "pending", "name": "Non-vacuity example requirement"},
         {"id": "P7.M4", "status": "pending", "name": "Downstream proof-cost improvement metric"}
       ],
       "next_actions": [
-        "Implement duplicate detection and import-minimality checks for lemma proposals before promotion."
+        "Implement non-vacuity example requirements for lemma proposals before promotion."
       ]
     },
     {

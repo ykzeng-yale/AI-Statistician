@@ -10,8 +10,10 @@ from statlean_agent.contracts import (
     CuratedLemmaLedgerEntry,
     CurationDecision,
     LemmaProposal,
+    LemmaProposalGateReport,
     VerificationReport,
 )
+from statlean_agent.retrieval import PremiseRecord
 from statlean_agent.rewards import FORBIDDEN_TOKENS
 
 
@@ -140,6 +142,71 @@ def build_theorem_hole_lemma_proposals(
     return tuple(proposals)
 
 
+def build_lemma_proposal_gate_reports(
+    proposals: tuple[LemmaProposal, ...],
+    premise_records: tuple[PremiseRecord, ...],
+) -> tuple[LemmaProposalGateReport, ...]:
+    """Check duplicate names/statements and import-minimality for proposals."""
+
+    names_by_proposal = _proposal_names(proposals)
+    statements_by_proposal = _proposal_statements(proposals)
+    premise_names = _premise_name_index(premise_records)
+    premises_by_name = _premise_records_by_name(premise_records)
+    reports: list[LemmaProposalGateReport] = []
+
+    for proposal in proposals:
+        duplicate_name_matches = tuple(
+            sorted(
+                (
+                    *names_by_proposal.get(proposal.candidate.name, ()),
+                    *premise_names.get(proposal.candidate.name, ()),
+                )
+            )
+        )
+        statement_key = _normalized_statement(proposal.candidate.statement)
+        duplicate_statement_matches = tuple(
+            sorted(
+                item
+                for item in statements_by_proposal.get(statement_key, ())
+                if item != proposal.proposal_id
+            )
+        )
+        required_imports = _required_imports_for_expected_premises(
+            proposal.expected_premises,
+            premises_by_name,
+        )
+        imports_added = tuple(sorted(set(proposal.candidate.imports_added)))
+        unused_imports = tuple(import_name for import_name in imports_added if import_name not in required_imports)
+        missing_imports = tuple(import_name for import_name in required_imports if import_name not in imports_added)
+        required_changes = _gate_required_changes(
+            duplicate_name_matches=duplicate_name_matches,
+            duplicate_statement_matches=duplicate_statement_matches,
+            unused_imports=unused_imports,
+            missing_imports=missing_imports,
+        )
+        passed = not required_changes
+        reports.append(
+            LemmaProposalGateReport(
+                proposal_id=proposal.proposal_id,
+                candidate_name=proposal.candidate.name,
+                duplicate_name_matches=duplicate_name_matches,
+                duplicate_statement_matches=duplicate_statement_matches,
+                imports_added=imports_added,
+                required_imports=required_imports,
+                unused_imports=unused_imports,
+                missing_imports=missing_imports,
+                passed=passed,
+                status="passed" if passed else "blocked_static_gate",
+                required_changes=required_changes,
+                notes=(
+                    "Static P7.M2 gate: duplicate names/statements and "
+                    "proposal import set are checked before curation promotion."
+                ),
+            )
+        )
+    return tuple(reports)
+
+
 def _candidate_name(task: BenchmarkTask) -> str:
     if task.task_id == "ipw_linearization_theorem_hole_seed":
         return "ipw_hajek_linearization_constructor"
@@ -164,3 +231,95 @@ def _candidate_from_theorem_hole(task: BenchmarkTask) -> CuratedLemmaCandidate:
             + ", ".join(task.expected_premises)
         ),
     )
+
+
+def _proposal_names(proposals: tuple[LemmaProposal, ...]) -> dict[str, tuple[str, ...]]:
+    names: dict[str, list[str]] = {}
+    for proposal in proposals:
+        names.setdefault(proposal.candidate.name, []).append(proposal.proposal_id)
+    return {
+        name: tuple(proposal_ids)
+        for name, proposal_ids in names.items()
+        if len(proposal_ids) > 1
+    }
+
+
+def _proposal_statements(proposals: tuple[LemmaProposal, ...]) -> dict[str, tuple[str, ...]]:
+    statements: dict[str, list[str]] = {}
+    for proposal in proposals:
+        statements.setdefault(_normalized_statement(proposal.candidate.statement), []).append(proposal.proposal_id)
+    return {
+        statement: tuple(proposal_ids)
+        for statement, proposal_ids in statements.items()
+        if len(proposal_ids) > 1
+    }
+
+
+def _premise_name_index(records: tuple[PremiseRecord, ...]) -> dict[str, tuple[str, ...]]:
+    index: dict[str, list[str]] = {}
+    for record in records:
+        candidates = {
+            record.name,
+            record.full_name,
+            _unqualified_name(record.name),
+            _unqualified_name(record.full_name),
+        }
+        for candidate in candidates:
+            if candidate:
+                index.setdefault(candidate, []).append(record.full_name or record.name)
+    return {name: tuple(sorted(set(matches))) for name, matches in index.items()}
+
+
+def _premise_records_by_name(records: tuple[PremiseRecord, ...]) -> dict[str, tuple[PremiseRecord, ...]]:
+    index: dict[str, list[PremiseRecord]] = {}
+    for record in records:
+        candidates = {
+            record.name,
+            record.full_name,
+            f"StatInference.{record.name}",
+            _unqualified_name(record.name),
+            _unqualified_name(record.full_name),
+        }
+        for candidate in candidates:
+            if candidate:
+                index.setdefault(candidate, []).append(record)
+    return {name: tuple(matches) for name, matches in index.items()}
+
+
+def _required_imports_for_expected_premises(
+    expected_premises: tuple[str, ...],
+    premise_records_by_name: dict[str, tuple[PremiseRecord, ...]],
+) -> tuple[str, ...]:
+    required: set[str] = set()
+    for premise in expected_premises:
+        records = premise_records_by_name.get(premise, ())
+        if records:
+            required.update(record.module for record in records)
+    return tuple(sorted(required))
+
+
+def _gate_required_changes(
+    *,
+    duplicate_name_matches: tuple[str, ...],
+    duplicate_statement_matches: tuple[str, ...],
+    unused_imports: tuple[str, ...],
+    missing_imports: tuple[str, ...],
+) -> tuple[str, ...]:
+    changes: list[str] = []
+    if duplicate_name_matches:
+        changes.append("rename candidate or justify duplicate declaration name")
+    if duplicate_statement_matches:
+        changes.append("deduplicate equivalent lemma proposal statement")
+    if unused_imports:
+        changes.append("remove imports not needed by expected premises")
+    if missing_imports:
+        changes.append("add imports required by expected premises")
+    return tuple(changes)
+
+
+def _normalized_statement(statement: str) -> str:
+    return " ".join(statement.split())
+
+
+def _unqualified_name(name: str) -> str:
+    return name.rsplit(".", maxsplit=1)[-1]

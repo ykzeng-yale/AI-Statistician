@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LemmaProposalGateReport",
+  "type": "object",
+  "required": [
+    "proposal_id",
+    "candidate_name",
+    "duplicate_name_matches",
+    "duplicate_statement_matches",
+    "imports_added",
+    "required_imports",
+    "unused_imports",
+    "missing_imports",
+    "passed",
+    "status",
+    "required_changes",
+    "notes"
+  ],
+  "properties": {
+    "proposal_id": {"type": "string"},
+    "candidate_name": {"type": "string"},
+    "duplicate_name_matches": {"type": "array", "items": {"type": "string"}},
+    "duplicate_statement_matches": {"type": "array", "items": {"type": "string"}},
+    "imports_added": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "required_imports": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "unused_imports": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "missing_imports": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "passed": {"type": "boolean"},
+    "status": {"type": "string"},
+    "required_changes": {"type": "array", "items": {"type": "string"}},
+    "notes": {"type": "string"}
+  },
+  "additionalProperties": false
+}

@@ -154,6 +154,24 @@ class LemmaProposal:
 
 
 @dataclass(frozen=True)
+class LemmaProposalGateReport:
+    """Static duplicate and import-minimality report for a lemma proposal."""
+
+    proposal_id: str
+    candidate_name: str
+    duplicate_name_matches: tuple[str, ...] = ()
+    duplicate_statement_matches: tuple[str, ...] = ()
+    imports_added: tuple[str, ...] = ()
+    required_imports: tuple[str, ...] = ()
+    unused_imports: tuple[str, ...] = ()
+    missing_imports: tuple[str, ...] = ()
+    passed: bool = False
+    status: str = "pending"
+    required_changes: tuple[str, ...] = ()
+    notes: str = ""
+
+
+@dataclass(frozen=True)
 class CurationDecision:
     """Outcome of curation gates."""
 

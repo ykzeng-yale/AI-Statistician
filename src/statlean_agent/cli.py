@@ -13,8 +13,12 @@ from statlean_agent.blueprint import (
     render_blueprint_status,
     validate_blueprint,
 )
-from statlean_agent.contracts import ProofAttempt, VerificationReport
-from statlean_agent.curation import build_theorem_hole_lemma_ledger, build_theorem_hole_lemma_proposals
+from statlean_agent.contracts import LemmaProposal, ProofAttempt, VerificationReport
+from statlean_agent.curation import (
+    build_lemma_proposal_gate_reports,
+    build_theorem_hole_lemma_ledger,
+    build_theorem_hole_lemma_proposals,
+)
 from statlean_agent.evaluation import compare_baseline_on_split, evaluate_attempts, summarize_benchmark_attempts
 from statlean_agent.orchestrator import DEFAULT_WORKFLOW
 from statlean_agent.retrieval import PremiseRecord, build_premise_index, search_premises
@@ -133,6 +137,27 @@ def main(argv: list[str] | None = None) -> int:
         "--proposed-by",
         default="theorem-hole-miner",
         help="Proposal source identifier.",
+    )
+
+    lemma_proposal_gates = subparsers.add_parser(
+        "check-lemma-proposals",
+        help="Run duplicate and import-minimality checks for lemma proposals.",
+    )
+    lemma_proposal_gates.add_argument(
+        "--proposals",
+        default="artifacts/curation/lemma-proposals.jsonl",
+        help="LemmaProposal JSONL path.",
+    )
+    lemma_proposal_gates.add_argument(
+        "--output",
+        default="artifacts/curation/lemma-proposal-gates.jsonl",
+        help="Output LemmaProposalGateReport JSONL path.",
+    )
+    lemma_proposal_gates.add_argument("--root", default=".", help="Repository root for premise indexing.")
+    lemma_proposal_gates.add_argument("--source-dir", default="StatInference", help="Lean source directory.")
+    lemma_proposal_gates.add_argument(
+        "--premises",
+        help="Optional existing PremiseRecord JSONL path. If omitted, index local Lean declarations.",
     )
 
     index_premises = subparsers.add_parser("index-premises", help="Index local Lean declarations.")
@@ -358,6 +383,18 @@ def main(argv: list[str] | None = None) -> int:
         write_jsonl(Path(args.output), list(proposals))
         blocked = sum(1 for proposal in proposals if proposal.blocked_reasons)
         print(f"lemma_proposals={len(proposals)} blocked={blocked} output={args.output}")
+        return 0
+
+    if args.command == "check-lemma-proposals":
+        proposals = tuple(dataclass_from_dict(LemmaProposal, record) for record in read_jsonl(Path(args.proposals)))
+        if args.premises:
+            premises = tuple(dataclass_from_dict(PremiseRecord, record) for record in read_jsonl(Path(args.premises)))
+        else:
+            premises = build_premise_index(Path(args.root), source_dir=args.source_dir)
+        reports = build_lemma_proposal_gate_reports(proposals, premises)
+        write_jsonl(Path(args.output), list(reports))
+        passed = sum(1 for report in reports if report.passed)
+        print(f"proposal_gate_reports={len(reports)} passed={passed} output={args.output}")
         return 0
 
     if args.command == "index-premises":

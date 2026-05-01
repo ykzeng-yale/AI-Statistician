@@ -5,6 +5,7 @@ from statlean_agent.contracts import (
     CuratedLemmaCandidate,
     CuratedLemmaLedgerEntry,
     LemmaProposal,
+    LemmaProposalGateReport,
     ProofAttempt,
     VerificationReport,
     VerificationStatus,
@@ -12,10 +13,12 @@ from statlean_agent.contracts import (
 from statlean_agent.benchmarks import SEED_BENCHMARKS
 from statlean_agent.curation import (
     DEFAULT_REQUIRED_GATES,
+    build_lemma_proposal_gate_reports,
     build_theorem_hole_lemma_ledger,
     build_theorem_hole_lemma_proposals,
     curate_candidate,
 )
+from statlean_agent.retrieval import PremiseRecord, build_premise_index
 from statlean_agent.rewards import aggregate_reward_breakdowns, find_forbidden_tokens, score_attempt
 from statlean_agent.serialization import dataclass_from_dict, read_jsonl
 
@@ -160,6 +163,87 @@ def test_theorem_hole_lemma_proposals_record_required_gates() -> None:
     }
 
 
+def test_lemma_proposal_gate_reports_detect_duplicate_name_and_imports() -> None:
+    proposal = LemmaProposal(
+        proposal_id="proposal::dup",
+        source_kind="unit",
+        proposed_by="test",
+        candidate=CuratedLemmaCandidate(
+            name="existingLemma",
+            statement="example : True := by trivial",
+            proof="by trivial",
+            motivation_tasks=("task",),
+            imports_added=("StatInference.Unused",),
+            semantic_notes="unit test",
+        ),
+        source_task_ids=("task",),
+        expected_premises=("StatInference.existingPremise",),
+    )
+    duplicate_statement = LemmaProposal(
+        proposal_id="proposal::same_statement",
+        source_kind="unit",
+        proposed_by="test",
+        candidate=CuratedLemmaCandidate(
+            name="freshLemma",
+            statement="example   :   True := by\n  trivial",
+            proof="by trivial",
+            motivation_tasks=("task",),
+            imports_added=("StatInference.Required",),
+            semantic_notes="unit test",
+        ),
+        source_task_ids=("task",),
+        expected_premises=("StatInference.existingPremise",),
+    )
+    premises = (
+        PremiseRecord(
+            name="existingLemma",
+            kind="theorem",
+            module="StatInference.Required",
+            file="StatInference/Required.lean",
+            line=1,
+            full_name="StatInference.existingLemma",
+        ),
+        PremiseRecord(
+            name="existingPremise",
+            kind="theorem",
+            module="StatInference.Required",
+            file="StatInference/Required.lean",
+            line=2,
+            full_name="StatInference.existingPremise",
+        ),
+    )
+
+    reports = build_lemma_proposal_gate_reports((proposal, duplicate_statement), premises)
+    by_id = {report.proposal_id: report for report in reports}
+
+    assert by_id["proposal::dup"].status == "blocked_static_gate"
+    assert by_id["proposal::dup"].duplicate_name_matches == ("StatInference.existingLemma",)
+    assert by_id["proposal::dup"].missing_imports == ("StatInference.Required",)
+    assert by_id["proposal::dup"].unused_imports == ("StatInference.Unused",)
+    assert "rename candidate or justify duplicate declaration name" in by_id["proposal::dup"].required_changes
+    assert by_id["proposal::same_statement"].duplicate_statement_matches == ("proposal::dup",)
+
+
+def test_current_lemma_proposal_gate_reports_pass_static_checks() -> None:
+    proposals = build_theorem_hole_lemma_proposals(SEED_BENCHMARKS)
+    premises = build_premise_index(Path("."), source_dir="StatInference")
+
+    reports = build_lemma_proposal_gate_reports(proposals, premises)
+
+    assert len(reports) == 3
+    assert all(report.passed for report in reports)
+    assert {report.status for report in reports} == {"passed"}
+    assert all(not report.duplicate_name_matches for report in reports)
+    assert all(not report.duplicate_statement_matches for report in reports)
+    assert all(not report.unused_imports for report in reports)
+    assert all(not report.missing_imports for report in reports)
+    assert {
+        "StatInference.Causal.IPW",
+        "StatInference.Causal.AIPW",
+        "StatInference.Semiparametric.Normality",
+    } == {report.required_imports[0] for report in reports}
+
+
 def test_checked_in_theorem_hole_ledger_is_curator_blocked() -> None:
     records = read_jsonl(Path("artifacts/curation/theorem-hole-ledger.jsonl"))
     entries = tuple(dataclass_from_dict(CuratedLemmaLedgerEntry, record) for record in records)
@@ -181,4 +265,21 @@ def test_checked_in_lemma_proposals_are_precuration_records() -> None:
     assert all(proposal.blocked_reasons for proposal in proposals)
     assert all(proposal.candidate.semantic_notes for proposal in proposals)
     assert schema["title"] == "LemmaProposal"
+    assert all(set(record) <= set(schema["properties"]) for record in records)
+
+
+def test_checked_in_lemma_proposal_gate_reports_pass() -> None:
+    records = read_jsonl(Path("artifacts/curation/lemma-proposal-gates.jsonl"))
+    reports = tuple(dataclass_from_dict(LemmaProposalGateReport, record) for record in records)
+    schema = json.loads(Path("schemas/lemma_proposal_gate_report.schema.json").read_text(encoding="utf-8"))
+
+    assert len(reports) == 3
+    assert all(report.passed for report in reports)
+    assert {report.status for report in reports} == {"passed"}
+    assert all(not report.required_changes for report in reports)
+    assert all(not report.duplicate_name_matches for report in reports)
+    assert all(not report.duplicate_statement_matches for report in reports)
+    assert all(not report.unused_imports for report in reports)
+    assert all(not report.missing_imports for report in reports)
+    assert schema["title"] == "LemmaProposalGateReport"
     assert all(set(record) <= set(schema["properties"]) for record in records)
