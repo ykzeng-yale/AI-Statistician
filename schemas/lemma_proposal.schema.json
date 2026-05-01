@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LemmaProposal",
+  "type": "object",
+  "required": [
+    "proposal_id",
+    "source_kind",
+    "proposed_by",
+    "candidate",
+    "source_task_ids",
+    "domain_tags",
+    "expected_premises",
+    "required_gates",
+    "blocked_reasons",
+    "status",
+    "notes"
+  ],
+  "properties": {
+    "proposal_id": {"type": "string"},
+    "source_kind": {"type": "string"},
+    "proposed_by": {"type": "string"},
+    "candidate": {
+      "type": "object",
+      "required": [
+        "name",
+        "statement",
+        "proof",
+        "motivation_tasks",
+        "imports_added",
+        "reuse_count",
+        "generality_score",
+        "semantic_notes"
+      ],
+      "properties": {
+        "name": {"type": "string"},
+        "statement": {"type": "string"},
+        "proof": {"type": "string"},
+        "motivation_tasks": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+        "imports_added": {"type": "array", "items": {"type": "string"}},
+        "reuse_count": {"type": "integer", "minimum": 0},
+        "generality_score": {"type": "number"},
+        "semantic_notes": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "source_task_ids": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+    "domain_tags": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+    "expected_premises": {"type": "array", "items": {"type": "string"}},
+    "required_gates": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "lean_compiles",
+          "no_forbidden_tokens",
+          "no_duplicate_statement",
+          "minimal_imports",
+          "non_vacuity_example",
+          "downstream_reuse",
+          "statistical_semantic_review"
+        ]
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "blocked_reasons": {"type": "array", "items": {"type": "string"}},
+    "status": {"type": "string"},
+    "notes": {"type": "string"}
+  },
+  "additionalProperties": false
+}

@@ -9,6 +9,7 @@ from statlean_agent.contracts import (
     CuratedLemmaCandidate,
     CuratedLemmaLedgerEntry,
     CurationDecision,
+    LemmaProposal,
     VerificationReport,
 )
 from statlean_agent.rewards import FORBIDDEN_TOKENS
@@ -19,6 +20,17 @@ class CurationPolicy:
     min_reuse_count: int = 1
     min_generality_score: float = 0.0
     require_semantic_notes: bool = True
+
+
+DEFAULT_REQUIRED_GATES = (
+    "lean_compiles",
+    "no_forbidden_tokens",
+    "no_duplicate_statement",
+    "minimal_imports",
+    "non_vacuity_example",
+    "downstream_reuse",
+    "statistical_semantic_review",
+)
 
 
 def curate_candidate(
@@ -72,19 +84,7 @@ def build_theorem_hole_lemma_ledger(
         if "theorem_hole" not in task.domain_tags:
             continue
 
-        candidate = CuratedLemmaCandidate(
-            name=_candidate_name(task),
-            statement=task.lean_task.statement,
-            proof="pending no-placeholder proof extracted from theorem-hole benchmark",
-            motivation_tasks=(task.task_id,),
-            imports_added=task.lean_task.imports,
-            reuse_count=max(1, len(task.expected_premises)),
-            generality_score=0.5,
-            semantic_notes=(
-                "Theorem-hole-derived reusable lemma candidate. Expected premises: "
-                + ", ".join(task.expected_premises)
-            ),
-        )
+        candidate = _candidate_from_theorem_hole(task)
         decision = curate_candidate(candidate)
         entries.append(
             CuratedLemmaLedgerEntry(
@@ -103,6 +103,43 @@ def build_theorem_hole_lemma_ledger(
     return tuple(entries)
 
 
+def build_theorem_hole_lemma_proposals(
+    tasks: tuple[BenchmarkTask, ...],
+    *,
+    proposed_by: str = "theorem-hole-miner",
+) -> tuple[LemmaProposal, ...]:
+    """Create pre-curation proposal records from theorem-hole benchmark tasks."""
+
+    proposals: list[LemmaProposal] = []
+    for task in tasks:
+        if "theorem_hole" not in task.domain_tags:
+            continue
+        candidate = _candidate_from_theorem_hole(task)
+        proposals.append(
+            LemmaProposal(
+                proposal_id=f"proposal::{task.task_id}",
+                source_kind="benchmark_theorem_hole",
+                proposed_by=proposed_by,
+                candidate=candidate,
+                source_task_ids=(task.task_id,),
+                domain_tags=task.domain_tags,
+                expected_premises=task.expected_premises,
+                required_gates=DEFAULT_REQUIRED_GATES,
+                blocked_reasons=(
+                    "source benchmark permits scoped placeholder proof",
+                    "requires no-sorry proof before ledger promotion",
+                ),
+                status="needs_no_sorry_proof",
+                notes=(
+                    "Proposal is a mining record only. It must pass duplicate, "
+                    "import-minimality, non-vacuity, downstream-use, and semantic "
+                    "review gates before entering StatInference."
+                ),
+            )
+        )
+    return tuple(proposals)
+
+
 def _candidate_name(task: BenchmarkTask) -> str:
     if task.task_id == "ipw_linearization_theorem_hole_seed":
         return "ipw_hajek_linearization_constructor"
@@ -111,3 +148,19 @@ def _candidate_name(task: BenchmarkTask) -> str:
     if task.task_id == "if_normality_theorem_hole_seed":
         return "influence_function_normality_route_constructor"
     return f"{task.task_id}_candidate"
+
+
+def _candidate_from_theorem_hole(task: BenchmarkTask) -> CuratedLemmaCandidate:
+    return CuratedLemmaCandidate(
+        name=_candidate_name(task),
+        statement=task.lean_task.statement,
+        proof="pending no-placeholder proof extracted from theorem-hole benchmark",
+        motivation_tasks=(task.task_id,),
+        imports_added=task.lean_task.imports,
+        reuse_count=max(1, len(task.expected_premises)),
+        generality_score=0.5,
+        semantic_notes=(
+            "Theorem-hole-derived reusable lemma candidate. Expected premises: "
+            + ", ".join(task.expected_premises)
+        ),
+    )

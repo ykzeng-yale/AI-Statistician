@@ -14,7 +14,7 @@ from statlean_agent.blueprint import (
     validate_blueprint,
 )
 from statlean_agent.contracts import ProofAttempt, VerificationReport
-from statlean_agent.curation import build_theorem_hole_lemma_ledger
+from statlean_agent.curation import build_theorem_hole_lemma_ledger, build_theorem_hole_lemma_proposals
 from statlean_agent.evaluation import compare_baseline_on_split, evaluate_attempts, summarize_benchmark_attempts
 from statlean_agent.orchestrator import DEFAULT_WORKFLOW
 from statlean_agent.retrieval import PremiseRecord, build_premise_index, search_premises
@@ -117,6 +117,22 @@ def main(argv: list[str] | None = None) -> int:
         "--output",
         default="artifacts/curation/theorem-hole-ledger.jsonl",
         help="Output CuratedLemmaLedgerEntry JSONL path.",
+    )
+
+    lemma_proposals = subparsers.add_parser(
+        "build-lemma-proposals",
+        help="Build pre-curation lemma proposal records from theorem-hole benchmark tasks.",
+    )
+    lemma_proposals.add_argument("--benchmarks", default="benchmarks/seeds.jsonl", help="BenchmarkTask JSONL path.")
+    lemma_proposals.add_argument(
+        "--output",
+        default="artifacts/curation/lemma-proposals.jsonl",
+        help="Output LemmaProposal JSONL path.",
+    )
+    lemma_proposals.add_argument(
+        "--proposed-by",
+        default="theorem-hole-miner",
+        help="Proposal source identifier.",
     )
 
     index_premises = subparsers.add_parser("index-premises", help="Index local Lean declarations.")
@@ -334,6 +350,14 @@ def main(argv: list[str] | None = None) -> int:
         write_jsonl(Path(args.output), list(entries))
         blocked = sum(1 for entry in entries if entry.status == "blocked_placeholder")
         print(f"ledger_entries={len(entries)} blocked_placeholder={blocked} output={args.output}")
+        return 0
+
+    if args.command == "build-lemma-proposals":
+        tasks = load_benchmarks(Path(args.benchmarks))
+        proposals = build_theorem_hole_lemma_proposals(tasks, proposed_by=args.proposed_by)
+        write_jsonl(Path(args.output), list(proposals))
+        blocked = sum(1 for proposal in proposals if proposal.blocked_reasons)
+        print(f"lemma_proposals={len(proposals)} blocked={blocked} output={args.output}")
         return 0
 
     if args.command == "index-premises":

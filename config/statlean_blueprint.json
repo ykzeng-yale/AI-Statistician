@@ -377,13 +377,24 @@
       "status": "in_progress",
       "objective": "Add a curator-gated mechanism for lemma mining, duplicate detection, non-vacuity examples, and downstream-use tracking.",
       "milestones": [
-        {"id": "P7.M1", "status": "pending", "name": "Lemma proposal schema"},
+        {
+          "id": "P7.M1",
+          "status": "done",
+          "name": "Lemma proposal schema",
+          "evidence": [
+            "LemmaProposal contract records proposal id, source kind, proposer, nested candidate, source tasks, domain tags, expected premises, required gates, blocked reasons, status, and notes.",
+            "build_theorem_hole_lemma_proposals creates pre-curation proposal records from theorem-hole benchmark tasks without promoting them into StatInference.",
+            "build-lemma-proposals CLI generated artifacts/curation/lemma-proposals.jsonl with three blocked theorem-hole-derived proposals.",
+            "Each proposal requires lean_compiles, no_forbidden_tokens, no_duplicate_statement, minimal_imports, non_vacuity_example, downstream_reuse, and statistical_semantic_review gates.",
+            "schemas/lemma_proposal.schema.json documents the proposal artifact and tests enforce checked-in proposal coverage."
+          ]
+        },
         {"id": "P7.M2", "status": "pending", "name": "Duplicate and import-minimality checks"},
         {"id": "P7.M3", "status": "pending", "name": "Non-vacuity example requirement"},
         {"id": "P7.M4", "status": "pending", "name": "Downstream proof-cost improvement metric"}
       ],
       "next_actions": [
-        "Gate any auto-mined lemma before adding it to StatInference."
+        "Implement duplicate detection and import-minimality checks for lemma proposals before promotion."
       ]
     },
     {

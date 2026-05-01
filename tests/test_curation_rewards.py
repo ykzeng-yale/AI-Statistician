@@ -1,14 +1,21 @@
+import json
 from pathlib import Path
 
 from statlean_agent.contracts import (
     CuratedLemmaCandidate,
     CuratedLemmaLedgerEntry,
+    LemmaProposal,
     ProofAttempt,
     VerificationReport,
     VerificationStatus,
 )
 from statlean_agent.benchmarks import SEED_BENCHMARKS
-from statlean_agent.curation import build_theorem_hole_lemma_ledger, curate_candidate
+from statlean_agent.curation import (
+    DEFAULT_REQUIRED_GATES,
+    build_theorem_hole_lemma_ledger,
+    build_theorem_hole_lemma_proposals,
+    curate_candidate,
+)
 from statlean_agent.rewards import aggregate_reward_breakdowns, find_forbidden_tokens, score_attempt
 from statlean_agent.serialization import dataclass_from_dict, read_jsonl
 
@@ -135,6 +142,24 @@ def test_theorem_hole_lemma_ledger_blocks_placeholder_candidates() -> None:
     }
 
 
+def test_theorem_hole_lemma_proposals_record_required_gates() -> None:
+    theorem_hole_tasks = tuple(task for task in SEED_BENCHMARKS if "theorem_hole" in task.domain_tags)
+
+    proposals = build_theorem_hole_lemma_proposals(theorem_hole_tasks)
+
+    assert len(proposals) == 3
+    assert {proposal.status for proposal in proposals} == {"needs_no_sorry_proof"}
+    assert all(proposal.required_gates == DEFAULT_REQUIRED_GATES for proposal in proposals)
+    assert all(proposal.blocked_reasons for proposal in proposals)
+    assert all(proposal.source_kind == "benchmark_theorem_hole" for proposal in proposals)
+    assert all(proposal.candidate.motivation_tasks == proposal.source_task_ids for proposal in proposals)
+    assert {proposal.candidate.name for proposal in proposals} == {
+        "ipw_hajek_linearization_constructor",
+        "aipw_product_rate_route_constructor",
+        "influence_function_normality_route_constructor",
+    }
+
+
 def test_checked_in_theorem_hole_ledger_is_curator_blocked() -> None:
     records = read_jsonl(Path("artifacts/curation/theorem-hole-ledger.jsonl"))
     entries = tuple(dataclass_from_dict(CuratedLemmaLedgerEntry, record) for record in records)
@@ -143,3 +168,17 @@ def test_checked_in_theorem_hole_ledger_is_curator_blocked() -> None:
     assert {entry.status for entry in entries} == {"blocked_placeholder"}
     assert all(not entry.decision.accepted for entry in entries)
     assert all(entry.verification_report_ids == entry.source_task_ids for entry in entries)
+
+
+def test_checked_in_lemma_proposals_are_precuration_records() -> None:
+    records = read_jsonl(Path("artifacts/curation/lemma-proposals.jsonl"))
+    proposals = tuple(dataclass_from_dict(LemmaProposal, record) for record in records)
+    schema = json.loads(Path("schemas/lemma_proposal.schema.json").read_text(encoding="utf-8"))
+
+    assert len(proposals) == 3
+    assert {proposal.status for proposal in proposals} == {"needs_no_sorry_proof"}
+    assert all(proposal.required_gates == DEFAULT_REQUIRED_GATES for proposal in proposals)
+    assert all(proposal.blocked_reasons for proposal in proposals)
+    assert all(proposal.candidate.semantic_notes for proposal in proposals)
+    assert schema["title"] == "LemmaProposal"
+    assert all(set(record) <= set(schema["properties"]) for record in records)

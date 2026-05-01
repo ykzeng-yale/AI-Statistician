@@ -137,6 +137,23 @@ class CuratedLemmaCandidate:
 
 
 @dataclass(frozen=True)
+class LemmaProposal:
+    """Pre-curation proposal for a reusable lemma or constructor theorem."""
+
+    proposal_id: str
+    source_kind: str
+    proposed_by: str
+    candidate: CuratedLemmaCandidate
+    source_task_ids: tuple[str, ...]
+    domain_tags: tuple[str, ...] = ()
+    expected_premises: tuple[str, ...] = ()
+    required_gates: tuple[str, ...] = ()
+    blocked_reasons: tuple[str, ...] = ()
+    status: str = "proposed"
+    notes: str = ""
+
+
+@dataclass(frozen=True)
 class CurationDecision:
     """Outcome of curation gates."""
 
