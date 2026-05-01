@@ -277,7 +277,7 @@ structure GlivenkoCantelliTheoremSkeleton {Index : Type*}
 
 namespace GlivenkoCantelliTheoremSkeleton
 
-theorem run {Index : Type*} {indexClass : Set Index}
+def run {Index : Type*} {indexClass : Set Index}
     {populationRisk : Index -> ℝ} {empiricalRisk : ℕ -> Index -> ℝ}
     (skeleton :
       GlivenkoCantelliTheoremSkeleton indexClass populationRisk empiricalRisk)
