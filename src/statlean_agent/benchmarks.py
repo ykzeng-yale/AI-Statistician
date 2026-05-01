@@ -476,6 +476,77 @@ SEED_BENCHMARKS: tuple[BenchmarkTask, ...] = (
         expected_premises=("StatInference.FiniteUnionDeviationSequence.project",),
     ),
     BenchmarkTask(
+        task_id="bracketing_certificate_gc_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S4",
+        domain_tags=("empirical_process", "bracketing_number", "glivenko_cantelli"),
+        natural_language=(
+            "Convert a proof-carrying bracketing deviation certificate into a "
+            "GC-class interface."
+        ),
+        lean_task=LeanTask(
+            task_id="bracketing_certificate_gc_seed",
+            imports=("StatInference.EmpiricalProcess.Complexity",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Index : Type*} {indexClass : Set Index} "
+                "{populationRisk : Index -> Real} {empiricalRisk : Nat -> Index -> Real} "
+                "(certificate : StatInference.BracketingDeviationCertificate "
+                "indexClass populationRisk empiricalRisk) "
+                "(hassumptions : certificate.assumptions) : "
+                "StatInference.GlivenkoCantelliClass "
+                "indexClass populationRisk empiricalRisk := by\n"
+                "  exact StatInference.BracketingDeviationCertificate.toGlivenkoCantelliClass "
+                "certificate hassumptions"
+            ),
+            tags=("bracketing_number", "gc_certificate", "uniform_deviation"),
+            dependencies=(
+                "StatInference.BracketingDeviationCertificate.toGlivenkoCantelliClass",
+            ),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=(
+            "StatInference.BracketingDeviationCertificate.toGlivenkoCantelliClass",
+        ),
+    ),
+    BenchmarkTask(
+        task_id="trivial_bracketing_gc_non_vacuity_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S2",
+        domain_tags=(
+            "empirical_process",
+            "bracketing_number",
+            "glivenko_cantelli",
+            "non_vacuity",
+        ),
+        natural_language=(
+            "Use the concrete one-point bracketing certificate as a non-vacuity "
+            "witness for the bracketing GC interface."
+        ),
+        lean_task=LeanTask(
+            task_id="trivial_bracketing_gc_non_vacuity_seed",
+            imports=("StatInference.EmpiricalProcess.Complexity",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example : StatInference.GlivenkoCantelliClass "
+                "(Set.univ : Set PUnit) "
+                "(fun _ : PUnit => (0 : Real)) "
+                "(fun _ (_ : PUnit) => (0 : Real)) := by\n"
+                "  exact StatInference.trivialBracketingGlivenkoCantelliClass"
+            ),
+            tags=("bracketing_number", "gc_certificate", "non_vacuity"),
+            dependencies=(
+                "StatInference.trivialBracketingGlivenkoCantelliClass",
+            ),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=(
+            "StatInference.trivialBracketingGlivenkoCantelliClass",
+        ),
+    ),
+    BenchmarkTask(
         task_id="covering_certificate_gc_seed",
         task_type=BenchmarkTaskType.FORMAL_ONLY,
         split=BenchmarkSplit.DEV,

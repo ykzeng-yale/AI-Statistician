@@ -170,6 +170,41 @@ def uniformDeviation {Index : Type*} {indexClass : Set Index}
 
 end BracketingDeviationCertificate
 
+/-- A concrete one-point bracketing specification for non-vacuity tests. -/
+def trivialBracketingNumberSpec :
+    BracketingNumberSpec (Set.univ : Set PUnit) where
+  scale := fun _ => 0
+  bracketingNumber := fun _ => 1
+  finite_bracketing_statement := True
+  bracket_envelope_statement := True
+  bracketing_entropy_statement := True
+
+/--
+A concrete proof-carrying bracketing certificate.  It witnesses that the
+bracketing interface can be inhabited without adding primitive statistical
+claims: the class has one index and both population and empirical risks are
+identically zero.
+-/
+def trivialBracketingDeviationCertificate :
+    BracketingDeviationCertificate (Set.univ : Set PUnit)
+      (fun _ : PUnit => (0 : ℝ)) (fun _ (_ : PUnit) => (0 : ℝ)) where
+  bracketing := trivialBracketingNumberSpec
+  radius := fun _ => 0
+  assumptions := True
+  derive_uniform_deviation := by
+    intro _hassumptions sampleSize index hindex
+    simp
+  derive_radius_tendsto_zero := by
+    intro _hassumptions
+    simp
+
+/-- Convert the concrete bracketing certificate into a GC-class witness. -/
+def trivialBracketingGlivenkoCantelliClass :
+    GlivenkoCantelliClass (Set.univ : Set PUnit)
+      (fun _ : PUnit => (0 : ℝ)) (fun _ (_ : PUnit) => (0 : ℝ)) :=
+  BracketingDeviationCertificate.toGlivenkoCantelliClass
+    trivialBracketingDeviationCertificate True.intro
+
 /--
 Metadata for a VC-subgraph route to uniform deviation.  The fields are
 proof-carrying placeholders for the combinatorial and measurability facts that

@@ -551,13 +551,20 @@
     {
       "id": "P10",
       "name": "Empirical Process Theorem Expansion",
-      "status": "pending",
+      "status": "in_progress",
       "objective": "Turn the P9 bracketing, VC-subgraph, and Donsker interfaces into benchmarked Lean theorem targets with non-vacuity evidence and downstream statistical inference handoffs.",
       "milestones": [
         {
           "id": "P10.M1",
-          "status": "pending",
-          "name": "Bracketing GC benchmark seeds and non-vacuity witness"
+          "status": "done",
+          "name": "Bracketing GC benchmark seeds and non-vacuity witness",
+          "evidence": [
+            "StatInference.EmpiricalProcess.Complexity now defines trivialBracketingNumberSpec as a concrete one-point bracketing metadata witness.",
+            "StatInference.EmpiricalProcess.Complexity now defines trivialBracketingDeviationCertificate and trivialBracketingGlivenkoCantelliClass as no-placeholder non-vacuity witnesses for the bracketing GC interface.",
+            "benchmarks include bracketing_certificate_gc_seed for BracketingDeviationCertificate.toGlivenkoCantelliClass.",
+            "benchmarks include trivial_bracketing_gc_non_vacuity_seed tagged bracketing_number and non_vacuity.",
+            "artifacts/evaluation/empirical-process-targets.json now marks bracketing_gc_interface as ready_for_lemma_targets with family-specific benchmark evidence."
+          ]
         },
         {
           "id": "P10.M2",
@@ -576,7 +583,7 @@
         }
       ],
       "next_actions": [
-        "Implement P10.M1 bracketing GC benchmark seeds and a concrete non-vacuity witness over the proof-carrying BracketingDeviationCertificate interface."
+        "Implement P10.M2 VC-subgraph GC benchmark seeds and combinatorial proof-obligation scaffolding over the proof-carrying VCDeviationCertificate interface."
       ]
     }
   ]

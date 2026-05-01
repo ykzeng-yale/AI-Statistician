@@ -885,11 +885,17 @@ def test_checked_in_empirical_process_targets_artifact() -> None:
     assert "StatInference.VCDeviationCertificate" in targets["vc_subgraph_gc_interface"][
         "lean_declarations"
     ]
+    assert "bracketing_certificate_gc_seed" in targets["bracketing_gc_interface"][
+        "family_benchmark_task_ids"
+    ]
+    assert "trivial_bracketing_gc_non_vacuity_seed" in targets["bracketing_gc_interface"][
+        "family_benchmark_task_ids"
+    ]
     assert "donsker_statement_seed" in targets["donsker_bridge_interface"]["motivating_task_ids"]
     assert "covering_certificate_gc_seed" in targets["covering_number_gc_interface"][
         "motivating_task_ids"
     ]
-    assert targets["bracketing_gc_interface"]["gate_status"] == "needs_benchmark_seed"
+    assert targets["bracketing_gc_interface"]["gate_status"] == "ready_for_lemma_targets"
     assert targets["vc_subgraph_gc_interface"]["gate_status"] == "needs_benchmark_seed"
     assert targets["donsker_bridge_interface"]["gate_status"] == "ready_for_lemma_targets"
     assert targets["covering_number_gc_interface"]["gate_status"] == "ready_for_lemma_targets"
@@ -933,7 +939,7 @@ def test_checked_in_reproducibility_bundle_artifact() -> None:
     assert all(len(artifact["sha256"]) == 64 for artifact in report["artifacts"])
     assert any(command["name"] == "smoke" for command in report["validation_commands"])
     assert any(command["name"] == "forbidden_lean_shortcuts" for command in report["validation_commands"])
-    assert report["current_milestone"]["id"] == "P10.M1"
+    assert report["current_milestone"]["id"] == "P10.M2"
     assert set(report) <= set(schema["properties"])
 
 

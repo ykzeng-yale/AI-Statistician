@@ -170,9 +170,9 @@ Each code-writing agent gets an isolated git worktree and branch. Curated change
 
 The initial P0-P9 build blueprint is complete. P9 added external baseline
 planning/result ingestion, theorem-hole proof promotion, and empirical-process
-expansion targets. Current post-P9 work is tracked in P10 and starts with
-turning the bracketing interface into concrete benchmark seeds and non-vacuity
-evidence.
+expansion targets. P10 is now expanding those interfaces into benchmarked
+theorem targets; bracketing benchmark and non-vacuity seeds are complete, and
+the next loop is VC-subgraph GC scaffolding.
 
 1. Harden the no-`sorry` `StatInference` library around convergence wrappers, `op(1)`/`Op(1)` calculus, asymptotic normality, and first concrete estimators.
 2. Grow `StatInferBench` from seed tasks into theorem-hole, repair, proof-state, and tactic tasks with dependency-based splits.

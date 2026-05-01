@@ -13,6 +13,8 @@
 {"closed_goals": 0, "diagnostics": [], "first_error": null, "locally_valid_steps": 0, "status": "accepted", "task_id": "finite_union_sequence_excess_seed"}
 {"closed_goals": 0, "diagnostics": [], "first_error": null, "locally_valid_steps": 0, "status": "accepted", "task_id": "finite_class_gc_projection_seed"}
 {"closed_goals": 0, "diagnostics": [], "first_error": null, "locally_valid_steps": 0, "status": "accepted", "task_id": "finite_union_projection_seed"}
+{"closed_goals": 0, "diagnostics": [], "first_error": null, "locally_valid_steps": 0, "status": "accepted", "task_id": "bracketing_certificate_gc_seed"}
+{"closed_goals": 0, "diagnostics": [], "first_error": null, "locally_valid_steps": 0, "status": "accepted", "task_id": "trivial_bracketing_gc_non_vacuity_seed"}
 {"closed_goals": 0, "diagnostics": [], "first_error": null, "locally_valid_steps": 0, "status": "accepted", "task_id": "covering_certificate_gc_seed"}
 {"closed_goals": 0, "diagnostics": [], "first_error": null, "locally_valid_steps": 0, "status": "accepted", "task_id": "rademacher_certificate_gc_seed"}
 {"closed_goals": 0, "diagnostics": [], "first_error": null, "locally_valid_steps": 0, "status": "accepted", "task_id": "asymptotic_bridge_projection"}
