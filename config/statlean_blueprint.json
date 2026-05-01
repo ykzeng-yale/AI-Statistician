@@ -42,7 +42,7 @@
     {
       "id": "P1",
       "name": "Statistics Core Theorem Layer",
-      "status": "in_progress",
+      "status": "done",
       "objective": "Move from bridge interfaces toward reusable concrete theorem families for asymptotic statistics and statistical learning.",
       "milestones": [
         {"id": "P1.M1", "status": "done", "name": "ERM deterministic oracle/excess-risk inequalities"},
@@ -69,17 +69,26 @@
             "benchmarks finite_class_oracle_excess_on_seed and finite_class_erm_consistency_seed accepted locally"
           ]
         },
-        {"id": "P1.M6", "status": "pending", "name": "Concrete ratio/Hajek/IPW estimator algebra skeleton"}
+        {
+          "id": "P1.M6",
+          "status": "done",
+          "name": "Concrete ratio/Hajek/IPW estimator algebra skeleton",
+          "evidence": [
+            "StatInference.Estimator.Ratio defines ratioEstimate, ratioResidual, RatioEstimatorSequence, hajekRatio, and hajekResidual.",
+            "StatInference.ratio_sub_target_eq_residual_div proves the deterministic ratio linearization identity.",
+            "StatInference.scaled_hajekRatio_sub_target_eq_residual_div proves the scaled Hajek/IPW residual identity for asymptotic-rate handoff.",
+            "benchmarks ratio_error_identity_seed and scaled_hajek_ratio_error_seed accepted locally"
+          ]
+        }
       ],
       "next_actions": [
-        "Build the concrete ratio/Hajek/IPW estimator algebra skeleton on top of the deterministic oracle and convergence layers.",
-        "Add benchmark tasks that require the ratio/IPW algebra theorem rather than simple projection."
+        "P1 is complete; continue to empirical process notation and GC modules in P2."
       ]
     },
     {
       "id": "P2",
       "name": "Empirical Process And GC Library",
-      "status": "pending",
+      "status": "in_progress",
       "objective": "Build empirical measures, finite-class GC, covering-number interfaces, and the first reusable Glivenko-Cantelli theorem family.",
       "milestones": [
         {"id": "P2.M1", "status": "pending", "name": "Empirical average and empirical risk notation"},
@@ -88,7 +97,7 @@
         {"id": "P2.M4", "status": "pending", "name": "Covering-number and Rademacher-compatible benchmark tasks"}
       ],
       "next_actions": [
-        "Create finite-class GC modules only after P1 finite-class theorem skeleton is in place."
+        "Build empirical average and empirical risk notation on top of the completed P1 deterministic theorem layer."
       ]
     },
     {

@@ -5,6 +5,7 @@ import StatInference.Asymptotics.AsymptoticNormal
 import StatInference.Estimator.Basic
 import StatInference.Estimator.AsymptoticLinear
 import StatInference.Estimator.MEstimator
+import StatInference.Estimator.Ratio
 import StatInference.Estimator.ZEstimator
 import StatInference.Causal.PotentialOutcomes
 import StatInference.Semiparametric.InfluenceFunction

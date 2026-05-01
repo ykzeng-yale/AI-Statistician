@@ -214,6 +214,65 @@ SEED_BENCHMARKS: tuple[BenchmarkTask, ...] = (
         ),
     ),
     BenchmarkTask(
+        task_id="ratio_error_identity_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S3",
+        domain_tags=("ratio_estimator", "hajek_ipw", "estimator_algebra"),
+        natural_language=(
+            "Prove the core ratio linearization identity: ratio error is the "
+            "centered numerator residual divided by the denominator."
+        ),
+        lean_task=LeanTask(
+            task_id="ratio_error_identity_seed",
+            imports=("StatInference.Estimator.Ratio",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example (numerator denominator target : Real) "
+                "(hden : denominator ≠ 0) : "
+                "StatInference.ratioEstimate numerator denominator - target = "
+                "StatInference.ratioResidual numerator denominator target / denominator := by\n"
+                "  exact StatInference.ratio_sub_target_eq_residual_div "
+                "numerator denominator target hden"
+            ),
+            tags=("ratio_estimator", "linearization", "residual_identity"),
+            dependencies=("StatInference.ratio_sub_target_eq_residual_div",),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=("StatInference.ratio_sub_target_eq_residual_div",),
+    ),
+    BenchmarkTask(
+        task_id="scaled_hajek_ratio_error_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S4",
+        domain_tags=("ratio_estimator", "hajek_ipw", "asymptotic_scaling"),
+        natural_language=(
+            "Apply the scaled Hajek/IPW ratio error identity for an arbitrary "
+            "deterministic rate sequence."
+        ),
+        lean_task=LeanTask(
+            task_id="scaled_hajek_ratio_error_seed",
+            imports=("StatInference.Estimator.Ratio",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example (weightedOutcome weightedMass : Nat -> Real) "
+                "(target : Real) (rate : Nat -> Real) "
+                "(hmass : forall n, weightedMass n ≠ 0) : "
+                "forall n, rate n * "
+                "(StatInference.hajekRatio weightedOutcome weightedMass n - target) = "
+                "rate n * StatInference.hajekResidual "
+                "weightedOutcome weightedMass target n / weightedMass n := by\n"
+                "  exact StatInference.scaled_hajekRatio_sub_target_eq_residual_div "
+                "weightedOutcome weightedMass target rate hmass"
+            ),
+            tags=("hajek_ipw", "linearization", "scaled_error"),
+            dependencies=("StatInference.scaled_hajekRatio_sub_target_eq_residual_div",),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=("StatInference.scaled_hajekRatio_sub_target_eq_residual_div",),
+    ),
+    BenchmarkTask(
         task_id="asymptotic_bridge_projection",
         task_type=BenchmarkTaskType.FORMAL_ONLY,
         split=BenchmarkSplit.TRAIN,
