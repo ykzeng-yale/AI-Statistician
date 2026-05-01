@@ -90,6 +90,113 @@ def test_cli_materialize_benchmark_attempts(tmp_path: Path, capsys) -> None:
     assert "namespace StatInference.Benchmarks" in attempts[0]["lean_code"]
 
 
+def test_cli_axle_tool_uses_optional_remote_client(tmp_path: Path, capsys, monkeypatch) -> None:
+    source_path = tmp_path / "Task.lean"
+    output_path = tmp_path / "axle.json"
+    content_path = tmp_path / "Task.sorry.lean"
+    source_path.write_text("theorem foo : 1 = 1 := by rfl\n", encoding="utf-8")
+
+    class FakeAxleClient:
+        @classmethod
+        def from_env(cls, *, base_url: str, timeout_seconds: int):
+            assert base_url == "https://example.test"
+            assert timeout_seconds == 7
+            return cls()
+
+        def transform_code(
+            self,
+            tool: str,
+            code: str,
+            *,
+            env: str,
+            ignore_imports: bool | None = None,
+            timeout_seconds: float | None = None,
+        ):
+            assert tool == "theorem2sorry"
+            assert "theorem foo" in code
+            assert env == "lean-test"
+            assert ignore_imports in (None, False)
+            assert timeout_seconds == 7
+            return {
+                "content": "theorem foo : 1 = 1 := sorry\n",
+                "lean_messages": {"errors": [], "warnings": ["uses sorry"], "infos": []},
+                "tool_messages": {"errors": [], "warnings": [], "infos": []},
+            }
+
+    monkeypatch.setattr("statlean_agent.cli.AxleClient", FakeAxleClient)
+    assert (
+        main(
+            [
+                "axle-tool",
+                "theorem2sorry",
+                str(source_path),
+                "--output",
+                str(output_path),
+                "--content-output",
+                str(content_path),
+                "--env",
+                "lean-test",
+                "--base-url",
+                "https://example.test",
+                "--timeout",
+                "7",
+            ]
+        )
+        == 0
+    )
+
+    output = capsys.readouterr().out
+    assert "lean_errors=0" in output
+    assert "lean_warnings=1" in output
+    assert read_jsonl(output_path)[0]["content"].startswith("theorem foo")
+    assert content_path.read_text(encoding="utf-8").endswith("sorry\n")
+
+
+def test_cli_axle_verify_proof_uses_statement_and_content(tmp_path: Path, capsys, monkeypatch) -> None:
+    statement_path = tmp_path / "Statement.lean"
+    content_path = tmp_path / "Proof.lean"
+    statement_path.write_text("theorem foo : 1 = 1 := by sorry\n", encoding="utf-8")
+    content_path.write_text("theorem foo : 1 = 1 := by rfl\n", encoding="utf-8")
+
+    class FakeAxleClient:
+        @classmethod
+        def from_env(cls, *, base_url: str, timeout_seconds: int):
+            return cls()
+
+        def verify_proof(
+            self,
+            *,
+            formal_statement: str,
+            content: str,
+            env: str,
+            ignore_imports: bool | None = None,
+            timeout_seconds: float | None = None,
+        ):
+            assert "sorry" in formal_statement
+            assert "rfl" in content
+            assert env == "lean-test"
+            assert ignore_imports in (None, False)
+            assert timeout_seconds == 120
+            return {"okay": True, "failed_declarations": []}
+
+    monkeypatch.setattr("statlean_agent.cli.AxleClient", FakeAxleClient)
+    assert (
+        main(
+            [
+                "axle-verify-proof",
+                "--statement",
+                str(statement_path),
+                "--content",
+                str(content_path),
+                "--env",
+                "lean-test",
+            ]
+        )
+        == 0
+    )
+    assert "okay=True" in capsys.readouterr().out
+
+
 def test_cli_materialize_dpo_rejections_and_verify_attempts(tmp_path: Path, capsys) -> None:
     benchmark_path = tmp_path / "seeds.jsonl"
     rejected_attempts_path = tmp_path / "dpo-negative-attempts.jsonl"

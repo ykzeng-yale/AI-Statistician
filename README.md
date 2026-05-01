@@ -127,6 +127,19 @@ statlean empirical-process-targets \
   --output artifacts/evaluation/empirical-process-targets.json
 ```
 
+Use AXLE as an optional remote Lean repair/extraction backend:
+
+```bash
+export AXLE_API_KEY="<redacted>"
+statlean axle-tool check path/to/File.lean --ignore-imports
+statlean axle-tool extract_decls path/to/File.lean --output artifacts/axle/decls.json
+statlean axle-tool repair_proofs path/to/File.lean --content-output artifacts/axle/File.repaired.lean
+```
+
+Do not commit AXLE keys or treat AXLE output as final acceptance.  Repository
+code must still pass local `lake build`, forbidden-token scans, benchmark
+verification, and statistical semantic review.
+
 Build the theorem-hole no-placeholder promotion queue:
 
 ```bash

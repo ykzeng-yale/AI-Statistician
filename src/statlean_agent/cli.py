@@ -7,6 +7,14 @@ import json
 from pathlib import Path
 
 from statlean_agent.agents import AGENT_REGISTRY, get_agent
+from statlean_agent.axle import (
+    AXLE_BASE_URL,
+    AXLE_DEFAULT_ENV,
+    AxleClient,
+    AxleError,
+    read_source,
+    render_payload_summary,
+)
 from statlean_agent.benchmarks import load_benchmarks, seed_benchmarks
 from statlean_agent.blueprint import (
     blueprint_status,
@@ -77,6 +85,55 @@ def main(argv: list[str] | None = None) -> int:
     verify_all.add_argument("--repo", default=".", help="Lake repository root.")
     verify_all.add_argument("--timeout", type=int, default=60, help="Verification timeout in seconds.")
     verify_all.add_argument("--allow-failures", action="store_true", help="Return success even when tasks fail.")
+
+    axle_tool = subparsers.add_parser("axle-tool", help="Run one AXLE Lean Engine tool on a Lean source file.")
+    axle_tool.add_argument(
+        "tool",
+        choices=(
+            "check",
+            "extract_decls",
+            "extract_theorems",
+            "theorem2sorry",
+            "theorem2lemma",
+            "have2sorry",
+            "have2lemma",
+            "sorry2lemma",
+            "normalize",
+            "simplify_theorems",
+            "repair_proofs",
+            "disprove",
+        ),
+        help="AXLE tool name.",
+    )
+    axle_tool.add_argument("input", help="Lean source file.")
+    axle_tool.add_argument("--output", help="Optional JSON response output path.")
+    axle_tool.add_argument("--content-output", help="Optional path for response['content'].")
+    axle_tool.add_argument("--env", default=AXLE_DEFAULT_ENV, help="AXLE Lean environment.")
+    axle_tool.add_argument("--base-url", default=AXLE_BASE_URL, help="AXLE base URL.")
+    axle_tool.add_argument("--timeout", type=int, default=120, help="HTTP timeout in seconds.")
+    axle_tool.add_argument(
+        "--ignore-imports",
+        action="store_true",
+        help="Ask AXLE to tolerate imports that differ from the selected environment.",
+    )
+    axle_tool.add_argument("--json", action="store_true", help="Print full JSON response.")
+
+    axle_verify = subparsers.add_parser(
+        "axle-verify-proof",
+        help="Use AXLE verify_proof to validate one candidate against a statement file.",
+    )
+    axle_verify.add_argument("--statement", required=True, help="Lean file containing the expected formal statement.")
+    axle_verify.add_argument("--content", required=True, help="Lean file containing the candidate proof.")
+    axle_verify.add_argument("--output", help="Optional JSON response output path.")
+    axle_verify.add_argument("--env", default=AXLE_DEFAULT_ENV, help="AXLE Lean environment.")
+    axle_verify.add_argument("--base-url", default=AXLE_BASE_URL, help="AXLE base URL.")
+    axle_verify.add_argument("--timeout", type=int, default=120, help="HTTP timeout in seconds.")
+    axle_verify.add_argument(
+        "--ignore-imports",
+        action="store_true",
+        help="Ask AXLE to tolerate imports that differ from the selected environment.",
+    )
+    axle_verify.add_argument("--json", action="store_true", help="Print full JSON response.")
 
     materialize_attempts = subparsers.add_parser(
         "materialize-benchmark-attempts",
@@ -529,6 +586,53 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         return 1
 
+    if args.command == "axle-tool":
+        client = AxleClient.from_env(base_url=args.base_url, timeout_seconds=args.timeout)
+        try:
+            payload = client.transform_code(
+                args.tool,
+                read_source(Path(args.input)),
+                env=args.env,
+                ignore_imports=args.ignore_imports or None,
+                timeout_seconds=args.timeout,
+            )
+        except AxleError as error:
+            print(str(error))
+            return 1
+        _write_optional_json(Path(args.output) if args.output else None, payload)
+        if args.content_output:
+            content = payload.get("content")
+            if not isinstance(content, str):
+                raise SystemExit("AXLE response has no string `content` field")
+            content_output = Path(args.content_output)
+            content_output.parent.mkdir(parents=True, exist_ok=True)
+            content_output.write_text(content, encoding="utf-8")
+        if args.json:
+            print(dumps_json(payload))
+        else:
+            print(render_payload_summary(payload))
+        return 0
+
+    if args.command == "axle-verify-proof":
+        client = AxleClient.from_env(base_url=args.base_url, timeout_seconds=args.timeout)
+        try:
+            payload = client.verify_proof(
+                formal_statement=read_source(Path(args.statement)),
+                content=read_source(Path(args.content)),
+                env=args.env,
+                ignore_imports=args.ignore_imports or None,
+                timeout_seconds=args.timeout,
+            )
+        except AxleError as error:
+            print(str(error))
+            return 1
+        _write_optional_json(Path(args.output) if args.output else None, payload)
+        if args.json:
+            print(dumps_json(payload))
+        else:
+            print(render_payload_summary(payload))
+        return 0
+
     if args.command == "materialize-benchmark-attempts":
         tasks = load_benchmarks(Path(args.benchmarks))
         attempts = [
@@ -941,6 +1045,13 @@ def _find_task(path: Path, task_id: str):
         if task.task_id == task_id:
             return task
     raise SystemExit(f"unknown task id: {task_id}")
+
+
+def _write_optional_json(path: Path | None, payload: dict):
+    if path is None:
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(dumps_json(payload) + "\n", encoding="utf-8")
 
 
 if __name__ == "__main__":

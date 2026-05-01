@@ -59,6 +59,13 @@ from the original system target.
 13. `trainer`: generate auditable SFT/DPO/GRPO manifests.
 14. `worktree_steward`: isolate code-writing agents in git worktrees.
 
+AXLE may be used by `verifier`, `error_repair`, `lemma_miner`, and
+`benchmark_generator` when an external Lean Engine pass is useful.  The allowed
+uses are declaration extraction, proof repair, proof-to-sorry conversion,
+normalization, hole extraction, and candidate validation.  AXLE output is
+advisory until the local repository verifies it with Lake and the curation gate
+approves the statistical statement.
+
 ## Promotion Gate
 
 A result can be promoted only if:

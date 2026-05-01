@@ -58,10 +58,16 @@ Natural-language theorem
 The verifier loop is the core runtime.
 
 1. Generate a Lean statement or proof attempt.
-2. Run Lean through Lake, Pantograph, or Kimina Lean Server.
+2. Run Lean through Lake, Pantograph, Kimina Lean Server, or optional AXLE
+   helper calls.
 3. Parse diagnostics, proof states, first failing tactic, and local progress.
 4. Reject any proof containing `sorry`, `admit`, unreviewed `axiom`, or unsafe shortcuts.
 5. Feed the normalized result to repair, reward, curation, and training.
+
+AXLE is a repair and extraction assistant, not the acceptance authority.  It can
+run `check`, `extract_decls`, `repair_proofs`, `sorry2lemma`, and related tools
+on standalone Lean snippets, but any candidate copied into `StatInference` must
+still pass local `lake build` and semantic review.
 
 ## Worktree Isolation
 
@@ -99,4 +105,3 @@ Training proceeds only after a seed library and benchmark exist.
 3. GRPO with dense verifier rewards: proof completion, valid tactic count, goal closure, premise use, first-error position, timeout penalties, and forbidden-token penalties.
 
 The first production-scale RL backend should be `verl` plus Kimina Lean Server. Early debugging can use TRL.
-
