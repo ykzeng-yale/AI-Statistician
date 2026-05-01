@@ -21,6 +21,7 @@ from statlean_agent.curation import (
     build_lemma_proof_cost_reports,
     build_theorem_hole_lemma_ledger,
     build_theorem_hole_lemma_proposals,
+    build_theorem_hole_promotion_queue,
 )
 from statlean_agent.evaluation import (
     DEFAULT_REPRODUCIBILITY_ARTIFACTS,
@@ -282,6 +283,21 @@ def main(argv: list[str] | None = None) -> int:
         "--proposed-by",
         default="theorem-hole-miner",
         help="Proposal source identifier.",
+    )
+
+    theorem_hole_queue = subparsers.add_parser(
+        "theorem-hole-promotion-queue",
+        help="Build the P9 theorem-hole no-placeholder promotion queue.",
+    )
+    theorem_hole_queue.add_argument(
+        "--benchmarks",
+        default="benchmarks/seeds.jsonl",
+        help="BenchmarkTask JSONL path.",
+    )
+    theorem_hole_queue.add_argument(
+        "--output",
+        default="artifacts/curation/theorem-hole-promotion-queue.json",
+        help="Output theorem-hole promotion queue JSON path.",
     )
 
     lemma_proposal_gates = subparsers.add_parser(
@@ -669,6 +685,19 @@ def main(argv: list[str] | None = None) -> int:
         write_jsonl(Path(args.output), list(proposals))
         blocked = sum(1 for proposal in proposals if proposal.blocked_reasons)
         print(f"lemma_proposals={len(proposals)} blocked={blocked} output={args.output}")
+        return 0
+
+    if args.command == "theorem-hole-promotion-queue":
+        tasks = load_benchmarks(Path(args.benchmarks))
+        report = build_theorem_hole_promotion_queue(tasks)
+        output = Path(args.output)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(dumps_json(report) + "\n", encoding="utf-8")
+        print(
+            f"promotion_queue={report['theorem_hole_task_count']} "
+            f"promoted={report['promoted_count']} first_target={report['first_target_task_id']} "
+            f"output={args.output}"
+        )
         return 0
 
     if args.command == "check-lemma-proposals":

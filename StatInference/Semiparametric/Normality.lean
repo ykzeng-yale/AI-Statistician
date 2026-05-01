@@ -82,6 +82,23 @@ theorem asymptoticNormal
 end InfluenceFunctionNormalityRoute
 
 /--
+Promotion target for the theorem-hole benchmark: one constructor bundles the
+influence-function asymptotic-linearity handoff with asymptotic normality.
+-/
+theorem influence_function_normality_route_constructor
+    {Model Parameter Observation EstimatorObj : Type*}
+    (route :
+      InfluenceFunctionNormalityRoute
+        Model Parameter Observation EstimatorObj)
+    (h_clt : route.clt.statement)
+    (h_remainder : route.negligible_remainder.statement) :
+    route.influence_bridge.estimator.statement ∧
+      route.asymptotic_normality := by
+  constructor
+  · exact route.asymptoticLinear
+  · exact route.asymptoticNormal h_clt h_remainder
+
+/--
 AIPW-specific influence-function route.  It first verifies an influence function
 from the AIPW causal identification and orthogonality bridge, then hands the
 verified influence function to the generic semiparametric normality route.

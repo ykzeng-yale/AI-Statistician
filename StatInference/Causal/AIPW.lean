@@ -158,6 +158,21 @@ theorem secondOrderRemainderSmall
 
 end AIPWOrthogonalProductRateRoute
 
+/--
+Promotion target for the theorem-hole benchmark: one constructor bundles the
+AIPW identification conclusion with the second-order product-rate remainder.
+-/
+theorem aipw_product_rate_route_constructor
+    {Observation Propensity Regression ScoreValue Parameter : Type*}
+    (route :
+      AIPWOrthogonalProductRateRoute
+        Observation Propensity Regression ScoreValue Parameter) :
+    route.identification.bridge.aipw_identifies_estimand ∧
+      route.second_order_remainder.statement := by
+  constructor
+  · exact route.identifies
+  · exact route.secondOrderRemainderSmall
+
 /-- Trivial AIPW double-robust bridge used only for non-vacuity sanity tests. -/
 def trivialAIPWDoubleRobustBridge : AIPWDoubleRobustBridge where
   consistency := trivialIPWConsistencyAssumption

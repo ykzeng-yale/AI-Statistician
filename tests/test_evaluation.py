@@ -767,6 +767,23 @@ def test_checked_in_external_baseline_plan_artifact() -> None:
     assert set(report) <= set(schema["properties"])
 
 
+def test_checked_in_theorem_hole_promotion_queue_artifact() -> None:
+    report = json.loads(Path("artifacts/curation/theorem-hole-promotion-queue.json").read_text(encoding="utf-8"))
+    schema = json.loads(Path("schemas/theorem_hole_promotion_queue.schema.json").read_text(encoding="utf-8"))
+    theorem_hole_ids = [task.task_id for task in SEED_BENCHMARKS if task.lean_task.allowed_sorry]
+
+    assert report["report_id"] == "theorem-hole-promotion-queue::p9"
+    assert report["theorem_hole_task_count"] == len(theorem_hole_ids)
+    assert report["promoted_count"] == len(theorem_hole_ids)
+    assert report["queued_count"] == 0
+    assert report["first_target_task_id"] == "ipw_linearization_theorem_hole_seed"
+    assert report["first_target_declaration"] == "StatInference.ipw_hajek_linearization_constructor"
+    assert [row["task_id"] for row in report["queue"]] == theorem_hole_ids
+    assert all(row["status"] == "promoted_no_placeholder_proof" for row in report["queue"])
+    assert all("sorry" not in row["no_placeholder_proof_block"] for row in report["queue"])
+    assert set(report) <= set(schema["properties"])
+
+
 def test_checked_in_reproducibility_bundle_artifact() -> None:
     report = json.loads(Path("artifacts/evaluation/reproducibility-bundle.json").read_text(encoding="utf-8"))
     schema = json.loads(Path("schemas/reproducibility_bundle.schema.json").read_text(encoding="utf-8"))
@@ -780,10 +797,11 @@ def test_checked_in_reproducibility_bundle_artifact() -> None:
     assert "docs/paper_draft.md" in artifact_paths
     assert "artifacts/evaluation/ablation-report.json" in artifact_paths
     assert "artifacts/evaluation/external-baseline-plan.json" in artifact_paths
+    assert "artifacts/curation/theorem-hole-promotion-queue.json" in artifact_paths
     assert all(len(artifact["sha256"]) == 64 for artifact in report["artifacts"])
     assert any(command["name"] == "smoke" for command in report["validation_commands"])
     assert any(command["name"] == "forbidden_lean_shortcuts" for command in report["validation_commands"])
-    assert report["current_milestone"]["id"] == "P9.M2"
+    assert report["current_milestone"]["id"] == "P9.M3"
     assert set(report) <= set(schema["properties"])
 
 

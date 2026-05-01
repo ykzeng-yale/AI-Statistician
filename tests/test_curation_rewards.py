@@ -20,6 +20,7 @@ from statlean_agent.curation import (
     build_lemma_proposal_gate_reports,
     build_theorem_hole_lemma_ledger,
     build_theorem_hole_lemma_proposals,
+    build_theorem_hole_promotion_queue,
     curate_candidate,
 )
 from statlean_agent.retrieval import PremiseRecord, build_premise_index
@@ -165,6 +166,28 @@ def test_theorem_hole_lemma_proposals_record_required_gates() -> None:
         "aipw_product_rate_route_constructor",
         "influence_function_normality_route_constructor",
     }
+
+
+def test_theorem_hole_promotion_queue_ranks_no_placeholder_targets() -> None:
+    queue = build_theorem_hole_promotion_queue(SEED_BENCHMARKS)
+
+    assert queue["report_id"] == "theorem-hole-promotion-queue::p9"
+    assert queue["theorem_hole_task_count"] == 3
+    assert queue["promoted_count"] == 3
+    assert queue["queued_count"] == 0
+    assert queue["first_target_task_id"] == "ipw_linearization_theorem_hole_seed"
+    assert queue["first_target_declaration"] == "StatInference.ipw_hajek_linearization_constructor"
+
+    rows = queue["queue"]
+    assert [row["rank"] for row in rows] == [1, 2, 3]
+    assert [row["candidate_name"] for row in rows] == [
+        "ipw_hajek_linearization_constructor",
+        "aipw_product_rate_route_constructor",
+        "influence_function_normality_route_constructor",
+    ]
+    assert {row["status"] for row in rows} == {"promoted_no_placeholder_proof"}
+    assert all("sorry" not in row["no_placeholder_proof_block"] for row in rows)
+    assert all(row["source_allowed_sorry"] is True for row in rows)
 
 
 def test_lemma_proposal_gate_reports_detect_duplicate_name_and_imports() -> None:

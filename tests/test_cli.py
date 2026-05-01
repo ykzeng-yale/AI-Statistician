@@ -28,12 +28,12 @@ def test_cli_blueprint_status(capsys) -> None:
     assert main(["blueprint-status", "--blueprint", "config/statlean_blueprint.json"]) == 0
     output = capsys.readouterr().out
     assert "Current phase: P9" in output
-    assert "Current milestone: P9.M2" in output
+    assert "Current milestone: P9.M3" in output
 
     assert main(["blueprint-status", "--blueprint", "config/statlean_blueprint.json", "--json"]) == 0
     json_output = capsys.readouterr().out
     assert '"current_phase"' in json_output
-    assert '"P9.M2"' in json_output
+    assert '"P9.M3"' in json_output
 
 
 def test_cli_verify_benchmarks_allow_failures(tmp_path: Path, capsys) -> None:
@@ -237,6 +237,33 @@ def test_cli_build_lemma_proposals(tmp_path: Path, capsys) -> None:
     assert {record["proposed_by"] for record in records} == {"test-miner"}
     assert {record["status"] for record in records} == {"needs_no_sorry_proof"}
     assert all("non_vacuity_example" in record["required_gates"] for record in records)
+
+
+def test_cli_theorem_hole_promotion_queue(tmp_path: Path, capsys) -> None:
+    benchmark_path = tmp_path / "seeds.jsonl"
+    queue_path = tmp_path / "promotion-queue.json"
+    main(["seed-benchmarks", "--output", str(benchmark_path)])
+
+    assert (
+        main(
+            [
+                "theorem-hole-promotion-queue",
+                "--benchmarks",
+                str(benchmark_path),
+                "--output",
+                str(queue_path),
+            ]
+        )
+        == 0
+    )
+
+    output = capsys.readouterr().out
+    queue = json.loads(queue_path.read_text(encoding="utf-8"))
+    assert "promotion_queue=3" in output
+    assert "promoted=3" in output
+    assert "first_target=ipw_linearization_theorem_hole_seed" in output
+    assert queue["first_target_declaration"] == "StatInference.ipw_hajek_linearization_constructor"
+    assert {row["status"] for row in queue["queue"]} == {"promoted_no_placeholder_proof"}
 
 
 def test_cli_check_lemma_proposals(tmp_path: Path, capsys) -> None:

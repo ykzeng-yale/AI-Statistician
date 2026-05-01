@@ -509,8 +509,15 @@
         },
         {
           "id": "P9.M2",
-          "status": "pending",
-          "name": "Theorem-hole lemma promotion queue"
+          "status": "done",
+          "name": "Theorem-hole lemma promotion queue",
+          "evidence": [
+            "StatInference.Causal.IPW now contains the no-placeholder theorem StatInference.ipw_hajek_linearization_constructor bundling route.identifies and route.scaledLinearization.",
+            "StatInference.Causal.AIPW now contains the no-placeholder theorem StatInference.aipw_product_rate_route_constructor bundling route.identifies and route.secondOrderRemainderSmall.",
+            "StatInference.Semiparametric.Normality now contains the no-placeholder theorem StatInference.influence_function_normality_route_constructor bundling route.asymptoticLinear and route.asymptoticNormal.",
+            "theorem-hole-promotion-queue CLI generated artifacts/curation/theorem-hole-promotion-queue.json ranking all theorem-hole candidates and naming ipw_linearization_theorem_hole_seed as the first promotion target.",
+            "schemas/theorem_hole_promotion_queue.schema.json documents the artifact and tests enforce promoted no-placeholder queue coverage."
+          ]
         },
         {
           "id": "P9.M3",
@@ -524,7 +531,7 @@
         }
       ],
       "next_actions": [
-        "Build the P9.M2 theorem-hole lemma promotion queue and identify the first no-placeholder Lean proof target."
+        "Build P9.M3 external baseline result ingestion so future ReProver, DeepSeek-Prover, Kimina, and coding-agent attempt files can be normalized, verified, and compared against seed-registry."
       ]
     }
   ]

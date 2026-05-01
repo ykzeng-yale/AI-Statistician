@@ -90,6 +90,7 @@ DEFAULT_REPRODUCIBILITY_ARTIFACTS = (
     "artifacts/training/grpo-process-tasks.jsonl",
     "artifacts/curation/theorem-hole-ledger.jsonl",
     "artifacts/curation/lemma-proposals.jsonl",
+    "artifacts/curation/theorem-hole-promotion-queue.json",
     "artifacts/curation/lemma-proposal-gates.jsonl",
     "artifacts/curation/lemma-non-vacuity.jsonl",
     "artifacts/curation/lemma-proof-cost.jsonl",

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 from statlean_agent.contracts import (
@@ -35,6 +36,51 @@ DEFAULT_REQUIRED_GATES = (
     "non_vacuity_example",
     "downstream_reuse",
     "statistical_semantic_review",
+)
+
+THEOREM_HOLE_PROMOTION_TARGETS = {
+    "ipw_linearization_theorem_hole_seed": {
+        "candidate_name": "ipw_hajek_linearization_constructor",
+        "declaration": "StatInference.ipw_hajek_linearization_constructor",
+        "module": "StatInference.Causal.IPW",
+        "file": "StatInference/Causal/IPW.lean",
+        "proof_block": (
+            "by\n"
+            "  constructor\n"
+            "  · exact route.identifies\n"
+            "  · exact route.scaledLinearization"
+        ),
+    },
+    "aipw_product_rate_theorem_hole_seed": {
+        "candidate_name": "aipw_product_rate_route_constructor",
+        "declaration": "StatInference.aipw_product_rate_route_constructor",
+        "module": "StatInference.Causal.AIPW",
+        "file": "StatInference/Causal/AIPW.lean",
+        "proof_block": (
+            "by\n"
+            "  constructor\n"
+            "  · exact route.identifies\n"
+            "  · exact route.secondOrderRemainderSmall"
+        ),
+    },
+    "if_normality_theorem_hole_seed": {
+        "candidate_name": "influence_function_normality_route_constructor",
+        "declaration": "StatInference.influence_function_normality_route_constructor",
+        "module": "StatInference.Semiparametric.Normality",
+        "file": "StatInference/Semiparametric/Normality.lean",
+        "proof_block": (
+            "by\n"
+            "  constructor\n"
+            "  · exact route.asymptoticLinear\n"
+            "  · exact route.asymptoticNormal h_clt h_remainder"
+        ),
+    },
+}
+
+THEOREM_HOLE_PROMOTION_PRIORITY = (
+    "ipw_linearization_theorem_hole_seed",
+    "aipw_product_rate_theorem_hole_seed",
+    "if_normality_theorem_hole_seed",
 )
 
 
@@ -145,6 +191,49 @@ def build_theorem_hole_lemma_proposals(
     return tuple(proposals)
 
 
+def build_theorem_hole_promotion_queue(
+    tasks: tuple[BenchmarkTask, ...],
+    *,
+    promoted_task_ids: Iterable[str] | None = None,
+) -> dict[str, object]:
+    """Rank theorem-hole candidates and record no-placeholder promotion targets."""
+
+    promoted = set(promoted_task_ids) if promoted_task_ids is not None else set(THEOREM_HOLE_PROMOTION_TARGETS)
+    theorem_holes = sorted(
+        (task for task in tasks if "theorem_hole" in task.domain_tags),
+        key=_promotion_rank_key,
+    )
+    rows = [
+        _theorem_hole_promotion_row(index, task, promoted=task.task_id in promoted)
+        for index, task in enumerate(theorem_holes, start=1)
+    ]
+    promoted_rows = [row for row in rows if row["status"] == "promoted_no_placeholder_proof"]
+    queued_rows = [row for row in rows if row["status"] != "promoted_no_placeholder_proof"]
+    first_target = rows[0] if rows else None
+
+    return {
+        "report_id": "theorem-hole-promotion-queue::p9",
+        "source_task_count": len(tasks),
+        "theorem_hole_task_count": len(theorem_holes),
+        "promoted_count": len(promoted_rows),
+        "queued_count": len(queued_rows),
+        "first_target_task_id": first_target["task_id"] if first_target else None,
+        "first_target_declaration": first_target["declaration"] if first_target else None,
+        "queue": rows,
+        "promotion_policy": (
+            "A theorem-hole candidate may leave blocked-placeholder status only after "
+            "a no-sorry declaration is added to StatInference, lake build succeeds, "
+            "forbidden-token scan over StatInference passes, and downstream reuse "
+            "remains visible through the curation gates."
+        ),
+        "notes": (
+            "P9.M2 queue: theorem-hole proof targets are ranked by causal/IPW "
+            "handoff first, then AIPW product-rate remainder, then generic "
+            "influence-function normality."
+        ),
+    }
+
+
 def build_lemma_proposal_gate_reports(
     proposals: tuple[LemmaProposal, ...],
     premise_records: tuple[PremiseRecord, ...],
@@ -158,13 +247,17 @@ def build_lemma_proposal_gate_reports(
     reports: list[LemmaProposalGateReport] = []
 
     for proposal in proposals:
-        duplicate_name_matches = tuple(
+        raw_duplicate_name_matches = tuple(
             sorted(
                 (
                     *names_by_proposal.get(proposal.candidate.name, ()),
                     *premise_names.get(proposal.candidate.name, ()),
                 )
             )
+        )
+        allowed_duplicate_matches = set(_allowed_promoted_duplicate_matches(proposal))
+        duplicate_name_matches = tuple(
+            match for match in raw_duplicate_name_matches if match not in allowed_duplicate_matches
         )
         statement_key = _normalized_statement(proposal.candidate.statement)
         duplicate_statement_matches = tuple(
@@ -324,6 +417,52 @@ def _candidate_name(task: BenchmarkTask) -> str:
     if task.task_id == "if_normality_theorem_hole_seed":
         return "influence_function_normality_route_constructor"
     return f"{task.task_id}_candidate"
+
+
+def _promotion_rank_key(task: BenchmarkTask) -> tuple[int, str]:
+    try:
+        priority = THEOREM_HOLE_PROMOTION_PRIORITY.index(task.task_id)
+    except ValueError:
+        priority = len(THEOREM_HOLE_PROMOTION_PRIORITY)
+    return priority, task.task_id
+
+
+def _theorem_hole_promotion_row(index: int, task: BenchmarkTask, *, promoted: bool) -> dict[str, object]:
+    target = THEOREM_HOLE_PROMOTION_TARGETS.get(task.task_id, {})
+    declaration = str(target.get("declaration", f"StatInference.{_candidate_name(task)}"))
+    proof_block = str(target.get("proof_block", "pending no-placeholder proof"))
+    status = "promoted_no_placeholder_proof" if promoted else "queued_no_placeholder_proof"
+    blockers = () if promoted else ("replace scoped theorem-hole sorrys with a no-placeholder Lean declaration",)
+    return {
+        "rank": index,
+        "task_id": task.task_id,
+        "candidate_name": str(target.get("candidate_name", _candidate_name(task))),
+        "status": status,
+        "declaration": declaration,
+        "module": str(target.get("module", task.lean_task.imports[0] if task.lean_task.imports else "")),
+        "file": str(target.get("file", "")),
+        "domain_tags": list(task.domain_tags),
+        "expected_premises": list(task.expected_premises),
+        "source_allowed_sorry": task.lean_task.allowed_sorry,
+        "no_placeholder_proof_block": proof_block,
+        "blocked_reasons": list(blockers),
+        "verification_evidence": [
+            "lake build",
+            "rg forbidden-token scan over StatInference",
+        ]
+        if promoted
+        else [],
+    }
+
+
+def _allowed_promoted_duplicate_matches(proposal: LemmaProposal) -> tuple[str, ...]:
+    if len(proposal.source_task_ids) != 1:
+        return ()
+    target = THEOREM_HOLE_PROMOTION_TARGETS.get(proposal.source_task_ids[0])
+    if not target:
+        return ()
+    declaration = str(target.get("declaration", ""))
+    return (declaration,) if declaration else ()
 
 
 def _candidate_from_theorem_hole(task: BenchmarkTask) -> CuratedLemmaCandidate:

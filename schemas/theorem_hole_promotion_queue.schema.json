@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TheoremHolePromotionQueue",
+  "type": "object",
+  "required": [
+    "report_id",
+    "source_task_count",
+    "theorem_hole_task_count",
+    "promoted_count",
+    "queued_count",
+    "first_target_task_id",
+    "first_target_declaration",
+    "queue",
+    "promotion_policy",
+    "notes"
+  ],
+  "properties": {
+    "report_id": {"type": "string"},
+    "source_task_count": {"type": "integer"},
+    "theorem_hole_task_count": {"type": "integer"},
+    "promoted_count": {"type": "integer"},
+    "queued_count": {"type": "integer"},
+    "first_target_task_id": {"type": ["string", "null"]},
+    "first_target_declaration": {"type": ["string", "null"]},
+    "queue": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "rank",
+          "task_id",
+          "candidate_name",
+          "status",
+          "declaration",
+          "module",
+          "file",
+          "domain_tags",
+          "expected_premises",
+          "source_allowed_sorry",
+          "no_placeholder_proof_block",
+          "blocked_reasons",
+          "verification_evidence"
+        ],
+        "properties": {
+          "rank": {"type": "integer"},
+          "task_id": {"type": "string"},
+          "candidate_name": {"type": "string"},
+          "status": {"type": "string"},
+          "declaration": {"type": "string"},
+          "module": {"type": "string"},
+          "file": {"type": "string"},
+          "domain_tags": {"type": "array", "items": {"type": "string"}},
+          "expected_premises": {"type": "array", "items": {"type": "string"}},
+          "source_allowed_sorry": {"type": "boolean"},
+          "no_placeholder_proof_block": {"type": "string"},
+          "blocked_reasons": {"type": "array", "items": {"type": "string"}},
+          "verification_evidence": {"type": "array", "items": {"type": "string"}}
+        },
+        "additionalProperties": false
+      }
+    },
+    "promotion_policy": {"type": "string"},
+    "notes": {"type": "string"}
+  },
+  "additionalProperties": false
+}

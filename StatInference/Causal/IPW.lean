@@ -138,6 +138,21 @@ theorem scaledLinearization (route : IPWHajekLinearizationRoute) :
 
 end IPWHajekLinearizationRoute
 
+/--
+Promotion target for the theorem-hole benchmark: a single reusable constructor
+bundles IPW identification with the scaled Hajek linearization handoff.
+-/
+theorem ipw_hajek_linearization_constructor
+    (route : IPWHajekLinearizationRoute) :
+    route.identification.bridge.ipw_identifies_estimand ∧
+      (∀ n,
+        route.rate n * (route.sequence.estimate n - route.sequence.target) =
+          route.rate n * route.sequence.residual n /
+            route.sequence.weightedMass n) := by
+  constructor
+  · exact route.identifies
+  · exact route.scaledLinearization
+
 /-- Trivial consistency assumption used only for non-vacuity sanity examples. -/
 def trivialIPWConsistencyAssumption : ConsistencyAssumption where
   statement := True
