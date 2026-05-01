@@ -53,8 +53,8 @@
         {"id": "P1.M6", "status": "pending", "name": "Concrete ratio/Hajek/IPW estimator algebra skeleton"}
       ],
       "next_actions": [
-        "Formalize finite-class uniform convergence as the first nontrivial theorem chain using existing deterministic ERM lemmas.",
         "Replace at least one abstract convergence bridge proposition with a mathlib-backed definition or wrapper.",
+        "Formalize finite-class uniform convergence as the first nontrivial theorem chain using existing deterministic ERM lemmas.",
         "Add benchmark tasks that require the new concrete theorem rather than simple projection."
       ]
     },
