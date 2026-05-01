@@ -8,6 +8,7 @@
     "Inspect this blueprint and select the first non-done phase and milestone.",
     "If health is green, implement or evaluate the next unblocked milestone instead of only monitoring.",
     "Promote changes only after Python tests, deterministic benchmark regeneration, Lean build or CI, and no forbidden Lean shortcuts.",
+    "Use AXLE only as an auxiliary Lean Engine for extraction, checking, proof repair, theorem-hole generation, and signature validation; local Lake remains the acceptance authority.",
     "Update this blueprint when a milestone changes status."
   ],
   "promotion_gates": [
@@ -16,6 +17,7 @@
     "Premise index and training manifest can be regenerated.",
     "Python smoke passes.",
     "Strict GitHub CI Lean lake build passes.",
+    "Any AXLE-generated or AXLE-repaired Lean code is rechecked locally and does not weaken the source theorem statement.",
     "Statistical meaning of new definitions is human-reviewable and non-vacuity is tracked."
   ],
   "phases": [
@@ -568,22 +570,38 @@
         },
         {
           "id": "P10.M2",
-          "status": "pending",
-          "name": "VC-subgraph GC benchmark seeds and combinatorial proof obligations"
+          "status": "done",
+          "name": "VdV&W finite-bracketing GC deterministic core",
+          "evidence": [
+            "AXLE is now available as an auxiliary extraction/check/repair backend through the StatLean CLI, with API keys read only from AXLE_API_KEY and local Lake retained as the verifier of record.",
+            "The VdV&W markdown audit identifies Theorem 2.4.1 as the first bottom-up empirical-process target: finite L1 bracketing implies Glivenko-Cantelli.",
+            "StatInference.EmpiricalProcess.Bracketing formalizes the deterministic bracketing inequality used in the proof of Theorem 2.4.1: bracket endpoint control plus population bracket width control implies a uniform empirical-deviation bound.",
+            "bracketing_deterministic_bound_seed benchmarks the deterministic bracketing inequality against the local Lake verifier.",
+            "StatInference.EmpiricalProcess.EndpointStrongLaw wraps mathlib's strong law for real-valued endpoint empirical averages and proves the finite-endpoint almost-sure convergence handoff.",
+            "StatInference.EmpiricalProcess.L1Bracketing defines explicit finite L1 bracketing families and converts shrinking finite-L1-bracketing sequence routes into GlivenkoCantelliClass certificates.",
+            "l1_bracketing_sequence_gc_seed benchmarks the explicit L1-bracketing route-to-GC handoff against the local Lake verifier.",
+            "finite_endpoint_strong_law_eventual_bound_seed benchmarks the mathlib strong-law wrapper that gives almost-sure eventual fixed-tolerance endpoint control.",
+            "The VdV&W audit docs record the remaining outer-probability, measurability, and convergence-mode gap before claiming the literal theorem statement."
+          ]
         },
         {
           "id": "P10.M3",
+          "status": "in_progress",
+          "name": "VC-subgraph GC benchmark seeds and combinatorial proof obligations"
+        },
+        {
+          "id": "P10.M4",
           "status": "pending",
           "name": "Donsker bridge benchmark seeds and asymptotic-normality handoff"
         },
         {
-          "id": "P10.M4",
+          "id": "P10.M5",
           "status": "pending",
           "name": "Empirical-process external prover evaluation slice"
         }
       ],
       "next_actions": [
-        "Implement P10.M2 VC-subgraph GC benchmark seeds and combinatorial proof-obligation scaffolding over the proof-carrying VCDeviationCertificate interface."
+        "Implement P10.M3 by adding VC-subgraph GC benchmark seeds and explicit combinatorial proof-obligation scaffolding over the proof-carrying VCDeviationCertificate interface."
       ]
     }
   ]

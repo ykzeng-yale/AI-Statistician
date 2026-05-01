@@ -167,11 +167,34 @@ The next mathematically honest expansion should be:
 This is the cleanest route from the markdown to a self-contained theorem rather
 than another bridge.
 
-## P10 VC-Subgraph Audit Notes
+## P10 Bracketing And VC Audit Notes
 
-The P10.M2 milestone is about VC-subgraph benchmark seeds and proof-obligation
-scaffolding.  The markdown audit supports this milestone only as plumbing and
-obligation tracking, not as a completed VC theorem.
+The P10.M2 milestone should now focus on the finite-bracketing route before
+the VC route.  This follows the textbook order: VdV&W prove the simplest
+Glivenko-Cantelli theorem first by finite bracketing and LLN, then use random
+entropy and later VC/VC-subgraph entropy results.
+
+For P10.M2, acceptable progress is:
+
+- keep `BracketingDeviationCertificate` as a high-level interface;
+- add primitive deterministic bracketing inequalities for bracket endpoint
+  control;
+- add endpoint strong-law wrappers against mathlib's real-valued strong law for
+  the finite endpoint families in the bracketing proof;
+- add fixed-tolerance almost-sure eventual endpoint-control wrappers, because
+  the strong law does not produce a deterministic all-`n` rate sequence by
+  itself;
+- add benchmark seeds for the deterministic bracketing inequality and the
+  explicit finite `L1(P)` bracketing route;
+- connect the endpoint LLN wrappers to explicit empirical averages and
+  outer-probability/measurability bookkeeping before claiming the full
+  Theorem 2.4.1 result;
+- avoid calling the result self-contained until finite bracketing cover,
+  endpoint convergence, measurability, and GC convergence mode are all explicit.
+
+The VC-subgraph work should move after this finite-bracketing step.  The
+markdown audit supports VC milestones only as plumbing and obligation tracking,
+not as completed VC theorems.
 
 The relevant VdV&W source families are:
 
@@ -182,7 +205,7 @@ The relevant VdV&W source families are:
 | Theorem 2.6.8, VC-subgraph Donsker theorem | Requires pointwise separability, pre-Gaussianity, and envelope weak-second-moment/tail conditions. |
 | Lemmas 2.6.15-2.6.20, examples and permanence | Useful for later class construction, but should enter as theorem cards first. |
 
-Therefore P10.M2 should add explicit metadata for:
+Therefore the VC-subgraph milestone should add explicit metadata for:
 
 - VC dimension or index bound;
 - shatter coefficient or Sauer-bound statement;

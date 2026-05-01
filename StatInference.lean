@@ -22,4 +22,7 @@ import StatInference.EmpiricalProcess.Average
 import StatInference.EmpiricalProcess.Finite
 import StatInference.EmpiricalProcess.Preservation
 import StatInference.EmpiricalProcess.Complexity
+import StatInference.EmpiricalProcess.Bracketing
+import StatInference.EmpiricalProcess.EndpointStrongLaw
+import StatInference.EmpiricalProcess.L1Bracketing
 import StatInference.Examples.ConcreteEstimatorChain

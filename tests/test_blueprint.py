@@ -12,7 +12,7 @@ def test_real_blueprint_selects_next_unfinished_milestone() -> None:
     assert status["valid"] is True
     assert status["current_phase"]["id"] == "P10"
     assert status["current_phase"]["status"] == "in_progress"
-    assert status["current_milestone"]["id"] == "P10.M2"
+    assert status["current_milestone"]["id"] == "P10.M3"
     assert "continue" in render_blueprint_status(blueprint)
     assert any("vc-subgraph" in action.lower() for action in status["next_actions"])
 

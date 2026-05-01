@@ -96,6 +96,20 @@ Near-term guardrails:
 
 For P10.M2, acceptable progress is therefore:
 
+- prove the deterministic bracketing endpoint inequality from VdV&W 2.4.1;
+- wrap mathlib's real-valued strong law for finite endpoint families;
+- expose the strong-law result as almost-sure eventual fixed-tolerance endpoint
+  control, not as a deterministic all-sample rate;
+- add explicit finite `L1(P)` bracketing sequence routes and benchmark seeds
+  for deterministic and L1-bracketing handoffs;
+- keep `BracketingDeviationCertificate` as a handoff API, not the theorem
+  itself;
+- do not claim finite bracketing implies GC until finite bracket covers,
+  endpoint LLNs, measurability, outer-probability bookkeeping, and convergence
+  mode are all formalized.
+
+For the later VC-subgraph milestone, acceptable progress is:
+
 - add benchmark seeds for `VCDeviationCertificate` projection and non-vacuity;
 - add explicit proof-obligation metadata for VC dimension, shatter bounds,
   entropy translation, measurability, envelope/moment, and separability;

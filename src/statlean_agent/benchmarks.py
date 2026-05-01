@@ -511,6 +511,140 @@ SEED_BENCHMARKS: tuple[BenchmarkTask, ...] = (
         ),
     ),
     BenchmarkTask(
+        task_id="bracketing_deterministic_bound_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S5",
+        domain_tags=("empirical_process", "bracketing_number", "glivenko_cantelli"),
+        natural_language=(
+            "Use deterministic bracket endpoint control and population bracket "
+            "width control to prove a uniform empirical-deviation bound."
+        ),
+        lean_task=LeanTask(
+            task_id="bracketing_deterministic_bound_seed",
+            imports=("StatInference.EmpiricalProcess.Bracketing",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Index Bracket : Type*} {indexClass : Set Index} "
+                "(populationRisk empiricalRisk : Index -> Real) "
+                "(lowerPopulation upperPopulation lowerEmpirical upperEmpirical : "
+                "Bracket -> Real) "
+                "(bracketOf : forall index, index ∈ indexClass -> Bracket) "
+                "(endpointRadius widthRadius : Real) "
+                "(h_emp_lower : forall index hindex, "
+                "lowerEmpirical (bracketOf index hindex) <= empiricalRisk index) "
+                "(h_emp_upper : forall index hindex, empiricalRisk index <= "
+                "upperEmpirical (bracketOf index hindex)) "
+                "(h_pop_lower : forall index hindex, "
+                "lowerPopulation (bracketOf index hindex) <= populationRisk index) "
+                "(h_pop_upper : forall index hindex, populationRisk index <= "
+                "upperPopulation (bracketOf index hindex)) "
+                "(h_width : forall index hindex, "
+                "upperPopulation (bracketOf index hindex) - "
+                "lowerPopulation (bracketOf index hindex) <= widthRadius) "
+                "(h_upper_endpoint : forall index hindex, "
+                "upperEmpirical (bracketOf index hindex) - "
+                "upperPopulation (bracketOf index hindex) <= endpointRadius) "
+                "(h_lower_endpoint : forall index hindex, "
+                "lowerPopulation (bracketOf index hindex) - "
+                "lowerEmpirical (bracketOf index hindex) <= endpointRadius) : "
+                "StatInference.EmpiricalDeviationBoundOn indexClass populationRisk "
+                "empiricalRisk (endpointRadius + widthRadius) := by\n"
+                "  exact StatInference.empiricalDeviationBoundOn_of_bracket_endpoint_bounds "
+                "populationRisk empiricalRisk lowerPopulation upperPopulation "
+                "lowerEmpirical upperEmpirical bracketOf endpointRadius widthRadius "
+                "h_emp_lower h_emp_upper h_pop_lower h_pop_upper h_width "
+                "h_upper_endpoint h_lower_endpoint"
+            ),
+            tags=("bracketing_number", "deterministic_bound", "uniform_deviation"),
+            dependencies=(
+                "StatInference.empiricalDeviationBoundOn_of_bracket_endpoint_bounds",
+            ),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=(
+            "StatInference.empiricalDeviationBoundOn_of_bracket_endpoint_bounds",
+        ),
+    ),
+    BenchmarkTask(
+        task_id="l1_bracketing_sequence_gc_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S5",
+        domain_tags=("empirical_process", "bracketing_number", "glivenko_cantelli"),
+        natural_language=(
+            "Convert a shrinking finite L1 bracketing sequence route into the "
+            "GC-class interface."
+        ),
+        lean_task=LeanTask(
+            task_id="l1_bracketing_sequence_gc_seed",
+            imports=("StatInference.EmpiricalProcess.L1Bracketing",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Index Bracket : Type*} [Fintype Bracket] "
+                "{indexClass : Set Index} {populationRisk : Index -> Real} "
+                "{empiricalRisk : Nat -> Index -> Real} "
+                "(route : StatInference.L1BracketingSequenceRoute "
+                "(Bracket := Bracket) indexClass populationRisk empiricalRisk) : "
+                "StatInference.GlivenkoCantelliClass "
+                "indexClass populationRisk empiricalRisk := by\n"
+                "  exact StatInference.L1BracketingSequenceRoute.toGlivenkoCantelliClass "
+                "route"
+            ),
+            tags=("bracketing_number", "l1_bracketing", "gc_certificate"),
+            dependencies=(
+                "StatInference.L1BracketingSequenceRoute.toGlivenkoCantelliClass",
+            ),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=(
+            "StatInference.L1BracketingSequenceRoute.toGlivenkoCantelliClass",
+        ),
+    ),
+    BenchmarkTask(
+        task_id="finite_endpoint_strong_law_eventual_bound_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S5",
+        domain_tags=("empirical_process", "bracketing_number", "glivenko_cantelli"),
+        natural_language=(
+            "Use the finite endpoint strong law to obtain almost-sure eventual "
+            "uniform absolute endpoint-error control for any fixed tolerance."
+        ),
+        lean_task=LeanTask(
+            task_id="finite_endpoint_strong_law_eventual_bound_seed",
+            imports=("StatInference.EmpiricalProcess.EndpointStrongLaw",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Endpoint Omega : Type*} [Fintype Endpoint] "
+                "[MeasurableSpace Omega] {mu : MeasureTheory.Measure Omega} "
+                "(X : Endpoint -> Nat -> Omega -> Real) "
+                "(hint : forall endpoint, MeasureTheory.Integrable "
+                "(X endpoint 0) mu) "
+                "(hindep : forall endpoint, Pairwise "
+                "(fun i j => ProbabilityTheory.IndepFun "
+                "(X endpoint i) (X endpoint j) mu)) "
+                "(hident : forall endpoint i, ProbabilityTheory.IdentDistrib "
+                "(X endpoint i) (X endpoint 0) mu mu) "
+                "(tolerance : Real) (htolerance : 0 < tolerance) : "
+                "∀ᵐ omega ∂mu, ∀ᶠ n : Nat in Filter.atTop, forall endpoint, "
+                "|(Finset.sum (Finset.range n) "
+                "(fun i => X endpoint i omega)) / n - "
+                "MeasureTheory.integral mu (X endpoint 0)| <= tolerance := by\n"
+                "  exact StatInference.finite_endpoint_strong_law_eventually_abs_le_real "
+                "X hint hindep hident tolerance htolerance"
+            ),
+            tags=("bracketing_number", "endpoint_strong_law", "eventual_control"),
+            dependencies=(
+                "StatInference.finite_endpoint_strong_law_eventually_abs_le_real",
+            ),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=(
+            "StatInference.finite_endpoint_strong_law_eventually_abs_le_real",
+        ),
+    ),
+    BenchmarkTask(
         task_id="trivial_bracketing_gc_non_vacuity_seed",
         task_type=BenchmarkTaskType.FORMAL_ONLY,
         split=BenchmarkSplit.DEV,
