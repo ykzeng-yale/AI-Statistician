@@ -66,6 +66,16 @@ statlean verify-benchmarks \
   --output artifacts/verification/reports.jsonl
 ```
 
+Build a local premise index and training manifest:
+
+```bash
+statlean index-premises --root . --output artifacts/premise_index/local.jsonl
+statlean search-premises "oracle excess risk" --index artifacts/premise_index/local.jsonl
+statlean build-training-manifest \
+  --benchmarks benchmarks/seeds.jsonl \
+  --output artifacts/training/manifest.json
+```
+
 Preview a worktree assignment:
 
 ```bash

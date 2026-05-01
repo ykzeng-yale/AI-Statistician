@@ -9,9 +9,10 @@
       "type": "string",
       "enum": ["accepted", "rejected", "timeout", "error"]
     },
-    "locally_valid_steps": {"type": "integer"},
-    "closed_goals": {"type": "integer"},
+    "locally_valid_steps": {"type": "integer", "minimum": 0},
+    "closed_goals": {"type": "integer", "minimum": 0},
     "first_error": {"type": ["string", "null"]},
-    "diagnostics": {"type": "array", "items": {"type": "string"}}
-  }
+    "diagnostics": {"type": "array", "items": {"type": "string", "minLength": 1}}
+  },
+  "additionalProperties": false
 }

@@ -2,15 +2,47 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "EvalReport",
   "type": "object",
-  "required": ["total_attempts", "accepted", "rejected", "timeout", "error", "average_reward", "pass_rate"],
+  "required": [
+    "total_attempts",
+    "accepted",
+    "rejected",
+    "timeout",
+    "error",
+    "average_reward",
+    "pass_rate",
+    "status_counts",
+    "reward_totals",
+    "average_reward_components",
+    "diagnostics"
+  ],
   "properties": {
-    "total_attempts": {"type": "integer"},
-    "accepted": {"type": "integer"},
-    "rejected": {"type": "integer"},
-    "timeout": {"type": "integer"},
-    "error": {"type": "integer"},
+    "total_attempts": {"type": "integer", "minimum": 0},
+    "accepted": {"type": "integer", "minimum": 0},
+    "rejected": {"type": "integer", "minimum": 0},
+    "timeout": {"type": "integer", "minimum": 0},
+    "error": {"type": "integer", "minimum": 0},
     "average_reward": {"type": "number"},
-    "pass_rate": {"type": "number"}
+    "pass_rate": {"type": "number", "minimum": 0, "maximum": 1},
+    "status_counts": {
+      "type": "object",
+      "required": ["accepted", "rejected", "timeout", "error"],
+      "properties": {
+        "accepted": {"type": "integer", "minimum": 0},
+        "rejected": {"type": "integer", "minimum": 0},
+        "timeout": {"type": "integer", "minimum": 0},
+        "error": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "reward_totals": {
+      "type": "object",
+      "additionalProperties": {"type": "number"}
+    },
+    "average_reward_components": {
+      "type": "object",
+      "additionalProperties": {"type": "number"}
+    },
+    "diagnostics": {"type": "array", "items": {"type": "string", "minLength": 1}}
   },
   "additionalProperties": false
 }

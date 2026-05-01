@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TrainingManifest",
+  "type": "object",
+  "required": ["run_id", "base_model", "sft_examples", "dpo_pairs", "grpo_tasks"],
+  "properties": {
+    "run_id": {"type": "string"},
+    "base_model": {"type": "string"},
+    "sft_examples": {"type": "array", "items": {"type": "object"}},
+    "dpo_pairs": {"type": "array", "items": {"type": "object"}},
+    "grpo_tasks": {"type": "array", "items": {"type": "object"}},
+    "metadata": {"type": "object", "additionalProperties": {"type": "string"}}
+  },
+  "additionalProperties": false
+}
+

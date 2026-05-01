@@ -14,22 +14,47 @@
       "required": ["task_id", "imports", "namespace", "statement"],
       "properties": {
         "task_id": {"type": "string"},
-        "imports": {"type": "array", "items": {"type": "string"}},
+        "imports": {
+          "type": "array",
+          "items": {"type": "string"},
+          "uniqueItems": true
+        },
         "namespace": {"type": "string"},
         "statement": {"type": "string"},
         "allowed_sorry": {"type": "boolean"},
-        "tags": {"type": "array", "items": {"type": "string"}},
-        "dependencies": {"type": "array", "items": {"type": "string"}},
-        "expected_patterns": {"type": "array", "items": {"type": "string"}}
+        "tags": {
+          "type": "array",
+          "items": {"type": "string"},
+          "uniqueItems": true
+        },
+        "dependencies": {
+          "type": "array",
+          "items": {"type": "string"},
+          "uniqueItems": true
+        },
+        "expected_patterns": {
+          "type": "array",
+          "items": {"type": "string"},
+          "uniqueItems": true
+        }
       },
       "additionalProperties": false
     },
-    "difficulty": {"type": "string"},
-    "domain_tags": {"type": "array", "items": {"type": "string"}},
+    "difficulty": {"type": "string", "pattern": "^S[0-9]+$"},
+    "domain_tags": {
+      "type": "array",
+      "items": {"type": "string"},
+      "minItems": 1,
+      "uniqueItems": true
+    },
     "split": {"type": "string", "enum": ["train", "dev", "test"]},
     "natural_language": {"type": ["string", "null"]},
     "proof_state": {"type": ["string", "null"]},
-    "expected_premises": {"type": "array", "items": {"type": "string"}}
+    "expected_premises": {
+      "type": "array",
+      "items": {"type": "string"},
+      "uniqueItems": true
+    }
   },
   "additionalProperties": false
 }

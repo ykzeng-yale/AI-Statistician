@@ -13,11 +13,10 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install -e ".[dev]"
-      - run: pytest
+      - run: bash scripts/smoke.sh
 
   lean:
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: leanprover/lean-action@v1

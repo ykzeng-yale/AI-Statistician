@@ -10,7 +10,9 @@ from statlean_agent.benchmarks import load_benchmarks, seed_benchmarks
 from statlean_agent.contracts import ProofAttempt, VerificationReport
 from statlean_agent.evaluation import evaluate_attempts
 from statlean_agent.orchestrator import DEFAULT_WORKFLOW
+from statlean_agent.retrieval import PremiseRecord, build_premise_index, search_premises
 from statlean_agent.serialization import dataclass_from_dict, dumps_json, read_jsonl, write_jsonl
+from statlean_agent.training import build_training_manifest
 from statlean_agent.verifier import LakeVerifier, render_task
 from statlean_agent.worktrees import WorktreeManager
 
@@ -48,6 +50,22 @@ def main(argv: list[str] | None = None) -> int:
     eval_attempts = subparsers.add_parser("eval-attempts", help="Evaluate proof attempts and reports.")
     eval_attempts.add_argument("--attempts", required=True, help="ProofAttempt JSONL path.")
     eval_attempts.add_argument("--reports", required=True, help="VerificationReport JSONL path.")
+
+    index_premises = subparsers.add_parser("index-premises", help="Index local Lean declarations.")
+    index_premises.add_argument("--root", default=".", help="Repository root.")
+    index_premises.add_argument("--source-dir", default="StatInference", help="Lean source directory.")
+    index_premises.add_argument("--output", default="artifacts/premise_index/local.jsonl", help="Output JSONL path.")
+
+    search = subparsers.add_parser("search-premises", help="Search a premise index.")
+    search.add_argument("query", help="Search query.")
+    search.add_argument("--index", default="artifacts/premise_index/local.jsonl", help="Premise index JSONL.")
+    search.add_argument("--top-k", type=int, default=8, help="Number of matches.")
+
+    train_manifest = subparsers.add_parser("build-training-manifest", help="Build SFT/DPO/GRPO manifest.")
+    train_manifest.add_argument("--benchmarks", default="benchmarks/seeds.jsonl", help="Benchmark JSONL path.")
+    train_manifest.add_argument("--output", default="artifacts/training/manifest.json", help="Manifest JSON path.")
+    train_manifest.add_argument("--run-id", default="local-seed", help="Run id.")
+    train_manifest.add_argument("--base-model", default="unspecified-lean-prover", help="Base model name.")
 
     assign = subparsers.add_parser("assign-worktree", help="Create or preview an agent worktree.")
     assign.add_argument("--agent", required=True, help="Agent key.")
@@ -111,6 +129,27 @@ def main(argv: list[str] | None = None) -> int:
             dataclass_from_dict(VerificationReport, record) for record in read_jsonl(Path(args.reports))
         )
         print(dumps_json(evaluate_attempts(attempts, reports)))
+        return 0
+
+    if args.command == "index-premises":
+        records = build_premise_index(Path(args.root), source_dir=args.source_dir)
+        write_jsonl(Path(args.output), list(records))
+        print(f"indexed={len(records)} output={args.output}")
+        return 0
+
+    if args.command == "search-premises":
+        records = tuple(dataclass_from_dict(PremiseRecord, record) for record in read_jsonl(Path(args.index)))
+        for premise in search_premises(records, args.query, top_k=args.top_k):
+            print(f"{premise.name}\t{premise.kind}\t{premise.module}:{premise.line}")
+        return 0
+
+    if args.command == "build-training-manifest":
+        tasks = load_benchmarks(Path(args.benchmarks))
+        manifest = build_training_manifest(tasks, run_id=args.run_id, base_model=args.base_model)
+        output = Path(args.output)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(dumps_json(manifest) + "\n", encoding="utf-8")
+        print(f"wrote {output}")
         return 0
 
     if args.command == "assign-worktree":

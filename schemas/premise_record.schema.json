@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PremiseRecord",
+  "type": "object",
+  "required": ["name", "kind", "module", "file", "line"],
+  "properties": {
+    "name": {"type": "string"},
+    "kind": {"type": "string"},
+    "module": {"type": "string"},
+    "file": {"type": "string"},
+    "line": {"type": "integer"},
+    "imports": {"type": "array", "items": {"type": "string"}}
+  },
+  "additionalProperties": false
+}
+

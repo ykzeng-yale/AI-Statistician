@@ -164,6 +164,10 @@ class EvalReport:
     error: int
     average_reward: float
     pass_rate: float
+    status_counts: dict[str, int] = field(default_factory=dict)
+    reward_totals: dict[str, float] = field(default_factory=dict)
+    average_reward_components: dict[str, float] = field(default_factory=dict)
+    diagnostics: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

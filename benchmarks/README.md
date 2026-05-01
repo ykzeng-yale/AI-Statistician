@@ -2,17 +2,20 @@
 
 This directory will contain generated and curated benchmark tasks for statistical inference theorem proving in Lean.
 
-Initial benchmark families:
+Seed benchmark families:
 
 - asymptotic calculus;
+- asymptotic bridge projections;
 - convergence in probability and distribution;
 - ERM consistency;
+- estimator interfaces;
 - empirical process bounds;
 - M-estimation and Z-estimation;
 - causal identification;
+- causal bridge projections;
 - influence-function linearization.
 
-`seeds.jsonl` is the initial checked-in benchmark database. Regenerate it from
+`seeds.jsonl` is the checked-in deterministic seed benchmark database. Regenerate it from
 the typed Python registry with:
 
 ```bash
