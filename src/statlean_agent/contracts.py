@@ -146,6 +146,19 @@ class CurationDecision:
 
 
 @dataclass(frozen=True)
+class CuratedLemmaLedgerEntry:
+    """Auditable ledger record for a proposed reusable lemma."""
+
+    ledger_id: str
+    candidate: CuratedLemmaCandidate
+    decision: CurationDecision
+    source_task_ids: tuple[str, ...]
+    verification_report_ids: tuple[str, ...] = ()
+    status: str = "proposed"
+    notes: str = ""
+
+
+@dataclass(frozen=True)
 class RewardBreakdown:
     """Reward components used for DPO/GRPO logging."""
 

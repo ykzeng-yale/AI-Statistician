@@ -257,7 +257,7 @@
     {
       "id": "P5",
       "name": "Proof Agent And Benchmark Loop",
-      "status": "in_progress",
+      "status": "done",
       "objective": "Turn the library into a measurable proof-agent loop with theorem-hole tasks, repair tasks, premise-use metrics, and failure taxonomy.",
       "milestones": [
         {
@@ -272,27 +272,70 @@
             "the three theorem-hole seeds accepted locally with allowed placeholder diagnostics"
           ]
         },
-        {"id": "P5.M2", "status": "pending", "name": "Verifier artifacts for all benchmark tasks"},
-        {"id": "P5.M3", "status": "pending", "name": "Eval summaries by phase/domain/split"},
-        {"id": "P5.M4", "status": "pending", "name": "Curated lemma growth ledger"}
+        {
+          "id": "P5.M2",
+          "status": "done",
+          "name": "Verifier artifacts for all benchmark tasks",
+          "evidence": [
+            "artifacts/verification/benchmark-seed-reports.jsonl regenerated from the current 67-task benchmark registry.",
+            "verify-benchmarks accepted all 67 seed tasks with the local Lake verifier.",
+            "The theorem-hole tasks record allowed placeholder diagnostics while non-placeholder StatInference tasks remain accepted without placeholder diagnostics.",
+            "tests/test_benchmarks.py now enforces verifier artifact coverage, accepted status, task ordering, and placeholder-policy diagnostics for checked-in reports."
+          ]
+        },
+        {
+          "id": "P5.M3",
+          "status": "done",
+          "name": "Eval summaries by phase/domain/split",
+          "evidence": [
+            "materialize-benchmark-attempts CLI renders all 67 benchmark seeds into ProofAttempt JSONL records with expected-premise metadata.",
+            "eval-summary CLI can now write JSON summary artifacts as well as stdout summaries.",
+            "artifacts/evaluation/benchmark-seed-attempts.jsonl and benchmark-seed-summary.json were generated from the verified seed registry.",
+            "The checked-in summary reports 67/67 accepted attempts, phase rows P1-P5, split rows train/dev/test, domain rows, and task-type rows including three subgoal_completion theorem-hole tasks.",
+            "tests/test_evaluation.py enforces that checked-in eval artifacts cover the current seed registry and include phase/task-type coverage."
+          ]
+        },
+        {
+          "id": "P5.M4",
+          "status": "done",
+          "name": "Curated lemma growth ledger",
+          "evidence": [
+            "CuratedLemmaLedgerEntry contract records candidate, decision, source tasks, verifier report ids, status, and notes.",
+            "build-lemma-ledger CLI generates theorem-hole-derived curation records from benchmark tasks plus verifier reports.",
+            "artifacts/curation/theorem-hole-ledger.jsonl seeds three reusable lemma candidates from the IPW, AIPW product-rate, and influence-function theorem-hole tasks.",
+            "All three seed ledger entries are status=blocked_placeholder because the curation gate detects scoped `sorry` placeholders and refuses promotion until no-sorry proofs exist.",
+            "schemas/curated_lemma_ledger.schema.json documents the ledger artifact shape and tests enforce blocked-placeholder behavior."
+          ]
+        }
       ],
       "next_actions": [
-        "Regenerate verifier artifacts for all benchmark tasks and record accepted/rejected status with placeholder policy diagnostics."
+        "P5 is complete; continue to P6 domain adaptation training data, starting with SFT examples from verified proof traces."
       ]
     },
     {
       "id": "P6",
       "name": "Domain Adaptation Training Pipeline",
-      "status": "pending",
+      "status": "in_progress",
       "objective": "Prepare auditable SFT, DPO, and GRPO data generation from verified traces and Lean-labeled attempts.",
       "milestones": [
-        {"id": "P6.M1", "status": "pending", "name": "SFT examples from verified proof traces"},
+        {
+          "id": "P6.M1",
+          "status": "done",
+          "name": "SFT examples from verified proof traces",
+          "evidence": [
+            "build-training-manifest CLI now accepts paired ProofAttempt and VerificationReport artifacts.",
+            "build_verified_sft_examples emits accepted no-placeholder SFT examples from verifier-backed proof attempts.",
+            "The generated artifacts/training/manifest.json uses sft_source=verified_attempts, 67 paired attempts, 64 no-placeholder SFT examples, and 67 GRPO tasks.",
+            "The three theorem-hole tasks are deliberately excluded from SFT because lean_task.allowed_sorry=true.",
+            "tests/test_training.py enforces checked-in verified-SFT manifest counts and absence of `sorry` in SFT responses."
+          ]
+        },
         {"id": "P6.M2", "status": "pending", "name": "DPO pairs from accepted/rejected Lean attempts"},
         {"id": "P6.M3", "status": "pending", "name": "Process-reward GRPO task manifest"},
         {"id": "P6.M4", "status": "pending", "name": "Baseline prover comparison on held-out StatInferBench"}
       ],
       "next_actions": [
-        "Do not launch RL until P5 has nontrivial benchmark tasks and verifier artifacts."
+        "Generate Lean-labeled rejected attempts and DPO chosen/rejected pairs without using forbidden placeholders as chosen examples."
       ]
     },
     {

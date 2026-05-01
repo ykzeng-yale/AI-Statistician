@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 
+from statlean_agent.benchmarks import SEED_BENCHMARKS
 from statlean_agent.cli import main
 from statlean_agent.contracts import (
     BenchmarkSplit,
@@ -12,7 +13,7 @@ from statlean_agent.contracts import (
     VerificationStatus,
 )
 from statlean_agent.evaluation import evaluate_attempts, summarize_benchmark_attempts
-from statlean_agent.serialization import write_jsonl
+from statlean_agent.serialization import dataclass_from_dict, read_jsonl, write_jsonl
 
 
 def test_evaluate_attempts() -> None:
@@ -141,6 +142,16 @@ def test_summarize_benchmark_attempts_by_metadata() -> None:
         "mean_reward": 7.0 / 3.0,
         "failure_categories": {"unknown_declaration": 1, "unsolved_goals": 1},
     }
+    assert summary["by_phase"] == [
+        {
+            "attempts": 3,
+            "failed": 2,
+            "failure_categories": {"unknown_declaration": 1, "unsolved_goals": 1},
+            "mean_reward": 7.0 / 3.0,
+            "passed": 1,
+            "phase": "unmapped",
+        }
+    ]
     assert [row["split"] for row in summary["by_split"]] == ["dev", "train"]
     by_split = {row["split"]: row for row in summary["by_split"]}
     assert by_split["train"]["passed"] == 1
@@ -188,6 +199,7 @@ def test_cli_eval_summary(tmp_path: Path, capsys) -> None:
     benchmarks_path = tmp_path / "benchmarks.jsonl"
     attempts_path = tmp_path / "attempts.jsonl"
     reports_path = tmp_path / "reports.jsonl"
+    summary_path = tmp_path / "summary.json"
     write_jsonl(benchmarks_path, [_benchmark_task("task", domain_tags=("alpha",))])
     write_jsonl(attempts_path, [ProofAttempt("task", "agent", "theorem ok : True := by trivial")])
     write_jsonl(reports_path, [VerificationReport("task", VerificationStatus.ACCEPTED)])
@@ -208,6 +220,7 @@ def test_cli_eval_summary(tmp_path: Path, capsys) -> None:
     )
     summary = json.loads(capsys.readouterr().out)
     assert summary["total"]["passed"] == 1
+    assert summary["by_phase"][0]["phase"] == "unmapped"
     assert summary["by_domain"] == [
         {
             "attempts": 1,
@@ -218,6 +231,53 @@ def test_cli_eval_summary(tmp_path: Path, capsys) -> None:
             "passed": 1,
         }
     ]
+
+    assert (
+        main(
+            [
+                "eval-summary",
+                "--benchmarks",
+                str(benchmarks_path),
+                "--attempts",
+                str(attempts_path),
+                "--reports",
+                str(reports_path),
+                "--output",
+                str(summary_path),
+            ]
+        )
+        == 0
+    )
+    assert "wrote" in capsys.readouterr().out
+    assert json.loads(summary_path.read_text(encoding="utf-8")) == summary
+
+
+def test_checked_in_eval_artifacts_cover_current_seed_registry() -> None:
+    attempts = tuple(
+        dataclass_from_dict(ProofAttempt, record)
+        for record in read_jsonl(Path("artifacts/evaluation/benchmark-seed-attempts.jsonl"))
+    )
+    reports = tuple(
+        dataclass_from_dict(VerificationReport, record)
+        for record in read_jsonl(Path("artifacts/verification/benchmark-seed-reports.jsonl"))
+    )
+    summary = json.loads(Path("artifacts/evaluation/benchmark-seed-summary.json").read_text(encoding="utf-8"))
+    seed_ids = [task.task_id for task in SEED_BENCHMARKS]
+
+    assert [attempt.task_id for attempt in attempts] == seed_ids
+    assert [report.task_id for report in reports] == seed_ids
+    assert summary["total"]["attempts"] == len(seed_ids)
+    assert summary["total"]["passed"] == len(seed_ids)
+    assert summary["total"]["failed"] == 0
+
+    by_phase = {row["phase"]: row for row in summary["by_phase"]}
+    assert {"P1", "P2", "P3", "P4", "P5"} <= set(by_phase)
+    assert all(row["failed"] == 0 for row in by_phase.values())
+    assert by_phase["P5"]["attempts"] == 3
+
+    by_task_type = {row["task_type"]: row for row in summary["by_task_type"]}
+    assert by_task_type["subgoal_completion"]["attempts"] == 3
+    assert by_task_type["subgoal_completion"]["passed"] == 3
 
 
 def _benchmark_task(

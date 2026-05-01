@@ -14,6 +14,7 @@ from statlean_agent.blueprint import (
     validate_blueprint,
 )
 from statlean_agent.contracts import ProofAttempt, VerificationReport
+from statlean_agent.curation import build_theorem_hole_lemma_ledger
 from statlean_agent.evaluation import evaluate_attempts, summarize_benchmark_attempts
 from statlean_agent.orchestrator import DEFAULT_WORKFLOW
 from statlean_agent.retrieval import PremiseRecord, build_premise_index, search_premises
@@ -57,6 +58,22 @@ def main(argv: list[str] | None = None) -> int:
     verify_all.add_argument("--timeout", type=int, default=60, help="Verification timeout in seconds.")
     verify_all.add_argument("--allow-failures", action="store_true", help="Return success even when tasks fail.")
 
+    materialize_attempts = subparsers.add_parser(
+        "materialize-benchmark-attempts",
+        help="Render benchmark tasks into ProofAttempt JSONL records for evaluation.",
+    )
+    materialize_attempts.add_argument("--benchmarks", default="benchmarks/seeds.jsonl", help="BenchmarkTask JSONL path.")
+    materialize_attempts.add_argument(
+        "--output",
+        default="artifacts/evaluation/benchmark-seed-attempts.jsonl",
+        help="Output ProofAttempt JSONL path.",
+    )
+    materialize_attempts.add_argument(
+        "--agent-key",
+        default="seed-registry",
+        help="Agent key to attach to rendered benchmark attempts.",
+    )
+
     eval_attempts = subparsers.add_parser("eval-attempts", help="Evaluate proof attempts and reports.")
     eval_attempts.add_argument("--attempts", required=True, help="ProofAttempt JSONL path.")
     eval_attempts.add_argument("--reports", required=True, help="VerificationReport JSONL path.")
@@ -65,6 +82,23 @@ def main(argv: list[str] | None = None) -> int:
     eval_summary.add_argument("--benchmarks", default="benchmarks/seeds.jsonl", help="BenchmarkTask JSONL path.")
     eval_summary.add_argument("--attempts", required=True, help="ProofAttempt JSONL path.")
     eval_summary.add_argument("--reports", required=True, help="VerificationReport JSONL path.")
+    eval_summary.add_argument("--output", help="Optional summary JSON output path.")
+
+    lemma_ledger = subparsers.add_parser(
+        "build-lemma-ledger",
+        help="Build a curator-gated lemma-growth ledger from theorem-hole benchmark tasks.",
+    )
+    lemma_ledger.add_argument("--benchmarks", default="benchmarks/seeds.jsonl", help="BenchmarkTask JSONL path.")
+    lemma_ledger.add_argument(
+        "--reports",
+        default="artifacts/verification/benchmark-seed-reports.jsonl",
+        help="VerificationReport JSONL path.",
+    )
+    lemma_ledger.add_argument(
+        "--output",
+        default="artifacts/curation/theorem-hole-ledger.jsonl",
+        help="Output CuratedLemmaLedgerEntry JSONL path.",
+    )
 
     index_premises = subparsers.add_parser("index-premises", help="Index local Lean declarations.")
     index_premises.add_argument("--root", default=".", help="Repository root.")
@@ -81,6 +115,8 @@ def main(argv: list[str] | None = None) -> int:
     train_manifest.add_argument("--output", default="artifacts/training/manifest.json", help="Manifest JSON path.")
     train_manifest.add_argument("--run-id", default="local-seed", help="Run id.")
     train_manifest.add_argument("--base-model", default="unspecified-lean-prover", help="Base model name.")
+    train_manifest.add_argument("--attempts", help="Optional verified ProofAttempt JSONL path.")
+    train_manifest.add_argument("--reports", help="Optional VerificationReport JSONL path paired with attempts.")
 
     assign = subparsers.add_parser("assign-worktree", help="Create or preview an agent worktree.")
     assign.add_argument("--agent", required=True, help="Agent key.")
@@ -151,6 +187,21 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         return 1
 
+    if args.command == "materialize-benchmark-attempts":
+        tasks = load_benchmarks(Path(args.benchmarks))
+        attempts = [
+            ProofAttempt(
+                task_id=task.task_id,
+                agent_key=args.agent_key,
+                lean_code=render_task(task.lean_task),
+                premises_used=task.expected_premises,
+            )
+            for task in tasks
+        ]
+        write_jsonl(Path(args.output), attempts)
+        print(f"materialized={len(attempts)} output={args.output}")
+        return 0
+
     if args.command == "eval-attempts":
         attempts = tuple(dataclass_from_dict(ProofAttempt, record) for record in read_jsonl(Path(args.attempts)))
         reports = tuple(
@@ -165,7 +216,26 @@ def main(argv: list[str] | None = None) -> int:
         reports = tuple(
             dataclass_from_dict(VerificationReport, record) for record in read_jsonl(Path(args.reports))
         )
-        print(dumps_json(summarize_benchmark_attempts(tasks, attempts, reports)))
+        summary = summarize_benchmark_attempts(tasks, attempts, reports)
+        encoded = dumps_json(summary)
+        if args.output:
+            output = Path(args.output)
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_text(encoded + "\n", encoding="utf-8")
+            print(f"wrote {output}")
+        else:
+            print(encoded)
+        return 0
+
+    if args.command == "build-lemma-ledger":
+        tasks = load_benchmarks(Path(args.benchmarks))
+        reports = tuple(
+            dataclass_from_dict(VerificationReport, record) for record in read_jsonl(Path(args.reports))
+        )
+        entries = build_theorem_hole_lemma_ledger(tasks, reports)
+        write_jsonl(Path(args.output), list(entries))
+        blocked = sum(1 for entry in entries if entry.status == "blocked_placeholder")
+        print(f"ledger_entries={len(entries)} blocked_placeholder={blocked} output={args.output}")
         return 0
 
     if args.command == "index-premises":
@@ -182,7 +252,22 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "build-training-manifest":
         tasks = load_benchmarks(Path(args.benchmarks))
-        manifest = build_training_manifest(tasks, run_id=args.run_id, base_model=args.base_model)
+        attempts: tuple[ProofAttempt, ...] = ()
+        reports: tuple[VerificationReport, ...] = ()
+        if args.attempts or args.reports:
+            if not args.attempts or not args.reports:
+                raise SystemExit("--attempts and --reports must be provided together")
+            attempts = tuple(dataclass_from_dict(ProofAttempt, record) for record in read_jsonl(Path(args.attempts)))
+            reports = tuple(
+                dataclass_from_dict(VerificationReport, record) for record in read_jsonl(Path(args.reports))
+            )
+        manifest = build_training_manifest(
+            tasks,
+            attempts,
+            reports,
+            run_id=args.run_id,
+            base_model=args.base_model,
+        )
         output = Path(args.output)
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(dumps_json(manifest) + "\n", encoding="utf-8")

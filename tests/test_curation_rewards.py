@@ -1,11 +1,16 @@
+from pathlib import Path
+
 from statlean_agent.contracts import (
     CuratedLemmaCandidate,
+    CuratedLemmaLedgerEntry,
     ProofAttempt,
     VerificationReport,
     VerificationStatus,
 )
-from statlean_agent.curation import curate_candidate
+from statlean_agent.benchmarks import SEED_BENCHMARKS
+from statlean_agent.curation import build_theorem_hole_lemma_ledger, curate_candidate
 from statlean_agent.rewards import aggregate_reward_breakdowns, find_forbidden_tokens, score_attempt
+from statlean_agent.serialization import dataclass_from_dict, read_jsonl
 
 
 def test_curator_rejects_sorry() -> None:
@@ -111,3 +116,30 @@ def test_aggregate_reward_breakdowns_sums_components() -> None:
     assert aggregate.total == accepted.total + rejected.total
     assert aggregate.components["proof_complete"] == 10.0
     assert aggregate.components["forbidden_sorry"] == -10.0
+
+
+def test_theorem_hole_lemma_ledger_blocks_placeholder_candidates() -> None:
+    theorem_hole_tasks = tuple(task for task in SEED_BENCHMARKS if "theorem_hole" in task.domain_tags)
+    reports = tuple(VerificationReport(task.task_id, VerificationStatus.ACCEPTED) for task in theorem_hole_tasks)
+
+    entries = build_theorem_hole_lemma_ledger(theorem_hole_tasks, reports)
+
+    assert len(entries) == 3
+    assert {entry.status for entry in entries} == {"blocked_placeholder"}
+    assert all(not entry.decision.accepted for entry in entries)
+    assert all(any("sorry" in reason for reason in entry.decision.reasons) for entry in entries)
+    assert {entry.candidate.name for entry in entries} == {
+        "ipw_hajek_linearization_constructor",
+        "aipw_product_rate_route_constructor",
+        "influence_function_normality_route_constructor",
+    }
+
+
+def test_checked_in_theorem_hole_ledger_is_curator_blocked() -> None:
+    records = read_jsonl(Path("artifacts/curation/theorem-hole-ledger.jsonl"))
+    entries = tuple(dataclass_from_dict(CuratedLemmaLedgerEntry, record) for record in records)
+
+    assert len(entries) == 3
+    assert {entry.status for entry in entries} == {"blocked_placeholder"}
+    assert all(not entry.decision.accepted for entry in entries)
+    assert all(entry.verification_report_ids == entry.source_task_ids for entry in entries)

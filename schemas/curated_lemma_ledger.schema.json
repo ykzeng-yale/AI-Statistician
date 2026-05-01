@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CuratedLemmaLedgerEntry",
+  "type": "object",
+  "required": ["ledger_id", "candidate", "decision", "source_task_ids", "status"],
+  "properties": {
+    "ledger_id": {"type": "string"},
+    "candidate": {
+      "type": "object",
+      "required": ["name", "statement", "proof"],
+      "properties": {
+        "name": {"type": "string"},
+        "statement": {"type": "string"},
+        "proof": {"type": "string"},
+        "motivation_tasks": {
+          "type": "array",
+          "items": {"type": "string"},
+          "uniqueItems": true
+        },
+        "imports_added": {
+          "type": "array",
+          "items": {"type": "string"},
+          "uniqueItems": true
+        },
+        "reuse_count": {"type": "integer", "minimum": 0},
+        "generality_score": {"type": "number"},
+        "semantic_notes": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "decision": {
+      "type": "object",
+      "required": ["accepted", "reasons", "required_changes"],
+      "properties": {
+        "accepted": {"type": "boolean"},
+        "reasons": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "required_changes": {
+          "type": "array",
+          "items": {"type": "string"}
+        }
+      },
+      "additionalProperties": false
+    },
+    "source_task_ids": {
+      "type": "array",
+      "items": {"type": "string"},
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "verification_report_ids": {
+      "type": "array",
+      "items": {"type": "string"},
+      "uniqueItems": true
+    },
+    "status": {
+      "type": "string",
+      "enum": ["proposed", "blocked_placeholder", "candidate_ready", "accepted", "rejected"]
+    },
+    "notes": {"type": "string"}
+  },
+  "additionalProperties": false
+}

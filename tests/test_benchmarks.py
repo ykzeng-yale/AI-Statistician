@@ -2,7 +2,15 @@ import json
 from pathlib import Path
 
 from statlean_agent.benchmarks import SEED_BENCHMARKS, filter_by_split, load_benchmarks, seed_benchmarks
-from statlean_agent.contracts import BenchmarkSplit, BenchmarkTask, BenchmarkTaskType, LeanTask, ProofAttempt
+from statlean_agent.contracts import (
+    BenchmarkSplit,
+    BenchmarkTask,
+    BenchmarkTaskType,
+    LeanTask,
+    ProofAttempt,
+    VerificationReport,
+    VerificationStatus,
+)
 from statlean_agent.serialization import dataclass_from_dict, dumps_json, read_jsonl
 from statlean_agent.verifier import LakeVerifier, StaticVerifier, render_task
 
@@ -78,6 +86,25 @@ def test_checked_in_seeds_match_generated_registry(tmp_path: Path) -> None:
     seed_benchmarks(generated)
     checked_in = Path("benchmarks/seeds.jsonl")
     assert generated.read_text(encoding="utf-8") == checked_in.read_text(encoding="utf-8")
+
+
+def test_checked_in_verifier_artifacts_cover_current_seed_registry() -> None:
+    reports = tuple(
+        dataclass_from_dict(VerificationReport, record)
+        for record in read_jsonl(Path("artifacts/verification/benchmark-seed-reports.jsonl"))
+    )
+    seed_ids = [task.task_id for task in SEED_BENCHMARKS]
+
+    assert [report.task_id for report in reports] == seed_ids
+    assert all(report.status is VerificationStatus.ACCEPTED for report in reports)
+
+    reports_by_id = {report.task_id: report for report in reports}
+    for task in SEED_BENCHMARKS:
+        diagnostics = "\n".join(reports_by_id[task.task_id].diagnostics)
+        if task.lean_task.allowed_sorry:
+            assert "allowed placeholder `sorry`" in diagnostics
+        else:
+            assert "placeholder" not in diagnostics
 
 
 def test_benchmark_schema_covers_seed_metadata() -> None:

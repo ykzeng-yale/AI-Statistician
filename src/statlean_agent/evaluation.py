@@ -99,6 +99,7 @@ def summarize_benchmark_attempts(
             for task_id, tokens in allowed_placeholders_by_task.items()
         })
     total = _SummaryBucket()
+    by_phase: dict[str, _SummaryBucket] = {}
     by_split: dict[str, _SummaryBucket] = {}
     by_domain: dict[str, _SummaryBucket] = {}
     by_task_type: dict[str, _SummaryBucket] = {}
@@ -124,8 +125,14 @@ def summarize_benchmark_attempts(
         split = _enum_value(task.split)
         task_type = _enum_value(task.task_type)
         domains = tuple(dict.fromkeys(task.domain_tags)) or ("untagged",)
+        phase = _phase_for_task(task)
 
         total.add(effective_status, reward_breakdown.total, failure_category)
+        by_phase.setdefault(phase, _SummaryBucket()).add(
+            effective_status,
+            reward_breakdown.total,
+            failure_category,
+        )
         by_split.setdefault(split, _SummaryBucket()).add(
             effective_status,
             reward_breakdown.total,
@@ -145,6 +152,7 @@ def summarize_benchmark_attempts(
 
     return {
         "total": total.to_row(),
+        "by_phase": _rows("phase", by_phase),
         "by_split": _rows("split", by_split),
         "by_domain": _rows("domain", by_domain),
         "by_task_type": _rows("task_type", by_task_type),
@@ -273,6 +281,71 @@ def _task_index(tasks: tuple[BenchmarkTask, ...]) -> dict[str, BenchmarkTask]:
             raise ValueError(f"duplicate benchmark task id: {task.task_id}")
         task_by_id[task.task_id] = task
     return task_by_id
+
+
+def _phase_for_task(task: BenchmarkTask) -> str:
+    tags = set(task.domain_tags)
+    if tags & {"theorem_hole", "multi_goal"}:
+        return "P5"
+    if tags & {
+        "aipw",
+        "ate",
+        "causal_bridge",
+        "causal_identification",
+        "double_robust",
+        "hajek_ipw",
+        "influence_function",
+        "ipw",
+        "neyman_orthogonality",
+        "orthogonal_score",
+        "potential_outcomes",
+        "product_rate",
+        "second_order_remainder",
+        "semiparametric",
+    }:
+        return "P4"
+    if tags & {
+        "argmin_consistency",
+        "asymptotic_bridge",
+        "asymptotic_linearity",
+        "asymptotic_normality",
+        "asymptotic_scaling",
+        "bridge",
+        "clt",
+        "delta_method",
+        "estimator_transformation",
+        "m_estimation",
+        "slutsky",
+        "z_estimation",
+    }:
+        return "P3"
+    if tags & {
+        "covering_number",
+        "donsker",
+        "empirical_average",
+        "empirical_process",
+        "empirical_risk",
+        "finite_class_gc",
+        "finite_union",
+        "glivenko_cantelli",
+        "notation",
+        "projection",
+        "rademacher_complexity",
+        "uniform_deviation",
+    }:
+        return "P2"
+    if tags & {
+        "asymptotic_calculus",
+        "convergence",
+        "erm_consistency",
+        "estimator_algebra",
+        "estimator_interface",
+        "probability_convergence",
+        "ratio_estimator",
+        "weak_convergence",
+    }:
+        return "P1"
+    return "unmapped"
 
 
 def _allowed_placeholders_by_task(tasks: tuple[BenchmarkTask, ...]) -> dict[str, tuple[str, ...]]:

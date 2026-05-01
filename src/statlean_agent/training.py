@@ -66,6 +66,34 @@ def build_sft_examples(tasks: tuple[BenchmarkTask, ...]) -> tuple[SFTExample, ..
     return tuple(examples)
 
 
+def build_verified_sft_examples(
+    tasks: tuple[BenchmarkTask, ...],
+    attempts: tuple[ProofAttempt, ...],
+    reports: tuple[VerificationReport, ...],
+) -> tuple[SFTExample, ...]:
+    """Use accepted, no-placeholder proof attempts as supervised examples."""
+
+    task_by_id = {task.task_id: task for task in tasks}
+    examples: list[SFTExample] = []
+    for attempt, report in zip(attempts, reports, strict=True):
+        task = task_by_id.get(attempt.task_id)
+        if task is None:
+            continue
+        if task.lean_task.allowed_sorry:
+            continue
+        if report.status is not VerificationStatus.ACCEPTED:
+            continue
+        examples.append(
+            SFTExample(
+                example_id=f"sft::{attempt.task_id}::verified",
+                task_id=attempt.task_id,
+                prompt=_task_prompt(task),
+                response=attempt.lean_code,
+            )
+        )
+    return tuple(examples)
+
+
 def build_dpo_pairs(
     attempts: tuple[ProofAttempt, ...],
     reports: tuple[VerificationReport, ...],
@@ -113,14 +141,21 @@ def build_training_manifest(
     return TrainingManifest(
         run_id=run_id,
         base_model=base_model,
-        sft_examples=build_sft_examples(tasks),
+        sft_examples=(
+            build_verified_sft_examples(tasks, attempts, reports)
+            if attempts and reports
+            else build_sft_examples(tasks)
+        ),
         dpo_pairs=build_dpo_pairs(attempts, reports) if attempts and reports else (),
         grpo_tasks=build_grpo_tasks(tasks),
-        metadata={"task_count": str(len(tasks)), "attempt_count": str(len(attempts))},
+        metadata={
+            "task_count": str(len(tasks)),
+            "attempt_count": str(len(attempts)),
+            "sft_source": "verified_attempts" if attempts and reports else "benchmark_gold",
+        },
     )
 
 
 def _task_prompt(task: BenchmarkTask) -> str:
     natural = task.natural_language or "Prove the Lean theorem."
     return f"{natural}\n\n```lean\n{render_task(task.lean_task)}\n```"
-
