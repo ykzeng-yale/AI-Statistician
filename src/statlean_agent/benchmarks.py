@@ -867,6 +867,113 @@ SEED_BENCHMARKS: tuple[BenchmarkTask, ...] = (
         expected_premises=("StatInference.ATEIdentificationSanityExample.identified",),
     ),
     BenchmarkTask(
+        task_id="ipw_identification_certificate_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S3",
+        domain_tags=("causal_identification", "ipw", "verified_by_lean"),
+        natural_language=(
+            "Extract the IPW identification conclusion from a proof-carrying "
+            "certificate of consistency, overlap, unconfoundedness, correct "
+            "propensity weights, and finite weight moments."
+        ),
+        lean_task=LeanTask(
+            task_id="ipw_identification_certificate_seed",
+            imports=("StatInference.Causal.IPW",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example (certificate : StatInference.VerifiedIPWIdentification) : "
+                "certificate.bridge.ipw_identifies_estimand := by\n"
+                "  exact StatInference.VerifiedIPWIdentification.identifies certificate"
+            ),
+            tags=("ipw", "identification", "verified_certificate"),
+            dependencies=("StatInference.VerifiedIPWIdentification.identifies",),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=("StatInference.VerifiedIPWIdentification.identifies",),
+    ),
+    BenchmarkTask(
+        task_id="ipw_hajek_scaled_linearization_route_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S4",
+        domain_tags=("ipw", "hajek_ipw", "linearization", "asymptotic_scaling"),
+        natural_language=(
+            "Apply the IPW/Hajek linearization route to obtain the scaled "
+            "ratio residual identity needed by asymptotic arguments."
+        ),
+        lean_task=LeanTask(
+            task_id="ipw_hajek_scaled_linearization_route_seed",
+            imports=("StatInference.Causal.IPW",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example (route : StatInference.IPWHajekLinearizationRoute) : "
+                "forall n, route.rate n * "
+                "(route.sequence.estimate n - route.sequence.target) = "
+                "route.rate n * route.sequence.residual n / "
+                "route.sequence.weightedMass n := by\n"
+                "  exact StatInference.IPWHajekLinearizationRoute.scaledLinearization "
+                "route"
+            ),
+            tags=("ipw", "hajek", "scaled_linearization"),
+            dependencies=("StatInference.IPWHajekLinearizationRoute.scaledLinearization",),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=("StatInference.IPWHajekLinearizationRoute.scaledLinearization",),
+    ),
+    BenchmarkTask(
+        task_id="constant_ipw_hajek_route_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S3",
+        domain_tags=("ipw", "hajek_ipw", "non_vacuity"),
+        natural_language=(
+            "Construct a concrete constant-mass IPW/Hajek linearization route "
+            "as a non-vacuity witness for the API."
+        ),
+        lean_task=LeanTask(
+            task_id="constant_ipw_hajek_route_seed",
+            imports=("StatInference.Causal.IPW",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example (target : Real) (rate : Nat -> Real) : "
+                "StatInference.IPWHajekLinearizationRoute := by\n"
+                "  exact StatInference.constantIPWHajekLinearizationRoute target rate"
+            ),
+            tags=("ipw", "hajek", "non_vacuity"),
+            dependencies=("StatInference.constantIPWHajekLinearizationRoute",),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=("StatInference.constantIPWHajekLinearizationRoute",),
+    ),
+    BenchmarkTask(
+        task_id="constant_ipw_hajek_exact_target_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S3",
+        domain_tags=("ipw", "hajek_ipw", "non_vacuity", "ratio_estimator"),
+        natural_language=(
+            "Show the concrete constant-mass IPW/Hajek sanity sequence "
+            "estimates its target exactly."
+        ),
+        lean_task=LeanTask(
+            task_id="constant_ipw_hajek_exact_target_seed",
+            imports=("StatInference.Causal.IPW",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example (target : Real) (n : Nat) : "
+                "(StatInference.constantIPWHajekSequence target).estimate n = "
+                "target := by\n"
+                "  exact StatInference.constantIPWHajekSequence_estimate_eq_target "
+                "target n"
+            ),
+            tags=("ipw", "hajek", "exact_target"),
+            dependencies=("StatInference.constantIPWHajekSequence_estimate_eq_target",),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=("StatInference.constantIPWHajekSequence_estimate_eq_target",),
+    ),
+    BenchmarkTask(
         task_id="erm_sequence_fixed_index_seed",
         task_type=BenchmarkTaskType.FORMAL_ONLY,
         split=BenchmarkSplit.DEV,

@@ -12,6 +12,7 @@ import StatInference.Estimator.Ratio
 import StatInference.Estimator.ZEstimator
 import StatInference.Estimator.ZLinearization
 import StatInference.Causal.ATE
+import StatInference.Causal.IPW
 import StatInference.Causal.PotentialOutcomes
 import StatInference.Semiparametric.InfluenceFunction
 import StatInference.EmpiricalProcess.Basic

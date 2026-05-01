@@ -213,12 +213,23 @@
             "benchmarks ate_identification_sanity_witness_seed and ate_identification_sanity_verified_seed accepted locally"
           ]
         },
-        {"id": "P4.M2", "status": "pending", "name": "IPW/Hajek ratio estimator linearization"},
+        {
+          "id": "P4.M2",
+          "status": "done",
+          "name": "IPW/Hajek ratio estimator linearization",
+          "evidence": [
+            "StatInference.Causal.IPW defines VerifiedIPWIdentification as a proof-carrying certificate over consistency, overlap, unconfoundedness, correct propensity weights, and finite weight moments.",
+            "IPWHajekEstimatorSequence.sub_target_eq_residual_div and scaled_sub_target_eq_residual_div lift the deterministic ratio residual identities to IPW/Hajek sequences.",
+            "IPWHajekLinearizationRoute combines a verified IPW identification certificate with denominator nonzero evidence and exposes linearization and scaledLinearization theorems.",
+            "constantIPWHajekLinearizationRoute constructs a concrete non-vacuity witness with one-mass weights.",
+            "benchmarks ipw_identification_certificate_seed, ipw_hajek_scaled_linearization_route_seed, constant_ipw_hajek_route_seed, and constant_ipw_hajek_exact_target_seed accepted locally"
+          ]
+        },
         {"id": "P4.M3", "status": "pending", "name": "AIPW orthogonality interface and product-rate bridge"},
         {"id": "P4.M4", "status": "pending", "name": "Influence-function asymptotic normality route"}
       ],
       "next_actions": [
-        "Build IPW/Hajek ratio estimator linearization on top of the ratio algebra and causal identification layer."
+        "Build the AIPW orthogonality interface and product-rate bridge on top of the causal and semiparametric influence-function layers."
       ]
     },
     {
