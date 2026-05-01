@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ConcreteEstimatorChainReport",
+  "type": "object",
+  "required": [
+    "report_id",
+    "chain_id",
+    "theorem",
+    "module",
+    "source_file",
+    "benchmark_task_id",
+    "verification_status",
+    "passed",
+    "no_placeholder_policy",
+    "expected_premises",
+    "proof_components",
+    "component_count",
+    "component_passed",
+    "route_declarations",
+    "claims_verified",
+    "notes"
+  ],
+  "properties": {
+    "report_id": {"type": "string"},
+    "chain_id": {"type": "string"},
+    "theorem": {"type": "string"},
+    "module": {"type": "string"},
+    "source_file": {"type": "string"},
+    "benchmark_task_id": {"type": "string"},
+    "verification_status": {"type": "string"},
+    "passed": {"type": "boolean"},
+    "no_placeholder_policy": {"type": "boolean"},
+    "expected_premises": {"type": "array", "items": {"type": "string"}},
+    "proof_components": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["task_id", "status", "verification_status", "expected_premises"],
+        "properties": {
+          "task_id": {"type": "string"},
+          "status": {"type": "string"},
+          "verification_status": {"type": "string"},
+          "expected_premises": {"type": "array", "items": {"type": "string"}}
+        },
+        "additionalProperties": false
+      }
+    },
+    "component_count": {"type": "integer"},
+    "component_passed": {"type": "integer"},
+    "route_declarations": {"type": "array", "items": {"type": "string"}},
+    "claims_verified": {"type": "array", "items": {"type": "string"}},
+    "notes": {"type": "string"}
+  },
+  "additionalProperties": false
+}

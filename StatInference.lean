@@ -22,3 +22,4 @@ import StatInference.EmpiricalProcess.Average
 import StatInference.EmpiricalProcess.Finite
 import StatInference.EmpiricalProcess.Preservation
 import StatInference.EmpiricalProcess.Complexity
+import StatInference.Examples.ConcreteEstimatorChain

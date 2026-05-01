@@ -974,6 +974,40 @@ SEED_BENCHMARKS: tuple[BenchmarkTask, ...] = (
         expected_premises=("StatInference.constantIPWHajekSequence_estimate_eq_target",),
     ),
     BenchmarkTask(
+        task_id="paper_quality_ipw_hajek_concrete_chain_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S5",
+        domain_tags=("ipw", "hajek_ipw", "concrete_estimator_chain", "paper_quality"),
+        natural_language=(
+            "Verify the paper-quality concrete IPW/Hajek estimator chain: "
+            "identification, exact target recovery, zero residual, and scaled "
+            "linearization in one no-sorry theorem."
+        ),
+        lean_task=LeanTask(
+            task_id="paper_quality_ipw_hajek_concrete_chain_seed",
+            imports=("StatInference.Examples.ConcreteEstimatorChain",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example (target : Real) : "
+                "(StatInference.paperQualityIPWHajekRoute target).identification.bridge.ipw_identifies_estimand /\\ "
+                "(forall n, (StatInference.paperQualityIPWHajekRoute target).sequence.estimate n = target) /\\ "
+                "(forall n, (StatInference.paperQualityIPWHajekRoute target).sequence.residual n = 0) /\\ "
+                "(forall n, (StatInference.paperQualityIPWHajekRoute target).rate n * "
+                "((StatInference.paperQualityIPWHajekRoute target).sequence.estimate n - "
+                "(StatInference.paperQualityIPWHajekRoute target).sequence.target) = "
+                "(StatInference.paperQualityIPWHajekRoute target).rate n * "
+                "(StatInference.paperQualityIPWHajekRoute target).sequence.residual n / "
+                "(StatInference.paperQualityIPWHajekRoute target).sequence.weightedMass n) := by\n"
+                "  exact StatInference.paperQualityIPWHajekConcreteEstimatorChain target"
+            ),
+            tags=("ipw", "hajek", "paper_quality_chain"),
+            dependencies=("StatInference.paperQualityIPWHajekConcreteEstimatorChain",),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=("StatInference.paperQualityIPWHajekConcreteEstimatorChain",),
+    ),
+    BenchmarkTask(
         task_id="aipw_double_robust_identification_seed",
         task_type=BenchmarkTaskType.FORMAL_ONLY,
         split=BenchmarkSplit.DEV,

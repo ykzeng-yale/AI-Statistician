@@ -13,6 +13,7 @@ from statlean_agent.contracts import (
     VerificationStatus,
 )
 from statlean_agent.evaluation import (
+    build_concrete_estimator_chain_report,
     build_paper_quality_heldout_report,
     compare_baseline_on_split,
     evaluate_attempts,
@@ -287,6 +288,30 @@ def test_build_paper_quality_heldout_report_includes_failure_taxonomy_and_chains
     assert report["non_seed_proof_chains"][0]["required_declarations"] == ["StatInference.Unit.ok"]
 
 
+def test_build_concrete_estimator_chain_report_requires_verified_components() -> None:
+    tasks = (
+        _benchmark_task(
+            "paper_quality_ipw_hajek_concrete_chain_seed",
+            domain_tags=("ipw", "paper_quality"),
+        ),
+        _benchmark_task("ipw_identification_certificate_seed", domain_tags=("ipw",)),
+        _benchmark_task("ipw_hajek_scaled_linearization_route_seed", domain_tags=("ipw",)),
+        _benchmark_task("constant_ipw_hajek_route_seed", domain_tags=("ipw",)),
+        _benchmark_task("constant_ipw_hajek_exact_target_seed", domain_tags=("ipw",)),
+    )
+    reports = tuple(VerificationReport(task.task_id, VerificationStatus.ACCEPTED) for task in tasks)
+
+    report = build_concrete_estimator_chain_report(tasks, reports)
+
+    assert report["report_id"] == "concrete-estimator-chain::ipw_hajek"
+    assert report["benchmark_task_id"] == "paper_quality_ipw_hajek_concrete_chain_seed"
+    assert report["theorem"] == "StatInference.paperQualityIPWHajekConcreteEstimatorChain"
+    assert report["passed"] is True
+    assert report["no_placeholder_policy"] is True
+    assert report["component_passed"] == 4
+    assert all(component["status"] == "passed" for component in report["proof_components"])
+
+
 def test_cli_eval_summary(tmp_path: Path, capsys) -> None:
     benchmarks_path = tmp_path / "benchmarks.jsonl"
     attempts_path = tmp_path / "attempts.jsonl"
@@ -445,6 +470,40 @@ def test_cli_paper_quality_heldout(tmp_path: Path, capsys) -> None:
     assert report["non_seed_chain_pass_rate"] == 1.0
 
 
+def test_cli_concrete_estimator_chain_report(tmp_path: Path, capsys) -> None:
+    benchmark_path = tmp_path / "seeds.jsonl"
+    reports_path = tmp_path / "reports.jsonl"
+    output_path = tmp_path / "concrete-chain.json"
+    main(["seed-benchmarks", "--output", str(benchmark_path)])
+    reports = [
+        VerificationReport(record["task_id"], VerificationStatus.ACCEPTED)
+        for record in read_jsonl(benchmark_path)
+    ]
+    write_jsonl(reports_path, reports)
+
+    assert (
+        main(
+            [
+                "concrete-estimator-chain-report",
+                "--benchmarks",
+                str(benchmark_path),
+                "--reports",
+                str(reports_path),
+                "--output",
+                str(output_path),
+            ]
+        )
+        == 0
+    )
+
+    output = capsys.readouterr().out
+    report = json.loads(output_path.read_text(encoding="utf-8"))
+    assert "passed=True" in output
+    assert "components=4/4" in output
+    assert report["passed"] is True
+    assert report["benchmark_task_id"] == "paper_quality_ipw_hajek_concrete_chain_seed"
+
+
 def test_checked_in_eval_artifacts_cover_current_seed_registry() -> None:
     attempts = tuple(
         dataclass_from_dict(ProofAttempt, record)
@@ -515,6 +574,25 @@ def test_checked_in_paper_quality_heldout_artifact() -> None:
     assert report["non_seed_chain_pass_rate"] == 1.0
     assert all(chain["status"] == "passed" for chain in report["non_seed_proof_chains"])
     assert all(chain["required_declarations"] for chain in report["non_seed_proof_chains"])
+    assert set(report) <= set(schema["properties"])
+
+
+def test_checked_in_concrete_estimator_chain_artifact() -> None:
+    report = json.loads(Path("artifacts/evaluation/concrete-estimator-chain.json").read_text(encoding="utf-8"))
+    schema = json.loads(Path("schemas/concrete_estimator_chain.schema.json").read_text(encoding="utf-8"))
+
+    assert report["report_id"] == "concrete-estimator-chain::ipw_hajek"
+    assert report["benchmark_task_id"] == "paper_quality_ipw_hajek_concrete_chain_seed"
+    assert report["theorem"] == "StatInference.paperQualityIPWHajekConcreteEstimatorChain"
+    assert report["module"] == "StatInference.Examples.ConcreteEstimatorChain"
+    assert report["verification_status"] == "accepted"
+    assert report["passed"] is True
+    assert report["no_placeholder_policy"] is True
+    assert report["component_count"] == 4
+    assert report["component_passed"] == 4
+    assert all(component["status"] == "passed" for component in report["proof_components"])
+    assert "StatInference.paperQualityIPWHajekConcreteEstimatorChain" in report["route_declarations"]
+    assert len(report["claims_verified"]) == 4
     assert set(report) <= set(schema["properties"])
 
 

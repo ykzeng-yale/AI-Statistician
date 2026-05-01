@@ -26,11 +26,13 @@ DEFAULT_PAPER_QUALITY_PROOF_CHAINS = (
             "ipw_hajek_scaled_linearization_route_seed",
             "constant_ipw_hajek_route_seed",
             "constant_ipw_hajek_exact_target_seed",
+            "paper_quality_ipw_hajek_concrete_chain_seed",
         ),
         "required_declarations": (
             "StatInference.IPWHajekLinearizationRoute.identifies",
             "StatInference.IPWHajekLinearizationRoute.scaledLinearization",
             "StatInference.constantIPWHajekLinearizationRoute",
+            "StatInference.paperQualityIPWHajekConcreteEstimatorChain",
         ),
     },
     {
@@ -381,6 +383,72 @@ def build_paper_quality_heldout_report(
     }
 
 
+def build_concrete_estimator_chain_report(
+    tasks: tuple[BenchmarkTask, ...],
+    reports: tuple[VerificationReport, ...],
+    *,
+    task_id: str = "paper_quality_ipw_hajek_concrete_chain_seed",
+) -> dict[str, object]:
+    """Build an auditable report for the concrete estimator proof chain."""
+
+    task_by_id = _task_index(tasks)
+    report_by_task = {report.task_id: report for report in reports}
+    if task_id not in task_by_id:
+        raise ValueError(f"unknown concrete estimator chain task id: {task_id}")
+
+    task = task_by_id[task_id]
+    report = report_by_task.get(task_id, VerificationReport(task_id, VerificationStatus.ERROR))
+    component_task_ids = (
+        "ipw_identification_certificate_seed",
+        "ipw_hajek_scaled_linearization_route_seed",
+        "constant_ipw_hajek_route_seed",
+        "constant_ipw_hajek_exact_target_seed",
+    )
+    component_reports = [
+        _component_report(component_id, task_by_id, report_by_task)
+        for component_id in component_task_ids
+    ]
+    passed_components = sum(1 for component in component_reports if component["status"] == "passed")
+    no_placeholder_policy = not task.lean_task.allowed_sorry
+    passed = (
+        report.status is VerificationStatus.ACCEPTED
+        and no_placeholder_policy
+        and passed_components == len(component_reports)
+    )
+
+    return {
+        "report_id": "concrete-estimator-chain::ipw_hajek",
+        "chain_id": "ipw_hajek_concrete_estimator_chain",
+        "theorem": "StatInference.paperQualityIPWHajekConcreteEstimatorChain",
+        "module": "StatInference.Examples.ConcreteEstimatorChain",
+        "source_file": "StatInference/Examples/ConcreteEstimatorChain.lean",
+        "benchmark_task_id": task_id,
+        "verification_status": _enum_value(report.status),
+        "passed": passed,
+        "no_placeholder_policy": no_placeholder_policy,
+        "expected_premises": list(task.expected_premises),
+        "proof_components": component_reports,
+        "component_count": len(component_reports),
+        "component_passed": passed_components,
+        "route_declarations": [
+            "StatInference.paperQualityIPWHajekRate",
+            "StatInference.paperQualityIPWHajekRoute",
+            "StatInference.paperQualityIPWHajekConcreteEstimatorChain",
+        ],
+        "claims_verified": [
+            "IPW identification conclusion is available on the concrete route.",
+            "The constant Hajek estimator equals the target for every sample size.",
+            "The centered numerator residual is zero for every sample size.",
+            "The scaled linearization identity holds for every sample size.",
+        ],
+        "notes": (
+            "P8.M2 concrete estimator chain: a single no-sorry Lean theorem "
+            "composes the IPW/Hajek route through identification, exact target "
+            "recovery, residual control, and scaled linearization."
+        ),
+    }
+
+
 @dataclass
 class _SummaryBucket:
     attempts: int = 0
@@ -609,6 +677,22 @@ def _proof_chain_report(
         "missing_task_ids": list(missing_task_ids),
         "pass_rate": pass_rate,
         "status": status,
+    }
+
+
+def _component_report(
+    task_id: str,
+    task_by_id: Mapping[str, BenchmarkTask],
+    report_by_task: Mapping[str, VerificationReport],
+) -> dict[str, object]:
+    task = task_by_id.get(task_id)
+    report = report_by_task.get(task_id, VerificationReport(task_id, VerificationStatus.ERROR))
+    status = "passed" if task is not None and report.status is VerificationStatus.ACCEPTED else "blocked"
+    return {
+        "task_id": task_id,
+        "status": status,
+        "verification_status": _enum_value(report.status),
+        "expected_premises": list(task.expected_premises) if task is not None else [],
     }
 
 

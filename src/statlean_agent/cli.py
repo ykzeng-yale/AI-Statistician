@@ -22,6 +22,7 @@ from statlean_agent.curation import (
     build_theorem_hole_lemma_proposals,
 )
 from statlean_agent.evaluation import (
+    build_concrete_estimator_chain_report,
     build_paper_quality_heldout_report,
     compare_baseline_on_split,
     evaluate_attempts,
@@ -127,6 +128,27 @@ def main(argv: list[str] | None = None) -> int:
         "--output",
         default="artifacts/evaluation/paper-quality-heldout.json",
         help="Output paper-quality held-out JSON path.",
+    )
+
+    concrete_chain = subparsers.add_parser(
+        "concrete-estimator-chain-report",
+        help="Build the P8 concrete estimator proof-chain report.",
+    )
+    concrete_chain.add_argument("--benchmarks", default="benchmarks/seeds.jsonl", help="BenchmarkTask JSONL path.")
+    concrete_chain.add_argument(
+        "--reports",
+        default="artifacts/verification/benchmark-seed-reports.jsonl",
+        help="VerificationReport JSONL path.",
+    )
+    concrete_chain.add_argument(
+        "--task-id",
+        default="paper_quality_ipw_hajek_concrete_chain_seed",
+        help="Concrete estimator chain benchmark task id.",
+    )
+    concrete_chain.add_argument(
+        "--output",
+        default="artifacts/evaluation/concrete-estimator-chain.json",
+        help="Output concrete estimator chain JSON path.",
     )
 
     lemma_ledger = subparsers.add_parser(
@@ -445,6 +467,21 @@ def main(argv: list[str] | None = None) -> int:
             f"wrote {output} heldout_tasks={report['heldout_task_count']} "
             f"heldout_pass_rate={report['heldout_pass_rate']} "
             f"non_seed_chains={report['non_seed_chain_passed']}/{report['non_seed_chain_count']}"
+        )
+        return 0
+
+    if args.command == "concrete-estimator-chain-report":
+        tasks = load_benchmarks(Path(args.benchmarks))
+        reports = tuple(
+            dataclass_from_dict(VerificationReport, record) for record in read_jsonl(Path(args.reports))
+        )
+        report = build_concrete_estimator_chain_report(tasks, reports, task_id=args.task_id)
+        output = Path(args.output)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(dumps_json(report) + "\n", encoding="utf-8")
+        print(
+            f"wrote {output} task={report['benchmark_task_id']} "
+            f"passed={report['passed']} components={report['component_passed']}/{report['component_count']}"
         )
         return 0
 

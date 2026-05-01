@@ -448,12 +448,23 @@
             "schemas/paper_quality_heldout.schema.json documents the report and tests enforce checked-in held-out coverage plus proof-chain pass coverage."
           ]
         },
-        {"id": "P8.M2", "status": "pending", "name": "One concrete estimator proof chain"},
+        {
+          "id": "P8.M2",
+          "status": "done",
+          "name": "One concrete estimator proof chain",
+          "evidence": [
+            "StatInference.Examples.ConcreteEstimatorChain defines paperQualityIPWHajekConcreteEstimatorChain as a no-sorry theorem composing IPW identification, exact target recovery, zero residual, and scaled linearization.",
+            "paper_quality_ipw_hajek_concrete_chain_seed was added to StatInferBench as a paper-quality concrete estimator chain benchmark.",
+            "concrete-estimator-chain-report CLI generated artifacts/evaluation/concrete-estimator-chain.json with verification_status=accepted, passed=true, and component coverage 4/4.",
+            "The benchmark registry now verifies 68/68 seed tasks and the concrete chain is included in SFT/DPO/GRPO training artifacts.",
+            "schemas/concrete_estimator_chain.schema.json documents the report and tests enforce checked-in chain proof evidence."
+          ]
+        },
         {"id": "P8.M3", "status": "pending", "name": "Ablations for retrieval, SFT, DPO, process reward, and curation"},
         {"id": "P8.M4", "status": "pending", "name": "Research paper draft and reproducibility bundle"}
       ],
       "next_actions": [
-        "Promote one concrete estimator proof chain into a paper-quality no-sorry demonstration for P8.M2."
+        "Build ablation artifacts for retrieval, SFT, DPO, process reward, and curation in P8.M3."
       ]
     }
   ]

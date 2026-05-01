@@ -30,6 +30,7 @@
 {"closed_goals": 0, "diagnostics": [], "first_error": null, "locally_valid_steps": 0, "status": "accepted", "task_id": "ipw_hajek_scaled_linearization_route_seed"}
 {"closed_goals": 0, "diagnostics": [], "first_error": null, "locally_valid_steps": 0, "status": "accepted", "task_id": "constant_ipw_hajek_route_seed"}
 {"closed_goals": 0, "diagnostics": [], "first_error": null, "locally_valid_steps": 0, "status": "accepted", "task_id": "constant_ipw_hajek_exact_target_seed"}
+{"closed_goals": 0, "diagnostics": [], "first_error": null, "locally_valid_steps": 0, "status": "accepted", "task_id": "paper_quality_ipw_hajek_concrete_chain_seed"}
 {"closed_goals": 0, "diagnostics": [], "first_error": null, "locally_valid_steps": 0, "status": "accepted", "task_id": "aipw_double_robust_identification_seed"}
 {"closed_goals": 0, "diagnostics": [], "first_error": null, "locally_valid_steps": 0, "status": "accepted", "task_id": "aipw_product_rate_remainder_seed"}
 {"closed_goals": 0, "diagnostics": [], "first_error": null, "locally_valid_steps": 0, "status": "accepted", "task_id": "aipw_orthogonal_score_seed"}
