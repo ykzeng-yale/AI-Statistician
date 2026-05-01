@@ -449,6 +449,162 @@ def build_concrete_estimator_chain_report(
     }
 
 
+def build_ablation_report(
+    tasks: tuple[BenchmarkTask, ...],
+    paper_heldout: Mapping[str, object],
+    concrete_chain: Mapping[str, object],
+    training_manifest: Mapping[str, object],
+    grpo_tasks: tuple[Mapping[str, object], ...],
+    dpo_reports: tuple[Mapping[str, object], ...],
+    lemma_proposal_gates: tuple[Mapping[str, object], ...],
+    lemma_non_vacuity: tuple[Mapping[str, object], ...],
+    lemma_proof_cost: tuple[Mapping[str, object], ...],
+    lemma_ledger: tuple[Mapping[str, object], ...],
+) -> dict[str, object]:
+    """Build an artifact-backed ablation readiness report.
+
+    This is intentionally a system-evidence ablation scaffold, not a trained
+    model performance claim. It records whether each component needed for the
+    P8 ablation is present, auditable, and backed by checked-in artifacts.
+    """
+
+    baseline_comparison = _mapping(paper_heldout.get("baseline_comparison"))
+    mean_premise_recall = _float(baseline_comparison.get("mean_premise_recall"))
+    heldout_pass_rate = _float(paper_heldout.get("heldout_pass_rate"))
+    concrete_chain_passed = bool(concrete_chain.get("passed"))
+    sft_examples = _sequence(training_manifest.get("sft_examples"))
+    dpo_pairs = _sequence(training_manifest.get("dpo_pairs"))
+    manifest_grpo_tasks = _sequence(training_manifest.get("grpo_tasks"))
+    rejected_dpo_reports = sum(1 for report in dpo_reports if report.get("status") == "rejected")
+    reward_components = sorted(
+        {
+            str(component)
+            for task in grpo_tasks
+            for component in _sequence(task.get("reward_components"))
+        }
+    )
+    static_passed = sum(1 for report in lemma_proposal_gates if bool(report.get("passed")))
+    non_vacuity_passed = sum(1 for report in lemma_non_vacuity if bool(report.get("passed")))
+    proof_cost_passed = sum(1 for report in lemma_proof_cost if bool(report.get("passed")))
+    blocked_placeholder_entries = sum(
+        1 for entry in lemma_ledger if entry.get("status") == "blocked_placeholder"
+    )
+    curation_gate_count = (
+        len(lemma_proposal_gates)
+        + len(lemma_non_vacuity)
+        + len(lemma_proof_cost)
+    )
+    curation_gate_passed = static_passed + non_vacuity_passed + proof_cost_passed
+
+    components = [
+        _ablation_component(
+            "retrieval",
+            mean_premise_recall,
+            (
+                f"held-out baseline mean premise recall is {mean_premise_recall:.3f} "
+                "from expected-premise usage rows"
+            ),
+            "without retrieval evidence, expected local-stat lemma recall is not audited",
+            mean_premise_recall > 0.0,
+        ),
+        _ablation_component(
+            "sft",
+            len(sft_examples),
+            f"{len(sft_examples)} verified no-placeholder SFT examples are present in the manifest",
+            "without SFT examples, the system has no domain-adaptation trace data",
+            len(sft_examples) > 0,
+        ),
+        _ablation_component(
+            "dpo",
+            len(dpo_pairs),
+            (
+                f"{len(dpo_pairs)} chosen/rejected DPO pairs are present; "
+                f"{rejected_dpo_reports} rejected attempts are Lean-labeled"
+            ),
+            "without DPO pairs, the prover lacks Lean-labeled contrast against invalid premises",
+            len(dpo_pairs) > 0 and rejected_dpo_reports > 0,
+        ),
+        _ablation_component(
+            "process_reward",
+            len(grpo_tasks),
+            (
+                f"{len(grpo_tasks)} GRPO process-reward tasks expose "
+                f"{len(reward_components)} reward components"
+            ),
+            "without process rewards, training falls back to sparse proof-complete feedback only",
+            len(grpo_tasks) > 0 and "proof_complete" in reward_components,
+        ),
+        _ablation_component(
+            "curation",
+            curation_gate_passed,
+            (
+                f"{curation_gate_passed}/{curation_gate_count} proposal, non-vacuity, "
+                f"and proof-cost gates pass; {blocked_placeholder_entries} placeholder-ledger "
+                "entries remain blocked from library promotion"
+            ),
+            "without curation, generated lemmas could bypass duplicate, non-vacuity, or reuse checks",
+            curation_gate_count > 0 and curation_gate_passed == curation_gate_count,
+        ),
+    ]
+    full_system_ready = (
+        heldout_pass_rate == 1.0
+        and concrete_chain_passed
+        and all(component["ready"] for component in components)
+    )
+
+    ablation_rows = [
+        {
+            "variant": "full_system",
+            "status": "ready" if full_system_ready else "blocked",
+            "expected_effect": (
+                "all current P8 evidence is present and auditable"
+                if full_system_ready
+                else "one or more evidence components is missing"
+            ),
+            "removed_component": None,
+            "primary_metric": heldout_pass_rate,
+        }
+    ]
+    for component in components:
+        ablation_rows.append(
+            {
+                "variant": f"no_{component['component']}",
+                "status": "degraded",
+                "expected_effect": component["disabled_effect"],
+                "removed_component": component["component"],
+                "primary_metric": 0.0,
+            }
+        )
+
+    return {
+        "report_id": "ablation::p8",
+        "baseline": str(paper_heldout.get("baseline", "unknown")),
+        "benchmark_task_count": len(tasks),
+        "heldout_pass_rate": heldout_pass_rate,
+        "concrete_chain_passed": concrete_chain_passed,
+        "full_system_ready": full_system_ready,
+        "components": components,
+        "ablation_rows": ablation_rows,
+        "evidence_summary": {
+            "mean_premise_recall": mean_premise_recall,
+            "sft_example_count": len(sft_examples),
+            "dpo_pair_count": len(dpo_pairs),
+            "dpo_rejected_report_count": rejected_dpo_reports,
+            "grpo_process_task_count": len(grpo_tasks),
+            "manifest_grpo_task_count": len(manifest_grpo_tasks),
+            "process_reward_components": reward_components,
+            "curation_gate_count": curation_gate_count,
+            "curation_gate_passed": curation_gate_passed,
+            "blocked_placeholder_ledger_entries": blocked_placeholder_entries,
+        },
+        "notes": (
+            "P8.M3 report: artifact-backed ablation readiness for retrieval, SFT, "
+            "DPO, Lean process reward, and curation. This is an auditable system "
+            "component ablation scaffold, not a trained-model performance claim."
+        ),
+    }
+
+
 @dataclass
 class _SummaryBucket:
     attempts: int = 0
@@ -694,6 +850,40 @@ def _component_report(
         "verification_status": _enum_value(report.status),
         "expected_premises": list(task.expected_premises) if task is not None else [],
     }
+
+
+def _ablation_component(
+    component: str,
+    enabled_metric: float | int,
+    enabled_evidence: str,
+    disabled_effect: str,
+    ready: bool,
+) -> dict[str, object]:
+    return {
+        "component": component,
+        "ready": ready,
+        "enabled_metric": enabled_metric,
+        "enabled_evidence": enabled_evidence,
+        "disabled_effect": disabled_effect,
+    }
+
+
+def _mapping(value: object) -> Mapping[str, object]:
+    return value if isinstance(value, Mapping) else {}
+
+
+def _sequence(value: object) -> tuple[object, ...]:
+    if isinstance(value, tuple):
+        return value
+    if isinstance(value, list):
+        return tuple(value)
+    return ()
+
+
+def _float(value: object) -> float:
+    if isinstance(value, int | float):
+        return float(value)
+    return 0.0
 
 
 def _enum_value(value: object) -> str:

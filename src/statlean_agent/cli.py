@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 from statlean_agent.agents import AGENT_REGISTRY, get_agent
@@ -22,6 +23,7 @@ from statlean_agent.curation import (
     build_theorem_hole_lemma_proposals,
 )
 from statlean_agent.evaluation import (
+    build_ablation_report,
     build_concrete_estimator_chain_report,
     build_paper_quality_heldout_report,
     compare_baseline_on_split,
@@ -149,6 +151,62 @@ def main(argv: list[str] | None = None) -> int:
         "--output",
         default="artifacts/evaluation/concrete-estimator-chain.json",
         help="Output concrete estimator chain JSON path.",
+    )
+
+    ablation_report = subparsers.add_parser(
+        "ablation-report",
+        help="Build the P8 artifact-backed component ablation report.",
+    )
+    ablation_report.add_argument("--benchmarks", default="benchmarks/seeds.jsonl", help="BenchmarkTask JSONL path.")
+    ablation_report.add_argument(
+        "--paper-heldout",
+        default="artifacts/evaluation/paper-quality-heldout.json",
+        help="Paper-quality held-out JSON path.",
+    )
+    ablation_report.add_argument(
+        "--concrete-chain",
+        default="artifacts/evaluation/concrete-estimator-chain.json",
+        help="Concrete estimator chain JSON path.",
+    )
+    ablation_report.add_argument(
+        "--training-manifest",
+        default="artifacts/training/manifest.json",
+        help="Training manifest JSON path.",
+    )
+    ablation_report.add_argument(
+        "--grpo-tasks",
+        default="artifacts/training/grpo-process-tasks.jsonl",
+        help="GRPO process-task JSONL path.",
+    )
+    ablation_report.add_argument(
+        "--dpo-reports",
+        default="artifacts/training/dpo-negative-reports.jsonl",
+        help="DPO rejected VerificationReport JSONL path.",
+    )
+    ablation_report.add_argument(
+        "--lemma-proposal-gates",
+        default="artifacts/curation/lemma-proposal-gates.jsonl",
+        help="Lemma proposal gate JSONL path.",
+    )
+    ablation_report.add_argument(
+        "--lemma-non-vacuity",
+        default="artifacts/curation/lemma-non-vacuity.jsonl",
+        help="Lemma non-vacuity report JSONL path.",
+    )
+    ablation_report.add_argument(
+        "--lemma-proof-cost",
+        default="artifacts/curation/lemma-proof-cost.jsonl",
+        help="Lemma proof-cost report JSONL path.",
+    )
+    ablation_report.add_argument(
+        "--lemma-ledger",
+        default="artifacts/curation/theorem-hole-ledger.jsonl",
+        help="Curated theorem-hole lemma ledger JSONL path.",
+    )
+    ablation_report.add_argument(
+        "--output",
+        default="artifacts/evaluation/ablation-report.json",
+        help="Output ablation report JSON path.",
     )
 
     lemma_ledger = subparsers.add_parser(
@@ -482,6 +540,32 @@ def main(argv: list[str] | None = None) -> int:
         print(
             f"wrote {output} task={report['benchmark_task_id']} "
             f"passed={report['passed']} components={report['component_passed']}/{report['component_count']}"
+        )
+        return 0
+
+    if args.command == "ablation-report":
+        tasks = load_benchmarks(Path(args.benchmarks))
+        paper_heldout = json.loads(Path(args.paper_heldout).read_text(encoding="utf-8"))
+        concrete_chain_report = json.loads(Path(args.concrete_chain).read_text(encoding="utf-8"))
+        training_manifest = json.loads(Path(args.training_manifest).read_text(encoding="utf-8"))
+        report = build_ablation_report(
+            tasks,
+            paper_heldout,
+            concrete_chain_report,
+            training_manifest,
+            tuple(read_jsonl(Path(args.grpo_tasks))),
+            tuple(read_jsonl(Path(args.dpo_reports))),
+            tuple(read_jsonl(Path(args.lemma_proposal_gates))),
+            tuple(read_jsonl(Path(args.lemma_non_vacuity))),
+            tuple(read_jsonl(Path(args.lemma_proof_cost))),
+            tuple(read_jsonl(Path(args.lemma_ledger))),
+        )
+        output = Path(args.output)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(dumps_json(report) + "\n", encoding="utf-8")
+        print(
+            f"wrote {output} full_system_ready={report['full_system_ready']} "
+            f"components={len(report['components'])} variants={len(report['ablation_rows'])}"
         )
         return 0
 

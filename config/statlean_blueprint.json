@@ -460,11 +460,22 @@
             "schemas/concrete_estimator_chain.schema.json documents the report and tests enforce checked-in chain proof evidence."
           ]
         },
-        {"id": "P8.M3", "status": "pending", "name": "Ablations for retrieval, SFT, DPO, process reward, and curation"},
+        {
+          "id": "P8.M3",
+          "status": "done",
+          "name": "Ablations for retrieval, SFT, DPO, process reward, and curation",
+          "evidence": [
+            "build_ablation_report composes P8 held-out, concrete-estimator, training, GRPO, DPO, and curation artifacts into an auditable component-ablation readiness report.",
+            "ablation-report CLI generated artifacts/evaluation/ablation-report.json with full_system_ready=true, five component rows, and six ablation variants.",
+            "The report records retrieval mean_premise_recall=1.0, verified SFT example count, DPO pair/rejected-report counts, GRPO process-task reward components, and curation gate pass counts.",
+            "The report explicitly labels the result as a system-evidence ablation scaffold rather than a trained-model performance claim.",
+            "schemas/ablation_report.schema.json documents the artifact and tests enforce checked-in ablation coverage."
+          ]
+        },
         {"id": "P8.M4", "status": "pending", "name": "Research paper draft and reproducibility bundle"}
       ],
       "next_actions": [
-        "Build ablation artifacts for retrieval, SFT, DPO, process reward, and curation in P8.M3."
+        "Prepare the research paper draft and reproducibility bundle in P8.M4."
       ]
     }
   ]

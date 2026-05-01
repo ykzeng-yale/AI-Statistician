@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AblationReport",
+  "type": "object",
+  "required": [
+    "report_id",
+    "baseline",
+    "benchmark_task_count",
+    "heldout_pass_rate",
+    "concrete_chain_passed",
+    "full_system_ready",
+    "components",
+    "ablation_rows",
+    "evidence_summary",
+    "notes"
+  ],
+  "properties": {
+    "report_id": {"type": "string"},
+    "baseline": {"type": "string"},
+    "benchmark_task_count": {"type": "integer"},
+    "heldout_pass_rate": {"type": "number"},
+    "concrete_chain_passed": {"type": "boolean"},
+    "full_system_ready": {"type": "boolean"},
+    "components": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "component",
+          "ready",
+          "enabled_metric",
+          "enabled_evidence",
+          "disabled_effect"
+        ],
+        "properties": {
+          "component": {"type": "string"},
+          "ready": {"type": "boolean"},
+          "enabled_metric": {"type": "number"},
+          "enabled_evidence": {"type": "string"},
+          "disabled_effect": {"type": "string"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "ablation_rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "variant",
+          "status",
+          "expected_effect",
+          "removed_component",
+          "primary_metric"
+        ],
+        "properties": {
+          "variant": {"type": "string"},
+          "status": {"type": "string"},
+          "expected_effect": {"type": "string"},
+          "removed_component": {"type": ["string", "null"]},
+          "primary_metric": {"type": "number"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "evidence_summary": {
+      "type": "object",
+      "required": [
+        "mean_premise_recall",
+        "sft_example_count",
+        "dpo_pair_count",
+        "dpo_rejected_report_count",
+        "grpo_process_task_count",
+        "manifest_grpo_task_count",
+        "process_reward_components",
+        "curation_gate_count",
+        "curation_gate_passed",
+        "blocked_placeholder_ledger_entries"
+      ],
+      "properties": {
+        "mean_premise_recall": {"type": "number"},
+        "sft_example_count": {"type": "integer"},
+        "dpo_pair_count": {"type": "integer"},
+        "dpo_rejected_report_count": {"type": "integer"},
+        "grpo_process_task_count": {"type": "integer"},
+        "manifest_grpo_task_count": {"type": "integer"},
+        "process_reward_components": {"type": "array", "items": {"type": "string"}},
+        "curation_gate_count": {"type": "integer"},
+        "curation_gate_passed": {"type": "integer"},
+        "blocked_placeholder_ledger_entries": {"type": "integer"}
+      },
+      "additionalProperties": false
+    },
+    "notes": {"type": "string"}
+  },
+  "additionalProperties": false
+}

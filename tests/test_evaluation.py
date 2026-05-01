@@ -13,6 +13,7 @@ from statlean_agent.contracts import (
     VerificationStatus,
 )
 from statlean_agent.evaluation import (
+    build_ablation_report,
     build_concrete_estimator_chain_report,
     build_paper_quality_heldout_report,
     compare_baseline_on_split,
@@ -312,6 +313,61 @@ def test_build_concrete_estimator_chain_report_requires_verified_components() ->
     assert all(component["status"] == "passed" for component in report["proof_components"])
 
 
+def test_build_ablation_report_records_component_evidence() -> None:
+    tasks = (_benchmark_task("task", split=BenchmarkSplit.TEST),)
+
+    report = build_ablation_report(
+        tasks,
+        {
+            "baseline": "seed-registry",
+            "heldout_pass_rate": 1.0,
+            "baseline_comparison": {"mean_premise_recall": 1.0},
+        },
+        {"passed": True},
+        {
+            "sft_examples": [{"example_id": "sft::task"}],
+            "dpo_pairs": [{"pair_id": "dpo::task"}],
+            "grpo_tasks": [{"task_id": "task"}],
+        },
+        (
+            {
+                "task_id": "task",
+                "reward_components": ["proof_complete", "locally_valid_steps"],
+            },
+        ),
+        ({"task_id": "task", "status": "rejected"},),
+        ({"proposal_id": "p", "passed": True},),
+        ({"proposal_id": "p", "passed": True},),
+        ({"proposal_id": "p", "passed": True},),
+        ({"ledger_id": "l", "status": "blocked_placeholder"},),
+    )
+
+    assert report["report_id"] == "ablation::p8"
+    assert report["full_system_ready"] is True
+    assert [component["component"] for component in report["components"]] == [
+        "retrieval",
+        "sft",
+        "dpo",
+        "process_reward",
+        "curation",
+    ]
+    assert {row["variant"] for row in report["ablation_rows"]} == {
+        "full_system",
+        "no_retrieval",
+        "no_sft",
+        "no_dpo",
+        "no_process_reward",
+        "no_curation",
+    }
+    assert report["evidence_summary"]["mean_premise_recall"] == 1.0
+    assert report["evidence_summary"]["sft_example_count"] == 1
+    assert report["evidence_summary"]["dpo_pair_count"] == 1
+    assert report["evidence_summary"]["dpo_rejected_report_count"] == 1
+    assert report["evidence_summary"]["grpo_process_task_count"] == 1
+    assert report["evidence_summary"]["curation_gate_passed"] == 3
+    assert report["evidence_summary"]["blocked_placeholder_ledger_entries"] == 1
+
+
 def test_cli_eval_summary(tmp_path: Path, capsys) -> None:
     benchmarks_path = tmp_path / "benchmarks.jsonl"
     attempts_path = tmp_path / "attempts.jsonl"
@@ -593,6 +649,41 @@ def test_checked_in_concrete_estimator_chain_artifact() -> None:
     assert all(component["status"] == "passed" for component in report["proof_components"])
     assert "StatInference.paperQualityIPWHajekConcreteEstimatorChain" in report["route_declarations"]
     assert len(report["claims_verified"]) == 4
+    assert set(report) <= set(schema["properties"])
+
+
+def test_checked_in_ablation_report_artifact() -> None:
+    report = json.loads(Path("artifacts/evaluation/ablation-report.json").read_text(encoding="utf-8"))
+    schema = json.loads(Path("schemas/ablation_report.schema.json").read_text(encoding="utf-8"))
+    placeholder_count = sum(1 for task in SEED_BENCHMARKS if task.lean_task.allowed_sorry)
+
+    assert report["report_id"] == "ablation::p8"
+    assert report["baseline"] == "seed-registry"
+    assert report["benchmark_task_count"] == len(SEED_BENCHMARKS)
+    assert report["heldout_pass_rate"] == 1.0
+    assert report["concrete_chain_passed"] is True
+    assert report["full_system_ready"] is True
+    assert [component["component"] for component in report["components"]] == [
+        "retrieval",
+        "sft",
+        "dpo",
+        "process_reward",
+        "curation",
+    ]
+    assert all(component["ready"] for component in report["components"])
+    assert report["evidence_summary"]["mean_premise_recall"] == 1.0
+    assert report["evidence_summary"]["sft_example_count"] == len(SEED_BENCHMARKS) - placeholder_count
+    assert report["evidence_summary"]["dpo_pair_count"] == len(SEED_BENCHMARKS) - placeholder_count
+    assert report["evidence_summary"]["grpo_process_task_count"] == len(SEED_BENCHMARKS)
+    assert report["evidence_summary"]["curation_gate_passed"] == report["evidence_summary"]["curation_gate_count"]
+    assert {row["variant"] for row in report["ablation_rows"]} == {
+        "full_system",
+        "no_retrieval",
+        "no_sft",
+        "no_dpo",
+        "no_process_reward",
+        "no_curation",
+    }
     assert set(report) <= set(schema["properties"])
 
 

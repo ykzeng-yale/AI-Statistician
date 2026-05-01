@@ -28,12 +28,12 @@ def test_cli_blueprint_status(capsys) -> None:
     assert main(["blueprint-status", "--blueprint", "config/statlean_blueprint.json"]) == 0
     output = capsys.readouterr().out
     assert "Current phase: P8" in output
-    assert "Current milestone: P8.M3" in output
+    assert "Current milestone: P8.M4" in output
 
     assert main(["blueprint-status", "--blueprint", "config/statlean_blueprint.json", "--json"]) == 0
     json_output = capsys.readouterr().out
     assert '"current_phase"' in json_output
-    assert '"P8.M3"' in json_output
+    assert '"P8.M4"' in json_output
 
 
 def test_cli_verify_benchmarks_allow_failures(tmp_path: Path, capsys) -> None:
@@ -338,6 +338,95 @@ def test_cli_check_lemma_proof_cost(tmp_path: Path, capsys) -> None:
     assert "total_delta=3" in output
     assert {record["status"] for record in records} == {"passed"}
     assert all(record["proof_cost_delta"] > 0 for record in records)
+
+
+def test_cli_ablation_report(tmp_path: Path, capsys) -> None:
+    benchmark_path = tmp_path / "seeds.jsonl"
+    paper_heldout_path = tmp_path / "paper-heldout.json"
+    concrete_chain_path = tmp_path / "concrete-chain.json"
+    manifest_path = tmp_path / "manifest.json"
+    grpo_path = tmp_path / "grpo.jsonl"
+    dpo_reports_path = tmp_path / "dpo-reports.jsonl"
+    proposal_gates_path = tmp_path / "proposal-gates.jsonl"
+    non_vacuity_path = tmp_path / "non-vacuity.jsonl"
+    proof_cost_path = tmp_path / "proof-cost.jsonl"
+    ledger_path = tmp_path / "ledger.jsonl"
+    output_path = tmp_path / "ablation.json"
+    main(["seed-benchmarks", "--output", str(benchmark_path)])
+    paper_heldout_path.write_text(
+        json.dumps(
+            {
+                "baseline": "seed-registry",
+                "heldout_pass_rate": 1.0,
+                "baseline_comparison": {"mean_premise_recall": 1.0},
+            }
+        ),
+        encoding="utf-8",
+    )
+    concrete_chain_path.write_text(json.dumps({"passed": True}), encoding="utf-8")
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "sft_examples": [{"example_id": "sft::task"}],
+                "dpo_pairs": [{"pair_id": "dpo::task"}],
+                "grpo_tasks": [{"task_id": "task"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    write_jsonl(
+        grpo_path,
+        [
+            {
+                "task_id": "task",
+                "reward_components": ["proof_complete", "locally_valid_steps"],
+            }
+        ],
+    )
+    write_jsonl(dpo_reports_path, [{"task_id": "task", "status": "rejected"}])
+    write_jsonl(proposal_gates_path, [{"proposal_id": "p", "passed": True}])
+    write_jsonl(non_vacuity_path, [{"proposal_id": "p", "passed": True}])
+    write_jsonl(proof_cost_path, [{"proposal_id": "p", "passed": True}])
+    write_jsonl(ledger_path, [{"ledger_id": "l", "status": "blocked_placeholder"}])
+
+    assert (
+        main(
+            [
+                "ablation-report",
+                "--benchmarks",
+                str(benchmark_path),
+                "--paper-heldout",
+                str(paper_heldout_path),
+                "--concrete-chain",
+                str(concrete_chain_path),
+                "--training-manifest",
+                str(manifest_path),
+                "--grpo-tasks",
+                str(grpo_path),
+                "--dpo-reports",
+                str(dpo_reports_path),
+                "--lemma-proposal-gates",
+                str(proposal_gates_path),
+                "--lemma-non-vacuity",
+                str(non_vacuity_path),
+                "--lemma-proof-cost",
+                str(proof_cost_path),
+                "--lemma-ledger",
+                str(ledger_path),
+                "--output",
+                str(output_path),
+            ]
+        )
+        == 0
+    )
+
+    output = capsys.readouterr().out
+    report = json.loads(output_path.read_text(encoding="utf-8"))
+    assert "full_system_ready=True" in output
+    assert "components=5" in output
+    assert "variants=6" in output
+    assert report["full_system_ready"] is True
+    assert report["evidence_summary"]["dpo_rejected_report_count"] == 1
 
 
 def test_cli_eval_attempts(tmp_path: Path, capsys) -> None:
