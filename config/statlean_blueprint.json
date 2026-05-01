@@ -158,12 +158,22 @@
             "benchmarks indexed_asymptotic_linear_clt_route_seed and indexed_asymptotic_linear_clt_bridge_seed accepted locally"
           ]
         },
-        {"id": "P3.M2", "status": "pending", "name": "Z-estimator differentiability/linearization bridge"},
+        {
+          "id": "P3.M2",
+          "status": "done",
+          "name": "Z-estimator differentiability/linearization bridge",
+          "evidence": [
+            "StatInference.Estimator.ZLinearization defines ZEstimatorLinearizationBridge with explicit differentiability, estimating-equation, moment-linearization, expansion, and negligible-remainder assumptions.",
+            "ZEstimatorLinearizationBridge.toIndexedAsymptoticLinearEstimator projects the Z-estimator route into the generic indexed asymptotic-linear estimator interface.",
+            "ZEstimatorAsymptoticNormalRoute.asymptoticNormal composes the Z-linearization bridge with the P3.M1 CLT normality route.",
+            "benchmarks z_estimator_linearization_bridge_seed and z_estimator_asymptotic_normal_route_seed accepted locally"
+          ]
+        },
         {"id": "P3.M3", "status": "pending", "name": "M-estimator argmin consistency bridge"},
         {"id": "P3.M4", "status": "pending", "name": "Delta-method theorem family for estimator transformations"}
       ],
       "next_actions": [
-        "Build the Z-estimator differentiability/linearization bridge on top of the explicit asymptotic-normality route."
+        "Build the M-estimator argmin consistency bridge on top of the deterministic oracle and empirical-process layers."
       ]
     },
     {

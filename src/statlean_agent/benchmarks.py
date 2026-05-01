@@ -1023,6 +1023,82 @@ SEED_BENCHMARKS: tuple[BenchmarkTask, ...] = (
         expected_premises=("StatInference.ZEstimatorWithOracle.oracleExcessRiskBound",),
     ),
     BenchmarkTask(
+        task_id="z_estimator_linearization_bridge_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S3",
+        domain_tags=("estimator_interface", "z_estimation", "asymptotic_linearity"),
+        natural_language=(
+            "Project a proof-carrying Z-estimator differentiability and "
+            "linearization bridge to the generic indexed asymptotic-linear "
+            "estimator interface."
+        ),
+        lean_task=LeanTask(
+            task_id="z_estimator_linearization_bridge_seed",
+            imports=("StatInference.Estimator.ZLinearization",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Sample : Nat -> Type*} "
+                "{Parameter Moment InfluenceFunction LinearPart Remainder : Type*} "
+                "(bridge : StatInference.ZEstimatorLinearizationBridge "
+                "Sample Parameter Moment InfluenceFunction LinearPart Remainder) : "
+                "StatInference.IndexedAsymptoticLinearEstimator "
+                "Sample Parameter InfluenceFunction LinearPart Remainder := by\n"
+                "  exact StatInference.ZEstimatorLinearizationBridge."
+                "toIndexedAsymptoticLinearEstimator bridge"
+            ),
+            tags=("z_estimator", "linearization", "asymptotic_linearity"),
+            dependencies=(
+                "StatInference.ZEstimatorLinearizationBridge.toIndexedAsymptoticLinearEstimator",
+            ),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=(
+            "StatInference.ZEstimatorLinearizationBridge.toIndexedAsymptoticLinearEstimator",
+        ),
+    ),
+    BenchmarkTask(
+        task_id="z_estimator_asymptotic_normal_route_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S4",
+        domain_tags=("estimator_interface", "z_estimation", "asymptotic_normality"),
+        natural_language=(
+            "Apply the full Z-estimator route: differentiability, estimating "
+            "equation, moment linearization, expansion, negligible remainder, "
+            "and CLT imply asymptotic normality."
+        ),
+        lean_task=LeanTask(
+            task_id="z_estimator_asymptotic_normal_route_seed",
+            imports=("StatInference.Estimator.ZLinearization",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Sample : Nat -> Type*} "
+                "{Parameter Moment InfluenceFunction LinearPart Remainder : Type*} "
+                "(route : StatInference.ZEstimatorAsymptoticNormalRoute "
+                "Sample Parameter Moment InfluenceFunction LinearPart Remainder) "
+                "(h_differentiability : route.linearization.differentiability_statement) "
+                "(h_estimating_equation : route.linearization.estimating_equation_statement) "
+                "(h_moment_linearization : route.linearization.moment_linearization_statement) "
+                "(h_expansion : route.linearization.expansion.expansion_statement) "
+                "(h_remainder : route.linearization.remainder_negligible.statement) "
+                "(h_clt : route.clt.statement) : "
+                "route.asymptotic_normality := by\n"
+                "  exact StatInference.ZEstimatorAsymptoticNormalRoute.asymptoticNormal "
+                "route h_differentiability h_estimating_equation "
+                "h_moment_linearization h_expansion h_remainder h_clt"
+            ),
+            tags=("z_estimator", "linearization", "asymptotic_normality"),
+            dependencies=(
+                "StatInference.ZEstimatorAsymptoticNormalRoute.asymptoticNormal",
+            ),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=(
+            "StatInference.ZEstimatorAsymptoticNormalRoute.asymptoticNormal",
+        ),
+    ),
+    BenchmarkTask(
         task_id="empirical_process_measurability_seed",
         task_type=BenchmarkTaskType.FORMAL_ONLY,
         split=BenchmarkSplit.TRAIN,
