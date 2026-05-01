@@ -58,12 +58,22 @@
             "benchmark mathlib_probability_to_distribution_seed accepted locally"
           ]
         },
-        {"id": "P1.M5", "status": "pending", "name": "Finite-class uniform convergence theorem and ERM consistency corollary"},
+        {
+          "id": "P1.M5",
+          "status": "done",
+          "name": "Finite-class uniform convergence theorem and ERM consistency corollary",
+          "evidence": [
+            "StatInference.EmpiricalProcess.Basic defines oracle_ineq_of_uniform_deviation_on and oracle_excess_sequence_bound_on for restricted classes.",
+            "StatInference.FiniteClassUniformConvergence packages finite-class uniform deviation plus a vanishing radius.",
+            "FiniteClassUniformConvergence.eventually_excessRisk_lt_of_approx_erm proves eventual excess-risk consistency for approximate ERM.",
+            "benchmarks finite_class_oracle_excess_on_seed and finite_class_erm_consistency_seed accepted locally"
+          ]
+        },
         {"id": "P1.M6", "status": "pending", "name": "Concrete ratio/Hajek/IPW estimator algebra skeleton"}
       ],
       "next_actions": [
-        "Formalize finite-class uniform convergence as the first nontrivial theorem chain using existing deterministic ERM lemmas.",
-        "Add benchmark tasks that require the new concrete theorem rather than simple projection."
+        "Build the concrete ratio/Hajek/IPW estimator algebra skeleton on top of the deterministic oracle and convergence layers.",
+        "Add benchmark tasks that require the ratio/IPW algebra theorem rather than simple projection."
       ]
     },
     {

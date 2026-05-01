@@ -62,6 +62,41 @@ theorem mono {Index : Type*} {largerClass smallerClass : Set Index}
 
 end EmpiricalDeviationBoundOn
 
+/--
+Restricted-class ERM oracle inequality from a uniform deviation bound on that
+class. This is the deterministic core used after finite-class uniform
+convergence has supplied a deviation radius.
+-/
+theorem oracle_ineq_of_uniform_deviation_on
+    {Index : Type*} {indexClass : Set Index}
+    (populationRisk empiricalRisk : Index -> ℝ) (fhat comparator : Index)
+    (eps radius : ℝ)
+    (hfhat : fhat ∈ indexClass)
+    (hcomparator : comparator ∈ indexClass)
+    (h_uniform :
+      EmpiricalDeviationBoundOn indexClass populationRisk empiricalRisk radius)
+    (h_erm : empiricalRisk fhat ≤ empiricalRisk comparator + eps) :
+    populationRisk fhat ≤ populationRisk comparator + 2 * radius + eps := by
+  have h_left := (abs_le.mp (h_uniform fhat hfhat)).1
+  have h_right := (abs_le.mp (h_uniform comparator hcomparator)).2
+  nlinarith
+
+/-- Excess-risk version of `oracle_ineq_of_uniform_deviation_on`. -/
+theorem excess_risk_bound_of_uniform_deviation_on
+    {Index : Type*} {indexClass : Set Index}
+    (populationRisk empiricalRisk : Index -> ℝ) (fhat comparator : Index)
+    (eps radius : ℝ)
+    (hfhat : fhat ∈ indexClass)
+    (hcomparator : comparator ∈ indexClass)
+    (h_uniform :
+      EmpiricalDeviationBoundOn indexClass populationRisk empiricalRisk radius)
+    (h_erm : empiricalRisk fhat ≤ empiricalRisk comparator + eps) :
+    populationRisk fhat - populationRisk comparator ≤ 2 * radius + eps := by
+  have h := oracle_ineq_of_uniform_deviation_on
+    populationRisk empiricalRisk fhat comparator eps radius
+    hfhat hcomparator h_uniform h_erm
+  nlinarith
+
 /-- A sequence of uniform deviation bounds over an entire index type. -/
 def EmpiricalDeviationSequence {Index : Type*}
     (populationRisk : Index -> ℝ) (empiricalRisk : ℕ -> Index -> ℝ)
@@ -119,6 +154,32 @@ theorem mono {Index : Type*} {largerClass smallerClass : Set Index}
   exact EmpiricalDeviationBoundOn.mono (h sampleSize) hsubset
 
 end EmpiricalDeviationSequenceOn
+
+/--
+Sequence-level excess-risk bound for approximate ERM over a restricted class.
+-/
+theorem oracle_excess_sequence_bound_on
+    {Index : Type*} {indexClass : Set Index}
+    (populationRisk : Index -> ℝ)
+    (empiricalRisk : ℕ -> Index -> ℝ)
+    (fhat : ℕ -> Index) (comparator : Index)
+    (eps radius : ℕ -> ℝ)
+    (hfhat : ∀ sampleSize, fhat sampleSize ∈ indexClass)
+    (hcomparator : comparator ∈ indexClass)
+    (h_uniform :
+      EmpiricalDeviationSequenceOn indexClass populationRisk empiricalRisk radius)
+    (h_erm :
+      ∀ sampleSize,
+        empiricalRisk sampleSize (fhat sampleSize) ≤
+          empiricalRisk sampleSize comparator + eps sampleSize) :
+    ∀ sampleSize,
+      populationRisk (fhat sampleSize) - populationRisk comparator ≤
+        2 * radius sampleSize + eps sampleSize := by
+  intro sampleSize
+  exact excess_risk_bound_of_uniform_deviation_on
+    populationRisk (empiricalRisk sampleSize) (fhat sampleSize) comparator
+    (eps sampleSize) (radius sampleSize) (hfhat sampleSize) hcomparator
+    (h_uniform sampleSize) (h_erm sampleSize)
 
 structure EmpiricalProcessSpec (Index Observation Value : Type*) where
   process : Index -> Observation -> Value
@@ -185,6 +246,87 @@ theorem finite_set {Index : Type*} {indexClass : Set Index}
   marker.finite
 
 end FiniteClassMarker
+
+/--
+Finite-class uniform convergence certificate.
+
+The finiteness field records the statistical-learning-theory regime; the
+uniform-deviation and vanishing-radius fields are the verified payload consumed
+by downstream ERM consistency theorems.
+-/
+structure FiniteClassUniformConvergence {Index : Type*}
+    (indexClass : Set Index) (populationRisk : Index -> ℝ)
+    (empiricalRisk : ℕ -> Index -> ℝ) where
+  finite_class : FiniteClassMarker indexClass
+  radius : ℕ -> ℝ
+  uniform_deviation :
+    EmpiricalDeviationSequenceOn indexClass populationRisk empiricalRisk radius
+  radius_tendsto_zero : Tendsto radius atTop (𝓝 0)
+
+namespace FiniteClassUniformConvergence
+
+def toGlivenkoCantelliClass {Index : Type*} {indexClass : Set Index}
+    {populationRisk : Index -> ℝ} {empiricalRisk : ℕ -> Index -> ℝ}
+    (finite_gc :
+      FiniteClassUniformConvergence indexClass populationRisk empiricalRisk) :
+    GlivenkoCantelliClass indexClass populationRisk empiricalRisk where
+  radius := finite_gc.radius
+  uniform_deviation := finite_gc.uniform_deviation
+  radius_tendsto_zero := finite_gc.radius_tendsto_zero
+
+theorem finite {Index : Type*} {indexClass : Set Index}
+    {populationRisk : Index -> ℝ} {empiricalRisk : ℕ -> Index -> ℝ}
+    (finite_gc :
+      FiniteClassUniformConvergence indexClass populationRisk empiricalRisk) :
+    indexClass.Finite :=
+  finite_gc.finite_class.finite
+
+theorem deviation {Index : Type*} {indexClass : Set Index}
+    {populationRisk : Index -> ℝ} {empiricalRisk : ℕ -> Index -> ℝ}
+    (finite_gc :
+      FiniteClassUniformConvergence indexClass populationRisk empiricalRisk)
+    (sampleSize : ℕ) {index : Index} (hindex : index ∈ indexClass) :
+    |empiricalRisk sampleSize index - populationRisk index| ≤
+      finite_gc.radius sampleSize :=
+  finite_gc.uniform_deviation sampleSize index hindex
+
+/--
+ERM consistency corollary for a finite class: if the finite class has a
+vanishing uniform-deviation radius and the approximate ERM error vanishes, then
+the excess risk against any fixed in-class comparator is eventually below every
+positive tolerance.
+-/
+theorem eventually_excessRisk_lt_of_approx_erm
+    {Index : Type*} {indexClass : Set Index}
+    {populationRisk : Index -> ℝ} {empiricalRisk : ℕ -> Index -> ℝ}
+    (finite_gc :
+      FiniteClassUniformConvergence indexClass populationRisk empiricalRisk)
+    (fhat : ℕ -> Index) (comparator : Index) (eps : ℕ -> ℝ)
+    (hfhat : ∀ sampleSize, fhat sampleSize ∈ indexClass)
+    (hcomparator : comparator ∈ indexClass)
+    (h_erm :
+      ∀ sampleSize,
+        empiricalRisk sampleSize (fhat sampleSize) ≤
+          empiricalRisk sampleSize comparator + eps sampleSize)
+    (h_eps : Tendsto eps atTop (𝓝 0)) :
+    ∀ tolerance > 0,
+      ∀ᶠ sampleSize in atTop,
+        populationRisk (fhat sampleSize) - populationRisk comparator <
+          tolerance := by
+  intro tolerance htolerance
+  have h_bound_tendsto :
+      Tendsto (fun sampleSize => 2 * finite_gc.radius sampleSize + eps sampleSize)
+        atTop (𝓝 0) :=
+    oracle_bound_tendsto_zero eps finite_gc.radius
+      finite_gc.radius_tendsto_zero h_eps
+  filter_upwards [h_bound_tendsto.eventually_lt_const htolerance] with sampleSize h_bound_lt
+  have h_excess_le :=
+    oracle_excess_sequence_bound_on populationRisk empiricalRisk fhat comparator
+      eps finite_gc.radius hfhat hcomparator finite_gc.uniform_deviation h_erm
+      sampleSize
+  exact lt_of_le_of_lt h_excess_le h_bound_lt
+
+end FiniteClassUniformConvergence
 
 /--
 Marker for a finite projected class inside a larger class.

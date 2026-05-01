@@ -143,6 +143,77 @@ SEED_BENCHMARKS: tuple[BenchmarkTask, ...] = (
         expected_premises=("StatInference.mathlib_convergesInDistribution_of_probability",),
     ),
     BenchmarkTask(
+        task_id="finite_class_oracle_excess_on_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S4",
+        domain_tags=("finite_class_gc", "erm_consistency", "empirical_process"),
+        natural_language=(
+            "Use a finite/restricted-class uniform-deviation sequence to bound "
+            "approximate ERM excess risk against an in-class comparator."
+        ),
+        lean_task=LeanTask(
+            task_id="finite_class_oracle_excess_on_seed",
+            imports=("StatInference.EmpiricalProcess.Basic",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Index : Type*} {indexClass : Set Index} "
+                "(R : Index -> Real) (Rn : Nat -> Index -> Real) "
+                "(fhat : Nat -> Index) (comparator : Index) "
+                "(eps radius : Nat -> Real) "
+                "(hfhat : forall n, fhat n ∈ indexClass) "
+                "(hcomparator : comparator ∈ indexClass) "
+                "(h_uniform : StatInference.EmpiricalDeviationSequenceOn indexClass R Rn radius) "
+                "(h_erm : forall n, Rn n (fhat n) <= Rn n comparator + eps n) : "
+                "forall n, R (fhat n) - R comparator <= 2 * radius n + eps n := by\n"
+                "  exact StatInference.oracle_excess_sequence_bound_on "
+                "R Rn fhat comparator eps radius hfhat hcomparator h_uniform h_erm"
+            ),
+            tags=("finite_class", "restricted_uniform_deviation", "excess_risk"),
+            dependencies=("StatInference.oracle_excess_sequence_bound_on",),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=("StatInference.oracle_excess_sequence_bound_on",),
+    ),
+    BenchmarkTask(
+        task_id="finite_class_erm_consistency_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S5",
+        domain_tags=("finite_class_gc", "erm_consistency", "empirical_process"),
+        natural_language=(
+            "Apply finite-class uniform convergence plus vanishing approximate "
+            "ERM error to get eventual excess-risk consistency."
+        ),
+        lean_task=LeanTask(
+            task_id="finite_class_erm_consistency_seed",
+            imports=("StatInference.EmpiricalProcess.Basic",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Index : Type*} {indexClass : Set Index} "
+                "(R : Index -> Real) (Rn : Nat -> Index -> Real) "
+                "(finite_gc : StatInference.FiniteClassUniformConvergence indexClass R Rn) "
+                "(fhat : Nat -> Index) (comparator : Index) (eps : Nat -> Real) "
+                "(hfhat : forall n, fhat n ∈ indexClass) "
+                "(hcomparator : comparator ∈ indexClass) "
+                "(h_erm : forall n, Rn n (fhat n) <= Rn n comparator + eps n) "
+                "(h_eps : Filter.Tendsto eps Filter.atTop (nhds 0)) : "
+                "forall tolerance, tolerance > 0 -> "
+                "∀ᶠ n in Filter.atTop, R (fhat n) - R comparator < tolerance := by\n"
+                "  exact StatInference.FiniteClassUniformConvergence.eventually_excessRisk_lt_of_approx_erm "
+                "finite_gc fhat comparator eps hfhat hcomparator h_erm h_eps"
+            ),
+            tags=("finite_class", "erm_consistency", "eventual_excess_risk"),
+            dependencies=(
+                "StatInference.FiniteClassUniformConvergence.eventually_excessRisk_lt_of_approx_erm",
+            ),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=(
+            "StatInference.FiniteClassUniformConvergence.eventually_excessRisk_lt_of_approx_erm",
+        ),
+    ),
+    BenchmarkTask(
         task_id="asymptotic_bridge_projection",
         task_type=BenchmarkTaskType.FORMAL_ONLY,
         split=BenchmarkSplit.TRAIN,
