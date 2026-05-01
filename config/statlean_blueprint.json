@@ -260,13 +260,24 @@
       "status": "in_progress",
       "objective": "Turn the library into a measurable proof-agent loop with theorem-hole tasks, repair tasks, premise-use metrics, and failure taxonomy.",
       "milestones": [
-        {"id": "P5.M1", "status": "pending", "name": "Benchmark tasks beyond projection examples"},
+        {
+          "id": "P5.M1",
+          "status": "done",
+          "name": "Benchmark tasks beyond projection examples",
+          "evidence": [
+            "benchmarks include subgoal_completion theorem-hole tasks ipw_linearization_theorem_hole_seed, aipw_product_rate_theorem_hole_seed, and if_normality_theorem_hole_seed.",
+            "Each theorem-hole task has explicit proof_state metadata, expected premises, multi-goal constructor structure, and lean_task.allowed_sorry scoped to the benchmark skeleton.",
+            "tests/test_benchmarks.py enforces that theorem-hole tasks are explicit, policy-scoped, and carry proof_state plus expected_premises metadata.",
+            "benchmarks/README.md documents theorem-hole tasks and clarifies that placeholders are allowed only in benchmark skeletons, not in StatInference.",
+            "the three theorem-hole seeds accepted locally with allowed placeholder diagnostics"
+          ]
+        },
         {"id": "P5.M2", "status": "pending", "name": "Verifier artifacts for all benchmark tasks"},
         {"id": "P5.M3", "status": "pending", "name": "Eval summaries by phase/domain/split"},
         {"id": "P5.M4", "status": "pending", "name": "Curated lemma growth ledger"}
       ],
       "next_actions": [
-        "Build non-projection theorem-hole benchmark tasks and verifier artifacts for the expanded P1-P4 statistical inference library."
+        "Regenerate verifier artifacts for all benchmark tasks and record accepted/rejected status with placeholder policy diagnostics."
       ]
     },
     {

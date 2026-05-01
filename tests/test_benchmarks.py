@@ -53,7 +53,24 @@ def test_seed_benchmarks_cover_core_interfaces() -> None:
 
     assert EXPECTED_DOMAIN_COVERAGE <= domain_tags
     assert BenchmarkTaskType.FORMAL_ONLY in task_types
+    assert BenchmarkTaskType.SUBGOAL_COMPLETION in task_types
     assert {BenchmarkSplit.TRAIN, BenchmarkSplit.DEV, BenchmarkSplit.TEST} <= splits
+
+
+def test_theorem_hole_tasks_are_explicit_and_policy_scoped() -> None:
+    theorem_hole_tasks = [
+        task for task in SEED_BENCHMARKS if task.task_type is BenchmarkTaskType.SUBGOAL_COMPLETION
+    ]
+
+    assert {task.task_id for task in theorem_hole_tasks} >= {
+        "ipw_linearization_theorem_hole_seed",
+        "aipw_product_rate_theorem_hole_seed",
+        "if_normality_theorem_hole_seed",
+    }
+    assert all(task.lean_task.allowed_sorry for task in theorem_hole_tasks)
+    assert all(task.proof_state for task in theorem_hole_tasks)
+    assert all("theorem_hole" in task.domain_tags for task in theorem_hole_tasks)
+    assert all(task.expected_premises for task in theorem_hole_tasks)
 
 
 def test_checked_in_seeds_match_generated_registry(tmp_path: Path) -> None:

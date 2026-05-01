@@ -1289,6 +1289,142 @@ SEED_BENCHMARKS: tuple[BenchmarkTask, ...] = (
         ),
     ),
     BenchmarkTask(
+        task_id="ipw_linearization_theorem_hole_seed",
+        task_type=BenchmarkTaskType.SUBGOAL_COMPLETION,
+        split=BenchmarkSplit.DEV,
+        difficulty="S5",
+        domain_tags=("ipw", "hajek_ipw", "theorem_hole", "multi_goal"),
+        natural_language=(
+            "Complete a two-goal IPW/Hajek theorem hole: prove both causal "
+            "identification and the scaled ratio linearization from the same route."
+        ),
+        proof_state=(
+            "Goals after constructor: "
+            "1. route.identification.bridge.ipw_identifies_estimand; "
+            "2. forall n, route.rate n * (route.sequence.estimate n - "
+            "route.sequence.target) = route.rate n * route.sequence.residual n / "
+            "route.sequence.weightedMass n."
+        ),
+        lean_task=LeanTask(
+            task_id="ipw_linearization_theorem_hole_seed",
+            imports=("StatInference.Causal.IPW",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example (route : StatInference.IPWHajekLinearizationRoute) : "
+                "route.identification.bridge.ipw_identifies_estimand /\\ "
+                "(forall n, route.rate n * "
+                "(route.sequence.estimate n - route.sequence.target) = "
+                "route.rate n * route.sequence.residual n / "
+                "route.sequence.weightedMass n) := by\n"
+                "  constructor\n"
+                "  · sorry\n"
+                "  · sorry"
+            ),
+            allowed_sorry=True,
+            tags=("ipw", "theorem_hole", "multi_goal"),
+            dependencies=(
+                "StatInference.IPWHajekLinearizationRoute.identifies",
+                "StatInference.IPWHajekLinearizationRoute.scaledLinearization",
+            ),
+            expected_patterns=("constructor", "sorry"),
+        ),
+        expected_premises=(
+            "StatInference.IPWHajekLinearizationRoute.identifies",
+            "StatInference.IPWHajekLinearizationRoute.scaledLinearization",
+        ),
+    ),
+    BenchmarkTask(
+        task_id="aipw_product_rate_theorem_hole_seed",
+        task_type=BenchmarkTaskType.SUBGOAL_COMPLETION,
+        split=BenchmarkSplit.DEV,
+        difficulty="S5",
+        domain_tags=("aipw", "product_rate", "theorem_hole", "multi_goal"),
+        natural_language=(
+            "Complete a two-goal AIPW theorem hole: prove double-robust "
+            "identification and the second-order remainder from one route."
+        ),
+        proof_state=(
+            "Goals after constructor: "
+            "1. route.identification.bridge.aipw_identifies_estimand; "
+            "2. route.second_order_remainder.statement."
+        ),
+        lean_task=LeanTask(
+            task_id="aipw_product_rate_theorem_hole_seed",
+            imports=("StatInference.Causal.AIPW",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Observation Propensity Regression ScoreValue Parameter : Type*} "
+                "(route : StatInference.AIPWOrthogonalProductRateRoute "
+                "Observation Propensity Regression ScoreValue Parameter) : "
+                "route.identification.bridge.aipw_identifies_estimand /\\ "
+                "route.second_order_remainder.statement := by\n"
+                "  constructor\n"
+                "  · sorry\n"
+                "  · sorry"
+            ),
+            allowed_sorry=True,
+            tags=("aipw", "product_rate", "theorem_hole", "multi_goal"),
+            dependencies=(
+                "StatInference.AIPWOrthogonalProductRateRoute.identifies",
+                "StatInference.AIPWOrthogonalProductRateRoute.secondOrderRemainderSmall",
+            ),
+            expected_patterns=("constructor", "sorry"),
+        ),
+        expected_premises=(
+            "StatInference.AIPWOrthogonalProductRateRoute.identifies",
+            "StatInference.AIPWOrthogonalProductRateRoute.secondOrderRemainderSmall",
+        ),
+    ),
+    BenchmarkTask(
+        task_id="if_normality_theorem_hole_seed",
+        task_type=BenchmarkTaskType.SUBGOAL_COMPLETION,
+        split=BenchmarkSplit.DEV,
+        difficulty="S5",
+        domain_tags=(
+            "semiparametric",
+            "influence_function",
+            "theorem_hole",
+            "multi_goal",
+        ),
+        natural_language=(
+            "Complete a two-goal influence-function theorem hole: prove "
+            "asymptotic linearity and asymptotic normality from one route."
+        ),
+        proof_state=(
+            "Goals after constructor: "
+            "1. route.influence_bridge.estimator.statement; "
+            "2. route.asymptotic_normality."
+        ),
+        lean_task=LeanTask(
+            task_id="if_normality_theorem_hole_seed",
+            imports=("StatInference.Semiparametric.Normality",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Model Parameter Observation EstimatorObj : Type*} "
+                "(route : StatInference.InfluenceFunctionNormalityRoute "
+                "Model Parameter Observation EstimatorObj) "
+                "(h_clt : route.clt.statement) "
+                "(h_remainder : route.negligible_remainder.statement) : "
+                "route.influence_bridge.estimator.statement /\\ "
+                "route.asymptotic_normality := by\n"
+                "  constructor\n"
+                "  · sorry\n"
+                "  · sorry"
+            ),
+            allowed_sorry=True,
+            tags=("influence_function", "theorem_hole", "multi_goal"),
+            dependencies=(
+                "StatInference.InfluenceFunctionNormalityRoute.asymptoticLinear",
+                "StatInference.InfluenceFunctionNormalityRoute.asymptoticNormal",
+            ),
+            expected_patterns=("constructor", "sorry"),
+        ),
+        expected_premises=(
+            "StatInference.InfluenceFunctionNormalityRoute.asymptoticLinear",
+            "StatInference.InfluenceFunctionNormalityRoute.asymptoticNormal",
+        ),
+    ),
+    BenchmarkTask(
         task_id="erm_sequence_fixed_index_seed",
         task_type=BenchmarkTaskType.FORMAL_ONLY,
         split=BenchmarkSplit.DEV,
