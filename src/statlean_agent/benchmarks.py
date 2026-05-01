@@ -112,6 +112,37 @@ SEED_BENCHMARKS: tuple[BenchmarkTask, ...] = (
         expected_premises=("StatInference.oracle_bound_tendsto_zero",),
     ),
     BenchmarkTask(
+        task_id="mathlib_probability_to_distribution_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S4",
+        domain_tags=("convergence", "probability_convergence", "weak_convergence"),
+        natural_language=(
+            "Use the mathlib-backed route from convergence in probability "
+            "to convergence in distribution."
+        ),
+        lean_task=LeanTask(
+            task_id="mathlib_probability_to_distribution_seed",
+            imports=("StatInference.Asymptotics.Convergence",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {I Omega E : Type*} [MeasurableSpace Omega] [MeasurableSpace E] "
+                "[SeminormedAddCommGroup E] [SecondCountableTopology E] [BorelSpace E] "
+                "(mu : MeasureTheory.Measure Omega) [MeasureTheory.IsProbabilityMeasure mu] "
+                "(X : I -> Omega -> E) (Z : Omega -> E) (l : Filter I) "
+                "[l.NeBot] [Filter.IsCountablyGenerated l] "
+                "(h : StatInference.MathlibConvergesInProbability mu X l Z) "
+                "(hX : forall i, AEMeasurable (X i) mu) : "
+                "StatInference.MathlibConvergesInDistribution X l Z (fun _ => mu) mu := by\n"
+                "  exact StatInference.mathlib_convergesInDistribution_of_probability h hX"
+            ),
+            tags=("mathlib_convergence", "convergence_in_probability", "weak_convergence"),
+            dependencies=("StatInference.mathlib_convergesInDistribution_of_probability",),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=("StatInference.mathlib_convergesInDistribution_of_probability",),
+    ),
+    BenchmarkTask(
         task_id="asymptotic_bridge_projection",
         task_type=BenchmarkTaskType.FORMAL_ONLY,
         split=BenchmarkSplit.TRAIN,

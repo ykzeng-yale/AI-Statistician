@@ -11,9 +11,9 @@ def test_real_blueprint_selects_next_unfinished_milestone() -> None:
 
     assert status["valid"] is True
     assert status["current_phase"]["id"] == "P1"
-    assert status["current_milestone"]["id"] == "P1.M4"
+    assert status["current_milestone"]["id"] == "P1.M5"
     assert "continue" in render_blueprint_status(blueprint)
-    assert any("finite-class" in action or "mathlib-backed" in action for action in status["next_actions"])
+    assert any("finite-class" in action for action in status["next_actions"])
 
 
 def test_blueprint_validation_rejects_duplicate_ids_and_bad_status() -> None:

@@ -48,12 +48,20 @@
         {"id": "P1.M1", "status": "done", "name": "ERM deterministic oracle/excess-risk inequalities"},
         {"id": "P1.M2", "status": "done", "name": "Convergence bridge interfaces for Slutsky, delta method, CLT route"},
         {"id": "P1.M3", "status": "done", "name": "M-estimator and Z-estimator deterministic oracle interfaces"},
-        {"id": "P1.M4", "status": "pending", "name": "Mathlib-backed convergence wrappers for convergence in probability/distribution"},
+        {
+          "id": "P1.M4",
+          "status": "done",
+          "name": "Mathlib-backed convergence wrappers for convergence in probability/distribution",
+          "evidence": [
+            "StatInference.Asymptotics.Convergence defines MathlibConvergesInProbability and MathlibConvergesInDistribution on top of mathlib TendstoInMeasure/TendstoInDistribution.",
+            "StatInference.mathlib_convergesInDistribution_of_probability wraps mathlib's convergence-in-probability implies convergence-in-distribution theorem.",
+            "benchmark mathlib_probability_to_distribution_seed accepted locally"
+          ]
+        },
         {"id": "P1.M5", "status": "pending", "name": "Finite-class uniform convergence theorem and ERM consistency corollary"},
         {"id": "P1.M6", "status": "pending", "name": "Concrete ratio/Hajek/IPW estimator algebra skeleton"}
       ],
       "next_actions": [
-        "Replace at least one abstract convergence bridge proposition with a mathlib-backed definition or wrapper.",
         "Formalize finite-class uniform convergence as the first nontrivial theorem chain using existing deterministic ERM lemmas.",
         "Add benchmark tasks that require the new concrete theorem rather than simple projection."
       ]

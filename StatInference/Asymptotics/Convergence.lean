@@ -1,20 +1,39 @@
 import StatInference.Asymptotics.Basic
 import StatInference.Asymptotics.Op
+import Mathlib.MeasureTheory.Function.ConvergenceInDistribution
 
 /-!
 # Convergence bridge interfaces
 
 This module records the reusable convergence routes used in asymptotic
-statistics.  The propositions stay explicit so concrete developments can later
-replace them with mathlib-backed convergence-in-measure, weak-convergence, CLT,
-Slutsky, and delta-method statements without changing downstream estimator
-interfaces.
+statistics.  The low-level wrappers below are backed by mathlib's
+`TendstoInMeasure` and `TendstoInDistribution`; the bridge records then let
+estimator modules use those concrete notions or temporary proposition-level
+interfaces without changing downstream APIs.
 -/
 
 namespace StatInference
 
 open Filter
+open MeasureTheory
 open scoped Topology
+
+/-- Statistics-facing alias for mathlib convergence in probability. -/
+abbrev MathlibConvergesInProbability
+    {ι Ω E : Type*} [MeasurableSpace Ω] [EDist E]
+    (μ : MeasureTheory.Measure Ω) (X : ι -> Ω -> E) (l : Filter ι) (Z : Ω -> E) :
+    Prop :=
+  MeasureTheory.TendstoInMeasure μ X l Z
+
+/-- Statistics-facing alias for mathlib convergence in distribution / weak convergence. -/
+abbrev MathlibConvergesInDistribution
+    {ι E Ω' : Type*} {Ω : ι -> Type*} [∀ i, MeasurableSpace (Ω i)]
+    [MeasurableSpace Ω'] [MeasurableSpace E] [TopologicalSpace E] [OpensMeasurableSpace E]
+    (X : (i : ι) -> Ω i -> E) (l : Filter ι) (Z : Ω' -> E)
+    (μ : (i : ι) -> MeasureTheory.Measure (Ω i)) [∀ i, IsProbabilityMeasure (μ i)]
+    (μ' : MeasureTheory.Measure Ω') [IsProbabilityMeasure μ'] :
+    Prop :=
+  MeasureTheory.TendstoInDistribution X l Z μ μ'
 
 /-- Prototype record for convergence in probability. -/
 structure ConvergenceInProbabilitySpec where
@@ -126,14 +145,46 @@ def convergenceInProbabilityOfStatement (p : Prop) :
     ConvergenceInProbabilitySpec where
   statement := p
 
+/-- Package a mathlib convergence-in-probability statement as a project spec. -/
+def convergenceInProbabilityOfMathlib
+    {ι Ω E : Type*} [MeasurableSpace Ω] [EDist E]
+    (μ : MeasureTheory.Measure Ω) (X : ι -> Ω -> E) (l : Filter ι) (Z : Ω -> E) :
+    ConvergenceInProbabilitySpec where
+  statement := MathlibConvergesInProbability μ X l Z
+
 /-- Package a proved proposition as a convergence-in-distribution specification. -/
 def convergenceInDistributionOfStatement (p : Prop) :
     ConvergenceInDistributionSpec where
   statement := p
 
+/-- Package a mathlib convergence-in-distribution statement as a project spec. -/
+def convergenceInDistributionOfMathlib
+    {ι E Ω' : Type*} {Ω : ι -> Type*} [∀ i, MeasurableSpace (Ω i)]
+    [MeasurableSpace Ω'] [MeasurableSpace E] [TopologicalSpace E] [OpensMeasurableSpace E]
+    (X : (i : ι) -> Ω i -> E) (l : Filter ι) (Z : Ω' -> E)
+    (μ : (i : ι) -> MeasureTheory.Measure (Ω i)) [∀ i, IsProbabilityMeasure (μ i)]
+    (μ' : MeasureTheory.Measure Ω') [IsProbabilityMeasure μ'] :
+    ConvergenceInDistributionSpec where
+  statement := MathlibConvergesInDistribution X l Z μ μ'
+
 /-- Package a proved proposition as a CLT specification. -/
 def centralLimitTheoremOfStatement (p : Prop) :
     CentralLimitTheoremSpec where
   statement := p
+
+/--
+Mathlib-backed route from convergence in probability to convergence in
+distribution for random variables on one probability space.
+-/
+theorem mathlib_convergesInDistribution_of_probability
+    {ι Ω E : Type*} [MeasurableSpace Ω] [SeminormedAddCommGroup E]
+    [MeasurableSpace E] [SecondCountableTopology E] [BorelSpace E]
+    {μ : MeasureTheory.Measure Ω} [IsProbabilityMeasure μ]
+    {X : ι -> Ω -> E} {Z : Ω -> E} {l : Filter ι}
+    [NeBot l] [l.IsCountablyGenerated]
+    (h : MathlibConvergesInProbability μ X l Z)
+    (hX : ∀ i, AEMeasurable (X i) μ) :
+    MathlibConvergesInDistribution X l Z (fun _ => μ) μ :=
+  MeasureTheory.TendstoInMeasure.tendstoInDistribution h hX
 
 end StatInference
