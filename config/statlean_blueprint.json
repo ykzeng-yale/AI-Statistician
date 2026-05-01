@@ -202,13 +202,23 @@
       "status": "in_progress",
       "objective": "Build potential outcomes, IPW/AIPW/TMLE-style bridges, influence functions, and Neyman orthogonality with explicit assumptions.",
       "milestones": [
-        {"id": "P4.M1", "status": "pending", "name": "ATE identification sanity and non-vacuity examples"},
+        {
+          "id": "P4.M1",
+          "status": "done",
+          "name": "ATE identification sanity and non-vacuity examples",
+          "evidence": [
+            "StatInference.Causal.ATE defines DeterministicATECase as a concrete one-unit real-valued potential-outcome model.",
+            "DeterministicATECase.observedATE_identified proves the observed ATE bridge conclusion from verified consistency, overlap, and unconfoundedness certificates.",
+            "ATEIdentificationSanityExample.ofOutcomes constructs a non-vacuous inhabited ATE identification witness from two real outcomes.",
+            "benchmarks ate_identification_sanity_witness_seed and ate_identification_sanity_verified_seed accepted locally"
+          ]
+        },
         {"id": "P4.M2", "status": "pending", "name": "IPW/Hajek ratio estimator linearization"},
         {"id": "P4.M3", "status": "pending", "name": "AIPW orthogonality interface and product-rate bridge"},
         {"id": "P4.M4", "status": "pending", "name": "Influence-function asymptotic normality route"}
       ],
       "next_actions": [
-        "Build ATE identification sanity and non-vacuity examples."
+        "Build IPW/Hajek ratio estimator linearization on top of the ratio algebra and causal identification layer."
       ]
     },
     {

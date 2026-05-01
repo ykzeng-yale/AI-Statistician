@@ -817,6 +817,56 @@ SEED_BENCHMARKS: tuple[BenchmarkTask, ...] = (
         expected_premises=("StatInference.ate_identification_of_bridge",),
     ),
     BenchmarkTask(
+        task_id="ate_identification_sanity_witness_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S3",
+        domain_tags=("causal_identification", "potential_outcomes", "non_vacuity"),
+        natural_language=(
+            "Build a concrete one-unit deterministic ATE identification sanity "
+            "witness from two real potential outcomes."
+        ),
+        lean_task=LeanTask(
+            task_id="ate_identification_sanity_witness_seed",
+            imports=("StatInference.Causal.ATE",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example (y0 y1 : Real) : "
+                "StatInference.ATEIdentificationSanityExample := by\n"
+                "  exact StatInference.ATEIdentificationSanityExample.ofOutcomes y0 y1"
+            ),
+            tags=("causal_identification", "ate", "non_vacuity"),
+            dependencies=("StatInference.ATEIdentificationSanityExample.ofOutcomes",),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=("StatInference.ATEIdentificationSanityExample.ofOutcomes",),
+    ),
+    BenchmarkTask(
+        task_id="ate_identification_sanity_verified_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S3",
+        domain_tags=("causal_identification", "potential_outcomes", "ate"),
+        natural_language=(
+            "Extract the verified ATE identification conclusion from the "
+            "deterministic non-vacuity witness."
+        ),
+        lean_task=LeanTask(
+            task_id="ate_identification_sanity_verified_seed",
+            imports=("StatInference.Causal.ATE",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example (witness : StatInference.ATEIdentificationSanityExample) : "
+                "witness.bridge.identification := by\n"
+                "  exact StatInference.ATEIdentificationSanityExample.identified witness"
+            ),
+            tags=("causal_identification", "ate", "verified_by_lean"),
+            dependencies=("StatInference.ATEIdentificationSanityExample.identified",),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=("StatInference.ATEIdentificationSanityExample.identified",),
+    ),
+    BenchmarkTask(
         task_id="erm_sequence_fixed_index_seed",
         task_type=BenchmarkTaskType.FORMAL_ONLY,
         split=BenchmarkSplit.DEV,
