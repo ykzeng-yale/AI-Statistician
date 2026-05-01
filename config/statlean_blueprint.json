@@ -225,11 +225,22 @@
             "benchmarks ipw_identification_certificate_seed, ipw_hajek_scaled_linearization_route_seed, constant_ipw_hajek_route_seed, and constant_ipw_hajek_exact_target_seed accepted locally"
           ]
         },
-        {"id": "P4.M3", "status": "pending", "name": "AIPW orthogonality interface and product-rate bridge"},
+        {
+          "id": "P4.M3",
+          "status": "done",
+          "name": "AIPW orthogonality interface and product-rate bridge",
+          "evidence": [
+            "StatInference.Causal.AIPW defines VerifiedAIPWDoubleRobustIdentification as a proof-carrying double-robust identification certificate.",
+            "AIPWNuisanceProductRate and VerifiedAIPWNuisanceProductRate package product-rate nuisance control and extract the small-o second-order remainder.",
+            "AIPWOrthogonalProductRateRoute combines AIPW identification, verified Neyman orthogonality, and product-rate control into secondOrderRemainderSmall.",
+            "trivialAIPWOrthogonalProductRateRoute constructs a concrete non-vacuity witness for the AIPW orthogonality/product-rate API.",
+            "benchmarks aipw_double_robust_identification_seed, aipw_product_rate_remainder_seed, aipw_orthogonal_score_seed, aipw_second_order_remainder_seed, and trivial_aipw_product_rate_route_seed accepted locally"
+          ]
+        },
         {"id": "P4.M4", "status": "pending", "name": "Influence-function asymptotic normality route"}
       ],
       "next_actions": [
-        "Build the AIPW orthogonality interface and product-rate bridge on top of the causal and semiparametric influence-function layers."
+        "Build the influence-function asymptotic normality route by composing verified influence functions, asymptotic linearity, and CLT handoff interfaces."
       ]
     },
     {

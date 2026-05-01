@@ -974,6 +974,154 @@ SEED_BENCHMARKS: tuple[BenchmarkTask, ...] = (
         expected_premises=("StatInference.constantIPWHajekSequence_estimate_eq_target",),
     ),
     BenchmarkTask(
+        task_id="aipw_double_robust_identification_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S3",
+        domain_tags=("aipw", "double_robust", "causal_identification"),
+        natural_language=(
+            "Extract the AIPW double-robust identification conclusion from a "
+            "proof-carrying certificate."
+        ),
+        lean_task=LeanTask(
+            task_id="aipw_double_robust_identification_seed",
+            imports=("StatInference.Causal.AIPW",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example "
+                "(certificate : StatInference.VerifiedAIPWDoubleRobustIdentification) : "
+                "certificate.bridge.aipw_identifies_estimand := by\n"
+                "  exact StatInference.VerifiedAIPWDoubleRobustIdentification.identifies "
+                "certificate"
+            ),
+            tags=("aipw", "double_robust", "identification"),
+            dependencies=(
+                "StatInference.VerifiedAIPWDoubleRobustIdentification.identifies",
+            ),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=(
+            "StatInference.VerifiedAIPWDoubleRobustIdentification.identifies",
+        ),
+    ),
+    BenchmarkTask(
+        task_id="aipw_product_rate_remainder_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S3",
+        domain_tags=("aipw", "product_rate", "second_order_remainder"),
+        natural_language=(
+            "Use a verified AIPW nuisance product-rate certificate to extract "
+            "the small-o second-order remainder."
+        ),
+        lean_task=LeanTask(
+            task_id="aipw_product_rate_remainder_seed",
+            imports=("StatInference.Causal.AIPW",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example (certificate : StatInference.VerifiedAIPWNuisanceProductRate) : "
+                "certificate.product_rate.product_remainder_small.statement := by\n"
+                "  exact StatInference.VerifiedAIPWNuisanceProductRate.remainderSmall "
+                "certificate"
+            ),
+            tags=("aipw", "product_rate", "small_o"),
+            dependencies=("StatInference.VerifiedAIPWNuisanceProductRate.remainderSmall",),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=("StatInference.VerifiedAIPWNuisanceProductRate.remainderSmall",),
+    ),
+    BenchmarkTask(
+        task_id="aipw_orthogonal_score_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S4",
+        domain_tags=("aipw", "neyman_orthogonality", "orthogonal_score"),
+        natural_language=(
+            "Expose the AIPW score orthogonality statement from the "
+            "orthogonal product-rate route."
+        ),
+        lean_task=LeanTask(
+            task_id="aipw_orthogonal_score_seed",
+            imports=("StatInference.Causal.AIPW",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Observation Propensity Regression ScoreValue Parameter : Type*} "
+                "(route : StatInference.AIPWOrthogonalProductRateRoute "
+                "Observation Propensity Regression ScoreValue Parameter) : "
+                "route.score.orthogonal_score_statement := by\n"
+                "  exact StatInference.AIPWOrthogonalProductRateRoute.orthogonalScore "
+                "route"
+            ),
+            tags=("aipw", "orthogonality", "score"),
+            dependencies=("StatInference.AIPWOrthogonalProductRateRoute.orthogonalScore",),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=("StatInference.AIPWOrthogonalProductRateRoute.orthogonalScore",),
+    ),
+    BenchmarkTask(
+        task_id="aipw_second_order_remainder_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S4",
+        domain_tags=("aipw", "product_rate", "second_order_remainder"),
+        natural_language=(
+            "Apply the full AIPW orthogonal product-rate route to prove the "
+            "second-order remainder statement."
+        ),
+        lean_task=LeanTask(
+            task_id="aipw_second_order_remainder_seed",
+            imports=("StatInference.Causal.AIPW",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Observation Propensity Regression ScoreValue Parameter : Type*} "
+                "(route : StatInference.AIPWOrthogonalProductRateRoute "
+                "Observation Propensity Regression ScoreValue Parameter) : "
+                "route.second_order_remainder.statement := by\n"
+                "  exact StatInference.AIPWOrthogonalProductRateRoute."
+                "secondOrderRemainderSmall route"
+            ),
+            tags=("aipw", "orthogonality", "product_rate", "remainder"),
+            dependencies=(
+                "StatInference.AIPWOrthogonalProductRateRoute.secondOrderRemainderSmall",
+            ),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=(
+            "StatInference.AIPWOrthogonalProductRateRoute.secondOrderRemainderSmall",
+        ),
+    ),
+    BenchmarkTask(
+        task_id="trivial_aipw_product_rate_route_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S3",
+        domain_tags=("aipw", "product_rate", "non_vacuity"),
+        natural_language=(
+            "Use the concrete trivial AIPW product-rate route as a non-vacuity "
+            "witness for the orthogonality API."
+        ),
+        lean_task=LeanTask(
+            task_id="trivial_aipw_product_rate_route_seed",
+            imports=("StatInference.Causal.AIPW",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example : "
+                "StatInference.trivialAIPWOrthogonalProductRateRoute."
+                "second_order_remainder.statement := by\n"
+                "  exact StatInference."
+                "trivialAIPWOrthogonalProductRateRoute_secondOrderRemainderSmall"
+            ),
+            tags=("aipw", "non_vacuity", "second_order_remainder"),
+            dependencies=(
+                "StatInference.trivialAIPWOrthogonalProductRateRoute_secondOrderRemainderSmall",
+            ),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=(
+            "StatInference.trivialAIPWOrthogonalProductRateRoute_secondOrderRemainderSmall",
+        ),
+    ),
+    BenchmarkTask(
         task_id="erm_sequence_fixed_index_seed",
         task_type=BenchmarkTaskType.FORMAL_ONLY,
         split=BenchmarkSplit.DEV,
