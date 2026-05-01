@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LemmaProofCostReport",
+  "type": "object",
+  "required": [
+    "proposal_id",
+    "candidate_name",
+    "source_task_ids",
+    "downstream_task_ids",
+    "expected_premises",
+    "baseline_step_count",
+    "projected_step_count",
+    "proof_cost_delta",
+    "relative_cost_reduction",
+    "passed",
+    "status",
+    "required_changes",
+    "notes"
+  ],
+  "properties": {
+    "proposal_id": {"type": "string"},
+    "candidate_name": {"type": "string"},
+    "source_task_ids": {"type": "array", "items": {"type": "string"}},
+    "downstream_task_ids": {"type": "array", "items": {"type": "string"}},
+    "expected_premises": {"type": "array", "items": {"type": "string"}},
+    "baseline_step_count": {"type": "integer"},
+    "projected_step_count": {"type": "integer"},
+    "proof_cost_delta": {"type": "integer"},
+    "relative_cost_reduction": {"type": "number"},
+    "passed": {"type": "boolean"},
+    "status": {"type": "string"},
+    "required_changes": {"type": "array", "items": {"type": "string"}},
+    "notes": {"type": "string"}
+  },
+  "additionalProperties": false
+}

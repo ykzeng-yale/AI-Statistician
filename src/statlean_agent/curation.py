@@ -10,6 +10,7 @@ from statlean_agent.contracts import (
     CuratedLemmaLedgerEntry,
     CurationDecision,
     LemmaNonVacuityReport,
+    LemmaProofCostReport,
     LemmaProposal,
     LemmaProposalGateReport,
     VerificationReport,
@@ -261,6 +262,60 @@ def build_lemma_non_vacuity_reports(
     return tuple(gate_reports)
 
 
+def build_lemma_proof_cost_reports(
+    proposals: tuple[LemmaProposal, ...],
+    tasks: tuple[BenchmarkTask, ...],
+) -> tuple[LemmaProofCostReport, ...]:
+    """Estimate whether a proposal reduces downstream proof construction cost.
+
+    The current curation gate is intentionally conservative: a proposal must
+    replace a multi-premise proof bundle in at least one downstream benchmark
+    with a projected one-step lemma application. This is a deterministic proxy
+    until mined no-sorry proofs are available for direct search-cost replay.
+    """
+
+    reports: list[LemmaProofCostReport] = []
+    for proposal in proposals:
+        downstream_task_ids = _downstream_task_ids_for_proposal(proposal, tasks)
+        expected_premises = tuple(dict.fromkeys(proposal.expected_premises))
+        baseline_step_count = len(expected_premises)
+        projected_step_count = 1 if downstream_task_ids else 0
+        proof_cost_delta = baseline_step_count - projected_step_count if downstream_task_ids else 0
+        relative_cost_reduction = (
+            proof_cost_delta / baseline_step_count
+            if baseline_step_count > 0 and proof_cost_delta > 0
+            else 0.0
+        )
+        required_changes = _proof_cost_required_changes(
+            downstream_task_ids=downstream_task_ids,
+            baseline_step_count=baseline_step_count,
+            proof_cost_delta=proof_cost_delta,
+        )
+        passed = not required_changes
+        reports.append(
+            LemmaProofCostReport(
+                proposal_id=proposal.proposal_id,
+                candidate_name=proposal.candidate.name,
+                source_task_ids=proposal.source_task_ids,
+                downstream_task_ids=downstream_task_ids,
+                expected_premises=expected_premises,
+                baseline_step_count=baseline_step_count,
+                projected_step_count=projected_step_count,
+                proof_cost_delta=proof_cost_delta,
+                relative_cost_reduction=relative_cost_reduction,
+                passed=passed,
+                status="passed" if passed else "blocked_downstream_cost",
+                required_changes=required_changes,
+                notes=(
+                    "P7.M4 gate: a candidate must replace a multi-premise "
+                    "downstream proof bundle with a projected one-step lemma "
+                    "application before promotion."
+                ),
+            )
+        )
+    return tuple(reports)
+
+
 def _candidate_name(task: BenchmarkTask) -> str:
     if task.task_id == "ipw_linearization_theorem_hole_seed":
         return "ipw_hajek_linearization_constructor"
@@ -406,6 +461,36 @@ def _non_vacuity_required_changes(
 
 def _evidence_domain_tags(tasks: tuple[BenchmarkTask, ...]) -> tuple[str, ...]:
     return tuple(sorted({tag for task in tasks for tag in task.domain_tags}))
+
+
+def _downstream_task_ids_for_proposal(
+    proposal: LemmaProposal,
+    tasks: tuple[BenchmarkTask, ...],
+) -> tuple[str, ...]:
+    expected = set(proposal.expected_premises)
+    source_ids = set(proposal.source_task_ids)
+    downstream: list[str] = []
+    for task in tasks:
+        task_premises = set(task.expected_premises)
+        if task.task_id in source_ids or (expected and expected.issubset(task_premises)):
+            downstream.append(task.task_id)
+    return tuple(dict.fromkeys(downstream))
+
+
+def _proof_cost_required_changes(
+    *,
+    downstream_task_ids: tuple[str, ...],
+    baseline_step_count: int,
+    proof_cost_delta: int,
+) -> tuple[str, ...]:
+    changes: list[str] = []
+    if not downstream_task_ids:
+        changes.append("link at least one downstream benchmark task that can use this proposal")
+    if baseline_step_count <= 1:
+        changes.append("show a multi-premise proof bundle that the proposal replaces")
+    if proof_cost_delta <= 0:
+        changes.append("demonstrate positive projected proof-cost reduction")
+    return tuple(changes)
 
 
 def _domain_specific_tags(tags: tuple[str, ...]) -> set[str]:

@@ -5,6 +5,7 @@ from statlean_agent.contracts import (
     CuratedLemmaCandidate,
     CuratedLemmaLedgerEntry,
     LemmaNonVacuityReport,
+    LemmaProofCostReport,
     LemmaProposal,
     LemmaProposalGateReport,
     ProofAttempt,
@@ -15,6 +16,7 @@ from statlean_agent.benchmarks import SEED_BENCHMARKS
 from statlean_agent.curation import (
     DEFAULT_REQUIRED_GATES,
     build_lemma_non_vacuity_reports,
+    build_lemma_proof_cost_reports,
     build_lemma_proposal_gate_reports,
     build_theorem_hole_lemma_ledger,
     build_theorem_hole_lemma_proposals,
@@ -315,6 +317,60 @@ def test_lemma_non_vacuity_reports_block_missing_or_rejected_evidence() -> None:
     assert by_id["proposal::rejected"].missing_evidence_task_ids
 
 
+def test_lemma_proof_cost_reports_require_positive_downstream_gain() -> None:
+    proposals = build_theorem_hole_lemma_proposals(SEED_BENCHMARKS)
+
+    reports = build_lemma_proof_cost_reports(proposals, SEED_BENCHMARKS)
+
+    assert len(reports) == 3
+    assert all(report.passed for report in reports)
+    assert {report.status for report in reports} == {"passed"}
+    assert all(report.baseline_step_count == 2 for report in reports)
+    assert all(report.projected_step_count == 1 for report in reports)
+    assert all(report.proof_cost_delta == 1 for report in reports)
+    assert all(report.relative_cost_reduction == 0.5 for report in reports)
+    assert all(report.downstream_task_ids for report in reports)
+
+
+def test_lemma_proof_cost_reports_block_single_premise_or_no_use() -> None:
+    single_premise = LemmaProposal(
+        proposal_id="proposal::single",
+        source_kind="unit",
+        proposed_by="test",
+        candidate=CuratedLemmaCandidate(
+            name="single",
+            statement="example : True := by trivial",
+            proof="by trivial",
+            motivation_tasks=("task",),
+            semantic_notes="unit test",
+        ),
+        source_task_ids=("task",),
+        expected_premises=("Only.one",),
+    )
+    no_use = LemmaProposal(
+        proposal_id="proposal::no_use",
+        source_kind="unit",
+        proposed_by="test",
+        candidate=CuratedLemmaCandidate(
+            name="no_use",
+            statement="example : True := by trivial",
+            proof="by trivial",
+            motivation_tasks=("missing",),
+            semantic_notes="unit test",
+        ),
+        source_task_ids=("missing",),
+        expected_premises=("A.one", "B.two"),
+    )
+
+    reports = build_lemma_proof_cost_reports((single_premise, no_use), SEED_BENCHMARKS)
+    by_id = {report.proposal_id: report for report in reports}
+
+    assert by_id["proposal::single"].status == "blocked_downstream_cost"
+    assert "show a multi-premise proof bundle that the proposal replaces" in by_id["proposal::single"].required_changes
+    assert by_id["proposal::no_use"].status == "blocked_downstream_cost"
+    assert "link at least one downstream benchmark task that can use this proposal" in by_id["proposal::no_use"].required_changes
+
+
 def test_checked_in_theorem_hole_ledger_is_curator_blocked() -> None:
     records = read_jsonl(Path("artifacts/curation/theorem-hole-ledger.jsonl"))
     entries = tuple(dataclass_from_dict(CuratedLemmaLedgerEntry, record) for record in records)
@@ -369,4 +425,21 @@ def test_checked_in_lemma_non_vacuity_reports_pass() -> None:
     assert all(not report.required_changes for report in reports)
     assert all(not report.missing_evidence_task_ids for report in reports)
     assert schema["title"] == "LemmaNonVacuityReport"
+    assert all(set(record) <= set(schema["properties"]) for record in records)
+
+
+def test_checked_in_lemma_proof_cost_reports_pass() -> None:
+    records = read_jsonl(Path("artifacts/curation/lemma-proof-cost.jsonl"))
+    reports = tuple(dataclass_from_dict(LemmaProofCostReport, record) for record in records)
+    schema = json.loads(Path("schemas/lemma_proof_cost_report.schema.json").read_text(encoding="utf-8"))
+
+    assert len(reports) == 3
+    assert all(report.passed for report in reports)
+    assert {report.status for report in reports} == {"passed"}
+    assert all(report.downstream_task_ids for report in reports)
+    assert all(report.baseline_step_count > report.projected_step_count for report in reports)
+    assert all(report.proof_cost_delta > 0 for report in reports)
+    assert all(report.relative_cost_reduction > 0 for report in reports)
+    assert all(not report.required_changes for report in reports)
+    assert schema["title"] == "LemmaProofCostReport"
     assert all(set(record) <= set(schema["properties"]) for record in records)

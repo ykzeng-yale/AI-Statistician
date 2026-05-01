@@ -27,13 +27,13 @@ def test_cli_render_task(tmp_path: Path, capsys) -> None:
 def test_cli_blueprint_status(capsys) -> None:
     assert main(["blueprint-status", "--blueprint", "config/statlean_blueprint.json"]) == 0
     output = capsys.readouterr().out
-    assert "Current phase: P7" in output
-    assert "Current milestone: P7.M4" in output
+    assert "Current phase: P8" in output
+    assert "Current milestone: P8.M1" in output
 
     assert main(["blueprint-status", "--blueprint", "config/statlean_blueprint.json", "--json"]) == 0
     json_output = capsys.readouterr().out
     assert '"current_phase"' in json_output
-    assert '"P7.M4"' in json_output
+    assert '"P8.M1"' in json_output
 
 
 def test_cli_verify_benchmarks_allow_failures(tmp_path: Path, capsys) -> None:
@@ -307,6 +307,37 @@ def test_cli_check_lemma_non_vacuity(tmp_path: Path, capsys) -> None:
     assert "passed=3" in output
     assert {record["status"] for record in records} == {"passed"}
     assert all(record["accepted_evidence_task_ids"] for record in records)
+
+
+def test_cli_check_lemma_proof_cost(tmp_path: Path, capsys) -> None:
+    benchmark_path = tmp_path / "seeds.jsonl"
+    proposals_path = tmp_path / "lemma-proposals.jsonl"
+    proof_cost_path = tmp_path / "lemma-proof-cost.jsonl"
+    main(["seed-benchmarks", "--output", str(benchmark_path)])
+    main(["build-lemma-proposals", "--benchmarks", str(benchmark_path), "--output", str(proposals_path)])
+
+    assert (
+        main(
+            [
+                "check-lemma-proof-cost",
+                "--proposals",
+                str(proposals_path),
+                "--benchmarks",
+                str(benchmark_path),
+                "--output",
+                str(proof_cost_path),
+            ]
+        )
+        == 0
+    )
+
+    output = capsys.readouterr().out
+    records = read_jsonl(proof_cost_path)
+    assert "proof_cost_reports=3" in output
+    assert "passed=3" in output
+    assert "total_delta=3" in output
+    assert {record["status"] for record in records} == {"passed"}
+    assert all(record["proof_cost_delta"] > 0 for record in records)
 
 
 def test_cli_eval_attempts(tmp_path: Path, capsys) -> None:

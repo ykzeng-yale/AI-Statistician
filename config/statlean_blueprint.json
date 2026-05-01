@@ -374,7 +374,7 @@
     {
       "id": "P7",
       "name": "Progressive Library Growth",
-      "status": "in_progress",
+      "status": "done",
       "objective": "Add a curator-gated mechanism for lemma mining, duplicate detection, non-vacuity examples, and downstream-use tracking.",
       "milestones": [
         {
@@ -413,16 +413,27 @@
             "schemas/lemma_non_vacuity_report.schema.json documents the artifact and tests enforce passing checked-in reports plus blocked missing/rejected evidence behavior."
           ]
         },
-        {"id": "P7.M4", "status": "pending", "name": "Downstream proof-cost improvement metric"}
+        {
+          "id": "P7.M4",
+          "status": "done",
+          "name": "Downstream proof-cost improvement metric",
+          "evidence": [
+            "LemmaProofCostReport contract records downstream task ids, expected premises, baseline/projected step counts, proof-cost delta, relative reduction, pass/fail status, and required changes.",
+            "build_lemma_proof_cost_reports requires a proposal to replace a multi-premise downstream proof bundle with a projected one-step lemma application.",
+            "check-lemma-proof-cost CLI generated artifacts/curation/lemma-proof-cost.jsonl with three passing reports and total projected proof-cost delta 3.",
+            "The three current theorem-hole proposals each replace a two-premise constructor bundle with one promoted lemma use, giving proof_cost_delta=1 and relative_cost_reduction=0.5.",
+            "schemas/lemma_proof_cost_report.schema.json documents the artifact and tests enforce passing checked-in reports plus blocked single-premise/no-downstream-use behavior."
+          ]
+        }
       ],
       "next_actions": [
-        "Implement downstream proof-cost improvement metrics for candidate lemma promotion."
+        "P7 is complete; continue to paper-quality system demonstration in P8."
       ]
     },
     {
       "id": "P8",
       "name": "Paper-Quality System Demonstration",
-      "status": "pending",
+      "status": "in_progress",
       "objective": "Demonstrate that the system improves statistical theorem formalization over general Lean provers and produces reusable Lean statistics infrastructure.",
       "milestones": [
         {"id": "P8.M1", "status": "pending", "name": "Held-out benchmark and baseline results"},
@@ -431,7 +442,7 @@
         {"id": "P8.M4", "status": "pending", "name": "Research paper draft and reproducibility bundle"}
       ],
       "next_actions": [
-        "Only start after at least one concrete theorem chain is no-sorry and CI-green."
+        "Run paper-quality held-out benchmark and baseline results for P8.M1, including non-seed proof chains and failure taxonomy."
       ]
     }
   ]

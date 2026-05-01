@@ -17,6 +17,7 @@ from statlean_agent.contracts import LemmaProposal, ProofAttempt, VerificationRe
 from statlean_agent.curation import (
     build_lemma_proposal_gate_reports,
     build_lemma_non_vacuity_reports,
+    build_lemma_proof_cost_reports,
     build_theorem_hole_lemma_ledger,
     build_theorem_hole_lemma_proposals,
 )
@@ -180,6 +181,22 @@ def main(argv: list[str] | None = None) -> int:
         "--output",
         default="artifacts/curation/lemma-non-vacuity.jsonl",
         help="Output LemmaNonVacuityReport JSONL path.",
+    )
+
+    lemma_proof_cost = subparsers.add_parser(
+        "check-lemma-proof-cost",
+        help="Estimate downstream proof-cost improvement for lemma proposals.",
+    )
+    lemma_proof_cost.add_argument(
+        "--proposals",
+        default="artifacts/curation/lemma-proposals.jsonl",
+        help="LemmaProposal JSONL path.",
+    )
+    lemma_proof_cost.add_argument("--benchmarks", default="benchmarks/seeds.jsonl", help="BenchmarkTask JSONL path.")
+    lemma_proof_cost.add_argument(
+        "--output",
+        default="artifacts/curation/lemma-proof-cost.jsonl",
+        help="Output LemmaProofCostReport JSONL path.",
     )
 
     index_premises = subparsers.add_parser("index-premises", help="Index local Lean declarations.")
@@ -429,6 +446,19 @@ def main(argv: list[str] | None = None) -> int:
         write_jsonl(Path(args.output), list(non_vacuity_reports))
         passed = sum(1 for report in non_vacuity_reports if report.passed)
         print(f"non_vacuity_reports={len(non_vacuity_reports)} passed={passed} output={args.output}")
+        return 0
+
+    if args.command == "check-lemma-proof-cost":
+        proposals = tuple(dataclass_from_dict(LemmaProposal, record) for record in read_jsonl(Path(args.proposals)))
+        tasks = load_benchmarks(Path(args.benchmarks))
+        proof_cost_reports = build_lemma_proof_cost_reports(proposals, tasks)
+        write_jsonl(Path(args.output), list(proof_cost_reports))
+        passed = sum(1 for report in proof_cost_reports if report.passed)
+        total_delta = sum(report.proof_cost_delta for report in proof_cost_reports)
+        print(
+            f"proof_cost_reports={len(proof_cost_reports)} "
+            f"passed={passed} total_delta={total_delta} output={args.output}"
+        )
         return 0
 
     if args.command == "index-premises":

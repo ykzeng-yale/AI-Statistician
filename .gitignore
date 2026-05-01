@@ -29,6 +29,7 @@ artifacts/*
 !artifacts/curation/lemma-proposals.jsonl
 !artifacts/curation/lemma-proposal-gates.jsonl
 !artifacts/curation/lemma-non-vacuity.jsonl
+!artifacts/curation/lemma-proof-cost.jsonl
 !artifacts/training/
 !artifacts/training/manifest.json
 !artifacts/training/dpo-negative-attempts.jsonl

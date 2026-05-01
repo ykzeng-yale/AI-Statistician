@@ -189,6 +189,25 @@ class LemmaNonVacuityReport:
 
 
 @dataclass(frozen=True)
+class LemmaProofCostReport:
+    """Projected downstream proof-cost improvement for a lemma proposal."""
+
+    proposal_id: str
+    candidate_name: str
+    source_task_ids: tuple[str, ...] = ()
+    downstream_task_ids: tuple[str, ...] = ()
+    expected_premises: tuple[str, ...] = ()
+    baseline_step_count: int = 0
+    projected_step_count: int = 0
+    proof_cost_delta: int = 0
+    relative_cost_reduction: float = 0.0
+    passed: bool = False
+    status: str = "pending"
+    required_changes: tuple[str, ...] = ()
+    notes: str = ""
+
+
+@dataclass(frozen=True)
 class CurationDecision:
     """Outcome of curation gates."""
 
