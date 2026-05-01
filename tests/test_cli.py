@@ -23,6 +23,18 @@ def test_cli_render_task(tmp_path: Path, capsys) -> None:
     assert "import StatInference.Asymptotics.Basic" in output
 
 
+def test_cli_blueprint_status(capsys) -> None:
+    assert main(["blueprint-status", "--blueprint", "config/statlean_blueprint.json"]) == 0
+    output = capsys.readouterr().out
+    assert "Current phase: P1" in output
+    assert "Current milestone: P1.M4" in output
+
+    assert main(["blueprint-status", "--blueprint", "config/statlean_blueprint.json", "--json"]) == 0
+    json_output = capsys.readouterr().out
+    assert '"current_phase"' in json_output
+    assert '"P1.M4"' in json_output
+
+
 def test_cli_verify_benchmarks_allow_failures(tmp_path: Path, capsys) -> None:
     input_path = tmp_path / "seeds.jsonl"
     output_path = tmp_path / "reports.jsonl"

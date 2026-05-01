@@ -7,6 +7,12 @@ from pathlib import Path
 
 from statlean_agent.agents import AGENT_REGISTRY, get_agent
 from statlean_agent.benchmarks import load_benchmarks, seed_benchmarks
+from statlean_agent.blueprint import (
+    blueprint_status,
+    load_blueprint,
+    render_blueprint_status,
+    validate_blueprint,
+)
 from statlean_agent.contracts import ProofAttempt, VerificationReport
 from statlean_agent.evaluation import evaluate_attempts, summarize_benchmark_attempts
 from statlean_agent.orchestrator import DEFAULT_WORKFLOW
@@ -23,6 +29,10 @@ def main(argv: list[str] | None = None) -> int:
 
     subparsers.add_parser("list-agents", help="List configured agents.")
     subparsers.add_parser("workflow", help="Print the default workflow.")
+
+    blueprint = subparsers.add_parser("blueprint-status", help="Print current phase blueprint status.")
+    blueprint.add_argument("--blueprint", default="config/statlean_blueprint.json", help="Blueprint JSON path.")
+    blueprint.add_argument("--json", action="store_true", help="Emit machine-readable status JSON.")
 
     seed = subparsers.add_parser("seed-benchmarks", help="Write seed benchmark tasks.")
     seed.add_argument("--output", default="benchmarks/seeds.jsonl", help="Output JSONL path.")
@@ -87,6 +97,19 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "workflow":
         for index, stage in enumerate(DEFAULT_WORKFLOW, start=1):
             print(f"{index}. {stage.name}: {', '.join(stage.agents)} -> {stage.output}")
+        return 0
+
+    if args.command == "blueprint-status":
+        blueprint_data = load_blueprint(Path(args.blueprint))
+        errors = validate_blueprint(blueprint_data)
+        if errors:
+            for error in errors:
+                print(f"error: {error}")
+            return 1
+        if args.json:
+            print(dumps_json(blueprint_status(blueprint_data)))
+        else:
+            print(render_blueprint_status(blueprint_data))
         return 0
 
     if args.command == "seed-benchmarks":

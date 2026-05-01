@@ -6,6 +6,7 @@ TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
 "${PYTHON_BIN}" -m pytest
+PYTHONPATH=src "${PYTHON_BIN}" -m statlean_agent.cli blueprint-status --blueprint config/statlean_blueprint.json >/tmp/statlean-blueprint-status.txt
 PYTHONPATH=src "${PYTHON_BIN}" -m statlean_agent.cli seed-benchmarks --output "${TMP_DIR}/seeds.jsonl"
 cmp "${TMP_DIR}/seeds.jsonl" benchmarks/seeds.jsonl
 PYTHONPATH=src "${PYTHON_BIN}" -m statlean_agent.cli list-benchmarks --input benchmarks/seeds.jsonl

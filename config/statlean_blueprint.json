@@ -1,0 +1,167 @@
+{
+  "id": "statleanagent-blueprint",
+  "title": "StatLeanAgent Progressive Build Blueprint",
+  "target": "Build a verifier-first, human-guided AI system that progressively grows a Lean statistical inference library, benchmarks proof capability, and prepares auditable SFT/DPO/GRPO training data.",
+  "loop_contract": [
+    "Check repository and CI health.",
+    "Run the smoke/eval path when the tree is clean or after local changes.",
+    "Inspect this blueprint and select the first non-done phase and milestone.",
+    "If health is green, implement or evaluate the next unblocked milestone instead of only monitoring.",
+    "Promote changes only after Python tests, deterministic benchmark regeneration, Lean build or CI, and no forbidden Lean shortcuts.",
+    "Update this blueprint when a milestone changes status."
+  ],
+  "promotion_gates": [
+    "No accepted sorry/admit/unsafe/unreviewed axiom in StatInference.",
+    "Benchmark seeds regenerate deterministically.",
+    "Premise index and training manifest can be regenerated.",
+    "Python smoke passes.",
+    "Strict GitHub CI Lean lake build passes.",
+    "Statistical meaning of new definitions is human-reviewable and non-vacuity is tracked."
+  ],
+  "phases": [
+    {
+      "id": "P0",
+      "name": "Green Verifier Baseline",
+      "status": "done",
+      "objective": "Create the repository, strict CI, smoke path, seed Lean modules, benchmark registry, premise indexing, and training manifest scaffold.",
+      "evidence": [
+        "commit 4d5474a",
+        "CI run 25199578921 success",
+        "45 Python tests",
+        "27 seed benchmark tasks",
+        "199 indexed local Lean premises"
+      ],
+      "milestones": [
+        {"id": "P0.M1", "status": "done", "name": "Strict Python and Lean CI"},
+        {"id": "P0.M2", "status": "done", "name": "Seed StatInference modules"},
+        {"id": "P0.M3", "status": "done", "name": "Deterministic StatInferBench seed registry"},
+        {"id": "P0.M4", "status": "done", "name": "Premise indexing and training manifest scaffold"}
+      ],
+      "next_actions": []
+    },
+    {
+      "id": "P1",
+      "name": "Statistics Core Theorem Layer",
+      "status": "in_progress",
+      "objective": "Move from bridge interfaces toward reusable concrete theorem families for asymptotic statistics and statistical learning.",
+      "milestones": [
+        {"id": "P1.M1", "status": "done", "name": "ERM deterministic oracle/excess-risk inequalities"},
+        {"id": "P1.M2", "status": "done", "name": "Convergence bridge interfaces for Slutsky, delta method, CLT route"},
+        {"id": "P1.M3", "status": "done", "name": "M-estimator and Z-estimator deterministic oracle interfaces"},
+        {"id": "P1.M4", "status": "pending", "name": "Mathlib-backed convergence wrappers for convergence in probability/distribution"},
+        {"id": "P1.M5", "status": "pending", "name": "Finite-class uniform convergence theorem and ERM consistency corollary"},
+        {"id": "P1.M6", "status": "pending", "name": "Concrete ratio/Hajek/IPW estimator algebra skeleton"}
+      ],
+      "next_actions": [
+        "Formalize finite-class uniform convergence as the first nontrivial theorem chain using existing deterministic ERM lemmas.",
+        "Replace at least one abstract convergence bridge proposition with a mathlib-backed definition or wrapper.",
+        "Add benchmark tasks that require the new concrete theorem rather than simple projection."
+      ]
+    },
+    {
+      "id": "P2",
+      "name": "Empirical Process And GC Library",
+      "status": "pending",
+      "objective": "Build empirical measures, finite-class GC, covering-number interfaces, and the first reusable Glivenko-Cantelli theorem family.",
+      "milestones": [
+        {"id": "P2.M1", "status": "pending", "name": "Empirical average and empirical risk notation"},
+        {"id": "P2.M2", "status": "pending", "name": "Finite union/finite class uniform deviation bound interface"},
+        {"id": "P2.M3", "status": "pending", "name": "GC class preservation for subclasses/projections"},
+        {"id": "P2.M4", "status": "pending", "name": "Covering-number and Rademacher-compatible benchmark tasks"}
+      ],
+      "next_actions": [
+        "Create finite-class GC modules only after P1 finite-class theorem skeleton is in place."
+      ]
+    },
+    {
+      "id": "P3",
+      "name": "Asymptotic Estimator Library",
+      "status": "pending",
+      "objective": "Connect asymptotic linearity, CLT, Slutsky, M/Z-estimation, and influence expansion into reusable estimator proof paths.",
+      "milestones": [
+        {"id": "P3.M1", "status": "pending", "name": "Asymptotic linearity plus CLT theorem with explicit assumptions"},
+        {"id": "P3.M2", "status": "pending", "name": "Z-estimator differentiability/linearization bridge"},
+        {"id": "P3.M3", "status": "pending", "name": "M-estimator argmin consistency bridge"},
+        {"id": "P3.M4", "status": "pending", "name": "Delta-method theorem family for estimator transformations"}
+      ],
+      "next_actions": [
+        "Promote only after P1/P2 provide enough convergence and uniform-deviation infrastructure."
+      ]
+    },
+    {
+      "id": "P4",
+      "name": "Causal And Semiparametric Inference",
+      "status": "pending",
+      "objective": "Build potential outcomes, IPW/AIPW/TMLE-style bridges, influence functions, and Neyman orthogonality with explicit assumptions.",
+      "milestones": [
+        {"id": "P4.M1", "status": "pending", "name": "ATE identification sanity and non-vacuity examples"},
+        {"id": "P4.M2", "status": "pending", "name": "IPW/Hajek ratio estimator linearization"},
+        {"id": "P4.M3", "status": "pending", "name": "AIPW orthogonality interface and product-rate bridge"},
+        {"id": "P4.M4", "status": "pending", "name": "Influence-function asymptotic normality route"}
+      ],
+      "next_actions": [
+        "Start with IPW/Hajek after P1 ratio algebra and P3 asymptotic-linearity route exist."
+      ]
+    },
+    {
+      "id": "P5",
+      "name": "Proof Agent And Benchmark Loop",
+      "status": "pending",
+      "objective": "Turn the library into a measurable proof-agent loop with theorem-hole tasks, repair tasks, premise-use metrics, and failure taxonomy.",
+      "milestones": [
+        {"id": "P5.M1", "status": "pending", "name": "Benchmark tasks beyond projection examples"},
+        {"id": "P5.M2", "status": "pending", "name": "Verifier artifacts for all benchmark tasks"},
+        {"id": "P5.M3", "status": "pending", "name": "Eval summaries by phase/domain/split"},
+        {"id": "P5.M4", "status": "pending", "name": "Curated lemma growth ledger"}
+      ],
+      "next_actions": [
+        "Each new theorem family must add at least one non-projection benchmark."
+      ]
+    },
+    {
+      "id": "P6",
+      "name": "Domain Adaptation Training Pipeline",
+      "status": "pending",
+      "objective": "Prepare auditable SFT, DPO, and GRPO data generation from verified traces and Lean-labeled attempts.",
+      "milestones": [
+        {"id": "P6.M1", "status": "pending", "name": "SFT examples from verified proof traces"},
+        {"id": "P6.M2", "status": "pending", "name": "DPO pairs from accepted/rejected Lean attempts"},
+        {"id": "P6.M3", "status": "pending", "name": "Process-reward GRPO task manifest"},
+        {"id": "P6.M4", "status": "pending", "name": "Baseline prover comparison on held-out StatInferBench"}
+      ],
+      "next_actions": [
+        "Do not launch RL until P5 has nontrivial benchmark tasks and verifier artifacts."
+      ]
+    },
+    {
+      "id": "P7",
+      "name": "Progressive Library Growth",
+      "status": "pending",
+      "objective": "Add a curator-gated mechanism for lemma mining, duplicate detection, non-vacuity examples, and downstream-use tracking.",
+      "milestones": [
+        {"id": "P7.M1", "status": "pending", "name": "Lemma proposal schema"},
+        {"id": "P7.M2", "status": "pending", "name": "Duplicate and import-minimality checks"},
+        {"id": "P7.M3", "status": "pending", "name": "Non-vacuity example requirement"},
+        {"id": "P7.M4", "status": "pending", "name": "Downstream proof-cost improvement metric"}
+      ],
+      "next_actions": [
+        "Gate any auto-mined lemma before adding it to StatInference."
+      ]
+    },
+    {
+      "id": "P8",
+      "name": "Paper-Quality System Demonstration",
+      "status": "pending",
+      "objective": "Demonstrate that the system improves statistical theorem formalization over general Lean provers and produces reusable Lean statistics infrastructure.",
+      "milestones": [
+        {"id": "P8.M1", "status": "pending", "name": "Held-out benchmark and baseline results"},
+        {"id": "P8.M2", "status": "pending", "name": "One concrete estimator proof chain"},
+        {"id": "P8.M3", "status": "pending", "name": "Ablations for retrieval, SFT, DPO, process reward, and curation"},
+        {"id": "P8.M4", "status": "pending", "name": "Research paper draft and reproducibility bundle"}
+      ],
+      "next_actions": [
+        "Only start after at least one concrete theorem chain is no-sorry and CI-green."
+      ]
+    }
+  ]
+}

@@ -20,6 +20,20 @@ This baseline is only green if Python tests, benchmark determinism checks, and
 Lean build all pass. Do not promote documentation, code, or training artifacts
 that describe an unverified state.
 
+## Executable Blueprint
+
+The detailed phase plan is machine-readable in
+`config/statlean_blueprint.json`. Heartbeats and workers must query it with:
+
+```bash
+PYTHONPATH=src python -m statlean_agent.cli blueprint-status --blueprint config/statlean_blueprint.json
+```
+
+The current rule is: if repository health and CI are green, continue the first
+non-`done` milestone in the first non-`done` phase. Monitoring alone is not
+progress. Each loop should either patch a failure, implement the next milestone,
+run the evaluation needed to promote it, or report a concrete blocker.
+
 ## Next Milestones
 
 ### 1. Harden `StatInference`

@@ -16,7 +16,29 @@ An agent may call a change ready only after it reports:
 - benchmark regeneration or verification status when benchmark artifacts changed;
 - retrieval index or SFT/DPO/GRPO manifest regeneration status when those
   artifacts changed;
+- `statlean_agent.cli blueprint-status` output for
+  `config/statlean_blueprint.json`;
 - unresolved blockers and any human decisions needed.
+
+## Blueprint Continuation Rule
+
+`config/statlean_blueprint.json` is the source of truth for progressive work.
+Every loop must inspect it before deciding what to do.
+
+The command is:
+
+```bash
+PYTHONPATH=src python -m statlean_agent.cli blueprint-status --blueprint config/statlean_blueprint.json
+```
+
+The loop is not allowed to stop at health monitoring when the tree, smoke path,
+and CI are green. It must select the first non-`done` phase and first non-`done`
+milestone, then either implement the next unblocked action, run the evaluation
+needed to promote it, or report the concrete blocker.
+
+After a milestone is completed or blocked, update the blueprint in the same
+change that records the evidence. This prevents heartbeats from drifting away
+from the original system target.
 
 ## Stages
 
@@ -57,6 +79,7 @@ Each active worker should emit a compact heartbeat with:
 
 - agent id and role;
 - branch or worktree;
+- current blueprint phase and milestone;
 - current task and touched paths;
 - last validation command and result;
 - next action or blocker;
@@ -70,6 +93,9 @@ The monitor should flag:
 - stale retrieval indexes or training manifests;
 - new `sorry`/`admit`/`axiom`/`unsafe` occurrences;
 - unexpected edits outside an agent's assigned files.
+
+If no failure is found, the monitor should continue the current blueprint
+milestone rather than only reporting that the repository is healthy.
 
 ## Human-Guided Boundary
 
