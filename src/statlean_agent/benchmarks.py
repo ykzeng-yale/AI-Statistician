@@ -972,6 +972,72 @@ SEED_BENCHMARKS: tuple[BenchmarkTask, ...] = (
         expected_premises=("StatInference.MEstimatorWithOracle.oracleExcessRiskBound",),
     ),
     BenchmarkTask(
+        task_id="m_estimator_argmin_consistency_bound_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S3",
+        domain_tags=("estimator_interface", "m_estimation", "argmin_consistency"),
+        natural_language=(
+            "Apply the M-estimator argmin consistency route's deterministic "
+            "sample-path excess-risk bound."
+        ),
+        lean_task=LeanTask(
+            task_id="m_estimator_argmin_consistency_bound_seed",
+            imports=("StatInference.Estimator.MConsistency",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Sample : Nat -> Type*} {Parameter : Type*} "
+                "(route : StatInference.MEstimatorArgminConsistencyRoute Sample Parameter) "
+                "(n : Nat) : "
+                "route.excessRiskSequence n <= route.oracleBoundSequence n := by\n"
+                "  exact StatInference.MEstimatorArgminConsistencyRoute.excessRiskBound "
+                "route n"
+            ),
+            tags=("m_estimator", "argmin_consistency", "oracle_bound"),
+            dependencies=(
+                "StatInference.MEstimatorArgminConsistencyRoute.excessRiskBound",
+            ),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=(
+            "StatInference.MEstimatorArgminConsistencyRoute.excessRiskBound",
+        ),
+    ),
+    BenchmarkTask(
+        task_id="m_estimator_argmin_consistency_eventual_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S4",
+        domain_tags=("estimator_interface", "m_estimation", "argmin_consistency"),
+        natural_language=(
+            "Apply the M-estimator argmin consistency route: vanishing "
+            "uniform-deviation radius and approximate-argmin tolerance imply "
+            "eventual excess-risk consistency."
+        ),
+        lean_task=LeanTask(
+            task_id="m_estimator_argmin_consistency_eventual_seed",
+            imports=("StatInference.Estimator.MConsistency",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Sample : Nat -> Type*} {Parameter : Type*} "
+                "(route : StatInference.MEstimatorArgminConsistencyRoute Sample Parameter) : "
+                "forall tolerance, tolerance > 0 -> "
+                "Filter.Eventually (fun n => route.excessRiskSequence n < tolerance) "
+                "Filter.atTop := by\n"
+                "  exact StatInference.MEstimatorArgminConsistencyRoute.eventually_excessRisk_lt "
+                "route"
+            ),
+            tags=("m_estimator", "argmin_consistency", "eventual_excess_risk"),
+            dependencies=(
+                "StatInference.MEstimatorArgminConsistencyRoute.eventually_excessRisk_lt",
+            ),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=(
+            "StatInference.MEstimatorArgminConsistencyRoute.eventually_excessRisk_lt",
+        ),
+    ),
+    BenchmarkTask(
         task_id="z_estimator_to_m_estimator_seed",
         task_type=BenchmarkTaskType.FORMAL_ONLY,
         split=BenchmarkSplit.TRAIN,

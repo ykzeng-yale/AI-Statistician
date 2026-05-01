@@ -11,9 +11,9 @@ def test_real_blueprint_selects_next_unfinished_milestone() -> None:
 
     assert status["valid"] is True
     assert status["current_phase"]["id"] == "P3"
-    assert status["current_milestone"]["id"] == "P3.M3"
+    assert status["current_milestone"]["id"] == "P3.M4"
     assert "continue" in render_blueprint_status(blueprint)
-    assert any("M-estimator" in action for action in status["next_actions"])
+    assert any("delta-method" in action for action in status["next_actions"])
 
 
 def test_blueprint_validation_rejects_duplicate_ids_and_bad_status() -> None:

@@ -169,11 +169,21 @@
             "benchmarks z_estimator_linearization_bridge_seed and z_estimator_asymptotic_normal_route_seed accepted locally"
           ]
         },
-        {"id": "P3.M3", "status": "pending", "name": "M-estimator argmin consistency bridge"},
+        {
+          "id": "P3.M3",
+          "status": "done",
+          "name": "M-estimator argmin consistency bridge",
+          "evidence": [
+            "StatInference.Estimator.MConsistency defines MEstimatorArgminConsistencyRoute with explicit sample path, uniform-deviation convergence, and approximate-argmin tolerance convergence assumptions.",
+            "MEstimatorArgminConsistencyRoute.excessRiskBound projects the deterministic M-estimator oracle inequality along the stored sample path.",
+            "MEstimatorArgminConsistencyRoute.eventually_excessRisk_lt proves eventual excess-risk consistency from vanishing deviation radius and tolerance.",
+            "benchmarks m_estimator_argmin_consistency_bound_seed and m_estimator_argmin_consistency_eventual_seed accepted locally"
+          ]
+        },
         {"id": "P3.M4", "status": "pending", "name": "Delta-method theorem family for estimator transformations"}
       ],
       "next_actions": [
-        "Build the M-estimator argmin consistency bridge on top of the deterministic oracle and empirical-process layers."
+        "Build the delta-method theorem family for estimator transformations."
       ]
     },
     {

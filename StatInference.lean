@@ -4,6 +4,7 @@ import StatInference.Asymptotics.Convergence
 import StatInference.Asymptotics.AsymptoticNormal
 import StatInference.Estimator.Basic
 import StatInference.Estimator.AsymptoticLinear
+import StatInference.Estimator.MConsistency
 import StatInference.Estimator.MEstimator
 import StatInference.Estimator.Normality
 import StatInference.Estimator.Ratio
