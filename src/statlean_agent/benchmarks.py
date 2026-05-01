@@ -476,6 +476,78 @@ SEED_BENCHMARKS: tuple[BenchmarkTask, ...] = (
         expected_premises=("StatInference.FiniteUnionDeviationSequence.project",),
     ),
     BenchmarkTask(
+        task_id="covering_certificate_gc_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S4",
+        domain_tags=("empirical_process", "covering_number", "glivenko_cantelli"),
+        natural_language=(
+            "Convert a proof-carrying covering-number deviation certificate "
+            "into a GC-class interface."
+        ),
+        lean_task=LeanTask(
+            task_id="covering_certificate_gc_seed",
+            imports=("StatInference.EmpiricalProcess.Complexity",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Index : Type*} {indexClass : Set Index} "
+                "{populationRisk : Index -> Real} {empiricalRisk : Nat -> Index -> Real} "
+                "(certificate : StatInference.CoveringNumberDeviationCertificate "
+                "indexClass populationRisk empiricalRisk) "
+                "(hassumptions : certificate.assumptions) : "
+                "StatInference.GlivenkoCantelliClass "
+                "indexClass populationRisk empiricalRisk := by\n"
+                "  exact StatInference.CoveringNumberDeviationCertificate.toGlivenkoCantelliClass "
+                "certificate hassumptions"
+            ),
+            tags=("covering_number", "gc_certificate", "uniform_deviation"),
+            dependencies=(
+                "StatInference.CoveringNumberDeviationCertificate.toGlivenkoCantelliClass",
+            ),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=(
+            "StatInference.CoveringNumberDeviationCertificate.toGlivenkoCantelliClass",
+        ),
+    ),
+    BenchmarkTask(
+        task_id="rademacher_certificate_gc_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S5",
+        domain_tags=("empirical_process", "rademacher_complexity", "glivenko_cantelli"),
+        natural_language=(
+            "Use a Rademacher-compatible deviation certificate plus vanishing "
+            "complexity and slack to build a GC-class interface."
+        ),
+        lean_task=LeanTask(
+            task_id="rademacher_certificate_gc_seed",
+            imports=("StatInference.EmpiricalProcess.Complexity",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Index : Type*} {indexClass : Set Index} "
+                "{populationRisk : Index -> Real} {empiricalRisk : Nat -> Index -> Real} "
+                "(certificate : StatInference.RademacherDeviationCertificate "
+                "indexClass populationRisk empiricalRisk) "
+                "(hcomplexity : Filter.Tendsto certificate.rademacher.complexity "
+                "Filter.atTop (nhds 0)) "
+                "(hslack : Filter.Tendsto certificate.slack Filter.atTop (nhds 0)) : "
+                "StatInference.GlivenkoCantelliClass "
+                "indexClass populationRisk empiricalRisk := by\n"
+                "  exact StatInference.RademacherDeviationCertificate.toGlivenkoCantelliClass "
+                "certificate hcomplexity hslack"
+            ),
+            tags=("rademacher_complexity", "gc_certificate", "radius_tendsto_zero"),
+            dependencies=(
+                "StatInference.RademacherDeviationCertificate.toGlivenkoCantelliClass",
+            ),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=(
+            "StatInference.RademacherDeviationCertificate.toGlivenkoCantelliClass",
+        ),
+    ),
+    BenchmarkTask(
         task_id="asymptotic_bridge_projection",
         task_type=BenchmarkTaskType.FORMAL_ONLY,
         split=BenchmarkSplit.TRAIN,

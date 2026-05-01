@@ -88,7 +88,7 @@
     {
       "id": "P2",
       "name": "Empirical Process And GC Library",
-      "status": "in_progress",
+      "status": "done",
       "objective": "Build empirical measures, finite-class GC, covering-number interfaces, and the first reusable Glivenko-Cantelli theorem family.",
       "milestones": [
         {
@@ -125,16 +125,26 @@
             "benchmarks finite_class_gc_projection_seed and finite_union_projection_seed accepted locally"
           ]
         },
-        {"id": "P2.M4", "status": "pending", "name": "Covering-number and Rademacher-compatible benchmark tasks"}
+        {
+          "id": "P2.M4",
+          "status": "done",
+          "name": "Covering-number and Rademacher-compatible benchmark tasks",
+          "evidence": [
+            "StatInference.EmpiricalProcess.Complexity defines CoveringNumberSpec and CoveringNumberDeviationCertificate as proof-carrying entropy-route interfaces.",
+            "StatInference.EmpiricalProcess.Complexity defines RademacherComplexitySpec and RademacherDeviationCertificate with radius = 2 * complexity + slack.",
+            "RademacherDeviationCertificate.radius_tendsto_zero proves the deterministic vanishing-radius handoff from vanishing complexity and slack.",
+            "benchmarks covering_certificate_gc_seed and rademacher_certificate_gc_seed accepted locally"
+          ]
+        }
       ],
       "next_actions": [
-        "Add covering-number and Rademacher-compatible benchmark tasks that can drive the next empirical-process library layer."
+        "P2 is complete; continue to the asymptotic estimator library in P3."
       ]
     },
     {
       "id": "P3",
       "name": "Asymptotic Estimator Library",
-      "status": "pending",
+      "status": "in_progress",
       "objective": "Connect asymptotic linearity, CLT, Slutsky, M/Z-estimation, and influence expansion into reusable estimator proof paths.",
       "milestones": [
         {"id": "P3.M1", "status": "pending", "name": "Asymptotic linearity plus CLT theorem with explicit assumptions"},
@@ -143,7 +153,7 @@
         {"id": "P3.M4", "status": "pending", "name": "Delta-method theorem family for estimator transformations"}
       ],
       "next_actions": [
-        "Promote only after P1/P2 provide enough convergence and uniform-deviation infrastructure."
+        "Build the asymptotic linearity plus CLT theorem with explicit assumptions."
       ]
     },
     {

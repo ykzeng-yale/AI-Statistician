@@ -10,10 +10,10 @@ def test_real_blueprint_selects_next_unfinished_milestone() -> None:
     status = blueprint_status(blueprint)
 
     assert status["valid"] is True
-    assert status["current_phase"]["id"] == "P2"
-    assert status["current_milestone"]["id"] == "P2.M4"
+    assert status["current_phase"]["id"] == "P3"
+    assert status["current_milestone"]["id"] == "P3.M1"
     assert "continue" in render_blueprint_status(blueprint)
-    assert any("Rademacher" in action or "covering" in action for action in status["next_actions"])
+    assert any("asymptotic linearity" in action for action in status["next_actions"])
 
 
 def test_blueprint_validation_rejects_duplicate_ids_and_bad_status() -> None:
