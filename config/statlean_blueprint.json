@@ -488,6 +488,44 @@
       "next_actions": [
         "Blueprint complete; continue future work by opening a new post-P8 phase for external prover baselines, theorem-hole proof promotion, or empirical-process expansion."
       ]
+    },
+    {
+      "id": "P9",
+      "name": "External Baselines And Proof Promotion",
+      "status": "in_progress",
+      "objective": "Move beyond the seed-registry demonstration by preparing external prover baselines, promoting theorem-hole lemmas into no-placeholder Lean proofs, and expanding empirical-process coverage.",
+      "milestones": [
+        {
+          "id": "P9.M1",
+          "status": "done",
+          "name": "External prover baseline run plan",
+          "evidence": [
+            "build_external_baseline_plan creates a concrete post-P8 baseline matrix over the current held-out StatInferBench split.",
+            "external-baseline-plan CLI generated artifacts/evaluation/external-baseline-plan.json with five baselines: seed-registry, ReProver, DeepSeek-Prover-V2 7B, Kimina-Prover-RL 1.7B, and a general coding-agent Lean baseline.",
+            "The report marks only seed-registry as ready and records model/harness requirements for the four blocked external baselines.",
+            "The report fixes target task ids, theorem-hole task ids, output paths, command templates, and metrics including pass@k, valid tactic rate, premise recall, timeout rate, and wall time.",
+            "schemas/external_baseline_plan.schema.json documents the artifact and tests enforce checked-in plan coverage."
+          ]
+        },
+        {
+          "id": "P9.M2",
+          "status": "pending",
+          "name": "Theorem-hole lemma promotion queue"
+        },
+        {
+          "id": "P9.M3",
+          "status": "pending",
+          "name": "External baseline result ingestion and comparison"
+        },
+        {
+          "id": "P9.M4",
+          "status": "pending",
+          "name": "Empirical-process expansion targets for bracketing, VC, and Donsker interfaces"
+        }
+      ],
+      "next_actions": [
+        "Build the P9.M2 theorem-hole lemma promotion queue and identify the first no-placeholder Lean proof target."
+      ]
     }
   ]
 }

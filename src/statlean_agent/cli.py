@@ -26,6 +26,7 @@ from statlean_agent.evaluation import (
     DEFAULT_REPRODUCIBILITY_ARTIFACTS,
     build_ablation_report,
     build_concrete_estimator_chain_report,
+    build_external_baseline_plan,
     build_paper_quality_heldout_report,
     build_reproducibility_bundle,
     compare_baseline_on_split,
@@ -118,6 +119,23 @@ def main(argv: list[str] | None = None) -> int:
     baseline_compare.add_argument("--baseline", default="seed-registry", help="ProofAttempt agent_key to evaluate.")
     baseline_compare.add_argument("--split", default="test", help="Benchmark split to evaluate.")
     baseline_compare.add_argument("--output", help="Optional comparison JSON output path.")
+
+    external_baselines = subparsers.add_parser(
+        "external-baseline-plan",
+        help="Build a post-P8 external prover baseline run plan.",
+    )
+    external_baselines.add_argument("--benchmarks", default="benchmarks/seeds.jsonl", help="BenchmarkTask JSONL path.")
+    external_baselines.add_argument("--split", default="test", help="Benchmark split targeted by external baselines.")
+    external_baselines.add_argument(
+        "--output-dir",
+        default="artifacts/external_baselines",
+        help="Output directory encoded for future external baseline attempts/reports.",
+    )
+    external_baselines.add_argument(
+        "--output",
+        default="artifacts/evaluation/external-baseline-plan.json",
+        help="Output external baseline plan JSON path.",
+    )
 
     paper_heldout = subparsers.add_parser(
         "paper-quality-heldout",
@@ -528,6 +546,23 @@ def main(argv: list[str] | None = None) -> int:
             print(f"wrote {output}")
         else:
             print(encoded)
+        return 0
+
+    if args.command == "external-baseline-plan":
+        tasks = load_benchmarks(Path(args.benchmarks))
+        plan = build_external_baseline_plan(
+            tasks,
+            split=args.split,
+            benchmark_path=args.benchmarks,
+            output_dir=args.output_dir,
+        )
+        output = Path(args.output)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(dumps_json(plan) + "\n", encoding="utf-8")
+        print(
+            f"wrote {output} baselines={plan['baseline_count']} "
+            f"ready={plan['ready_baseline_count']} target_tasks={plan['target_task_count']}"
+        )
         return 0
 
     if args.command == "paper-quality-heldout":

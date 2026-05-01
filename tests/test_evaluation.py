@@ -15,6 +15,7 @@ from statlean_agent.contracts import (
 from statlean_agent.evaluation import (
     build_ablation_report,
     build_concrete_estimator_chain_report,
+    build_external_baseline_plan,
     build_paper_quality_heldout_report,
     build_reproducibility_bundle,
     compare_baseline_on_split,
@@ -398,6 +399,34 @@ def test_build_reproducibility_bundle_records_artifact_hashes(tmp_path: Path) ->
     assert any(command["name"] == "lean_build" for command in bundle["validation_commands"])
 
 
+def test_build_external_baseline_plan_records_blocked_model_runs() -> None:
+    tasks = (
+        _benchmark_task("train-task", split=BenchmarkSplit.TRAIN, domain_tags=("train_domain",)),
+        _benchmark_task("test-task", split=BenchmarkSplit.TEST, domain_tags=("test_domain",)),
+        _benchmark_task(
+            "hole-task",
+            split=BenchmarkSplit.DEV,
+            task_type=BenchmarkTaskType.SUBGOAL_COMPLETION,
+            domain_tags=("theorem_hole",),
+            allowed_sorry=True,
+        ),
+    )
+
+    plan = build_external_baseline_plan(tasks, split="test")
+
+    assert plan["report_id"] == "external-baseline-plan::test"
+    assert plan["benchmark_task_count"] == 3
+    assert plan["target_task_count"] == 1
+    assert plan["target_task_ids"] == ["test-task"]
+    assert plan["theorem_hole_task_count"] == 1
+    assert plan["ready_baseline_count"] == 1
+    assert plan["blocked_baseline_count"] == plan["baseline_count"] - 1
+    assert plan["baselines"][0]["baseline_id"] == "seed-registry"
+    assert plan["baselines"][0]["status"] == "ready"
+    assert all(row["target_task_count"] == 1 for row in plan["baselines"])
+    assert "pass_at_32" in plan["metrics"]
+
+
 def test_cli_eval_summary(tmp_path: Path, capsys) -> None:
     benchmarks_path = tmp_path / "benchmarks.jsonl"
     attempts_path = tmp_path / "attempts.jsonl"
@@ -717,6 +746,27 @@ def test_checked_in_ablation_report_artifact() -> None:
     assert set(report) <= set(schema["properties"])
 
 
+def test_checked_in_external_baseline_plan_artifact() -> None:
+    report = json.loads(Path("artifacts/evaluation/external-baseline-plan.json").read_text(encoding="utf-8"))
+    schema = json.loads(Path("schemas/external_baseline_plan.schema.json").read_text(encoding="utf-8"))
+    test_ids = [task.task_id for task in SEED_BENCHMARKS if task.split is BenchmarkSplit.TEST]
+    theorem_hole_ids = [task.task_id for task in SEED_BENCHMARKS if task.lean_task.allowed_sorry]
+
+    assert report["report_id"] == "external-baseline-plan::test"
+    assert report["split"] == "test"
+    assert report["target_task_ids"] == test_ids
+    assert report["target_task_count"] == len(test_ids)
+    assert report["theorem_hole_task_ids"] == theorem_hole_ids
+    assert report["baseline_count"] == 5
+    assert report["ready_baseline_count"] == 1
+    assert report["blocked_baseline_count"] == 4
+    assert report["baselines"][0]["baseline_id"] == "seed-registry"
+    assert report["baselines"][0]["status"] == "ready"
+    assert "deepseek-prover-v2-7b" in {baseline["baseline_id"] for baseline in report["baselines"]}
+    assert "pass_at_32" in report["metrics"]
+    assert set(report) <= set(schema["properties"])
+
+
 def test_checked_in_reproducibility_bundle_artifact() -> None:
     report = json.loads(Path("artifacts/evaluation/reproducibility-bundle.json").read_text(encoding="utf-8"))
     schema = json.loads(Path("schemas/reproducibility_bundle.schema.json").read_text(encoding="utf-8"))
@@ -724,15 +774,16 @@ def test_checked_in_reproducibility_bundle_artifact() -> None:
 
     assert report["report_id"] == "reproducibility::p8"
     assert report["blueprint_id"] == "statleanagent-blueprint"
-    assert report["all_phases_done"] is True
+    assert report["all_phases_done"] is False
     assert report["paper_draft_path"] == "docs/paper_draft.md"
     assert report["artifact_count"] == len(report["artifacts"])
     assert "docs/paper_draft.md" in artifact_paths
     assert "artifacts/evaluation/ablation-report.json" in artifact_paths
+    assert "artifacts/evaluation/external-baseline-plan.json" in artifact_paths
     assert all(len(artifact["sha256"]) == 64 for artifact in report["artifacts"])
     assert any(command["name"] == "smoke" for command in report["validation_commands"])
     assert any(command["name"] == "forbidden_lean_shortcuts" for command in report["validation_commands"])
-    assert report["current_milestone"] is None
+    assert report["current_milestone"]["id"] == "P9.M2"
     assert set(report) <= set(schema["properties"])
 
 

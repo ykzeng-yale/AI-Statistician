@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ExternalBaselinePlan",
+  "type": "object",
+  "required": [
+    "report_id",
+    "split",
+    "benchmark_path",
+    "benchmark_task_count",
+    "target_task_count",
+    "target_task_ids",
+    "target_domain_tags",
+    "theorem_hole_task_count",
+    "theorem_hole_task_ids",
+    "baseline_count",
+    "ready_baseline_count",
+    "blocked_baseline_count",
+    "baselines",
+    "metrics",
+    "promotion_gate",
+    "notes"
+  ],
+  "properties": {
+    "report_id": {"type": "string"},
+    "split": {"type": "string"},
+    "benchmark_path": {"type": "string"},
+    "benchmark_task_count": {"type": "integer"},
+    "target_task_count": {"type": "integer"},
+    "target_task_ids": {"type": "array", "items": {"type": "string"}},
+    "target_domain_tags": {"type": "array", "items": {"type": "string"}},
+    "theorem_hole_task_count": {"type": "integer"},
+    "theorem_hole_task_ids": {"type": "array", "items": {"type": "string"}},
+    "baseline_count": {"type": "integer"},
+    "ready_baseline_count": {"type": "integer"},
+    "blocked_baseline_count": {"type": "integer"},
+    "baselines": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "baseline_id",
+          "display_name",
+          "runner_type",
+          "status",
+          "requires",
+          "target_task_count",
+          "attempts_path",
+          "reports_path",
+          "summary_path",
+          "command"
+        ],
+        "properties": {
+          "baseline_id": {"type": "string"},
+          "display_name": {"type": "string"},
+          "runner_type": {"type": "string"},
+          "status": {"type": "string"},
+          "requires": {"type": "array", "items": {"type": "string"}},
+          "target_task_count": {"type": "integer"},
+          "attempts_path": {"type": "string"},
+          "reports_path": {"type": "string"},
+          "summary_path": {"type": "string"},
+          "command": {"type": "string"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "metrics": {"type": "array", "items": {"type": "string"}},
+    "promotion_gate": {"type": "string"},
+    "notes": {"type": "string"}
+  },
+  "additionalProperties": false
+}

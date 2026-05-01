@@ -83,6 +83,7 @@ DEFAULT_REPRODUCIBILITY_ARTIFACTS = (
     "artifacts/evaluation/paper-quality-heldout.json",
     "artifacts/evaluation/concrete-estimator-chain.json",
     "artifacts/evaluation/ablation-report.json",
+    "artifacts/evaluation/external-baseline-plan.json",
     "artifacts/training/manifest.json",
     "artifacts/training/dpo-negative-attempts.jsonl",
     "artifacts/training/dpo-negative-reports.jsonl",
@@ -93,6 +94,53 @@ DEFAULT_REPRODUCIBILITY_ARTIFACTS = (
     "artifacts/curation/lemma-non-vacuity.jsonl",
     "artifacts/curation/lemma-proof-cost.jsonl",
     "docs/paper_draft.md",
+)
+
+DEFAULT_EXTERNAL_BASELINES = (
+    {
+        "baseline_id": "seed-registry",
+        "display_name": "Checked-in seed registry proof render",
+        "runner_type": "local_oracle",
+        "status": "ready",
+        "requires": (),
+        "command_template": (
+            "statlean materialize-benchmark-attempts --benchmarks {benchmarks} --output {attempts} "
+            "--agent-key seed-registry && statlean verify-attempts --attempts {attempts} "
+            "--reports {reports} --benchmarks {benchmarks}"
+        ),
+    },
+    {
+        "baseline_id": "reprover-byt5",
+        "display_name": "LeanDojo/ReProver retrieval-augmented tactic model",
+        "runner_type": "external_model",
+        "status": "requires_model_setup",
+        "requires": ("LeanDojo/ReProver runtime", "model checkpoint", "premise index adapter"),
+        "command_template": "external-runner reprover --benchmarks {benchmarks} --split {split} --output {attempts}",
+    },
+    {
+        "baseline_id": "deepseek-prover-v2-7b",
+        "display_name": "DeepSeek-Prover-V2 7B whole-proof generator",
+        "runner_type": "external_model",
+        "status": "requires_model_setup",
+        "requires": ("model weights or endpoint", "GPU or hosted inference", "whole-proof adapter"),
+        "command_template": "external-runner deepseek-prover-v2 --benchmarks {benchmarks} --split {split} --output {attempts}",
+    },
+    {
+        "baseline_id": "kimina-prover-rl-1.7b",
+        "display_name": "Kimina-Prover RL 1.7B whole-proof generator",
+        "runner_type": "external_model",
+        "status": "requires_model_setup",
+        "requires": ("model weights or endpoint", "Kimina Lean Server optional", "whole-proof adapter"),
+        "command_template": "external-runner kimina-prover --benchmarks {benchmarks} --split {split} --output {attempts}",
+    },
+    {
+        "baseline_id": "general-llm-codex",
+        "display_name": "General coding-agent Lean proof baseline",
+        "runner_type": "agentic_llm",
+        "status": "requires_harness",
+        "requires": ("agent harness", "timeout policy", "attempt capture adapter"),
+        "command_template": "external-runner codex --benchmarks {benchmarks} --split {split} --output {attempts}",
+    },
 )
 
 DEFAULT_REPRODUCIBILITY_COMMANDS = (
@@ -711,6 +759,71 @@ def build_reproducibility_bundle(
     }
 
 
+def build_external_baseline_plan(
+    tasks: tuple[BenchmarkTask, ...],
+    *,
+    split: str = "test",
+    baseline_specs: tuple[Mapping[str, object], ...] = DEFAULT_EXTERNAL_BASELINES,
+    benchmark_path: str = "benchmarks/seeds.jsonl",
+    output_dir: str = "artifacts/external_baselines",
+) -> dict[str, object]:
+    """Build a concrete run plan for post-P8 external prover baselines."""
+
+    split_tasks = tuple(task for task in tasks if _enum_value(task.split) == split)
+    if not split_tasks:
+        raise ValueError(f"no benchmark tasks found for split `{split}`")
+
+    theorem_hole_tasks = tuple(task for task in tasks if task.lean_task.allowed_sorry)
+    domain_tags = sorted({tag for task in split_tasks for tag in task.domain_tags})
+    baselines = [
+        _external_baseline_row(
+            spec,
+            split=split,
+            benchmark_path=benchmark_path,
+            output_dir=output_dir,
+            task_count=len(split_tasks),
+        )
+        for spec in baseline_specs
+    ]
+    ready_count = sum(1 for baseline in baselines if baseline["status"] == "ready")
+
+    return {
+        "report_id": f"external-baseline-plan::{split}",
+        "split": split,
+        "benchmark_path": benchmark_path,
+        "benchmark_task_count": len(tasks),
+        "target_task_count": len(split_tasks),
+        "target_task_ids": [task.task_id for task in split_tasks],
+        "target_domain_tags": domain_tags,
+        "theorem_hole_task_count": len(theorem_hole_tasks),
+        "theorem_hole_task_ids": [task.task_id for task in theorem_hole_tasks],
+        "baseline_count": len(baselines),
+        "ready_baseline_count": ready_count,
+        "blocked_baseline_count": len(baselines) - ready_count,
+        "baselines": baselines,
+        "metrics": [
+            "pass_at_1",
+            "pass_at_8",
+            "pass_at_32",
+            "valid_tactic_rate",
+            "mean_premise_recall",
+            "unknown_identifier_rate",
+            "timeout_rate",
+            "mean_wall_time_seconds",
+        ],
+        "promotion_gate": (
+            "An external baseline row is reportable only after attempts are captured "
+            "as ProofAttempt JSONL, verified by the local Lake verifier, and summarized "
+            "with the same failure taxonomy as the seed-registry baseline."
+        ),
+        "notes": (
+            "P9.M1 plan: external prover baselines are specified as reproducible run "
+            "targets. Only seed-registry is currently ready; model baselines remain "
+            "blocked until their adapters and credentials/checkpoints are available."
+        ),
+    }
+
+
 @dataclass
 class _SummaryBucket:
     attempts: int = 0
@@ -1003,6 +1116,39 @@ def _artifact_record(repo_root: Path, relative_path: str) -> dict[str, object]:
         "sha256": hashlib.sha256(payload).hexdigest(),
         "byte_count": len(payload),
         "line_count": text.count("\n") + (0 if text.endswith("\n") or not text else 1),
+    }
+
+
+def _external_baseline_row(
+    spec: Mapping[str, object],
+    *,
+    split: str,
+    benchmark_path: str,
+    output_dir: str,
+    task_count: int,
+) -> dict[str, object]:
+    baseline_id = str(spec["baseline_id"])
+    attempts_path = f"{output_dir}/{baseline_id}-{split}-attempts.jsonl"
+    reports_path = f"{output_dir}/{baseline_id}-{split}-reports.jsonl"
+    summary_path = f"{output_dir}/{baseline_id}-{split}-summary.json"
+    command_template = str(spec["command_template"])
+    return {
+        "baseline_id": baseline_id,
+        "display_name": str(spec["display_name"]),
+        "runner_type": str(spec["runner_type"]),
+        "status": str(spec["status"]),
+        "requires": [str(requirement) for requirement in _sequence(spec.get("requires"))],
+        "target_task_count": task_count,
+        "attempts_path": attempts_path,
+        "reports_path": reports_path,
+        "summary_path": summary_path,
+        "command": command_template.format(
+            benchmarks=benchmark_path,
+            split=split,
+            attempts=attempts_path,
+            reports=reports_path,
+            summary=summary_path,
+        ),
     }
 
 

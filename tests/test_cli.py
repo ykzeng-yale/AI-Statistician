@@ -27,13 +27,13 @@ def test_cli_render_task(tmp_path: Path, capsys) -> None:
 def test_cli_blueprint_status(capsys) -> None:
     assert main(["blueprint-status", "--blueprint", "config/statlean_blueprint.json"]) == 0
     output = capsys.readouterr().out
-    assert "Current phase: P8" in output
-    assert "Current milestone: none" in output
+    assert "Current phase: P9" in output
+    assert "Current milestone: P9.M2" in output
 
     assert main(["blueprint-status", "--blueprint", "config/statlean_blueprint.json", "--json"]) == 0
     json_output = capsys.readouterr().out
     assert '"current_phase"' in json_output
-    assert '"current_milestone": null' in json_output
+    assert '"P9.M2"' in json_output
 
 
 def test_cli_verify_benchmarks_allow_failures(tmp_path: Path, capsys) -> None:
@@ -338,6 +338,39 @@ def test_cli_check_lemma_proof_cost(tmp_path: Path, capsys) -> None:
     assert "total_delta=3" in output
     assert {record["status"] for record in records} == {"passed"}
     assert all(record["proof_cost_delta"] > 0 for record in records)
+
+
+def test_cli_external_baseline_plan(tmp_path: Path, capsys) -> None:
+    benchmark_path = tmp_path / "seeds.jsonl"
+    output_path = tmp_path / "external-plan.json"
+    main(["seed-benchmarks", "--output", str(benchmark_path)])
+
+    assert (
+        main(
+            [
+                "external-baseline-plan",
+                "--benchmarks",
+                str(benchmark_path),
+                "--split",
+                "test",
+                "--output-dir",
+                "tmp-external",
+                "--output",
+                str(output_path),
+            ]
+        )
+        == 0
+    )
+
+    output = capsys.readouterr().out
+    plan = json.loads(output_path.read_text(encoding="utf-8"))
+    assert "baselines=5" in output
+    assert "ready=1" in output
+    assert "target_tasks=2" in output
+    assert plan["report_id"] == "external-baseline-plan::test"
+    assert plan["ready_baseline_count"] == 1
+    assert plan["blocked_baseline_count"] == 4
+    assert plan["baselines"][0]["attempts_path"].startswith("tmp-external/")
 
 
 def test_cli_ablation_report(tmp_path: Path, capsys) -> None:

@@ -101,6 +101,15 @@ statlean reproducibility-bundle \
   --output artifacts/evaluation/reproducibility-bundle.json
 ```
 
+Prepare post-P8 external prover baselines:
+
+```bash
+statlean external-baseline-plan \
+  --benchmarks benchmarks/seeds.jsonl \
+  --split test \
+  --output artifacts/evaluation/external-baseline-plan.json
+```
+
 Preview a worktree assignment:
 
 ```bash
@@ -134,9 +143,8 @@ Each code-writing agent gets an isolated git worktree and branch. Curated change
 
 ## Next Milestones
 
-The initial P0-P8 build blueprint is complete. The next post-P8 work should be
-tracked as a new phase rather than silently expanding the completed milestone
-set.
+The initial P0-P8 build blueprint is complete. Post-P8 work is tracked in P9,
+starting with external prover baselines and theorem-hole proof promotion.
 
 1. Harden the no-`sorry` `StatInference` library around convergence wrappers, `op(1)`/`Op(1)` calculus, asymptotic normality, and first concrete estimators.
 2. Grow `StatInferBench` from seed tasks into theorem-hole, repair, proof-state, and tactic tasks with dependency-based splits.
