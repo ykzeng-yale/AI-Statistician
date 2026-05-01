@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BenchmarkTask",
+  "type": "object",
+  "required": ["task_id", "task_type", "lean_task", "difficulty", "domain_tags"],
+  "properties": {
+    "task_id": {"type": "string"},
+    "task_type": {
+      "type": "string",
+      "enum": ["formal_only", "formalization", "repair", "subgoal_completion", "lemma_growth"]
+    },
+    "lean_task": {"type": "object"},
+    "difficulty": {"type": "string"},
+    "domain_tags": {"type": "array", "items": {"type": "string"}},
+    "split": {"type": "string", "enum": ["train", "dev", "test"]}
+  }
+}
+

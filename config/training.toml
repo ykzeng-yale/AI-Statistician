@@ -1,0 +1,15 @@
+[sft]
+base_model = "deepseek-ai/DeepSeek-Prover-V2-7B"
+max_seq_len = 8192
+target_format = "proof_state_to_tactic"
+
+[dpo]
+chosen_source = "accepted_or_locally_valid"
+rejected_source = "lean_rejected_or_forbidden"
+
+[grpo]
+backend = "verl"
+verifier = "kimina-lean-server"
+group_size = 8
+reward = "process_verified"
+

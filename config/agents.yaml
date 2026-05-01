@@ -1,0 +1,16 @@
+agents:
+  - problem_ingest
+  - formalization
+  - library_cartographer
+  - proof_planner
+  - tactic_synthesizer
+  - whole_proof_generator
+  - verifier
+  - error_repair
+  - lemma_miner
+  - library_curator
+  - benchmark_generator
+  - reward_eval
+  - trainer
+  - worktree_steward
+

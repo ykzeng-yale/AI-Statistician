@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "statlean-agent"
+version = "0.1.0"
+description = "Lean-grounded multi-agent system for statistical inference formalization."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "AI-Statistician contributors" }]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+statlean = "statlean_agent.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+

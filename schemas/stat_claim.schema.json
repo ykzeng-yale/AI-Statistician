@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "StatClaim",
+  "type": "object",
+  "required": ["claim_id", "source", "natural_language", "domain_tags"],
+  "properties": {
+    "claim_id": {"type": "string"},
+    "source": {"type": "string"},
+    "natural_language": {"type": "string"},
+    "domain_tags": {"type": "array", "items": {"type": "string"}},
+    "objects": {"type": "array", "items": {"type": "object"}},
+    "assumptions": {"type": "array", "items": {"type": "string"}},
+    "target": {"type": "string"},
+    "difficulty": {"type": "string"}
+  }
+}
+

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LeanTask",
+  "type": "object",
+  "required": ["task_id", "imports", "namespace", "statement"],
+  "properties": {
+    "task_id": {"type": "string"},
+    "imports": {"type": "array", "items": {"type": "string"}},
+    "namespace": {"type": "string"},
+    "statement": {"type": "string"},
+    "allowed_sorry": {"type": "boolean"},
+    "tags": {"type": "array", "items": {"type": "string"}},
+    "dependencies": {"type": "array", "items": {"type": "string"}},
+    "expected_patterns": {"type": "array", "items": {"type": "string"}}
+  }
+}
+
