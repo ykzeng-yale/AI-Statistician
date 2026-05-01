@@ -111,11 +111,14 @@ class LakeVerifier:
                 status=VerificationStatus.ACCEPTED,
                 diagnostics=static_report.diagnostics,
             )
-        diagnostics = _process_diagnostics(result.stderr, result.stdout)
+        diagnostics = _process_diagnostics(result.stderr, result.stdout, path)
         return VerificationReport(
             task_id=task_id,
             status=VerificationStatus.REJECTED,
-            first_error=_first_nonempty_line(result.stderr) or _first_nonempty_line(result.stdout),
+            first_error=_sanitize_diagnostic_path(
+                _first_nonempty_line(result.stderr) or _first_nonempty_line(result.stdout),
+                path,
+            ),
             diagnostics=static_report.diagnostics + diagnostics,
         )
 
@@ -137,5 +140,15 @@ def _first_nonempty_line(value: str) -> str | None:
     return None
 
 
-def _process_diagnostics(stderr: str, stdout: str) -> tuple[str, ...]:
-    return tuple(line.strip() for line in (stderr + "\n" + stdout).splitlines() if line.strip())
+def _process_diagnostics(stderr: str, stdout: str, source_path: Path | None = None) -> tuple[str, ...]:
+    return tuple(
+        _sanitize_diagnostic_path(line.strip(), source_path)
+        for line in (stderr + "\n" + stdout).splitlines()
+        if line.strip()
+    )
+
+
+def _sanitize_diagnostic_path(line: str | None, source_path: Path | None = None) -> str | None:
+    if line is None or source_path is None:
+        return line
+    return line.replace(str(source_path), "Task.lean")

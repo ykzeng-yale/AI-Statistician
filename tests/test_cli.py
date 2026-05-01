@@ -28,12 +28,12 @@ def test_cli_blueprint_status(capsys) -> None:
     assert main(["blueprint-status", "--blueprint", "config/statlean_blueprint.json"]) == 0
     output = capsys.readouterr().out
     assert "Current phase: P6" in output
-    assert "Current milestone: P6.M2" in output
+    assert "Current milestone: P6.M3" in output
 
     assert main(["blueprint-status", "--blueprint", "config/statlean_blueprint.json", "--json"]) == 0
     json_output = capsys.readouterr().out
     assert '"current_phase"' in json_output
-    assert '"P6.M2"' in json_output
+    assert '"P6.M3"' in json_output
 
 
 def test_cli_verify_benchmarks_allow_failures(tmp_path: Path, capsys) -> None:
@@ -88,6 +88,56 @@ def test_cli_materialize_benchmark_attempts(tmp_path: Path, capsys) -> None:
     assert f"materialized={len(attempts)}" in output
     assert attempts[0]["agent_key"] == "test-agent"
     assert "namespace StatInference.Benchmarks" in attempts[0]["lean_code"]
+
+
+def test_cli_materialize_dpo_rejections_and_verify_attempts(tmp_path: Path, capsys) -> None:
+    benchmark_path = tmp_path / "seeds.jsonl"
+    rejected_attempts_path = tmp_path / "dpo-negative-attempts.jsonl"
+    rejected_reports_path = tmp_path / "dpo-negative-reports.jsonl"
+    static_attempts_path = tmp_path / "static-attempts.jsonl"
+    static_reports_path = tmp_path / "static-reports.jsonl"
+    main(["seed-benchmarks", "--output", str(benchmark_path)])
+
+    assert (
+        main(
+            [
+                "materialize-dpo-rejections",
+                "--benchmarks",
+                str(benchmark_path),
+                "--output",
+                str(rejected_attempts_path),
+            ]
+        )
+        == 0
+    )
+
+    output = capsys.readouterr().out
+    rejected_attempts = read_jsonl(rejected_attempts_path)
+    assert "materialized=" in output
+    assert len(rejected_attempts) > 0
+    assert all("__statlean_dpo_missing_premise__" in record["lean_code"] for record in rejected_attempts)
+    assert all("sorry" not in record["lean_code"] for record in rejected_attempts)
+
+    write_jsonl(static_attempts_path, [ProofAttempt("task", "agent", "theorem bad : True := by\n  sorry")])
+    assert (
+        main(
+            [
+                "verify-attempts",
+                "--attempts",
+                str(static_attempts_path),
+                "--output",
+                str(static_reports_path),
+                "--repo",
+                str(tmp_path),
+                "--allow-failures",
+            ]
+        )
+        == 0
+    )
+    assert read_jsonl(static_reports_path)[0]["status"] == "rejected"
+
+    write_jsonl(rejected_reports_path, [VerificationReport(rejected_attempts[0]["task_id"], VerificationStatus.REJECTED)])
+    assert rejected_reports_path.exists()
 
 
 def test_cli_build_lemma_ledger(tmp_path: Path, capsys) -> None:
@@ -167,8 +217,20 @@ def test_cli_index_search_and_training_manifest(tmp_path: Path, capsys) -> None:
     assert manifest_path.exists()
     assert "cli-test" in manifest_path.read_text(encoding="utf-8")
 
-    write_jsonl(attempts_path, [ProofAttempt("erm_oracle_ineq_seed", "agent", "theorem ok : True := by trivial")])
-    write_jsonl(reports_path, [VerificationReport("erm_oracle_ineq_seed", VerificationStatus.ACCEPTED)])
+    write_jsonl(
+        attempts_path,
+        [
+            ProofAttempt("erm_oracle_ineq_seed", "agent", "theorem ok : True := by trivial"),
+            ProofAttempt("erm_oracle_ineq_seed", "agent", "theorem bad : True := by exact missing"),
+        ],
+    )
+    write_jsonl(
+        reports_path,
+        [
+            VerificationReport("erm_oracle_ineq_seed", VerificationStatus.ACCEPTED),
+            VerificationReport("erm_oracle_ineq_seed", VerificationStatus.REJECTED),
+        ],
+    )
     assert (
         main(
             [
@@ -190,3 +252,4 @@ def test_cli_index_search_and_training_manifest(tmp_path: Path, capsys) -> None:
     verified_manifest = json.loads(verified_manifest_path.read_text(encoding="utf-8"))
     assert verified_manifest["metadata"]["sft_source"] == "verified_attempts"
     assert len(verified_manifest["sft_examples"]) == 1
+    assert len(verified_manifest["dpo_pairs"]) == 1

@@ -27,5 +27,7 @@ artifacts/*
 !artifacts/curation/theorem-hole-ledger.jsonl
 !artifacts/training/
 !artifacts/training/manifest.json
+!artifacts/training/dpo-negative-attempts.jsonl
+!artifacts/training/dpo-negative-reports.jsonl
 outputs/
 raid/

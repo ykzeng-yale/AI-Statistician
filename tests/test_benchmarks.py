@@ -12,7 +12,7 @@ from statlean_agent.contracts import (
     VerificationStatus,
 )
 from statlean_agent.serialization import dataclass_from_dict, dumps_json, read_jsonl
-from statlean_agent.verifier import LakeVerifier, StaticVerifier, render_task
+from statlean_agent.verifier import LakeVerifier, StaticVerifier, _process_diagnostics, render_task
 
 
 EXPECTED_DOMAIN_COVERAGE = {
@@ -181,3 +181,14 @@ def test_lake_verifier_reports_missing_lake(tmp_path: Path) -> None:
     assert report.status.value in {"accepted", "rejected", "error", "timeout"}
     if report.status.value == "error":
         assert "lake executable not found" in report.diagnostics
+
+
+def test_verifier_diagnostics_sanitize_temporary_source_path(tmp_path: Path) -> None:
+    source_path = tmp_path / "Task.lean"
+    diagnostics = _process_diagnostics(
+        f"{source_path}:6:8: error: Unknown identifier `missing`",
+        "",
+        source_path,
+    )
+
+    assert diagnostics == ("Task.lean:6:8: error: Unknown identifier `missing`",)

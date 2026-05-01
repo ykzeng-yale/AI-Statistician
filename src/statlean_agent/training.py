@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from dataclasses import replace
 
 from statlean_agent.contracts import BenchmarkTask, ProofAttempt, VerificationReport, VerificationStatus
 from statlean_agent.rewards import score_attempt
@@ -123,6 +124,39 @@ def build_dpo_pairs(
     return tuple(pairs)
 
 
+def build_rejected_dpo_attempts(
+    tasks: tuple[BenchmarkTask, ...],
+    *,
+    agent_key: str = "dpo-negative-generator",
+) -> tuple[ProofAttempt, ...]:
+    """Create deterministic same-statement rejected attempts for DPO.
+
+    The generated attempts preserve each benchmark theorem statement but replace
+    its proof body with a missing-premise reference. This yields Lean-labeled
+    unknown-declaration failures without using `sorry`, `admit`, or other
+    forbidden placeholders.
+    """
+
+    attempts: list[ProofAttempt] = []
+    for task in tasks:
+        if task.lean_task.allowed_sorry:
+            continue
+        negative_task = replace(
+            task.lean_task,
+            statement=_replace_proof_body_with_missing_premise(task.lean_task.statement),
+            allowed_sorry=False,
+        )
+        attempts.append(
+            ProofAttempt(
+                task_id=task.task_id,
+                agent_key=agent_key,
+                lean_code=render_task(negative_task),
+                premises_used=(),
+            )
+        )
+    return tuple(attempts)
+
+
 def build_grpo_tasks(tasks: tuple[BenchmarkTask, ...]) -> tuple[GRPOTask, ...]:
     """Create verifier-reward RL prompts from benchmark tasks."""
 
@@ -151,6 +185,7 @@ def build_training_manifest(
         metadata={
             "task_count": str(len(tasks)),
             "attempt_count": str(len(attempts)),
+            "dpo_pair_count": str(len(build_dpo_pairs(attempts, reports)) if attempts and reports else 0),
             "sft_source": "verified_attempts" if attempts and reports else "benchmark_gold",
         },
     )
@@ -159,3 +194,11 @@ def build_training_manifest(
 def _task_prompt(task: BenchmarkTask) -> str:
     natural = task.natural_language or "Prove the Lean theorem."
     return f"{natural}\n\n```lean\n{render_task(task.lean_task)}\n```"
+
+
+def _replace_proof_body_with_missing_premise(statement: str) -> str:
+    marker = ":= by"
+    prefix, separator, _ = statement.partition(marker)
+    if separator:
+        return f"{prefix}{separator}\n  exact StatInference.__statlean_dpo_missing_premise__"
+    return f"{statement}\n  exact StatInference.__statlean_dpo_missing_premise__"

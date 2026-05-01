@@ -19,7 +19,7 @@ from statlean_agent.evaluation import evaluate_attempts, summarize_benchmark_att
 from statlean_agent.orchestrator import DEFAULT_WORKFLOW
 from statlean_agent.retrieval import PremiseRecord, build_premise_index, search_premises
 from statlean_agent.serialization import dataclass_from_dict, dumps_json, read_jsonl, write_jsonl
-from statlean_agent.training import build_training_manifest
+from statlean_agent.training import build_rejected_dpo_attempts, build_training_manifest
 from statlean_agent.verifier import LakeVerifier, render_task
 from statlean_agent.worktrees import WorktreeManager
 
@@ -78,6 +78,14 @@ def main(argv: list[str] | None = None) -> int:
     eval_attempts.add_argument("--attempts", required=True, help="ProofAttempt JSONL path.")
     eval_attempts.add_argument("--reports", required=True, help="VerificationReport JSONL path.")
 
+    verify_attempts = subparsers.add_parser("verify-attempts", help="Verify ProofAttempt JSONL records using local Lake.")
+    verify_attempts.add_argument("--attempts", required=True, help="ProofAttempt JSONL path.")
+    verify_attempts.add_argument("--output", required=True, help="Output VerificationReport JSONL path.")
+    verify_attempts.add_argument("--repo", default=".", help="Lake repository root.")
+    verify_attempts.add_argument("--benchmarks", default="benchmarks/seeds.jsonl", help="BenchmarkTask JSONL path.")
+    verify_attempts.add_argument("--timeout", type=int, default=60, help="Verification timeout in seconds.")
+    verify_attempts.add_argument("--allow-failures", action="store_true", help="Return success even when attempts fail.")
+
     eval_summary = subparsers.add_parser("eval-summary", help="Summarize benchmark attempts by metadata.")
     eval_summary.add_argument("--benchmarks", default="benchmarks/seeds.jsonl", help="BenchmarkTask JSONL path.")
     eval_summary.add_argument("--attempts", required=True, help="ProofAttempt JSONL path.")
@@ -117,6 +125,24 @@ def main(argv: list[str] | None = None) -> int:
     train_manifest.add_argument("--base-model", default="unspecified-lean-prover", help="Base model name.")
     train_manifest.add_argument("--attempts", help="Optional verified ProofAttempt JSONL path.")
     train_manifest.add_argument("--reports", help="Optional VerificationReport JSONL path paired with attempts.")
+    train_manifest.add_argument("--rejected-attempts", help="Optional rejected ProofAttempt JSONL path for DPO.")
+    train_manifest.add_argument("--rejected-reports", help="Optional rejected VerificationReport JSONL path for DPO.")
+
+    dpo_rejections = subparsers.add_parser(
+        "materialize-dpo-rejections",
+        help="Create deterministic rejected attempts for DPO from benchmark theorem statements.",
+    )
+    dpo_rejections.add_argument("--benchmarks", default="benchmarks/seeds.jsonl", help="BenchmarkTask JSONL path.")
+    dpo_rejections.add_argument(
+        "--output",
+        default="artifacts/training/dpo-negative-attempts.jsonl",
+        help="Output rejected ProofAttempt JSONL path.",
+    )
+    dpo_rejections.add_argument(
+        "--agent-key",
+        default="dpo-negative-generator",
+        help="Agent key to attach to generated rejected attempts.",
+    )
 
     assign = subparsers.add_parser("assign-worktree", help="Create or preview an agent worktree.")
     assign.add_argument("--agent", required=True, help="Agent key.")
@@ -210,6 +236,26 @@ def main(argv: list[str] | None = None) -> int:
         print(dumps_json(evaluate_attempts(attempts, reports)))
         return 0
 
+    if args.command == "verify-attempts":
+        attempts = tuple(dataclass_from_dict(ProofAttempt, record) for record in read_jsonl(Path(args.attempts)))
+        tasks = load_benchmarks(Path(args.benchmarks))
+        allowed_by_task = {task.task_id: ("sorry",) if task.lean_task.allowed_sorry else () for task in tasks}
+        verifier = LakeVerifier(Path(args.repo), timeout_seconds=args.timeout)
+        reports = [
+            verifier.verify_source(
+                attempt.task_id,
+                attempt.lean_code,
+                allowed_placeholders=allowed_by_task.get(attempt.task_id, ()),
+            )
+            for attempt in attempts
+        ]
+        write_jsonl(Path(args.output), reports)
+        accepted = sum(1 for report in reports if report.status.value == "accepted")
+        print(f"verified={len(reports)} accepted={accepted} output={args.output}")
+        if accepted == len(reports) or args.allow_failures:
+            return 0
+        return 1
+
     if args.command == "eval-summary":
         tasks = load_benchmarks(Path(args.benchmarks))
         attempts = tuple(dataclass_from_dict(ProofAttempt, record) for record in read_jsonl(Path(args.attempts)))
@@ -261,6 +307,15 @@ def main(argv: list[str] | None = None) -> int:
             reports = tuple(
                 dataclass_from_dict(VerificationReport, record) for record in read_jsonl(Path(args.reports))
             )
+        if args.rejected_attempts or args.rejected_reports:
+            if not args.rejected_attempts or not args.rejected_reports:
+                raise SystemExit("--rejected-attempts and --rejected-reports must be provided together")
+            attempts = attempts + tuple(
+                dataclass_from_dict(ProofAttempt, record) for record in read_jsonl(Path(args.rejected_attempts))
+            )
+            reports = reports + tuple(
+                dataclass_from_dict(VerificationReport, record) for record in read_jsonl(Path(args.rejected_reports))
+            )
         manifest = build_training_manifest(
             tasks,
             attempts,
@@ -272,6 +327,13 @@ def main(argv: list[str] | None = None) -> int:
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(dumps_json(manifest) + "\n", encoding="utf-8")
         print(f"wrote {output}")
+        return 0
+
+    if args.command == "materialize-dpo-rejections":
+        tasks = load_benchmarks(Path(args.benchmarks))
+        attempts = build_rejected_dpo_attempts(tasks, agent_key=args.agent_key)
+        write_jsonl(Path(args.output), list(attempts))
+        print(f"materialized={len(attempts)} output={args.output}")
         return 0
 
     if args.command == "assign-worktree":

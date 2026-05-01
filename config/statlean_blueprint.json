@@ -330,12 +330,24 @@
             "tests/test_training.py enforces checked-in verified-SFT manifest counts and absence of `sorry` in SFT responses."
           ]
         },
-        {"id": "P6.M2", "status": "pending", "name": "DPO pairs from accepted/rejected Lean attempts"},
+        {
+          "id": "P6.M2",
+          "status": "done",
+          "name": "DPO pairs from accepted/rejected Lean attempts",
+          "evidence": [
+            "materialize-dpo-rejections CLI creates deterministic same-statement rejected attempts for each no-placeholder benchmark task.",
+            "verify-attempts CLI verifies arbitrary ProofAttempt JSONL records and produced 64/64 rejected Lean-labeled DPO negative reports.",
+            "Verifier diagnostics now sanitize temporary source paths to stable Task.lean locations for deterministic rejected-report artifacts.",
+            "artifacts/training/dpo-negative-attempts.jsonl and dpo-negative-reports.jsonl contain 64 generated unknown-premise failures without `sorry` or `admit`.",
+            "artifacts/training/manifest.json now contains 64 DPO chosen/rejected pairs, 64 verified no-placeholder SFT examples, and 67 GRPO tasks.",
+            "tests/test_training.py enforces checked-in DPO artifact counts, rejected labels, sanitized diagnostics, and DPO pair manifest metadata."
+          ]
+        },
         {"id": "P6.M3", "status": "pending", "name": "Process-reward GRPO task manifest"},
         {"id": "P6.M4", "status": "pending", "name": "Baseline prover comparison on held-out StatInferBench"}
       ],
       "next_actions": [
-        "Generate Lean-labeled rejected attempts and DPO chosen/rejected pairs without using forbidden placeholders as chosen examples."
+        "Materialize process-reward GRPO task metadata with reward source, allowed placeholder policy, and verifier command for each benchmark task."
       ]
     },
     {
