@@ -9,10 +9,27 @@
       "type": "string",
       "enum": ["formal_only", "formalization", "repair", "subgoal_completion", "lemma_growth"]
     },
-    "lean_task": {"type": "object"},
+    "lean_task": {
+      "type": "object",
+      "required": ["task_id", "imports", "namespace", "statement"],
+      "properties": {
+        "task_id": {"type": "string"},
+        "imports": {"type": "array", "items": {"type": "string"}},
+        "namespace": {"type": "string"},
+        "statement": {"type": "string"},
+        "allowed_sorry": {"type": "boolean"},
+        "tags": {"type": "array", "items": {"type": "string"}},
+        "dependencies": {"type": "array", "items": {"type": "string"}},
+        "expected_patterns": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": false
+    },
     "difficulty": {"type": "string"},
     "domain_tags": {"type": "array", "items": {"type": "string"}},
-    "split": {"type": "string", "enum": ["train", "dev", "test"]}
-  }
+    "split": {"type": "string", "enum": ["train", "dev", "test"]},
+    "natural_language": {"type": ["string", "null"]},
+    "proof_state": {"type": ["string", "null"]},
+    "expected_premises": {"type": "array", "items": {"type": "string"}}
+  },
+  "additionalProperties": false
 }
-

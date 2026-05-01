@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "EvalReport",
+  "type": "object",
+  "required": ["total_attempts", "accepted", "rejected", "timeout", "error", "average_reward", "pass_rate"],
+  "properties": {
+    "total_attempts": {"type": "integer"},
+    "accepted": {"type": "integer"},
+    "rejected": {"type": "integer"},
+    "timeout": {"type": "integer"},
+    "error": {"type": "integer"},
+    "average_reward": {"type": "number"},
+    "pass_rate": {"type": "number"}
+  },
+  "additionalProperties": false
+}

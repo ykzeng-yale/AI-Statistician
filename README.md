@@ -50,6 +50,22 @@ List the configured agents:
 statlean list-agents
 ```
 
+Create and inspect the seed benchmark database:
+
+```bash
+statlean seed-benchmarks --output benchmarks/seeds.jsonl
+statlean list-benchmarks --input benchmarks/seeds.jsonl
+statlean render-task erm_oracle_ineq_seed --input benchmarks/seeds.jsonl
+```
+
+Verify seed tasks if Lean and Lake are installed:
+
+```bash
+statlean verify-benchmarks \
+  --input benchmarks/seeds.jsonl \
+  --output artifacts/verification/reports.jsonl
+```
+
 Preview a worktree assignment:
 
 ```bash
@@ -94,4 +110,3 @@ Each code-writing agent gets an isolated git worktree and branch. Curated change
 - No theorem statement weakening to make a proof easier.
 - Every promoted statistics lemma must be non-vacuous and semantically meaningful.
 - Lean verification is necessary but not sufficient: statistical definitions require human review.
-

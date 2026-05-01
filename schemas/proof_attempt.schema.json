@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ProofAttempt",
+  "type": "object",
+  "required": ["task_id", "agent_key", "lean_code"],
+  "properties": {
+    "task_id": {"type": "string"},
+    "agent_key": {"type": "string"},
+    "lean_code": {"type": "string"},
+    "premises_used": {"type": "array", "items": {"type": "string"}},
+    "search_trace": {"type": "array", "items": {"type": "object"}},
+    "verifier_status": {
+      "type": "string",
+      "enum": ["accepted", "rejected", "timeout", "error"]
+    },
+    "diagnostics": {"type": "array", "items": {"type": "string"}},
+    "elapsed_ms": {"type": ["integer", "null"]}
+  }
+}
+

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "VerificationReport",
+  "type": "object",
+  "required": ["task_id", "status"],
+  "properties": {
+    "task_id": {"type": "string"},
+    "status": {
+      "type": "string",
+      "enum": ["accepted", "rejected", "timeout", "error"]
+    },
+    "locally_valid_steps": {"type": "integer"},
+    "closed_goals": {"type": "integer"},
+    "first_error": {"type": ["string", "null"]},
+    "diagnostics": {"type": "array", "items": {"type": "string"}}
+  }
+}

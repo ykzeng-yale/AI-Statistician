@@ -15,6 +15,24 @@ class VerificationStatus(str, Enum):
     ERROR = "error"
 
 
+class BenchmarkTaskType(str, Enum):
+    """Supported benchmark task modes."""
+
+    FORMAL_ONLY = "formal_only"
+    FORMALIZATION = "formalization"
+    REPAIR = "repair"
+    SUBGOAL_COMPLETION = "subgoal_completion"
+    LEMMA_GROWTH = "lemma_growth"
+
+
+class BenchmarkSplit(str, Enum):
+    """Benchmark split label."""
+
+    TRAIN = "train"
+    DEV = "dev"
+    TEST = "test"
+
+
 @dataclass(frozen=True)
 class StatObject:
     """Object extracted from a statistical claim."""
@@ -50,6 +68,21 @@ class LeanTask:
     tags: tuple[str, ...] = ()
     dependencies: tuple[str, ...] = ()
     expected_patterns: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class BenchmarkTask:
+    """A benchmark item for formalization, proving, repair, or lemma growth."""
+
+    task_id: str
+    task_type: BenchmarkTaskType
+    lean_task: LeanTask
+    difficulty: str
+    domain_tags: tuple[str, ...]
+    split: BenchmarkSplit = BenchmarkSplit.DEV
+    natural_language: str | None = None
+    proof_state: str | None = None
+    expected_premises: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -121,6 +154,19 @@ class RewardBreakdown:
 
 
 @dataclass(frozen=True)
+class EvalReport:
+    """Aggregate benchmark evaluation metrics."""
+
+    total_attempts: int
+    accepted: int
+    rejected: int
+    timeout: int
+    error: int
+    average_reward: float
+    pass_rate: float
+
+
+@dataclass(frozen=True)
 class WorktreeAssignment:
     """Isolated git worktree branch assignment."""
 
@@ -130,4 +176,3 @@ class WorktreeAssignment:
     base_branch: str
     owns: tuple[str, ...]
     dry_run: bool = False
-

@@ -12,5 +12,13 @@ Initial benchmark families:
 - causal identification;
 - influence-function linearization.
 
-Benchmark files should use JSONL once the task generator is implemented.
+`seeds.jsonl` is the initial checked-in benchmark database. Regenerate it from
+the typed Python registry with:
 
+```bash
+statlean seed-benchmarks --output benchmarks/seeds.jsonl
+```
+
+Each record is a `BenchmarkTask` with a rendered `LeanTask`. Use
+`statlean render-task <task_id>` for prompt construction and
+`statlean verify-benchmarks` to produce verifier reports.

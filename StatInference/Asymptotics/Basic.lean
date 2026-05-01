@@ -38,5 +38,13 @@ theorem oracle_ineq_of_uniform_deviation
   have h_right := (abs_le.mp h_right_abs).2
   nlinarith
 
-end StatInference
+/-- Excess-risk form of `oracle_ineq_of_uniform_deviation`. -/
+theorem excess_risk_bound_of_uniform_deviation
+    {ι : Type*} (R Rn : ι -> ℝ) (fhat f : ι) (eps delta : ℝ)
+    (h_uniform : ∀ g, |Rn g - R g| ≤ delta)
+    (h_erm : Rn fhat ≤ Rn f + eps) :
+    R fhat - R f ≤ 2 * delta + eps := by
+  have h := oracle_ineq_of_uniform_deviation R Rn fhat f eps delta h_uniform h_erm
+  nlinarith
 
+end StatInference
