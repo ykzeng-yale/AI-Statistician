@@ -29,6 +29,7 @@ artifacts/*
 !artifacts/evaluation/ablation-report.json
 !artifacts/evaluation/external-baseline-plan.json
 !artifacts/evaluation/external-baseline-results.json
+!artifacts/evaluation/empirical-process-targets.json
 !artifacts/evaluation/reproducibility-bundle.json
 !artifacts/curation/
 !artifacts/curation/theorem-hole-ledger.jsonl

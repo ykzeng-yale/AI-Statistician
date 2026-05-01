@@ -492,7 +492,7 @@
     {
       "id": "P9",
       "name": "External Baselines And Proof Promotion",
-      "status": "in_progress",
+      "status": "done",
       "objective": "Move beyond the seed-registry demonstration by preparing external prover baselines, promoting theorem-hole lemmas into no-placeholder Lean proofs, and expanding empirical-process coverage.",
       "milestones": [
         {
@@ -533,12 +533,50 @@
         },
         {
           "id": "P9.M4",
-          "status": "pending",
-          "name": "Empirical-process expansion targets for bracketing, VC, and Donsker interfaces"
+          "status": "done",
+          "name": "Empirical-process expansion targets for bracketing, VC, and Donsker interfaces",
+          "evidence": [
+            "StatInference.EmpiricalProcess.Complexity now defines BracketingNumberSpec and BracketingDeviationCertificate as proof-carrying bracketing routes to GlivenkoCantelliClass.",
+            "StatInference.EmpiricalProcess.Complexity now defines VCSubgraphSpec and VCDeviationCertificate as proof-carrying VC-subgraph routes to GlivenkoCantelliClass.",
+            "StatInference.EmpiricalProcess.Complexity now defines DonskerBridgeCertificate to connect verified GC classes with DonskerSpec weak-convergence statements.",
+            "empirical-process-targets CLI generated artifacts/evaluation/empirical-process-targets.json with five scoped targets: bracketing, VC-subgraph, Donsker, covering-number, and Rademacher.",
+            "schemas/empirical_process_targets.schema.json documents the target artifact and tests enforce checked-in P9.M4 target coverage."
+          ]
         }
       ],
       "next_actions": [
-        "Build P9.M4 empirical-process expansion targets for bracketing, VC, and Donsker interfaces so the next Lean-statistics library layer is explicitly scoped."
+        "P9 is complete; continue to P10 empirical-process theorem expansion."
+      ]
+    },
+    {
+      "id": "P10",
+      "name": "Empirical Process Theorem Expansion",
+      "status": "pending",
+      "objective": "Turn the P9 bracketing, VC-subgraph, and Donsker interfaces into benchmarked Lean theorem targets with non-vacuity evidence and downstream statistical inference handoffs.",
+      "milestones": [
+        {
+          "id": "P10.M1",
+          "status": "pending",
+          "name": "Bracketing GC benchmark seeds and non-vacuity witness"
+        },
+        {
+          "id": "P10.M2",
+          "status": "pending",
+          "name": "VC-subgraph GC benchmark seeds and combinatorial proof obligations"
+        },
+        {
+          "id": "P10.M3",
+          "status": "pending",
+          "name": "Donsker bridge benchmark seeds and asymptotic-normality handoff"
+        },
+        {
+          "id": "P10.M4",
+          "status": "pending",
+          "name": "Empirical-process external prover evaluation slice"
+        }
+      ],
+      "next_actions": [
+        "Implement P10.M1 bracketing GC benchmark seeds and a concrete non-vacuity witness over the proof-carrying BracketingDeviationCertificate interface."
       ]
     }
   ]

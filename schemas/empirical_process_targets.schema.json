@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "EmpiricalProcessTargets",
+  "type": "object",
+  "required": [
+    "report_id",
+    "target_count",
+    "scoped_count",
+    "pending_count",
+    "benchmark_task_ids_by_tag",
+    "targets",
+    "acceptance_gates",
+    "notes"
+  ],
+  "properties": {
+    "report_id": {"type": "string"},
+    "target_count": {"type": "integer"},
+    "scoped_count": {"type": "integer"},
+    "pending_count": {"type": "integer"},
+    "benchmark_task_ids_by_tag": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {"type": "string"}
+      }
+    },
+    "targets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "target_id",
+          "interface_family",
+          "status",
+          "lean_module",
+          "lean_declarations",
+          "depends_on",
+          "benchmark_tags",
+          "motivating_task_ids",
+          "family_benchmark_task_ids",
+          "next_lemma_candidates",
+          "gate_status"
+        ],
+        "properties": {
+          "target_id": {"type": "string"},
+          "interface_family": {"type": "string"},
+          "status": {"type": "string"},
+          "lean_module": {"type": "string"},
+          "lean_declarations": {
+            "type": "array",
+            "items": {"type": "string"}
+          },
+          "depends_on": {
+            "type": "array",
+            "items": {"type": "string"}
+          },
+          "benchmark_tags": {
+            "type": "array",
+            "items": {"type": "string"}
+          },
+          "motivating_task_ids": {
+            "type": "array",
+            "items": {"type": "string"}
+          },
+          "family_benchmark_task_ids": {
+            "type": "array",
+            "items": {"type": "string"}
+          },
+          "next_lemma_candidates": {
+            "type": "array",
+            "items": {"type": "string"}
+          },
+          "gate_status": {"type": "string"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "acceptance_gates": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "notes": {"type": "string"}
+  },
+  "additionalProperties": false
+}

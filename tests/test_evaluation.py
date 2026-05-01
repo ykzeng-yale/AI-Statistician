@@ -15,6 +15,7 @@ from statlean_agent.contracts import (
 from statlean_agent.evaluation import (
     build_ablation_report,
     build_concrete_estimator_chain_report,
+    build_empirical_process_expansion_targets,
     build_external_baseline_plan,
     build_external_baseline_results,
     build_paper_quality_heldout_report,
@@ -466,6 +467,49 @@ def test_build_external_baseline_results_ingests_seed_and_blocks_missing_models(
     assert all(row["blocked_reasons"] for row in results["rows"][1:])
 
 
+def test_build_empirical_process_expansion_targets_scopes_next_interfaces() -> None:
+    tasks = (
+        _benchmark_task(
+            "gc-task",
+            split=BenchmarkSplit.TEST,
+            domain_tags=("empirical_process", "glivenko_cantelli"),
+        ),
+        _benchmark_task(
+            "donsker-task",
+            split=BenchmarkSplit.DEV,
+            domain_tags=("empirical_process", "donsker"),
+        ),
+        _benchmark_task(
+            "rademacher-task",
+            split=BenchmarkSplit.DEV,
+            domain_tags=("rademacher_complexity",),
+        ),
+    )
+
+    report = build_empirical_process_expansion_targets(tasks)
+
+    assert report["report_id"] == "empirical-process-targets::p9"
+    assert report["target_count"] == 5
+    assert report["scoped_count"] == 5
+    assert report["pending_count"] == 0
+    targets = {row["target_id"]: row for row in report["targets"]}
+    assert {
+        "bracketing_gc_interface",
+        "vc_subgraph_gc_interface",
+        "donsker_bridge_interface",
+        "covering_number_gc_interface",
+        "rademacher_gc_interface",
+    } == set(targets)
+    assert "StatInference.BracketingDeviationCertificate" in targets[
+        "bracketing_gc_interface"
+    ]["lean_declarations"]
+    assert "donsker-task" in targets["donsker_bridge_interface"]["motivating_task_ids"]
+    assert targets["bracketing_gc_interface"]["gate_status"] == "needs_benchmark_seed"
+    assert targets["vc_subgraph_gc_interface"]["gate_status"] == "needs_benchmark_seed"
+    assert targets["rademacher_gc_interface"]["gate_status"] == "ready_for_lemma_targets"
+    assert any("proof-carrying" in gate for gate in report["acceptance_gates"])
+
+
 def test_cli_eval_summary(tmp_path: Path, capsys) -> None:
     benchmarks_path = tmp_path / "benchmarks.jsonl"
     attempts_path = tmp_path / "attempts.jsonl"
@@ -826,6 +870,33 @@ def test_checked_in_external_baseline_results_artifact() -> None:
     assert set(report) <= set(schema["properties"])
 
 
+def test_checked_in_empirical_process_targets_artifact() -> None:
+    report = json.loads(Path("artifacts/evaluation/empirical-process-targets.json").read_text(encoding="utf-8"))
+    schema = json.loads(Path("schemas/empirical_process_targets.schema.json").read_text(encoding="utf-8"))
+
+    assert report["report_id"] == "empirical-process-targets::p9"
+    assert report["target_count"] == 5
+    assert report["scoped_count"] == 5
+    assert report["pending_count"] == 0
+    targets = {row["target_id"]: row for row in report["targets"]}
+    assert "bracketing_gc_interface" in targets
+    assert "vc_subgraph_gc_interface" in targets
+    assert "donsker_bridge_interface" in targets
+    assert "StatInference.VCDeviationCertificate" in targets["vc_subgraph_gc_interface"][
+        "lean_declarations"
+    ]
+    assert "donsker_statement_seed" in targets["donsker_bridge_interface"]["motivating_task_ids"]
+    assert "covering_certificate_gc_seed" in targets["covering_number_gc_interface"][
+        "motivating_task_ids"
+    ]
+    assert targets["bracketing_gc_interface"]["gate_status"] == "needs_benchmark_seed"
+    assert targets["vc_subgraph_gc_interface"]["gate_status"] == "needs_benchmark_seed"
+    assert targets["donsker_bridge_interface"]["gate_status"] == "ready_for_lemma_targets"
+    assert targets["covering_number_gc_interface"]["gate_status"] == "ready_for_lemma_targets"
+    assert targets["rademacher_gc_interface"]["gate_status"] == "ready_for_lemma_targets"
+    assert set(report) <= set(schema["properties"])
+
+
 def test_checked_in_theorem_hole_promotion_queue_artifact() -> None:
     report = json.loads(Path("artifacts/curation/theorem-hole-promotion-queue.json").read_text(encoding="utf-8"))
     schema = json.loads(Path("schemas/theorem_hole_promotion_queue.schema.json").read_text(encoding="utf-8"))
@@ -857,11 +928,12 @@ def test_checked_in_reproducibility_bundle_artifact() -> None:
     assert "artifacts/evaluation/ablation-report.json" in artifact_paths
     assert "artifacts/evaluation/external-baseline-plan.json" in artifact_paths
     assert "artifacts/evaluation/external-baseline-results.json" in artifact_paths
+    assert "artifacts/evaluation/empirical-process-targets.json" in artifact_paths
     assert "artifacts/curation/theorem-hole-promotion-queue.json" in artifact_paths
     assert all(len(artifact["sha256"]) == 64 for artifact in report["artifacts"])
     assert any(command["name"] == "smoke" for command in report["validation_commands"])
     assert any(command["name"] == "forbidden_lean_shortcuts" for command in report["validation_commands"])
-    assert report["current_milestone"]["id"] == "P9.M4"
+    assert report["current_milestone"]["id"] == "P10.M1"
     assert set(report) <= set(schema["properties"])
 
 

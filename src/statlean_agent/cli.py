@@ -27,6 +27,7 @@ from statlean_agent.evaluation import (
     DEFAULT_REPRODUCIBILITY_ARTIFACTS,
     build_ablation_report,
     build_concrete_estimator_chain_report,
+    build_empirical_process_expansion_targets,
     build_external_baseline_plan,
     build_external_baseline_results,
     build_paper_quality_heldout_report,
@@ -168,6 +169,21 @@ def main(argv: list[str] | None = None) -> int:
         "--output",
         default="artifacts/evaluation/external-baseline-results.json",
         help="Output external baseline results JSON path.",
+    )
+
+    empirical_process_targets = subparsers.add_parser(
+        "empirical-process-targets",
+        help="Build the P9 empirical-process expansion target map.",
+    )
+    empirical_process_targets.add_argument(
+        "--benchmarks",
+        default="benchmarks/seeds.jsonl",
+        help="BenchmarkTask JSONL path.",
+    )
+    empirical_process_targets.add_argument(
+        "--output",
+        default="artifacts/evaluation/empirical-process-targets.json",
+        help="Output empirical-process target JSON path.",
     )
 
     paper_heldout = subparsers.add_parser(
@@ -663,6 +679,19 @@ def main(argv: list[str] | None = None) -> int:
         print(
             f"external_results={report['baseline_count']} ingested={report['ingested_count']} "
             f"blocked={report['blocked_count']} best={report['best_available_baseline']} "
+            f"output={args.output}"
+        )
+        return 0
+
+    if args.command == "empirical-process-targets":
+        tasks = load_benchmarks(Path(args.benchmarks))
+        report = build_empirical_process_expansion_targets(tasks)
+        output = Path(args.output)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(dumps_json(report) + "\n", encoding="utf-8")
+        print(
+            f"empirical_process_targets={report['target_count']} "
+            f"scoped={report['scoped_count']} pending={report['pending_count']} "
             f"output={args.output}"
         )
         return 0

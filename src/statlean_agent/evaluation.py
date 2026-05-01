@@ -85,6 +85,7 @@ DEFAULT_REPRODUCIBILITY_ARTIFACTS = (
     "artifacts/evaluation/ablation-report.json",
     "artifacts/evaluation/external-baseline-plan.json",
     "artifacts/evaluation/external-baseline-results.json",
+    "artifacts/evaluation/empirical-process-targets.json",
     "artifacts/training/manifest.json",
     "artifacts/training/dpo-negative-attempts.jsonl",
     "artifacts/training/dpo-negative-reports.jsonl",
@@ -96,6 +97,116 @@ DEFAULT_REPRODUCIBILITY_ARTIFACTS = (
     "artifacts/curation/lemma-non-vacuity.jsonl",
     "artifacts/curation/lemma-proof-cost.jsonl",
     "docs/paper_draft.md",
+)
+
+DEFAULT_EMPIRICAL_PROCESS_EXPANSION_TARGETS = (
+    {
+        "target_id": "bracketing_gc_interface",
+        "interface_family": "bracketing",
+        "status": "interface_scoped",
+        "lean_module": "StatInference.EmpiricalProcess.Complexity",
+        "lean_declarations": (
+            "StatInference.BracketingNumberSpec",
+            "StatInference.BracketingDeviationCertificate",
+            "StatInference.BracketingDeviationCertificate.toGlivenkoCantelliClass",
+            "StatInference.BracketingDeviationCertificate.uniformDeviation",
+        ),
+        "depends_on": (
+            "StatInference.EmpiricalDeviationSequenceOn",
+            "StatInference.GlivenkoCantelliClass",
+        ),
+        "benchmark_tags": ("empirical_process", "glivenko_cantelli"),
+        "next_lemma_candidates": (
+            "bracketing_entropy_to_uniform_deviation",
+            "finite_bracketing_number_to_gc_class",
+        ),
+    },
+    {
+        "target_id": "vc_subgraph_gc_interface",
+        "interface_family": "vc_subgraph",
+        "status": "interface_scoped",
+        "lean_module": "StatInference.EmpiricalProcess.Complexity",
+        "lean_declarations": (
+            "StatInference.VCSubgraphSpec",
+            "StatInference.VCDeviationCertificate",
+            "StatInference.VCDeviationCertificate.toGlivenkoCantelliClass",
+            "StatInference.VCDeviationCertificate.uniformDeviation",
+        ),
+        "depends_on": (
+            "StatInference.EmpiricalDeviationSequenceOn",
+            "StatInference.GlivenkoCantelliClass",
+        ),
+        "benchmark_tags": ("empirical_process", "glivenko_cantelli"),
+        "next_lemma_candidates": (
+            "vc_subgraph_shatter_bound_to_uniform_deviation",
+            "vc_subgraph_bounded_envelope_to_gc_class",
+        ),
+    },
+    {
+        "target_id": "donsker_bridge_interface",
+        "interface_family": "donsker",
+        "status": "interface_scoped",
+        "lean_module": "StatInference.EmpiricalProcess.Complexity",
+        "lean_declarations": (
+            "StatInference.DonskerBridgeCertificate",
+            "StatInference.DonskerBridgeCertificate.toGlivenkoCantelliClass",
+            "StatInference.DonskerBridgeCertificate.weakConvergence",
+        ),
+        "depends_on": (
+            "StatInference.GlivenkoCantelliClass",
+            "StatInference.DonskerSpec",
+        ),
+        "benchmark_tags": ("empirical_process", "donsker"),
+        "next_lemma_candidates": (
+            "asymptotic_equipartition_to_donsker_bridge",
+            "donsker_bridge_to_statistical_inference_clt_route",
+        ),
+    },
+    {
+        "target_id": "covering_number_gc_interface",
+        "interface_family": "covering_number",
+        "status": "implemented_seed_interface",
+        "lean_module": "StatInference.EmpiricalProcess.Complexity",
+        "lean_declarations": (
+            "StatInference.CoveringNumberSpec",
+            "StatInference.CoveringNumberDeviationCertificate",
+            "StatInference.CoveringNumberDeviationCertificate.toGlivenkoCantelliClass",
+        ),
+        "depends_on": (
+            "StatInference.EmpiricalDeviationSequenceOn",
+            "StatInference.GlivenkoCantelliClass",
+        ),
+        "benchmark_tags": ("empirical_process", "covering_number", "glivenko_cantelli"),
+        "next_lemma_candidates": (
+            "covering_entropy_to_uniform_deviation",
+            "covering_certificate_non_vacuity_examples",
+        ),
+    },
+    {
+        "target_id": "rademacher_gc_interface",
+        "interface_family": "rademacher_complexity",
+        "status": "implemented_seed_interface",
+        "lean_module": "StatInference.EmpiricalProcess.Complexity",
+        "lean_declarations": (
+            "StatInference.RademacherComplexitySpec",
+            "StatInference.RademacherDeviationCertificate",
+            "StatInference.RademacherDeviationCertificate.toGlivenkoCantelliClass",
+            "StatInference.RademacherDeviationCertificate.radius_tendsto_zero",
+        ),
+        "depends_on": (
+            "StatInference.EmpiricalDeviationSequenceOn",
+            "StatInference.GlivenkoCantelliClass",
+        ),
+        "benchmark_tags": (
+            "empirical_process",
+            "rademacher_complexity",
+            "glivenko_cantelli",
+        ),
+        "next_lemma_candidates": (
+            "symmetrization_to_rademacher_deviation",
+            "rademacher_certificate_non_vacuity_examples",
+        ),
+    },
 )
 
 DEFAULT_EXTERNAL_BASELINES = (
@@ -886,6 +997,64 @@ def build_external_baseline_results(
     }
 
 
+def build_empirical_process_expansion_targets(
+    tasks: tuple[BenchmarkTask, ...],
+    *,
+    target_specs: tuple[Mapping[str, object], ...] = DEFAULT_EMPIRICAL_PROCESS_EXPANSION_TARGETS,
+) -> dict[str, object]:
+    """Build the P9 empirical-process expansion target map.
+
+    The artifact records scoped Lean interfaces and next theorem targets.  It is
+    deliberately not a performance claim: bracketing, VC, and Donsker rows are
+    accepted only as proof-carrying interface targets until downstream theorems
+    and non-vacuity examples are added.
+    """
+
+    task_ids_by_tag = _task_ids_by_tag(tasks)
+    rows = [
+        _empirical_process_target_row(spec, task_ids_by_tag)
+        for spec in target_specs
+    ]
+    scoped_rows = [
+        row for row in rows
+        if row["status"] in {"interface_scoped", "implemented_seed_interface"}
+    ]
+    pending_rows = [row for row in rows if row["status"] == "pending"]
+
+    return {
+        "report_id": "empirical-process-targets::p9",
+        "target_count": len(rows),
+        "scoped_count": len(scoped_rows),
+        "pending_count": len(pending_rows),
+        "benchmark_task_ids_by_tag": {
+            tag: task_ids_by_tag[tag]
+            for tag in sorted(task_ids_by_tag)
+            if tag in {
+                "bracketing_number",
+                "covering_number",
+                "donsker",
+                "empirical_process",
+                "glivenko_cantelli",
+                "rademacher_complexity",
+                "vc_subgraph",
+            }
+        },
+        "targets": rows,
+        "acceptance_gates": [
+            "Lean module compiles with no sorry/admit/unsafe/axiom in promoted StatInference sources.",
+            "Every interface remains proof-carrying: no entropy, VC, or Donsker theorem is asserted without a supplied proof field.",
+            "At least one benchmark seed or theorem-hole target cites each active interface family before claiming model-evaluation coverage.",
+            "Each promoted empirical-process theorem must include a non-vacuity example or concrete satisfying certificate.",
+            "Human statistical review is required before replacing abstract interface fields with primitive theorem statements.",
+        ],
+        "notes": (
+            "P9.M4 scopes the next empirical-process layer around bracketing, "
+            "VC-subgraph, and Donsker proof-carrying interfaces, while retaining "
+            "the already implemented covering-number and Rademacher seed routes."
+        ),
+    }
+
+
 @dataclass
 class _SummaryBucket:
     attempts: int = 0
@@ -1047,6 +1216,7 @@ def _phase_for_task(task: BenchmarkTask) -> str:
     }:
         return "P3"
     if tags & {
+        "bracketing_number",
         "covering_number",
         "donsker",
         "empirical_average",
@@ -1059,6 +1229,7 @@ def _phase_for_task(task: BenchmarkTask) -> str:
         "projection",
         "rademacher_complexity",
         "uniform_deviation",
+        "vc_subgraph",
     }:
         return "P2"
     if tags & {
@@ -1179,6 +1350,67 @@ def _artifact_record(repo_root: Path, relative_path: str) -> dict[str, object]:
         "byte_count": len(payload),
         "line_count": text.count("\n") + (0 if text.endswith("\n") or not text else 1),
     }
+
+
+def _task_ids_by_tag(tasks: tuple[BenchmarkTask, ...]) -> dict[str, list[str]]:
+    task_ids_by_tag: dict[str, list[str]] = {}
+    for task in tasks:
+        for tag in task.domain_tags:
+            task_ids_by_tag.setdefault(tag, []).append(task.task_id)
+    return {tag: sorted(task_ids) for tag, task_ids in task_ids_by_tag.items()}
+
+
+def _empirical_process_target_row(
+    spec: Mapping[str, object],
+    task_ids_by_tag: Mapping[str, list[str]],
+) -> dict[str, object]:
+    benchmark_tags = tuple(str(tag) for tag in _sequence(spec.get("benchmark_tags")))
+    interface_family = str(spec["interface_family"])
+    family_tags = _empirical_process_family_tags(interface_family)
+    motivating_task_ids = sorted({
+        task_id
+        for tag in benchmark_tags
+        for task_id in task_ids_by_tag.get(tag, [])
+    })
+    family_benchmark_task_ids = sorted({
+        task_id
+        for tag in family_tags
+        for task_id in task_ids_by_tag.get(tag, [])
+    })
+    return {
+        "target_id": str(spec["target_id"]),
+        "interface_family": interface_family,
+        "status": str(spec["status"]),
+        "lean_module": str(spec["lean_module"]),
+        "lean_declarations": [
+            str(declaration)
+            for declaration in _sequence(spec.get("lean_declarations"))
+        ],
+        "depends_on": [
+            str(dependency)
+            for dependency in _sequence(spec.get("depends_on"))
+        ],
+        "benchmark_tags": list(benchmark_tags),
+        "motivating_task_ids": motivating_task_ids,
+        "family_benchmark_task_ids": family_benchmark_task_ids,
+        "next_lemma_candidates": [
+            str(candidate)
+            for candidate in _sequence(spec.get("next_lemma_candidates"))
+        ],
+        "gate_status": (
+            "ready_for_lemma_targets"
+            if family_benchmark_task_ids
+            else "needs_benchmark_seed"
+        ),
+    }
+
+
+def _empirical_process_family_tags(interface_family: str) -> tuple[str, ...]:
+    if interface_family == "bracketing":
+        return ("bracketing_number",)
+    if interface_family == "vc_subgraph":
+        return ("vc_subgraph",)
+    return (interface_family,)
 
 
 def _external_baseline_row(

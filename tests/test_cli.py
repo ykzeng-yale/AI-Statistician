@@ -27,13 +27,13 @@ def test_cli_render_task(tmp_path: Path, capsys) -> None:
 def test_cli_blueprint_status(capsys) -> None:
     assert main(["blueprint-status", "--blueprint", "config/statlean_blueprint.json"]) == 0
     output = capsys.readouterr().out
-    assert "Current phase: P9" in output
-    assert "Current milestone: P9.M4" in output
+    assert "Current phase: P10" in output
+    assert "Current milestone: P10.M1" in output
 
     assert main(["blueprint-status", "--blueprint", "config/statlean_blueprint.json", "--json"]) == 0
     json_output = capsys.readouterr().out
     assert '"current_phase"' in json_output
-    assert '"P9.M4"' in json_output
+    assert '"P10.M1"' in json_output
 
 
 def test_cli_verify_benchmarks_allow_failures(tmp_path: Path, capsys) -> None:
@@ -457,6 +457,36 @@ def test_cli_external_baseline_results(tmp_path: Path, capsys) -> None:
     assert "blocked=4" in output
     assert results["best_available_baseline"] == "seed-registry"
     assert results["rows"][0]["source"] == "checked_in_seed_registry_fallback"
+
+
+def test_cli_empirical_process_targets(tmp_path: Path, capsys) -> None:
+    benchmark_path = tmp_path / "seeds.jsonl"
+    output_path = tmp_path / "empirical-process-targets.json"
+    main(["seed-benchmarks", "--output", str(benchmark_path)])
+
+    assert (
+        main(
+            [
+                "empirical-process-targets",
+                "--benchmarks",
+                str(benchmark_path),
+                "--output",
+                str(output_path),
+            ]
+        )
+        == 0
+    )
+
+    output = capsys.readouterr().out
+    report = json.loads(output_path.read_text(encoding="utf-8"))
+    assert "empirical_process_targets=5" in output
+    assert "scoped=5" in output
+    assert report["report_id"] == "empirical-process-targets::p9"
+    assert {row["target_id"] for row in report["targets"]} >= {
+        "bracketing_gc_interface",
+        "vc_subgraph_gc_interface",
+        "donsker_bridge_interface",
+    }
 
 
 def test_cli_ablation_report(tmp_path: Path, capsys) -> None:
