@@ -401,11 +401,22 @@
             "schemas/lemma_proposal_gate_report.schema.json documents the gate artifact and tests enforce duplicate/import failure behavior plus checked-in passing reports."
           ]
         },
-        {"id": "P7.M3", "status": "pending", "name": "Non-vacuity example requirement"},
+        {
+          "id": "P7.M3",
+          "status": "done",
+          "name": "Non-vacuity example requirement",
+          "evidence": [
+            "LemmaNonVacuityReport contract records proposal domains, matching non-vacuity evidence tasks, accepted evidence tasks, missing evidence, pass/fail status, and required changes.",
+            "build_lemma_non_vacuity_reports requires each proposal to match at least one benchmark tagged non_vacuity that shares a domain-specific proposal tag.",
+            "check-lemma-non-vacuity CLI generated artifacts/curation/lemma-non-vacuity.jsonl with three passing reports backed by accepted non-vacuity benchmark tasks.",
+            "The IPW proposal is backed by constant IPW/Hajek non-vacuity tasks, the AIPW product-rate proposal by AIPW non-vacuity tasks, and the influence-function proposal by influence-function non-vacuity tasks.",
+            "schemas/lemma_non_vacuity_report.schema.json documents the artifact and tests enforce passing checked-in reports plus blocked missing/rejected evidence behavior."
+          ]
+        },
         {"id": "P7.M4", "status": "pending", "name": "Downstream proof-cost improvement metric"}
       ],
       "next_actions": [
-        "Implement non-vacuity example requirements for lemma proposals before promotion."
+        "Implement downstream proof-cost improvement metrics for candidate lemma promotion."
       ]
     },
     {

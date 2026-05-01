@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LemmaNonVacuityReport",
+  "type": "object",
+  "required": [
+    "proposal_id",
+    "candidate_name",
+    "proposal_domain_tags",
+    "evidence_task_ids",
+    "evidence_domain_tags",
+    "accepted_evidence_task_ids",
+    "missing_evidence_task_ids",
+    "passed",
+    "status",
+    "required_changes",
+    "notes"
+  ],
+  "properties": {
+    "proposal_id": {"type": "string"},
+    "candidate_name": {"type": "string"},
+    "proposal_domain_tags": {"type": "array", "items": {"type": "string"}},
+    "evidence_task_ids": {"type": "array", "items": {"type": "string"}},
+    "evidence_domain_tags": {"type": "array", "items": {"type": "string"}},
+    "accepted_evidence_task_ids": {"type": "array", "items": {"type": "string"}},
+    "missing_evidence_task_ids": {"type": "array", "items": {"type": "string"}},
+    "passed": {"type": "boolean"},
+    "status": {"type": "string"},
+    "required_changes": {"type": "array", "items": {"type": "string"}},
+    "notes": {"type": "string"}
+  },
+  "additionalProperties": false
+}

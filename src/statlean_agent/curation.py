@@ -9,9 +9,11 @@ from statlean_agent.contracts import (
     CuratedLemmaCandidate,
     CuratedLemmaLedgerEntry,
     CurationDecision,
+    LemmaNonVacuityReport,
     LemmaProposal,
     LemmaProposalGateReport,
     VerificationReport,
+    VerificationStatus,
 )
 from statlean_agent.retrieval import PremiseRecord
 from statlean_agent.rewards import FORBIDDEN_TOKENS
@@ -207,6 +209,58 @@ def build_lemma_proposal_gate_reports(
     return tuple(reports)
 
 
+def build_lemma_non_vacuity_reports(
+    proposals: tuple[LemmaProposal, ...],
+    tasks: tuple[BenchmarkTask, ...],
+    reports: tuple[VerificationReport, ...],
+) -> tuple[LemmaNonVacuityReport, ...]:
+    """Require accepted non-vacuity benchmark evidence for each proposal."""
+
+    reports_by_task = {report.task_id: report for report in reports}
+    evidence_by_proposal = _non_vacuity_evidence_by_proposal(proposals, tasks)
+    gate_reports: list[LemmaNonVacuityReport] = []
+
+    for proposal in proposals:
+        evidence_tasks = evidence_by_proposal.get(proposal.proposal_id, ())
+        accepted = tuple(
+            task.task_id
+            for task in evidence_tasks
+            if reports_by_task.get(task.task_id, VerificationReport(task.task_id, VerificationStatus.ERROR)).status
+            is VerificationStatus.ACCEPTED
+        )
+        missing = tuple(
+            task.task_id
+            for task in evidence_tasks
+            if task.task_id not in accepted
+        )
+        required_changes = _non_vacuity_required_changes(
+            evidence_task_ids=tuple(task.task_id for task in evidence_tasks),
+            accepted_evidence_task_ids=accepted,
+            missing_evidence_task_ids=missing,
+        )
+        passed = not required_changes
+        gate_reports.append(
+            LemmaNonVacuityReport(
+                proposal_id=proposal.proposal_id,
+                candidate_name=proposal.candidate.name,
+                proposal_domain_tags=proposal.domain_tags,
+                evidence_task_ids=tuple(task.task_id for task in evidence_tasks),
+                evidence_domain_tags=_evidence_domain_tags(evidence_tasks),
+                accepted_evidence_task_ids=accepted,
+                missing_evidence_task_ids=missing,
+                passed=passed,
+                status="passed" if passed else "blocked_non_vacuity",
+                required_changes=required_changes,
+                notes=(
+                    "P7.M3 gate: a proposal must be backed by at least one "
+                    "accepted benchmark tagged non_vacuity that shares a "
+                    "domain-specific tag with the proposal."
+                ),
+            )
+        )
+    return tuple(gate_reports)
+
+
 def _candidate_name(task: BenchmarkTask) -> str:
     if task.task_id == "ipw_linearization_theorem_hole_seed":
         return "ipw_hajek_linearization_constructor"
@@ -315,6 +369,53 @@ def _gate_required_changes(
     if missing_imports:
         changes.append("add imports required by expected premises")
     return tuple(changes)
+
+
+def _non_vacuity_evidence_by_proposal(
+    proposals: tuple[LemmaProposal, ...],
+    tasks: tuple[BenchmarkTask, ...],
+) -> dict[str, tuple[BenchmarkTask, ...]]:
+    evidence_tasks = tuple(task for task in tasks if "non_vacuity" in task.domain_tags)
+    by_proposal: dict[str, tuple[BenchmarkTask, ...]] = {}
+    for proposal in proposals:
+        proposal_tags = _domain_specific_tags(proposal.domain_tags)
+        matched = tuple(
+            task
+            for task in evidence_tasks
+            if proposal_tags & _domain_specific_tags(task.domain_tags)
+        )
+        by_proposal[proposal.proposal_id] = matched
+    return by_proposal
+
+
+def _non_vacuity_required_changes(
+    *,
+    evidence_task_ids: tuple[str, ...],
+    accepted_evidence_task_ids: tuple[str, ...],
+    missing_evidence_task_ids: tuple[str, ...],
+) -> tuple[str, ...]:
+    changes: list[str] = []
+    if not evidence_task_ids:
+        changes.append("add a benchmark tagged non_vacuity that shares a domain tag with this proposal")
+    if evidence_task_ids and not accepted_evidence_task_ids:
+        changes.append("verify at least one matching non-vacuity benchmark task")
+    if missing_evidence_task_ids:
+        changes.append("repair or remove rejected non-vacuity evidence tasks")
+    return tuple(changes)
+
+
+def _evidence_domain_tags(tasks: tuple[BenchmarkTask, ...]) -> tuple[str, ...]:
+    return tuple(sorted({tag for task in tasks for tag in task.domain_tags}))
+
+
+def _domain_specific_tags(tags: tuple[str, ...]) -> set[str]:
+    generic = {
+        "multi_goal",
+        "non_vacuity",
+        "theorem_hole",
+        "verified_by_lean",
+    }
+    return {tag for tag in tags if tag not in generic}
 
 
 def _normalized_statement(statement: str) -> str:

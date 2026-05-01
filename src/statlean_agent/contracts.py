@@ -172,6 +172,23 @@ class LemmaProposalGateReport:
 
 
 @dataclass(frozen=True)
+class LemmaNonVacuityReport:
+    """Evidence that a lemma proposal has concrete non-vacuity support."""
+
+    proposal_id: str
+    candidate_name: str
+    proposal_domain_tags: tuple[str, ...] = ()
+    evidence_task_ids: tuple[str, ...] = ()
+    evidence_domain_tags: tuple[str, ...] = ()
+    accepted_evidence_task_ids: tuple[str, ...] = ()
+    missing_evidence_task_ids: tuple[str, ...] = ()
+    passed: bool = False
+    status: str = "pending"
+    required_changes: tuple[str, ...] = ()
+    notes: str = ""
+
+
+@dataclass(frozen=True)
 class CurationDecision:
     """Outcome of curation gates."""
 

@@ -4,6 +4,7 @@ from pathlib import Path
 from statlean_agent.contracts import (
     CuratedLemmaCandidate,
     CuratedLemmaLedgerEntry,
+    LemmaNonVacuityReport,
     LemmaProposal,
     LemmaProposalGateReport,
     ProofAttempt,
@@ -13,6 +14,7 @@ from statlean_agent.contracts import (
 from statlean_agent.benchmarks import SEED_BENCHMARKS
 from statlean_agent.curation import (
     DEFAULT_REQUIRED_GATES,
+    build_lemma_non_vacuity_reports,
     build_lemma_proposal_gate_reports,
     build_theorem_hole_lemma_ledger,
     build_theorem_hole_lemma_proposals,
@@ -244,6 +246,75 @@ def test_current_lemma_proposal_gate_reports_pass_static_checks() -> None:
     } == {report.required_imports[0] for report in reports}
 
 
+def test_lemma_non_vacuity_reports_require_accepted_evidence() -> None:
+    proposals = build_theorem_hole_lemma_proposals(SEED_BENCHMARKS)
+    accepted_reports = tuple(
+        VerificationReport(task.task_id, VerificationStatus.ACCEPTED)
+        for task in SEED_BENCHMARKS
+    )
+
+    reports = build_lemma_non_vacuity_reports(proposals, SEED_BENCHMARKS, accepted_reports)
+
+    assert len(reports) == 3
+    assert all(report.passed for report in reports)
+    assert {report.status for report in reports} == {"passed"}
+    by_id = {report.proposal_id: report for report in reports}
+    assert "constant_ipw_hajek_route_seed" in by_id["proposal::ipw_linearization_theorem_hole_seed"].evidence_task_ids
+    assert "trivial_aipw_product_rate_route_seed" in by_id["proposal::aipw_product_rate_theorem_hole_seed"].evidence_task_ids
+    assert (
+        "trivial_influence_function_normality_seed"
+        in by_id["proposal::if_normality_theorem_hole_seed"].evidence_task_ids
+    )
+    assert all("non_vacuity" in report.evidence_domain_tags for report in reports)
+
+
+def test_lemma_non_vacuity_reports_block_missing_or_rejected_evidence() -> None:
+    proposal = LemmaProposal(
+        proposal_id="proposal::missing",
+        source_kind="unit",
+        proposed_by="test",
+        candidate=CuratedLemmaCandidate(
+            name="missing",
+            statement="example : True := by trivial",
+            proof="by trivial",
+            motivation_tasks=("task",),
+            semantic_notes="unit test",
+        ),
+        source_task_ids=("task",),
+        domain_tags=("new_domain",),
+    )
+    rejected = LemmaProposal(
+        proposal_id="proposal::rejected",
+        source_kind="unit",
+        proposed_by="test",
+        candidate=CuratedLemmaCandidate(
+            name="rejected",
+            statement="example : True := by trivial",
+            proof="by trivial",
+            motivation_tasks=("task",),
+            semantic_notes="unit test",
+        ),
+        source_task_ids=("task",),
+        domain_tags=("ipw",),
+    )
+    rejected_reports = tuple(
+        VerificationReport(task.task_id, VerificationStatus.REJECTED)
+        for task in SEED_BENCHMARKS
+        if "non_vacuity" in task.domain_tags
+    )
+
+    reports = build_lemma_non_vacuity_reports((proposal, rejected), SEED_BENCHMARKS, rejected_reports)
+    by_id = {report.proposal_id: report for report in reports}
+
+    assert by_id["proposal::missing"].status == "blocked_non_vacuity"
+    assert by_id["proposal::missing"].required_changes == (
+        "add a benchmark tagged non_vacuity that shares a domain tag with this proposal",
+    )
+    assert by_id["proposal::rejected"].status == "blocked_non_vacuity"
+    assert "verify at least one matching non-vacuity benchmark task" in by_id["proposal::rejected"].required_changes
+    assert by_id["proposal::rejected"].missing_evidence_task_ids
+
+
 def test_checked_in_theorem_hole_ledger_is_curator_blocked() -> None:
     records = read_jsonl(Path("artifacts/curation/theorem-hole-ledger.jsonl"))
     entries = tuple(dataclass_from_dict(CuratedLemmaLedgerEntry, record) for record in records)
@@ -282,4 +353,20 @@ def test_checked_in_lemma_proposal_gate_reports_pass() -> None:
     assert all(not report.unused_imports for report in reports)
     assert all(not report.missing_imports for report in reports)
     assert schema["title"] == "LemmaProposalGateReport"
+    assert all(set(record) <= set(schema["properties"]) for record in records)
+
+
+def test_checked_in_lemma_non_vacuity_reports_pass() -> None:
+    records = read_jsonl(Path("artifacts/curation/lemma-non-vacuity.jsonl"))
+    reports = tuple(dataclass_from_dict(LemmaNonVacuityReport, record) for record in records)
+    schema = json.loads(Path("schemas/lemma_non_vacuity_report.schema.json").read_text(encoding="utf-8"))
+
+    assert len(reports) == 3
+    assert all(report.passed for report in reports)
+    assert {report.status for report in reports} == {"passed"}
+    assert all(report.evidence_task_ids for report in reports)
+    assert all(report.accepted_evidence_task_ids for report in reports)
+    assert all(not report.required_changes for report in reports)
+    assert all(not report.missing_evidence_task_ids for report in reports)
+    assert schema["title"] == "LemmaNonVacuityReport"
     assert all(set(record) <= set(schema["properties"]) for record in records)

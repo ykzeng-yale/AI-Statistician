@@ -16,6 +16,7 @@ from statlean_agent.blueprint import (
 from statlean_agent.contracts import LemmaProposal, ProofAttempt, VerificationReport
 from statlean_agent.curation import (
     build_lemma_proposal_gate_reports,
+    build_lemma_non_vacuity_reports,
     build_theorem_hole_lemma_ledger,
     build_theorem_hole_lemma_proposals,
 )
@@ -158,6 +159,27 @@ def main(argv: list[str] | None = None) -> int:
     lemma_proposal_gates.add_argument(
         "--premises",
         help="Optional existing PremiseRecord JSONL path. If omitted, index local Lean declarations.",
+    )
+
+    lemma_non_vacuity = subparsers.add_parser(
+        "check-lemma-non-vacuity",
+        help="Require accepted non-vacuity benchmark evidence for lemma proposals.",
+    )
+    lemma_non_vacuity.add_argument(
+        "--proposals",
+        default="artifacts/curation/lemma-proposals.jsonl",
+        help="LemmaProposal JSONL path.",
+    )
+    lemma_non_vacuity.add_argument("--benchmarks", default="benchmarks/seeds.jsonl", help="BenchmarkTask JSONL path.")
+    lemma_non_vacuity.add_argument(
+        "--reports",
+        default="artifacts/verification/benchmark-seed-reports.jsonl",
+        help="VerificationReport JSONL path.",
+    )
+    lemma_non_vacuity.add_argument(
+        "--output",
+        default="artifacts/curation/lemma-non-vacuity.jsonl",
+        help="Output LemmaNonVacuityReport JSONL path.",
     )
 
     index_premises = subparsers.add_parser("index-premises", help="Index local Lean declarations.")
@@ -395,6 +417,18 @@ def main(argv: list[str] | None = None) -> int:
         write_jsonl(Path(args.output), list(reports))
         passed = sum(1 for report in reports if report.passed)
         print(f"proposal_gate_reports={len(reports)} passed={passed} output={args.output}")
+        return 0
+
+    if args.command == "check-lemma-non-vacuity":
+        proposals = tuple(dataclass_from_dict(LemmaProposal, record) for record in read_jsonl(Path(args.proposals)))
+        tasks = load_benchmarks(Path(args.benchmarks))
+        reports = tuple(
+            dataclass_from_dict(VerificationReport, record) for record in read_jsonl(Path(args.reports))
+        )
+        non_vacuity_reports = build_lemma_non_vacuity_reports(proposals, tasks, reports)
+        write_jsonl(Path(args.output), list(non_vacuity_reports))
+        passed = sum(1 for report in non_vacuity_reports if report.passed)
+        print(f"non_vacuity_reports={len(non_vacuity_reports)} passed={passed} output={args.output}")
         return 0
 
     if args.command == "index-premises":

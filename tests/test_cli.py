@@ -28,12 +28,12 @@ def test_cli_blueprint_status(capsys) -> None:
     assert main(["blueprint-status", "--blueprint", "config/statlean_blueprint.json"]) == 0
     output = capsys.readouterr().out
     assert "Current phase: P7" in output
-    assert "Current milestone: P7.M3" in output
+    assert "Current milestone: P7.M4" in output
 
     assert main(["blueprint-status", "--blueprint", "config/statlean_blueprint.json", "--json"]) == 0
     json_output = capsys.readouterr().out
     assert '"current_phase"' in json_output
-    assert '"P7.M3"' in json_output
+    assert '"P7.M4"' in json_output
 
 
 def test_cli_verify_benchmarks_allow_failures(tmp_path: Path, capsys) -> None:
@@ -268,6 +268,45 @@ def test_cli_check_lemma_proposals(tmp_path: Path, capsys) -> None:
     assert {record["status"] for record in records} == {"passed"}
     assert all(not record["unused_imports"] for record in records)
     assert all(not record["missing_imports"] for record in records)
+
+
+def test_cli_check_lemma_non_vacuity(tmp_path: Path, capsys) -> None:
+    benchmark_path = tmp_path / "seeds.jsonl"
+    proposals_path = tmp_path / "lemma-proposals.jsonl"
+    reports_path = tmp_path / "reports.jsonl"
+    non_vacuity_path = tmp_path / "lemma-non-vacuity.jsonl"
+    main(["seed-benchmarks", "--output", str(benchmark_path)])
+    main(["build-lemma-proposals", "--benchmarks", str(benchmark_path), "--output", str(proposals_path)])
+
+    accepted_reports = [
+        VerificationReport(record["task_id"], VerificationStatus.ACCEPTED)
+        for record in read_jsonl(benchmark_path)
+    ]
+    write_jsonl(reports_path, accepted_reports)
+
+    assert (
+        main(
+            [
+                "check-lemma-non-vacuity",
+                "--proposals",
+                str(proposals_path),
+                "--benchmarks",
+                str(benchmark_path),
+                "--reports",
+                str(reports_path),
+                "--output",
+                str(non_vacuity_path),
+            ]
+        )
+        == 0
+    )
+
+    output = capsys.readouterr().out
+    records = read_jsonl(non_vacuity_path)
+    assert "non_vacuity_reports=3" in output
+    assert "passed=3" in output
+    assert {record["status"] for record in records} == {"passed"}
+    assert all(record["accepted_evidence_task_ids"] for record in records)
 
 
 def test_cli_eval_attempts(tmp_path: Path, capsys) -> None:
