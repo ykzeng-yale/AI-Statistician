@@ -343,11 +343,22 @@
             "tests/test_training.py enforces checked-in DPO artifact counts, rejected labels, sanitized diagnostics, and DPO pair manifest metadata."
           ]
         },
-        {"id": "P6.M3", "status": "pending", "name": "Process-reward GRPO task manifest"},
+        {
+          "id": "P6.M3",
+          "status": "done",
+          "name": "Process-reward GRPO task manifest",
+          "evidence": [
+            "GRPOProcessTask records reward source, rendered Lean code, verifier command, allowed placeholder policy, forbidden tokens, expected premises, reward components, split, task type, and domain tags.",
+            "materialize-grpo-tasks CLI generated artifacts/training/grpo-process-tasks.jsonl with 67 process-reward tasks.",
+            "The artifact marks exactly three theorem-hole tasks with allowed_placeholders=[\"sorry\"] and all other tasks with no allowed placeholders.",
+            "Each GRPO process task encodes a reproducible verifier command through statlean_agent.cli verify-task with the benchmark registry and local Lake repo.",
+            "schemas/grpo_process_task.schema.json documents the process-task artifact and tests enforce reward-policy/verifier metadata."
+          ]
+        },
         {"id": "P6.M4", "status": "pending", "name": "Baseline prover comparison on held-out StatInferBench"}
       ],
       "next_actions": [
-        "Materialize process-reward GRPO task metadata with reward source, allowed placeholder policy, and verifier command for each benchmark task."
+        "Run a baseline comparison over held-out StatInferBench tasks and record pass/fail metrics for the seed-registry/verifier baseline."
       ]
     },
     {

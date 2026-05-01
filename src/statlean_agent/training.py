@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from dataclasses import replace
 
 from statlean_agent.contracts import BenchmarkTask, ProofAttempt, VerificationReport, VerificationStatus
-from statlean_agent.rewards import score_attempt
+from statlean_agent.rewards import FORBIDDEN_TOKENS, score_attempt
 from statlean_agent.verifier import render_task
 
 
@@ -37,6 +37,24 @@ class GRPOTask:
     task_id: str
     prompt: str
     reward_source: str = "lean_process_reward"
+
+
+@dataclass(frozen=True)
+class GRPOProcessTask:
+    """One process-reward GRPO task with verifier and policy metadata."""
+
+    task_id: str
+    prompt: str
+    lean_code: str
+    reward_source: str
+    verifier_command: tuple[str, ...]
+    allowed_placeholders: tuple[str, ...] = ()
+    forbidden_tokens: tuple[str, ...] = FORBIDDEN_TOKENS
+    expected_premises: tuple[str, ...] = ()
+    reward_components: tuple[str, ...] = ()
+    task_type: str = ""
+    split: str = ""
+    domain_tags: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -163,6 +181,46 @@ def build_grpo_tasks(tasks: tuple[BenchmarkTask, ...]) -> tuple[GRPOTask, ...]:
     return tuple(GRPOTask(task_id=task.task_id, prompt=_task_prompt(task)) for task in tasks)
 
 
+def build_grpo_process_tasks(
+    tasks: tuple[BenchmarkTask, ...],
+    *,
+    benchmark_path: str = "benchmarks/seeds.jsonl",
+    repo: str = ".",
+    timeout: int = 120,
+    python: str = "python",
+) -> tuple[GRPOProcessTask, ...]:
+    """Create verifier-backed process-reward task records for online GRPO."""
+
+    return tuple(
+        GRPOProcessTask(
+            task_id=task.task_id,
+            prompt=_task_prompt(task),
+            lean_code=render_task(task.lean_task),
+            reward_source="lean_process_reward",
+            verifier_command=(
+                python,
+                "-m",
+                "statlean_agent.cli",
+                "verify-task",
+                task.task_id,
+                "--input",
+                benchmark_path,
+                "--repo",
+                repo,
+                "--timeout",
+                str(timeout),
+            ),
+            allowed_placeholders=("sorry",) if task.lean_task.allowed_sorry else (),
+            expected_premises=task.expected_premises,
+            reward_components=_reward_component_names(),
+            task_type=str(task.task_type.value),
+            split=str(task.split.value),
+            domain_tags=task.domain_tags,
+        )
+        for task in tasks
+    )
+
+
 def build_training_manifest(
     tasks: tuple[BenchmarkTask, ...],
     attempts: tuple[ProofAttempt, ...] = (),
@@ -202,3 +260,19 @@ def _replace_proof_body_with_missing_premise(statement: str) -> str:
     if separator:
         return f"{prefix}{separator}\n  exact StatInference.__statlean_dpo_missing_premise__"
     return f"{statement}\n  exact StatInference.__statlean_dpo_missing_premise__"
+
+
+def _reward_component_names() -> tuple[str, ...]:
+    return (
+        "proof_complete",
+        "locally_valid_steps",
+        "closed_goals",
+        "premises_used",
+        "timeout",
+        "rejected",
+        "forbidden_sorry",
+        "forbidden_admit",
+        "forbidden_axiom",
+        "forbidden_unsafe",
+        "first_error",
+    )

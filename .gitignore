@@ -29,5 +29,6 @@ artifacts/*
 !artifacts/training/manifest.json
 !artifacts/training/dpo-negative-attempts.jsonl
 !artifacts/training/dpo-negative-reports.jsonl
+!artifacts/training/grpo-process-tasks.jsonl
 outputs/
 raid/

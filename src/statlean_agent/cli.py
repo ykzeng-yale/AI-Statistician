@@ -19,7 +19,7 @@ from statlean_agent.evaluation import evaluate_attempts, summarize_benchmark_att
 from statlean_agent.orchestrator import DEFAULT_WORKFLOW
 from statlean_agent.retrieval import PremiseRecord, build_premise_index, search_premises
 from statlean_agent.serialization import dataclass_from_dict, dumps_json, read_jsonl, write_jsonl
-from statlean_agent.training import build_rejected_dpo_attempts, build_training_manifest
+from statlean_agent.training import build_grpo_process_tasks, build_rejected_dpo_attempts, build_training_manifest
 from statlean_agent.verifier import LakeVerifier, render_task
 from statlean_agent.worktrees import WorktreeManager
 
@@ -142,6 +142,24 @@ def main(argv: list[str] | None = None) -> int:
         "--agent-key",
         default="dpo-negative-generator",
         help="Agent key to attach to generated rejected attempts.",
+    )
+
+    grpo_tasks = subparsers.add_parser(
+        "materialize-grpo-tasks",
+        help="Create process-reward GRPO task JSONL with verifier and policy metadata.",
+    )
+    grpo_tasks.add_argument("--benchmarks", default="benchmarks/seeds.jsonl", help="BenchmarkTask JSONL path.")
+    grpo_tasks.add_argument(
+        "--output",
+        default="artifacts/training/grpo-process-tasks.jsonl",
+        help="Output GRPO process task JSONL path.",
+    )
+    grpo_tasks.add_argument("--repo", default=".", help="Lake repository root for verifier commands.")
+    grpo_tasks.add_argument("--timeout", type=int, default=120, help="Verifier timeout encoded in each task.")
+    grpo_tasks.add_argument(
+        "--python",
+        default="python",
+        help="Python executable encoded in each verifier command.",
     )
 
     assign = subparsers.add_parser("assign-worktree", help="Create or preview an agent worktree.")
@@ -334,6 +352,23 @@ def main(argv: list[str] | None = None) -> int:
         attempts = build_rejected_dpo_attempts(tasks, agent_key=args.agent_key)
         write_jsonl(Path(args.output), list(attempts))
         print(f"materialized={len(attempts)} output={args.output}")
+        return 0
+
+    if args.command == "materialize-grpo-tasks":
+        tasks = load_benchmarks(Path(args.benchmarks))
+        process_tasks = build_grpo_process_tasks(
+            tasks,
+            benchmark_path=args.benchmarks,
+            repo=args.repo,
+            timeout=args.timeout,
+            python=args.python,
+        )
+        write_jsonl(Path(args.output), list(process_tasks))
+        allowed_placeholder_tasks = sum(1 for task in process_tasks if task.allowed_placeholders)
+        print(
+            f"materialized={len(process_tasks)} "
+            f"allowed_placeholder_tasks={allowed_placeholder_tasks} output={args.output}"
+        )
         return 0
 
     if args.command == "assign-worktree":

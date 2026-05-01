@@ -28,12 +28,12 @@ def test_cli_blueprint_status(capsys) -> None:
     assert main(["blueprint-status", "--blueprint", "config/statlean_blueprint.json"]) == 0
     output = capsys.readouterr().out
     assert "Current phase: P6" in output
-    assert "Current milestone: P6.M3" in output
+    assert "Current milestone: P6.M4" in output
 
     assert main(["blueprint-status", "--blueprint", "config/statlean_blueprint.json", "--json"]) == 0
     json_output = capsys.readouterr().out
     assert '"current_phase"' in json_output
-    assert '"P6.M3"' in json_output
+    assert '"P6.M4"' in json_output
 
 
 def test_cli_verify_benchmarks_allow_failures(tmp_path: Path, capsys) -> None:
@@ -138,6 +138,42 @@ def test_cli_materialize_dpo_rejections_and_verify_attempts(tmp_path: Path, caps
 
     write_jsonl(rejected_reports_path, [VerificationReport(rejected_attempts[0]["task_id"], VerificationStatus.REJECTED)])
     assert rejected_reports_path.exists()
+
+
+def test_cli_materialize_grpo_tasks(tmp_path: Path, capsys) -> None:
+    benchmark_path = tmp_path / "seeds.jsonl"
+    grpo_path = tmp_path / "grpo.jsonl"
+    main(["seed-benchmarks", "--output", str(benchmark_path)])
+
+    assert (
+        main(
+            [
+                "materialize-grpo-tasks",
+                "--benchmarks",
+                str(benchmark_path),
+                "--output",
+                str(grpo_path),
+                "--repo",
+                ".",
+                "--python",
+                ".venv/bin/python",
+            ]
+        )
+        == 0
+    )
+
+    output = capsys.readouterr().out
+    records = read_jsonl(grpo_path)
+    assert f"materialized={len(records)}" in output
+    assert "allowed_placeholder_tasks=3" in output
+    assert records[0]["reward_source"] == "lean_process_reward"
+    assert records[0]["verifier_command"][:4] == [
+        ".venv/bin/python",
+        "-m",
+        "statlean_agent.cli",
+        "verify-task",
+    ]
+    assert "proof_complete" in records[0]["reward_components"]
 
 
 def test_cli_build_lemma_ledger(tmp_path: Path, capsys) -> None:

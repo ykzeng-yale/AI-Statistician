@@ -5,6 +5,7 @@ from statlean_agent.benchmarks import SEED_BENCHMARKS
 from statlean_agent.contracts import ProofAttempt, VerificationReport, VerificationStatus
 from statlean_agent.training import (
     build_dpo_pairs,
+    build_grpo_process_tasks,
     build_rejected_dpo_attempts,
     build_training_manifest,
     build_verified_sft_examples,
@@ -58,10 +59,30 @@ def test_build_rejected_dpo_attempts_preserves_tasks_without_placeholders() -> N
     assert all("sorry" not in attempt.lean_code for attempt in attempts)
 
 
+def test_build_grpo_process_tasks_records_policy_and_verifier_metadata() -> None:
+    tasks = build_grpo_process_tasks(
+        SEED_BENCHMARKS,
+        benchmark_path="benchmarks/seeds.jsonl",
+        repo=".",
+        timeout=120,
+        python=".venv/bin/python",
+    )
+
+    assert len(tasks) == len(SEED_BENCHMARKS)
+    assert {task.reward_source for task in tasks} == {"lean_process_reward"}
+    assert all(task.verifier_command[:4] == (".venv/bin/python", "-m", "statlean_agent.cli", "verify-task") for task in tasks)
+    assert all("proof_complete" in task.reward_components for task in tasks)
+    theorem_hole_tasks = [task for task in tasks if "theorem_hole" in task.domain_tags]
+    assert len(theorem_hole_tasks) == 3
+    assert all(task.allowed_placeholders == ("sorry",) for task in theorem_hole_tasks)
+
+
 def test_checked_in_training_manifest_uses_verified_sft_examples() -> None:
     manifest = json.loads(Path("artifacts/training/manifest.json").read_text(encoding="utf-8"))
     negative_attempts = read_jsonl(Path("artifacts/training/dpo-negative-attempts.jsonl"))
     negative_reports = read_jsonl(Path("artifacts/training/dpo-negative-reports.jsonl"))
+    grpo_tasks = read_jsonl(Path("artifacts/training/grpo-process-tasks.jsonl"))
+    grpo_schema = json.loads(Path("schemas/grpo_process_task.schema.json").read_text(encoding="utf-8"))
     placeholder_count = sum(1 for task in SEED_BENCHMARKS if task.lean_task.allowed_sorry)
 
     assert manifest["metadata"]["sft_source"] == "verified_attempts"
@@ -75,6 +96,12 @@ def test_checked_in_training_manifest_uses_verified_sft_examples() -> None:
     assert all("__statlean_dpo_missing_premise__" in attempt["lean_code"] for attempt in negative_attempts)
     assert all(report["status"] == "rejected" for report in negative_reports)
     assert all("Task.lean:" in report["first_error"] for report in negative_reports)
+    assert len(grpo_tasks) == len(SEED_BENCHMARKS)
+    assert all(task["reward_source"] == "lean_process_reward" for task in grpo_tasks)
+    assert sum(1 for task in grpo_tasks if task["allowed_placeholders"] == ["sorry"]) == placeholder_count
+    assert all("statlean_agent.cli" in task["verifier_command"] for task in grpo_tasks)
+    assert grpo_schema["properties"]["reward_source"]["const"] == "lean_process_reward"
+    assert all(set(task) <= set(grpo_schema["properties"]) for task in grpo_tasks)
 
 
 def test_build_dpo_pairs_prefers_accepted_attempt() -> None:

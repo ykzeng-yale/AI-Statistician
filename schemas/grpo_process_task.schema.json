@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GRPOProcessTask",
+  "type": "object",
+  "required": [
+    "task_id",
+    "prompt",
+    "lean_code",
+    "reward_source",
+    "verifier_command",
+    "allowed_placeholders",
+    "forbidden_tokens",
+    "expected_premises",
+    "reward_components",
+    "task_type",
+    "split",
+    "domain_tags"
+  ],
+  "properties": {
+    "task_id": {"type": "string"},
+    "prompt": {"type": "string"},
+    "lean_code": {"type": "string"},
+    "reward_source": {"type": "string", "const": "lean_process_reward"},
+    "verifier_command": {
+      "type": "array",
+      "items": {"type": "string"},
+      "minItems": 1
+    },
+    "allowed_placeholders": {
+      "type": "array",
+      "items": {"type": "string"},
+      "uniqueItems": true
+    },
+    "forbidden_tokens": {
+      "type": "array",
+      "items": {"type": "string"},
+      "uniqueItems": true
+    },
+    "expected_premises": {
+      "type": "array",
+      "items": {"type": "string"},
+      "uniqueItems": true
+    },
+    "reward_components": {
+      "type": "array",
+      "items": {"type": "string"},
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "task_type": {"type": "string"},
+    "split": {"type": "string"},
+    "domain_tags": {
+      "type": "array",
+      "items": {"type": "string"},
+      "minItems": 1,
+      "uniqueItems": true
+    }
+  },
+  "additionalProperties": false
+}
