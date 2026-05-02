@@ -88,6 +88,7 @@ DEFAULT_REPRODUCIBILITY_ARTIFACTS = (
     "artifacts/evaluation/empirical-process-targets.json",
     "artifacts/evaluation/empirical-process-external-slice.json",
     "artifacts/research/vdvw-theorem-inventory.json",
+    "artifacts/research/vdvw-bracketing-gc-statement-candidates.json",
     "artifacts/training/manifest.json",
     "artifacts/training/dpo-negative-attempts.jsonl",
     "artifacts/training/dpo-negative-reports.jsonl",
@@ -509,6 +510,198 @@ DEFAULT_VDVW_THEOREM_INVENTORY = (
         ),
         "next_actions": (
             "Keep as a source-linked theorem card until the Donsker layer is formalized.",
+        ),
+    },
+)
+
+DEFAULT_VDVW_BRACKETING_GC_SOURCE_ANCHORS = (
+    {
+        "anchor_id": "vdvw-gc-definition",
+        "label": "Glivenko-Cantelli class definition",
+        "segment": "Vaart 1996 Weak Convergence and Emperical Process_1-100.md",
+        "line_start": 1834,
+        "line_end": 1834,
+        "purpose": "identifies the outer-probability or outer-almost-sure convergence target",
+    },
+    {
+        "anchor_id": "vdvw-2.1.6-bracketing-number",
+        "label": "Definition 2.1.6",
+        "segment": "Vaart 1996 Weak Convergence and Emperical Process_1-100.md",
+        "line_start": 1895,
+        "line_end": 1895,
+        "purpose": "defines brackets, epsilon-brackets, and bracketing numbers",
+    },
+    {
+        "anchor_id": "vdvw-2.4.1-statement-proof",
+        "label": "Theorem 2.4.1",
+        "segment": "Vaart 1996 Weak Convergence and Emperical Process_101-200.md",
+        "line_start": 970,
+        "line_end": 985,
+        "purpose": "states finite L1(P) bracketing implies Glivenko-Cantelli and sketches the finite-bracket/SLLN proof",
+    },
+)
+
+DEFAULT_VDVW_BRACKETING_GC_STATEMENT_CANDIDATES = (
+    {
+        "candidate_id": "vdvw-2.4.1-dependency-minimal-sequence-route",
+        "track": "dependency_minimal",
+        "status": "compiled_bridge_available",
+        "statement_kind": "current Lean bridge theorem layer",
+        "target_lean_names": (
+            "StatInference.L1BracketingSequenceRoute.toGlivenkoCantelliClass",
+        ),
+        "formal_statement_sketch": (
+            "Given a shrinking sequence of finite L1 bracketing families and "
+            "endpoint empirical-process bounds tending to zero, construct "
+            "GlivenkoCantelliClass indexClass populationRisk empiricalRisk."
+        ),
+        "required_primitives": (
+            "FiniteL1BracketingFamily",
+            "L1BracketingSequenceRoute",
+            "EmpiricalDeviationSequenceOn",
+            "GlivenkoCantelliClass",
+        ),
+        "proof_obligations": (
+            "show endpointRadius tends to zero",
+            "show bracket family scale tends to zero",
+            "apply deterministic bracket endpoint bound at each sample size",
+        ),
+        "existing_lean_handoffs": (
+            "StatInference.empiricalDeviationBoundOn_of_bracket_endpoint_bounds",
+            "StatInference.L1BracketingSequenceRoute.toEmpiricalDeviationSequenceOn",
+            "StatInference.L1BracketingSequenceRoute.toGlivenkoCantelliClass",
+        ),
+        "benchmark_task_ids": (
+            "bracketing_deterministic_bound_seed",
+            "l1_bracketing_sequence_gc_seed",
+            "trivial_bracketing_gc_non_vacuity_seed",
+        ),
+        "local_lake_validation_hooks": (
+            "lake build",
+            "render benchmark task l1_bracketing_sequence_gc_seed",
+            "verify benchmark task l1_bracketing_sequence_gc_seed",
+        ),
+        "axle_validation_hooks": (
+            "extract_decls on StatInference/EmpiricalProcess/L1Bracketing.lean",
+            "check rendered l1_bracketing_sequence_gc_seed in AXLE lean environment",
+        ),
+        "semantic_risks": (
+            "This is not the exact Theorem 2.4.1 statement because it assumes a shrinking bracketing route instead of deriving one from N_[] finite for every epsilon.",
+        ),
+        "promotion_gate": (
+            "Keep as bridge layer until primitive bracketing-number and endpoint-SLLN constructors exist.",
+        ),
+    },
+    {
+        "candidate_id": "vdvw-2.4.1-primitive-l1-bracketing-number",
+        "track": "dependency_minimal",
+        "status": "blocked_pending_primitive_definitions",
+        "statement_kind": "next Lean theorem statement candidate",
+        "target_lean_names": (
+            "StatInference.L1BracketingNumber",
+            "StatInference.FiniteL1BracketingNumberAtEveryScale",
+            "StatInference.vdvw_2_4_1_gc_of_finite_l1_bracketing_number",
+        ),
+        "formal_statement_sketch": (
+            "If every positive epsilon has a finite L1(P) bracketing cover of "
+            "the function class, and finite bracket endpoints satisfy the "
+            "needed real-valued endpoint strong law, then the class is a "
+            "GlivenkoCantelliClass."
+        ),
+        "required_primitives": (
+            "function class as Index -> sampleSpace -> Real",
+            "population L1(P) seminorm or bracket width",
+            "finite bracketing cover object with lower/upper endpoint functions",
+            "constructor from forall epsilon > 0 finite bracketing number to shrinking finite bracket sequence",
+            "endpoint strong-law event for each finite endpoint family",
+        ),
+        "proof_obligations": (
+            "choose a positive scale sequence epsilon_n tending to zero",
+            "select finite brackets at each scale without unsafe choice in theorem statement",
+            "derive endpoint empirical bounds from finite endpoint SLLN",
+            "assemble L1BracketingSequenceRoute and call the compiled bridge",
+        ),
+        "existing_lean_handoffs": (
+            "StatInference.FiniteL1BracketingFamily",
+            "StatInference.finite_endpoint_strong_law_eventually_abs_le_real",
+            "StatInference.L1BracketingSequenceRoute.toGlivenkoCantelliClass",
+        ),
+        "benchmark_task_ids": (
+            "finite_endpoint_strong_law_eventual_bound_seed",
+            "l1_bracketing_sequence_gc_seed",
+            "bracketing_deterministic_bound_seed",
+        ),
+        "local_lake_validation_hooks": (
+            "create theorem-hole benchmark for the primitive bracketing-number constructor",
+            "render and verify current bracketing seeds before adding new Lean primitives",
+            "run no-sorry scan after any Lean promotion",
+        ),
+        "axle_validation_hooks": (
+            "theorem2sorry on candidate Lean statement before proof work",
+            "extract_decls after adding primitive declarations",
+            "repair_proofs only after local Lake identifies syntactic breakage",
+        ),
+        "semantic_risks": (
+            "A naive Nat-valued bracketing number can hide missing measurable endpoint and finite-norm assumptions.",
+            "Using a global choice of brackets can accidentally assume more than the textbook finite-number hypothesis.",
+            "Endpoint SLLN must be tied to the actual bracket endpoints generated by each finite cover.",
+        ),
+        "promotion_gate": (
+            "Add only statement/hole benchmarks first; prove no theorem until non-vacuity and endpoint-SLLN assumptions are explicit.",
+        ),
+    },
+    {
+        "candidate_id": "vdvw-2.4.1-full-outer-almost-sure",
+        "track": "full_textbook_semantics",
+        "status": "blocked_pending_outer_probability_layer",
+        "statement_kind": "exact textbook theorem target",
+        "target_lean_names": (
+            "StatInference.OuterAlmostSureGlivenkoCantelli",
+            "StatInference.VdVWMeasurableFunctionClass",
+            "StatInference.vdvw_2_4_1_outer_almost_sure",
+        ),
+        "formal_statement_sketch": (
+            "For a class of measurable real-valued functions with finite "
+            "L1(P) bracketing number for every epsilon > 0, the outer "
+            "supremum norm ||P_n - P||*_F tends to zero outer almost surely."
+        ),
+        "required_primitives": (
+            "outer probability and outer almost-sure convergence",
+            "empirical measure P_n for iid samples",
+            "supremum seminorm over a function class with measurability policy",
+            "measurable function class and endpoint finite-norm requirements",
+            "strong law for finitely many endpoint functions in the ambient probability space",
+        ),
+        "proof_obligations": (
+            "formalize the outer supremum GC target",
+            "connect finite bracketing numbers to finite endpoint families",
+            "prove upper and lower empirical-process inequalities from brackets",
+            "take decreasing epsilon_m to force limsup equal zero",
+        ),
+        "existing_lean_handoffs": (
+            "StatInference.GlivenkoCantelliClass",
+            "StatInference.L1BracketingSequenceRoute.toGlivenkoCantelliClass",
+        ),
+        "benchmark_task_ids": (
+            "glivenko_cantelli_statement_seed",
+            "bracketing_deterministic_bound_seed",
+            "finite_endpoint_strong_law_eventual_bound_seed",
+        ),
+        "local_lake_validation_hooks": (
+            "keep this as a source-linked theorem card until outer probability APIs exist",
+            "validate any exact-theorem Lean declaration with lake build and forbidden-shortcut scan",
+        ),
+        "axle_validation_hooks": (
+            "check exact theorem statement candidate after local syntax is stable",
+            "disprove candidate only for vacuity/sanity checks on deliberately overstrong variants",
+        ),
+        "semantic_risks": (
+            "Current GlivenkoCantelliClass is an inner deterministic radius interface, not the outer-almost-sure textbook conclusion.",
+            "Omitting outer probability would change the theorem.",
+            "Omitting measurability assumptions can make the Lean statement weaker or vacuous.",
+        ),
+        "promotion_gate": (
+            "Do not promote as exact theorem until outer probability, empirical measure, and measurable-class primitives compile.",
         ),
     },
 )
@@ -1506,6 +1699,85 @@ def build_vdvw_theorem_inventory(
     }
 
 
+def build_vdvw_bracketing_gc_statement_candidates(
+    tasks: tuple[BenchmarkTask, ...],
+    *,
+    candidate_specs: tuple[Mapping[str, object], ...] = DEFAULT_VDVW_BRACKETING_GC_STATEMENT_CANDIDATES,
+    source_anchors: tuple[Mapping[str, object], ...] = DEFAULT_VDVW_BRACKETING_GC_SOURCE_ANCHORS,
+    markdown_root: str = VDVW_MARKDOWN_ROOT,
+) -> dict[str, object]:
+    """Build P11.M2 statement candidates for the VdV&W 2.4.1 route.
+
+    This artifact is intentionally below theorem-report level: it records
+    source-linked statement options, proof obligations, and validation hooks
+    before any candidate is promoted to a claimed Lean theorem.
+    """
+
+    task_by_id = _task_index(tasks)
+    candidates = [
+        _vdvw_statement_candidate_row(spec, task_by_id)
+        for spec in candidate_specs
+    ]
+    status_counts: dict[str, int] = {}
+    track_counts: dict[str, int] = {}
+    for candidate in candidates:
+        status = str(candidate["status"])
+        track = str(candidate["track"])
+        status_counts[status] = status_counts.get(status, 0) + 1
+        track_counts[track] = track_counts.get(track, 0) + 1
+
+    blocked_or_review = [
+        str(candidate["candidate_id"])
+        for candidate in candidates
+        if candidate["human_review_required"]
+        or not str(candidate["status"]).startswith("compiled")
+    ]
+
+    return {
+        "report_id": "vdvw-bracketing-gc-statement-candidates::p11.m2",
+        "source_inventory_id": "vdvw-2.4.1-finite-bracketing-gc",
+        "source_label": "Theorem 2.4.1",
+        "source": "van der Vaart and Wellner, Weak Convergence and Empirical Processes",
+        "markdown_root": markdown_root,
+        "source_anchors": [
+            {
+                "anchor_id": str(anchor["anchor_id"]),
+                "label": str(anchor["label"]),
+                "markdown_anchor": {
+                    "root": markdown_root,
+                    "segment": str(anchor["segment"]),
+                    "line_start": int(anchor["line_start"]),
+                    "line_end": int(anchor["line_end"]),
+                },
+                "purpose": str(anchor["purpose"]),
+            }
+            for anchor in source_anchors
+        ],
+        "candidate_count": len(candidates),
+        "status_counts": dict(sorted(status_counts.items())),
+        "track_counts": dict(sorted(track_counts.items())),
+        "blocked_or_review_candidates": blocked_or_review,
+        "candidates": candidates,
+        "acceptance_gates": [
+            "This artifact is a statement-candidate plan, not a formal theorem report.",
+            "The dependency-minimal route may reuse compiled bridge declarations but must not be labeled as exact VdV&W Theorem 2.4.1.",
+            "The primitive L1 bracketing-number candidate needs explicit endpoint, finite-norm, and non-vacuity assumptions before Lean promotion.",
+            "The exact textbook target remains blocked until outer-probability and empirical-measure semantics exist.",
+            "Any AXLE-generated output must be rechecked by local Lake and must not weaken the source theorem statement.",
+        ],
+        "next_actions": [
+            "Add theorem-hole benchmark seeds for the primitive L1 bracketing-number constructor.",
+            "Draft Lean signatures for L1BracketingNumber and FiniteL1BracketingNumberAtEveryScale without claiming proof.",
+            "Keep exact outer-almost-sure theorem as a theorem card until the outer-probability layer is available.",
+        ],
+        "notes": (
+            "P11.M2 converts the VdV&W Theorem 2.4.1 inventory row into "
+            "three statement-candidate tracks: compiled bridge, next primitive "
+            "constructor, and exact outer-almost-sure textbook target."
+        ),
+    }
+
+
 def build_empirical_process_expansion_targets(
     tasks: tuple[BenchmarkTask, ...],
     *,
@@ -2148,6 +2420,54 @@ def _vdvw_inventory_row(
             for action in _sequence(spec.get("next_actions"))
         ],
         "promotion_status": promotion_status,
+        "human_review_required": True,
+    }
+
+
+def _vdvw_statement_candidate_row(
+    spec: Mapping[str, object],
+    task_by_id: Mapping[str, BenchmarkTask],
+) -> dict[str, object]:
+    benchmark_task_ids = tuple(str(task_id) for task_id in _sequence(spec.get("benchmark_task_ids")))
+    present_task_ids = tuple(task_id for task_id in benchmark_task_ids if task_id in task_by_id)
+    missing_task_ids = tuple(task_id for task_id in benchmark_task_ids if task_id not in task_by_id)
+    return {
+        "candidate_id": str(spec["candidate_id"]),
+        "track": str(spec["track"]),
+        "status": str(spec["status"]),
+        "statement_kind": str(spec["statement_kind"]),
+        "target_lean_names": [
+            str(name)
+            for name in _sequence(spec.get("target_lean_names"))
+        ],
+        "formal_statement_sketch": str(spec["formal_statement_sketch"]),
+        "required_primitives": [
+            str(item)
+            for item in _sequence(spec.get("required_primitives"))
+        ],
+        "proof_obligations": [
+            str(item)
+            for item in _sequence(spec.get("proof_obligations"))
+        ],
+        "existing_lean_handoffs": [
+            str(item)
+            for item in _sequence(spec.get("existing_lean_handoffs"))
+        ],
+        "benchmark_task_ids": list(present_task_ids),
+        "missing_benchmark_task_ids": list(missing_task_ids),
+        "local_lake_validation_hooks": [
+            str(item)
+            for item in _sequence(spec.get("local_lake_validation_hooks"))
+        ],
+        "axle_validation_hooks": [
+            str(item)
+            for item in _sequence(spec.get("axle_validation_hooks"))
+        ],
+        "semantic_risks": [
+            str(item)
+            for item in _sequence(spec.get("semantic_risks"))
+        ],
+        "promotion_gate": str(spec["promotion_gate"]),
         "human_review_required": True,
     }
 

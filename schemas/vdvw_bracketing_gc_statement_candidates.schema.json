@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "VdVWBracketingGCStatementCandidates",
+  "type": "object",
+  "required": [
+    "report_id",
+    "source_inventory_id",
+    "source_label",
+    "source",
+    "markdown_root",
+    "source_anchors",
+    "candidate_count",
+    "status_counts",
+    "track_counts",
+    "blocked_or_review_candidates",
+    "candidates",
+    "acceptance_gates",
+    "next_actions",
+    "notes"
+  ],
+  "properties": {
+    "report_id": {"type": "string"},
+    "source_inventory_id": {"type": "string"},
+    "source_label": {"type": "string"},
+    "source": {"type": "string"},
+    "markdown_root": {"type": "string"},
+    "source_anchors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["anchor_id", "label", "markdown_anchor", "purpose"],
+        "properties": {
+          "anchor_id": {"type": "string"},
+          "label": {"type": "string"},
+          "markdown_anchor": {
+            "type": "object",
+            "required": ["root", "segment", "line_start", "line_end"],
+            "properties": {
+              "root": {"type": "string"},
+              "segment": {"type": "string"},
+              "line_start": {"type": "integer"},
+              "line_end": {"type": "integer"}
+            },
+            "additionalProperties": false
+          },
+          "purpose": {"type": "string"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "candidate_count": {"type": "integer"},
+    "status_counts": {"type": "object", "additionalProperties": {"type": "integer"}},
+    "track_counts": {"type": "object", "additionalProperties": {"type": "integer"}},
+    "blocked_or_review_candidates": {"type": "array", "items": {"type": "string"}},
+    "candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "candidate_id",
+          "track",
+          "status",
+          "statement_kind",
+          "target_lean_names",
+          "formal_statement_sketch",
+          "required_primitives",
+          "proof_obligations",
+          "existing_lean_handoffs",
+          "benchmark_task_ids",
+          "missing_benchmark_task_ids",
+          "local_lake_validation_hooks",
+          "axle_validation_hooks",
+          "semantic_risks",
+          "promotion_gate",
+          "human_review_required"
+        ],
+        "properties": {
+          "candidate_id": {"type": "string"},
+          "track": {"type": "string"},
+          "status": {"type": "string"},
+          "statement_kind": {"type": "string"},
+          "target_lean_names": {"type": "array", "items": {"type": "string"}},
+          "formal_statement_sketch": {"type": "string"},
+          "required_primitives": {"type": "array", "items": {"type": "string"}},
+          "proof_obligations": {"type": "array", "items": {"type": "string"}},
+          "existing_lean_handoffs": {"type": "array", "items": {"type": "string"}},
+          "benchmark_task_ids": {"type": "array", "items": {"type": "string"}},
+          "missing_benchmark_task_ids": {"type": "array", "items": {"type": "string"}},
+          "local_lake_validation_hooks": {"type": "array", "items": {"type": "string"}},
+          "axle_validation_hooks": {"type": "array", "items": {"type": "string"}},
+          "semantic_risks": {"type": "array", "items": {"type": "string"}},
+          "promotion_gate": {"type": "string"},
+          "human_review_required": {"type": "boolean"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "acceptance_gates": {"type": "array", "items": {"type": "string"}},
+    "next_actions": {"type": "array", "items": {"type": "string"}},
+    "notes": {"type": "string"}
+  },
+  "additionalProperties": false
+}

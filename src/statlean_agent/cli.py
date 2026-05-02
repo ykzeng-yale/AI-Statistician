@@ -41,6 +41,7 @@ from statlean_agent.evaluation import (
     build_external_baseline_results,
     build_paper_quality_heldout_report,
     build_reproducibility_bundle,
+    build_vdvw_bracketing_gc_statement_candidates,
     build_vdvw_theorem_inventory,
     compare_baseline_on_split,
     evaluate_attempts,
@@ -298,6 +299,21 @@ def main(argv: list[str] | None = None) -> int:
         "--output",
         default="artifacts/research/vdvw-theorem-inventory.json",
         help="Output VdV&W theorem inventory JSON path.",
+    )
+
+    vdvw_bracketing_gc = subparsers.add_parser(
+        "vdvw-bracketing-gc-statements",
+        help="Build P11.M2 VdV&W Theorem 2.4.1 bracketing GC statement candidates.",
+    )
+    vdvw_bracketing_gc.add_argument(
+        "--benchmarks",
+        default="benchmarks/seeds.jsonl",
+        help="BenchmarkTask JSONL path.",
+    )
+    vdvw_bracketing_gc.add_argument(
+        "--output",
+        default="artifacts/research/vdvw-bracketing-gc-statement-candidates.json",
+        help="Output bracketing GC statement-candidates JSON path.",
     )
 
     paper_heldout = subparsers.add_parser(
@@ -932,6 +948,20 @@ def main(argv: list[str] | None = None) -> int:
             f"vdvw_theorem_inventory={report['row_count']} "
             f"families={len(report['family_counts'])} "
             f"blocked_or_review={len(report['blocked_or_review_rows'])} "
+            f"output={args.output}"
+        )
+        return 0
+
+    if args.command == "vdvw-bracketing-gc-statements":
+        tasks = load_benchmarks(Path(args.benchmarks))
+        report = build_vdvw_bracketing_gc_statement_candidates(tasks)
+        output = Path(args.output)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(dumps_json(report) + "\n", encoding="utf-8")
+        print(
+            f"vdvw_bracketing_gc_statement_candidates={report['candidate_count']} "
+            f"tracks={len(report['track_counts'])} "
+            f"blocked_or_review={len(report['blocked_or_review_candidates'])} "
             f"output={args.output}"
         )
         return 0

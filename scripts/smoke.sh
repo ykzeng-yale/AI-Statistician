@@ -24,3 +24,5 @@ PYTHONPATH=src "${PYTHON_BIN}" -m statlean_agent.cli empirical-process-external-
 cmp "${TMP_DIR}/empirical-process-external-slice.json" artifacts/evaluation/empirical-process-external-slice.json
 PYTHONPATH=src "${PYTHON_BIN}" -m statlean_agent.cli vdvw-theorem-inventory --output "${TMP_DIR}/vdvw-theorem-inventory.json"
 cmp "${TMP_DIR}/vdvw-theorem-inventory.json" artifacts/research/vdvw-theorem-inventory.json
+PYTHONPATH=src "${PYTHON_BIN}" -m statlean_agent.cli vdvw-bracketing-gc-statements --output "${TMP_DIR}/vdvw-bracketing-gc-statement-candidates.json"
+cmp "${TMP_DIR}/vdvw-bracketing-gc-statement-candidates.json" artifacts/research/vdvw-bracketing-gc-statement-candidates.json

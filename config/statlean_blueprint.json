@@ -647,17 +647,24 @@
         },
         {
           "id": "P11.M2",
-          "status": "in_progress",
-          "name": "Source-linked bracketing GC theorem statement candidates"
+          "status": "done",
+          "name": "Source-linked bracketing GC theorem statement candidates",
+          "evidence": [
+            "build_vdvw_bracketing_gc_statement_candidates generates artifacts/research/vdvw-bracketing-gc-statement-candidates.json.",
+            "The artifact promotes VdV&W Theorem 2.4.1 into three guarded statement-candidate tracks: compiled dependency-minimal bridge, primitive L1 bracketing-number constructor, and exact outer-almost-sure textbook target.",
+            "Source anchors include the GC definition, Definition 2.1.6 bracketing numbers, and the Theorem 2.4.1 statement/proof sketch from local markdown.",
+            "Each candidate records target Lean names, required primitives, proof obligations, benchmark seeds, local Lake hooks, optional AXLE hooks, semantic risks, and promotion gates.",
+            "schemas/vdvw_bracketing_gc_statement_candidates.schema.json, Python tests, and smoke determinism checks enforce the checked-in artifact."
+          ]
         },
         {
           "id": "P11.M3",
-          "status": "pending",
+          "status": "in_progress",
           "name": "Source-linked VC and Donsker proof-obligation candidates"
         }
       ],
       "next_actions": [
-        "Implement P11.M2 by promoting the VdV&W Theorem 2.4.1 inventory row into source-linked bracketing GC theorem statement candidates, including primitive L1 bracketing-number signatures, measurability/outer-probability gaps, benchmark seeds, and AXLE/local-Lake validation hooks."
+        "Implement P11.M3 by promoting the VdV&W VC-subgraph and Donsker inventory rows into source-linked proof-obligation candidates, separating VC entropy obligations, pre-Gaussian/tightness assumptions, and Donsker-to-inference handoff hooks."
       ]
     }
   ]

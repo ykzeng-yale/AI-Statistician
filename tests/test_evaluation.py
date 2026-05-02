@@ -21,6 +21,7 @@ from statlean_agent.evaluation import (
     build_external_baseline_results,
     build_paper_quality_heldout_report,
     build_reproducibility_bundle,
+    build_vdvw_bracketing_gc_statement_candidates,
     build_vdvw_theorem_inventory,
     compare_baseline_on_split,
     evaluate_attempts,
@@ -1084,6 +1085,55 @@ def test_checked_in_vdvw_theorem_inventory_artifact() -> None:
     assert set(report) <= set(schema["properties"])
 
 
+def test_build_vdvw_bracketing_gc_statement_candidates() -> None:
+    report = build_vdvw_bracketing_gc_statement_candidates(SEED_BENCHMARKS)
+
+    assert report["report_id"] == "vdvw-bracketing-gc-statement-candidates::p11.m2"
+    assert report["source_inventory_id"] == "vdvw-2.4.1-finite-bracketing-gc"
+    assert report["source_label"] == "Theorem 2.4.1"
+    assert report["candidate_count"] == 3
+    assert report["track_counts"] == {"dependency_minimal": 2, "full_textbook_semantics": 1}
+    assert report["status_counts"]["compiled_bridge_available"] == 1
+    assert len(report["blocked_or_review_candidates"]) == 3
+    assert {anchor["label"] for anchor in report["source_anchors"]} >= {
+        "Definition 2.1.6",
+        "Theorem 2.4.1",
+    }
+    assert all(candidate["human_review_required"] for candidate in report["candidates"])
+    assert all(not candidate["missing_benchmark_task_ids"] for candidate in report["candidates"])
+
+    candidates = {candidate["candidate_id"]: candidate for candidate in report["candidates"]}
+    primitive = candidates["vdvw-2.4.1-primitive-l1-bracketing-number"]
+    assert primitive["status"] == "blocked_pending_primitive_definitions"
+    assert "StatInference.L1BracketingNumber" in primitive["target_lean_names"]
+    assert "l1_bracketing_sequence_gc_seed" in primitive["benchmark_task_ids"]
+    exact = candidates["vdvw-2.4.1-full-outer-almost-sure"]
+    assert "OuterAlmostSureGlivenkoCantelli" in " ".join(exact["target_lean_names"])
+    assert any("outer probability" in risk for risk in exact["semantic_risks"])
+
+
+def test_checked_in_vdvw_bracketing_gc_statement_candidates_artifact() -> None:
+    report = json.loads(
+        Path("artifacts/research/vdvw-bracketing-gc-statement-candidates.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    schema = json.loads(
+        Path("schemas/vdvw_bracketing_gc_statement_candidates.schema.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    assert report["report_id"] == "vdvw-bracketing-gc-statement-candidates::p11.m2"
+    assert report["candidate_count"] == 3
+    assert report["source_anchors"][1]["markdown_anchor"]["line_start"] == 1895
+    assert report["source_anchors"][2]["markdown_anchor"]["line_start"] == 970
+    assert report["track_counts"] == {"dependency_minimal": 2, "full_textbook_semantics": 1}
+    assert len(report["blocked_or_review_candidates"]) == 3
+    assert "P11.M2 converts" in report["notes"]
+    assert set(report) <= set(schema["properties"])
+
+
 def test_checked_in_theorem_hole_promotion_queue_artifact() -> None:
     report = json.loads(Path("artifacts/curation/theorem-hole-promotion-queue.json").read_text(encoding="utf-8"))
     schema = json.loads(Path("schemas/theorem_hole_promotion_queue.schema.json").read_text(encoding="utf-8"))
@@ -1118,11 +1168,12 @@ def test_checked_in_reproducibility_bundle_artifact() -> None:
     assert "artifacts/evaluation/empirical-process-targets.json" in artifact_paths
     assert "artifacts/evaluation/empirical-process-external-slice.json" in artifact_paths
     assert "artifacts/research/vdvw-theorem-inventory.json" in artifact_paths
+    assert "artifacts/research/vdvw-bracketing-gc-statement-candidates.json" in artifact_paths
     assert "artifacts/curation/theorem-hole-promotion-queue.json" in artifact_paths
     assert all(len(artifact["sha256"]) == 64 for artifact in report["artifacts"])
     assert any(command["name"] == "smoke" for command in report["validation_commands"])
     assert any(command["name"] == "forbidden_lean_shortcuts" for command in report["validation_commands"])
-    assert report["current_milestone"]["id"] == "P11.M2"
+    assert report["current_milestone"]["id"] == "P11.M3"
     assert set(report) <= set(schema["properties"])
 
 

@@ -232,10 +232,27 @@ The inventory deliberately marks every row as
 interfaces from being treated as exact textbook formalizations before the
 primitive definitions and semantic assumptions are present.
 
+## P11.M2 Status Update
+
+`P11.M2` is complete as a statement-candidate artifact, not as an exact theorem
+formalization.  The checked-in artifact at
+`artifacts/research/vdvw-bracketing-gc-statement-candidates.json` records three
+tracks for VdV&W Theorem 2.4.1:
+
+- the compiled dependency-minimal bridge already represented by
+  `L1BracketingSequenceRoute.toGlivenkoCantelliClass`;
+- the next primitive `L1(P)` bracketing-number constructor target;
+- the exact outer-almost-sure textbook target, still blocked by missing
+  outer-probability and empirical-measure semantics.
+
+Every candidate records source anchors, target Lean names, proof obligations,
+benchmark seeds, local Lake hooks, optional AXLE hooks, semantic risks, and a
+promotion gate.
+
 ## Parallel Workstreams
 
-The following can run while another agent works on P11.M2 bracketing GC theorem
-statement candidates,
+The following can run while another agent works on P11.M3 VC/Donsker
+proof-obligation candidates,
 with low conflict risk:
 
 1. Textbook theorem atlas extraction in `docs/` or `artifacts/research/`.
@@ -247,24 +264,23 @@ with low conflict risk:
 5. New theorem-statement drafts in documentation, not Lean source, for
    bracketing GC and finite-class GC constructor theorems.
 
-Avoid touching these paths until current P11.M1 edits are synchronized:
+Avoid touching these paths until current P11.M3 edits are synchronized:
 
 - `StatInference/EmpiricalProcess/Complexity.lean`
 - `src/statlean_agent/benchmarks.py`
 - `benchmarks/seeds.jsonl`
 - checked-in benchmark/evaluation artifacts affected by seed count
 
-## Immediate Promotion Checklist For Active P11.M2
+## Immediate Promotion Checklist For Active P11.M3
 
-Before promoting P11.M2:
+Before promoting P11.M3:
 
-- promote VdV&W Theorem 2.4.1 into statement candidates, not a theorem-completion
-  report;
-- draft primitive `L1(P)` bracketing-number signatures and the finite-bracketing
-  GC target statement;
-- keep outer-probability, measurability, empirical-measure, iid-sample, and
-  endpoint-SLLN gaps explicit;
-- connect statement candidates to benchmark seeds and AXLE/local-Lake validation
-  hooks;
+- promote VC-subgraph and Donsker inventory rows into proof-obligation
+  candidates, not theorem-completion reports;
+- separate VC set-class entropy, VC-subgraph envelope/measurability, and
+  Donsker tightness/pre-Gaussian obligations;
+- keep GC consequences distinct from Donsker consequences;
+- connect each proof-obligation candidate to benchmark seeds and
+  AXLE/local-Lake validation hooks;
 - rerun `.venv/bin/pytest`, `PYTHON=.venv/bin/python bash scripts/smoke.sh`, and
   `lake build`.
