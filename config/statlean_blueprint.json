@@ -721,12 +721,16 @@
             "Benchmarks finite_bracket_sample_empirical_measure_assembly_seed, finite_bracket_sample_empirical_measure_constructor_seed, and finite_bracket_sample_empirical_measure_gc_seed exercise the sample/empirical-measure bridge.",
             "stochasticProcessSamples and bracketEndpointObservationProcess connect an observation process X_i(omega) to the repository SampleAt endpoint-average notation.",
             "finite_endpoint_process_strong_law_eventually_abs_le_real and finite_bracket_process_endpoints_eventually_abs_le_real assemble SLLN eventual bounds for stochastic-process-induced endpoint sample averages.",
-            "Benchmarks finite_endpoint_process_strong_law_eventual_bound_seed and finite_bracket_process_endpoints_eventual_bound_seed exercise the new process-to-endpoint-SLLN bridge."
+            "Benchmarks finite_endpoint_process_strong_law_eventual_bound_seed and finite_bracket_process_endpoints_eventual_bound_seed exercise the new process-to-endpoint-SLLN bridge.",
+            "empiricalMeasureOfSample and empiricalMeasureSequenceOfSamples fix P_n to the normalized finite Dirac empirical measure induced by each finite sample.",
+            "EmpiricalMeasureOfSampleEndpointIntegralAgreement isolates the remaining endpoint-integral equality needed to identify concrete empirical-measure integrals with sample averages.",
+            "FiniteBracketSampleEmpiricalMeasureSemantics.ofEmpiricalMeasureOfSamples constructs the sample/empirical-measure bridge from the concrete Dirac empirical-measure sequence plus endpoint-integral agreement.",
+            "Benchmark empirical_measure_of_sample_bridge_constructor_seed exercises the concrete empirical-measure bridge constructor."
           ]
         }
       ],
       "next_actions": [
-        "Continue P12.M3 from the l1 bracketing-number constructor and compiled stochastic-process endpoint SLLN event assembly toward concrete iid empirical-measure construction proving P_n endpoint integrals agree with stochastic-process sample averages; keep the exact outer-almost-sure VdV&W 2.4.1 theorem blocked until outer convergence constructors and non-vacuity examples compile."
+        "Continue P12.M3 from the l1 bracketing-number constructor by proving EmpiricalMeasureOfSampleEndpointIntegralAgreement from mathlib Dirac/finite-sum integral lemmas under explicit measurability/nonempty-sample assumptions, then connect stochastic-process samples to concrete iid empirical measures; keep exact outer-almost-sure VdV&W 2.4.1 blocked until outer convergence constructors and non-vacuity examples compile."
       ]
     }
   ]

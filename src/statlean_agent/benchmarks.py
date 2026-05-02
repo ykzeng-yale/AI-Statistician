@@ -1424,6 +1424,72 @@ SEED_BENCHMARKS: tuple[BenchmarkTask, ...] = (
         ),
     ),
     BenchmarkTask(
+        task_id="empirical_measure_of_sample_bridge_constructor_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S5",
+        domain_tags=(
+            "empirical_process",
+            "bracketing_number",
+            "endpoint_strong_law",
+            "sample_average",
+            "empirical_measure",
+            "glivenko_cantelli",
+        ),
+        natural_language=(
+            "Construct the sample/empirical-measure bridge using the concrete "
+            "Dirac empirical measure sequence induced by finite samples."
+        ),
+        lean_task=LeanTask(
+            task_id="empirical_measure_of_sample_bridge_constructor_seed",
+            imports=("StatInference.EmpiricalProcess.VdVW241",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "noncomputable example {Observation Index Bracket : Type*} "
+                "[MeasurableSpace Observation] [Fintype Bracket] "
+                "{indexClass : Set Index} {populationRisk : Index -> Real} "
+                "{empiricalRisk : Nat -> Index -> Real} "
+                "(sampleSemantics : StatInference.FiniteBracketSampleAverageSemantics "
+                "(Observation := Observation) (Bracket := Bracket) "
+                "indexClass populationRisk empiricalRisk) "
+                "(populationMeasure : MeasureTheory.Measure Observation) "
+                "(lower_population_eq : forall sampleSize bracket, "
+                "(sampleSemantics.family sampleSize).lowerPopulation bracket = "
+                "StatInference.bracketEndpointPopulationIntegral populationMeasure "
+                "sampleSemantics.lowerEndpoint bracket) "
+                "(upper_population_eq : forall sampleSize bracket, "
+                "(sampleSemantics.family sampleSize).upperPopulation bracket = "
+                "StatInference.bracketEndpointPopulationIntegral populationMeasure "
+                "sampleSemantics.upperEndpoint bracket) "
+                "(agreement : StatInference.EmpiricalMeasureOfSampleEndpointIntegralAgreement "
+                "sampleSemantics.samples sampleSemantics.lowerEndpoint "
+                "sampleSemantics.upperEndpoint) : "
+                "StatInference.FiniteBracketSampleEmpiricalMeasureSemantics "
+                "(Observation := Observation) (Bracket := Bracket) "
+                "indexClass populationRisk empiricalRisk := by\n"
+                "  exact StatInference.FiniteBracketSampleEmpiricalMeasureSemantics."
+                "ofEmpiricalMeasureOfSamples sampleSemantics populationMeasure "
+                "lower_population_eq upper_population_eq agreement"
+            ),
+            tags=(
+                "bracketing_number",
+                "endpoint_strong_law",
+                "sample_average",
+                "empirical_measure",
+                "constructor",
+            ),
+            dependencies=(
+                "StatInference.FiniteBracketSampleEmpiricalMeasureSemantics.ofEmpiricalMeasureOfSamples",
+                "StatInference.EmpiricalMeasureOfSampleEndpointIntegralAgreement",
+            ),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=(
+            "StatInference.FiniteBracketSampleEmpiricalMeasureSemantics.ofEmpiricalMeasureOfSamples",
+            "StatInference.EmpiricalMeasureOfSampleEndpointIntegralAgreement",
+        ),
+    ),
+    BenchmarkTask(
         task_id="outer_gc_projection_seed",
         task_type=BenchmarkTaskType.FORMAL_ONLY,
         split=BenchmarkSplit.DEV,
