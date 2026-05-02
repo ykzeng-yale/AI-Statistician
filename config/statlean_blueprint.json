@@ -712,12 +712,14 @@
             "StatInference.EmpiricalProcess.VdVW241 introduces FiniteBracketEndpointStrongLawAssembly for finite bracket endpoint absolute-error control.",
             "FiniteBracketEndpointStrongLawAssembly.toConstructorObligations converts endpoint absolute-error bounds into L1BracketingNumberConstructorObligations.",
             "FiniteBracketEndpointStrongLawAssembly.toGlivenkoCantelliClass builds the current GlivenkoCantelliClass interface while preserving the exact outer-almost-sure theorem as a blocked semantic layer.",
-            "Benchmarks finite_bracket_endpoint_control_constructor_seed, finite_bracket_endpoint_control_gc_seed, and vdvw_2_4_1_current_gc_bridge_seed exercise the endpoint-to-constructor handoff."
+            "Benchmarks finite_bracket_endpoint_control_constructor_seed, finite_bracket_endpoint_control_gc_seed, and vdvw_2_4_1_current_gc_bridge_seed exercise the endpoint-to-constructor handoff.",
+            "FiniteBracketSampleAverageSemantics ties lower and upper endpoint empirical values to empiricalAverage over a common finite-sample sequence before forgetting into the endpoint assembly layer.",
+            "Benchmarks finite_bracket_sample_average_assembly_seed, finite_bracket_sample_average_constructor_seed, and finite_bracket_sample_average_gc_seed exercise the concrete sample-average-to-GC handoff."
           ]
         }
       ],
       "next_actions": [
-        "Continue P12.M3 from the l1 bracketing-number constructor by tying finite endpoint assembly signatures to concrete sample-average and empirical-measure semantics while keeping the exact outer-almost-sure VdV&W 2.4.1 theorem blocked until outer convergence primitives compile."
+        "Continue P12.M3 from the l1 bracketing-number constructor by tying sample-average endpoint semantics to measure-backed empirical-measure and outer-convergence semantics while keeping the exact outer-almost-sure VdV&W 2.4.1 theorem blocked until outer convergence primitives compile."
       ]
     }
   ]

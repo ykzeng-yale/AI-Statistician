@@ -842,6 +842,134 @@ SEED_BENCHMARKS: tuple[BenchmarkTask, ...] = (
         ),
     ),
     BenchmarkTask(
+        task_id="finite_bracket_sample_average_assembly_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S5",
+        domain_tags=(
+            "empirical_process",
+            "bracketing_number",
+            "endpoint_strong_law",
+            "sample_average",
+            "glivenko_cantelli",
+        ),
+        natural_language=(
+            "Forget the concrete sample-average representation of bracket "
+            "endpoint empirical values and build the endpoint strong-law "
+            "assembly layer."
+        ),
+        lean_task=LeanTask(
+            task_id="finite_bracket_sample_average_assembly_seed",
+            imports=("StatInference.EmpiricalProcess.VdVW241",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "noncomputable example {Observation Index Bracket : Type*} [Fintype Bracket] "
+                "{indexClass : Set Index} {populationRisk : Index -> Real} "
+                "{empiricalRisk : Nat -> Index -> Real} "
+                "(semantics : StatInference.FiniteBracketSampleAverageSemantics "
+                "(Observation := Observation) (Bracket := Bracket) "
+                "indexClass populationRisk empiricalRisk) : "
+                "StatInference.FiniteBracketEndpointStrongLawAssembly "
+                "(Bracket := Bracket) indexClass populationRisk empiricalRisk := by\n"
+                "  exact StatInference.FiniteBracketSampleAverageSemantics.toEndpointStrongLawAssembly "
+                "semantics"
+            ),
+            tags=("bracketing_number", "endpoint_strong_law", "sample_average"),
+            dependencies=(
+                "StatInference.FiniteBracketSampleAverageSemantics.toEndpointStrongLawAssembly",
+            ),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=(
+            "StatInference.FiniteBracketSampleAverageSemantics.toEndpointStrongLawAssembly",
+        ),
+    ),
+    BenchmarkTask(
+        task_id="finite_bracket_sample_average_constructor_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S5",
+        domain_tags=(
+            "empirical_process",
+            "bracketing_number",
+            "endpoint_strong_law",
+            "sample_average",
+            "glivenko_cantelli",
+        ),
+        natural_language=(
+            "Build primitive L1 bracketing-number constructor obligations from "
+            "finite bracket endpoint empirical averages represented as sample "
+            "averages."
+        ),
+        lean_task=LeanTask(
+            task_id="finite_bracket_sample_average_constructor_seed",
+            imports=("StatInference.EmpiricalProcess.VdVW241",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "noncomputable example {Observation Index Bracket : Type*} [Fintype Bracket] "
+                "{indexClass : Set Index} {populationRisk : Index -> Real} "
+                "{empiricalRisk : Nat -> Index -> Real} "
+                "(semantics : StatInference.FiniteBracketSampleAverageSemantics "
+                "(Observation := Observation) (Bracket := Bracket) "
+                "indexClass populationRisk empiricalRisk) : "
+                "StatInference.L1BracketingNumberConstructorObligations "
+                "(Bracket := Bracket) indexClass populationRisk empiricalRisk := by\n"
+                "  exact StatInference.FiniteBracketSampleAverageSemantics.toConstructorObligations "
+                "semantics"
+            ),
+            tags=("bracketing_number", "endpoint_strong_law", "sample_average", "constructor"),
+            dependencies=(
+                "StatInference.FiniteBracketSampleAverageSemantics.toConstructorObligations",
+            ),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=(
+            "StatInference.FiniteBracketSampleAverageSemantics.toConstructorObligations",
+        ),
+    ),
+    BenchmarkTask(
+        task_id="finite_bracket_sample_average_gc_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S5",
+        domain_tags=(
+            "empirical_process",
+            "bracketing_number",
+            "endpoint_strong_law",
+            "sample_average",
+            "glivenko_cantelli",
+        ),
+        natural_language=(
+            "Build the current GC-class interface from finite bracket endpoint "
+            "empirical averages represented as sample averages."
+        ),
+        lean_task=LeanTask(
+            task_id="finite_bracket_sample_average_gc_seed",
+            imports=("StatInference.EmpiricalProcess.VdVW241",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "noncomputable example {Observation Index Bracket : Type*} [Fintype Bracket] "
+                "{indexClass : Set Index} {populationRisk : Index -> Real} "
+                "{empiricalRisk : Nat -> Index -> Real} "
+                "(semantics : StatInference.FiniteBracketSampleAverageSemantics "
+                "(Observation := Observation) (Bracket := Bracket) "
+                "indexClass populationRisk empiricalRisk) : "
+                "StatInference.GlivenkoCantelliClass "
+                "indexClass populationRisk empiricalRisk := by\n"
+                "  exact StatInference.FiniteBracketSampleAverageSemantics.toGlivenkoCantelliClass "
+                "semantics"
+            ),
+            tags=("bracketing_number", "endpoint_strong_law", "sample_average", "gc_certificate"),
+            dependencies=(
+                "StatInference.FiniteBracketSampleAverageSemantics.toGlivenkoCantelliClass",
+            ),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=(
+            "StatInference.FiniteBracketSampleAverageSemantics.toGlivenkoCantelliClass",
+        ),
+    ),
+    BenchmarkTask(
         task_id="vdvw_2_4_1_current_gc_bridge_seed",
         task_type=BenchmarkTaskType.SUBGOAL_COMPLETION,
         split=BenchmarkSplit.DEV,
