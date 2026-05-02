@@ -252,30 +252,38 @@ DEFAULT_VDVW_THEOREM_INVENTORY = (
         "current_claim_level": "deterministic_reduction_plus_certificate_interface",
         "current_lean_declarations": (
             "StatInference.FiniteL1BracketingFamily",
+            "StatInference.L1BracketingNumberWitness",
+            "StatInference.L1BracketingNumberFiniteAt",
+            "StatInference.FiniteL1BracketingNumberAtEveryScale",
+            "StatInference.L1BracketingNumberConstructorObligations",
             "StatInference.L1BracketingSequenceRoute",
             "StatInference.empiricalDeviationBoundOn_of_bracket_endpoint_bounds",
             "StatInference.finite_endpoint_strong_law_eventually_abs_le_real",
             "StatInference.L1BracketingSequenceRoute.toGlivenkoCantelliClass",
+            "StatInference.L1BracketingNumberConstructorObligations.toGlivenkoCantelliClass",
         ),
         "benchmark_task_ids": (
             "bracketing_deterministic_bound_seed",
             "finite_endpoint_strong_law_eventual_bound_seed",
             "l1_bracketing_sequence_gc_seed",
+            "finite_l1_bracketing_number_at_scale_seed",
+            "finite_l1_bracketing_every_scale_projection_seed",
+            "finite_l1_bracketing_number_constructor_seed",
             "trivial_bracketing_gc_non_vacuity_seed",
         ),
         "missing_definitions": (
-            "primitive N_[] epsilon F L1(P) bracketing number",
             "measurable function class over an iid sample space",
+            "measure-backed L1(P) seminorm tying bracket width to endpoint functions",
             "empirical measure P_n as a probability measure",
             "outer-probability norm ||P_n - P||*_F and almost-sure GC convergence mode",
         ),
         "semantic_risks": (
-            "Current Lean route packages a shrinking finite-bracketing sequence rather than proving the textbook finite-bracketing-number assumption.",
+            "Current Lean route proves the deterministic finite-bracketing handoff but still does not assemble endpoint SLLN from primitive samples.",
             "Measurability and outer-probability bookkeeping are still abstract.",
             "Endpoint strong-law wrappers do not yet assemble the full almost-sure uniform convergence theorem.",
         ),
         "next_actions": (
-            "Introduce a primitive L1 bracketing-number definition tied to probability measures.",
+            "Tie the proof-carrying L1 bracketing-number witness to a measure-backed L1(P) seminorm.",
             "Connect finite endpoint SLLN and deterministic bracket bounds into the full Theorem 2.4.1 convergence statement.",
         ),
     },
@@ -597,12 +605,13 @@ DEFAULT_VDVW_BRACKETING_GC_STATEMENT_CANDIDATES = (
     {
         "candidate_id": "vdvw-2.4.1-primitive-l1-bracketing-number",
         "track": "dependency_minimal",
-        "status": "blocked_pending_primitive_definitions",
-        "statement_kind": "next Lean theorem statement candidate",
+        "status": "compiled_signature_available",
+        "statement_kind": "compiled primitive constructor signature candidate",
         "target_lean_names": (
-            "StatInference.L1BracketingNumber",
+            "StatInference.L1BracketingNumberWitness",
             "StatInference.FiniteL1BracketingNumberAtEveryScale",
-            "StatInference.vdvw_2_4_1_gc_of_finite_l1_bracketing_number",
+            "StatInference.L1BracketingNumberConstructorObligations",
+            "StatInference.L1BracketingNumberConstructorObligations.toGlivenkoCantelliClass",
         ),
         "formal_statement_sketch": (
             "If every positive epsilon has a finite L1(P) bracketing cover of "
@@ -625,16 +634,23 @@ DEFAULT_VDVW_BRACKETING_GC_STATEMENT_CANDIDATES = (
         ),
         "existing_lean_handoffs": (
             "StatInference.FiniteL1BracketingFamily",
+            "StatInference.L1BracketingNumberWitness",
+            "StatInference.FiniteL1BracketingNumberAtEveryScale",
+            "StatInference.L1BracketingNumberConstructorObligations.toSequenceRoute",
+            "StatInference.L1BracketingNumberConstructorObligations.toGlivenkoCantelliClass",
             "StatInference.finite_endpoint_strong_law_eventually_abs_le_real",
             "StatInference.L1BracketingSequenceRoute.toGlivenkoCantelliClass",
         ),
         "benchmark_task_ids": (
             "finite_endpoint_strong_law_eventual_bound_seed",
             "l1_bracketing_sequence_gc_seed",
+            "finite_l1_bracketing_number_at_scale_seed",
+            "finite_l1_bracketing_every_scale_projection_seed",
+            "finite_l1_bracketing_number_constructor_seed",
             "bracketing_deterministic_bound_seed",
         ),
         "local_lake_validation_hooks": (
-            "create theorem-hole benchmark for the primitive bracketing-number constructor",
+            "verify finite_l1_bracketing_number_constructor_seed promotion proof against local Lake",
             "render and verify current bracketing seeds before adding new Lean primitives",
             "run no-sorry scan after any Lean promotion",
         ),
@@ -1165,38 +1181,45 @@ DEFAULT_VDVW_PRIMITIVE_EMPIRICAL_SEMANTICS = (
     {
         "primitive_id": "primitive-l1-bracketing-number",
         "layer": "bracketing_number",
-        "status": "blocked_pending_constructor_signature",
+        "status": "design_ready_compiled_constructor_signature",
         "source_anchor_ids": (
             "vdvw-2.1.6-bracketing-number",
             "vdvw-2.4.1-finite-l1-bracketing-gc",
         ),
         "target_lean_module": "StatInference.EmpiricalProcess.L1BracketingNumber",
         "target_lean_signatures": (
-            "structure L1BracketingCover (F : VdVWFunctionClass Ω) (epsilon : ℝ) where Bracket : Type*; finite : Fintype Bracket",
-            "def L1BracketingNumberFiniteAt (F : VdVWFunctionClass Ω) (epsilon : ℝ) : Prop",
-            "structure FiniteL1BracketingNumberAtEveryScale (F : VdVWFunctionClass Ω) where finite_at : ∀ epsilon > 0, L1BracketingNumberFiniteAt F epsilon",
+            "structure L1BracketingNumberWitness (indexClass : Set Index) (populationRisk : Index -> ℝ) (scale : ℝ)",
+            "def L1BracketingNumberFiniteAt (indexClass : Set Index) (populationRisk : Index -> ℝ) (scale : ℝ) : Prop",
+            "structure FiniteL1BracketingNumberAtEveryScale (indexClass : Set Index) (populationRisk : Index -> ℝ)",
+            "structure L1BracketingNumberConstructorObligations (indexClass : Set Index) (populationRisk : Index -> ℝ) (empiricalRisk : ℕ -> Index -> ℝ)",
         ),
         "current_lean_handoffs": (
             "StatInference.FiniteL1BracketingFamily",
             "StatInference.L1BracketingSequenceRoute",
             "StatInference.L1BracketingSequenceRoute.toGlivenkoCantelliClass",
+            "StatInference.L1BracketingNumberWitness",
+            "StatInference.FiniteL1BracketingNumberAtEveryScale",
+            "StatInference.L1BracketingNumberConstructorObligations.toSequenceRoute",
+            "StatInference.L1BracketingNumberConstructorObligations.toGlivenkoCantelliClass",
         ),
         "theorem_card_gaps": (
-            "constructor from finite bracketing number at every epsilon to shrinking finite bracket sequence",
-            "finite bracket index type selected at a requested positive radius",
+            "constructor from varying finite bracketing-number witnesses into a common finite Bracket type when the route requires one fixed bracket index type",
             "scale sequence epsilon_m descending to zero",
+            "endpoint strong-law events for selected lower and upper bracket endpoints",
         ),
         "existing_benchmark_task_ids": (
             "l1_bracketing_sequence_gc_seed",
+            "finite_l1_bracketing_number_at_scale_seed",
+            "finite_l1_bracketing_every_scale_projection_seed",
+            "finite_l1_bracketing_number_constructor_seed",
             "finite_endpoint_strong_law_eventual_bound_seed",
         ),
         "planned_theorem_hole_seed_ids": (
-            "finite_l1_bracketing_number_constructor_seed",
             "finite_l1_bracketing_every_scale_to_sequence_route_seed",
         ),
         "validation_hooks": (
             "do not introduce a Nat-valued bracketing number without cover data",
-            "theorem-hole seeds may allow sorry only until the constructor is proved",
+            "constructor theorem-hole seeds must have a promoted no-placeholder proof target before library curation claims success",
             "run benchmark determinism after adding seeds",
         ),
         "semantic_risks": (
@@ -2513,13 +2536,14 @@ def build_vdvw_primitive_empirical_semantics(
             "AXLE may check or repair candidate code, but local Lake validation remains the public acceptance authority.",
         ],
         "next_actions": [
-            "Implement P12.M2 by adding Lean signature candidates for the L1 bracketing-number constructor.",
-            "Materialize theorem-hole benchmark seeds listed in planned_theorem_hole_seed_ids after the signatures compile.",
+            "Implement P12.M3 by adding endpoint strong-law assembly signatures for selected bracket endpoints.",
+            "Materialize the remaining theorem-hole benchmark seeds listed in planned_theorem_hole_seed_ids after the endpoint signatures compile.",
             "Keep the exact outer-almost-sure Theorem 2.4.1 blocked until outer convergence primitives are promoted.",
         ],
         "notes": (
-            "P12.M1 maps the source-linked VdV&W theorem-card gaps into "
-            "concrete Lean API signature targets and theorem-hole seed names. "
+            "P12.M1/P12.M2 map the source-linked VdV&W theorem-card gaps into "
+            "concrete Lean API signature targets, proof-carrying L1 bracketing "
+            "number witnesses, and theorem-hole seed names. "
             "It deliberately separates current compiled handoffs from future "
             "primitive semantics so autoformalization cannot silently weaken "
             "outer convergence, bracketing-number, or Donsker assumptions."

@@ -73,7 +73,7 @@ def test_build_grpo_process_tasks_records_policy_and_verifier_metadata() -> None
     assert all(task.verifier_command[:4] == (".venv/bin/python", "-m", "statlean_agent.cli", "verify-task") for task in tasks)
     assert all("proof_complete" in task.reward_components for task in tasks)
     theorem_hole_tasks = [task for task in tasks if "theorem_hole" in task.domain_tags]
-    assert len(theorem_hole_tasks) == 3
+    assert len(theorem_hole_tasks) == 4
     assert all(task.allowed_placeholders == ("sorry",) for task in theorem_hole_tasks)
 
 

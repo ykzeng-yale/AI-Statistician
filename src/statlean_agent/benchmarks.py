@@ -602,6 +602,123 @@ SEED_BENCHMARKS: tuple[BenchmarkTask, ...] = (
         ),
     ),
     BenchmarkTask(
+        task_id="finite_l1_bracketing_number_at_scale_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S4",
+        domain_tags=("empirical_process", "bracketing_number", "l1_bracketing"),
+        natural_language=(
+            "Project an explicit finite L1 bracketing-number witness into the "
+            "proposition-level finite-at-scale assertion."
+        ),
+        lean_task=LeanTask(
+            task_id="finite_l1_bracketing_number_at_scale_seed",
+            imports=("StatInference.EmpiricalProcess.L1BracketingNumber",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Index : Type*} {indexClass : Set Index} "
+                "{populationRisk : Index -> Real} {scale : Real} "
+                "(witness : StatInference.L1BracketingNumberWitness "
+                "indexClass populationRisk scale) : "
+                "StatInference.L1BracketingNumberFiniteAt "
+                "indexClass populationRisk scale := by\n"
+                "  exact ⟨witness⟩"
+            ),
+            tags=("bracketing_number", "l1_bracketing", "finite_at_scale"),
+            dependencies=("StatInference.L1BracketingNumberFiniteAt",),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=("StatInference.L1BracketingNumberFiniteAt",),
+    ),
+    BenchmarkTask(
+        task_id="finite_l1_bracketing_every_scale_projection_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S4",
+        domain_tags=("empirical_process", "bracketing_number", "l1_bracketing"),
+        natural_language=(
+            "Use a finite L1 bracketing-number-at-every-scale assumption to "
+            "obtain finite cover data at a requested positive scale."
+        ),
+        lean_task=LeanTask(
+            task_id="finite_l1_bracketing_every_scale_projection_seed",
+            imports=("StatInference.EmpiricalProcess.L1BracketingNumber",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Index : Type*} {indexClass : Set Index} "
+                "{populationRisk : Index -> Real} "
+                "(hfinite : StatInference.FiniteL1BracketingNumberAtEveryScale "
+                "indexClass populationRisk) "
+                "(scale : Real) (hscale : 0 < scale) : "
+                "StatInference.L1BracketingNumberFiniteAt "
+                "indexClass populationRisk scale := by\n"
+                "  exact hfinite.finiteAt scale hscale"
+            ),
+            tags=("bracketing_number", "l1_bracketing", "finite_every_scale"),
+            dependencies=("StatInference.FiniteL1BracketingNumberAtEveryScale.finiteAt",),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=("StatInference.FiniteL1BracketingNumberAtEveryScale.finiteAt",),
+    ),
+    BenchmarkTask(
+        task_id="finite_l1_bracketing_number_constructor_seed",
+        task_type=BenchmarkTaskType.SUBGOAL_COMPLETION,
+        split=BenchmarkSplit.DEV,
+        difficulty="S5",
+        domain_tags=(
+            "empirical_process",
+            "bracketing_number",
+            "glivenko_cantelli",
+            "theorem_hole",
+            "multi_goal",
+            "vdvw_2_4_1",
+        ),
+        natural_language=(
+            "Complete the primitive finite L1 bracketing-number constructor "
+            "handoff: build both the current shrinking-bracket sequence route "
+            "and the current GC-class interface from explicit constructor "
+            "obligations.  This is source-linked to VdV&W Definition 2.1.6 "
+            "and the deterministic handoff inside Theorem 2.4.1, but it is "
+            "not the exact outer-almost-sure theorem."
+        ),
+        proof_state=(
+            "Goals after constructor: "
+            "1. L1BracketingSequenceRoute indexClass populationRisk empiricalRisk; "
+            "2. GlivenkoCantelliClass indexClass populationRisk empiricalRisk."
+        ),
+        lean_task=LeanTask(
+            task_id="finite_l1_bracketing_number_constructor_seed",
+            imports=("StatInference.EmpiricalProcess.L1BracketingNumber",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Index Bracket : Type*} [Fintype Bracket] "
+                "{indexClass : Set Index} {populationRisk : Index -> Real} "
+                "{empiricalRisk : Nat -> Index -> Real} "
+                "(obligations : "
+                "StatInference.L1BracketingNumberConstructorObligations "
+                "(Bracket := Bracket) indexClass populationRisk empiricalRisk) : "
+                "StatInference.L1BracketingSequenceRoute "
+                "(Bracket := Bracket) indexClass populationRisk empiricalRisk × "
+                "StatInference.GlivenkoCantelliClass "
+                "indexClass populationRisk empiricalRisk := by\n"
+                "  constructor\n"
+                "  · sorry\n"
+                "  · sorry"
+            ),
+            allowed_sorry=True,
+            tags=("bracketing_number", "l1_bracketing", "theorem_hole", "multi_goal"),
+            dependencies=(
+                "StatInference.L1BracketingNumberConstructorObligations.toSequenceRoute",
+                "StatInference.L1BracketingNumberConstructorObligations.toGlivenkoCantelliClass",
+            ),
+            expected_patterns=("constructor", "sorry"),
+        ),
+        expected_premises=(
+            "StatInference.L1BracketingNumberConstructorObligations.toSequenceRoute",
+            "StatInference.L1BracketingNumberConstructorObligations.toGlivenkoCantelliClass",
+        ),
+    ),
+    BenchmarkTask(
         task_id="finite_endpoint_strong_law_eventual_bound_seed",
         task_type=BenchmarkTaskType.FORMAL_ONLY,
         split=BenchmarkSplit.DEV,

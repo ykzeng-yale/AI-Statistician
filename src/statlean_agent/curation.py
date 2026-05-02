@@ -75,12 +75,25 @@ THEOREM_HOLE_PROMOTION_TARGETS = {
             "  · exact route.asymptoticNormal h_clt h_remainder"
         ),
     },
+    "finite_l1_bracketing_number_constructor_seed": {
+        "candidate_name": "l1_bracketing_number_constructor_to_gc_class",
+        "declaration": "StatInference.L1BracketingNumberConstructorObligations.toGlivenkoCantelliClass",
+        "module": "StatInference.EmpiricalProcess.L1BracketingNumber",
+        "file": "StatInference/EmpiricalProcess/L1BracketingNumber.lean",
+        "proof_block": (
+            "by\n"
+            "  constructor\n"
+            "  · exact StatInference.L1BracketingNumberConstructorObligations.toSequenceRoute obligations\n"
+            "  · exact StatInference.L1BracketingNumberConstructorObligations.toGlivenkoCantelliClass obligations"
+        ),
+    },
 }
 
 THEOREM_HOLE_PROMOTION_PRIORITY = (
     "ipw_linearization_theorem_hole_seed",
     "aipw_product_rate_theorem_hole_seed",
     "if_normality_theorem_hole_seed",
+    "finite_l1_bracketing_number_constructor_seed",
 )
 
 
@@ -416,6 +429,8 @@ def _candidate_name(task: BenchmarkTask) -> str:
         return "aipw_product_rate_route_constructor"
     if task.task_id == "if_normality_theorem_hole_seed":
         return "influence_function_normality_route_constructor"
+    if task.task_id == "finite_l1_bracketing_number_constructor_seed":
+        return "l1_bracketing_number_constructor_to_gc_class"
     return f"{task.task_id}_candidate"
 
 

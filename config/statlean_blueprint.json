@@ -694,17 +694,24 @@
         },
         {
           "id": "P12.M2",
-          "status": "in_progress",
-          "name": "Lean signatures for L1 bracketing-number constructor"
+          "status": "done",
+          "name": "Lean signatures for L1 bracketing-number constructor",
+          "evidence": [
+            "StatInference.EmpiricalProcess.L1BracketingNumber defines proof-carrying L1BracketingNumberWitness, L1BracketingNumberFiniteAt, FiniteL1BracketingNumberAtEveryScale, and L1BracketingNumberConstructorObligations.",
+            "The primitive bracketing-number witness packages explicit finite bracket cover data instead of a bare Nat-valued cardinality shortcut.",
+            "L1BracketingNumberConstructorObligations.toSequenceRoute and toGlivenkoCantelliClass connect the new primitive constructor obligations to the existing shrinking finite-bracketing GC handoff.",
+            "Benchmarks finite_l1_bracketing_number_at_scale_seed, finite_l1_bracketing_every_scale_projection_seed, and finite_l1_bracketing_number_constructor_seed source-link the constructor layer to VdV&W Definition 2.1.6 and Theorem 2.4.1 without claiming exact outer-almost-sure semantics.",
+            "The theorem-hole promotion queue names a no-placeholder promoted proof block for finite_l1_bracketing_number_constructor_seed while curation still records the source benchmark as a scoped theorem-hole proposal."
+          ]
         },
         {
           "id": "P12.M3",
-          "status": "pending",
+          "status": "in_progress",
           "name": "Endpoint SLLN to finite-bracketing theorem-hole seeds"
         }
       ],
       "next_actions": [
-        "Implement P12.M2 by adding Lean signature candidates for the primitive L1 bracketing-number constructor and theorem-hole seeds that are source-linked to VdV&W Definition 2.1.6 and Theorem 2.4.1."
+        "Implement P12.M3 by extending the l1 bracketing-number constructor with endpoint strong-law assembly signatures and theorem-hole seeds that connect selected finite bracket endpoints to the primitive finite-bracketing GC constructor."
       ]
     }
   ]
