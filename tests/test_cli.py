@@ -83,10 +83,10 @@ def test_cli_vdvw_primitive_semantics(tmp_path: Path, capsys) -> None:
     output = capsys.readouterr().out
     report = json.loads(output_path.read_text(encoding="utf-8"))
     assert "vdvw_primitive_semantics=6" in output
-    assert "blocked=2" in output
+    assert "blocked=1" in output
     assert "planned_seeds=10" in output
     assert report["primitive_count"] == 6
-    assert "outer-uniform-convergence" in report["blocked_primitives"]
+    assert "outer-uniform-convergence" in report["design_ready_primitives"]
 
 
 def test_cli_verify_benchmarks_allow_failures(tmp_path: Path, capsys) -> None:

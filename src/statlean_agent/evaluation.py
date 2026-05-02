@@ -117,6 +117,8 @@ DEFAULT_EMPIRICAL_PROCESS_EXPANSION_TARGETS = (
             "StatInference.BracketingDeviationCertificate.uniformDeviation",
             "StatInference.FiniteBracketSampleAverageSemantics",
             "StatInference.FiniteBracketSampleAverageSemantics.toGlivenkoCantelliClass",
+            "StatInference.FiniteBracketEmpiricalMeasureSemantics",
+            "StatInference.FiniteBracketEmpiricalMeasureSemantics.toGlivenkoCantelliClass",
         ),
         "depends_on": (
             "StatInference.EmpiricalDeviationSequenceOn",
@@ -270,6 +272,15 @@ DEFAULT_VDVW_THEOREM_INVENTORY = (
             "StatInference.FiniteBracketSampleAverageSemantics",
             "StatInference.FiniteBracketSampleAverageSemantics.toEndpointStrongLawAssembly",
             "StatInference.FiniteBracketSampleAverageSemantics.toGlivenkoCantelliClass",
+            "StatInference.bracketEndpointPopulationIntegral",
+            "StatInference.bracketEndpointEmpiricalMeasureSequence",
+            "StatInference.FiniteBracketEmpiricalMeasureSemantics",
+            "StatInference.FiniteBracketEmpiricalMeasureSemantics.toEndpointStrongLawAssembly",
+            "StatInference.FiniteBracketEmpiricalMeasureSemantics.toGlivenkoCantelliClass",
+            "StatInference.OuterProbabilitySpace",
+            "StatInference.OuterTendstoInProbability",
+            "StatInference.OuterAlmostSureTendsto",
+            "StatInference.OuterSupremumDeviation",
         ),
         "benchmark_task_ids": (
             "bracketing_deterministic_bound_seed",
@@ -283,6 +294,11 @@ DEFAULT_VDVW_THEOREM_INVENTORY = (
             "finite_bracket_sample_average_assembly_seed",
             "finite_bracket_sample_average_constructor_seed",
             "finite_bracket_sample_average_gc_seed",
+            "finite_bracket_empirical_measure_assembly_seed",
+            "finite_bracket_empirical_measure_constructor_seed",
+            "finite_bracket_empirical_measure_gc_seed",
+            "outer_probability_space_monotone_seed",
+            "outer_gc_projection_seed",
             "vdvw_2_4_1_current_gc_bridge_seed",
             "trivial_bracketing_gc_non_vacuity_seed",
         ),
@@ -1074,7 +1090,7 @@ DEFAULT_VDVW_PRIMITIVE_EMPIRICAL_SEMANTICS = (
     {
         "primitive_id": "empirical-sample-average",
         "layer": "empirical_sample",
-        "status": "design_ready_sample_average_endpoint_semantics",
+        "status": "design_ready_measure_backed_endpoint_semantics",
         "source_anchor_ids": (
             "vdvw-gc-definition",
             "vdvw-2.4.1-finite-l1-bracketing-gc",
@@ -1083,15 +1099,23 @@ DEFAULT_VDVW_PRIMITIVE_EMPIRICAL_SEMANTICS = (
         "target_lean_signatures": (
             "noncomputable def bracketEndpointEmpiricalAverage (sample : SampleAt Observation sampleSize) (endpoint : Bracket -> Observation -> ℝ) (bracket : Bracket) : ℝ",
             "noncomputable def bracketEndpointEmpiricalSequence (samples : ∀ sampleSize, SampleAt Observation sampleSize) (endpoint : Bracket -> Observation -> ℝ) : ℕ -> Bracket -> ℝ",
+            "noncomputable def bracketEndpointPopulationIntegral (populationMeasure : Measure Observation) (endpoint : Bracket -> Observation -> ℝ) (bracket : Bracket) : ℝ",
+            "noncomputable def bracketEndpointEmpiricalMeasureSequence (empiricalMeasure : ℕ -> Measure Observation) (endpoint : Bracket -> Observation -> ℝ) : ℕ -> Bracket -> ℝ",
             "structure FiniteBracketSampleAverageSemantics (indexClass : Set Index) (populationRisk : Index -> ℝ) (empiricalRisk : ℕ -> Index -> ℝ)",
+            "structure FiniteBracketEmpiricalMeasureSemantics (indexClass : Set Index) (populationRisk : Index -> ℝ) (empiricalRisk : ℕ -> Index -> ℝ)",
         ),
         "current_lean_handoffs": (
             "StatInference.empiricalAverage",
             "StatInference.bracketEndpointEmpiricalAverage",
             "StatInference.bracketEndpointEmpiricalSequence",
+            "StatInference.bracketEndpointPopulationIntegral",
+            "StatInference.bracketEndpointEmpiricalMeasureSequence",
             "StatInference.FiniteBracketSampleAverageSemantics.toEndpointStrongLawAssembly",
             "StatInference.FiniteBracketSampleAverageSemantics.toConstructorObligations",
             "StatInference.FiniteBracketSampleAverageSemantics.toGlivenkoCantelliClass",
+            "StatInference.FiniteBracketEmpiricalMeasureSemantics.toEndpointStrongLawAssembly",
+            "StatInference.FiniteBracketEmpiricalMeasureSemantics.toConstructorObligations",
+            "StatInference.FiniteBracketEmpiricalMeasureSemantics.toGlivenkoCantelliClass",
             "StatInference.endpoint_strong_law_ae_real",
             "StatInference.finite_endpoint_strong_law_eventually_abs_le_real",
             "StatInference.EmpiricalDeviationSequenceOn",
@@ -1107,6 +1131,9 @@ DEFAULT_VDVW_PRIMITIVE_EMPIRICAL_SEMANTICS = (
             "finite_bracket_sample_average_assembly_seed",
             "finite_bracket_sample_average_constructor_seed",
             "finite_bracket_sample_average_gc_seed",
+            "finite_bracket_empirical_measure_assembly_seed",
+            "finite_bracket_empirical_measure_constructor_seed",
+            "finite_bracket_empirical_measure_gc_seed",
         ),
         "planned_theorem_hole_seed_ids": (
             "empirical_measure_endpoint_signature_seed",
@@ -1114,19 +1141,19 @@ DEFAULT_VDVW_PRIMITIVE_EMPIRICAL_SEMANTICS = (
         ),
         "validation_hooks": (
             "keep sample-average endpoint semantics separate from empirical-measure probability semantics",
-            "render remaining empirical-measure theorem-hole seeds before exact outer-GC theorem work",
+            "measure-backed endpoint semantics must still be tied to concrete iid empirical measures before exact outer-GC theorem work",
             "run lake build and no-sorry scan after promotion",
         ),
         "semantic_risks": (
             "Do not treat a sequence of arbitrary empirical risks as an iid empirical measure.",
             "Do not hide sample-size zero denominator behavior in empirical averages.",
         ),
-        "promotion_gate": "Promote only after the sample object and sample-average notation compile and preserve existing endpoint SLLN benchmarks.",
+        "promotion_gate": "Promote only after sample-average and measure-backed endpoint notation compile and preserve existing endpoint SLLN benchmarks.",
     },
     {
         "primitive_id": "outer-uniform-convergence",
         "layer": "outer_convergence",
-        "status": "blocked_pending_outer_probability_design",
+        "status": "design_ready_outer_signature_semantics",
         "source_anchor_ids": (
             "vdvw-gc-definition",
             "vdvw-2.4.1-finite-l1-bracketing-gc",
@@ -1137,8 +1164,16 @@ DEFAULT_VDVW_PRIMITIVE_EMPIRICAL_SEMANTICS = (
             "def OuterTendstoInProbability (outerProb : Set Ω -> ℝ) (X : ℕ -> Ω -> ℝ) (limit : ℝ) : Prop",
             "def OuterAlmostSureTendsto (outerProb : Set Ω -> ℝ) (X : ℕ -> Ω -> ℝ) (limit : ℝ) : Prop",
             "def OuterSupremumDeviation (F : Set (Ω -> ℝ)) (empirical population : (Ω -> ℝ) -> ℝ) : ℝ",
+            "structure OuterGlivenkoCantelliClass (outer : OuterProbabilitySpace Ω) (indexClass : Set Index) (populationRisk : Index -> ℝ) (empiricalRisk : ℕ -> Ω -> Index -> ℝ)",
         ),
         "current_lean_handoffs": (
+            "StatInference.OuterProbabilitySpace",
+            "StatInference.OuterProbabilitySpace.event_mono",
+            "StatInference.OuterTendstoInProbability",
+            "StatInference.OuterAlmostSureTendsto",
+            "StatInference.OuterSupremumDeviation",
+            "StatInference.OuterGlivenkoCantelliClass.tendstoInProbability",
+            "StatInference.OuterGlivenkoCantelliClass.almostSureTendsto",
             "StatInference.GlivenkoCantelliClass",
             "StatInference.EmpiricalDeviationSequenceOn",
         ),
@@ -1150,6 +1185,8 @@ DEFAULT_VDVW_PRIMITIVE_EMPIRICAL_SEMANTICS = (
         "existing_benchmark_task_ids": (
             "glivenko_cantelli_statement_seed",
             "l1_bracketing_sequence_gc_seed",
+            "outer_probability_space_monotone_seed",
+            "outer_gc_projection_seed",
         ),
         "planned_theorem_hole_seed_ids": (
             "outer_supremum_deviation_signature_seed",
@@ -1272,6 +1309,9 @@ DEFAULT_VDVW_PRIMITIVE_EMPIRICAL_SEMANTICS = (
             "structure FiniteBracketSampleAverageSemantics (indexClass : Set Index) (populationRisk : Index -> ℝ) (empiricalRisk : ℕ -> Index -> ℝ)",
             "def FiniteBracketSampleAverageSemantics.toEndpointStrongLawAssembly : FiniteBracketEndpointStrongLawAssembly indexClass populationRisk empiricalRisk",
             "def FiniteBracketSampleAverageSemantics.toGlivenkoCantelliClass : GlivenkoCantelliClass indexClass populationRisk empiricalRisk",
+            "structure FiniteBracketEmpiricalMeasureSemantics (indexClass : Set Index) (populationRisk : Index -> ℝ) (empiricalRisk : ℕ -> Index -> ℝ)",
+            "def FiniteBracketEmpiricalMeasureSemantics.toEndpointStrongLawAssembly : FiniteBracketEndpointStrongLawAssembly indexClass populationRisk empiricalRisk",
+            "def FiniteBracketEmpiricalMeasureSemantics.toGlivenkoCantelliClass : GlivenkoCantelliClass indexClass populationRisk empiricalRisk",
         ),
         "current_lean_handoffs": (
             "StatInference.empiricalDeviationBoundOn_of_bracket_endpoint_bounds",
@@ -1282,6 +1322,9 @@ DEFAULT_VDVW_PRIMITIVE_EMPIRICAL_SEMANTICS = (
             "StatInference.FiniteBracketSampleAverageSemantics.toEndpointStrongLawAssembly",
             "StatInference.FiniteBracketSampleAverageSemantics.toConstructorObligations",
             "StatInference.FiniteBracketSampleAverageSemantics.toGlivenkoCantelliClass",
+            "StatInference.FiniteBracketEmpiricalMeasureSemantics.toEndpointStrongLawAssembly",
+            "StatInference.FiniteBracketEmpiricalMeasureSemantics.toConstructorObligations",
+            "StatInference.FiniteBracketEmpiricalMeasureSemantics.toGlivenkoCantelliClass",
         ),
         "theorem_card_gaps": (
             "limsup epsilon_m to zero argument under outer almost-sure semantics",
@@ -1297,6 +1340,9 @@ DEFAULT_VDVW_PRIMITIVE_EMPIRICAL_SEMANTICS = (
             "finite_bracket_sample_average_assembly_seed",
             "finite_bracket_sample_average_constructor_seed",
             "finite_bracket_sample_average_gc_seed",
+            "finite_bracket_empirical_measure_assembly_seed",
+            "finite_bracket_empirical_measure_constructor_seed",
+            "finite_bracket_empirical_measure_gc_seed",
             "vdvw_2_4_1_current_gc_bridge_seed",
         ),
         "planned_theorem_hole_seed_ids": (
@@ -1308,7 +1354,7 @@ DEFAULT_VDVW_PRIMITIVE_EMPIRICAL_SEMANTICS = (
         ),
         "semantic_risks": (
             "The compiled current-GC bridge is weaker than the exact outer almost-sure statement.",
-            "Endpoint sample averages must still be tied to a measure-backed empirical measure and outer convergence event.",
+            "Measure-backed endpoint semantics still need concrete iid empirical-measure construction and outer convergence events.",
         ),
         "promotion_gate": "Promote first as current-GC bridge; exact VdVW 2.4.1 waits for outer-convergence semantics.",
     },
@@ -2579,15 +2625,16 @@ def build_vdvw_primitive_empirical_semantics(
             "AXLE may check or repair candidate code, but local Lake validation remains the public acceptance authority.",
         ],
         "next_actions": [
-            "Continue P12.M3 by tying sample-average endpoint semantics to measure-backed empirical-measure and outer-convergence semantics.",
-            "Materialize the remaining theorem-hole benchmark seed for the exact outer almost-sure statement only after outer convergence primitives compile.",
-            "Keep the exact outer-almost-sure Theorem 2.4.1 blocked until outer convergence primitives are promoted.",
+            "Continue P12.M3 by tying measure-backed endpoint semantics to concrete iid empirical measures and endpoint SLLN events.",
+            "Materialize the remaining theorem-hole benchmark seed for the exact outer almost-sure statement only after outer convergence constructors compile.",
+            "Keep the exact outer-almost-sure Theorem 2.4.1 blocked until outer convergence constructors and non-vacuity examples are promoted.",
         ],
         "notes": (
             "P12.M1/P12.M2/P12.M3 map the source-linked VdV&W theorem-card gaps into "
             "concrete Lean API signature targets, proof-carrying L1 bracketing "
             "number witnesses, finite endpoint assembly, sample-average endpoint "
-            "semantics, and theorem-hole seed names. "
+            "semantics, measure-backed endpoint integrals, outer-convergence "
+            "signatures, and theorem-hole seed names. "
             "It deliberately separates current compiled handoffs from future "
             "primitive semantics so autoformalization cannot silently weaken "
             "outer convergence, bracketing-number, or Donsker assumptions."

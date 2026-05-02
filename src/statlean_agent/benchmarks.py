@@ -970,6 +970,208 @@ SEED_BENCHMARKS: tuple[BenchmarkTask, ...] = (
         ),
     ),
     BenchmarkTask(
+        task_id="finite_bracket_empirical_measure_assembly_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S5",
+        domain_tags=(
+            "empirical_process",
+            "bracketing_number",
+            "endpoint_strong_law",
+            "empirical_measure",
+            "glivenko_cantelli",
+        ),
+        natural_language=(
+            "Forget measure-backed bracket endpoint empirical integrals and "
+            "build the endpoint strong-law assembly layer."
+        ),
+        lean_task=LeanTask(
+            task_id="finite_bracket_empirical_measure_assembly_seed",
+            imports=("StatInference.EmpiricalProcess.VdVW241",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "noncomputable example {Observation Index Bracket : Type*} "
+                "[MeasurableSpace Observation] [Fintype Bracket] "
+                "{indexClass : Set Index} {populationRisk : Index -> Real} "
+                "{empiricalRisk : Nat -> Index -> Real} "
+                "(semantics : StatInference.FiniteBracketEmpiricalMeasureSemantics "
+                "(Observation := Observation) (Bracket := Bracket) "
+                "indexClass populationRisk empiricalRisk) : "
+                "StatInference.FiniteBracketEndpointStrongLawAssembly "
+                "(Bracket := Bracket) indexClass populationRisk empiricalRisk := by\n"
+                "  exact StatInference.FiniteBracketEmpiricalMeasureSemantics.toEndpointStrongLawAssembly "
+                "semantics"
+            ),
+            tags=("bracketing_number", "endpoint_strong_law", "empirical_measure"),
+            dependencies=(
+                "StatInference.FiniteBracketEmpiricalMeasureSemantics.toEndpointStrongLawAssembly",
+            ),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=(
+            "StatInference.FiniteBracketEmpiricalMeasureSemantics.toEndpointStrongLawAssembly",
+        ),
+    ),
+    BenchmarkTask(
+        task_id="finite_bracket_empirical_measure_constructor_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S5",
+        domain_tags=(
+            "empirical_process",
+            "bracketing_number",
+            "endpoint_strong_law",
+            "empirical_measure",
+            "glivenko_cantelli",
+        ),
+        natural_language=(
+            "Build primitive L1 bracketing-number constructor obligations from "
+            "measure-backed endpoint empirical integrals."
+        ),
+        lean_task=LeanTask(
+            task_id="finite_bracket_empirical_measure_constructor_seed",
+            imports=("StatInference.EmpiricalProcess.VdVW241",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "noncomputable example {Observation Index Bracket : Type*} "
+                "[MeasurableSpace Observation] [Fintype Bracket] "
+                "{indexClass : Set Index} {populationRisk : Index -> Real} "
+                "{empiricalRisk : Nat -> Index -> Real} "
+                "(semantics : StatInference.FiniteBracketEmpiricalMeasureSemantics "
+                "(Observation := Observation) (Bracket := Bracket) "
+                "indexClass populationRisk empiricalRisk) : "
+                "StatInference.L1BracketingNumberConstructorObligations "
+                "(Bracket := Bracket) indexClass populationRisk empiricalRisk := by\n"
+                "  exact StatInference.FiniteBracketEmpiricalMeasureSemantics.toConstructorObligations "
+                "semantics"
+            ),
+            tags=("bracketing_number", "endpoint_strong_law", "empirical_measure", "constructor"),
+            dependencies=(
+                "StatInference.FiniteBracketEmpiricalMeasureSemantics.toConstructorObligations",
+            ),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=(
+            "StatInference.FiniteBracketEmpiricalMeasureSemantics.toConstructorObligations",
+        ),
+    ),
+    BenchmarkTask(
+        task_id="finite_bracket_empirical_measure_gc_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S5",
+        domain_tags=(
+            "empirical_process",
+            "bracketing_number",
+            "endpoint_strong_law",
+            "empirical_measure",
+            "glivenko_cantelli",
+        ),
+        natural_language=(
+            "Build the current GC-class interface from finite bracket endpoint "
+            "empirical values represented as empirical-measure integrals."
+        ),
+        lean_task=LeanTask(
+            task_id="finite_bracket_empirical_measure_gc_seed",
+            imports=("StatInference.EmpiricalProcess.VdVW241",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "noncomputable example {Observation Index Bracket : Type*} "
+                "[MeasurableSpace Observation] [Fintype Bracket] "
+                "{indexClass : Set Index} {populationRisk : Index -> Real} "
+                "{empiricalRisk : Nat -> Index -> Real} "
+                "(semantics : StatInference.FiniteBracketEmpiricalMeasureSemantics "
+                "(Observation := Observation) (Bracket := Bracket) "
+                "indexClass populationRisk empiricalRisk) : "
+                "StatInference.GlivenkoCantelliClass "
+                "indexClass populationRisk empiricalRisk := by\n"
+                "  exact StatInference.FiniteBracketEmpiricalMeasureSemantics.toGlivenkoCantelliClass "
+                "semantics"
+            ),
+            tags=("bracketing_number", "endpoint_strong_law", "empirical_measure", "gc_certificate"),
+            dependencies=(
+                "StatInference.FiniteBracketEmpiricalMeasureSemantics.toGlivenkoCantelliClass",
+            ),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=(
+            "StatInference.FiniteBracketEmpiricalMeasureSemantics.toGlivenkoCantelliClass",
+        ),
+    ),
+    BenchmarkTask(
+        task_id="outer_probability_space_monotone_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S4",
+        domain_tags=(
+            "empirical_process",
+            "outer_convergence",
+            "glivenko_cantelli",
+        ),
+        natural_language=(
+            "Use the monotonicity field of the outer-probability signature."
+        ),
+        lean_task=LeanTask(
+            task_id="outer_probability_space_monotone_seed",
+            imports=("StatInference.EmpiricalProcess.Outer",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Omega : Type*} [MeasurableSpace Omega] "
+                "(outer : StatInference.OuterProbabilitySpace Omega) "
+                "{event1 event2 : Set Omega} (hsubset : event1 ⊆ event2) : "
+                "outer.outerProb event1 <= outer.outerProb event2 := by\n"
+                "  exact StatInference.OuterProbabilitySpace.event_mono outer hsubset"
+            ),
+            tags=("outer_convergence", "outer_probability"),
+            dependencies=("StatInference.OuterProbabilitySpace.event_mono",),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=("StatInference.OuterProbabilitySpace.event_mono",),
+    ),
+    BenchmarkTask(
+        task_id="outer_gc_projection_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S5",
+        domain_tags=(
+            "empirical_process",
+            "outer_convergence",
+            "glivenko_cantelli",
+        ),
+        natural_language=(
+            "Project both outer convergence targets from an outer "
+            "Glivenko-Cantelli certificate."
+        ),
+        lean_task=LeanTask(
+            task_id="outer_gc_projection_seed",
+            imports=("StatInference.EmpiricalProcess.Outer",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Omega Index : Type*} [MeasurableSpace Omega] "
+                "{outer : StatInference.OuterProbabilitySpace Omega} "
+                "{indexClass : Set Index} {populationRisk : Index -> Real} "
+                "{empiricalRisk : Nat -> Omega -> Index -> Real} "
+                "(gc : StatInference.OuterGlivenkoCantelliClass "
+                "outer indexClass populationRisk empiricalRisk) : "
+                "StatInference.OuterTendstoInProbability outer gc.deviation 0 "
+                "∧ StatInference.OuterAlmostSureTendsto outer gc.deviation 0 := by\n"
+                "  constructor\n"
+                "  · exact StatInference.OuterGlivenkoCantelliClass.tendstoInProbability gc\n"
+                "  · exact StatInference.OuterGlivenkoCantelliClass.almostSureTendsto gc"
+            ),
+            tags=("outer_convergence", "outer_probability", "gc_certificate"),
+            dependencies=(
+                "StatInference.OuterGlivenkoCantelliClass.tendstoInProbability",
+                "StatInference.OuterGlivenkoCantelliClass.almostSureTendsto",
+            ),
+            expected_patterns=("constructor", "exact"),
+        ),
+        expected_premises=(
+            "StatInference.OuterGlivenkoCantelliClass.tendstoInProbability",
+            "StatInference.OuterGlivenkoCantelliClass.almostSureTendsto",
+        ),
+    ),
+    BenchmarkTask(
         task_id="vdvw_2_4_1_current_gc_bridge_seed",
         task_type=BenchmarkTaskType.SUBGOAL_COMPLETION,
         split=BenchmarkSplit.DEV,
