@@ -1023,12 +1023,12 @@ def test_checked_in_empirical_process_external_slice_artifact() -> None:
     assert report["target_report_id"] == "empirical-process-targets::p9"
     assert report["interface_families"] == ["bracketing", "vc_subgraph", "donsker"]
     assert report["family_count"] == 3
-    assert report["target_task_count"] == 25
+    assert report["target_task_count"] == 28
     assert report["ingested_count"] == 1
     assert report["blocked_count"] == 4
     assert report["best_available_baseline"] == "seed-registry"
     families = {row["interface_family"]: row for row in report["families"]}
-    assert families["bracketing"]["task_count"] == 17
+    assert families["bracketing"]["task_count"] == 20
     assert families["vc_subgraph"]["task_count"] == 3
     assert families["donsker"]["task_count"] == 5
     assert all(family["seed_registry_status"] == "verified" for family in families.values())
@@ -1219,6 +1219,9 @@ def test_build_vdvw_primitive_empirical_semantics() -> None:
         "existing_benchmark_task_ids"
     ]
     assert "finite_bracket_sample_average_gc_seed" in empirical[
+        "existing_benchmark_task_ids"
+    ]
+    assert "finite_bracket_sample_empirical_measure_gc_seed" in empirical[
         "existing_benchmark_task_ids"
     ]
     assert not empirical["missing_existing_benchmark_task_ids"]

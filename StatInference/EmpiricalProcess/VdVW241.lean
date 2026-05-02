@@ -434,4 +434,130 @@ noncomputable def toGlivenkoCantelliClass
 
 end FiniteBracketEmpiricalMeasureSemantics
 
+/--
+Concrete bridge from sample-average endpoint semantics to measure-backed
+endpoint semantics.
+
+The bridge is proof-carrying: it accepts an empirical-measure sequence only
+when its integrals agree with the selected sample averages for every lower and
+upper bracket endpoint.  This avoids treating arbitrary measures as empirical
+measures while still keeping the exact iid construction as a later primitive.
+-/
+structure FiniteBracketSampleEmpiricalMeasureSemantics
+    {Observation Index Bracket : Type*} [MeasurableSpace Observation]
+    [Fintype Bracket]
+    (indexClass : Set Index)
+    (populationRisk : Index -> ℝ)
+    (empiricalRisk : ℕ -> Index -> ℝ) where
+  sampleSemantics :
+    FiniteBracketSampleAverageSemantics (Observation := Observation)
+      (Bracket := Bracket) indexClass populationRisk empiricalRisk
+  populationMeasure : Measure Observation
+  empiricalMeasure : ℕ -> Measure Observation
+  lower_population_eq :
+    ∀ sampleSize bracket,
+      (sampleSemantics.family sampleSize).lowerPopulation bracket =
+        bracketEndpointPopulationIntegral populationMeasure
+          sampleSemantics.lowerEndpoint bracket
+  upper_population_eq :
+    ∀ sampleSize bracket,
+      (sampleSemantics.family sampleSize).upperPopulation bracket =
+        bracketEndpointPopulationIntegral populationMeasure
+          sampleSemantics.upperEndpoint bracket
+  lower_empirical_measure_eq_sample_average :
+    ∀ sampleSize bracket,
+      bracketEndpointEmpiricalMeasureSequence empiricalMeasure
+          sampleSemantics.lowerEndpoint sampleSize bracket =
+        bracketEndpointEmpiricalSequence sampleSemantics.samples
+          sampleSemantics.lowerEndpoint sampleSize bracket
+  upper_empirical_measure_eq_sample_average :
+    ∀ sampleSize bracket,
+      bracketEndpointEmpiricalMeasureSequence empiricalMeasure
+          sampleSemantics.upperEndpoint sampleSize bracket =
+        bracketEndpointEmpiricalSequence sampleSemantics.samples
+          sampleSemantics.upperEndpoint sampleSize bracket
+
+namespace FiniteBracketSampleEmpiricalMeasureSemantics
+
+/--
+Promote a proof-carrying sample/empirical-measure bridge to the measure-backed
+endpoint semantics used by the current GC constructor.
+-/
+noncomputable def toEmpiricalMeasureSemantics
+    {Observation Index Bracket : Type*} [MeasurableSpace Observation]
+    [Fintype Bracket] {indexClass : Set Index}
+    {populationRisk : Index -> ℝ} {empiricalRisk : ℕ -> Index -> ℝ}
+    (semantics :
+      FiniteBracketSampleEmpiricalMeasureSemantics (Observation := Observation)
+        (Bracket := Bracket) indexClass populationRisk empiricalRisk) :
+    FiniteBracketEmpiricalMeasureSemantics (Observation := Observation)
+      (Bracket := Bracket) indexClass populationRisk empiricalRisk where
+  populationMeasure := semantics.populationMeasure
+  empiricalMeasure := semantics.empiricalMeasure
+  family := semantics.sampleSemantics.family
+  lowerEndpoint := semantics.sampleSemantics.lowerEndpoint
+  upperEndpoint := semantics.sampleSemantics.upperEndpoint
+  endpointRadius := semantics.sampleSemantics.endpointRadius
+  lower_population_eq := semantics.lower_population_eq
+  upper_population_eq := semantics.upper_population_eq
+  empirical_lower := by
+    intro sampleSize index hindex
+    rw [semantics.lower_empirical_measure_eq_sample_average sampleSize
+      ((semantics.sampleSemantics.family sampleSize).bracketOf index hindex)]
+    exact semantics.sampleSemantics.empirical_lower sampleSize index hindex
+  empirical_upper := by
+    intro sampleSize index hindex
+    rw [semantics.upper_empirical_measure_eq_sample_average sampleSize
+      ((semantics.sampleSemantics.family sampleSize).bracketOf index hindex)]
+    exact semantics.sampleSemantics.empirical_upper sampleSize index hindex
+  upper_endpoint_abs_bound := by
+    intro sampleSize bracket
+    rw [semantics.upper_empirical_measure_eq_sample_average sampleSize bracket,
+      ← semantics.upper_population_eq sampleSize bracket]
+    exact semantics.sampleSemantics.upper_endpoint_abs_bound sampleSize bracket
+  lower_endpoint_abs_bound := by
+    intro sampleSize bracket
+    rw [semantics.lower_empirical_measure_eq_sample_average sampleSize bracket,
+      ← semantics.lower_population_eq sampleSize bracket]
+    exact semantics.sampleSemantics.lower_endpoint_abs_bound sampleSize bracket
+  endpoint_tendsto_zero := semantics.sampleSemantics.endpoint_tendsto_zero
+  scale_tendsto_zero := semantics.sampleSemantics.scale_tendsto_zero
+
+/-- Build endpoint assembly from the sample/empirical-measure bridge. -/
+noncomputable def toEndpointStrongLawAssembly
+    {Observation Index Bracket : Type*} [MeasurableSpace Observation]
+    [Fintype Bracket] {indexClass : Set Index}
+    {populationRisk : Index -> ℝ} {empiricalRisk : ℕ -> Index -> ℝ}
+    (semantics :
+      FiniteBracketSampleEmpiricalMeasureSemantics (Observation := Observation)
+        (Bracket := Bracket) indexClass populationRisk empiricalRisk) :
+    FiniteBracketEndpointStrongLawAssembly (Bracket := Bracket)
+      indexClass populationRisk empiricalRisk :=
+  semantics.toEmpiricalMeasureSemantics.toEndpointStrongLawAssembly
+
+/-- Build constructor obligations from the sample/empirical-measure bridge. -/
+noncomputable def toConstructorObligations
+    {Observation Index Bracket : Type*} [MeasurableSpace Observation]
+    [Fintype Bracket] {indexClass : Set Index}
+    {populationRisk : Index -> ℝ} {empiricalRisk : ℕ -> Index -> ℝ}
+    (semantics :
+      FiniteBracketSampleEmpiricalMeasureSemantics (Observation := Observation)
+        (Bracket := Bracket) indexClass populationRisk empiricalRisk) :
+    L1BracketingNumberConstructorObligations (Bracket := Bracket)
+      indexClass populationRisk empiricalRisk :=
+  semantics.toEmpiricalMeasureSemantics.toConstructorObligations
+
+/-- Build the current `GlivenkoCantelliClass` from the bridge. -/
+noncomputable def toGlivenkoCantelliClass
+    {Observation Index Bracket : Type*} [MeasurableSpace Observation]
+    [Fintype Bracket] {indexClass : Set Index}
+    {populationRisk : Index -> ℝ} {empiricalRisk : ℕ -> Index -> ℝ}
+    (semantics :
+      FiniteBracketSampleEmpiricalMeasureSemantics (Observation := Observation)
+        (Bracket := Bracket) indexClass populationRisk empiricalRisk) :
+    GlivenkoCantelliClass indexClass populationRisk empiricalRisk :=
+  semantics.toEmpiricalMeasureSemantics.toGlivenkoCantelliClass
+
+end FiniteBracketSampleEmpiricalMeasureSemantics
+
 end StatInference
