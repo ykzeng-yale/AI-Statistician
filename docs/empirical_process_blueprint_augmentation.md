@@ -93,9 +93,7 @@ Suggested milestones:
 - `P10.M2`: VdV&W finite-bracketing GC deterministic core.
 - `P10.M3`: VC-subgraph benchmark seeds and combinatorial obligation stubs.
 - `P10.M4`: Donsker bridge seeds and asymptotic-normality handoff.
-- `P10.M5`: Textbook theorem atlas and dependency graph for empirical-process
-  routes.
-- `P10.M6`: External prover evaluation slice on the new empirical-process
+- `P10.M5`: External prover evaluation slice on the new empirical-process
   tasks.
 
 ### P11: Primitive Empirical Sample Model

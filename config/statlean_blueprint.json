@@ -599,17 +599,25 @@
         },
         {
           "id": "P10.M4",
-          "status": "in_progress",
-          "name": "Donsker bridge benchmark seeds and asymptotic-normality handoff"
+          "status": "done",
+          "name": "Donsker bridge benchmark seeds and asymptotic-normality handoff",
+          "evidence": [
+            "StatInference.EmpiricalProcess.Donsker defines DonskerAsymptoticNormalityRoute, connecting a proof-carrying DonskerBridgeCertificate to the estimator CLT interface.",
+            "DonskerAsymptoticNormalityRoute.estimatorCLT converts certified Donsker weak convergence into the CLT statement consumed by IndexedAsymptoticLinearCLTRoute.",
+            "DonskerAsymptoticNormalityRoute.asymptoticNormal composes the Donsker-derived CLT with estimator expansion and negligible-remainder obligations to produce asymptotic normality.",
+            "trivialDonskerBridgeCertificate, trivialDonskerIndexedCLTRoute, and trivialDonskerAsymptoticNormalityRoute provide no-shortcut one-point non-vacuity witnesses.",
+            "benchmarks include donsker_bridge_gc_projection_seed, donsker_bridge_estimator_clt_seed, donsker_asymptotic_normality_handoff_seed, and trivial_donsker_asymptotic_normality_seed.",
+            "verify-benchmarks accepted all 80 seed tasks with the local Lake verifier."
+          ]
         },
         {
           "id": "P10.M5",
-          "status": "pending",
+          "status": "in_progress",
           "name": "Empirical-process external prover evaluation slice"
         }
       ],
       "next_actions": [
-        "Implement P10.M4 by adding Donsker bridge benchmark seeds and an explicit asymptotic-normality handoff route from empirical-process weak convergence into the estimator CLT interfaces."
+        "Implement P10.M5 by materializing the empirical-process external prover evaluation slice over the bracketing, VC-subgraph, and Donsker benchmark families, recording blocked external-model adapters separately from local seed-registry evidence."
       ]
     }
   ]

@@ -26,4 +26,5 @@ import StatInference.EmpiricalProcess.Bracketing
 import StatInference.EmpiricalProcess.EndpointStrongLaw
 import StatInference.EmpiricalProcess.L1Bracketing
 import StatInference.EmpiricalProcess.VCSubgraph
+import StatInference.EmpiricalProcess.Donsker
 import StatInference.Examples.ConcreteEstimatorChain

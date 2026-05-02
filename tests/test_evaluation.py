@@ -511,6 +511,7 @@ def test_build_empirical_process_expansion_targets_scopes_next_interfaces() -> N
     assert "donsker-task" in targets["donsker_bridge_interface"]["motivating_task_ids"]
     assert targets["bracketing_gc_interface"]["gate_status"] == "needs_benchmark_seed"
     assert targets["vc_subgraph_gc_interface"]["gate_status"] == "ready_for_lemma_targets"
+    assert targets["donsker_bridge_interface"]["gate_status"] == "ready_for_lemma_targets"
     assert targets["rademacher_gc_interface"]["gate_status"] == "ready_for_lemma_targets"
     assert any("proof-carrying" in gate for gate in report["acceptance_gates"])
 
@@ -909,6 +910,18 @@ def test_checked_in_empirical_process_targets_artifact() -> None:
         "family_benchmark_task_ids"
     ]
     assert "donsker_statement_seed" in targets["donsker_bridge_interface"]["motivating_task_ids"]
+    assert "StatInference.DonskerAsymptoticNormalityRoute" in targets["donsker_bridge_interface"][
+        "lean_declarations"
+    ]
+    assert "donsker_bridge_estimator_clt_seed" in targets["donsker_bridge_interface"][
+        "family_benchmark_task_ids"
+    ]
+    assert "donsker_asymptotic_normality_handoff_seed" in targets["donsker_bridge_interface"][
+        "family_benchmark_task_ids"
+    ]
+    assert "trivial_donsker_asymptotic_normality_seed" in targets["donsker_bridge_interface"][
+        "family_benchmark_task_ids"
+    ]
     assert "covering_certificate_gc_seed" in targets["covering_number_gc_interface"][
         "motivating_task_ids"
     ]
@@ -956,7 +969,7 @@ def test_checked_in_reproducibility_bundle_artifact() -> None:
     assert all(len(artifact["sha256"]) == 64 for artifact in report["artifacts"])
     assert any(command["name"] == "smoke" for command in report["validation_commands"])
     assert any(command["name"] == "forbidden_lean_shortcuts" for command in report["validation_commands"])
-    assert report["current_milestone"]["id"] == "P10.M4"
+    assert report["current_milestone"]["id"] == "P10.M5"
     assert set(report) <= set(schema["properties"])
 
 

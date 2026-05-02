@@ -2288,6 +2288,146 @@ SEED_BENCHMARKS: tuple[BenchmarkTask, ...] = (
         expected_premises=("StatInference.DonskerSpec.weak_convergence_statement",),
     ),
     BenchmarkTask(
+        task_id="donsker_bridge_gc_projection_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S3",
+        domain_tags=("empirical_process", "donsker", "glivenko_cantelli"),
+        natural_language=(
+            "Project the Glivenko-Cantelli component carried by a Donsker "
+            "asymptotic-normality route."
+        ),
+        lean_task=LeanTask(
+            task_id="donsker_bridge_gc_projection_seed",
+            imports=("StatInference.EmpiricalProcess.Donsker",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Index : Type*} {indexClass : Set Index} "
+                "{populationRisk : Index -> Real} {empiricalRisk : Nat -> Index -> Real} "
+                "{Sample : Nat -> Type*} "
+                "{Parameter InfluenceFunction LinearPart Remainder : Type*} "
+                "(route : StatInference.DonskerAsymptoticNormalityRoute "
+                "indexClass populationRisk empiricalRisk Sample Parameter "
+                "InfluenceFunction LinearPart Remainder) : "
+                "StatInference.GlivenkoCantelliClass "
+                "indexClass populationRisk empiricalRisk := by\n"
+                "  exact StatInference.DonskerAsymptoticNormalityRoute.toGlivenkoCantelliClass "
+                "route"
+            ),
+            tags=("donsker", "gc_certificate", "projection"),
+            dependencies=(
+                "StatInference.DonskerAsymptoticNormalityRoute.toGlivenkoCantelliClass",
+            ),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=(
+            "StatInference.DonskerAsymptoticNormalityRoute.toGlivenkoCantelliClass",
+        ),
+    ),
+    BenchmarkTask(
+        task_id="donsker_bridge_estimator_clt_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S4",
+        domain_tags=("empirical_process", "donsker", "clt", "asymptotic_normality"),
+        natural_language=(
+            "Convert certified Donsker weak convergence into the estimator CLT "
+            "statement consumed by the asymptotic-linear route."
+        ),
+        lean_task=LeanTask(
+            task_id="donsker_bridge_estimator_clt_seed",
+            imports=("StatInference.EmpiricalProcess.Donsker",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Index : Type*} {indexClass : Set Index} "
+                "{populationRisk : Index -> Real} {empiricalRisk : Nat -> Index -> Real} "
+                "{Sample : Nat -> Type*} "
+                "{Parameter InfluenceFunction LinearPart Remainder : Type*} "
+                "(route : StatInference.DonskerAsymptoticNormalityRoute "
+                "indexClass populationRisk empiricalRisk Sample Parameter "
+                "InfluenceFunction LinearPart Remainder) : "
+                "route.estimator_route.clt.statement := by\n"
+                "  exact StatInference.DonskerAsymptoticNormalityRoute.estimatorCLT "
+                "route"
+            ),
+            tags=("donsker", "weak_convergence", "clt_handoff"),
+            dependencies=(
+                "StatInference.DonskerAsymptoticNormalityRoute.estimatorCLT",
+            ),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=(
+            "StatInference.DonskerAsymptoticNormalityRoute.estimatorCLT",
+        ),
+    ),
+    BenchmarkTask(
+        task_id="donsker_asymptotic_normality_handoff_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S5",
+        domain_tags=("empirical_process", "donsker", "asymptotic_normality"),
+        natural_language=(
+            "Apply Donsker weak convergence as the CLT input and finish the "
+            "estimator asymptotic-normality handoff."
+        ),
+        lean_task=LeanTask(
+            task_id="donsker_asymptotic_normality_handoff_seed",
+            imports=("StatInference.EmpiricalProcess.Donsker",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Index : Type*} {indexClass : Set Index} "
+                "{populationRisk : Index -> Real} {empiricalRisk : Nat -> Index -> Real} "
+                "{Sample : Nat -> Type*} "
+                "{Parameter InfluenceFunction LinearPart Remainder : Type*} "
+                "(route : StatInference.DonskerAsymptoticNormalityRoute "
+                "indexClass populationRisk empiricalRisk Sample Parameter "
+                "InfluenceFunction LinearPart Remainder) "
+                "(h_match : route.estimator_route.estimator.estimator_matches_expansion) "
+                "(h_expansion : "
+                "route.estimator_route.estimator.expansion.expansion_statement) "
+                "(h_remainder : "
+                "route.estimator_route.estimator.remainder_negligible.statement) : "
+                "route.estimator_route.asymptotic_normality := by\n"
+                "  exact StatInference.DonskerAsymptoticNormalityRoute.asymptoticNormal "
+                "route h_match h_expansion h_remainder"
+            ),
+            tags=("donsker", "clt_handoff", "asymptotic_normality"),
+            dependencies=(
+                "StatInference.DonskerAsymptoticNormalityRoute.asymptoticNormal",
+            ),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=(
+            "StatInference.DonskerAsymptoticNormalityRoute.asymptoticNormal",
+        ),
+    ),
+    BenchmarkTask(
+        task_id="trivial_donsker_asymptotic_normality_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S2",
+        domain_tags=("empirical_process", "donsker", "asymptotic_normality", "non_vacuity"),
+        natural_language=(
+            "Use the concrete one-point Donsker route as a non-vacuity witness "
+            "for the Donsker-to-normality handoff."
+        ),
+        lean_task=LeanTask(
+            task_id="trivial_donsker_asymptotic_normality_seed",
+            imports=("StatInference.EmpiricalProcess.Donsker",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example : "
+                "StatInference.trivialDonskerAsymptoticNormalityRoute."
+                "estimator_route.asymptotic_normality := by\n"
+                "  exact StatInference.trivialDonskerAsymptoticNormality"
+            ),
+            tags=("donsker", "asymptotic_normality", "non_vacuity"),
+            dependencies=("StatInference.trivialDonskerAsymptoticNormality",),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=("StatInference.trivialDonskerAsymptoticNormality",),
+    ),
+    BenchmarkTask(
         task_id="asymptotic_bridge_verified_seed",
         task_type=BenchmarkTaskType.FORMAL_ONLY,
         split=BenchmarkSplit.DEV,

@@ -150,11 +150,15 @@ DEFAULT_EMPIRICAL_PROCESS_EXPANSION_TARGETS = (
         "target_id": "donsker_bridge_interface",
         "interface_family": "donsker",
         "status": "interface_scoped",
-        "lean_module": "StatInference.EmpiricalProcess.Complexity",
+        "lean_module": "StatInference.EmpiricalProcess.Donsker",
         "lean_declarations": (
             "StatInference.DonskerBridgeCertificate",
             "StatInference.DonskerBridgeCertificate.toGlivenkoCantelliClass",
             "StatInference.DonskerBridgeCertificate.weakConvergence",
+            "StatInference.DonskerAsymptoticNormalityRoute",
+            "StatInference.DonskerAsymptoticNormalityRoute.estimatorCLT",
+            "StatInference.DonskerAsymptoticNormalityRoute.asymptoticNormal",
+            "StatInference.trivialDonskerAsymptoticNormalityRoute",
         ),
         "depends_on": (
             "StatInference.GlivenkoCantelliClass",
