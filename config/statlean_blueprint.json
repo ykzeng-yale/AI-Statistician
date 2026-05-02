@@ -553,7 +553,7 @@
     {
       "id": "P10",
       "name": "Empirical Process Theorem Expansion",
-      "status": "in_progress",
+      "status": "done",
       "objective": "Turn the P9 bracketing, VC-subgraph, and Donsker interfaces into benchmarked Lean theorem targets with non-vacuity evidence and downstream statistical inference handoffs.",
       "milestones": [
         {
@@ -612,12 +612,45 @@
         },
         {
           "id": "P10.M5",
-          "status": "in_progress",
-          "name": "Empirical-process external prover evaluation slice"
+          "status": "done",
+          "name": "Empirical-process external prover evaluation slice",
+          "evidence": [
+            "build_empirical_process_external_prover_slice materializes a P10 empirical-process external prover evaluation slice over bracketing, VC-subgraph, and Donsker benchmark families.",
+            "artifacts/evaluation/empirical-process-external-slice.json records 13 family benchmark tasks: 5 bracketing, 3 VC-subgraph, and 5 Donsker tasks.",
+            "The seed-registry baseline is ingested from checked-in Lake verifier reports with pass_rate=1.0 over all 13 empirical-process slice tasks.",
+            "External ReProver, DeepSeek-Prover-V2, Kimina-Prover-RL, and general coding-agent rows remain blocked with concrete missing adapter/model/result-file reasons.",
+            "schemas/empirical_process_external_slice.schema.json documents the artifact and tests enforce checked-in slice coverage."
+          ]
         }
       ],
       "next_actions": [
-        "Implement P10.M5 by materializing the empirical-process external prover evaluation slice over the bracketing, VC-subgraph, and Donsker benchmark families, recording blocked external-model adapters separately from local seed-registry evidence."
+        "P10 is complete; continue to P11 textbook-grounded empirical-process theorem promotion."
+      ]
+    },
+    {
+      "id": "P11",
+      "name": "Textbook-Grounded Empirical-Process Theorem Promotion",
+      "status": "in_progress",
+      "objective": "Use the local VdV&W textbook markdown and AXLE-assisted Lean extraction/checking to promote abstract empirical-process interfaces into source-linked theorem statements and proof-obligation inventories without semantic drift.",
+      "milestones": [
+        {
+          "id": "P11.M1",
+          "status": "in_progress",
+          "name": "VdV&W theorem inventory and semantic audit slice"
+        },
+        {
+          "id": "P11.M2",
+          "status": "pending",
+          "name": "Source-linked bracketing GC theorem statement candidates"
+        },
+        {
+          "id": "P11.M3",
+          "status": "pending",
+          "name": "Source-linked VC and Donsker proof-obligation candidates"
+        }
+      ],
+      "next_actions": [
+        "Implement P11.M1 by generating a source-linked VdV&W theorem inventory for bracketing, VC-subgraph, and Donsker targets, mapping each textbook theorem to current Lean declarations, benchmark seeds, missing definitions, and human-review semantic risks."
       ]
     }
   ]

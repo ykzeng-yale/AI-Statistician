@@ -20,3 +20,5 @@ PYTHONPATH=src "${PYTHON_BIN}" -m statlean_agent.cli render-task erm_oracle_ineq
 PYTHONPATH=src "${PYTHON_BIN}" -m statlean_agent.cli index-premises --root . --output /tmp/statlean-premises.jsonl
 PYTHONPATH=src "${PYTHON_BIN}" -m statlean_agent.cli search-premises "oracle excess risk" --index /tmp/statlean-premises.jsonl >/tmp/statlean-premise-search.txt
 PYTHONPATH=src "${PYTHON_BIN}" -m statlean_agent.cli build-training-manifest --benchmarks benchmarks/seeds.jsonl --output /tmp/statlean-training-manifest.json
+PYTHONPATH=src "${PYTHON_BIN}" -m statlean_agent.cli empirical-process-external-slice --output "${TMP_DIR}/empirical-process-external-slice.json"
+cmp "${TMP_DIR}/empirical-process-external-slice.json" artifacts/evaluation/empirical-process-external-slice.json

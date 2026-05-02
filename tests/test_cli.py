@@ -27,13 +27,13 @@ def test_cli_render_task(tmp_path: Path, capsys) -> None:
 def test_cli_blueprint_status(capsys) -> None:
     assert main(["blueprint-status", "--blueprint", "config/statlean_blueprint.json"]) == 0
     output = capsys.readouterr().out
-    assert "Current phase: P10" in output
-    assert "Current milestone: P10.M5" in output
+    assert "Current phase: P11" in output
+    assert "Current milestone: P11.M1" in output
 
     assert main(["blueprint-status", "--blueprint", "config/statlean_blueprint.json", "--json"]) == 0
     json_output = capsys.readouterr().out
     assert '"current_phase"' in json_output
-    assert '"P10.M5"' in json_output
+    assert '"P11.M1"' in json_output
 
 
 def test_cli_verify_benchmarks_allow_failures(tmp_path: Path, capsys) -> None:

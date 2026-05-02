@@ -16,6 +16,7 @@ from statlean_agent.evaluation import (
     build_ablation_report,
     build_concrete_estimator_chain_report,
     build_empirical_process_expansion_targets,
+    build_empirical_process_external_prover_slice,
     build_external_baseline_plan,
     build_external_baseline_results,
     build_paper_quality_heldout_report,
@@ -516,6 +517,83 @@ def test_build_empirical_process_expansion_targets_scopes_next_interfaces() -> N
     assert any("proof-carrying" in gate for gate in report["acceptance_gates"])
 
 
+def test_build_empirical_process_external_prover_slice_targets_family_tasks() -> None:
+    tasks = (
+        _benchmark_task(
+            "bracketing-task",
+            split=BenchmarkSplit.DEV,
+            domain_tags=("empirical_process", "bracketing_number"),
+        ),
+        _benchmark_task(
+            "vc-task",
+            split=BenchmarkSplit.DEV,
+            domain_tags=("empirical_process", "vc_subgraph"),
+        ),
+        _benchmark_task(
+            "donsker-task",
+            split=BenchmarkSplit.TEST,
+            domain_tags=("empirical_process", "donsker"),
+        ),
+        _benchmark_task(
+            "other-task",
+            split=BenchmarkSplit.TEST,
+            domain_tags=("empirical_process", "covering_number"),
+        ),
+    )
+    target_report = {
+        "report_id": "targets",
+        "targets": (
+            {
+                "target_id": "bracketing",
+                "interface_family": "bracketing",
+                "gate_status": "ready_for_lemma_targets",
+                "family_benchmark_task_ids": ("bracketing-task",),
+            },
+            {
+                "target_id": "vc",
+                "interface_family": "vc_subgraph",
+                "gate_status": "ready_for_lemma_targets",
+                "family_benchmark_task_ids": ("vc-task",),
+            },
+            {
+                "target_id": "donsker",
+                "interface_family": "donsker",
+                "gate_status": "ready_for_lemma_targets",
+                "family_benchmark_task_ids": ("donsker-task",),
+            },
+        ),
+    }
+    attempts = tuple(
+        ProofAttempt(task.task_id, "seed-registry", "theorem ok : True := by trivial")
+        for task in tasks
+    )
+    reports = tuple(VerificationReport(task.task_id, VerificationStatus.ACCEPTED) for task in tasks)
+
+    report = build_empirical_process_external_prover_slice(
+        tasks,
+        target_report,
+        {"seed-registry": attempts},
+        {"seed-registry": reports},
+        source_by_baseline={"seed-registry": "unit_seed"},
+    )
+
+    assert report["report_id"] == "empirical-process-external-prover-slice::p10"
+    assert report["target_report_id"] == "targets"
+    assert report["interface_families"] == ["bracketing", "vc_subgraph", "donsker"]
+    assert report["target_task_ids"] == ["bracketing-task", "vc-task", "donsker-task"]
+    assert report["target_task_count"] == 3
+    assert report["family_count"] == 3
+    assert all(family["seed_registry_status"] == "verified" for family in report["families"])
+    assert report["ingested_count"] == 1
+    assert report["blocked_count"] == 4
+    seed_row = report["rows"][0]
+    assert seed_row["baseline_id"] == "seed-registry"
+    assert seed_row["source"] == "unit_seed"
+    assert seed_row["evaluated_task_count"] == 3
+    assert seed_row["pass_rate"] == 1.0
+    assert {row["ingestion_status"] for row in report["rows"][1:]} == {"blocked_by_plan_status"}
+
+
 def test_cli_eval_summary(tmp_path: Path, capsys) -> None:
     benchmarks_path = tmp_path / "benchmarks.jsonl"
     attempts_path = tmp_path / "attempts.jsonl"
@@ -933,6 +1011,33 @@ def test_checked_in_empirical_process_targets_artifact() -> None:
     assert set(report) <= set(schema["properties"])
 
 
+def test_checked_in_empirical_process_external_slice_artifact() -> None:
+    report = json.loads(Path("artifacts/evaluation/empirical-process-external-slice.json").read_text(encoding="utf-8"))
+    schema = json.loads(Path("schemas/empirical_process_external_slice.schema.json").read_text(encoding="utf-8"))
+
+    assert report["report_id"] == "empirical-process-external-prover-slice::p10"
+    assert report["target_report_id"] == "empirical-process-targets::p9"
+    assert report["interface_families"] == ["bracketing", "vc_subgraph", "donsker"]
+    assert report["family_count"] == 3
+    assert report["target_task_count"] == 13
+    assert report["ingested_count"] == 1
+    assert report["blocked_count"] == 4
+    assert report["best_available_baseline"] == "seed-registry"
+    families = {row["interface_family"]: row for row in report["families"]}
+    assert families["bracketing"]["task_count"] == 5
+    assert families["vc_subgraph"]["task_count"] == 3
+    assert families["donsker"]["task_count"] == 5
+    assert all(family["seed_registry_status"] == "verified" for family in families.values())
+    assert all(family["seed_registry_pass_rate"] == 1.0 for family in families.values())
+    seed_row = report["rows"][0]
+    assert seed_row["baseline_id"] == "seed-registry"
+    assert seed_row["source"] == "checked_in_seed_registry_fallback"
+    assert seed_row["evaluated_task_count"] == report["target_task_count"]
+    assert seed_row["pass_rate"] == 1.0
+    assert {row["ingestion_status"] for row in report["rows"][1:]} == {"blocked_by_plan_status"}
+    assert set(report) <= set(schema["properties"])
+
+
 def test_checked_in_theorem_hole_promotion_queue_artifact() -> None:
     report = json.loads(Path("artifacts/curation/theorem-hole-promotion-queue.json").read_text(encoding="utf-8"))
     schema = json.loads(Path("schemas/theorem_hole_promotion_queue.schema.json").read_text(encoding="utf-8"))
@@ -965,11 +1070,12 @@ def test_checked_in_reproducibility_bundle_artifact() -> None:
     assert "artifacts/evaluation/external-baseline-plan.json" in artifact_paths
     assert "artifacts/evaluation/external-baseline-results.json" in artifact_paths
     assert "artifacts/evaluation/empirical-process-targets.json" in artifact_paths
+    assert "artifacts/evaluation/empirical-process-external-slice.json" in artifact_paths
     assert "artifacts/curation/theorem-hole-promotion-queue.json" in artifact_paths
     assert all(len(artifact["sha256"]) == 64 for artifact in report["artifacts"])
     assert any(command["name"] == "smoke" for command in report["validation_commands"])
     assert any(command["name"] == "forbidden_lean_shortcuts" for command in report["validation_commands"])
-    assert report["current_milestone"]["id"] == "P10.M5"
+    assert report["current_milestone"]["id"] == "P11.M1"
     assert set(report) <= set(schema["properties"])
 
 

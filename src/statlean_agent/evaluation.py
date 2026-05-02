@@ -86,6 +86,7 @@ DEFAULT_REPRODUCIBILITY_ARTIFACTS = (
     "artifacts/evaluation/external-baseline-plan.json",
     "artifacts/evaluation/external-baseline-results.json",
     "artifacts/evaluation/empirical-process-targets.json",
+    "artifacts/evaluation/empirical-process-external-slice.json",
     "artifacts/training/manifest.json",
     "artifacts/training/dpo-negative-attempts.jsonl",
     "artifacts/training/dpo-negative-reports.jsonl",
@@ -215,6 +216,12 @@ DEFAULT_EMPIRICAL_PROCESS_EXPANSION_TARGETS = (
             "rademacher_certificate_non_vacuity_examples",
         ),
     },
+)
+
+DEFAULT_EMPIRICAL_PROCESS_EXTERNAL_FAMILIES = (
+    "bracketing",
+    "vc_subgraph",
+    "donsker",
 )
 
 DEFAULT_EXTERNAL_BASELINES = (
@@ -447,13 +454,41 @@ def compare_baseline_on_split(
 ) -> dict[str, object]:
     """Build a held-out baseline report from paired attempts and verifier reports."""
 
+    split_tasks = tuple(task for task in tasks if _enum_value(task.split) == split)
+    if not split_tasks:
+        raise ValueError(f"no benchmark tasks found for split `{split}`")
+
+    return _compare_baseline_on_tasks(
+        tasks,
+        attempts,
+        reports,
+        baseline=baseline,
+        selected_tasks=split_tasks,
+        comparison_id=f"{baseline}::{split}",
+        split_label=split,
+        allowed_placeholders_by_task=allowed_placeholders_by_task,
+    )
+
+
+def _compare_baseline_on_tasks(
+    tasks: tuple[BenchmarkTask, ...],
+    attempts: tuple[ProofAttempt, ...],
+    reports: tuple[VerificationReport, ...],
+    *,
+    baseline: str,
+    selected_tasks: tuple[BenchmarkTask, ...],
+    comparison_id: str,
+    split_label: str,
+    allowed_placeholders_by_task: Mapping[str, Iterable[str]] | None = None,
+) -> dict[str, object]:
+    """Build a baseline report over an explicit benchmark task slice."""
+
     if len(attempts) != len(reports):
         raise ValueError("attempts and reports must have the same length")
 
     task_by_id = _task_index(tasks)
-    split_tasks = tuple(task for task in tasks if _enum_value(task.split) == split)
-    if not split_tasks:
-        raise ValueError(f"no benchmark tasks found for split `{split}`")
+    if not selected_tasks:
+        raise ValueError(f"no benchmark tasks found for slice `{split_label}`")
 
     pairs_by_task: dict[str, tuple[ProofAttempt, VerificationReport]] = {}
     for attempt, report in zip(attempts, reports, strict=True):
@@ -476,7 +511,7 @@ def compare_baseline_on_split(
     premise_recall_total = 0.0
     failure_categories: dict[str, int] = {}
 
-    for task in split_tasks:
+    for task in selected_tasks:
         pair = pairs_by_task.get(task.task_id)
         if pair is None:
             raise ValueError(f"missing attempt for baseline `{baseline}` and task `{task.task_id}`")
@@ -535,9 +570,9 @@ def compare_baseline_on_split(
     total = len(rows)
     passed = status_counts[VerificationStatus.ACCEPTED.value]
     return {
-        "comparison_id": f"{baseline}::{split}",
+        "comparison_id": comparison_id,
         "baseline": baseline,
-        "split": split,
+        "split": split_label,
         "benchmark_task_count": total,
         "passed": passed,
         "failed": total - passed,
@@ -1005,6 +1040,124 @@ def build_external_baseline_results(
     }
 
 
+def build_empirical_process_external_prover_slice(
+    tasks: tuple[BenchmarkTask, ...],
+    target_report: Mapping[str, object],
+    attempts_by_baseline: Mapping[str, tuple[ProofAttempt, ...]],
+    reports_by_baseline: Mapping[str, tuple[VerificationReport, ...]],
+    *,
+    source_by_baseline: Mapping[str, str] | None = None,
+    baseline_specs: tuple[Mapping[str, object], ...] = DEFAULT_EXTERNAL_BASELINES,
+    benchmark_path: str = "benchmarks/seeds.jsonl",
+    output_dir: str = "artifacts/external_baselines/empirical_process",
+    interface_families: tuple[str, ...] = DEFAULT_EMPIRICAL_PROCESS_EXTERNAL_FAMILIES,
+) -> dict[str, object]:
+    """Build the P10 empirical-process external prover evaluation slice.
+
+    Unlike the generic held-out baseline plan, this slice targets all checked-in
+    benchmark tasks attached to the bracketing, VC-subgraph, and Donsker
+    families.  External model adapters remain separately blocked until they
+    provide ProofAttempt and VerificationReport JSONL files for this slice.
+    """
+
+    source_by_baseline = source_by_baseline or {}
+    requested_families = set(interface_families)
+    target_rows = [
+        _mapping(row)
+        for row in target_report.get("targets", ())
+        if str(_mapping(row).get("interface_family", "")) in requested_families
+    ]
+    if not target_rows:
+        raise ValueError("no empirical-process target rows found for requested families")
+
+    task_by_id = _task_index(tasks)
+    family_rows = [
+        _empirical_process_external_family_row(
+            row,
+            task_by_id,
+            attempts_by_baseline.get("seed-registry", ()),
+            reports_by_baseline.get("seed-registry", ()),
+        )
+        for row in target_rows
+    ]
+    selected_task_ids = tuple(
+        task.task_id
+        for task in tasks
+        if any(task.task_id in family["task_ids"] for family in family_rows)
+    )
+    selected_tasks = tuple(task for task in tasks if task.task_id in set(selected_task_ids))
+    if not selected_tasks:
+        raise ValueError("empirical-process external slice has no benchmark tasks")
+
+    baselines = [
+        _external_baseline_row(
+            spec,
+            split="empirical-process",
+            benchmark_path=benchmark_path,
+            output_dir=output_dir,
+            task_count=len(selected_tasks),
+        )
+        for spec in baseline_specs
+    ]
+    rows = [
+        _external_baseline_result_row(
+            tasks,
+            baseline,
+            split="empirical-process",
+            attempts=attempts_by_baseline.get(str(baseline.get("baseline_id", ""))),
+            reports=reports_by_baseline.get(str(baseline.get("baseline_id", ""))),
+            source=source_by_baseline.get(str(baseline.get("baseline_id", "")), "missing"),
+            selected_tasks=selected_tasks,
+            comparison_id=f"{baseline.get('baseline_id', '')}::empirical_process_external_slice",
+        )
+        for baseline in baselines
+    ]
+    ingested_rows = [row for row in rows if row["ingestion_status"] == "ingested"]
+    blocked_rows = [row for row in rows if row["ingestion_status"] != "ingested"]
+    best = max(
+        ingested_rows,
+        key=lambda row: (
+            float(row["pass_rate"]),
+            float(row["mean_premise_recall"]),
+            str(row["baseline_id"]),
+        ),
+        default=None,
+    )
+
+    return {
+        "report_id": "empirical-process-external-prover-slice::p10",
+        "target_report_id": str(target_report.get("report_id", "")),
+        "interface_families": list(interface_families),
+        "family_count": len(family_rows),
+        "families": family_rows,
+        "benchmark_path": benchmark_path,
+        "target_task_count": len(selected_tasks),
+        "target_task_ids": list(selected_task_ids),
+        "baseline_count": len(rows),
+        "ingested_count": len(ingested_rows),
+        "blocked_count": len(blocked_rows),
+        "best_available_baseline": best["baseline_id"] if best else None,
+        "rows": rows,
+        "adapter_contract": (
+            "Each external prover adapter must emit ProofAttempt JSONL and "
+            "VerificationReport JSONL over exactly this empirical-process task "
+            "slice before it is compared with seed-registry evidence."
+        ),
+        "acceptance_gates": [
+            "The family slice must include bracketing, VC-subgraph, and Donsker benchmark tasks.",
+            "Seed-registry evidence must be verified by the local Lake verifier for every task in the slice.",
+            "External model rows remain blocked until adapter-produced attempts and verifier reports are checked in.",
+            "Blocked external rows must preserve concrete missing-runtime or missing-result-file reasons.",
+        ],
+        "notes": (
+            "P10.M5 materializes the empirical-process external prover slice "
+            "separately from the generic held-out split, so bracketing, "
+            "VC-subgraph, and Donsker benchmark families can be evaluated "
+            "together once external prover adapters are available."
+        ),
+    }
+
+
 def build_empirical_process_expansion_targets(
     tasks: tuple[BenchmarkTask, ...],
     *,
@@ -1462,6 +1615,8 @@ def _external_baseline_result_row(
     attempts: tuple[ProofAttempt, ...] | None,
     reports: tuple[VerificationReport, ...] | None,
     source: str,
+    selected_tasks: tuple[BenchmarkTask, ...] | None = None,
+    comparison_id: str | None = None,
 ) -> dict[str, object]:
     baseline_id = str(baseline.get("baseline_id", ""))
     base_row = {
@@ -1505,13 +1660,24 @@ def _external_baseline_result_row(
         }
 
     try:
-        comparison = compare_baseline_on_split(
-            tasks,
-            attempts,
-            reports,
-            baseline=baseline_id,
-            split=split,
-        )
+        if selected_tasks is None:
+            comparison = compare_baseline_on_split(
+                tasks,
+                attempts,
+                reports,
+                baseline=baseline_id,
+                split=split,
+            )
+        else:
+            comparison = _compare_baseline_on_tasks(
+                tasks,
+                attempts,
+                reports,
+                baseline=baseline_id,
+                selected_tasks=selected_tasks,
+                comparison_id=comparison_id or f"{baseline_id}::{split}",
+                split_label=split,
+            )
     except ValueError as error:
         return {
             **base_row,
@@ -1539,6 +1705,50 @@ def _external_baseline_result_row(
         "status_counts": dict(_mapping(comparison["status_counts"])),
         "failure_categories": dict(_mapping(comparison["failure_categories"])),
         "blocked_reasons": [],
+    }
+
+
+def _empirical_process_external_family_row(
+    target: Mapping[str, object],
+    task_by_id: Mapping[str, BenchmarkTask],
+    seed_attempts: tuple[ProofAttempt, ...],
+    seed_reports: tuple[VerificationReport, ...],
+) -> dict[str, object]:
+    task_ids = tuple(str(task_id) for task_id in _sequence(target.get("family_benchmark_task_ids")))
+    known_task_ids = tuple(task_id for task_id in task_ids if task_id in task_by_id)
+    missing_task_ids = tuple(task_id for task_id in task_ids if task_id not in task_by_id)
+    family_tasks = tuple(task_by_id[task_id] for task_id in known_task_ids)
+
+    seed_pass_rate = 0.0
+    seed_passed = 0
+    seed_status = "missing_seed_registry_evidence"
+    if seed_attempts and seed_reports and family_tasks:
+        try:
+            comparison = _compare_baseline_on_tasks(
+                tuple(task_by_id.values()),
+                seed_attempts,
+                seed_reports,
+                baseline="seed-registry",
+                selected_tasks=family_tasks,
+                comparison_id=f"seed-registry::{target.get('interface_family', '')}",
+                split_label=str(target.get("interface_family", "")),
+            )
+            seed_passed = int(comparison["passed"])
+            seed_pass_rate = float(comparison["pass_rate"])
+            seed_status = "verified" if seed_passed == len(family_tasks) else "partial"
+        except ValueError as error:
+            seed_status = f"error: {error}"
+
+    return {
+        "target_id": str(target.get("target_id", "")),
+        "interface_family": str(target.get("interface_family", "")),
+        "gate_status": str(target.get("gate_status", "")),
+        "task_count": len(family_tasks),
+        "task_ids": list(known_task_ids),
+        "missing_task_ids": list(missing_task_ids),
+        "seed_registry_status": seed_status,
+        "seed_registry_passed": seed_passed,
+        "seed_registry_pass_rate": seed_pass_rate,
     }
 
 

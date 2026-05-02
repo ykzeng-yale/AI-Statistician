@@ -36,6 +36,7 @@ from statlean_agent.evaluation import (
     build_ablation_report,
     build_concrete_estimator_chain_report,
     build_empirical_process_expansion_targets,
+    build_empirical_process_external_prover_slice,
     build_external_baseline_plan,
     build_external_baseline_results,
     build_paper_quality_heldout_report,
@@ -241,6 +242,46 @@ def main(argv: list[str] | None = None) -> int:
         "--output",
         default="artifacts/evaluation/empirical-process-targets.json",
         help="Output empirical-process target JSON path.",
+    )
+
+    empirical_process_external_slice = subparsers.add_parser(
+        "empirical-process-external-slice",
+        help="Build the P10 empirical-process external prover evaluation slice.",
+    )
+    empirical_process_external_slice.add_argument(
+        "--benchmarks",
+        default="benchmarks/seeds.jsonl",
+        help="BenchmarkTask JSONL path.",
+    )
+    empirical_process_external_slice.add_argument(
+        "--targets",
+        default="artifacts/evaluation/empirical-process-targets.json",
+        help="Empirical-process targets JSON path.",
+    )
+    empirical_process_external_slice.add_argument(
+        "--repo-root",
+        default=".",
+        help="Repository root used to resolve planned external result paths.",
+    )
+    empirical_process_external_slice.add_argument(
+        "--output-dir",
+        default="artifacts/external_baselines/empirical_process",
+        help="Output directory encoded for future empirical-process external baseline files.",
+    )
+    empirical_process_external_slice.add_argument(
+        "--seed-attempts",
+        default="artifacts/evaluation/benchmark-seed-attempts.jsonl",
+        help="Fallback seed-registry ProofAttempt JSONL path.",
+    )
+    empirical_process_external_slice.add_argument(
+        "--seed-reports",
+        default="artifacts/verification/benchmark-seed-reports.jsonl",
+        help="Fallback seed-registry VerificationReport JSONL path.",
+    )
+    empirical_process_external_slice.add_argument(
+        "--output",
+        default="artifacts/evaluation/empirical-process-external-slice.json",
+        help="Output empirical-process external slice JSON path.",
     )
 
     paper_heldout = subparsers.add_parser(
@@ -796,6 +837,71 @@ def main(argv: list[str] | None = None) -> int:
         print(
             f"empirical_process_targets={report['target_count']} "
             f"scoped={report['scoped_count']} pending={report['pending_count']} "
+            f"output={args.output}"
+        )
+        return 0
+
+    if args.command == "empirical-process-external-slice":
+        tasks = load_benchmarks(Path(args.benchmarks))
+        target_report = json.loads(Path(args.targets).read_text(encoding="utf-8"))
+        root = Path(args.repo_root)
+        attempts_by_baseline: dict[str, tuple[ProofAttempt, ...]] = {}
+        reports_by_baseline: dict[str, tuple[VerificationReport, ...]] = {}
+        source_by_baseline: dict[str, str] = {}
+
+        provisional = build_empirical_process_external_prover_slice(
+            tasks,
+            target_report,
+            {},
+            {},
+            benchmark_path=args.benchmarks,
+            output_dir=args.output_dir,
+        )
+        for baseline in provisional.get("rows", ()):
+            if not isinstance(baseline, dict):
+                continue
+            baseline_id = str(baseline.get("baseline_id", ""))
+            attempts_path = root / str(baseline.get("attempts_path", ""))
+            reports_path = root / str(baseline.get("reports_path", ""))
+            if attempts_path.exists() and reports_path.exists():
+                attempts_by_baseline[baseline_id] = tuple(
+                    dataclass_from_dict(ProofAttempt, record)
+                    for record in read_jsonl(attempts_path)
+                )
+                reports_by_baseline[baseline_id] = tuple(
+                    dataclass_from_dict(VerificationReport, record)
+                    for record in read_jsonl(reports_path)
+                )
+                source_by_baseline[baseline_id] = "planned_empirical_process_result_files"
+                continue
+
+            if baseline_id == "seed-registry":
+                attempts_by_baseline[baseline_id] = tuple(
+                    dataclass_from_dict(ProofAttempt, record)
+                    for record in read_jsonl(Path(args.seed_attempts))
+                )
+                reports_by_baseline[baseline_id] = tuple(
+                    dataclass_from_dict(VerificationReport, record)
+                    for record in read_jsonl(Path(args.seed_reports))
+                )
+                source_by_baseline[baseline_id] = "checked_in_seed_registry_fallback"
+
+        report = build_empirical_process_external_prover_slice(
+            tasks,
+            target_report,
+            attempts_by_baseline,
+            reports_by_baseline,
+            source_by_baseline=source_by_baseline,
+            benchmark_path=args.benchmarks,
+            output_dir=args.output_dir,
+        )
+        output = Path(args.output)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(dumps_json(report) + "\n", encoding="utf-8")
+        print(
+            f"empirical_process_external_slice={report['target_task_count']} "
+            f"families={report['family_count']} ingested={report['ingested_count']} "
+            f"blocked={report['blocked_count']} best={report['best_available_baseline']} "
             f"output={args.output}"
         )
         return 0

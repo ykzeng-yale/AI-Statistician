@@ -2,10 +2,9 @@
 
 This note refines the current progressive blueprint against the textbook route
 from Vapnik's statistical learning theory and van der Vaart--Wellner's weak
-convergence and empirical-process theory.  It is intentionally additive: active
-P10.M1 work is touching `StatInference/EmpiricalProcess/Complexity.lean`,
-`src/statlean_agent/benchmarks.py`, and `benchmarks/seeds.jsonl`, so this file
-does not modify those paths.
+convergence and empirical-process theory.  P10 is now complete: bracketing,
+VC-subgraph, and Donsker interfaces have benchmark evidence, and P10.M5 records
+the external-prover evaluation slice that future model adapters must target.
 
 ## Goal Clarification
 
@@ -40,9 +39,13 @@ implemented mathematics:
 - `P9 Empirical-process expansion targets` scoped bracketing, VC-subgraph, and
   Donsker interfaces.  These are proof-carrying handoff points, not primitive
   constructor theorems.
-- `P10` should become the transition from scaffolded interfaces to
-  textbook-derived theorem families.  It should not stop at adding benchmark
-  seeds for certificate projections.
+- `P10` completed the transition from scaffolded interfaces to benchmarked
+  empirical-process theorem targets: bracketing, finite L1 bracketing,
+  VC-subgraph obligations, Donsker normality handoff, and an external-prover
+  evaluation slice are all tracked in artifacts.
+- `P11` starts the textbook-grounded promotion step: every next theorem target
+  should be source-linked to VdV&W or Vapnik text, mapped to current Lean
+  declarations, and marked with semantic risks before formalization.
 
 ## Textbook Dependency Map
 
@@ -87,7 +90,7 @@ Extend it with explicit artifact gates:
   changes;
 - blueprint status promoted only after tests, smoke, and `lake build`.
 
-Suggested milestones:
+Completed milestones:
 
 - `P10.M1`: Bracketing GC benchmark seeds and non-vacuity witness.
 - `P10.M2`: VdV&W finite-bracketing GC deterministic core.
@@ -96,7 +99,26 @@ Suggested milestones:
 - `P10.M5`: External prover evaluation slice on the new empirical-process
   tasks.
 
-### P11: Primitive Empirical Sample Model
+### P11: Textbook-Grounded Theorem Promotion
+
+Before building more primitive probability infrastructure, create an auditable
+theorem atlas from the local VdV&W markdown/PDF sources:
+
+- source-linked theorem rows for finite bracketing GC, VC/VC-subgraph examples,
+  maximal inequalities, and Donsker constructor routes;
+- mapping from textbook statements to existing `StatInference` declarations and
+  benchmark seeds;
+- missing Lean primitives and mathlib dependencies;
+- semantic-risk notes for hidden measurability, separability, outer-probability,
+  tightness, and envelope assumptions;
+- AXLE extraction/checking tasks recorded only as auxiliary evidence, with local
+  Lake remaining the acceptance authority.
+
+Promotion gate: every theorem-statement candidate must include a textbook source
+reference, current Lean dependency map, non-vacuity plan, and explicit list of
+assumptions that are still abstract.
+
+### P12: Primitive Empirical Sample Model
 
 Build the real probabilistic substrate currently abstracted away by deterministic
 `empiricalRisk : Nat -> Index -> Real` fields:
@@ -111,7 +133,7 @@ Build the real probabilistic substrate currently abstracted away by deterministi
 Promotion gate: at least one concrete sample-space example proves a non-vacuous
 empirical-average convergence or concentration statement without new axioms.
 
-### P12: Self-Contained Finite-Class GC
+### P13: Self-Contained Finite-Class GC
 
 This is the first bottom-up empirical-process vertical slice:
 
@@ -126,7 +148,7 @@ single-function LLN/concentration
 This phase replaces the current finite-class certificate interface with a
 constructor theorem from primitive finite-class assumptions.
 
-### P13: Bracketing GC Route
+### P14: Bracketing GC Route
 
 Formalize the van der Vaart--Wellner bracketing route:
 
@@ -140,7 +162,7 @@ Formalize the van der Vaart--Wellner bracketing route:
 This should be prioritized before full VC/Donsker because the GC bracketing
 proof is elementary relative to the other routes: finite approximation plus LLN.
 
-### P14: Uniform Entropy, Symmetrization, And Maximal Inequalities
+### P15: Uniform Entropy, Symmetrization, And Maximal Inequalities
 
 Build the route needed for uniform covering-number GC and later Donsker:
 
@@ -154,7 +176,7 @@ This phase is allowed to reuse existing mathlib concentration, covering, and
 weak convergence primitives, but should expose `StatInference`-level APIs that
 match empirical-process textbook statements.
 
-### P15: VC And VC-Subgraph Route
+### P16: VC And VC-Subgraph Route
 
 Build the combinatorial capacity layer:
 
@@ -168,7 +190,7 @@ Build the combinatorial capacity layer:
 Promotion gate: include concrete examples such as intervals/cells or threshold
 sets, not only abstract VC assumptions.
 
-### P16: Donsker Route
+### P17: Donsker Route
 
 Treat full Donsker theory as a later, deeper layer:
 
@@ -184,7 +206,7 @@ This phase should not block GC/ERM progress.  Donsker is harder because it
 requires weak convergence in function spaces, tightness, and measurability
 management.
 
-### P17: Downstream Statistical Inference Applications
+### P18: Downstream Statistical Inference Applications
 
 Connect the empirical-process layer to the statistics layer:
 
@@ -198,36 +220,34 @@ Connect the empirical-process layer to the statistics layer:
 
 ## Parallel Workstreams
 
-The following can run while another agent works on P10.M1 bracketing code, with
-low conflict risk:
+The following can run while another agent works on P11.M1 theorem-atlas code,
+with low conflict risk:
 
 1. Textbook theorem atlas extraction in `docs/` or `artifacts/research/`.
 2. Mathlib API audit for iid samples, product measures, LLN, concentration,
    covering numbers, weak convergence, and `Lp` norms.
-3. Design notes for `P11` primitive empirical sample model.
+3. Design notes for `P12` primitive empirical sample model.
 4. Benchmark taxonomy updates that do not edit `benchmarks/seeds.jsonl` until
    the current task-count drift is resolved.
 5. New theorem-statement drafts in documentation, not Lean source, for
    bracketing GC and finite-class GC constructor theorems.
 
-Avoid touching these paths until current P10.M1 edits are synchronized:
+Avoid touching these paths until current P11.M1 edits are synchronized:
 
 - `StatInference/EmpiricalProcess/Complexity.lean`
 - `src/statlean_agent/benchmarks.py`
 - `benchmarks/seeds.jsonl`
 - checked-in benchmark/evaluation artifacts affected by seed count
 
-## Immediate Promotion Checklist For Active P10.M1
+## Immediate Promotion Checklist For Active P11.M1
 
-The current working tree appears to have partial P10.M1 progress.  Before
-promoting it:
+Before promoting P11.M1:
 
-- regenerate verification reports and benchmark/evaluation artifacts for the
-  current seed count;
-- regenerate `artifacts/evaluation/empirical-process-targets.json` so the
-  bracketing row records `ready_for_lemma_targets`;
-- update tests that still expect bracketing to need a seed;
-- update the blueprint evidence for P10.M1;
-- fix Lean lint warnings in `Complexity.lean`;
+- generate the source-linked theorem inventory artifact from local VdV&W
+  markdown/PDF sources;
+- map each inventory row to current Lean declarations, benchmark seeds, missing
+  definitions, and semantic-risk notes;
+- update tests and schemas for the theorem inventory artifact;
+- update the blueprint evidence for P11.M1;
 - rerun `.venv/bin/pytest`, `PYTHON=.venv/bin/python bash scripts/smoke.sh`, and
   `lake build`.
