@@ -762,6 +762,169 @@ SEED_BENCHMARKS: tuple[BenchmarkTask, ...] = (
         ),
     ),
     BenchmarkTask(
+        task_id="finite_endpoint_process_strong_law_eventual_bound_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S5",
+        domain_tags=(
+            "empirical_process",
+            "bracketing_number",
+            "endpoint_strong_law",
+            "sample_average",
+            "stochastic_process",
+        ),
+        natural_language=(
+            "Convert the finite endpoint strong law from range-sum process "
+            "notation into the repository's stochastic-process-induced "
+            "sample-average endpoint notation."
+        ),
+        lean_task=LeanTask(
+            task_id="finite_endpoint_process_strong_law_eventual_bound_seed",
+            imports=("StatInference.EmpiricalProcess.VdVW241",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Endpoint Observation Omega : Type*} [Fintype Endpoint] "
+                "[MeasurableSpace Omega] {mu : MeasureTheory.Measure Omega} "
+                "(observations : Nat -> Omega -> Observation) "
+                "(endpoint : Endpoint -> Observation -> Real) "
+                "(hint : forall endpointIndex, MeasureTheory.Integrable "
+                "(StatInference.bracketEndpointObservationProcess observations "
+                "endpoint endpointIndex 0) mu) "
+                "(hindep : forall endpointIndex, Pairwise "
+                "(fun i j => ProbabilityTheory.IndepFun "
+                "(StatInference.bracketEndpointObservationProcess observations "
+                "endpoint endpointIndex i) "
+                "(StatInference.bracketEndpointObservationProcess observations "
+                "endpoint endpointIndex j) mu)) "
+                "(hident : forall endpointIndex sampleIndex, "
+                "ProbabilityTheory.IdentDistrib "
+                "(StatInference.bracketEndpointObservationProcess observations "
+                "endpoint endpointIndex sampleIndex) "
+                "(StatInference.bracketEndpointObservationProcess observations "
+                "endpoint endpointIndex 0) mu mu) "
+                "(tolerance : Real) (htolerance : 0 < tolerance) : "
+                "∀ᵐ omega ∂mu, ∀ᶠ n : Nat in Filter.atTop, forall endpointIndex, "
+                "|StatInference.bracketEndpointEmpiricalSequence "
+                "(StatInference.stochasticProcessSamples observations omega) "
+                "endpoint n endpointIndex - "
+                "MeasureTheory.integral mu "
+                "(StatInference.bracketEndpointObservationProcess observations "
+                "endpoint endpointIndex 0)| <= tolerance := by\n"
+                "  exact StatInference.finite_endpoint_process_strong_law_eventually_abs_le_real "
+                "observations endpoint hint hindep hident tolerance htolerance"
+            ),
+            tags=(
+                "bracketing_number",
+                "endpoint_strong_law",
+                "sample_average",
+                "stochastic_process",
+            ),
+            dependencies=(
+                "StatInference.finite_endpoint_process_strong_law_eventually_abs_le_real",
+                "StatInference.stochasticProcessSamples",
+                "StatInference.bracketEndpointObservationProcess",
+            ),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=(
+            "StatInference.finite_endpoint_process_strong_law_eventually_abs_le_real",
+            "StatInference.stochasticProcessSamples",
+            "StatInference.bracketEndpointObservationProcess",
+        ),
+    ),
+    BenchmarkTask(
+        task_id="finite_bracket_process_endpoints_eventual_bound_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S5",
+        domain_tags=(
+            "empirical_process",
+            "bracketing_number",
+            "endpoint_strong_law",
+            "sample_average",
+            "stochastic_process",
+            "glivenko_cantelli",
+        ),
+        natural_language=(
+            "Assemble simultaneous lower and upper bracket endpoint SLLN "
+            "events for one stochastic observation process."
+        ),
+        lean_task=LeanTask(
+            task_id="finite_bracket_process_endpoints_eventual_bound_seed",
+            imports=("StatInference.EmpiricalProcess.VdVW241",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Bracket Observation Omega : Type*} [Fintype Bracket] "
+                "[MeasurableSpace Omega] {mu : MeasureTheory.Measure Omega} "
+                "(observations : Nat -> Omega -> Observation) "
+                "(lowerEndpoint upperEndpoint : Bracket -> Observation -> Real) "
+                "(hint_lower : forall bracket, MeasureTheory.Integrable "
+                "(StatInference.bracketEndpointObservationProcess observations "
+                "lowerEndpoint bracket 0) mu) "
+                "(hint_upper : forall bracket, MeasureTheory.Integrable "
+                "(StatInference.bracketEndpointObservationProcess observations "
+                "upperEndpoint bracket 0) mu) "
+                "(hindep_lower : forall bracket, Pairwise "
+                "(fun i j => ProbabilityTheory.IndepFun "
+                "(StatInference.bracketEndpointObservationProcess observations "
+                "lowerEndpoint bracket i) "
+                "(StatInference.bracketEndpointObservationProcess observations "
+                "lowerEndpoint bracket j) mu)) "
+                "(hindep_upper : forall bracket, Pairwise "
+                "(fun i j => ProbabilityTheory.IndepFun "
+                "(StatInference.bracketEndpointObservationProcess observations "
+                "upperEndpoint bracket i) "
+                "(StatInference.bracketEndpointObservationProcess observations "
+                "upperEndpoint bracket j) mu)) "
+                "(hident_lower : forall bracket sampleIndex, "
+                "ProbabilityTheory.IdentDistrib "
+                "(StatInference.bracketEndpointObservationProcess observations "
+                "lowerEndpoint bracket sampleIndex) "
+                "(StatInference.bracketEndpointObservationProcess observations "
+                "lowerEndpoint bracket 0) mu mu) "
+                "(hident_upper : forall bracket sampleIndex, "
+                "ProbabilityTheory.IdentDistrib "
+                "(StatInference.bracketEndpointObservationProcess observations "
+                "upperEndpoint bracket sampleIndex) "
+                "(StatInference.bracketEndpointObservationProcess observations "
+                "upperEndpoint bracket 0) mu mu) "
+                "(tolerance : Real) (htolerance : 0 < tolerance) : "
+                "∀ᵐ omega ∂mu, ∀ᶠ n : Nat in Filter.atTop, forall bracket, "
+                "|StatInference.bracketEndpointEmpiricalSequence "
+                "(StatInference.stochasticProcessSamples observations omega) "
+                "lowerEndpoint n bracket - "
+                "MeasureTheory.integral mu "
+                "(StatInference.bracketEndpointObservationProcess observations "
+                "lowerEndpoint bracket 0)| <= tolerance ∧ "
+                "|StatInference.bracketEndpointEmpiricalSequence "
+                "(StatInference.stochasticProcessSamples observations omega) "
+                "upperEndpoint n bracket - "
+                "MeasureTheory.integral mu "
+                "(StatInference.bracketEndpointObservationProcess observations "
+                "upperEndpoint bracket 0)| <= tolerance := by\n"
+                "  exact StatInference.finite_bracket_process_endpoints_eventually_abs_le_real "
+                "observations lowerEndpoint upperEndpoint hint_lower hint_upper "
+                "hindep_lower hindep_upper hident_lower hident_upper tolerance htolerance"
+            ),
+            tags=(
+                "bracketing_number",
+                "endpoint_strong_law",
+                "sample_average",
+                "stochastic_process",
+                "eventual_control",
+            ),
+            dependencies=(
+                "StatInference.finite_bracket_process_endpoints_eventually_abs_le_real",
+                "StatInference.finite_endpoint_process_strong_law_eventually_abs_le_real",
+            ),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=(
+            "StatInference.finite_bracket_process_endpoints_eventually_abs_le_real",
+            "StatInference.finite_endpoint_process_strong_law_eventually_abs_le_real",
+        ),
+    ),
+    BenchmarkTask(
         task_id="finite_bracket_endpoint_control_constructor_seed",
         task_type=BenchmarkTaskType.FORMAL_ONLY,
         split=BenchmarkSplit.DEV,

@@ -718,12 +718,15 @@
             "FiniteBracketEmpiricalMeasureSemantics ties endpoint empirical values to empirical-measure integrals and population endpoint fields to population-measure integrals before forgetting into endpoint assembly.",
             "StatInference.EmpiricalProcess.Outer adds outer probability, outer convergence in probability, outer almost-sure convergence, supremum-deviation, and outer-GC certificate signatures without claiming exact VdV&W 2.4.1.",
             "FiniteBracketSampleEmpiricalMeasureSemantics adds a proof-carrying bridge requiring empirical-measure endpoint integrals to agree with sample-average endpoints before promotion to the measure-backed GC handoff.",
-            "Benchmarks finite_bracket_sample_empirical_measure_assembly_seed, finite_bracket_sample_empirical_measure_constructor_seed, and finite_bracket_sample_empirical_measure_gc_seed exercise the sample/empirical-measure bridge."
+            "Benchmarks finite_bracket_sample_empirical_measure_assembly_seed, finite_bracket_sample_empirical_measure_constructor_seed, and finite_bracket_sample_empirical_measure_gc_seed exercise the sample/empirical-measure bridge.",
+            "stochasticProcessSamples and bracketEndpointObservationProcess connect an observation process X_i(omega) to the repository SampleAt endpoint-average notation.",
+            "finite_endpoint_process_strong_law_eventually_abs_le_real and finite_bracket_process_endpoints_eventually_abs_le_real assemble SLLN eventual bounds for stochastic-process-induced endpoint sample averages.",
+            "Benchmarks finite_endpoint_process_strong_law_eventual_bound_seed and finite_bracket_process_endpoints_eventual_bound_seed exercise the new process-to-endpoint-SLLN bridge."
           ]
         }
       ],
       "next_actions": [
-        "Continue P12.M3 from the l1 bracketing-number constructor and proof-carrying sample/empirical-measure bridge toward concrete iid empirical-measure construction and endpoint SLLN event assembly while keeping the exact outer-almost-sure VdV&W 2.4.1 theorem blocked until outer convergence constructors and non-vacuity examples compile."
+        "Continue P12.M3 from the l1 bracketing-number constructor and compiled stochastic-process endpoint SLLN event assembly toward concrete iid empirical-measure construction proving P_n endpoint integrals agree with stochastic-process sample averages; keep the exact outer-almost-sure VdV&W 2.4.1 theorem blocked until outer convergence constructors and non-vacuity examples compile."
       ]
     }
   ]
