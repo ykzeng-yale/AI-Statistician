@@ -811,11 +811,11 @@ def test_checked_in_eval_artifacts_cover_current_seed_registry() -> None:
     by_phase = {row["phase"]: row for row in summary["by_phase"]}
     assert {"P1", "P2", "P3", "P4", "P5"} <= set(by_phase)
     assert all(row["failed"] == 0 for row in by_phase.values())
-    assert by_phase["P5"]["attempts"] == 4
+    assert by_phase["P5"]["attempts"] == 5
 
     by_task_type = {row["task_type"]: row for row in summary["by_task_type"]}
-    assert by_task_type["subgoal_completion"]["attempts"] == 4
-    assert by_task_type["subgoal_completion"]["passed"] == 4
+    assert by_task_type["subgoal_completion"]["attempts"] == 5
+    assert by_task_type["subgoal_completion"]["passed"] == 5
 
 
 def test_checked_in_heldout_baseline_artifact() -> None:
@@ -1023,12 +1023,12 @@ def test_checked_in_empirical_process_external_slice_artifact() -> None:
     assert report["target_report_id"] == "empirical-process-targets::p9"
     assert report["interface_families"] == ["bracketing", "vc_subgraph", "donsker"]
     assert report["family_count"] == 3
-    assert report["target_task_count"] == 16
+    assert report["target_task_count"] == 19
     assert report["ingested_count"] == 1
     assert report["blocked_count"] == 4
     assert report["best_available_baseline"] == "seed-registry"
     families = {row["interface_family"]: row for row in report["families"]}
-    assert families["bracketing"]["task_count"] == 8
+    assert families["bracketing"]["task_count"] == 11
     assert families["vc_subgraph"]["task_count"] == 3
     assert families["donsker"]["task_count"] == 5
     assert all(family["seed_registry_status"] == "verified" for family in families.values())
@@ -1203,9 +1203,9 @@ def test_build_vdvw_primitive_empirical_semantics() -> None:
         "gc_constructor": 1,
         "outer_convergence": 1,
     }
-    assert len(report["blocked_primitives"]) == 3
-    assert len(report["design_ready_primitives"]) == 3
-    assert report["planned_theorem_hole_seed_count"] == 11
+    assert len(report["blocked_primitives"]) == 2
+    assert len(report["design_ready_primitives"]) == 4
+    assert report["planned_theorem_hole_seed_count"] == 10
     assert {anchor["label"] for anchor in report["source_anchors"]} >= {
         "Glivenko-Cantelli class definition",
         "Definition 2.1.6",
@@ -1228,6 +1228,10 @@ def test_build_vdvw_primitive_empirical_semantics() -> None:
     assert "finite_l1_bracketing_every_scale_to_sequence_route_seed" in bracketing[
         "planned_theorem_hole_seed_ids"
     ]
+    gc_assembly = primitives["finite-bracketing-gc-assembly"]
+    assert "vdvw_2_4_1_current_gc_bridge_seed" in gc_assembly[
+        "existing_benchmark_task_ids"
+    ]
 
 
 def test_checked_in_vdvw_primitive_empirical_semantics_artifact() -> None:
@@ -1249,8 +1253,10 @@ def test_checked_in_vdvw_primitive_empirical_semantics_artifact() -> None:
     assert "artifacts/research/vdvw-vc-donsker-proof-obligations.json" in report[
         "depends_on_artifacts"
     ]
-    assert "vdvw_2_4_1_current_gc_bridge_seed" in report["planned_theorem_hole_seed_ids"]
-    assert "P12.M1/P12.M2 map" in report["notes"]
+    assert "vdvw_2_4_1_outer_almost_sure_statement_seed" in report[
+        "planned_theorem_hole_seed_ids"
+    ]
+    assert "P12.M1/P12.M2/P12.M3 map" in report["notes"]
     assert set(report) <= set(schema["properties"])
 
 

@@ -87,6 +87,18 @@ THEOREM_HOLE_PROMOTION_TARGETS = {
             "  · exact StatInference.L1BracketingNumberConstructorObligations.toGlivenkoCantelliClass obligations"
         ),
     },
+    "vdvw_2_4_1_current_gc_bridge_seed": {
+        "candidate_name": "vdvw_241_current_gc_bridge_constructor",
+        "declaration": "StatInference.FiniteBracketEndpointStrongLawAssembly.toGlivenkoCantelliClass",
+        "module": "StatInference.EmpiricalProcess.VdVW241",
+        "file": "StatInference/EmpiricalProcess/VdVW241.lean",
+        "proof_block": (
+            "by\n"
+            "  constructor\n"
+            "  · exact StatInference.FiniteBracketEndpointStrongLawAssembly.toConstructorObligations assembly\n"
+            "  · exact StatInference.FiniteBracketEndpointStrongLawAssembly.toGlivenkoCantelliClass assembly"
+        ),
+    },
 }
 
 THEOREM_HOLE_PROMOTION_PRIORITY = (
@@ -94,6 +106,7 @@ THEOREM_HOLE_PROMOTION_PRIORITY = (
     "aipw_product_rate_theorem_hole_seed",
     "if_normality_theorem_hole_seed",
     "finite_l1_bracketing_number_constructor_seed",
+    "vdvw_2_4_1_current_gc_bridge_seed",
 )
 
 
@@ -431,6 +444,8 @@ def _candidate_name(task: BenchmarkTask) -> str:
         return "influence_function_normality_route_constructor"
     if task.task_id == "finite_l1_bracketing_number_constructor_seed":
         return "l1_bracketing_number_constructor_to_gc_class"
+    if task.task_id == "vdvw_2_4_1_current_gc_bridge_seed":
+        return "vdvw_241_current_gc_bridge_constructor"
     return f"{task.task_id}_candidate"
 
 

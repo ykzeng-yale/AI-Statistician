@@ -261,6 +261,8 @@ DEFAULT_VDVW_THEOREM_INVENTORY = (
             "StatInference.finite_endpoint_strong_law_eventually_abs_le_real",
             "StatInference.L1BracketingSequenceRoute.toGlivenkoCantelliClass",
             "StatInference.L1BracketingNumberConstructorObligations.toGlivenkoCantelliClass",
+            "StatInference.FiniteBracketEndpointStrongLawAssembly",
+            "StatInference.FiniteBracketEndpointStrongLawAssembly.toGlivenkoCantelliClass",
         ),
         "benchmark_task_ids": (
             "bracketing_deterministic_bound_seed",
@@ -269,6 +271,9 @@ DEFAULT_VDVW_THEOREM_INVENTORY = (
             "finite_l1_bracketing_number_at_scale_seed",
             "finite_l1_bracketing_every_scale_projection_seed",
             "finite_l1_bracketing_number_constructor_seed",
+            "finite_bracket_endpoint_control_constructor_seed",
+            "finite_bracket_endpoint_control_gc_seed",
+            "vdvw_2_4_1_current_gc_bridge_seed",
             "trivial_bracketing_gc_non_vacuity_seed",
         ),
         "missing_definitions": (
@@ -638,6 +643,8 @@ DEFAULT_VDVW_BRACKETING_GC_STATEMENT_CANDIDATES = (
             "StatInference.FiniteL1BracketingNumberAtEveryScale",
             "StatInference.L1BracketingNumberConstructorObligations.toSequenceRoute",
             "StatInference.L1BracketingNumberConstructorObligations.toGlivenkoCantelliClass",
+            "StatInference.FiniteBracketEndpointStrongLawAssembly.toConstructorObligations",
+            "StatInference.FiniteBracketEndpointStrongLawAssembly.toGlivenkoCantelliClass",
             "StatInference.finite_endpoint_strong_law_eventually_abs_le_real",
             "StatInference.L1BracketingSequenceRoute.toGlivenkoCantelliClass",
         ),
@@ -647,6 +654,9 @@ DEFAULT_VDVW_BRACKETING_GC_STATEMENT_CANDIDATES = (
             "finite_l1_bracketing_number_at_scale_seed",
             "finite_l1_bracketing_every_scale_projection_seed",
             "finite_l1_bracketing_number_constructor_seed",
+            "finite_bracket_endpoint_control_constructor_seed",
+            "finite_bracket_endpoint_control_gc_seed",
+            "vdvw_2_4_1_current_gc_bridge_seed",
             "bracketing_deterministic_bound_seed",
         ),
         "local_lake_validation_hooks": (
@@ -1231,36 +1241,41 @@ DEFAULT_VDVW_PRIMITIVE_EMPIRICAL_SEMANTICS = (
     {
         "primitive_id": "finite-bracketing-gc-assembly",
         "layer": "gc_constructor",
-        "status": "blocked_pending_endpoint_slln_assembly",
+        "status": "design_ready_current_gc_endpoint_assembly",
         "source_anchor_ids": (
             "vdvw-2.4.1-finite-l1-bracketing-gc",
         ),
         "target_lean_module": "StatInference.EmpiricalProcess.VdVW241",
         "target_lean_signatures": (
-            "theorem vdvw_2_4_1_gc_of_finite_l1_bracketing_number : FiniteL1BracketingNumberAtEveryScale F -> EndpointStrongLawFamily F sample -> OuterAlmostSureGlivenkoCantelli F sample",
-            "theorem vdvw_2_4_1_current_gc_bridge : FiniteL1BracketingNumberAtEveryScale F -> EndpointStrongLawFamily F sample -> GlivenkoCantelliClass indexClass populationRisk empiricalRisk",
+            "structure FiniteBracketEndpointStrongLawAssembly (indexClass : Set Index) (populationRisk : Index -> ℝ) (empiricalRisk : ℕ -> Index -> ℝ)",
+            "def FiniteBracketEndpointStrongLawAssembly.toConstructorObligations : L1BracketingNumberConstructorObligations indexClass populationRisk empiricalRisk",
+            "def FiniteBracketEndpointStrongLawAssembly.toGlivenkoCantelliClass : GlivenkoCantelliClass indexClass populationRisk empiricalRisk",
         ),
         "current_lean_handoffs": (
             "StatInference.empiricalDeviationBoundOn_of_bracket_endpoint_bounds",
             "StatInference.finite_endpoint_strong_law_eventually_abs_le_real",
             "StatInference.L1BracketingSequenceRoute.toGlivenkoCantelliClass",
+            "StatInference.FiniteBracketEndpointStrongLawAssembly.toConstructorObligations",
+            "StatInference.FiniteBracketEndpointStrongLawAssembly.toGlivenkoCantelliClass",
         ),
         "theorem_card_gaps": (
-            "finite endpoint SLLN instantiated on bracket endpoints selected at each scale",
-            "upper and lower empirical-process inequalities assembled into supremum norm control",
             "limsup epsilon_m to zero argument under outer almost-sure semantics",
+            "measure-backed sample object tying endpoint averages to empirical measure P_n",
+            "outer probability and outer almost-sure GC target",
         ),
         "existing_benchmark_task_ids": (
             "bracketing_deterministic_bound_seed",
             "finite_endpoint_strong_law_eventual_bound_seed",
             "l1_bracketing_sequence_gc_seed",
+            "finite_bracket_endpoint_control_constructor_seed",
+            "finite_bracket_endpoint_control_gc_seed",
+            "vdvw_2_4_1_current_gc_bridge_seed",
         ),
         "planned_theorem_hole_seed_ids": (
-            "vdvw_2_4_1_current_gc_bridge_seed",
             "vdvw_2_4_1_outer_almost_sure_statement_seed",
         ),
         "validation_hooks": (
-            "prove the current-GC bridge before claiming the exact outer almost-sure theorem",
+            "keep current-GC bridge separate from the exact outer almost-sure theorem",
             "require local Lake, no-sorry scan, and source-anchor audit before report promotion",
         ),
         "semantic_risks": (
@@ -2536,14 +2551,14 @@ def build_vdvw_primitive_empirical_semantics(
             "AXLE may check or repair candidate code, but local Lake validation remains the public acceptance authority.",
         ],
         "next_actions": [
-            "Implement P12.M3 by adding endpoint strong-law assembly signatures for selected bracket endpoints.",
-            "Materialize the remaining theorem-hole benchmark seeds listed in planned_theorem_hole_seed_ids after the endpoint signatures compile.",
+            "Continue P12.M3 by tying endpoint assembly signatures to concrete sample-average and empirical-measure semantics.",
+            "Materialize the remaining theorem-hole benchmark seed for the exact outer almost-sure statement only after outer convergence primitives compile.",
             "Keep the exact outer-almost-sure Theorem 2.4.1 blocked until outer convergence primitives are promoted.",
         ],
         "notes": (
-            "P12.M1/P12.M2 map the source-linked VdV&W theorem-card gaps into "
+            "P12.M1/P12.M2/P12.M3 map the source-linked VdV&W theorem-card gaps into "
             "concrete Lean API signature targets, proof-carrying L1 bracketing "
-            "number witnesses, and theorem-hole seed names. "
+            "number witnesses, finite endpoint assembly, and theorem-hole seed names. "
             "It deliberately separates current compiled handoffs from future "
             "primitive semantics so autoformalization cannot silently weaken "
             "outer convergence, bracketing-number, or Donsker assumptions."

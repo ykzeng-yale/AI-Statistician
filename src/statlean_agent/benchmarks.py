@@ -762,6 +762,143 @@ SEED_BENCHMARKS: tuple[BenchmarkTask, ...] = (
         ),
     ),
     BenchmarkTask(
+        task_id="finite_bracket_endpoint_control_constructor_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S5",
+        domain_tags=(
+            "empirical_process",
+            "bracketing_number",
+            "endpoint_strong_law",
+            "glivenko_cantelli",
+        ),
+        natural_language=(
+            "Convert finite bracket endpoint absolute-error control into the "
+            "primitive L1 bracketing-number constructor obligations."
+        ),
+        lean_task=LeanTask(
+            task_id="finite_bracket_endpoint_control_constructor_seed",
+            imports=("StatInference.EmpiricalProcess.VdVW241",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Index Bracket : Type*} [Fintype Bracket] "
+                "{indexClass : Set Index} {populationRisk : Index -> Real} "
+                "{empiricalRisk : Nat -> Index -> Real} "
+                "(assembly : StatInference.FiniteBracketEndpointStrongLawAssembly "
+                "(Bracket := Bracket) indexClass populationRisk empiricalRisk) : "
+                "StatInference.L1BracketingNumberConstructorObligations "
+                "(Bracket := Bracket) indexClass populationRisk empiricalRisk := by\n"
+                "  exact StatInference.FiniteBracketEndpointStrongLawAssembly.toConstructorObligations "
+                "assembly"
+            ),
+            tags=("bracketing_number", "endpoint_strong_law", "constructor"),
+            dependencies=(
+                "StatInference.FiniteBracketEndpointStrongLawAssembly.toConstructorObligations",
+            ),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=(
+            "StatInference.FiniteBracketEndpointStrongLawAssembly.toConstructorObligations",
+        ),
+    ),
+    BenchmarkTask(
+        task_id="finite_bracket_endpoint_control_gc_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S5",
+        domain_tags=(
+            "empirical_process",
+            "bracketing_number",
+            "endpoint_strong_law",
+            "glivenko_cantelli",
+        ),
+        natural_language=(
+            "Use finite bracket endpoint strong-law assembly to build the "
+            "current GC-class interface."
+        ),
+        lean_task=LeanTask(
+            task_id="finite_bracket_endpoint_control_gc_seed",
+            imports=("StatInference.EmpiricalProcess.VdVW241",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Index Bracket : Type*} [Fintype Bracket] "
+                "{indexClass : Set Index} {populationRisk : Index -> Real} "
+                "{empiricalRisk : Nat -> Index -> Real} "
+                "(assembly : StatInference.FiniteBracketEndpointStrongLawAssembly "
+                "(Bracket := Bracket) indexClass populationRisk empiricalRisk) : "
+                "StatInference.GlivenkoCantelliClass "
+                "indexClass populationRisk empiricalRisk := by\n"
+                "  exact StatInference.FiniteBracketEndpointStrongLawAssembly.toGlivenkoCantelliClass "
+                "assembly"
+            ),
+            tags=("bracketing_number", "endpoint_strong_law", "gc_certificate"),
+            dependencies=(
+                "StatInference.FiniteBracketEndpointStrongLawAssembly.toGlivenkoCantelliClass",
+            ),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=(
+            "StatInference.FiniteBracketEndpointStrongLawAssembly.toGlivenkoCantelliClass",
+        ),
+    ),
+    BenchmarkTask(
+        task_id="vdvw_2_4_1_current_gc_bridge_seed",
+        task_type=BenchmarkTaskType.SUBGOAL_COMPLETION,
+        split=BenchmarkSplit.DEV,
+        difficulty="S5",
+        domain_tags=(
+            "empirical_process",
+            "bracketing_number",
+            "endpoint_strong_law",
+            "glivenko_cantelli",
+            "theorem_hole",
+            "multi_goal",
+            "vdvw_2_4_1",
+        ),
+        natural_language=(
+            "Complete the current-GC bridge layer for the dependency-minimal "
+            "VdV&W Theorem 2.4.1 route: convert finite endpoint strong-law "
+            "assembly into both constructor obligations and the current "
+            "GC-class interface.  This remains weaker than the exact "
+            "outer-almost-sure textbook theorem."
+        ),
+        proof_state=(
+            "Goals after constructor: "
+            "1. L1BracketingNumberConstructorObligations; "
+            "2. GlivenkoCantelliClass indexClass populationRisk empiricalRisk."
+        ),
+        lean_task=LeanTask(
+            task_id="vdvw_2_4_1_current_gc_bridge_seed",
+            imports=("StatInference.EmpiricalProcess.VdVW241",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Index Bracket : Type*} [Fintype Bracket] "
+                "{indexClass : Set Index} {populationRisk : Index -> Real} "
+                "{empiricalRisk : Nat -> Index -> Real} "
+                "(assembly : StatInference.FiniteBracketEndpointStrongLawAssembly "
+                "(Bracket := Bracket) indexClass populationRisk empiricalRisk) : "
+                "StatInference.L1BracketingNumberConstructorObligations "
+                "(Bracket := Bracket) indexClass populationRisk empiricalRisk × "
+                "StatInference.GlivenkoCantelliClass "
+                "indexClass populationRisk empiricalRisk := by\n"
+                "  constructor\n"
+                "  · sorry\n"
+                "  · sorry"
+            ),
+            allowed_sorry=True,
+            tags=("bracketing_number", "endpoint_strong_law", "theorem_hole", "multi_goal"),
+            dependencies=(
+                "StatInference.FiniteBracketEndpointStrongLawAssembly.toConstructorObligations",
+                "StatInference.FiniteBracketEndpointStrongLawAssembly.toGlivenkoCantelliClass",
+            ),
+            expected_patterns=("constructor", "sorry"),
+        ),
+        expected_premises=(
+            "StatInference.FiniteBracketEndpointStrongLawAssembly.toConstructorObligations",
+            "StatInference.FiniteBracketEndpointStrongLawAssembly.toGlivenkoCantelliClass",
+        ),
+    ),
+    BenchmarkTask(
         task_id="trivial_bracketing_gc_non_vacuity_seed",
         task_type=BenchmarkTaskType.FORMAL_ONLY,
         split=BenchmarkSplit.DEV,

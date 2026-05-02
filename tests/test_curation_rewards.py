@@ -139,7 +139,7 @@ def test_theorem_hole_lemma_ledger_blocks_placeholder_candidates() -> None:
 
     entries = build_theorem_hole_lemma_ledger(theorem_hole_tasks, reports)
 
-    assert len(entries) == 4
+    assert len(entries) == 5
     assert {entry.status for entry in entries} == {"blocked_placeholder"}
     assert all(not entry.decision.accepted for entry in entries)
     assert all(any("sorry" in reason for reason in entry.decision.reasons) for entry in entries)
@@ -148,6 +148,7 @@ def test_theorem_hole_lemma_ledger_blocks_placeholder_candidates() -> None:
         "aipw_product_rate_route_constructor",
         "influence_function_normality_route_constructor",
         "l1_bracketing_number_constructor_to_gc_class",
+        "vdvw_241_current_gc_bridge_constructor",
     }
 
 
@@ -156,7 +157,7 @@ def test_theorem_hole_lemma_proposals_record_required_gates() -> None:
 
     proposals = build_theorem_hole_lemma_proposals(theorem_hole_tasks)
 
-    assert len(proposals) == 4
+    assert len(proposals) == 5
     assert {proposal.status for proposal in proposals} == {"needs_no_sorry_proof"}
     assert all(proposal.required_gates == DEFAULT_REQUIRED_GATES for proposal in proposals)
     assert all(proposal.blocked_reasons for proposal in proposals)
@@ -167,6 +168,7 @@ def test_theorem_hole_lemma_proposals_record_required_gates() -> None:
         "aipw_product_rate_route_constructor",
         "influence_function_normality_route_constructor",
         "l1_bracketing_number_constructor_to_gc_class",
+        "vdvw_241_current_gc_bridge_constructor",
     }
 
 
@@ -174,19 +176,20 @@ def test_theorem_hole_promotion_queue_ranks_no_placeholder_targets() -> None:
     queue = build_theorem_hole_promotion_queue(SEED_BENCHMARKS)
 
     assert queue["report_id"] == "theorem-hole-promotion-queue::p9"
-    assert queue["theorem_hole_task_count"] == 4
-    assert queue["promoted_count"] == 4
+    assert queue["theorem_hole_task_count"] == 5
+    assert queue["promoted_count"] == 5
     assert queue["queued_count"] == 0
     assert queue["first_target_task_id"] == "ipw_linearization_theorem_hole_seed"
     assert queue["first_target_declaration"] == "StatInference.ipw_hajek_linearization_constructor"
 
     rows = queue["queue"]
-    assert [row["rank"] for row in rows] == [1, 2, 3, 4]
+    assert [row["rank"] for row in rows] == [1, 2, 3, 4, 5]
     assert [row["candidate_name"] for row in rows] == [
         "ipw_hajek_linearization_constructor",
         "aipw_product_rate_route_constructor",
         "influence_function_normality_route_constructor",
         "l1_bracketing_number_constructor_to_gc_class",
+        "vdvw_241_current_gc_bridge_constructor",
     ]
     assert {row["status"] for row in rows} == {"promoted_no_placeholder_proof"}
     assert all("sorry" not in row["no_placeholder_proof_block"] for row in rows)
@@ -260,7 +263,7 @@ def test_current_lemma_proposal_gate_reports_pass_static_checks() -> None:
 
     reports = build_lemma_proposal_gate_reports(proposals, premises)
 
-    assert len(reports) == 4
+    assert len(reports) == 5
     assert all(report.passed for report in reports)
     assert {report.status for report in reports} == {"passed"}
     assert all(not report.duplicate_name_matches for report in reports)
@@ -272,6 +275,7 @@ def test_current_lemma_proposal_gate_reports_pass_static_checks() -> None:
         "StatInference.Causal.AIPW",
         "StatInference.Semiparametric.Normality",
         "StatInference.EmpiricalProcess.L1BracketingNumber",
+        "StatInference.EmpiricalProcess.VdVW241",
     } == {report.required_imports[0] for report in reports}
 
 
@@ -284,7 +288,7 @@ def test_lemma_non_vacuity_reports_require_accepted_evidence() -> None:
 
     reports = build_lemma_non_vacuity_reports(proposals, SEED_BENCHMARKS, accepted_reports)
 
-    assert len(reports) == 4
+    assert len(reports) == 5
     assert all(report.passed for report in reports)
     assert {report.status for report in reports} == {"passed"}
     by_id = {report.proposal_id: report for report in reports}
@@ -297,6 +301,10 @@ def test_lemma_non_vacuity_reports_require_accepted_evidence() -> None:
     assert (
         "trivial_bracketing_gc_non_vacuity_seed"
         in by_id["proposal::finite_l1_bracketing_number_constructor_seed"].evidence_task_ids
+    )
+    assert (
+        "trivial_bracketing_gc_non_vacuity_seed"
+        in by_id["proposal::vdvw_2_4_1_current_gc_bridge_seed"].evidence_task_ids
     )
     assert all("non_vacuity" in report.evidence_domain_tags for report in reports)
 
@@ -353,7 +361,7 @@ def test_lemma_proof_cost_reports_require_positive_downstream_gain() -> None:
 
     reports = build_lemma_proof_cost_reports(proposals, SEED_BENCHMARKS)
 
-    assert len(reports) == 4
+    assert len(reports) == 5
     assert all(report.passed for report in reports)
     assert {report.status for report in reports} == {"passed"}
     assert all(report.baseline_step_count == 2 for report in reports)
@@ -406,7 +414,7 @@ def test_checked_in_theorem_hole_ledger_is_curator_blocked() -> None:
     records = read_jsonl(Path("artifacts/curation/theorem-hole-ledger.jsonl"))
     entries = tuple(dataclass_from_dict(CuratedLemmaLedgerEntry, record) for record in records)
 
-    assert len(entries) == 4
+    assert len(entries) == 5
     assert {entry.status for entry in entries} == {"blocked_placeholder"}
     assert all(not entry.decision.accepted for entry in entries)
     assert all(entry.verification_report_ids == entry.source_task_ids for entry in entries)
@@ -417,7 +425,7 @@ def test_checked_in_lemma_proposals_are_precuration_records() -> None:
     proposals = tuple(dataclass_from_dict(LemmaProposal, record) for record in records)
     schema = json.loads(Path("schemas/lemma_proposal.schema.json").read_text(encoding="utf-8"))
 
-    assert len(proposals) == 4
+    assert len(proposals) == 5
     assert {proposal.status for proposal in proposals} == {"needs_no_sorry_proof"}
     assert all(proposal.required_gates == DEFAULT_REQUIRED_GATES for proposal in proposals)
     assert all(proposal.blocked_reasons for proposal in proposals)
@@ -431,7 +439,7 @@ def test_checked_in_lemma_proposal_gate_reports_pass() -> None:
     reports = tuple(dataclass_from_dict(LemmaProposalGateReport, record) for record in records)
     schema = json.loads(Path("schemas/lemma_proposal_gate_report.schema.json").read_text(encoding="utf-8"))
 
-    assert len(reports) == 4
+    assert len(reports) == 5
     assert all(report.passed for report in reports)
     assert {report.status for report in reports} == {"passed"}
     assert all(not report.required_changes for report in reports)
@@ -448,7 +456,7 @@ def test_checked_in_lemma_non_vacuity_reports_pass() -> None:
     reports = tuple(dataclass_from_dict(LemmaNonVacuityReport, record) for record in records)
     schema = json.loads(Path("schemas/lemma_non_vacuity_report.schema.json").read_text(encoding="utf-8"))
 
-    assert len(reports) == 4
+    assert len(reports) == 5
     assert all(report.passed for report in reports)
     assert {report.status for report in reports} == {"passed"}
     assert all(report.evidence_task_ids for report in reports)
@@ -464,7 +472,7 @@ def test_checked_in_lemma_proof_cost_reports_pass() -> None:
     reports = tuple(dataclass_from_dict(LemmaProofCostReport, record) for record in records)
     schema = json.loads(Path("schemas/lemma_proof_cost_report.schema.json").read_text(encoding="utf-8"))
 
-    assert len(reports) == 4
+    assert len(reports) == 5
     assert all(report.passed for report in reports)
     assert {report.status for report in reports} == {"passed"}
     assert all(report.downstream_task_ids for report in reports)

@@ -707,11 +707,17 @@
         {
           "id": "P12.M3",
           "status": "in_progress",
-          "name": "Endpoint SLLN to finite-bracketing theorem-hole seeds"
+          "name": "Endpoint SLLN to finite-bracketing theorem-hole seeds",
+          "evidence": [
+            "StatInference.EmpiricalProcess.VdVW241 introduces FiniteBracketEndpointStrongLawAssembly for finite bracket endpoint absolute-error control.",
+            "FiniteBracketEndpointStrongLawAssembly.toConstructorObligations converts endpoint absolute-error bounds into L1BracketingNumberConstructorObligations.",
+            "FiniteBracketEndpointStrongLawAssembly.toGlivenkoCantelliClass builds the current GlivenkoCantelliClass interface while preserving the exact outer-almost-sure theorem as a blocked semantic layer.",
+            "Benchmarks finite_bracket_endpoint_control_constructor_seed, finite_bracket_endpoint_control_gc_seed, and vdvw_2_4_1_current_gc_bridge_seed exercise the endpoint-to-constructor handoff."
+          ]
         }
       ],
       "next_actions": [
-        "Implement P12.M3 by extending the l1 bracketing-number constructor with endpoint strong-law assembly signatures and theorem-hole seeds that connect selected finite bracket endpoints to the primitive finite-bracketing GC constructor."
+        "Continue P12.M3 by tying finite endpoint assembly signatures to concrete sample-average and empirical-measure semantics while keeping the exact outer-almost-sure VdV&W 2.4.1 theorem blocked until outer convergence primitives compile."
       ]
     }
   ]

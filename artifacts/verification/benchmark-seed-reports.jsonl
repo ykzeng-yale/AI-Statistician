@@ -20,6 +20,9 @@
 {"closed_goals": 0, "diagnostics": [], "first_error": null, "locally_valid_steps": 0, "status": "accepted", "task_id": "finite_l1_bracketing_every_scale_projection_seed"}
 {"closed_goals": 0, "diagnostics": ["allowed placeholder `sorry` at line 7, column 5", "allowed placeholder `sorry` at line 8, column 5"], "first_error": null, "locally_valid_steps": 0, "status": "accepted", "task_id": "finite_l1_bracketing_number_constructor_seed"}
 {"closed_goals": 0, "diagnostics": [], "first_error": null, "locally_valid_steps": 0, "status": "accepted", "task_id": "finite_endpoint_strong_law_eventual_bound_seed"}
+{"closed_goals": 0, "diagnostics": [], "first_error": null, "locally_valid_steps": 0, "status": "accepted", "task_id": "finite_bracket_endpoint_control_constructor_seed"}
+{"closed_goals": 0, "diagnostics": [], "first_error": null, "locally_valid_steps": 0, "status": "accepted", "task_id": "finite_bracket_endpoint_control_gc_seed"}
+{"closed_goals": 0, "diagnostics": ["allowed placeholder `sorry` at line 7, column 5", "allowed placeholder `sorry` at line 8, column 5"], "first_error": null, "locally_valid_steps": 0, "status": "accepted", "task_id": "vdvw_2_4_1_current_gc_bridge_seed"}
 {"closed_goals": 0, "diagnostics": [], "first_error": null, "locally_valid_steps": 0, "status": "accepted", "task_id": "trivial_bracketing_gc_non_vacuity_seed"}
 {"closed_goals": 0, "diagnostics": [], "first_error": null, "locally_valid_steps": 0, "status": "accepted", "task_id": "vc_deviation_certificate_gc_seed"}
 {"closed_goals": 0, "diagnostics": [], "first_error": null, "locally_valid_steps": 0, "status": "accepted", "task_id": "vc_subgraph_route_certificate_seed"}

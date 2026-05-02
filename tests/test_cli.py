@@ -83,8 +83,8 @@ def test_cli_vdvw_primitive_semantics(tmp_path: Path, capsys) -> None:
     output = capsys.readouterr().out
     report = json.loads(output_path.read_text(encoding="utf-8"))
     assert "vdvw_primitive_semantics=6" in output
-    assert "blocked=3" in output
-    assert "planned_seeds=11" in output
+    assert "blocked=2" in output
+    assert "planned_seeds=10" in output
     assert report["primitive_count"] == 6
     assert "outer-uniform-convergence" in report["blocked_primitives"]
 
@@ -325,7 +325,7 @@ def test_cli_materialize_grpo_tasks(tmp_path: Path, capsys) -> None:
     output = capsys.readouterr().out
     records = read_jsonl(grpo_path)
     assert f"materialized={len(records)}" in output
-    assert "allowed_placeholder_tasks=4" in output
+    assert "allowed_placeholder_tasks=5" in output
     assert records[0]["reward_source"] == "lean_process_reward"
     assert records[0]["verifier_command"][:4] == [
         ".venv/bin/python",
@@ -365,8 +365,8 @@ def test_cli_build_lemma_ledger(tmp_path: Path, capsys) -> None:
 
     output = capsys.readouterr().out
     records = read_jsonl(ledger_path)
-    assert "ledger_entries=4" in output
-    assert "blocked_placeholder=4" in output
+    assert "ledger_entries=5" in output
+    assert "blocked_placeholder=5" in output
     assert {record["status"] for record in records} == {"blocked_placeholder"}
 
 
@@ -392,8 +392,8 @@ def test_cli_build_lemma_proposals(tmp_path: Path, capsys) -> None:
 
     output = capsys.readouterr().out
     records = read_jsonl(proposals_path)
-    assert "lemma_proposals=4" in output
-    assert "blocked=4" in output
+    assert "lemma_proposals=5" in output
+    assert "blocked=5" in output
     assert {record["proposed_by"] for record in records} == {"test-miner"}
     assert {record["status"] for record in records} == {"needs_no_sorry_proof"}
     assert all("non_vacuity_example" in record["required_gates"] for record in records)
@@ -419,8 +419,8 @@ def test_cli_theorem_hole_promotion_queue(tmp_path: Path, capsys) -> None:
 
     output = capsys.readouterr().out
     queue = json.loads(queue_path.read_text(encoding="utf-8"))
-    assert "promotion_queue=4" in output
-    assert "promoted=4" in output
+    assert "promotion_queue=5" in output
+    assert "promoted=5" in output
     assert "first_target=ipw_linearization_theorem_hole_seed" in output
     assert queue["first_target_declaration"] == "StatInference.ipw_hajek_linearization_constructor"
     assert {row["status"] for row in queue["queue"]} == {"promoted_no_placeholder_proof"}
@@ -450,8 +450,8 @@ def test_cli_check_lemma_proposals(tmp_path: Path, capsys) -> None:
 
     output = capsys.readouterr().out
     records = read_jsonl(gates_path)
-    assert "proposal_gate_reports=4" in output
-    assert "passed=4" in output
+    assert "proposal_gate_reports=5" in output
+    assert "passed=5" in output
     assert {record["status"] for record in records} == {"passed"}
     assert all(not record["unused_imports"] for record in records)
     assert all(not record["missing_imports"] for record in records)
@@ -490,8 +490,8 @@ def test_cli_check_lemma_non_vacuity(tmp_path: Path, capsys) -> None:
 
     output = capsys.readouterr().out
     records = read_jsonl(non_vacuity_path)
-    assert "non_vacuity_reports=4" in output
-    assert "passed=4" in output
+    assert "non_vacuity_reports=5" in output
+    assert "passed=5" in output
     assert {record["status"] for record in records} == {"passed"}
     assert all(record["accepted_evidence_task_ids"] for record in records)
 
@@ -520,9 +520,9 @@ def test_cli_check_lemma_proof_cost(tmp_path: Path, capsys) -> None:
 
     output = capsys.readouterr().out
     records = read_jsonl(proof_cost_path)
-    assert "proof_cost_reports=4" in output
-    assert "passed=4" in output
-    assert "total_delta=4" in output
+    assert "proof_cost_reports=5" in output
+    assert "passed=5" in output
+    assert "total_delta=5" in output
     assert {record["status"] for record in records} == {"passed"}
     assert all(record["proof_cost_delta"] > 0 for record in records)
 
