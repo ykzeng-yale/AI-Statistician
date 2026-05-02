@@ -42,6 +42,7 @@ from statlean_agent.evaluation import (
     build_paper_quality_heldout_report,
     build_reproducibility_bundle,
     build_vdvw_bracketing_gc_statement_candidates,
+    build_vdvw_primitive_empirical_semantics,
     build_vdvw_theorem_inventory,
     build_vdvw_vc_donsker_proof_obligations,
     compare_baseline_on_split,
@@ -330,6 +331,21 @@ def main(argv: list[str] | None = None) -> int:
         "--output",
         default="artifacts/research/vdvw-vc-donsker-proof-obligations.json",
         help="Output VC/Donsker proof-obligation JSON path.",
+    )
+
+    vdvw_primitive_semantics = subparsers.add_parser(
+        "vdvw-primitive-semantics",
+        help="Build P12.M1 VdV&W primitive empirical-process semantics design artifact.",
+    )
+    vdvw_primitive_semantics.add_argument(
+        "--benchmarks",
+        default="benchmarks/seeds.jsonl",
+        help="BenchmarkTask JSONL path.",
+    )
+    vdvw_primitive_semantics.add_argument(
+        "--output",
+        default="artifacts/research/vdvw-primitive-empirical-semantics.json",
+        help="Output primitive empirical-process semantics JSON path.",
     )
 
     paper_heldout = subparsers.add_parser(
@@ -992,6 +1008,21 @@ def main(argv: list[str] | None = None) -> int:
             f"vdvw_vc_donsker_proof_obligations={report['obligation_count']} "
             f"tracks={len(report['track_counts'])} "
             f"blocked={len(report['blocked_obligations'])} "
+            f"output={args.output}"
+        )
+        return 0
+
+    if args.command == "vdvw-primitive-semantics":
+        tasks = load_benchmarks(Path(args.benchmarks))
+        report = build_vdvw_primitive_empirical_semantics(tasks)
+        output = Path(args.output)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(dumps_json(report) + "\n", encoding="utf-8")
+        print(
+            f"vdvw_primitive_semantics={report['primitive_count']} "
+            f"layers={len(report['layer_counts'])} "
+            f"blocked={len(report['blocked_primitives'])} "
+            f"planned_seeds={report['planned_theorem_hole_seed_count']} "
             f"output={args.output}"
         )
         return 0

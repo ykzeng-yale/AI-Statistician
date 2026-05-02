@@ -22,6 +22,7 @@ from statlean_agent.evaluation import (
     build_paper_quality_heldout_report,
     build_reproducibility_bundle,
     build_vdvw_bracketing_gc_statement_candidates,
+    build_vdvw_primitive_empirical_semantics,
     build_vdvw_theorem_inventory,
     build_vdvw_vc_donsker_proof_obligations,
     compare_baseline_on_split,
@@ -1187,6 +1188,67 @@ def test_checked_in_vdvw_vc_donsker_proof_obligations_artifact() -> None:
     assert set(report) <= set(schema["properties"])
 
 
+def test_build_vdvw_primitive_empirical_semantics() -> None:
+    report = build_vdvw_primitive_empirical_semantics(SEED_BENCHMARKS)
+
+    assert report["report_id"] == "vdvw-primitive-empirical-semantics::p12.m1"
+    assert report["primitive_count"] == 6
+    assert report["layer_counts"] == {
+        "bracketing_number": 1,
+        "donsker_semantics": 1,
+        "empirical_sample": 1,
+        "function_class_l1": 1,
+        "gc_constructor": 1,
+        "outer_convergence": 1,
+    }
+    assert len(report["blocked_primitives"]) == 4
+    assert len(report["design_ready_primitives"]) == 2
+    assert report["planned_theorem_hole_seed_count"] == 12
+    assert {anchor["label"] for anchor in report["source_anchors"]} >= {
+        "Glivenko-Cantelli class definition",
+        "Definition 2.1.6",
+        "Theorem 2.4.1",
+    }
+
+    primitives = {primitive["primitive_id"]: primitive for primitive in report["primitives"]}
+    empirical = primitives["empirical-sample-average"]
+    assert "StatInference.EmpiricalProcess.Primitives" == empirical["target_lean_module"]
+    assert "finite_endpoint_strong_law_eventual_bound_seed" in empirical[
+        "existing_benchmark_task_ids"
+    ]
+    assert not empirical["missing_existing_benchmark_task_ids"]
+    outer = primitives["outer-uniform-convergence"]
+    assert any("outer probability" in gap for gap in outer["theorem_card_gaps"])
+    bracketing = primitives["primitive-l1-bracketing-number"]
+    assert "finite_l1_bracketing_number_constructor_seed" in bracketing[
+        "planned_theorem_hole_seed_ids"
+    ]
+
+
+def test_checked_in_vdvw_primitive_empirical_semantics_artifact() -> None:
+    report = json.loads(
+        Path("artifacts/research/vdvw-primitive-empirical-semantics.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    schema = json.loads(
+        Path("schemas/vdvw_primitive_empirical_semantics.schema.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    assert report["report_id"] == "vdvw-primitive-empirical-semantics::p12.m1"
+    assert report["primitive_count"] == 6
+    assert report["source_anchors"][0]["markdown_anchor"]["line_start"] == 1834
+    assert report["source_anchors"][2]["markdown_anchor"]["line_start"] == 970
+    assert "artifacts/research/vdvw-vc-donsker-proof-obligations.json" in report[
+        "depends_on_artifacts"
+    ]
+    assert "vdvw_2_4_1_current_gc_bridge_seed" in report["planned_theorem_hole_seed_ids"]
+    assert "P12.M1 maps" in report["notes"]
+    assert set(report) <= set(schema["properties"])
+
+
 def test_checked_in_theorem_hole_promotion_queue_artifact() -> None:
     report = json.loads(Path("artifacts/curation/theorem-hole-promotion-queue.json").read_text(encoding="utf-8"))
     schema = json.loads(Path("schemas/theorem_hole_promotion_queue.schema.json").read_text(encoding="utf-8"))
@@ -1223,11 +1285,12 @@ def test_checked_in_reproducibility_bundle_artifact() -> None:
     assert "artifacts/research/vdvw-theorem-inventory.json" in artifact_paths
     assert "artifacts/research/vdvw-bracketing-gc-statement-candidates.json" in artifact_paths
     assert "artifacts/research/vdvw-vc-donsker-proof-obligations.json" in artifact_paths
+    assert "artifacts/research/vdvw-primitive-empirical-semantics.json" in artifact_paths
     assert "artifacts/curation/theorem-hole-promotion-queue.json" in artifact_paths
     assert all(len(artifact["sha256"]) == 64 for artifact in report["artifacts"])
     assert any(command["name"] == "smoke" for command in report["validation_commands"])
     assert any(command["name"] == "forbidden_lean_shortcuts" for command in report["validation_commands"])
-    assert report["current_milestone"]["id"] == "P12.M1"
+    assert report["current_milestone"]["id"] == "P12.M2"
     assert set(report) <= set(schema["properties"])
 
 

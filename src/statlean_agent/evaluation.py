@@ -90,6 +90,7 @@ DEFAULT_REPRODUCIBILITY_ARTIFACTS = (
     "artifacts/research/vdvw-theorem-inventory.json",
     "artifacts/research/vdvw-bracketing-gc-statement-candidates.json",
     "artifacts/research/vdvw-vc-donsker-proof-obligations.json",
+    "artifacts/research/vdvw-primitive-empirical-semantics.json",
     "artifacts/training/manifest.json",
     "artifacts/training/dpo-negative-attempts.jsonl",
     "artifacts/training/dpo-negative-reports.jsonl",
@@ -987,6 +988,306 @@ DEFAULT_VDVW_VC_DONSKER_PROOF_OBLIGATIONS = (
             "Pre-Gaussianity and weak-tail assumptions cannot be replaced by current VCSubgraphGCRoute metadata.",
         ),
         "promotion_gate": "Keep as theorem card until pre-Gaussian, weak-tail, and Donsker semantics compile.",
+    },
+)
+
+DEFAULT_VDVW_PRIMITIVE_SEMANTICS_SOURCE_ANCHORS = (
+    {
+        "anchor_id": "vdvw-gc-definition",
+        "label": "Glivenko-Cantelli class definition",
+        "segment": "Vaart 1996 Weak Convergence and Emperical Process_1-100.md",
+        "line_start": 1834,
+        "line_end": 1834,
+        "purpose": "outer-probability or outer-almost-sure uniform law target",
+    },
+    {
+        "anchor_id": "vdvw-2.1.6-bracketing-number",
+        "label": "Definition 2.1.6",
+        "segment": "Vaart 1996 Weak Convergence and Emperical Process_1-100.md",
+        "line_start": 1895,
+        "line_end": 1895,
+        "purpose": "brackets, epsilon-brackets, and bracketing-number semantics",
+    },
+    {
+        "anchor_id": "vdvw-2.4.1-finite-l1-bracketing-gc",
+        "label": "Theorem 2.4.1",
+        "segment": "Vaart 1996 Weak Convergence and Emperical Process_101-200.md",
+        "line_start": 970,
+        "line_end": 985,
+        "purpose": "finite L1(P) bracketing to Glivenko-Cantelli proof route",
+    },
+    {
+        "anchor_id": "vdvw-2.5.2-uniform-entropy-donsker",
+        "label": "Theorem 2.5.2",
+        "segment": "Vaart 1996 Weak Convergence and Emperical Process_101-200.md",
+        "line_start": 1106,
+        "line_end": 1118,
+        "purpose": "uniform entropy Donsker target requiring primitive weak-convergence semantics",
+    },
+    {
+        "anchor_id": "vdvw-2.5.6-bracketing-donsker",
+        "label": "Theorem 2.5.6",
+        "segment": "Vaart 1996 Weak Convergence and Emperical Process_101-200.md",
+        "line_start": 1204,
+        "line_end": 1220,
+        "purpose": "bracketing entropy-integral Donsker target requiring primitive entropy-integral semantics",
+    },
+)
+
+DEFAULT_VDVW_PRIMITIVE_EMPIRICAL_SEMANTICS = (
+    {
+        "primitive_id": "empirical-sample-average",
+        "layer": "empirical_sample",
+        "status": "design_ready_for_lean_signature",
+        "source_anchor_ids": (
+            "vdvw-gc-definition",
+            "vdvw-2.4.1-finite-l1-bracketing-gc",
+        ),
+        "target_lean_module": "StatInference.EmpiricalProcess.Primitives",
+        "target_lean_signatures": (
+            "structure EmpiricalSample (Ω : Type*) where sample : ℕ -> Ω",
+            "noncomputable def EmpiricalAverage (sample : EmpiricalSample Ω) (f : Ω -> ℝ) (n : ℕ) : ℝ",
+            "def EmpiricalProcessAt (sample : EmpiricalSample Ω) (PIntegral : (Ω -> ℝ) -> ℝ) (f : Ω -> ℝ) (n : ℕ) : ℝ",
+        ),
+        "current_lean_handoffs": (
+            "StatInference.endpoint_strong_law_ae_real",
+            "StatInference.finite_endpoint_strong_law_eventually_abs_le_real",
+            "StatInference.EmpiricalDeviationSequenceOn",
+        ),
+        "theorem_card_gaps": (
+            "empirical measure P_n as sample averages of real-valued functions",
+            "common sample object shared by all bracket endpoints",
+            "population functional P f tied to the same function class",
+        ),
+        "existing_benchmark_task_ids": (
+            "finite_endpoint_strong_law_eventual_bound_seed",
+            "bracketing_deterministic_bound_seed",
+        ),
+        "planned_theorem_hole_seed_ids": (
+            "empirical_sample_average_signature_seed",
+            "empirical_process_at_endpoint_seed",
+        ),
+        "validation_hooks": (
+            "add Lean signatures without proofs first",
+            "render planned theorem-hole seeds before constructor proof work",
+            "run lake build and no-sorry scan after promotion",
+        ),
+        "semantic_risks": (
+            "Do not treat a sequence of arbitrary empirical risks as an iid empirical measure.",
+            "Do not hide sample-size zero denominator behavior in empirical averages.",
+        ),
+        "promotion_gate": "Promote only after the sample object and sample-average notation compile and preserve existing endpoint SLLN benchmarks.",
+    },
+    {
+        "primitive_id": "outer-uniform-convergence",
+        "layer": "outer_convergence",
+        "status": "blocked_pending_outer_probability_design",
+        "source_anchor_ids": (
+            "vdvw-gc-definition",
+            "vdvw-2.4.1-finite-l1-bracketing-gc",
+        ),
+        "target_lean_module": "StatInference.EmpiricalProcess.Outer",
+        "target_lean_signatures": (
+            "structure OuterProbabilitySpace (Ω : Type*) [MeasurableSpace Ω] where outerProb : Set Ω -> ℝ",
+            "def OuterTendstoInProbability (outerProb : Set Ω -> ℝ) (X : ℕ -> Ω -> ℝ) (limit : ℝ) : Prop",
+            "def OuterAlmostSureTendsto (outerProb : Set Ω -> ℝ) (X : ℕ -> Ω -> ℝ) (limit : ℝ) : Prop",
+            "def OuterSupremumDeviation (F : Set (Ω -> ℝ)) (empirical population : (Ω -> ℝ) -> ℝ) : ℝ",
+        ),
+        "current_lean_handoffs": (
+            "StatInference.GlivenkoCantelliClass",
+            "StatInference.EmpiricalDeviationSequenceOn",
+        ),
+        "theorem_card_gaps": (
+            "outer probability P* and outer almost-sure convergence",
+            "outer supremum norm ||P_n - P||*_F",
+            "measurability policy for nonmeasurable suprema over function classes",
+        ),
+        "existing_benchmark_task_ids": (
+            "glivenko_cantelli_statement_seed",
+            "l1_bracketing_sequence_gc_seed",
+        ),
+        "planned_theorem_hole_seed_ids": (
+            "outer_supremum_deviation_signature_seed",
+            "outer_gc_to_current_gc_bridge_seed",
+        ),
+        "validation_hooks": (
+            "keep exact VdV&W Theorem 2.4.1 blocked until this module exists",
+            "check that current deterministic GC interface is not labeled outer almost-sure",
+            "use AXLE check only after local Lake accepts statement candidates",
+        ),
+        "semantic_risks": (
+            "Replacing outer convergence by ordinary convergence changes the textbook theorem.",
+            "A deterministic radius sequence is not itself an outer-probability statement.",
+        ),
+        "promotion_gate": "Promote only as semantics signatures until outer measurability and non-vacuity examples are available.",
+    },
+    {
+        "primitive_id": "measurable-function-class-l1",
+        "layer": "function_class_l1",
+        "status": "design_ready_for_lean_signature",
+        "source_anchor_ids": (
+            "vdvw-2.1.6-bracketing-number",
+            "vdvw-2.4.1-finite-l1-bracketing-gc",
+        ),
+        "target_lean_module": "StatInference.EmpiricalProcess.L1Semantics",
+        "target_lean_signatures": (
+            "structure VdVWFunctionClass (Ω : Type*) [MeasurableSpace Ω] where carrier : Set (Ω -> ℝ)",
+            "def L1Width (PIntegral : (Ω -> ℝ) -> ℝ) (lower upper : Ω -> ℝ) : ℝ",
+            "structure L1Bracket (PIntegral : (Ω -> ℝ) -> ℝ) (epsilon : ℝ) where lower upper : Ω -> ℝ",
+        ),
+        "current_lean_handoffs": (
+            "StatInference.FiniteL1BracketingFamily",
+            "StatInference.empiricalDeviationBoundOn_of_bracket_endpoint_bounds",
+        ),
+        "theorem_card_gaps": (
+            "measurable real-valued function class",
+            "finite L1(P)-norm bracket endpoints",
+            "pointwise lower <= f <= upper relation",
+        ),
+        "existing_benchmark_task_ids": (
+            "bracketing_deterministic_bound_seed",
+            "trivial_bracketing_gc_non_vacuity_seed",
+        ),
+        "planned_theorem_hole_seed_ids": (
+            "l1_bracket_contains_function_seed",
+            "l1_width_to_population_width_seed",
+        ),
+        "validation_hooks": (
+            "compile signatures before linking to bracketing-number constructors",
+            "prove one-point non-vacuity before theorem promotion",
+        ),
+        "semantic_risks": (
+            "Endpoint finite-norm and measurability assumptions must remain explicit.",
+            "The bracket endpoints need not belong to the function class.",
+        ),
+        "promotion_gate": "Promote only with explicit endpoint measurability and finite-norm fields or proof-carrying assumptions.",
+    },
+    {
+        "primitive_id": "primitive-l1-bracketing-number",
+        "layer": "bracketing_number",
+        "status": "blocked_pending_constructor_signature",
+        "source_anchor_ids": (
+            "vdvw-2.1.6-bracketing-number",
+            "vdvw-2.4.1-finite-l1-bracketing-gc",
+        ),
+        "target_lean_module": "StatInference.EmpiricalProcess.L1BracketingNumber",
+        "target_lean_signatures": (
+            "structure L1BracketingCover (F : VdVWFunctionClass Ω) (epsilon : ℝ) where Bracket : Type*; finite : Fintype Bracket",
+            "def L1BracketingNumberFiniteAt (F : VdVWFunctionClass Ω) (epsilon : ℝ) : Prop",
+            "structure FiniteL1BracketingNumberAtEveryScale (F : VdVWFunctionClass Ω) where finite_at : ∀ epsilon > 0, L1BracketingNumberFiniteAt F epsilon",
+        ),
+        "current_lean_handoffs": (
+            "StatInference.FiniteL1BracketingFamily",
+            "StatInference.L1BracketingSequenceRoute",
+            "StatInference.L1BracketingSequenceRoute.toGlivenkoCantelliClass",
+        ),
+        "theorem_card_gaps": (
+            "constructor from finite bracketing number at every epsilon to shrinking finite bracket sequence",
+            "finite bracket index type selected at a requested positive radius",
+            "scale sequence epsilon_m descending to zero",
+        ),
+        "existing_benchmark_task_ids": (
+            "l1_bracketing_sequence_gc_seed",
+            "finite_endpoint_strong_law_eventual_bound_seed",
+        ),
+        "planned_theorem_hole_seed_ids": (
+            "finite_l1_bracketing_number_constructor_seed",
+            "finite_l1_bracketing_every_scale_to_sequence_route_seed",
+        ),
+        "validation_hooks": (
+            "do not introduce a Nat-valued bracketing number without cover data",
+            "theorem-hole seeds may allow sorry only until the constructor is proved",
+            "run benchmark determinism after adding seeds",
+        ),
+        "semantic_risks": (
+            "A bare finite cardinality statement can hide the actual covering functions.",
+            "Unsafe choice of covers can accidentally strengthen the textbook assumption.",
+        ),
+        "promotion_gate": "Promote after signatures can construct an explicit finite cover object for any positive scale.",
+    },
+    {
+        "primitive_id": "finite-bracketing-gc-assembly",
+        "layer": "gc_constructor",
+        "status": "blocked_pending_endpoint_slln_assembly",
+        "source_anchor_ids": (
+            "vdvw-2.4.1-finite-l1-bracketing-gc",
+        ),
+        "target_lean_module": "StatInference.EmpiricalProcess.VdVW241",
+        "target_lean_signatures": (
+            "theorem vdvw_2_4_1_gc_of_finite_l1_bracketing_number : FiniteL1BracketingNumberAtEveryScale F -> EndpointStrongLawFamily F sample -> OuterAlmostSureGlivenkoCantelli F sample",
+            "theorem vdvw_2_4_1_current_gc_bridge : FiniteL1BracketingNumberAtEveryScale F -> EndpointStrongLawFamily F sample -> GlivenkoCantelliClass indexClass populationRisk empiricalRisk",
+        ),
+        "current_lean_handoffs": (
+            "StatInference.empiricalDeviationBoundOn_of_bracket_endpoint_bounds",
+            "StatInference.finite_endpoint_strong_law_eventually_abs_le_real",
+            "StatInference.L1BracketingSequenceRoute.toGlivenkoCantelliClass",
+        ),
+        "theorem_card_gaps": (
+            "finite endpoint SLLN instantiated on bracket endpoints selected at each scale",
+            "upper and lower empirical-process inequalities assembled into supremum norm control",
+            "limsup epsilon_m to zero argument under outer almost-sure semantics",
+        ),
+        "existing_benchmark_task_ids": (
+            "bracketing_deterministic_bound_seed",
+            "finite_endpoint_strong_law_eventual_bound_seed",
+            "l1_bracketing_sequence_gc_seed",
+        ),
+        "planned_theorem_hole_seed_ids": (
+            "vdvw_2_4_1_current_gc_bridge_seed",
+            "vdvw_2_4_1_outer_almost_sure_statement_seed",
+        ),
+        "validation_hooks": (
+            "prove the current-GC bridge before claiming the exact outer almost-sure theorem",
+            "require local Lake, no-sorry scan, and source-anchor audit before report promotion",
+        ),
+        "semantic_risks": (
+            "The compiled current-GC bridge is weaker than the exact outer almost-sure statement.",
+            "Endpoint SLLN must be tied to the same sample and selected bracket endpoints.",
+        ),
+        "promotion_gate": "Promote first as current-GC bridge; exact VdVW 2.4.1 waits for outer-convergence semantics.",
+    },
+    {
+        "primitive_id": "donsker-weak-convergence-target",
+        "layer": "donsker_semantics",
+        "status": "blocked_pending_function_space_weak_convergence",
+        "source_anchor_ids": (
+            "vdvw-2.5.2-uniform-entropy-donsker",
+            "vdvw-2.5.6-bracketing-donsker",
+        ),
+        "target_lean_module": "StatInference.EmpiricalProcess.DonskerSemantics",
+        "target_lean_signatures": (
+            "structure EmpiricalProcessRandomElement (F : VdVWFunctionClass Ω) where path : ℕ -> Ω -> (F.carrier -> ℝ)",
+            "structure PreGaussianLimit (F : VdVWFunctionClass Ω) where covariance_statement : Prop",
+            "def DonskerWeakConvergence (process : EmpiricalProcessRandomElement F) (limit : PreGaussianLimit F) : Prop",
+        ),
+        "current_lean_handoffs": (
+            "StatInference.DonskerSpec",
+            "StatInference.DonskerBridgeCertificate",
+            "StatInference.DonskerAsymptoticNormalityRoute",
+        ),
+        "theorem_card_gaps": (
+            "empirical process as random element in ell-infinity of a function class",
+            "pre-Gaussian or Brownian-bridge limit process",
+            "tightness and finite-dimensional convergence split",
+        ),
+        "existing_benchmark_task_ids": (
+            "donsker_statement_seed",
+            "donsker_bridge_estimator_clt_seed",
+            "donsker_asymptotic_normality_handoff_seed",
+        ),
+        "planned_theorem_hole_seed_ids": (
+            "donsker_weak_convergence_signature_seed",
+            "donsker_entropy_constructor_statement_seed",
+        ),
+        "validation_hooks": (
+            "keep DonskerSpec proof-carrying until this semantic layer compiles",
+            "never promote GC certificates to Donsker evidence",
+        ),
+        "semantic_risks": (
+            "Donsker semantics require weak convergence and tightness, not just uniform laws.",
+            "Pre-Gaussianity and separability assumptions must remain visible.",
+        ),
+        "promotion_gate": "Promote only after function-space weak-convergence target and non-vacuity examples exist.",
     },
 )
 
@@ -2138,6 +2439,94 @@ def build_vdvw_vc_donsker_proof_obligations(
     }
 
 
+def build_vdvw_primitive_empirical_semantics(
+    tasks: tuple[BenchmarkTask, ...],
+    *,
+    primitive_specs: tuple[Mapping[str, object], ...] = DEFAULT_VDVW_PRIMITIVE_EMPIRICAL_SEMANTICS,
+    source_anchors: tuple[Mapping[str, object], ...] = DEFAULT_VDVW_PRIMITIVE_SEMANTICS_SOURCE_ANCHORS,
+    markdown_root: str = VDVW_MARKDOWN_ROOT,
+) -> dict[str, object]:
+    """Build P12.M1 primitive empirical-process semantics design artifact."""
+
+    task_by_id = _task_index(tasks)
+    primitives = [
+        _vdvw_primitive_semantics_row(spec, task_by_id)
+        for spec in primitive_specs
+    ]
+    status_counts: dict[str, int] = {}
+    layer_counts: dict[str, int] = {}
+    planned_seed_ids: list[str] = []
+    for primitive in primitives:
+        status = str(primitive["status"])
+        layer = str(primitive["layer"])
+        status_counts[status] = status_counts.get(status, 0) + 1
+        layer_counts[layer] = layer_counts.get(layer, 0) + 1
+        planned_seed_ids.extend(str(seed_id) for seed_id in primitive["planned_theorem_hole_seed_ids"])
+
+    blocked = [
+        str(primitive["primitive_id"])
+        for primitive in primitives
+        if str(primitive["status"]).startswith("blocked")
+    ]
+    design_ready = [
+        str(primitive["primitive_id"])
+        for primitive in primitives
+        if "ready" in str(primitive["status"])
+    ]
+
+    return {
+        "report_id": "vdvw-primitive-empirical-semantics::p12.m1",
+        "source": "van der Vaart and Wellner, Weak Convergence and Empirical Processes",
+        "markdown_root": markdown_root,
+        "depends_on_artifacts": [
+            "artifacts/research/vdvw-theorem-inventory.json",
+            "artifacts/research/vdvw-bracketing-gc-statement-candidates.json",
+            "artifacts/research/vdvw-vc-donsker-proof-obligations.json",
+        ],
+        "source_anchors": [
+            {
+                "anchor_id": str(anchor["anchor_id"]),
+                "label": str(anchor["label"]),
+                "markdown_anchor": {
+                    "root": markdown_root,
+                    "segment": str(anchor["segment"]),
+                    "line_start": int(anchor["line_start"]),
+                    "line_end": int(anchor["line_end"]),
+                },
+                "purpose": str(anchor["purpose"]),
+            }
+            for anchor in source_anchors
+        ],
+        "primitive_count": len(primitives),
+        "status_counts": dict(sorted(status_counts.items())),
+        "layer_counts": dict(sorted(layer_counts.items())),
+        "design_ready_primitives": design_ready,
+        "blocked_primitives": blocked,
+        "planned_theorem_hole_seed_count": len(tuple(dict.fromkeys(planned_seed_ids))),
+        "planned_theorem_hole_seed_ids": list(dict.fromkeys(planned_seed_ids)),
+        "primitives": primitives,
+        "acceptance_gates": [
+            "This artifact is a semantics design artifact, not a theorem-completion report.",
+            "Every promoted Lean primitive must compile under local Lake and keep the no-sorry/no-admit/no-axiom/no-unsafe policy.",
+            "Empirical sample semantics, outer convergence, bracketing numbers, and Donsker weak convergence must stay separate.",
+            "Exact VdV&W theorem claims require source anchors, non-vacuity examples, and successful benchmark/theorem-hole promotion.",
+            "AXLE may check or repair candidate code, but local Lake validation remains the public acceptance authority.",
+        ],
+        "next_actions": [
+            "Implement P12.M2 by adding Lean signature candidates for the L1 bracketing-number constructor.",
+            "Materialize theorem-hole benchmark seeds listed in planned_theorem_hole_seed_ids after the signatures compile.",
+            "Keep the exact outer-almost-sure Theorem 2.4.1 blocked until outer convergence primitives are promoted.",
+        ],
+        "notes": (
+            "P12.M1 maps the source-linked VdV&W theorem-card gaps into "
+            "concrete Lean API signature targets and theorem-hole seed names. "
+            "It deliberately separates current compiled handoffs from future "
+            "primitive semantics so autoformalization cannot silently weaken "
+            "outer convergence, bracketing-number, or Donsker assumptions."
+        ),
+    }
+
+
 def build_empirical_process_expansion_targets(
     tasks: tuple[BenchmarkTask, ...],
     *,
@@ -2870,6 +3259,59 @@ def _vdvw_proof_obligation_row(
         "semantic_risks": [
             str(item)
             for item in _sequence(spec.get("semantic_risks"))
+        ],
+        "promotion_gate": str(spec["promotion_gate"]),
+        "human_review_required": True,
+    }
+
+
+def _vdvw_primitive_semantics_row(
+    spec: Mapping[str, object],
+    task_by_id: Mapping[str, BenchmarkTask],
+) -> dict[str, object]:
+    existing_benchmark_task_ids = tuple(
+        str(task_id) for task_id in _sequence(spec.get("existing_benchmark_task_ids"))
+    )
+    present_task_ids = tuple(
+        task_id for task_id in existing_benchmark_task_ids if task_id in task_by_id
+    )
+    missing_task_ids = tuple(
+        task_id for task_id in existing_benchmark_task_ids if task_id not in task_by_id
+    )
+    return {
+        "primitive_id": str(spec["primitive_id"]),
+        "layer": str(spec["layer"]),
+        "status": str(spec["status"]),
+        "source_anchor_ids": [
+            str(anchor_id)
+            for anchor_id in _sequence(spec.get("source_anchor_ids"))
+        ],
+        "target_lean_module": str(spec["target_lean_module"]),
+        "target_lean_signatures": [
+            str(signature)
+            for signature in _sequence(spec.get("target_lean_signatures"))
+        ],
+        "current_lean_handoffs": [
+            str(handoff)
+            for handoff in _sequence(spec.get("current_lean_handoffs"))
+        ],
+        "theorem_card_gaps": [
+            str(gap)
+            for gap in _sequence(spec.get("theorem_card_gaps"))
+        ],
+        "existing_benchmark_task_ids": list(present_task_ids),
+        "missing_existing_benchmark_task_ids": list(missing_task_ids),
+        "planned_theorem_hole_seed_ids": [
+            str(seed_id)
+            for seed_id in _sequence(spec.get("planned_theorem_hole_seed_ids"))
+        ],
+        "validation_hooks": [
+            str(hook)
+            for hook in _sequence(spec.get("validation_hooks"))
+        ],
+        "semantic_risks": [
+            str(risk)
+            for risk in _sequence(spec.get("semantic_risks"))
         ],
         "promotion_gate": str(spec["promotion_gate"]),
         "human_review_required": True,

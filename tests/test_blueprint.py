@@ -12,9 +12,9 @@ def test_real_blueprint_selects_next_unfinished_milestone() -> None:
     assert status["valid"] is True
     assert status["current_phase"]["id"] == "P12"
     assert status["current_phase"]["status"] == "in_progress"
-    assert status["current_milestone"]["id"] == "P12.M1"
+    assert status["current_milestone"]["id"] == "P12.M2"
     assert "continue" in render_blueprint_status(blueprint)
-    assert any("primitive empirical sample" in action.lower() for action in status["next_actions"])
+    assert any("l1 bracketing-number constructor" in action.lower() for action in status["next_actions"])
 
 
 def test_blueprint_validation_rejects_duplicate_ids_and_bad_status() -> None:

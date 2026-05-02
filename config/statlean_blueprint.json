@@ -682,12 +682,19 @@
       "milestones": [
         {
           "id": "P12.M1",
-          "status": "in_progress",
-          "name": "Primitive empirical sample and outer-convergence design artifact"
+          "status": "done",
+          "name": "Primitive empirical sample and outer-convergence design artifact",
+          "evidence": [
+            "build_vdvw_primitive_empirical_semantics generates artifacts/research/vdvw-primitive-empirical-semantics.json.",
+            "The artifact maps VdV&W GC, bracketing-number, finite-bracketing GC, uniform-entropy Donsker, and bracketing-Donsker anchors to six primitive semantic layers.",
+            "Primitive layers separate empirical sample averages, outer convergence, measurable L1 function classes, primitive L1 bracketing numbers, finite-bracketing GC assembly, and Donsker weak-convergence targets.",
+            "Each primitive records concrete target Lean module/signature sketches, existing compiled handoffs, theorem-card gaps, existing benchmark evidence, planned theorem-hole seed IDs, validation hooks, semantic risks, and promotion gates.",
+            "schemas/vdvw_primitive_empirical_semantics.schema.json, Python tests, smoke determinism checks, and the reproducibility bundle enforce the checked-in artifact."
+          ]
         },
         {
           "id": "P12.M2",
-          "status": "pending",
+          "status": "in_progress",
           "name": "Lean signatures for L1 bracketing-number constructor"
         },
         {
@@ -697,7 +704,7 @@
         }
       ],
       "next_actions": [
-        "Implement P12.M1 by designing a checked-in primitive empirical sample and outer-convergence semantics artifact that maps VdV&W GC/Donsker theorem-card gaps to concrete Lean API signatures and benchmark/theorem-hole seeds."
+        "Implement P12.M2 by adding Lean signature candidates for the primitive L1 bracketing-number constructor and theorem-hole seeds that are source-linked to VdV&W Definition 2.1.6 and Theorem 2.4.1."
       ]
     }
   ]

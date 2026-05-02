@@ -28,12 +28,12 @@ def test_cli_blueprint_status(capsys) -> None:
     assert main(["blueprint-status", "--blueprint", "config/statlean_blueprint.json"]) == 0
     output = capsys.readouterr().out
     assert "Current phase: P12" in output
-    assert "Current milestone: P12.M1" in output
+    assert "Current milestone: P12.M2" in output
 
     assert main(["blueprint-status", "--blueprint", "config/statlean_blueprint.json", "--json"]) == 0
     json_output = capsys.readouterr().out
     assert '"current_phase"' in json_output
-    assert '"P12.M1"' in json_output
+    assert '"P12.M2"' in json_output
 
 
 def test_cli_vdvw_theorem_inventory(tmp_path: Path, capsys) -> None:
@@ -73,6 +73,20 @@ def test_cli_vdvw_vc_donsker_obligations(tmp_path: Path, capsys) -> None:
     assert "blocked=5" in output
     assert report["obligation_count"] == 5
     assert "vdvw-2.6.8-vc-subgraph-donsker" in report["source_inventory_ids"]
+
+
+def test_cli_vdvw_primitive_semantics(tmp_path: Path, capsys) -> None:
+    output_path = tmp_path / "vdvw-primitive-semantics.json"
+
+    assert main(["vdvw-primitive-semantics", "--output", str(output_path)]) == 0
+
+    output = capsys.readouterr().out
+    report = json.loads(output_path.read_text(encoding="utf-8"))
+    assert "vdvw_primitive_semantics=6" in output
+    assert "blocked=4" in output
+    assert "planned_seeds=12" in output
+    assert report["primitive_count"] == 6
+    assert "outer-uniform-convergence" in report["blocked_primitives"]
 
 
 def test_cli_verify_benchmarks_allow_failures(tmp_path: Path, capsys) -> None:

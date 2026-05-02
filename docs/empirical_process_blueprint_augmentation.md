@@ -267,6 +267,25 @@ The main guardrail is explicit: GC certificates, VC entropy obligations, and
 Donsker weak-convergence evidence are different layers and must not be collapsed
 into one certificate.
 
+## P12.M1 Status Update
+
+`P12.M1` is complete as a primitive-semantics design artifact.  The checked-in
+artifact at `artifacts/research/vdvw-primitive-empirical-semantics.json` maps
+the source-linked theorem-card gaps into six future Lean API layers:
+
+- empirical sample averages and empirical-process coordinates;
+- outer probability, outer almost-sure convergence, and outer supremum norms;
+- measurable real-valued function classes and `L1(P)` width semantics;
+- primitive finite `L1(P)` bracketing-number covers;
+- finite-bracketing GC assembly for VdV&W Theorem 2.4.1;
+- Donsker weak-convergence targets for later entropy and bracketing-Donsker
+  routes.
+
+The artifact keeps current compiled handoffs separate from future primitives.
+This is intentional: current bridge declarations are usable proof interfaces,
+but they are not exact textbook outer-convergence or Donsker theorem
+formalizations.
+
 ## Parallel Workstreams
 
 The following can run while another agent works on P12 primitive empirical
@@ -282,21 +301,23 @@ with low conflict risk:
 5. New theorem-statement drafts in documentation, not Lean source, for
    bracketing GC and finite-class GC constructor theorems.
 
-Avoid touching these paths until current P12.M1 edits are synchronized:
+Avoid touching these paths until current P12.M2 edits are synchronized:
 
 - `StatInference/EmpiricalProcess/Complexity.lean`
 - `src/statlean_agent/benchmarks.py`
 - `benchmarks/seeds.jsonl`
 - checked-in benchmark/evaluation artifacts affected by seed count
 
-## Immediate Promotion Checklist For Active P12.M1
+## Immediate Promotion Checklist For Active P12.M2
 
-Before promoting P12.M1:
+Before promoting P12.M2:
 
-- design checked-in primitive empirical sample and outer-convergence semantics;
-- map VdV&W GC/Donsker theorem-card gaps to concrete Lean API signatures;
-- specify theorem-hole seeds for empirical measure, outer supremum norm,
-  outer probability, iid sample model, and endpoint SLLN handoff;
+- add Lean signature candidates for the primitive `L1(P)` bracketing-number
+  constructor;
+- keep the constructor proof-carrying and avoid a bare Nat-valued bracketing
+  number that hides the cover data;
+- add theorem-hole seeds for the constructor only after the signatures compile;
+- preserve source links to VdV&W Definition 2.1.6 and Theorem 2.4.1;
 - keep all files in English and avoid committing local textbook assets or API
   secrets;
 - rerun `.venv/bin/pytest`, `PYTHON=.venv/bin/python bash scripts/smoke.sh`, and
