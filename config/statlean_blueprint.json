@@ -725,12 +725,16 @@
             "empiricalMeasureOfSample and empiricalMeasureSequenceOfSamples fix P_n to the normalized finite Dirac empirical measure induced by each finite sample.",
             "EmpiricalMeasureOfSampleEndpointIntegralAgreement isolates the remaining endpoint-integral equality needed to identify concrete empirical-measure integrals with sample averages.",
             "FiniteBracketSampleEmpiricalMeasureSemantics.ofEmpiricalMeasureOfSamples constructs the sample/empirical-measure bridge from the concrete Dirac empirical-measure sequence plus endpoint-integral agreement.",
-            "Benchmark empirical_measure_of_sample_bridge_constructor_seed exercises the concrete empirical-measure bridge constructor."
+            "Benchmark empirical_measure_of_sample_bridge_constructor_seed exercises the concrete empirical-measure bridge constructor.",
+            "bracketEndpointEmpiricalMeasureSequence_of_samples_eq_average proves that integrating one endpoint against the concrete Dirac empirical-measure sequence equals the finite endpoint sample average.",
+            "empiricalMeasureOfSampleEndpointIntegralAgreement packages the lower/upper endpoint agreement under measurable-singleton semantics.",
+            "FiniteBracketSampleEmpiricalMeasureSemantics.ofConcreteEmpiricalMeasureOfSamples constructs the sample/empirical-measure bridge directly from concrete Dirac empirical measures without an externally supplied agreement field.",
+            "Benchmarks empirical_measure_of_sample_endpoint_agreement_seed and concrete_empirical_measure_bridge_constructor_seed exercise the proved concrete endpoint-integral agreement route."
           ]
         }
       ],
       "next_actions": [
-        "Continue P12.M3 from the l1 bracketing-number constructor by proving EmpiricalMeasureOfSampleEndpointIntegralAgreement from mathlib Dirac/finite-sum integral lemmas under explicit measurability/nonempty-sample assumptions, then connect stochastic-process samples to concrete iid empirical measures; keep exact outer-almost-sure VdV&W 2.4.1 blocked until outer convergence constructors and non-vacuity examples compile."
+        "Continue P12.M3 from the l1 bracketing-number constructor by connecting stochastic-process samples to the concrete Dirac empirical-measure bridge and then adding non-vacuity examples for the outer convergence constructors; keep exact outer-almost-sure VdV&W 2.4.1 blocked until those examples compile."
       ]
     }
   ]

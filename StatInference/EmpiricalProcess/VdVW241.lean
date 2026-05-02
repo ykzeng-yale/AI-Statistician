@@ -302,6 +302,28 @@ theorem empiricalMeasureSequenceOfSamples_apply
   rfl
 
 /--
+Integrating one endpoint against the concrete finite-sample empirical measure
+is the repository's finite sample average.
+-/
+theorem bracketEndpointEmpiricalMeasureSequence_of_samples_eq_average
+    {Observation Bracket : Type*} [MeasurableSpace Observation]
+    [MeasurableSingletonClass Observation]
+    (samples : ∀ sampleSize, SampleAt Observation sampleSize)
+    (endpoint : Bracket -> Observation -> ℝ)
+    (sampleSize : ℕ) (bracket : Bracket) :
+    bracketEndpointEmpiricalMeasureSequence
+        (empiricalMeasureSequenceOfSamples samples) endpoint sampleSize bracket =
+      bracketEndpointEmpiricalSequence samples endpoint sampleSize bracket := by
+  unfold bracketEndpointEmpiricalMeasureSequence empiricalMeasureSequenceOfSamples
+    empiricalMeasureOfSample bracketEndpointEmpiricalSequence
+    bracketEndpointEmpiricalAverage empiricalAverage
+  rw [integral_smul_measure]
+  rw [integral_finsetSum_measure]
+  · simp [ENNReal.toReal_inv, div_eq_mul_inv, mul_comm]
+  · intro sampleIndex _hsampleIndex
+    exact integrable_dirac (by simp)
+
+/--
 Endpoint-integral agreement for the concrete empirical-measure sequence.
 
 This structure isolates the exact primitive still needed to replace the
@@ -325,6 +347,24 @@ structure EmpiricalMeasureOfSampleEndpointIntegralAgreement
           (empiricalMeasureSequenceOfSamples samples) upperEndpoint
           sampleSize bracket =
         bracketEndpointEmpiricalSequence samples upperEndpoint sampleSize bracket
+
+/--
+The concrete empirical-measure endpoint agreement obtained from mathlib's
+Dirac and finite-sum integral lemmas.
+-/
+theorem empiricalMeasureOfSampleEndpointIntegralAgreement
+    {Observation Bracket : Type*} [MeasurableSpace Observation]
+    [MeasurableSingletonClass Observation]
+    (samples : ∀ sampleSize, SampleAt Observation sampleSize)
+    (lowerEndpoint upperEndpoint : Bracket -> Observation -> ℝ) :
+    EmpiricalMeasureOfSampleEndpointIntegralAgreement
+      samples lowerEndpoint upperEndpoint where
+  lower_integral_eq_sample_average :=
+    bracketEndpointEmpiricalMeasureSequence_of_samples_eq_average
+      samples lowerEndpoint
+  upper_integral_eq_sample_average :=
+    bracketEndpointEmpiricalMeasureSequence_of_samples_eq_average
+      samples upperEndpoint
 
 /--
 Endpoint strong-law assembly data for a selected finite bracketing sequence.
@@ -738,6 +778,37 @@ noncomputable def ofEmpiricalMeasureOfSamples
     agreement.lower_integral_eq_sample_average
   upper_empirical_measure_eq_sample_average :=
     agreement.upper_integral_eq_sample_average
+
+/--
+Build the sample/empirical-measure bridge directly from the concrete Dirac
+empirical-measure construction when singletons are measurable.
+-/
+noncomputable def ofConcreteEmpiricalMeasureOfSamples
+    {Observation Index Bracket : Type*} [MeasurableSpace Observation]
+    [MeasurableSingletonClass Observation] [Fintype Bracket]
+    {indexClass : Set Index}
+    {populationRisk : Index -> ℝ} {empiricalRisk : ℕ -> Index -> ℝ}
+    (sampleSemantics :
+      FiniteBracketSampleAverageSemantics (Observation := Observation)
+        (Bracket := Bracket) indexClass populationRisk empiricalRisk)
+    (populationMeasure : Measure Observation)
+    (lower_population_eq :
+      ∀ sampleSize bracket,
+        (sampleSemantics.family sampleSize).lowerPopulation bracket =
+          bracketEndpointPopulationIntegral populationMeasure
+            sampleSemantics.lowerEndpoint bracket)
+    (upper_population_eq :
+      ∀ sampleSize bracket,
+        (sampleSemantics.family sampleSize).upperPopulation bracket =
+          bracketEndpointPopulationIntegral populationMeasure
+            sampleSemantics.upperEndpoint bracket) :
+    FiniteBracketSampleEmpiricalMeasureSemantics (Observation := Observation)
+      (Bracket := Bracket) indexClass populationRisk empiricalRisk :=
+  ofEmpiricalMeasureOfSamples sampleSemantics populationMeasure
+    lower_population_eq upper_population_eq
+    (empiricalMeasureOfSampleEndpointIntegralAgreement
+      sampleSemantics.samples sampleSemantics.lowerEndpoint
+      sampleSemantics.upperEndpoint)
 
 /--
 Promote a proof-carrying sample/empirical-measure bridge to the measure-backed
