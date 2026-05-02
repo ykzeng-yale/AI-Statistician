@@ -87,6 +87,7 @@ DEFAULT_REPRODUCIBILITY_ARTIFACTS = (
     "artifacts/evaluation/external-baseline-results.json",
     "artifacts/evaluation/empirical-process-targets.json",
     "artifacts/evaluation/empirical-process-external-slice.json",
+    "artifacts/research/vdvw-theorem-inventory.json",
     "artifacts/training/manifest.json",
     "artifacts/training/dpo-negative-attempts.jsonl",
     "artifacts/training/dpo-negative-reports.jsonl",
@@ -222,6 +223,294 @@ DEFAULT_EMPIRICAL_PROCESS_EXTERNAL_FAMILIES = (
     "bracketing",
     "vc_subgraph",
     "donsker",
+)
+
+VDVW_MARKDOWN_ROOT = (
+    "Math Textbook Foundation/Vaart 1996 Weak Convergence and Emperical "
+    "Process(1)/Markdown"
+)
+
+DEFAULT_VDVW_THEOREM_INVENTORY = (
+    {
+        "inventory_id": "vdvw-2.4.1-finite-bracketing-gc",
+        "source_label": "Theorem 2.4.1",
+        "kind": "Theorem",
+        "title": "Finite L1 bracketing implies Glivenko-Cantelli",
+        "chapter": "2.4",
+        "source_segment": "Vaart 1996 Weak Convergence and Emperical Process_101-200.md",
+        "source_line_start": 970,
+        "source_line_end": 970,
+        "textbook_paraphrase": (
+            "A measurable function class with finite L1(P) bracketing number "
+            "at every positive radius is Glivenko-Cantelli."
+        ),
+        "interface_family": "bracketing",
+        "formalization_tier": "primitive_candidate",
+        "current_claim_level": "deterministic_reduction_plus_certificate_interface",
+        "current_lean_declarations": (
+            "StatInference.FiniteL1BracketingFamily",
+            "StatInference.L1BracketingSequenceRoute",
+            "StatInference.empiricalDeviationBoundOn_of_bracket_endpoint_bounds",
+            "StatInference.finite_endpoint_strong_law_eventually_abs_le_real",
+            "StatInference.L1BracketingSequenceRoute.toGlivenkoCantelliClass",
+        ),
+        "benchmark_task_ids": (
+            "bracketing_deterministic_bound_seed",
+            "finite_endpoint_strong_law_eventual_bound_seed",
+            "l1_bracketing_sequence_gc_seed",
+            "trivial_bracketing_gc_non_vacuity_seed",
+        ),
+        "missing_definitions": (
+            "primitive N_[] epsilon F L1(P) bracketing number",
+            "measurable function class over an iid sample space",
+            "empirical measure P_n as a probability measure",
+            "outer-probability norm ||P_n - P||*_F and almost-sure GC convergence mode",
+        ),
+        "semantic_risks": (
+            "Current Lean route packages a shrinking finite-bracketing sequence rather than proving the textbook finite-bracketing-number assumption.",
+            "Measurability and outer-probability bookkeeping are still abstract.",
+            "Endpoint strong-law wrappers do not yet assemble the full almost-sure uniform convergence theorem.",
+        ),
+        "next_actions": (
+            "Introduce a primitive L1 bracketing-number definition tied to probability measures.",
+            "Connect finite endpoint SLLN and deterministic bracket bounds into the full Theorem 2.4.1 convergence statement.",
+        ),
+    },
+    {
+        "inventory_id": "vdvw-2.4.3-random-entropy-gc",
+        "source_label": "Theorem 2.4.3",
+        "kind": "Theorem",
+        "title": "Random entropy condition implies Glivenko-Cantelli",
+        "chapter": "2.4",
+        "source_segment": "Vaart 1996 Weak Convergence and Emperical Process_101-200.md",
+        "source_line_start": 988,
+        "source_line_end": 988,
+        "textbook_paraphrase": (
+            "A P-measurable class with integrable envelope and suitable random "
+            "L1 empirical covering growth is Glivenko-Cantelli."
+        ),
+        "interface_family": "bracketing",
+        "formalization_tier": "dependency_heavy_theorem_card",
+        "current_claim_level": "certificate_interface",
+        "current_lean_declarations": (
+            "StatInference.CoveringNumberDeviationCertificate",
+            "StatInference.BracketingDeviationCertificate",
+            "StatInference.GlivenkoCantelliClass",
+        ),
+        "benchmark_task_ids": (
+            "covering_certificate_gc_seed",
+            "bracketing_certificate_gc_seed",
+        ),
+        "missing_definitions": (
+            "P-measurable classes and outer expectation/probability",
+            "empirical random covering numbers over L1(P_n)",
+            "integrable envelope and truncation class F_M",
+            "outer almost-sure and outer mean convergence conclusions",
+        ),
+        "semantic_risks": (
+            "This theorem is not a bracketing theorem; mapping it into bracketing APIs would drop random entropy assumptions.",
+            "The current covering certificate only stores a future deviation proof and is not evidence for random entropy.",
+        ),
+        "next_actions": (
+            "Keep as a theorem card until outer probability and random covering-number infrastructure exist.",
+        ),
+    },
+    {
+        "inventory_id": "vdvw-2.5.2-uniform-entropy-donsker",
+        "source_label": "Theorem 2.5.2",
+        "kind": "Theorem",
+        "title": "Uniform entropy condition implies P-Donsker",
+        "chapter": "2.5",
+        "source_segment": "Vaart 1996 Weak Convergence and Emperical Process_101-200.md",
+        "source_line_start": 1106,
+        "source_line_end": 1106,
+        "textbook_paraphrase": (
+            "A measurable function class satisfying the uniform entropy bound "
+            "and square-integrable envelope assumptions is P-Donsker."
+        ),
+        "interface_family": "donsker",
+        "formalization_tier": "dependency_heavy_theorem_card",
+        "current_claim_level": "certificate_interface",
+        "current_lean_declarations": (
+            "StatInference.DonskerSpec",
+            "StatInference.DonskerBridgeCertificate",
+            "StatInference.DonskerAsymptoticNormalityRoute",
+        ),
+        "benchmark_task_ids": (
+            "donsker_statement_seed",
+            "donsker_bridge_gc_projection_seed",
+            "donsker_bridge_estimator_clt_seed",
+        ),
+        "missing_definitions": (
+            "uniform entropy bound for all finitely discrete Q",
+            "L2(P) semimetric and F_delta measurability",
+            "empirical-process weak convergence in ell-infinity of a class",
+            "tight Brownian bridge or pre-Gaussian limit process",
+        ),
+        "semantic_risks": (
+            "Donsker cannot be inferred from GC; it needs weak convergence and tightness infrastructure.",
+            "Current DonskerSpec is a stored weak-convergence statement, not a constructor from entropy.",
+        ),
+        "next_actions": (
+            "Add theorem-hole cards for uniform entropy and asymptotic equicontinuity obligations before any Lean statement promotion.",
+        ),
+    },
+    {
+        "inventory_id": "vdvw-2.5.6-bracketing-donsker",
+        "source_label": "Theorem 2.5.6",
+        "kind": "Theorem",
+        "title": "Bracketing entropy integral implies P-Donsker",
+        "chapter": "2.5",
+        "source_segment": "Vaart 1996 Weak Convergence and Emperical Process_101-200.md",
+        "source_line_start": 1204,
+        "source_line_end": 1211,
+        "textbook_paraphrase": (
+            "Finite bracketing and covering entropy integrals plus a weak second "
+            "moment envelope imply the function class is P-Donsker."
+        ),
+        "interface_family": "donsker",
+        "formalization_tier": "dependency_heavy_theorem_card",
+        "current_claim_level": "certificate_interface",
+        "current_lean_declarations": (
+            "StatInference.BracketingNumberSpec",
+            "StatInference.DonskerBridgeCertificate",
+            "StatInference.DonskerAsymptoticNormalityRoute.asymptoticNormal",
+        ),
+        "benchmark_task_ids": (
+            "bracketing_certificate_gc_seed",
+            "donsker_asymptotic_normality_handoff_seed",
+            "trivial_donsker_asymptotic_normality_seed",
+        ),
+        "missing_definitions": (
+            "L2 and weak-L2 bracketing entropy integrals",
+            "weak second moment envelope condition",
+            "nested partitions and chaining construction",
+            "Donsker weak convergence target in function space",
+        ),
+        "semantic_risks": (
+            "Bracketing GC infrastructure is insufficient for bracketing Donsker.",
+            "The current asymptotic-normality handoff consumes a Donsker proof field rather than proving it.",
+        ),
+        "next_actions": (
+            "Defer proof promotion until P-Donsker semantics and entropy-integral APIs exist.",
+        ),
+    },
+    {
+        "inventory_id": "vdvw-2.6.4-vc-set-entropy",
+        "source_label": "Theorem 2.6.4",
+        "kind": "Theorem",
+        "title": "VC set classes have polynomial covering numbers",
+        "chapter": "2.6",
+        "source_segment": "Vaart 1996 Weak Convergence and Emperical Process_101-200.md",
+        "source_line_start": 1378,
+        "source_line_end": 1383,
+        "textbook_paraphrase": (
+            "VC classes of sets satisfy a universal polynomial Lr(Q) covering-number bound."
+        ),
+        "interface_family": "vc_subgraph",
+        "formalization_tier": "primitive_dependency_candidate",
+        "current_claim_level": "proof_obligation_metadata",
+        "current_lean_declarations": (
+            "StatInference.VCSubgraphProofObligations",
+            "StatInference.VCSubgraphSpec",
+            "StatInference.VCSubgraphGCRoute",
+        ),
+        "benchmark_task_ids": (
+            "vc_deviation_certificate_gc_seed",
+            "vc_subgraph_route_certificate_seed",
+            "trivial_vc_subgraph_gc_non_vacuity_seed",
+        ),
+        "missing_definitions": (
+            "VC class of sets and VC index/dimension",
+            "shattering and Sauer-type growth bounds",
+            "Lr(Q) covering numbers for indicator set classes",
+            "universal-constant handling for entropy bounds",
+        ),
+        "semantic_risks": (
+            "Current VC route records obligations but proves no combinatorial VC theorem.",
+            "Function-class VC-subgraph results depend on this set-class entropy layer.",
+        ),
+        "next_actions": (
+            "Create theorem-hole candidates for shattering, Sauer bound, and set-class covering-number translation.",
+        ),
+    },
+    {
+        "inventory_id": "vdvw-2.6.7-vc-subgraph-entropy",
+        "source_label": "Theorem 2.6.7",
+        "kind": "Theorem",
+        "title": "VC-subgraph function classes have envelope-scaled covering bounds",
+        "chapter": "2.6",
+        "source_segment": "Vaart 1996 Weak Convergence and Emperical Process_101-200.md",
+        "source_line_start": 1490,
+        "source_line_end": 1497,
+        "textbook_paraphrase": (
+            "VC-subgraph classes with measurable envelope satisfy an envelope-scaled Lr(Q) covering bound."
+        ),
+        "interface_family": "vc_subgraph",
+        "formalization_tier": "primitive_dependency_candidate",
+        "current_claim_level": "proof_obligation_metadata",
+        "current_lean_declarations": (
+            "StatInference.VCSubgraphProofObligations",
+            "StatInference.VCDeviationCertificate",
+            "StatInference.VCSubgraphGCRoute.toVCDeviationCertificate",
+        ),
+        "benchmark_task_ids": (
+            "vc_subgraph_route_certificate_seed",
+            "vc_deviation_certificate_gc_seed",
+        ),
+        "missing_definitions": (
+            "subgraph set for real-valued functions",
+            "measurable envelope function",
+            "Fubini/Lebesgue-measure product argument for subgraphs",
+            "envelope-scaled covering-number statements",
+        ),
+        "semantic_risks": (
+            "Dropping envelope measurability or positivity would make the formal theorem wrong.",
+            "The existing VCDeviationCertificate is only a handoff from a supplied deviation proof.",
+        ),
+        "next_actions": (
+            "Represent VC-subgraph entropy as obligations before claiming GC or Donsker consequences.",
+        ),
+    },
+    {
+        "inventory_id": "vdvw-2.6.8-vc-subgraph-donsker",
+        "source_label": "Theorem 2.6.8",
+        "kind": "Theorem",
+        "title": "Pointwise separable pre-Gaussian VC classes with weak envelope tail are Donsker",
+        "chapter": "2.6",
+        "source_segment": "Vaart 1996 Weak Convergence and Emperical Process_101-200.md",
+        "source_line_start": 1520,
+        "source_line_end": 1520,
+        "textbook_paraphrase": (
+            "A pointwise separable, P-pre-Gaussian VC function class with a weak second-moment tail envelope is P-Donsker."
+        ),
+        "interface_family": "donsker",
+        "formalization_tier": "late_stage_theorem_card",
+        "current_claim_level": "certificate_interface",
+        "current_lean_declarations": (
+            "StatInference.VCSubgraphGCRoute",
+            "StatInference.DonskerBridgeCertificate",
+            "StatInference.DonskerAsymptoticNormalityRoute",
+        ),
+        "benchmark_task_ids": (
+            "vc_subgraph_route_certificate_seed",
+            "donsker_bridge_estimator_clt_seed",
+            "donsker_asymptotic_normality_handoff_seed",
+        ),
+        "missing_definitions": (
+            "pointwise separability",
+            "P-pre-Gaussian process indexed by a class",
+            "weak second-moment envelope tail condition",
+            "Donsker constructor from VC entropy plus pre-Gaussianity",
+        ),
+        "semantic_risks": (
+            "This theorem has stronger assumptions than ordinary VC-subgraph GC.",
+            "Current code must not collapse VC-subgraph GC and VC-subgraph Donsker into one certificate.",
+        ),
+        "next_actions": (
+            "Keep as a source-linked theorem card until the Donsker layer is formalized.",
+        ),
+    },
 )
 
 DEFAULT_EXTERNAL_BASELINES = (
@@ -1158,6 +1447,65 @@ def build_empirical_process_external_prover_slice(
     }
 
 
+def build_vdvw_theorem_inventory(
+    tasks: tuple[BenchmarkTask, ...],
+    *,
+    inventory_specs: tuple[Mapping[str, object], ...] = DEFAULT_VDVW_THEOREM_INVENTORY,
+    markdown_root: str = VDVW_MARKDOWN_ROOT,
+) -> dict[str, object]:
+    """Build a source-linked VdV&W theorem inventory for P11.
+
+    The report is an audit artifact, not a theorem-completion claim.  It maps
+    textbook anchors to current Lean declarations, benchmark evidence, missing
+    primitives, and semantic risks before any new statement is promoted.
+    """
+
+    task_by_id = _task_index(tasks)
+    rows = [
+        _vdvw_inventory_row(spec, task_by_id, markdown_root=markdown_root)
+        for spec in inventory_specs
+    ]
+    family_counts: dict[str, int] = {}
+    tier_counts: dict[str, int] = {}
+    claim_level_counts: dict[str, int] = {}
+    for row in rows:
+        family = str(row["interface_family"])
+        tier = str(row["formalization_tier"])
+        claim_level = str(row["current_claim_level"])
+        family_counts[family] = family_counts.get(family, 0) + 1
+        tier_counts[tier] = tier_counts.get(tier, 0) + 1
+        claim_level_counts[claim_level] = claim_level_counts.get(claim_level, 0) + 1
+
+    blocked_rows = [
+        row for row in rows
+        if row["promotion_status"] != "ready_for_statement_candidate"
+    ]
+
+    return {
+        "report_id": "vdvw-theorem-inventory::p11.m1",
+        "source": "van der Vaart and Wellner, Weak Convergence and Empirical Processes",
+        "markdown_root": markdown_root,
+        "row_count": len(rows),
+        "family_counts": dict(sorted(family_counts.items())),
+        "formalization_tier_counts": dict(sorted(tier_counts.items())),
+        "claim_level_counts": dict(sorted(claim_level_counts.items())),
+        "blocked_or_review_rows": [str(row["inventory_id"]) for row in blocked_rows],
+        "rows": rows,
+        "acceptance_gates": [
+            "Do not promote a source theorem unless every assumption has a Lean definition or an explicit proof-carrying field.",
+            "Do not mark bridge or certificate interfaces as the exact VdV&W theorem.",
+            "Record outer-probability, measurability, separability, envelope, tightness, and entropy-integral gaps explicitly.",
+            "Use AXLE only for auxiliary extraction/checking; local Lake remains the acceptance authority.",
+            "Keep textbook assets local-only and cite short anchors rather than long copied excerpts.",
+        ],
+        "notes": (
+            "P11.M1 inventory: source-linked theorem cards for bracketing, "
+            "VC-subgraph, and Donsker targets.  Rows are designed to prevent "
+            "semantic drift before autoformalization or Lean theorem promotion."
+        ),
+    }
+
+
 def build_empirical_process_expansion_targets(
     tasks: tuple[BenchmarkTask, ...],
     *,
@@ -1749,6 +2097,58 @@ def _empirical_process_external_family_row(
         "seed_registry_status": seed_status,
         "seed_registry_passed": seed_passed,
         "seed_registry_pass_rate": seed_pass_rate,
+    }
+
+
+def _vdvw_inventory_row(
+    spec: Mapping[str, object],
+    task_by_id: Mapping[str, BenchmarkTask],
+    *,
+    markdown_root: str,
+) -> dict[str, object]:
+    benchmark_task_ids = tuple(str(task_id) for task_id in _sequence(spec.get("benchmark_task_ids")))
+    present_task_ids = tuple(task_id for task_id in benchmark_task_ids if task_id in task_by_id)
+    missing_task_ids = tuple(task_id for task_id in benchmark_task_ids if task_id not in task_by_id)
+    missing_definitions = tuple(str(item) for item in _sequence(spec.get("missing_definitions")))
+    semantic_risks = tuple(str(item) for item in _sequence(spec.get("semantic_risks")))
+    current_claim_level = str(spec.get("current_claim_level", ""))
+    promotion_status = (
+        "ready_for_statement_candidate"
+        if not missing_definitions
+        and not semantic_risks
+        and current_claim_level in {"primitive_proof", "deterministic_reduction"}
+        else "blocked_pending_primitives_or_review"
+    )
+    return {
+        "inventory_id": str(spec["inventory_id"]),
+        "source_label": str(spec["source_label"]),
+        "kind": str(spec["kind"]),
+        "title": str(spec["title"]),
+        "chapter": str(spec["chapter"]),
+        "markdown_anchor": {
+            "root": markdown_root,
+            "segment": str(spec["source_segment"]),
+            "line_start": int(spec["source_line_start"]),
+            "line_end": int(spec["source_line_end"]),
+        },
+        "textbook_paraphrase": str(spec["textbook_paraphrase"]),
+        "interface_family": str(spec["interface_family"]),
+        "formalization_tier": str(spec["formalization_tier"]),
+        "current_claim_level": current_claim_level,
+        "current_lean_declarations": [
+            str(declaration)
+            for declaration in _sequence(spec.get("current_lean_declarations"))
+        ],
+        "benchmark_task_ids": list(present_task_ids),
+        "missing_benchmark_task_ids": list(missing_task_ids),
+        "missing_definitions": list(missing_definitions),
+        "semantic_risks": list(semantic_risks),
+        "next_actions": [
+            str(action)
+            for action in _sequence(spec.get("next_actions"))
+        ],
+        "promotion_status": promotion_status,
+        "human_review_required": True,
     }
 
 

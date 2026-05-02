@@ -22,3 +22,5 @@ PYTHONPATH=src "${PYTHON_BIN}" -m statlean_agent.cli search-premises "oracle exc
 PYTHONPATH=src "${PYTHON_BIN}" -m statlean_agent.cli build-training-manifest --benchmarks benchmarks/seeds.jsonl --output /tmp/statlean-training-manifest.json
 PYTHONPATH=src "${PYTHON_BIN}" -m statlean_agent.cli empirical-process-external-slice --output "${TMP_DIR}/empirical-process-external-slice.json"
 cmp "${TMP_DIR}/empirical-process-external-slice.json" artifacts/evaluation/empirical-process-external-slice.json
+PYTHONPATH=src "${PYTHON_BIN}" -m statlean_agent.cli vdvw-theorem-inventory --output "${TMP_DIR}/vdvw-theorem-inventory.json"
+cmp "${TMP_DIR}/vdvw-theorem-inventory.json" artifacts/research/vdvw-theorem-inventory.json

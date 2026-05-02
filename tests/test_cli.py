@@ -28,12 +28,25 @@ def test_cli_blueprint_status(capsys) -> None:
     assert main(["blueprint-status", "--blueprint", "config/statlean_blueprint.json"]) == 0
     output = capsys.readouterr().out
     assert "Current phase: P11" in output
-    assert "Current milestone: P11.M1" in output
+    assert "Current milestone: P11.M2" in output
 
     assert main(["blueprint-status", "--blueprint", "config/statlean_blueprint.json", "--json"]) == 0
     json_output = capsys.readouterr().out
     assert '"current_phase"' in json_output
-    assert '"P11.M1"' in json_output
+    assert '"P11.M2"' in json_output
+
+
+def test_cli_vdvw_theorem_inventory(tmp_path: Path, capsys) -> None:
+    output_path = tmp_path / "vdvw-inventory.json"
+
+    assert main(["vdvw-theorem-inventory", "--output", str(output_path)]) == 0
+
+    output = capsys.readouterr().out
+    report = json.loads(output_path.read_text(encoding="utf-8"))
+    assert "vdvw_theorem_inventory=7" in output
+    assert "blocked_or_review=7" in output
+    assert report["row_count"] == 7
+    assert report["rows"][0]["source_label"] == "Theorem 2.4.1"
 
 
 def test_cli_verify_benchmarks_allow_failures(tmp_path: Path, capsys) -> None:

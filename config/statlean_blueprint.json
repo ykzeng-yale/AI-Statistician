@@ -635,12 +635,19 @@
       "milestones": [
         {
           "id": "P11.M1",
-          "status": "in_progress",
-          "name": "VdV&W theorem inventory and semantic audit slice"
+          "status": "done",
+          "name": "VdV&W theorem inventory and semantic audit slice",
+          "evidence": [
+            "build_vdvw_theorem_inventory generates artifacts/research/vdvw-theorem-inventory.json from benchmarks/seeds.jsonl.",
+            "The inventory contains 7 source-linked VdV&W theorem cards for Theorems 2.4.1, 2.4.3, 2.5.2, 2.5.6, 2.6.4, 2.6.7, and 2.6.8.",
+            "Each row maps textbook anchors to current Lean declarations, benchmark seeds, missing primitives, semantic risks, and next actions.",
+            "All rows remain blocked_pending_primitives_or_review so bridge/certificate interfaces are not overclaimed as exact textbook theorems.",
+            "schemas/vdvw_theorem_inventory.schema.json, Python tests, and smoke determinism checks enforce the checked-in artifact."
+          ]
         },
         {
           "id": "P11.M2",
-          "status": "pending",
+          "status": "in_progress",
           "name": "Source-linked bracketing GC theorem statement candidates"
         },
         {
@@ -650,7 +657,7 @@
         }
       ],
       "next_actions": [
-        "Implement P11.M1 by generating a source-linked VdV&W theorem inventory for bracketing, VC-subgraph, and Donsker targets, mapping each textbook theorem to current Lean declarations, benchmark seeds, missing definitions, and human-review semantic risks."
+        "Implement P11.M2 by promoting the VdV&W Theorem 2.4.1 inventory row into source-linked bracketing GC theorem statement candidates, including primitive L1 bracketing-number signatures, measurability/outer-probability gaps, benchmark seeds, and AXLE/local-Lake validation hooks."
       ]
     }
   ]

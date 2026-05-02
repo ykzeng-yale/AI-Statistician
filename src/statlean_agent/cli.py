@@ -41,6 +41,7 @@ from statlean_agent.evaluation import (
     build_external_baseline_results,
     build_paper_quality_heldout_report,
     build_reproducibility_bundle,
+    build_vdvw_theorem_inventory,
     compare_baseline_on_split,
     evaluate_attempts,
     summarize_benchmark_attempts,
@@ -282,6 +283,21 @@ def main(argv: list[str] | None = None) -> int:
         "--output",
         default="artifacts/evaluation/empirical-process-external-slice.json",
         help="Output empirical-process external slice JSON path.",
+    )
+
+    vdvw_inventory = subparsers.add_parser(
+        "vdvw-theorem-inventory",
+        help="Build the P11 source-linked VdV&W theorem inventory and semantic audit.",
+    )
+    vdvw_inventory.add_argument(
+        "--benchmarks",
+        default="benchmarks/seeds.jsonl",
+        help="BenchmarkTask JSONL path.",
+    )
+    vdvw_inventory.add_argument(
+        "--output",
+        default="artifacts/research/vdvw-theorem-inventory.json",
+        help="Output VdV&W theorem inventory JSON path.",
     )
 
     paper_heldout = subparsers.add_parser(
@@ -902,6 +918,20 @@ def main(argv: list[str] | None = None) -> int:
             f"empirical_process_external_slice={report['target_task_count']} "
             f"families={report['family_count']} ingested={report['ingested_count']} "
             f"blocked={report['blocked_count']} best={report['best_available_baseline']} "
+            f"output={args.output}"
+        )
+        return 0
+
+    if args.command == "vdvw-theorem-inventory":
+        tasks = load_benchmarks(Path(args.benchmarks))
+        report = build_vdvw_theorem_inventory(tasks)
+        output = Path(args.output)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(dumps_json(report) + "\n", encoding="utf-8")
+        print(
+            f"vdvw_theorem_inventory={report['row_count']} "
+            f"families={len(report['family_counts'])} "
+            f"blocked_or_review={len(report['blocked_or_review_rows'])} "
             f"output={args.output}"
         )
         return 0

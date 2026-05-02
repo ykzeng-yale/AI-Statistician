@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "VdVWTheoremInventory",
+  "type": "object",
+  "required": [
+    "report_id",
+    "source",
+    "markdown_root",
+    "row_count",
+    "family_counts",
+    "formalization_tier_counts",
+    "claim_level_counts",
+    "blocked_or_review_rows",
+    "rows",
+    "acceptance_gates",
+    "notes"
+  ],
+  "properties": {
+    "report_id": {"type": "string"},
+    "source": {"type": "string"},
+    "markdown_root": {"type": "string"},
+    "row_count": {"type": "integer"},
+    "family_counts": {"type": "object", "additionalProperties": {"type": "integer"}},
+    "formalization_tier_counts": {"type": "object", "additionalProperties": {"type": "integer"}},
+    "claim_level_counts": {"type": "object", "additionalProperties": {"type": "integer"}},
+    "blocked_or_review_rows": {"type": "array", "items": {"type": "string"}},
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "inventory_id",
+          "source_label",
+          "kind",
+          "title",
+          "chapter",
+          "markdown_anchor",
+          "textbook_paraphrase",
+          "interface_family",
+          "formalization_tier",
+          "current_claim_level",
+          "current_lean_declarations",
+          "benchmark_task_ids",
+          "missing_benchmark_task_ids",
+          "missing_definitions",
+          "semantic_risks",
+          "next_actions",
+          "promotion_status",
+          "human_review_required"
+        ],
+        "properties": {
+          "inventory_id": {"type": "string"},
+          "source_label": {"type": "string"},
+          "kind": {"type": "string"},
+          "title": {"type": "string"},
+          "chapter": {"type": "string"},
+          "markdown_anchor": {
+            "type": "object",
+            "required": ["root", "segment", "line_start", "line_end"],
+            "properties": {
+              "root": {"type": "string"},
+              "segment": {"type": "string"},
+              "line_start": {"type": "integer"},
+              "line_end": {"type": "integer"}
+            },
+            "additionalProperties": false
+          },
+          "textbook_paraphrase": {"type": "string"},
+          "interface_family": {"type": "string"},
+          "formalization_tier": {"type": "string"},
+          "current_claim_level": {"type": "string"},
+          "current_lean_declarations": {"type": "array", "items": {"type": "string"}},
+          "benchmark_task_ids": {"type": "array", "items": {"type": "string"}},
+          "missing_benchmark_task_ids": {"type": "array", "items": {"type": "string"}},
+          "missing_definitions": {"type": "array", "items": {"type": "string"}},
+          "semantic_risks": {"type": "array", "items": {"type": "string"}},
+          "next_actions": {"type": "array", "items": {"type": "string"}},
+          "promotion_status": {"type": "string"},
+          "human_review_required": {"type": "boolean"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "acceptance_gates": {"type": "array", "items": {"type": "string"}},
+    "notes": {"type": "string"}
+  },
+  "additionalProperties": false
+}

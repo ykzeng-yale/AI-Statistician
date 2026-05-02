@@ -218,9 +218,24 @@ Connect the empirical-process layer to the statistics layer:
 - causal/IPW/AIPW examples using the real GC/Donsker constructors rather than
   only abstract bridge fields.
 
+## P11.M1 Status Update
+
+`P11.M1` is complete as a source-linked audit artifact, not as a theorem
+completion claim.  The checked-in inventory at
+`artifacts/research/vdvw-theorem-inventory.json` records seven VdV&W theorem
+cards across bracketing, VC-subgraph, and Donsker targets.  Every row maps a
+local markdown anchor to current Lean declarations, benchmark seeds, missing
+definitions, semantic risks, and next actions.
+
+The inventory deliberately marks every row as
+`blocked_pending_primitives_or_review`.  This prevents bridge/certificate
+interfaces from being treated as exact textbook formalizations before the
+primitive definitions and semantic assumptions are present.
+
 ## Parallel Workstreams
 
-The following can run while another agent works on P11.M1 theorem-atlas code,
+The following can run while another agent works on P11.M2 bracketing GC theorem
+statement candidates,
 with low conflict risk:
 
 1. Textbook theorem atlas extraction in `docs/` or `artifacts/research/`.
@@ -239,15 +254,17 @@ Avoid touching these paths until current P11.M1 edits are synchronized:
 - `benchmarks/seeds.jsonl`
 - checked-in benchmark/evaluation artifacts affected by seed count
 
-## Immediate Promotion Checklist For Active P11.M1
+## Immediate Promotion Checklist For Active P11.M2
 
-Before promoting P11.M1:
+Before promoting P11.M2:
 
-- generate the source-linked theorem inventory artifact from local VdV&W
-  markdown/PDF sources;
-- map each inventory row to current Lean declarations, benchmark seeds, missing
-  definitions, and semantic-risk notes;
-- update tests and schemas for the theorem inventory artifact;
-- update the blueprint evidence for P11.M1;
+- promote VdV&W Theorem 2.4.1 into statement candidates, not a theorem-completion
+  report;
+- draft primitive `L1(P)` bracketing-number signatures and the finite-bracketing
+  GC target statement;
+- keep outer-probability, measurability, empirical-measure, iid-sample, and
+  endpoint-SLLN gaps explicit;
+- connect statement candidates to benchmark seeds and AXLE/local-Lake validation
+  hooks;
 - rerun `.venv/bin/pytest`, `PYTHON=.venv/bin/python bash scripts/smoke.sh`, and
   `lake build`.

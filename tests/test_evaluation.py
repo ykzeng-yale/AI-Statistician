@@ -21,6 +21,7 @@ from statlean_agent.evaluation import (
     build_external_baseline_results,
     build_paper_quality_heldout_report,
     build_reproducibility_bundle,
+    build_vdvw_theorem_inventory,
     compare_baseline_on_split,
     evaluate_attempts,
     summarize_benchmark_attempts,
@@ -1038,6 +1039,51 @@ def test_checked_in_empirical_process_external_slice_artifact() -> None:
     assert set(report) <= set(schema["properties"])
 
 
+def test_build_vdvw_theorem_inventory_maps_textbook_anchors_to_benchmarks() -> None:
+    report = build_vdvw_theorem_inventory(SEED_BENCHMARKS)
+
+    assert report["report_id"] == "vdvw-theorem-inventory::p11.m1"
+    assert report["row_count"] == 7
+    assert report["family_counts"] == {"bracketing": 2, "donsker": 3, "vc_subgraph": 2}
+    assert report["formalization_tier_counts"]["primitive_candidate"] == 1
+    assert len(report["blocked_or_review_rows"]) == 7
+    assert all(row["human_review_required"] is True for row in report["rows"])
+    assert all(
+        row["promotion_status"] == "blocked_pending_primitives_or_review"
+        for row in report["rows"]
+    )
+    assert all(not row["missing_benchmark_task_ids"] for row in report["rows"])
+
+    rows = {row["inventory_id"]: row for row in report["rows"]}
+    bracketing_gc = rows["vdvw-2.4.1-finite-bracketing-gc"]
+    assert bracketing_gc["source_label"] == "Theorem 2.4.1"
+    assert bracketing_gc["markdown_anchor"]["line_start"] == 970
+    assert "bracketing_deterministic_bound_seed" in bracketing_gc["benchmark_task_ids"]
+    assert "StatInference.FiniteL1BracketingFamily" in bracketing_gc["current_lean_declarations"]
+    assert any("outer-probability" in risk for risk in bracketing_gc["semantic_risks"])
+
+
+def test_checked_in_vdvw_theorem_inventory_artifact() -> None:
+    report = json.loads(Path("artifacts/research/vdvw-theorem-inventory.json").read_text(encoding="utf-8"))
+    schema = json.loads(Path("schemas/vdvw_theorem_inventory.schema.json").read_text(encoding="utf-8"))
+
+    assert report["report_id"] == "vdvw-theorem-inventory::p11.m1"
+    assert report["source"] == "van der Vaart and Wellner, Weak Convergence and Empirical Processes"
+    assert report["row_count"] == 7
+    assert report["family_counts"] == {"bracketing": 2, "donsker": 3, "vc_subgraph": 2}
+    assert len(report["blocked_or_review_rows"]) == 7
+    assert all(row["human_review_required"] for row in report["rows"])
+    assert all(
+        row["promotion_status"] == "blocked_pending_primitives_or_review"
+        for row in report["rows"]
+    )
+    rows = {row["source_label"]: row for row in report["rows"]}
+    assert rows["Theorem 2.4.1"]["markdown_anchor"]["line_start"] == 970
+    assert rows["Theorem 2.6.8"]["markdown_anchor"]["line_start"] == 1520
+    assert "P11.M1 inventory" in report["notes"]
+    assert set(report) <= set(schema["properties"])
+
+
 def test_checked_in_theorem_hole_promotion_queue_artifact() -> None:
     report = json.loads(Path("artifacts/curation/theorem-hole-promotion-queue.json").read_text(encoding="utf-8"))
     schema = json.loads(Path("schemas/theorem_hole_promotion_queue.schema.json").read_text(encoding="utf-8"))
@@ -1071,11 +1117,12 @@ def test_checked_in_reproducibility_bundle_artifact() -> None:
     assert "artifacts/evaluation/external-baseline-results.json" in artifact_paths
     assert "artifacts/evaluation/empirical-process-targets.json" in artifact_paths
     assert "artifacts/evaluation/empirical-process-external-slice.json" in artifact_paths
+    assert "artifacts/research/vdvw-theorem-inventory.json" in artifact_paths
     assert "artifacts/curation/theorem-hole-promotion-queue.json" in artifact_paths
     assert all(len(artifact["sha256"]) == 64 for artifact in report["artifacts"])
     assert any(command["name"] == "smoke" for command in report["validation_commands"])
     assert any(command["name"] == "forbidden_lean_shortcuts" for command in report["validation_commands"])
-    assert report["current_milestone"]["id"] == "P11.M1"
+    assert report["current_milestone"]["id"] == "P11.M2"
     assert set(report) <= set(schema["properties"])
 
 
