@@ -26,3 +26,5 @@ PYTHONPATH=src "${PYTHON_BIN}" -m statlean_agent.cli vdvw-theorem-inventory --ou
 cmp "${TMP_DIR}/vdvw-theorem-inventory.json" artifacts/research/vdvw-theorem-inventory.json
 PYTHONPATH=src "${PYTHON_BIN}" -m statlean_agent.cli vdvw-bracketing-gc-statements --output "${TMP_DIR}/vdvw-bracketing-gc-statement-candidates.json"
 cmp "${TMP_DIR}/vdvw-bracketing-gc-statement-candidates.json" artifacts/research/vdvw-bracketing-gc-statement-candidates.json
+PYTHONPATH=src "${PYTHON_BIN}" -m statlean_agent.cli vdvw-vc-donsker-obligations --output "${TMP_DIR}/vdvw-vc-donsker-proof-obligations.json"
+cmp "${TMP_DIR}/vdvw-vc-donsker-proof-obligations.json" artifacts/research/vdvw-vc-donsker-proof-obligations.json

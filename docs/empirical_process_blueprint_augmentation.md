@@ -249,10 +249,28 @@ Every candidate records source anchors, target Lean names, proof obligations,
 benchmark seeds, local Lake hooks, optional AXLE hooks, semantic risks, and a
 promotion gate.
 
+## P11.M3 Status Update
+
+`P11.M3` is complete as a proof-obligation artifact, not as any VC or Donsker
+theorem-completion claim.  The checked-in artifact at
+`artifacts/research/vdvw-vc-donsker-proof-obligations.json` records five guarded
+tracks:
+
+- VC set-class entropy for VdV&W Theorem 2.6.4;
+- VC-subgraph envelope-scaled entropy for Theorem 2.6.7;
+- uniform-entropy Donsker for Theorem 2.5.2;
+- bracketing Donsker for Theorem 2.5.6;
+- VC-subgraph Donsker with pre-Gaussian and weak-tail assumptions for
+  Theorem 2.6.8.
+
+The main guardrail is explicit: GC certificates, VC entropy obligations, and
+Donsker weak-convergence evidence are different layers and must not be collapsed
+into one certificate.
+
 ## Parallel Workstreams
 
-The following can run while another agent works on P11.M3 VC/Donsker
-proof-obligation candidates,
+The following can run while another agent works on P12 primitive empirical
+process semantics,
 with low conflict risk:
 
 1. Textbook theorem atlas extraction in `docs/` or `artifacts/research/`.
@@ -264,23 +282,22 @@ with low conflict risk:
 5. New theorem-statement drafts in documentation, not Lean source, for
    bracketing GC and finite-class GC constructor theorems.
 
-Avoid touching these paths until current P11.M3 edits are synchronized:
+Avoid touching these paths until current P12.M1 edits are synchronized:
 
 - `StatInference/EmpiricalProcess/Complexity.lean`
 - `src/statlean_agent/benchmarks.py`
 - `benchmarks/seeds.jsonl`
 - checked-in benchmark/evaluation artifacts affected by seed count
 
-## Immediate Promotion Checklist For Active P11.M3
+## Immediate Promotion Checklist For Active P12.M1
 
-Before promoting P11.M3:
+Before promoting P12.M1:
 
-- promote VC-subgraph and Donsker inventory rows into proof-obligation
-  candidates, not theorem-completion reports;
-- separate VC set-class entropy, VC-subgraph envelope/measurability, and
-  Donsker tightness/pre-Gaussian obligations;
-- keep GC consequences distinct from Donsker consequences;
-- connect each proof-obligation candidate to benchmark seeds and
-  AXLE/local-Lake validation hooks;
+- design checked-in primitive empirical sample and outer-convergence semantics;
+- map VdV&W GC/Donsker theorem-card gaps to concrete Lean API signatures;
+- specify theorem-hole seeds for empirical measure, outer supremum norm,
+  outer probability, iid sample model, and endpoint SLLN handoff;
+- keep all files in English and avoid committing local textbook assets or API
+  secrets;
 - rerun `.venv/bin/pytest`, `PYTHON=.venv/bin/python bash scripts/smoke.sh`, and
   `lake build`.

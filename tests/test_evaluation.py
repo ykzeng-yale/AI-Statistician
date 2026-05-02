@@ -23,6 +23,7 @@ from statlean_agent.evaluation import (
     build_reproducibility_bundle,
     build_vdvw_bracketing_gc_statement_candidates,
     build_vdvw_theorem_inventory,
+    build_vdvw_vc_donsker_proof_obligations,
     compare_baseline_on_split,
     evaluate_attempts,
     summarize_benchmark_attempts,
@@ -1134,6 +1135,58 @@ def test_checked_in_vdvw_bracketing_gc_statement_candidates_artifact() -> None:
     assert set(report) <= set(schema["properties"])
 
 
+def test_build_vdvw_vc_donsker_proof_obligations() -> None:
+    report = build_vdvw_vc_donsker_proof_obligations(SEED_BENCHMARKS)
+
+    assert report["report_id"] == "vdvw-vc-donsker-proof-obligations::p11.m3"
+    assert report["obligation_count"] == 5
+    assert report["track_counts"] == {
+        "bracketing_donsker": 1,
+        "uniform_entropy_donsker": 1,
+        "vc_set_entropy": 1,
+        "vc_subgraph_donsker": 1,
+        "vc_subgraph_entropy": 1,
+    }
+    assert len(report["blocked_obligations"]) == 5
+    assert {anchor["label"] for anchor in report["source_anchors"]} >= {
+        "Theorem 2.5.2",
+        "Theorem 2.6.4",
+        "Theorem 2.6.8",
+    }
+    assert all(obligation["human_review_required"] for obligation in report["obligations"])
+    assert all(not obligation["missing_benchmark_task_ids"] for obligation in report["obligations"])
+
+    obligations = {obligation["obligation_id"]: obligation for obligation in report["obligations"]}
+    vc_set = obligations["vdvw-2.6.4-vc-set-entropy-obligations"]
+    assert "set-class shattering predicate" in vc_set["required_primitives"]
+    assert "vc_deviation_certificate_gc_seed" in vc_set["benchmark_task_ids"]
+    donsker = obligations["vdvw-2.5.2-uniform-entropy-donsker-obligations"]
+    assert "StatInference.DonskerSpec" in donsker["current_lean_handoffs"]
+    assert any("Donsker is strictly stronger than GC" in risk for risk in donsker["semantic_risks"])
+
+
+def test_checked_in_vdvw_vc_donsker_proof_obligations_artifact() -> None:
+    report = json.loads(
+        Path("artifacts/research/vdvw-vc-donsker-proof-obligations.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    schema = json.loads(
+        Path("schemas/vdvw_vc_donsker_proof_obligations.schema.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    assert report["report_id"] == "vdvw-vc-donsker-proof-obligations::p11.m3"
+    assert report["obligation_count"] == 5
+    assert len(report["source_inventory_ids"]) == 5
+    assert report["source_anchors"][0]["markdown_anchor"]["line_start"] == 1106
+    assert report["source_anchors"][4]["markdown_anchor"]["line_start"] == 1520
+    assert len(report["blocked_obligations"]) == 5
+    assert "P11.M3 source-links" in report["notes"]
+    assert set(report) <= set(schema["properties"])
+
+
 def test_checked_in_theorem_hole_promotion_queue_artifact() -> None:
     report = json.loads(Path("artifacts/curation/theorem-hole-promotion-queue.json").read_text(encoding="utf-8"))
     schema = json.loads(Path("schemas/theorem_hole_promotion_queue.schema.json").read_text(encoding="utf-8"))
@@ -1169,11 +1222,12 @@ def test_checked_in_reproducibility_bundle_artifact() -> None:
     assert "artifacts/evaluation/empirical-process-external-slice.json" in artifact_paths
     assert "artifacts/research/vdvw-theorem-inventory.json" in artifact_paths
     assert "artifacts/research/vdvw-bracketing-gc-statement-candidates.json" in artifact_paths
+    assert "artifacts/research/vdvw-vc-donsker-proof-obligations.json" in artifact_paths
     assert "artifacts/curation/theorem-hole-promotion-queue.json" in artifact_paths
     assert all(len(artifact["sha256"]) == 64 for artifact in report["artifacts"])
     assert any(command["name"] == "smoke" for command in report["validation_commands"])
     assert any(command["name"] == "forbidden_lean_shortcuts" for command in report["validation_commands"])
-    assert report["current_milestone"]["id"] == "P11.M3"
+    assert report["current_milestone"]["id"] == "P12.M1"
     assert set(report) <= set(schema["properties"])
 
 

@@ -630,7 +630,7 @@
     {
       "id": "P11",
       "name": "Textbook-Grounded Empirical-Process Theorem Promotion",
-      "status": "in_progress",
+      "status": "done",
       "objective": "Use the local VdV&W textbook markdown and AXLE-assisted Lean extraction/checking to promote abstract empirical-process interfaces into source-linked theorem statements and proof-obligation inventories without semantic drift.",
       "milestones": [
         {
@@ -659,12 +659,45 @@
         },
         {
           "id": "P11.M3",
-          "status": "in_progress",
-          "name": "Source-linked VC and Donsker proof-obligation candidates"
+          "status": "done",
+          "name": "Source-linked VC and Donsker proof-obligation candidates",
+          "evidence": [
+            "build_vdvw_vc_donsker_proof_obligations generates artifacts/research/vdvw-vc-donsker-proof-obligations.json.",
+            "The artifact covers VdV&W Theorems 2.5.2, 2.5.6, 2.6.4, 2.6.7, and 2.6.8 with five guarded proof-obligation cards.",
+            "The cards separate VC set entropy, VC-subgraph entropy, uniform-entropy Donsker, bracketing Donsker, and VC-subgraph Donsker tracks.",
+            "Each card records missing Lean primitives, proof obligations, current handoff declarations, benchmark seeds, validation hooks, semantic risks, and promotion gates.",
+            "schemas/vdvw_vc_donsker_proof_obligations.schema.json, Python tests, and smoke determinism checks enforce the checked-in artifact."
+          ]
         }
       ],
       "next_actions": [
-        "Implement P11.M3 by promoting the VdV&W VC-subgraph and Donsker inventory rows into source-linked proof-obligation candidates, separating VC entropy obligations, pre-Gaussian/tightness assumptions, and Donsker-to-inference handoff hooks."
+        "P11 is complete; continue to P12 primitive empirical-process semantics."
+      ]
+    },
+    {
+      "id": "P12",
+      "name": "Primitive Empirical-Process Semantics",
+      "status": "in_progress",
+      "objective": "Move from source-linked theorem cards to Lean-level primitive semantics for empirical samples, outer convergence, bracketing numbers, and theorem-hole seeds needed to eventually prove VdV&W 2.4.1 and downstream VC/Donsker routes.",
+      "milestones": [
+        {
+          "id": "P12.M1",
+          "status": "in_progress",
+          "name": "Primitive empirical sample and outer-convergence design artifact"
+        },
+        {
+          "id": "P12.M2",
+          "status": "pending",
+          "name": "Lean signatures for L1 bracketing-number constructor"
+        },
+        {
+          "id": "P12.M3",
+          "status": "pending",
+          "name": "Endpoint SLLN to finite-bracketing theorem-hole seeds"
+        }
+      ],
+      "next_actions": [
+        "Implement P12.M1 by designing a checked-in primitive empirical sample and outer-convergence semantics artifact that maps VdV&W GC/Donsker theorem-card gaps to concrete Lean API signatures and benchmark/theorem-hole seeds."
       ]
     }
   ]

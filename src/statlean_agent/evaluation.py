@@ -89,6 +89,7 @@ DEFAULT_REPRODUCIBILITY_ARTIFACTS = (
     "artifacts/evaluation/empirical-process-external-slice.json",
     "artifacts/research/vdvw-theorem-inventory.json",
     "artifacts/research/vdvw-bracketing-gc-statement-candidates.json",
+    "artifacts/research/vdvw-vc-donsker-proof-obligations.json",
     "artifacts/training/manifest.json",
     "artifacts/training/dpo-negative-attempts.jsonl",
     "artifacts/training/dpo-negative-reports.jsonl",
@@ -703,6 +704,289 @@ DEFAULT_VDVW_BRACKETING_GC_STATEMENT_CANDIDATES = (
         "promotion_gate": (
             "Do not promote as exact theorem until outer probability, empirical measure, and measurable-class primitives compile.",
         ),
+    },
+)
+
+DEFAULT_VDVW_VC_DONSKER_SOURCE_ANCHORS = (
+    {
+        "anchor_id": "vdvw-2.5.2-uniform-entropy-donsker",
+        "label": "Theorem 2.5.2",
+        "segment": "Vaart 1996 Weak Convergence and Emperical Process_101-200.md",
+        "line_start": 1106,
+        "line_end": 1118,
+        "purpose": "uniform entropy condition to P-Donsker theorem target",
+    },
+    {
+        "anchor_id": "vdvw-2.5.6-bracketing-donsker",
+        "label": "Theorem 2.5.6",
+        "segment": "Vaart 1996 Weak Convergence and Emperical Process_101-200.md",
+        "line_start": 1204,
+        "line_end": 1220,
+        "purpose": "bracketing entropy integral to P-Donsker theorem target",
+    },
+    {
+        "anchor_id": "vdvw-2.6.4-vc-set-covering",
+        "label": "Theorem 2.6.4",
+        "segment": "Vaart 1996 Weak Convergence and Emperical Process_101-200.md",
+        "line_start": 1378,
+        "line_end": 1383,
+        "purpose": "VC set class polynomial covering-number bound",
+    },
+    {
+        "anchor_id": "vdvw-2.6.7-vc-subgraph-covering",
+        "label": "Theorem 2.6.7",
+        "segment": "Vaart 1996 Weak Convergence and Emperical Process_101-200.md",
+        "line_start": 1490,
+        "line_end": 1497,
+        "purpose": "VC-subgraph envelope-scaled covering-number bound",
+    },
+    {
+        "anchor_id": "vdvw-2.6.8-vc-subgraph-donsker",
+        "label": "Theorem 2.6.8",
+        "segment": "Vaart 1996 Weak Convergence and Emperical Process_101-200.md",
+        "line_start": 1520,
+        "line_end": 1524,
+        "purpose": "pointwise separable pre-Gaussian VC class with weak envelope tail is P-Donsker",
+    },
+)
+
+DEFAULT_VDVW_VC_DONSKER_PROOF_OBLIGATIONS = (
+    {
+        "obligation_id": "vdvw-2.6.4-vc-set-entropy-obligations",
+        "source_label": "Theorem 2.6.4",
+        "track": "vc_set_entropy",
+        "status": "blocked_pending_vc_primitives",
+        "target_lean_names": (
+            "StatInference.VCSetClassSpec",
+            "StatInference.VCSetCoveringNumberBound",
+            "StatInference.vdvw_2_6_4_vc_set_covering_bound",
+        ),
+        "formal_goal": (
+            "Construct a polynomial Lr(Q) covering-number bound for VC set "
+            "classes from shattering and Sauer-style growth control."
+        ),
+        "required_primitives": (
+            "set-class shattering predicate",
+            "VC index or VC dimension for measurable set classes",
+            "growth function Delta_n(C, x_1, ..., x_n)",
+            "Sauer-Shelah growth bound",
+            "Lr(Q) covering number for indicator set classes",
+        ),
+        "proof_obligations": (
+            "reduce arbitrary probability measures to empirical-type measures",
+            "translate set symmetric-difference distance into indicator Lr distance",
+            "apply growth-function bound to construct a finite cover",
+            "track universal constants without hiding theorem assumptions",
+        ),
+        "current_lean_handoffs": (
+            "StatInference.VCSubgraphProofObligations",
+            "StatInference.VCSubgraphSpec",
+            "StatInference.VCSubgraphGCRoute",
+        ),
+        "benchmark_task_ids": (
+            "vc_deviation_certificate_gc_seed",
+            "vc_subgraph_route_certificate_seed",
+            "trivial_vc_subgraph_gc_non_vacuity_seed",
+        ),
+        "validation_hooks": (
+            "render and verify vc_deviation_certificate_gc_seed",
+            "extract_decls on StatInference/EmpiricalProcess/VCSubgraph.lean",
+            "run local no-sorry scan before any Lean promotion",
+        ),
+        "semantic_risks": (
+            "Current VCSubgraphSpec is metadata and does not prove shattering or Sauer bounds.",
+            "Set-class VC entropy must stay separate from real-valued VC-subgraph entropy.",
+        ),
+        "promotion_gate": "Add theorem-hole signatures first; do not claim a VC entropy theorem until shattering and covering-number primitives compile.",
+    },
+    {
+        "obligation_id": "vdvw-2.6.7-vc-subgraph-entropy-obligations",
+        "source_label": "Theorem 2.6.7",
+        "track": "vc_subgraph_entropy",
+        "status": "blocked_pending_subgraph_envelope_primitives",
+        "target_lean_names": (
+            "StatInference.VCSubgraphEntropyObligations",
+            "StatInference.VCSubgraphEnvelopeCoveringBound",
+            "StatInference.vdvw_2_6_7_vc_subgraph_covering_bound",
+        ),
+        "formal_goal": (
+            "Lift the VC set-class covering bound to real-valued VC-subgraph "
+            "classes with measurable envelope and envelope-scaled Lr(Q) radius."
+        ),
+        "required_primitives": (
+            "subgraph set associated with a real-valued function",
+            "measurable envelope and positive Lr(Q) envelope norm",
+            "product measure with Lebesgue measure on the real line",
+            "Fubini identity connecting Q|f-g| and subgraph symmetric difference",
+            "envelope-weighted probability renormalization",
+        ),
+        "proof_obligations": (
+            "prove subgraphs form a VC set class with the stated VC index",
+            "derive the L1(Q) covering bound through product-measure geometry",
+            "lift from r = 1 to general r >= 1 through envelope weighting",
+            "preserve envelope measurability and nonzero-norm side conditions",
+        ),
+        "current_lean_handoffs": (
+            "StatInference.VCSubgraphProofObligations",
+            "StatInference.VCDeviationCertificate",
+            "StatInference.VCSubgraphGCRoute.toVCDeviationCertificate",
+        ),
+        "benchmark_task_ids": (
+            "vc_subgraph_route_certificate_seed",
+            "vc_deviation_certificate_gc_seed",
+        ),
+        "validation_hooks": (
+            "render and verify vc_subgraph_route_certificate_seed",
+            "check that VCDeviationCertificate remains proof-carrying",
+            "AXLE check only after local Lake accepts candidate signatures",
+        ),
+        "semantic_risks": (
+            "Dropping the measurable-envelope condition changes the theorem.",
+            "A generic VCSubgraphGCRoute cannot be reused as evidence for the entropy theorem.",
+        ),
+        "promotion_gate": "Promote only after set-class VC entropy and subgraph/envelope primitives are explicit.",
+    },
+    {
+        "obligation_id": "vdvw-2.5.2-uniform-entropy-donsker-obligations",
+        "source_label": "Theorem 2.5.2",
+        "track": "uniform_entropy_donsker",
+        "status": "blocked_pending_donsker_semantics",
+        "target_lean_names": (
+            "StatInference.UniformEntropyDonskerObligations",
+            "StatInference.vdvw_2_5_2_uniform_entropy_donsker",
+        ),
+        "formal_goal": (
+            "Construct P-Donsker weak convergence from the uniform entropy "
+            "condition, measurability of local difference classes, and a "
+            "square-integrable envelope."
+        ),
+        "required_primitives": (
+            "uniform entropy integral over finitely discrete Q",
+            "L2(P) semimetric and local class F_delta",
+            "outer measurability for F_delta and F_infty^2",
+            "empirical process as random element in ell-infinity(F)",
+            "tight Brownian bridge or pre-Gaussian target process",
+        ),
+        "proof_obligations": (
+            "formalize symmetrization and Rademacher sub-Gaussian process bound",
+            "connect maximal inequality to asymptotic equicontinuity",
+            "prove finite-dimensional convergence or consume a CLT field",
+            "assemble weak convergence and tightness into DonskerSpec",
+        ),
+        "current_lean_handoffs": (
+            "StatInference.DonskerSpec",
+            "StatInference.DonskerBridgeCertificate",
+            "StatInference.DonskerAsymptoticNormalityRoute",
+        ),
+        "benchmark_task_ids": (
+            "donsker_statement_seed",
+            "donsker_bridge_gc_projection_seed",
+            "donsker_bridge_estimator_clt_seed",
+        ),
+        "validation_hooks": (
+            "render and verify donsker_statement_seed",
+            "keep DonskerSpec as consumed weak-convergence evidence until primitives exist",
+            "avoid converting GC-only certificates into Donsker evidence",
+        ),
+        "semantic_risks": (
+            "Donsker is strictly stronger than GC and cannot be inferred from current GC certificates.",
+            "Current DonskerSpec stores a weak-convergence statement but does not construct it from entropy.",
+        ),
+        "promotion_gate": "Keep as proof-obligation card until empirical-process weak convergence and tightness APIs exist.",
+    },
+    {
+        "obligation_id": "vdvw-2.5.6-bracketing-donsker-obligations",
+        "source_label": "Theorem 2.5.6",
+        "track": "bracketing_donsker",
+        "status": "blocked_pending_entropy_integral_primitives",
+        "target_lean_names": (
+            "StatInference.BracketingDonskerObligations",
+            "StatInference.vdvw_2_5_6_bracketing_entropy_donsker",
+        ),
+        "formal_goal": (
+            "Construct P-Donsker weak convergence from finite L2 and weak-L2 "
+            "bracketing/covering entropy integrals plus weak second moment."
+        ),
+        "required_primitives": (
+            "L2(P) bracketing/covering entropy integral",
+            "L2,infty(P) weak bracketing entropy integral",
+            "weak second-moment envelope condition",
+            "partition-chain construction over the function class",
+            "Donsker weak convergence target in function space",
+        ),
+        "proof_obligations": (
+            "construct finite partitions with summable entropy weights",
+            "prove chaining bounds for empirical-process increments",
+            "handle truncation through weak second-moment envelope control",
+            "produce DonskerBridgeCertificate only after weak convergence is constructed",
+        ),
+        "current_lean_handoffs": (
+            "StatInference.BracketingNumberSpec",
+            "StatInference.DonskerBridgeCertificate",
+            "StatInference.DonskerAsymptoticNormalityRoute.asymptoticNormal",
+        ),
+        "benchmark_task_ids": (
+            "bracketing_certificate_gc_seed",
+            "donsker_asymptotic_normality_handoff_seed",
+            "trivial_donsker_asymptotic_normality_seed",
+        ),
+        "validation_hooks": (
+            "render and verify bracketing_certificate_gc_seed",
+            "render and verify donsker_asymptotic_normality_handoff_seed",
+            "do not reuse bracketing GC certificate as Donsker proof",
+        ),
+        "semantic_risks": (
+            "Bracketing GC infrastructure is insufficient for bracketing Donsker.",
+            "Entropy-integral finiteness and weak second moment are not encoded in BracketingNumberSpec.",
+        ),
+        "promotion_gate": "Promote only after entropy-integral APIs and Donsker weak-convergence target are explicit.",
+    },
+    {
+        "obligation_id": "vdvw-2.6.8-vc-subgraph-donsker-obligations",
+        "source_label": "Theorem 2.6.8",
+        "track": "vc_subgraph_donsker",
+        "status": "blocked_pending_pregaussian_tail_layer",
+        "target_lean_names": (
+            "StatInference.VCSubgraphDonskerObligations",
+            "StatInference.vdvw_2_6_8_vc_subgraph_donsker",
+        ),
+        "formal_goal": (
+            "Construct P-Donsker for pointwise separable, P-pre-Gaussian "
+            "VC-subgraph classes under a weak second-moment envelope tail."
+        ),
+        "required_primitives": (
+            "pointwise separability",
+            "P-pre-Gaussian process indexed by a function class",
+            "weak second-moment envelope tail P*(F > x) = o(x^-2)",
+            "bridge from VC entropy plus pre-Gaussianity to asymptotic tightness",
+            "Donsker constructor from finite-dimensional convergence and tightness",
+        ),
+        "proof_obligations": (
+            "reuse VC-subgraph entropy only as an input obligation",
+            "separate finite-second-moment shortcut through Theorem 2.5.2 from weak-tail refinement",
+            "encode Alexander refinement as a theorem card until proof infrastructure exists",
+            "connect finished Donsker proof to estimator normality only through DonskerAsymptoticNormalityRoute",
+        ),
+        "current_lean_handoffs": (
+            "StatInference.VCSubgraphGCRoute",
+            "StatInference.DonskerBridgeCertificate",
+            "StatInference.DonskerAsymptoticNormalityRoute",
+        ),
+        "benchmark_task_ids": (
+            "vc_subgraph_route_certificate_seed",
+            "donsker_bridge_estimator_clt_seed",
+            "donsker_asymptotic_normality_handoff_seed",
+        ),
+        "validation_hooks": (
+            "render and verify vc_subgraph_route_certificate_seed",
+            "render and verify donsker_bridge_estimator_clt_seed",
+            "check that Donsker handoff remains separate from VC GC route",
+        ),
+        "semantic_risks": (
+            "The theorem has stronger assumptions than VC-subgraph GC.",
+            "Pre-Gaussianity and weak-tail assumptions cannot be replaced by current VCSubgraphGCRoute metadata.",
+        ),
+        "promotion_gate": "Keep as theorem card until pre-Gaussian, weak-tail, and Donsker semantics compile.",
     },
 )
 
@@ -1778,6 +2062,82 @@ def build_vdvw_bracketing_gc_statement_candidates(
     }
 
 
+def build_vdvw_vc_donsker_proof_obligations(
+    tasks: tuple[BenchmarkTask, ...],
+    *,
+    obligation_specs: tuple[Mapping[str, object], ...] = DEFAULT_VDVW_VC_DONSKER_PROOF_OBLIGATIONS,
+    source_anchors: tuple[Mapping[str, object], ...] = DEFAULT_VDVW_VC_DONSKER_SOURCE_ANCHORS,
+    markdown_root: str = VDVW_MARKDOWN_ROOT,
+) -> dict[str, object]:
+    """Build P11.M3 proof-obligation cards for VdV&W VC/Donsker targets."""
+
+    task_by_id = _task_index(tasks)
+    obligations = [
+        _vdvw_proof_obligation_row(spec, task_by_id)
+        for spec in obligation_specs
+    ]
+    status_counts: dict[str, int] = {}
+    track_counts: dict[str, int] = {}
+    for obligation in obligations:
+        status = str(obligation["status"])
+        track = str(obligation["track"])
+        status_counts[status] = status_counts.get(status, 0) + 1
+        track_counts[track] = track_counts.get(track, 0) + 1
+
+    return {
+        "report_id": "vdvw-vc-donsker-proof-obligations::p11.m3",
+        "source_inventory_ids": [
+            "vdvw-2.5.2-uniform-entropy-donsker",
+            "vdvw-2.5.6-bracketing-donsker",
+            "vdvw-2.6.4-vc-set-entropy",
+            "vdvw-2.6.7-vc-subgraph-entropy",
+            "vdvw-2.6.8-vc-subgraph-donsker",
+        ],
+        "source": "van der Vaart and Wellner, Weak Convergence and Empirical Processes",
+        "markdown_root": markdown_root,
+        "source_anchors": [
+            {
+                "anchor_id": str(anchor["anchor_id"]),
+                "label": str(anchor["label"]),
+                "markdown_anchor": {
+                    "root": markdown_root,
+                    "segment": str(anchor["segment"]),
+                    "line_start": int(anchor["line_start"]),
+                    "line_end": int(anchor["line_end"]),
+                },
+                "purpose": str(anchor["purpose"]),
+            }
+            for anchor in source_anchors
+        ],
+        "obligation_count": len(obligations),
+        "status_counts": dict(sorted(status_counts.items())),
+        "track_counts": dict(sorted(track_counts.items())),
+        "blocked_obligations": [
+            str(obligation["obligation_id"])
+            for obligation in obligations
+            if str(obligation["status"]).startswith("blocked")
+        ],
+        "obligations": obligations,
+        "acceptance_gates": [
+            "This artifact records proof obligations only; it is not a theorem-completion report.",
+            "VC set-class entropy, VC-subgraph entropy, and Donsker weak convergence must stay separate.",
+            "A GC certificate must not be promoted into Donsker evidence.",
+            "Pre-Gaussianity, tightness, weak envelope tails, separability, and outer measurability must be explicit before exact theorem promotion.",
+            "AXLE may assist extraction/checking, but local Lake and no-shortcut scans remain the acceptance authority.",
+        ],
+        "next_actions": [
+            "Start P12.M1 by designing primitive empirical sample and outer-convergence semantics.",
+            "Add theorem-hole benchmarks for VC set entropy, VC-subgraph entropy, and Donsker weak-convergence constructors.",
+            "Keep downstream estimator normality handoffs behind DonskerAsymptoticNormalityRoute until a real Donsker constructor is available.",
+        ],
+        "notes": (
+            "P11.M3 source-links VdV&W VC and Donsker targets to the "
+            "missing Lean primitives and proof obligations needed before "
+            "any exact theorem claim."
+        ),
+    }
+
+
 def build_empirical_process_expansion_targets(
     tasks: tuple[BenchmarkTask, ...],
     *,
@@ -2462,6 +2822,50 @@ def _vdvw_statement_candidate_row(
         "axle_validation_hooks": [
             str(item)
             for item in _sequence(spec.get("axle_validation_hooks"))
+        ],
+        "semantic_risks": [
+            str(item)
+            for item in _sequence(spec.get("semantic_risks"))
+        ],
+        "promotion_gate": str(spec["promotion_gate"]),
+        "human_review_required": True,
+    }
+
+
+def _vdvw_proof_obligation_row(
+    spec: Mapping[str, object],
+    task_by_id: Mapping[str, BenchmarkTask],
+) -> dict[str, object]:
+    benchmark_task_ids = tuple(str(task_id) for task_id in _sequence(spec.get("benchmark_task_ids")))
+    present_task_ids = tuple(task_id for task_id in benchmark_task_ids if task_id in task_by_id)
+    missing_task_ids = tuple(task_id for task_id in benchmark_task_ids if task_id not in task_by_id)
+    return {
+        "obligation_id": str(spec["obligation_id"]),
+        "source_label": str(spec["source_label"]),
+        "track": str(spec["track"]),
+        "status": str(spec["status"]),
+        "target_lean_names": [
+            str(name)
+            for name in _sequence(spec.get("target_lean_names"))
+        ],
+        "formal_goal": str(spec["formal_goal"]),
+        "required_primitives": [
+            str(item)
+            for item in _sequence(spec.get("required_primitives"))
+        ],
+        "proof_obligations": [
+            str(item)
+            for item in _sequence(spec.get("proof_obligations"))
+        ],
+        "current_lean_handoffs": [
+            str(item)
+            for item in _sequence(spec.get("current_lean_handoffs"))
+        ],
+        "benchmark_task_ids": list(present_task_ids),
+        "missing_benchmark_task_ids": list(missing_task_ids),
+        "validation_hooks": [
+            str(item)
+            for item in _sequence(spec.get("validation_hooks"))
         ],
         "semantic_risks": [
             str(item)

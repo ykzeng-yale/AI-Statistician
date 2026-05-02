@@ -43,6 +43,7 @@ from statlean_agent.evaluation import (
     build_reproducibility_bundle,
     build_vdvw_bracketing_gc_statement_candidates,
     build_vdvw_theorem_inventory,
+    build_vdvw_vc_donsker_proof_obligations,
     compare_baseline_on_split,
     evaluate_attempts,
     summarize_benchmark_attempts,
@@ -314,6 +315,21 @@ def main(argv: list[str] | None = None) -> int:
         "--output",
         default="artifacts/research/vdvw-bracketing-gc-statement-candidates.json",
         help="Output bracketing GC statement-candidates JSON path.",
+    )
+
+    vdvw_vc_donsker = subparsers.add_parser(
+        "vdvw-vc-donsker-obligations",
+        help="Build P11.M3 VdV&W VC-subgraph and Donsker proof-obligation candidates.",
+    )
+    vdvw_vc_donsker.add_argument(
+        "--benchmarks",
+        default="benchmarks/seeds.jsonl",
+        help="BenchmarkTask JSONL path.",
+    )
+    vdvw_vc_donsker.add_argument(
+        "--output",
+        default="artifacts/research/vdvw-vc-donsker-proof-obligations.json",
+        help="Output VC/Donsker proof-obligation JSON path.",
     )
 
     paper_heldout = subparsers.add_parser(
@@ -962,6 +978,20 @@ def main(argv: list[str] | None = None) -> int:
             f"vdvw_bracketing_gc_statement_candidates={report['candidate_count']} "
             f"tracks={len(report['track_counts'])} "
             f"blocked_or_review={len(report['blocked_or_review_candidates'])} "
+            f"output={args.output}"
+        )
+        return 0
+
+    if args.command == "vdvw-vc-donsker-obligations":
+        tasks = load_benchmarks(Path(args.benchmarks))
+        report = build_vdvw_vc_donsker_proof_obligations(tasks)
+        output = Path(args.output)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(dumps_json(report) + "\n", encoding="utf-8")
+        print(
+            f"vdvw_vc_donsker_proof_obligations={report['obligation_count']} "
+            f"tracks={len(report['track_counts'])} "
+            f"blocked={len(report['blocked_obligations'])} "
             f"output={args.output}"
         )
         return 0
