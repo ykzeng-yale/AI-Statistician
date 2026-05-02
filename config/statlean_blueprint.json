@@ -586,12 +586,20 @@
         },
         {
           "id": "P10.M3",
-          "status": "in_progress",
-          "name": "VC-subgraph GC benchmark seeds and combinatorial proof obligations"
+          "status": "done",
+          "name": "VC-subgraph GC benchmark seeds and combinatorial proof obligations",
+          "evidence": [
+            "StatInference.EmpiricalProcess.VCSubgraph defines explicit VCSubgraphProofObligations and VCSubgraphGCRoute scaffolding over the proof-carrying VCDeviationCertificate interface.",
+            "VCSubgraphProofObligations separates measurability, shatter coefficient, Sauer-Shelah, entropy translation, envelope, and separability obligations instead of asserting a primitive VC theorem.",
+            "trivialVCSubgraphGCRoute and trivialVCSubgraphGlivenkoCantelliClass provide a concrete one-point non-vacuity witness without sorry/admit/axiom/unsafe shortcuts.",
+            "benchmarks include vc_deviation_certificate_gc_seed, vc_subgraph_route_certificate_seed, and trivial_vc_subgraph_gc_non_vacuity_seed.",
+            "artifacts/evaluation/empirical-process-targets.json marks vc_subgraph_gc_interface as ready_for_lemma_targets with family-specific benchmark evidence.",
+            "verify-benchmarks accepted all 76 seed tasks with the local Lake verifier."
+          ]
         },
         {
           "id": "P10.M4",
-          "status": "pending",
+          "status": "in_progress",
           "name": "Donsker bridge benchmark seeds and asymptotic-normality handoff"
         },
         {
@@ -601,7 +609,7 @@
         }
       ],
       "next_actions": [
-        "Implement P10.M3 by adding VC-subgraph GC benchmark seeds and explicit combinatorial proof-obligation scaffolding over the proof-carrying VCDeviationCertificate interface."
+        "Implement P10.M4 by adding Donsker bridge benchmark seeds and an explicit asymptotic-normality handoff route from empirical-process weak convergence into the estimator CLT interfaces."
       ]
     }
   ]

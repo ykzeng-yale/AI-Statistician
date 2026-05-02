@@ -90,11 +90,12 @@ Extend it with explicit artifact gates:
 Suggested milestones:
 
 - `P10.M1`: Bracketing GC benchmark seeds and non-vacuity witness.
-- `P10.M2`: VC-subgraph benchmark seeds and combinatorial obligation stubs.
-- `P10.M3`: Donsker bridge seeds and asymptotic-normality handoff.
-- `P10.M4`: Textbook theorem atlas and dependency graph for empirical-process
+- `P10.M2`: VdV&W finite-bracketing GC deterministic core.
+- `P10.M3`: VC-subgraph benchmark seeds and combinatorial obligation stubs.
+- `P10.M4`: Donsker bridge seeds and asymptotic-normality handoff.
+- `P10.M5`: Textbook theorem atlas and dependency graph for empirical-process
   routes.
-- `P10.M5`: External prover evaluation slice on the new empirical-process
+- `P10.M6`: External prover evaluation slice on the new empirical-process
   tasks.
 
 ### P11: Primitive Empirical Sample Model
@@ -232,4 +233,3 @@ promoting it:
 - fix Lean lint warnings in `Complexity.lean`;
 - rerun `.venv/bin/pytest`, `PYTHON=.venv/bin/python bash scripts/smoke.sh`, and
   `lake build`.
-

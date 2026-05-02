@@ -681,6 +681,111 @@ SEED_BENCHMARKS: tuple[BenchmarkTask, ...] = (
         ),
     ),
     BenchmarkTask(
+        task_id="vc_deviation_certificate_gc_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S4",
+        domain_tags=("empirical_process", "vc_subgraph", "glivenko_cantelli"),
+        natural_language=(
+            "Convert a proof-carrying VC deviation certificate into a "
+            "GC-class interface."
+        ),
+        lean_task=LeanTask(
+            task_id="vc_deviation_certificate_gc_seed",
+            imports=("StatInference.EmpiricalProcess.Complexity",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Index : Type*} {indexClass : Set Index} "
+                "{populationRisk : Index -> Real} {empiricalRisk : Nat -> Index -> Real} "
+                "(certificate : StatInference.VCDeviationCertificate "
+                "indexClass populationRisk empiricalRisk) "
+                "(hassumptions : certificate.assumptions) : "
+                "StatInference.GlivenkoCantelliClass "
+                "indexClass populationRisk empiricalRisk := by\n"
+                "  exact StatInference.VCDeviationCertificate.toGlivenkoCantelliClass "
+                "certificate hassumptions"
+            ),
+            tags=("vc_subgraph", "gc_certificate", "uniform_deviation"),
+            dependencies=(
+                "StatInference.VCDeviationCertificate.toGlivenkoCantelliClass",
+            ),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=(
+            "StatInference.VCDeviationCertificate.toGlivenkoCantelliClass",
+        ),
+    ),
+    BenchmarkTask(
+        task_id="vc_subgraph_route_certificate_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S4",
+        domain_tags=("empirical_process", "vc_subgraph", "glivenko_cantelli"),
+        natural_language=(
+            "Project explicit VC-subgraph proof obligations into a "
+            "proof-carrying deviation certificate."
+        ),
+        lean_task=LeanTask(
+            task_id="vc_subgraph_route_certificate_seed",
+            imports=("StatInference.EmpiricalProcess.VCSubgraph",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example {Index : Type*} {indexClass : Set Index} "
+                "{populationRisk : Index -> Real} {empiricalRisk : Nat -> Index -> Real} "
+                "(route : StatInference.VCSubgraphGCRoute "
+                "indexClass populationRisk empiricalRisk) : "
+                "StatInference.VCDeviationCertificate "
+                "indexClass populationRisk empiricalRisk := by\n"
+                "  exact StatInference.VCSubgraphGCRoute.toVCDeviationCertificate "
+                "route"
+            ),
+            tags=("vc_subgraph", "proof_obligations", "gc_certificate"),
+            dependencies=(
+                "StatInference.VCSubgraphGCRoute.toVCDeviationCertificate",
+            ),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=(
+            "StatInference.VCSubgraphGCRoute.toVCDeviationCertificate",
+        ),
+    ),
+    BenchmarkTask(
+        task_id="trivial_vc_subgraph_gc_non_vacuity_seed",
+        task_type=BenchmarkTaskType.FORMAL_ONLY,
+        split=BenchmarkSplit.DEV,
+        difficulty="S2",
+        domain_tags=(
+            "empirical_process",
+            "vc_subgraph",
+            "glivenko_cantelli",
+            "non_vacuity",
+        ),
+        natural_language=(
+            "Use the concrete one-point VC-subgraph route as a non-vacuity "
+            "witness for the VC-subgraph GC interface."
+        ),
+        lean_task=LeanTask(
+            task_id="trivial_vc_subgraph_gc_non_vacuity_seed",
+            imports=("StatInference.EmpiricalProcess.VCSubgraph",),
+            namespace="StatInference.Benchmarks",
+            statement=(
+                "example : StatInference.GlivenkoCantelliClass "
+                "(Set.univ : Set PUnit) "
+                "(fun _ : PUnit => (0 : Real)) "
+                "(fun _ (_ : PUnit) => (0 : Real)) := by\n"
+                "  exact StatInference.trivialVCSubgraphGlivenkoCantelliClass"
+            ),
+            tags=("vc_subgraph", "gc_certificate", "non_vacuity"),
+            dependencies=(
+                "StatInference.trivialVCSubgraphGlivenkoCantelliClass",
+            ),
+            expected_patterns=("exact",),
+        ),
+        expected_premises=(
+            "StatInference.trivialVCSubgraphGlivenkoCantelliClass",
+        ),
+    ),
+    BenchmarkTask(
         task_id="covering_certificate_gc_seed",
         task_type=BenchmarkTaskType.FORMAL_ONLY,
         split=BenchmarkSplit.DEV,
