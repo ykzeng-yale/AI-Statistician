@@ -35,6 +35,20 @@ Current green baseline:
 - 14-agent registry for formalization, proving, curation, benchmarking, and training;
 - worktree manager for isolated agent branches.
 
+WDSM formalization visualization:
+
+- [`docs/wdsm_visualization.html`](docs/wdsm_visualization.html) is a static
+  GitHub Pages-ready proof/progress dashboard for the WDSM formalization.
+- [`docs/wdsm_visualization_data.json`](docs/wdsm_visualization_data.json)
+  contains the generated metrics, target timeline, blockers, and import graph.
+- Source snapshot:
+  [`artifacts/wdsm_formalization_pilot.json`](artifacts/wdsm_formalization_pilot.json).
+- Regenerate with:
+
+```bash
+python3 scripts/build_wdsm_visualization.py
+```
+
 ## Quick Start
 
 Install Python tooling:
