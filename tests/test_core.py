@@ -996,6 +996,18 @@ class SystemTests(unittest.TestCase):
         for diagnostic in trace_payload["problem"]["diagnostics"]:
             aliases = DIAGNOSTIC_METRIC_ALIASES.get(diagnostic, ())
             self.assertTrue(diagnostic in metric_keys or any(alias in metric_keys for alias in aliases), diagnostic)
+        stress_tests = trace_payload["problem"]["stress_tests"]
+        self.assertTrue(stress_tests)
+        for simulation in trace_payload["simulations"]:
+            self.assertEqual(set(simulation["stress_tests"]), set(stress_tests))
+            self.assertEqual(set(simulation["stress_test_metrics"]), set(stress_tests))
+            for stress_row in simulation["stress_test_metrics"].values():
+                for key in ("covered", "stress_flag", "primary_value", "threshold"):
+                    self.assertIn(key, stress_row)
+                    self.assertIsInstance(stress_row[key], (int, float))
+        for simulation in payload["questions"][0]["simulations"]:
+            self.assertTrue(simulation["stress_tests"])
+            self.assertTrue(simulation["stress_test_metrics"])
         for goal in trace_payload["theorem_goals"]:
             self.assertTrue(goal["required_primitives"])
         causal_goals = {row["id"]: row for row in trace_payload["theorem_goals"]}

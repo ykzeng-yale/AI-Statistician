@@ -181,6 +181,7 @@ def _validate_research_trace(
     if not isinstance(problem, dict):
         errors.append("problem section missing or not an object")
         diagnostics: tuple[str, ...] = ()
+        stress_tests: tuple[str, ...] = ()
         problem_class = ""
     else:
         for key in (
@@ -190,6 +191,7 @@ def _validate_research_trace(
             "assumptions",
             "asymptotic_regime",
             "diagnostics",
+            "stress_tests",
             "extraction_evidence",
         ):
             if not problem.get(key):
@@ -203,6 +205,7 @@ def _validate_research_trace(
                 if not evidence.get(key):
                     errors.append(f"problem extraction_evidence missing {key}")
         diagnostics = tuple(str(item) for item in problem.get("diagnostics", ()) if str(item))
+        stress_tests = tuple(str(item) for item in problem.get("stress_tests", ()) if str(item))
 
     if data.get("status") != summary.get("status"):
         errors.append("trace status does not match manifest summary")
@@ -397,6 +400,28 @@ def _validate_research_trace(
                     errors.append(
                         f"simulation {idx} does not cover diagnostics: {', '.join(missing_diagnostics)}"
                     )
+            if stress_tests:
+                simulation_stress_tests = simulation.get("stress_tests")
+                if not isinstance(simulation_stress_tests, list) or not simulation_stress_tests:
+                    errors.append(f"simulation {idx} stress_tests ledger missing")
+                    simulation_stress_tests = []
+                missing_stress_tests = sorted(set(stress_tests) - set(str(item) for item in simulation_stress_tests))
+                if missing_stress_tests:
+                    errors.append(
+                        f"simulation {idx} does not cover stress_tests: {', '.join(missing_stress_tests)}"
+                    )
+                stress_metrics = simulation.get("stress_test_metrics")
+                if not isinstance(stress_metrics, dict) or not stress_metrics:
+                    errors.append(f"simulation {idx} stress_test_metrics missing")
+                else:
+                    for stress_test in stress_tests:
+                        row = stress_metrics.get(stress_test)
+                        if not isinstance(row, dict):
+                            errors.append(f"simulation {idx} stress metric missing for {stress_test}")
+                            continue
+                        for key in ("covered", "stress_flag", "primary_value", "threshold"):
+                            if key not in row or not isinstance(row[key], (int, float)):
+                                errors.append(f"simulation {idx} stress metric {stress_test} missing numeric {key}")
             if not isinstance(simulation.get("passed"), bool):
                 errors.append(f"simulation {idx} passed flag missing")
             if not simulation.get("feedback"):

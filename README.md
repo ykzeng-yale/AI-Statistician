@@ -59,6 +59,12 @@ the 60-paper frontier benchmark and the AI-for-math paper log. Frontier
 benchmark records deliberately mark `expected_theoretical_results` and
 `evaluation_prompt` as withheld fields and do not use them for retrieval, so
 paper grounding does not leak benchmark answers into theory planning.
+Simulation traces also carry an auditable `stress_tests` ledger: every stress
+scenario extracted at problem-intake time is copied onto each simulation row
+with compact numeric diagnostics (`covered`, `stress_flag`, `primary_value`,
+`threshold`). This does not claim a separate theorem proof for each stress
+scenario; it ensures the trace can prove which declared stress checks were
+exercised by the simulation layer.
 
 `formal-source-audit` goes one step deeper: it indexes local Lean declarations
 from Mathlib Probability/MeasureTheory plus the local StatInference,

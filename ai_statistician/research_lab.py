@@ -2300,7 +2300,92 @@ class ResearchSimulator:
                         feedback="unsupported simulation design",
                     )
                 )
-        return rows
+        return [self._with_stress_test_ledger(problem, row) for row in rows]
+
+    def _with_stress_test_ledger(
+        self,
+        problem: ResearchProblemSpec,
+        row: ResearchSimulation,
+    ) -> ResearchSimulation:
+        stress_tests = tuple(problem.stress_tests)
+        if not stress_tests:
+            return row
+        stress_test_metrics = {
+            stress_test: self._stress_test_metric(stress_test, row.metrics)
+            for stress_test in stress_tests
+        }
+        return replace(
+            row,
+            stress_tests=stress_tests,
+            stress_test_metrics=stress_test_metrics,
+        )
+
+    def _stress_test_metric(self, stress_test: str, metrics: dict[str, float]) -> dict[str, float]:
+        key, threshold, direction = self._select_stress_metric(stress_test, metrics)
+        value = float(metrics.get(key, 0.0))
+        if direction == "min":
+            flagged = value < threshold
+        elif direction == "max":
+            flagged = value > threshold
+        else:
+            flagged = abs(value) > threshold
+        return {
+            "covered": 1.0,
+            "stress_flag": 1.0 if flagged else 0.0,
+            "primary_value": value,
+            "threshold": float(threshold),
+        }
+
+    def _select_stress_metric(self, stress_test: str, metrics: dict[str, float]) -> tuple[str, float, str]:
+        text = stress_test.lower()
+        if "coverage_95" in metrics and any(token in text for token in ("coverage", "calibration", "censor", "conformal")):
+            return "coverage_95", 0.90, "min"
+        if "coverage_95" in metrics and any(token in text for token in ("small", "threshold", "tail", "later", "censor")):
+            return "coverage_95", 0.90, "min"
+        if "empirical_fdr" in metrics and any(token in text for token in ("fdr", "false", "null", "correlated")):
+            return "empirical_fdr", 0.12, "max"
+        if "type1_error" in metrics and any(token in text for token in ("optional", "null", "stopping", "monitor")):
+            return "type1_error", 0.08, "max"
+        if "power" in metrics and any(token in text for token in ("weak", "alternative", "effect", "power")):
+            return "power", 0.50, "min"
+        if "mean_alignment" in metrics and any(token in text for token in ("eigengap", "alignment", "p/n", "pca")):
+            return "mean_alignment", 0.65, "min"
+        if "mean_angle_error_rad" in metrics and "angle" in text:
+            return "mean_angle_error_rad", 0.80, "max"
+        if "mean_subspace_error" in metrics and any(token in text for token in ("subspace", "heavy-tailed coordinates")):
+            return "mean_subspace_error", 0.80, "max"
+        if "relative_bias" in metrics and any(token in text for token in ("bias", "misspec", "prior", "curvature", "nonlinear")):
+            return "relative_bias", 0.20, "abs"
+        if "bias" in metrics and any(token in text for token in ("bias", "misspec", "prior", "curvature", "nonlinear")):
+            return "bias", 0.20, "abs"
+        if "se_ratio" in metrics and any(token in text for token in ("variance", "leverage", "calibration", "hetero")):
+            return "se_ratio", 1.35, "max"
+        if "rmse" in metrics and any(token in text for token in ("heavy", "outlier", "contamination", "tail", "threshold")):
+            return "rmse", 1.00, "max"
+        if "rmse_center" in metrics and any(token in text for token in ("nonlinear", "heavy", "calibration")):
+            return "rmse_center", 1.50, "max"
+        if "tail_index_rmse" in metrics and any(token in text for token in ("tail", "pareto", "threshold")):
+            return "tail_index_rmse", 0.60, "max"
+        if "high_quantile_coverage" in metrics and any(token in text for token in ("quantile", "tail")):
+            return "high_quantile_coverage", 0.85, "min"
+        if "mean_conservativeness_ratio" in metrics and any(token in text for token in ("assignment", "design", "conservative")):
+            return "mean_conservativeness_ratio", 1.00, "min"
+        if "mean_privacy_noise_sd" in metrics and any(token in text for token in ("epsilon", "privacy", "composed")):
+            return "mean_privacy_noise_sd", 0.00, "min"
+        if "mean_clipping_fraction" in metrics and any(token in text for token in ("clipping", "private", "outlier")):
+            return "mean_clipping_fraction", 0.40, "max"
+        if "coverage_95" in metrics:
+            return "coverage_95", 0.90, "min"
+        if "relative_bias" in metrics:
+            return "relative_bias", 0.20, "abs"
+        if "bias" in metrics:
+            return "bias", 0.20, "abs"
+        if "rmse" in metrics:
+            return "rmse", 1.00, "max"
+        if "n_failed" in metrics:
+            return "n_failed", 0.0, "max"
+        key = next(iter(metrics), "n_runs")
+        return key, 0.0, "min"
 
     def _oracle_aipw(self, procedure: CandidateProcedure, rng: np.random.Generator) -> ResearchSimulation:
         n = 600
@@ -3259,6 +3344,14 @@ def compact_research_summary(report: ResearchReport) -> dict[str, Any]:
                 "procedure_id": sim.procedure_id,
                 "passed": sim.passed,
                 "metrics": {key: round(value, 5) for key, value in sim.metrics.items()},
+                "stress_tests": list(sim.stress_tests),
+                "stress_test_metrics": {
+                    name: {
+                        key: round(value, 5)
+                        for key, value in values.items()
+                    }
+                    for name, values in sim.stress_test_metrics.items()
+                },
             }
             for sim in report.simulations
         ],

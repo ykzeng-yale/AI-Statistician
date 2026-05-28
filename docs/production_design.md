@@ -104,8 +104,8 @@ contains the extracted problem specification, source-text extraction evidence
 for the problem class / DGP / estimand / assumptions / asymptotic regime,
 candidate procedures, theorem goals, retrieved knowledge cards, related local
 paper/source hits, formal proof/gap records, exported gap skeleton files,
-simulation metrics, diagnostic-to-metric coverage, vetted research algorithm
-fingerprints, and honest limitations when gaps remain.
+simulation metrics, diagnostic-to-metric coverage, stress-test ledgers, vetted
+research algorithm fingerprints, and honest limitations when gaps remain.
 
 The `paper_sources` section is a separate local retrieval layer over the
 frontier statistical-theory benchmark and the AI-for-math paper log. For
@@ -113,6 +113,13 @@ frontier benchmark papers, `expected_theoretical_results` and
 `evaluation_prompt` are recorded as withheld fields and are not used in the
 search text, so this grounding layer can be audited without leaking benchmark
 answers into the theory planner.
+
+Each simulation row also includes the problem's declared `stress_tests` plus a
+compact `stress_test_metrics` object. These rows are intentionally diagnostic
+rather than over-claimed: they certify that the simulation layer evaluated the
+declared stress scenarios against available metrics, while full theorem-level
+coverage for those scenarios remains part of the formal-gap backlog when it is
+not already in the proof bank.
 
 Formal gap backlog audit:
 

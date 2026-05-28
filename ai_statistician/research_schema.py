@@ -112,6 +112,8 @@ class ResearchSimulation:
     metrics: dict[str, float]
     passed: bool
     feedback: str
+    stress_tests: tuple[str, ...] = ()
+    stress_test_metrics: dict[str, dict[str, float]] = field(default_factory=dict)
 
 
 @dataclass
