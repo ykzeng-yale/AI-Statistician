@@ -1,0 +1,2060 @@
+{
+  "metadata": {
+    "generated_at": "2026-05-12T14:57:45+00:00",
+    "profile": "Default",
+    "email": "ykzeng2019@gmail.com",
+    "collection": "ai-math-discovery-systems",
+    "topic_regex": null,
+    "session_files": [
+      "Session_13423036634184563",
+      "Tabs_13423027819855839",
+      "Session_13423035839761807",
+      "Tabs_13422829731934208",
+      "Session_13422826416909498",
+      "Tabs_13422739495371719"
+    ],
+    "current_url_count": 73,
+    "cumulative_url_count": 156,
+    "output_url_count": 120,
+    "state_path": "/Users/yukang/Documents/Codex/chrome-paper-log/history.json"
+  },
+  "groups": {
+    "0. System overviews / AI mathematician agents": [
+      {
+        "url": "https://arxiv.org/abs/2605.06651",
+        "title": "AI Co-Mathematician: Accelerating Mathematicians with Agentic AI",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "agentic-math",
+          "research-agent",
+          "theory-building"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "0. System overviews / AI mathematician agents"
+      },
+      {
+        "url": "https://arxiv.org/abs/2510.26380",
+        "title": "AI Mathematician as a Partner in Advancing Mathematical Discovery - A Case Study in Homogenization Theory",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "web-verified related item",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "ai-mathematician",
+          "human-ai-collaboration",
+          "research-agent"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "0. System overviews / AI mathematician agents"
+      },
+      {
+        "url": "https://arxiv.org/abs/2505.22451",
+        "title": "AI Mathematician: Towards Fully Automated Frontier Mathematical Research",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "web-verified related item",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "ai-mathematician",
+          "frontier-math",
+          "research-agent"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "0. System overviews / AI mathematician agents"
+      },
+      {
+        "url": "https://deepmind.google/blog/ai-solves-imo-problems-at-silver-medal-level/",
+        "title": "AI achieves silver-medal standard solving International Mathematical Olympiad problems",
+        "registry_category": "2. Blogs / Notes / Explainers",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "alphageometry-2",
+          "alphaproof",
+          "imo",
+          "lean"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "0. System overviews / AI mathematician agents"
+      },
+      {
+        "url": "https://arxiv.org/abs/2506.13131",
+        "title": "AlphaEvolve: A coding agent for scientific and algorithmic discovery",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-12T14:57:44+00:00",
+        "seen_count": 17,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "algorithm-discovery",
+          "alphaevolve",
+          "evolutionary-search"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "0. System overviews / AI mathematician agents"
+      },
+      {
+        "url": "https://axiommath.github.io/Putnam2025/",
+        "title": "AxiomProver Putnam 2025 dependency graphs",
+        "registry_category": "3. Other Research Links",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "axiom",
+          "dependency-graph",
+          "lean"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "0. System overviews / AI mathematician agents"
+      },
+      {
+        "url": "https://github.com/AxiomMath/putnam2025",
+        "title": "AxiomProver at Putnam 2025",
+        "registry_category": "1. Code / Datasets / Tools",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "axiom",
+          "benchmark",
+          "lean",
+          "putnam"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "0. System overviews / AI mathematician agents"
+      },
+      {
+        "url": "https://www.nature.com/articles/s41586-023-06924-6",
+        "title": "Mathematical discoveries from program search with large language models",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "funsearch",
+          "mathematical-discovery",
+          "program-search"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "0. System overviews / AI mathematician agents"
+      },
+      {
+        "url": "https://arxiv.org/abs/2511.02864",
+        "title": "Mathematical exploration and discovery at scale",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "web-verified related item",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "alphaevolve",
+          "exploration",
+          "mathematical-discovery"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "0. System overviews / AI mathematician agents"
+      },
+      {
+        "url": "https://arxiv.org/abs/2404.09939",
+        "title": "A Survey on Deep Learning for Theorem Proving",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-12T14:57:44+00:00",
+        "seen_count": 8,
+        "first_seen": "2026-05-10T04:22:46+00:00",
+        "category": "0. System overviews / AI mathematician agents"
+      },
+      {
+        "url": "https://www.julian.ac/blog/2025/11/13/alphaproof-paper/",
+        "title": "AlphaProof Paper",
+        "registry_category": "2. Blogs / Notes / Explainers",
+        "last_seen": "2026-05-12T14:57:44+00:00",
+        "seen_count": 8,
+        "first_seen": "2026-05-10T04:22:46+00:00",
+        "category": "0. System overviews / AI mathematician agents"
+      },
+      {
+        "url": "https://github.com/AxiomMath",
+        "title": "AxiomMath · GitHub",
+        "registry_category": "1. Code / Datasets / Tools",
+        "last_seen": "2026-05-12T14:57:44+00:00",
+        "seen_count": 2,
+        "first_seen": "2026-05-10T22:23:49+00:00",
+        "category": "0. System overviews / AI mathematician agents"
+      },
+      {
+        "url": "https://axiommath.ai/territory/from-seeing-why-to-checking-everything",
+        "title": "Axiom: From Seeing Why to Checking Everything",
+        "registry_category": "3. Other Research Links",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 4,
+        "source": "verified from user-shared Axiom page",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "ai-mathematician",
+          "axiom",
+          "formal-proof",
+          "source"
+        ],
+        "first_seen": "2026-05-10T22:25:41+00:00",
+        "category": "0. System overviews / AI mathematician agents"
+      },
+      {
+        "url": "https://github.com/AxiomMath/axplorer",
+        "title": "Axplorer GitHub repository",
+        "registry_category": "1. Code / Datasets / Tools",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 4,
+        "source": "verified from AxiomMath GitHub README",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "axplorer",
+          "code",
+          "construction-search",
+          "patternboost"
+        ],
+        "first_seen": "2026-05-10T22:25:41+00:00",
+        "category": "0. System overviews / AI mathematician agents"
+      }
+    ],
+    "1. Lean prover systems / RL / self-play": [
+      {
+        "url": "https://arxiv.org/abs/2604.16004",
+        "title": "AgentV-RL: Scaling Reward Modeling with Agentic Verifier",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "agentic-verifier",
+          "forward-backward-checking",
+          "reward-modeling"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "1. Lean prover systems / RL / self-play"
+      },
+      {
+        "url": "https://arxiv.org/abs/2408.08152",
+        "title": "DeepSeek-Prover-V1.5: Harnessing Proof Assistant Feedback for Reinforcement Learning and Monte-Carlo Tree Search",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-12T14:57:44+00:00",
+        "seen_count": 17,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "deepseek-prover",
+          "lean",
+          "mcts",
+          "rl"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "1. Lean prover systems / RL / self-play"
+      },
+      {
+        "url": "https://arxiv.org/abs/2504.21801",
+        "title": "DeepSeek-Prover-V2: Advancing Formal Mathematical Reasoning via Reinforcement Learning for Subgoal Decomposition",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-12T14:57:44+00:00",
+        "seen_count": 17,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "deepseek-prover-v2",
+          "lean",
+          "rl",
+          "subgoal-decomposition"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "1. Lean prover systems / RL / self-play"
+      },
+      {
+        "url": "https://arxiv.org/abs/2402.03300",
+        "title": "DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-12T14:57:44+00:00",
+        "seen_count": 17,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "deepseekmath",
+          "grpo",
+          "math-reasoning"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "1. Lean prover systems / RL / self-play"
+      },
+      {
+        "url": "https://arxiv.org/abs/2502.07640",
+        "title": "Goedel-Prover: A Frontier Model for Open-Source Automated Theorem Proving",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "web-verified related item",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "automated-theorem-proving",
+          "goedel-prover",
+          "lean"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "1. Lean prover systems / RL / self-play"
+      },
+      {
+        "url": "https://arxiv.org/abs/2205.11491",
+        "title": "HyperTree Proof Search for Neural Theorem Proving",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-12T14:57:44+00:00",
+        "seen_count": 17,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "alpha-zero-style",
+          "hypertree",
+          "proof-search"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "1. Lean prover systems / RL / self-play"
+      },
+      {
+        "url": "https://github.com/wiio12/LEGO-Prover",
+        "title": "LEGO-Prover GitHub repository",
+        "registry_category": "1. Code / Datasets / Tools",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "code",
+          "lego-prover",
+          "skill-library"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "1. Lean prover systems / RL / self-play"
+      },
+      {
+        "url": "https://arxiv.org/abs/2310.00656",
+        "title": "LEGO-Prover: Neural Theorem Proving with Growing Libraries",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-12T14:57:44+00:00",
+        "seen_count": 17,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "isabelle",
+          "lego-prover",
+          "lemma-hierarchy",
+          "skill-library"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "1. Lean prover systems / RL / self-play"
+      },
+      {
+        "url": "https://arxiv.org/abs/2410.06209",
+        "title": "LeanAgent: Lifelong Learning for Formal Theorem Proving",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-12T14:57:44+00:00",
+        "seen_count": 17,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "lean",
+          "leanagent",
+          "lifelong-learning",
+          "memory"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "1. Lean prover systems / RL / self-play"
+      },
+      {
+        "url": "https://arxiv.org/abs/2306.15626",
+        "title": "LeanDojo: Theorem Proving with Retrieval-Augmented Language Models",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-12T14:57:44+00:00",
+        "seen_count": 17,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "lean",
+          "leandojo",
+          "premise-selection",
+          "rag",
+          "reprover"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "1. Lean prover systems / RL / self-play"
+      },
+      {
+        "url": "https://arxiv.org/abs/2502.17925",
+        "title": "LeanProgress: Guiding Search for Neural Theorem Proving via Proof Progress Prediction",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-12T14:57:44+00:00",
+        "seen_count": 17,
+        "source": "web-verified related item",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "lean",
+          "progress-prediction",
+          "proof-search"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "1. Lean prover systems / RL / self-play"
+      },
+      {
+        "url": "https://arxiv.org/abs/2507.08649",
+        "title": "Leanabell-Prover-V2: Verifier-integrated Reasoning for Formal Theorem Proving via Reinforcement Learning",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "web-verified related item",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "lean",
+          "rl",
+          "verifier-feedback"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "1. Lean prover systems / RL / self-play"
+      },
+      {
+        "url": "https://www.nature.com/articles/s41586-025-09833-y",
+        "title": "Olympiad-level formal mathematical reasoning with reinforcement learning",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-12T14:57:44+00:00",
+        "seen_count": 17,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "alphaproof",
+          "imo",
+          "lean",
+          "rl"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "1. Lean prover systems / RL / self-play"
+      },
+      {
+        "url": "https://iclr.cc/virtual/2026/poster/10009728",
+        "title": "Process-Verified Reinforcement Learning for Theorem Proving via Lean",
+        "registry_category": "3. Other Research Links",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "early-stop",
+          "lean",
+          "process-verification",
+          "rl"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "1. Lean prover systems / RL / self-play"
+      },
+      {
+        "url": "https://arxiv.org/abs/2102.06203",
+        "title": "Proof Artifact Co-training for Theorem Proving with Language Models",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "data-scarcity",
+          "lean",
+          "pact",
+          "proof-artifacts"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "1. Lean prover systems / RL / self-play"
+      },
+      {
+        "url": "https://github.com/lean-dojo/ReProver",
+        "title": "ReProver: Retrieval-Augmented Theorem Provers for Lean",
+        "registry_category": "1. Code / Datasets / Tools",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "code",
+          "lean",
+          "rag",
+          "reprover"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "1. Lean prover systems / RL / self-play"
+      },
+      {
+        "url": "https://arxiv.org/abs/2502.00212",
+        "title": "STP: Self-play LLM Theorem Provers with Iterative Conjecturing and Proving",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-12T14:57:44+00:00",
+        "seen_count": 17,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "conjecturing",
+          "isabelle",
+          "lean",
+          "self-play",
+          "theorem-proving"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "1. Lean prover systems / RL / self-play"
+      },
+      {
+        "url": "https://arxiv.org/abs/2510.01346",
+        "title": "Aristotle: IMO-level Automated Theorem Proving",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-12T14:57:44+00:00",
+        "seen_count": 8,
+        "first_seen": "2026-05-10T04:22:46+00:00",
+        "category": "1. Lean prover systems / RL / self-play"
+      },
+      {
+        "url": "https://arxiv.org/abs/2511.22570",
+        "title": "DeepSeekMath-V2: Towards Self-Verifiable Mathematical Reasoning",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-12T14:57:44+00:00",
+        "seen_count": 8,
+        "first_seen": "2026-05-10T04:22:46+00:00",
+        "category": "1. Lean prover systems / RL / self-play"
+      },
+      {
+        "url": "https://arxiv.org/abs/2604.15839",
+        "title": "Discover and Prove: An Open-source Agentic Framework for Hard Mode Automated Theorem Proving in Lean 4",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-12T14:57:44+00:00",
+        "seen_count": 8,
+        "first_seen": "2026-05-10T04:22:46+00:00",
+        "category": "1. Lean prover systems / RL / self-play"
+      },
+      {
+        "url": "https://arxiv.org/abs/2009.03393",
+        "title": "Generative Language Modeling for Automated Theorem Proving",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-12T14:57:44+00:00",
+        "seen_count": 8,
+        "first_seen": "2026-05-10T04:22:46+00:00",
+        "category": "1. Lean prover systems / RL / self-play"
+      },
+      {
+        "url": "https://github.com/Goedel-LM/Goedel-Prover-V2",
+        "title": "Goedel-LM/Goedel-Prover-V2 · GitHub",
+        "registry_category": "1. Code / Datasets / Tools",
+        "last_seen": "2026-05-12T14:57:44+00:00",
+        "seen_count": 8,
+        "first_seen": "2026-05-10T04:22:46+00:00",
+        "category": "1. Lean prover systems / RL / self-play"
+      },
+      {
+        "url": "https://openreview.net/forum?id=Uo4EHT4ZZ8",
+        "title": "LeanAgent: Lifelong Learning for Formal Theorem Proving",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-12T14:57:44+00:00",
+        "seen_count": 8,
+        "first_seen": "2026-05-10T04:22:46+00:00",
+        "category": "1. Lean prover systems / RL / self-play"
+      },
+      {
+        "url": "https://neurips.cc/virtual/2025/131058",
+        "title": "NeurIPS Process-Verified Reinforcement Learning for Theorem Proving via Lean",
+        "registry_category": "3. Other Research Links",
+        "last_seen": "2026-05-12T14:57:44+00:00",
+        "seen_count": 8,
+        "first_seen": "2026-05-10T04:22:46+00:00",
+        "category": "1. Lean prover systems / RL / self-play"
+      },
+      {
+        "url": "https://openreview.net/forum?id=sKvVHgmRP2",
+        "title": "Process-Verified Reinforcement Learning for Theorem Proving via Lean",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-12T14:57:44+00:00",
+        "seen_count": 8,
+        "first_seen": "2026-05-10T04:22:46+00:00",
+        "category": "1. Lean prover systems / RL / self-play"
+      },
+      {
+        "url": "https://arxiv.org/abs/2310.04353",
+        "title": "[2310.04353] An In-Context Learning Agent for Formal Theorem-Proving",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-12T14:57:44+00:00",
+        "seen_count": 8,
+        "first_seen": "2026-05-10T04:22:46+00:00",
+        "category": "1. Lean prover systems / RL / self-play"
+      },
+      {
+        "url": "https://arxiv.org/abs/2507.23726",
+        "title": "[2507.23726] Seed-Prover: Deep and Broad Reasoning for Automated Theorem Proving",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-12T14:57:44+00:00",
+        "seen_count": 8,
+        "first_seen": "2026-05-10T04:22:46+00:00",
+        "category": "1. Lean prover systems / RL / self-play"
+      },
+      {
+        "url": "https://arxiv.org/abs/2601.15737",
+        "title": "[2601.15737] PhysProver: Advancing Automatic Theorem Proving for Physics",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-12T14:57:44+00:00",
+        "seen_count": 8,
+        "first_seen": "2026-05-10T04:22:46+00:00",
+        "category": "1. Lean prover systems / RL / self-play"
+      },
+      {
+        "url": "https://arxiv.org/abs/2604.01483",
+        "title": "[2604.01483] Type-Checked Compliance: Deterministic Guardrails for Agentic Financial Systems Using Lean 4 Theorem Proving",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-12T14:57:44+00:00",
+        "seen_count": 8,
+        "first_seen": "2026-05-10T04:22:46+00:00",
+        "category": "1. Lean prover systems / RL / self-play"
+      },
+      {
+        "url": "https://zenodo.org/records/7430233",
+        "title": "Aesop: White-Box Best-First Proof Search for Lean",
+        "registry_category": "3. Other Research Links",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 4,
+        "source": "web-verified related item",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "aesop",
+          "best-first-search",
+          "lean",
+          "proof-search"
+        ],
+        "first_seen": "2026-05-10T22:25:41+00:00",
+        "category": "1. Lean prover systems / RL / self-play"
+      }
+    ],
+    "2. Autoformalization / datasets / formal benchmarks": [
+      {
+        "url": "https://arxiv.org/abs/2205.12615",
+        "title": "Autoformalization with Large Language Models",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-12T14:57:44+00:00",
+        "seen_count": 17,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "autoformalization",
+          "benchmark",
+          "isabelle"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "2. Autoformalization / datasets / formal benchmarks"
+      },
+      {
+        "url": "https://arxiv.org/abs/2405.17216",
+        "title": "Autoformalizing Euclidean Geometry",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "autoformalization",
+          "diagrams",
+          "geometry",
+          "lean"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "2. Autoformalization / datasets / formal benchmarks"
+      },
+      {
+        "url": "https://arxiv.org/abs/2602.01291",
+        "title": "Construction-Verification: A Benchmark for Applied Mathematics in Lean 4",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "applied-math",
+          "benchmark",
+          "construction-verification",
+          "lean"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "2. Autoformalization / datasets / formal benchmarks"
+      },
+      {
+        "url": "https://arxiv.org/abs/2210.12283",
+        "title": "Draft, Sketch, and Prove: Guiding Formal Theorem Provers with Informal Proofs",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-12T14:57:44+00:00",
+        "seen_count": 17,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "autoformalization",
+          "informal-proof",
+          "proof-sketch"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "2. Autoformalization / datasets / formal benchmarks"
+      },
+      {
+        "url": "https://github.com/liuchengwucn/FIMO",
+        "title": "FIMO: Formal IMO-level mathematics dataset",
+        "registry_category": "1. Code / Datasets / Tools",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "benchmark",
+          "fimo",
+          "imo",
+          "lean"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "2. Autoformalization / datasets / formal benchmarks"
+      },
+      {
+        "url": "https://arxiv.org/abs/2505.02735",
+        "title": "FormalMATH: Benchmarking Formal Mathematical Reasoning of Large Language Models",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "web-verified related item",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "benchmark",
+          "formalmath",
+          "lean4"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "2. Autoformalization / datasets / formal benchmarks"
+      },
+      {
+        "url": "https://arxiv.org/abs/2601.03017",
+        "title": "MMFormalizer: Multimodal Autoformalization in the Wild",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "autoformalization",
+          "mmformalizer",
+          "multimodal",
+          "physics"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "2. Autoformalization / datasets / formal benchmarks"
+      },
+      {
+        "url": "https://arxiv.org/abs/2109.00110",
+        "title": "MiniF2F: a cross-system benchmark for formal Olympiad-level mathematics",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "benchmark",
+          "formal-math",
+          "minif2f",
+          "olympiad"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "2. Autoformalization / datasets / formal benchmarks"
+      },
+      {
+        "url": "https://arxiv.org/abs/2311.03755",
+        "title": "Multilingual Mathematical Autoformalization",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "autoformalization",
+          "mma",
+          "multilingual"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "2. Autoformalization / datasets / formal benchmarks"
+      },
+      {
+        "url": "https://arxiv.org/abs/2211.15864",
+        "title": "Peano: Learning Formal Mathematical Reasoning",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "formal-reasoning",
+          "peano",
+          "rl-environment"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "2. Autoformalization / datasets / formal benchmarks"
+      },
+      {
+        "url": "https://arxiv.org/abs/2302.12433",
+        "title": "ProofNet: Autoformalizing and Formally Proving Undergraduate-Level Mathematics",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-12T14:57:44+00:00",
+        "seen_count": 17,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "autoformalization",
+          "benchmark",
+          "lean",
+          "proofnet"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "2. Autoformalization / datasets / formal benchmarks"
+      },
+      {
+        "url": "https://github.com/openai/miniF2F",
+        "title": "miniF2F GitHub repository",
+        "registry_category": "1. Code / Datasets / Tools",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "benchmark",
+          "code",
+          "minif2f"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "2. Autoformalization / datasets / formal benchmarks"
+      },
+      {
+        "url": "https://neurips.cc/virtual/2024/poster/96359",
+        "title": "NeurIPS Poster Autoformalize Mathematical Statements by Symbolic Equivalence and Semantic Consistency",
+        "registry_category": "3. Other Research Links",
+        "last_seen": "2026-05-12T14:57:44+00:00",
+        "seen_count": 8,
+        "first_seen": "2026-05-10T04:22:46+00:00",
+        "category": "2. Autoformalization / datasets / formal benchmarks"
+      },
+      {
+        "url": "https://arxiv.org/abs/2505.04528",
+        "title": "[2505.04528] Beyond Theorem Proving: Formulation, Framework and Benchmark for Formal Problem-Solving",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-12T14:57:44+00:00",
+        "seen_count": 8,
+        "first_seen": "2026-05-10T04:22:46+00:00",
+        "category": "2. Autoformalization / datasets / formal benchmarks"
+      },
+      {
+        "url": "https://github.com/zhangir-azerbayev/ProofNet",
+        "title": "zhangir-azerbayev/ProofNet: Benchmark for undergraduate-level formal mathematics · GitHub",
+        "registry_category": "1. Code / Datasets / Tools",
+        "last_seen": "2026-05-12T14:57:44+00:00",
+        "seen_count": 8,
+        "first_seen": "2026-05-10T04:22:46+00:00",
+        "category": "2. Autoformalization / datasets / formal benchmarks"
+      }
+    ],
+    "3. Conjecturing / counterexamples / lemma discovery": [
+      {
+        "url": "https://arxiv.org/abs/2604.03789",
+        "title": "Automated Conjecture Resolution with Formal Verification",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-12T14:57:44+00:00",
+        "seen_count": 17,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "conjecture-resolution",
+          "lean",
+          "research-agent"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "3. Conjecturing / counterexamples / lemma discovery"
+      },
+      {
+        "url": "https://arxiv.org/abs/2602.03716",
+        "title": "Fel's Conjecture on Syzygies of Numerical Semigroups",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "axiom",
+          "commutative-algebra",
+          "lean",
+          "research-conjecture"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "3. Conjecturing / counterexamples / lemma discovery"
+      },
+      {
+        "url": "https://github.com/google-deepmind/formal-conjectures",
+        "title": "Google DeepMind formal-conjectures repository",
+        "registry_category": "1. Code / Datasets / Tools",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "web-verified related item",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "benchmark",
+          "dataset",
+          "formal-conjectures",
+          "lean"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "3. Conjecturing / counterexamples / lemma discovery"
+      },
+      {
+        "url": "https://arxiv.org/abs/2506.22005",
+        "title": "LeanConjecturer: Automatic Generation of Mathematical Conjectures for Theorem Proving",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "conjecture-generation",
+          "grpo",
+          "lean",
+          "leanconjecturer"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "3. Conjecturing / counterexamples / lemma discovery"
+      },
+      {
+        "url": "https://arxiv.org/abs/2603.19514",
+        "title": "Learning to Disprove: Formal Counterexample Generation with Large Language Models",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "counterexample-generation",
+          "disproving",
+          "lean"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "3. Conjecturing / counterexamples / lemma discovery"
+      },
+      {
+        "url": "https://arxiv.org/abs/2603.22114",
+        "title": "Lemma Discovery in Agentic Program Verification",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "lemma-discovery",
+          "lemmanet",
+          "program-verification"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "3. Conjecturing / counterexamples / lemma discovery"
+      },
+      {
+        "url": "https://arxiv.org/abs/2602.03722",
+        "title": "Parity of k-differentials in genus zero and one",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "algebraic-geometry",
+          "axiom",
+          "lean",
+          "research-conjecture"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "3. Conjecturing / counterexamples / lemma discovery"
+      },
+      {
+        "url": "https://openreview.net/forum?id=aYlKvzY6ob",
+        "title": "Mining Math Conjectures from LLMs: A Pruning Approach",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-12T14:57:44+00:00",
+        "seen_count": 8,
+        "first_seen": "2026-05-10T04:22:46+00:00",
+        "category": "3. Conjecturing / counterexamples / lemma discovery"
+      },
+      {
+        "url": "https://arxiv.org/abs/2510.00732",
+        "title": "[2510.00732] EvolProver: Advancing Automated Theorem Proving by Evolving Formalized Problems via Symmetry and Difficulty",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-12T14:57:44+00:00",
+        "seen_count": 8,
+        "first_seen": "2026-05-10T04:22:46+00:00",
+        "category": "3. Conjecturing / counterexamples / lemma discovery"
+      },
+      {
+        "url": "https://arxiv.org/abs/1912.01412",
+        "title": "Deep Learning for Symbolic Mathematics",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 4,
+        "source": "verified from follow-up Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "francois-charton",
+          "seq2seq",
+          "symbolic-math",
+          "transformers"
+        ],
+        "first_seen": "2026-05-10T22:25:41+00:00",
+        "category": "3. Conjecturing / counterexamples / lemma discovery"
+      },
+      {
+        "url": "https://github.com/facebookresearch/Lyapunov",
+        "title": "Global Lyapunov functions GitHub repository",
+        "registry_category": "1. Code / Datasets / Tools",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 4,
+        "source": "verified from facebookresearch GitHub README",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "code",
+          "lyapunov",
+          "neuro-symbolic",
+          "symbolic-transformers"
+        ],
+        "first_seen": "2026-05-10T22:25:41+00:00",
+        "category": "3. Conjecturing / counterexamples / lemma discovery"
+      },
+      {
+        "url": "https://arxiv.org/abs/2410.08304",
+        "title": "Global Lyapunov functions: a long-standing open problem in mathematics, with symbolic transformers",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 4,
+        "source": "verified from follow-up Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "construction",
+          "lyapunov",
+          "neuro-symbolic",
+          "symbolic-transformers"
+        ],
+        "first_seen": "2026-05-10T22:25:41+00:00",
+        "category": "3. Conjecturing / counterexamples / lemma discovery"
+      },
+      {
+        "url": "https://github.com/FacebookResearch/Int2Int",
+        "title": "Int2Int GitHub repository",
+        "registry_category": "1. Code / Datasets / Tools",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 4,
+        "source": "verified from Int2Int arXiv abstract",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "code",
+          "int2int",
+          "number-theory",
+          "transformers"
+        ],
+        "first_seen": "2026-05-10T22:25:41+00:00",
+        "category": "3. Conjecturing / counterexamples / lemma discovery"
+      },
+      {
+        "url": "https://arxiv.org/abs/2502.17513",
+        "title": "Int2Int: a framework for mathematics with transformers",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 4,
+        "source": "verified from follow-up Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "int2int",
+          "math-object-prediction",
+          "number-theory",
+          "transformers"
+        ],
+        "first_seen": "2026-05-10T22:25:41+00:00",
+        "category": "3. Conjecturing / counterexamples / lemma discovery"
+      },
+      {
+        "url": "https://arxiv.org/abs/2112.01898",
+        "title": "Linear Algebra with Transformers",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 4,
+        "source": "verified from follow-up Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "francois-charton",
+          "linear-algebra",
+          "math-object-prediction",
+          "transformers"
+        ],
+        "first_seen": "2026-05-10T22:25:41+00:00",
+        "category": "3. Conjecturing / counterexamples / lemma discovery"
+      },
+      {
+        "url": "https://github.com/zawagner22/transformers_math_experiments",
+        "title": "Original PatternBoost experiments GitHub repository",
+        "registry_category": "1. Code / Datasets / Tools",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 4,
+        "source": "verified from Axplorer README acknowledgement",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "code",
+          "mathematical-discovery",
+          "patternboost",
+          "transformers"
+        ],
+        "first_seen": "2026-05-10T22:25:41+00:00",
+        "category": "3. Conjecturing / counterexamples / lemma discovery"
+      },
+      {
+        "url": "https://arxiv.org/abs/2411.00566",
+        "title": "PatternBoost: Constructions in Mathematics with a Little Help from AI",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 4,
+        "source": "verified from follow-up Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "construction",
+          "mathematical-discovery",
+          "patternboost",
+          "transformer-search"
+        ],
+        "first_seen": "2026-05-10T22:25:41+00:00",
+        "category": "3. Conjecturing / counterexamples / lemma discovery"
+      },
+      {
+        "url": "https://arxiv.org/abs/2211.00170",
+        "title": "What is my math transformer doing? Three results on interpretability and generalization",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 4,
+        "source": "web-verified related item",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "francois-charton",
+          "generalization",
+          "interpretability",
+          "math-transformers"
+        ],
+        "first_seen": "2026-05-10T22:25:41+00:00",
+        "category": "3. Conjecturing / counterexamples / lemma discovery"
+      }
+    ],
+    "4. Mathlib search / semantic RAG / knowledge graphs": [
+      {
+        "url": "https://arxiv.org/abs/2403.13310",
+        "title": "A Semantic Search Engine for Mathlib4",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "web-verified related item",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "leansearch",
+          "mathlib",
+          "semantic-search"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "4. Mathlib search / semantic RAG / knowledge graphs"
+      },
+      {
+        "url": "https://arxiv.org/abs/2510.15940",
+        "title": "Lean Finder: Semantic Search for Mathlib That Understands User Intents",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "intent",
+          "lean-finder",
+          "mathlib",
+          "semantic-search"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "4. Mathlib search / semantic RAG / knowledge graphs"
+      },
+      {
+        "url": "https://leanprover-community.github.io/mathlib_docs/tactic/transfer.html",
+        "title": "Lean transfer tactic documentation",
+        "registry_category": "3. Other Research Links",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "lemma-transport",
+          "mathlib",
+          "tool",
+          "transfer"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "4. Mathlib search / semantic RAG / knowledge graphs"
+      },
+      {
+        "url": "https://loogle.lean-lang.org/",
+        "title": "Loogle: Lean and Mathlib search by constants, names, and subexpressions",
+        "registry_category": "3. Other Research Links",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "loogle",
+          "mathlib",
+          "pattern-search",
+          "tool"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "4. Mathlib search / semantic RAG / knowledge graphs"
+      },
+      {
+        "url": "https://arxiv.org/abs/2604.18584",
+        "title": "MathNet: a Global Multimodal Benchmark for Mathematical Reasoning and Retrieval",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "benchmark",
+          "mathnet",
+          "multimodal",
+          "retrieval"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "4. Mathlib search / semantic RAG / knowledge graphs"
+      },
+      {
+        "url": "https://huggingface.co/datasets/MathNetwork/MathlibGraph",
+        "title": "MathlibGraph: The Multinetwork of Mathlib",
+        "registry_category": "1. Code / Datasets / Tools",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "dataset",
+          "dependency-graph",
+          "mathlib"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "4. Mathlib search / semantic RAG / knowledge graphs"
+      },
+      {
+        "url": "https://www.moogle.ai/",
+        "title": "Moogle: Semantic search over mathlib4",
+        "registry_category": "3. Other Research Links",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "mathlib",
+          "moogle",
+          "semantic-search",
+          "tool"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "4. Mathlib search / semantic RAG / knowledge graphs"
+      },
+      {
+        "url": "https://proofgraph.org/",
+        "title": "ProofGraph: Network science and spectral graph theory applied to formalized mathematics",
+        "registry_category": "3. Other Research Links",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "web-verified related item",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "dependency-graph",
+          "mathlib",
+          "proofgraph",
+          "tool"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "4. Mathlib search / semantic RAG / knowledge graphs"
+      },
+      {
+        "url": "https://arxiv.org/abs/2602.05216",
+        "title": "Semantic Search over 9 Million Mathematical Theorems",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "web-verified related item",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "retrieval",
+          "semantic-search",
+          "theorem-search"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "4. Mathlib search / semantic RAG / knowledge graphs"
+      },
+      {
+        "url": "https://arxiv.org/abs/1910.09336",
+        "title": "The Lean mathematical library",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "web-verified related item",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "lean",
+          "library-design",
+          "mathlib"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "4. Mathlib search / semantic RAG / knowledge graphs"
+      },
+      {
+        "url": "https://arxiv.org/abs/2604.24797",
+        "title": "The Network Structure of Mathlib",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "dependency-graph",
+          "knowledge-graph",
+          "mathlib"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "4. Mathlib search / semantic RAG / knowledge graphs"
+      },
+      {
+        "url": "https://github.com/leanprover-community/mathlib49",
+        "title": "leanprover-community/mathlib49",
+        "registry_category": "1. Code / Datasets / Tools",
+        "last_seen": "2026-05-12T14:57:44+00:00",
+        "seen_count": 8,
+        "first_seen": "2026-05-10T04:22:46+00:00",
+        "category": "4. Mathlib search / semantic RAG / knowledge graphs"
+      },
+      {
+        "url": "https://github.com/leanprover-community/mathlib4",
+        "title": "leanprover-community/mathlib4: The math library of Lean 4 · GitHub",
+        "registry_category": "1. Code / Datasets / Tools",
+        "last_seen": "2026-05-12T14:57:44+00:00",
+        "seen_count": 8,
+        "first_seen": "2026-05-10T04:22:46+00:00",
+        "category": "4. Mathlib search / semantic RAG / knowledge graphs"
+      }
+    ],
+    "5. Foundations / HoTT / equivalence / transfer / diagrammatic proof": [
+      {
+        "url": "https://research.chalmers.se/publication/551200/file/551200_Fulltext.pdf",
+        "title": "A Certifying Proof Assistant for Synthetic Mathematics in Lean",
+        "registry_category": "3. Other Research Links",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "web-verified related item",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "hottlean",
+          "lean",
+          "synthetic-mathematics"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "5. Foundations / HoTT / equivalence / transfer / diagrammatic proof"
+      },
+      {
+        "url": "https://arxiv.org/abs/1512.02274",
+        "title": "Constructing the Propositional Truncation using Non-recursive HITs",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "web-verified related item",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "higher-inductive-types",
+          "hott",
+          "lean"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "5. Foundations / HoTT / equivalence / transfer / diagrammatic proof"
+      },
+      {
+        "url": "https://arxiv.org/abs/1802.04315",
+        "title": "Higher Groups in Homotopy Type Theory",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "web-verified related item",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "higher-groups",
+          "hott",
+          "lean"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "5. Foundations / HoTT / equivalence / transfer / diagrammatic proof"
+      },
+      {
+        "url": "https://msp.cis.strath.ac.uk/types2025/abstracts/TYPES2025_paper25.pdf",
+        "title": "HoTTLean: Formalizing the Meta-Theory of HoTT in Lean",
+        "registry_category": "3. Other Research Links",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "hottlean",
+          "lean",
+          "synthetic-mathematics"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "5. Foundations / HoTT / equivalence / transfer / diagrammatic proof"
+      },
+      {
+        "url": "https://arxiv.org/abs/1704.06781",
+        "title": "Homotopy Type Theory in Lean",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "hott",
+          "lean",
+          "synthetic-homotopy"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "5. Foundations / HoTT / equivalence / transfer / diagrammatic proof"
+      },
+      {
+        "url": "https://arxiv.org/abs/1808.10690",
+        "title": "On the Formalization of Higher Inductive Types and Synthetic Homotopy Theory",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "higher-inductive-types",
+          "hott",
+          "lean",
+          "spectral-sequences"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "5. Foundations / HoTT / equivalence / transfer / diagrammatic proof"
+      },
+      {
+        "url": "https://arxiv.org/abs/1203.0202",
+        "title": "Pictures of Processes: Automated Graph Rewriting for Monoidal Categories and Applications to Quantum Computing",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "web-verified related item",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "graph-rewriting",
+          "monoidal-categories",
+          "quantomatic",
+          "string-diagrams"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "5. Foundations / HoTT / equivalence / transfer / diagrammatic proof"
+      },
+      {
+        "url": "https://arxiv.org/abs/1503.01034",
+        "title": "Quantomatic: A Proof Assistant for Diagrammatic Reasoning",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "diagrammatic-reasoning",
+          "graph-rewriting",
+          "quantomatic"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "5. Foundations / HoTT / equivalence / transfer / diagrammatic proof"
+      },
+      {
+        "url": "https://arxiv.org/abs/2012.01847",
+        "title": "String Diagram Rewrite Theory I: Rewriting with Frobenius Structure",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "web-verified related item",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "categorical-reasoning",
+          "graph-rewriting",
+          "string-diagrams"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "5. Foundations / HoTT / equivalence / transfer / diagrammatic proof"
+      },
+      {
+        "url": "https://arxiv.org/abs/2104.14686",
+        "title": "String Diagram Rewrite Theory II: Rewriting with Symmetric Monoidal Structure",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "web-verified related item",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "categorical-reasoning",
+          "graph-rewriting",
+          "string-diagrams"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "5. Foundations / HoTT / equivalence / transfer / diagrammatic proof"
+      },
+      {
+        "url": "https://lean-lang.org/papers/lean.pdf",
+        "title": "The Lean Theorem Prover (system description)",
+        "registry_category": "3. Other Research Links",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "web-verified related item",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "lean",
+          "system-description",
+          "theorem-prover"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "5. Foundations / HoTT / equivalence / transfer / diagrammatic proof"
+      },
+      {
+        "url": "https://cacm.acm.org/research/formal-verification-of-a-realistic-compiler/",
+        "title": "Formal Verification of a Realistic Compiler",
+        "registry_category": "3. Other Research Links",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 5,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "compcert",
+          "coq",
+          "formal-verification",
+          "proofs-as-programs"
+        ],
+        "first_seen": "2026-05-10T04:24:25+00:00",
+        "category": "5. Foundations / HoTT / equivalence / transfer / diagrammatic proof"
+      },
+      {
+        "url": "https://arxiv.org/abs/1308.0729",
+        "title": "Homotopy Type Theory: Univalent Foundations of Mathematics",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 5,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "foundations",
+          "hott",
+          "type-theory",
+          "univalence"
+        ],
+        "first_seen": "2026-05-10T04:24:25+00:00",
+        "category": "5. Foundations / HoTT / equivalence / transfer / diagrammatic proof"
+      },
+      {
+        "url": "https://www.seas.upenn.edu/~sweirich/types/archive/1989/msg00053.html",
+        "title": "Proofs and Types",
+        "registry_category": "3. Other Research Links",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 5,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "curry-howard",
+          "foundations",
+          "proofs-as-programs",
+          "type-theory"
+        ],
+        "first_seen": "2026-05-10T04:24:25+00:00",
+        "category": "5. Foundations / HoTT / equivalence / transfer / diagrammatic proof"
+      },
+      {
+        "url": "https://doi.org/10.1145/3158154",
+        "title": "RustBelt: Securing the Foundations of the Rust Programming Language",
+        "registry_category": "3. Other Research Links",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 5,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "formal-verification",
+          "ownership",
+          "rust",
+          "type-systems"
+        ],
+        "first_seen": "2026-05-10T04:24:25+00:00",
+        "category": "5. Foundations / HoTT / equivalence / transfer / diagrammatic proof"
+      },
+      {
+        "url": "https://link.springer.com/article/10.1007/s10817-018-9455-7",
+        "title": "A Verified SAT Solver Framework with Learn, Forget, Restart, and Incrementality",
+        "registry_category": "3. Other Research Links",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 4,
+        "source": "verified from follow-up Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "cdcl",
+          "formal-verification",
+          "isabelle",
+          "sat-solver"
+        ],
+        "first_seen": "2026-05-10T22:25:41+00:00",
+        "category": "5. Foundations / HoTT / equivalence / transfer / diagrammatic proof"
+      },
+      {
+        "url": "https://www21.in.tum.de/~lammich/grat/",
+        "title": "GRAT: Efficient Formally Verified SAT Solver Certification Toolchain",
+        "registry_category": "3. Other Research Links",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 4,
+        "source": "web-verified related item",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "certificate-checking",
+          "isabelle",
+          "sat-solver",
+          "verified-checker"
+        ],
+        "first_seen": "2026-05-10T22:25:41+00:00",
+        "category": "5. Foundations / HoTT / equivalence / transfer / diagrammatic proof"
+      },
+      {
+        "url": "https://adam.chlipala.net/papers/KamiICFP17/",
+        "title": "Kami: A Platform for High-Level Parametric Hardware Specification and its Modular Verification",
+        "registry_category": "3. Other Research Links",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 4,
+        "source": "verified from follow-up Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "coq",
+          "hardware-verification",
+          "modular-verification",
+          "risc-v"
+        ],
+        "first_seen": "2026-05-10T22:25:41+00:00",
+        "category": "5. Foundations / HoTT / equivalence / transfer / diagrammatic proof"
+      },
+      {
+        "url": "https://arxiv.org/abs/2403.14064",
+        "title": "Lean4Lean: Towards a Verified Typechecker for Lean, in Lean",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 4,
+        "source": "verified from follow-up Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "lean-kernel",
+          "lean4lean",
+          "trusted-core",
+          "verified-typechecker"
+        ],
+        "first_seen": "2026-05-10T22:25:41+00:00",
+        "category": "5. Foundations / HoTT / equivalence / transfer / diagrammatic proof"
+      },
+      {
+        "url": "https://yosyshq.readthedocs.io/projects/riscv-formal/en/latest/references.html",
+        "title": "RISC-V Formal documentation: references and related work",
+        "registry_category": "3. Other Research Links",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 4,
+        "source": "web-verified related item",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "formal-methods",
+          "hardware-verification",
+          "isa",
+          "risc-v"
+        ],
+        "first_seen": "2026-05-10T22:25:41+00:00",
+        "category": "5. Foundations / HoTT / equivalence / transfer / diagrammatic proof"
+      },
+      {
+        "url": "https://arxiv.org/abs/1610.06229",
+        "title": "The DRAT format and DRAT-trim checker",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 4,
+        "source": "verified from follow-up Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "drat",
+          "formal-verification",
+          "proof-certificates",
+          "sat-solver"
+        ],
+        "first_seen": "2026-05-10T22:25:41+00:00",
+        "category": "5. Foundations / HoTT / equivalence / transfer / diagrammatic proof"
+      },
+      {
+        "url": "https://lean-lang.org/doc/reference/latest/Elaboration-and-Compilation/",
+        "title": "The Lean Language Reference: Elaboration and Compilation",
+        "registry_category": "3. Other Research Links",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 4,
+        "source": "web-verified official Lean documentation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "elaboration",
+          "lean-kernel",
+          "reference",
+          "trusted-core"
+        ],
+        "first_seen": "2026-05-10T22:25:41+00:00",
+        "category": "5. Foundations / HoTT / equivalence / transfer / diagrammatic proof"
+      }
+    ],
+    "6. Multimodal / visual / spatial math reasoning": [
+      {
+        "url": "https://github.com/google-deepmind/alphageometry",
+        "title": "AlphaGeometry GitHub repository",
+        "registry_category": "1. Code / Datasets / Tools",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "alphageometry",
+          "code",
+          "geometry"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "6. Multimodal / visual / spatial math reasoning"
+      },
+      {
+        "url": "https://mathnet.mit.edu/",
+        "title": "MathNet project site",
+        "registry_category": "3. Other Research Links",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "benchmark",
+          "mathnet",
+          "project-page"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "6. Multimodal / visual / spatial math reasoning"
+      },
+      {
+        "url": "https://web.cs.ucla.edu/~kwchang/bibliography/zhang2024mathverse/",
+        "title": "MathVerse: Does Your Multi-modal LLM Truly See the Diagrams in Visual Math Problems?",
+        "registry_category": "3. Other Research Links",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "benchmark",
+          "mathverse",
+          "multimodal",
+          "visual-math"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "6. Multimodal / visual / spatial math reasoning"
+      },
+      {
+        "url": "https://arxiv.org/abs/2310.02255",
+        "title": "MathVista: Evaluating Mathematical Reasoning of Foundation Models in Visual Contexts",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "web-verified related item",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "benchmark",
+          "mathvista",
+          "multimodal",
+          "visual-math"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "6. Multimodal / visual / spatial math reasoning"
+      },
+      {
+        "url": "https://arxiv.org/abs/2410.14702",
+        "title": "Polymath: A Challenging Multi-modal Mathematical Reasoning Benchmark",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "benchmark",
+          "math-reasoning",
+          "multimodal",
+          "polymath"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "6. Multimodal / visual / spatial math reasoning"
+      },
+      {
+        "url": "https://www.nature.com/articles/s41586-023-06747-5",
+        "title": "Solving olympiad geometry without human demonstrations",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "alphageometry",
+          "geometry",
+          "neuro-symbolic",
+          "synthetic-data"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "6. Multimodal / visual / spatial math reasoning"
+      }
+    ],
+    "7. Code / project pages / datasets": [
+      {
+        "url": "https://github.com/MoonshotAI/CombiBench",
+        "title": "CombiBench GitHub repository",
+        "registry_category": "1. Code / Datasets / Tools",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "benchmark",
+          "code",
+          "combibench"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "7. Code / project pages / datasets"
+      },
+      {
+        "url": "https://arxiv.org/abs/2505.03171",
+        "title": "CombiBench: Benchmarking LLM Capability for Combinatorial Mathematics",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-05-10T22:27:08+00:00",
+        "seen_count": 9,
+        "source": "verified from pasted Gemini conversation",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "benchmark",
+          "combibench",
+          "combinatorics"
+        ],
+        "first_seen": "2026-05-10T02:42:07+00:00",
+        "category": "7. Code / project pages / datasets"
+      }
+    ]
+  }
+}

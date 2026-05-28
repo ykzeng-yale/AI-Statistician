@@ -1,0 +1,83 @@
+
+══════════════════════════════════════════════════════════════════════════════
+  RESEARCH QUESTION: variance_estimation
+  DGP:       X_1, …, X_n i.i.d. ~ N(μ=0, σ²=4),  with n=30
+  Target:    Estimate σ²
+  Guarantee: Want UNBIASED + asymptotically normal estimator with valid 95% CI
+  n = 30, MC runs = 2000
+══════════════════════════════════════════════════════════════════════════════
+
+┌── OUTER ROUND 1/2 ─────────────────────────────────
+│ [Mathematician] deriving estimator…
+│   formula:  S² = (1/(n-1))·Σᵢ₌₁ⁿ(Xᵢ - X̄)²
+│   SE hint:  SE(S²) ≈ S²·√(2/(n-1)) for normal data; CI = S² ± z₀.₀₂₅·SE(S²), or equivalently
+│   asymp:    E[S²] = σ² = 4 (unbiased); √n(S² - σ²) →_d N(0, 2σ⁴) = N(0, 128) as n → ∞.
+│ [AXLE check] type-checking Lean statement…
+│   Lean stmt ✗ ill-typed (continuing)
+│ ┌── INNER 1/2 ─────────────────────────
+│ │ [Algorithm] implementing formula in Python…
+│ │   notes: Uses unbiased sample variance with (n-1) divisor and chi-squared quantiles for e
+│ │ [Simulator] running 2,000 MC replicates…
+│ │   bias=+0.0162 (rel: +0.004), RMSE=1.0400
+│ │   emp.SE=1.0399, est.SE=1.0547, cov=0.953
+│ │ [Simulator] classified: ✓ OK
+│ └── inner done: algorithm + math both fine
+└── OUTER ROUND 1 ✅ CONVERGED (8.9s)
+
+══════════════════════════════════════════════════════════════════════════════
+  RESEARCH QUESTION: bernoulli_ci
+  DGP:       X_1, …, X_n i.i.d. ~ Bernoulli(p=0.05) (rare event, n=30)
+  Target:    Estimate p with 95% confidence interval
+  Guarantee: Want CI with actual coverage ≥ 0.92 (close to nominal 95%)
+  n = 30, MC runs = 2000
+══════════════════════════════════════════════════════════════════════════════
+
+┌── OUTER ROUND 1/2 ─────────────────────────────────
+│ [Mathematician] deriving estimator…
+│   formula:  p̂ = (1/n)·Σᵢ₌₁ⁿ Xᵢ; 
+CI_Wilson = [p̃ - z_{α/2}·√(p̃(1-p̃)/n + z_{α/2}²/(4n²)), p̃ + z_{α/2}·√(p̃(1-p̃)/n + z_{α/2}²/(4n²))]
+where p̃ = (p̂ + z_{α/2}²/(2n))/(1 + z_{α/2}²/n)
+│   SE hint:  SE_Wilson ≈ √[p̃(1-p̃)/n + z_{α/2}²/(4n²)]; CI uses p̃ ± z_{α/2}·SE_Wilson with 
+│   asymp:    
+│ [AXLE check] type-checking Lean statement…
+│   Lean stmt ✗ ill-typed (continuing)
+│ ┌── INNER 1/2 ─────────────────────────
+│ │ [Algorithm] implementing formula in Python…
+│ │   notes: Uses the Wilson score interval which inverts the score test and provides reliabl
+│ │ [Simulator] running 2,000 MC replicates…
+│ │   bias=+0.0000 (rel: +0.000), RMSE=0.0401
+│ │   emp.SE=0.0401, est.SE=0.0633, cov=0.997
+│ │ [Simulator] classified: ✗ MATH_ERROR
+│ └── inner done: algo OK but MATH_ERROR — will escalate
+└── OUTER ROUND 1 🔺 ESCALATING TO MATHEMATICIAN
+     feedback: SE FORMULA WRONG: mean SE = 0.0633, empirical SE = 0.0401 (>10% gap). The asymptotic variance formula doesn't match real
+
+┌── OUTER ROUND 2/2 ─────────────────────────────────
+│ [Mathematician] deriving estimator…
+│   formula:  Let X = Σᵢ Xᵢ (number of successes). The Wilson CI endpoints are:
+p̂_± = [X + z²_α/2/2 ± z_α/2·√(X(n-X)/n + z²_α/2/4)] / (n + z²_α/2)
+where z_α/2 = 1.96 for 95% CI.
+│   SE hint:  For the point estimate p̂ = X/n, the Wilson interval has effective SE approximat
+│   asymp:    Wilson score interval: For n ≥ 30 and any p ∈ (0,1), coverage ≥ 0.92 (often clos
+│ [AXLE check] type-checking Lean statement…
+│   Lean stmt ✗ ill-typed (continuing)
+│ ┌── INNER 1/2 ─────────────────────────
+│ │ [Algorithm] implementing formula in Python…
+│ │   notes: Uses the Wilson score interval, which inverts the Wald test via the exact binomi
+│ │ [Simulator] running 2,000 MC replicates…
+│ │   bias=+0.0000 (rel: +0.000), RMSE=0.0401
+│ │   emp.SE=0.0401, est.SE=0.0576, cov=0.938
+│ │ [Simulator] classified: ✗ MATH_ERROR
+│ └── inner done: algo OK but MATH_ERROR — will escalate
+└── OUTER ROUND 2 🔺 ESCALATING TO MATHEMATICIAN
+     feedback: SE FORMULA WRONG: mean SE = 0.0576, empirical SE = 0.0401 (>10% gap). The asymptotic variance formula doesn't match real
+
+  ⚠️  Reached max_outer=2 without convergence.
+
+══════════════════════════════════════════════════════════════════════════════
+  FINAL SUMMARY
+══════════════════════════════════════════════════════════════════════════════
+  ✅ variance_estimation       status=CONVERGED             outer=1, inner_total=1
+      └─ final: bias=+0.016, RMSE=1.040, coverage=0.953
+  ⚠️  bernoulli_ci              status=MAX_ROUNDS_REACHED    outer=2, inner_total=2
+      └─ final: bias=+0.000, RMSE=0.040, coverage=0.938

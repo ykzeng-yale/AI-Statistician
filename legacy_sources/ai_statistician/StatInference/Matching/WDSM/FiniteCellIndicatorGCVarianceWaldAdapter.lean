@@ -1,0 +1,1670 @@
+import StatInference.Matching.WDSM.FiniteCellIndicatorGCAdapter
+import StatInference.Matching.WDSM.FiniteCellIndicatorPairedEstimatedScoreVarianceWaldBridge
+import StatInference.Matching.WDSM.WaldVarianceCriticalRegionCalibration
+
+/-!
+# GC adapter for paired variance-estimate Wald inference
+
+This module connects the GC-backed finite score-cell estimated-score
+variance-estimate studentized bridge to the paired variance-estimate Wald
+coverage layer.
+-/
+
+namespace StatInference
+namespace Matching
+namespace WDSM
+
+open MeasureTheory
+open Filter
+open scoped Topology
+
+variable {PATECell PATTCell Index Sample LimitSample : Type*}
+variable [DecidableEq PATECell] [DecidableEq PATTCell]
+variable [MeasurableSpace Sample] [MeasurableSpace LimitSample]
+variable {sampleLaw : MeasureTheory.Measure Sample}
+variable {limitLaw : MeasureTheory.Measure LimitSample}
+variable [MeasureTheory.IsProbabilityMeasure sampleLaw]
+variable [MeasureTheory.IsProbabilityMeasure limitLaw]
+variable {l : Filter Index}
+variable [l.IsCountablyGenerated]
+
+/--
+The paired absolute variance-estimate Wald conclusion used by the GC adapter.
+-/
+def PATEPATTFiniteScoreCellEstimatedScoreAbsoluteVarianceWaldConclusionOfGlivenkoCantelli
+    (b :
+      PATEPATTFiniteScoreCellEstimatedScoreAbsoluteVarianceWaldBridge
+        PATECell PATTCell Index Sample LimitSample sampleLaw limitLaw l) :
+    Prop :=
+  b.studentized_bridge.finite_estimated_bridge.known_score_finite_cell_bridge.stochastic_bridge.pate_bridge.lln_bridge.indicator_bridge.pate_double_score_approximation_negligible ∧
+    b.studentized_bridge.finite_estimated_bridge.known_score_finite_cell_bridge.stochastic_bridge.pate_bridge.clt_bridge.indicator_bridge.scaled_pate_double_score_approximation_negligible ∧
+    b.studentized_bridge.finite_estimated_bridge.known_score_finite_cell_bridge.pate_known_score_bridge.asymptotic_normality ∧
+    b.studentized_bridge.finite_estimated_bridge.pate_estimated_score_bridge.estimated_score_asymptotic_normality ∧
+    TendstoInDistribution
+      (fun index sample =>
+        b.studentized_bridge.pate_studentization_input.scaledStatistic index sample *
+          (standardError
+            (b.studentized_bridge.pate_studentization_input.varianceEstimate
+              index sample))⁻¹)
+      l
+      (fun limitSample =>
+        b.studentized_bridge.pate_studentization_input.limit limitSample *
+          (standardError
+            b.studentized_bridge.pate_studentization_input.varianceLimit)⁻¹)
+      (fun _index => sampleLaw) limitLaw ∧
+    Tendsto
+      (fun index =>
+        eventProbabilityReal (b.pate_coverage_input.sampleLawSeq index)
+          (fun sample =>
+            waldCovers (b.pate_coverage_input.estimator index sample)
+              (b.pate_coverage_input.target index)
+              (b.pate_coverage_input.criticalValue index)
+              (standardError
+                (b.pate_coverage_input.varianceEstimate index sample))
+              (b.pate_coverage_input.scale index)))
+      l (nhds b.pate_coverage_input.coverageLimit) ∧
+    b.studentized_bridge.finite_estimated_bridge.known_score_finite_cell_bridge.stochastic_bridge.patt_bridge.lln_bridge.indicator_bridge.patt_double_score_approximation_negligible ∧
+    b.studentized_bridge.finite_estimated_bridge.known_score_finite_cell_bridge.stochastic_bridge.patt_bridge.clt_bridge.indicator_bridge.scaled_patt_double_score_approximation_negligible ∧
+    b.studentized_bridge.finite_estimated_bridge.known_score_finite_cell_bridge.patt_known_score_bridge.asymptotic_normality ∧
+    b.studentized_bridge.finite_estimated_bridge.patt_estimated_score_bridge.estimated_score_asymptotic_normality ∧
+    TendstoInDistribution
+      (fun index sample =>
+        b.studentized_bridge.patt_studentization_input.scaledStatistic index sample *
+          (standardError
+            (b.studentized_bridge.patt_studentization_input.varianceEstimate
+              index sample))⁻¹)
+      l
+      (fun limitSample =>
+        b.studentized_bridge.patt_studentization_input.limit limitSample *
+          (standardError
+            b.studentized_bridge.patt_studentization_input.varianceLimit)⁻¹)
+      (fun _index => sampleLaw) limitLaw ∧
+    Tendsto
+      (fun index =>
+        eventProbabilityReal (b.patt_coverage_input.sampleLawSeq index)
+          (fun sample =>
+            waldCovers (b.patt_coverage_input.estimator index sample)
+              (b.patt_coverage_input.target index)
+              (b.patt_coverage_input.criticalValue index)
+              (standardError
+                (b.patt_coverage_input.varianceEstimate index sample))
+              (b.patt_coverage_input.scale index)))
+      l (nhds b.patt_coverage_input.coverageLimit)
+
+/--
+Build a paired absolute variance-estimate Wald bridge whose finite score-cell
+layer is backed by GC certificates on the LLN side.
+-/
+def
+    patePattFiniteScoreCellEstimatedScoreAbsoluteVarianceWaldBridgeOfGlivenkoCantelli
+    (pateCells : Finset PATECell)
+    (pateReferenceShare : PATECell -> Real)
+    (pateSample : ℕ -> Finset Unit)
+    (pateWeight : ℕ -> Unit -> Real)
+    (pateScore : ℕ -> Unit -> PATECell)
+    (pateIndicatorBridge : PATEDoubleScoreIndicatorSumConvergenceBridge)
+    (pateFiniteLLNToIndicatorLLN :
+      (finiteScoreCellIndicatorLLNBridgeOfGlivenkoCantelli
+        pateCells pateReferenceShare pateSample pateWeight
+        pateScore).cellwise_weighted_indicator_sum_lln ->
+        pateIndicatorBridge.weighted_indicator_sum_lln)
+    (pateCLTBridge : ScaledPATEFiniteScoreCellCLTApproximationBridge PATECell)
+    (pateFiniteConditionsToScaled :
+      pateIndicatorBridge.eventual_finite_conditions ->
+        pateCLTBridge.indicator_bridge.eventual_finite_conditions)
+    (pateEnvelopeToScaled :
+      pateIndicatorBridge.envelope_convergence ->
+        pateCLTBridge.indicator_bridge.envelope_convergence)
+    (pateIndicatorLLNToScaled :
+      pateIndicatorBridge.weighted_indicator_sum_lln ->
+        pateCLTBridge.indicator_bridge.weighted_indicator_sum_lln)
+    (pattCells : Finset PATTCell)
+    (pattReferenceShare : PATTCell -> Real)
+    (pattSample : ℕ -> Finset Unit)
+    (pattWeight : ℕ -> Unit -> Real)
+    (pattScore : ℕ -> Unit -> PATTCell)
+    (pattIndicatorBridge : PATTDoubleScoreIndicatorSumConvergenceBridge)
+    (pattFiniteLLNToIndicatorLLN :
+      (finiteScoreCellIndicatorLLNBridgeOfGlivenkoCantelli
+        pattCells pattReferenceShare pattSample pattWeight
+        pattScore).cellwise_weighted_indicator_sum_lln ->
+        pattIndicatorBridge.weighted_indicator_sum_lln)
+    (pattCLTBridge : ScaledPATTFiniteScoreCellCLTApproximationBridge PATTCell)
+    (pattFiniteConditionsToScaled :
+      pattIndicatorBridge.eventual_finite_conditions ->
+        pattCLTBridge.indicator_bridge.eventual_finite_conditions)
+    (pattEnvelopeToScaled :
+      pattIndicatorBridge.envelope_convergence ->
+        pattCLTBridge.indicator_bridge.envelope_convergence)
+    (pattIndicatorLLNToScaled :
+      pattIndicatorBridge.weighted_indicator_sum_lln ->
+        pattCLTBridge.indicator_bridge.weighted_indicator_sum_lln)
+    (pateKnownScoreBridge : KnownScoreAsymptoticBridge)
+    (pattKnownScoreBridge : KnownScoreAsymptoticBridge)
+    (pateScaledApproximationToMatchingDiscrepancy :
+      pateCLTBridge.indicator_bridge.scaled_pate_double_score_approximation_negligible ->
+        pateKnownScoreBridge.matching_discrepancy_negligible)
+    (pattScaledApproximationToMatchingDiscrepancy :
+      pattCLTBridge.indicator_bridge.scaled_patt_double_score_approximation_negligible ->
+        pattKnownScoreBridge.matching_discrepancy_negligible)
+    (pateEstimatedScoreBridge : EstimatedScoreAsymptoticBridge)
+    (pattEstimatedScoreBridge : EstimatedScoreAsymptoticBridge)
+    (pateKnownScoreToEstimatedScoreInput :
+      pateKnownScoreBridge.asymptotic_normality ->
+        pateEstimatedScoreBridge.known_score_asymptotic_normality)
+    (pattKnownScoreToEstimatedScoreInput :
+      pattKnownScoreBridge.asymptotic_normality ->
+        pattEstimatedScoreBridge.known_score_asymptotic_normality)
+    (pateStudentizationInput :
+      EstimatedScoreStudentizationInput Index Sample
+        LimitSample sampleLaw limitLaw l)
+    (pattStudentizationInput :
+      EstimatedScoreStudentizationInput Index Sample
+        LimitSample sampleLaw limitLaw l)
+    (pateEstimatedScoreToScaledTendsto :
+      pateEstimatedScoreBridge.estimated_score_asymptotic_normality ->
+        TendstoInDistribution pateStudentizationInput.scaledStatistic l
+          pateStudentizationInput.limit (fun _index => sampleLaw) limitLaw)
+    (pattEstimatedScoreToScaledTendsto :
+      pattEstimatedScoreBridge.estimated_score_asymptotic_normality ->
+        TendstoInDistribution pattStudentizationInput.scaledStatistic l
+          pattStudentizationInput.limit (fun _index => sampleLaw) limitLaw)
+    (pateCoverageInput : AbsoluteWaldCoverageVarianceInput Index Sample l)
+    (pattCoverageInput : AbsoluteWaldCoverageVarianceInput Index Sample l) :
+    PATEPATTFiniteScoreCellEstimatedScoreAbsoluteVarianceWaldBridge
+      PATECell PATTCell Index Sample LimitSample sampleLaw limitLaw l where
+  studentized_bridge :=
+    patePattFiniteScoreCellEstimatedScoreStudentizedBridgeOfGlivenkoCantelli
+      pateCells pateReferenceShare pateSample pateWeight pateScore
+      pateIndicatorBridge pateFiniteLLNToIndicatorLLN pateCLTBridge
+      pateFiniteConditionsToScaled pateEnvelopeToScaled
+      pateIndicatorLLNToScaled pattCells pattReferenceShare pattSample
+      pattWeight pattScore pattIndicatorBridge pattFiniteLLNToIndicatorLLN
+      pattCLTBridge pattFiniteConditionsToScaled pattEnvelopeToScaled
+      pattIndicatorLLNToScaled pateKnownScoreBridge pattKnownScoreBridge
+      pateScaledApproximationToMatchingDiscrepancy
+      pattScaledApproximationToMatchingDiscrepancy pateEstimatedScoreBridge
+      pattEstimatedScoreBridge pateKnownScoreToEstimatedScoreInput
+      pattKnownScoreToEstimatedScoreInput sampleLaw limitLaw l
+      pateStudentizationInput pattStudentizationInput
+      pateEstimatedScoreToScaledTendsto pattEstimatedScoreToScaledTendsto
+  pate_coverage_input := pateCoverageInput
+  patt_coverage_input := pattCoverageInput
+
+/--
+The GC-backed variance-estimate studentized route yields paired absolute Wald
+coverage once the finite-cell, known-score, estimated-score, studentization,
+and Wald coverage obligations are supplied.
+-/
+theorem
+    pate_patt_absoluteVarianceWaldCoverage_tendsto_of_finite_score_cell_estimated_score_variance_glivenkoCantelli
+    (pateCells : Finset PATECell)
+    (pateReferenceShare : PATECell -> Real)
+    (pateSample : ℕ -> Finset Unit)
+    (pateWeight : ℕ -> Unit -> Real)
+    (pateScore : ℕ -> Unit -> PATECell)
+    (pateIndicatorBridge : PATEDoubleScoreIndicatorSumConvergenceBridge)
+    (pateFiniteLLNToIndicatorLLN :
+      (finiteScoreCellIndicatorLLNBridgeOfGlivenkoCantelli
+        pateCells pateReferenceShare pateSample pateWeight
+        pateScore).cellwise_weighted_indicator_sum_lln ->
+        pateIndicatorBridge.weighted_indicator_sum_lln)
+    (pateCLTBridge : ScaledPATEFiniteScoreCellCLTApproximationBridge PATECell)
+    (pateFiniteConditionsToScaled :
+      pateIndicatorBridge.eventual_finite_conditions ->
+        pateCLTBridge.indicator_bridge.eventual_finite_conditions)
+    (pateEnvelopeToScaled :
+      pateIndicatorBridge.envelope_convergence ->
+        pateCLTBridge.indicator_bridge.envelope_convergence)
+    (pateIndicatorLLNToScaled :
+      pateIndicatorBridge.weighted_indicator_sum_lln ->
+        pateCLTBridge.indicator_bridge.weighted_indicator_sum_lln)
+    (pattCells : Finset PATTCell)
+    (pattReferenceShare : PATTCell -> Real)
+    (pattSample : ℕ -> Finset Unit)
+    (pattWeight : ℕ -> Unit -> Real)
+    (pattScore : ℕ -> Unit -> PATTCell)
+    (pattIndicatorBridge : PATTDoubleScoreIndicatorSumConvergenceBridge)
+    (pattFiniteLLNToIndicatorLLN :
+      (finiteScoreCellIndicatorLLNBridgeOfGlivenkoCantelli
+        pattCells pattReferenceShare pattSample pattWeight
+        pattScore).cellwise_weighted_indicator_sum_lln ->
+        pattIndicatorBridge.weighted_indicator_sum_lln)
+    (pattCLTBridge : ScaledPATTFiniteScoreCellCLTApproximationBridge PATTCell)
+    (pattFiniteConditionsToScaled :
+      pattIndicatorBridge.eventual_finite_conditions ->
+        pattCLTBridge.indicator_bridge.eventual_finite_conditions)
+    (pattEnvelopeToScaled :
+      pattIndicatorBridge.envelope_convergence ->
+        pattCLTBridge.indicator_bridge.envelope_convergence)
+    (pattIndicatorLLNToScaled :
+      pattIndicatorBridge.weighted_indicator_sum_lln ->
+        pattCLTBridge.indicator_bridge.weighted_indicator_sum_lln)
+    (pateKnownScoreBridge : KnownScoreAsymptoticBridge)
+    (pattKnownScoreBridge : KnownScoreAsymptoticBridge)
+    (pateScaledApproximationToMatchingDiscrepancy :
+      pateCLTBridge.indicator_bridge.scaled_pate_double_score_approximation_negligible ->
+        pateKnownScoreBridge.matching_discrepancy_negligible)
+    (pattScaledApproximationToMatchingDiscrepancy :
+      pattCLTBridge.indicator_bridge.scaled_patt_double_score_approximation_negligible ->
+        pattKnownScoreBridge.matching_discrepancy_negligible)
+    (pateEstimatedScoreBridge : EstimatedScoreAsymptoticBridge)
+    (pattEstimatedScoreBridge : EstimatedScoreAsymptoticBridge)
+    (pateKnownScoreToEstimatedScoreInput :
+      pateKnownScoreBridge.asymptotic_normality ->
+        pateEstimatedScoreBridge.known_score_asymptotic_normality)
+    (pattKnownScoreToEstimatedScoreInput :
+      pattKnownScoreBridge.asymptotic_normality ->
+        pattEstimatedScoreBridge.known_score_asymptotic_normality)
+    (pateStudentizationInput :
+      EstimatedScoreStudentizationInput Index Sample
+        LimitSample sampleLaw limitLaw l)
+    (pattStudentizationInput :
+      EstimatedScoreStudentizationInput Index Sample
+        LimitSample sampleLaw limitLaw l)
+    (pateEstimatedScoreToScaledTendsto :
+      pateEstimatedScoreBridge.estimated_score_asymptotic_normality ->
+        TendstoInDistribution pateStudentizationInput.scaledStatistic l
+          pateStudentizationInput.limit (fun _index => sampleLaw) limitLaw)
+    (pattEstimatedScoreToScaledTendsto :
+      pattEstimatedScoreBridge.estimated_score_asymptotic_normality ->
+        TendstoInDistribution pattStudentizationInput.scaledStatistic l
+          pattStudentizationInput.limit (fun _index => sampleLaw) limitLaw)
+    (pateCoverageInput : AbsoluteWaldCoverageVarianceInput Index Sample l)
+    (pattCoverageInput : AbsoluteWaldCoverageVarianceInput Index Sample l)
+    (hpateGC :
+      (finiteScoreCellIndicatorLLNBridgeOfGlivenkoCantelli
+        pateCells pateReferenceShare pateSample pateWeight
+        pateScore).weighted_indicator_array_lln)
+    (hpateFinite : pateIndicatorBridge.eventual_finite_conditions)
+    (hpateEnvelope : pateIndicatorBridge.envelope_convergence)
+    (hpateSimplex : pateCLTBridge.vector_clt_bridge.simplex_reference_shares)
+    (hpateLinear :
+      pateCLTBridge.vector_clt_bridge.all_linear_projection_clts_with_verified_variance)
+    (hpateMatrix :
+      pateCLTBridge.vector_clt_bridge.covariance_matrix_tangent_space_verified)
+    (hpattGC :
+      (finiteScoreCellIndicatorLLNBridgeOfGlivenkoCantelli
+        pattCells pattReferenceShare pattSample pattWeight
+        pattScore).weighted_indicator_array_lln)
+    (hpattFinite : pattIndicatorBridge.eventual_finite_conditions)
+    (hpattEnvelope : pattIndicatorBridge.envelope_convergence)
+    (hpattSimplex : pattCLTBridge.vector_clt_bridge.simplex_reference_shares)
+    (hpattLinear :
+      pattCLTBridge.vector_clt_bridge.all_linear_projection_clts_with_verified_variance)
+    (hpattMatrix :
+      pattCLTBridge.vector_clt_bridge.covariance_matrix_tangent_space_verified)
+    (hpateDecomp : pateKnownScoreBridge.aggregate_hajek_decomposition)
+    (hpateDenominator : pateKnownScoreBridge.denominator_stabilization)
+    (hpateHeterogeneity : pateKnownScoreBridge.heterogeneity_clt)
+    (hpateResidual : pateKnownScoreBridge.residual_clt)
+    (hpattDecomp : pattKnownScoreBridge.aggregate_hajek_decomposition)
+    (hpattDenominator : pattKnownScoreBridge.denominator_stabilization)
+    (hpattHeterogeneity : pattKnownScoreBridge.heterogeneity_clt)
+    (hpattResidual : pattKnownScoreBridge.residual_clt)
+    (hpateFirst :
+      pateEstimatedScoreBridge.first_step_asymptotic_linearization)
+    (hpateLocal :
+      pateEstimatedScoreBridge.matching_functional_local_expansion)
+    (hpateGodambe : pateEstimatedScoreBridge.godambe_variance_identity)
+    (hpattFirst :
+      pattEstimatedScoreBridge.first_step_asymptotic_linearization)
+    (hpattLocal :
+      pattEstimatedScoreBridge.matching_functional_local_expansion)
+    (hpattGodambe : pattEstimatedScoreBridge.godambe_variance_identity) :
+    PATEPATTFiniteScoreCellEstimatedScoreAbsoluteVarianceWaldConclusionOfGlivenkoCantelli
+      (patePattFiniteScoreCellEstimatedScoreAbsoluteVarianceWaldBridgeOfGlivenkoCantelli
+        pateCells pateReferenceShare pateSample pateWeight pateScore
+        pateIndicatorBridge pateFiniteLLNToIndicatorLLN pateCLTBridge
+        pateFiniteConditionsToScaled pateEnvelopeToScaled
+        pateIndicatorLLNToScaled pattCells pattReferenceShare pattSample
+        pattWeight pattScore pattIndicatorBridge pattFiniteLLNToIndicatorLLN
+        pattCLTBridge pattFiniteConditionsToScaled pattEnvelopeToScaled
+        pattIndicatorLLNToScaled pateKnownScoreBridge pattKnownScoreBridge
+        pateScaledApproximationToMatchingDiscrepancy
+        pattScaledApproximationToMatchingDiscrepancy pateEstimatedScoreBridge
+        pattEstimatedScoreBridge pateKnownScoreToEstimatedScoreInput
+        pattKnownScoreToEstimatedScoreInput pateStudentizationInput
+        pattStudentizationInput pateEstimatedScoreToScaledTendsto
+        pattEstimatedScoreToScaledTendsto pateCoverageInput
+        pattCoverageInput) := by
+  have hpateDesign :
+      (finiteScoreCellIndicatorLLNBridgeOfGlivenkoCantelli
+        pateCells pateReferenceShare pateSample pateWeight
+        pateScore).survey_design_regularity := by
+    simpa [finiteScoreCellIndicatorLLNBridgeOfGlivenkoCantelli] using hpateGC
+  have hpattDesign :
+      (finiteScoreCellIndicatorLLNBridgeOfGlivenkoCantelli
+        pattCells pattReferenceShare pattSample pattWeight
+        pattScore).survey_design_regularity := by
+    simpa [finiteScoreCellIndicatorLLNBridgeOfGlivenkoCantelli] using hpattGC
+  simpa
+    [PATEPATTFiniteScoreCellEstimatedScoreAbsoluteVarianceWaldConclusionOfGlivenkoCantelli,
+      patePattFiniteScoreCellEstimatedScoreAbsoluteVarianceWaldBridgeOfGlivenkoCantelli]
+    using
+      pate_patt_absoluteVarianceWaldCoverage_tendsto_of_paired_finite_score_cell_estimated_score
+        (patePattFiniteScoreCellEstimatedScoreAbsoluteVarianceWaldBridgeOfGlivenkoCantelli
+          pateCells pateReferenceShare pateSample pateWeight pateScore
+          pateIndicatorBridge pateFiniteLLNToIndicatorLLN pateCLTBridge
+          pateFiniteConditionsToScaled pateEnvelopeToScaled
+          pateIndicatorLLNToScaled pattCells pattReferenceShare pattSample
+          pattWeight pattScore pattIndicatorBridge pattFiniteLLNToIndicatorLLN
+          pattCLTBridge pattFiniteConditionsToScaled pattEnvelopeToScaled
+          pattIndicatorLLNToScaled pateKnownScoreBridge pattKnownScoreBridge
+          pateScaledApproximationToMatchingDiscrepancy
+          pattScaledApproximationToMatchingDiscrepancy pateEstimatedScoreBridge
+          pattEstimatedScoreBridge pateKnownScoreToEstimatedScoreInput
+          pattKnownScoreToEstimatedScoreInput pateStudentizationInput
+          pattStudentizationInput pateEstimatedScoreToScaledTendsto
+          pattEstimatedScoreToScaledTendsto pateCoverageInput
+          pattCoverageInput)
+        hpateDesign
+        (bounded_score_cell_indicators_of_glivenkoCantelli_bridge
+          pateCells pateReferenceShare pateSample pateWeight pateScore)
+        hpateGC hpateFinite hpateEnvelope hpateSimplex hpateLinear hpateMatrix
+        hpattDesign
+        (bounded_score_cell_indicators_of_glivenkoCantelli_bridge
+          pattCells pattReferenceShare pattSample pattWeight pattScore)
+        hpattGC hpattFinite hpattEnvelope hpattSimplex hpattLinear hpattMatrix
+        hpateDecomp hpateDenominator hpateHeterogeneity hpateResidual
+        hpattDecomp hpattDenominator hpattHeterogeneity hpattResidual
+        hpateFirst hpateLocal hpateGodambe hpattFirst hpattLocal hpattGodambe
+
+/--
+The paired GC-backed absolute variance-estimate Wald route with the PATE and
+PATT local expansion/Godambe obligations packaged as compact estimated-score
+cores.
+-/
+theorem
+    pate_patt_absoluteVarianceWaldCoverage_tendsto_of_finite_score_cell_estimated_score_variance_glivenkoCantelli_estimated_score_core
+    (pateCells : Finset PATECell)
+    (pateReferenceShare : PATECell -> Real)
+    (pateSample : ℕ -> Finset Unit)
+    (pateWeight : ℕ -> Unit -> Real)
+    (pateScore : ℕ -> Unit -> PATECell)
+    (pateIndicatorBridge : PATEDoubleScoreIndicatorSumConvergenceBridge)
+    (pateFiniteLLNToIndicatorLLN :
+      (finiteScoreCellIndicatorLLNBridgeOfGlivenkoCantelli
+        pateCells pateReferenceShare pateSample pateWeight
+        pateScore).cellwise_weighted_indicator_sum_lln ->
+        pateIndicatorBridge.weighted_indicator_sum_lln)
+    (pateCLTBridge : ScaledPATEFiniteScoreCellCLTApproximationBridge PATECell)
+    (pateFiniteConditionsToScaled :
+      pateIndicatorBridge.eventual_finite_conditions ->
+        pateCLTBridge.indicator_bridge.eventual_finite_conditions)
+    (pateEnvelopeToScaled :
+      pateIndicatorBridge.envelope_convergence ->
+        pateCLTBridge.indicator_bridge.envelope_convergence)
+    (pateIndicatorLLNToScaled :
+      pateIndicatorBridge.weighted_indicator_sum_lln ->
+        pateCLTBridge.indicator_bridge.weighted_indicator_sum_lln)
+    (pattCells : Finset PATTCell)
+    (pattReferenceShare : PATTCell -> Real)
+    (pattSample : ℕ -> Finset Unit)
+    (pattWeight : ℕ -> Unit -> Real)
+    (pattScore : ℕ -> Unit -> PATTCell)
+    (pattIndicatorBridge : PATTDoubleScoreIndicatorSumConvergenceBridge)
+    (pattFiniteLLNToIndicatorLLN :
+      (finiteScoreCellIndicatorLLNBridgeOfGlivenkoCantelli
+        pattCells pattReferenceShare pattSample pattWeight
+        pattScore).cellwise_weighted_indicator_sum_lln ->
+        pattIndicatorBridge.weighted_indicator_sum_lln)
+    (pattCLTBridge : ScaledPATTFiniteScoreCellCLTApproximationBridge PATTCell)
+    (pattFiniteConditionsToScaled :
+      pattIndicatorBridge.eventual_finite_conditions ->
+        pattCLTBridge.indicator_bridge.eventual_finite_conditions)
+    (pattEnvelopeToScaled :
+      pattIndicatorBridge.envelope_convergence ->
+        pattCLTBridge.indicator_bridge.envelope_convergence)
+    (pattIndicatorLLNToScaled :
+      pattIndicatorBridge.weighted_indicator_sum_lln ->
+        pattCLTBridge.indicator_bridge.weighted_indicator_sum_lln)
+    (pateKnownScoreBridge : KnownScoreAsymptoticBridge)
+    (pattKnownScoreBridge : KnownScoreAsymptoticBridge)
+    (pateScaledApproximationToMatchingDiscrepancy :
+      pateCLTBridge.indicator_bridge.scaled_pate_double_score_approximation_negligible ->
+        pateKnownScoreBridge.matching_discrepancy_negligible)
+    (pattScaledApproximationToMatchingDiscrepancy :
+      pattCLTBridge.indicator_bridge.scaled_patt_double_score_approximation_negligible ->
+        pattKnownScoreBridge.matching_discrepancy_negligible)
+    (pateEstimatedScoreBridge : EstimatedScoreAsymptoticBridge)
+    (pattEstimatedScoreBridge : EstimatedScoreAsymptoticBridge)
+    (pateCore : EstimatedScoreAsymptoticBridgeCore pateEstimatedScoreBridge)
+    (pattCore : EstimatedScoreAsymptoticBridgeCore pattEstimatedScoreBridge)
+    (pateKnownScoreToEstimatedScoreInput :
+      pateKnownScoreBridge.asymptotic_normality ->
+        pateEstimatedScoreBridge.known_score_asymptotic_normality)
+    (pattKnownScoreToEstimatedScoreInput :
+      pattKnownScoreBridge.asymptotic_normality ->
+        pattEstimatedScoreBridge.known_score_asymptotic_normality)
+    (pateStudentizationInput :
+      EstimatedScoreStudentizationInput Index Sample
+        LimitSample sampleLaw limitLaw l)
+    (pattStudentizationInput :
+      EstimatedScoreStudentizationInput Index Sample
+        LimitSample sampleLaw limitLaw l)
+    (pateEstimatedScoreToScaledTendsto :
+      pateEstimatedScoreBridge.estimated_score_asymptotic_normality ->
+        TendstoInDistribution pateStudentizationInput.scaledStatistic l
+          pateStudentizationInput.limit (fun _index => sampleLaw) limitLaw)
+    (pattEstimatedScoreToScaledTendsto :
+      pattEstimatedScoreBridge.estimated_score_asymptotic_normality ->
+        TendstoInDistribution pattStudentizationInput.scaledStatistic l
+          pattStudentizationInput.limit (fun _index => sampleLaw) limitLaw)
+    (pateCoverageInput : AbsoluteWaldCoverageVarianceInput Index Sample l)
+    (pattCoverageInput : AbsoluteWaldCoverageVarianceInput Index Sample l)
+    (hpateGC :
+      (finiteScoreCellIndicatorLLNBridgeOfGlivenkoCantelli
+        pateCells pateReferenceShare pateSample pateWeight
+        pateScore).weighted_indicator_array_lln)
+    (hpateFinite : pateIndicatorBridge.eventual_finite_conditions)
+    (hpateEnvelope : pateIndicatorBridge.envelope_convergence)
+    (hpateSimplex : pateCLTBridge.vector_clt_bridge.simplex_reference_shares)
+    (hpateLinear :
+      pateCLTBridge.vector_clt_bridge.all_linear_projection_clts_with_verified_variance)
+    (hpateMatrix :
+      pateCLTBridge.vector_clt_bridge.covariance_matrix_tangent_space_verified)
+    (hpattGC :
+      (finiteScoreCellIndicatorLLNBridgeOfGlivenkoCantelli
+        pattCells pattReferenceShare pattSample pattWeight
+        pattScore).weighted_indicator_array_lln)
+    (hpattFinite : pattIndicatorBridge.eventual_finite_conditions)
+    (hpattEnvelope : pattIndicatorBridge.envelope_convergence)
+    (hpattSimplex : pattCLTBridge.vector_clt_bridge.simplex_reference_shares)
+    (hpattLinear :
+      pattCLTBridge.vector_clt_bridge.all_linear_projection_clts_with_verified_variance)
+    (hpattMatrix :
+      pattCLTBridge.vector_clt_bridge.covariance_matrix_tangent_space_verified)
+    (hpateDecomp : pateKnownScoreBridge.aggregate_hajek_decomposition)
+    (hpateDenominator : pateKnownScoreBridge.denominator_stabilization)
+    (hpateHeterogeneity : pateKnownScoreBridge.heterogeneity_clt)
+    (hpateResidual : pateKnownScoreBridge.residual_clt)
+    (hpattDecomp : pattKnownScoreBridge.aggregate_hajek_decomposition)
+    (hpattDenominator : pattKnownScoreBridge.denominator_stabilization)
+    (hpattHeterogeneity : pattKnownScoreBridge.heterogeneity_clt)
+    (hpattResidual : pattKnownScoreBridge.residual_clt)
+    (hpateFirst :
+      pateEstimatedScoreBridge.first_step_asymptotic_linearization)
+    (hpattFirst :
+      pattEstimatedScoreBridge.first_step_asymptotic_linearization) :
+    PATEPATTFiniteScoreCellEstimatedScoreAbsoluteVarianceWaldConclusionOfGlivenkoCantelli
+      (patePattFiniteScoreCellEstimatedScoreAbsoluteVarianceWaldBridgeOfGlivenkoCantelli
+        pateCells pateReferenceShare pateSample pateWeight pateScore
+        pateIndicatorBridge pateFiniteLLNToIndicatorLLN pateCLTBridge
+        pateFiniteConditionsToScaled pateEnvelopeToScaled
+        pateIndicatorLLNToScaled pattCells pattReferenceShare pattSample
+        pattWeight pattScore pattIndicatorBridge pattFiniteLLNToIndicatorLLN
+        pattCLTBridge pattFiniteConditionsToScaled pattEnvelopeToScaled
+        pattIndicatorLLNToScaled pateKnownScoreBridge pattKnownScoreBridge
+        pateScaledApproximationToMatchingDiscrepancy
+        pattScaledApproximationToMatchingDiscrepancy pateEstimatedScoreBridge
+        pattEstimatedScoreBridge pateKnownScoreToEstimatedScoreInput
+        pattKnownScoreToEstimatedScoreInput pateStudentizationInput
+        pattStudentizationInput pateEstimatedScoreToScaledTendsto
+        pattEstimatedScoreToScaledTendsto pateCoverageInput
+        pattCoverageInput) :=
+  pate_patt_absoluteVarianceWaldCoverage_tendsto_of_finite_score_cell_estimated_score_variance_glivenkoCantelli
+    pateCells pateReferenceShare pateSample pateWeight pateScore
+    pateIndicatorBridge pateFiniteLLNToIndicatorLLN pateCLTBridge
+    pateFiniteConditionsToScaled pateEnvelopeToScaled pateIndicatorLLNToScaled
+    pattCells pattReferenceShare pattSample pattWeight pattScore
+    pattIndicatorBridge pattFiniteLLNToIndicatorLLN pattCLTBridge
+    pattFiniteConditionsToScaled pattEnvelopeToScaled pattIndicatorLLNToScaled
+    pateKnownScoreBridge pattKnownScoreBridge
+    pateScaledApproximationToMatchingDiscrepancy
+    pattScaledApproximationToMatchingDiscrepancy pateEstimatedScoreBridge
+    pattEstimatedScoreBridge pateKnownScoreToEstimatedScoreInput
+    pattKnownScoreToEstimatedScoreInput pateStudentizationInput
+    pattStudentizationInput pateEstimatedScoreToScaledTendsto
+    pattEstimatedScoreToScaledTendsto pateCoverageInput pattCoverageInput
+    hpateGC hpateFinite hpateEnvelope hpateSimplex hpateLinear hpateMatrix
+    hpattGC hpattFinite hpattEnvelope hpattSimplex hpattLinear hpattMatrix
+    hpateDecomp hpateDenominator hpateHeterogeneity hpateResidual
+    hpattDecomp hpattDenominator hpattHeterogeneity hpattResidual
+    hpateFirst pateCore.matching_functional_local_expansion
+    pateCore.godambe_variance_identity hpattFirst
+    pattCore.matching_functional_local_expansion
+    pattCore.godambe_variance_identity
+
+/--
+The paired GC-backed absolute variance-estimate Wald route with the PATE and
+PATT local experiment obligations packaged as compact local-experiment cores.
+-/
+theorem
+    pate_patt_absoluteVarianceWaldCoverage_tendsto_of_finite_score_cell_estimated_score_variance_glivenkoCantelli_local_experiment_core
+    (pateCells : Finset PATECell)
+    (pateReferenceShare : PATECell -> Real)
+    (pateSample : ℕ -> Finset Unit)
+    (pateWeight : ℕ -> Unit -> Real)
+    (pateScore : ℕ -> Unit -> PATECell)
+    (pateIndicatorBridge : PATEDoubleScoreIndicatorSumConvergenceBridge)
+    (pateFiniteLLNToIndicatorLLN :
+      (finiteScoreCellIndicatorLLNBridgeOfGlivenkoCantelli
+        pateCells pateReferenceShare pateSample pateWeight
+        pateScore).cellwise_weighted_indicator_sum_lln ->
+        pateIndicatorBridge.weighted_indicator_sum_lln)
+    (pateCLTBridge : ScaledPATEFiniteScoreCellCLTApproximationBridge PATECell)
+    (pateFiniteConditionsToScaled :
+      pateIndicatorBridge.eventual_finite_conditions ->
+        pateCLTBridge.indicator_bridge.eventual_finite_conditions)
+    (pateEnvelopeToScaled :
+      pateIndicatorBridge.envelope_convergence ->
+        pateCLTBridge.indicator_bridge.envelope_convergence)
+    (pateIndicatorLLNToScaled :
+      pateIndicatorBridge.weighted_indicator_sum_lln ->
+        pateCLTBridge.indicator_bridge.weighted_indicator_sum_lln)
+    (pattCells : Finset PATTCell)
+    (pattReferenceShare : PATTCell -> Real)
+    (pattSample : ℕ -> Finset Unit)
+    (pattWeight : ℕ -> Unit -> Real)
+    (pattScore : ℕ -> Unit -> PATTCell)
+    (pattIndicatorBridge : PATTDoubleScoreIndicatorSumConvergenceBridge)
+    (pattFiniteLLNToIndicatorLLN :
+      (finiteScoreCellIndicatorLLNBridgeOfGlivenkoCantelli
+        pattCells pattReferenceShare pattSample pattWeight
+        pattScore).cellwise_weighted_indicator_sum_lln ->
+        pattIndicatorBridge.weighted_indicator_sum_lln)
+    (pattCLTBridge : ScaledPATTFiniteScoreCellCLTApproximationBridge PATTCell)
+    (pattFiniteConditionsToScaled :
+      pattIndicatorBridge.eventual_finite_conditions ->
+        pattCLTBridge.indicator_bridge.eventual_finite_conditions)
+    (pattEnvelopeToScaled :
+      pattIndicatorBridge.envelope_convergence ->
+        pattCLTBridge.indicator_bridge.envelope_convergence)
+    (pattIndicatorLLNToScaled :
+      pattIndicatorBridge.weighted_indicator_sum_lln ->
+        pattCLTBridge.indicator_bridge.weighted_indicator_sum_lln)
+    (pateKnownScoreBridge : KnownScoreAsymptoticBridge)
+    (pattKnownScoreBridge : KnownScoreAsymptoticBridge)
+    (pateScaledApproximationToMatchingDiscrepancy :
+      pateCLTBridge.indicator_bridge.scaled_pate_double_score_approximation_negligible ->
+        pateKnownScoreBridge.matching_discrepancy_negligible)
+    (pattScaledApproximationToMatchingDiscrepancy :
+      pattCLTBridge.indicator_bridge.scaled_patt_double_score_approximation_negligible ->
+        pattKnownScoreBridge.matching_discrepancy_negligible)
+(pateEstimated : EstimatedScoreLocalExperimentInput)
+(pattEstimated : EstimatedScoreLocalExperimentInput)
+(pateCore : EstimatedScoreLocalExperimentCore pateEstimated)
+(pattCore : EstimatedScoreLocalExperimentCore pattEstimated)
+    (pateKnownScoreToEstimatedScoreInput :
+      pateKnownScoreBridge.asymptotic_normality ->
+        pateEstimated.known_score_asymptotic_normality)
+    (pattKnownScoreToEstimatedScoreInput :
+      pattKnownScoreBridge.asymptotic_normality ->
+        pattEstimated.known_score_asymptotic_normality)
+    (pateStudentizationInput :
+      EstimatedScoreStudentizationInput Index Sample
+        LimitSample sampleLaw limitLaw l)
+    (pattStudentizationInput :
+      EstimatedScoreStudentizationInput Index Sample
+        LimitSample sampleLaw limitLaw l)
+    (pateEstimatedScoreToScaledTendsto :
+      pateEstimated.estimated_score_asymptotic_normality ->
+        TendstoInDistribution pateStudentizationInput.scaledStatistic l
+          pateStudentizationInput.limit (fun _index => sampleLaw) limitLaw)
+    (pattEstimatedScoreToScaledTendsto :
+      pattEstimated.estimated_score_asymptotic_normality ->
+        TendstoInDistribution pattStudentizationInput.scaledStatistic l
+          pattStudentizationInput.limit (fun _index => sampleLaw) limitLaw)
+    (pateCoverageInput : AbsoluteWaldCoverageVarianceInput Index Sample l)
+    (pattCoverageInput : AbsoluteWaldCoverageVarianceInput Index Sample l)
+    (hpateGC :
+      (finiteScoreCellIndicatorLLNBridgeOfGlivenkoCantelli
+        pateCells pateReferenceShare pateSample pateWeight
+        pateScore).weighted_indicator_array_lln)
+    (hpateFinite : pateIndicatorBridge.eventual_finite_conditions)
+    (hpateEnvelope : pateIndicatorBridge.envelope_convergence)
+    (hpateSimplex : pateCLTBridge.vector_clt_bridge.simplex_reference_shares)
+    (hpateLinear :
+      pateCLTBridge.vector_clt_bridge.all_linear_projection_clts_with_verified_variance)
+    (hpateMatrix :
+      pateCLTBridge.vector_clt_bridge.covariance_matrix_tangent_space_verified)
+    (hpattGC :
+      (finiteScoreCellIndicatorLLNBridgeOfGlivenkoCantelli
+        pattCells pattReferenceShare pattSample pattWeight
+        pattScore).weighted_indicator_array_lln)
+    (hpattFinite : pattIndicatorBridge.eventual_finite_conditions)
+    (hpattEnvelope : pattIndicatorBridge.envelope_convergence)
+    (hpattSimplex : pattCLTBridge.vector_clt_bridge.simplex_reference_shares)
+    (hpattLinear :
+      pattCLTBridge.vector_clt_bridge.all_linear_projection_clts_with_verified_variance)
+    (hpattMatrix :
+      pattCLTBridge.vector_clt_bridge.covariance_matrix_tangent_space_verified)
+    (hpateDecomp : pateKnownScoreBridge.aggregate_hajek_decomposition)
+    (hpateDenominator : pateKnownScoreBridge.denominator_stabilization)
+    (hpateHeterogeneity : pateKnownScoreBridge.heterogeneity_clt)
+    (hpateResidual : pateKnownScoreBridge.residual_clt)
+    (hpattDecomp : pattKnownScoreBridge.aggregate_hajek_decomposition)
+    (hpattDenominator : pattKnownScoreBridge.denominator_stabilization)
+    (hpattHeterogeneity : pattKnownScoreBridge.heterogeneity_clt)
+    (hpattResidual : pattKnownScoreBridge.residual_clt)
+    (hpateFirst :
+      pateEstimated.first_step_asymptotic_linearization)
+    (hpateScore :
+      pateEstimated.score_estimator_local_asymptotic_linearity)
+    (hpattFirst :
+      pattEstimated.first_step_asymptotic_linearization)
+    (hpattScore :
+      pattEstimated.score_estimator_local_asymptotic_linearity) :
+    PATEPATTFiniteScoreCellEstimatedScoreAbsoluteVarianceWaldConclusionOfGlivenkoCantelli
+      (patePattFiniteScoreCellEstimatedScoreAbsoluteVarianceWaldBridgeOfGlivenkoCantelli
+        pateCells pateReferenceShare pateSample pateWeight pateScore
+        pateIndicatorBridge pateFiniteLLNToIndicatorLLN pateCLTBridge
+        pateFiniteConditionsToScaled pateEnvelopeToScaled
+        pateIndicatorLLNToScaled pattCells pattReferenceShare pattSample
+        pattWeight pattScore pattIndicatorBridge pattFiniteLLNToIndicatorLLN
+        pattCLTBridge pattFiniteConditionsToScaled pattEnvelopeToScaled
+        pattIndicatorLLNToScaled pateKnownScoreBridge pattKnownScoreBridge
+        pateScaledApproximationToMatchingDiscrepancy
+        pattScaledApproximationToMatchingDiscrepancy (estimatedScoreAsymptoticBridgeOfLocalExperimentInput pateEstimated)
+        (estimatedScoreAsymptoticBridgeOfLocalExperimentInput pattEstimated) pateKnownScoreToEstimatedScoreInput
+        pattKnownScoreToEstimatedScoreInput pateStudentizationInput
+        pattStudentizationInput pateEstimatedScoreToScaledTendsto
+        pattEstimatedScoreToScaledTendsto pateCoverageInput
+        pattCoverageInput) :=
+  pate_patt_absoluteVarianceWaldCoverage_tendsto_of_finite_score_cell_estimated_score_variance_glivenkoCantelli
+    pateCells pateReferenceShare pateSample pateWeight pateScore
+    pateIndicatorBridge pateFiniteLLNToIndicatorLLN pateCLTBridge
+    pateFiniteConditionsToScaled pateEnvelopeToScaled pateIndicatorLLNToScaled
+    pattCells pattReferenceShare pattSample pattWeight pattScore
+    pattIndicatorBridge pattFiniteLLNToIndicatorLLN pattCLTBridge
+    pattFiniteConditionsToScaled pattEnvelopeToScaled pattIndicatorLLNToScaled
+    pateKnownScoreBridge pattKnownScoreBridge
+    pateScaledApproximationToMatchingDiscrepancy
+    pattScaledApproximationToMatchingDiscrepancy (estimatedScoreAsymptoticBridgeOfLocalExperimentInput pateEstimated)
+    (estimatedScoreAsymptoticBridgeOfLocalExperimentInput pattEstimated) pateKnownScoreToEstimatedScoreInput
+    pattKnownScoreToEstimatedScoreInput pateStudentizationInput
+    pattStudentizationInput pateEstimatedScoreToScaledTendsto
+    pattEstimatedScoreToScaledTendsto pateCoverageInput pattCoverageInput
+    hpateGC hpateFinite hpateEnvelope hpateSimplex hpateLinear hpateMatrix
+    hpattGC hpattFinite hpattEnvelope hpattSimplex hpattLinear hpattMatrix
+    hpateDecomp hpateDenominator hpateHeterogeneity hpateResidual
+    hpattDecomp hpattDenominator hpattHeterogeneity hpattResidual
+    hpateFirst
+    ⟨hpateScore, pateCore.matching_functional_local_derivative,
+      pateCore.local_stochastic_equicontinuity⟩
+    pateCore.godambe_variance_identity hpattFirst
+    ⟨hpattScore, pattCore.matching_functional_local_derivative,
+      pattCore.local_stochastic_equicontinuity⟩
+    pattCore.godambe_variance_identity
+
+
+/--
+The paired two-sided variance-estimate Wald conclusion used by the GC adapter.
+It is stated through the equivalent absolute coverage record because the final
+coverage event is the common Wald interval event.
+-/
+def PATEPATTFiniteScoreCellEstimatedScoreTwoSidedVarianceWaldConclusionOfGlivenkoCantelli
+    (b :
+      PATEPATTFiniteScoreCellEstimatedScoreTwoSidedVarianceWaldBridge
+        PATECell PATTCell Index Sample LimitSample sampleLaw limitLaw l) :
+    Prop :=
+  PATEPATTFiniteScoreCellEstimatedScoreAbsoluteVarianceWaldConclusionOfGlivenkoCantelli
+    ({ studentized_bridge := b.studentized_bridge
+       pate_coverage_input :=
+        absoluteWaldCoverageVarianceInput_of_twoSided b.pate_coverage_input
+       patt_coverage_input :=
+        absoluteWaldCoverageVarianceInput_of_twoSided b.patt_coverage_input } :
+      PATEPATTFiniteScoreCellEstimatedScoreAbsoluteVarianceWaldBridge
+        PATECell PATTCell Index Sample LimitSample sampleLaw limitLaw l)
+
+/--
+Build a paired two-sided variance-estimate Wald bridge whose finite score-cell
+layer is backed by GC certificates on the LLN side.
+-/
+def
+    patePattFiniteScoreCellEstimatedScoreTwoSidedVarianceWaldBridgeOfGlivenkoCantelli
+    (pateCells : Finset PATECell)
+    (pateReferenceShare : PATECell -> Real)
+    (pateSample : ℕ -> Finset Unit)
+    (pateWeight : ℕ -> Unit -> Real)
+    (pateScore : ℕ -> Unit -> PATECell)
+    (pateIndicatorBridge : PATEDoubleScoreIndicatorSumConvergenceBridge)
+    (pateFiniteLLNToIndicatorLLN :
+      (finiteScoreCellIndicatorLLNBridgeOfGlivenkoCantelli
+        pateCells pateReferenceShare pateSample pateWeight
+        pateScore).cellwise_weighted_indicator_sum_lln ->
+        pateIndicatorBridge.weighted_indicator_sum_lln)
+    (pateCLTBridge : ScaledPATEFiniteScoreCellCLTApproximationBridge PATECell)
+    (pateFiniteConditionsToScaled :
+      pateIndicatorBridge.eventual_finite_conditions ->
+        pateCLTBridge.indicator_bridge.eventual_finite_conditions)
+    (pateEnvelopeToScaled :
+      pateIndicatorBridge.envelope_convergence ->
+        pateCLTBridge.indicator_bridge.envelope_convergence)
+    (pateIndicatorLLNToScaled :
+      pateIndicatorBridge.weighted_indicator_sum_lln ->
+        pateCLTBridge.indicator_bridge.weighted_indicator_sum_lln)
+    (pattCells : Finset PATTCell)
+    (pattReferenceShare : PATTCell -> Real)
+    (pattSample : ℕ -> Finset Unit)
+    (pattWeight : ℕ -> Unit -> Real)
+    (pattScore : ℕ -> Unit -> PATTCell)
+    (pattIndicatorBridge : PATTDoubleScoreIndicatorSumConvergenceBridge)
+    (pattFiniteLLNToIndicatorLLN :
+      (finiteScoreCellIndicatorLLNBridgeOfGlivenkoCantelli
+        pattCells pattReferenceShare pattSample pattWeight
+        pattScore).cellwise_weighted_indicator_sum_lln ->
+        pattIndicatorBridge.weighted_indicator_sum_lln)
+    (pattCLTBridge : ScaledPATTFiniteScoreCellCLTApproximationBridge PATTCell)
+    (pattFiniteConditionsToScaled :
+      pattIndicatorBridge.eventual_finite_conditions ->
+        pattCLTBridge.indicator_bridge.eventual_finite_conditions)
+    (pattEnvelopeToScaled :
+      pattIndicatorBridge.envelope_convergence ->
+        pattCLTBridge.indicator_bridge.envelope_convergence)
+    (pattIndicatorLLNToScaled :
+      pattIndicatorBridge.weighted_indicator_sum_lln ->
+        pattCLTBridge.indicator_bridge.weighted_indicator_sum_lln)
+    (pateKnownScoreBridge : KnownScoreAsymptoticBridge)
+    (pattKnownScoreBridge : KnownScoreAsymptoticBridge)
+    (pateScaledApproximationToMatchingDiscrepancy :
+      pateCLTBridge.indicator_bridge.scaled_pate_double_score_approximation_negligible ->
+        pateKnownScoreBridge.matching_discrepancy_negligible)
+    (pattScaledApproximationToMatchingDiscrepancy :
+      pattCLTBridge.indicator_bridge.scaled_patt_double_score_approximation_negligible ->
+        pattKnownScoreBridge.matching_discrepancy_negligible)
+    (pateEstimatedScoreBridge : EstimatedScoreAsymptoticBridge)
+    (pattEstimatedScoreBridge : EstimatedScoreAsymptoticBridge)
+    (pateKnownScoreToEstimatedScoreInput :
+      pateKnownScoreBridge.asymptotic_normality ->
+        pateEstimatedScoreBridge.known_score_asymptotic_normality)
+    (pattKnownScoreToEstimatedScoreInput :
+      pattKnownScoreBridge.asymptotic_normality ->
+        pattEstimatedScoreBridge.known_score_asymptotic_normality)
+    (pateStudentizationInput :
+      EstimatedScoreStudentizationInput Index Sample
+        LimitSample sampleLaw limitLaw l)
+    (pattStudentizationInput :
+      EstimatedScoreStudentizationInput Index Sample
+        LimitSample sampleLaw limitLaw l)
+    (pateEstimatedScoreToScaledTendsto :
+      pateEstimatedScoreBridge.estimated_score_asymptotic_normality ->
+        TendstoInDistribution pateStudentizationInput.scaledStatistic l
+          pateStudentizationInput.limit (fun _index => sampleLaw) limitLaw)
+    (pattEstimatedScoreToScaledTendsto :
+      pattEstimatedScoreBridge.estimated_score_asymptotic_normality ->
+        TendstoInDistribution pattStudentizationInput.scaledStatistic l
+          pattStudentizationInput.limit (fun _index => sampleLaw) limitLaw)
+    (pateCoverageInput : TwoSidedWaldCoverageVarianceInput Index Sample l)
+    (pattCoverageInput : TwoSidedWaldCoverageVarianceInput Index Sample l) :
+    PATEPATTFiniteScoreCellEstimatedScoreTwoSidedVarianceWaldBridge
+      PATECell PATTCell Index Sample LimitSample sampleLaw limitLaw l where
+  studentized_bridge :=
+    patePattFiniteScoreCellEstimatedScoreStudentizedBridgeOfGlivenkoCantelli
+      pateCells pateReferenceShare pateSample pateWeight pateScore
+      pateIndicatorBridge pateFiniteLLNToIndicatorLLN pateCLTBridge
+      pateFiniteConditionsToScaled pateEnvelopeToScaled
+      pateIndicatorLLNToScaled pattCells pattReferenceShare pattSample
+      pattWeight pattScore pattIndicatorBridge pattFiniteLLNToIndicatorLLN
+      pattCLTBridge pattFiniteConditionsToScaled pattEnvelopeToScaled
+      pattIndicatorLLNToScaled pateKnownScoreBridge pattKnownScoreBridge
+      pateScaledApproximationToMatchingDiscrepancy
+      pattScaledApproximationToMatchingDiscrepancy pateEstimatedScoreBridge
+      pattEstimatedScoreBridge pateKnownScoreToEstimatedScoreInput
+      pattKnownScoreToEstimatedScoreInput sampleLaw limitLaw l
+      pateStudentizationInput pattStudentizationInput
+      pateEstimatedScoreToScaledTendsto pattEstimatedScoreToScaledTendsto
+  pate_coverage_input := pateCoverageInput
+  patt_coverage_input := pattCoverageInput
+
+/--
+The GC-backed variance-estimate studentized route yields paired two-sided Wald
+coverage once the finite-cell, known-score, estimated-score, studentization,
+and Wald coverage obligations are supplied.
+-/
+theorem
+    pate_patt_twoSidedVarianceWaldCoverage_tendsto_of_finite_score_cell_estimated_score_variance_glivenkoCantelli
+    (pateCells : Finset PATECell)
+    (pateReferenceShare : PATECell -> Real)
+    (pateSample : ℕ -> Finset Unit)
+    (pateWeight : ℕ -> Unit -> Real)
+    (pateScore : ℕ -> Unit -> PATECell)
+    (pateIndicatorBridge : PATEDoubleScoreIndicatorSumConvergenceBridge)
+    (pateFiniteLLNToIndicatorLLN :
+      (finiteScoreCellIndicatorLLNBridgeOfGlivenkoCantelli
+        pateCells pateReferenceShare pateSample pateWeight
+        pateScore).cellwise_weighted_indicator_sum_lln ->
+        pateIndicatorBridge.weighted_indicator_sum_lln)
+    (pateCLTBridge : ScaledPATEFiniteScoreCellCLTApproximationBridge PATECell)
+    (pateFiniteConditionsToScaled :
+      pateIndicatorBridge.eventual_finite_conditions ->
+        pateCLTBridge.indicator_bridge.eventual_finite_conditions)
+    (pateEnvelopeToScaled :
+      pateIndicatorBridge.envelope_convergence ->
+        pateCLTBridge.indicator_bridge.envelope_convergence)
+    (pateIndicatorLLNToScaled :
+      pateIndicatorBridge.weighted_indicator_sum_lln ->
+        pateCLTBridge.indicator_bridge.weighted_indicator_sum_lln)
+    (pattCells : Finset PATTCell)
+    (pattReferenceShare : PATTCell -> Real)
+    (pattSample : ℕ -> Finset Unit)
+    (pattWeight : ℕ -> Unit -> Real)
+    (pattScore : ℕ -> Unit -> PATTCell)
+    (pattIndicatorBridge : PATTDoubleScoreIndicatorSumConvergenceBridge)
+    (pattFiniteLLNToIndicatorLLN :
+      (finiteScoreCellIndicatorLLNBridgeOfGlivenkoCantelli
+        pattCells pattReferenceShare pattSample pattWeight
+        pattScore).cellwise_weighted_indicator_sum_lln ->
+        pattIndicatorBridge.weighted_indicator_sum_lln)
+    (pattCLTBridge : ScaledPATTFiniteScoreCellCLTApproximationBridge PATTCell)
+    (pattFiniteConditionsToScaled :
+      pattIndicatorBridge.eventual_finite_conditions ->
+        pattCLTBridge.indicator_bridge.eventual_finite_conditions)
+    (pattEnvelopeToScaled :
+      pattIndicatorBridge.envelope_convergence ->
+        pattCLTBridge.indicator_bridge.envelope_convergence)
+    (pattIndicatorLLNToScaled :
+      pattIndicatorBridge.weighted_indicator_sum_lln ->
+        pattCLTBridge.indicator_bridge.weighted_indicator_sum_lln)
+    (pateKnownScoreBridge : KnownScoreAsymptoticBridge)
+    (pattKnownScoreBridge : KnownScoreAsymptoticBridge)
+    (pateScaledApproximationToMatchingDiscrepancy :
+      pateCLTBridge.indicator_bridge.scaled_pate_double_score_approximation_negligible ->
+        pateKnownScoreBridge.matching_discrepancy_negligible)
+    (pattScaledApproximationToMatchingDiscrepancy :
+      pattCLTBridge.indicator_bridge.scaled_patt_double_score_approximation_negligible ->
+        pattKnownScoreBridge.matching_discrepancy_negligible)
+    (pateEstimatedScoreBridge : EstimatedScoreAsymptoticBridge)
+    (pattEstimatedScoreBridge : EstimatedScoreAsymptoticBridge)
+    (pateKnownScoreToEstimatedScoreInput :
+      pateKnownScoreBridge.asymptotic_normality ->
+        pateEstimatedScoreBridge.known_score_asymptotic_normality)
+    (pattKnownScoreToEstimatedScoreInput :
+      pattKnownScoreBridge.asymptotic_normality ->
+        pattEstimatedScoreBridge.known_score_asymptotic_normality)
+    (pateStudentizationInput :
+      EstimatedScoreStudentizationInput Index Sample
+        LimitSample sampleLaw limitLaw l)
+    (pattStudentizationInput :
+      EstimatedScoreStudentizationInput Index Sample
+        LimitSample sampleLaw limitLaw l)
+    (pateEstimatedScoreToScaledTendsto :
+      pateEstimatedScoreBridge.estimated_score_asymptotic_normality ->
+        TendstoInDistribution pateStudentizationInput.scaledStatistic l
+          pateStudentizationInput.limit (fun _index => sampleLaw) limitLaw)
+    (pattEstimatedScoreToScaledTendsto :
+      pattEstimatedScoreBridge.estimated_score_asymptotic_normality ->
+        TendstoInDistribution pattStudentizationInput.scaledStatistic l
+          pattStudentizationInput.limit (fun _index => sampleLaw) limitLaw)
+    (pateCoverageInput : TwoSidedWaldCoverageVarianceInput Index Sample l)
+    (pattCoverageInput : TwoSidedWaldCoverageVarianceInput Index Sample l)
+    (hpateGC :
+      (finiteScoreCellIndicatorLLNBridgeOfGlivenkoCantelli
+        pateCells pateReferenceShare pateSample pateWeight
+        pateScore).weighted_indicator_array_lln)
+    (hpateFinite : pateIndicatorBridge.eventual_finite_conditions)
+    (hpateEnvelope : pateIndicatorBridge.envelope_convergence)
+    (hpateSimplex : pateCLTBridge.vector_clt_bridge.simplex_reference_shares)
+    (hpateLinear :
+      pateCLTBridge.vector_clt_bridge.all_linear_projection_clts_with_verified_variance)
+    (hpateMatrix :
+      pateCLTBridge.vector_clt_bridge.covariance_matrix_tangent_space_verified)
+    (hpattGC :
+      (finiteScoreCellIndicatorLLNBridgeOfGlivenkoCantelli
+        pattCells pattReferenceShare pattSample pattWeight
+        pattScore).weighted_indicator_array_lln)
+    (hpattFinite : pattIndicatorBridge.eventual_finite_conditions)
+    (hpattEnvelope : pattIndicatorBridge.envelope_convergence)
+    (hpattSimplex : pattCLTBridge.vector_clt_bridge.simplex_reference_shares)
+    (hpattLinear :
+      pattCLTBridge.vector_clt_bridge.all_linear_projection_clts_with_verified_variance)
+    (hpattMatrix :
+      pattCLTBridge.vector_clt_bridge.covariance_matrix_tangent_space_verified)
+    (hpateDecomp : pateKnownScoreBridge.aggregate_hajek_decomposition)
+    (hpateDenominator : pateKnownScoreBridge.denominator_stabilization)
+    (hpateHeterogeneity : pateKnownScoreBridge.heterogeneity_clt)
+    (hpateResidual : pateKnownScoreBridge.residual_clt)
+    (hpattDecomp : pattKnownScoreBridge.aggregate_hajek_decomposition)
+    (hpattDenominator : pattKnownScoreBridge.denominator_stabilization)
+    (hpattHeterogeneity : pattKnownScoreBridge.heterogeneity_clt)
+    (hpattResidual : pattKnownScoreBridge.residual_clt)
+    (hpateFirst :
+      pateEstimatedScoreBridge.first_step_asymptotic_linearization)
+    (hpateLocal :
+      pateEstimatedScoreBridge.matching_functional_local_expansion)
+    (hpateGodambe : pateEstimatedScoreBridge.godambe_variance_identity)
+    (hpattFirst :
+      pattEstimatedScoreBridge.first_step_asymptotic_linearization)
+    (hpattLocal :
+      pattEstimatedScoreBridge.matching_functional_local_expansion)
+    (hpattGodambe : pattEstimatedScoreBridge.godambe_variance_identity) :
+    PATEPATTFiniteScoreCellEstimatedScoreTwoSidedVarianceWaldConclusionOfGlivenkoCantelli
+      (patePattFiniteScoreCellEstimatedScoreTwoSidedVarianceWaldBridgeOfGlivenkoCantelli
+        pateCells pateReferenceShare pateSample pateWeight pateScore
+        pateIndicatorBridge pateFiniteLLNToIndicatorLLN pateCLTBridge
+        pateFiniteConditionsToScaled pateEnvelopeToScaled
+        pateIndicatorLLNToScaled pattCells pattReferenceShare pattSample
+        pattWeight pattScore pattIndicatorBridge pattFiniteLLNToIndicatorLLN
+        pattCLTBridge pattFiniteConditionsToScaled pattEnvelopeToScaled
+        pattIndicatorLLNToScaled pateKnownScoreBridge pattKnownScoreBridge
+        pateScaledApproximationToMatchingDiscrepancy
+        pattScaledApproximationToMatchingDiscrepancy pateEstimatedScoreBridge
+        pattEstimatedScoreBridge pateKnownScoreToEstimatedScoreInput
+        pattKnownScoreToEstimatedScoreInput pateStudentizationInput
+        pattStudentizationInput pateEstimatedScoreToScaledTendsto
+        pattEstimatedScoreToScaledTendsto pateCoverageInput
+        pattCoverageInput) := by
+  have hpateDesign :
+      (finiteScoreCellIndicatorLLNBridgeOfGlivenkoCantelli
+        pateCells pateReferenceShare pateSample pateWeight
+        pateScore).survey_design_regularity := by
+    simpa [finiteScoreCellIndicatorLLNBridgeOfGlivenkoCantelli] using hpateGC
+  have hpattDesign :
+      (finiteScoreCellIndicatorLLNBridgeOfGlivenkoCantelli
+        pattCells pattReferenceShare pattSample pattWeight
+        pattScore).survey_design_regularity := by
+    simpa [finiteScoreCellIndicatorLLNBridgeOfGlivenkoCantelli] using hpattGC
+  simpa
+    [PATEPATTFiniteScoreCellEstimatedScoreTwoSidedVarianceWaldConclusionOfGlivenkoCantelli,
+      PATEPATTFiniteScoreCellEstimatedScoreAbsoluteVarianceWaldConclusionOfGlivenkoCantelli,
+      patePattFiniteScoreCellEstimatedScoreTwoSidedVarianceWaldBridgeOfGlivenkoCantelli,
+      absoluteWaldCoverageVarianceInput_of_twoSided]
+    using
+      pate_patt_twoSidedVarianceWaldCoverage_tendsto_of_paired_finite_score_cell_estimated_score
+        (patePattFiniteScoreCellEstimatedScoreTwoSidedVarianceWaldBridgeOfGlivenkoCantelli
+          pateCells pateReferenceShare pateSample pateWeight pateScore
+          pateIndicatorBridge pateFiniteLLNToIndicatorLLN pateCLTBridge
+          pateFiniteConditionsToScaled pateEnvelopeToScaled
+          pateIndicatorLLNToScaled pattCells pattReferenceShare pattSample
+          pattWeight pattScore pattIndicatorBridge pattFiniteLLNToIndicatorLLN
+          pattCLTBridge pattFiniteConditionsToScaled pattEnvelopeToScaled
+          pattIndicatorLLNToScaled pateKnownScoreBridge pattKnownScoreBridge
+          pateScaledApproximationToMatchingDiscrepancy
+          pattScaledApproximationToMatchingDiscrepancy pateEstimatedScoreBridge
+          pattEstimatedScoreBridge pateKnownScoreToEstimatedScoreInput
+          pattKnownScoreToEstimatedScoreInput pateStudentizationInput
+          pattStudentizationInput pateEstimatedScoreToScaledTendsto
+          pattEstimatedScoreToScaledTendsto pateCoverageInput
+          pattCoverageInput)
+        hpateDesign
+        (bounded_score_cell_indicators_of_glivenkoCantelli_bridge
+          pateCells pateReferenceShare pateSample pateWeight pateScore)
+        hpateGC hpateFinite hpateEnvelope hpateSimplex hpateLinear hpateMatrix
+        hpattDesign
+        (bounded_score_cell_indicators_of_glivenkoCantelli_bridge
+          pattCells pattReferenceShare pattSample pattWeight pattScore)
+        hpattGC hpattFinite hpattEnvelope hpattSimplex hpattLinear hpattMatrix
+        hpateDecomp hpateDenominator hpateHeterogeneity hpateResidual
+        hpattDecomp hpattDenominator hpattHeterogeneity hpattResidual
+        hpateFirst hpateLocal hpateGodambe hpattFirst hpattLocal hpattGodambe
+
+/--
+The paired GC-backed two-sided variance-estimate Wald route with the PATE and
+PATT local expansion/Godambe obligations packaged as compact estimated-score
+cores.
+-/
+theorem
+    pate_patt_twoSidedVarianceWaldCoverage_tendsto_of_finite_score_cell_estimated_score_variance_glivenkoCantelli_estimated_score_core
+    (pateCells : Finset PATECell)
+    (pateReferenceShare : PATECell -> Real)
+    (pateSample : ℕ -> Finset Unit)
+    (pateWeight : ℕ -> Unit -> Real)
+    (pateScore : ℕ -> Unit -> PATECell)
+    (pateIndicatorBridge : PATEDoubleScoreIndicatorSumConvergenceBridge)
+    (pateFiniteLLNToIndicatorLLN :
+      (finiteScoreCellIndicatorLLNBridgeOfGlivenkoCantelli
+        pateCells pateReferenceShare pateSample pateWeight
+        pateScore).cellwise_weighted_indicator_sum_lln ->
+        pateIndicatorBridge.weighted_indicator_sum_lln)
+    (pateCLTBridge : ScaledPATEFiniteScoreCellCLTApproximationBridge PATECell)
+    (pateFiniteConditionsToScaled :
+      pateIndicatorBridge.eventual_finite_conditions ->
+        pateCLTBridge.indicator_bridge.eventual_finite_conditions)
+    (pateEnvelopeToScaled :
+      pateIndicatorBridge.envelope_convergence ->
+        pateCLTBridge.indicator_bridge.envelope_convergence)
+    (pateIndicatorLLNToScaled :
+      pateIndicatorBridge.weighted_indicator_sum_lln ->
+        pateCLTBridge.indicator_bridge.weighted_indicator_sum_lln)
+    (pattCells : Finset PATTCell)
+    (pattReferenceShare : PATTCell -> Real)
+    (pattSample : ℕ -> Finset Unit)
+    (pattWeight : ℕ -> Unit -> Real)
+    (pattScore : ℕ -> Unit -> PATTCell)
+    (pattIndicatorBridge : PATTDoubleScoreIndicatorSumConvergenceBridge)
+    (pattFiniteLLNToIndicatorLLN :
+      (finiteScoreCellIndicatorLLNBridgeOfGlivenkoCantelli
+        pattCells pattReferenceShare pattSample pattWeight
+        pattScore).cellwise_weighted_indicator_sum_lln ->
+        pattIndicatorBridge.weighted_indicator_sum_lln)
+    (pattCLTBridge : ScaledPATTFiniteScoreCellCLTApproximationBridge PATTCell)
+    (pattFiniteConditionsToScaled :
+      pattIndicatorBridge.eventual_finite_conditions ->
+        pattCLTBridge.indicator_bridge.eventual_finite_conditions)
+    (pattEnvelopeToScaled :
+      pattIndicatorBridge.envelope_convergence ->
+        pattCLTBridge.indicator_bridge.envelope_convergence)
+    (pattIndicatorLLNToScaled :
+      pattIndicatorBridge.weighted_indicator_sum_lln ->
+        pattCLTBridge.indicator_bridge.weighted_indicator_sum_lln)
+    (pateKnownScoreBridge : KnownScoreAsymptoticBridge)
+    (pattKnownScoreBridge : KnownScoreAsymptoticBridge)
+    (pateScaledApproximationToMatchingDiscrepancy :
+      pateCLTBridge.indicator_bridge.scaled_pate_double_score_approximation_negligible ->
+        pateKnownScoreBridge.matching_discrepancy_negligible)
+    (pattScaledApproximationToMatchingDiscrepancy :
+      pattCLTBridge.indicator_bridge.scaled_patt_double_score_approximation_negligible ->
+        pattKnownScoreBridge.matching_discrepancy_negligible)
+    (pateEstimatedScoreBridge : EstimatedScoreAsymptoticBridge)
+    (pattEstimatedScoreBridge : EstimatedScoreAsymptoticBridge)
+    (pateCore : EstimatedScoreAsymptoticBridgeCore pateEstimatedScoreBridge)
+    (pattCore : EstimatedScoreAsymptoticBridgeCore pattEstimatedScoreBridge)
+    (pateKnownScoreToEstimatedScoreInput :
+      pateKnownScoreBridge.asymptotic_normality ->
+        pateEstimatedScoreBridge.known_score_asymptotic_normality)
+    (pattKnownScoreToEstimatedScoreInput :
+      pattKnownScoreBridge.asymptotic_normality ->
+        pattEstimatedScoreBridge.known_score_asymptotic_normality)
+    (pateStudentizationInput :
+      EstimatedScoreStudentizationInput Index Sample
+        LimitSample sampleLaw limitLaw l)
+    (pattStudentizationInput :
+      EstimatedScoreStudentizationInput Index Sample
+        LimitSample sampleLaw limitLaw l)
+    (pateEstimatedScoreToScaledTendsto :
+      pateEstimatedScoreBridge.estimated_score_asymptotic_normality ->
+        TendstoInDistribution pateStudentizationInput.scaledStatistic l
+          pateStudentizationInput.limit (fun _index => sampleLaw) limitLaw)
+    (pattEstimatedScoreToScaledTendsto :
+      pattEstimatedScoreBridge.estimated_score_asymptotic_normality ->
+        TendstoInDistribution pattStudentizationInput.scaledStatistic l
+          pattStudentizationInput.limit (fun _index => sampleLaw) limitLaw)
+    (pateCoverageInput : TwoSidedWaldCoverageVarianceInput Index Sample l)
+    (pattCoverageInput : TwoSidedWaldCoverageVarianceInput Index Sample l)
+    (hpateGC :
+      (finiteScoreCellIndicatorLLNBridgeOfGlivenkoCantelli
+        pateCells pateReferenceShare pateSample pateWeight
+        pateScore).weighted_indicator_array_lln)
+    (hpateFinite : pateIndicatorBridge.eventual_finite_conditions)
+    (hpateEnvelope : pateIndicatorBridge.envelope_convergence)
+    (hpateSimplex : pateCLTBridge.vector_clt_bridge.simplex_reference_shares)
+    (hpateLinear :
+      pateCLTBridge.vector_clt_bridge.all_linear_projection_clts_with_verified_variance)
+    (hpateMatrix :
+      pateCLTBridge.vector_clt_bridge.covariance_matrix_tangent_space_verified)
+    (hpattGC :
+      (finiteScoreCellIndicatorLLNBridgeOfGlivenkoCantelli
+        pattCells pattReferenceShare pattSample pattWeight
+        pattScore).weighted_indicator_array_lln)
+    (hpattFinite : pattIndicatorBridge.eventual_finite_conditions)
+    (hpattEnvelope : pattIndicatorBridge.envelope_convergence)
+    (hpattSimplex : pattCLTBridge.vector_clt_bridge.simplex_reference_shares)
+    (hpattLinear :
+      pattCLTBridge.vector_clt_bridge.all_linear_projection_clts_with_verified_variance)
+    (hpattMatrix :
+      pattCLTBridge.vector_clt_bridge.covariance_matrix_tangent_space_verified)
+    (hpateDecomp : pateKnownScoreBridge.aggregate_hajek_decomposition)
+    (hpateDenominator : pateKnownScoreBridge.denominator_stabilization)
+    (hpateHeterogeneity : pateKnownScoreBridge.heterogeneity_clt)
+    (hpateResidual : pateKnownScoreBridge.residual_clt)
+    (hpattDecomp : pattKnownScoreBridge.aggregate_hajek_decomposition)
+    (hpattDenominator : pattKnownScoreBridge.denominator_stabilization)
+    (hpattHeterogeneity : pattKnownScoreBridge.heterogeneity_clt)
+    (hpattResidual : pattKnownScoreBridge.residual_clt)
+    (hpateFirst :
+      pateEstimatedScoreBridge.first_step_asymptotic_linearization)
+    (hpattFirst :
+      pattEstimatedScoreBridge.first_step_asymptotic_linearization) :
+    PATEPATTFiniteScoreCellEstimatedScoreTwoSidedVarianceWaldConclusionOfGlivenkoCantelli
+      (patePattFiniteScoreCellEstimatedScoreTwoSidedVarianceWaldBridgeOfGlivenkoCantelli
+        pateCells pateReferenceShare pateSample pateWeight pateScore
+        pateIndicatorBridge pateFiniteLLNToIndicatorLLN pateCLTBridge
+        pateFiniteConditionsToScaled pateEnvelopeToScaled
+        pateIndicatorLLNToScaled pattCells pattReferenceShare pattSample
+        pattWeight pattScore pattIndicatorBridge pattFiniteLLNToIndicatorLLN
+        pattCLTBridge pattFiniteConditionsToScaled pattEnvelopeToScaled
+        pattIndicatorLLNToScaled pateKnownScoreBridge pattKnownScoreBridge
+        pateScaledApproximationToMatchingDiscrepancy
+        pattScaledApproximationToMatchingDiscrepancy pateEstimatedScoreBridge
+        pattEstimatedScoreBridge pateKnownScoreToEstimatedScoreInput
+        pattKnownScoreToEstimatedScoreInput pateStudentizationInput
+        pattStudentizationInput pateEstimatedScoreToScaledTendsto
+        pattEstimatedScoreToScaledTendsto pateCoverageInput
+        pattCoverageInput) :=
+  pate_patt_twoSidedVarianceWaldCoverage_tendsto_of_finite_score_cell_estimated_score_variance_glivenkoCantelli
+    pateCells pateReferenceShare pateSample pateWeight pateScore
+    pateIndicatorBridge pateFiniteLLNToIndicatorLLN pateCLTBridge
+    pateFiniteConditionsToScaled pateEnvelopeToScaled pateIndicatorLLNToScaled
+    pattCells pattReferenceShare pattSample pattWeight pattScore
+    pattIndicatorBridge pattFiniteLLNToIndicatorLLN pattCLTBridge
+    pattFiniteConditionsToScaled pattEnvelopeToScaled pattIndicatorLLNToScaled
+    pateKnownScoreBridge pattKnownScoreBridge
+    pateScaledApproximationToMatchingDiscrepancy
+    pattScaledApproximationToMatchingDiscrepancy pateEstimatedScoreBridge
+    pattEstimatedScoreBridge pateKnownScoreToEstimatedScoreInput
+    pattKnownScoreToEstimatedScoreInput pateStudentizationInput
+    pattStudentizationInput pateEstimatedScoreToScaledTendsto
+    pattEstimatedScoreToScaledTendsto pateCoverageInput pattCoverageInput
+    hpateGC hpateFinite hpateEnvelope hpateSimplex hpateLinear hpateMatrix
+    hpattGC hpattFinite hpattEnvelope hpattSimplex hpattLinear hpattMatrix
+    hpateDecomp hpateDenominator hpateHeterogeneity hpateResidual
+    hpattDecomp hpattDenominator hpattHeterogeneity hpattResidual
+    hpateFirst pateCore.matching_functional_local_expansion
+    pateCore.godambe_variance_identity hpattFirst
+    pattCore.matching_functional_local_expansion
+    pattCore.godambe_variance_identity
+
+/--
+The paired GC-backed two-sided variance-estimate Wald route with the PATE and
+PATT local experiment obligations packaged as compact local-experiment cores.
+-/
+theorem
+    pate_patt_twoSidedVarianceWaldCoverage_tendsto_of_finite_score_cell_estimated_score_variance_glivenkoCantelli_local_experiment_core
+    (pateCells : Finset PATECell)
+    (pateReferenceShare : PATECell -> Real)
+    (pateSample : ℕ -> Finset Unit)
+    (pateWeight : ℕ -> Unit -> Real)
+    (pateScore : ℕ -> Unit -> PATECell)
+    (pateIndicatorBridge : PATEDoubleScoreIndicatorSumConvergenceBridge)
+    (pateFiniteLLNToIndicatorLLN :
+      (finiteScoreCellIndicatorLLNBridgeOfGlivenkoCantelli
+        pateCells pateReferenceShare pateSample pateWeight
+        pateScore).cellwise_weighted_indicator_sum_lln ->
+        pateIndicatorBridge.weighted_indicator_sum_lln)
+    (pateCLTBridge : ScaledPATEFiniteScoreCellCLTApproximationBridge PATECell)
+    (pateFiniteConditionsToScaled :
+      pateIndicatorBridge.eventual_finite_conditions ->
+        pateCLTBridge.indicator_bridge.eventual_finite_conditions)
+    (pateEnvelopeToScaled :
+      pateIndicatorBridge.envelope_convergence ->
+        pateCLTBridge.indicator_bridge.envelope_convergence)
+    (pateIndicatorLLNToScaled :
+      pateIndicatorBridge.weighted_indicator_sum_lln ->
+        pateCLTBridge.indicator_bridge.weighted_indicator_sum_lln)
+    (pattCells : Finset PATTCell)
+    (pattReferenceShare : PATTCell -> Real)
+    (pattSample : ℕ -> Finset Unit)
+    (pattWeight : ℕ -> Unit -> Real)
+    (pattScore : ℕ -> Unit -> PATTCell)
+    (pattIndicatorBridge : PATTDoubleScoreIndicatorSumConvergenceBridge)
+    (pattFiniteLLNToIndicatorLLN :
+      (finiteScoreCellIndicatorLLNBridgeOfGlivenkoCantelli
+        pattCells pattReferenceShare pattSample pattWeight
+        pattScore).cellwise_weighted_indicator_sum_lln ->
+        pattIndicatorBridge.weighted_indicator_sum_lln)
+    (pattCLTBridge : ScaledPATTFiniteScoreCellCLTApproximationBridge PATTCell)
+    (pattFiniteConditionsToScaled :
+      pattIndicatorBridge.eventual_finite_conditions ->
+        pattCLTBridge.indicator_bridge.eventual_finite_conditions)
+    (pattEnvelopeToScaled :
+      pattIndicatorBridge.envelope_convergence ->
+        pattCLTBridge.indicator_bridge.envelope_convergence)
+    (pattIndicatorLLNToScaled :
+      pattIndicatorBridge.weighted_indicator_sum_lln ->
+        pattCLTBridge.indicator_bridge.weighted_indicator_sum_lln)
+    (pateKnownScoreBridge : KnownScoreAsymptoticBridge)
+    (pattKnownScoreBridge : KnownScoreAsymptoticBridge)
+    (pateScaledApproximationToMatchingDiscrepancy :
+      pateCLTBridge.indicator_bridge.scaled_pate_double_score_approximation_negligible ->
+        pateKnownScoreBridge.matching_discrepancy_negligible)
+    (pattScaledApproximationToMatchingDiscrepancy :
+      pattCLTBridge.indicator_bridge.scaled_patt_double_score_approximation_negligible ->
+        pattKnownScoreBridge.matching_discrepancy_negligible)
+(pateEstimated : EstimatedScoreLocalExperimentInput)
+(pattEstimated : EstimatedScoreLocalExperimentInput)
+(pateCore : EstimatedScoreLocalExperimentCore pateEstimated)
+(pattCore : EstimatedScoreLocalExperimentCore pattEstimated)
+    (pateKnownScoreToEstimatedScoreInput :
+      pateKnownScoreBridge.asymptotic_normality ->
+        pateEstimated.known_score_asymptotic_normality)
+    (pattKnownScoreToEstimatedScoreInput :
+      pattKnownScoreBridge.asymptotic_normality ->
+        pattEstimated.known_score_asymptotic_normality)
+    (pateStudentizationInput :
+      EstimatedScoreStudentizationInput Index Sample
+        LimitSample sampleLaw limitLaw l)
+    (pattStudentizationInput :
+      EstimatedScoreStudentizationInput Index Sample
+        LimitSample sampleLaw limitLaw l)
+    (pateEstimatedScoreToScaledTendsto :
+      pateEstimated.estimated_score_asymptotic_normality ->
+        TendstoInDistribution pateStudentizationInput.scaledStatistic l
+          pateStudentizationInput.limit (fun _index => sampleLaw) limitLaw)
+    (pattEstimatedScoreToScaledTendsto :
+      pattEstimated.estimated_score_asymptotic_normality ->
+        TendstoInDistribution pattStudentizationInput.scaledStatistic l
+          pattStudentizationInput.limit (fun _index => sampleLaw) limitLaw)
+    (pateCoverageInput : TwoSidedWaldCoverageVarianceInput Index Sample l)
+    (pattCoverageInput : TwoSidedWaldCoverageVarianceInput Index Sample l)
+    (hpateGC :
+      (finiteScoreCellIndicatorLLNBridgeOfGlivenkoCantelli
+        pateCells pateReferenceShare pateSample pateWeight
+        pateScore).weighted_indicator_array_lln)
+    (hpateFinite : pateIndicatorBridge.eventual_finite_conditions)
+    (hpateEnvelope : pateIndicatorBridge.envelope_convergence)
+    (hpateSimplex : pateCLTBridge.vector_clt_bridge.simplex_reference_shares)
+    (hpateLinear :
+      pateCLTBridge.vector_clt_bridge.all_linear_projection_clts_with_verified_variance)
+    (hpateMatrix :
+      pateCLTBridge.vector_clt_bridge.covariance_matrix_tangent_space_verified)
+    (hpattGC :
+      (finiteScoreCellIndicatorLLNBridgeOfGlivenkoCantelli
+        pattCells pattReferenceShare pattSample pattWeight
+        pattScore).weighted_indicator_array_lln)
+    (hpattFinite : pattIndicatorBridge.eventual_finite_conditions)
+    (hpattEnvelope : pattIndicatorBridge.envelope_convergence)
+    (hpattSimplex : pattCLTBridge.vector_clt_bridge.simplex_reference_shares)
+    (hpattLinear :
+      pattCLTBridge.vector_clt_bridge.all_linear_projection_clts_with_verified_variance)
+    (hpattMatrix :
+      pattCLTBridge.vector_clt_bridge.covariance_matrix_tangent_space_verified)
+    (hpateDecomp : pateKnownScoreBridge.aggregate_hajek_decomposition)
+    (hpateDenominator : pateKnownScoreBridge.denominator_stabilization)
+    (hpateHeterogeneity : pateKnownScoreBridge.heterogeneity_clt)
+    (hpateResidual : pateKnownScoreBridge.residual_clt)
+    (hpattDecomp : pattKnownScoreBridge.aggregate_hajek_decomposition)
+    (hpattDenominator : pattKnownScoreBridge.denominator_stabilization)
+    (hpattHeterogeneity : pattKnownScoreBridge.heterogeneity_clt)
+    (hpattResidual : pattKnownScoreBridge.residual_clt)
+    (hpateFirst :
+      pateEstimated.first_step_asymptotic_linearization)
+    (hpateScore :
+      pateEstimated.score_estimator_local_asymptotic_linearity)
+    (hpattFirst :
+      pattEstimated.first_step_asymptotic_linearization)
+    (hpattScore :
+      pattEstimated.score_estimator_local_asymptotic_linearity) :
+    PATEPATTFiniteScoreCellEstimatedScoreTwoSidedVarianceWaldConclusionOfGlivenkoCantelli
+      (patePattFiniteScoreCellEstimatedScoreTwoSidedVarianceWaldBridgeOfGlivenkoCantelli
+        pateCells pateReferenceShare pateSample pateWeight pateScore
+        pateIndicatorBridge pateFiniteLLNToIndicatorLLN pateCLTBridge
+        pateFiniteConditionsToScaled pateEnvelopeToScaled
+        pateIndicatorLLNToScaled pattCells pattReferenceShare pattSample
+        pattWeight pattScore pattIndicatorBridge pattFiniteLLNToIndicatorLLN
+        pattCLTBridge pattFiniteConditionsToScaled pattEnvelopeToScaled
+        pattIndicatorLLNToScaled pateKnownScoreBridge pattKnownScoreBridge
+        pateScaledApproximationToMatchingDiscrepancy
+        pattScaledApproximationToMatchingDiscrepancy (estimatedScoreAsymptoticBridgeOfLocalExperimentInput pateEstimated)
+        (estimatedScoreAsymptoticBridgeOfLocalExperimentInput pattEstimated) pateKnownScoreToEstimatedScoreInput
+        pattKnownScoreToEstimatedScoreInput pateStudentizationInput
+        pattStudentizationInput pateEstimatedScoreToScaledTendsto
+        pattEstimatedScoreToScaledTendsto pateCoverageInput
+        pattCoverageInput) :=
+  pate_patt_twoSidedVarianceWaldCoverage_tendsto_of_finite_score_cell_estimated_score_variance_glivenkoCantelli
+    pateCells pateReferenceShare pateSample pateWeight pateScore
+    pateIndicatorBridge pateFiniteLLNToIndicatorLLN pateCLTBridge
+    pateFiniteConditionsToScaled pateEnvelopeToScaled pateIndicatorLLNToScaled
+    pattCells pattReferenceShare pattSample pattWeight pattScore
+    pattIndicatorBridge pattFiniteLLNToIndicatorLLN pattCLTBridge
+    pattFiniteConditionsToScaled pattEnvelopeToScaled pattIndicatorLLNToScaled
+    pateKnownScoreBridge pattKnownScoreBridge
+    pateScaledApproximationToMatchingDiscrepancy
+    pattScaledApproximationToMatchingDiscrepancy (estimatedScoreAsymptoticBridgeOfLocalExperimentInput pateEstimated)
+    (estimatedScoreAsymptoticBridgeOfLocalExperimentInput pattEstimated) pateKnownScoreToEstimatedScoreInput
+    pattKnownScoreToEstimatedScoreInput pateStudentizationInput
+    pattStudentizationInput pateEstimatedScoreToScaledTendsto
+    pattEstimatedScoreToScaledTendsto pateCoverageInput pattCoverageInput
+    hpateGC hpateFinite hpateEnvelope hpateSimplex hpateLinear hpateMatrix
+    hpattGC hpattFinite hpattEnvelope hpattSimplex hpattLinear hpattMatrix
+    hpateDecomp hpateDenominator hpateHeterogeneity hpateResidual
+    hpattDecomp hpattDenominator hpattHeterogeneity hpattResidual
+    hpateFirst
+    ⟨hpateScore, pateCore.matching_functional_local_derivative,
+      pateCore.local_stochastic_equicontinuity⟩
+    pateCore.godambe_variance_identity hpattFirst
+    ⟨hpattScore, pattCore.matching_functional_local_derivative,
+      pattCore.local_stochastic_equicontinuity⟩
+    pattCore.godambe_variance_identity
+
+
+/--
+Convert a GC-backed paired absolute variance-estimate Wald bridge into the
+corresponding two-sided variance-estimate Wald bridge by calibrating the
+critical region.
+-/
+def
+    PATEPATTFiniteScoreCellEstimatedScoreTwoSidedVarianceWaldBridgeOfAbsoluteCoverage
+    (b :
+      PATEPATTFiniteScoreCellEstimatedScoreAbsoluteVarianceWaldBridge
+        PATECell PATTCell Index Sample LimitSample sampleLaw limitLaw l) :
+    PATEPATTFiniteScoreCellEstimatedScoreTwoSidedVarianceWaldBridge
+      PATECell PATTCell Index Sample LimitSample sampleLaw limitLaw l where
+  studentized_bridge := b.studentized_bridge
+  pate_coverage_input :=
+    twoSidedWaldCoverageVarianceInput_of_absolute b.pate_coverage_input
+  patt_coverage_input :=
+    twoSidedWaldCoverageVarianceInput_of_absolute b.patt_coverage_input
+
+/--
+Absolute-region variance Wald calibration also yields the paired two-sided
+variance Wald conclusion for the same GC-backed finite score-cell bridge.
+-/
+theorem
+    pate_patt_twoSidedVarianceWaldCoverage_tendsto_of_absolute_finite_score_cell_estimated_score_glivenkoCantelli
+    (b :
+      PATEPATTFiniteScoreCellEstimatedScoreAbsoluteVarianceWaldBridge
+        PATECell PATTCell Index Sample LimitSample sampleLaw limitLaw l)
+    (h :
+      PATEPATTFiniteScoreCellEstimatedScoreAbsoluteVarianceWaldConclusionOfGlivenkoCantelli
+        b) :
+    PATEPATTFiniteScoreCellEstimatedScoreTwoSidedVarianceWaldConclusionOfGlivenkoCantelli
+      (PATEPATTFiniteScoreCellEstimatedScoreTwoSidedVarianceWaldBridgeOfAbsoluteCoverage
+        b) := by
+  simpa
+    [PATEPATTFiniteScoreCellEstimatedScoreTwoSidedVarianceWaldConclusionOfGlivenkoCantelli,
+      PATEPATTFiniteScoreCellEstimatedScoreAbsoluteVarianceWaldConclusionOfGlivenkoCantelli,
+      PATEPATTFiniteScoreCellEstimatedScoreTwoSidedVarianceWaldBridgeOfAbsoluteCoverage,
+      twoSidedWaldCoverageVarianceInput_of_absolute,
+      absoluteWaldCoverageVarianceInput_of_twoSided]
+    using h
+
+/--
+Convert a GC-backed paired two-sided variance-estimate Wald bridge into the
+corresponding absolute variance-estimate Wald bridge by calibrating the
+critical region.
+-/
+def
+    PATEPATTFiniteScoreCellEstimatedScoreAbsoluteVarianceWaldBridgeOfTwoSidedCoverage
+    (b :
+      PATEPATTFiniteScoreCellEstimatedScoreTwoSidedVarianceWaldBridge
+        PATECell PATTCell Index Sample LimitSample sampleLaw limitLaw l) :
+    PATEPATTFiniteScoreCellEstimatedScoreAbsoluteVarianceWaldBridge
+      PATECell PATTCell Index Sample LimitSample sampleLaw limitLaw l where
+  studentized_bridge := b.studentized_bridge
+  pate_coverage_input :=
+    absoluteWaldCoverageVarianceInput_of_twoSided b.pate_coverage_input
+  patt_coverage_input :=
+    absoluteWaldCoverageVarianceInput_of_twoSided b.patt_coverage_input
+
+/--
+Two-sided variance Wald calibration also yields the paired absolute variance
+Wald conclusion for the same GC-backed finite score-cell bridge.
+-/
+theorem
+    pate_patt_absoluteVarianceWaldCoverage_tendsto_of_twoSided_finite_score_cell_estimated_score_glivenkoCantelli
+    (b :
+      PATEPATTFiniteScoreCellEstimatedScoreTwoSidedVarianceWaldBridge
+        PATECell PATTCell Index Sample LimitSample sampleLaw limitLaw l)
+    (h :
+      PATEPATTFiniteScoreCellEstimatedScoreTwoSidedVarianceWaldConclusionOfGlivenkoCantelli
+        b) :
+    PATEPATTFiniteScoreCellEstimatedScoreAbsoluteVarianceWaldConclusionOfGlivenkoCantelli
+      (PATEPATTFiniteScoreCellEstimatedScoreAbsoluteVarianceWaldBridgeOfTwoSidedCoverage
+        b) := by
+  simpa
+    [PATEPATTFiniteScoreCellEstimatedScoreTwoSidedVarianceWaldConclusionOfGlivenkoCantelli,
+      PATEPATTFiniteScoreCellEstimatedScoreAbsoluteVarianceWaldBridgeOfTwoSidedCoverage]
+    using h
+
+/--
+Attach paired GC-backed score-cell mass LLNs to an already derived paired
+absolute variance-estimate Wald conclusion.
+-/
+theorem
+    pate_patt_absoluteVarianceWaldConclusion_and_mass_lln_of_glivenkoCantelli_bridge
+    (pateCells : Finset PATECell)
+    (pateReferenceShare : PATECell -> Real)
+    (pateSample : ℕ -> Finset Unit)
+    (pateWeight : ℕ -> Unit -> Real)
+    (pateScore : ℕ -> Unit -> PATECell)
+    (pattCells : Finset PATTCell)
+    (pattReferenceShare : PATTCell -> Real)
+    (pattSample : ℕ -> Finset Unit)
+    (pattWeight : ℕ -> Unit -> Real)
+    (pattScore : ℕ -> Unit -> PATTCell)
+    (hpateGC :
+      (finiteScoreCellIndicatorLLNBridgeOfGlivenkoCantelli
+        pateCells pateReferenceShare pateSample pateWeight
+        pateScore).weighted_indicator_array_lln)
+    (hpattGC :
+      (finiteScoreCellIndicatorLLNBridgeOfGlivenkoCantelli
+        pattCells pattReferenceShare pattSample pattWeight
+        pattScore).weighted_indicator_array_lln)
+    {b :
+      PATEPATTFiniteScoreCellEstimatedScoreAbsoluteVarianceWaldBridge
+        PATECell PATTCell Index Sample LimitSample sampleLaw limitLaw l}
+    (hcoverage :
+      PATEPATTFiniteScoreCellEstimatedScoreAbsoluteVarianceWaldConclusionOfGlivenkoCantelli
+        b) :
+    PATEPATTFiniteScoreCellEstimatedScoreAbsoluteVarianceWaldConclusionOfGlivenkoCantelli
+        b ∧
+      cellwiseScoreCellMassLLN (l := atTop) pateCells pateSample
+        pateWeight pateScore pateReferenceShare ∧
+      cellwiseScoreCellMassLLN (l := atTop) pattCells pattSample
+        pattWeight pattScore pattReferenceShare :=
+  paired_output_and_mass_lln_of_glivenkoCantelli_bridge
+    pateCells pattCells pateReferenceShare pattReferenceShare pateSample
+    pattSample pateWeight pattWeight pateScore pattScore hpateGC hpattGC
+    hcoverage
+
+/--
+Attach paired GC-backed score-cell mass LLNs to an already derived paired
+two-sided variance-estimate Wald conclusion.
+-/
+theorem
+    pate_patt_twoSidedVarianceWaldConclusion_and_mass_lln_of_glivenkoCantelli_bridge
+    (pateCells : Finset PATECell)
+    (pateReferenceShare : PATECell -> Real)
+    (pateSample : ℕ -> Finset Unit)
+    (pateWeight : ℕ -> Unit -> Real)
+    (pateScore : ℕ -> Unit -> PATECell)
+    (pattCells : Finset PATTCell)
+    (pattReferenceShare : PATTCell -> Real)
+    (pattSample : ℕ -> Finset Unit)
+    (pattWeight : ℕ -> Unit -> Real)
+    (pattScore : ℕ -> Unit -> PATTCell)
+    (hpateGC :
+      (finiteScoreCellIndicatorLLNBridgeOfGlivenkoCantelli
+        pateCells pateReferenceShare pateSample pateWeight
+        pateScore).weighted_indicator_array_lln)
+    (hpattGC :
+      (finiteScoreCellIndicatorLLNBridgeOfGlivenkoCantelli
+        pattCells pattReferenceShare pattSample pattWeight
+        pattScore).weighted_indicator_array_lln)
+    {b :
+      PATEPATTFiniteScoreCellEstimatedScoreTwoSidedVarianceWaldBridge
+        PATECell PATTCell Index Sample LimitSample sampleLaw limitLaw l}
+    (hcoverage :
+      PATEPATTFiniteScoreCellEstimatedScoreTwoSidedVarianceWaldConclusionOfGlivenkoCantelli
+        b) :
+    PATEPATTFiniteScoreCellEstimatedScoreTwoSidedVarianceWaldConclusionOfGlivenkoCantelli
+        b ∧
+      cellwiseScoreCellMassLLN (l := atTop) pateCells pateSample
+        pateWeight pateScore pateReferenceShare ∧
+      cellwiseScoreCellMassLLN (l := atTop) pattCells pattSample
+        pattWeight pattScore pattReferenceShare :=
+  paired_output_and_mass_lln_of_glivenkoCantelli_bridge
+    pateCells pattCells pateReferenceShare pattReferenceShare pateSample
+    pattSample pateWeight pattWeight pateScore pattScore hpateGC hpattGC
+    hcoverage
+
+theorem
+    pate_patt_absoluteVarianceWaldConclusion_and_mass_lln_of_l1BracketingNumber_obligations
+    {PATEBracket PATTBracket : Type*}
+    [Fintype PATEBracket] [Fintype PATTBracket]
+    (pateCells : Finset PATECell)
+    (pateReferenceShare : PATECell -> Real)
+    (pateSample : ℕ -> Finset Unit)
+    (pateWeight : ℕ -> Unit -> Real)
+    (pateScore : ℕ -> Unit -> PATECell)
+    (pattCells : Finset PATTCell)
+    (pattReferenceShare : PATTCell -> Real)
+    (pattSample : ℕ -> Finset Unit)
+    (pattWeight : ℕ -> Unit -> Real)
+    (pattScore : ℕ -> Unit -> PATTCell)
+    (pateObligations :
+      L1BracketingNumberConstructorObligations (Bracket := PATEBracket)
+        {cell : PATECell | cell ∈ pateCells} pateReferenceShare
+        (fun sampleSize cell =>
+          weightedSampleSum (pateSample sampleSize) (pateWeight sampleSize)
+            (scoreCellIndicator (pateScore sampleSize) cell)))
+    (pattObligations :
+      L1BracketingNumberConstructorObligations (Bracket := PATTBracket)
+        {cell : PATTCell | cell ∈ pattCells} pattReferenceShare
+        (fun sampleSize cell =>
+          weightedSampleSum (pattSample sampleSize) (pattWeight sampleSize)
+            (scoreCellIndicator (pattScore sampleSize) cell)))
+    {b :
+      PATEPATTFiniteScoreCellEstimatedScoreAbsoluteVarianceWaldBridge
+        PATECell PATTCell Index Sample LimitSample sampleLaw limitLaw l}
+    (hcoverage :
+      PATEPATTFiniteScoreCellEstimatedScoreAbsoluteVarianceWaldConclusionOfGlivenkoCantelli
+        b) :
+    PATEPATTFiniteScoreCellEstimatedScoreAbsoluteVarianceWaldConclusionOfGlivenkoCantelli
+        b ∧
+      cellwiseScoreCellMassLLN (l := atTop) pateCells pateSample
+        pateWeight pateScore pateReferenceShare ∧
+      cellwiseScoreCellMassLLN (l := atTop) pattCells pattSample
+        pattWeight pattScore pattReferenceShare :=
+  pate_patt_absoluteVarianceWaldConclusion_and_mass_lln_of_glivenkoCantelli_bridge
+    pateCells pateReferenceShare pateSample pateWeight pateScore pattCells
+    pattReferenceShare pattSample pattWeight pattScore
+    (weighted_indicator_array_lln_of_l1BracketingNumber_obligations
+      pateCells pateReferenceShare pateSample pateWeight pateScore
+      pateObligations)
+    (weighted_indicator_array_lln_of_l1BracketingNumber_obligations
+      pattCells pattReferenceShare pattSample pattWeight pattScore
+      pattObligations)
+    hcoverage
+
+theorem
+    pate_patt_absoluteVarianceWaldConclusion_and_mass_lln_of_vdvw241_endpoint_assembly
+    {PATEBracket PATTBracket : Type*}
+    [Fintype PATEBracket] [Fintype PATTBracket]
+    (pateCells : Finset PATECell)
+    (pateReferenceShare : PATECell -> Real)
+    (pateSample : ℕ -> Finset Unit)
+    (pateWeight : ℕ -> Unit -> Real)
+    (pateScore : ℕ -> Unit -> PATECell)
+    (pattCells : Finset PATTCell)
+    (pattReferenceShare : PATTCell -> Real)
+    (pattSample : ℕ -> Finset Unit)
+    (pattWeight : ℕ -> Unit -> Real)
+    (pattScore : ℕ -> Unit -> PATTCell)
+    (pateAssembly :
+      FiniteBracketEndpointStrongLawAssembly (Bracket := PATEBracket)
+        {cell : PATECell | cell ∈ pateCells} pateReferenceShare
+        (fun sampleSize cell =>
+          weightedSampleSum (pateSample sampleSize) (pateWeight sampleSize)
+            (scoreCellIndicator (pateScore sampleSize) cell)))
+    (pattAssembly :
+      FiniteBracketEndpointStrongLawAssembly (Bracket := PATTBracket)
+        {cell : PATTCell | cell ∈ pattCells} pattReferenceShare
+        (fun sampleSize cell =>
+          weightedSampleSum (pattSample sampleSize) (pattWeight sampleSize)
+            (scoreCellIndicator (pattScore sampleSize) cell)))
+    {b :
+      PATEPATTFiniteScoreCellEstimatedScoreAbsoluteVarianceWaldBridge
+        PATECell PATTCell Index Sample LimitSample sampleLaw limitLaw l}
+    (hcoverage :
+      PATEPATTFiniteScoreCellEstimatedScoreAbsoluteVarianceWaldConclusionOfGlivenkoCantelli
+        b) :
+    PATEPATTFiniteScoreCellEstimatedScoreAbsoluteVarianceWaldConclusionOfGlivenkoCantelli
+        b ∧
+      cellwiseScoreCellMassLLN (l := atTop) pateCells pateSample
+        pateWeight pateScore pateReferenceShare ∧
+      cellwiseScoreCellMassLLN (l := atTop) pattCells pattSample
+        pattWeight pattScore pattReferenceShare :=
+  pate_patt_absoluteVarianceWaldConclusion_and_mass_lln_of_glivenkoCantelli_bridge
+    pateCells pateReferenceShare pateSample pateWeight pateScore pattCells
+    pattReferenceShare pattSample pattWeight pattScore
+    (weighted_indicator_array_lln_of_vdvw241_endpoint_assembly
+      pateCells pateReferenceShare pateSample pateWeight pateScore
+      pateAssembly)
+    (weighted_indicator_array_lln_of_vdvw241_endpoint_assembly
+      pattCells pattReferenceShare pattSample pattWeight pattScore
+      pattAssembly)
+    hcoverage
+
+theorem
+    pate_patt_twoSidedVarianceWaldConclusion_and_mass_lln_of_l1BracketingNumber_obligations
+    {PATEBracket PATTBracket : Type*}
+    [Fintype PATEBracket] [Fintype PATTBracket]
+    (pateCells : Finset PATECell)
+    (pateReferenceShare : PATECell -> Real)
+    (pateSample : ℕ -> Finset Unit)
+    (pateWeight : ℕ -> Unit -> Real)
+    (pateScore : ℕ -> Unit -> PATECell)
+    (pattCells : Finset PATTCell)
+    (pattReferenceShare : PATTCell -> Real)
+    (pattSample : ℕ -> Finset Unit)
+    (pattWeight : ℕ -> Unit -> Real)
+    (pattScore : ℕ -> Unit -> PATTCell)
+    (pateObligations :
+      L1BracketingNumberConstructorObligations (Bracket := PATEBracket)
+        {cell : PATECell | cell ∈ pateCells} pateReferenceShare
+        (fun sampleSize cell =>
+          weightedSampleSum (pateSample sampleSize) (pateWeight sampleSize)
+            (scoreCellIndicator (pateScore sampleSize) cell)))
+    (pattObligations :
+      L1BracketingNumberConstructorObligations (Bracket := PATTBracket)
+        {cell : PATTCell | cell ∈ pattCells} pattReferenceShare
+        (fun sampleSize cell =>
+          weightedSampleSum (pattSample sampleSize) (pattWeight sampleSize)
+            (scoreCellIndicator (pattScore sampleSize) cell)))
+    {b :
+      PATEPATTFiniteScoreCellEstimatedScoreTwoSidedVarianceWaldBridge
+        PATECell PATTCell Index Sample LimitSample sampleLaw limitLaw l}
+    (hcoverage :
+      PATEPATTFiniteScoreCellEstimatedScoreTwoSidedVarianceWaldConclusionOfGlivenkoCantelli
+        b) :
+    PATEPATTFiniteScoreCellEstimatedScoreTwoSidedVarianceWaldConclusionOfGlivenkoCantelli
+        b ∧
+      cellwiseScoreCellMassLLN (l := atTop) pateCells pateSample
+        pateWeight pateScore pateReferenceShare ∧
+      cellwiseScoreCellMassLLN (l := atTop) pattCells pattSample
+        pattWeight pattScore pattReferenceShare :=
+  pate_patt_twoSidedVarianceWaldConclusion_and_mass_lln_of_glivenkoCantelli_bridge
+    pateCells pateReferenceShare pateSample pateWeight pateScore pattCells
+    pattReferenceShare pattSample pattWeight pattScore
+    (weighted_indicator_array_lln_of_l1BracketingNumber_obligations
+      pateCells pateReferenceShare pateSample pateWeight pateScore
+      pateObligations)
+    (weighted_indicator_array_lln_of_l1BracketingNumber_obligations
+      pattCells pattReferenceShare pattSample pattWeight pattScore
+      pattObligations)
+    hcoverage
+
+theorem
+    pate_patt_twoSidedVarianceWaldConclusion_and_mass_lln_of_vdvw241_endpoint_assembly
+    {PATEBracket PATTBracket : Type*}
+    [Fintype PATEBracket] [Fintype PATTBracket]
+    (pateCells : Finset PATECell)
+    (pateReferenceShare : PATECell -> Real)
+    (pateSample : ℕ -> Finset Unit)
+    (pateWeight : ℕ -> Unit -> Real)
+    (pateScore : ℕ -> Unit -> PATECell)
+    (pattCells : Finset PATTCell)
+    (pattReferenceShare : PATTCell -> Real)
+    (pattSample : ℕ -> Finset Unit)
+    (pattWeight : ℕ -> Unit -> Real)
+    (pattScore : ℕ -> Unit -> PATTCell)
+    (pateAssembly :
+      FiniteBracketEndpointStrongLawAssembly (Bracket := PATEBracket)
+        {cell : PATECell | cell ∈ pateCells} pateReferenceShare
+        (fun sampleSize cell =>
+          weightedSampleSum (pateSample sampleSize) (pateWeight sampleSize)
+            (scoreCellIndicator (pateScore sampleSize) cell)))
+    (pattAssembly :
+      FiniteBracketEndpointStrongLawAssembly (Bracket := PATTBracket)
+        {cell : PATTCell | cell ∈ pattCells} pattReferenceShare
+        (fun sampleSize cell =>
+          weightedSampleSum (pattSample sampleSize) (pattWeight sampleSize)
+            (scoreCellIndicator (pattScore sampleSize) cell)))
+    {b :
+      PATEPATTFiniteScoreCellEstimatedScoreTwoSidedVarianceWaldBridge
+        PATECell PATTCell Index Sample LimitSample sampleLaw limitLaw l}
+    (hcoverage :
+      PATEPATTFiniteScoreCellEstimatedScoreTwoSidedVarianceWaldConclusionOfGlivenkoCantelli
+        b) :
+    PATEPATTFiniteScoreCellEstimatedScoreTwoSidedVarianceWaldConclusionOfGlivenkoCantelli
+        b ∧
+      cellwiseScoreCellMassLLN (l := atTop) pateCells pateSample
+        pateWeight pateScore pateReferenceShare ∧
+      cellwiseScoreCellMassLLN (l := atTop) pattCells pattSample
+        pattWeight pattScore pattReferenceShare :=
+  pate_patt_twoSidedVarianceWaldConclusion_and_mass_lln_of_glivenkoCantelli_bridge
+    pateCells pateReferenceShare pateSample pateWeight pateScore pattCells
+    pattReferenceShare pattSample pattWeight pattScore
+    (weighted_indicator_array_lln_of_vdvw241_endpoint_assembly
+      pateCells pateReferenceShare pateSample pateWeight pateScore
+      pateAssembly)
+    (weighted_indicator_array_lln_of_vdvw241_endpoint_assembly
+      pattCells pattReferenceShare pattSample pattWeight pattScore
+      pattAssembly)
+    hcoverage
+
+end WDSM
+end Matching
+end StatInference

@@ -1,0 +1,68 @@
+[
+  {
+    "seed": 42,
+    "question_name": "variance_estimation",
+    "status": "CONVERGED",
+    "n_outer_rounds": 1,
+    "n_total_llm_calls": 2,
+    "total_tokens": 1865,
+    "wall_clock_s": 6.814363041979959,
+    "final_bias": 0.016174024425425593,
+    "final_coverage": 0.927
+  },
+  {
+    "seed": 42,
+    "question_name": "bernoulli_ci",
+    "status": "MAX_ROUNDS_REACHED",
+    "n_outer_rounds": 2,
+    "n_total_llm_calls": 4,
+    "total_tokens": 4431,
+    "wall_clock_s": 19.84427254201728,
+    "final_bias": 0.05108269112571509,
+    "final_coverage": 0.9965
+  },
+  {
+    "seed": 59,
+    "question_name": "variance_estimation",
+    "status": "CONVERGED",
+    "n_outer_rounds": 2,
+    "n_total_llm_calls": 4,
+    "total_tokens": 4510,
+    "wall_clock_s": 31.355493582988856,
+    "final_bias": -0.050394112440911965,
+    "final_coverage": 0.956
+  },
+  {
+    "seed": 59,
+    "question_name": "bernoulli_ci",
+    "status": "MAX_ROUNDS_REACHED",
+    "n_outer_rounds": 2,
+    "n_total_llm_calls": 4,
+    "total_tokens": 4879,
+    "wall_clock_s": 22.566027209017193,
+    "final_bias": -0.0014166666666666772,
+    "final_coverage": 0.997
+  },
+  {
+    "seed": 76,
+    "question_name": "variance_estimation",
+    "status": "CONVERGED",
+    "n_outer_rounds": 1,
+    "n_total_llm_calls": 2,
+    "total_tokens": 1686,
+    "wall_clock_s": 5.867268292000517,
+    "final_bias": -0.007965058883739218,
+    "final_coverage": 0.9185
+  },
+  {
+    "seed": 76,
+    "question_name": "bernoulli_ci",
+    "status": "MAX_ROUNDS_REACHED",
+    "n_outer_rounds": 2,
+    "n_total_llm_calls": 4,
+    "total_tokens": 4913,
+    "wall_clock_s": 22.88484829198569,
+    "final_bias": 0.05019620821710556,
+    "final_coverage": 0.9415
+  }
+]

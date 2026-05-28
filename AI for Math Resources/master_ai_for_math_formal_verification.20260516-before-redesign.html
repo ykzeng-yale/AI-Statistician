@@ -1,0 +1,670 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI for Math + Formal Verification Master Doc</title>
+<style>
+:root { --fg:#161616; --muted:#5f6368; --line:#dcdfe4; --bg:#fbfbfa; --panel:#fff; --accent:#0b57d0; }
+* { box-sizing:border-box; }
+body { margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif; color:var(--fg); background:var(--bg); line-height:1.5; }
+.layout { display:grid; grid-template-columns: 280px minmax(0, 1fr); min-height:100vh; }
+nav { position:sticky; top:0; height:100vh; overflow:auto; padding:20px 16px; border-right:1px solid var(--line); background:#f4f6f8; }
+nav h2 { font-size:13px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin:0 0 12px; }
+nav a { display:block; padding:6px 4px; color:#202124; text-decoration:none; border-radius:4px; font-size:14px; }
+nav a:hover { background:#e8eefb; color:var(--accent); }
+main { padding:32px 44px 80px; max-width:1180px; }
+h1 { font-size:30px; margin:0 0 8px; }
+h2 { margin-top:34px; border-bottom:1px solid var(--line); padding-bottom:5px; }
+h3 { margin-top:26px; }
+a { color:var(--accent); }
+.meta { color:var(--muted); margin-bottom:20px; }
+.counts { display:grid; grid-template-columns: repeat(auto-fit, minmax(190px,1fr)); gap:10px; margin:20px 0 26px; }
+.counts div { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px; }
+.counts strong { display:block; font-size:24px; }
+.link-section ol { padding-left:24px; }
+.link-section li { margin:12px 0; padding-bottom:10px; border-bottom:1px solid #eee; }
+.link-section h2 span { color:var(--muted); font-weight:400; font-size:16px; }
+.tags { margin-top:3px; }
+.tags em { display:inline-block; font-style:normal; font-size:12px; color:#3c4043; background:#eef2f7; border:1px solid #d8dee8; padding:1px 6px; border-radius:999px; margin:2px 4px 0 0; }
+small { color:var(--muted); }
+pre { white-space:pre-wrap; background:#f6f8fa; border:1px solid var(--line); border-radius:8px; padding:12px; overflow:auto; }
+.table-md { margin:2px 0; border-radius:0; border-top:0; border-bottom:0; }
+@media (max-width: 850px) { .layout { display:block; } nav { position:relative; height:auto; border-right:0; border-bottom:1px solid var(--line); } main { padding:24px 18px 60px; } }
+</style></head><body id="top"><div class="layout">
+<nav><h2>Navigation</h2><a href="#top">Top</a><a href="#reading-route">Reading Route</a><a href="#all-verified-links">All Verified Links</a><a href="#coverage-audit">Coverage Audit</a><a href="#needs-verification">Needs Verification</a><a href="#cat-0-system-overviews-ai-mathematician-agents">0. System overviews / AI mathematician agents</a><a href="#cat-1-lean-prover-systems-rl-self-play">1. Lean prover systems / RL / self-play</a><a href="#cat-2-autoformalization-datasets-formal-benchmarks">2. Autoformalization / datasets / formal benchmarks</a><a href="#cat-3-conjecturing-counterexamples-lemma-discovery">3. Conjecturing / counterexamples / lemma discovery</a><a href="#cat-4-mathlib-search-semantic-rag-knowledge-graphs">4. Mathlib search / semantic RAG / knowledge graphs</a><a href="#cat-5-foundations-hott-equivalence-transfer-diagrammatic-proof">5. Foundations / HoTT / equivalence / transfer / diagrammatic proof</a><a href="#cat-6-multimodal-visual-spatial-math-reasoning">6. Multimodal / visual / spatial math reasoning</a><a href="#cat-7-code-project-pages-datasets">7. Code / project pages / datasets</a></nav>
+<main>
+<h1>AI for Math + Formal Verification Master Doc</h1>
+<p class="meta">Generated 2026-05-12 11:18 EDT. Consolidated from Chrome sessions, manually verified sources, reading-route notes, coverage audit, and needs-verification list.</p>
+<div class="counts">
+  <div><span>Collection links</span><strong>120</strong></div>
+  <div><span>Registry links</span><strong>156</strong></div>
+  <div><span>Current session links</span><strong>73</strong></div>
+  <div><span>Sections</span><strong>8</strong></div>
+</div>
+<section id="reading-route"><h2>Reading Route / Idea Map</h2><h2 id="full-ai-for-math-collection">Full AI-for-Math Collection</h2>
+<p>Generated: 2026-05-12</p>
+<p>Scope: this is the broader AI-for-math / mathematical discovery collection. It is intentionally separate from the narrower <code>autoformalization-ai-for-math</code> Google Doc. This file tracks ideas, systems, benchmarks, and research routes; the companion <code>paper_links.html/json/txt</code> files track verified URLs.</p>
+<p>Primary link list:</p>
+<ul>
+<li><code>paper_links.html</code></li>
+<li><code>paper_links.txt</code></li>
+<li><code>paper_links.json</code></li>
+</ul>
+<p>Current state:</p>
+<ul>
+<li>120 links in <code>ai-math-discovery-systems</code>.</li>
+<li>98 manually verified links from the Gemini conversation plus foundational additions.</li>
+<li>22 additional AI-for-math links were found in the current <code>ykzeng2019@gmail.com</code> Chrome session files and folded into the same collection.</li>
+<li>Latest Chrome scan: 2026-05-12, 6 session files, 73 paper/resource links seen this run, no new cumulative links.</li>
+<li>Unverified/hallucination-prone names are kept in <code>needs_verification.md</code>.</li>
+</ul>
+<h3 id="reading-route">Reading Route / 阅读路线</h3>
+<h4 id="1-generation-verification-loop">1. Generation + Verification Loop</h4>
+<p>Core idea: modern AI-for-math systems are not just LLMs. They are closed-loop systems: generate candidates, verify with a hard checker, recycle successes into training or a skill library.</p>
+<p>Useful sources:</p>
+<ul>
+<li>FunSearch: program search + evaluator loop.</li>
+<li>AlphaProof / AlphaGeometry: neural generation plus formal/symbolic verification.</li>
+<li>DeepSeek-Prover series: proof assistant feedback, RL, MCTS, subgoal decomposition.</li>
+<li>STP: self-play theorem proving with iterative conjecturing and proving.</li>
+<li>Axiom Putnam 2025 repo/report: public artifact for a generation-verification style system in Lean.</li>
+</ul>
+<p>Status: verified as a real research direction. The exact private Axiom training stack is not public.</p>
+<h4 id="2-construction-side-example-counterexample-pattern-boost-formal-conjecture">2. Construction Side: Example, Counterexample, Pattern Boost, Formal Conjecture</h4>
+<p>Core idea: discovery is not only proof search. A system needs a construction loop:</p>
+<ol>
+<li>Generate objects or examples with Python/Rust/search.</li>
+<li>Search for patterns or invariants.</li>
+<li>Generate counterexamples to kill weak conjectures.</li>
+<li>Translate surviving patterns into formal statements.</li>
+<li>Prove or refute them in Lean/Isabelle/Coq.</li>
+</ol>
+<p>Useful sources:</p>
+<ul>
+<li>PatternBoost / Axplorer for transformer-guided construction search over mathematical objects.</li>
+<li>Int2Int for transformer-based math object prediction over integer-encoded structures.</li>
+<li>Global Lyapunov functions with symbolic transformers as a concrete construction + symbolic verification case.</li>
+<li>FunSearch for program-guided mathematical object discovery.</li>
+<li>AlphaGeometry for auxiliary construction in geometry.</li>
+<li>Construction-Verification benchmark for construction-first applied math in Lean.</li>
+<li>Learning to Disprove for counterexample generation.</li>
+<li>LeanConjecturer and STP for formal conjecture generation.</li>
+<li>Fel&#x27;s Conjecture / Chen-Gendron / Anderson-style Axiom-related papers for research-level conjecture resolution.</li>
+</ul>
+<p>Status: verified. PatternBoost and Axplorer now have public paper/code links in <code>paper_links.*</code>. The exact private Axiom training stack is still not public.</p>
+<h4 id="3-lean-rust-python-spec-stack">3. Lean + Rust/Python Spec Stack</h4>
+<p>Core idea: split high-throughput search from final verification.</p>
+<p>Architecture sketch:</p>
+<pre><code>Rust/Python object generator
+  -&gt; candidate objects / counterexamples / empirical patterns
+  -&gt; LLM formalizer
+  -&gt; Lean definitions + theorem statements
+  -&gt; Lean prover / search / tactic generator
+  -&gt; checked proof or rejected conjecture</code></pre>
+<p>Rust/Python is for large search spaces. Lean is for <code>Prop</code>, definitions, theorem statements, and proof checking.</p>
+<p>Useful sources:</p>
+<ul>
+<li>FunSearch.</li>
+<li>Construction-Verification benchmark.</li>
+<li>DeepSeek-Prover / AlphaProof for verifier feedback.</li>
+<li>RustBelt as a useful reference for Rust + formal logic foundations.</li>
+</ul>
+<p>Status: verified as an architecture pattern. Exact production code differs by system.</p>
+<h4 id="4-curry-howard-proofs-as-programs">4. Curry-Howard / Proofs as Programs</h4>
+<p>Core idea: propositions as types; proofs as programs; proof checking as type checking.</p>
+<p>Why it matters for AI-for-math:</p>
+<ul>
+<li>A theorem statement is a type.</li>
+<li>A proof is a term inhabiting that type.</li>
+<li>Searching for a proof becomes searching for a well-typed program.</li>
+<li>Lean/Coq-style verification becomes compiler-like checking.</li>
+</ul>
+<p>Useful sources:</p>
+<ul>
+<li>Proofs and Types.</li>
+<li>Lean theorem prover system paper.</li>
+<li>Lean4Lean for the external Lean 4 typechecker written in Lean.</li>
+<li>Lean Language Reference: elaboration, compilation, and trusted kernel overview.</li>
+<li>CompCert as a mature proofs-as-programs / verified compiler application.</li>
+</ul>
+<p>Status: foundational and verified. Lean also supports classical axioms in mathlib, so the simple constructive Curry-Howard story needs nuance.</p>
+<h4 id="5-forward-backward-search-and-deduction">5. Forward / Backward Search and Deduction</h4>
+<p>Core idea: proof search can move from assumptions forward or from the goal backward. Real systems mix both.</p>
+<p>System patterns:</p>
+<ul>
+<li>Backward proof search: decompose a Lean goal into subgoals.</li>
+<li>Forward exploration: generate useful lemmas, examples, auxiliary constructions.</li>
+<li>Value / progress model: rank which branch to expand.</li>
+<li>Verifier feedback: stop failed tactic branches early.</li>
+</ul>
+<p>Useful sources:</p>
+<ul>
+<li>HyperTree Proof Search.</li>
+<li>LeanDojo / ReProver.</li>
+<li>DeepSeek-Prover-V1.5 and V2.</li>
+<li>Process-Verified RL.</li>
+<li>AlphaProof Nature paper.</li>
+<li>AgentV-RL for verifier-style forward/backward checking in reward modeling.</li>
+</ul>
+<p>Status: verified as a search pattern. Some Gemini wording, such as an exact “AlphaProof Master Plan” public paper, was not verified.</p>
+<h4 id="6-lemma-hierarchy-skill-base-long-term-memory">6. Lemma Hierarchy, Skill Base, Long-Term Memory</h4>
+<p>Core idea: strong provers need a growing library of reusable verified chunks.</p>
+<p>Mechanisms:</p>
+<ul>
+<li>Propose subgoal lemmas.</li>
+<li>Prove them independently.</li>
+<li>Store successful lemmas as reusable skills.</li>
+<li>Generalize overly specific lemmas.</li>
+<li>Retrieve them later by goal state or semantic purpose.</li>
+</ul>
+<p>Useful sources:</p>
+<ul>
+<li>LEGO-Prover for growing libraries / evolving skill base.</li>
+<li>LeanAgent for lifelong learning in formal theorem proving.</li>
+<li>STP for self-play conjecture/prove loops.</li>
+<li>LeanConjecturer for conjecture generation in Lean.</li>
+<li>AI Co-Mathematician for agentic theory-building workflow.</li>
+</ul>
+<p>Status: verified. “Evolver” details vary by paper/system; do not assume Axiom uses exactly LEGO-Prover internals.</p>
+<h4 id="7-mathlib-rag-semantic-search-relative-utility">7. Mathlib RAG, Semantic Search, Relative Utility</h4>
+<p>Core idea: lemma search should not only be name retrieval. It should rank by proof-state utility and mathematical purpose.</p>
+<p>Retrieval layers:</p>
+<ul>
+<li>Syntactic search: theorem name, constants, subexpressions.</li>
+<li>Semantic search: natural-language intent to Lean theorem.</li>
+<li>Premise selection: historical utility for closing similar goals.</li>
+<li>Dependency graph: theorem-def-lemma graph and hidden infrastructure.</li>
+<li>Reranking: combine semantic similarity, type compatibility, current proof state, dependency distance, and past utility.</li>
+</ul>
+<p>Useful sources:</p>
+<ul>
+<li>LeanDojo / ReProver.</li>
+<li>Loogle.</li>
+<li>Moogle.</li>
+<li>LeanSearch / Semantic Search Engine for Mathlib4.</li>
+<li>Lean Finder.</li>
+<li>The Network Structure of Mathlib.</li>
+<li>MathlibGraph / ProofGraph.</li>
+<li>Semantic Search over 9 Million Mathematical Theorems.</li>
+<li>LemmaNet for purpose-driven lemma adaptation in program verification.</li>
+</ul>
+<p>Status: verified. “Relative utility” is our synthesis of premise-selection / proof-state utility ideas, not always a named term in the papers.</p>
+<h4 id="8-isomorphism-aware-retrieval-transfer-typeclass-abstraction">8. Isomorphism-Aware Retrieval, Transfer, Typeclass Abstraction</h4>
+<p>Core idea: if theory A and theory B are equivalent or share an abstract interface, theorem search should retrieve lemmas across that bridge.</p>
+<p>Engineering route:</p>
+<ol>
+<li>Extract type signatures and declarations from mathlib.</li>
+<li>Extract known equivalences/isomorphisms, e.g. <code>Equiv</code>, equivalences of categories, additive/multiplicative wrappers.</li>
+<li>Build a graph of theory objects and structure-preserving maps.</li>
+<li>In retrieval, rerank theorem <code>Q</code> higher if it can be transported to target <code>P</code> along a known bridge.</li>
+<li>Try <code>transfer</code>, rewriting, equivalence transport, or abstracting a lemma to a typeclass.</li>
+</ol>
+<p>Useful sources:</p>
+<ul>
+<li>Lean <code>transfer</code> tactic documentation.</li>
+<li>HoTT / univalence sources for the theory intuition.</li>
+<li>LeanDojo and Mathlib dependency graphs for extraction.</li>
+<li>Lean Finder / LeanSearch for intent-layer retrieval.</li>
+</ul>
+<p>Status: partly ready. Manual <code>transfer</code> and typeclass abstraction are real. Fully automatic cross-theory lemma transport and reranking is still a research build, not a polished public system.</p>
+<h4 id="9-knowledge-graph-citation-graph-for-formal-math">9. Knowledge Graph / Citation Graph for Formal Math</h4>
+<p>Core idea: in Lean, “citation” is not just bibliography. It is theorem dependency: proof A uses lemma B, definition C, typeclass D.</p>
+<p>Graph nodes:</p>
+<ul>
+<li>definitions</li>
+<li>theorems / lemmas</li>
+<li>tactics / proof states</li>
+<li>imports / modules</li>
+<li>typeclass instances</li>
+<li>equivalence bridges</li>
+</ul>
+<p>Graph edges:</p>
+<ul>
+<li>proof dependency</li>
+<li>import dependency</li>
+<li>typeclass dependency</li>
+<li>semantic embedding neighbor</li>
+<li>equivalence/transport edge</li>
+</ul>
+<p>Useful sources:</p>
+<ul>
+<li>LeanDojo dependency extraction.</li>
+<li>The Network Structure of Mathlib.</li>
+<li>MathlibGraph.</li>
+<li>ProofGraph.</li>
+<li>Axiom Putnam dependency graph page.</li>
+</ul>
+<p>Status: verified. <code>QED-Bridge</code> as named by Gemini was not verified.</p>
+<h4 id="10-dynamic-pruning-reflection-early-stop">10. Dynamic Pruning, Reflection, Early Stop</h4>
+<p>Core idea: proof search explodes unless a critic decides when a branch is not worth expanding.</p>
+<p>Signals:</p>
+<ul>
+<li>Lean error / tactic failure.</li>
+<li>no proof progress.</li>
+<li>proof-state novelty too low.</li>
+<li>branch value score too low.</li>
+<li>similar branch already failed.</li>
+<li>generated lemma too weak or too specific.</li>
+</ul>
+<p>Useful sources:</p>
+<ul>
+<li>Process-Verified RL.</li>
+<li>LeanProgress.</li>
+<li>DeepSeek-Prover-V1.5 MCTS.</li>
+<li>HyperTree Proof Search.</li>
+<li>Reflexion is useful as a general agent idea, but not included as a primary theorem-proving paper.</li>
+</ul>
+<p>Status: verifier-guided pruning is verified. Some Gemini-named papers like <code>Novelty-based Tree-of-Thought Search</code> and <code>From Roots to Rewards</code> were not verified under those exact names.</p>
+<h4 id="11-synthetic-data-and-lean-data-scarcity">11. Synthetic Data and Lean Data Scarcity</h4>
+<p>Core idea: formal proof data is scarce, so systems manufacture training tasks.</p>
+<p>Routes:</p>
+<ul>
+<li>autoformalize informal math into formal statements.</li>
+<li>mine subgoals from existing proofs.</li>
+<li>self-play: conjecture, prove, add successful examples.</li>
+<li>generate counterexamples for bad conjectures.</li>
+<li>mutate/formalize problems by symmetry or difficulty.</li>
+<li>use verifier feedback as deterministic reward.</li>
+</ul>
+<p>Useful sources:</p>
+<ul>
+<li>PACT.</li>
+<li>LeanDojo.</li>
+<li>DeepSeek-Prover.</li>
+<li>STP.</li>
+<li>LeanConjecturer.</li>
+<li>EvolProver.</li>
+<li>Seed-Prover.</li>
+<li>AI Co-Mathematician.</li>
+</ul>
+<p>Status: verified. A standalone Axiom synthetic-data tech report was not found.</p>
+<h4 id="12-benchmarks">12. Benchmarks</h4>
+<p>Covered benchmark families:</p>
+<ul>
+<li>Putnam 2025 / Axiom public Lean repo.</li>
+<li>IMO / AlphaProof / AlphaGeometry.</li>
+<li>miniF2F.</li>
+<li>FIMO.</li>
+<li>ProofNet.</li>
+<li>FormalMATH.</li>
+<li>Construction-Verification.</li>
+<li>CombiBench.</li>
+<li>MathNet.</li>
+<li>MathVerse.</li>
+<li>MathVista.</li>
+<li>PolyMATH.</li>
+</ul>
+<p>Status: verified. <code>Mini-CTX v2</code> as a math benchmark was not verified under that exact name.</p>
+<h4 id="13-hott-logic-as-geometry-diagrammatic-reasoning">13. HoTT, Logic-as-Geometry, Diagrammatic Reasoning</h4>
+<p>Core idea: symbolic text is one projection of mathematical structure; graphs, spaces, paths, and diagrams can be more natural for some reasoning.</p>
+<p>Relevant theory:</p>
+<ul>
+<li>HoTT: types as spaces, equality as paths, univalence as equivalence-to-equality.</li>
+<li>Category theory: objects and morphisms, functors, natural transformations.</li>
+<li>String diagrams: graphical syntax for monoidal/categorical reasoning.</li>
+<li>Graph rewriting: proof as structure-preserving graph transformation.</li>
+</ul>
+<p>Useful sources:</p>
+<ul>
+<li>HoTT Book.</li>
+<li>Homotopy Type Theory in Lean.</li>
+<li>Higher Groups in HoTT.</li>
+<li>Formalization of higher inductive types / synthetic homotopy theory.</li>
+<li>HoTTLean / certifying proof assistant for synthetic mathematics in Lean.</li>
+<li>Quantomatic.</li>
+<li>String diagram rewrite theory.</li>
+</ul>
+<p>Status: theory and tools are real. Directly replacing Lean&#x27;s symbolic kernel with visual reasoning is not current practice; the practical route is graph/diagram reasoning plus a verified symbolic or proof-producing backend.</p>
+<h4 id="14-multimodal-visual-spatial-mathematical-reasoning">14. Multimodal / Visual / Spatial Mathematical Reasoning</h4>
+<p>Core idea: many math problems require diagram, spatial, or structural intuition; a future system should ground visual structure into formal constraints.</p>
+<p>Routes:</p>
+<ul>
+<li>Geometry construction: auxiliary point/line/circle prediction.</li>
+<li>Diagram grounding: parse visual entities into constraints.</li>
+<li>Multimodal autoformalization: image/diagram/physics setup to formal spec.</li>
+<li>Math-aware retrieval: detect when two problems are structurally the same even if text/diagram differs.</li>
+</ul>
+<p>Useful sources:</p>
+<ul>
+<li>AlphaGeometry.</li>
+<li>MMFormalizer.</li>
+<li>MathNet.</li>
+<li>MathVerse.</li>
+<li>MathVista.</li>
+<li>PolyMATH.</li>
+<li>Autoformalizing Euclidean Geometry.</li>
+</ul>
+<p>Status: verified and active. The broader “real-world RL with Lean compile reward from visual structure” is a plausible architecture, not a solved system.</p>
+<h4 id="15-verifiable-visual-structure-rl-real-world-compile-reward">15. Verifiable Visual-Structure RL / Real-World Compile Reward</h4>
+<p>Core idea: use a formal checker as an RL reward for real-world or multimodal agents.</p>
+<p>Possible stack:</p>
+<pre><code>visual / spatial signal
+  -&gt; structural perception graph
+  -&gt; constraint extraction
+  -&gt; formal spec in Lean or another proof-producing logic
+  -&gt; action/proof candidate
+  -&gt; verifier feedback as reward</code></pre>
+<p>Research ingredients already exist:</p>
+<ul>
+<li>verifier-guided RL for Lean.</li>
+<li>visual math benchmarks.</li>
+<li>multimodal autoformalization.</li>
+<li>graph rewriting / diagrammatic proof.</li>
+<li>formal verification of software/hardware.</li>
+</ul>
+<h4 id="16-lean-kernel-every-proof-step-verifiable">16. Lean Kernel / Every Proof Step Verifiable</h4>
+<p>Core idea: the LLM, tactic search, RAG, Rust/Python search, and PatternBoost are all untrusted generators. The trusted object is the final proof term checked by the Lean kernel.</p>
+<p>Operational stack:</p>
+<pre><code>informal statement / search idea
+  -&gt; Lean declaration + proof script
+  -&gt; elaborator expands tactics into proof terms
+  -&gt; kernel typechecks proof term
+  -&gt; accepted theorem or concrete error state</code></pre>
+<p>Important distinction:</p>
+<ul>
+<li><code>def</code>, <code>structure</code>, and <code>inductive</code> do not need an informal original. They need to be well-typed, universe-safe, terminating when recursive, and strictly positive when inductive.</li>
+<li>If the goal is to formalize existing mathematics, humans still need to audit whether the Lean definition matches the intended informal concept.</li>
+<li>If the goal is to invent a new formal theory, Lean only checks internal logical coherence, not whether humans find the definition meaningful.</li>
+</ul>
+<p>Useful sources:</p>
+<ul>
+<li>The Lean Theorem Prover system description.</li>
+<li>Lean4Lean.</li>
+<li>Lean Language Reference.</li>
+<li>The Lean mathematical library.</li>
+</ul>
+<p>Status: verified. This is the right mental model for “all proof steps verifiable.”</p>
+<h4 id="17-sat-hardware-verification-bridge">17. SAT / Hardware Verification Bridge</h4>
+<p>Core idea: hardware formal verification is the mature industrial cousin of theorem proving. SAT/SMT/model checking handles bounded or finite-state properties; proof assistants handle parameterized, high-level, and compositional correctness.</p>
+<p>Key concepts:</p>
+<ul>
+<li>SAT solver: searches Boolean assignments for CNF formulas.</li>
+<li>CDCL: modern SAT algorithm with conflict analysis, learned clauses, restarts, and watched literals.</li>
+<li>Certificate checking: do not fully trust the SAT solver; verify UNSAT/SAT proof certificates such as DRAT/GRAT with a smaller checker.</li>
+<li>RTL: register-transfer-level implementation of a circuit.</li>
+<li>ISA: instruction-set architecture, the contract between software and hardware.</li>
+<li>SVA/LTL: temporal assertions over clocked behavior, e.g. request must eventually receive acknowledgement.</li>
+</ul>
+<p>Useful sources:</p>
+<ul>
+<li>A Verified SAT Solver Framework with Learn, Forget, Restart, and Incrementality.</li>
+<li>The DRAT format and DRAT-trim checker.</li>
+<li>GRAT verified SAT solver certification toolchain.</li>
+<li>Kami for Coq-based modular hardware verification.</li>
+<li>RISC-V Formal references.</li>
+</ul>
+<p>Status: verified. This is adjacent to AI-for-math because it gives a mature blueprint for verifier-backed agents: untrusted search/generation, small trusted checker, proof/certificate artifacts.</p>
+<p>Missing pieces:</p>
+<ul>
+<li>robust perception-to-formal-spec compiler.</li>
+<li>proof-producing visual graph transformations.</li>
+<li>scalable real-time verifier feedback.</li>
+<li>benchmarks that require real-world causal/spatial actions plus formal correctness.</li>
+</ul>
+<p>Status: speculative system architecture, but grounded in verified components.</p>
+<h3 id="practical-build-plan-for-our-agent-skill">Practical Build Plan for Our Agent Skill</h3>
+<p>Near-term extract layer:</p>
+<ol>
+<li>Keep Chrome/session collection as source-of-truth registry.</li>
+<li>Maintain manual verified bibliographies from Gemini/YouTube/interview conversations.</li>
+<li>Store idea nodes separately from link nodes.</li>
+<li>Map each idea to verified links and status.</li>
+<li>Add <code>needs_verification</code> for hallucinated or private/internal claims.</li>
+</ol>
+<p>Mathlib search skill route:</p>
+<ol>
+<li>Extract mathlib declarations, types, imports, dependencies.</li>
+<li>Index theorem names, statements, constants, type signatures, and docstrings.</li>
+<li>Add semantic embeddings for informal query intent.</li>
+<li>Add graph search over dependencies and typeclass infrastructure.</li>
+<li>Add equivalence/transport labels from <code>Equiv</code>, isomorphisms, wrappers, and categories.</li>
+<li>Rerank by proof-state utility and transport distance.</li>
+<li>Try Lean <code>exact?</code>, <code>apply?</code>, <code>rw?</code>, <code>simp?</code>, <code>aesop?</code>, <code>loogle</code>, <code>transfer</code>, and generated abstraction lemmas.</li>
+</ol>
+<p>This is the actionable version of the “isomorphism-aware RAG + automated lemma transport + abstract class refinement” idea.</p></section>
+<section id="all-verified-links"><h2>All Verified Links</h2><section class="link-section" id="cat-0-system-overviews-ai-mathematician-agents"><h2>0. System overviews / AI mathematician agents <span>14</span></h2><ol>
+<li><a href="https://arxiv.org/abs/2605.06651">AI Co-Mathematician: Accelerating Mathematicians with Agentic AI</a><div class="tags"><em>agentic-math</em><em>research-agent</em><em>theory-building</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://arxiv.org/abs/2510.26380">AI Mathematician as a Partner in Advancing Mathematical Discovery - A Case Study in Homogenization Theory</a><div class="tags"><em>ai-mathematician</em><em>human-ai-collaboration</em><em>research-agent</em></div><small>web-verified related item</small></li>
+<li><a href="https://arxiv.org/abs/2505.22451">AI Mathematician: Towards Fully Automated Frontier Mathematical Research</a><div class="tags"><em>ai-mathematician</em><em>frontier-math</em><em>research-agent</em></div><small>web-verified related item</small></li>
+<li><a href="https://deepmind.google/blog/ai-solves-imo-problems-at-silver-medal-level/">AI achieves silver-medal standard solving International Mathematical Olympiad problems</a><div class="tags"><em>alphageometry-2</em><em>alphaproof</em><em>imo</em><em>lean</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://arxiv.org/abs/2506.13131">AlphaEvolve: A coding agent for scientific and algorithmic discovery</a><div class="tags"><em>algorithm-discovery</em><em>alphaevolve</em><em>evolutionary-search</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://axiommath.github.io/Putnam2025/">AxiomProver Putnam 2025 dependency graphs</a><div class="tags"><em>axiom</em><em>dependency-graph</em><em>lean</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://github.com/AxiomMath/putnam2025">AxiomProver at Putnam 2025</a><div class="tags"><em>axiom</em><em>benchmark</em><em>lean</em><em>putnam</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://www.nature.com/articles/s41586-023-06924-6">Mathematical discoveries from program search with large language models</a><div class="tags"><em>funsearch</em><em>mathematical-discovery</em><em>program-search</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://arxiv.org/abs/2511.02864">Mathematical exploration and discovery at scale</a><div class="tags"><em>alphaevolve</em><em>exploration</em><em>mathematical-discovery</em></div><small>web-verified related item</small></li>
+<li><a href="https://arxiv.org/abs/2404.09939">A Survey on Deep Learning for Theorem Proving</a><div class="tags"></div><small></small></li>
+<li><a href="https://www.julian.ac/blog/2025/11/13/alphaproof-paper/">AlphaProof Paper</a><div class="tags"></div><small></small></li>
+<li><a href="https://github.com/AxiomMath">AxiomMath · GitHub</a><div class="tags"></div><small></small></li>
+<li><a href="https://axiommath.ai/territory/from-seeing-why-to-checking-everything">Axiom: From Seeing Why to Checking Everything</a><div class="tags"><em>ai-mathematician</em><em>axiom</em><em>formal-proof</em><em>source</em></div><small>verified from user-shared Axiom page</small></li>
+<li><a href="https://github.com/AxiomMath/axplorer">Axplorer GitHub repository</a><div class="tags"><em>axplorer</em><em>code</em><em>construction-search</em><em>patternboost</em></div><small>verified from AxiomMath GitHub README</small></li>
+</ol></section>
+<section class="link-section" id="cat-1-lean-prover-systems-rl-self-play"><h2>1. Lean prover systems / RL / self-play <span>30</span></h2><ol>
+<li><a href="https://arxiv.org/abs/2604.16004">AgentV-RL: Scaling Reward Modeling with Agentic Verifier</a><div class="tags"><em>agentic-verifier</em><em>forward-backward-checking</em><em>reward-modeling</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://arxiv.org/abs/2408.08152">DeepSeek-Prover-V1.5: Harnessing Proof Assistant Feedback for Reinforcement Learning and Monte-Carlo Tree Search</a><div class="tags"><em>deepseek-prover</em><em>lean</em><em>mcts</em><em>rl</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://arxiv.org/abs/2504.21801">DeepSeek-Prover-V2: Advancing Formal Mathematical Reasoning via Reinforcement Learning for Subgoal Decomposition</a><div class="tags"><em>deepseek-prover-v2</em><em>lean</em><em>rl</em><em>subgoal-decomposition</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://arxiv.org/abs/2402.03300">DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models</a><div class="tags"><em>deepseekmath</em><em>grpo</em><em>math-reasoning</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://arxiv.org/abs/2502.07640">Goedel-Prover: A Frontier Model for Open-Source Automated Theorem Proving</a><div class="tags"><em>automated-theorem-proving</em><em>goedel-prover</em><em>lean</em></div><small>web-verified related item</small></li>
+<li><a href="https://arxiv.org/abs/2205.11491">HyperTree Proof Search for Neural Theorem Proving</a><div class="tags"><em>alpha-zero-style</em><em>hypertree</em><em>proof-search</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://github.com/wiio12/LEGO-Prover">LEGO-Prover GitHub repository</a><div class="tags"><em>code</em><em>lego-prover</em><em>skill-library</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://arxiv.org/abs/2310.00656">LEGO-Prover: Neural Theorem Proving with Growing Libraries</a><div class="tags"><em>isabelle</em><em>lego-prover</em><em>lemma-hierarchy</em><em>skill-library</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://arxiv.org/abs/2410.06209">LeanAgent: Lifelong Learning for Formal Theorem Proving</a><div class="tags"><em>lean</em><em>leanagent</em><em>lifelong-learning</em><em>memory</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://arxiv.org/abs/2306.15626">LeanDojo: Theorem Proving with Retrieval-Augmented Language Models</a><div class="tags"><em>lean</em><em>leandojo</em><em>premise-selection</em><em>rag</em><em>reprover</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://arxiv.org/abs/2502.17925">LeanProgress: Guiding Search for Neural Theorem Proving via Proof Progress Prediction</a><div class="tags"><em>lean</em><em>progress-prediction</em><em>proof-search</em></div><small>web-verified related item</small></li>
+<li><a href="https://arxiv.org/abs/2507.08649">Leanabell-Prover-V2: Verifier-integrated Reasoning for Formal Theorem Proving via Reinforcement Learning</a><div class="tags"><em>lean</em><em>rl</em><em>verifier-feedback</em></div><small>web-verified related item</small></li>
+<li><a href="https://www.nature.com/articles/s41586-025-09833-y">Olympiad-level formal mathematical reasoning with reinforcement learning</a><div class="tags"><em>alphaproof</em><em>imo</em><em>lean</em><em>rl</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://iclr.cc/virtual/2026/poster/10009728">Process-Verified Reinforcement Learning for Theorem Proving via Lean</a><div class="tags"><em>early-stop</em><em>lean</em><em>process-verification</em><em>rl</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://arxiv.org/abs/2102.06203">Proof Artifact Co-training for Theorem Proving with Language Models</a><div class="tags"><em>data-scarcity</em><em>lean</em><em>pact</em><em>proof-artifacts</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://github.com/lean-dojo/ReProver">ReProver: Retrieval-Augmented Theorem Provers for Lean</a><div class="tags"><em>code</em><em>lean</em><em>rag</em><em>reprover</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://arxiv.org/abs/2502.00212">STP: Self-play LLM Theorem Provers with Iterative Conjecturing and Proving</a><div class="tags"><em>conjecturing</em><em>isabelle</em><em>lean</em><em>self-play</em><em>theorem-proving</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://arxiv.org/abs/2510.01346">Aristotle: IMO-level Automated Theorem Proving</a><div class="tags"></div><small></small></li>
+<li><a href="https://arxiv.org/abs/2511.22570">DeepSeekMath-V2: Towards Self-Verifiable Mathematical Reasoning</a><div class="tags"></div><small></small></li>
+<li><a href="https://arxiv.org/abs/2604.15839">Discover and Prove: An Open-source Agentic Framework for Hard Mode Automated Theorem Proving in Lean 4</a><div class="tags"></div><small></small></li>
+<li><a href="https://arxiv.org/abs/2009.03393">Generative Language Modeling for Automated Theorem Proving</a><div class="tags"></div><small></small></li>
+<li><a href="https://github.com/Goedel-LM/Goedel-Prover-V2">Goedel-LM/Goedel-Prover-V2 · GitHub</a><div class="tags"></div><small></small></li>
+<li><a href="https://openreview.net/forum?id=Uo4EHT4ZZ8">LeanAgent: Lifelong Learning for Formal Theorem Proving</a><div class="tags"></div><small></small></li>
+<li><a href="https://neurips.cc/virtual/2025/131058">NeurIPS Process-Verified Reinforcement Learning for Theorem Proving via Lean</a><div class="tags"></div><small></small></li>
+<li><a href="https://openreview.net/forum?id=sKvVHgmRP2">Process-Verified Reinforcement Learning for Theorem Proving via Lean</a><div class="tags"></div><small></small></li>
+<li><a href="https://arxiv.org/abs/2310.04353">[2310.04353] An In-Context Learning Agent for Formal Theorem-Proving</a><div class="tags"></div><small></small></li>
+<li><a href="https://arxiv.org/abs/2507.23726">[2507.23726] Seed-Prover: Deep and Broad Reasoning for Automated Theorem Proving</a><div class="tags"></div><small></small></li>
+<li><a href="https://arxiv.org/abs/2601.15737">[2601.15737] PhysProver: Advancing Automatic Theorem Proving for Physics</a><div class="tags"></div><small></small></li>
+<li><a href="https://arxiv.org/abs/2604.01483">[2604.01483] Type-Checked Compliance: Deterministic Guardrails for Agentic Financial Systems Using Lean 4 Theorem Proving</a><div class="tags"></div><small></small></li>
+<li><a href="https://zenodo.org/records/7430233">Aesop: White-Box Best-First Proof Search for Lean</a><div class="tags"><em>aesop</em><em>best-first-search</em><em>lean</em><em>proof-search</em></div><small>web-verified related item</small></li>
+</ol></section>
+<section class="link-section" id="cat-2-autoformalization-datasets-formal-benchmarks"><h2>2. Autoformalization / datasets / formal benchmarks <span>15</span></h2><ol>
+<li><a href="https://arxiv.org/abs/2205.12615">Autoformalization with Large Language Models</a><div class="tags"><em>autoformalization</em><em>benchmark</em><em>isabelle</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://arxiv.org/abs/2405.17216">Autoformalizing Euclidean Geometry</a><div class="tags"><em>autoformalization</em><em>diagrams</em><em>geometry</em><em>lean</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://arxiv.org/abs/2602.01291">Construction-Verification: A Benchmark for Applied Mathematics in Lean 4</a><div class="tags"><em>applied-math</em><em>benchmark</em><em>construction-verification</em><em>lean</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://arxiv.org/abs/2210.12283">Draft, Sketch, and Prove: Guiding Formal Theorem Provers with Informal Proofs</a><div class="tags"><em>autoformalization</em><em>informal-proof</em><em>proof-sketch</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://github.com/liuchengwucn/FIMO">FIMO: Formal IMO-level mathematics dataset</a><div class="tags"><em>benchmark</em><em>fimo</em><em>imo</em><em>lean</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://arxiv.org/abs/2505.02735">FormalMATH: Benchmarking Formal Mathematical Reasoning of Large Language Models</a><div class="tags"><em>benchmark</em><em>formalmath</em><em>lean4</em></div><small>web-verified related item</small></li>
+<li><a href="https://arxiv.org/abs/2601.03017">MMFormalizer: Multimodal Autoformalization in the Wild</a><div class="tags"><em>autoformalization</em><em>mmformalizer</em><em>multimodal</em><em>physics</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://arxiv.org/abs/2109.00110">MiniF2F: a cross-system benchmark for formal Olympiad-level mathematics</a><div class="tags"><em>benchmark</em><em>formal-math</em><em>minif2f</em><em>olympiad</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://arxiv.org/abs/2311.03755">Multilingual Mathematical Autoformalization</a><div class="tags"><em>autoformalization</em><em>mma</em><em>multilingual</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://arxiv.org/abs/2211.15864">Peano: Learning Formal Mathematical Reasoning</a><div class="tags"><em>formal-reasoning</em><em>peano</em><em>rl-environment</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://arxiv.org/abs/2302.12433">ProofNet: Autoformalizing and Formally Proving Undergraduate-Level Mathematics</a><div class="tags"><em>autoformalization</em><em>benchmark</em><em>lean</em><em>proofnet</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://github.com/openai/miniF2F">miniF2F GitHub repository</a><div class="tags"><em>benchmark</em><em>code</em><em>minif2f</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://neurips.cc/virtual/2024/poster/96359">NeurIPS Poster Autoformalize Mathematical Statements by Symbolic Equivalence and Semantic Consistency</a><div class="tags"></div><small></small></li>
+<li><a href="https://arxiv.org/abs/2505.04528">[2505.04528] Beyond Theorem Proving: Formulation, Framework and Benchmark for Formal Problem-Solving</a><div class="tags"></div><small></small></li>
+<li><a href="https://github.com/zhangir-azerbayev/ProofNet">zhangir-azerbayev/ProofNet: Benchmark for undergraduate-level formal mathematics · GitHub</a><div class="tags"></div><small></small></li>
+</ol></section>
+<section class="link-section" id="cat-3-conjecturing-counterexamples-lemma-discovery"><h2>3. Conjecturing / counterexamples / lemma discovery <span>18</span></h2><ol>
+<li><a href="https://arxiv.org/abs/2604.03789">Automated Conjecture Resolution with Formal Verification</a><div class="tags"><em>conjecture-resolution</em><em>lean</em><em>research-agent</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://arxiv.org/abs/2602.03716">Fel&#x27;s Conjecture on Syzygies of Numerical Semigroups</a><div class="tags"><em>axiom</em><em>commutative-algebra</em><em>lean</em><em>research-conjecture</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://github.com/google-deepmind/formal-conjectures">Google DeepMind formal-conjectures repository</a><div class="tags"><em>benchmark</em><em>dataset</em><em>formal-conjectures</em><em>lean</em></div><small>web-verified related item</small></li>
+<li><a href="https://arxiv.org/abs/2506.22005">LeanConjecturer: Automatic Generation of Mathematical Conjectures for Theorem Proving</a><div class="tags"><em>conjecture-generation</em><em>grpo</em><em>lean</em><em>leanconjecturer</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://arxiv.org/abs/2603.19514">Learning to Disprove: Formal Counterexample Generation with Large Language Models</a><div class="tags"><em>counterexample-generation</em><em>disproving</em><em>lean</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://arxiv.org/abs/2603.22114">Lemma Discovery in Agentic Program Verification</a><div class="tags"><em>lemma-discovery</em><em>lemmanet</em><em>program-verification</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://arxiv.org/abs/2602.03722">Parity of k-differentials in genus zero and one</a><div class="tags"><em>algebraic-geometry</em><em>axiom</em><em>lean</em><em>research-conjecture</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://openreview.net/forum?id=aYlKvzY6ob">Mining Math Conjectures from LLMs: A Pruning Approach</a><div class="tags"></div><small></small></li>
+<li><a href="https://arxiv.org/abs/2510.00732">[2510.00732] EvolProver: Advancing Automated Theorem Proving by Evolving Formalized Problems via Symmetry and Difficulty</a><div class="tags"></div><small></small></li>
+<li><a href="https://arxiv.org/abs/1912.01412">Deep Learning for Symbolic Mathematics</a><div class="tags"><em>francois-charton</em><em>seq2seq</em><em>symbolic-math</em><em>transformers</em></div><small>verified from follow-up Gemini conversation</small></li>
+<li><a href="https://github.com/facebookresearch/Lyapunov">Global Lyapunov functions GitHub repository</a><div class="tags"><em>code</em><em>lyapunov</em><em>neuro-symbolic</em><em>symbolic-transformers</em></div><small>verified from facebookresearch GitHub README</small></li>
+<li><a href="https://arxiv.org/abs/2410.08304">Global Lyapunov functions: a long-standing open problem in mathematics, with symbolic transformers</a><div class="tags"><em>construction</em><em>lyapunov</em><em>neuro-symbolic</em><em>symbolic-transformers</em></div><small>verified from follow-up Gemini conversation</small></li>
+<li><a href="https://github.com/FacebookResearch/Int2Int">Int2Int GitHub repository</a><div class="tags"><em>code</em><em>int2int</em><em>number-theory</em><em>transformers</em></div><small>verified from Int2Int arXiv abstract</small></li>
+<li><a href="https://arxiv.org/abs/2502.17513">Int2Int: a framework for mathematics with transformers</a><div class="tags"><em>int2int</em><em>math-object-prediction</em><em>number-theory</em><em>transformers</em></div><small>verified from follow-up Gemini conversation</small></li>
+<li><a href="https://arxiv.org/abs/2112.01898">Linear Algebra with Transformers</a><div class="tags"><em>francois-charton</em><em>linear-algebra</em><em>math-object-prediction</em><em>transformers</em></div><small>verified from follow-up Gemini conversation</small></li>
+<li><a href="https://github.com/zawagner22/transformers_math_experiments">Original PatternBoost experiments GitHub repository</a><div class="tags"><em>code</em><em>mathematical-discovery</em><em>patternboost</em><em>transformers</em></div><small>verified from Axplorer README acknowledgement</small></li>
+<li><a href="https://arxiv.org/abs/2411.00566">PatternBoost: Constructions in Mathematics with a Little Help from AI</a><div class="tags"><em>construction</em><em>mathematical-discovery</em><em>patternboost</em><em>transformer-search</em></div><small>verified from follow-up Gemini conversation</small></li>
+<li><a href="https://arxiv.org/abs/2211.00170">What is my math transformer doing? Three results on interpretability and generalization</a><div class="tags"><em>francois-charton</em><em>generalization</em><em>interpretability</em><em>math-transformers</em></div><small>web-verified related item</small></li>
+</ol></section>
+<section class="link-section" id="cat-4-mathlib-search-semantic-rag-knowledge-graphs"><h2>4. Mathlib search / semantic RAG / knowledge graphs <span>13</span></h2><ol>
+<li><a href="https://arxiv.org/abs/2403.13310">A Semantic Search Engine for Mathlib4</a><div class="tags"><em>leansearch</em><em>mathlib</em><em>semantic-search</em></div><small>web-verified related item</small></li>
+<li><a href="https://arxiv.org/abs/2510.15940">Lean Finder: Semantic Search for Mathlib That Understands User Intents</a><div class="tags"><em>intent</em><em>lean-finder</em><em>mathlib</em><em>semantic-search</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://leanprover-community.github.io/mathlib_docs/tactic/transfer.html">Lean transfer tactic documentation</a><div class="tags"><em>lemma-transport</em><em>mathlib</em><em>tool</em><em>transfer</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://loogle.lean-lang.org/">Loogle: Lean and Mathlib search by constants, names, and subexpressions</a><div class="tags"><em>loogle</em><em>mathlib</em><em>pattern-search</em><em>tool</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://arxiv.org/abs/2604.18584">MathNet: a Global Multimodal Benchmark for Mathematical Reasoning and Retrieval</a><div class="tags"><em>benchmark</em><em>mathnet</em><em>multimodal</em><em>retrieval</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://huggingface.co/datasets/MathNetwork/MathlibGraph">MathlibGraph: The Multinetwork of Mathlib</a><div class="tags"><em>dataset</em><em>dependency-graph</em><em>mathlib</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://www.moogle.ai/">Moogle: Semantic search over mathlib4</a><div class="tags"><em>mathlib</em><em>moogle</em><em>semantic-search</em><em>tool</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://proofgraph.org/">ProofGraph: Network science and spectral graph theory applied to formalized mathematics</a><div class="tags"><em>dependency-graph</em><em>mathlib</em><em>proofgraph</em><em>tool</em></div><small>web-verified related item</small></li>
+<li><a href="https://arxiv.org/abs/2602.05216">Semantic Search over 9 Million Mathematical Theorems</a><div class="tags"><em>retrieval</em><em>semantic-search</em><em>theorem-search</em></div><small>web-verified related item</small></li>
+<li><a href="https://arxiv.org/abs/1910.09336">The Lean mathematical library</a><div class="tags"><em>lean</em><em>library-design</em><em>mathlib</em></div><small>web-verified related item</small></li>
+<li><a href="https://arxiv.org/abs/2604.24797">The Network Structure of Mathlib</a><div class="tags"><em>dependency-graph</em><em>knowledge-graph</em><em>mathlib</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://github.com/leanprover-community/mathlib49">leanprover-community/mathlib49</a><div class="tags"></div><small></small></li>
+<li><a href="https://github.com/leanprover-community/mathlib4">leanprover-community/mathlib4: The math library of Lean 4 · GitHub</a><div class="tags"></div><small></small></li>
+</ol></section>
+<section class="link-section" id="cat-5-foundations-hott-equivalence-transfer-diagrammatic-proof"><h2>5. Foundations / HoTT / equivalence / transfer / diagrammatic proof <span>22</span></h2><ol>
+<li><a href="https://research.chalmers.se/publication/551200/file/551200_Fulltext.pdf">A Certifying Proof Assistant for Synthetic Mathematics in Lean</a><div class="tags"><em>hottlean</em><em>lean</em><em>synthetic-mathematics</em></div><small>web-verified related item</small></li>
+<li><a href="https://arxiv.org/abs/1512.02274">Constructing the Propositional Truncation using Non-recursive HITs</a><div class="tags"><em>higher-inductive-types</em><em>hott</em><em>lean</em></div><small>web-verified related item</small></li>
+<li><a href="https://arxiv.org/abs/1802.04315">Higher Groups in Homotopy Type Theory</a><div class="tags"><em>higher-groups</em><em>hott</em><em>lean</em></div><small>web-verified related item</small></li>
+<li><a href="https://msp.cis.strath.ac.uk/types2025/abstracts/TYPES2025_paper25.pdf">HoTTLean: Formalizing the Meta-Theory of HoTT in Lean</a><div class="tags"><em>hottlean</em><em>lean</em><em>synthetic-mathematics</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://arxiv.org/abs/1704.06781">Homotopy Type Theory in Lean</a><div class="tags"><em>hott</em><em>lean</em><em>synthetic-homotopy</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://arxiv.org/abs/1808.10690">On the Formalization of Higher Inductive Types and Synthetic Homotopy Theory</a><div class="tags"><em>higher-inductive-types</em><em>hott</em><em>lean</em><em>spectral-sequences</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://arxiv.org/abs/1203.0202">Pictures of Processes: Automated Graph Rewriting for Monoidal Categories and Applications to Quantum Computing</a><div class="tags"><em>graph-rewriting</em><em>monoidal-categories</em><em>quantomatic</em><em>string-diagrams</em></div><small>web-verified related item</small></li>
+<li><a href="https://arxiv.org/abs/1503.01034">Quantomatic: A Proof Assistant for Diagrammatic Reasoning</a><div class="tags"><em>diagrammatic-reasoning</em><em>graph-rewriting</em><em>quantomatic</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://arxiv.org/abs/2012.01847">String Diagram Rewrite Theory I: Rewriting with Frobenius Structure</a><div class="tags"><em>categorical-reasoning</em><em>graph-rewriting</em><em>string-diagrams</em></div><small>web-verified related item</small></li>
+<li><a href="https://arxiv.org/abs/2104.14686">String Diagram Rewrite Theory II: Rewriting with Symmetric Monoidal Structure</a><div class="tags"><em>categorical-reasoning</em><em>graph-rewriting</em><em>string-diagrams</em></div><small>web-verified related item</small></li>
+<li><a href="https://lean-lang.org/papers/lean.pdf">The Lean Theorem Prover (system description)</a><div class="tags"><em>lean</em><em>system-description</em><em>theorem-prover</em></div><small>web-verified related item</small></li>
+<li><a href="https://cacm.acm.org/research/formal-verification-of-a-realistic-compiler/">Formal Verification of a Realistic Compiler</a><div class="tags"><em>compcert</em><em>coq</em><em>formal-verification</em><em>proofs-as-programs</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://arxiv.org/abs/1308.0729">Homotopy Type Theory: Univalent Foundations of Mathematics</a><div class="tags"><em>foundations</em><em>hott</em><em>type-theory</em><em>univalence</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://www.seas.upenn.edu/~sweirich/types/archive/1989/msg00053.html">Proofs and Types</a><div class="tags"><em>curry-howard</em><em>foundations</em><em>proofs-as-programs</em><em>type-theory</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://doi.org/10.1145/3158154">RustBelt: Securing the Foundations of the Rust Programming Language</a><div class="tags"><em>formal-verification</em><em>ownership</em><em>rust</em><em>type-systems</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://link.springer.com/article/10.1007/s10817-018-9455-7">A Verified SAT Solver Framework with Learn, Forget, Restart, and Incrementality</a><div class="tags"><em>cdcl</em><em>formal-verification</em><em>isabelle</em><em>sat-solver</em></div><small>verified from follow-up Gemini conversation</small></li>
+<li><a href="https://www21.in.tum.de/~lammich/grat/">GRAT: Efficient Formally Verified SAT Solver Certification Toolchain</a><div class="tags"><em>certificate-checking</em><em>isabelle</em><em>sat-solver</em><em>verified-checker</em></div><small>web-verified related item</small></li>
+<li><a href="https://adam.chlipala.net/papers/KamiICFP17/">Kami: A Platform for High-Level Parametric Hardware Specification and its Modular Verification</a><div class="tags"><em>coq</em><em>hardware-verification</em><em>modular-verification</em><em>risc-v</em></div><small>verified from follow-up Gemini conversation</small></li>
+<li><a href="https://arxiv.org/abs/2403.14064">Lean4Lean: Towards a Verified Typechecker for Lean, in Lean</a><div class="tags"><em>lean-kernel</em><em>lean4lean</em><em>trusted-core</em><em>verified-typechecker</em></div><small>verified from follow-up Gemini conversation</small></li>
+<li><a href="https://yosyshq.readthedocs.io/projects/riscv-formal/en/latest/references.html">RISC-V Formal documentation: references and related work</a><div class="tags"><em>formal-methods</em><em>hardware-verification</em><em>isa</em><em>risc-v</em></div><small>web-verified related item</small></li>
+<li><a href="https://arxiv.org/abs/1610.06229">The DRAT format and DRAT-trim checker</a><div class="tags"><em>drat</em><em>formal-verification</em><em>proof-certificates</em><em>sat-solver</em></div><small>verified from follow-up Gemini conversation</small></li>
+<li><a href="https://lean-lang.org/doc/reference/latest/Elaboration-and-Compilation/">The Lean Language Reference: Elaboration and Compilation</a><div class="tags"><em>elaboration</em><em>lean-kernel</em><em>reference</em><em>trusted-core</em></div><small>web-verified official Lean documentation</small></li>
+</ol></section>
+<section class="link-section" id="cat-6-multimodal-visual-spatial-math-reasoning"><h2>6. Multimodal / visual / spatial math reasoning <span>6</span></h2><ol>
+<li><a href="https://github.com/google-deepmind/alphageometry">AlphaGeometry GitHub repository</a><div class="tags"><em>alphageometry</em><em>code</em><em>geometry</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://mathnet.mit.edu/">MathNet project site</a><div class="tags"><em>benchmark</em><em>mathnet</em><em>project-page</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://web.cs.ucla.edu/~kwchang/bibliography/zhang2024mathverse/">MathVerse: Does Your Multi-modal LLM Truly See the Diagrams in Visual Math Problems?</a><div class="tags"><em>benchmark</em><em>mathverse</em><em>multimodal</em><em>visual-math</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://arxiv.org/abs/2310.02255">MathVista: Evaluating Mathematical Reasoning of Foundation Models in Visual Contexts</a><div class="tags"><em>benchmark</em><em>mathvista</em><em>multimodal</em><em>visual-math</em></div><small>web-verified related item</small></li>
+<li><a href="https://arxiv.org/abs/2410.14702">Polymath: A Challenging Multi-modal Mathematical Reasoning Benchmark</a><div class="tags"><em>benchmark</em><em>math-reasoning</em><em>multimodal</em><em>polymath</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://www.nature.com/articles/s41586-023-06747-5">Solving olympiad geometry without human demonstrations</a><div class="tags"><em>alphageometry</em><em>geometry</em><em>neuro-symbolic</em><em>synthetic-data</em></div><small>verified from pasted Gemini conversation</small></li>
+</ol></section>
+<section class="link-section" id="cat-7-code-project-pages-datasets"><h2>7. Code / project pages / datasets <span>2</span></h2><ol>
+<li><a href="https://github.com/MoonshotAI/CombiBench">CombiBench GitHub repository</a><div class="tags"><em>benchmark</em><em>code</em><em>combibench</em></div><small>verified from pasted Gemini conversation</small></li>
+<li><a href="https://arxiv.org/abs/2505.03171">CombiBench: Benchmarking LLM Capability for Combinatorial Mathematics</a><div class="tags"><em>benchmark</em><em>combibench</em><em>combinatorics</em></div><small>verified from pasted Gemini conversation</small></li>
+</ol></section></section>
+<section id="coverage-audit"><h2>Coverage Audit</h2><h2 id="coverage-audit-for-pasted-gemini-conversation">Coverage Audit for Pasted Gemini Conversation</h2>
+<p>Generated: 2026-05-12</p>
+<p>This audit checks whether the pasted Gemini conversation is covered by the local AI-for-math collection. Status meanings:</p>
+<ul>
+<li>**Covered:** verified source(s) are in <code>paper_links.*</code>.</li>
+<li>**Covered as idea:** no single paper title, but the concept is represented in <code>full_ai_for_math_collection.md</code> and mapped to verified sources.</li>
+<li>**Needs verification:** exact Gemini name was not reliably found or appears to be an internal/private/hallucinated title.</li>
+</ul>
+<h3 id="covered-topics">Covered Topics</h3>
+<pre class="table-md">| Gemini topic / claim | Status | Local coverage |</pre>
+<pre class="table-md">|---|---:|---|</pre>
+<pre class="table-md">| AI mathematical discovery / conjecturing / generation + verification | Covered | FunSearch, AlphaProof, AlphaGeometry, AI Co-Mathematician, Axiom Putnam 2025, STP, LeanConjecturer |</pre>
+<pre class="table-md">| Axiom / AlphaProof / Lean verifier reward | Covered | Axiom Putnam repo/report, AlphaProof Nature paper, DeepMind IMO blog, DeepSeek-Prover papers |</pre>
+<pre class="table-md">| FunSearch evolutionary program search | Covered | Nature FunSearch paper |</pre>
+<pre class="table-md">| Construction: examples, counterexamples, pattern boost, formal conjecture | Covered as idea | FunSearch, AlphaGeometry, Construction-Verification, Learning to Disprove, LeanConjecturer |</pre>
+<pre class="table-md">| Lean + Rust/Python split for search and verification | Covered as idea | Construction-Verification, FunSearch, RustBelt, DeepSeek-Prover |</pre>
+<pre class="table-md">| Curry-Howard correspondence, dependent types, proofs-as-programs | Covered as idea | Proofs and Types, Lean theorem prover paper, CompCert |</pre>
+<pre class="table-md">| HoTT / univalence / equality as path | Covered | HoTT Book, Homotopy Type Theory in Lean, HoTTLean, higher inductive type sources |</pre>
+<pre class="table-md">| Lean HoTT applications | Covered | Homotopy Type Theory in Lean, Higher Groups in HoTT, higher inductive type dissertation, HoTTLean |</pre>
+<pre class="table-md">| Transfer / lemma transport / typeclass abstraction | Covered as idea | Lean transfer tactic docs, HoTT sources, Mathlib/Lean sources |</pre>
+<pre class="table-md">| Forward/backward theorem proving, proof search | Covered | HyperTree Proof Search, LeanDojo, DeepSeek-Prover, Process-Verified RL, AlphaProof |</pre>
+<pre class="table-md">| Lemma hierarchy / growing skill base | Covered | LEGO-Prover, LeanAgent, STP, AI Co-Mathematician |</pre>
+<pre class="table-md">| Lean library reconstruction / RAG / premise selection | Covered | LeanDojo/ReProver, LeanSearch, Lean Finder, Moogle, Loogle, MathlibGraph |</pre>
+<pre class="table-md">| Pattern matching for lemma search | Covered | Loogle, LeanSearch, Lean Finder |</pre>
+<pre class="table-md">| Relative utility / purpose-driven retrieval | Covered as idea | ReProver/LeanDojo, Lean Finder, LemmaNet |</pre>
+<pre class="table-md">| Mathlib dependency/citation knowledge graph | Covered | The Network Structure of Mathlib, MathlibGraph, ProofGraph, Axiom Putnam dependency graph |</pre>
+<pre class="table-md">| Agent self-reflection / early stop / proof tree pruning | Covered | Process-Verified RL, LeanProgress, DeepSeek-Prover-V1.5, HyperTree Proof Search |</pre>
+<pre class="table-md">| Data scarcity for Lean | Covered | PACT, LeanDojo, STP, DeepSeek-Prover, LeanConjecturer, Seed-Prover, EvolProver |</pre>
+<pre class="table-md">| Axiom benchmarks mentioned: Putnam, IMO, miniF2F, code verification, open research conjectures | Mostly covered | Putnam 2025, AlphaProof/IMO, miniF2F, Fel&#x27;s Conjecture, Parity of k-differentials, Anderson open problem paper, CompCert/RustBelt for formal verification context |</pre>
+<pre class="table-md">| Combinatorics benchmark / CombiBench | Covered | CombiBench arXiv + GitHub |</pre>
+<pre class="table-md">| MathNet multimodal reasoning/retrieval | Covered | MathNet arXiv + project site |</pre>
+<pre class="table-md">| Visual/spatial/multimodal math reasoning | Covered | AlphaGeometry, MMFormalizer, MathNet, MathVerse, MathVista, PolyMATH |</pre>
+<pre class="table-md">| Graph + graph = graph / non-symbolic operators / diagrammatic proof | Covered as idea | Quantomatic, graph rewriting, string diagram rewrite theory, HoTT sources |</pre>
+<pre class="table-md">| Real-world RL with verified visual-structure compile reward | Covered as speculative architecture | Full collection idea map, grounded by Process-Verified RL + MMFormalizer + visual math benchmarks + graph rewriting |</pre>
+<pre class="table-md">| PatternBoost / Axplorer construction search | Covered | PatternBoost arXiv paper, AxiomMath/axplorer, original PatternBoost experiments repo |</pre>
+<pre class="table-md">| Int2Int / transformer math object prediction | Covered | Int2Int arXiv paper and FacebookResearch/Int2Int repo |</pre>
+<pre class="table-md">| François Charton / Alberto Alfarano neuro-symbolic object construction | Covered | Global Lyapunov functions paper + repo, Deep Learning for Symbolic Mathematics, Linear Algebra with Transformers |</pre>
+<pre class="table-md">| Lean kernel / how every proof step becomes verifiable | Covered | Lean system paper, Lean4Lean, Lean Language Reference |</pre>
+<pre class="table-md">| SAT solver construction and verified checking | Covered | Verified SAT Solver Framework, DRAT-trim, GRAT |</pre>
+<pre class="table-md">| Hardware verification basics: RTL, ISA, temporal logic | Covered as idea | Kami, RISC-V Formal references, SAT/DRAT/GRAT sources |</pre>
+<h3 id="chrome-session-cross-check">Chrome Session Cross-check</h3>
+<p>The current <code>ykzeng2019@gmail.com</code> Chrome session files were scanned after the manual Gemini-derived bibliography.</p>
+<p>Results:</p>
+<ul>
+<li>73 paper/resource links seen in current Chrome session files across 6 session files.</li>
+<li>156 cumulative links in the global registry.</li>
+<li>120 links in the broader <code>ai-math-discovery-systems</code> collection.</li>
+<li>22 AI-for-math links came from Chrome session files and were not in the manual verified list.</li>
+<li>98 manual Gemini/follow-up links have been verified and stored in <code>manual-additions/ai_math_discovery_gemini_verified.json</code>.</li>
+<li>2026-05-12 update: no new cumulative links were found compared with the previous run.</li>
+</ul>
+<p>Important Chrome-discovered additions:</p>
+<ul>
+<li>DeepSeekMath-V2.</li>
+<li>Seed-Prover.</li>
+<li>Aristotle.</li>
+<li>Discover and Prove.</li>
+<li>EvolProver.</li>
+<li>PhysProver.</li>
+<li>Beyond Theorem Proving / Formal Problem-Solving.</li>
+<li>Autoformalize Mathematical Statements by Symbolic Equivalence and Semantic Consistency.</li>
+<li>Mining Math Conjectures from LLMs.</li>
+<li>AlphaProof Paper blog.</li>
+<li>LeanAgent OpenReview page.</li>
+<li>Process-Verified RL OpenReview/NeurIPS pages.</li>
+<li>Mathlib4 GitHub.</li>
+<li>ProofNet GitHub.</li>
+</ul>
+<h3 id="needs-verification-corrected">Needs Verification / Corrected</h3>
+<p>These Gemini items were not added as verified primary sources:</p>
+<ul>
+<li><code>Mini-CTX v2</code> / <code>Mini-Context v2</code>: no math-specific benchmark found under this exact name.</li>
+<li><code>LeanDojo-v2</code> as a standalone paper: LeanDojo and tooling are verified; exact v2 paper not found.</li>
+<li><code>QED-Bridge: Knowledge Graph Ingestion</code>: no reliable paper/project page found.</li>
+<li><code>Axiom synthetic data tech report</code>: no standalone public report found.</li>
+<li><code>AxiomMath/fel-polynomial</code>: repo not verified; Fel&#x27;s Conjecture arXiv paper was added.</li>
+<li><code>AlphaProof Master Plan &amp; Blog 2025</code>: exact title not found; Nature paper and DeepMind blog added.</li>
+<li><code>MMA: Multi-Modal Autoformalization</code>: corrected to <code>Multilingual Mathematical Autoformalization</code>; multimodal autoformalization is covered by <code>MMFormalizer</code>.</li>
+<li><code>Machine-Checked Categorical Diagrammatic Reasoning (2024)</code>: exact title not verified; represented by Quantomatic and string diagram rewrite sources.</li>
+<li><code>Novelty-based Tree-of-Thought Search for LLM Reasoning</code>: exact paper not verified.</li>
+<li><code>From Roots to Rewards: Dynamic Tree Reasoning with RL</code>: exact paper not verified.</li>
+<li><code>Artificial Intelligence and the Structure of Mathematics (2026)</code>: exact paper not verified.</li>
+<li><code>The Einstein AI model</code> / Thomas Wolf blog: not reliably found from a primary source search; kept out of verified bibliography for now.</li>
+</ul>
+<h3 id="remaining-gaps-to-search-later">Remaining Gaps to Search Later</h3>
+<ul>
+<li>Public Axiom technical interviews/transcripts with exact benchmark names.</li>
+<li>Public Axiom synthetic-data methodology beyond Putnam/research-conjecture artifacts.</li>
+<li>More direct papers on automatic <code>Equiv</code> extraction and theorem transport in Lean 4.</li>
+<li>More direct systems for proof-producing visual graph transformations.</li>
+<li>Benchmarks that combine real-world action, perception, and formal verification reward.</li>
+</ul></section>
+<section id="needs-verification"><h2>Needs Verification / Not Added</h2><h2 id="needs-verification-not-added">Needs Verification / Not Added</h2>
+<p>These names came from the pasted Gemini conversation but I did not add them as primary links because the exact item was not reliably verified, appeared to be a paraphrase, or was better represented by a verified adjacent source.</p>
+<ul>
+<li><code>Mini-CTX v2</code> / <code>Mini-Context v2</code>: I did not find a math-specific benchmark under this exact name. It may be a confusion with <code>LongBench v2</code> or an internal/private benchmark.</li>
+<li><code>LeanDojo-v2</code> as a paper: I verified LeanDojo and current LeanDojo docs/tooling, but did not find a standalone <code>LeanDojo-v2</code> paper matching the Gemini wording.</li>
+<li><code>QED-Bridge: Knowledge Graph Ingestion</code>: no reliable paper/project page found under this exact name.</li>
+<li><code>Axiom synthetic data tech report</code>: no standalone public tech report found. I added the public Axiom Putnam repo plus Axiom-related arXiv papers instead.</li>
+<li><code>AxiomMath/fel-polynomial</code>: I did not verify that GitHub repo. I added the arXiv paper for Fel&#x27;s Conjecture.</li>
+<li><code>AlphaProof Master Plan &amp; Blog 2025</code>: no exact public item found under that title. I added the Google DeepMind blog and the Nature AlphaProof paper.</li>
+<li><code>MMA: Multi-Modal Autoformalization</code>: the verified <code>MMA</code> paper is <code>Multilingual Mathematical Autoformalization</code>, not multimodal. The verified multimodal autoformalization paper is <code>MMFormalizer</code>.</li>
+<li><code>Formalizing the Serre Spectral Sequence in Lean</code> as a standalone paper: I added Floris van Doorn&#x27;s dissertation, which explicitly covers Atiyah-Hirzebruch and Serre spectral sequences formalized in Lean.</li>
+<li><code>Machine-Checked Categorical Diagrammatic Reasoning (2024)</code>: exact title not verified. I added Quantomatic and string-diagram rewrite theory papers as the reliable graph/diagrammatic reasoning backbone.</li>
+<li><code>Novelty-based Tree-of-Thought Search for LLM Reasoning</code>: exact paper not verified.</li>
+<li><code>From Roots to Rewards: Dynamic Tree Reasoning with RL</code>: exact paper not verified.</li>
+<li><code>Artificial Intelligence and the Structure of Mathematics (2026)</code>: exact paper not verified.</li>
+<li><code>The Einstein AI model</code> / Thomas Wolf blog: search did not find a reliable primary blog URL under that exact title. It may be a podcast/blog paraphrase rather than a standalone post.</li>
+<li><code>Learning to Disprove</code>, <code>AgentV-RL</code>, <code>LemmaNet</code>, <code>Lean Finder</code>, <code>The Network Structure of Mathlib</code>, <code>Construction-Verification</code>, <code>MathNet</code>, <code>CombiBench</code>, <code>MMFormalizer</code>, and <code>AI Co-Mathematician</code> were verified and added.</li>
+<li><code>PatternBoost</code>, <code>Axplorer</code>, <code>Int2Int</code>, <code>Global Lyapunov functions</code>, <code>Lean4Lean</code>, <code>Aesop</code>, <code>DRAT-trim</code>, <code>GRAT</code>, and <code>Kami</code> were verified and added.</li>
+</ul></section>
+</main></div></body></html>

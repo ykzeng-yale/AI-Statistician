@@ -1,0 +1,62 @@
+[
+  {
+    "id": "causal_ate_aipw",
+    "title": "Average treatment effect under unconfoundedness",
+    "description": "Develop a semiparametric estimator for the ATE from iid observational data with binary treatment, nonlinear outcome regression, and positivity. We want identification, double robustness, asymptotic normality, and practical 95% confidence intervals.",
+    "tags": ["causal", "ate", "semiparametric", "aipw"]
+  },
+  {
+    "id": "conformal_prediction_coverage",
+    "title": "Split conformal prediction interval coverage",
+    "description": "For exchangeable regression data, design a prediction interval procedure with distribution-free marginal coverage and evaluate coverage and interval width under nonlinear data generating processes.",
+    "tags": ["conformal", "prediction", "coverage", "exchangeability"]
+  },
+  {
+    "id": "right_censored_survival_km",
+    "title": "Right-censored survival inference at a fixed time",
+    "description": "For iid time-to-event observations subject to independent right censoring, develop a Kaplan-Meier or Nelson-Aalen survival estimator at a fixed time, state identification, consistency, and Greenwood asymptotic normality goals, and evaluate bias, RMSE, standard error calibration, censoring fraction, and 95% coverage.",
+    "tags": ["survival", "right_censored", "hazard", "kaplan_meier", "censoring"]
+  },
+  {
+    "id": "robust_mean_mom",
+    "title": "Robust sub-Gaussian mean inference under contamination",
+    "description": "For iid observations from a heavy-tailed location model with epsilon-fraction gross-error contamination, develop a median-of-means robust mean estimator, state sub-Gaussian deviation and minimax corruption-rate goals, and evaluate bias, RMSE, standard error calibration, contamination fraction, and 95% coverage.",
+    "tags": ["robust_mean", "subgaussian", "heavy_tails", "contamination", "median_of_means", "minimax"]
+  },
+  {
+    "id": "design_based_variance_bound",
+    "title": "Design-based conservative variance estimation",
+    "description": "For a randomized experiment with fixed potential outcomes and possible treatment-effect heterogeneity, develop a conservative design-based variance estimator for the difference-in-means treatment effect estimator, state Neyman validity and optimized variance-bound minimality goals, and evaluate bias, RMSE, coverage, SE calibration, and conservativeness ratio.",
+    "tags": ["experimental_design", "design_based_variance", "randomization", "conservative_variance"]
+  },
+  {
+    "id": "heteroskedastic_regression_hc",
+    "title": "Heteroskedastic robust regression inference",
+    "description": "For a low-dimensional linear regression with heteroskedastic errors, develop inference for the slope coefficient using sandwich standard errors and evaluate finite-sample Wald interval coverage.",
+    "tags": ["regression", "heteroskedastic", "robust_se", "sandwich"]
+  },
+  {
+    "id": "multiple_testing_fdr_bh",
+    "title": "False discovery rate control in multiple testing",
+    "description": "For many independent z-tests with a sparse mixture of non-null effects, develop a multiple testing procedure that controls the false discovery rate while retaining power, and evaluate empirical FDR and discovery power.",
+    "tags": ["multiple_testing", "fdr", "benjamini_hochberg", "bh"]
+  },
+  {
+    "id": "sequential_anytime_bernoulli",
+    "title": "Anytime-valid sequential Bernoulli testing",
+    "description": "For sequential Bernoulli observations monitored under optional stopping, develop an e-process based test of H0: p=0.5 with anytime-valid type-I error control and evaluate optional-stopping rejection rate, power, and stopping time.",
+    "tags": ["sequential", "anytime", "optional_stopping", "eprocess"]
+  },
+  {
+    "id": "high_dimensional_spiked_pca",
+    "title": "High-dimensional PCA signal-subspace inference",
+    "description": "For high-dimensional observations from a spiked covariance model with p/n non-negligible, develop a PCA estimator for the leading signal direction, state eigengap and high-dimensional recovery guarantees, and evaluate alignment, angle error, subspace error, and leading eigenvalue behavior.",
+    "tags": ["high_dimensional", "pca", "eigenvector", "dimension_reduction", "spiked_covariance"]
+  },
+  {
+    "id": "extreme_tail_quantile_hill",
+    "title": "Extreme high-quantile inference with the Hill estimator",
+    "description": "For iid heavy-tailed observations with a regularly varying upper tail, develop a Hill tail-index estimator and Weissman high-quantile estimator, state consistency and asymptotic normality goals, and evaluate tail-index bias, RMSE, standard error calibration, and high-quantile coverage.",
+    "tags": ["extremes", "heavy_tails", "tail_index", "high_quantile", "regular_variation", "hill", "weissman"]
+  }
+]

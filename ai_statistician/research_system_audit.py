@@ -1,0 +1,240 @@
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+
+from .frontier_backlog_audit import audit_frontier_backlog
+from .frontier_coverage_audit import audit_frontier_coverage
+from .frontier_precision_audit import audit_frontier_precision
+from .formal_source_index import build_formal_source_search_backend
+from .frontier_smoke_benchmark import FrontierSmokeConfig, run_frontier_smoke_benchmark
+from .proof_audit import audit_proof_bank
+from .research_gap_audit import audit_research_gap_backlog
+from .research_intake_audit import audit_research_question_intake
+from .research_knowledge_audit import audit_research_knowledge
+from .research_capability_audit import build_research_capability_audit, write_research_capability_audit
+from .research_lab import audit_research_algorithm_registry, load_open_research_questions, run_research_benchmark
+from .research_trace_audit import audit_research_traces
+from .retrieval import audit_proof_bank_retrieval
+from .verifier import AxleProofVerifier, MockProofVerifier, ProofVerifier
+
+
+@dataclass(frozen=True)
+class ResearchSystemAuditConfig:
+    n_runs: int = 100
+    seed: int = 20260528
+    use_axle: bool = False
+
+
+async def run_research_system_audit(
+    out_dir: Path,
+    *,
+    question_file: Path | None = None,
+    config: ResearchSystemAuditConfig = ResearchSystemAuditConfig(),
+) -> dict[str, object]:
+    """Run release-style gates for the open-question research workflow."""
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    verifier: ProofVerifier = AxleProofVerifier() if config.use_axle else MockProofVerifier()
+    actual_question_file = question_file or Path("examples/research_questions.json")
+    questions = load_open_research_questions(actual_question_file)
+    formal_source_index_path = out_dir / "formal_source_index.sqlite"
+    formal_source_retriever = build_formal_source_search_backend(db_path=formal_source_index_path)
+    formal_source_search = {
+        "backend": "sqlite_fts_hybrid",
+        "sqlite_index_path": str(formal_source_index_path),
+    }
+
+    frontier_manifest = audit_frontier_coverage(out_dir / "frontier_coverage_audit")
+    frontier_precision_manifest = audit_frontier_precision(out_dir / "frontier_precision_audit")
+    frontier_backlog_manifest = audit_frontier_backlog(out_dir / "frontier_backlog_audit")
+    capability_report = build_research_capability_audit(
+        root=Path.cwd(),
+        question_file=actual_question_file,
+        max_manifests=12,
+    )
+    write_research_capability_audit(capability_report, out_dir / "research_capability_audit")
+    frontier_smoke_manifest = await run_frontier_smoke_benchmark(
+        out_dir / "frontier_smoke_benchmark",
+        config=FrontierSmokeConfig(n_runs=config.n_runs, seed=config.seed, max_per_class=1, use_axle=config.use_axle),
+        proof_verifier=verifier,
+        formal_source_retriever=formal_source_retriever,
+        formal_source_search=formal_source_search,
+    )
+    intake_manifest = audit_research_question_intake(out_dir / "research_intake_audit")
+    knowledge_manifest = audit_research_knowledge(out_dir / "research_knowledge_audit")
+    retrieval_manifest = audit_proof_bank_retrieval(out_dir / "retrieval_audit", k=5)
+    algorithm_manifest = audit_research_algorithm_registry(out_dir / "research_algorithm_audit")
+    proof_manifest = await audit_proof_bank(
+        verifier,
+        out_dir / "proof_audit",
+        export_lean=True,
+    )
+    benchmark_manifest = await run_research_benchmark(
+        questions,
+        out_dir / "research_benchmark",
+        proof_verifier=verifier,
+        formal_source_retriever=formal_source_retriever,
+        formal_source_search=formal_source_search,
+        n_runs=config.n_runs,
+        seed=config.seed,
+    )
+    trace_manifest = audit_research_traces(
+        out_dir / "research_benchmark",
+        out_dir / "research_trace_audit",
+    )
+    gap_backlog_manifest = audit_research_gap_backlog(
+        out_dir / "research_benchmark",
+        out_dir / "research_gap_backlog",
+    )
+
+    benchmark_gate_ok = (
+        int(benchmark_manifest["n_questions"]) == len(questions)
+        and int(benchmark_manifest["n_ready_with_gaps"]) == len(questions)
+        and int(benchmark_manifest["n_simulation_flagged"]) == 0
+        and int(benchmark_manifest["n_formal_blocked"]) == 0
+    )
+    formalized_gaps_ok = all(
+        row["formal"]["gaps"] == row["formal"]["formalized_gaps"]
+        for row in benchmark_manifest["questions"]
+    )
+    gates = {
+        "frontier_coverage_audit": bool(frontier_manifest["all_ok"]),
+        "frontier_precision_audit": bool(frontier_precision_manifest["all_ok"]),
+        "frontier_backlog_audit": bool(frontier_backlog_manifest["all_ok"]),
+        "research_capability_audit": bool(capability_report["all_current_release_requirements_met"]),
+        "frontier_smoke_benchmark": bool(frontier_smoke_manifest["all_gates_passed"]),
+        "research_intake_audit": bool(intake_manifest["all_ok"]),
+        "research_knowledge_audit": bool(knowledge_manifest["all_ok"]),
+        "retrieval_audit": bool(retrieval_manifest["all_top_k"]),
+        "research_algorithm_audit": bool(algorithm_manifest["all_ok"]),
+        "proof_audit": bool(proof_manifest["all_verified"])
+        and bool(proof_manifest["dependency_graph"]["all_ok"]),
+        "research_benchmark": benchmark_gate_ok,
+        "formal_gap_skeletons": formalized_gaps_ok,
+        "research_trace_audit": bool(trace_manifest["all_ok"]),
+        "research_gap_backlog": bool(gap_backlog_manifest["all_ok"]),
+    }
+    payload = {
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "config": {
+            "n_runs": config.n_runs,
+            "seed": config.seed,
+            "use_axle": config.use_axle,
+            "question_file": str(question_file or Path("examples/research_questions.json")),
+        },
+        "all_gates_passed": all(gates.values()),
+        "gates": gates,
+        "counts": {
+            "questions": len(questions),
+            "frontier_questions": frontier_manifest["n_questions"],
+            "frontier_supported": frontier_manifest["n_supported"],
+            "frontier_unsupported": frontier_manifest["n_unsupported"],
+            "frontier_precision_ok": frontier_precision_manifest["n_ok"],
+            "frontier_precision_supported": frontier_precision_manifest["n_supported"],
+            "frontier_precision_flagged": frontier_precision_manifest["n_flagged"],
+            "frontier_backlog_ok": frontier_backlog_manifest["n_ok"],
+            "frontier_backlog_total": frontier_backlog_manifest["n_backlog"],
+            "frontier_backlog_domains": len(frontier_backlog_manifest["by_domain"]),
+            "frontier_backlog_required_primitives": len(frontier_backlog_manifest["by_required_primitive"]),
+            "research_capability_achieved": capability_report["n_achieved"],
+            "research_capability_partial": capability_report["n_partial"],
+            "research_capability_not_achieved": capability_report["n_not_achieved"],
+            "research_capability_goal_complete": capability_report["goal_complete"],
+            "research_capability_current_release_gate_met": capability_report["n_current_release_gate_met"],
+            "research_capability_current_release_gate": capability_report["n_current_release_gate"],
+            "frontier_smoke_questions": frontier_smoke_manifest["n_selected"],
+            "frontier_smoke_ready": frontier_smoke_manifest["counts"]["ready_with_gaps"],
+            "research_intake_supported": intake_manifest["n_supported"],
+            "research_intake_supported_accepted": intake_manifest["n_supported_accepted"],
+            "research_intake_unsupported": intake_manifest["n_unsupported"],
+            "research_intake_unsupported_rejected": intake_manifest["n_unsupported_rejected"],
+            "research_knowledge_cards": knowledge_manifest["n_cards"],
+            "research_knowledge_sources_ok": knowledge_manifest["n_source_ok"],
+            "research_source_inventory_ok": knowledge_manifest["source_inventory"]["n_ok"],
+            "research_source_inventory_total": knowledge_manifest["source_inventory"]["n_sources"],
+            "research_knowledge_problem_rows": knowledge_manifest["n_problem_rows"],
+            "research_knowledge_problem_ok": knowledge_manifest["n_problem_ok"],
+            "research_ready_with_gaps": benchmark_manifest["n_ready_with_gaps"],
+            "research_simulation_flagged": benchmark_manifest["n_simulation_flagged"],
+            "research_formal_blocked": benchmark_manifest["n_formal_blocked"],
+            "retrieval_top_k": retrieval_manifest["top_k"],
+            "retrieval_total": retrieval_manifest["n_obligations"],
+            "research_algorithms_ok": algorithm_manifest["n_ok"],
+            "research_algorithms_total": algorithm_manifest["n_algorithms"],
+            "proofs_verified": proof_manifest["n_verified"],
+            "proofs_total": proof_manifest["n_obligations"],
+            "proof_dependency_edges": proof_manifest["dependency_graph"]["n_edges"],
+            "proof_dependencies_ok": proof_manifest["dependency_graph"]["all_ok"],
+            "research_traces_ok": trace_manifest["n_ok"],
+            "research_traces_total": trace_manifest["n_traces"],
+            "formal_gaps": sum(row["formal"]["gaps"] for row in benchmark_manifest["questions"]),
+            "formalized_gaps": sum(row["formal"]["formalized_gaps"] for row in benchmark_manifest["questions"]),
+            "gap_backlog_ok": gap_backlog_manifest["n_ok"],
+            "gap_backlog_total": gap_backlog_manifest["n_gaps"],
+            "missing_formal_primitives": len(gap_backlog_manifest["by_required_primitive"]),
+        },
+        "questions": benchmark_manifest["questions"],
+        "provenance": benchmark_manifest["provenance"],
+        "artifacts": {
+            "frontier_coverage_audit": str(
+                out_dir / "frontier_coverage_audit" / "frontier_coverage_manifest.json"
+            ),
+            "frontier_coverage_report": str(out_dir / "frontier_coverage_audit" / "frontier_coverage.md"),
+            "frontier_precision_audit": str(
+                out_dir / "frontier_precision_audit" / "frontier_precision_manifest.json"
+            ),
+            "frontier_precision_report": str(out_dir / "frontier_precision_audit" / "frontier_precision.md"),
+            "frontier_backlog_audit": str(
+                out_dir / "frontier_backlog_audit" / "frontier_backlog_manifest.json"
+            ),
+            "frontier_backlog_report": str(out_dir / "frontier_backlog_audit" / "frontier_backlog.md"),
+            "research_capability_audit": str(
+                out_dir / "research_capability_audit" / "research_capability_audit_manifest.json"
+            ),
+            "research_capability_report": str(
+                out_dir / "research_capability_audit" / "research_capability_audit.md"
+            ),
+            "frontier_smoke_benchmark": str(
+                out_dir / "frontier_smoke_benchmark" / "frontier_smoke_manifest.json"
+            ),
+            "research_intake_audit": str(
+                out_dir / "research_intake_audit" / "research_intake_audit_manifest.json"
+            ),
+            "research_knowledge_audit": str(
+                out_dir / "research_knowledge_audit" / "research_knowledge_audit_manifest.json"
+            ),
+            "research_knowledge_report": str(
+                out_dir / "research_knowledge_audit" / "research_knowledge_audit.md"
+            ),
+            "research_source_inventory": str(
+                out_dir
+                / "research_knowledge_audit"
+                / "source_inventory"
+                / "research_source_inventory_manifest.json"
+            ),
+            "research_source_inventory_report": str(
+                out_dir / "research_knowledge_audit" / "source_inventory" / "research_source_inventory.md"
+            ),
+            "retrieval_audit": str(out_dir / "retrieval_audit" / "retrieval_audit_manifest.json"),
+            "research_algorithm_audit": str(
+                out_dir / "research_algorithm_audit" / "research_algorithm_audit_manifest.json"
+            ),
+            "proof_audit": str(out_dir / "proof_audit" / "proof_audit_manifest.json"),
+            "research_benchmark": str(out_dir / "research_benchmark" / "research_benchmark_manifest.json"),
+            "formal_source_index": str(formal_source_index_path),
+            "research_trace_audit": str(out_dir / "research_trace_audit" / "research_trace_audit_manifest.json"),
+            "research_gap_backlog": str(
+                out_dir / "research_gap_backlog" / "research_gap_backlog_manifest.json"
+            ),
+            "research_gap_backlog_report": str(out_dir / "research_gap_backlog" / "research_gap_backlog.md"),
+            "formal_gaps": str(out_dir / "research_benchmark" / "formal_gaps"),
+        },
+    }
+    (out_dir / "research_system_audit_manifest.json").write_text(
+        json.dumps(payload, indent=2, default=str),
+        encoding="utf-8",
+    )
+    return payload

@@ -1,0 +1,167 @@
+{
+  "cold": [
+    {
+      "question": "prob_measure_univ",
+      "claude_proof": "by exact measure_univ",
+      "axle_verified": true,
+      "axle_errors": [],
+      "timing_s": 1.8842607919941656
+    },
+    {
+      "question": "integral_of_constant",
+      "claude_proof": "by simp [integral_const, IsProbabilityMeasure.measure_univ]",
+      "axle_verified": true,
+      "axle_errors": [],
+      "timing_s": 2.7488868329965044
+    },
+    {
+      "question": "variance_of_constant",
+      "claude_proof": "by exact variance_const \u03bc c",
+      "axle_verified": false,
+      "axle_errors": [
+        "-:6:48-6:62: error(lean.unknownIdentifier): Unknown identifier `variance_const`\n"
+      ],
+      "timing_s": 2.199886875023367
+    },
+    {
+      "question": "expectation_linearity",
+      "claude_proof": "by exact integral_add hX hY",
+      "axle_verified": true,
+      "axle_errors": [],
+      "timing_s": 2.648148582986323
+    },
+    {
+      "question": "markov_inequality",
+      "claude_proof": "by exact meas_ge_le_lintegral_div hf h\u03b5 h\u03b5t",
+      "axle_verified": false,
+      "axle_errors": [
+        "-:7:78-7:80: error: Application type mismatch: The argument\n  hf\nhas type\n  Measurable f\nbut is expected to have type\n  AEMeasurable ?m.30 ?m.29\nin the application\n  @meas_ge_le_lintegral_div ?m.27 ?m.28 ?m.29 ?m.30 hf\n"
+      ],
+      "timing_s": 2.7357771249953657
+    },
+    {
+      "question": "variance_nonneg",
+      "claude_proof": "by exact variance_nonneg X \u03bc",
+      "axle_verified": true,
+      "axle_errors": [],
+      "timing_s": 2.27775845801807
+    },
+    {
+      "question": "variance_indep_add",
+      "claude_proof": "by exact variance_add_of_indepFun hX hY h_indep",
+      "axle_verified": false,
+      "axle_errors": [
+        "-:8:65-8:89: error(lean.unknownIdentifier): Unknown identifier `variance_add_of_indepFun`\n"
+      ],
+      "timing_s": 2.907055457995739
+    },
+    {
+      "question": "integral_indicator_const",
+      "claude_proof": "I need to find the Mathlib lemma that gives the integral of a constant times an indicator function.\n\nThe theorem states: `\u222b x, s.indicator (fun _ => c) x \u2202\u03bc = (\u03bc s).toReal \u2022 c`\n\nThis is the integral of an indicator function times a constant. Let me recall the relevant lemmas:\n- `integral_indicator` handles integrals of indicator functions\n- `Set.indicator_const_self` might be useful for the constant part\n- The key lemma should be something like `integral_indicator_const` or similar\n\nThe pattern `s.indicator (fun _ => c)` is the indicator of set `s` with constant value `c`.\n\nThe relevant lemma in Mathlib is `integral_indicator_const` which states that the integral of `c \u2022 \ud835\udfd9_s` equals `c * (\u03bc s).toReal`.\n\nHowever, I need to match the form `s.indicator (fun _ => c)`. This is equivalent to `c \u2022 s.indicator (fun _ => 1)` or we can use the lemma directly.\n\nLet me look for `MeasureTheory.integral_indicator_const`:\n\n```lean\ntheorem integral_indicator_const (hs : MeasurableSet s) (c : \u211d) :\n    \u222b x, s.indicator (fun _ => c) x \u2202\u03bc = c * (\u03bc s).toReal\n```\n\nBut the conclusion we need is `(\u03bc s).toReal \u2022 c`, which is the same as `c * (\u03bc s).toReal` by commutativity of multiplication (or using `smul_eq_mul`).\n\nActually, looking more carefully at the goal, `(",
+      "axle_verified": false,
+      "axle_errors": [
+        "-:7:2-7:3: error(lean.unknownIdentifier): Unknown identifier `I`\n",
+        "-:7:9-7:11: error: unexpected token 'to'; expected command\n",
+        "-:7:100-7:101: error: unexpected token '.'; expected ':'\n",
+        "-:9:21: error: '`'; expected '`('\n",
+        "-:11:78-11:81: error(lean.unknownIdentifier): Unknown constant `the`\n",
+        "-:12:21-12:22: error: unexpected token '`'; expected command\n",
+        "-:14:40-14:66: error: unexpected token; expected ':'\n",
+        "-:18:18-18:21: error: unexpected token 'in'; expected identifier\n",
+        "-:20:147-20:148: error: unexpected token '.'; expected ':'\n",
+        "-:27:2-27:3: error: unexpected token '`'; expected identifier\n"
+      ],
+      "timing_s": 3.850242916989373
+    },
+    {
+      "question": "prob_compl",
+      "claude_proof": "by rw [measure_compl hA, IsProbabilityMeasure.measure_univ]",
+      "axle_verified": false,
+      "axle_errors": [
+        "-:7:22-7:81: error: unsolved goals\n\u03a9 : Type u_1\nm : MeasurableSpace \u03a9\n\u03bc : Measure \u03a9\ninst\u271d : IsProbabilityMeasure \u03bc\nA : Set \u03a9\nhA : MeasurableSet A\n\u22a2 \u03bc A \u2260 \u22a4\n"
+      ],
+      "timing_s": 2.893231540976558
+    },
+    {
+      "question": "norm_integral_le_integral_norm",
+      "claude_proof": "by exact norm_integral_le \u03bc f",
+      "axle_verified": false,
+      "axle_errors": [
+        "-:7:46-7:62: error(lean.unknownIdentifier): Unknown identifier `norm_integral_le`\n"
+      ],
+      "timing_s": 5.836871167004574
+    }
+  ],
+  "hinted": [
+    {
+      "question": "prob_measure_univ",
+      "claude_proof": "by exact measure_univ",
+      "axle_verified": true,
+      "axle_errors": [],
+      "timing_s": 1.990288959001191
+    },
+    {
+      "question": "integral_of_constant",
+      "claude_proof": "by simp [integral_const]",
+      "axle_verified": true,
+      "axle_errors": [],
+      "timing_s": 1.807410958019318
+    },
+    {
+      "question": "variance_of_constant",
+      "claude_proof": "by simp [variance, evariance]",
+      "axle_verified": true,
+      "axle_errors": [],
+      "timing_s": 2.7894117920077406
+    },
+    {
+      "question": "expectation_linearity",
+      "claude_proof": "by exact integral_add hX hY",
+      "axle_verified": true,
+      "axle_errors": [],
+      "timing_s": 1.3601788330124691
+    },
+    {
+      "question": "markov_inequality",
+      "claude_proof": "by exact meas_ge_le_lintegral_div hf.aemeasurable h\u03b5 h\u03b5t",
+      "axle_verified": true,
+      "axle_errors": [],
+      "timing_s": 1.9123971250082832
+    },
+    {
+      "question": "variance_nonneg",
+      "claude_proof": "by exact variance_nonneg X \u03bc",
+      "axle_verified": true,
+      "axle_errors": [],
+      "timing_s": 0.9119235829857644
+    },
+    {
+      "question": "variance_indep_add",
+      "claude_proof": "by exact h_indep.variance_add hX hY",
+      "axle_verified": true,
+      "axle_errors": [],
+      "timing_s": 1.789614375011297
+    },
+    {
+      "question": "integral_indicator_const",
+      "claude_proof": "by exact integral_indicator_const c hs",
+      "axle_verified": true,
+      "axle_errors": [],
+      "timing_s": 3.570175625005504
+    },
+    {
+      "question": "prob_compl",
+      "claude_proof": "by exact prob_compl_eq_one_sub hA",
+      "axle_verified": true,
+      "axle_errors": [],
+      "timing_s": 1.8341282079927623
+    },
+    {
+      "question": "norm_integral_le_integral_norm",
+      "claude_proof": "by exact norm_integral_le_integral_norm f",
+      "axle_verified": true,
+      "axle_errors": [],
+      "timing_s": 1.8078822499956004
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "questions": [
+    {
+      "id": "llm_coin_success_probability",
+      "dgp": "Each observation is a coin-flip success indicator; the success chance p=0.37.",
+      "target": "Estimate the chance of success in a new trial.",
+      "n_obs": 140
+    }
+  ]
+}
+

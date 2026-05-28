@@ -1,0 +1,1045 @@
+from __future__ import annotations
+
+from .fingerprint import stable_hash
+from .schema import FormalObligation
+
+
+def _stmt(body: str) -> str:
+    return body.strip() + "\n"
+
+
+FORMAL_OBLIGATIONS: dict[str, FormalObligation] = {
+    "constant_estimator_unbiased": FormalObligation(
+        id="constant_estimator_unbiased",
+        title="Constant estimator is unbiased for its constant target",
+        english="For any probability space, the expectation of the constant estimator c is c.",
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+def constantEstimator {Ω : Type*} (c : ℝ) : Ω → ℝ := fun _ => c
+
+theorem constantEstimator_unbiased {Ω : Type*} [MeasurableSpace Ω]
+    (μ : Measure Ω) [IsProbabilityMeasure μ] (c : ℝ) :
+    ∫ ω, constantEstimator (Ω := Ω) c ω ∂μ = c := by sorry
+"""
+        ),
+        proof_body="by\n  simp [constantEstimator]",
+        tags=("estimator", "expectation", "unbiased", "constant"),
+        expected_lemmas=("integral_const", "measure_univ"),
+    ),
+    "constant_estimator_variance_zero": FormalObligation(
+        id="constant_estimator_variance_zero",
+        title="Constant estimator has zero variance",
+        english="The variance of a constant estimator is zero.",
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+def constantEstimator {Ω : Type*} (c : ℝ) : Ω → ℝ := fun _ => c
+
+theorem constantEstimator_variance_zero {Ω : Type*} [MeasurableSpace Ω]
+    (μ : Measure Ω) [IsProbabilityMeasure μ] (c : ℝ) :
+    variance (constantEstimator (Ω := Ω) c) μ = 0 := by sorry
+"""
+        ),
+        proof_body="by\n  simp [constantEstimator, variance, evariance]",
+        tags=("estimator", "variance", "constant"),
+        expected_lemmas=("variance", "evariance"),
+    ),
+    "mean2_estimator_expectation": FormalObligation(
+        id="mean2_estimator_expectation",
+        title="Two-variable mean estimator expectation",
+        english=(
+            "For integrable random variables X and Y, the expectation of "
+            "(X+Y)/2 is the average of their expectations."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+noncomputable def mean2Estimator {Ω : Type*} (X Y : Ω → ℝ) : Ω → ℝ :=
+  fun ω => (X ω + Y ω) / 2
+
+theorem mean2Estimator_expectation {Ω : Type*} [MeasurableSpace Ω]
+    (μ : Measure Ω) (X Y : Ω → ℝ)
+    (hX : Integrable X μ) (hY : Integrable Y μ) :
+    ∫ ω, mean2Estimator X Y ω ∂μ =
+      ((∫ ω, X ω ∂μ) + (∫ ω, Y ω ∂μ)) / 2 := by sorry
+"""
+        ),
+        proof_body="by\n  simp [mean2Estimator, integral_div, integral_add hX hY]",
+        tags=("estimator", "expectation", "linearity", "mean"),
+        expected_lemmas=("integral_add", "integral_div"),
+    ),
+    "mean2_estimator_unbiased": FormalObligation(
+        id="mean2_estimator_unbiased",
+        title="Two-variable mean estimator is unbiased",
+        english=(
+            "If two integrable component estimators are each unbiased for the "
+            "same target theta, their average is also unbiased for theta."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+noncomputable def mean2Estimator {Ω : Type*} (X Y : Ω → ℝ) : Ω → ℝ :=
+  fun ω => (X ω + Y ω) / 2
+
+theorem mean2Estimator_unbiased {Ω : Type*} [MeasurableSpace Ω]
+    (μ : Measure Ω) (X Y : Ω → ℝ) (theta : ℝ)
+    (hX : Integrable X μ) (hY : Integrable Y μ)
+    (hEX : ∫ ω, X ω ∂μ = theta)
+    (hEY : ∫ ω, Y ω ∂μ = theta) :
+    ∫ ω, mean2Estimator X Y ω ∂μ = theta := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  calc\n"
+            "    ∫ ω, mean2Estimator X Y ω ∂μ =\n"
+            "        ((∫ ω, X ω ∂μ) + (∫ ω, Y ω ∂μ)) / 2 := by\n"
+            "          simp [mean2Estimator, integral_div, integral_add hX hY]\n"
+            "    _ = theta := by\n"
+            "          rw [hEX, hEY]\n"
+            "          ring"
+        ),
+        tags=("estimator", "expectation", "linearity", "mean", "unbiased"),
+        expected_lemmas=("integral_add", "integral_div", "ring"),
+    ),
+    "mean2_estimator_variance_indep": FormalObligation(
+        id="mean2_estimator_variance_indep",
+        title="Two-variable mean estimator variance under independence",
+        english=(
+            "For independent L2 component estimators X and Y, the variance of "
+            "their average (X+Y)/2 is one fourth of Var(X)+Var(Y)."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+noncomputable def mean2Estimator {Ω : Type*} (X Y : Ω → ℝ) : Ω → ℝ :=
+  fun ω => (X ω + Y ω) / 2
+
+theorem mean2Estimator_variance_indep {Ω : Type*} [MeasurableSpace Ω]
+    (μ : Measure Ω) [IsProbabilityMeasure μ]
+    (X Y : Ω → ℝ) (hX : MemLp X 2 μ) (hY : MemLp Y 2 μ)
+    (h_indep : IndepFun X Y μ) :
+    variance (mean2Estimator X Y) μ =
+      (variance X μ + variance Y μ) / 4 := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  rw [show mean2Estimator X Y = ((1 / 2 : ℝ) • (X + Y)) by\n"
+            "    ext ω\n"
+            "    simp [mean2Estimator]\n"
+            "    ring]\n"
+            "  rw [variance_smul, IndepFun.variance_add hX hY h_indep]\n"
+            "  ring"
+        ),
+        tags=("estimator", "variance", "mean", "independence", "efficiency", "finite_sample"),
+        expected_lemmas=("variance_smul", "IndepFun.variance_add", "ring"),
+        depends_on=("variance_indep_add",),
+    ),
+    "estimator_error_chebyshev": FormalObligation(
+        id="estimator_error_chebyshev",
+        title="Chebyshev error bound for an unbiased estimator",
+        english=(
+            "If an estimator X has finite second moment and expectation theta, "
+            "then the probability that its absolute error exceeds c is bounded "
+            "by Var(X)/c^2."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+theorem estimator_error_chebyshev {Ω : Type*} [MeasurableSpace Ω]
+    (μ : Measure Ω) [IsProbabilityMeasure μ]
+    (X : Ω → ℝ) (theta : ℝ) (hX : MemLp X 2 μ)
+    (hMean : μ[X] = theta) {c : ℝ} (hc : 0 < c) :
+    μ {ω | c ≤ |X ω - theta|} ≤ ENNReal.ofReal (variance X μ / c ^ 2) := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  simpa [hMean] using\n"
+            "    (meas_ge_le_variance_div_sq (μ := μ) (X := X) hX hc)"
+        ),
+        tags=("estimator", "variance", "tail_bound", "chebyshev", "finite_sample", "concentration"),
+        expected_lemmas=("meas_ge_le_variance_div_sq",),
+    ),
+    "mean2_estimator_chebyshev_indep": FormalObligation(
+        id="mean2_estimator_chebyshev_indep",
+        title="Chebyshev error bound for an average of independent estimators",
+        english=(
+            "For independent L2 component estimators X and Y that are each "
+            "unbiased for theta, the average estimator (X+Y)/2 has an absolute "
+            "error tail bounded by ((Var X + Var Y)/4)/c^2."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+noncomputable def mean2Estimator {Ω : Type*} (X Y : Ω → ℝ) : Ω → ℝ :=
+  fun ω => (X ω + Y ω) / 2
+
+theorem mean2Estimator_chebyshev_indep {Ω : Type*} [MeasurableSpace Ω]
+    (μ : Measure Ω) [IsProbabilityMeasure μ]
+    (X Y : Ω → ℝ) (theta : ℝ)
+    (hX : MemLp X 2 μ) (hY : MemLp Y 2 μ)
+    (h_indep : IndepFun X Y μ)
+    (hEX : μ[X] = theta) (hEY : μ[Y] = theta)
+    {c : ℝ} (hc : 0 < c) :
+    μ {ω | c ≤ |mean2Estimator X Y ω - theta|} ≤
+      ENNReal.ofReal (((variance X μ + variance Y μ) / 4) / c ^ 2) := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  have hAvgMem : MemLp (mean2Estimator X Y) 2 μ := by\n"
+            "    rw [show mean2Estimator X Y = ((1 / 2 : ℝ) • (X + Y)) by\n"
+            "      ext ω\n"
+            "      simp [mean2Estimator]\n"
+            "      ring]\n"
+            "    exact (hX.add hY).const_smul (1 / 2 : ℝ)\n"
+            "  have hMean : μ[mean2Estimator X Y] = theta := by\n"
+            "    have hXi : Integrable X μ := hX.integrable (by norm_num)\n"
+            "    have hYi : Integrable Y μ := hY.integrable (by norm_num)\n"
+            "    calc\n"
+            "      μ[mean2Estimator X Y] = (μ[X] + μ[Y]) / 2 := by\n"
+            "        simp [mean2Estimator, integral_div, integral_add hXi hYi]\n"
+            "      _ = theta := by\n"
+            "        rw [hEX, hEY]\n"
+            "        ring\n"
+            "  have hVar : variance (mean2Estimator X Y) μ =\n"
+            "      (variance X μ + variance Y μ) / 4 := by\n"
+            "    rw [show mean2Estimator X Y = ((1 / 2 : ℝ) • (X + Y)) by\n"
+            "      ext ω\n"
+            "      simp [mean2Estimator]\n"
+            "      ring]\n"
+            "    rw [variance_smul, IndepFun.variance_add hX hY h_indep]\n"
+            "    ring\n"
+            "  rw [← hVar]\n"
+            "  simpa [hMean] using\n"
+            "    (meas_ge_le_variance_div_sq (μ := μ) (X := mean2Estimator X Y) hAvgMem hc)"
+        ),
+        tags=(
+            "estimator",
+            "variance",
+            "mean",
+            "independence",
+            "tail_bound",
+            "chebyshev",
+            "finite_sample",
+            "concentration",
+        ),
+        expected_lemmas=(
+            "MemLp.add",
+            "MemLp.const_smul",
+            "integral_add",
+            "variance_smul",
+            "IndepFun.variance_add",
+            "meas_ge_le_variance_div_sq",
+        ),
+        depends_on=(
+            "mean2_estimator_expectation",
+            "mean2_estimator_variance_indep",
+            "estimator_error_chebyshev",
+        ),
+    ),
+    "finite_sample_mean_unbiased": FormalObligation(
+        id="finite_sample_mean_unbiased",
+        title="Finite-sample mean estimator is unbiased",
+        english=(
+            "For any nonzero finite sample size n, if each component estimator "
+            "is integrable and unbiased for theta, the arithmetic sample mean "
+            "over Fin n is also unbiased for theta."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+noncomputable def finMeanEstimator {Ω : Type*} {n : Nat}
+    (X : Fin n → Ω → ℝ) : Ω → ℝ :=
+  fun ω => (∑ i, X i ω) / (n : ℝ)
+
+theorem finMeanEstimator_unbiased {Ω : Type*} [MeasurableSpace Ω]
+    (μ : Measure Ω) {n : Nat} (hn : n ≠ 0)
+    (X : Fin n → Ω → ℝ) (theta : ℝ)
+    (hX : ∀ i, Integrable (X i) μ)
+    (hEX : ∀ i, ∫ ω, X i ω ∂μ = theta) :
+    ∫ ω, finMeanEstimator X ω ∂μ = theta := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  calc\n"
+            "    ∫ ω, finMeanEstimator X ω ∂μ =\n"
+            "        (∑ i, ∫ ω, X i ω ∂μ) / (n : ℝ) := by\n"
+            "          simp [finMeanEstimator, integral_div,\n"
+            "            integral_finset_sum Finset.univ (fun i _ => hX i)]\n"
+            "    _ = (∑ _ : Fin n, theta) / (n : ℝ) := by\n"
+            "          simp [hEX]\n"
+            "    _ = theta := by\n"
+            "          rw [Finset.sum_const]\n"
+            "          simp [Fintype.card_fin]\n"
+            "          field_simp [hn]"
+        ),
+        tags=("estimator", "expectation", "linearity", "mean", "unbiased", "finite_sample"),
+        expected_lemmas=("integral_finset_sum", "integral_div", "Finset.sum_const", "field_simp"),
+    ),
+    "finite_sample_mean_variance_indep": FormalObligation(
+        id="finite_sample_mean_variance_indep",
+        title="Finite-sample mean estimator variance under pairwise independence",
+        english=(
+            "For a finite collection of pairwise independent L2 component "
+            "estimators indexed by Fin n, the arithmetic sample mean has "
+            "variance equal to the sum of component variances divided by n^2."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+noncomputable def finMeanEstimator {Ω : Type*} {n : Nat}
+    (X : Fin n → Ω → ℝ) : Ω → ℝ :=
+  fun ω => (∑ i, X i ω) / (n : ℝ)
+
+theorem finMeanEstimator_variance_indep {Ω : Type*} [MeasurableSpace Ω]
+    (μ : Measure Ω) [IsProbabilityMeasure μ]
+    {n : Nat} (X : Fin n → Ω → ℝ)
+    (hX : ∀ i, MemLp (X i) 2 μ)
+    (h_indep : Set.Pairwise (↑(Finset.univ : Finset (Fin n)))
+      fun i j => IndepFun (X i) (X j) μ) :
+    variance (finMeanEstimator X) μ =
+      (∑ i, variance (X i) μ) / (n : ℝ) ^ 2 := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  rw [show finMeanEstimator X = ((1 / (n : ℝ)) • (∑ i, X i)) by\n"
+            "    ext ω\n"
+            "    simp [finMeanEstimator]\n"
+            "    ring]\n"
+            "  rw [variance_smul]\n"
+            "  rw [IndepFun.variance_sum]\n"
+            "  · ring_nf\n"
+            "  · intro i hi\n"
+            "    exact hX i\n"
+            "  · simpa using h_indep"
+        ),
+        tags=("estimator", "variance", "mean", "independence", "finite_sample", "efficiency"),
+        expected_lemmas=("variance_smul", "IndepFun.variance_sum", "ring_nf"),
+        depends_on=("variance_indep_add",),
+    ),
+    "finite_sample_mean_chebyshev_indep": FormalObligation(
+        id="finite_sample_mean_chebyshev_indep",
+        title="Finite-sample mean Chebyshev error bound under pairwise independence",
+        english=(
+            "For pairwise independent L2 component estimators indexed by Fin n "
+            "that are each unbiased for theta, the arithmetic sample mean has "
+            "absolute-error probability bounded by its finite-sample variance "
+            "identity divided by c^2."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+noncomputable def finMeanEstimator {Ω : Type*} {n : Nat}
+    (X : Fin n → Ω → ℝ) : Ω → ℝ :=
+  fun ω => (∑ i, X i ω) / (n : ℝ)
+
+theorem finMeanEstimator_chebyshev_indep {Ω : Type*} [MeasurableSpace Ω]
+    (μ : Measure Ω) [IsProbabilityMeasure μ]
+    {n : Nat} (hn : n ≠ 0)
+    (X : Fin n → Ω → ℝ) (theta : ℝ)
+    (hX : ∀ i, MemLp (X i) 2 μ)
+    (h_indep : Set.Pairwise (↑(Finset.univ : Finset (Fin n)))
+      fun i j => IndepFun (X i) (X j) μ)
+    (hEX : ∀ i, μ[X i] = theta)
+    {c : ℝ} (hc : 0 < c) :
+    μ {ω | c ≤ |finMeanEstimator X ω - theta|} ≤
+      ENNReal.ofReal (((∑ i, variance (X i) μ) / (n : ℝ) ^ 2) / c ^ 2) := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  have hAvgMem : MemLp (finMeanEstimator X) 2 μ := by\n"
+            "    rw [show finMeanEstimator X = ((1 / (n : ℝ)) • (∑ i, X i)) by\n"
+            "      ext ω\n"
+            "      simp [finMeanEstimator]\n"
+            "      ring]\n"
+            "    exact (memLp_finset_sum' Finset.univ (fun i hi => hX i)).const_smul (1 / (n : ℝ))\n"
+            "  have hMean : μ[finMeanEstimator X] = theta := by\n"
+            "    have hXi : ∀ i, Integrable (X i) μ := fun i => (hX i).integrable (by norm_num)\n"
+            "    calc\n"
+            "      μ[finMeanEstimator X] = (∑ i, μ[X i]) / (n : ℝ) := by\n"
+            "        simp [finMeanEstimator, integral_div,\n"
+            "          integral_finset_sum Finset.univ (fun i _ => hXi i)]\n"
+            "      _ = (∑ _ : Fin n, theta) / (n : ℝ) := by\n"
+            "        simp [hEX]\n"
+            "      _ = theta := by\n"
+            "        rw [Finset.sum_const]\n"
+            "        simp [Fintype.card_fin]\n"
+            "        field_simp [hn]\n"
+            "  have hVar : variance (finMeanEstimator X) μ =\n"
+            "      (∑ i, variance (X i) μ) / (n : ℝ) ^ 2 := by\n"
+            "    rw [show finMeanEstimator X = ((1 / (n : ℝ)) • (∑ i, X i)) by\n"
+            "      ext ω\n"
+            "      simp [finMeanEstimator]\n"
+            "      ring]\n"
+            "    rw [variance_smul]\n"
+            "    rw [IndepFun.variance_sum]\n"
+            "    · ring_nf\n"
+            "    · intro i hi\n"
+            "      exact hX i\n"
+            "    · simpa using h_indep\n"
+            "  rw [← hVar]\n"
+            "  simpa [hMean] using\n"
+            "    (meas_ge_le_variance_div_sq (μ := μ) (X := finMeanEstimator X) hAvgMem hc)"
+        ),
+        tags=(
+            "estimator",
+            "variance",
+            "mean",
+            "independence",
+            "tail_bound",
+            "chebyshev",
+            "finite_sample",
+            "concentration",
+        ),
+        expected_lemmas=(
+            "memLp_finset_sum'",
+            "integral_finset_sum",
+            "IndepFun.variance_sum",
+            "meas_ge_le_variance_div_sq",
+        ),
+        depends_on=(
+            "finite_sample_mean_unbiased",
+            "finite_sample_mean_variance_indep",
+            "estimator_error_chebyshev",
+        ),
+    ),
+    "affine_estimator_expectation": FormalObligation(
+        id="affine_estimator_expectation",
+        title="Affine estimator expectation",
+        english=(
+            "For an integrable estimator X on a probability space, the expectation "
+            "of the affine shrinkage estimator a*X+b is a*E[X]+b."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+noncomputable def affineEstimator {Ω : Type*} (a b : ℝ) (X : Ω → ℝ) : Ω → ℝ :=
+  fun ω => a * X ω + b
+
+theorem affineEstimator_expectation {Ω : Type*} [MeasurableSpace Ω]
+    (μ : Measure Ω) [IsProbabilityMeasure μ]
+    (X : Ω → ℝ) (a b : ℝ) (hX : Integrable X μ) :
+    ∫ ω, affineEstimator a b X ω ∂μ = a * (∫ ω, X ω ∂μ) + b := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  calc\n"
+            "    ∫ ω, affineEstimator a b X ω ∂μ =\n"
+            "        (∫ ω, a * X ω ∂μ) + ∫ ω, b ∂μ := by\n"
+            "          simp [affineEstimator, integral_add (hX.const_mul a) (integrable_const b)]\n"
+            "    _ = a * (∫ ω, X ω ∂μ) + b := by\n"
+            "          simp [integral_const_mul]"
+        ),
+        tags=("estimator", "expectation", "linearity", "affine", "shrinkage", "bayesian"),
+        expected_lemmas=("integral_add", "integral_const_mul", "integral_const", "measure_univ"),
+    ),
+    "affine_estimator_variance": FormalObligation(
+        id="affine_estimator_variance",
+        title="Affine estimator variance",
+        english=(
+            "For an L2 estimator X on a probability space, the variance of the "
+            "affine shrinkage estimator a*X+b is a^2 times Var(X)."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+noncomputable def affineEstimator {Ω : Type*} (a b : ℝ) (X : Ω → ℝ) : Ω → ℝ :=
+  fun ω => a * X ω + b
+
+theorem affineEstimator_variance {Ω : Type*} [MeasurableSpace Ω]
+    (μ : Measure Ω) [IsProbabilityMeasure μ]
+    (X : Ω → ℝ) (a b : ℝ) (hX : MemLp X 2 μ) :
+    variance (affineEstimator a b X) μ = a ^ 2 * variance X μ := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  unfold affineEstimator\n"
+            "  rw [variance_add_const ((hX.aestronglyMeasurable).const_mul a) b]\n"
+            "  exact variance_const_mul a X μ"
+        ),
+        tags=("estimator", "variance", "affine", "shrinkage", "bayesian", "finite_sample"),
+        expected_lemmas=("variance_add_const", "variance_const_mul"),
+        depends_on=("variance_nonneg",),
+    ),
+    "event_indicator_expectation": FormalObligation(
+        id="event_indicator_expectation",
+        title="Indicator estimator expectation equals event mass",
+        english=(
+            "For a measurable event A, the expectation of its 0/1 indicator "
+            "equals the event's measure."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+noncomputable def eventIndicator {Ω : Type*} (A : Set Ω) : Ω → ℝ :=
+  A.indicator (fun _ => (1 : ℝ))
+
+theorem eventIndicator_expectation {Ω : Type*} [MeasurableSpace Ω]
+    (μ : Measure Ω) (A : Set Ω) (hA : MeasurableSet A) :
+    ∫ ω, eventIndicator A ω ∂μ = μ.real A := by sorry
+"""
+        ),
+        proof_body="by\n  simp [eventIndicator, integral_indicator_const, hA]",
+        tags=("estimator", "bernoulli", "indicator", "expectation", "probability"),
+        expected_lemmas=("integral_indicator_const",),
+    ),
+    "finite_event_indicator_mean_unbiased": FormalObligation(
+        id="finite_event_indicator_mean_unbiased",
+        title="Finite-sample event-indicator mean is unbiased",
+        english=(
+            "For any nonzero finite sample size n, if each measurable event "
+            "A_i has the same probability p, the arithmetic mean of the event "
+            "indicators 1_{A_i} is an unbiased estimator of p."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+noncomputable def eventIndicator {Ω : Type*} (A : Set Ω) : Ω → ℝ :=
+  A.indicator (fun _ => (1 : ℝ))
+
+noncomputable def finMeanEstimator {Ω : Type*} {n : Nat}
+    (X : Fin n → Ω → ℝ) : Ω → ℝ :=
+  fun ω => (∑ i, X i ω) / (n : ℝ)
+
+theorem finiteEventIndicatorMean_unbiased {Ω : Type*} [MeasurableSpace Ω]
+    (μ : Measure Ω) [IsProbabilityMeasure μ] {n : Nat} (hn : n ≠ 0)
+    (A : Fin n → Set Ω) (p : ℝ)
+    (hA : ∀ i, MeasurableSet (A i))
+    (hP : ∀ i, μ.real (A i) = p) :
+    ∫ ω, finMeanEstimator (fun i => eventIndicator (A i)) ω ∂μ = p := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  have hInt : ∀ i, Integrable (eventIndicator (A i)) μ := by\n"
+            "    intro i\n"
+            "    exact (integrable_const (1 : ℝ)).indicator (hA i)\n"
+            "  have hEach : ∀ i, ∫ ω, eventIndicator (A i) ω ∂μ = p := by\n"
+            "    intro i\n"
+            "    calc\n"
+            "      ∫ ω, eventIndicator (A i) ω ∂μ = μ.real (A i) := by\n"
+            "        simpa [eventIndicator] using (integral_indicator_const (1 : ℝ) (hA i))\n"
+            "      _ = p := hP i\n"
+            "  calc\n"
+            "    ∫ ω, finMeanEstimator (fun i => eventIndicator (A i)) ω ∂μ =\n"
+            "        (∑ i, ∫ ω, eventIndicator (A i) ω ∂μ) / (n : ℝ) := by\n"
+            "          simp [finMeanEstimator, integral_div,\n"
+            "            integral_finset_sum Finset.univ (fun i _ => hInt i)]\n"
+            "    _ = (∑ _ : Fin n, p) / (n : ℝ) := by\n"
+            "          simp [hEach]\n"
+            "    _ = p := by\n"
+            "          rw [Finset.sum_const]\n"
+            "          simp [Fintype.card_fin]\n"
+            "          field_simp [hn]"
+        ),
+        tags=(
+            "estimator",
+            "bernoulli",
+            "indicator",
+            "expectation",
+            "probability",
+            "unbiased",
+            "finite_sample",
+        ),
+        expected_lemmas=(
+            "integral_indicator_const",
+            "integral_finset_sum",
+            "integrable_const",
+            "Finset.sum_const",
+            "field_simp",
+        ),
+        depends_on=("event_indicator_expectation", "finite_sample_mean_unbiased"),
+    ),
+    "noised_estimator_unbiased": FormalObligation(
+        id="noised_estimator_unbiased",
+        title="Adding mean-zero noise preserves unbiasedness",
+        english=(
+            "If an estimator X is unbiased for theta and an additive noise "
+            "variable Z has mean zero, then X+Z is also unbiased for theta."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+noncomputable def noisedEstimator {Ω : Type*} (X Z : Ω → ℝ) : Ω → ℝ :=
+  X + Z
+
+theorem noisedEstimator_unbiased {Ω : Type*} [MeasurableSpace Ω]
+    (μ : Measure Ω) (X Z : Ω → ℝ) (theta : ℝ)
+    (hX : Integrable X μ) (hZ : Integrable Z μ)
+    (hEX : ∫ ω, X ω ∂μ = theta)
+    (hEZ : ∫ ω, Z ω ∂μ = 0) :
+    ∫ ω, noisedEstimator X Z ω ∂μ = theta := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  calc\n"
+            "    ∫ ω, noisedEstimator X Z ω ∂μ = μ[X] + μ[Z] := by\n"
+            "      simp [noisedEstimator, integral_add hX hZ]\n"
+            "    _ = theta := by\n"
+            "      rw [hEX, hEZ]\n"
+            "      ring"
+        ),
+        tags=("estimator", "expectation", "linearity", "noise", "unbiased", "finite_sample", "privacy"),
+        expected_lemmas=("integral_add", "ring"),
+    ),
+    "noised_estimator_variance_indep": FormalObligation(
+        id="noised_estimator_variance_indep",
+        title="Independent additive noise variance decomposition",
+        english=(
+            "If an estimator X and additive noise Z are independent and both "
+            "have finite second moments, then Var(X+Z)=Var(X)+Var(Z)."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+noncomputable def noisedEstimator {Ω : Type*} (X Z : Ω → ℝ) : Ω → ℝ :=
+  X + Z
+
+theorem noisedEstimator_variance_indep {Ω : Type*} [MeasurableSpace Ω]
+    (μ : Measure Ω) [IsProbabilityMeasure μ]
+    (X Z : Ω → ℝ) (hX : MemLp X 2 μ) (hZ : MemLp Z 2 μ)
+    (h_indep : IndepFun X Z μ) :
+    variance (noisedEstimator X Z) μ = variance X μ + variance Z μ := by sorry
+"""
+        ),
+        proof_body="by\n  simpa [noisedEstimator] using IndepFun.variance_add hX hZ h_indep",
+        tags=("estimator", "variance", "noise", "independence", "finite_sample", "privacy"),
+        expected_lemmas=("IndepFun.variance_add",),
+        depends_on=("variance_indep_add",),
+    ),
+    "noised_estimator_chebyshev_indep": FormalObligation(
+        id="noised_estimator_chebyshev_indep",
+        title="Chebyshev bound for an estimator with independent additive noise",
+        english=(
+            "If X is unbiased for theta, Z has mean zero, X and Z are "
+            "independent L2 variables, then the noised estimator X+Z has "
+            "absolute error tail bounded by (Var X + Var Z)/c^2."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+noncomputable def noisedEstimator {Ω : Type*} (X Z : Ω → ℝ) : Ω → ℝ :=
+  X + Z
+
+theorem noisedEstimator_chebyshev_indep {Ω : Type*} [MeasurableSpace Ω]
+    (μ : Measure Ω) [IsProbabilityMeasure μ]
+    (X Z : Ω → ℝ) (theta : ℝ)
+    (hX : MemLp X 2 μ) (hZ : MemLp Z 2 μ)
+    (h_indep : IndepFun X Z μ)
+    (hEX : μ[X] = theta) (hEZ : μ[Z] = 0)
+    {c : ℝ} (hc : 0 < c) :
+    μ {ω | c ≤ |noisedEstimator X Z ω - theta|} ≤
+      ENNReal.ofReal ((variance X μ + variance Z μ) / c ^ 2) := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  have hNoisedMem : MemLp (noisedEstimator X Z) 2 μ := by\n"
+            "    simpa [noisedEstimator] using hX.add hZ\n"
+            "  have hMean : μ[noisedEstimator X Z] = theta := by\n"
+            "    have hXi : Integrable X μ := hX.integrable (by norm_num)\n"
+            "    have hZi : Integrable Z μ := hZ.integrable (by norm_num)\n"
+            "    calc\n"
+            "      μ[noisedEstimator X Z] = μ[X] + μ[Z] := by\n"
+            "        simp [noisedEstimator, integral_add hXi hZi]\n"
+            "      _ = theta := by\n"
+            "        rw [hEX, hEZ]\n"
+            "        ring\n"
+            "  have hVar : variance (noisedEstimator X Z) μ = variance X μ + variance Z μ := by\n"
+            "    simpa [noisedEstimator] using IndepFun.variance_add hX hZ h_indep\n"
+            "  rw [← hVar]\n"
+            "  simpa [hMean] using\n"
+            "    (meas_ge_le_variance_div_sq (μ := μ) (X := noisedEstimator X Z) hNoisedMem hc)"
+        ),
+        tags=(
+            "estimator",
+            "variance",
+            "noise",
+            "independence",
+            "tail_bound",
+            "chebyshev",
+            "finite_sample",
+            "concentration",
+            "privacy",
+        ),
+        expected_lemmas=(
+            "MemLp.add",
+            "integral_add",
+            "IndepFun.variance_add",
+            "meas_ge_le_variance_div_sq",
+        ),
+        depends_on=(
+            "noised_estimator_unbiased",
+            "noised_estimator_variance_indep",
+            "estimator_error_chebyshev",
+        ),
+    ),
+    "aipw_score_expectation_decompose": FormalObligation(
+        id="aipw_score_expectation_decompose",
+        title="AIPW score expectation decomposes by linearity",
+        english=(
+            "For integrable contrast and augmentation terms, the expectation of "
+            "an AIPW-style score contrast + treated augmentation - control "
+            "augmentation decomposes into the corresponding sum and difference "
+            "of expectations."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+noncomputable def aipwScore {Ω : Type*}
+    (contrast treatAug controlAug : Ω → ℝ) : Ω → ℝ :=
+  contrast + treatAug - controlAug
+
+theorem aipwScore_expectation_decompose {Ω : Type*} [MeasurableSpace Ω]
+    (μ : Measure Ω) (contrast treatAug controlAug : Ω → ℝ)
+    (hContrast : Integrable contrast μ)
+    (hTreat : Integrable treatAug μ)
+    (hControl : Integrable controlAug μ) :
+    ∫ ω, aipwScore contrast treatAug controlAug ω ∂μ =
+      (∫ ω, contrast ω ∂μ) + (∫ ω, treatAug ω ∂μ) -
+        (∫ ω, controlAug ω ∂μ) := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  calc\n"
+            "    ∫ ω, aipwScore contrast treatAug controlAug ω ∂μ =\n"
+            "        ∫ ω, ((contrast + treatAug - controlAug) : Ω → ℝ) ω ∂μ := by\n"
+            "          rfl\n"
+            "    _ = ∫ ω, ((contrast + treatAug) : Ω → ℝ) ω ∂μ - ∫ ω, controlAug ω ∂μ := by\n"
+            "          exact integral_sub (hContrast.add hTreat) hControl\n"
+            "    _ = (∫ ω, contrast ω ∂μ) + (∫ ω, treatAug ω ∂μ) -\n"
+            "          ∫ ω, controlAug ω ∂μ := by\n"
+            "          have hAdd : ∫ ω, ((contrast + treatAug) : Ω → ℝ) ω ∂μ =\n"
+            "              (∫ ω, contrast ω ∂μ) + (∫ ω, treatAug ω ∂μ) := by\n"
+            "            simpa using integral_add hContrast hTreat\n"
+            "          rw [hAdd]"
+        ),
+        tags=("estimator", "expectation", "linearity", "aipw", "causal", "semiparametric"),
+        expected_lemmas=("integral_add", "integral_sub"),
+    ),
+    "prob_measure_univ": FormalObligation(
+        id="prob_measure_univ",
+        title="Probability measure normalizes",
+        english="A probability measure assigns mass one to the universal set.",
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory
+
+theorem prob_measure_univ {α : Type*} [MeasurableSpace α]
+    (μ : Measure α) [IsProbabilityMeasure μ] :
+    μ Set.univ = 1 := by sorry
+"""
+        ),
+        proof_body="by\n  exact measure_univ",
+        tags=("probability", "measure", "normalization"),
+        expected_lemmas=("measure_univ",),
+    ),
+    "integral_of_constant": FormalObligation(
+        id="integral_of_constant",
+        title="Expectation of a constant",
+        english="The expected value of a constant c under a probability measure is c.",
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory
+
+theorem integral_of_constant {α : Type*} [MeasurableSpace α]
+    (μ : Measure α) [IsProbabilityMeasure μ] (c : ℝ) :
+    ∫ _, c ∂μ = c := by sorry
+"""
+        ),
+        proof_body="by\n  simp [integral_const]",
+        tags=("expectation", "constant", "probability"),
+        expected_lemmas=("integral_const", "measure_univ"),
+    ),
+    "variance_nonneg": FormalObligation(
+        id="variance_nonneg",
+        title="Variance is nonnegative",
+        english="The variance of any real-valued random variable is nonnegative.",
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+theorem variance_nonneg_demo {Ω : Type*} {m : MeasurableSpace Ω}
+    (μ : Measure Ω) (X : Ω → ℝ) :
+    0 ≤ variance X μ := by sorry
+"""
+        ),
+        proof_body="by\n  exact variance_nonneg X μ",
+        tags=("variance", "nonnegative", "estimator"),
+        expected_lemmas=("variance_nonneg",),
+    ),
+    "variance_indep_add": FormalObligation(
+        id="variance_indep_add",
+        title="Variance adds under independence",
+        english="For independent L2 random variables, variance of the sum is the sum of variances.",
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+theorem variance_indep_add_demo {Ω : Type*} {m : MeasurableSpace Ω}
+    (μ : Measure Ω) [IsProbabilityMeasure μ]
+    (X Y : Ω → ℝ) (hX : MemLp X 2 μ) (hY : MemLp Y 2 μ)
+    (h_indep : IndepFun X Y μ) :
+    variance (X + Y) μ = variance X μ + variance Y μ := by sorry
+"""
+        ),
+        proof_body="by\n  exact IndepFun.variance_add hX hY h_indep",
+        tags=("variance", "independence", "estimator"),
+        expected_lemmas=("IndepFun.variance_add",),
+    ),
+    "markov_inequality": FormalObligation(
+        id="markov_inequality",
+        title="Markov inequality",
+        english="Markov's inequality for a measurable nonnegative ENNReal function.",
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory
+
+theorem markov_inequality {α : Type*} [MeasurableSpace α]
+    (μ : Measure α) (f : α → ENNReal) (hf : Measurable f)
+    (ε : ENNReal) (hε : ε ≠ 0) (hεt : ε ≠ ⊤) :
+    μ {x | ε ≤ f x} ≤ (∫⁻ x, f x ∂μ) / ε := by sorry
+"""
+        ),
+        proof_body="by\n  exact meas_ge_le_lintegral_div hf.aemeasurable hε hεt",
+        tags=("probability", "inequality", "tail_bound", "markov"),
+        expected_lemmas=("meas_ge_le_lintegral_div",),
+    ),
+    "finite_union_bound": FormalObligation(
+        id="finite_union_bound",
+        title="Finite union probability bound",
+        english=(
+            "For any finite family of events, the measure of their union is "
+            "bounded by the sum of their individual measures."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+theorem finite_union_bound {Ω ι : Type*} [MeasurableSpace Ω]
+    (μ : Measure Ω) (I : Finset ι) (A : ι → Set Ω) :
+    μ (⋃ i ∈ I, A i) ≤ ∑ i ∈ I, μ (A i) := by sorry
+"""
+        ),
+        proof_body="by\n  exact measure_biUnion_finset_le (μ := μ) I A",
+        tags=("probability", "event", "union_bound", "bonferroni", "finite_sample", "multiple_testing"),
+        expected_lemmas=("measure_biUnion_finset_le",),
+    ),
+    "event_probability_mono": FormalObligation(
+        id="event_probability_mono",
+        title="Event probability monotonicity",
+        english="If event A is a subset of event B, then μ(A) ≤ μ(B).",
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+theorem event_probability_mono {Ω : Type*} [MeasurableSpace Ω]
+    (μ : Measure Ω) {A B : Set Ω} (hAB : A ⊆ B) :
+    μ A ≤ μ B := by sorry
+"""
+        ),
+        proof_body="by\n  exact measure_mono hAB",
+        tags=("probability", "event", "monotonicity", "measure", "subset"),
+        expected_lemmas=("measure_mono",),
+    ),
+    "independent_event_inter_probability": FormalObligation(
+        id="independent_event_inter_probability",
+        title="Independent event intersection probability",
+        english=(
+            "If two events are independent, then the probability of their "
+            "intersection equals the product of their probabilities."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+theorem independent_event_inter_probability {Ω : Type*} [MeasurableSpace Ω]
+    (μ : Measure Ω) {A B : Set Ω} (h_indep : IndepSet A B μ) :
+    μ (A ∩ B) = μ A * μ B := by sorry
+"""
+        ),
+        proof_body="by\n  exact IndepSet.measure_inter_eq_mul h_indep",
+        tags=("probability", "event", "independence", "intersection", "multiple_testing"),
+        expected_lemmas=("IndepSet.measure_inter_eq_mul",),
+    ),
+    "first_borel_cantelli_limsup_zero": FormalObligation(
+        id="first_borel_cantelli_limsup_zero",
+        title="First Borel-Cantelli limsup event bound",
+        english=(
+            "If the sum of probabilities of a sequence of bad events is finite, "
+            "then the probability that infinitely many of them occur is zero."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory Filter
+open scoped ENNReal Topology
+
+theorem first_borel_cantelli_limsup_zero {Ω : Type*} [MeasurableSpace Ω]
+    (μ : Measure Ω) (A : ℕ → Set Ω) (h_sum : (∑' n, μ (A n)) ≠ ∞) :
+    μ (limsup A atTop) = 0 := by sorry
+"""
+        ),
+        proof_body="by\n  exact MeasureTheory.measure_limsup_atTop_eq_zero h_sum",
+        tags=("probability", "event", "borel_cantelli", "limsup", "tail_bound", "sequential"),
+        expected_lemmas=("MeasureTheory.measure_limsup_atTop_eq_zero",),
+    ),
+    "second_borel_cantelli_limsup_one": FormalObligation(
+        id="second_borel_cantelli_limsup_one",
+        title="Second Borel-Cantelli independent-event recurrence",
+        english=(
+            "For independent measurable events whose probabilities have "
+            "divergent sum, the probability that infinitely many occur is one."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory Filter
+open scoped ENNReal Topology
+
+theorem second_borel_cantelli_limsup_one {Ω : Type*} [MeasurableSpace Ω]
+    (μ : Measure Ω) (A : ℕ → Set Ω)
+    (hA : ∀ n, MeasurableSet (A n)) (h_indep : iIndepSet A μ)
+    (h_sum : (∑' n, μ (A n)) = ∞) :
+    μ (limsup A atTop) = 1 := by sorry
+"""
+        ),
+        proof_body="by\n  exact ProbabilityTheory.measure_limsup_eq_one hA h_indep h_sum",
+        tags=("probability", "event", "borel_cantelli", "limsup", "independence", "recurrence"),
+        expected_lemmas=("ProbabilityTheory.measure_limsup_eq_one",),
+    ),
+    "adapted_hitting_after_is_stopping_time": FormalObligation(
+        id="adapted_hitting_after_is_stopping_time",
+        title="Adapted hitting time is a stopping time",
+        english=(
+            "For a discrete adapted process, the first hitting time after a "
+            "fixed start time of a measurable set is a stopping time."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory
+
+theorem adapted_hitting_after_is_stopping_time {Ω β : Type*} {m : MeasurableSpace Ω}
+    [MeasurableSpace β] (ℱ : Filtration ℕ m) (X : ℕ → Ω → β)
+    (hX : Adapted ℱ X) (S : Set β) (hS : MeasurableSet S) (n : ℕ) :
+    IsStoppingTime ℱ (hittingAfter X S n) := by sorry
+"""
+        ),
+        proof_body="by\n  exact hX.isStoppingTime_hittingAfter hS",
+        tags=("probability", "process", "stopping_time", "adapted", "sequential"),
+        expected_lemmas=("Adapted.isStoppingTime_hittingAfter",),
+    ),
+    "prob_compl": FormalObligation(
+        id="prob_compl",
+        title="Probability of complement",
+        english="For a probability measure and measurable event A, μ(Aᶜ) = 1 - μ(A).",
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory
+
+theorem prob_compl_demo {Ω : Type*} {m : MeasurableSpace Ω}
+    (μ : Measure Ω) [IsProbabilityMeasure μ]
+    (A : Set Ω) (hA : MeasurableSet A) :
+    μ Aᶜ = 1 - μ A := by sorry
+"""
+        ),
+        proof_body="by\n  exact prob_compl_eq_one_sub hA",
+        tags=("probability", "event", "complement"),
+        expected_lemmas=("prob_compl_eq_one_sub",),
+    ),
+}
+
+
+def all_obligations() -> list[FormalObligation]:
+    return list(FORMAL_OBLIGATIONS.values())
+
+
+def proof_bank_fingerprint() -> str:
+    return stable_hash(
+        [
+            {
+                "id": obligation.id,
+                "title": obligation.title,
+                "english": obligation.english,
+                "formal_statement": obligation.formal_statement,
+                "proof_body": obligation.proof_body,
+                "tags": obligation.tags,
+                "expected_lemmas": obligation.expected_lemmas,
+                "source": obligation.source,
+                "depends_on": obligation.depends_on,
+            }
+            for obligation in sorted(all_obligations(), key=lambda row: row.id)
+        ]
+    )
+
+
+def get_obligation(obligation_id: str) -> FormalObligation:
+    try:
+        return FORMAL_OBLIGATIONS[obligation_id]
+    except KeyError as exc:
+        raise KeyError(f"unknown formal obligation: {obligation_id}") from exc
+
+
+def obligations_by_tags(tags: set[str], *, require_all: bool = False) -> list[FormalObligation]:
+    if not tags:
+        return all_obligations()
+    if require_all:
+        return [o for o in all_obligations() if tags.issubset(set(o.tags))]
+    return [o for o in all_obligations() if set(o.tags) & tags]

@@ -1,26 +1,31 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools>=69"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "statlean-agent"
+name = "ai-statistician"
 version = "0.1.0"
-description = "Lean-grounded multi-agent system for statistical inference formalization."
-readme = "README.md"
+description = "Agentic AI statistician prototype with simulation and Lean proof verification hooks"
 requires-python = ">=3.11"
-authors = [{ name = "AI-Statistician contributors" }]
-dependencies = []
+dependencies = [
+  "numpy>=1.26",
+]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0"]
+proof = [
+  "axle",
+  "python-dotenv",
+]
+llm = [
+  "anthropic",
+]
+test = [
+  "pytest>=8",
+]
 
 [project.scripts]
-statlean = "statlean_agent.cli:main"
+ai-statistician = "ai_statistician.cli:main"
 
 [tool.setuptools.packages.find]
-where = ["src"]
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-pythonpath = ["src"]
+include = ["ai_statistician*"]
 

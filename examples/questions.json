@@ -1,0 +1,45 @@
+{
+  "questions": [
+    {
+      "id": "external_normal_mean",
+      "title": "External JSON: estimate a normal mean",
+      "dgp": "X_i iid Normal(mu=1.25, sigma=2.0)",
+      "target": "mu = E[X]",
+      "dgp_family": "normal",
+      "estimator_family": "sample_mean",
+      "true_params": {
+        "mu": 1.25,
+        "sigma": 2.0
+      },
+      "n_obs": 100,
+      "tags": ["mean", "normal", "external"]
+    },
+    {
+      "id": "external_bernoulli_probability",
+      "title": "External JSON: estimate an event probability",
+      "dgp": "X_i iid Bernoulli(p=0.35)",
+      "target": "p = P(X=1)",
+      "dgp_family": "bernoulli",
+      "estimator_family": "sample_proportion",
+      "true_params": {
+        "p": 0.35
+      },
+      "n_obs": 150,
+      "tags": ["probability", "indicator", "external"]
+    },
+    {
+      "id": "external_normal_variance",
+      "title": "External JSON: estimate a normal variance",
+      "dgp": "X_i iid Normal(mu=1.25, sigma=2.0)",
+      "target": "sigma^2 = Var(X)",
+      "dgp_family": "normal",
+      "estimator_family": "sample_variance",
+      "true_params": {
+        "mu": 1.25,
+        "sigma": 2.0
+      },
+      "n_obs": 100,
+      "tags": ["variance", "normal", "external"]
+    }
+  ]
+}

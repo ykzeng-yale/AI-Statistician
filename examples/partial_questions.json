@@ -1,0 +1,28 @@
+{
+  "questions": [
+    {
+      "id": "partial_normal_mean",
+      "dgp": "X_i iid Normal(mu=1.5, sigma=0.75)",
+      "target": "Estimate the population mean mu = E[X]",
+      "n_obs": 90
+    },
+    {
+      "id": "partial_bernoulli_probability",
+      "dgp": "X_i iid Bernoulli(p=0.42)",
+      "target": "Estimate the event probability p = P(X=1)",
+      "n_obs": 160
+    },
+    {
+      "id": "partial_normal_variance",
+      "dgp": "X_i iid Normal(mu=1.5, sigma=0.75)",
+      "target": "Estimate the population variance sigma^2 = Var(X)",
+      "n_obs": 100
+    },
+    {
+      "id": "partial_constant_mean",
+      "dgp": "X_i is constant c=2.25 almost surely",
+      "target": "Estimate c = E[X]",
+      "n_obs": 30
+    }
+  ]
+}

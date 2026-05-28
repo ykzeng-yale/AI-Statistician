@@ -1,0 +1,150 @@
+AI Mathematical Discovery / Conjecturing / Multimodal Reasoning Links
+Generated: 2026-05-12T14:57:45+00:00
+Collection: ai-math-discovery-systems
+Topic view for AI-for-math discovery systems, formal theorem proving, lemma/RAG infrastructure, HoTT-inspired transfer, and multimodal mathematical reasoning.
+Profile: Default
+Session files: Session_13423036634184563, Tabs_13423027819855839, Session_13423035839761807, Tabs_13422829731934208, Session_13422826416909498, Tabs_13422739495371719
+
+0. System overviews / AI mathematician agents
+
+- AI Co-Mathematician: Accelerating Mathematicians with Agentic AI — https://arxiv.org/abs/2605.06651 (first seen 2026-05-10, last seen 2026-05-10)
+- AI Mathematician as a Partner in Advancing Mathematical Discovery - A Case Study in Homogenization Theory — https://arxiv.org/abs/2510.26380 (first seen 2026-05-10, last seen 2026-05-10)
+- AI Mathematician: Towards Fully Automated Frontier Mathematical Research — https://arxiv.org/abs/2505.22451 (first seen 2026-05-10, last seen 2026-05-10)
+- AI achieves silver-medal standard solving International Mathematical Olympiad problems — https://deepmind.google/blog/ai-solves-imo-problems-at-silver-medal-level/ (first seen 2026-05-10, last seen 2026-05-10)
+- AlphaEvolve: A coding agent for scientific and algorithmic discovery — https://arxiv.org/abs/2506.13131 (first seen 2026-05-10, last seen 2026-05-12)
+- AxiomProver Putnam 2025 dependency graphs — https://axiommath.github.io/Putnam2025/ (first seen 2026-05-10, last seen 2026-05-10)
+- AxiomProver at Putnam 2025 — https://github.com/AxiomMath/putnam2025 (first seen 2026-05-10, last seen 2026-05-10)
+- Mathematical discoveries from program search with large language models — https://www.nature.com/articles/s41586-023-06924-6 (first seen 2026-05-10, last seen 2026-05-10)
+- Mathematical exploration and discovery at scale — https://arxiv.org/abs/2511.02864 (first seen 2026-05-10, last seen 2026-05-10)
+- A Survey on Deep Learning for Theorem Proving — https://arxiv.org/abs/2404.09939 (first seen 2026-05-10, last seen 2026-05-12)
+- AlphaProof Paper — https://www.julian.ac/blog/2025/11/13/alphaproof-paper/ (first seen 2026-05-10, last seen 2026-05-12)
+- AxiomMath · GitHub — https://github.com/AxiomMath (first seen 2026-05-10, last seen 2026-05-12)
+- Axiom: From Seeing Why to Checking Everything — https://axiommath.ai/territory/from-seeing-why-to-checking-everything (first seen 2026-05-10, last seen 2026-05-10)
+- Axplorer GitHub repository — https://github.com/AxiomMath/axplorer (first seen 2026-05-10, last seen 2026-05-10)
+
+1. Lean prover systems / RL / self-play
+
+- AgentV-RL: Scaling Reward Modeling with Agentic Verifier — https://arxiv.org/abs/2604.16004 (first seen 2026-05-10, last seen 2026-05-10)
+- DeepSeek-Prover-V1.5: Harnessing Proof Assistant Feedback for Reinforcement Learning and Monte-Carlo Tree Search — https://arxiv.org/abs/2408.08152 (first seen 2026-05-10, last seen 2026-05-12)
+- DeepSeek-Prover-V2: Advancing Formal Mathematical Reasoning via Reinforcement Learning for Subgoal Decomposition — https://arxiv.org/abs/2504.21801 (first seen 2026-05-10, last seen 2026-05-12)
+- DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models — https://arxiv.org/abs/2402.03300 (first seen 2026-05-10, last seen 2026-05-12)
+- Goedel-Prover: A Frontier Model for Open-Source Automated Theorem Proving — https://arxiv.org/abs/2502.07640 (first seen 2026-05-10, last seen 2026-05-10)
+- HyperTree Proof Search for Neural Theorem Proving — https://arxiv.org/abs/2205.11491 (first seen 2026-05-10, last seen 2026-05-12)
+- LEGO-Prover GitHub repository — https://github.com/wiio12/LEGO-Prover (first seen 2026-05-10, last seen 2026-05-10)
+- LEGO-Prover: Neural Theorem Proving with Growing Libraries — https://arxiv.org/abs/2310.00656 (first seen 2026-05-10, last seen 2026-05-12)
+- LeanAgent: Lifelong Learning for Formal Theorem Proving — https://arxiv.org/abs/2410.06209 (first seen 2026-05-10, last seen 2026-05-12)
+- LeanDojo: Theorem Proving with Retrieval-Augmented Language Models — https://arxiv.org/abs/2306.15626 (first seen 2026-05-10, last seen 2026-05-12)
+- LeanProgress: Guiding Search for Neural Theorem Proving via Proof Progress Prediction — https://arxiv.org/abs/2502.17925 (first seen 2026-05-10, last seen 2026-05-12)
+- Leanabell-Prover-V2: Verifier-integrated Reasoning for Formal Theorem Proving via Reinforcement Learning — https://arxiv.org/abs/2507.08649 (first seen 2026-05-10, last seen 2026-05-10)
+- Olympiad-level formal mathematical reasoning with reinforcement learning — https://www.nature.com/articles/s41586-025-09833-y (first seen 2026-05-10, last seen 2026-05-12)
+- Process-Verified Reinforcement Learning for Theorem Proving via Lean — https://iclr.cc/virtual/2026/poster/10009728 (first seen 2026-05-10, last seen 2026-05-10)
+- Proof Artifact Co-training for Theorem Proving with Language Models — https://arxiv.org/abs/2102.06203 (first seen 2026-05-10, last seen 2026-05-10)
+- ReProver: Retrieval-Augmented Theorem Provers for Lean — https://github.com/lean-dojo/ReProver (first seen 2026-05-10, last seen 2026-05-10)
+- STP: Self-play LLM Theorem Provers with Iterative Conjecturing and Proving — https://arxiv.org/abs/2502.00212 (first seen 2026-05-10, last seen 2026-05-12)
+- Aristotle: IMO-level Automated Theorem Proving — https://arxiv.org/abs/2510.01346 (first seen 2026-05-10, last seen 2026-05-12)
+- DeepSeekMath-V2: Towards Self-Verifiable Mathematical Reasoning — https://arxiv.org/abs/2511.22570 (first seen 2026-05-10, last seen 2026-05-12)
+- Discover and Prove: An Open-source Agentic Framework for Hard Mode Automated Theorem Proving in Lean 4 — https://arxiv.org/abs/2604.15839 (first seen 2026-05-10, last seen 2026-05-12)
+- Generative Language Modeling for Automated Theorem Proving — https://arxiv.org/abs/2009.03393 (first seen 2026-05-10, last seen 2026-05-12)
+- Goedel-LM/Goedel-Prover-V2 · GitHub — https://github.com/Goedel-LM/Goedel-Prover-V2 (first seen 2026-05-10, last seen 2026-05-12)
+- LeanAgent: Lifelong Learning for Formal Theorem Proving — https://openreview.net/forum?id=Uo4EHT4ZZ8 (first seen 2026-05-10, last seen 2026-05-12)
+- NeurIPS Process-Verified Reinforcement Learning for Theorem Proving via Lean — https://neurips.cc/virtual/2025/131058 (first seen 2026-05-10, last seen 2026-05-12)
+- Process-Verified Reinforcement Learning for Theorem Proving via Lean — https://openreview.net/forum?id=sKvVHgmRP2 (first seen 2026-05-10, last seen 2026-05-12)
+- [2310.04353] An In-Context Learning Agent for Formal Theorem-Proving — https://arxiv.org/abs/2310.04353 (first seen 2026-05-10, last seen 2026-05-12)
+- [2507.23726] Seed-Prover: Deep and Broad Reasoning for Automated Theorem Proving — https://arxiv.org/abs/2507.23726 (first seen 2026-05-10, last seen 2026-05-12)
+- [2601.15737] PhysProver: Advancing Automatic Theorem Proving for Physics — https://arxiv.org/abs/2601.15737 (first seen 2026-05-10, last seen 2026-05-12)
+- [2604.01483] Type-Checked Compliance: Deterministic Guardrails for Agentic Financial Systems Using Lean 4 Theorem Proving — https://arxiv.org/abs/2604.01483 (first seen 2026-05-10, last seen 2026-05-12)
+- Aesop: White-Box Best-First Proof Search for Lean — https://zenodo.org/records/7430233 (first seen 2026-05-10, last seen 2026-05-10)
+
+2. Autoformalization / datasets / formal benchmarks
+
+- Autoformalization with Large Language Models — https://arxiv.org/abs/2205.12615 (first seen 2026-05-10, last seen 2026-05-12)
+- Autoformalizing Euclidean Geometry — https://arxiv.org/abs/2405.17216 (first seen 2026-05-10, last seen 2026-05-10)
+- Construction-Verification: A Benchmark for Applied Mathematics in Lean 4 — https://arxiv.org/abs/2602.01291 (first seen 2026-05-10, last seen 2026-05-10)
+- Draft, Sketch, and Prove: Guiding Formal Theorem Provers with Informal Proofs — https://arxiv.org/abs/2210.12283 (first seen 2026-05-10, last seen 2026-05-12)
+- FIMO: Formal IMO-level mathematics dataset — https://github.com/liuchengwucn/FIMO (first seen 2026-05-10, last seen 2026-05-10)
+- FormalMATH: Benchmarking Formal Mathematical Reasoning of Large Language Models — https://arxiv.org/abs/2505.02735 (first seen 2026-05-10, last seen 2026-05-10)
+- MMFormalizer: Multimodal Autoformalization in the Wild — https://arxiv.org/abs/2601.03017 (first seen 2026-05-10, last seen 2026-05-10)
+- MiniF2F: a cross-system benchmark for formal Olympiad-level mathematics — https://arxiv.org/abs/2109.00110 (first seen 2026-05-10, last seen 2026-05-10)
+- Multilingual Mathematical Autoformalization — https://arxiv.org/abs/2311.03755 (first seen 2026-05-10, last seen 2026-05-10)
+- Peano: Learning Formal Mathematical Reasoning — https://arxiv.org/abs/2211.15864 (first seen 2026-05-10, last seen 2026-05-10)
+- ProofNet: Autoformalizing and Formally Proving Undergraduate-Level Mathematics — https://arxiv.org/abs/2302.12433 (first seen 2026-05-10, last seen 2026-05-12)
+- miniF2F GitHub repository — https://github.com/openai/miniF2F (first seen 2026-05-10, last seen 2026-05-10)
+- NeurIPS Poster Autoformalize Mathematical Statements by Symbolic Equivalence and Semantic Consistency — https://neurips.cc/virtual/2024/poster/96359 (first seen 2026-05-10, last seen 2026-05-12)
+- [2505.04528] Beyond Theorem Proving: Formulation, Framework and Benchmark for Formal Problem-Solving — https://arxiv.org/abs/2505.04528 (first seen 2026-05-10, last seen 2026-05-12)
+- zhangir-azerbayev/ProofNet: Benchmark for undergraduate-level formal mathematics · GitHub — https://github.com/zhangir-azerbayev/ProofNet (first seen 2026-05-10, last seen 2026-05-12)
+
+3. Conjecturing / counterexamples / lemma discovery
+
+- Automated Conjecture Resolution with Formal Verification — https://arxiv.org/abs/2604.03789 (first seen 2026-05-10, last seen 2026-05-12)
+- Fel's Conjecture on Syzygies of Numerical Semigroups — https://arxiv.org/abs/2602.03716 (first seen 2026-05-10, last seen 2026-05-10)
+- Google DeepMind formal-conjectures repository — https://github.com/google-deepmind/formal-conjectures (first seen 2026-05-10, last seen 2026-05-10)
+- LeanConjecturer: Automatic Generation of Mathematical Conjectures for Theorem Proving — https://arxiv.org/abs/2506.22005 (first seen 2026-05-10, last seen 2026-05-10)
+- Learning to Disprove: Formal Counterexample Generation with Large Language Models — https://arxiv.org/abs/2603.19514 (first seen 2026-05-10, last seen 2026-05-10)
+- Lemma Discovery in Agentic Program Verification — https://arxiv.org/abs/2603.22114 (first seen 2026-05-10, last seen 2026-05-10)
+- Parity of k-differentials in genus zero and one — https://arxiv.org/abs/2602.03722 (first seen 2026-05-10, last seen 2026-05-10)
+- Mining Math Conjectures from LLMs: A Pruning Approach — https://openreview.net/forum?id=aYlKvzY6ob (first seen 2026-05-10, last seen 2026-05-12)
+- [2510.00732] EvolProver: Advancing Automated Theorem Proving by Evolving Formalized Problems via Symmetry and Difficulty — https://arxiv.org/abs/2510.00732 (first seen 2026-05-10, last seen 2026-05-12)
+- Deep Learning for Symbolic Mathematics — https://arxiv.org/abs/1912.01412 (first seen 2026-05-10, last seen 2026-05-10)
+- Global Lyapunov functions GitHub repository — https://github.com/facebookresearch/Lyapunov (first seen 2026-05-10, last seen 2026-05-10)
+- Global Lyapunov functions: a long-standing open problem in mathematics, with symbolic transformers — https://arxiv.org/abs/2410.08304 (first seen 2026-05-10, last seen 2026-05-10)
+- Int2Int GitHub repository — https://github.com/FacebookResearch/Int2Int (first seen 2026-05-10, last seen 2026-05-10)
+- Int2Int: a framework for mathematics with transformers — https://arxiv.org/abs/2502.17513 (first seen 2026-05-10, last seen 2026-05-10)
+- Linear Algebra with Transformers — https://arxiv.org/abs/2112.01898 (first seen 2026-05-10, last seen 2026-05-10)
+- Original PatternBoost experiments GitHub repository — https://github.com/zawagner22/transformers_math_experiments (first seen 2026-05-10, last seen 2026-05-10)
+- PatternBoost: Constructions in Mathematics with a Little Help from AI — https://arxiv.org/abs/2411.00566 (first seen 2026-05-10, last seen 2026-05-10)
+- What is my math transformer doing? Three results on interpretability and generalization — https://arxiv.org/abs/2211.00170 (first seen 2026-05-10, last seen 2026-05-10)
+
+4. Mathlib search / semantic RAG / knowledge graphs
+
+- A Semantic Search Engine for Mathlib4 — https://arxiv.org/abs/2403.13310 (first seen 2026-05-10, last seen 2026-05-10)
+- Lean Finder: Semantic Search for Mathlib That Understands User Intents — https://arxiv.org/abs/2510.15940 (first seen 2026-05-10, last seen 2026-05-10)
+- Lean transfer tactic documentation — https://leanprover-community.github.io/mathlib_docs/tactic/transfer.html (first seen 2026-05-10, last seen 2026-05-10)
+- Loogle: Lean and Mathlib search by constants, names, and subexpressions — https://loogle.lean-lang.org/ (first seen 2026-05-10, last seen 2026-05-10)
+- MathNet: a Global Multimodal Benchmark for Mathematical Reasoning and Retrieval — https://arxiv.org/abs/2604.18584 (first seen 2026-05-10, last seen 2026-05-10)
+- MathlibGraph: The Multinetwork of Mathlib — https://huggingface.co/datasets/MathNetwork/MathlibGraph (first seen 2026-05-10, last seen 2026-05-10)
+- Moogle: Semantic search over mathlib4 — https://www.moogle.ai/ (first seen 2026-05-10, last seen 2026-05-10)
+- ProofGraph: Network science and spectral graph theory applied to formalized mathematics — https://proofgraph.org/ (first seen 2026-05-10, last seen 2026-05-10)
+- Semantic Search over 9 Million Mathematical Theorems — https://arxiv.org/abs/2602.05216 (first seen 2026-05-10, last seen 2026-05-10)
+- The Lean mathematical library — https://arxiv.org/abs/1910.09336 (first seen 2026-05-10, last seen 2026-05-10)
+- The Network Structure of Mathlib — https://arxiv.org/abs/2604.24797 (first seen 2026-05-10, last seen 2026-05-10)
+- leanprover-community/mathlib49 — https://github.com/leanprover-community/mathlib49 (first seen 2026-05-10, last seen 2026-05-12)
+- leanprover-community/mathlib4: The math library of Lean 4 · GitHub — https://github.com/leanprover-community/mathlib4 (first seen 2026-05-10, last seen 2026-05-12)
+
+5. Foundations / HoTT / equivalence / transfer / diagrammatic proof
+
+- A Certifying Proof Assistant for Synthetic Mathematics in Lean — https://research.chalmers.se/publication/551200/file/551200_Fulltext.pdf (first seen 2026-05-10, last seen 2026-05-10)
+- Constructing the Propositional Truncation using Non-recursive HITs — https://arxiv.org/abs/1512.02274 (first seen 2026-05-10, last seen 2026-05-10)
+- Higher Groups in Homotopy Type Theory — https://arxiv.org/abs/1802.04315 (first seen 2026-05-10, last seen 2026-05-10)
+- HoTTLean: Formalizing the Meta-Theory of HoTT in Lean — https://msp.cis.strath.ac.uk/types2025/abstracts/TYPES2025_paper25.pdf (first seen 2026-05-10, last seen 2026-05-10)
+- Homotopy Type Theory in Lean — https://arxiv.org/abs/1704.06781 (first seen 2026-05-10, last seen 2026-05-10)
+- On the Formalization of Higher Inductive Types and Synthetic Homotopy Theory — https://arxiv.org/abs/1808.10690 (first seen 2026-05-10, last seen 2026-05-10)
+- Pictures of Processes: Automated Graph Rewriting for Monoidal Categories and Applications to Quantum Computing — https://arxiv.org/abs/1203.0202 (first seen 2026-05-10, last seen 2026-05-10)
+- Quantomatic: A Proof Assistant for Diagrammatic Reasoning — https://arxiv.org/abs/1503.01034 (first seen 2026-05-10, last seen 2026-05-10)
+- String Diagram Rewrite Theory I: Rewriting with Frobenius Structure — https://arxiv.org/abs/2012.01847 (first seen 2026-05-10, last seen 2026-05-10)
+- String Diagram Rewrite Theory II: Rewriting with Symmetric Monoidal Structure — https://arxiv.org/abs/2104.14686 (first seen 2026-05-10, last seen 2026-05-10)
+- The Lean Theorem Prover (system description) — https://lean-lang.org/papers/lean.pdf (first seen 2026-05-10, last seen 2026-05-10)
+- Formal Verification of a Realistic Compiler — https://cacm.acm.org/research/formal-verification-of-a-realistic-compiler/ (first seen 2026-05-10, last seen 2026-05-10)
+- Homotopy Type Theory: Univalent Foundations of Mathematics — https://arxiv.org/abs/1308.0729 (first seen 2026-05-10, last seen 2026-05-10)
+- Proofs and Types — https://www.seas.upenn.edu/~sweirich/types/archive/1989/msg00053.html (first seen 2026-05-10, last seen 2026-05-10)
+- RustBelt: Securing the Foundations of the Rust Programming Language — https://doi.org/10.1145/3158154 (first seen 2026-05-10, last seen 2026-05-10)
+- A Verified SAT Solver Framework with Learn, Forget, Restart, and Incrementality — https://link.springer.com/article/10.1007/s10817-018-9455-7 (first seen 2026-05-10, last seen 2026-05-10)
+- GRAT: Efficient Formally Verified SAT Solver Certification Toolchain — https://www21.in.tum.de/~lammich/grat/ (first seen 2026-05-10, last seen 2026-05-10)
+- Kami: A Platform for High-Level Parametric Hardware Specification and its Modular Verification — https://adam.chlipala.net/papers/KamiICFP17/ (first seen 2026-05-10, last seen 2026-05-10)
+- Lean4Lean: Towards a Verified Typechecker for Lean, in Lean — https://arxiv.org/abs/2403.14064 (first seen 2026-05-10, last seen 2026-05-10)
+- RISC-V Formal documentation: references and related work — https://yosyshq.readthedocs.io/projects/riscv-formal/en/latest/references.html (first seen 2026-05-10, last seen 2026-05-10)
+- The DRAT format and DRAT-trim checker — https://arxiv.org/abs/1610.06229 (first seen 2026-05-10, last seen 2026-05-10)
+- The Lean Language Reference: Elaboration and Compilation — https://lean-lang.org/doc/reference/latest/Elaboration-and-Compilation/ (first seen 2026-05-10, last seen 2026-05-10)
+
+6. Multimodal / visual / spatial math reasoning
+
+- AlphaGeometry GitHub repository — https://github.com/google-deepmind/alphageometry (first seen 2026-05-10, last seen 2026-05-10)
+- MathNet project site — https://mathnet.mit.edu/ (first seen 2026-05-10, last seen 2026-05-10)
+- MathVerse: Does Your Multi-modal LLM Truly See the Diagrams in Visual Math Problems? — https://web.cs.ucla.edu/~kwchang/bibliography/zhang2024mathverse/ (first seen 2026-05-10, last seen 2026-05-10)
+- MathVista: Evaluating Mathematical Reasoning of Foundation Models in Visual Contexts — https://arxiv.org/abs/2310.02255 (first seen 2026-05-10, last seen 2026-05-10)
+- Polymath: A Challenging Multi-modal Mathematical Reasoning Benchmark — https://arxiv.org/abs/2410.14702 (first seen 2026-05-10, last seen 2026-05-10)
+- Solving olympiad geometry without human demonstrations — https://www.nature.com/articles/s41586-023-06747-5 (first seen 2026-05-10, last seen 2026-05-10)
+
+7. Code / project pages / datasets
+
+- CombiBench GitHub repository — https://github.com/MoonshotAI/CombiBench (first seen 2026-05-10, last seen 2026-05-10)
+- CombiBench: Benchmarking LLM Capability for Combinatorial Mathematics — https://arxiv.org/abs/2505.03171 (first seen 2026-05-10, last seen 2026-05-10)

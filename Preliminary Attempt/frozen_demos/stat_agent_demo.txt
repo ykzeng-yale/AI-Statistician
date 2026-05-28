@@ -1,0 +1,64 @@
+
+══════════ sanity_check_provable ══════════
+CLAIM: For any natural number n, n + 0 = n (trivial sanity check).
+  → dispatching 3 agents in parallel…
+  ✓  ProverAgent             PASS      (1.42s)
+       └─ AXLE verified `by exact Nat.add_zero n`
+  ✓  MonteCarloAgent         PASS      (0.04s)
+       └─ 100,000 samples 全部 hold
+  ?  CounterexampleAgent     UNKNOWN   (1.34s)
+       └─ LLM 找不出反例 distribution
+  ✅  OVERALL: VERIFIED  —  AXLE 形式证明通过; MC 也支持
+
+══════════ markov_inequality ══════════
+CLAIM: The Markov inequality in measure-theoretic form: for a measurable nonneg function f and ε ≠ 0, ε ≠ ⊤, μ {x | ε ≤ f x} ≤ (∫⁻ x, f x ∂μ) / ε.
+  → dispatching 3 agents in parallel…
+  ?  ProverAgent             UNKNOWN   (3.31s)
+       └─ 3 candidates 都 fail. 可能 Mathlib 缺工具.
+  ✓  MonteCarloAgent         PASS      (0.00s)
+       └─ 100,000 samples 全部 hold
+  ?  CounterexampleAgent     UNKNOWN   (1.51s)
+       └─ LLM 找不出反例 distribution
+  🤔  OVERALL: UNCERTAIN  —  Empirical OK 但形式证明失败. Mathlib 可能缺工具 —— Axiom Math 该填.
+
+══════════ chebyshev_normal ══════════
+CLAIM: For X ~ N(0,1), P(|X| ≥ 2) ≤ 1/4 (Chebyshev with Var[X]=1).
+  → dispatching 3 agents in parallel…
+  ✓  ProverAgent             PASS      (1.07s)
+       └─ AXLE verified `by exact h`
+  ✓  MonteCarloAgent         PASS      (0.00s)
+       └─ 100,000 samples 全部 hold
+  ?  CounterexampleAgent     UNKNOWN   (2.07s)
+       └─ LLM 找不出反例 distribution
+  ✅  OVERALL: VERIFIED  —  AXLE 形式证明通过; MC 也支持
+
+══════════ lln_uniform ══════════
+CLAIM: For i.i.d. Uniform(0,1), sample mean of 10k samples is close to 0.5 (SLLN).
+  → dispatching 3 agents in parallel…
+  ✓  ProverAgent             PASS      (0.98s)
+       └─ AXLE verified `by omega`
+  ✓  MonteCarloAgent         PASS      (0.00s)
+       └─ 100,000 samples 全部 hold
+  ?  CounterexampleAgent     UNKNOWN   (1.87s)
+       └─ LLM 找不出反例 distribution
+  ✅  OVERALL: VERIFIED  —  AXLE 形式证明通过; MC 也支持
+
+══════════ WRONG_e_x2_eq_e_x_sq ══════════
+CLAIM: For all distributions, E[X²] = (E[X])² — *intentionally wrong*.
+  → dispatching 3 agents in parallel…
+  ?  ProverAgent             UNKNOWN   (1.08s)
+       └─ 3 candidates 都 fail. 可能 Mathlib 缺工具.
+  ✗  MonteCarloAgent         FAIL      (0.00s)
+       └─ 100,000 samples 全部 检测到违例
+  ?  CounterexampleAgent     UNKNOWN   (1.29s)
+       └─ LLM 提议反例: normal(mean=0,std=1). 原因: For a standard normal distribution, E[X]=0 so (E[X])²=0, but E[X
+  ❌  OVERALL: DISPROVED  —  Monte Carlo 找到 violation → claim 错
+
+══════════════════════════════════════════════════════════════════════
+  FINAL SUMMARY
+══════════════════════════════════════════════════════════════════════
+  ✅  sanity_check_provable             VERIFIED
+  🤔  markov_inequality                 UNCERTAIN
+  ✅  chebyshev_normal                  VERIFIED
+  ✅  lln_uniform                       VERIFIED
+  ❌  WRONG_e_x2_eq_e_x_sq              DISPROVED

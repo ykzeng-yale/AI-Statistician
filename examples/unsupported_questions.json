@@ -1,0 +1,25 @@
+{
+  "questions": [
+    {
+      "id": "unsupported_weibull_hazard",
+      "title": "Unsupported JSON: Weibull hazard model",
+      "dgp": "T_i iid Weibull(shape=2.0, scale=1.5) with right censoring",
+      "target": "Estimate the hazard ratio under a Cox model",
+      "n_obs": 200
+    },
+    {
+      "id": "unsupported_missing_data_mean",
+      "title": "Unsupported JSON: missing-data mean",
+      "dgp": "Observed outcomes are missing at random with covariate-dependent missingness",
+      "target": "Estimate the full-population mean under missing data",
+      "n_obs": 300
+    },
+    {
+      "id": "unsupported_normal_skewness",
+      "title": "Unsupported JSON: normal skewness target",
+      "dgp": "X_i iid Normal(mu=0.0, sigma=1.0)",
+      "target": "Estimate the third standardized moment / skewness",
+      "n_obs": 120
+    }
+  ]
+}
