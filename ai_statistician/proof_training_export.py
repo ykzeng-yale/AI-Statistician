@@ -23,6 +23,8 @@ class ProofSftExample:
     attempt_id: str
     candidate_hash: str
     verifier: str
+    verification_strength: str
+    kernel_verified: bool
     expected_lemmas: tuple[str, ...]
     retrieved_obligations: tuple[str, ...]
     tags: tuple[str, ...]
@@ -68,6 +70,8 @@ def export_proof_training_dataset(
         "validation_fraction": validation_fraction,
         "n_attempts": len(attempts),
         "n_positive_attempts": len(positives),
+        "n_kernel_positive_attempts": sum(1 for row in positives if row.get("kernel_verified")),
+        "n_non_kernel_positive_attempts": sum(1 for row in positives if not row.get("kernel_verified")),
         "n_sft_examples": len(examples),
         "n_train": sum(1 for row in examples if row.split == "train"),
         "n_validation": sum(1 for row in examples if row.split == "validation"),
@@ -77,6 +81,7 @@ def export_proof_training_dataset(
         "dataset_fingerprint": stable_hash([asdict(row) for row in examples]),
         "limitations": [
             "whole-proof prompt/completion examples only",
+            "examples retain verification_strength and kernel_verified so mock-positive data can be filtered downstream",
             "no tactic-state transitions, process rewards, or proof-search traces",
             "negative proof attempts are not used for SFT targets; keep them for future repair/value datasets",
         ],
@@ -107,6 +112,8 @@ def _sft_example(row: dict[str, object], *, split: str) -> ProofSftExample:
         attempt_id=attempt_id,
         candidate_hash=str(row.get("candidate_hash", "")),
         verifier=str(row.get("verifier", "")),
+        verification_strength=str(row.get("verification_strength", "unknown")),
+        kernel_verified=bool(row.get("kernel_verified", False)),
         expected_lemmas=expected_lemmas,
         retrieved_obligations=retrieved_obligations,
         tags=tuple(str(item) for item in row.get("tags", []) or []),

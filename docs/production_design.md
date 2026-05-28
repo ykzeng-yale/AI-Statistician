@@ -627,9 +627,12 @@ several examples reuse helper names such as `constantEstimator`.
 It also writes `proof_attempts.jsonl` and
 `proof_attempt_log_manifest.json`. Those rows are the first verifier-filtered
 training substrate: they include the formal statement, spliced Lean candidate,
-candidate hash, verifier, reward, errors/first error, retrieval hits, and a
-`supervision_target` for successful proof bodies. This is proof-level logging
-only; tactic-state transitions and process rewards remain future work.
+candidate hash, verifier, `verification_strength`, `kernel_verified`, reward,
+errors/first error, retrieval hits, and a `supervision_target` for successful
+proof bodies. Mock-positive rows are regression-test evidence only; AXLE rows
+with `kernel_verified=true` are the Lean-kernel proof evidence. This is
+proof-level logging only; tactic-state transitions and process rewards remain
+future work.
 Use `proof-training-export` to convert a checked attempt log into deterministic
 whole-proof SFT data:
 

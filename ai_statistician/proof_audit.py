@@ -72,10 +72,14 @@ async def audit_proof_bank(
     payload = {
         "created_at": datetime.now(timezone.utc).isoformat(),
         "verifier": getattr(verifier, "name", type(verifier).__name__),
+        "verification_strength": _verification_strength(checks),
         "proof_bank_fingerprint": proof_bank_fingerprint(),
         "n_obligations": len(checks),
         "n_verified": n_ok,
+        "n_kernel_verified": sum(1 for check in checks if check.kernel_verified),
+        "n_non_kernel_verified": sum(1 for check in checks if check.ok and not check.kernel_verified),
         "all_verified": n_ok == len(checks),
+        "all_kernel_verified": bool(checks) and all(check.kernel_verified for check in checks),
         "dependency_graph": dependency_graph,
         "filters": {
             "ids": ids or [],
@@ -91,6 +95,15 @@ async def audit_proof_bank(
         encoding="utf-8",
     )
     return payload
+
+
+def _verification_strength(checks: list[ProofCheck]) -> str:
+    strengths = sorted({check.verification_strength for check in checks if check.verification_strength})
+    if not strengths:
+        return "unknown"
+    if len(strengths) == 1:
+        return strengths[0]
+    return "mixed:" + ",".join(strengths)
 
 
 def _audit_dependency_graph(

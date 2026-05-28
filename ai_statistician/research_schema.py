@@ -97,6 +97,8 @@ class FormalSubclaim:
     lean_statement: str | None = None
     formalization_status: str = "unknown"
     verifier: str | None = None
+    verification_strength: str = "unknown"
+    kernel_verified: bool = False
     elapsed_ms: int = 0
     errors: list[str] = field(default_factory=list)
     gap_reason: str | None = None

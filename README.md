@@ -122,7 +122,10 @@ data: `proof_audit_manifest.json`, exported Lean files, `proof_attempts.jsonl`,
 and `proof_attempt_log_manifest.json`. The JSONL rows are proof-level verifier
 attempts. Positive rows include the checked proof body as `supervision_target`;
 failed rows preserve verifier errors, `first_error`, retrieval context, and
-reward `0.0` for future repair/value-model data. This is not tactic-state
+reward `0.0` for future repair/value-model data. Every proof row records
+`verification_strength` and `kernel_verified`: offline mock checks are useful
+for regression gates, but only `--real-lean` AXLE rows with
+`kernel_verified=true` are Lean-kernel proof evidence. This is not tactic-state
 tracing yet.
 Convert those checked attempts into whole-proof SFT prompt/completion data with:
 

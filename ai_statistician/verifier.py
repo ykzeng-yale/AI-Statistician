@@ -60,6 +60,8 @@ class MockProofVerifier:
             ok=not errors,
             proof_body=proof_body,
             verifier=self.name,
+            verification_strength="mock_static_check",
+            kernel_verified=False,
             elapsed_ms=int((time.perf_counter() - start) * 1000),
             errors=errors,
             retrieval_hits=retrieval_hits,
@@ -87,6 +89,8 @@ class AxleProofVerifier:
                 ok=False,
                 proof_body=proof_body,
                 verifier=self.name,
+                verification_strength="axle_unavailable",
+                kernel_verified=False,
                 errors=["AXLE_API_KEY is not set"],
                 retrieval_hits=retrieval_hits,
             )
@@ -122,6 +126,8 @@ class AxleProofVerifier:
             ok=ok,
             proof_body=proof_body,
             verifier=self.name,
+            verification_strength="axle_lean_kernel",
+            kernel_verified=ok,
             elapsed_ms=int((time.perf_counter() - start) * 1000),
             errors=errors,
             retrieval_hits=retrieval_hits,
@@ -130,4 +136,3 @@ class AxleProofVerifier:
 
 def run_async(coro):
     return asyncio.run(coro)
-

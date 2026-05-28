@@ -58,6 +58,8 @@ class ProofCheck:
     ok: bool
     proof_body: str
     verifier: str
+    verification_strength: str = "unknown"
+    kernel_verified: bool = False
     elapsed_ms: int = 0
     errors: list[str] = field(default_factory=list)
     retrieval_hits: list[RetrievalHit] = field(default_factory=list)
@@ -85,6 +87,8 @@ class ProofAttemptRecord:
     candidate: str
     candidate_hash: str
     verifier: str
+    verification_strength: str
+    kernel_verified: bool
     ok: bool
     reward: float
     elapsed_ms: int

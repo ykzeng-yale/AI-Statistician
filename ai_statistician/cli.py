@@ -174,7 +174,8 @@ async def _proof_audit(args: argparse.Namespace) -> int:
     print("=" * 72)
     print(
         f"verified={payload['n_verified']}/{payload['n_obligations']} "
-        f"verifier={payload['verifier']}"
+        f"kernel={payload['n_kernel_verified']}/{payload['n_obligations']} "
+        f"verifier={payload['verifier']} strength={payload['verification_strength']}"
     )
     for check in payload["checks"]:
         badge = "OK" if check["ok"] else "FAIL"

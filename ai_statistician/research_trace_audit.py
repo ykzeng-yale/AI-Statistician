@@ -519,10 +519,25 @@ def _validate_formal_subclaims(
                 errors.append(f"proved subclaim {idx} missing proof_obligation_id")
             if not subclaim.get("lean_statement"):
                 errors.append(f"proved subclaim {idx} missing lean_statement")
-            if subclaim.get("formalization_status") != "verified_proof":
-                errors.append(f"proved subclaim {idx} formalization_status is not verified_proof")
             if not subclaim.get("verifier"):
                 errors.append(f"proved subclaim {idx} missing verifier")
+            strength = subclaim.get("verification_strength")
+            if not strength:
+                errors.append(f"proved subclaim {idx} missing verification_strength")
+            if not isinstance(subclaim.get("kernel_verified"), bool):
+                errors.append(f"proved subclaim {idx} kernel_verified flag missing")
+            if strength == "axle_lean_kernel":
+                if subclaim.get("formalization_status") != "kernel_verified_proof":
+                    errors.append(f"proved subclaim {idx} AXLE proof status is not kernel_verified_proof")
+                if not subclaim.get("kernel_verified"):
+                    errors.append(f"proved subclaim {idx} AXLE proof is not marked kernel_verified")
+            elif strength == "mock_static_check":
+                if subclaim.get("formalization_status") != "mock_verified_proof":
+                    errors.append(f"proved subclaim {idx} mock proof status is not mock_verified_proof")
+                if subclaim.get("kernel_verified"):
+                    errors.append(f"proved subclaim {idx} mock proof must not be marked kernel_verified")
+            else:
+                errors.append(f"proved subclaim {idx} has unknown verification_strength: {strength!r}")
             if subclaim.get("errors"):
                 errors.append(f"proved subclaim {idx} has verifier errors")
             errors.extend(_validate_proof_dependencies(idx, subclaim, proved_ids))

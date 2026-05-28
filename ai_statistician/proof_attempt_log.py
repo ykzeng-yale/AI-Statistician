@@ -10,7 +10,7 @@ from .schema import FormalObligation, ProofAttemptRecord, ProofCheck
 from .verifier import splice_proof
 
 
-PROOF_ATTEMPT_SCHEMA_VERSION = 1
+PROOF_ATTEMPT_SCHEMA_VERSION = 2
 
 
 def build_proof_attempt_record(
@@ -26,6 +26,8 @@ def build_proof_attempt_record(
             "formal_statement": obligation.formal_statement,
             "candidate": candidate,
             "verifier": check.verifier,
+            "verification_strength": check.verification_strength,
+            "kernel_verified": check.kernel_verified,
         }
     )
     attempt_id = f"{obligation.id}:{attempt_index}:{candidate_hash[:16]}"
@@ -44,6 +46,8 @@ def build_proof_attempt_record(
         candidate=candidate,
         candidate_hash=candidate_hash,
         verifier=check.verifier,
+        verification_strength=check.verification_strength,
+        kernel_verified=check.kernel_verified,
         ok=check.ok,
         reward=1.0 if check.ok else 0.0,
         elapsed_ms=check.elapsed_ms,
@@ -75,6 +79,8 @@ def write_proof_attempt_log(
         "n_attempts": len(records),
         "n_positive": sum(1 for row in records if row.ok),
         "n_negative": sum(1 for row in records if not row.ok),
+        "n_kernel_verified": sum(1 for row in records if row.kernel_verified),
+        "n_non_kernel_verified": sum(1 for row in records if row.ok and not row.kernel_verified),
         "positive_rate": (
             sum(1 for row in records if row.ok) / len(records)
             if records
@@ -84,6 +90,8 @@ def write_proof_attempt_log(
         "attempt_log_fingerprint": stable_hash([asdict(row) for row in records]),
         "limitations": [
             "proof-level attempts only; no tactic-state transitions yet",
+            "kernel_verified=true only for AXLE/Lean-kernel accepted proof attempts",
+            "mock-positive rows are useful for offline regression tests but are not Lean-kernel proofs",
             "positive rows are suitable for verifier-filtered whole-proof SFT or rejection sampling",
             "negative rows preserve verifier errors for future repair/value-model data",
         ],

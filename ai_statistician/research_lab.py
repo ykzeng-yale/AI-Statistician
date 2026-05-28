@@ -2185,6 +2185,14 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
 }
 
 
+def _formalization_status(check: Any) -> str:
+    if not check.ok:
+        return "verification_failed"
+    if getattr(check, "kernel_verified", False):
+        return "kernel_verified_proof"
+    return "mock_verified_proof"
+
+
 class FormalSubclaimProver:
     def __init__(
         self,
@@ -2220,8 +2228,10 @@ class FormalSubclaimProver:
                     claim_type="lean_obligation",
                     proof_obligation_id=obligation.id,
                     lean_statement=obligation.formal_statement,
-                    formalization_status="verified_proof" if check.ok else "verification_failed",
+                    formalization_status=_formalization_status(check),
                     verifier=check.verifier,
+                    verification_strength=check.verification_strength,
+                    kernel_verified=check.kernel_verified,
                     elapsed_ms=check.elapsed_ms,
                     errors=check.errors,
                     gap_reason=None if check.ok else "registered Mathlib-backed subclaim failed verifier",
@@ -3310,6 +3320,12 @@ def compact_research_summary(report: ResearchReport) -> dict[str, Any]:
     gaps = sum(1 for row in report.formal_subclaims if row.status == "FORMAL_GAP")
     failed = sum(1 for row in report.formal_subclaims if row.status == "FAILED")
     formalized_gaps = sum(1 for row in report.formal_subclaims if row.status == "FORMAL_GAP" and row.lean_statement)
+    kernel_verified = sum(1 for row in report.formal_subclaims if row.status == "PROVED" and row.kernel_verified)
+    mock_verified = sum(
+        1
+        for row in report.formal_subclaims
+        if row.status == "PROVED" and row.verification_strength == "mock_static_check"
+    )
     proved_obligations = {
         row.proof_obligation_id
         for row in report.formal_subclaims
@@ -3351,6 +3367,8 @@ def compact_research_summary(report: ResearchReport) -> dict[str, Any]:
         ],
         "formal": {
             "proved": proved,
+            "kernel_verified": kernel_verified,
+            "mock_verified": mock_verified,
             "gaps": gaps,
             "failed": failed,
             "formalized_gaps": formalized_gaps,

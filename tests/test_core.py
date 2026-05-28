@@ -169,6 +169,10 @@ class ProofBankTests(unittest.TestCase):
 
         payload = asyncio.run(run())
         self.assertTrue(payload["all_verified"])
+        self.assertFalse(payload["all_kernel_verified"])
+        self.assertEqual(payload["verification_strength"], "mock_static_check")
+        self.assertEqual(payload["n_kernel_verified"], 0)
+        self.assertEqual(payload["n_non_kernel_verified"], 2)
         self.assertEqual(len(payload["proof_bank_fingerprint"]), 64)
         manifest = Path("runs/test_proof_audit/proof_audit_manifest.json")
         lean_file = Path("runs/test_proof_audit/lean/event_indicator_expectation.lean")
@@ -183,8 +187,10 @@ class ProofBankTests(unittest.TestCase):
         self.assertEqual(payload["proof_attempt_log"]["n_positive"], 2)
         rows = [json.loads(line) for line in attempt_log.read_text(encoding="utf-8").splitlines()]
         self.assertEqual(len(rows), 2)
-        self.assertEqual(rows[0]["schema_version"], 1)
+        self.assertEqual(rows[0]["schema_version"], 2)
         self.assertTrue(rows[0]["ok"])
+        self.assertEqual(rows[0]["verification_strength"], "mock_static_check")
+        self.assertFalse(rows[0]["kernel_verified"])
         self.assertEqual(rows[0]["reward"], 1.0)
         self.assertTrue(rows[0]["supervision_target"])
         self.assertTrue(rows[0]["candidate_hash"])
@@ -204,6 +210,8 @@ class ProofBankTests(unittest.TestCase):
         ]
         self.assertEqual(len(all_examples), 2)
         self.assertEqual(all_examples[0]["task"], "lean_whole_proof_body")
+        self.assertEqual(all_examples[0]["verification_strength"], "mock_static_check")
+        self.assertFalse(all_examples[0]["kernel_verified"])
         self.assertIn("Formal statement:", all_examples[0]["prompt"])
         self.assertTrue(all_examples[0]["completion"])
         baseline = evaluate_retrieval_proof_policy_baseline(
