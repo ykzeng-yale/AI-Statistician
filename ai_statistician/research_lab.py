@@ -16,6 +16,7 @@ from .fingerprint import stable_hash
 from .formal_source_index import FormalSourceHit, FormalSourceRetriever, build_formal_source_search_backend
 from .proof_bank import all_obligations, get_obligation, proof_bank_fingerprint
 from .research_knowledge import KNOWLEDGE_CARDS, retrieve_problem_knowledge
+from .research_paper_index import paper_source_index_fingerprint, retrieve_paper_sources
 from .research_source_inventory import research_source_inventory_fingerprint
 from .research_schema import (
     CandidateProcedure,
@@ -3100,6 +3101,7 @@ class AIStatisticalTheoryLab:
         procedures, theorem_goals = self.planner.plan(problem)
         procedures = attach_research_algorithm_metadata(procedures)
         knowledge = retrieve_problem_knowledge(question, problem, theorem_goals, k=8)
+        paper_sources = retrieve_paper_sources(question, problem, theorem_goals, k=5)
         subclaims = await self.prover.prove(problem, theorem_goals)
         simulations = self.simulator.run(problem, procedures)
         proof_failed = any(row.status == "FAILED" for row in subclaims if row.claim_type == "lean_obligation")
@@ -3115,6 +3117,7 @@ class AIStatisticalTheoryLab:
             problem=problem,
             procedures=procedures,
             knowledge=knowledge,
+            paper_sources=paper_sources,
             formal_subclaims=subclaims,
             simulations=simulations,
             theorem_goals=theorem_goals,
@@ -3226,6 +3229,15 @@ def compact_research_summary(report: ResearchReport) -> dict[str, Any]:
         "status": report.status,
         "problem_class": report.problem.problem_class,
         "procedures": [row.id for row in report.procedures],
+        "paper_sources": [
+            {
+                "id": row.id,
+                "source_type": row.source_type,
+                "title": row.title,
+                "score": round(row.score, 3),
+            }
+            for row in report.paper_sources[:3]
+        ],
         "algorithms": [
             {
                 "procedure_id": row.id,
@@ -3257,6 +3269,7 @@ def build_research_provenance() -> dict[str, str]:
     return {
         "proof_bank_fingerprint": proof_bank_fingerprint(),
         "research_knowledge_fingerprint": stable_hash([asdict(card) for card in KNOWLEDGE_CARDS]),
+        "paper_source_index_fingerprint": paper_source_index_fingerprint(),
         "research_source_inventory_fingerprint": research_source_inventory_fingerprint(),
         "research_algorithm_registry_fingerprint": research_algorithm_registry_fingerprint(),
         "research_lab_version": "research_lab_v0",

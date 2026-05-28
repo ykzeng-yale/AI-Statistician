@@ -10,6 +10,7 @@ from typing import Any
 from .frontier_coverage_audit import audit_frontier_coverage
 from .proof_bank import all_obligations, proof_bank_fingerprint
 from .research_knowledge import FORMAL_INFRASTRUCTURE_KNOWLEDGE, KNOWLEDGE_CARDS, retrieve_problem_knowledge
+from .research_paper_index import build_paper_source_index, retrieve_paper_sources
 from .research_lab import (
     AIStatisticalTheoryLab,
     FormalSubclaimProver,
@@ -77,6 +78,11 @@ def build_research_capability_audit(
         retrieve_problem_knowledge(question, problem, goals, k=8)
         for (question, problem), (_procedures, goals) in zip(supported_pairs, plans, strict=True)
     ]
+    paper_index = build_paper_source_index()
+    paper_hits = [
+        retrieve_paper_sources(question, problem, goals, records=paper_index, k=5)
+        for (question, problem), (_procedures, goals) in zip(supported_pairs, plans, strict=True)
+    ]
     algorithms = all_research_algorithm_specs()
     obligations = all_obligations()
     frontier = audit_frontier_coverage(benchmark_file=frontier_path)
@@ -137,17 +143,26 @@ def build_research_capability_audit(
             ),
         ),
         ResearchCapabilityFinding(
-            requirement="retrieve related statistical-method, Lean, and prover/search knowledge",
-            status="ACHIEVED" if knowledge_hits and all(_knowledge_hit_ok(row) for row in knowledge_hits) else "NOT_ACHIEVED",
+            requirement="retrieve related paper, statistical-method, Lean, and prover/search knowledge",
+            status=(
+                "ACHIEVED"
+                if knowledge_hits
+                and all(_knowledge_hit_ok(row) for row in knowledge_hits)
+                and paper_hits
+                and all(_paper_hit_ok(row) for row in paper_hits)
+                else "NOT_ACHIEVED"
+            ),
             current_release_gate=True,
             evidence=(
                 f"knowledge_cards={len(KNOWLEDGE_CARDS)}",
                 f"formal_infrastructure_cards={len(FORMAL_INFRASTRUCTURE_KNOWLEDGE)}",
+                f"paper_source_records={len(paper_index)}",
                 f"problem_retrieval_rows={len(knowledge_hits)}",
-                "each supported example retrieves a statistical method card and Lean/search infrastructure card",
+                f"paper_retrieval_rows={len(paper_hits)}",
+                "each supported example retrieves a statistical method card, Lean/search infrastructure card, and local paper/source hit",
             ),
             limitations=(
-                "Retrieval is a deterministic/local knowledge layer; Loogle, Lean Finder, and ReProver are integration targets.",
+                "Retrieval is a deterministic/local knowledge layer; Loogle, Lean Finder, ReProver, and semantic paper search are integration targets.",
             ),
         ),
         ResearchCapabilityFinding(
@@ -367,6 +382,13 @@ def _theorem_goal_complete(goal: Any) -> bool:
 def _knowledge_hit_ok(hits: list[Any]) -> bool:
     return bool(hits) and any(hit.source_type == "statistical_method" for hit in hits) and any(
         hit.id in FORMAL_INFRASTRUCTURE_KNOWLEDGE for hit in hits
+    )
+
+
+def _paper_hit_ok(hits: list[Any]) -> bool:
+    return bool(hits) and any(
+        getattr(hit, "source_type", "") in {"frontier_stat_paper", "ai_math_paper"}
+        for hit in hits
     )
 
 

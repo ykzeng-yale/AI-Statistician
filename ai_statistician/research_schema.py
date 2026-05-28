@@ -69,6 +69,23 @@ class KnowledgeCard:
     tags: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class PaperSourceHit:
+    id: str
+    title: str
+    source_type: str
+    source_path: str
+    topic: str
+    journal: str = ""
+    publication_date: str = ""
+    doi: str = ""
+    url: str = ""
+    score: float = 0.0
+    matched_terms: tuple[str, ...] = ()
+    summary: str = ""
+    withheld_fields: tuple[str, ...] = ()
+
+
 @dataclass
 class FormalSubclaim:
     id: str
@@ -103,6 +120,7 @@ class ResearchReport:
     problem: ResearchProblemSpec
     procedures: list[CandidateProcedure]
     knowledge: list[KnowledgeCard]
+    paper_sources: list[PaperSourceHit]
     formal_subclaims: list[FormalSubclaim]
     simulations: list[ResearchSimulation]
     theorem_goals: list[TheoremGoal]

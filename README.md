@@ -54,6 +54,12 @@ the vendored EmpericalProcessLEAN main snapshot in
 source pool in `legacy_sources/ai_statistician/`, and OpenProver. These
 vendored Lean/stat source pools are not the active runtime; they are registered
 as retrieval, proof-bank expansion, benchmark, and training material.
+Every research trace now also carries `paper_sources`: ranked local hits from
+the 60-paper frontier benchmark and the AI-for-math paper log. Frontier
+benchmark records deliberately mark `expected_theoretical_results` and
+`evaluation_prompt` as withheld fields and do not use them for retrieval, so
+paper grounding does not leak benchmark answers into theory planning.
+
 `formal-source-audit` goes one step deeper: it indexes local Lean declarations
 from Mathlib Probability/MeasureTheory plus the local StatInference,
 EmpiricalProcessLEAN, and lean-stat-learning-theory checkouts, then runs

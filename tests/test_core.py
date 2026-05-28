@@ -39,8 +39,11 @@ from ai_statistician.research_capability_audit import (
 from ai_statistician.research_lab import (
     audit_research_algorithm_registry,
     load_open_research_questions,
+    ProblemFormalizer,
     run_research_benchmark,
+    TheoryPlanner,
 )
+from ai_statistician.research_paper_index import build_paper_source_index, retrieve_paper_sources
 from ai_statistician.research_system_audit import ResearchSystemAuditConfig, run_research_system_audit
 from ai_statistician.research_trace_audit import audit_research_traces
 from ai_statistician.research_trace_audit import DIAGNOSTIC_METRIC_ALIASES
@@ -964,9 +967,21 @@ class SystemTests(unittest.TestCase):
         trace_payload = json.loads(trace.read_text())
         self.assertEqual(trace_payload["trace_kind"], "research_theory_lab")
         self.assertIn("research_knowledge_fingerprint", trace_payload["provenance"])
+        self.assertIn("paper_source_index_fingerprint", trace_payload["provenance"])
         self.assertIn("research_source_inventory_fingerprint", trace_payload["provenance"])
         self.assertIn("research_algorithm_registry_fingerprint", trace_payload["provenance"])
         self.assertTrue(trace_payload["limitations"])
+        self.assertTrue(trace_payload["paper_sources"])
+        self.assertTrue(payload["questions"][0]["paper_sources"])
+        frontier_paper_hits = [
+            row for row in trace_payload["paper_sources"]
+            if row["source_type"] == "frontier_stat_paper"
+        ]
+        self.assertTrue(frontier_paper_hits)
+        for row in frontier_paper_hits:
+            self.assertIn("expected_theoretical_results", row["withheld_fields"])
+            self.assertIn("evaluation_prompt", row["withheld_fields"])
+            self.assertNotIn("expected_theoretical_results", row["summary"])
         knowledge_ids = {row["id"] for row in trace_payload["knowledge"]}
         self.assertIn("aipw_double_robustness", knowledge_ids)
         self.assertTrue(
@@ -1028,6 +1043,25 @@ class SystemTests(unittest.TestCase):
                 "estimator_error_chebyshev",
             ],
         )
+
+    def test_paper_source_index_retrieves_frontier_sources_without_gold_leakage(self) -> None:
+        records = build_paper_source_index()
+        self.assertGreaterEqual(len(records), 60)
+        self.assertTrue(any(row.source_type == "frontier_stat_paper" for row in records))
+        self.assertTrue(any(row.source_type == "ai_math_paper" for row in records))
+
+        question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+        problem = ProblemFormalizer().formalize(question)
+        _procedures, theorem_goals = TheoryPlanner().plan(problem)
+        hits = retrieve_paper_sources(question, problem, theorem_goals, records=records, k=5)
+        self.assertTrue(hits)
+        self.assertTrue(any(hit.source_type == "frontier_stat_paper" for hit in hits))
+        for hit in hits:
+            self.assertTrue(hit.matched_terms)
+            if hit.source_type == "frontier_stat_paper":
+                self.assertIn("expected_theoretical_results", hit.withheld_fields)
+                self.assertIn("evaluation_prompt", hit.withheld_fields)
+                self.assertNotIn("expected_theoretical_results", hit.summary)
 
     def test_research_markdown_question_file_runs_through_benchmark(self) -> None:
         async def run():

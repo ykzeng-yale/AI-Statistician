@@ -19,6 +19,7 @@ REQUIRED_RESEARCH_TRACE_KEYS = {
     "problem",
     "procedures",
     "knowledge",
+    "paper_sources",
     "formal_subclaims",
     "simulations",
     "theorem_goals",
@@ -335,6 +336,30 @@ def _validate_research_trace(
             errors.append("knowledge retrieval has no local Lean/stat formal source card")
         if not search_ids:
             errors.append("knowledge retrieval has no formal retrieval/search system card")
+
+    paper_sources = data.get("paper_sources")
+    summary_paper_sources = summary.get("paper_sources", [])
+    if not isinstance(paper_sources, list) or not paper_sources:
+        errors.append("paper_sources retrieval section missing or empty")
+    else:
+        frontier_or_ai_hits = 0
+        for idx, source in enumerate(paper_sources):
+            if not isinstance(source, dict):
+                errors.append(f"paper source {idx} is not an object")
+                continue
+            for key in ("id", "title", "source_type", "source_path", "score", "matched_terms"):
+                if source.get(key) in (None, "", []):
+                    errors.append(f"paper source {idx} missing {key}")
+            if source.get("source_type") in {"frontier_stat_paper", "ai_math_paper"}:
+                frontier_or_ai_hits += 1
+            if source.get("source_type") == "frontier_stat_paper":
+                withheld = set(str(item) for item in source.get("withheld_fields", []))
+                if not {"expected_theoretical_results", "evaluation_prompt"} <= withheld:
+                    errors.append(f"frontier paper source {idx} does not record withheld benchmark fields")
+        if not frontier_or_ai_hits:
+            errors.append("paper source retrieval has no frontier-stat or AI-for-math paper hit")
+        if isinstance(summary_paper_sources, list) and not summary_paper_sources:
+            errors.append("manifest summary missing compact paper source hits")
 
     formal_subclaims = data.get("formal_subclaims")
     if not isinstance(formal_subclaims, list) or not formal_subclaims:
