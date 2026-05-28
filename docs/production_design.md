@@ -134,7 +134,11 @@ This aggregates every `FORMAL_GAP` across a benchmark run into
 unproved theorem goal to its Lean skeleton artifact, proof strategy, required
 formal primitives, candidate procedure, retrieved knowledge cards, already
 verified subclaims, and retrieved local Lean/StatInference declarations from the
-formal-source index. This makes the formalization frontier auditable as a
+formal-source index. Each missing primitive also carries its own
+`primitive_formal_source_hits` list, which turns broad frontier gaps into
+actionable theorem-mining tasks such as "find local support for Slutsky" or
+"find local support for Davis-Kahan" instead of only retrieving candidates for
+the whole theorem goal. This makes the formalization frontier auditable as a
 library-construction backlog rather than leaving it spread across individual
 traces. The release-style `research-system-audit` includes this as a gate.
 

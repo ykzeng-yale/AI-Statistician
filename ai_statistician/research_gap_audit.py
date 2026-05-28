@@ -25,6 +25,7 @@ class ResearchGapBacklogRow:
     proved_subclaims: tuple[str, ...]
     supporting_proof_obligations: tuple[str, ...]
     retrieved_formal_sources: tuple[str, ...]
+    primitive_formal_sources: dict[str, tuple[str, ...]]
     ok: bool
     errors: tuple[str, ...] = ()
 
@@ -187,6 +188,32 @@ def _gap_rows_for_trace(
             )
             if not retrieved_formal_sources:
                 errors.append("formal gap formal_source_hits contain no declaration names")
+        primitive_hits = subclaim.get("primitive_formal_source_hits")
+        primitive_formal_sources: dict[str, tuple[str, ...]] = {}
+        if required_primitives:
+            if not isinstance(primitive_hits, dict) or not primitive_hits:
+                errors.append("formal gap missing primitive_formal_source_hits")
+            else:
+                missing_primitive_hit_rows = sorted(set(required_primitives) - set(str(key) for key in primitive_hits))
+                if missing_primitive_hit_rows:
+                    errors.append(
+                        "formal gap primitive_formal_source_hits missing primitives: "
+                        + ", ".join(missing_primitive_hit_rows)
+                    )
+                for primitive in required_primitives:
+                    rows_for_primitive = primitive_hits.get(primitive)
+                    if not isinstance(rows_for_primitive, list) or not rows_for_primitive:
+                        errors.append(f"formal gap primitive {primitive} has no retrieved formal sources")
+                        primitive_formal_sources[primitive] = ()
+                        continue
+                    names = tuple(
+                        str(hit.get("name"))
+                        for hit in rows_for_primitive
+                        if isinstance(hit, dict) and hit.get("name")
+                    )
+                    primitive_formal_sources[primitive] = names
+                    if not names:
+                        errors.append(f"formal gap primitive {primitive} hit rows contain no declaration names")
         rows.append(
             ResearchGapBacklogRow(
                 gap_id=gap_id,
@@ -204,6 +231,7 @@ def _gap_rows_for_trace(
                 proved_subclaims=proved_subclaims,
                 supporting_proof_obligations=supporting_proof_obligations,
                 retrieved_formal_sources=retrieved_formal_sources,
+                primitive_formal_sources=primitive_formal_sources,
                 ok=not errors,
                 errors=tuple(errors),
             )
@@ -263,6 +291,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
                 f"- Supporting proof obligations for this goal: {', '.join(row.get('supporting_proof_obligations', [])) or 'none'}",
                 f"- Proved subclaims available: {', '.join(row.get('proved_subclaims', [])) or 'none'}",
                 f"- Retrieved formal sources: {', '.join(row.get('retrieved_formal_sources', [])) or 'none'}",
+                "- Primitive-level candidates:",
+                *_primitive_source_lines(row.get("primitive_formal_sources", {})),
                 f"- Related knowledge: {', '.join(row.get('related_knowledge', [])) or 'none'}",
                 "",
             ]
@@ -273,3 +303,16 @@ def _markdown_report(payload: dict[str, object]) -> str:
         if errors:
             lines.append("")
     return "\n".join(lines)
+
+
+def _primitive_source_lines(value: object) -> list[str]:
+    if not isinstance(value, dict) or not value:
+        return ["  - none"]
+    lines = []
+    for primitive, hits in sorted(value.items()):
+        if isinstance(hits, list):
+            hit_text = ", ".join(str(item) for item in hits) or "none"
+        else:
+            hit_text = str(hits) if hits else "none"
+        lines.append(f"  - `{primitive}`: {hit_text}")
+    return lines

@@ -2230,10 +2230,21 @@ class FormalSubclaimProver:
             )
         for goal in theorem_goals:
             if goal.status == "FORMAL_GAP":
-                formal_source_hits = self.formal_source_retriever().search(
+                source_retriever = self.formal_source_retriever()
+                formal_source_hits = source_retriever.search(
                     _formal_source_query(problem, goal),
                     k=5,
                 )
+                primitive_formal_source_hits = {
+                    primitive: [
+                        _formal_source_hit_payload(hit)
+                        for hit in source_retriever.search(
+                            _formal_source_primitive_query(problem, goal, primitive),
+                            k=3,
+                        )
+                    ]
+                    for primitive in goal.required_primitives
+                }
                 subclaims.append(
                     FormalSubclaim(
                         id=f"{problem.question_id}:{goal.id}",
@@ -2241,13 +2252,19 @@ class FormalSubclaimProver:
                         status="FORMAL_GAP",
                         claim=goal.informal_statement,
                         claim_type="theory_gap",
-                        lean_statement=_lean_gap_skeleton(problem, goal, formal_source_hits),
+                        lean_statement=_lean_gap_skeleton(
+                            problem,
+                            goal,
+                            formal_source_hits,
+                            primitive_formal_source_hits,
+                        ),
                         formalization_status="lean_skeleton_with_placeholder_assumptions",
                         gap_reason=(
                             "Requires new statistics formalization beyond the current proof bank: "
                             f"{goal.proof_strategy}"
                         ),
                         formal_source_hits=[_formal_source_hit_payload(hit) for hit in formal_source_hits],
+                        primitive_formal_source_hits=primitive_formal_source_hits,
                     )
                 )
         return subclaims
@@ -3487,6 +3504,19 @@ def _formal_source_query(problem: ResearchProblemSpec, goal: TheoremGoal) -> str
     )
 
 
+def _formal_source_primitive_query(problem: ResearchProblemSpec, goal: TheoremGoal, primitive: str) -> str:
+    return " ".join(
+        [
+            primitive,
+            primitive.replace("_", " "),
+            problem.problem_class,
+            goal.title,
+            goal.proof_strategy,
+            " ".join(goal.proof_obligations),
+        ]
+    )
+
+
 def _formal_source_hit_payload(hit: FormalSourceHit) -> dict[str, Any]:
     decl = hit.declaration
     return {
@@ -3506,6 +3536,7 @@ def _lean_gap_skeleton(
     problem: ResearchProblemSpec,
     goal: TheoremGoal,
     formal_source_hits: list[FormalSourceHit] | None = None,
+    primitive_formal_source_hits: dict[str, list[dict[str, Any]]] | None = None,
 ) -> str:
     primitives = "\n".join(f"- {primitive}" for primitive in goal.required_primitives) or "- manual_formalization_required"
     support = "\n".join(f"- {obligation_id}" for obligation_id in goal.proof_obligations) or "- none"
@@ -3513,6 +3544,7 @@ def _lean_gap_skeleton(
         f"- {hit.declaration.name} ({hit.declaration.source_id}:{hit.declaration.path}:{hit.declaration.line})"
         for hit in (formal_source_hits or [])[:5]
     ) or "- none"
+    primitive_sources = _format_primitive_formal_sources(primitive_formal_source_hits or {})
     header = f"""import Mathlib
 open MeasureTheory ProbabilityTheory Filter
 
@@ -3533,6 +3565,9 @@ Proof-bank support already linked:
 Retrieved local Lean/StatInference candidates:
 {formal_sources}
 
+Primitive-level local candidates:
+{primitive_sources}
+
 Status: FORMAL_GAP.
 This file is intentionally not recorded as a verified theorem result.  The
 placeholder assumption named `h_frontier_missing_*` marks the exact theory
@@ -3544,6 +3579,22 @@ namespace AIStatisticianResearchGaps
 """
     theorem = _lean_gap_theorem(goal.id)
     return header + theorem + "\nend AIStatisticianResearchGaps\n"
+
+
+def _format_primitive_formal_sources(primitive_hits: dict[str, list[dict[str, Any]]]) -> str:
+    if not primitive_hits:
+        return "- none"
+    lines: list[str] = []
+    for primitive, hits in primitive_hits.items():
+        if not hits:
+            lines.append(f"- {primitive}: none")
+            continue
+        compact = ", ".join(
+            f"{hit.get('name')} ({hit.get('source_id')}:{hit.get('line')})"
+            for hit in hits[:3]
+        )
+        lines.append(f"- {primitive}: {compact}")
+    return "\n".join(lines)
 
 
 def _lean_gap_theorem(goal_id: str) -> str:

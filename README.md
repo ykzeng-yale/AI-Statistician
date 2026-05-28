@@ -78,6 +78,10 @@ The local declaration index now stores compressed theorem-shape features
 alongside raw text: binder counts, premise heads, conclusion head, left/right
 equality heads, and major symbols. Search therefore uses Lean-aware structure
 such as `IndepFun -> variance = sum` instead of only grep-style token overlap.
+Formal gaps also persist `primitive_formal_source_hits`, so each missing
+primitive such as `slutsky_theorem`, `davis_kahan_sin_theta`, or
+`regular_variation` gets its own local Lean/StatInference candidate list rather
+than relying only on a broad theorem-goal query.
 `formal-source-audit` now defaults to a persistent SQLite FTS + Lean-shape
 reranking backend and writes `formal_source_index.sqlite` next to the audit
 manifest, so repeated search and interactive theorem mining can query the local

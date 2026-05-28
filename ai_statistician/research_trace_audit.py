@@ -256,6 +256,7 @@ def _validate_research_trace(
 
     theorem_goals = data.get("theorem_goals")
     theorem_goal_ids: set[str] = set()
+    theorem_goals_by_id: dict[str, dict[str, Any]] = {}
     theorem_goal_proof_obligations: dict[str, list[str]] = {}
     if not isinstance(theorem_goals, list) or not theorem_goals:
         errors.append("theorem_goals section missing or empty")
@@ -272,6 +273,7 @@ def _validate_research_trace(
             if goal.get("id"):
                 goal_id = str(goal["id"])
                 theorem_goal_ids.add(goal_id)
+                theorem_goals_by_id[goal_id] = goal
                 raw_support = goal.get("proof_obligations", [])
                 if raw_support is None:
                     raw_support = []
@@ -368,7 +370,7 @@ def _validate_research_trace(
     if not isinstance(formal_subclaims, list) or not formal_subclaims:
         errors.append("formal_subclaims section missing or empty")
     else:
-        errors.extend(_validate_formal_subclaims(formal_subclaims, theorem_goal_ids, summary, run_dir))
+        errors.extend(_validate_formal_subclaims(formal_subclaims, theorem_goals_by_id, summary, run_dir))
         errors.extend(_validate_theorem_goal_proof_obligations(formal_subclaims, theorem_goal_proof_obligations))
         errors.extend(
             _validate_procedure_theorem_goal_coverage(
@@ -492,11 +494,12 @@ def _diagnostic_covered(diagnostic: str, metrics: dict[str, Any]) -> bool:
 
 def _validate_formal_subclaims(
     formal_subclaims: list[Any],
-    theorem_goal_ids: set[str],
+    theorem_goals_by_id: dict[str, dict[str, Any]],
     summary: dict[str, Any],
     run_dir: Path,
 ) -> list[str]:
     errors: list[str] = []
+    theorem_goal_ids = set(theorem_goals_by_id)
     proved = gaps = failed = formalized_gaps = 0
     proved_ids = {
         str(subclaim.get("proof_obligation_id"))
@@ -535,6 +538,8 @@ def _validate_formal_subclaims(
                     errors.append(f"gap subclaim {idx} Lean skeleton does not identify FORMAL_GAP status")
                 if "Retrieved local Lean/StatInference candidates" not in str(subclaim["lean_statement"]):
                     errors.append(f"gap subclaim {idx} Lean skeleton missing retrieved formal-source candidates")
+                if "Primitive-level local candidates" not in str(subclaim["lean_statement"]):
+                    errors.append(f"gap subclaim {idx} Lean skeleton missing primitive-level candidates")
                 artifact_path = subclaim.get("artifact_path")
                 if not artifact_path:
                     errors.append(f"gap subclaim {idx} missing artifact_path")
@@ -555,6 +560,31 @@ def _validate_formal_subclaims(
                 goal_id = str(subclaim["id"]).split(":")[-1]
                 if theorem_goal_ids and goal_id not in theorem_goal_ids:
                     errors.append(f"gap subclaim {idx} does not map to a theorem goal")
+                primitive_hits = subclaim.get("primitive_formal_source_hits")
+                goal = theorem_goals_by_id.get(goal_id)
+                if goal is not None:
+                    required_primitives = tuple(str(item) for item in goal.get("required_primitives", []) if str(item))
+                else:
+                    required_primitives = ()
+                if required_primitives:
+                    if not isinstance(primitive_hits, dict) or not primitive_hits:
+                        errors.append(f"gap subclaim {idx} missing primitive_formal_source_hits")
+                    else:
+                        missing = sorted(set(required_primitives) - set(str(key) for key in primitive_hits))
+                        if missing:
+                            errors.append(
+                                f"gap subclaim {idx} primitive_formal_source_hits missing primitives: "
+                                + ", ".join(missing)
+                            )
+                        for primitive in required_primitives:
+                            rows = primitive_hits.get(primitive)
+                            if not isinstance(rows, list) or not rows:
+                                errors.append(f"gap subclaim {idx} primitive {primitive} has no formal-source hits")
+                                continue
+                            if not any(isinstance(row, dict) and row.get("name") for row in rows):
+                                errors.append(
+                                    f"gap subclaim {idx} primitive {primitive} hit rows contain no declaration names"
+                                )
         elif status == "FAILED":
             failed += 1
             if not subclaim.get("errors"):

@@ -103,6 +103,7 @@ class FormalSubclaim:
     artifact_path: str | None = None
     proof_dependencies: tuple[str, ...] = ()
     formal_source_hits: list[dict[str, Any]] = field(default_factory=list)
+    primitive_formal_source_hits: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
 
 
 @dataclass

@@ -1025,8 +1025,14 @@ class SystemTests(unittest.TestCase):
             self.assertIn("FORMAL_GAP", row["lean_statement"])
             self.assertIn("Missing formal primitives", row["lean_statement"])
             self.assertIn("Retrieved local Lean/StatInference candidates", row["lean_statement"])
+            self.assertIn("Primitive-level local candidates", row["lean_statement"])
             self.assertTrue(row["formal_source_hits"])
             self.assertTrue(row["formal_source_hits"][0]["name"])
+            self.assertTrue(row["primitive_formal_source_hits"])
+            for primitive in causal_goals[row["id"].split(":")[-1]]["required_primitives"]:
+                self.assertIn(primitive, row["primitive_formal_source_hits"])
+                self.assertTrue(row["primitive_formal_source_hits"][primitive])
+                self.assertTrue(row["primitive_formal_source_hits"][primitive][0]["name"])
             self.assertTrue(Path(row["artifact_path"]).exists())
         procedure_goal_ids = set(trace_payload["procedures"][0]["theorem_goals"])
         theorem_goal_ids = {row["id"] for row in trace_payload["theorem_goals"]}
