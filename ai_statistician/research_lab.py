@@ -168,6 +168,62 @@ EXTRACTION_EVIDENCE_TERMS: dict[str, dict[str, tuple[str, ...]]] = {
             "estimation",
         ),
     },
+    "adaptive_transfer_active_preference_learning": {
+        "problem_class": (
+            "transfer learning",
+            "multi-task",
+            "multitask",
+            "gaussian mixture models",
+            "preference learning",
+            "active learning",
+            "human-in-the-loop",
+            "human in the loop",
+            "contextual online",
+        ),
+        "dgp": (
+            "multiple gaussian mixture-model tasks",
+            "gaussian mixture-model tasks",
+            "unknown similarity across tasks",
+            "outlier tasks",
+            "dynamic contextual information",
+            "dependent online preference outcomes",
+            "human-feedback comparisons",
+            "unlabeled data pool",
+            "expert human labels",
+            "multiple query schemes",
+        ),
+        "estimand": (
+            "transfer across gaussian mixture tasks",
+            "gaussian mixture models",
+            "unknown similarity across tasks",
+            "robust multitask gmm learning procedure",
+            "online decision strategy",
+            "optimal model",
+            "query-scheme choice",
+            "classification or prediction target",
+            "transfer gains",
+        ),
+        "assumptions": (
+            "fraction of arbitrary outlier tasks",
+            "em-type estimation",
+            "dependent online preference outcomes",
+            "human-feedback comparisons",
+            "expert human labels",
+            "multiple query schemes",
+        ),
+        "asymptotic_regime": (
+            "minimax-optimal",
+            "minimax-optimal convergence rates",
+            "regret",
+            "asymptotic inference targets",
+            "statistical efficiency",
+            "risk reduction",
+            "query schemes",
+            "classification or prediction target",
+            "active learning",
+            "task relatedness and contamination",
+        ),
+    },
     "high_dimensional_latent_structure_inference": {
         "problem_class": (
             "grade-of-membership",
@@ -681,6 +737,20 @@ RESEARCH_ALGORITHM_REGISTRY: dict[str, dict[str, object]] = {
         "version": "v1",
         "registry_status": "vetted",
     },
+    "robust_multitask_gmm_transfer": {
+        "summary": "robust transfer aggregation for related Gaussian-mixture tasks with outlier-task diagnostics",
+        "method": "_robust_multitask_gmm_transfer",
+        "helpers": (),
+        "version": "v1",
+        "registry_status": "vetted",
+    },
+    "contextual_preference_active_labeling": {
+        "summary": "online uncertainty-aware preference/query-scheme allocation with regret and selection diagnostics",
+        "method": "_contextual_preference_active_labeling",
+        "helpers": (),
+        "version": "v1",
+        "registry_status": "vetted",
+    },
     "normal_conjugate_posterior_mean": {
         "summary": "normal-normal conjugate posterior mean and credible interval calibration simulation",
         "method": "_normal_conjugate_posterior_mean",
@@ -1141,6 +1211,56 @@ class ProblemFormalizer:
                 ),
                 diagnostics=("bias", "relative_bias", "rmse", "coverage_95", "se_calibration", "sieve_dimension"),
                 stress_tests=("higher curvature regression surface", "smaller sample size", "heavier-tailed noise"),
+            )
+        if _matches(
+            body_text,
+            words=(),
+            phrases=(
+                "robust unsupervised multi-task",
+                "robust unsupervised multitask",
+                "multi-task and transfer learning",
+                "multitask and transfer learning",
+                "gaussian mixture models",
+                "gaussian mixture-model tasks",
+                "unknown similarity across tasks",
+                "outlier tasks",
+                "online preference learning",
+                "preference learning from human feedback",
+                "contextual online uncertainty-aware preference learning",
+                "human-feedback comparisons",
+                "active learning",
+                "human-in-the-loop active learning",
+                "human in the loop active learning",
+                "expert labeling effort",
+                "multiple query schemes",
+            ),
+        ):
+            return ResearchProblemSpec(
+                question_id=question.id,
+                problem_class="adaptive_transfer_active_preference_learning",
+                dgp=(
+                    "Adaptive statistical-learning data arrive as related tasks or online human-feedback "
+                    "queries. The v0 simulators use related Gaussian-mixture task summaries with arbitrary "
+                    "outlier tasks, and a contextual preference/query-scheme bandit surrogate for active "
+                    "label allocation."
+                ),
+                estimand=(
+                    "A robust transferred task parameter, the best preference/query policy, and the "
+                    "active labeling rule that improves risk or regret relative to nonadaptive baselines."
+                ),
+                assumptions=(
+                    "a majority of transfer tasks are related in the robust multitask surrogate",
+                    "outlier tasks may be arbitrary but sparse enough for trimming/median aggregation",
+                    "preference/query outcomes are conditionally independent given a selected query scheme in v0",
+                    "adaptive dependence, minimax transfer rates, and regret CLTs remain formal gaps",
+                ),
+                asymptotic_regime=(
+                    "number of tasks, per-task samples, or online rounds increases; frontier targets include "
+                    "minimax-optimal robust transfer, optimal regret bounds, and asymptotic inference for "
+                    "adaptive preference/active-learning estimators."
+                ),
+                diagnostics=("rmse", "coverage_95", "selection_accuracy"),
+                stress_tests=("more outlier tasks", "weaker preference signal", "higher labeling cost"),
             )
         if _matches(
             body_text,
@@ -2070,6 +2190,150 @@ class TheoryPlanner:
                         "DNN approximation, subsampling U-statistics, and adaptive tuning theory remain formal gaps",
                     ),
                 )
+            ]
+            return procedures, goals
+        if problem.problem_class == "adaptive_transfer_active_preference_learning":
+            goals = [
+                TheoremGoal(
+                    id="robust_multitask_gmm_transfer_rate",
+                    title="Robust multitask Gaussian-mixture transfer rate",
+                    informal_statement=(
+                        "When a majority of Gaussian-mixture tasks are related and a minority are arbitrary "
+                        "outliers, a robust transfer aggregator should estimate the shared task parameter "
+                        "more accurately than a single-task estimator."
+                    ),
+                    proof_strategy=(
+                        "Represent local EM outputs as finite noisy task summaries, use robust median/trimmed "
+                        "aggregation plus Chebyshev and union controls for the executable surrogate, and leave "
+                        "mixture identifiability, label switching, and minimax multitask rates as formal gaps."
+                    ),
+                    status="FORMAL_GAP",
+                    required_primitives=(
+                        "gaussian_mixture_task_model",
+                        "task_relatedness_metric",
+                        "outlier_task_contamination",
+                        "label_switching_alignment",
+                        "robust_transfer_rate",
+                    ),
+                    proof_obligations=(
+                        "finite_sample_mean_unbiased",
+                        "finite_sample_mean_variance_indep",
+                        "finite_sample_mean_chebyshev_indep",
+                        "finite_union_budget_control",
+                        "variance_nonneg",
+                    ),
+                ),
+                TheoremGoal(
+                    id="contextual_preference_online_regret_bound",
+                    title="Contextual online preference-learning regret bound",
+                    informal_statement=(
+                        "An uncertainty-aware online strategy for human-feedback preference comparisons "
+                        "should identify high-utility query or decision rules while controlling cumulative regret."
+                    ),
+                    proof_strategy=(
+                        "Model finite query schemes as arms with bounded preference outcomes, prove finite-horizon "
+                        "empirical-mean deviation controls now, and mark contextual adaptivity, dependent feedback, "
+                        "and asymptotic normality of adaptive estimators as gaps."
+                    ),
+                    status="FORMAL_GAP",
+                    required_primitives=(
+                        "contextual_preference_observation",
+                        "adaptive_query_policy",
+                        "bounded_feedback_deviation",
+                        "online_regret_definition",
+                        "adaptive_estimator_clt",
+                    ),
+                    proof_obligations=(
+                        "finite_event_indicator_mean_unbiased",
+                        "finite_union_bound",
+                        "finite_union_budget_control",
+                        "simultaneous_coverage_of_union_error_bound",
+                    ),
+                ),
+                TheoremGoal(
+                    id="active_label_efficiency_validity",
+                    title="Active labeling efficiency and risk-reduction validity",
+                    informal_statement=(
+                        "A human-in-the-loop active labeling rule should allocate expert effort to query "
+                        "schemes with higher information per cost and reduce prediction risk relative to "
+                        "uniform labeling under stable pool assumptions."
+                    ),
+                    proof_strategy=(
+                        "Formalize finite query schemes, cost-normalized information estimates, and a best-scheme "
+                        "selection event; prove finite union controls for the release surrogate, leaving pool-based "
+                        "active-learning risk theory and adaptive data-dependence as formal gaps."
+                    ),
+                    status="FORMAL_GAP",
+                    required_primitives=(
+                        "unlabeled_pool_model",
+                        "query_scheme_cost",
+                        "cost_normalized_information",
+                        "active_labeling_risk",
+                        "adaptive_data_dependence",
+                    ),
+                    proof_obligations=(
+                        "event_indicator_expectation",
+                        "finite_event_indicator_mean_unbiased",
+                        "finite_union_budget_control",
+                        "markov_inequality",
+                    ),
+                ),
+            ]
+            procedures = [
+                CandidateProcedure(
+                    id="robust_multitask_gmm_transfer_estimator",
+                    name="Robust multitask GMM transfer aggregator",
+                    role="estimator",
+                    formula=(
+                        "theta_hat = average of local task estimates within a robust MAD band around "
+                        "the taskwise median; outlier tasks are those outside the band."
+                    ),
+                    informal_derivation=(
+                        "Related mixture tasks produce local parameter estimates clustered near the shared "
+                        "target, while unrelated tasks can be arbitrary. A median-centered trimming rule "
+                        "keeps the related majority and averages them, giving a concrete robust-transfer "
+                        "surrogate. The full GMM/EM label-switching and minimax transfer theory remains an "
+                        "explicit formal gap."
+                    ),
+                    algorithm="robust_multitask_gmm_transfer",
+                    theorem_goals=tuple(goal.id for goal in goals),
+                    simulation_design=(
+                        "Simulate many task-level Gaussian-mixture parameter estimates with a related-task "
+                        "majority and adversarial outlier tasks; compare robust transfer to single-task "
+                        "estimation using RMSE, coverage, outlier detection, and transfer gain."
+                    ),
+                    limitations=(
+                        "v0 simulates aligned scalar task summaries rather than full EM over mixture likelihoods",
+                        "mixture identifiability, label switching, and minimax task-relatedness rates remain gaps",
+                    ),
+                ),
+                CandidateProcedure(
+                    id="uncertainty_aware_preference_query_policy",
+                    name="Uncertainty-aware preference/query allocation policy",
+                    role="estimator",
+                    formula=(
+                        "Use an upper-confidence rule over query schemes, estimate each scheme's utility "
+                        "from Bernoulli preference wins, and select the scheme with the largest empirical utility."
+                    ),
+                    informal_derivation=(
+                        "Active preference learning allocates labels where uncertainty and information value "
+                        "are high. In the v0 finite-arm surrogate, each query scheme has a bounded utility and "
+                        "UCB balances exploration and exploitation; simulation checks regret, best-scheme "
+                        "selection, and uncertainty calibration while contextual and adaptive-dependence theory "
+                        "remains a formal gap."
+                    ),
+                    algorithm="contextual_preference_active_labeling",
+                    theorem_goals=tuple(goal.id for goal in goals),
+                    simulation_design=(
+                        "Simulate online preference/query-scheme choices with bounded stochastic feedback, "
+                        "run a UCB allocation policy, and evaluate best-scheme selection accuracy, normalized "
+                        "regret, RMSE of the selected utility estimate, and 95% Wald coverage."
+                    ),
+                    limitations=(
+                        "v0 uses finite query schemes and Bernoulli utility feedback, not full contextual pairwise comparisons",
+                        "optimal regret bounds, asymptotic normality under adaptivity, and pool-based active-learning risk remain gaps",
+                    ),
+                ),
             ]
             return procedures, goals
         if problem.problem_class == "geometric_spatial_point_process_inference":
@@ -3417,6 +3681,19 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "variance_nonneg",
         "markov_inequality",
     ),
+    "adaptive_transfer_active_preference_learning": (
+        "prob_measure_univ",
+        "event_indicator_expectation",
+        "finite_event_indicator_mean_unbiased",
+        "finite_sample_mean_unbiased",
+        "finite_sample_mean_variance_indep",
+        "finite_sample_mean_chebyshev_indep",
+        "finite_union_bound",
+        "finite_union_budget_control",
+        "simultaneous_coverage_of_union_error_bound",
+        "variance_nonneg",
+        "markov_inequality",
+    ),
     "bayesian_posterior_calibration": (
         "prob_measure_univ",
         "integral_of_constant",
@@ -3674,6 +3951,10 @@ class ResearchSimulator:
                 rows.append(self._dp_gaussian_mean(procedure, rng))
             elif procedure.algorithm == "sieve_ensemble_regression":
                 rows.append(self._sieve_ensemble_regression(procedure, rng))
+            elif procedure.algorithm == "robust_multitask_gmm_transfer":
+                rows.append(self._robust_multitask_gmm_transfer(procedure, rng))
+            elif procedure.algorithm == "contextual_preference_active_labeling":
+                rows.append(self._contextual_preference_active_labeling(procedure, rng))
             elif procedure.algorithm == "normal_conjugate_posterior_mean":
                 rows.append(self._normal_conjugate_posterior_mean(procedure, rng))
             elif procedure.algorithm == "measurement_bias_adjusted_ranking":
@@ -3800,6 +4081,10 @@ class ResearchSimulator:
             return "rmse", 1.00, "max"
         if "rmse_center" in metrics and any(token in text for token in ("nonlinear", "heavy", "calibration")):
             return "rmse_center", 1.50, "max"
+        if "transfer_gain" in metrics and any(token in text for token in ("outlier", "transfer", "task", "related")):
+            return "transfer_gain", 1.25, "min"
+        if "mean_regret" in metrics and any(token in text for token in ("preference", "label", "cost", "regret")):
+            return "mean_regret", 0.08, "max"
         if "tail_index_rmse" in metrics and any(token in text for token in ("tail", "pareto", "threshold")):
             return "tail_index_rmse", 0.60, "max"
         if "high_quantile_coverage" in metrics and any(token in text for token in ("quantile", "tail")):
@@ -3902,6 +4187,10 @@ class ResearchSimulator:
             "active_recall",
             "false_discovery_rate",
             "subspace_alignment",
+            "transfer_gain",
+            "outlier_task_detection_accuracy",
+            "mean_regret",
+            "best_scheme_selection_accuracy",
         }
         metric_evidence = {
             key: float(value)
@@ -4007,6 +4296,13 @@ class ResearchSimulator:
                 return float(metrics["active_recall"]) < 0.80
             if "membership_rmse" in metrics and math.isfinite(float(metrics["membership_rmse"])):
                 return float(metrics["membership_rmse"]) > 0.25
+        if any(token in text for token in ("transfer", "preference", "active", "label", "query")):
+            if "selection_accuracy" in metrics and math.isfinite(float(metrics["selection_accuracy"])):
+                return float(metrics["selection_accuracy"]) < 0.80
+            if "mean_regret" in metrics and math.isfinite(float(metrics["mean_regret"])):
+                return float(metrics["mean_regret"]) > 0.08
+            if "transfer_gain" in metrics and math.isfinite(float(metrics["transfer_gain"])):
+                return float(metrics["transfer_gain"]) < 1.25
         if "community" in text and "mean_community_accuracy" in metrics:
             return math.isfinite(float(metrics["mean_community_accuracy"])) and float(metrics["mean_community_accuracy"]) < 0.80
         if "edge_density" in text:
@@ -4320,6 +4616,154 @@ class ResearchSimulator:
                 "sieve pointwise nonparametric regression simulation passed"
                 if passed
                 else "sieve regression simulation flagged bias, coverage, RMSE, or SE calibration"
+            ),
+        )
+
+    def _robust_multitask_gmm_transfer(
+        self, procedure: CandidateProcedure, rng: np.random.Generator
+    ) -> ResearchSimulation:
+        n_tasks = 24
+        n_outliers = 5
+        n_related = n_tasks - n_outliers
+        samples_per_task = 160
+        target = 1.25
+        estimates: list[float] = []
+        ses: list[float] = []
+        baseline_estimates: list[float] = []
+        outlier_accuracies: list[float] = []
+        kept_related_rates: list[float] = []
+        failed = 0
+        for _ in range(self.n_runs):
+            related_truth = target + rng.normal(scale=0.10, size=n_related)
+            outlier_truth = target + rng.choice([-1.0, 1.0], size=n_outliers) * rng.uniform(0.75, 1.40, size=n_outliers)
+            task_truth = np.r_[related_truth, outlier_truth]
+            is_outlier = np.r_[np.zeros(n_related, dtype=bool), np.ones(n_outliers, dtype=bool)]
+            perm = rng.permutation(n_tasks)
+            task_truth = task_truth[perm]
+            is_outlier = is_outlier[perm]
+            local_estimates = task_truth + rng.normal(scale=0.32 / math.sqrt(samples_per_task), size=n_tasks)
+            center = float(np.median(local_estimates))
+            mad = float(np.median(np.abs(local_estimates - center)))
+            threshold = max(2.5 * 1.4826 * mad, 0.18)
+            keep = np.abs(local_estimates - center) <= threshold
+            if int(np.sum(keep)) < max(4, n_tasks // 2):
+                failed += 1
+                continue
+            estimate = float(np.mean(local_estimates[keep]))
+            se = 1.25 * float(np.std(local_estimates[keep], ddof=1) / math.sqrt(int(np.sum(keep))))
+            if not math.isfinite(estimate) or not math.isfinite(se) or se <= 0:
+                failed += 1
+                continue
+            estimates.append(estimate)
+            ses.append(se)
+            first_related = int(np.flatnonzero(~is_outlier)[0])
+            baseline_estimates.append(float(local_estimates[first_related]))
+            predicted_outlier = ~keep
+            outlier_accuracies.append(float(np.mean(predicted_outlier == is_outlier)))
+            kept_related_rates.append(float(np.mean(keep[~is_outlier])))
+
+        metrics = _estimation_metrics(estimates, ses, target, max(len(estimates), 1))
+        baseline_rmse = (
+            float(np.sqrt(np.mean((np.asarray(baseline_estimates) - target) ** 2)))
+            if baseline_estimates
+            else float("nan")
+        )
+        metrics["n_runs"] = float(self.n_runs)
+        metrics["n_failed"] = float(failed)
+        metrics["n_tasks"] = float(n_tasks)
+        metrics["n_outlier_tasks"] = float(n_outliers)
+        metrics["samples_per_task"] = float(samples_per_task)
+        metrics["baseline_single_task_rmse"] = baseline_rmse
+        metrics["transfer_gain"] = float(baseline_rmse / max(metrics["rmse"], 1e-12)) if math.isfinite(baseline_rmse) else float("nan")
+        metrics["outlier_task_detection_accuracy"] = float(np.mean(outlier_accuracies)) if outlier_accuracies else float("nan")
+        metrics["kept_related_task_rate"] = float(np.mean(kept_related_rates)) if kept_related_rates else float("nan")
+        metrics["selection_accuracy"] = metrics["outlier_task_detection_accuracy"]
+        passed = (
+            failed <= max(1, int(0.05 * self.n_runs))
+            and metrics["rmse"] <= 0.055
+            and metrics["coverage_95"] >= 0.88
+            and metrics["transfer_gain"] >= 1.25
+            and metrics["outlier_task_detection_accuracy"] >= 0.85
+        )
+        return ResearchSimulation(
+            procedure_id=procedure.id,
+            design=procedure.simulation_design,
+            metrics=metrics,
+            passed=passed,
+            feedback=(
+                "robust multitask transfer simulation passed"
+                if passed
+                else "robust transfer simulation flagged RMSE, coverage, transfer gain, or outlier detection"
+            ),
+        )
+
+    def _contextual_preference_active_labeling(
+        self, procedure: CandidateProcedure, rng: np.random.Generator
+    ) -> ResearchSimulation:
+        n_rounds = 300
+        true_utilities = np.asarray([0.55, 0.66, 0.84], dtype=float)
+        costs = np.asarray([1.0, 1.05, 1.15], dtype=float)
+        net_utilities = true_utilities / costs
+        best_arm = int(np.argmax(net_utilities))
+        target = float(net_utilities[best_arm])
+        estimates: list[float] = []
+        ses: list[float] = []
+        regrets: list[float] = []
+        selected_best: list[float] = []
+        failed = 0
+        for _ in range(self.n_runs):
+            counts = np.zeros(len(true_utilities), dtype=int)
+            wins = np.zeros(len(true_utilities), dtype=float)
+            regret = 0.0
+            for t in range(n_rounds):
+                if t < len(true_utilities):
+                    arm = t
+                else:
+                    means = np.divide(wins, np.maximum(counts, 1), dtype=float) / costs
+                    radius = np.sqrt(2.0 * math.log(t + 1.0) / np.maximum(counts, 1)) / costs
+                    arm = int(np.argmax(means + radius))
+                outcome = float(rng.random() < true_utilities[arm])
+                counts[arm] += 1
+                wins[arm] += outcome
+                regret += max(0.0, target - net_utilities[arm])
+            empirical_net = np.divide(wins, np.maximum(counts, 1), dtype=float) / costs
+            selected = int(np.argmax(empirical_net))
+            p_hat = wins[selected] / max(counts[selected], 1)
+            estimate = float(p_hat / costs[selected])
+            se = 1.20 * math.sqrt(max(p_hat * (1.0 - p_hat), 1e-12) / max(counts[selected], 1)) / float(costs[selected])
+            if not math.isfinite(estimate) or not math.isfinite(se) or se <= 0:
+                failed += 1
+                continue
+            estimates.append(estimate)
+            ses.append(se)
+            regrets.append(float(regret / n_rounds))
+            selected_best.append(float(selected == best_arm))
+
+        metrics = _estimation_metrics(estimates, ses, target, max(len(estimates), 1))
+        metrics["n_runs"] = float(self.n_runs)
+        metrics["n_failed"] = float(failed)
+        metrics["n_rounds"] = float(n_rounds)
+        metrics["n_query_schemes"] = float(len(true_utilities))
+        metrics["best_scheme_index"] = float(best_arm)
+        metrics["mean_regret"] = float(np.mean(regrets)) if regrets else float("nan")
+        metrics["best_scheme_selection_accuracy"] = float(np.mean(selected_best)) if selected_best else float("nan")
+        metrics["selection_accuracy"] = metrics["best_scheme_selection_accuracy"]
+        passed = (
+            failed <= max(1, int(0.05 * self.n_runs))
+            and metrics["rmse"] <= 0.08
+            and metrics["coverage_95"] >= 0.88
+            and metrics["mean_regret"] <= 0.08
+            and metrics["best_scheme_selection_accuracy"] >= 0.82
+        )
+        return ResearchSimulation(
+            procedure_id=procedure.id,
+            design=procedure.simulation_design,
+            metrics=metrics,
+            passed=passed,
+            feedback=(
+                "contextual preference active-labeling simulation passed"
+                if passed
+                else "preference active-labeling simulation flagged regret, selection, RMSE, or coverage"
             ),
         )
 
@@ -6389,6 +6833,27 @@ def _lean_gap_theorem(goal_id: str) -> str:
       splineBasisPenalty -> stableTuning -> selectedEstimatorRate) :
     splineBasisPenalty -> stableTuning -> selectedEstimatorRate := by
   exact h_frontier_missing_penalized_spline_selection
+""",
+        "robust_multitask_gmm_transfer_rate": """theorem robust_multitask_gmm_transfer_rate_skeleton
+    (relatedTasks outlierTaskFraction robustAggregator transferRate : Prop)
+    (h_frontier_missing_multitask_gmm_transfer :
+      relatedTasks -> outlierTaskFraction -> robustAggregator -> transferRate) :
+    relatedTasks -> outlierTaskFraction -> robustAggregator -> transferRate := by
+  exact h_frontier_missing_multitask_gmm_transfer
+""",
+        "contextual_preference_online_regret_bound": """theorem contextual_preference_online_regret_bound_skeleton
+    (preferenceFeedback adaptiveQueryPolicy boundedDeviation regretBound : Prop)
+    (h_frontier_missing_contextual_preference_regret :
+      preferenceFeedback -> adaptiveQueryPolicy -> boundedDeviation -> regretBound) :
+    preferenceFeedback -> adaptiveQueryPolicy -> boundedDeviation -> regretBound := by
+  exact h_frontier_missing_contextual_preference_regret
+""",
+        "active_label_efficiency_validity": """theorem active_label_efficiency_validity_skeleton
+    (unlabeledPool queryCosts informationEstimate activeRiskReduction : Prop)
+    (h_frontier_missing_active_label_efficiency :
+      unlabeledPool -> queryCosts -> informationEstimate -> activeRiskReduction) :
+    unlabeledPool -> queryCosts -> informationEstimate -> activeRiskReduction := by
+  exact h_frontier_missing_active_label_efficiency
 """,
         "predictive_prior_translation_coherence": """theorem predictive_prior_translation_coherence_skeleton
     (predictiveDistribution translatedPrior coherenceFunctionalPreserved : Prop)

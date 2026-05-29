@@ -669,7 +669,7 @@ class SystemTests(unittest.TestCase):
         payload = audit_research_algorithm_registry(Path("runs/test_research_algorithm_audit"))
         self.assertTrue(payload["all_ok"])
         self.assertEqual(payload["n_ok"], payload["n_algorithms"])
-        self.assertEqual(payload["n_algorithms"], 21)
+        self.assertEqual(payload["n_algorithms"], 23)
         self.assertEqual(len(payload["registry_fingerprint"]), 64)
         for row in payload["algorithms"]:
             self.assertEqual(row["registry_status"], "vetted")
@@ -755,6 +755,7 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(payload["by_problem_class"]["sequential_changepoint_inference"], 3)
         self.assertEqual(payload["by_problem_class"]["geometric_spatial_point_process_inference"], 6)
         self.assertEqual(payload["by_problem_class"]["high_dimensional_latent_structure_inference"], 3)
+        self.assertEqual(payload["by_problem_class"]["adaptive_transfer_active_preference_learning"], 3)
         self.assertIn("unsupported_frontier_question", payload["by_problem_class"])
         self.assertTrue(Path("runs/test_frontier_coverage_audit/frontier_coverage_manifest.json").exists())
         self.assertTrue(Path("runs/test_frontier_coverage_audit/frontier_coverage.md").exists())
@@ -790,6 +791,12 @@ class SystemTests(unittest.TestCase):
             "high_dimensional_latent_structure_inference",
         )
         self.assertTrue(by_id["high_dimensional_inference_01"]["evidence_terms"])
+        self.assertIn("statistical_learning_nonparametric_02", by_id)
+        self.assertEqual(
+            by_id["statistical_learning_nonparametric_02"]["problem_class"],
+            "adaptive_transfer_active_preference_learning",
+        )
+        self.assertTrue(by_id["statistical_learning_nonparametric_02"]["evidence_terms"])
         self.assertIn("networks_graphs_01", by_id)
         self.assertEqual(by_id["networks_graphs_01"]["problem_class"], "network_graph_inference")
         self.assertTrue(by_id["networks_graphs_01"]["evidence_terms"])
@@ -805,16 +812,13 @@ class SystemTests(unittest.TestCase):
     def test_frontier_backlog_audit_maps_unsupported_questions(self) -> None:
         payload = audit_frontier_backlog(Path("runs/test_frontier_backlog_audit"))
         self.assertTrue(payload["all_ok"])
-        self.assertEqual(payload["n_backlog"], 13)
+        self.assertEqual(payload["n_backlog"], 10)
         self.assertEqual(payload["n_ok"], payload["n_backlog"])
         self.assertGreaterEqual(payload["n_supported"], 1)
-        self.assertGreaterEqual(len(payload["by_domain"]), 5)
+        self.assertGreaterEqual(len(payload["by_domain"]), 4)
         self.assertTrue(payload["by_required_primitive"])
         by_id = {row["question_id"]: row for row in payload["rows"]}
-        self.assertEqual(
-            by_id["statistical_learning_nonparametric_02"]["roadmap_domain"],
-            "statistical_learning_nonparametric",
-        )
+        self.assertNotIn("statistical_learning_nonparametric_02", by_id)
         self.assertNotIn("networks_graphs_01", by_id)
         self.assertNotIn("experimental_design_01", by_id)
         self.assertNotIn("sequential_change_anytime_01", by_id)
@@ -973,6 +977,39 @@ class SystemTests(unittest.TestCase):
         self.assertGreaterEqual(screening_sim.metrics["active_recall"], 0.80)
         self.assertLessEqual(screening_sim.metrics["false_discovery_rate"], 0.45)
         self.assertGreaterEqual(screening_sim.metrics["subspace_alignment"], 0.70)
+
+    def test_adaptive_transfer_preference_frontier_question_runs_registered_simulators(self) -> None:
+        question = next(
+            row.to_open_research_question()
+            for row in load_frontier_benchmark_questions(Path("docs/frontier_stat_theory_benchmark.md"))
+            if row.id == "statistical_learning_nonparametric_02"
+        )
+        problem = ProblemFormalizer().formalize(question)
+        self.assertEqual(problem.problem_class, "adaptive_transfer_active_preference_learning")
+        procedures, theorem_goals = TheoryPlanner().plan(problem)
+        self.assertEqual(
+            [procedure.algorithm for procedure in procedures],
+            ["robust_multitask_gmm_transfer", "contextual_preference_active_labeling"],
+        )
+        self.assertEqual(
+            {goal.id for goal in theorem_goals},
+            {
+                "robust_multitask_gmm_transfer_rate",
+                "contextual_preference_online_regret_bound",
+                "active_label_efficiency_validity",
+            },
+        )
+        simulations = ResearchSimulator(n_runs=35, seed=20260529).run(problem, procedures)
+        self.assertEqual(len(simulations), 2)
+        for simulation in simulations:
+            self.assertTrue(simulation.passed)
+            self.assertEqual(simulation.diagnosis.status, "OK")
+        transfer_sim = next(row for row in simulations if row.procedure_id == "robust_multitask_gmm_transfer_estimator")
+        preference_sim = next(row for row in simulations if row.procedure_id == "uncertainty_aware_preference_query_policy")
+        self.assertGreaterEqual(transfer_sim.metrics["transfer_gain"], 1.25)
+        self.assertGreaterEqual(transfer_sim.metrics["outlier_task_detection_accuracy"], 0.85)
+        self.assertLessEqual(preference_sim.metrics["mean_regret"], 0.08)
+        self.assertGreaterEqual(preference_sim.metrics["best_scheme_selection_accuracy"], 0.82)
 
     def test_frontier_smoke_benchmark_runs_selected_supported_papers(self) -> None:
         selected, metadata = select_supported_frontier_questions(max_per_class=1)

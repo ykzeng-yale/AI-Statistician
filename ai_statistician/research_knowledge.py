@@ -123,6 +123,30 @@ KNOWLEDGE_CARDS: tuple[KnowledgeCard, ...] = (
         ),
     ),
     KnowledgeCard(
+        id="adaptive_transfer_active_preference_learning",
+        title="Adaptive transfer, preference, and active-label learning inference",
+        source_type="statistical_method",
+        location="internal-method-card",
+        summary=(
+            "Adaptive statistical-learning problems include robust transfer across "
+            "related Gaussian-mixture tasks with outlier tasks, online contextual "
+            "preference learning from human feedback, and active labeling under "
+            "query-scheme costs. The v0 release uses robust task-summary aggregation "
+            "and finite-arm preference/query allocation while minimax transfer rates, "
+            "adaptive regret theory, and active-learning risk proofs remain gaps."
+        ),
+        tags=(
+            "transfer_learning",
+            "multitask_learning",
+            "gaussian_mixture",
+            "preference_learning",
+            "active_learning",
+            "human_feedback",
+            "online_learning",
+            "adaptive_transfer_active_preference_learning",
+        ),
+    ),
+    KnowledgeCard(
         id="network_graph_sbm_spectral_inference",
         title="Network graph inference via SBM edge density and spectral recovery",
         source_type="statistical_method",
@@ -548,6 +572,7 @@ PRIMARY_KNOWLEDGE_BY_PROBLEM_CLASS: dict[str, str] = {
     "robust_mean_inference": "robust_mean_median_of_means",
     "differential_privacy_learning": "differential_privacy_gaussian_mechanism",
     "nonparametric_regression_inference": "nonparametric_sieve_regression_inference",
+    "adaptive_transfer_active_preference_learning": "adaptive_transfer_active_preference_learning",
     "network_graph_inference": "network_graph_sbm_spectral_inference",
     "bayesian_posterior_calibration": "bayesian_predictive_prior_calibration",
     "geometric_spatial_point_process_inference": "geometric_spatial_point_process_inference",
