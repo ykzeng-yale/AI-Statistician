@@ -171,6 +171,31 @@ KNOWLEDGE_CARDS: tuple[KnowledgeCard, ...] = (
         ),
     ),
     KnowledgeCard(
+        id="geometric_spatial_point_process_inference",
+        title="Geometric, spatial, metric-graph, and point-process inference",
+        source_type="statistical_method",
+        location="internal-method-card",
+        summary=(
+            "Geometric/spatial frontier papers require theory for data supported "
+            "on metric graphs, manifolds, Gaussian random fields, and point "
+            "processes. The v0 bridge uses metric-graph kernel smoothing and "
+            "finite binned point-process intensity contrasts; full SPDE "
+            "Whittle-Matern likelihood, graph Sobolev convergence, Palm kernels, "
+            "and Janossy/Palm mixture identities remain explicit formal gaps."
+        ),
+        tags=(
+            "geometric",
+            "spatial",
+            "metric_graph",
+            "gaussian_field",
+            "whittle_matern",
+            "spde",
+            "point_process",
+            "palm_distribution",
+            "geometric_spatial_point_process_inference",
+        ),
+    ),
+    KnowledgeCard(
         id="measurement_bias_assessment_ranking",
         title="Measurement-bias-adjusted assessment ranking inference",
         source_type="statistical_method",
@@ -502,6 +527,7 @@ PRIMARY_KNOWLEDGE_BY_PROBLEM_CLASS: dict[str, str] = {
     "nonparametric_regression_inference": "nonparametric_sieve_regression_inference",
     "network_graph_inference": "network_graph_sbm_spectral_inference",
     "bayesian_posterior_calibration": "bayesian_predictive_prior_calibration",
+    "geometric_spatial_point_process_inference": "geometric_spatial_point_process_inference",
     "measurement_bias_ranking_inference": "measurement_bias_assessment_ranking",
     "design_based_variance_inference": "design_based_variance_neyman",
     "experimental_design_optimization": "experimental_design_maximin_balance",

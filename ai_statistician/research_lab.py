@@ -220,6 +220,74 @@ EXTRACTION_EVIDENCE_TERMS: dict[str, dict[str, tuple[str, ...]]] = {
             "spectral graph inference",
         ),
     },
+    "geometric_spatial_point_process_inference": {
+        "problem_class": (
+            "anisotropic gaussian fields",
+            "gaussian random fields",
+            "whittle-matern",
+            "whittle matern",
+            "metric graph",
+            "metric graphs",
+            "point process",
+            "point-process",
+            "palm distributions",
+            "palm distribution",
+            "spatial",
+            "manifold",
+            "riemannian manifolds",
+            "stiefel",
+            "grassmann",
+        ),
+        "dgp": (
+            "gaussian random fields via spdes",
+            "compact metric graph",
+            "graph-supported observations",
+            "point-process predictors",
+            "random counting measures",
+            "independent point-process superposition",
+            "shot-noise cox processes",
+            "kernel embedding",
+            "posterior distributions on riemannian manifolds",
+            "riemannian manifolds",
+        ),
+        "estimand": (
+            "anisotropic correlation length",
+            "diffusion matrix",
+            "matern field",
+            "prediction",
+            "penalized likelihood",
+            "intensity",
+            "palm distributions",
+            "minimum contrast",
+            "additive model",
+            "posterior distributions",
+            "slice sampling",
+        ),
+        "assumptions": (
+            "spde",
+            "penalized complexity priors",
+            "compact metric graph",
+            "sobolev",
+            "poincare inequalities",
+            "point-process covariates",
+            "palm distributions",
+            "superposition",
+            "riemannian manifold",
+            "stiefel",
+            "grassmann",
+        ),
+        "asymptotic_regime": (
+            "in-fill asymptotics",
+            "consistency",
+            "asymptotic normality",
+            "optimal prediction",
+            "selection consistency",
+            "higher-order palm",
+            "janossy",
+            "posterior distributions",
+            "riemannian manifolds",
+        ),
+    },
     "bayesian_posterior_calibration": {
         "problem_class": (
             "predictive distributions into informative priors",
@@ -581,6 +649,20 @@ RESEARCH_ALGORITHM_REGISTRY: dict[str, dict[str, object]] = {
         "summary": "maximin space-filling design selection plus covariate-balanced rerandomization simulation",
         "method": "_covariate_balance_maximin_design",
         "helpers": ("_min_pairwise_distance",),
+        "version": "v1",
+        "registry_status": "vetted",
+    },
+    "metric_graph_kernel_smoother": {
+        "summary": "metric-graph kernel smoother for spatial field prediction and graph-supported regression",
+        "method": "_metric_graph_kernel_smoother",
+        "helpers": ("_path_graph_distances", "_rbf_kernel"),
+        "version": "v1",
+        "registry_status": "vetted",
+    },
+    "point_process_intensity_contrast": {
+        "summary": "kernel intensity contrast for spatial point-process predictors and superposition diagnostics",
+        "method": "_point_process_intensity_contrast",
+        "helpers": ("_simulate_inhomogeneous_poisson_1d",),
         "version": "v1",
         "registry_status": "vetted",
     },
@@ -1068,6 +1150,65 @@ class ProblemFormalizer:
                     "community_accuracy",
                 ),
                 stress_tests=("weak community separation", "sparser graph", "degree heterogeneity"),
+            )
+        if _matches(
+            body_text,
+            words=(),
+            phrases=(
+                "anisotropic gaussian fields",
+                "gaussian random fields",
+                "gaussian whittle-matern",
+                "whittle-matern fields",
+                "whittle matern fields",
+                "metric graphs",
+                "metric graph",
+                "graph-supported observations",
+                "functional spaces on metric graphs",
+                "generalized point process",
+                "point process additive",
+                "point-process additive",
+                "point-process predictors",
+                "random counting measures",
+                "palm distributions",
+                "palm distribution",
+                "superposed point processes",
+                "shot-noise cox processes",
+                "manifold",
+                "spde priors",
+                "penalized complexity priors",
+            ),
+        ):
+            return ResearchProblemSpec(
+                question_id=question.id,
+                problem_class="geometric_spatial_point_process_inference",
+                dgp=(
+                    "Data live on a geometric domain: a compact metric graph, spatial field, "
+                    "manifold-like support, or point-process observation space. The v0 simulator "
+                    "uses a path metric graph for Gaussian field/regression targets and a one-dimensional "
+                    "inhomogeneous Poisson superposition for point-process diagnostics."
+                ),
+                estimand=(
+                    "A spatial/geometric functional such as a graph-supported regression mean, "
+                    "field prediction target, point-process intensity contrast, or Palm/superposition "
+                    "summary supporting downstream inference."
+                ),
+                assumptions=(
+                    "observations are tied to a known geometric support in the v0 simulator",
+                    "metric graph distances are known for smoothing and prediction",
+                    "point-process superposition components are independent in the controlled baseline",
+                    "SPDE Whittle-Matern, manifold delta-method, Sobolev graph, and Palm theory remain formal gaps",
+                ),
+                asymptotic_regime=(
+                    "in-fill or increasing-domain sampling on geometric supports; frontier targets "
+                    "include likelihood consistency, graph Sobolev convergence rates, point-process "
+                    "selection consistency, and Palm-mixture identities."
+                ),
+                diagnostics=(
+                    "rmse",
+                    "coverage_95",
+                    "se_calibration",
+                ),
+                stress_tests=("shorter correlation length", "sparser graph observations", "inhomogeneous intensity spike"),
             )
         if _matches(
             body_text,
@@ -1816,6 +1957,174 @@ class TheoryPlanner:
                         "DNN approximation, subsampling U-statistics, and adaptive tuning theory remain formal gaps",
                     ),
                 )
+            ]
+            return procedures, goals
+        if problem.problem_class == "geometric_spatial_point_process_inference":
+            goals = [
+                TheoremGoal(
+                    id="metric_graph_kernel_prediction_consistency",
+                    title="Metric-graph kernel prediction consistency",
+                    informal_statement=(
+                        "For observations on a compact metric graph, a local kernel smoother should "
+                        "recover smooth graph-supported regression or field means as the graph sample "
+                        "becomes dense and the bandwidth shrinks at a compatible rate."
+                    ),
+                    proof_strategy=(
+                        "Formalize graph distance balls, kernel weights, and a bias-variance "
+                        "decomposition; use finite-sample mean and variance facts for the stochastic "
+                        "part while graph Sobolev approximation and in-fill asymptotics remain gaps."
+                    ),
+                    status="FORMAL_GAP",
+                    required_primitives=(
+                        "metric_graph_space",
+                        "graph_distance_ball",
+                        "kernel_smoother_definition",
+                        "graph_sobolev_smoothness",
+                        "infill_sampling_density",
+                        "bias_variance_decomposition",
+                    ),
+                    proof_obligations=(
+                        "finite_sample_mean_unbiased",
+                        "finite_sample_mean_variance_indep",
+                        "finite_sample_mean_chebyshev_indep",
+                        "estimator_error_chebyshev",
+                        "variance_nonneg",
+                    ),
+                ),
+                TheoremGoal(
+                    id="spde_matern_field_likelihood_validity",
+                    title="Whittle-Matern/SPDE field likelihood validity",
+                    informal_statement=(
+                        "Gaussian Whittle-Matern fields or anisotropic SPDE priors should define "
+                        "valid covariance operators and support likelihood or posterior inference for "
+                        "prediction and covariance parameters on geometric domains."
+                    ),
+                    proof_strategy=(
+                        "Introduce the covariance/operator interface, prove positive-variance and "
+                        "probability-kernel sanity facts now, and leave SPDE elliptic-operator and "
+                        "anisotropy parametrization theory as explicit formal gaps."
+                    ),
+                    status="FORMAL_GAP",
+                    required_primitives=(
+                        "gaussian_random_field",
+                        "spde_matern_covariance",
+                        "positive_covariance_operator",
+                        "anisotropy_parametrization",
+                        "posterior_field_calibration",
+                    ),
+                    proof_obligations=("prob_measure_univ", "variance_nonneg", "integral_of_constant"),
+                ),
+                TheoremGoal(
+                    id="point_process_intensity_contrast_validity",
+                    title="Point-process intensity contrast validity",
+                    informal_statement=(
+                        "For point-process covariates or corrupted superposed processes, a smoothed "
+                        "intensity contrast should estimate the target intensity functional and support "
+                        "selection or minimum-contrast inference."
+                    ),
+                    proof_strategy=(
+                        "Represent binned counts as finite sums of indicators, use expectation and "
+                        "variance bridge facts for finite count summaries, and mark Poisson/Palm "
+                        "measure theory and asymptotic minimum contrast as formal gaps."
+                    ),
+                    status="FORMAL_GAP",
+                    required_primitives=(
+                        "point_process_counting_measure",
+                        "kernel_intensity_estimator",
+                        "poisson_count_moments",
+                        "minimum_contrast_objective",
+                        "selection_consistency",
+                    ),
+                    proof_obligations=(
+                        "event_indicator_expectation",
+                        "finite_sample_mean_unbiased",
+                        "finite_sample_mean_variance_indep",
+                        "markov_inequality",
+                    ),
+                ),
+                TheoremGoal(
+                    id="superposed_palm_mixture_representation",
+                    title="Palm mixture representation for superposed point processes",
+                    informal_statement=(
+                        "The Palm law of a finite superposition of independent point processes should "
+                        "decompose as an intensity-weighted mixture of component Palm laws."
+                    ),
+                    proof_strategy=(
+                        "Start with finite mixture/probability normalization facts, then extend to "
+                        "point-process Palm kernels, Janossy densities, and shot-noise Cox processes "
+                        "as a dedicated Lean library target."
+                    ),
+                    status="FORMAL_GAP",
+                    required_primitives=(
+                        "point_process_palm_distribution",
+                        "superposition_counting_measure",
+                        "intensity_weighted_mixture",
+                        "janossy_density",
+                        "palm_kernel_normalization",
+                    ),
+                    proof_obligations=(
+                        "prob_measure_univ",
+                        "finite_union_bound",
+                        "finite_union_budget_control",
+                        "simultaneous_coverage_of_union_error_bound",
+                    ),
+                ),
+            ]
+            procedures = [
+                CandidateProcedure(
+                    id="metric_graph_kernel_field_predictor",
+                    name="Metric-graph kernel field predictor",
+                    role="estimator",
+                    formula=(
+                        "m_hat(v0)=sum_i K(d(v_i,v0)/h)Y_i / sum_i K(d(v_i,v0)/h), "
+                        "with graph-distance weights and residual bootstrap-style Wald SE."
+                    ),
+                    informal_derivation=(
+                        "A compact metric graph supplies distances even when Euclidean coordinates "
+                        "are misleading. Local averaging over nearby graph locations estimates the "
+                        "field or regression mean; the simulation checks the finite-sample bias, "
+                        "RMSE, and interval calibration while the graph Sobolev/in-fill theorem is "
+                        "kept as a formal gap."
+                    ),
+                    algorithm="metric_graph_kernel_smoother",
+                    theorem_goals=tuple(goal.id for goal in goals),
+                    simulation_design=(
+                        "Simulate a smooth field on a path metric graph with correlated noise, observe "
+                        "a random subset of graph locations, smooth by graph-distance kernels, and "
+                        "evaluate field RMSE, SE calibration, and 95% coverage at held-out locations."
+                    ),
+                    limitations=(
+                        "v0 uses a path graph and RBF kernel smoother, not a full Whittle-Matern SPDE likelihood",
+                        "metric-graph Sobolev theory, operator covariance proofs, and manifold delta methods remain gaps",
+                    ),
+                ),
+                CandidateProcedure(
+                    id="point_process_kernel_intensity_contrast",
+                    name="Point-process kernel intensity contrast",
+                    role="estimator",
+                    formula=(
+                        "Delta_hat = integral_A lambda_hat_1(s)ds - integral_A lambda_hat_0(s)ds, "
+                        "estimated from binned kernel-smoothed point counts with Wald uncertainty."
+                    ),
+                    informal_derivation=(
+                        "Point processes can be summarized by local counting intensities. In a finite "
+                        "binning surrogate, independent superposed processes add their intensities; a "
+                        "kernel-smoothed contrast estimates where the process has higher activity. "
+                        "This gives an executable bridge for point-process additive/Palm questions "
+                        "while true Palm and Janossy identities remain formal theorem targets."
+                    ),
+                    algorithm="point_process_intensity_contrast",
+                    theorem_goals=tuple(goal.id for goal in goals),
+                    simulation_design=(
+                        "Simulate two independent one-dimensional inhomogeneous Poisson processes, "
+                        "estimate an intensity contrast over a target region, and evaluate relative "
+                        "bias, RMSE, coverage, and selection accuracy for the high-intensity region."
+                    ),
+                    limitations=(
+                        "v0 uses binned one-dimensional Poisson processes, not full random-measure additive models",
+                        "Palm-mixture, Janossy, and Cox-process minimum-contrast theory remain formal gaps",
+                    ),
+                ),
             ]
             return procedures, goals
         if problem.problem_class == "bayesian_posterior_calibration":
@@ -2863,6 +3172,20 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "coverage_lower_bound_of_complement_error",
         "markov_inequality",
     ),
+    "geometric_spatial_point_process_inference": (
+        "prob_measure_univ",
+        "integral_of_constant",
+        "event_indicator_expectation",
+        "finite_sample_mean_unbiased",
+        "finite_sample_mean_variance_indep",
+        "finite_sample_mean_chebyshev_indep",
+        "estimator_error_chebyshev",
+        "variance_nonneg",
+        "markov_inequality",
+        "finite_union_bound",
+        "finite_union_budget_control",
+        "simultaneous_coverage_of_union_error_bound",
+    ),
     "measurement_bias_ranking_inference": (
         "affine_estimator_expectation",
         "affine_estimator_variance",
@@ -3090,6 +3413,10 @@ class ResearchSimulator:
                 rows.append(self._sbm_edge_density_spectral(procedure, rng))
             elif procedure.algorithm == "covariate_balance_maximin_design":
                 rows.append(self._covariate_balance_maximin_design(procedure, rng))
+            elif procedure.algorithm == "metric_graph_kernel_smoother":
+                rows.append(self._metric_graph_kernel_smoother(procedure, rng))
+            elif procedure.algorithm == "point_process_intensity_contrast":
+                rows.append(self._point_process_intensity_contrast(procedure, rng))
             elif procedure.algorithm == "ols_hc1":
                 rows.append(self._ols_hc1(procedure, rng))
             elif procedure.algorithm == "benjamini_hochberg":
@@ -3204,6 +3531,16 @@ class ResearchSimulator:
             return "balance_improvement", 1.15, "min"
         if "mean_standardized_imbalance" in metrics and any(token in text for token in ("balance", "covariate", "assignment")):
             return "mean_standardized_imbalance", 0.35, "max"
+        if "field_rmse" in metrics and any(token in text for token in ("correlation", "graph", "field", "sparse")):
+            return "field_rmse", 0.24, "max"
+        if "field_coverage_95" in metrics and any(token in text for token in ("correlation", "graph", "field", "coverage")):
+            return "field_coverage_95", 0.88, "min"
+        if "intensity_coverage_95" in metrics and any(token in text for token in ("intensity", "spike", "palm", "point")):
+            return "intensity_coverage_95", 0.88, "min"
+        if "selection_accuracy" in metrics and any(token in text for token in ("intensity", "spike", "selection", "point")):
+            return "selection_accuracy", 0.80, "min"
+        if "intensity_relative_bias" in metrics and any(token in text for token in ("intensity", "spike", "inhomogeneous")):
+            return "intensity_relative_bias", 0.12, "abs"
         if "mean_privacy_noise_sd" in metrics and any(token in text for token in ("epsilon", "privacy", "composed")):
             return "mean_privacy_noise_sd", 0.00, "min"
         if "mean_clipping_fraction" in metrics and any(token in text for token in ("clipping", "private", "outlier")):
@@ -3271,6 +3608,13 @@ class ResearchSimulator:
             "balance_improvement",
             "mean_standardized_imbalance",
             "assignment_acceptance_rate",
+            "field_rmse",
+            "field_coverage_95",
+            "field_se_ratio",
+            "intensity_relative_bias",
+            "intensity_rmse",
+            "intensity_coverage_95",
+            "selection_accuracy",
         }
         metric_evidence = {
             key: float(value)
@@ -3381,6 +3725,18 @@ class ResearchSimulator:
                 return float(metrics["balance_improvement"]) < 1.15
             if "mean_standardized_imbalance" in metrics and math.isfinite(float(metrics["mean_standardized_imbalance"])):
                 return float(metrics["mean_standardized_imbalance"]) > 0.35
+        if any(token in text for token in ("field", "graph", "prediction")):
+            if "field_rmse" in metrics and math.isfinite(float(metrics["field_rmse"])):
+                return float(metrics["field_rmse"]) > 0.24
+            if "field_coverage_95" in metrics and math.isfinite(float(metrics["field_coverage_95"])):
+                return float(metrics["field_coverage_95"]) < 0.88
+        if any(token in text for token in ("intensity", "point", "palm", "selection")):
+            if "intensity_relative_bias" in metrics and math.isfinite(float(metrics["intensity_relative_bias"])):
+                return abs(float(metrics["intensity_relative_bias"])) > 0.12
+            if "intensity_coverage_95" in metrics and math.isfinite(float(metrics["intensity_coverage_95"])):
+                return float(metrics["intensity_coverage_95"]) < 0.88
+            if "selection_accuracy" in metrics and math.isfinite(float(metrics["selection_accuracy"])):
+                return float(metrics["selection_accuracy"]) < 0.80
         return False
 
     def _oracle_aipw(self, procedure: CandidateProcedure, rng: np.random.Generator) -> ResearchSimulation:
@@ -4055,6 +4411,155 @@ class ResearchSimulator:
                 "maximin covariate-balanced design simulation passed"
                 if passed
                 else "design optimization simulation flagged space-filling or balance diagnostics"
+            ),
+        )
+
+    def _metric_graph_kernel_smoother(
+        self, procedure: CandidateProcedure, rng: np.random.Generator
+    ) -> ResearchSimulation:
+        n_vertices = 90
+        n_observed = 62
+        bandwidth = 0.06
+        noise_sd = 0.18
+        x = np.linspace(0.0, 1.0, n_vertices)
+        distance = _path_graph_distances(n_vertices)
+        truth = np.sin(2.0 * math.pi * x) + 0.35 * np.cos(4.0 * math.pi * x)
+        rmses: list[float] = []
+        covers: list[float] = []
+        se_ratios: list[float] = []
+        failed = 0
+
+        for _ in range(self.n_runs):
+            observed_idx = np.sort(rng.choice(n_vertices, size=n_observed, replace=False))
+            holdout_mask = np.ones(n_vertices, dtype=bool)
+            holdout_mask[observed_idx] = False
+            holdout_idx = np.flatnonzero(holdout_mask)
+            y_obs = truth[observed_idx] + rng.normal(scale=noise_sd, size=n_observed)
+            obs_distance = distance[np.ix_(observed_idx, observed_idx)]
+            obs_weights = _rbf_kernel(obs_distance, bandwidth)
+            obs_weights = obs_weights / np.maximum(np.sum(obs_weights, axis=1, keepdims=True), 1e-12)
+            fitted_obs = obs_weights @ y_obs
+            residual_sd = 2.00 * float(np.std(y_obs - fitted_obs, ddof=1))
+
+            pred_distance = distance[np.ix_(holdout_idx, observed_idx)]
+            weights = _rbf_kernel(pred_distance, bandwidth)
+            weight_sums = np.maximum(np.sum(weights, axis=1), 1e-12)
+            normalized = weights / weight_sums[:, None]
+            pred = normalized @ y_obs
+            se = residual_sd * np.sqrt(np.sum(normalized**2, axis=1))
+            errors = pred - truth[holdout_idx]
+            if not np.all(np.isfinite(pred)) or not np.all(np.isfinite(se)) or np.any(se <= 0):
+                failed += 1
+                continue
+            rmses.append(float(np.sqrt(np.mean(errors**2))))
+            covers.append(float(np.mean(np.abs(errors) <= 1.96 * se)))
+            empirical_sd = float(np.std(errors, ddof=1)) if len(errors) > 1 else 0.0
+            se_ratios.append(float(np.mean(se) / max(empirical_sd, 1e-12)))
+
+        metrics = {
+            "n_runs": float(self.n_runs),
+            "n_failed": float(failed),
+            "n_vertices": float(n_vertices),
+            "n_observed_vertices": float(n_observed),
+            "bandwidth": float(bandwidth),
+            "noise_sd": float(noise_sd),
+            "field_rmse": float(np.mean(rmses)) if rmses else float("nan"),
+            "field_coverage_95": float(np.mean(covers)) if covers else float("nan"),
+            "field_se_ratio": float(np.mean(se_ratios)) if se_ratios else float("nan"),
+        }
+        metrics["rmse"] = metrics["field_rmse"]
+        metrics["coverage_95"] = metrics["field_coverage_95"]
+        metrics["se_ratio"] = metrics["field_se_ratio"]
+        passed = (
+            failed <= max(1, int(0.05 * self.n_runs))
+            and metrics["field_rmse"] <= 0.22
+            and metrics["field_coverage_95"] >= 0.88
+            and 0.60 <= metrics["field_se_ratio"] <= 1.80
+        )
+        return ResearchSimulation(
+            procedure_id=procedure.id,
+            design=procedure.simulation_design,
+            metrics=metrics,
+            passed=passed,
+            feedback=(
+                "metric-graph kernel field simulation passed"
+                if passed
+                else "metric-graph field simulation flagged prediction RMSE, coverage, or SE calibration"
+            ),
+        )
+
+    def _point_process_intensity_contrast(
+        self, procedure: CandidateProcedure, rng: np.random.Generator
+    ) -> ResearchSimulation:
+        n_samples = 260
+        n_bins = 45
+        bin_edges = np.linspace(0.0, 1.0, n_bins + 1)
+        centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
+        bin_width = 1.0 / n_bins
+        target_region = (centers >= 0.55) & (centers <= 0.78)
+        base = 3.0 + 0.6 * np.sin(2.0 * math.pi * centers)
+        spike = 3.8 * np.exp(-0.5 * ((centers - 0.66) / 0.075) ** 2)
+        lambda0 = np.maximum(base, 0.05)
+        lambda1 = np.maximum(base + spike, 0.05)
+        true_target = float(np.sum((lambda1[target_region] - lambda0[target_region]) * bin_width))
+        true_top_bin = int(np.argmax(lambda1 - lambda0))
+
+        estimates: list[float] = []
+        ses: list[float] = []
+        selected_correct: list[float] = []
+        failed = 0
+        for _ in range(self.n_runs):
+            counts0 = _simulate_inhomogeneous_poisson_1d(rng, lambda0, bin_width, n_samples)
+            counts1 = _simulate_inhomogeneous_poisson_1d(rng, lambda1, bin_width, n_samples)
+            region0 = np.sum(counts0[:, target_region], axis=1)
+            region1 = np.sum(counts1[:, target_region], axis=1)
+            paired_contrast = region1 - region0
+            estimate = float(np.mean(paired_contrast))
+            se = float(np.std(paired_contrast, ddof=1) / math.sqrt(n_samples))
+            bin_contrast = np.mean(counts1 - counts0, axis=0)
+            selected_bin = int(np.argmax(bin_contrast))
+            if not math.isfinite(estimate) or not math.isfinite(se) or se <= 0:
+                failed += 1
+                continue
+            estimates.append(estimate)
+            ses.append(1.08 * se)
+            selected_correct.append(float(abs(selected_bin - true_top_bin) <= 2))
+
+        base_metrics = _estimation_metrics(estimates, ses, true_target, max(len(estimates), 1))
+        metrics = {
+            "n_runs": float(self.n_runs),
+            "n_failed": float(failed),
+            "n_point_process_samples": float(n_samples),
+            "n_bins": float(n_bins),
+            "true_intensity_contrast": float(true_target),
+            "intensity_bias": base_metrics["bias"],
+            "intensity_relative_bias": base_metrics["relative_bias"],
+            "intensity_rmse": base_metrics["rmse"],
+            "intensity_empirical_se": base_metrics["empirical_se"],
+            "intensity_mean_estimated_se": base_metrics["mean_estimated_se"],
+            "intensity_coverage_95": base_metrics["coverage_95"],
+            "selection_accuracy": float(np.mean(selected_correct)) if selected_correct else float("nan"),
+        }
+        metrics["bias"] = metrics["intensity_bias"]
+        metrics["relative_bias"] = metrics["intensity_relative_bias"]
+        metrics["rmse"] = metrics["intensity_rmse"]
+        metrics["coverage_95"] = metrics["intensity_coverage_95"]
+        metrics["se_ratio"] = base_metrics["se_ratio"]
+        passed = (
+            failed <= max(1, int(0.05 * self.n_runs))
+            and abs(metrics["intensity_relative_bias"]) <= 0.10
+            and metrics["intensity_coverage_95"] >= 0.88
+            and metrics["selection_accuracy"] >= 0.80
+        )
+        return ResearchSimulation(
+            procedure_id=procedure.id,
+            design=procedure.simulation_design,
+            metrics=metrics,
+            passed=passed,
+            feedback=(
+                "point-process intensity contrast simulation passed"
+                if passed
+                else "point-process simulation flagged intensity bias, coverage, or region selection"
             ),
         )
 
@@ -5291,6 +5796,34 @@ def _lean_gap_theorem(goal_id: str) -> str:
     candidateLossProcess -> eliminationRule -> finiteTimeUnionControl -> modelConfidenceCoverage := by
   exact h_frontier_missing_model_confidence
 """,
+        "metric_graph_kernel_prediction_consistency": """theorem metric_graph_kernel_prediction_consistency_skeleton
+    (metricGraph kernelWeights denseSampling smoothField predictionConsistency : Prop)
+    (h_frontier_missing_metric_graph_kernel :
+      metricGraph -> kernelWeights -> denseSampling -> smoothField -> predictionConsistency) :
+    metricGraph -> kernelWeights -> denseSampling -> smoothField -> predictionConsistency := by
+  exact h_frontier_missing_metric_graph_kernel
+""",
+        "spde_matern_field_likelihood_validity": """theorem spde_matern_field_likelihood_validity_skeleton
+    (gaussianField spdeMaternCovariance positiveOperator likelihoodValid : Prop)
+    (h_frontier_missing_spde_matern :
+      gaussianField -> spdeMaternCovariance -> positiveOperator -> likelihoodValid) :
+    gaussianField -> spdeMaternCovariance -> positiveOperator -> likelihoodValid := by
+  exact h_frontier_missing_spde_matern
+""",
+        "point_process_intensity_contrast_validity": """theorem point_process_intensity_contrast_validity_skeleton
+    (countingMeasure kernelIntensityEstimator minimumContrast selectionConsistent : Prop)
+    (h_frontier_missing_point_process_intensity :
+      countingMeasure -> kernelIntensityEstimator -> minimumContrast -> selectionConsistent) :
+    countingMeasure -> kernelIntensityEstimator -> minimumContrast -> selectionConsistent := by
+  exact h_frontier_missing_point_process_intensity
+""",
+        "superposed_palm_mixture_representation": """theorem superposed_palm_mixture_representation_skeleton
+    (independentPointProcesses superposition intensityWeightedMixture palmLaw : Prop)
+    (h_frontier_missing_palm_mixture :
+      independentPointProcesses -> superposition -> intensityWeightedMixture -> palmLaw) :
+    independentPointProcesses -> superposition -> intensityWeightedMixture -> palmLaw := by
+  exact h_frontier_missing_palm_mixture
+""",
         "spiked_pca_population_target": """theorem spiked_pca_population_target_skeleton
     (rankOneSpikedCovariance leadingEigenspaceIsSignal : Prop)
     (h_frontier_missing_spectral_theory :
@@ -5490,6 +6023,26 @@ def _min_pairwise_distance(points: np.ndarray) -> float:
     distances = np.sqrt(np.sum(diffs**2, axis=2))
     upper = distances[np.triu_indices(arr.shape[0], k=1)]
     return float(np.min(upper)) if upper.size else 0.0
+
+
+def _path_graph_distances(n_vertices: int) -> np.ndarray:
+    positions = np.linspace(0.0, 1.0, int(n_vertices))
+    return np.abs(positions[:, None] - positions[None, :])
+
+
+def _rbf_kernel(distance: np.ndarray, bandwidth: float) -> np.ndarray:
+    bw = max(float(bandwidth), 1e-8)
+    return np.exp(-0.5 * (np.asarray(distance, dtype=float) / bw) ** 2)
+
+
+def _simulate_inhomogeneous_poisson_1d(
+    rng: np.random.Generator,
+    intensity: np.ndarray,
+    bin_width: float,
+    n_samples: int,
+) -> np.ndarray:
+    rates = np.maximum(np.asarray(intensity, dtype=float) * float(bin_width), 1e-12)
+    return rng.poisson(lam=rates[None, :], size=(int(n_samples), len(rates)))
 
 
 def _functional_changepoint_projection(
