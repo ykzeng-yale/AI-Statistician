@@ -158,6 +158,9 @@ suggested next proof-bank or library step. The release-style
 `research-system-audit` writes this queue as
 `formalization_target_audit/formalization_target_manifest.json`, so the lab can
 move from "known gaps" to a prioritized theorem-building plan.
+Rows also include `bridge_readiness`, for example
+`PROOF_BANK_AND_LOCAL_SOURCE` when a target has both a local declaration
+candidate and existing AXLE-verified proof-bank obligations to build from.
 
 Research source inventory:
 

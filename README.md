@@ -86,7 +86,10 @@ than relying only on a broad theorem-goal query.
 `formalization-target-audit` then aggregates those primitive-level hits into a
 ranked theorem-development queue: each row lists the missing primitive, gaps it
 unlocks, local candidate declarations, supporting proof obligations, and a
-suggested next proof-bank/library step.
+suggested next proof-bank/library step. It also classifies each target's
+`bridge_readiness` so the lab can distinguish primitives that can start from
+existing AXLE-verified proof-bank bridges from primitives that need fresh source
+search or library design.
 `formal-source-audit` now defaults to a persistent SQLite FTS + Lean-shape
 reranking backend and writes `formal_source_index.sqlite` next to the audit
 manifest, so repeated search and interactive theorem mining can query the local

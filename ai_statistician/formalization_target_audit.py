@@ -21,6 +21,8 @@ class FormalizationTargetRow:
     gap_ids: tuple[str, ...]
     candidate_declarations: tuple[str, ...]
     supporting_proof_obligations: tuple[str, ...]
+    proof_bank_bridge_available: bool
+    bridge_readiness: str
     suggested_next_step: str
     ok: bool
     errors: tuple[str, ...] = ()
@@ -42,6 +44,8 @@ def audit_formalization_targets(run_dir: Path, out_dir: Path | None = None) -> d
         "run_dir": str(run_dir),
         "n_targets": len(rows),
         "n_ok": sum(1 for row in rows if row.ok),
+        "n_with_proof_bank_bridge": sum(1 for row in rows if row.proof_bank_bridge_available),
+        "by_bridge_readiness": _count_by_bridge_readiness(rows),
         "all_ok": bool(backlog.get("all_ok")) and bool(rows) and all(row.ok for row in rows),
         "top_targets": [asdict(row) for row in rows[:10]],
         "rows": [asdict(row) for row in rows],
@@ -94,12 +98,14 @@ def _target_rows(backlog: dict[str, object]) -> list[FormalizationTargetRow]:
     for primitive, bucket in grouped.items():
         candidate_declarations = tuple(bucket["candidate_declarations"][:8])
         supporting_proofs = tuple(sorted(bucket["supporting_proof_obligations"]))
+        bridge_readiness = _bridge_readiness(candidate_declarations, supporting_proofs)
         n_gaps = len(bucket["gap_ids"])
         score = (
             100 * n_gaps
             + 10 * len(bucket["problem_classes"])
             + 3 * min(len(candidate_declarations), 8)
             + 2 * len(supporting_proofs)
+            + (15 if supporting_proofs and candidate_declarations else 0)
         )
         errors: list[str] = []
         if not candidate_declarations:
@@ -117,6 +123,8 @@ def _target_rows(backlog: dict[str, object]) -> list[FormalizationTargetRow]:
                 gap_ids=tuple(sorted(bucket["gap_ids"])),
                 candidate_declarations=candidate_declarations,
                 supporting_proof_obligations=supporting_proofs,
+                proof_bank_bridge_available=bool(supporting_proofs),
+                bridge_readiness=bridge_readiness,
                 suggested_next_step=_suggest_next_step(primitive, candidate_declarations, supporting_proofs),
                 ok=not errors,
                 errors=tuple(errors),
@@ -133,6 +141,26 @@ def _priority_band(score: int, n_gaps: int, candidates: tuple[str, ...]) -> str:
     if score >= 100:
         return "HIGH_REUSE_NEEDS_SEARCH"
     return "LIBRARY_DESIGN_REQUIRED"
+
+
+def _bridge_readiness(
+    candidate_declarations: tuple[str, ...],
+    supporting_proofs: tuple[str, ...],
+) -> str:
+    if candidate_declarations and supporting_proofs:
+        return "PROOF_BANK_AND_LOCAL_SOURCE"
+    if supporting_proofs:
+        return "PROOF_BANK_ONLY"
+    if candidate_declarations:
+        return "LOCAL_SOURCE_ONLY"
+    return "SEARCH_OR_LIBRARY_DESIGN"
+
+
+def _count_by_bridge_readiness(rows: list[FormalizationTargetRow]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in rows:
+        counts[row.bridge_readiness] = counts.get(row.bridge_readiness, 0) + 1
+    return dict(sorted(counts.items()))
 
 
 def _suggest_next_step(
@@ -157,6 +185,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         "",
         f"- Run directory: `{payload.get('run_dir')}`",
         f"- Targets: {payload.get('n_ok')}/{payload.get('n_targets')} audit-clean",
+        f"- Proof-bank bridges available: {payload.get('n_with_proof_bank_bridge')}/{payload.get('n_targets')}",
         f"- Source gaps: {payload.get('source_gap_backlog', {}).get('n_ok')}/{payload.get('source_gap_backlog', {}).get('n_gaps')}",
         "",
         "## Top Targets",
@@ -173,6 +202,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
                 f"### `{row.get('primitive')}` [{row.get('priority_band')}]",
                 "",
                 f"- Priority score: {row.get('priority_score')}",
+                f"- Bridge readiness: `{row.get('bridge_readiness')}`",
                 f"- Gaps unlocked: {row.get('n_gaps')}",
                 f"- Problem classes: {', '.join(f'`{item}`' for item in row.get('problem_classes', [])) or 'none'}",
                 f"- Theorem goals: {', '.join(f'`{item}`' for item in row.get('theorem_goals', [])) or 'none'}",

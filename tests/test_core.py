@@ -1230,8 +1230,11 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(first["primitive"])
         self.assertGreater(first["priority_score"], 0)
         self.assertTrue(first["candidate_declarations"])
+        self.assertTrue(first["proof_bank_bridge_available"])
+        self.assertIn(first["bridge_readiness"], payload["by_bridge_readiness"])
         self.assertTrue(first["theorem_goals"])
         self.assertTrue(first["suggested_next_step"])
+        self.assertGreater(payload["n_with_proof_bank_bridge"], 0)
         self.assertTrue(Path("runs/test_formalization_target_audit/formalization_target_manifest.json").exists())
         self.assertTrue(Path("runs/test_formalization_target_audit/formalization_targets.md").exists())
 
@@ -1374,6 +1377,7 @@ class SystemTests(unittest.TestCase):
             payload["counts"]["formalization_targets_ok"],
             payload["counts"]["formalization_targets_total"],
         )
+        self.assertGreater(payload["counts"]["formalization_targets_with_proof_bank_bridge"], 0)
         self.assertGreater(payload["counts"]["formalization_targets_total"], 0)
         self.assertTrue(Path("runs/test_research_system_audit/research_system_audit_manifest.json").exists())
         self.assertTrue(Path(payload["artifacts"]["frontier_coverage_audit"]).exists())

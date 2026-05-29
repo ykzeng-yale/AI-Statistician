@@ -540,6 +540,7 @@ def _formalization_target_audit(args: argparse.Namespace) -> int:
             f"  {row['priority_band']:24} score={row['priority_score']:4} "
             f"{row['primitive']} gaps={row['n_gaps']}"
         )
+        print(f"       bridge: {row['bridge_readiness']}")
         print(f"       next: {row['suggested_next_step'][:180]}")
     print(
         f"\nformalization target manifest written to "

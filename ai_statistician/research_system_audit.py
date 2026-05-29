@@ -191,6 +191,9 @@ async def run_research_system_audit(
             "missing_formal_primitives": len(gap_backlog_manifest["by_required_primitive"]),
             "formalization_targets_ok": formalization_target_manifest["n_ok"],
             "formalization_targets_total": formalization_target_manifest["n_targets"],
+            "formalization_targets_with_proof_bank_bridge": formalization_target_manifest[
+                "n_with_proof_bank_bridge"
+            ],
         },
         "questions": benchmark_manifest["questions"],
         "provenance": benchmark_manifest["provenance"],
