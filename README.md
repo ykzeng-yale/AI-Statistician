@@ -260,6 +260,12 @@ the finite-family factorization
 This upgrades the BH/FDR `independent_null_pvalues` primitive to a
 proof-bank-backed bridge while still leaving p-value validity, ordering, and
 the full BH step-up FDR theorem as explicit formal gaps.
+It also includes `independent_null_event_family_compl_inter_probability`,
+proving the finite-family complement factorization
+`μ (⋂ i ∈ I, (A i)ᶜ) = ∏ i ∈ I, μ (A i)ᶜ`. This gives BH/FDR and
+familywise-error traces a verified "no false null event" product-probability
+bridge, while still leaving null-p-value validity and BH step-up FDR control as
+formal gaps.
 It also includes `first_borel_cantelli_limsup_zero`, a first Borel-Cantelli
 lemma wrapper proving that summable bad-event probabilities imply the limsup
 bad-event has measure zero. This gives sequential and extreme-tail traces a

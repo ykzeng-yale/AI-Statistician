@@ -672,6 +672,13 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   attached to the BH/FDR `independent_null_pvalues` primitive. It proves the
   product-form null-event probability ingredient only, not p-value validity,
   ordering, or the full BH step-up FDR theorem.
+- `independent_null_event_family_compl_inter_probability`: finite-family
+  complement-event independence algebra
+  `iIndepSet A μ -> μ (⋂ i ∈ I, (A i)ᶜ) = ∏ i ∈ I, μ (A i)ᶜ`. This uses
+  `iIndepSet_iff` plus measurability of complements in the generated
+  singleton sigma-algebras, giving BH/FDR and familywise-error traces a
+  verified "no false null event" product bridge while preserving the full BH
+  theorem as a formal gap.
 - `first_borel_cantelli_limsup_zero`: the first Borel-Cantelli repeated-event
   control lemma `sum μ(A_n) < ∞ -> μ(limsup A_n)=0`, wrapped around Mathlib's
   `MeasureTheory.measure_limsup_atTop_eq_zero`; this supports convergence,

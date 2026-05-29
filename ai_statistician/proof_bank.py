@@ -1436,6 +1436,51 @@ theorem independentFiniteEventInter_probability {Ω ι : Type*} [MeasurableSpace
         expected_lemmas=("iIndepSet.meas_biInter",),
         depends_on=("independent_event_inter_probability",),
     ),
+    "independent_null_event_family_compl_inter_probability": FormalObligation(
+        id="independent_null_event_family_compl_inter_probability",
+        title="Finite independent null-event complement-intersection probability",
+        english=(
+            "For a finite family of independent null events, the probability "
+            "that none of the events occur factors as the product of their "
+            "complement probabilities. This is a reusable bridge for BH/FDR, "
+            "familywise-error, and no-false-discovery decompositions; it does "
+            "not prove null p-value validity, ordering, or the BH step-up theorem."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+theorem independentFiniteEventComplInter_probability {Ω ι : Type*} [MeasurableSpace Ω]
+    (μ : Measure Ω) (A : ι → Set Ω) (I : Finset ι)
+    (h_indep : iIndepSet A μ) :
+    μ (⋂ i ∈ I, (A i)ᶜ) = ∏ i ∈ I, μ (A i)ᶜ := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  exact (iIndepSet_iff A μ).1 h_indep I (f := fun i => (A i)ᶜ) (by\n"
+            "    intro i hi\n"
+            "    exact (MeasurableSpace.measurableSet_generateFrom\n"
+            "      (by simp : A i ∈ ({A i} : Set (Set Ω)))).compl)"
+        ),
+        tags=(
+            "probability",
+            "event",
+            "independence",
+            "complement",
+            "intersection",
+            "finite_family",
+            "multiple_testing",
+            "familywise_error",
+            "fdr",
+            "bh",
+            "null_pvalues",
+            "pvalue",
+        ),
+        expected_lemmas=("iIndepSet_iff", "MeasurableSpace.measurableSet_generateFrom"),
+        depends_on=("independent_null_event_family_inter_probability", "prob_compl"),
+    ),
     "first_borel_cantelli_limsup_zero": FormalObligation(
         id="first_borel_cantelli_limsup_zero",
         title="First Borel-Cantelli limsup event bound",

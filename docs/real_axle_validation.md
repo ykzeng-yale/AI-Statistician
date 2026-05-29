@@ -8,20 +8,20 @@ Runtime used:
 PYTHONPATH=/Users/yukang/AI\ Statistician \
 /Users/yukang/LeanProjects/LeanPractice/.venv/bin/python \
   -m ai_statistician.cli proof-audit --real-lean \
-  --out runs/proof_audit_real_full_42
+  --out runs/proof_audit_real_full_43
 ```
 
 Result:
 
 ```text
-verified=42/42
-kernel=42/42
+verified=43/43
+kernel=43/43
 verifier=axle.verify_proof
 strength=axle_lean_kernel
 ```
 
 This is the current evidence that the registered proof bank is not only
-mock-checked: all 42 registered Mathlib-backed obligations were accepted by
+mock-checked: all 43 registered Mathlib-backed obligations were accepted by
 AXLE/Lean-kernel verification in the real external runtime.
 
 Latest real research-system validation: 2026-05-29.
@@ -32,7 +32,7 @@ Runtime used:
 PYTHONPATH=/Users/yukang/AI\ Statistician \
 /Users/yukang/LeanProjects/LeanPractice/.venv/bin/python \
   -m ai_statistician.cli research-system-audit --real-lean \
-  --runs 20 --out runs/research_system_real_lean_42_bh_bridge
+  --runs 20 --out runs/research_system_real_lean_43_bh_compl_bridge
 ```
 
 Result:
@@ -46,18 +46,18 @@ frontier_supported=60/60
 frontier_precision=60/60
 frontier_backlog=0/0
 frontier_smoke=23/23
-proofs_verified=42/42
-proofs_kernel_verified=42/42
+proofs_verified=43/43
+proofs_kernel_verified=43/43
 proof_verification_strength=axle_lean_kernel
 research_traces_ok=10/10
 formal_gaps=20
 formalized_gaps=20
 autoform_targets=20/20
-formal_source_graph_symbols=69324
-formal_source_graph_edges=1361764
-verifier_cache_hits=286
-verifier_cache_misses=42
-verifier_cache_size=42
+formal_source_graph_symbols=69330
+formal_source_graph_edges=1361926
+verifier_cache_hits=290
+verifier_cache_misses=43
+verifier_cache_size=43
 ```
 
 The research-system run proves that `--real-lean` now flows through the actual
@@ -77,6 +77,14 @@ independence bridge proving
 It upgrades the `independent_null_pvalues` BH/FDR formalization primitive from
 source-only grounding to a proof-bank-backed bridge while still leaving the full
 BH step-up FDR theorem as an explicit formal gap.
+
+The 43rd obligation is
+`independent_null_event_family_compl_inter_probability`, proving
+`μ (⋂ i ∈ I, (A i)ᶜ) = ∏ i ∈ I, μ (A i)ᶜ` from `iIndepSet_iff` and generated
+singleton sigma-algebra measurability. The formalization-target audit now ranks
+this complement bridge first for `independent_null_pvalues`, with both
+intersection and complement-intersection product obligations available as
+bridge candidates.
 
 Important boundary:
 

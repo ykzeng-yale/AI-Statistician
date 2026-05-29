@@ -647,6 +647,22 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("fdr", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_independent_null_event_complement_family_bridge_uses_generated_sigma_algebra(self) -> None:
+        obligation = get_obligation("independent_null_event_family_compl_inter_probability")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(
+            obligation.depends_on,
+            ("independent_null_event_family_inter_probability", "prob_compl"),
+        )
+        self.assertIn("theorem independentFiniteEventComplInter_probability", content)
+        self.assertIn("iIndepSet A μ", content)
+        self.assertIn("μ (⋂ i ∈ I, (A i)ᶜ) = ∏ i ∈ I, μ (A i)ᶜ", content)
+        self.assertIn("iIndepSet_iff", content)
+        self.assertIn("MeasurableSpace.measurableSet_generateFrom", content)
+        self.assertIn("familywise_error", obligation.tags)
+        self.assertIn("null_pvalues", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_first_borel_cantelli_obligation_uses_mathlib_limsup_lemma(self) -> None:
         obligation = get_obligation("first_borel_cantelli_limsup_zero")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
