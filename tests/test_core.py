@@ -134,6 +134,7 @@ class ProofBankTests(unittest.TestCase):
             "\n".join(
                 [
                     "import Mathlib",
+                    "import Mathlib.Probability.Moments.Variance",
                     "namespace Demo",
                     "lemma bonferroni_union_bound : True := by trivial",
                     "theorem variance_sum_indep",
@@ -156,12 +157,20 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("IndepFun", variance_decl.premise_heads)
         self.assertEqual(variance_decl.lhs_head, "variance")
         self.assertIn("variance", variance_decl.major_symbols)
+        self.assertIn("Mathlib", variance_decl.imports)
+        self.assertIn("Mathlib.Probability.Moments.Variance", variance_decl.imports)
         shape_hits = search_formal_sources(
             "variance equality with IndepFun premise",
             declarations=declarations,
             k=3,
         )
         self.assertEqual(shape_hits[0].declaration.name, "Demo.variance_sum_indep")
+        import_hits = search_formal_sources(
+            "Probability Moments Variance import",
+            declarations=declarations,
+            k=3,
+        )
+        self.assertEqual(import_hits[0].declaration.name, "Demo.variance_sum_indep")
         sqlite_index = FormalSourceSqliteIndex.build(
             declarations,
             Path("runs/test_formal_source_index/formal_source_index.sqlite"),
@@ -169,7 +178,9 @@ class ProofBankTests(unittest.TestCase):
         sqlite_hits = sqlite_index.search("variance equality IndepFun premise", k=3)
         self.assertTrue(sqlite_hits)
         self.assertEqual(sqlite_hits[0].declaration.name, "Demo.variance_sum_indep")
-        self.assertEqual(len(sqlite_index.load_declarations()), 2)
+        sqlite_declarations = sqlite_index.load_declarations()
+        self.assertEqual(len(sqlite_declarations), 2)
+        self.assertIn("Mathlib.Probability.Moments.Variance", sqlite_declarations[1].imports)
         graph = FormalSourceGraphRetriever(declarations)
         graph_hits = graph.search("independent variance estimator", k=3)
         self.assertTrue(graph_hits)

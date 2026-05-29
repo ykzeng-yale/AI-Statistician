@@ -213,6 +213,11 @@ def _symbols_for_declaration(decl: FormalDeclaration) -> set[str]:
             continue
         symbols.add(symbol)
         symbols.add(symbol.lower())
+    for module in decl.imports:
+        for part in module.split("."):
+            if len(part) >= 3:
+                symbols.add(part)
+                symbols.add(part.lower())
     name_tail = decl.name.split(".")[-1]
     for part in name_tail.replace("_", " ").split():
         if len(part) >= 3:
@@ -241,6 +246,7 @@ def _graph_hit_payload(hit: FormalSourceGraphHit) -> dict[str, object]:
         "conclusion_head": hit.declaration.conclusion_head,
         "lhs_head": hit.declaration.lhs_head,
         "rhs_head": hit.declaration.rhs_head,
+        "imports": hit.declaration.imports,
     }
 
 

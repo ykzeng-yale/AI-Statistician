@@ -21,6 +21,7 @@ DECL_RE = re.compile(
 )
 NAMESPACE_RE = re.compile(r"^\s*namespace\s+([A-Za-z_][A-Za-z0-9_'.]*)\b")
 END_RE = re.compile(r"^\s*end(?:\s+([A-Za-z_][A-Za-z0-9_'.]*))?\b")
+IMPORT_RE = re.compile(r"^\s*import\s+(.+)$")
 TOKEN_RE = re.compile(r"[\w'.]+|[∀∃∧∨→↔=≤≥<>+*/^.-]+", re.UNICODE)
 STOP_TOKENS = {
     "the",
@@ -78,6 +79,7 @@ class FormalDeclaration:
     lhs_head: str = ""
     rhs_head: str = ""
     major_symbols: tuple[str, ...] = ()
+    imports: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -108,6 +110,7 @@ class FormalSourceRetriever:
                             decl.rhs_head,
                             " ".join(decl.premise_heads),
                             " ".join(decl.major_symbols),
+                            " ".join(decl.imports),
                         ]
                     )
                 ),
@@ -115,6 +118,7 @@ class FormalSourceRetriever:
                 _search_tokens(
                     " ".join([decl.conclusion_head, decl.lhs_head, decl.rhs_head, " ".join(decl.premise_heads)])
                 ),
+                _search_tokens(" ".join(decl.imports)),
             )
             for decl in self.declarations
         ]
@@ -122,13 +126,14 @@ class FormalSourceRetriever:
     def search(self, query: str, *, k: int = 10) -> list[FormalSourceHit]:
         q_tokens = _search_tokens(query)
         hits: list[FormalSourceHit] = []
-        for decl, d_tokens, name_tokens, shape_tokens in self._rows:
+        for decl, d_tokens, name_tokens, shape_tokens, import_tokens in self._rows:
             hit = _score_declaration(
                 decl,
                 q_tokens,
                 declaration_tokens=d_tokens,
                 name_tokens=name_tokens,
                 shape_tokens=shape_tokens,
+                import_tokens=import_tokens,
             )
             if hit is not None:
                 hits.append(hit)
@@ -175,7 +180,8 @@ class FormalSourceSqliteIndex:
                     conclusion_head TEXT NOT NULL,
                     lhs_head TEXT NOT NULL,
                     rhs_head TEXT NOT NULL,
-                    major_symbols TEXT NOT NULL
+                    major_symbols TEXT NOT NULL,
+                    imports TEXT NOT NULL
                 )
                 """
             )
@@ -187,14 +193,15 @@ class FormalSourceSqliteIndex:
                     signature,
                     shape,
                     path,
-                    source_id
+                    source_id,
+                    imports
                 )
                 """
             )
             for idx, decl in enumerate(declarations, start=1):
                 conn.execute(
                     """
-                    INSERT INTO declarations VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO declarations VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         idx,
@@ -212,12 +219,13 @@ class FormalSourceSqliteIndex:
                         decl.lhs_head,
                         decl.rhs_head,
                         json.dumps(decl.major_symbols),
+                        json.dumps(decl.imports),
                     ),
                 )
                 conn.execute(
                     """
-                    INSERT INTO declarations_fts (decl_id, name, signature, shape, path, source_id)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    INSERT INTO declarations_fts (decl_id, name, signature, shape, path, source_id, imports)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         idx,
@@ -236,6 +244,7 @@ class FormalSourceSqliteIndex:
                         ),
                         _fts_text(decl.path),
                         _fts_text(decl.source_id),
+                        _fts_text(" ".join(decl.imports)),
                     ),
                 )
             conn.execute("CREATE INDEX declarations_name_idx ON declarations(name)")
@@ -449,6 +458,7 @@ def formal_source_index_fingerprint(declarations: list[FormalDeclaration] | None
             "lhs_head": decl.lhs_head,
             "rhs_head": decl.rhs_head,
             "major_symbols": decl.major_symbols,
+            "imports": decl.imports,
         }
         for decl in decls
     ]
@@ -476,6 +486,7 @@ def _score_declaration(
     declaration_tokens: set[str] | None = None,
     name_tokens: set[str] | None = None,
     shape_tokens: set[str] | None = None,
+    import_tokens: set[str] | None = None,
 ) -> FormalSourceHit | None:
     d_tokens = declaration_tokens if declaration_tokens is not None else _search_tokens(_decl_search_text(decl))
     n_tokens = name_tokens if name_tokens is not None else _search_tokens(decl.name)
@@ -484,13 +495,15 @@ def _score_declaration(
         if shape_tokens is not None
         else _search_tokens(" ".join([decl.conclusion_head, decl.lhs_head, decl.rhs_head, " ".join(decl.premise_heads)]))
     )
+    i_tokens = import_tokens if import_tokens is not None else _search_tokens(" ".join(decl.imports))
     overlap = q_tokens & d_tokens
     if not overlap:
         return None
     name_bonus = 2.0 * len(q_tokens & n_tokens)
     shape_bonus = 1.5 * len(q_tokens & s_tokens)
+    import_bonus = 0.75 * len(q_tokens & i_tokens)
     source_bonus = 1.0 if decl.source_id.startswith("mathlib") else 1.5
-    score = len(overlap) + name_bonus + shape_bonus + source_bonus
+    score = len(overlap) + name_bonus + shape_bonus + import_bonus + source_bonus
     return FormalSourceHit(decl, score, tuple(sorted(overlap)[:16]))
 
 
@@ -507,6 +520,7 @@ def _decl_search_text(decl: FormalDeclaration) -> str:
             decl.rhs_head,
             " ".join(decl.premise_heads),
             " ".join(decl.major_symbols),
+            " ".join(decl.imports),
         ]
     )
 
@@ -540,6 +554,7 @@ def _decl_from_sqlite_row(row) -> FormalDeclaration:
         lhs_head=row[12],
         rhs_head=row[13],
         major_symbols=tuple(json.loads(row[14])),
+        imports=tuple(json.loads(row[15])) if len(row) > 15 else (),
     )
 
 
@@ -643,8 +658,13 @@ def _declarations_in_file(root: FormalSourceRoot, path: Path, base: Path) -> lis
         return []
     rel = str(path.relative_to(base))
     namespace_stack: list[str] = []
+    imports: list[str] = []
     rows: list[FormalDeclaration] = []
     for idx, line in enumerate(lines, start=1):
+        import_match = IMPORT_RE.match(line)
+        if import_match:
+            imports.extend(_parse_imports(import_match.group(1)))
+            continue
         ns_match = NAMESPACE_RE.match(line)
         if ns_match:
             namespace_stack.extend(ns_match.group(1).split("."))
@@ -685,9 +705,15 @@ def _declarations_in_file(root: FormalSourceRoot, path: Path, base: Path) -> lis
                 lhs_head=compressed["lhs_head"],
                 rhs_head=compressed["rhs_head"],
                 major_symbols=compressed["major_symbols"],
+                imports=tuple(imports),
             )
         )
     return rows
+
+
+def _parse_imports(import_tail: str) -> list[str]:
+    cleaned = import_tail.split("--", 1)[0].strip()
+    return [item for item in cleaned.split() if re.match(r"^[A-Za-z_][A-Za-z0-9_'.]*$", item)]
 
 
 def _iter_lean_files(location: Path, *, max_file_bytes: int, max_files: int):
@@ -740,6 +766,7 @@ def _hit_payload(hit: FormalSourceHit) -> dict[str, object]:
         "conclusion_head": hit.declaration.conclusion_head,
         "lhs_head": hit.declaration.lhs_head,
         "rhs_head": hit.declaration.rhs_head,
+        "imports": hit.declaration.imports,
     }
 
 

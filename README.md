@@ -78,8 +78,10 @@ the proof-bank expansion tool: before adding a new obligation, run it to find
 existing declarations to reuse instead of re-proving from scratch.
 The local declaration index now stores compressed theorem-shape features
 alongside raw text: binder counts, premise heads, conclusion head, left/right
-equality heads, and major symbols. Search therefore uses Lean-aware structure
-such as `IndepFun -> variance = sum` instead of only grep-style token overlap.
+equality heads, major symbols, and the Lean imports available at each
+declaration. Search therefore uses Lean-aware structure such as
+`IndepFun -> variance = sum` plus module context such as
+`Mathlib.Probability.Moments.Variance` instead of only grep-style token overlap.
 Formal gaps also persist `primitive_formal_source_hits`, so each missing
 primitive such as `slutsky_theorem`, `davis_kahan_sin_theta`, or
 `regular_variation` gets its own local Lean/StatInference candidate list rather
