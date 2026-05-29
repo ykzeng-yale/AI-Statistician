@@ -212,6 +212,39 @@ theorem waldInterval_contains_iff_abs_error
         tags=("estimator", "confidence_interval", "coverage", "wald", "absolute_error", "real_algebra"),
         expected_lemmas=("abs_le", "linarith"),
     ),
+    "coverage_lower_bound_of_complement_error": FormalObligation(
+        id="coverage_lower_bound_of_complement_error",
+        title="Coverage lower bound from complement-event error control",
+        english=(
+            "For a probability measure, if the complement of a coverage event "
+            "has probability at most alpha, then the coverage event has "
+            "probability at least 1-alpha. This is the reusable measure-theoretic "
+            "bridge from miscoverage/error control to coverage reporting; it "
+            "does not prove the model-specific bound on the complement event."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory
+
+theorem coverageLowerBound_of_complement_error {Ω : Type*} [MeasurableSpace Ω]
+    (μ : Measure Ω) [IsProbabilityMeasure μ]
+    (A : Set Ω) (hA : MeasurableSet A) (α : ENNReal)
+    (hbad : μ Aᶜ ≤ α) :
+    1 - α ≤ μ A := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  have hcoverage : μ A = 1 - μ Aᶜ := by\n"
+            "    simpa using (prob_compl_eq_one_sub hA.compl : μ (Aᶜ)ᶜ = 1 - μ Aᶜ)\n"
+            "  rw [hcoverage]\n"
+            "  exact tsub_le_tsub_left hbad 1"
+        ),
+        tags=("probability", "event", "coverage", "miscoverage", "confidence_interval", "conformal", "wald"),
+        expected_lemmas=("prob_compl_eq_one_sub", "tsub_le_tsub_left"),
+        depends_on=("prob_compl",),
+    ),
     "finite_family_absolute_error_union_control": FormalObligation(
         id="finite_family_absolute_error_union_control",
         title="Finite-family simultaneous absolute-error control",

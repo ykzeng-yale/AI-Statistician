@@ -1209,6 +1209,7 @@ class TheoryPlanner:
                     proof_obligations=(
                         "prob_measure_univ",
                         "prob_compl",
+                        "coverage_lower_bound_of_complement_error",
                         "event_probability_mono",
                         "finite_union_bound",
                         "finite_union_budget_control",
@@ -1670,7 +1671,12 @@ class TheoryPlanner:
                         "posterior_concentration",
                         "calibration_error_bound",
                     ),
-                    proof_obligations=("prob_compl", "markov_inequality", "estimator_error_chebyshev"),
+                    proof_obligations=(
+                        "prob_compl",
+                        "coverage_lower_bound_of_complement_error",
+                        "markov_inequality",
+                        "estimator_error_chebyshev",
+                    ),
                 ),
             ]
             procedures = [
@@ -1919,7 +1925,10 @@ class TheoryPlanner:
                         "hc1_variance_consistency",
                         "wald_interval_slutsky",
                     ),
-                    proof_obligations=("wald_interval_contains_iff_abs_error",),
+                    proof_obligations=(
+                        "wald_interval_contains_iff_abs_error",
+                        "coverage_lower_bound_of_complement_error",
+                    ),
                 ),
             ]
             procedures = [
@@ -2352,6 +2361,7 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
     "distribution_free_conformal_prediction": (
         "prob_measure_univ",
         "prob_compl",
+        "coverage_lower_bound_of_complement_error",
         "event_probability_mono",
         "finite_union_bound",
         "finite_union_budget_control",
@@ -2411,6 +2421,7 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "estimator_error_chebyshev",
         "variance_nonneg",
         "prob_compl",
+        "coverage_lower_bound_of_complement_error",
         "markov_inequality",
     ),
     "measurement_bias_ranking_inference": (
@@ -2447,6 +2458,7 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "finite_sample_mean_chebyshev_indep",
         "estimator_error_chebyshev",
         "wald_interval_contains_iff_abs_error",
+        "coverage_lower_bound_of_complement_error",
         "mean2_estimator_chebyshev_indep",
         "variance_nonneg",
     ),
