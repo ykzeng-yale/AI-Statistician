@@ -1412,6 +1412,7 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(payload["gates"]["research_trace_audit"])
         self.assertTrue(payload["gates"]["research_gap_backlog"])
         self.assertTrue(payload["gates"]["formalization_target_audit"])
+        self.assertTrue(payload["gates"]["research_report"])
         self.assertEqual(payload["counts"]["questions"], 10)
         self.assertEqual(payload["counts"]["frontier_questions"], 60)
         self.assertGreater(payload["counts"]["frontier_supported"], 0)
@@ -1453,6 +1454,12 @@ class SystemTests(unittest.TestCase):
         )
         self.assertGreater(payload["counts"]["formalization_targets_with_proof_bank_bridge"], 0)
         self.assertGreater(payload["counts"]["formalization_targets_total"], 0)
+        self.assertEqual(payload["counts"]["research_report_questions"], payload["counts"]["questions"])
+        self.assertEqual(payload["counts"]["research_report_formal_gaps"], payload["counts"]["formal_gaps"])
+        self.assertEqual(
+            payload["counts"]["research_report_simulations_passed"],
+            payload["counts"]["research_report_simulations"],
+        )
         self.assertTrue(Path("runs/test_research_system_audit/research_system_audit_manifest.json").exists())
         self.assertTrue(Path(payload["artifacts"]["frontier_coverage_audit"]).exists())
         self.assertTrue(Path(payload["artifacts"]["frontier_precision_audit"]).exists())
@@ -1471,6 +1478,8 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(Path(payload["artifacts"]["research_gap_backlog"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formalization_target_audit"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formalization_target_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["research_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["research_report_manifest"]).exists())
 
 
 if __name__ == "__main__":

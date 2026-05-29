@@ -252,7 +252,8 @@ python3 -m ai_statistician.cli research-system-audit \
 The system audit is the preferred single command for evaluating this layer. It
 runs proof-bank retrieval, frontier precision audit, research capability audit,
 research knowledge-source audit, research algorithm audit, proof verification,
-the frontier research benchmark, and the research trace audit, then writes
+the frontier research benchmark, the research trace audit, formal-gap backlog,
+formalization target queue, and the human-readable research report, then writes
 `research_system_audit_manifest.json` with gates and artifact paths. With
 `--real-lean`, the proof gate and benchmark subclaims use AXLE
 `verify_proof`; frontier theorem goals still remain explicit formal gaps unless
