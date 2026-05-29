@@ -47,6 +47,22 @@ FORMAL_SEARCH_KNOWLEDGE = {
     "openprover_pipeline",
 }
 
+SIMULATION_DIAGNOSIS_STATUSES = {
+    "OK",
+    "THEORY_OR_PROCEDURE_ISSUE",
+    "IMPLEMENTATION_OR_NUMERICAL_ISSUE",
+    "ENVIRONMENT_OR_DGP_ISSUE",
+    "INSUFFICIENT_MC_PRECISION",
+}
+
+SIMULATION_ESCALATION_TARGETS = {
+    "none",
+    "theory_developer",
+    "algorithm_engineer",
+    "simulator_environment",
+    "rerun_more_mc",
+}
+
 
 DIAGNOSTIC_METRIC_ALIASES: dict[str, tuple[str, ...]] = {
     "se_calibration": ("se_ratio", "mean_estimated_se", "empirical_se"),
@@ -443,6 +459,29 @@ def _validate_research_trace(
                 errors.append(f"simulation {idx} passed flag missing")
             if not simulation.get("feedback"):
                 errors.append(f"simulation {idx} feedback missing")
+            diagnosis = simulation.get("diagnosis")
+            if not isinstance(diagnosis, dict) or not diagnosis:
+                errors.append(f"simulation {idx} diagnosis missing")
+            else:
+                diagnosis_status = diagnosis.get("status")
+                escalate_to = diagnosis.get("escalate_to")
+                if diagnosis_status not in SIMULATION_DIAGNOSIS_STATUSES:
+                    errors.append(f"simulation {idx} diagnosis.status invalid")
+                if escalate_to not in SIMULATION_ESCALATION_TARGETS:
+                    errors.append(f"simulation {idx} diagnosis.escalate_to invalid")
+                if bool(simulation.get("passed")):
+                    if diagnosis_status != "OK":
+                        errors.append(f"simulation {idx} passed but diagnosis is not OK")
+                    if escalate_to != "none":
+                        errors.append(f"simulation {idx} passed but escalation target is not none")
+                elif diagnosis_status == "OK":
+                    errors.append(f"simulation {idx} failed but diagnosis is OK")
+                if diagnosis_status != "OK" and not diagnosis.get("failed_diagnostics"):
+                    errors.append(f"simulation {idx} non-OK diagnosis lacks failed_diagnostics")
+                if not diagnosis.get("rationale"):
+                    errors.append(f"simulation {idx} diagnosis rationale missing")
+                if not isinstance(diagnosis.get("metric_evidence"), dict):
+                    errors.append(f"simulation {idx} diagnosis metric_evidence missing")
 
     limitations = data.get("limitations")
     gap_count = int(summary.get("formal", {}).get("gaps", 0)) if isinstance(summary.get("formal"), dict) else 0

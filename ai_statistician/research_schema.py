@@ -109,6 +109,28 @@ class FormalSubclaim:
 
 
 @dataclass
+class SimulationDiagnosis:
+    status: Literal[
+        "OK",
+        "THEORY_OR_PROCEDURE_ISSUE",
+        "IMPLEMENTATION_OR_NUMERICAL_ISSUE",
+        "ENVIRONMENT_OR_DGP_ISSUE",
+        "INSUFFICIENT_MC_PRECISION",
+    ]
+    escalate_to: Literal[
+        "none",
+        "theory_developer",
+        "algorithm_engineer",
+        "simulator_environment",
+        "rerun_more_mc",
+    ]
+    failed_diagnostics: tuple[str, ...] = ()
+    failed_stress_tests: tuple[str, ...] = ()
+    rationale: str = ""
+    metric_evidence: dict[str, float] = field(default_factory=dict)
+
+
+@dataclass
 class ResearchSimulation:
     procedure_id: str
     design: str
@@ -117,6 +139,7 @@ class ResearchSimulation:
     feedback: str
     stress_tests: tuple[str, ...] = ()
     stress_test_metrics: dict[str, dict[str, float]] = field(default_factory=dict)
+    diagnosis: SimulationDiagnosis | None = None
 
 
 @dataclass

@@ -1092,6 +1092,11 @@ class SystemTests(unittest.TestCase):
         stress_tests = trace_payload["problem"]["stress_tests"]
         self.assertTrue(stress_tests)
         for simulation in trace_payload["simulations"]:
+            diagnosis = simulation["diagnosis"]
+            self.assertEqual(diagnosis["status"], "OK")
+            self.assertEqual(diagnosis["escalate_to"], "none")
+            self.assertTrue(diagnosis["rationale"])
+            self.assertIsInstance(diagnosis["metric_evidence"], dict)
             self.assertEqual(set(simulation["stress_tests"]), set(stress_tests))
             self.assertEqual(set(simulation["stress_test_metrics"]), set(stress_tests))
             for stress_row in simulation["stress_test_metrics"].values():
@@ -1101,6 +1106,11 @@ class SystemTests(unittest.TestCase):
         for simulation in payload["questions"][0]["simulations"]:
             self.assertTrue(simulation["stress_tests"])
             self.assertTrue(simulation["stress_test_metrics"])
+            self.assertEqual(simulation["diagnosis"]["status"], "OK")
+            self.assertEqual(simulation["diagnosis"]["escalate_to"], "none")
+        procedure_run = theory_plan["simulation_plan"]["procedure_runs"][0]
+        self.assertEqual(procedure_run["diagnosis"], "OK")
+        self.assertEqual(procedure_run["escalate_to"], "none")
         for goal in trace_payload["theorem_goals"]:
             self.assertTrue(goal["required_primitives"])
         causal_goals = {row["id"]: row for row in trace_payload["theorem_goals"]}
@@ -1251,6 +1261,7 @@ class SystemTests(unittest.TestCase):
         self.assertIn("Problem Extraction", text)
         self.assertIn("Formal Proof Status", text)
         self.assertIn("Simulation Diagnostics", text)
+        self.assertIn("Diagnosis:", text)
         self.assertIn("Source Grounding", text)
         self.assertIn("FORMAL_GAP", text)
 

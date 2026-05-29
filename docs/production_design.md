@@ -239,10 +239,11 @@ This is the requirement-level audit for the broad AI Statistical Theory Lab
 goal. It writes `research_capability_audit_manifest.json` and
 `research_capability_audit.md` with rows for intake, problem formalization,
 informal theory planning, knowledge retrieval, AXLE-backed proof-bank
-subclaims, Lean gap skeletons, vetted algorithms, simulations, traces, frontier
-coverage, and the not-yet-achieved arbitrary-frontier-theory target. The current
-scaffold should pass `all_current_release_requirements_met=true`; the broader
-research goal intentionally remains `goal_complete=false`.
+subclaims, Lean gap skeletons, vetted algorithms, simulations, structured
+simulation adjudication, traces, frontier coverage, and the not-yet-achieved
+arbitrary-frontier-theory target. The current scaffold should pass
+`all_current_release_requirements_met=true`; the broader research goal
+intentionally remains `goal_complete=false`.
 
 Research system audit:
 
@@ -263,7 +264,10 @@ and artifact paths. The training, baseline, and theory-target gates check
 artifact integrity and scoring coverage, not model quality: they make
 verifier-positive proof attempts available for future SFT/rejection sampling,
 record the no-training proof-memory baseline that trained policies must beat,
-and quantify how much of the withheld paper-theory target text is recovered.
+quantify how much of the withheld paper-theory target text is recovered, and
+check that every simulation contains a deterministic diagnosis routing failures
+to the theory developer, algorithm engineer, simulator environment, or a larger
+Monte Carlo run instead of leaving metric failures as unstructured text.
 With `--real-lean`, the proof gate and benchmark subclaims use AXLE
 `verify_proof`; frontier theorem goals still remain explicit formal gaps unless
 they have been added to the proof bank as real obligations.

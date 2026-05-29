@@ -27,6 +27,7 @@ from .research_schema import (
     ResearchProblemSpec,
     ResearchReport,
     ResearchSimulation,
+    SimulationDiagnosis,
     TheoremGoal,
 )
 from .retrieval import ProofBankRetriever, RetrievalQuery
@@ -2379,16 +2380,22 @@ class ResearchSimulator:
         row: ResearchSimulation,
     ) -> ResearchSimulation:
         stress_tests = tuple(problem.stress_tests)
-        if not stress_tests:
-            return row
-        stress_test_metrics = {
-            stress_test: self._stress_test_metric(stress_test, row.metrics)
-            for stress_test in stress_tests
-        }
-        return replace(
+        stress_test_metrics = (
+            {
+                stress_test: self._stress_test_metric(stress_test, row.metrics)
+                for stress_test in stress_tests
+            }
+            if stress_tests
+            else {}
+        )
+        with_stress_tests = replace(
             row,
             stress_tests=stress_tests,
             stress_test_metrics=stress_test_metrics,
+        )
+        return replace(
+            with_stress_tests,
+            diagnosis=self._diagnose_simulation(problem, with_stress_tests),
         )
 
     def _stress_test_metric(self, stress_test: str, metrics: dict[str, float]) -> dict[str, float]:
@@ -2457,6 +2464,134 @@ class ResearchSimulator:
             return "n_failed", 0.0, "max"
         key = next(iter(metrics), "n_runs")
         return key, 0.0, "min"
+
+    def _diagnose_simulation(
+        self,
+        problem: ResearchProblemSpec,
+        row: ResearchSimulation,
+    ) -> SimulationDiagnosis:
+        metrics = row.metrics
+        nonfinite_metrics = sorted(
+            key for key, value in metrics.items()
+            if not isinstance(value, (int, float)) or not math.isfinite(float(value))
+        )
+        failed_stress_tests = tuple(
+            name
+            for name, values in row.stress_test_metrics.items()
+            if float(values.get("stress_flag", 0.0)) > 0.5
+        )
+        failed_diagnostics = tuple(
+            diagnostic
+            for diagnostic in problem.diagnostics
+            if self._diagnostic_failed(diagnostic, metrics)
+        )
+        n_runs = float(metrics.get("n_runs", self.n_runs))
+        n_failed = float(metrics.get("n_failed", 0.0))
+        evidence_keys = {
+            "n_runs",
+            "n_failed",
+            "relative_bias",
+            "bias",
+            "coverage_95",
+            "se_ratio",
+            "rmse",
+            "empirical_fdr",
+            "type1_error",
+            "power",
+            "mean_alignment",
+            "tail_index_relative_bias",
+            "quantile_relative_bias",
+            "tail_index_coverage_95",
+            "quantile_coverage_95",
+            "high_quantile_coverage",
+        }
+        metric_evidence = {
+            key: float(value)
+            for key, value in metrics.items()
+            if key in evidence_keys and isinstance(value, (int, float)) and math.isfinite(float(value))
+        }
+
+        if row.passed and not nonfinite_metrics:
+            return SimulationDiagnosis(
+                status="OK",
+                escalate_to="none",
+                rationale="The registered simulation acceptance rule passed under the current Monte Carlo budget.",
+                metric_evidence=metric_evidence,
+            )
+        if "unsupported" in row.feedback.lower() or row.design.lower().startswith("no simulator registered"):
+            return SimulationDiagnosis(
+                status="ENVIRONMENT_OR_DGP_ISSUE",
+                escalate_to="simulator_environment",
+                failed_diagnostics=failed_diagnostics or ("simulator_missing",),
+                failed_stress_tests=failed_stress_tests,
+                rationale="The simulator does not yet implement the requested DGP/procedure environment.",
+                metric_evidence=metric_evidence,
+            )
+        if nonfinite_metrics or (n_runs > 0 and n_failed / n_runs > 0.10):
+            return SimulationDiagnosis(
+                status="IMPLEMENTATION_OR_NUMERICAL_ISSUE",
+                escalate_to="algorithm_engineer",
+                failed_diagnostics=failed_diagnostics or tuple(nonfinite_metrics) or ("numerical_failure",),
+                failed_stress_tests=failed_stress_tests,
+                rationale="The run produced non-finite metrics or too many failed replicates before judging theory.",
+                metric_evidence=metric_evidence,
+            )
+        if n_runs - n_failed < 30:
+            return SimulationDiagnosis(
+                status="INSUFFICIENT_MC_PRECISION",
+                escalate_to="rerun_more_mc",
+                failed_diagnostics=failed_diagnostics or ("mc_precision",),
+                failed_stress_tests=failed_stress_tests,
+                rationale="Too few successful Monte Carlo replicates are available for a stable theory judgment.",
+                metric_evidence=metric_evidence,
+            )
+        return SimulationDiagnosis(
+            status="THEORY_OR_PROCEDURE_ISSUE",
+            escalate_to="theory_developer",
+            failed_diagnostics=failed_diagnostics or ("procedure_acceptance_rule",),
+            failed_stress_tests=failed_stress_tests,
+            rationale="The implementation ran, but statistical diagnostics or stress tests violated the registered acceptance rule.",
+            metric_evidence=metric_evidence,
+        )
+
+    def _diagnostic_failed(self, diagnostic: str, metrics: dict[str, float]) -> bool:
+        text = diagnostic.lower()
+        if any(token in text for token in ("coverage", "calibration", "confidence")):
+            coverage_keys = ("coverage_95", "high_quantile_coverage", "tail_index_coverage_95", "quantile_coverage_95")
+            for key in coverage_keys:
+                if key in metrics and math.isfinite(float(metrics[key])) and float(metrics[key]) < 0.88:
+                    return True
+        if "bias" in text:
+            for key, threshold in (
+                ("relative_bias", 0.10),
+                ("tail_index_relative_bias", 0.12),
+                ("quantile_relative_bias", 0.22),
+                ("bias", 0.10),
+            ):
+                if key in metrics and math.isfinite(float(metrics[key])) and abs(float(metrics[key])) > threshold:
+                    return True
+        if any(token in text for token in ("se", "variance", "calibration")) and "se_ratio" in metrics:
+            se_ratio = float(metrics["se_ratio"])
+            if math.isfinite(se_ratio) and not 0.70 <= se_ratio <= 1.65:
+                return True
+        if "rmse" in text and "rmse" in metrics:
+            rmse = float(metrics["rmse"])
+            if math.isfinite(rmse) and rmse > 1.0:
+                return True
+        if any(token in text for token in ("fdr", "false discovery")) and "empirical_fdr" in metrics:
+            target = float(metrics.get("target_fdr", 0.10))
+            return math.isfinite(float(metrics["empirical_fdr"])) and float(metrics["empirical_fdr"]) > target + 0.03
+        if any(token in text for token in ("optional", "type-i", "type1")) and "type1_error" in metrics:
+            target = float(metrics.get("target_alpha", 0.05))
+            return math.isfinite(float(metrics["type1_error"])) and float(metrics["type1_error"]) > target + 0.03
+        if "power" in text and "power" in metrics:
+            return math.isfinite(float(metrics["power"])) and float(metrics["power"]) < 0.55
+        if any(token in text for token in ("alignment", "subspace", "pca")):
+            if "mean_alignment" in metrics and math.isfinite(float(metrics["mean_alignment"])):
+                return float(metrics["mean_alignment"]) < 0.65
+            if "mean_subspace_error" in metrics and math.isfinite(float(metrics["mean_subspace_error"])):
+                return float(metrics["mean_subspace_error"]) > 0.80
+        return False
 
     def _oracle_aipw(self, procedure: CandidateProcedure, rng: np.random.Generator) -> ResearchSimulation:
         n = 600
@@ -3400,6 +3535,16 @@ def build_theory_plan(
                         if procedure.id in simulation_by_procedure
                         else False
                     ),
+                    "diagnosis": (
+                        simulation_by_procedure[procedure.id].diagnosis.status
+                        if procedure.id in simulation_by_procedure and simulation_by_procedure[procedure.id].diagnosis
+                        else "missing"
+                    ),
+                    "escalate_to": (
+                        simulation_by_procedure[procedure.id].diagnosis.escalate_to
+                        if procedure.id in simulation_by_procedure and simulation_by_procedure[procedure.id].diagnosis
+                        else "missing"
+                    ),
                     "metric_keys": sorted(simulation_by_procedure[procedure.id].metrics)
                     if procedure.id in simulation_by_procedure
                     else [],
@@ -3574,6 +3719,7 @@ def compact_research_summary(report: ResearchReport) -> dict[str, Any]:
                     }
                     for name, values in sim.stress_test_metrics.items()
                 },
+                "diagnosis": asdict(sim.diagnosis) if sim.diagnosis else {},
             }
             for sim in report.simulations
         ],

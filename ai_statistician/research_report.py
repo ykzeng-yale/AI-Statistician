@@ -156,6 +156,7 @@ def _report_row(trace: dict[str, Any], summary: dict[str, Any], trace_path: Path
                 "passed": bool(row.get("passed")),
                 "metrics": row.get("metrics", {}) if isinstance(row.get("metrics"), dict) else {},
                 "stress_tests": tuple(str(item) for item in row.get("stress_tests", []) or []),
+                "diagnosis": row.get("diagnosis", {}) if isinstance(row.get("diagnosis"), dict) else {},
             }
             for row in simulations
             if isinstance(row, dict)
@@ -320,6 +321,12 @@ def _question_markdown(row: dict[str, Any]) -> list[str]:
                 f"- `{simulation.get('procedure_id')}` passed={simulation.get('passed')}: "
                 f"{_metrics_summary(simulation.get('metrics', {}))}"
             )
+            diagnosis = simulation.get("diagnosis", {})
+            if isinstance(diagnosis, dict) and diagnosis:
+                lines.append(
+                    f"  - Diagnosis: {diagnosis.get('status')} "
+                    f"(escalate_to={diagnosis.get('escalate_to')})"
+                )
             stress_tests = _join_inline(simulation.get("stress_tests", ()))
             if stress_tests:
                 lines.append(f"  - Stress tests: {stress_tests}")
