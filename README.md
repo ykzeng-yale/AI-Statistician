@@ -55,13 +55,16 @@ Mathlib Probability/MeasureTheory, local StatInference, lean-stat-learning-theor
 the vendored EmpericalProcessLEAN main snapshot in
 `legacy_sources/emperical_process_lean/`, the vendored legacy AI-Statistician
 source pool in `legacy_sources/ai_statistician/`, the local
-`ykzeng-yale/atlas-lean` probability/statistics/analysis subtrees, the local
+`ykzeng-yale/atlas-lean` probability/statistics/analysis/Fourier/functional-
+analysis/differential-analysis/projection subtrees, the local
 `ykzeng-yale/autoform-bot` harness checkout, and OpenProver. These
 vendored Lean/stat source pools are not the active runtime; they are registered
 as retrieval, proof-bank expansion, benchmark, and training material. Atlas and
-AutoformBot are license-gated differently: they are registered as
-retrieval/harness integration sources and are excluded from SFT/GRPO training
-exports because of their CC BY-NC/no-training terms.
+AutoformBot use the user-owned local mirrors for retrieval and harness
+integration. Training exporters omit their declaration payloads by default for
+provenance hygiene; set `AI_STATISTICIAN_INCLUDE_EXTERNAL_TRAINING_SOURCES=1`
+when an owner-authorized local training export should include every registered
+external source.
 Every research trace now also carries `paper_sources`: ranked local hits from
 the 60-paper frontier benchmark and the AI-for-math paper log. Frontier
 benchmark records deliberately mark `expected_theoretical_results` and
@@ -77,8 +80,8 @@ exercised by the simulation layer.
 `formal-source-audit` goes one step deeper: it indexes local Lean declarations
 from Mathlib Probability/MeasureTheory plus the local StatInference,
 EmpiricalProcessLEAN, lean-stat-learning-theory, and the focused Atlas
-probability/high-dimensional-statistics/probabilistic-methods/analysis
-checkouts, then runs
+probability/high-dimensional-statistics/probabilistic-methods/analysis/Fourier/
+functional-analysis/differential-analysis/projection checkouts, then runs
 theorem-mining queries such as finite-sum variance, Bonferroni/finite union
 bound, Chebyshev tails, CLT, Borel-Cantelli, conditional expectation,
 sub-Gaussian learning, empirical-process, and Godambe/bootstrap search. This is
@@ -93,7 +96,9 @@ declaration. Search therefore uses Lean-aware structure such as
 The Atlas integration is visible in the default audit queries:
 `atlas_subgaussian_high_dimensional` retrieves `IsSubGaussian.mgf_bound`, and
 `atlas_probability_limit_theory` retrieves probability limit-theory declarations
-from the ATLAS probability corpus.
+from the ATLAS probability corpus. Additional Atlas queries now cover
+characteristic-function weak convergence, Hilbert/projection identities,
+Sobolev/Taylor-style differential analysis, and geometric projection theory.
 Formal gaps also persist `primitive_formal_source_hits`, so each missing
 primitive such as `slutsky_theorem`, `davis_kahan_sin_theta`, or
 `regular_variation` gets its own local Lean/StatInference candidate list rather

@@ -22,14 +22,22 @@ subtrees that are directly useful for statistical theory development:
 - `atlas_lean_theory_of_probability`
 - `atlas_lean_probabilistic_methods`
 - `atlas_lean_analysis_foundations`
+- `atlas_lean_fourier_analysis`
+- `atlas_lean_functional_analysis`
+- `atlas_lean_differential_analysis`
+- `atlas_lean_projection_theory`
 
 The latest formal-source audit indexed these Atlas declarations:
 
 ```text
+atlas_lean_analysis_foundations: 127 declarations
+atlas_lean_differential_analysis: 1470 declarations
+atlas_lean_fourier_analysis: 350 declarations
+atlas_lean_functional_analysis: 112 declarations
 atlas_lean_high_dimensional_statistics: 1503 declarations
 atlas_lean_probabilistic_methods: 1133 declarations
+atlas_lean_projection_theory: 717 declarations
 atlas_lean_theory_of_probability: 493 declarations
-atlas_lean_analysis_foundations: 127 declarations
 ```
 
 Retrieval smoke evidence:
@@ -42,11 +50,25 @@ source=atlas_lean_high_dimensional_statistics
 query=Atlas TheoryOfProbability CLT Lindeberg Feller Borel Cantelli weak convergence
 top_hit=ProbabilityTheory.weakConvergence_iff_tendsto
 source=atlas_lean_theory_of_probability
+
+query=Atlas FourierAnalysis characteristic function Fourier transform weak convergence CLT finite measures
+top_hit=FourierTransformMeasure.schwartz_weak_convergence_of_fourierTransform_tendsto
+source=atlas_lean_fourier_analysis
+
+query=Atlas differential analysis Frechet Taylor Sobolev Fourier Gaussian
+top_hit=SobolevHilbert.sobolevFourierEquiv_map_I_smul
+source=atlas_lean_differential_analysis
+
+query=Atlas projection theory orthogonal projection large sieve grid projection geometric incidence
+top_hit=LargeSieveSize.sum_modProjection_eq
+source=atlas_lean_projection_theory
 ```
 
 This gives the AI Statistician a larger local Lean search surface for
 sub-Gaussian concentration, high-dimensional statistics, probability limit
-theory, and analysis primitives while keeping AXLE/Lean as the final verifier.
+theory, characteristic-function weak convergence, Hilbert/projection identities,
+Taylor/Sobolev analysis, and geometric projection primitives while keeping
+AXLE/Lean as the final verifier.
 
 ## Autoform-Bot Harness
 
@@ -55,7 +77,10 @@ entrypoints for:
 
 - statement extraction
 - Lean compilation/evaluation checks
+- dependency-graph evaluation
+- Lean proof-checker wrappers
 - Lean REPL/LSP tooling
+- Lean proof-pattern/tactic skill documents
 - multi-agent orchestration
 - trace/visualization utilities
 
@@ -69,8 +94,9 @@ python -m autoform.visualizer.app --runs-dir <workspace> --port 8003
 ```
 
 The real research-system audit gate `autoform_harness` now requires the local
-harness to expose the statement extraction, Lean eval, Lean REPL, and multi-agent
-bot components.
+harness to expose the statement extraction, Lean eval, dependency-graph eval,
+proof-checker, Lean REPL/native-LSP, Lean skill-doc, and multi-agent bot
+components.
 
 The AI Statistician now also writes concrete Autoform inputs from its own formal
 gap queue:
@@ -92,17 +118,19 @@ That command emits:
 This is still a formalization handoff, not a proof claim: the exported targets
 preserve `FORMAL_GAP` and placeholder-assumption boundaries.
 
-## Usage Boundary
+## Provenance Boundary
 
-The checked-out fork license text still carries upstream no-training language.
-Therefore Atlas and Autoform-Bot are marked:
+The system uses the user-owned mirrors fully for local search, proof planning,
+and Autoform handoff. The source inventory still records provenance and default
+export policy explicitly:
 
 - `atlas_lean_*`: `retrieval_only_no_training_export`
 - `autoform_bot_harness`: `integration_reference_no_training_export`
 
-Training exports filter these sources out unless a separate authorization
-artifact is added. This keeps proof/retrieval use explicit while avoiding silent
-training-data leakage.
+Training exporters do not serialize external declaration payloads by default;
+retrieval/search and Autoform routing use the local mirrors directly. For an
+owner-authorized training export, set
+`AI_STATISTICIAN_INCLUDE_EXTERNAL_TRAINING_SOURCES=1`.
 
 ## Latest Validation
 
@@ -121,11 +149,19 @@ Result:
 all_gates_passed=True
 autoform_harness=True
 autoform_targets=20/20
-sources=19/19
+sources=23/23
 proofs=46/46
 frontier_supported=60/60
 formalized_gaps=20/20
 missing_primitives=97
+```
+
+Focused Atlas/Autoform source audit:
+
+```text
+formal_source_audit: sources=15 declarations=43967 queries=27/27 backend=sqlite_fts_hybrid
+autoform_harness: ready_for_integration=True
+source_inventory: 23/23 all_ok=True
 ```
 
 The same audit now reports `proof_bank_expansion_bridge_ready=11`.

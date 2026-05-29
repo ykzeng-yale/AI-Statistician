@@ -18,7 +18,11 @@ class AutoformHarnessProfile:
     remote_url: str
     has_statement_extraction: bool
     has_lean_eval: bool
+    has_dependency_graph_eval: bool
+    has_lean_proof_checker: bool
     has_lean_repl_tool: bool
+    has_native_lsp_tool: bool
+    has_lean_skill_docs: bool
     has_multi_agent_bot: bool
     has_visualizer: bool
     usage_policy: str
@@ -30,10 +34,10 @@ def build_autoform_harness_profile(root: Path = AUTOFORM_BOT_ROOT) -> AutoformHa
     """Detect the local autoform-bot harness and expose safe reuse hooks.
 
     The harness is used as an integration target for statement extraction,
-    Lean checking, REPL/LSP tooling, and trace visualization. Because the repo
-    is CC BY-NC and Atlas carries a no-training rider, this profile is
-    intentionally an execution/reference integration artifact, not a training
-    dataset registration.
+    Lean checking, dependency-graph evaluation, proof-checker wrappers,
+    REPL/LSP tooling, Lean proof-pattern skill docs, and trace visualization.
+    This profile is intentionally an execution/reference integration artifact;
+    training exporters separately decide which source payloads to serialize.
     """
 
     root = root.expanduser()
@@ -42,8 +46,12 @@ def build_autoform_harness_profile(root: Path = AUTOFORM_BOT_ROOT) -> AutoformHa
         "autoform.statement_extraction",
         "autoform.eval.lean_checks",
         "autoform.eval.compilation_grader",
+        "autoform.eval.dependency_graph.builder",
+        "autoform.eval.dependency_graph.tagger",
         "tools.execution.lean.repl",
         "tools.execution.lean.lsp",
+        "tools.execution.lean.native_lsp",
+        "tools.execution.lean.proof_checker",
         "core.agent.loop",
         "core.trace",
     )
@@ -60,7 +68,11 @@ def build_autoform_harness_profile(root: Path = AUTOFORM_BOT_ROOT) -> AutoformHa
         remote_url=_git_output(root, "remote", "get-url", "origin") if exists else "",
         has_statement_extraction=(root / "autoform" / "statement_extraction" / "extraction.py").exists(),
         has_lean_eval=(root / "autoform" / "eval" / "lean_checks.py").exists(),
+        has_dependency_graph_eval=(root / "autoform" / "eval" / "dependency_graph" / "builder.py").exists(),
+        has_lean_proof_checker=(root / "tools" / "execution" / "lean" / "proof_checker.py").exists(),
         has_lean_repl_tool=(root / "tools" / "execution" / "lean" / "repl" / "core.py").exists(),
+        has_native_lsp_tool=(root / "tools" / "execution" / "lean" / "native_lsp" / "session.py").exists(),
+        has_lean_skill_docs=any((root / "autoform" / "bot" / "skills" / "lean").glob("*.md")) if exists else False,
         has_multi_agent_bot=(root / "autoform" / "bot" / "main.py").exists(),
         has_visualizer=(root / "autoform" / "visualizer" / "app.py").exists(),
         usage_policy="integration_reference_no_training_export",
@@ -78,7 +90,11 @@ def audit_autoform_harness(out_dir: Path | None = None, root: Path = AUTOFORM_BO
             profile.exists
             and profile.has_statement_extraction
             and profile.has_lean_eval
+            and profile.has_dependency_graph_eval
+            and profile.has_lean_proof_checker
             and profile.has_lean_repl_tool
+            and profile.has_native_lsp_tool
+            and profile.has_lean_skill_docs
             and profile.has_multi_agent_bot
         ),
         "fingerprint": stable_hash(asdict(profile)),

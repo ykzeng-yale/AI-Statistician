@@ -318,17 +318,21 @@ Probability and MeasureTheory trees, local StatInference workspaces,
 lean-stat-learning-theory, the vendored EmpericalProcessLEAN main snapshot in
 `legacy_sources/emperical_process_lean/`, the vendored legacy AI-Statistician
 source pool in `legacy_sources/ai_statistician/`, the local
-`ykzeng-yale/atlas-lean` probability/statistics/analysis subtrees, the local
+`ykzeng-yale/atlas-lean` probability/statistics/analysis/Fourier/functional-
+analysis/differential-analysis/projection subtrees, the local
 `ykzeng-yale/autoform-bot` harness checkout, and OpenProver. The vendored
 Lean/stat files are treated as source pools, not as the active runtime:
 EmpericalProcessLEAN contributes current shared probability/asymptotics/
 empirical-process foundations, while legacy AI-Statistician contributes
 theorem-hole benchmark JSONL, schemas, and proof-training artifacts. Atlas is
-used only as retrieval evidence for theorem planning/proof-bank expansion, and
+used as retrieval evidence for theorem planning/proof-bank expansion, and
 AutoformBot is used as a harness integration target for statement extraction,
-Lean checking, REPL/LSP tooling, evaluation, and visualization. Their CC BY-NC
-and no-training terms are recorded in the inventory and stripped from
-SFT/GRPO-style training exports. The
+Lean checking, dependency-graph evaluation, proof-checker wrappers, REPL/LSP
+tooling, Lean proof-pattern skill docs, evaluation, and visualization. The
+inventory records provenance and default export policy; SFT/GRPO-style training
+exports omit external declaration payloads unless
+`AI_STATISTICIAN_INCLUDE_EXTERNAL_TRAINING_SOURCES=1` is set for an
+owner-authorized local export. The
 inventory records
 file counts, extension counts, keyword evidence, git commit/remote provenance,
 usage policy, and a fingerprint that is also included in research-trace
@@ -760,12 +764,16 @@ The package integrates existing systems where appropriate:
   targets, not mandatory runtime dependencies for the offline release gate.
 - The source inventory and formal-source index now track a shallow local
   `ykzeng-yale/atlas-lean` mirror, with upstream-compatible fallback. The search database indexes its focused
-  probability, high-dimensional statistics, probabilistic-methods, and real
-  analysis subtrees. Default source audits include Atlas-specific retrieval
-  queries for sub-Gaussian MGF bounds and probability limit theory.
+  probability, high-dimensional statistics, probabilistic-methods, real
+  analysis, Fourier analysis, functional analysis, differential analysis, and
+  projection-theory subtrees. Default source audits include Atlas-specific
+  retrieval queries for sub-Gaussian MGF bounds, probability limit theory,
+  characteristic-function weak convergence, Hilbert/projection identities,
+  Sobolev/Taylor-style analysis, and geometric projection lemmas.
 - The source inventory also tracks a shallow local
   `ykzeng-yale/autoform-bot` mirror, with upstream-compatible fallback. `autoform_harness` records reusable
-  statement-extraction, multi-agent formalization, Lean-checking, REPL/LSP,
+  statement-extraction, multi-agent formalization, Lean-checking,
+  dependency-graph evaluation, proof-checker, REPL/native-LSP, Lean skill-doc,
   evaluation, and visualizer entrypoints. This is an integration adapter, not a
   vendored training dataset. `autoform-target-export` then converts audited
   FORMAL_GAP tasks into Autoform-compatible target YAML and a book-style

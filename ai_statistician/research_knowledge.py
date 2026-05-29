@@ -584,11 +584,11 @@ KNOWLEDGE_CARDS: tuple[KnowledgeCard, ...] = (
             "Local shallow mirror of ykzeng-yale/atlas-lean, currently matching "
             "facebookresearch/atlas-lean. The AI Statistician indexes the "
             "probability, high-dimensional statistics, probabilistic-methods, "
-            "and analysis subtrees as formal-source evidence for theorem "
-            "planning and proof-bank expansion. The checked-out license text "
-            "is CC BY-NC with a no-training rider, so its declarations are "
-            "excluded from SFT/GRPO training exports unless a separate "
-            "authorization artifact is provided."
+            "real-analysis, Fourier, functional-analysis, differential-analysis, "
+            "and projection-theory subtrees as formal-source evidence for theorem "
+            "planning and proof-bank expansion. Training exporters omit external "
+            "declaration payloads by default, with an explicit owner-authorized "
+            "environment override for broader local export."
         ),
         tags=(
             "atlas",
@@ -610,7 +610,8 @@ KNOWLEDGE_CARDS: tuple[KnowledgeCard, ...] = (
             "Local shallow mirror of ykzeng-yale/autoform-bot, currently "
             "matching facebookresearch/autoform-bot, exposing "
             "statement extraction, multi-agent formalization orchestration, "
-            "Lean checks, REPL/LSP tools, evaluation, and visualization. The "
+            "Lean checks, dependency-graph evaluation, proof-checker wrappers, "
+            "REPL/LSP tools, Lean skill docs, evaluation, and visualization. The "
             "system records it as a reusable harness target rather than copying "
             "its code into training datasets."
         ),

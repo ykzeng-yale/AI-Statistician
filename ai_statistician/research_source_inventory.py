@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from collections import Counter
 from dataclasses import asdict, dataclass
@@ -196,11 +197,56 @@ SOURCE_INVENTORY_TARGETS: tuple[SourceInventoryTarget, ...] = (
         usage_policy="retrieval_only_no_training_export",
     ),
     SourceInventoryTarget(
+        id="atlas_lean_fourier_analysis",
+        source_type="lean_library",
+        location=str(ATLAS_LEAN_ROOT / "Atlas" / "FourierAnalysis"),
+        required_extensions=(".lean",),
+        keywords=("FourierAnalysis", "CharacteristicFunction", "CentralLimitTheorem", "WeakConvergence", "BrownianMotion"),
+        license_policy="CC-BY-NC-4.0-no-training-rider",
+        usage_policy="retrieval_only_no_training_export",
+    ),
+    SourceInventoryTarget(
+        id="atlas_lean_functional_analysis",
+        source_type="lean_library",
+        location=str(ATLAS_LEAN_ROOT / "Atlas" / "IntroductionToFunctionalAnalysis"),
+        required_extensions=(".lean",),
+        keywords=("BanachSpace", "HilbertSpace", "CauchySchwarz", "Riesz", "Projection"),
+        license_policy="CC-BY-NC-4.0-no-training-rider",
+        usage_policy="retrieval_only_no_training_export",
+    ),
+    SourceInventoryTarget(
+        id="atlas_lean_differential_analysis",
+        source_type="lean_library",
+        location=str(ATLAS_LEAN_ROOT / "Atlas" / "DifferentialAnalysis"),
+        required_extensions=(".lean",),
+        keywords=("DifferentialAnalysis", "Frechet", "Taylor", "Sobolev", "Fourier"),
+        license_policy="CC-BY-NC-4.0-no-training-rider",
+        usage_policy="retrieval_only_no_training_export",
+    ),
+    SourceInventoryTarget(
+        id="atlas_lean_projection_theory",
+        source_type="lean_library",
+        location=str(ATLAS_LEAN_ROOT / "Atlas" / "ProjectionTheory"),
+        required_extensions=(".lean",),
+        keywords=("ProjectionTheory", "orthogonalProjection", "large_sieve", "grid_projection", "Furstenberg"),
+        license_policy="CC-BY-NC-4.0-no-training-rider",
+        usage_policy="retrieval_only_no_training_export",
+    ),
+    SourceInventoryTarget(
         id="autoform_bot_harness",
         source_type="autoformalization_harness",
         location=str(AUTOFORM_BOT_ROOT),
         required_extensions=(".py", ".md", ".toml"),
-        keywords=("statement_extraction", "lean_checks", "repl", "bot", "eval", "visualizer"),
+        keywords=(
+            "statement_extraction",
+            "lean_checks",
+            "proof_checker",
+            "dependency_graph",
+            "repl",
+            "bot",
+            "eval",
+            "visualizer",
+        ),
         license_policy="CC-BY-NC-4.0",
         usage_policy="integration_reference_no_training_export",
     ),
@@ -220,9 +266,15 @@ def source_allows_training_export(source_id: str) -> bool:
     Some external formal corpora are valuable retrieval inputs but carry license
     restrictions that prohibit model training/fine-tuning/evaluation. The
     production retriever may use them for local proof planning, but SFT/GRPO
-    exporters must strip their declaration payloads.
+    exporters strip their declaration payloads by default. A project owner can
+    explicitly opt in to exporting every registered source by setting
+    `AI_STATISTICIAN_INCLUDE_EXTERNAL_TRAINING_SOURCES=1`; this keeps the
+    default release artifact conservative while avoiding a hardcoded engineering
+    block when an authorized local mirror should be used more broadly.
     """
 
+    if os.environ.get("AI_STATISTICIAN_INCLUDE_EXTERNAL_TRAINING_SOURCES") == "1":
+        return True
     return source_id not in NO_TRAINING_EXPORT_SOURCE_IDS
 
 

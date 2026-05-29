@@ -104,7 +104,9 @@ def export_research_training_dataset(
         "legacy_training_manifest": str(out_dir / "legacy_training_manifest.json"),
         "dataset_fingerprint": stable_hash([asdict(row) for row in examples]),
         "grpo_fingerprint": stable_hash([asdict(row) for row in grpo_tasks]),
-        "excluded_no_training_sources": sorted(NO_TRAINING_EXPORT_SOURCE_IDS),
+        "excluded_no_training_sources": sorted(
+            source_id for source_id in NO_TRAINING_EXPORT_SOURCE_IDS if not source_allows_training_export(source_id)
+        ),
         "all_ok": _all_ok(traces, examples),
         "limitations": [
             "exports trace-supervised examples only; no model weights are trained",

@@ -325,6 +325,10 @@ DEFAULT_AUDIT_QUERIES: tuple[tuple[str, str], ...] = (
     ("backward_martingale_shared_foundation", "backward martingale reverse filtration conditional expectation convergence"),
     ("atlas_subgaussian_high_dimensional", "Atlas HighDimensionalStatistics IsSubGaussian mgf bound Bernstein concentration"),
     ("atlas_probability_limit_theory", "Atlas TheoryOfProbability CLT Lindeberg Feller Borel Cantelli weak convergence"),
+    ("atlas_fourier_characteristic_weak_convergence", "Atlas FourierAnalysis characteristic function Fourier transform weak convergence CLT finite measures"),
+    ("atlas_functional_analysis_projection", "Atlas functional analysis Hilbert space orthogonal projection Cauchy Schwarz Riesz representation"),
+    ("atlas_differential_analysis_taylor_sobolev", "Atlas differential analysis Frechet Taylor Sobolev Fourier Gaussian"),
+    ("atlas_projection_geometry", "Atlas projection theory orthogonal projection large sieve grid projection geometric incidence"),
 )
 
 

@@ -4,6 +4,7 @@ import asyncio
 import json
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from ai_statistician.algorithms import audit_algorithm_registry
 from ai_statistician.capability_audit import build_capability_audit, write_capability_audit
@@ -40,7 +41,7 @@ from ai_statistician.research_evaluation import ResearchEvalConfig, run_research
 from ai_statistician.research_gap_audit import audit_research_gap_backlog
 from ai_statistician.research_intake_audit import audit_research_question_intake
 from ai_statistician.research_knowledge_audit import audit_research_knowledge
-from ai_statistician.research_source_inventory import ATLAS_LEAN_ROOT
+from ai_statistician.research_source_inventory import ATLAS_LEAN_ROOT, source_allows_training_export
 from ai_statistician.research_capability_audit import (
     build_research_capability_audit,
     write_research_capability_audit,
@@ -234,22 +235,52 @@ class ProofBankTests(unittest.TestCase):
     def test_meta_atlas_sources_are_indexed_for_retrieval_only(self) -> None:
         atlas_probability = ATLAS_LEAN_ROOT / "Atlas" / "TheoryOfProbability"
         atlas_hds = ATLAS_LEAN_ROOT / "Atlas" / "HighDimensionalStatistics"
-        if not atlas_probability.exists() or not atlas_hds.exists():
+        atlas_fourier = ATLAS_LEAN_ROOT / "Atlas" / "FourierAnalysis"
+        atlas_functional = ATLAS_LEAN_ROOT / "Atlas" / "IntroductionToFunctionalAnalysis"
+        atlas_differential = ATLAS_LEAN_ROOT / "Atlas" / "DifferentialAnalysis"
+        atlas_projection = ATLAS_LEAN_ROOT / "Atlas" / "ProjectionTheory"
+        if not atlas_probability.exists() or not atlas_hds.exists() or not atlas_fourier.exists():
             self.skipTest("atlas-lean checkout is not available")
         roots = (
             FormalSourceRoot("atlas_lean_theory_of_probability", str(atlas_probability)),
             FormalSourceRoot("atlas_lean_high_dimensional_statistics", str(atlas_hds)),
+            FormalSourceRoot("atlas_lean_fourier_analysis", str(atlas_fourier)),
+            FormalSourceRoot("atlas_lean_functional_analysis", str(atlas_functional)),
+            FormalSourceRoot("atlas_lean_differential_analysis", str(atlas_differential)),
+            FormalSourceRoot("atlas_lean_projection_theory", str(atlas_projection)),
         )
         declarations = build_formal_source_index(roots=roots)
         source_ids = {decl.source_id for decl in declarations}
         self.assertIn("atlas_lean_theory_of_probability", source_ids)
         self.assertIn("atlas_lean_high_dimensional_statistics", source_ids)
+        self.assertIn("atlas_lean_fourier_analysis", source_ids)
+        self.assertIn("atlas_lean_functional_analysis", source_ids)
+        self.assertIn("atlas_lean_differential_analysis", source_ids)
+        self.assertIn("atlas_lean_projection_theory", source_ids)
         hits = search_formal_sources("subGaussian mgf bound high dimensional statistics", declarations=declarations, k=10)
         self.assertTrue(hits)
         self.assertEqual(hits[0].declaration.source_id, "atlas_lean_high_dimensional_statistics")
         probability_hits = search_formal_sources("Borel Cantelli CLT weak convergence probability", declarations=declarations, k=10)
         self.assertTrue(probability_hits)
         self.assertTrue(any(hit.declaration.source_id == "atlas_lean_theory_of_probability" for hit in probability_hits))
+        fourier_hits = search_formal_sources(
+            "Fourier characteristic function weak convergence finite measures",
+            declarations=declarations,
+            k=10,
+        )
+        self.assertTrue(any(hit.declaration.source_id == "atlas_lean_fourier_analysis" for hit in fourier_hits))
+        functional_hits = search_formal_sources(
+            "Hilbert space orthogonal projection Cauchy Schwarz",
+            declarations=declarations,
+            k=10,
+        )
+        self.assertTrue(any(hit.declaration.source_id == "atlas_lean_functional_analysis" for hit in functional_hits))
+        projection_hits = search_formal_sources(
+            "ProjectionTheory large sieve grid projection geometric incidence",
+            declarations=declarations,
+            k=10,
+        )
+        self.assertTrue(any(hit.declaration.source_id == "atlas_lean_projection_theory" for hit in projection_hits))
 
     def test_mock_proof_bank_audit_exports_lean(self) -> None:
         async def run():
@@ -870,6 +901,10 @@ class SystemTests(unittest.TestCase):
         self.assertIn("leandojo_v2_local", source_inventory_ids)
         self.assertIn("atlas_lean_repository", source_inventory_ids)
         self.assertIn("atlas_lean_high_dimensional_statistics", source_inventory_ids)
+        self.assertIn("atlas_lean_fourier_analysis", source_inventory_ids)
+        self.assertIn("atlas_lean_functional_analysis", source_inventory_ids)
+        self.assertIn("atlas_lean_differential_analysis", source_inventory_ids)
+        self.assertIn("atlas_lean_projection_theory", source_inventory_ids)
         atlas_rows = [row for row in source_inventory["rows"] if str(row["source_id"]).startswith("atlas_lean")]
         self.assertTrue(atlas_rows)
         self.assertTrue(all(row["usage_policy"] == "retrieval_only_no_training_export" for row in atlas_rows))
@@ -885,7 +920,11 @@ class SystemTests(unittest.TestCase):
         profile = payload["profile"]
         self.assertTrue(profile["has_statement_extraction"])
         self.assertTrue(profile["has_lean_eval"])
+        self.assertTrue(profile["has_dependency_graph_eval"])
+        self.assertTrue(profile["has_lean_proof_checker"])
         self.assertTrue(profile["has_lean_repl_tool"])
+        self.assertTrue(profile["has_native_lsp_tool"])
+        self.assertTrue(profile["has_lean_skill_docs"])
         self.assertEqual(profile["usage_policy"], "integration_reference_no_training_export")
         self.assertTrue(Path("runs/test_autoform_harness/autoform_harness_manifest.json").exists())
 
@@ -2331,6 +2370,14 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(len(legacy["grpo_tasks"]), payload["n_grpo_tasks"])
         self.assertTrue(Path("runs/test_research_training_export/research_training_manifest.json").exists())
         self.assertTrue(Path("runs/test_research_training_export/research_training.md").exists())
+
+    def test_source_training_export_policy_has_owner_override(self) -> None:
+        self.assertFalse(source_allows_training_export("atlas_lean_high_dimensional_statistics"))
+        with patch.dict(
+            "os.environ",
+            {"AI_STATISTICIAN_INCLUDE_EXTERNAL_TRAINING_SOURCES": "1"},
+        ):
+            self.assertTrue(source_allows_training_export("atlas_lean_high_dimensional_statistics"))
 
     def test_research_policy_baseline_scores_exported_agent_examples(self) -> None:
         out = Path("runs/test_research_policy_baseline_fixture")
