@@ -424,6 +424,10 @@ The system includes estimator-level Lean obligations that AXLE has verified:
 - `estimator_error_chebyshev`: if an estimator has finite second moment and
   mean `theta`, its absolute-error tail probability is bounded by
   `Var(X) / c^2`.
+- `block_estimator_chebyshev_bound`: the same Chebyshev tail-control pattern
+  exposed as a block-estimator bridge for robust median-of-means traces. This
+  verifies the block failure probability ingredient and deliberately leaves the
+  binomial median amplification theorem as a separate formalization target.
 - `mean2_estimator_chebyshev_indep`: combines unbiasedness, L2 closure,
   independence variance additivity, variance scaling, and Chebyshev to bound
   the absolute-error probability of `(X+Y)/2` by

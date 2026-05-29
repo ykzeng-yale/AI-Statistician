@@ -250,6 +250,7 @@ class ProofBankTests(unittest.TestCase):
                     "finite_sample_mean_unbiased",
                     "finite_sample_mean_variance_indep",
                     "estimator_error_chebyshev",
+                    "block_estimator_chebyshev_bound",
                     "mean2_estimator_chebyshev_indep",
                     "finite_sample_mean_chebyshev_indep",
                 ],
@@ -276,6 +277,10 @@ class ProofBankTests(unittest.TestCase):
                 "finite_sample_mean_variance_indep",
                 "estimator_error_chebyshev",
             ],
+        )
+        self.assertEqual(
+            rows["block_estimator_chebyshev_bound"]["depends_on"],
+            ["estimator_error_chebyshev"],
         )
 
     def test_finite_sample_mean_obligation_defines_estimator(self) -> None:
@@ -315,6 +320,17 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("Set.Pairwise", content)
         self.assertIn("μ {ω | c ≤ |finMeanEstimator X ω - theta|}", content)
         self.assertIn("IndepFun.variance_sum", content)
+        self.assertIn("meas_ge_le_variance_div_sq", content)
+        self.assertNotIn("by sorry", content)
+
+    def test_block_estimator_chebyshev_bridge_supports_robust_mean_gap(self) -> None:
+        obligation = get_obligation("block_estimator_chebyshev_bound")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("estimator_error_chebyshev",))
+        self.assertIn("robust", obligation.tags)
+        self.assertIn("median_of_means", obligation.tags)
+        self.assertIn("theorem blockEstimator_error_chebyshev", content)
+        self.assertIn("μ {ω | c ≤ |B ω - theta|}", content)
         self.assertIn("meas_ge_le_variance_div_sq", content)
         self.assertNotIn("by sorry", content)
 

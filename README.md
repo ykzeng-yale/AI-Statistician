@@ -200,6 +200,11 @@ identity proving that the variance of an average of two independent L2
 estimators is `(Var(X)+Var(Y))/4`.
 It also includes `estimator_error_chebyshev`, a nonasymptotic error-probability
 bound for any finite-second-moment estimator with known mean.
+It also includes `block_estimator_chebyshev_bound`, the same Mathlib-backed
+Chebyshev ingredient exposed as a block-estimator bridge for robust
+median-of-means traces. This proves the block failure probability ingredient
+only; the binomial median amplification and full robust sub-Gaussian deviation
+theorem remain explicit formal gaps.
 Another composed guarantee is `mean2_estimator_chebyshev_indep`, which derives
 an explicit Chebyshev error bound for the average of two independent unbiased L2
 estimators using both the expectation and variance proof ingredients. Composed

@@ -430,6 +430,47 @@ theorem finMeanEstimator_chebyshev_indep {Ω : Type*} [MeasurableSpace Ω]
             "estimator_error_chebyshev",
         ),
     ),
+    "block_estimator_chebyshev_bound": FormalObligation(
+        id="block_estimator_chebyshev_bound",
+        title="Block-estimator Chebyshev failure bound",
+        english=(
+            "For any L2 block estimator B with expectation theta, the probability "
+            "that the block estimate is farther than c from theta is bounded by "
+            "Var(B)/c^2. This is the reusable formal bridge for the block-failure "
+            "ingredient in median-of-means proofs; it does not claim the full "
+            "median amplification theorem."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+theorem blockEstimator_error_chebyshev {Ω : Type*} [MeasurableSpace Ω]
+    (μ : Measure Ω) [IsProbabilityMeasure μ]
+    (B : Ω → ℝ) (theta : ℝ) (hB : MemLp B 2 μ)
+    (hMean : μ[B] = theta) {c : ℝ} (hc : 0 < c) :
+    μ {ω | c ≤ |B ω - theta|} ≤ ENNReal.ofReal (variance B μ / c ^ 2) := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  simpa [hMean] using\n"
+            "    (meas_ge_le_variance_div_sq (μ := μ) (X := B) hB hc)"
+        ),
+        tags=(
+            "estimator",
+            "block",
+            "robust",
+            "median_of_means",
+            "variance",
+            "tail_bound",
+            "chebyshev",
+            "finite_sample",
+            "concentration",
+        ),
+        expected_lemmas=("meas_ge_le_variance_div_sq",),
+        depends_on=("estimator_error_chebyshev",),
+    ),
     "affine_estimator_expectation": FormalObligation(
         id="affine_estimator_expectation",
         title="Affine estimator expectation",
