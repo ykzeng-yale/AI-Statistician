@@ -7,6 +7,7 @@ from pathlib import Path
 
 from .formal_source_index import build_formal_source_index, formal_source_index_fingerprint
 from .frontier_coverage_audit import audit_frontier_coverage
+from .autoform_harness import build_autoform_harness_profile
 from .proof_attempt_log import PROOF_ATTEMPT_SCHEMA_VERSION
 from .proof_bank import all_obligations, proof_bank_fingerprint
 from .proof_policy_baseline import PROOF_POLICY_BASELINE_SCHEMA_VERSION
@@ -58,6 +59,7 @@ def build_prover_component_audit(
     questions = load_open_research_questions(question_path)
     frontier = audit_frontier_coverage(benchmark_file=frontier_path)
     source_inventory = build_research_source_inventory()
+    autoform_profile = build_autoform_harness_profile()
     algorithms = all_research_algorithm_specs()
     obligations = all_obligations()
     declarations = build_formal_source_index()
@@ -106,6 +108,8 @@ def build_prover_component_audit(
                 "ProblemFormalizer extracts registered statistical problem classes",
                 "research-intake-audit checks supported acceptance and unsupported rejection",
                 "Markdown paper-style examples are supported",
+                f"autoform_bot_harness_ready={autoform_profile.exists and autoform_profile.has_statement_extraction and autoform_profile.has_lean_eval}",
+                f"autoform_bot_commit={autoform_profile.git_commit[:12]}",
             ),
             missing_or_next=(
                 "No general LLM autoformalizer that writes arbitrary Lean theorem statements from new papers.",

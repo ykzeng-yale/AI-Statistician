@@ -12,6 +12,7 @@ from .formal_gap_task_export import export_formal_gap_lean_tasks
 from .formalization_target_audit import audit_formalization_targets
 from .formal_source_graph import audit_formal_source_graph
 from .formal_source_index import build_formal_source_search_backend
+from .autoform_harness import audit_autoform_harness
 from .frontier_smoke_benchmark import FrontierSmokeConfig, run_frontier_smoke_benchmark
 from .proof_audit import audit_proof_bank
 from .proof_bank_expansion_export import export_proof_bank_expansion_candidates
@@ -89,6 +90,7 @@ async def run_research_system_audit(
     )
     intake_manifest = audit_research_question_intake(out_dir / "research_intake_audit")
     knowledge_manifest = audit_research_knowledge(out_dir / "research_knowledge_audit")
+    autoform_harness_manifest = audit_autoform_harness(out_dir / "autoform_harness")
     retrieval_manifest = audit_proof_bank_retrieval(out_dir / "retrieval_audit", k=5)
     algorithm_manifest = audit_research_algorithm_registry(out_dir / "research_algorithm_audit")
     proof_manifest = await audit_proof_bank(
@@ -186,6 +188,7 @@ async def run_research_system_audit(
         "frontier_smoke_benchmark": bool(frontier_smoke_manifest["all_gates_passed"]),
         "research_intake_audit": bool(intake_manifest["all_ok"]),
         "research_knowledge_audit": bool(knowledge_manifest["all_ok"]),
+        "autoform_harness": bool(autoform_harness_manifest["ready_for_integration"]),
         "retrieval_audit": bool(retrieval_manifest["all_top_k"]),
         "formal_source_graph": bool(formal_source_graph_manifest["all_queries_ok"]),
         "research_algorithm_audit": bool(algorithm_manifest["all_ok"]),
@@ -264,6 +267,7 @@ async def run_research_system_audit(
             "research_source_inventory_total": knowledge_manifest["source_inventory"]["n_sources"],
             "research_knowledge_problem_rows": knowledge_manifest["n_problem_rows"],
             "research_knowledge_problem_ok": knowledge_manifest["n_problem_ok"],
+            "autoform_harness_ready": autoform_harness_manifest["ready_for_integration"],
             "formal_source_graph_symbols": formal_source_graph_manifest["n_symbol_nodes"],
             "formal_source_graph_edges": formal_source_graph_manifest["n_edges"],
             "formal_source_graph_queries_ok": formal_source_graph_manifest["n_query_ok"],
@@ -402,6 +406,8 @@ async def run_research_system_audit(
             "research_source_inventory_report": str(
                 out_dir / "research_knowledge_audit" / "source_inventory" / "research_source_inventory.md"
             ),
+            "autoform_harness": str(out_dir / "autoform_harness" / "autoform_harness_manifest.json"),
+            "autoform_harness_report": str(out_dir / "autoform_harness" / "autoform_harness.md"),
             "retrieval_audit": str(out_dir / "retrieval_audit" / "retrieval_audit_manifest.json"),
             "formal_source_graph": str(out_dir / "formal_source_graph" / "formal_source_graph_manifest.json"),
             "formal_source_graph_report": str(out_dir / "formal_source_graph" / "formal_source_graph.md"),

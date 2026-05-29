@@ -53,9 +53,14 @@ the lab are present and contain usable artifacts: AI-for-math paper logs,
 Mathlib Probability/MeasureTheory, local StatInference, lean-stat-learning-theory,
 the vendored EmpericalProcessLEAN main snapshot in
 `legacy_sources/emperical_process_lean/`, the vendored legacy AI-Statistician
-source pool in `legacy_sources/ai_statistician/`, and OpenProver. These
+source pool in `legacy_sources/ai_statistician/`, the local
+`ykzeng-yale/atlas-lean` probability/statistics/analysis subtrees, the local
+`ykzeng-yale/autoform-bot` harness checkout, and OpenProver. These
 vendored Lean/stat source pools are not the active runtime; they are registered
-as retrieval, proof-bank expansion, benchmark, and training material.
+as retrieval, proof-bank expansion, benchmark, and training material. Atlas and
+AutoformBot are license-gated differently: they are registered as
+retrieval/harness integration sources and are excluded from SFT/GRPO training
+exports because of their CC BY-NC/no-training terms.
 Every research trace now also carries `paper_sources`: ranked local hits from
 the 60-paper frontier benchmark and the AI-for-math paper log. Frontier
 benchmark records deliberately mark `expected_theoretical_results` and
@@ -70,7 +75,9 @@ exercised by the simulation layer.
 
 `formal-source-audit` goes one step deeper: it indexes local Lean declarations
 from Mathlib Probability/MeasureTheory plus the local StatInference,
-EmpiricalProcessLEAN, and lean-stat-learning-theory checkouts, then runs
+EmpiricalProcessLEAN, lean-stat-learning-theory, and the focused Atlas
+probability/high-dimensional-statistics/probabilistic-methods/analysis
+checkouts, then runs
 theorem-mining queries such as finite-sum variance, Bonferroni/finite union
 bound, Chebyshev tails, CLT, Borel-Cantelli, conditional expectation,
 sub-Gaussian learning, empirical-process, and Godambe/bootstrap search. This is
@@ -82,6 +89,10 @@ equality heads, major symbols, and the Lean imports available at each
 declaration. Search therefore uses Lean-aware structure such as
 `IndepFun -> variance = sum` plus module context such as
 `Mathlib.Probability.Moments.Variance` instead of only grep-style token overlap.
+The Atlas integration is visible in the default audit queries:
+`atlas_subgaussian_high_dimensional` retrieves `IsSubGaussian.mgf_bound`, and
+`atlas_probability_limit_theory` retrieves probability limit-theory declarations
+from the ATLAS probability corpus.
 Formal gaps also persist `primitive_formal_source_hits`, so each missing
 primitive such as `slutsky_theorem`, `davis_kahan_sin_theta`, or
 `regular_variation` gets its own local Lean/StatInference candidate list rather

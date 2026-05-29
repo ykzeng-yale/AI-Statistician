@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from collections import Counter
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -12,6 +13,12 @@ from .fingerprint import stable_hash
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 LEGACY_AI_STATISTICIAN_ROOT = PROJECT_ROOT / "legacy_sources" / "ai_statistician"
 VENDORED_EMPIRICAL_PROCESS_ROOT = PROJECT_ROOT / "legacy_sources" / "emperical_process_lean"
+USER_ATLAS_LEAN_ROOT = Path("/Users/yukang/.codex/external/ykzeng-atlas-lean")
+UPSTREAM_ATLAS_LEAN_ROOT = Path("/Users/yukang/.codex/external/atlas-lean")
+USER_AUTOFORM_BOT_ROOT = Path("/Users/yukang/.codex/external/ykzeng-autoform-bot")
+UPSTREAM_AUTOFORM_BOT_ROOT = Path("/Users/yukang/.codex/external/autoform-bot")
+ATLAS_LEAN_ROOT = USER_ATLAS_LEAN_ROOT if USER_ATLAS_LEAN_ROOT.exists() else UPSTREAM_ATLAS_LEAN_ROOT
+AUTOFORM_BOT_ROOT = USER_AUTOFORM_BOT_ROOT if USER_AUTOFORM_BOT_ROOT.exists() else UPSTREAM_AUTOFORM_BOT_ROOT
 
 
 @dataclass(frozen=True)
@@ -21,6 +28,8 @@ class SourceInventoryTarget:
     location: str
     required_extensions: tuple[str, ...]
     keywords: tuple[str, ...]
+    license_policy: str = "unspecified"
+    usage_policy: str = "retrieval_and_training_allowed"
 
 
 @dataclass(frozen=True)
@@ -28,6 +37,10 @@ class SourceInventoryRow:
     source_id: str
     source_type: str
     location: str
+    license_policy: str
+    usage_policy: str
+    git_commit: str
+    remote_url: str
     exists: bool
     n_files: int
     extension_counts: dict[str, int]
@@ -137,7 +150,80 @@ SOURCE_INVENTORY_TARGETS: tuple[SourceInventoryTarget, ...] = (
         required_extensions=(".py",),
         keywords=("retrieval", "search", "trace", "verifier", "ablation", "policy"),
     ),
+    SourceInventoryTarget(
+        id="atlas_lean_repository",
+        source_type="formal_source_collection",
+        location=str(ATLAS_LEAN_ROOT),
+        required_extensions=(".lean", ".json", ".yaml", ".md"),
+        keywords=("HighDimensionalStatistics", "TheoryOfProbability", "targets", "report", "Atlas"),
+        license_policy="CC-BY-NC-4.0-no-training-rider",
+        usage_policy="retrieval_only_no_training_export",
+    ),
+    SourceInventoryTarget(
+        id="atlas_lean_high_dimensional_statistics",
+        source_type="lean_library",
+        location=str(ATLAS_LEAN_ROOT / "Atlas" / "HighDimensionalStatistics"),
+        required_extensions=(".lean",),
+        keywords=("HighDimensionalStatistics", "Chapter1", "Chapter2", "SubGaussian", "Bernstein", "Fano"),
+        license_policy="CC-BY-NC-4.0-no-training-rider",
+        usage_policy="retrieval_only_no_training_export",
+    ),
+    SourceInventoryTarget(
+        id="atlas_lean_theory_of_probability",
+        source_type="lean_library",
+        location=str(ATLAS_LEAN_ROOT / "Atlas" / "TheoryOfProbability"),
+        required_extensions=(".lean",),
+        keywords=("TheoryOfProbability", "BorelCantelli", "CLT", "Martingale", "Conditional", "WeakConvergence"),
+        license_policy="CC-BY-NC-4.0-no-training-rider",
+        usage_policy="retrieval_only_no_training_export",
+    ),
+    SourceInventoryTarget(
+        id="atlas_lean_probabilistic_methods",
+        source_type="lean_library",
+        location=str(ATLAS_LEAN_ROOT / "Atlas" / "ProbabilisticMethodsInCombinatorics"),
+        required_extensions=(".lean",),
+        keywords=("ProbabilisticMethodsInCombinatorics", "concentration", "random", "probability", "expectation"),
+        license_policy="CC-BY-NC-4.0-no-training-rider",
+        usage_policy="retrieval_only_no_training_export",
+    ),
+    SourceInventoryTarget(
+        id="atlas_lean_analysis_foundations",
+        source_type="lean_library",
+        location=str(ATLAS_LEAN_ROOT / "Atlas" / "RealAnalysis"),
+        required_extensions=(".lean",),
+        keywords=("RealAnalysis", "sequence", "limit", "continuity", "compact"),
+        license_policy="CC-BY-NC-4.0-no-training-rider",
+        usage_policy="retrieval_only_no_training_export",
+    ),
+    SourceInventoryTarget(
+        id="autoform_bot_harness",
+        source_type="autoformalization_harness",
+        location=str(AUTOFORM_BOT_ROOT),
+        required_extensions=(".py", ".md", ".toml"),
+        keywords=("statement_extraction", "lean_checks", "repl", "bot", "eval", "visualizer"),
+        license_policy="CC-BY-NC-4.0",
+        usage_policy="integration_reference_no_training_export",
+    ),
 )
+
+
+NO_TRAINING_EXPORT_SOURCE_IDS: frozenset[str] = frozenset(
+    target.id
+    for target in SOURCE_INVENTORY_TARGETS
+    if "no_training_export" in target.usage_policy
+)
+
+
+def source_allows_training_export(source_id: str) -> bool:
+    """Return whether artifacts from a source may enter training-data exports.
+
+    Some external formal corpora are valuable retrieval inputs but carry license
+    restrictions that prohibit model training/fine-tuning/evaluation. The
+    production retriever may use them for local proof planning, but SFT/GRPO
+    exporters must strip their declaration payloads.
+    """
+
+    return source_id not in NO_TRAINING_EXPORT_SOURCE_IDS
 
 
 def build_research_source_inventory(
@@ -174,6 +260,10 @@ def research_source_inventory_fingerprint(rows: list[SourceInventoryRow] | None 
             "source_id": row.source_id,
             "source_type": row.source_type,
             "location": row.location,
+            "license_policy": row.license_policy,
+            "usage_policy": row.usage_policy,
+            "git_commit": row.git_commit,
+            "remote_url": row.remote_url,
             "exists": row.exists,
             "n_files": row.n_files,
             "extension_counts": row.extension_counts,
@@ -198,6 +288,10 @@ def _inventory_target(target: SourceInventoryTarget) -> SourceInventoryRow:
             source_id=target.id,
             source_type=target.source_type,
             location=target.location,
+            license_policy=target.license_policy,
+            usage_policy=target.usage_policy,
+            git_commit="",
+            remote_url="",
             exists=False,
             n_files=0,
             extension_counts={},
@@ -224,10 +318,15 @@ def _inventory_target(target: SourceInventoryTarget) -> SourceInventoryRow:
         str(path.relative_to(root))
         for path in sorted(files, key=lambda item: str(item.relative_to(root)))[:12]
     )
+    git_commit, remote_url = _git_metadata(root)
     return SourceInventoryRow(
         source_id=target.id,
         source_type=target.source_type,
         location=target.location,
+        license_policy=target.license_policy,
+        usage_policy=target.usage_policy,
+        git_commit=git_commit,
+        remote_url=remote_url,
         exists=True,
         n_files=len(files),
         extension_counts=dict(sorted(extension_counts.items())),
@@ -238,6 +337,34 @@ def _inventory_target(target: SourceInventoryTarget) -> SourceInventoryRow:
     )
 
 
+def _git_metadata(root: Path) -> tuple[str, str]:
+    git_root = _nearest_git_root(root)
+    if git_root is None:
+        return "", ""
+    commit = _git_output(git_root, "rev-parse", "HEAD")
+    remote = _git_output(git_root, "remote", "get-url", "origin")
+    return commit, remote
+
+
+def _nearest_git_root(root: Path) -> Path | None:
+    for candidate in (root, *root.parents):
+        if (candidate / ".git").exists():
+            return candidate
+    return None
+
+
+def _git_output(git_root: Path, *args: str) -> str:
+    try:
+        return subprocess.check_output(
+            ["git", "-C", str(git_root), *args],
+            text=True,
+            stderr=subprocess.DEVNULL,
+            timeout=5,
+        ).strip()
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        return ""
+
+
 def _markdown_report(payload: dict[str, object]) -> str:
     rows = payload.get("rows", [])
     lines = [
@@ -246,8 +373,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Sources: {payload.get('n_ok')}/{payload.get('n_sources')} inventory-clean",
         f"- Fingerprint: `{payload.get('inventory_fingerprint')}`",
         "",
-        "| Source | Type | OK | Files | Extension counts | Keyword hits |",
-        "|---|---|---:|---:|---|---|",
+        "| Source | Type | Usage | Commit | OK | Files | Extension counts | Keyword hits |",
+        "|---|---|---|---|---:|---:|---|---|",
     ]
     for row in rows:
         if not isinstance(row, dict):
@@ -259,7 +386,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
             if value
         ) or "none"
         lines.append(
-            f"| `{row.get('source_id')}` | {row.get('source_type')} | {row.get('ok')} | "
+            f"| `{row.get('source_id')}` | {row.get('source_type')} | "
+            f"{row.get('usage_policy', '')} | `{str(row.get('git_commit', ''))[:12]}` | {row.get('ok')} | "
             f"{row.get('n_files')} | {ext_counts or 'none'} | {hits} |"
         )
         errors = row.get("errors") or []

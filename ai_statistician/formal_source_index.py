@@ -323,6 +323,8 @@ DEFAULT_AUDIT_QUERIES: tuple[tuple[str, str], ...] = (
     ("weak_convergence_donsker", "Donsker weak convergence probability measures empirical process"),
     ("rademacher_shared_foundation", "Rademacher probability measure support sign symmetrization subGaussian"),
     ("backward_martingale_shared_foundation", "backward martingale reverse filtration conditional expectation convergence"),
+    ("atlas_subgaussian_high_dimensional", "Atlas HighDimensionalStatistics IsSubGaussian mgf bound Bernstein concentration"),
+    ("atlas_probability_limit_theory", "Atlas TheoryOfProbability CLT Lindeberg Feller Borel Cantelli weak convergence"),
 )
 
 

@@ -576,6 +576,47 @@ KNOWLEDGE_CARDS: tuple[KnowledgeCard, ...] = (
         tags=("retrieval", "prover", "training", "leandojo", "reprover", "grpo", "lean_progress"),
     ),
     KnowledgeCard(
+        id="atlas_lean_repository",
+        title="Meta ATLAS Lean probability and high-dimensional statistics corpus",
+        source_type="local_repo",
+        location="/Users/yukang/.codex/external/ykzeng-atlas-lean",
+        summary=(
+            "Local shallow mirror of ykzeng-yale/atlas-lean, currently matching "
+            "facebookresearch/atlas-lean. The AI Statistician indexes the "
+            "probability, high-dimensional statistics, probabilistic-methods, "
+            "and analysis subtrees as formal-source evidence for theorem "
+            "planning and proof-bank expansion. The checked-out license text "
+            "is CC BY-NC with a no-training rider, so its declarations are "
+            "excluded from SFT/GRPO training exports unless a separate "
+            "authorization artifact is provided."
+        ),
+        tags=(
+            "atlas",
+            "meta",
+            "lean",
+            "probability",
+            "high_dimensional_statistics",
+            "subgaussian",
+            "autoformalization",
+            "retrieval_only",
+        ),
+    ),
+    KnowledgeCard(
+        id="autoform_bot_harness",
+        title="Meta AutoformBot formalization harness",
+        source_type="local_repo",
+        location="/Users/yukang/.codex/external/ykzeng-autoform-bot",
+        summary=(
+            "Local shallow mirror of ykzeng-yale/autoform-bot, currently "
+            "matching facebookresearch/autoform-bot, exposing "
+            "statement extraction, multi-agent formalization orchestration, "
+            "Lean checks, REPL/LSP tools, evaluation, and visualization. The "
+            "system records it as a reusable harness target rather than copying "
+            "its code into training datasets."
+        ),
+        tags=("autoform", "autoformalization", "lean", "harness", "statement_extraction", "evaluation"),
+    ),
+    KnowledgeCard(
         id="local_mathlib_probability",
         title="Local Mathlib probability and statistics source",
         source_type="local_repo",
@@ -708,6 +749,8 @@ FORMAL_INFRASTRUCTURE_KNOWLEDGE: tuple[str, ...] = (
     "loogle",
     "leansearch_client_local",
     "leandojo_v2_local",
+    "atlas_lean_repository",
+    "autoform_bot_harness",
     "openprover_pipeline",
 )
 

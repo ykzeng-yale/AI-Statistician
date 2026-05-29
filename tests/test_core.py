@@ -22,6 +22,7 @@ from ai_statistician.formal_source_index import (
     build_formal_source_index,
     search_formal_sources,
 )
+from ai_statistician.autoform_harness import audit_autoform_harness
 from ai_statistician.proof_bank import all_obligations, get_obligation
 from ai_statistician.evaluation import EvalConfig, run_seed_eval
 from ai_statistician.intake_audit import audit_question_intake
@@ -38,6 +39,7 @@ from ai_statistician.research_evaluation import ResearchEvalConfig, run_research
 from ai_statistician.research_gap_audit import audit_research_gap_backlog
 from ai_statistician.research_intake_audit import audit_research_question_intake
 from ai_statistician.research_knowledge_audit import audit_research_knowledge
+from ai_statistician.research_source_inventory import ATLAS_LEAN_ROOT
 from ai_statistician.research_capability_audit import (
     build_research_capability_audit,
     write_research_capability_audit,
@@ -227,6 +229,26 @@ class ProofBankTests(unittest.TestCase):
         self.assertTrue(Path(payload["sqlite_index_path"]).exists())
         self.assertEqual(payload["n_declarations"], 2)
         self.assertTrue(Path("runs/test_formal_source_index/formal_source_index_manifest.json").exists())
+
+    def test_meta_atlas_sources_are_indexed_for_retrieval_only(self) -> None:
+        atlas_probability = ATLAS_LEAN_ROOT / "Atlas" / "TheoryOfProbability"
+        atlas_hds = ATLAS_LEAN_ROOT / "Atlas" / "HighDimensionalStatistics"
+        if not atlas_probability.exists() or not atlas_hds.exists():
+            self.skipTest("atlas-lean checkout is not available")
+        roots = (
+            FormalSourceRoot("atlas_lean_theory_of_probability", str(atlas_probability)),
+            FormalSourceRoot("atlas_lean_high_dimensional_statistics", str(atlas_hds)),
+        )
+        declarations = build_formal_source_index(roots=roots)
+        source_ids = {decl.source_id for decl in declarations}
+        self.assertIn("atlas_lean_theory_of_probability", source_ids)
+        self.assertIn("atlas_lean_high_dimensional_statistics", source_ids)
+        hits = search_formal_sources("subGaussian mgf bound high dimensional statistics", declarations=declarations, k=10)
+        self.assertTrue(hits)
+        self.assertEqual(hits[0].declaration.source_id, "atlas_lean_high_dimensional_statistics")
+        probability_hits = search_formal_sources("Borel Cantelli CLT weak convergence probability", declarations=declarations, k=10)
+        self.assertTrue(probability_hits)
+        self.assertTrue(any(hit.declaration.source_id == "atlas_lean_theory_of_probability" for hit in probability_hits))
 
     def test_mock_proof_bank_audit_exports_lean(self) -> None:
         async def run():
@@ -768,6 +790,26 @@ class SystemTests(unittest.TestCase):
         source_inventory_ids = {row["source_id"] for row in source_inventory["rows"]}
         self.assertIn("leansearch_client", source_inventory_ids)
         self.assertIn("leandojo_v2_local", source_inventory_ids)
+        self.assertIn("atlas_lean_repository", source_inventory_ids)
+        self.assertIn("atlas_lean_high_dimensional_statistics", source_inventory_ids)
+        atlas_rows = [row for row in source_inventory["rows"] if str(row["source_id"]).startswith("atlas_lean")]
+        self.assertTrue(atlas_rows)
+        self.assertTrue(all(row["usage_policy"] == "retrieval_only_no_training_export" for row in atlas_rows))
+        self.assertTrue(all(row["git_commit"] for row in atlas_rows))
+        self.assertIn("autoform_bot_harness", source_inventory_ids)
+        autoform = next(row for row in source_inventory["rows"] if row["source_id"] == "autoform_bot_harness")
+        self.assertEqual(autoform["usage_policy"], "integration_reference_no_training_export")
+        self.assertTrue(autoform["git_commit"])
+
+    def test_autoform_harness_audit_detects_reusable_framework(self) -> None:
+        payload = audit_autoform_harness(Path("runs/test_autoform_harness"))
+        self.assertTrue(payload["ready_for_integration"])
+        profile = payload["profile"]
+        self.assertTrue(profile["has_statement_extraction"])
+        self.assertTrue(profile["has_lean_eval"])
+        self.assertTrue(profile["has_lean_repl_tool"])
+        self.assertEqual(profile["usage_policy"], "integration_reference_no_training_export")
+        self.assertTrue(Path("runs/test_autoform_harness/autoform_harness_manifest.json").exists())
 
     def test_frontier_coverage_audit_parses_paper_benchmark(self) -> None:
         questions = load_frontier_benchmark_questions(Path("docs/frontier_stat_theory_benchmark.md"))
@@ -2140,6 +2182,7 @@ class SystemTests(unittest.TestCase):
         self.assertGreaterEqual(payload["n_sft_examples"], 8)
         self.assertEqual(payload["n_train"] + payload["n_validation"], payload["n_sft_examples"])
         self.assertEqual(payload["n_grpo_tasks"], 2)
+        self.assertIn("atlas_lean_high_dimensional_statistics", payload["excluded_no_training_sources"])
         for task in (
             "problem_formalization",
             "theory_plan_generation",
@@ -2158,6 +2201,9 @@ class SystemTests(unittest.TestCase):
         rows = [json.loads(line) for line in all_jsonl.read_text(encoding="utf-8").splitlines()]
         self.assertEqual(len(rows), payload["n_sft_examples"])
         self.assertTrue(all(row["completion"].strip().startswith("{") for row in rows))
+        serialized_rows = json.dumps(rows)
+        self.assertNotIn("atlas_lean_high_dimensional_statistics", serialized_rows)
+        self.assertNotIn("atlas_lean_theory_of_probability", serialized_rows)
         legacy = json.loads(Path(payload["legacy_training_manifest"]).read_text(encoding="utf-8"))
         self.assertEqual(legacy["base_model"], "untrained-trace-export")
         self.assertEqual(len(legacy["sft_examples"]), payload["n_sft_examples"])

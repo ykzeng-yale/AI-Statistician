@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from .fingerprint import stable_hash
+from .research_source_inventory import NO_TRAINING_EXPORT_SOURCE_IDS, source_allows_training_export
 
 
 RESEARCH_TRAINING_EXPORT_SCHEMA_VERSION = 1
@@ -103,6 +104,7 @@ def export_research_training_dataset(
         "legacy_training_manifest": str(out_dir / "legacy_training_manifest.json"),
         "dataset_fingerprint": stable_hash([asdict(row) for row in examples]),
         "grpo_fingerprint": stable_hash([asdict(row) for row in grpo_tasks]),
+        "excluded_no_training_sources": sorted(NO_TRAINING_EXPORT_SOURCE_IDS),
         "all_ok": _all_ok(traces, examples),
         "limitations": [
             "exports trace-supervised examples only; no model weights are trained",
@@ -163,7 +165,11 @@ def _sft_examples_for_trace(
     theorem_goals = [row for row in trace.get("theorem_goals", []) if isinstance(row, dict)]
     formal_subclaims = [row for row in trace.get("formal_subclaims", []) if isinstance(row, dict)]
     simulations = [row for row in trace.get("simulations", []) if isinstance(row, dict)]
-    knowledge = [row for row in trace.get("knowledge", []) if isinstance(row, dict)]
+    knowledge = [
+        row
+        for row in trace.get("knowledge", [])
+        if isinstance(row, dict) and source_allows_training_export(str(row.get("id", "")))
+    ]
     question_id = str(question.get("id", trace_path.stem))
     problem_class = str(problem.get("problem_class", ""))
     context = _base_context(question)
@@ -413,7 +419,11 @@ def _compact_formal_subclaim(row: dict[str, Any]) -> dict[str, object]:
         "formalization_status": row.get("formalization_status"),
         "gap_reason": row.get("gap_reason"),
         "proof_dependencies": row.get("proof_dependencies", []),
-        "formal_source_hits": row.get("formal_source_hits", [])[:5],
+        "formal_source_hits": [
+            hit
+            for hit in row.get("formal_source_hits", []) or []
+            if isinstance(hit, dict) and source_allows_training_export(str(hit.get("source_id", "")))
+        ][:5],
     }
 
 
