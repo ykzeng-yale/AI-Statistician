@@ -44,6 +44,7 @@ from ai_statistician.research_lab import (
     run_research_benchmark,
     TheoryPlanner,
 )
+from ai_statistician.research_next_iteration_audit import audit_next_iteration_queue
 from ai_statistician.research_paper_index import build_paper_source_index, retrieve_paper_sources
 from ai_statistician.research_report import build_research_markdown_report
 from ai_statistician.research_system_audit import ResearchSystemAuditConfig, run_research_system_audit
@@ -1300,6 +1301,34 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(payload["n_traces"], 10)
         self.assertTrue(Path("runs/test_research_trace_audit/research_trace_audit_manifest.json").exists())
 
+    def test_next_iteration_queue_aggregates_trace_agendas(self) -> None:
+        async def run():
+            questions = load_open_research_questions(Path("examples/research_questions.json"))[:2]
+            await run_research_benchmark(
+                questions,
+                Path("runs/test_next_iteration_queue_run"),
+                proof_verifier=MockProofVerifier(),
+                n_runs=25,
+                seed=20260528,
+            )
+            return audit_next_iteration_queue(
+                Path("runs/test_next_iteration_queue_run"),
+                Path("runs/test_next_iteration_queue"),
+            )
+
+        payload = asyncio.run(run())
+        self.assertTrue(payload["all_ok"])
+        self.assertGreater(payload["n_items"], 0)
+        self.assertGreater(payload["n_actionable_items"], 0)
+        self.assertIn("formal_verifier", payload["by_owner"])
+        self.assertIn("FORMAL_GAP", payload["by_trigger"])
+        first = payload["rows"][0]
+        self.assertTrue(first["item_id"])
+        self.assertTrue(first["owner_agent"])
+        self.assertTrue(first["action"])
+        self.assertTrue(Path("runs/test_next_iteration_queue/next_iteration_queue_manifest.json").exists())
+        self.assertTrue(Path("runs/test_next_iteration_queue/next_iteration_queue.md").exists())
+
     def test_research_gap_backlog_audits_formal_gaps(self) -> None:
         async def run():
             questions = load_open_research_questions(Path("examples/research_questions.json"))
@@ -1478,6 +1507,7 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(payload["gates"]["research_trace_audit"])
         self.assertTrue(payload["gates"]["research_gap_backlog"])
         self.assertTrue(payload["gates"]["formalization_target_audit"])
+        self.assertTrue(payload["gates"]["next_iteration_queue"])
         self.assertTrue(payload["gates"]["research_report"])
         self.assertEqual(payload["counts"]["questions"], 10)
         self.assertEqual(payload["counts"]["frontier_questions"], 60)
@@ -1543,6 +1573,9 @@ class SystemTests(unittest.TestCase):
         )
         self.assertGreater(payload["counts"]["formalization_targets_with_proof_bank_bridge"], 0)
         self.assertGreater(payload["counts"]["formalization_targets_total"], 0)
+        self.assertEqual(payload["counts"]["next_iteration_ok"], payload["counts"]["next_iteration_items"])
+        self.assertGreater(payload["counts"]["next_iteration_actionable_items"], 0)
+        self.assertGreater(payload["counts"]["next_iteration_formal_verifier_items"], 0)
         self.assertEqual(payload["counts"]["research_report_questions"], payload["counts"]["questions"])
         self.assertEqual(payload["counts"]["research_report_formal_gaps"], payload["counts"]["formal_gaps"])
         self.assertEqual(
@@ -1577,6 +1610,8 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(Path(payload["artifacts"]["research_gap_backlog"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formalization_target_audit"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formalization_target_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["next_iteration_queue"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["next_iteration_queue_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["research_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["research_report_manifest"]).exists())
 

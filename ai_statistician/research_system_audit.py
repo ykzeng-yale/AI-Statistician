@@ -20,6 +20,7 @@ from .research_intake_audit import audit_research_question_intake
 from .research_knowledge_audit import audit_research_knowledge
 from .research_capability_audit import build_research_capability_audit, write_research_capability_audit
 from .research_lab import audit_research_algorithm_registry, load_open_research_questions, run_research_benchmark
+from .research_next_iteration_audit import audit_next_iteration_queue
 from .research_report import build_research_markdown_report
 from .research_trace_audit import audit_research_traces
 from .retrieval import audit_proof_bank_retrieval
@@ -116,6 +117,10 @@ async def run_research_system_audit(
         out_dir / "research_benchmark",
         out_dir / "formalization_target_audit",
     )
+    next_iteration_manifest = audit_next_iteration_queue(
+        out_dir / "research_benchmark",
+        out_dir / "next_iteration_queue",
+    )
     research_report_manifest = build_research_markdown_report(
         out_dir / "research_benchmark",
         out_dir / "research_report",
@@ -155,6 +160,7 @@ async def run_research_system_audit(
         "research_trace_audit": bool(trace_manifest["all_ok"]),
         "research_gap_backlog": bool(gap_backlog_manifest["all_ok"]),
         "formalization_target_audit": bool(formalization_target_manifest["all_ok"]),
+        "next_iteration_queue": bool(next_iteration_manifest["all_ok"]),
         "research_report": bool(research_report_manifest["all_ok"]),
     }
     payload = {
@@ -249,6 +255,13 @@ async def run_research_system_audit(
             "formalization_targets_with_proof_bank_bridge": formalization_target_manifest[
                 "n_with_proof_bank_bridge"
             ],
+            "next_iteration_items": next_iteration_manifest["n_items"],
+            "next_iteration_actionable_items": next_iteration_manifest["n_actionable_items"],
+            "next_iteration_ok": next_iteration_manifest["n_ok"],
+            "next_iteration_formal_verifier_items": next_iteration_manifest["by_owner"].get(
+                "formal_verifier",
+                0,
+            ),
             "research_report_questions": research_report_manifest["counts"]["questions"],
             "research_report_formal_gaps": research_report_manifest["counts"]["formal_gaps"],
             "research_report_simulations_passed": research_report_manifest["counts"]["simulations_passed"],
@@ -340,6 +353,10 @@ async def run_research_system_audit(
             "formalization_target_report": str(
                 out_dir / "formalization_target_audit" / "formalization_targets.md"
             ),
+            "next_iteration_queue": str(
+                out_dir / "next_iteration_queue" / "next_iteration_queue_manifest.json"
+            ),
+            "next_iteration_queue_report": str(out_dir / "next_iteration_queue" / "next_iteration_queue.md"),
             "research_report": str(out_dir / "research_report" / "research_report.md"),
             "research_report_manifest": str(out_dir / "research_report" / "research_report_manifest.json"),
             "formal_gaps": str(out_dir / "research_benchmark" / "formal_gaps"),

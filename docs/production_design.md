@@ -195,6 +195,24 @@ developer sees the most relevant verified bridge first instead of an
 alphabetical list of every proof obligation attached to the broader theorem
 goal.
 
+Next-iteration queue:
+
+```bash
+python3 -m ai_statistician.cli next-iteration-audit \
+  --run-dir runs/research_benchmark \
+  --out runs/next_iteration_queue
+```
+
+This aggregates every per-trace `next_iteration_agenda` item into a run-level
+agent work queue. The manifest groups tasks by owner (`formal_verifier`,
+`theory_developer`, `algorithm_engineer`, `simulator_agent`, and
+`research_coordinator`), trigger, and priority. This is the operational bridge
+from trace-level evidence to the next development round: formal-gap items become
+Lean-library/proof-bank tasks, failed proofs become proof-repair tasks, and
+failed simulations become theory, algorithm, simulator, or Monte Carlo rerun
+tasks. `research-system-audit` writes this queue as
+`next_iteration_queue/next_iteration_queue_manifest.json`.
+
 Research source inventory:
 
 ```bash
@@ -268,9 +286,10 @@ runs proof-bank retrieval, frontier precision audit, research capability audit,
 research knowledge-source audit, research algorithm audit, proof verification,
 proof-training export, the proof-policy baseline, prover-component audit, the
 frontier research benchmark, frontier theory-target grading, the research trace
-audit, formal-gap backlog, formalization target queue, and the human-readable
-research report, then writes `research_system_audit_manifest.json` with gates
-and artifact paths. The training, baseline, and theory-target gates check
+audit, formal-gap backlog, formalization target queue, next-iteration queue,
+and the human-readable research report, then writes
+`research_system_audit_manifest.json` with gates and artifact paths. The
+training, baseline, and theory-target gates check
 artifact integrity and scoring coverage, not model quality: they make
 verifier-positive proof attempts available for future SFT/rejection sampling,
 record the no-training proof-memory baseline that trained policies must beat,
@@ -280,7 +299,9 @@ to the theory developer, algorithm engineer, simulator environment, or a larger
 Monte Carlo run instead of leaving metric failures as unstructured text. Trace
 audit also checks that every theory plan includes a next-iteration agenda with
 owner counts, a stop condition, and semantic coverage of formal gaps, failed
-proof obligations, and non-OK simulation diagnoses.
+proof obligations, and non-OK simulation diagnoses. The next-iteration queue
+gate then checks that those per-trace agendas aggregate into a run-level agent
+worklist.
 With `--real-lean`, the proof gate and benchmark subclaims use AXLE
 `verify_proof`; frontier theorem goals still remain explicit formal gaps unless
 they have been added to the proof bank as real obligations.
