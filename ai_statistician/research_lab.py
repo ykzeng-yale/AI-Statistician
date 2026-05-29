@@ -2238,6 +2238,7 @@ class TheoryPlanner:
                     proof_obligations=(
                         "difference_estimator_unbiased",
                         "aipw_score_expectation_decompose",
+                        "aipw_score_expectation_target_of_aug_cancel",
                     ),
                 ),
                 TheoremGoal(
@@ -4701,6 +4702,7 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "difference_estimator_unbiased",
         "difference_estimator_variance_decompose",
         "aipw_score_expectation_decompose",
+        "aipw_score_expectation_target_of_aug_cancel",
         "variance_nonneg",
     ),
     "distribution_free_conformal_prediction": (

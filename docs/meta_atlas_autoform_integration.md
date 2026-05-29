@@ -112,7 +112,7 @@ Real Lean/AXLE system audit:
 PYTHONPATH=/Users/yukang/AI\ Statistician \
 /Users/yukang/LeanProjects/LeanPractice/.venv/bin/python \
   -m ai_statistician.cli research-system-audit --real-lean \
-  --runs 20 --out runs/research_system_real_lean_44_evalue_bridge
+  --runs 20 --out runs/research_system_real_lean_45_aipw_cancel_bridge
 ```
 
 Result:
@@ -122,17 +122,21 @@ all_gates_passed=True
 autoform_harness=True
 autoform_targets=20/20
 sources=19/19
-proofs=44/44
+proofs=45/45
 frontier_supported=60/60
 formalized_gaps=20/20
 missing_primitives=97
 ```
 
-The same audit now reports `proof_bank_expansion_bridge_ready=8`.
+The same audit now reports `proof_bank_expansion_bridge_ready=10`.
 `independent_null_pvalues` is backed by the verified
 `independent_null_event_family_inter_probability` and
 `independent_null_event_family_compl_inter_probability` obligations. The
 sequential primitives `eprocess_type1_control`, `nonnegative_supermartingale`,
 and `ville_inequality` now rank `finite_horizon_evalue_markov_type1_control`
 as their verified finite-horizon Markov/union bridge while preserving optional
-stopping and full Ville as formal gaps.
+stopping and full Ville as formal gaps. The AIPW primitives
+`conditional_mean_residual_zero` and `nuisance_correctness_cases` now rank
+`aipw_score_expectation_target_of_aug_cancel` as their verified algebraic bridge
+while preserving conditional-expectation residual identities and full double
+robustness as formal gaps.

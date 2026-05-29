@@ -703,6 +703,12 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   optional-stopping/e-process theorem skeletons.
 - `aipw_score_expectation_decompose`: expectation of an AIPW-style contrast plus
   augmentation score decomposes by linearity.
+- `aipw_score_expectation_target_of_aug_cancel`: if the contrast term has
+  expectation `psi` and treated/control augmentation expectations cancel, then
+  the full AIPW-style score also has expectation `psi`. This is the verified
+  algebraic bridge now attached to `conditional_mean_residual_zero` and
+  `nuisance_correctness_cases`; it is not a proof of conditional expectation
+  residual identities or semiparametric double robustness.
 - `variance_nonneg`: variance is nonnegative.
 - `variance_indep_add`: variance adds for independent L2 random variables.
 

@@ -452,6 +452,21 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("design_based", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_aipw_score_expectation_target_cancels_augmentation_means(self) -> None:
+        obligation = get_obligation("aipw_score_expectation_target_of_aug_cancel")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("aipw_score_expectation_decompose",))
+        self.assertIn("def aipwScore", content)
+        self.assertIn("theorem aipwScore_expectation_eq_target_of_aug_cancel", content)
+        self.assertIn("hContrastMean", content)
+        self.assertIn("hAugCancel", content)
+        self.assertIn("∫ ω, aipwScore contrast treatAug controlAug ω ∂μ = psi", content)
+        self.assertIn("integral_add", content)
+        self.assertIn("integral_sub", content)
+        self.assertIn("double_robustness", obligation.tags)
+        self.assertIn("conditional_mean_residual_zero", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_finite_sample_mean_chebyshev_composes_mean_variance_and_tail_bound(self) -> None:
         obligation = get_obligation("finite_sample_mean_chebyshev_indep")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
@@ -1841,7 +1856,11 @@ class SystemTests(unittest.TestCase):
         causal_goals = {row["id"]: row for row in trace_payload["theorem_goals"]}
         self.assertEqual(
             causal_goals["aipw_double_robustness"]["proof_obligations"],
-            ["difference_estimator_unbiased", "aipw_score_expectation_decompose"],
+            [
+                "difference_estimator_unbiased",
+                "aipw_score_expectation_decompose",
+                "aipw_score_expectation_target_of_aug_cancel",
+            ],
         )
         conformal_trace = json.loads(Path("runs/test_research_benchmark/conformal_prediction_coverage.json").read_text())
         conformal_goals = {row["id"]: row for row in conformal_trace["theorem_goals"]}

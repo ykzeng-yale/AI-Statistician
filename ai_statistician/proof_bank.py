@@ -1156,6 +1156,70 @@ theorem aipwScore_expectation_decompose {Ω : Type*} [MeasurableSpace Ω]
         tags=("estimator", "expectation", "linearity", "aipw", "causal", "semiparametric"),
         expected_lemmas=("integral_add", "integral_sub"),
     ),
+    "aipw_score_expectation_target_of_aug_cancel": FormalObligation(
+        id="aipw_score_expectation_target_of_aug_cancel",
+        title="AIPW score expectation equals target when augmentation expectations cancel",
+        english=(
+            "If an AIPW-style contrast has expectation psi and the treated and "
+            "control augmentation terms have equal expectations, then the full "
+            "contrast + treated augmentation - control augmentation score also "
+            "has expectation psi. This is the finite expectation-algebra bridge "
+            "used before formalizing conditional mean residual cancellation or "
+            "double robustness; it does not prove nuisance correctness or "
+            "conditional-expectation identities."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+noncomputable def aipwScore {Ω : Type*}
+    (contrast treatAug controlAug : Ω → ℝ) : Ω → ℝ :=
+  contrast + treatAug - controlAug
+
+theorem aipwScore_expectation_eq_target_of_aug_cancel {Ω : Type*} [MeasurableSpace Ω]
+    (μ : Measure Ω) (contrast treatAug controlAug : Ω → ℝ) (psi : ℝ)
+    (hContrast : Integrable contrast μ)
+    (hTreat : Integrable treatAug μ)
+    (hControl : Integrable controlAug μ)
+    (hContrastMean : (∫ ω, contrast ω ∂μ) = psi)
+    (hAugCancel : (∫ ω, treatAug ω ∂μ) = (∫ ω, controlAug ω ∂μ)) :
+    ∫ ω, aipwScore contrast treatAug controlAug ω ∂μ = psi := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  calc\n"
+            "    ∫ ω, aipwScore contrast treatAug controlAug ω ∂μ =\n"
+            "        ∫ ω, ((contrast + treatAug - controlAug) : Ω → ℝ) ω ∂μ := by\n"
+            "          rfl\n"
+            "    _ = ∫ ω, ((contrast + treatAug) : Ω → ℝ) ω ∂μ - ∫ ω, controlAug ω ∂μ := by\n"
+            "          exact integral_sub (hContrast.add hTreat) hControl\n"
+            "    _ = (∫ ω, contrast ω ∂μ) + (∫ ω, treatAug ω ∂μ) -\n"
+            "          ∫ ω, controlAug ω ∂μ := by\n"
+            "          have hAdd : ∫ ω, ((contrast + treatAug) : Ω → ℝ) ω ∂μ =\n"
+            "              (∫ ω, contrast ω ∂μ) + (∫ ω, treatAug ω ∂μ) := by\n"
+            "            simpa using integral_add hContrast hTreat\n"
+            "          rw [hAdd]\n"
+            "    _ = psi := by\n"
+            "          rw [hContrastMean, hAugCancel]\n"
+            "          ring"
+        ),
+        tags=(
+            "estimator",
+            "expectation",
+            "linearity",
+            "aipw",
+            "causal",
+            "semiparametric",
+            "double_robustness",
+            "conditional_mean_residual_zero",
+            "nuisance_correctness_cases",
+            "augmentation_cancel",
+        ),
+        expected_lemmas=("integral_add", "integral_sub", "ring"),
+        depends_on=("aipw_score_expectation_decompose",),
+    ),
     "prob_measure_univ": FormalObligation(
         id="prob_measure_univ",
         title="Probability measure normalizes",
