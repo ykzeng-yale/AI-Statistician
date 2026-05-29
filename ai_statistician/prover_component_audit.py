@@ -10,6 +10,7 @@ from .frontier_coverage_audit import audit_frontier_coverage
 from .proof_attempt_log import PROOF_ATTEMPT_SCHEMA_VERSION
 from .proof_bank import all_obligations, proof_bank_fingerprint
 from .proof_policy_baseline import PROOF_POLICY_BASELINE_SCHEMA_VERSION
+from .proof_repair_export import PROOF_REPAIR_EXPORT_SCHEMA_VERSION
 from .proof_training_export import PROOF_TRAINING_EXPORT_SCHEMA_VERSION
 from .research_lab import (
     PROVABLE_SUBCLAIMS,
@@ -272,8 +273,10 @@ def build_prover_component_audit(
             current_evidence=(
                 f"proof_attempt_schema_version={PROOF_ATTEMPT_SCHEMA_VERSION}",
                 f"proof_training_export_schema_version={PROOF_TRAINING_EXPORT_SCHEMA_VERSION}",
+                f"proof_repair_export_schema_version={PROOF_REPAIR_EXPORT_SCHEMA_VERSION}",
                 "proof-audit writes proof_attempts.jsonl and proof_attempt_log_manifest.json",
                 "proof-training-export writes proof_sft_train.jsonl, proof_sft_validation.jsonl, and proof_training_manifest.json",
+                "proof-repair-export writes failed-attempt repair examples when negative controls/search failures are present",
                 "positive rows include supervision_target; negative rows preserve verifier errors and reward=0",
             ),
             missing_or_next=(

@@ -731,7 +731,9 @@ rate, mean coverage, and mean RMSE by question.
 Full proof-bank audit:
 
 ```bash
-python3 -m ai_statistician.cli proof-audit --out runs/proof_audit
+python3 -m ai_statistician.cli proof-audit \
+  --negative-controls \
+  --out runs/proof_audit
 ```
 
 Real AXLE proof-bank audit:
@@ -762,6 +764,11 @@ proof bodies. Mock-positive rows are regression-test evidence only; AXLE rows
 with `kernel_verified=true` are the Lean-kernel proof evidence. This is
 proof-level logging only; tactic-state transitions and process rewards remain
 future work.
+With `--negative-controls`, the audit also records one intentionally empty
+proof body per obligation. These negative rows are not theorem checks; they are
+controlled verifier-error examples for repair/value-model data. The unified
+`research-system-audit` enables them for the offline mock verifier and skips
+them for `--real-lean` to avoid doubling remote AXLE calls.
 The capability audit uses the same distinction: available subclaims are marked
 `ACHIEVED` for the AXLE requirement only when the latest proof audit has
 `all_kernel_verified=true` and covers the full registered proof bank; otherwise
@@ -782,6 +789,22 @@ split is deterministic from the attempt id so reruns are comparable. The
 release-style `research-system-audit` now emits this export automatically from
 its proof-audit attempt log so training data provenance is captured beside the
 proof, retrieval, simulation, and gap manifests.
+
+Use `proof-repair-export` to turn failed attempts into repair examples:
+
+```bash
+python3 -m ai_statistician.cli proof-repair-export \
+  --attempt-log runs/proof_audit/proof_attempts.jsonl \
+  --out runs/proof_repair_export
+```
+
+This writes `proof_repair_train.jsonl`, `proof_repair_validation.jsonl`,
+`proof_repair_all.jsonl`, and `proof_repair_manifest.json`. Each row pairs a
+failed proof body plus verifier errors with an accepted proof body for the same
+obligation. This is the first verifier-feedback dataset for proof repair; it
+does not replace tactic-state tracing or process rewards, but it stops failed
+proof attempts from being discarded as unstructured audit text.
+
 Before training a model, run the no-training whole-proof baseline:
 
 ```bash

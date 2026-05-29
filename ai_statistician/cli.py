@@ -21,6 +21,7 @@ from .intake_audit import audit_question_intake
 from .proof_audit import audit_proof_bank
 from .proof_bank import all_obligations, obligations_by_tags
 from .proof_policy_baseline import evaluate_retrieval_proof_policy_baseline
+from .proof_repair_export import export_proof_repair_dataset
 from .proof_training_export import export_proof_training_dataset
 from .prover_component_audit import build_prover_component_audit, write_prover_component_audit
 from .release import ReleaseBundleConfig, build_release_bundle
@@ -174,6 +175,7 @@ async def _proof_audit(args: argparse.Namespace) -> int:
         require_all_tags=args.require_all_tags,
         export_lean=not args.no_export_lean,
         export_attempt_log=not args.no_attempt_log,
+        include_negative_controls=args.negative_controls,
     )
     print("\nAI Statistician Proof-Bank Audit")
     print("=" * 72)
@@ -225,6 +227,25 @@ def _proof_training_export(args: argparse.Namespace) -> int:
     print(f"train_jsonl={Path(str(payload['train_jsonl'])).resolve()}")
     print(f"validation_jsonl={Path(str(payload['validation_jsonl'])).resolve()}")
     print(f"manifest written to {(Path(args.out) / 'proof_training_manifest.json').resolve()}")
+    return 0
+
+
+def _proof_repair_export(args: argparse.Namespace) -> int:
+    payload = export_proof_repair_dataset(
+        Path(args.attempt_log),
+        Path(args.out),
+        validation_fraction=args.validation_fraction,
+    )
+    print("\nAI Statistician Proof Repair Export")
+    print("=" * 72)
+    print(
+        f"repair_examples={payload['n_repair_examples']} "
+        f"train={payload['n_train']} validation={payload['n_validation']} "
+        f"negative_attempts={payload['n_negative_attempts']}"
+    )
+    print(f"train_jsonl={Path(str(payload['train_jsonl'])).resolve()}")
+    print(f"validation_jsonl={Path(str(payload['validation_jsonl'])).resolve()}")
+    print(f"manifest written to {(Path(args.out) / 'proof_repair_manifest.json').resolve()}")
     return 0
 
 
@@ -1032,6 +1053,11 @@ def build_parser() -> argparse.ArgumentParser:
     proof_audit.add_argument("--env-file", default=".env")
     proof_audit.add_argument("--no-export-lean", action="store_true", help="do not export checked Lean candidates")
     proof_audit.add_argument("--no-attempt-log", action="store_true", help="do not write proof_attempts.jsonl training/audit data")
+    proof_audit.add_argument(
+        "--negative-controls",
+        action="store_true",
+        help="also verify one intentionally empty proof body per obligation for repair/value-model data",
+    )
     proof_audit.set_defaults(func=lambda args: asyncio.run(_proof_audit(args)))
 
     proof_training_export = sub.add_parser(
@@ -1055,6 +1081,28 @@ def build_parser() -> argparse.ArgumentParser:
         help="output directory for proof_sft_*.jsonl and manifest",
     )
     proof_training_export.set_defaults(func=_proof_training_export)
+
+    proof_repair_export = sub.add_parser(
+        "proof-repair-export",
+        help="export failed proof attempts paired with accepted proof bodies for repair training",
+    )
+    proof_repair_export.add_argument(
+        "--attempt-log",
+        required=True,
+        help="path to proof_attempts.jsonl from proof-audit",
+    )
+    proof_repair_export.add_argument(
+        "--validation-fraction",
+        type=float,
+        default=0.2,
+        help="deterministic validation split fraction in [0, 1)",
+    )
+    proof_repair_export.add_argument(
+        "--out",
+        default="runs/proof_repair_export",
+        help="output directory for proof_repair_*.jsonl and manifest",
+    )
+    proof_repair_export.set_defaults(func=_proof_repair_export)
 
     proof_policy_baseline = sub.add_parser(
         "proof-policy-baseline",

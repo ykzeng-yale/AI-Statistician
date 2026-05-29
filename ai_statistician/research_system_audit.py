@@ -14,6 +14,7 @@ from .formal_source_index import build_formal_source_search_backend
 from .frontier_smoke_benchmark import FrontierSmokeConfig, run_frontier_smoke_benchmark
 from .proof_audit import audit_proof_bank
 from .proof_policy_baseline import evaluate_retrieval_proof_policy_baseline
+from .proof_repair_export import export_proof_repair_dataset
 from .proof_training_export import export_proof_training_dataset
 from .prover_component_audit import build_prover_component_audit, write_prover_component_audit
 from .research_gap_audit import audit_research_gap_backlog
@@ -90,11 +91,17 @@ async def run_research_system_audit(
         verifier,
         out_dir / "proof_audit",
         export_lean=True,
+        include_negative_controls=not config.use_axle,
     )
     proof_attempt_log = Path(str(proof_manifest["proof_attempt_log"]["attempt_log"]))
     proof_training_manifest = export_proof_training_dataset(
         proof_attempt_log,
         out_dir / "proof_training_export",
+        validation_fraction=0.2,
+    )
+    proof_repair_manifest = export_proof_repair_dataset(
+        proof_attempt_log,
+        out_dir / "proof_repair_export",
         validation_fraction=0.2,
     )
     proof_policy_manifest = evaluate_retrieval_proof_policy_baseline(
@@ -163,6 +170,11 @@ async def run_research_system_audit(
         and bool(proof_manifest["dependency_graph"]["all_ok"]),
         "proof_training_export": int(proof_training_manifest["n_sft_examples"])
         == int(proof_manifest["proof_attempt_log"]["n_positive"]),
+        "proof_repair_export": (
+            int(proof_repair_manifest["n_repair_examples"]) == int(proof_repair_manifest["n_negative_attempts"])
+            if proof_manifest["negative_controls"]["enabled"]
+            else int(proof_repair_manifest["n_repair_examples"]) >= 0
+        ),
         "proof_policy_baseline": int(proof_policy_manifest["n_train"])
         + int(proof_policy_manifest["n_validation"])
         == int(proof_training_manifest["n_sft_examples"]),
@@ -251,6 +263,12 @@ async def run_research_system_audit(
             "proof_training_kernel_examples": proof_training_manifest["n_kernel_positive_attempts"],
             "proof_training_train": proof_training_manifest["n_train"],
             "proof_training_validation": proof_training_manifest["n_validation"],
+            "proof_attempt_negatives": proof_manifest["proof_attempt_log"]["n_negative"],
+            "proof_negative_controls_enabled": proof_manifest["negative_controls"]["enabled"],
+            "proof_repair_examples": proof_repair_manifest["n_repair_examples"],
+            "proof_repair_negative_attempts": proof_repair_manifest["n_negative_attempts"],
+            "proof_repair_train": proof_repair_manifest["n_train"],
+            "proof_repair_validation": proof_repair_manifest["n_validation"],
             "proof_policy_baseline_top1_exact": proof_policy_manifest["top1_exact"],
             "proof_policy_baseline_top_k_exact": proof_policy_manifest["top_k_exact"],
             "proof_policy_baseline_validation": proof_policy_manifest["n_validation"],
@@ -349,6 +367,9 @@ async def run_research_system_audit(
             "proof_training_export": str(out_dir / "proof_training_export" / "proof_training_manifest.json"),
             "proof_training_train": str(out_dir / "proof_training_export" / "proof_sft_train.jsonl"),
             "proof_training_validation": str(out_dir / "proof_training_export" / "proof_sft_validation.jsonl"),
+            "proof_repair_export": str(out_dir / "proof_repair_export" / "proof_repair_manifest.json"),
+            "proof_repair_train": str(out_dir / "proof_repair_export" / "proof_repair_train.jsonl"),
+            "proof_repair_validation": str(out_dir / "proof_repair_export" / "proof_repair_validation.jsonl"),
             "proof_policy_baseline": str(
                 out_dir / "proof_policy_baseline" / "proof_policy_baseline_manifest.json"
             ),

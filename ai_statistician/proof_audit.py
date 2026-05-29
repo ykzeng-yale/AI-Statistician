@@ -34,6 +34,7 @@ async def audit_proof_bank(
     require_all_tags: bool = False,
     export_lean: bool = True,
     export_attempt_log: bool = True,
+    include_negative_controls: bool = False,
 ) -> dict[str, object]:
     obligations = select_obligations(ids=ids, tags=tags, require_all_tags=require_all_tags)
     retriever = ProofBankRetriever()
@@ -56,6 +57,15 @@ async def audit_proof_bank(
                 attempt_index=attempt_index,
             )
         )
+        if include_negative_controls:
+            negative_check = await verifier.verify(obligation, "", hits)
+            attempt_records.append(
+                build_proof_attempt_record(
+                    obligation,
+                    negative_check,
+                    attempt_index=attempt_index + len(obligations),
+                )
+            )
         if export_lean:
             (lean_dir / f"{obligation.id}.lean").write_text(
                 splice_proof(obligation.formal_statement, obligation.proof_body),
@@ -85,6 +95,16 @@ async def audit_proof_bank(
             "ids": ids or [],
             "tags": tags or [],
             "require_all_tags": require_all_tags,
+        },
+        "negative_controls": {
+            "enabled": include_negative_controls,
+            "candidate": "empty proof body",
+            "n_expected": len(obligations) if include_negative_controls else 0,
+            "n_recorded": (
+                sum(1 for row in attempt_records if not row.ok)
+                if include_negative_controls
+                else 0
+            ),
         },
         "checks": [asdict(check) for check in checks],
         "lean_export_dir": str(lean_dir) if export_lean else None,

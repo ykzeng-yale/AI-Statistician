@@ -26,6 +26,7 @@ from ai_statistician.intake_audit import audit_question_intake
 from ai_statistician.frontier_backlog_audit import audit_frontier_backlog
 from ai_statistician.proof_audit import audit_proof_bank
 from ai_statistician.proof_policy_baseline import evaluate_retrieval_proof_policy_baseline
+from ai_statistician.proof_repair_export import export_proof_repair_dataset
 from ai_statistician.proof_training_export import export_proof_training_dataset
 from ai_statistician.prover_component_audit import build_prover_component_audit, write_prover_component_audit
 from ai_statistician.questions import load_question_file, question_from_json
@@ -241,6 +242,39 @@ class ProofBankTests(unittest.TestCase):
         self.assertEqual(baseline["n_train"] + baseline["n_validation"], 2)
         self.assertTrue(Path(baseline["predictions_jsonl"]).exists())
         self.assertIn("top1_exact_rate", baseline)
+
+    def test_proof_repair_export_pairs_negative_controls(self) -> None:
+        async def run():
+            return await audit_proof_bank(
+                MockProofVerifier(),
+                Path("runs/test_proof_repair_audit"),
+                ids=["event_indicator_expectation", "variance_nonneg"],
+                include_negative_controls=True,
+            )
+
+        payload = asyncio.run(run())
+        self.assertTrue(payload["all_verified"])
+        self.assertTrue(payload["negative_controls"]["enabled"])
+        self.assertEqual(payload["proof_attempt_log"]["n_attempts"], 4)
+        self.assertEqual(payload["proof_attempt_log"]["n_positive"], 2)
+        self.assertEqual(payload["proof_attempt_log"]["n_negative"], 2)
+        repair = export_proof_repair_dataset(
+            Path("runs/test_proof_repair_audit/proof_attempts.jsonl"),
+            Path("runs/test_proof_repair_export"),
+            validation_fraction=0.0,
+        )
+        self.assertEqual(repair["n_negative_attempts"], 2)
+        self.assertEqual(repair["n_repair_examples"], 2)
+        self.assertEqual(repair["n_train"], 2)
+        self.assertEqual(repair["n_validation"], 0)
+        self.assertTrue(Path(repair["train_jsonl"]).exists())
+        rows = [
+            json.loads(line)
+            for line in Path(repair["all_jsonl"]).read_text(encoding="utf-8").splitlines()
+        ]
+        self.assertEqual(rows[0]["task"], "lean_whole_proof_repair_from_verifier_error")
+        self.assertTrue(rows[0]["target_completion"])
+        self.assertIn("Verifier errors", rows[0]["prompt"])
 
     def test_caching_verifier_reuses_checked_obligations(self) -> None:
         async def run():
@@ -1516,6 +1550,7 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(payload["gates"]["research_algorithm_audit"])
         self.assertTrue(payload["gates"]["proof_audit"])
         self.assertTrue(payload["gates"]["proof_training_export"])
+        self.assertTrue(payload["gates"]["proof_repair_export"])
         self.assertTrue(payload["gates"]["proof_policy_baseline"])
         self.assertTrue(payload["gates"]["prover_component_audit"])
         self.assertTrue(payload["gates"]["research_benchmark"])
@@ -1576,6 +1611,13 @@ class SystemTests(unittest.TestCase):
             payload["counts"]["proof_training_train"] + payload["counts"]["proof_training_validation"],
             payload["counts"]["proof_training_examples"],
         )
+        self.assertTrue(payload["counts"]["proof_negative_controls_enabled"])
+        self.assertEqual(payload["counts"]["proof_attempt_negatives"], payload["counts"]["proofs_total"])
+        self.assertEqual(payload["counts"]["proof_repair_examples"], payload["counts"]["proof_attempt_negatives"])
+        self.assertEqual(
+            payload["counts"]["proof_repair_train"] + payload["counts"]["proof_repair_validation"],
+            payload["counts"]["proof_repair_examples"],
+        )
         self.assertEqual(
             payload["counts"]["proof_policy_baseline_validation"],
             payload["counts"]["proof_training_validation"],
@@ -1626,6 +1668,9 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(Path(payload["artifacts"]["proof_training_export"]).exists())
         self.assertTrue(Path(payload["artifacts"]["proof_training_train"]).exists())
         self.assertTrue(Path(payload["artifacts"]["proof_training_validation"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["proof_repair_export"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["proof_repair_train"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["proof_repair_validation"]).exists())
         self.assertTrue(Path(payload["artifacts"]["proof_policy_baseline"]).exists())
         self.assertTrue(Path(payload["artifacts"]["proof_policy_baseline_predictions"]).exists())
         self.assertTrue(Path(payload["artifacts"]["prover_component_audit"]).exists())
