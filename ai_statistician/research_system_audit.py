@@ -14,6 +14,7 @@ from .formal_source_graph import audit_formal_source_graph
 from .formal_source_index import build_formal_source_search_backend
 from .frontier_smoke_benchmark import FrontierSmokeConfig, run_frontier_smoke_benchmark
 from .proof_audit import audit_proof_bank
+from .proof_bank_expansion_export import export_proof_bank_expansion_candidates
 from .proof_policy_baseline import evaluate_retrieval_proof_policy_baseline
 from .proof_repair_export import export_proof_repair_dataset
 from .proof_training_export import export_proof_training_dataset
@@ -141,6 +142,10 @@ async def run_research_system_audit(
         out_dir / "research_benchmark",
         out_dir / "formal_gap_lean_tasks",
     )
+    proof_bank_expansion_manifest = export_proof_bank_expansion_candidates(
+        out_dir / "research_benchmark",
+        out_dir / "proof_bank_expansion",
+    )
     next_iteration_manifest = audit_next_iteration_queue(
         out_dir / "research_benchmark",
         out_dir / "next_iteration_queue",
@@ -191,6 +196,7 @@ async def run_research_system_audit(
         "research_gap_backlog": bool(gap_backlog_manifest["all_ok"]),
         "formalization_target_audit": bool(formalization_target_manifest["all_ok"]),
         "formal_gap_task_export": bool(formal_gap_task_manifest["all_ok"]),
+        "proof_bank_expansion_export": bool(proof_bank_expansion_manifest["all_ok"]),
         "next_iteration_queue": bool(next_iteration_manifest["all_ok"]),
         "research_report": bool(research_report_manifest["all_ok"]),
     }
@@ -298,6 +304,13 @@ async def run_research_system_audit(
             ],
             "formal_gap_lean_tasks_ok": formal_gap_task_manifest["n_ok"],
             "formal_gap_lean_tasks_total": formal_gap_task_manifest["n_tasks"],
+            "proof_bank_expansion_candidates_ok": proof_bank_expansion_manifest["n_ok"],
+            "proof_bank_expansion_candidates_total": proof_bank_expansion_manifest["n_candidates"],
+            "proof_bank_expansion_bridge_ready": proof_bank_expansion_manifest["n_bridge_ready"],
+            "proof_bank_expansion_blocked_placeholder": proof_bank_expansion_manifest[
+                "n_blocked_placeholder"
+            ],
+            "proof_bank_expansion_candidate_ready": proof_bank_expansion_manifest["n_candidate_ready"],
             "next_iteration_items": next_iteration_manifest["n_items"],
             "next_iteration_actionable_items": next_iteration_manifest["n_actionable_items"],
             "next_iteration_ok": next_iteration_manifest["n_ok"],
@@ -409,6 +422,16 @@ async def run_research_system_audit(
             ),
             "formal_gap_lean_tasks_report": str(
                 out_dir / "formal_gap_lean_tasks" / "formal_gap_lean_tasks.md"
+            ),
+            "proof_bank_expansion": str(
+                out_dir / "proof_bank_expansion" / "proof_bank_expansion_manifest.json"
+            ),
+            "proof_bank_expansion_report": str(out_dir / "proof_bank_expansion" / "proof_bank_expansion.md"),
+            "proof_bank_expansion_lemma_proposals": str(
+                out_dir / "proof_bank_expansion" / "lemma_proposals.jsonl"
+            ),
+            "proof_bank_expansion_theorem_hole_queue": str(
+                out_dir / "proof_bank_expansion" / "theorem_hole_promotion_queue_manifest.json"
             ),
             "next_iteration_queue": str(
                 out_dir / "next_iteration_queue" / "next_iteration_queue_manifest.json"

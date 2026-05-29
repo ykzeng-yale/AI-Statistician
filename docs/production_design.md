@@ -212,6 +212,26 @@ LeanDojo/ReProver-style search loop, or human Lean developer. The release-style
 `research-system-audit` writes them as
 `formal_gap_lean_tasks/formal_gap_lean_tasks.jsonl`.
 
+Proof-bank expansion candidates:
+
+```bash
+python3 -m ai_statistician.cli proof-bank-expansion-export \
+  --run-dir runs/research_benchmark \
+  --out runs/proof_bank_expansion
+```
+
+This consumes the formal-gap Lean tasks and the formalization target queue, then
+reuses the legacy `lemma_proposal.schema.json` and
+`theorem_hole_promotion_queue.schema.json` shapes from the old AI-Statistician
+repo. The output is deliberately not a proof-bank admission. It writes
+`lemma_proposals.jsonl`, a theorem-hole promotion queue, and a Markdown report
+that say which primitive should become the next minimal AXLE-verified bridge
+lemma, which local Mathlib/StatInference declarations and current proof-bank
+obligations support it, and why most current frontier skeletons remain blocked
+by `h_frontier_missing_*` placeholders. This gives the formal verifier a
+concrete next proof-bank expansion queue while preserving the invariant that
+only AXLE `verify_proof` results enter the proof bank.
+
 Next-iteration queue:
 
 ```bash

@@ -26,6 +26,7 @@ from ai_statistician.evaluation import EvalConfig, run_seed_eval
 from ai_statistician.intake_audit import audit_question_intake
 from ai_statistician.frontier_backlog_audit import audit_frontier_backlog
 from ai_statistician.proof_audit import audit_proof_bank
+from ai_statistician.proof_bank_expansion_export import export_proof_bank_expansion_candidates
 from ai_statistician.proof_policy_baseline import evaluate_retrieval_proof_policy_baseline
 from ai_statistician.proof_repair_export import export_proof_repair_dataset
 from ai_statistician.proof_training_export import export_proof_training_dataset
@@ -1479,6 +1480,55 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(Path("runs/test_formal_gap_lean_tasks/formal_gap_lean_task_manifest.json").exists())
         self.assertTrue(Path("runs/test_formal_gap_lean_tasks/formal_gap_lean_tasks.md").exists())
 
+    def test_proof_bank_expansion_export_writes_legacy_proposal_queue(self) -> None:
+        async def run():
+            questions = load_open_research_questions(Path("examples/research_questions.json"))[:2]
+            await run_research_benchmark(
+                questions,
+                Path("runs/test_proof_bank_expansion_run"),
+                proof_verifier=MockProofVerifier(),
+                n_runs=25,
+                seed=20260528,
+            )
+            return export_proof_bank_expansion_candidates(
+                Path("runs/test_proof_bank_expansion_run"),
+                Path("runs/test_proof_bank_expansion"),
+            )
+
+        payload = asyncio.run(run())
+        self.assertTrue(payload["all_ok"])
+        self.assertGreater(payload["n_candidates"], 0)
+        self.assertEqual(payload["n_ok"], payload["n_candidates"])
+        self.assertGreater(payload["n_bridge_ready"], 0)
+        self.assertGreater(payload["n_blocked_placeholder"], 0)
+        first = payload["candidates"][0]
+        self.assertTrue(first["proposal_id"].startswith("lemma_proposal:"))
+        self.assertEqual(first["source_kind"], "formal_gap_task_export")
+        self.assertEqual(first["proposed_by"], "proof_bank_expansion_export")
+        self.assertTrue(first["candidate"]["name"].startswith("AIStatistician.Proposed."))
+        self.assertTrue(first["candidate"]["statement"].startswith("theorem "))
+        self.assertEqual(first["candidate"]["proof"], "")
+        self.assertTrue(first["candidate"]["motivation_tasks"])
+        self.assertTrue(first["source_task_ids"])
+        self.assertTrue(first["expected_premises"])
+        self.assertIn("lean_compiles", first["required_gates"])
+        self.assertIn(first["status"], {"blocked_placeholder", "candidate_ready"})
+        queue = payload["theorem_hole_promotion_queue"]
+        self.assertEqual(queue["queued_count"], payload["n_candidates"])
+        self.assertTrue(queue["queue"])
+        self.assertTrue(queue["queue"][0]["expected_premises"])
+        self.assertTrue(Path("runs/test_proof_bank_expansion/proof_bank_expansion_manifest.json").exists())
+        self.assertTrue(Path("runs/test_proof_bank_expansion/lemma_proposals.jsonl").exists())
+        self.assertTrue(Path("runs/test_proof_bank_expansion/theorem_hole_promotion_queue_manifest.json").exists())
+        rows = [
+            json.loads(line)
+            for line in Path("runs/test_proof_bank_expansion/lemma_proposals.jsonl")
+            .read_text(encoding="utf-8")
+            .splitlines()
+        ]
+        self.assertEqual(len(rows), payload["n_candidates"])
+        self.assertIn("blocked_reasons", rows[0])
+
     def test_research_capability_audit_maps_goal_to_evidence_and_gaps(self) -> None:
         report = build_research_capability_audit(
             root=Path("."),
@@ -1595,6 +1645,7 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(payload["gates"]["research_gap_backlog"])
         self.assertTrue(payload["gates"]["formalization_target_audit"])
         self.assertTrue(payload["gates"]["formal_gap_task_export"])
+        self.assertTrue(payload["gates"]["proof_bank_expansion_export"])
         self.assertTrue(payload["gates"]["next_iteration_queue"])
         self.assertTrue(payload["gates"]["research_report"])
         self.assertEqual(payload["counts"]["questions"], 10)
@@ -1676,6 +1727,13 @@ class SystemTests(unittest.TestCase):
         self.assertGreater(payload["counts"]["formalization_targets_total"], 0)
         self.assertEqual(payload["counts"]["formal_gap_lean_tasks_ok"], payload["counts"]["formal_gap_lean_tasks_total"])
         self.assertEqual(payload["counts"]["formal_gap_lean_tasks_total"], payload["counts"]["formal_gaps"])
+        self.assertEqual(
+            payload["counts"]["proof_bank_expansion_candidates_ok"],
+            payload["counts"]["proof_bank_expansion_candidates_total"],
+        )
+        self.assertGreater(payload["counts"]["proof_bank_expansion_candidates_total"], 0)
+        self.assertGreater(payload["counts"]["proof_bank_expansion_bridge_ready"], 0)
+        self.assertGreater(payload["counts"]["proof_bank_expansion_blocked_placeholder"], 0)
         self.assertEqual(payload["counts"]["next_iteration_ok"], payload["counts"]["next_iteration_items"])
         self.assertGreater(payload["counts"]["next_iteration_actionable_items"], 0)
         self.assertGreater(payload["counts"]["next_iteration_formal_verifier_items"], 0)
@@ -1721,6 +1779,10 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(Path(payload["artifacts"]["formal_gap_lean_tasks"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_gap_lean_tasks_jsonl"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_gap_lean_tasks_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["proof_bank_expansion"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["proof_bank_expansion_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["proof_bank_expansion_lemma_proposals"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["proof_bank_expansion_theorem_hole_queue"]).exists())
         self.assertTrue(Path(payload["artifacts"]["next_iteration_queue"]).exists())
         self.assertTrue(Path(payload["artifacts"]["next_iteration_queue_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["research_report"]).exists())

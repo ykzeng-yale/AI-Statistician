@@ -21,6 +21,7 @@ from .formal_source_index import audit_formal_source_index
 from .intake_audit import audit_question_intake
 from .proof_audit import audit_proof_bank
 from .proof_bank import all_obligations, obligations_by_tags
+from .proof_bank_expansion_export import export_proof_bank_expansion_candidates
 from .proof_policy_baseline import evaluate_retrieval_proof_policy_baseline
 from .proof_repair_export import export_proof_repair_dataset
 from .proof_training_export import export_proof_training_dataset
@@ -643,6 +644,33 @@ def _formal_gap_task_export(args: argparse.Namespace) -> int:
     )
     print(f"jsonl written to {(Path(args.out) / 'formal_gap_lean_tasks.jsonl').resolve()}")
     print(f"markdown report written to {(Path(args.out) / 'formal_gap_lean_tasks.md').resolve()}")
+    return 0 if payload["all_ok"] else 1
+
+
+def _proof_bank_expansion_export(args: argparse.Namespace) -> int:
+    payload = export_proof_bank_expansion_candidates(Path(args.run_dir), Path(args.out))
+    print("\nAI Statistical Theory Lab Proof-Bank Expansion Candidates")
+    print("=" * 72)
+    print(
+        f"candidates={payload['n_ok']}/{payload['n_candidates']} "
+        f"bridge_ready={payload['n_bridge_ready']} "
+        f"blocked_placeholder={payload['n_blocked_placeholder']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    for row in payload["candidates"][:10]:
+        print(
+            f"  {row['status']:22} score={row['priority_score']:4} "
+            f"{row['primitive']} tasks={len(row['source_task_ids'])}"
+        )
+    print(
+        f"\nproof-bank expansion manifest written to "
+        f"{(Path(args.out) / 'proof_bank_expansion_manifest.json').resolve()}"
+    )
+    print(f"lemma proposals JSONL written to {(Path(args.out) / 'lemma_proposals.jsonl').resolve()}")
+    print(
+        f"theorem-hole queue written to "
+        f"{(Path(args.out) / 'theorem_hole_promotion_queue_manifest.json').resolve()}"
+    )
     return 0 if payload["all_ok"] else 1
 
 
@@ -1394,6 +1422,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="formal gap Lean task output directory",
     )
     formal_gap_task_export.set_defaults(func=_formal_gap_task_export)
+
+    proof_bank_expansion_export = sub.add_parser(
+        "proof-bank-expansion-export",
+        help="export formal-gap tasks as proof-bank lemma proposals and theorem-hole queue rows",
+    )
+    proof_bank_expansion_export.add_argument(
+        "--run-dir",
+        required=True,
+        help="directory containing research_benchmark_manifest.json and research trace JSON files",
+    )
+    proof_bank_expansion_export.add_argument(
+        "--out",
+        default="runs/proof_bank_expansion",
+        help="proof-bank expansion candidate output directory",
+    )
+    proof_bank_expansion_export.set_defaults(func=_proof_bank_expansion_export)
 
     next_iteration_audit = sub.add_parser(
         "next-iteration-audit",
