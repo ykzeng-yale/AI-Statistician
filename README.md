@@ -218,6 +218,12 @@ using Mathlib's `measure_biUnion_finset_le`; conformal, BH/FDR, and
 finite-horizon anytime-valid traces can now point to an AXLE-verified union
 probability subclaim instead of leaving all event-control algebra as an
 unstructured formal gap.
+It also includes `finite_horizon_type1_union_control`, a finite monitoring
+horizon type-I control bridge: if each monitored rejection event has mass at
+most its allocated `α_i`, then the probability of any rejection is at most the
+sum of those budgets. This supports sequential-testing traces while still
+leaving Ville's inequality and full anytime supermartingale validity as formal
+gaps.
 It also includes `event_probability_mono`, the measure monotonicity fact
 `A ⊆ B -> μ(A) ≤ μ(B)`, which is a reusable subclaim for bad-event containment
 arguments in conformal coverage, BH/FDR decompositions, and anytime-valid error

@@ -251,6 +251,8 @@ class ProofBankTests(unittest.TestCase):
                     "finite_sample_mean_variance_indep",
                     "estimator_error_chebyshev",
                     "block_estimator_chebyshev_bound",
+                    "finite_union_bound",
+                    "finite_horizon_type1_union_control",
                     "mean2_estimator_chebyshev_indep",
                     "finite_sample_mean_chebyshev_indep",
                 ],
@@ -281,6 +283,10 @@ class ProofBankTests(unittest.TestCase):
         self.assertEqual(
             rows["block_estimator_chebyshev_bound"]["depends_on"],
             ["estimator_error_chebyshev"],
+        )
+        self.assertEqual(
+            rows["finite_horizon_type1_union_control"]["depends_on"],
+            ["finite_union_bound"],
         )
 
     def test_finite_sample_mean_obligation_defines_estimator(self) -> None:
@@ -332,6 +338,19 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("theorem blockEstimator_error_chebyshev", content)
         self.assertIn("μ {ω | c ≤ |B ω - theta|}", content)
         self.assertIn("meas_ge_le_variance_div_sq", content)
+        self.assertNotIn("by sorry", content)
+
+    def test_finite_horizon_type1_union_control_supports_sequential_gap(self) -> None:
+        obligation = get_obligation("finite_horizon_type1_union_control")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("finite_union_bound",))
+        self.assertIn("sequential", obligation.tags)
+        self.assertIn("optional_stopping", obligation.tags)
+        self.assertIn("theorem finiteHorizon_type1_union_control", content)
+        self.assertIn("μ (⋃ i ∈ I, A i)", content)
+        self.assertIn("∑ i ∈ I, α i", content)
+        self.assertIn("measure_biUnion_finset_le", content)
+        self.assertIn("Finset.sum_le_sum", content)
         self.assertNotIn("by sorry", content)
 
     def test_affine_estimator_obligation_supports_shrinkage_expectation(self) -> None:

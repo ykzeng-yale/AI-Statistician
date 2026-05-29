@@ -455,6 +455,12 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   `μ (⋃ i∈I, A i) ≤ ∑ i∈I, μ(A i)` proved directly from Mathlib's
   `measure_biUnion_finset_le`, supporting conformal coverage counting,
   BH/FDR error decompositions, and finite-horizon anytime-valid error control.
+- `finite_horizon_type1_union_control`: a sequential finite-horizon bridge:
+  if each monitored rejection event `A_i` has mass at most `α_i`, then the
+  probability of rejecting at some monitored time is at most `∑ i∈I, α_i`.
+  This closes the finite-horizon union-allocation ingredient for sequential
+  traces without claiming Ville's inequality or full anytime-valid
+  supermartingale control.
 - `event_probability_mono`: event monotonicity `A ⊆ B -> μ(A) ≤ μ(B)`,
   proved directly from Mathlib's `measure_mono`; this is the reusable
   bad-event-containment step used before applying union or tail bounds.

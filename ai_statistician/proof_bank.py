@@ -919,6 +919,48 @@ theorem finite_union_bound {Ω ι : Type*} [MeasurableSpace Ω]
         tags=("probability", "event", "union_bound", "bonferroni", "finite_sample", "multiple_testing"),
         expected_lemmas=("measure_biUnion_finset_le",),
     ),
+    "finite_horizon_type1_union_control": FormalObligation(
+        id="finite_horizon_type1_union_control",
+        title="Finite-horizon type-I error control by union allocation",
+        english=(
+            "For a finite monitoring horizon, if each rejection event A_i has "
+            "probability at most alpha_i, then the probability of rejecting at "
+            "some monitored time is bounded by the sum of the alpha_i budgets. "
+            "This is a finite-horizon sequential-testing bridge; it does not "
+            "claim Ville's inequality or full anytime-valid supermartingale control."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+theorem finiteHorizon_type1_union_control {Ω ι : Type*} [MeasurableSpace Ω]
+    (μ : Measure Ω) (I : Finset ι) (A : ι → Set Ω) (α : ι → ENNReal)
+    (hA : ∀ i ∈ I, μ (A i) ≤ α i) :
+    μ (⋃ i ∈ I, A i) ≤ ∑ i ∈ I, α i := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  calc\n"
+            "    μ (⋃ i ∈ I, A i) ≤ ∑ i ∈ I, μ (A i) := by\n"
+            "      exact measure_biUnion_finset_le (μ := μ) I A\n"
+            "    _ ≤ ∑ i ∈ I, α i := by\n"
+            "      exact Finset.sum_le_sum (fun i hi => hA i hi)"
+        ),
+        tags=(
+            "probability",
+            "event",
+            "union_bound",
+            "finite_horizon",
+            "type1_error",
+            "optional_stopping",
+            "sequential",
+            "eprocess",
+        ),
+        expected_lemmas=("measure_biUnion_finset_le", "Finset.sum_le_sum"),
+        depends_on=("finite_union_bound",),
+    ),
     "event_probability_mono": FormalObligation(
         id="event_probability_mono",
         title="Event probability monotonicity",
