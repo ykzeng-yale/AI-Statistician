@@ -1086,6 +1086,14 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(next_agenda["items"])
         self.assertIn("formal_verifier", next_agenda["owner_counts"])
         self.assertTrue(next_agenda["stop_condition"])
+        agenda_ids = {row["id"] for row in next_agenda["items"]}
+        formal_gap_ids = {
+            f"formal_gap:{row['id']}"
+            for row in trace_payload["formal_subclaims"]
+            if row["status"] == "FORMAL_GAP"
+        }
+        self.assertTrue(formal_gap_ids)
+        self.assertTrue(formal_gap_ids <= agenda_ids)
         self.assertFalse(theory_plan["honesty_boundary"]["full_frontier_theorem_proved"])
         extraction = trace_payload["problem"]["extraction_evidence"]
         for key in ("problem_class", "dgp", "estimand", "assumptions", "asymptotic_regime"):

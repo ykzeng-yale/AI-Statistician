@@ -407,6 +407,8 @@ def _validate_research_trace(
                 procedure_ids,
                 theorem_goal_ids,
                 data.get("status"),
+                formal_subclaims,
+                data.get("simulations"),
             )
         )
 
@@ -546,6 +548,8 @@ def _validate_theory_plan(
     procedure_ids: set[str],
     theorem_goal_ids: set[str],
     status: object,
+    formal_subclaims: object = None,
+    simulations: object = None,
 ) -> list[str]:
     errors: list[str] = []
     if theory_plan.get("plan_version") != 1:
@@ -630,6 +634,7 @@ def _validate_theory_plan(
             errors.append("theory_plan next_iteration_agenda owner_counts missing")
         if not agenda.get("stop_condition"):
             errors.append("theory_plan next_iteration_agenda stop_condition missing")
+        errors.extend(_validate_next_iteration_agenda_semantics(agenda, formal_subclaims, simulations))
 
     retrieval_context = theory_plan.get("retrieval_context")
     if not isinstance(retrieval_context, dict):
@@ -645,6 +650,112 @@ def _validate_theory_plan(
         errors.append("theory_plan honesty_boundary missing")
     elif honesty.get("full_frontier_theorem_proved") is not False:
         errors.append("theory_plan honesty_boundary must not claim full frontier theorem proof")
+    return errors
+
+
+def _validate_next_iteration_agenda_semantics(
+    agenda: dict[str, Any],
+    formal_subclaims: object,
+    simulations: object,
+) -> list[str]:
+    errors: list[str] = []
+    raw_items = agenda.get("items")
+    if not isinstance(raw_items, list):
+        return errors
+    items = [item for item in raw_items if isinstance(item, dict)]
+    item_by_id = {str(item.get("id", "")): item for item in items if item.get("id")}
+    owner_counts: dict[str, int] = {}
+    for item in items:
+        owner = str(item.get("owner_agent", ""))
+        if owner:
+            owner_counts[owner] = owner_counts.get(owner, 0) + 1
+    if isinstance(agenda.get("owner_counts"), dict):
+        normalized_owner_counts = {
+            str(owner): int(count)
+            for owner, count in agenda["owner_counts"].items()
+            if isinstance(count, int)
+        }
+        if normalized_owner_counts != owner_counts:
+            errors.append("theory_plan next_iteration_agenda owner_counts do not match items")
+
+    expected_ids: set[str] = set()
+    if isinstance(formal_subclaims, list):
+        for subclaim in formal_subclaims:
+            if not isinstance(subclaim, dict):
+                continue
+            subclaim_id = str(subclaim.get("id", ""))
+            if not subclaim_id:
+                continue
+            if subclaim.get("status") == "FORMAL_GAP":
+                item_id = f"formal_gap:{subclaim_id}"
+                expected_ids.add(item_id)
+                item = item_by_id.get(item_id)
+                if not item:
+                    errors.append(f"next_iteration_agenda missing formal gap item {item_id}")
+                else:
+                    if item.get("owner_agent") != "formal_verifier":
+                        errors.append(f"next_iteration_agenda formal gap item {item_id} has wrong owner")
+                    if item.get("trigger") != "FORMAL_GAP":
+                        errors.append(f"next_iteration_agenda formal gap item {item_id} has wrong trigger")
+            elif subclaim.get("status") == "FAILED":
+                item_id = f"failed_obligation:{subclaim_id}"
+                expected_ids.add(item_id)
+                item = item_by_id.get(item_id)
+                if not item:
+                    errors.append(f"next_iteration_agenda missing failed proof item {item_id}")
+                else:
+                    if item.get("owner_agent") != "formal_verifier":
+                        errors.append(f"next_iteration_agenda failed proof item {item_id} has wrong owner")
+                    if item.get("trigger") != "FAILED_PROOF_OBLIGATION":
+                        errors.append(f"next_iteration_agenda failed proof item {item_id} has wrong trigger")
+
+    if isinstance(simulations, list):
+        for simulation in simulations:
+            if not isinstance(simulation, dict):
+                continue
+            diagnosis = simulation.get("diagnosis")
+            if not isinstance(diagnosis, dict) or diagnosis.get("status") == "OK":
+                continue
+            procedure_id = str(simulation.get("procedure_id", ""))
+            if not procedure_id:
+                continue
+            item_id = f"simulation:{procedure_id}"
+            expected_ids.add(item_id)
+            item = item_by_id.get(item_id)
+            if not item:
+                errors.append(f"next_iteration_agenda missing simulation item {item_id}")
+                continue
+            expected_owner = {
+                "theory_developer": "theory_developer",
+                "algorithm_engineer": "algorithm_engineer",
+                "simulator_environment": "simulator_agent",
+                "rerun_more_mc": "simulator_agent",
+            }.get(str(diagnosis.get("escalate_to", "")), "research_coordinator")
+            if item.get("owner_agent") != expected_owner:
+                errors.append(f"next_iteration_agenda simulation item {item_id} has wrong owner")
+            if item.get("trigger") != diagnosis.get("status"):
+                errors.append(f"next_iteration_agenda simulation item {item_id} has wrong trigger")
+
+    if expected_ids:
+        extra_action_ids = sorted(
+            item_id
+            for item_id in item_by_id
+            if item_id.startswith(("formal_gap:", "failed_obligation:", "simulation:"))
+            and item_id not in expected_ids
+        )
+        if extra_action_ids:
+            errors.append(
+                "next_iteration_agenda contains action items without matching trace evidence: "
+                + ", ".join(extra_action_ids)
+            )
+    else:
+        monitor_items = [
+            item for item in items
+            if str(item.get("id", "")).startswith("monitor:")
+            and item.get("owner_agent") == "research_coordinator"
+        ]
+        if not monitor_items:
+            errors.append("next_iteration_agenda has no monitor item for a trace without actionable failures")
     return errors
 
 

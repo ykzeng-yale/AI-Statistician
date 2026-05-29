@@ -145,7 +145,9 @@ has an owner agent (`formal_verifier`, `theory_developer`,
 `algorithm_engineer`, `simulator_agent`, or `research_coordinator`), a trigger,
 an action, evidence, and a stop condition. This keeps the trace from ending at
 "metrics plus gaps": it records exactly what the next round should repair or
-formalize.
+formalize. Trace audit checks this semantically, not only structurally: every
+`FORMAL_GAP`, failed proof obligation, and non-OK simulation diagnosis must
+have a matching agenda item routed to the owner implied by the trace evidence.
 
 Formal gap backlog audit:
 
@@ -277,7 +279,8 @@ check that every simulation contains a deterministic diagnosis routing failures
 to the theory developer, algorithm engineer, simulator environment, or a larger
 Monte Carlo run instead of leaving metric failures as unstructured text. Trace
 audit also checks that every theory plan includes a next-iteration agenda with
-owner counts and a stop condition.
+owner counts, a stop condition, and semantic coverage of formal gaps, failed
+proof obligations, and non-OK simulation diagnoses.
 With `--real-lean`, the proof gate and benchmark subclaims use AXLE
 `verify_proof`; frontier theorem goals still remain explicit formal gaps unless
 they have been added to the proof bank as real obligations.
