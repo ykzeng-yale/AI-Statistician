@@ -254,6 +254,25 @@ CLASS_EVIDENCE_TERMS: dict[str, tuple[str, ...]] = {
         "value-at-risk",
         "value at risk",
     ),
+    "heavy_tail_time_series_extremal_dependence": (
+        "infinite-mean autoregressive conditional durations",
+        "integrated autoregressive conditional duration",
+        "integrated acd model",
+        "infinite expected duration",
+        "random number of durations",
+        "quasi-maximum likelihood",
+        "extremal dependence",
+        "hyperplane",
+        "hyperplane perpendicular to all-ones vector",
+        "multivariate extremes",
+        "husler-reiss",
+        "tail-robust factor",
+        "tail robust factor",
+        "vector and tensor time-series factor models",
+        "vector and tensor time series",
+        "heavy-tailed observations",
+        "data truncation plus tensor decomposition",
+    ),
 }
 
 

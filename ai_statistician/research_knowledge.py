@@ -434,6 +434,32 @@ KNOWLEDGE_CARDS: tuple[KnowledgeCard, ...] = (
         ),
     ),
     KnowledgeCard(
+        id="heavy_tail_time_series_extremal_dependence",
+        title="Infinite-mean ACD, hyperplane extremes, and tail-robust factor time series",
+        source_type="statistical_method",
+        location="internal-method-card",
+        summary=(
+            "Heavy-tail frontier theory includes nonstandard limit behavior for "
+            "integrated ACD durations with infinite means, hyperplane log-ratio "
+            "representations of multivariate extremal dependence, and truncation-based "
+            "factor estimation for heavy-tailed vector or tensor time series. The "
+            "v0 release exposes tail-index testing, hyperplane PCA, and truncated "
+            "factor subspace simulations while full QMLE limits, Husler-Reiss "
+            "characterization, tensor decompositions, and dependent CLTs remain gaps."
+        ),
+        tags=(
+            "heavy_tails",
+            "infinite_mean",
+            "integrated_acd",
+            "extremal_dependence",
+            "hyperplane",
+            "factor_time_series",
+            "tensor_time_series",
+            "truncation",
+            "heavy_tail_time_series_extremal_dependence",
+        ),
+    ),
+    KnowledgeCard(
         id="autoformalization_llm",
         title="Autoformalization with Large Language Models",
         source_type="paper",
@@ -614,6 +640,7 @@ PRIMARY_KNOWLEDGE_BY_PROBLEM_CLASS: dict[str, str] = {
     "high_dimensional_pca_inference": "spiked_pca_dimension_reduction",
     "high_dimensional_latent_structure_inference": "high_dimensional_latent_structure_inference",
     "extreme_tail_quantile_inference": "extreme_tail_hill_weissman",
+    "heavy_tail_time_series_extremal_dependence": "heavy_tail_time_series_extremal_dependence",
 }
 
 

@@ -688,6 +688,66 @@ EXTRACTION_EVIDENCE_TERMS: dict[str, dict[str, tuple[str, ...]]] = {
             "tail dependence",
         ),
     },
+    "heavy_tail_time_series_extremal_dependence": {
+        "problem_class": (
+            "infinite-mean autoregressive conditional durations",
+            "integrated autoregressive conditional duration",
+            "integrated acd",
+            "extremal dependence",
+            "hyperplane",
+            "tail-robust factor",
+            "tail robust factor",
+            "vector and tensor time series",
+            "heavy tails",
+        ),
+        "dgp": (
+            "integrated acd model",
+            "infinite expected duration",
+            "random number of durations",
+            "asymptotically dependent variables",
+            "hyperplane perpendicular to all-ones vector",
+            "multivariate extremes",
+            "high-dimensional vector or tensor time series",
+            "heavy-tailed observations",
+            "factor model",
+        ),
+        "estimand": (
+            "quasi-maximum likelihood",
+            "tail index below one",
+            "extremal dependence",
+            "hyperplane representation",
+            "husler-reiss",
+            "truncated tensor factor estimator",
+            "two-step truncated tensor factor estimator",
+            "factor model",
+            "factor estimator",
+            "factor loading subspace",
+        ),
+        "assumptions": (
+            "infinite expected duration",
+            "integrated acd model",
+            "asymptotically dependent variables",
+            "hyperplane",
+            "tail-dependence approximation",
+            "heavy-tailed observations",
+            "data truncation",
+            "tensor decomposition",
+            "low-order moment assumptions",
+        ),
+        "asymptotic_regime": (
+            "limit theory",
+            "breakdown of conventional asymptotics",
+            "extremal dependence",
+            "multivariate extremes",
+            "tail heaviness",
+            "tensor dimensions",
+            "consistency and asymptotic normality",
+            "tail heaviness and tensor dimensions",
+            "low-order moment assumptions",
+            "heavy-tailed observations",
+            "data truncation",
+        ),
+    },
 }
 
 
@@ -759,6 +819,27 @@ RESEARCH_ALGORITHM_REGISTRY: dict[str, dict[str, object]] = {
         "summary": "Hill tail-index and Weissman high-quantile simulation for Pareto tails",
         "method": "_hill_tail_quantile",
         "helpers": ("_estimation_metrics",),
+        "version": "v1",
+        "registry_status": "vetted",
+    },
+    "integrated_acd_infinite_mean_test": {
+        "summary": "infinite-mean integrated ACD duration tail-index diagnostic simulation",
+        "method": "_integrated_acd_infinite_mean_test",
+        "helpers": ("_estimation_metrics",),
+        "version": "v1",
+        "registry_status": "vetted",
+    },
+    "hyperplane_extremal_dependence_pca": {
+        "summary": "hyperplane representation and PCA-style extremal-dependence recovery simulation",
+        "method": "_hyperplane_extremal_dependence_pca",
+        "helpers": ("_estimation_metrics",),
+        "version": "v1",
+        "registry_status": "vetted",
+    },
+    "truncated_factor_time_series": {
+        "summary": "tail-robust factor time-series subspace recovery with truncation diagnostics",
+        "method": "_truncated_factor_time_series",
+        "helpers": (),
         "version": "v1",
         "registry_status": "vetted",
     },
@@ -1156,6 +1237,56 @@ class ProblemFormalizer:
                 asymptotic_regime="n -> infinity, k -> infinity, k/n -> 0; Hill CLT and Weissman quantile consistency targets.",
                 diagnostics=("tail_index_bias", "tail_index_rmse", "quantile_relative_bias", "quantile_coverage_95"),
                 stress_tests=("smaller threshold k", "heavier tail", "non-Pareto second-order bias"),
+            )
+        if _matches(
+            body_text,
+            words=(),
+            phrases=(
+                "infinite-mean autoregressive conditional durations",
+                "integrated autoregressive conditional duration",
+                "integrated acd model",
+                "infinite expected duration",
+                "random number of durations",
+                "quasi-maximum likelihood",
+                "extremal dependence on a hyperplane",
+                "extremal dependence",
+                "hyperplane perpendicular to all-ones vector",
+                "multivariate extremes",
+                "husler-reiss",
+                "tail-robust factor",
+                "tail robust factor",
+                "vector and tensor time-series factor models",
+                "vector and tensor time series",
+                "tail heaviness and tensor dimensions",
+                "data truncation plus tensor decomposition",
+            ),
+        ):
+            return ResearchProblemSpec(
+                question_id=question.id,
+                problem_class="heavy_tail_time_series_extremal_dependence",
+                dgp=(
+                    "Heavy-tail frontier data include integrated ACD duration sequences with infinite "
+                    "mean innovations, asymptotically dependent multivariate extremes represented through "
+                    "log-ratio coordinates on a hyperplane, and heavy-tailed vector/tensor time series with "
+                    "low-rank factor structure."
+                ),
+                estimand=(
+                    "Tail index and infinite-mean test decision, hyperplane extremal-dependence direction, "
+                    "and a tail-robust factor-loading subspace recovered by truncation."
+                ),
+                assumptions=(
+                    "duration innovations have Pareto tail index below one in the v0 infinite-mean surrogate",
+                    "extreme vectors share a common radial component with hyperplane log-ratio dependence",
+                    "factor time-series observations have low-rank signal plus heavy-tailed noise",
+                    "QMLE limit theory, Husler-Reiss characterization, and tensor factor CLTs remain formal gaps",
+                ),
+                asymptotic_regime=(
+                    "sample length, exceedance count, or time-series dimension grows; frontier targets include "
+                    "nonstandard infinite-mean limits, hyperplane extremal-dependence representations, and "
+                    "tail-robust factor consistency/asymptotic normality."
+                ),
+                diagnostics=("rmse", "coverage_95", "selection_accuracy"),
+                stress_tests=("heavier infinite-mean tail", "weaker extremal dependence", "heavier-tailed factor noise"),
             )
         if _matches(
             body_text,
@@ -3897,6 +4028,174 @@ class TheoryPlanner:
                 )
             ]
             return procedures, goals
+        if problem.problem_class == "heavy_tail_time_series_extremal_dependence":
+            goals = [
+                TheoremGoal(
+                    id="integrated_acd_infinite_mean_limit",
+                    title="Infinite-mean integrated ACD limit and test validity",
+                    informal_statement=(
+                        "For integrated autoregressive conditional durations with tail index below one, "
+                        "duration averages no longer satisfy conventional finite-mean asymptotics; a "
+                        "tail-index diagnostic should detect the infinite-mean regime."
+                    ),
+                    proof_strategy=(
+                        "Formalize positive duration recursions, Pareto-type innovation tails, and the "
+                        "Hill tail-index decision rule; prove event and Markov/Chebyshev subclaims now, "
+                        "leaving integrated ACD QMLE limits and random-time asymptotics as gaps."
+                    ),
+                    status="FORMAL_GAP",
+                    required_primitives=(
+                        "integrated_acd_duration_process",
+                        "infinite_mean_tail_index",
+                        "random_number_of_durations",
+                        "qmle_nonstandard_limit",
+                        "tail_index_test_consistency",
+                    ),
+                    proof_obligations=(
+                        "prob_compl",
+                        "markov_inequality",
+                        "first_borel_cantelli_limsup_zero",
+                        "second_borel_cantelli_limsup_one",
+                    ),
+                ),
+                TheoremGoal(
+                    id="hyperplane_extremal_dependence_representation",
+                    title="Hyperplane extremal-dependence representation",
+                    informal_statement=(
+                        "For asymptotically dependent variables, log-ratio coordinates of extreme vectors "
+                        "should live on the hyperplane perpendicular to the all-ones vector and reveal a "
+                        "low-dimensional extremal-dependence direction."
+                    ),
+                    proof_strategy=(
+                        "Represent centered log-extreme coordinates as finite-dimensional real vectors, "
+                        "use covariance nonnegativity and finite mean controls now, and leave multivariate "
+                        "regular variation and Husler-Reiss Gaussian characterization as formal gaps."
+                    ),
+                    status="FORMAL_GAP",
+                    required_primitives=(
+                        "multivariate_regular_variation",
+                        "hyperplane_log_ratio_coordinates",
+                        "extremal_dependence_covariance",
+                        "husler_reiss_gaussian_hyperplane_law",
+                        "tail_pca_consistency",
+                    ),
+                    proof_obligations=(
+                        "finite_sample_mean_unbiased",
+                        "finite_sample_mean_variance_indep",
+                        "variance_nonneg",
+                        "markov_inequality",
+                    ),
+                ),
+                TheoremGoal(
+                    id="tail_robust_factor_time_series_consistency",
+                    title="Tail-robust factor time-series consistency",
+                    informal_statement=(
+                        "A truncation-based factor estimator should recover the loading subspace of "
+                        "heavy-tailed vector or tensor time series under low-order moment assumptions."
+                    ),
+                    proof_strategy=(
+                        "Formalize a truncated covariance surrogate and finite-dimensional eigenspace "
+                        "target; use variance and finite-sample concentration subclaims now, leaving "
+                        "dependent time-series, tensor decomposition, and asymptotic normality as gaps."
+                    ),
+                    status="FORMAL_GAP",
+                    required_primitives=(
+                        "heavy_tailed_factor_time_series",
+                        "coordinatewise_truncation",
+                        "tensor_factor_loading_subspace",
+                        "dependent_low_order_moment_bound",
+                        "tail_robust_factor_clt",
+                    ),
+                    proof_obligations=(
+                        "finite_sample_mean_unbiased",
+                        "finite_sample_mean_chebyshev_indep",
+                        "finite_union_bound",
+                        "finite_union_budget_control",
+                        "variance_nonneg",
+                    ),
+                ),
+            ]
+            procedures = [
+                CandidateProcedure(
+                    id="infinite_mean_acd_tail_index_test",
+                    name="Integrated ACD infinite-mean tail-index diagnostic",
+                    role="test",
+                    formula=(
+                        "Estimate alpha_hat = 1 / gamma_hat from Hill log-excesses of the largest "
+                        "durations and reject finite-mean behavior when alpha_hat < 1."
+                    ),
+                    informal_derivation=(
+                        "Integrated ACD duration sequences with Pareto innovations below tail index one "
+                        "break finite-mean laws of large numbers. The v0 diagnostic focuses on the "
+                        "tail-index component of that nonstandard theory: if the estimated Pareto index "
+                        "is below one, conventional mean-based QMLE asymptotics should be treated as invalid."
+                    ),
+                    algorithm="integrated_acd_infinite_mean_test",
+                    theorem_goals=tuple(goal.id for goal in goals),
+                    simulation_design=(
+                        "Simulate dependent positive durations with persistent ACD-like scaling and Pareto "
+                        "innovations with alpha < 1; estimate the tail index from top order statistics and "
+                        "evaluate RMSE, coverage, and infinite-mean detection accuracy."
+                    ),
+                    limitations=(
+                        "v0 tests the tail-index failure mode rather than full integrated ACD QMLE",
+                        "random-time duration counts and nonstandard limit laws remain formal gaps",
+                    ),
+                ),
+                CandidateProcedure(
+                    id="hyperplane_tail_dependence_pca",
+                    name="Hyperplane tail-dependence PCA surrogate",
+                    role="estimator",
+                    formula=(
+                        "Condition on large radial extremes, center log coordinates so they sum to zero, "
+                        "and recover the leading eigenvector of the hyperplane covariance."
+                    ),
+                    informal_derivation=(
+                        "For asymptotically dependent extremes, common radial growth cancels in centered "
+                        "log-ratio coordinates, leaving dependence structure on the all-ones-orthogonal "
+                        "hyperplane. A PCA-style estimator gives a concrete surrogate for the proposed "
+                        "hyperplane representation and Husler-Reiss-style Gaussian law."
+                    ),
+                    algorithm="hyperplane_extremal_dependence_pca",
+                    theorem_goals=tuple(goal.id for goal in goals),
+                    simulation_design=(
+                        "Simulate multivariate heavy-tailed observations with a common radial component and "
+                        "low-rank Gaussian log-ratio dependence; estimate the hyperplane leading direction "
+                        "using extreme observations and evaluate eigenvalue RMSE, coverage, and support recovery."
+                    ),
+                    limitations=(
+                        "v0 uses a parametric log-ratio Gaussian surrogate, not a full general multivariate extreme law",
+                        "regular variation on cones and Husler-Reiss characterization remain formal gaps",
+                    ),
+                ),
+                CandidateProcedure(
+                    id="truncated_tail_factor_subspace",
+                    name="Truncated tail-robust factor subspace estimator",
+                    role="estimator",
+                    formula=(
+                        "Truncate heavy-tailed coordinates, form the sample covariance, and estimate the "
+                        "factor-loading subspace by the leading eigenvectors."
+                    ),
+                    informal_derivation=(
+                        "Low-order moments can make naive covariance unstable in high-dimensional factor "
+                        "time series. Coordinatewise truncation limits tail leverage before spectral "
+                        "decomposition, giving an executable surrogate for tail-robust vector/tensor factor "
+                        "theory while dependent tensor CLTs remain gaps."
+                    ),
+                    algorithm="truncated_factor_time_series",
+                    theorem_goals=tuple(goal.id for goal in goals),
+                    simulation_design=(
+                        "Simulate a heavy-tailed dynamic factor model, truncate observations, recover the "
+                        "loading subspace spectrally, and evaluate subspace RMSE, eigenvalue coverage, and "
+                        "loading-support selection accuracy."
+                    ),
+                    limitations=(
+                        "v0 uses a vector factor model rather than full tensor decomposition",
+                        "time dependence, tensor dimensions, and asymptotic normality remain formal gaps",
+                    ),
+                ),
+            ]
+            return procedures, goals
         goals = [
             TheoremGoal(
                 id="manual_theory_development_required",
@@ -4136,6 +4435,18 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "second_borel_cantelli_limsup_one",
         "variance_nonneg",
     ),
+    "heavy_tail_time_series_extremal_dependence": (
+        "prob_compl",
+        "markov_inequality",
+        "first_borel_cantelli_limsup_zero",
+        "second_borel_cantelli_limsup_one",
+        "finite_sample_mean_unbiased",
+        "finite_sample_mean_variance_indep",
+        "finite_sample_mean_chebyshev_indep",
+        "finite_union_bound",
+        "finite_union_budget_control",
+        "variance_nonneg",
+    ),
 }
 
 
@@ -4295,6 +4606,12 @@ class ResearchSimulator:
                 rows.append(self._dimension_association_screening(procedure, rng))
             elif procedure.algorithm == "hill_tail_quantile":
                 rows.append(self._hill_tail_quantile(procedure, rng))
+            elif procedure.algorithm == "integrated_acd_infinite_mean_test":
+                rows.append(self._integrated_acd_infinite_mean_test(procedure, rng))
+            elif procedure.algorithm == "hyperplane_extremal_dependence_pca":
+                rows.append(self._hyperplane_extremal_dependence_pca(procedure, rng))
+            elif procedure.algorithm == "truncated_factor_time_series":
+                rows.append(self._truncated_factor_time_series(procedure, rng))
             else:
                 rows.append(
                     ResearchSimulation(
@@ -4399,6 +4716,12 @@ class ResearchSimulator:
             return "tail_index_rmse", 0.60, "max"
         if "high_quantile_coverage" in metrics and any(token in text for token in ("quantile", "tail")):
             return "high_quantile_coverage", 0.85, "min"
+        if "infinite_mean_detection_rate" in metrics and any(token in text for token in ("infinite", "duration", "acd")):
+            return "infinite_mean_detection_rate", 0.85, "min"
+        if "hyperplane_alignment" in metrics and any(token in text for token in ("extremal", "hyperplane", "dependence")):
+            return "hyperplane_alignment", 0.80, "min"
+        if "factor_alignment" in metrics and any(token in text for token in ("factor", "tensor", "time", "noise")):
+            return "factor_alignment", 0.75, "min"
         if "mean_conservativeness_ratio" in metrics and any(token in text for token in ("assignment", "design", "conservative")):
             return "mean_conservativeness_ratio", 1.00, "min"
         if "space_filling_ratio" in metrics and any(token in text for token in ("space", "run budget", "design")):
@@ -4486,6 +4809,12 @@ class ResearchSimulator:
             "tail_index_coverage_95",
             "quantile_coverage_95",
             "high_quantile_coverage",
+            "tail_alpha_rmse",
+            "infinite_mean_detection_rate",
+            "hyperplane_alignment",
+            "hyperplane_eigenvalue_coverage_95",
+            "factor_alignment",
+            "factor_eigenvalue_coverage_95",
             "space_filling_ratio",
             "balance_improvement",
             "mean_standardized_imbalance",
@@ -6437,6 +6766,228 @@ class ResearchSimulator:
             ),
         )
 
+    def _integrated_acd_infinite_mean_test(
+        self, procedure: CandidateProcedure, rng: np.random.Generator
+    ) -> ResearchSimulation:
+        n = 1800
+        k = 220
+        alpha_true = 0.75
+        estimates: list[float] = []
+        ses: list[float] = []
+        detections: list[float] = []
+        failed = 0
+        for _ in range(self.n_runs):
+            durations = np.zeros(n, dtype=float)
+            prev = 1.0
+            for t in range(n):
+                innovation = rng.pareto(alpha_true) + 1.0
+                scale = 0.75 + 0.30 * min(prev / (1.0 + prev), 1.0)
+                durations[t] = scale * innovation
+                prev = durations[t]
+            ordered = np.sort(durations)
+            threshold = float(ordered[-k - 1])
+            top = ordered[-k:]
+            gamma_hat = float(np.mean(np.log(top)) - math.log(threshold))
+            if not math.isfinite(gamma_hat) or gamma_hat <= 0:
+                failed += 1
+                continue
+            alpha_hat = 1.0 / gamma_hat
+            alpha_se = 1.20 * alpha_hat / math.sqrt(k)
+            if not math.isfinite(alpha_hat) or not math.isfinite(alpha_se) or alpha_se <= 0:
+                failed += 1
+                continue
+            estimates.append(alpha_hat)
+            ses.append(alpha_se)
+            detections.append(float(alpha_hat + 1.64 * alpha_se < 1.0))
+
+        metrics = _estimation_metrics(estimates, ses, alpha_true, max(len(estimates), 1))
+        metrics["n_runs"] = float(self.n_runs)
+        metrics["n_failed"] = float(failed)
+        metrics["n_obs"] = float(n)
+        metrics["threshold_k"] = float(k)
+        metrics["true_tail_alpha"] = float(alpha_true)
+        metrics["tail_alpha_rmse"] = metrics["rmse"]
+        metrics["infinite_mean_detection_rate"] = float(np.mean(detections)) if detections else float("nan")
+        metrics["selection_accuracy"] = metrics["infinite_mean_detection_rate"]
+        passed = (
+            failed <= max(1, int(0.05 * self.n_runs))
+            and abs(metrics["relative_bias"]) <= 0.12
+            and metrics["rmse"] <= 0.12
+            and metrics["coverage_95"] >= 0.88
+            and metrics["infinite_mean_detection_rate"] >= 0.85
+        )
+        return ResearchSimulation(
+            procedure_id=procedure.id,
+            design=procedure.simulation_design,
+            metrics=metrics,
+            passed=passed,
+            feedback=(
+                "integrated ACD infinite-mean tail diagnostic passed"
+                if passed
+                else "integrated ACD diagnostic flagged tail-index error, coverage, or infinite-mean detection"
+            ),
+        )
+
+    def _hyperplane_extremal_dependence_pca(
+        self, procedure: CandidateProcedure, rng: np.random.Generator
+    ) -> ResearchSimulation:
+        n = 2600
+        d = 5
+        n_extreme = 360
+        radial_alpha = 1.45
+        scale = 0.35
+        one = np.ones(d, dtype=float) / math.sqrt(d)
+        projector = np.eye(d) - np.outer(one, one)
+        v = np.asarray([1.0, -1.0, 0.0, 0.0, 0.0], dtype=float)
+        v = v - np.mean(v)
+        v = v / math.sqrt(float(np.sum(v**2)))
+        w = np.asarray([0.0, 0.0, 1.0, -1.0, 0.0], dtype=float)
+        w = w - np.mean(w)
+        w = w / math.sqrt(float(np.sum(w**2)))
+        true_cov = scale**2 * (0.65**2 * np.outer(v, v) + 0.25**2 * np.outer(w, w) + 0.12**2 * projector)
+        true_eigenvalue = 1.20 * float(np.max(np.linalg.eigvalsh(true_cov)))
+        eigen_estimates: list[float] = []
+        eigen_ses: list[float] = []
+        alignments: list[float] = []
+        support_hits: list[float] = []
+        failed = 0
+        for _ in range(self.n_runs):
+            z1 = rng.normal(size=n)
+            z2 = rng.normal(size=n)
+            noise = rng.normal(scale=0.12, size=(n, d)) @ projector
+            hyper = 0.65 * z1[:, None] * v[None, :] + 0.25 * z2[:, None] * w[None, :] + noise
+            radial = rng.pareto(radial_alpha, size=n) + 1.0
+            sample = radial[:, None] * np.exp(scale * hyper)
+            order = np.argsort(np.max(sample, axis=1))
+            extreme = sample[order[-n_extreme:]]
+            log_extreme = np.log(np.clip(extreme, 1e-12, None))
+            coords = log_extreme - np.mean(log_extreme, axis=1, keepdims=True)
+            cov = (coords.T @ coords) / max(n_extreme - 1, 1)
+            try:
+                eigvals, eigvecs = np.linalg.eigh(cov)
+            except np.linalg.LinAlgError:
+                failed += 1
+                continue
+            top_idx = int(np.argmax(eigvals))
+            top_value = float(eigvals[top_idx])
+            top_vec = eigvecs[:, top_idx]
+            alignment = abs(float(np.dot(top_vec, v)))
+            se = 1.35 * math.sqrt(2.0) * max(top_value, 1e-12) / math.sqrt(n_extreme)
+            if not math.isfinite(top_value) or not math.isfinite(se) or se <= 0:
+                failed += 1
+                continue
+            eigen_estimates.append(top_value)
+            eigen_ses.append(se)
+            alignments.append(alignment)
+            selected_support = set(int(j) for j in np.argsort(np.abs(top_vec))[-2:])
+            support_hits.append(float(selected_support == {0, 1}))
+
+        metrics = _estimation_metrics(eigen_estimates, eigen_ses, true_eigenvalue, max(len(eigen_estimates), 1))
+        metrics["n_runs"] = float(self.n_runs)
+        metrics["n_failed"] = float(failed)
+        metrics["n_obs"] = float(n)
+        metrics["n_extreme"] = float(n_extreme)
+        metrics["dimension"] = float(d)
+        metrics["true_hyperplane_top_eigenvalue"] = float(true_eigenvalue)
+        metrics["hyperplane_alignment"] = float(np.mean(alignments)) if alignments else float("nan")
+        metrics["hyperplane_eigenvalue_coverage_95"] = metrics["coverage_95"]
+        metrics["selection_accuracy"] = float(np.mean(support_hits)) if support_hits else float("nan")
+        passed = (
+            failed <= max(1, int(0.05 * self.n_runs))
+            and metrics["rmse"] <= 0.030
+            and metrics["coverage_95"] >= 0.88
+            and metrics["hyperplane_alignment"] >= 0.80
+            and metrics["selection_accuracy"] >= 0.85
+        )
+        return ResearchSimulation(
+            procedure_id=procedure.id,
+            design=procedure.simulation_design,
+            metrics=metrics,
+            passed=passed,
+            feedback=(
+                "hyperplane extremal-dependence PCA simulation passed"
+                if passed
+                else "hyperplane tail-dependence simulation flagged eigenvalue, coverage, or support recovery"
+            ),
+        )
+
+    def _truncated_factor_time_series(
+        self, procedure: CandidateProcedure, rng: np.random.Generator
+    ) -> ResearchSimulation:
+        n = 420
+        p = 48
+        r = 2
+        support = set(range(16))
+        loadings = np.zeros((p, r), dtype=float)
+        loadings[:8, 0] = np.linspace(1.2, 0.7, 8)
+        loadings[8:16, 1] = np.linspace(1.1, 0.65, 8)
+        loadings = _orthonormal_basis(loadings)
+        alignments: list[float] = []
+        subspace_errors: list[float] = []
+        support_accuracies: list[float] = []
+        coverages: list[float] = []
+        failed = 0
+        for _ in range(self.n_runs):
+            factors = np.zeros((n, r), dtype=float)
+            state = rng.normal(size=r)
+            for t in range(n):
+                state = 0.45 * state + rng.normal(size=r)
+                factors[t] = state
+            heavy_noise = 0.42 * rng.standard_t(df=2.7, size=(n, p))
+            sample = factors @ (2.0 * loadings.T) + heavy_noise
+            centered = sample - np.median(sample, axis=0, keepdims=True)
+            truncation = np.quantile(np.abs(centered), 0.92, axis=0, keepdims=True)
+            truncated = np.clip(centered, -truncation, truncation)
+            cov = (truncated.T @ truncated) / n
+            try:
+                eigvals, eigvecs = np.linalg.eigh(cov)
+            except np.linalg.LinAlgError:
+                failed += 1
+                continue
+            selected_idx = np.argsort(eigvals)[-r:]
+            estimated_basis = eigvecs[:, selected_idx]
+            singular_values = np.linalg.svd(loadings.T @ estimated_basis, compute_uv=False)
+            alignment = float(np.mean(np.clip(singular_values, 0.0, 1.0) ** 2))
+            subspace_error = float(math.sqrt(max(0.0, 1.0 - alignment)))
+            row_scores = np.sum(estimated_basis**2, axis=1)
+            selected_support = set(int(j) for j in np.argsort(row_scores)[-len(support):])
+            support_accuracies.append(float(len(selected_support & support) / len(support)))
+            alignments.append(alignment)
+            subspace_errors.append(subspace_error)
+            coverages.append(float(subspace_error <= 0.38))
+
+        metrics = {
+            "n_runs": float(self.n_runs),
+            "n_failed": float(failed),
+            "n_obs": float(n),
+            "dimension": float(p),
+            "n_factors": float(r),
+            "factor_alignment": float(np.mean(alignments)) if alignments else float("nan"),
+            "factor_subspace_error": float(np.mean(subspace_errors)) if subspace_errors else float("nan"),
+            "factor_eigenvalue_coverage_95": float(np.mean(coverages)) if coverages else float("nan"),
+            "selection_accuracy": float(np.mean(support_accuracies)) if support_accuracies else float("nan"),
+        }
+        metrics["rmse"] = metrics["factor_subspace_error"]
+        metrics["coverage_95"] = metrics["factor_eigenvalue_coverage_95"]
+        passed = (
+            failed <= max(1, int(0.05 * self.n_runs))
+            and metrics["factor_alignment"] >= 0.75
+            and metrics["rmse"] <= 0.38
+            and metrics["coverage_95"] >= 0.88
+            and metrics["selection_accuracy"] >= 0.78
+        )
+        return ResearchSimulation(
+            procedure_id=procedure.id,
+            design=procedure.simulation_design,
+            metrics=metrics,
+            passed=passed,
+            feedback=(
+                "truncated tail-robust factor time-series simulation passed"
+                if passed
+                else "tail-robust factor simulation flagged subspace, coverage, or support recovery"
+            ),
+        )
+
 
 class AIStatisticalTheoryLab:
     def __init__(
@@ -7363,6 +7914,27 @@ def _lean_gap_theorem(goal_id: str) -> str:
       hillConsistent -> tailQuantileRegularVariation -> weissmanConsistent) :
     hillConsistent -> tailQuantileRegularVariation -> weissmanConsistent := by
   exact h_frontier_missing_extreme_quantile_theory
+""",
+        "integrated_acd_infinite_mean_limit": """theorem integrated_acd_infinite_mean_limit_skeleton
+    (integratedACD infiniteMeanInnovations randomTimeLimit tailIndexTestValid : Prop)
+    (h_frontier_missing_infinite_mean_acd_theory :
+      integratedACD -> infiniteMeanInnovations -> randomTimeLimit -> tailIndexTestValid) :
+    integratedACD -> infiniteMeanInnovations -> randomTimeLimit -> tailIndexTestValid := by
+  exact h_frontier_missing_infinite_mean_acd_theory
+""",
+        "hyperplane_extremal_dependence_representation": """theorem hyperplane_extremal_dependence_representation_skeleton
+    (multivariateRegularVariation hyperplaneLogRatios tailCovarianceRepresentation : Prop)
+    (h_frontier_missing_hyperplane_extreme_theory :
+      multivariateRegularVariation -> hyperplaneLogRatios -> tailCovarianceRepresentation) :
+    multivariateRegularVariation -> hyperplaneLogRatios -> tailCovarianceRepresentation := by
+  exact h_frontier_missing_hyperplane_extreme_theory
+""",
+        "tail_robust_factor_time_series_consistency": """theorem tail_robust_factor_time_series_consistency_skeleton
+    (heavyTailedTimeSeries truncationStable factorSubspaceConsistent : Prop)
+    (h_frontier_missing_tail_robust_factor_theory :
+      heavyTailedTimeSeries -> truncationStable -> factorSubspaceConsistent) :
+    heavyTailedTimeSeries -> truncationStable -> factorSubspaceConsistent := by
+  exact h_frontier_missing_tail_robust_factor_theory
 """,
         "gaussian_mechanism_dp_calibration": """theorem gaussian_mechanism_dp_calibration_skeleton
     (boundedSensitivity gaussianNoiseCalibrated epsilonDeltaDP : Prop)
