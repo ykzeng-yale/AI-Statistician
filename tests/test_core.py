@@ -82,6 +82,18 @@ class ProofBankTests(unittest.TestCase):
         self.assertTrue(hits)
         self.assertEqual(hits[0].obligation_id, "event_indicator_expectation")
 
+    def test_retriever_finds_union_budget_control_obligation(self) -> None:
+        retriever = ProofBankRetriever()
+        hits = retriever.retrieve(
+            RetrievalQuery(
+                "finite multiple testing familywise error Bonferroni alpha budget",
+                tags=("union_bound", "multiple_testing", "familywise_error"),
+            ),
+            candidates=all_obligations(),
+        )
+        self.assertTrue(hits)
+        self.assertEqual(hits[0].obligation_id, "finite_union_budget_control")
+
     def test_retrieval_audit_recovers_proof_bank(self) -> None:
         payload = audit_proof_bank_retrieval(Path("runs/test_retrieval_audit"), k=5)
         self.assertTrue(payload["all_top_k"])

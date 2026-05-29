@@ -1078,6 +1078,7 @@ class TheoryPlanner:
                         "prob_compl",
                         "event_probability_mono",
                         "finite_union_bound",
+                        "finite_union_budget_control",
                     ),
                 )
             ]
@@ -1824,6 +1825,7 @@ class TheoryPlanner:
                         "event_probability_mono",
                         "independent_event_inter_probability",
                         "finite_union_bound",
+                        "finite_union_budget_control",
                         "markov_inequality",
                     ),
                 ),
@@ -1886,6 +1888,7 @@ class TheoryPlanner:
                         "event_probability_mono",
                         "finite_union_bound",
                         "finite_horizon_type1_union_control",
+                        "finite_union_budget_control",
                         "markov_inequality",
                         "adapted_hitting_after_is_stopping_time",
                         "first_borel_cantelli_limsup_zero",
@@ -2107,6 +2110,7 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "prob_compl",
         "event_probability_mono",
         "finite_union_bound",
+        "finite_union_budget_control",
     ),
     "right_censored_survival_inference": (
         "event_indicator_expectation",
@@ -2205,6 +2209,7 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "event_probability_mono",
         "independent_event_inter_probability",
         "finite_union_bound",
+        "finite_union_budget_control",
         "markov_inequality",
     ),
     "sequential_anytime_inference": (
@@ -2215,6 +2220,7 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "independent_event_inter_probability",
         "finite_union_bound",
         "finite_horizon_type1_union_control",
+        "finite_union_budget_control",
         "markov_inequality",
         "adapted_hitting_after_is_stopping_time",
         "first_borel_cantelli_limsup_zero",

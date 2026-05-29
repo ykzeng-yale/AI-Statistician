@@ -961,6 +961,53 @@ theorem finiteHorizon_type1_union_control {Ω ι : Type*} [MeasurableSpace Ω]
         expected_lemmas=("measure_biUnion_finset_le", "Finset.sum_le_sum"),
         depends_on=("finite_union_bound",),
     ),
+    "finite_union_budget_control": FormalObligation(
+        id="finite_union_budget_control",
+        title="Finite union error control by a total budget",
+        english=(
+            "For a finite family of events, if each event probability is bounded "
+            "by a local error budget alpha_i and the sum of those budgets is at "
+            "most alpha, then the probability of at least one event is at most "
+            "alpha. This is a reusable Bonferroni bridge for finite-horizon "
+            "monitoring, multiple testing familywise control, and conformal "
+            "failure-union arguments; it does not claim BH FDR or Ville control."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+theorem finite_union_budget_control {Ω ι : Type*} [MeasurableSpace Ω]
+    (μ : Measure Ω) (I : Finset ι) (A : ι → Set Ω)
+    (α : ι → ENNReal) (α_total : ENNReal)
+    (hA : ∀ i ∈ I, μ (A i) ≤ α i)
+    (h_total : (∑ i ∈ I, α i) ≤ α_total) :
+    μ (⋃ i ∈ I, A i) ≤ α_total := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  calc\n"
+            "    μ (⋃ i ∈ I, A i) ≤ ∑ i ∈ I, μ (A i) := by\n"
+            "      exact measure_biUnion_finset_le (μ := μ) I A\n"
+            "    _ ≤ ∑ i ∈ I, α i := by\n"
+            "      exact Finset.sum_le_sum (fun i hi => hA i hi)\n"
+            "    _ ≤ α_total := h_total"
+        ),
+        tags=(
+            "probability",
+            "event",
+            "union_bound",
+            "bonferroni",
+            "finite_sample",
+            "multiple_testing",
+            "familywise_error",
+            "sequential",
+            "conformal",
+        ),
+        expected_lemmas=("measure_biUnion_finset_le", "Finset.sum_le_sum"),
+        depends_on=("finite_union_bound", "finite_horizon_type1_union_control"),
+    ),
     "event_probability_mono": FormalObligation(
         id="event_probability_mono",
         title="Event probability monotonicity",
