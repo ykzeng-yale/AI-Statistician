@@ -8,6 +8,7 @@ from pathlib import Path
 from .frontier_backlog_audit import audit_frontier_backlog
 from .frontier_coverage_audit import audit_frontier_coverage
 from .frontier_precision_audit import audit_frontier_precision
+from .formalization_target_audit import audit_formalization_targets
 from .formal_source_index import build_formal_source_search_backend
 from .frontier_smoke_benchmark import FrontierSmokeConfig, run_frontier_smoke_benchmark
 from .proof_audit import audit_proof_bank
@@ -90,6 +91,10 @@ async def run_research_system_audit(
         out_dir / "research_benchmark",
         out_dir / "research_gap_backlog",
     )
+    formalization_target_manifest = audit_formalization_targets(
+        out_dir / "research_benchmark",
+        out_dir / "formalization_target_audit",
+    )
 
     benchmark_gate_ok = (
         int(benchmark_manifest["n_questions"]) == len(questions)
@@ -117,6 +122,7 @@ async def run_research_system_audit(
         "formal_gap_skeletons": formalized_gaps_ok,
         "research_trace_audit": bool(trace_manifest["all_ok"]),
         "research_gap_backlog": bool(gap_backlog_manifest["all_ok"]),
+        "formalization_target_audit": bool(formalization_target_manifest["all_ok"]),
     }
     payload = {
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -183,6 +189,8 @@ async def run_research_system_audit(
             "gap_backlog_ok": gap_backlog_manifest["n_ok"],
             "gap_backlog_total": gap_backlog_manifest["n_gaps"],
             "missing_formal_primitives": len(gap_backlog_manifest["by_required_primitive"]),
+            "formalization_targets_ok": formalization_target_manifest["n_ok"],
+            "formalization_targets_total": formalization_target_manifest["n_targets"],
         },
         "questions": benchmark_manifest["questions"],
         "provenance": benchmark_manifest["provenance"],
@@ -238,6 +246,12 @@ async def run_research_system_audit(
                 out_dir / "research_gap_backlog" / "research_gap_backlog_manifest.json"
             ),
             "research_gap_backlog_report": str(out_dir / "research_gap_backlog" / "research_gap_backlog.md"),
+            "formalization_target_audit": str(
+                out_dir / "formalization_target_audit" / "formalization_target_manifest.json"
+            ),
+            "formalization_target_report": str(
+                out_dir / "formalization_target_audit" / "formalization_targets.md"
+            ),
             "formal_gaps": str(out_dir / "research_benchmark" / "formal_gaps"),
         },
     }

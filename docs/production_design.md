@@ -142,6 +142,23 @@ the whole theorem goal. This makes the formalization frontier auditable as a
 library-construction backlog rather than leaving it spread across individual
 traces. The release-style `research-system-audit` includes this as a gate.
 
+Formalization target queue:
+
+```bash
+python3 -m ai_statistician.cli formalization-target-audit \
+  --run-dir runs/research_benchmark \
+  --out runs/formalization_target_audit
+```
+
+This consumes the formal-gap backlog and ranks missing primitives into concrete
+Lean theorem-development targets. Each row records the primitive, how many gaps
+it unlocks, affected problem classes and theorem goals, local Mathlib/
+StatInference declaration candidates, supporting proof-bank obligations, and a
+suggested next proof-bank or library step. The release-style
+`research-system-audit` writes this queue as
+`formalization_target_audit/formalization_target_manifest.json`, so the lab can
+move from "known gaps" to a prioritized theorem-building plan.
+
 Research source inventory:
 
 ```bash

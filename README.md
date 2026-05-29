@@ -42,6 +42,7 @@ python3 -m ai_statistician.cli research-benchmark --question-file examples/resea
 python3 -m ai_statistician.cli research-eval --n-seeds 3 --runs 80 --out runs/research_eval
 python3 -m ai_statistician.cli research-trace-audit --run-dir runs/research_benchmark --out runs/research_trace_audit
 python3 -m ai_statistician.cli research-gap-audit --run-dir runs/research_benchmark --out runs/research_gap_backlog
+python3 -m ai_statistician.cli formalization-target-audit --run-dir runs/research_benchmark --out runs/formalization_target_audit
 python3 -m ai_statistician.cli research-system-audit --runs 100 --out runs/research_system_audit
 ```
 
@@ -82,6 +83,10 @@ Formal gaps also persist `primitive_formal_source_hits`, so each missing
 primitive such as `slutsky_theorem`, `davis_kahan_sin_theta`, or
 `regular_variation` gets its own local Lean/StatInference candidate list rather
 than relying only on a broad theorem-goal query.
+`formalization-target-audit` then aggregates those primitive-level hits into a
+ranked theorem-development queue: each row lists the missing primitive, gaps it
+unlocks, local candidate declarations, supporting proof obligations, and a
+suggested next proof-bank/library step.
 `formal-source-audit` now defaults to a persistent SQLite FTS + Lean-shape
 reranking backend and writes `formal_source_index.sqlite` next to the audit
 manifest, so repeated search and interactive theorem mining can query the local

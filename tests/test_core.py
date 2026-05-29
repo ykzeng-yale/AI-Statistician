@@ -11,6 +11,7 @@ from ai_statistician.doctor import build_doctor_report, write_doctor_manifest
 from ai_statistician.frontier_coverage_audit import audit_frontier_coverage, load_frontier_benchmark_questions
 from ai_statistician.frontier_precision_audit import audit_frontier_precision
 from ai_statistician.frontier_smoke_benchmark import FrontierSmokeConfig, run_frontier_smoke_benchmark, select_supported_frontier_questions
+from ai_statistician.formalization_target_audit import audit_formalization_targets
 from ai_statistician.formal_source_index import (
     FormalSourceRoot,
     FormalSourceSqliteIndex,
@@ -1207,6 +1208,33 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(Path("runs/test_research_gap_backlog/research_gap_backlog_manifest.json").exists())
         self.assertTrue(Path("runs/test_research_gap_backlog/research_gap_backlog.md").exists())
 
+    def test_formalization_target_audit_prioritizes_gap_primitives(self) -> None:
+        async def run():
+            questions = load_open_research_questions(Path("examples/research_questions.json"))
+            await run_research_benchmark(
+                questions,
+                Path("runs/test_formalization_target_run"),
+                proof_verifier=MockProofVerifier(),
+                n_runs=25,
+                seed=20260528,
+            )
+            return audit_formalization_targets(
+                Path("runs/test_formalization_target_run"),
+                Path("runs/test_formalization_target_audit"),
+            )
+
+        payload = asyncio.run(run())
+        self.assertTrue(payload["all_ok"])
+        self.assertGreater(payload["n_targets"], 0)
+        first = payload["rows"][0]
+        self.assertTrue(first["primitive"])
+        self.assertGreater(first["priority_score"], 0)
+        self.assertTrue(first["candidate_declarations"])
+        self.assertTrue(first["theorem_goals"])
+        self.assertTrue(first["suggested_next_step"])
+        self.assertTrue(Path("runs/test_formalization_target_audit/formalization_target_manifest.json").exists())
+        self.assertTrue(Path("runs/test_formalization_target_audit/formalization_targets.md").exists())
+
     def test_research_capability_audit_maps_goal_to_evidence_and_gaps(self) -> None:
         report = build_research_capability_audit(
             root=Path("."),
@@ -1306,6 +1334,7 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(payload["gates"]["formal_gap_skeletons"])
         self.assertTrue(payload["gates"]["research_trace_audit"])
         self.assertTrue(payload["gates"]["research_gap_backlog"])
+        self.assertTrue(payload["gates"]["formalization_target_audit"])
         self.assertEqual(payload["counts"]["questions"], 10)
         self.assertEqual(payload["counts"]["frontier_questions"], 60)
         self.assertGreater(payload["counts"]["frontier_supported"], 0)
@@ -1341,6 +1370,11 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(payload["counts"]["formalized_gaps"], payload["counts"]["formal_gaps"])
         self.assertEqual(payload["counts"]["gap_backlog_ok"], payload["counts"]["gap_backlog_total"])
         self.assertGreater(payload["counts"]["missing_formal_primitives"], 0)
+        self.assertEqual(
+            payload["counts"]["formalization_targets_ok"],
+            payload["counts"]["formalization_targets_total"],
+        )
+        self.assertGreater(payload["counts"]["formalization_targets_total"], 0)
         self.assertTrue(Path("runs/test_research_system_audit/research_system_audit_manifest.json").exists())
         self.assertTrue(Path(payload["artifacts"]["frontier_coverage_audit"]).exists())
         self.assertTrue(Path(payload["artifacts"]["frontier_precision_audit"]).exists())
@@ -1357,6 +1391,8 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(Path(payload["artifacts"]["research_algorithm_audit"]).exists())
         self.assertTrue(Path(payload["artifacts"]["research_trace_audit"]).exists())
         self.assertTrue(Path(payload["artifacts"]["research_gap_backlog"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_target_audit"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_target_report"]).exists())
 
 
 if __name__ == "__main__":

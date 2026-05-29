@@ -13,6 +13,7 @@ from .frontier_backlog_audit import audit_frontier_backlog
 from .frontier_coverage_audit import audit_frontier_coverage
 from .frontier_precision_audit import audit_frontier_precision
 from .frontier_smoke_benchmark import FrontierSmokeConfig, run_frontier_smoke_benchmark
+from .formalization_target_audit import audit_formalization_targets
 from .formal_source_index import audit_formal_source_index
 from .intake_audit import audit_question_intake
 from .proof_audit import audit_proof_bank
@@ -526,6 +527,25 @@ def _research_gap_audit(args: argparse.Namespace) -> int:
         f"{(Path(args.out) / 'research_gap_backlog_manifest.json').resolve()}"
     )
     print(f"markdown report written to {(Path(args.out) / 'research_gap_backlog.md').resolve()}")
+    return 0 if payload["all_ok"] else 1
+
+
+def _formalization_target_audit(args: argparse.Namespace) -> int:
+    payload = audit_formalization_targets(Path(args.run_dir), Path(args.out))
+    print("\nAI Statistical Theory Lab Formalization Target Queue")
+    print("=" * 72)
+    print(f"targets={payload['n_ok']}/{payload['n_targets']} all_ok={payload['all_ok']}")
+    for row in payload["top_targets"][:10]:
+        print(
+            f"  {row['priority_band']:24} score={row['priority_score']:4} "
+            f"{row['primitive']} gaps={row['n_gaps']}"
+        )
+        print(f"       next: {row['suggested_next_step'][:180]}")
+    print(
+        f"\nformalization target manifest written to "
+        f"{(Path(args.out) / 'formalization_target_manifest.json').resolve()}"
+    )
+    print(f"markdown report written to {(Path(args.out) / 'formalization_targets.md').resolve()}")
     return 0 if payload["all_ok"] else 1
 
 
@@ -1144,6 +1164,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="formal gap backlog output directory",
     )
     research_gap_audit.set_defaults(func=_research_gap_audit)
+
+    formalization_target_audit = sub.add_parser(
+        "formalization-target-audit",
+        help="rank missing FORMAL_GAP primitives into a Lean theorem-development queue",
+    )
+    formalization_target_audit.add_argument(
+        "--run-dir",
+        required=True,
+        help="directory containing research_benchmark_manifest.json and research trace JSON files",
+    )
+    formalization_target_audit.add_argument(
+        "--out",
+        default="runs/formalization_target_audit",
+        help="formalization target audit output directory",
+    )
+    formalization_target_audit.set_defaults(func=_formalization_target_audit)
 
     doctor = sub.add_parser("doctor", help="inspect local readiness for proof, LLM, retrieval, and audit runs")
     doctor.add_argument("--root", default=".", help="project root to inspect")
