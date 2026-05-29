@@ -474,6 +474,19 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("coverage", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_wald_interval_miscoverage_obligation_links_miss_to_tail_event(self) -> None:
+        obligation = get_obligation("wald_interval_miscoverage_iff_abs_error_gt")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("wald_interval_contains_iff_abs_error",))
+        self.assertIn("theorem waldInterval_miscoverage_iff_abs_error_gt", content)
+        self.assertIn("¬ (estimate - radius ≤ theta ∧ theta ≤ estimate + radius)", content)
+        self.assertIn("radius < |estimate - theta|", content)
+        self.assertIn("le_of_not_gt", content)
+        self.assertIn("not_le_of_gt", content)
+        self.assertIn("miscoverage", obligation.tags)
+        self.assertIn("tail_event", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_coverage_lower_bound_obligation_uses_complement_error_control(self) -> None:
         obligation = get_obligation("coverage_lower_bound_of_complement_error")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
@@ -1317,6 +1330,10 @@ class SystemTests(unittest.TestCase):
         hetero_goals = {row["id"]: row for row in hetero_trace["theorem_goals"]}
         self.assertIn(
             "coverage_lower_bound_of_complement_error",
+            hetero_goals["hc1_asymptotic_normality"]["proof_obligations"],
+        )
+        self.assertIn(
+            "wald_interval_miscoverage_iff_abs_error_gt",
             hetero_goals["hc1_asymptotic_normality"]["proof_obligations"],
         )
         algorithm_spec = trace_payload["procedures"][0]["algorithm_spec"]

@@ -212,6 +212,59 @@ theorem waldInterval_contains_iff_abs_error
         tags=("estimator", "confidence_interval", "coverage", "wald", "absolute_error", "real_algebra"),
         expected_lemmas=("abs_le", "linarith"),
     ),
+    "wald_interval_miscoverage_iff_abs_error_gt": FormalObligation(
+        id="wald_interval_miscoverage_iff_abs_error_gt",
+        title="Symmetric Wald interval miss is strict absolute-error exceedance",
+        english=(
+            "For real-valued point estimates, a target is outside the symmetric "
+            "interval estimate ± radius exactly when the interval radius is "
+            "strictly smaller than the absolute estimation error. This is the "
+            "deterministic bridge from interval miscoverage events to strict "
+            "tail events; it does not assert CLT, standard-error consistency, "
+            "or any stochastic coverage bound."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+
+theorem waldInterval_miscoverage_iff_abs_error_gt
+    (estimate theta radius : ℝ) :
+    (¬ (estimate - radius ≤ theta ∧ theta ≤ estimate + radius)) ↔
+      radius < |estimate - theta| := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  constructor\n"
+            "  · intro hnot\n"
+            "    by_contra hle_not\n"
+            "    have hle : |estimate - theta| ≤ radius := le_of_not_gt hle_not\n"
+            "    have h_abs := abs_le.mp hle\n"
+            "    apply hnot\n"
+            "    constructor\n"
+            "    · linarith [h_abs.2]\n"
+            "    · linarith [h_abs.1]\n"
+            "  · intro hgt hcontains\n"
+            "    have hle : |estimate - theta| ≤ radius := by\n"
+            "      rw [abs_le]\n"
+            "      constructor\n"
+            "      · linarith [hcontains.2]\n"
+            "      · linarith [hcontains.1]\n"
+            "    exact not_le_of_gt hgt hle"
+        ),
+        tags=(
+            "estimator",
+            "confidence_interval",
+            "coverage",
+            "miscoverage",
+            "wald",
+            "absolute_error",
+            "tail_event",
+            "real_algebra",
+        ),
+        expected_lemmas=("abs_le", "le_of_not_gt", "not_le_of_gt", "linarith"),
+        depends_on=("wald_interval_contains_iff_abs_error",),
+    ),
     "coverage_lower_bound_of_complement_error": FormalObligation(
         id="coverage_lower_bound_of_complement_error",
         title="Coverage lower bound from complement-event error control",

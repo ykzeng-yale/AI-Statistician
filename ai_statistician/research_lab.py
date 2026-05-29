@@ -1674,6 +1674,7 @@ class TheoryPlanner:
                     ),
                     proof_obligations=(
                         "prob_compl",
+                        "wald_interval_miscoverage_iff_abs_error_gt",
                         "coverage_lower_bound_of_complement_error",
                         "markov_inequality",
                         "estimator_error_chebyshev",
@@ -1929,6 +1930,7 @@ class TheoryPlanner:
                     ),
                     proof_obligations=(
                         "wald_interval_contains_iff_abs_error",
+                        "wald_interval_miscoverage_iff_abs_error_gt",
                         "coverage_lower_bound_of_complement_error",
                     ),
                 ),
@@ -2424,6 +2426,7 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "estimator_error_chebyshev",
         "variance_nonneg",
         "prob_compl",
+        "wald_interval_miscoverage_iff_abs_error_gt",
         "coverage_lower_bound_of_complement_error",
         "markov_inequality",
     ),
@@ -2462,6 +2465,7 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "finite_sample_mean_chebyshev_indep",
         "estimator_error_chebyshev",
         "wald_interval_contains_iff_abs_error",
+        "wald_interval_miscoverage_iff_abs_error_gt",
         "coverage_lower_bound_of_complement_error",
         "mean2_estimator_chebyshev_indep",
         "variance_nonneg",
