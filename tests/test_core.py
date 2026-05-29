@@ -669,7 +669,7 @@ class SystemTests(unittest.TestCase):
         payload = audit_research_algorithm_registry(Path("runs/test_research_algorithm_audit"))
         self.assertTrue(payload["all_ok"])
         self.assertEqual(payload["n_ok"], payload["n_algorithms"])
-        self.assertEqual(payload["n_algorithms"], 16)
+        self.assertEqual(payload["n_algorithms"], 17)
         self.assertEqual(len(payload["registry_fingerprint"]), 64)
         for row in payload["algorithms"]:
             self.assertEqual(row["registry_status"], "vetted")
@@ -679,10 +679,10 @@ class SystemTests(unittest.TestCase):
     def test_research_intake_audit_accepts_supported_and_rejects_unsupported(self) -> None:
         payload = audit_research_question_intake(Path("runs/test_research_intake_audit"))
         self.assertTrue(payload["all_ok"])
-        self.assertEqual(payload["n_supported"], 20)
-        self.assertEqual(payload["n_supported_accepted"], 20)
-        self.assertEqual(payload["n_unsupported"], 4)
-        self.assertEqual(payload["n_unsupported_rejected"], 4)
+        self.assertEqual(payload["n_supported"], 21)
+        self.assertEqual(payload["n_supported_accepted"], 21)
+        self.assertEqual(payload["n_unsupported"], 3)
+        self.assertEqual(payload["n_unsupported_rejected"], 3)
         self.assertEqual(
             set(payload["supported_problem_classes"]),
             {
@@ -694,6 +694,7 @@ class SystemTests(unittest.TestCase):
                 "heteroskedastic_regression_inference",
                 "multiple_testing_fdr",
                 "sequential_anytime_inference",
+                "sequential_changepoint_inference",
                 "high_dimensional_pca_inference",
                 "extreme_tail_quantile_inference",
             },
@@ -751,6 +752,7 @@ class SystemTests(unittest.TestCase):
         self.assertGreater(payload["n_unsupported"], 0)
         self.assertEqual(payload["by_problem_class"]["experimental_design_optimization"], 3)
         self.assertEqual(payload["by_problem_class"]["network_graph_inference"], 5)
+        self.assertEqual(payload["by_problem_class"]["sequential_changepoint_inference"], 3)
         self.assertIn("unsupported_frontier_question", payload["by_problem_class"])
         self.assertTrue(Path("runs/test_frontier_coverage_audit/frontier_coverage_manifest.json").exists())
         self.assertTrue(Path("runs/test_frontier_coverage_audit/frontier_coverage.md").exists())
@@ -768,6 +770,12 @@ class SystemTests(unittest.TestCase):
         self.assertIn("experimental_design_01", by_id)
         self.assertEqual(by_id["experimental_design_01"]["problem_class"], "experimental_design_optimization")
         self.assertTrue(by_id["experimental_design_01"]["evidence_terms"])
+        self.assertIn("sequential_change_anytime_01", by_id)
+        self.assertEqual(
+            by_id["sequential_change_anytime_01"]["problem_class"],
+            "sequential_changepoint_inference",
+        )
+        self.assertTrue(by_id["sequential_change_anytime_01"]["evidence_terms"])
         self.assertIn("networks_graphs_01", by_id)
         self.assertEqual(by_id["networks_graphs_01"]["problem_class"], "network_graph_inference")
         self.assertTrue(by_id["networks_graphs_01"]["evidence_terms"])
@@ -783,7 +791,7 @@ class SystemTests(unittest.TestCase):
     def test_frontier_backlog_audit_maps_unsupported_questions(self) -> None:
         payload = audit_frontier_backlog(Path("runs/test_frontier_backlog_audit"))
         self.assertTrue(payload["all_ok"])
-        self.assertEqual(payload["n_backlog"], 25)
+        self.assertEqual(payload["n_backlog"], 22)
         self.assertEqual(payload["n_ok"], payload["n_backlog"])
         self.assertGreaterEqual(payload["n_supported"], 1)
         self.assertGreaterEqual(len(payload["by_domain"]), 6)
@@ -795,6 +803,7 @@ class SystemTests(unittest.TestCase):
         )
         self.assertNotIn("networks_graphs_01", by_id)
         self.assertNotIn("experimental_design_01", by_id)
+        self.assertNotIn("sequential_change_anytime_01", by_id)
         for row in payload["rows"]:
             self.assertTrue(row["required_primitives"])
             self.assertTrue(row["likely_methods"])
@@ -852,6 +861,32 @@ class SystemTests(unittest.TestCase):
         self.assertGreaterEqual(simulations[0].metrics["space_filling_ratio"], 1.10)
         self.assertGreaterEqual(simulations[0].metrics["balance_improvement"], 1.25)
         self.assertLessEqual(simulations[0].metrics["mean_standardized_imbalance"], 0.35)
+
+    def test_sequential_changepoint_frontier_question_runs_registered_simulator(self) -> None:
+        question = next(
+            row.to_open_research_question()
+            for row in load_frontier_benchmark_questions(Path("docs/frontier_stat_theory_benchmark.md"))
+            if row.id == "sequential_change_anytime_01"
+        )
+        problem = ProblemFormalizer().formalize(question)
+        self.assertEqual(problem.problem_class, "sequential_changepoint_inference")
+        procedures, theorem_goals = TheoryPlanner().plan(problem)
+        self.assertEqual([procedure.algorithm for procedure in procedures], ["cusum_changepoint_detector"])
+        self.assertEqual(
+            {goal.id for goal in theorem_goals},
+            {
+                "functional_cusum_changepoint_localization",
+                "post_detection_changepoint_confidence_set",
+                "sequential_model_confidence_set_validity",
+            },
+        )
+        simulations = ResearchSimulator(n_runs=25, seed=20260528).run(problem, procedures)
+        self.assertEqual(len(simulations), 1)
+        self.assertTrue(simulations[0].passed)
+        self.assertEqual(simulations[0].diagnosis.status, "OK")
+        self.assertGreaterEqual(simulations[0].metrics["detection_rate"], 0.85)
+        self.assertLessEqual(simulations[0].metrics["false_alarm_rate"], 0.12)
+        self.assertLessEqual(simulations[0].metrics["mean_absolute_localization_error"], 18.0)
 
     def test_frontier_smoke_benchmark_runs_selected_supported_papers(self) -> None:
         selected, metadata = select_supported_frontier_questions(max_per_class=1)
@@ -1456,8 +1491,8 @@ class SystemTests(unittest.TestCase):
             )
 
         payload = asyncio.run(run())
-        self.assertEqual(payload["n_questions"], 10)
-        self.assertEqual(payload["n_ready_with_gaps"], 10)
+        self.assertEqual(payload["n_questions"], 11)
+        self.assertEqual(payload["n_ready_with_gaps"], 11)
         self.assertEqual(
             {row["question"] for row in payload["questions"]},
             {
@@ -1469,6 +1504,7 @@ class SystemTests(unittest.TestCase):
                 "robust_regression_paper",
                 "fdr_paper",
                 "anytime_paper",
+                "structural_break_functional_ts",
                 "high_dimensional_pca_paper",
                 "extreme_tail_quantile_paper",
             },
@@ -1485,6 +1521,7 @@ class SystemTests(unittest.TestCase):
                 "heteroskedastic_regression_inference",
                 "multiple_testing_fdr",
                 "sequential_anytime_inference",
+                "sequential_changepoint_inference",
                 "high_dimensional_pca_inference",
                 "extreme_tail_quantile_inference",
             },

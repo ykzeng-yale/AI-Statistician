@@ -271,6 +271,29 @@ KNOWLEDGE_CARDS: tuple[KnowledgeCard, ...] = (
         tags=("sequential", "anytime", "optional_stopping", "eprocess", "testing", "sequential_anytime_inference"),
     ),
     KnowledgeCard(
+        id="sequential_changepoint_post_detection",
+        title="Sequential changepoint and post-detection inference",
+        source_type="statistical_method",
+        location="internal-method-card",
+        summary=(
+            "Sequential changepoint theory links CUSUM-style structural-break "
+            "detectors to localization intervals and post-detection uncertainty. "
+            "A production-safe baseline can simulate projected functional time "
+            "series with partial measurement error, while functional CUSUM limit "
+            "theory, selective/post-detection coverage, and sequential model "
+            "confidence sets remain explicit formal gaps."
+        ),
+        tags=(
+            "sequential",
+            "changepoint",
+            "post_detection",
+            "functional_time_series",
+            "model_confidence_set",
+            "cusum",
+            "sequential_changepoint_inference",
+        ),
+    ),
+    KnowledgeCard(
         id="spiked_pca_dimension_reduction",
         title="High-dimensional PCA and spiked covariance inference",
         source_type="statistical_method",
@@ -485,6 +508,7 @@ PRIMARY_KNOWLEDGE_BY_PROBLEM_CLASS: dict[str, str] = {
     "heteroskedastic_regression_inference": "heteroskedastic_robust_inference",
     "multiple_testing_fdr": "benjamini_hochberg_fdr",
     "sequential_anytime_inference": "anytime_valid_eprocesses",
+    "sequential_changepoint_inference": "sequential_changepoint_post_detection",
     "high_dimensional_pca_inference": "spiked_pca_dimension_reduction",
     "extreme_tail_quantile_inference": "extreme_tail_hill_weissman",
 }

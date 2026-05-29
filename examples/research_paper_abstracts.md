@@ -94,6 +94,16 @@ anytime-valid control goal and the martingale property of the likelihood-ratio
 process, retrieve available probability inequality facts, and evaluate
 optional-stopping type-I error, power, and stopping-time behavior in simulation.
 
+## structural_break_functional_ts: Structural breaks in functional time series
+
+Tags: functional_data, time_series, changepoint, post_detection
+
+We observe locally stationary functional time series with partial measurement
+error and want a post-detection procedure for detecting and localizing
+structural breaks. The target is a changepoint confidence set and sequential
+model confidence diagnostics under nonstationarity, sparse trajectory
+observation, and data-dependent stopping.
+
 ## high_dimensional_pca_paper: Spiked-covariance PCA under high-dimensional asymptotics
 
 Tags: high_dimensional, pca, eigenvector, dimension_reduction, spiked_covariance

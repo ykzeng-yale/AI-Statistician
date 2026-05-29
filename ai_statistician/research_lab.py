@@ -390,6 +390,54 @@ EXTRACTION_EVIDENCE_TERMS: dict[str, dict[str, tuple[str, ...]]] = {
         "assumptions": ("iid bernoulli", "null", "martingale", "optional stopping", "filtration"),
         "asymptotic_regime": ("finite-horizon", "nonasymptotic", "anytime", "ville", "optional stopping"),
     },
+    "sequential_changepoint_inference": {
+        "problem_class": (
+            "structural breaks",
+            "changepoint",
+            "change point",
+            "post-detection",
+            "post detection",
+            "sequential model confidence",
+            "model confidence sets",
+            "functional time series",
+        ),
+        "dgp": (
+            "locally stationary functional time series",
+            "functional time series",
+            "partial measurement error",
+            "candidate model set",
+            "loss or performance process",
+            "sequential evaluation",
+            "data-dependent stopping time",
+        ),
+        "estimand": (
+            "structural break",
+            "changepoint",
+            "change point",
+            "model confidence set",
+            "changepoint confidence set",
+            "localization",
+        ),
+        "assumptions": (
+            "locally stationary functional time series",
+            "heterogeneous partial measurement error",
+            "no presmoothing",
+            "no dimension reduction",
+            "candidate model set",
+            "selection uncertainty",
+            "data-dependent stopping time",
+            "minimal distributional assumptions",
+        ),
+        "asymptotic_regime": (
+            "sequential",
+            "post-detection",
+            "post detection",
+            "changepoint localization",
+            "functional time series",
+            "model confidence",
+            "finite-horizon",
+        ),
+    },
     "high_dimensional_pca_inference": {
         "problem_class": ("pca", "principal component", "principal components", "eigenvector", "eigenvalue", "spectrum", "spiked covariance", "fpca"),
         "dgp": ("high-dimensional", "covariance", "spiked", "low-rank", "functional", "elliptical triangular array", "triangular array", "p-dimensional", "shape matrices"),
@@ -449,6 +497,13 @@ RESEARCH_ALGORITHM_REGISTRY: dict[str, dict[str, object]] = {
         "summary": "likelihood-ratio e-process for anytime-valid Bernoulli testing",
         "method": "_bernoulli_lr_eprocess",
         "helpers": (),
+        "version": "v1",
+        "registry_status": "vetted",
+    },
+    "cusum_changepoint_detector": {
+        "summary": "CUSUM structural-break localization with post-detection interval diagnostics",
+        "method": "_cusum_changepoint_detector",
+        "helpers": ("_cusum_changepoint_estimate",),
         "version": "v1",
         "registry_status": "vetted",
     },
@@ -1176,6 +1231,59 @@ class ProblemFormalizer:
                 asymptotic_regime="finite-horizon optional stopping in simulation; Ville-type anytime control as the theorem target.",
                 diagnostics=("type1_error", "power", "mean_stop_time", "optional_stopping_rejection_rate"),
                 stress_tests=("null optional stopping", "weaker alternatives", "longer monitoring horizon"),
+            )
+        if _matches(
+            body_text,
+            words=(),
+            phrases=(
+                "structural changes",
+                "structural breaks",
+                "changepoint",
+                "change point",
+                "post-detection inference",
+                "post detection inference",
+                "sequential changepoint",
+                "sequential detector",
+                "sequential model confidence sets",
+                "model confidence sets",
+                "locally stationary functional time series",
+                "functional time series",
+                "partial measurement error",
+                "data-dependent stopping time",
+            ),
+        ):
+            return ResearchProblemSpec(
+                question_id=question.id,
+                problem_class="sequential_changepoint_inference",
+                dgp=(
+                    "Sequential observations from a discretized functional time series with one mean "
+                    "shift and partial measurement error in the v0 simulator; model-confidence-set "
+                    "questions are represented by a sequential loss process surrogate."
+                ),
+                estimand=(
+                    "The structural break/changepoint location and a post-detection confidence set "
+                    "for the declared changepoint or selected model set."
+                ),
+                assumptions=(
+                    "locally stationary functional time-series baseline before/after a single break",
+                    "heterogeneous partial measurement error on discretized trajectories",
+                    "no presmoothing or dimension reduction in the benchmark statement",
+                    "data-dependent stopping/selection is treated as a formal theorem gap",
+                    "minimal-distribution post-detection guarantees require new library work",
+                ),
+                asymptotic_regime=(
+                    "finite-horizon sequential monitoring in the v0 simulator; frontier targets "
+                    "include functional CUSUM limit theory, post-detection coverage, and sequential "
+                    "model-confidence-set validity under data-dependent stopping."
+                ),
+                diagnostics=(
+                    "detection_rate",
+                    "mean_absolute_localization_error",
+                    "coverage_95",
+                    "false_alarm_rate",
+                    "mean_detection_delay",
+                ),
+                stress_tests=("smaller mean shift", "more partial measurement error", "post-detection stopping bias"),
             )
         if _matches(
             body_text,
@@ -2300,6 +2408,118 @@ class TheoryPlanner:
                 )
             ]
             return procedures, goals
+        if problem.problem_class == "sequential_changepoint_inference":
+            goals = [
+                TheoremGoal(
+                    id="functional_cusum_changepoint_localization",
+                    title="Functional CUSUM changepoint localization",
+                    informal_statement=(
+                        "A CUSUM detector applied to partially observed functional trajectories should "
+                        "localize a single structural break when the projected mean shift dominates "
+                        "serial dependence and measurement error."
+                    ),
+                    proof_strategy=(
+                        "Formalize a discretized functional time-series array, define the CUSUM "
+                        "objective, show deterministic separation of the population objective around "
+                        "the true changepoint, and control the stochastic remainder."
+                    ),
+                    status="FORMAL_GAP",
+                    required_primitives=(
+                        "functional_time_series_process",
+                        "partial_measurement_error_model",
+                        "cusum_objective_population_separation",
+                        "dependent_array_maximal_inequality",
+                    ),
+                    proof_obligations=(
+                        "finite_union_bound",
+                        "finite_union_budget_control",
+                        "markov_inequality",
+                    ),
+                ),
+                TheoremGoal(
+                    id="post_detection_changepoint_confidence_set",
+                    title="Post-detection changepoint confidence set validity",
+                    informal_statement=(
+                        "After a sequential detector stops and declares a change, the reported "
+                        "changepoint interval should account for the data-dependent stopping rule."
+                    ),
+                    proof_strategy=(
+                        "Represent the detector stop as a stopping time, define the selected "
+                        "localization interval, and bridge detector error control to post-detection "
+                        "coverage while leaving selective/sequential inference theory explicit."
+                    ),
+                    status="FORMAL_GAP",
+                    required_primitives=(
+                        "changepoint_stopping_rule",
+                        "post_selection_inference",
+                        "selected_interval_coverage",
+                        "bootstrap_validity_for_dependent_data",
+                    ),
+                    proof_obligations=(
+                        "prob_compl",
+                        "coverage_lower_bound_of_complement_error",
+                        "event_probability_mono",
+                        "finite_union_bound",
+                    ),
+                ),
+                TheoremGoal(
+                    id="sequential_model_confidence_set_validity",
+                    title="Sequential model confidence set validity",
+                    informal_statement=(
+                        "Model confidence sets updated over time should retain uncertainty accounting "
+                        "for the sequential loss/performance evaluation path."
+                    ),
+                    proof_strategy=(
+                        "Formalize candidate-model loss processes, define sequential elimination events, "
+                        "and reduce coverage to finite-time union control plus a future martingale or "
+                        "bootstrap validity theorem."
+                    ),
+                    status="FORMAL_GAP",
+                    required_primitives=(
+                        "candidate_model_loss_process",
+                        "sequential_elimination_rule",
+                        "model_confidence_set_coverage",
+                        "dependent_performance_process_bootstrap",
+                    ),
+                    proof_obligations=(
+                        "prob_measure_univ",
+                        "finite_union_bound",
+                        "simultaneous_coverage_of_union_error_bound",
+                    ),
+                ),
+            ]
+            procedures = [
+                CandidateProcedure(
+                    id="functional_cusum_post_detection_interval",
+                    name="Functional CUSUM changepoint detector with post-detection interval",
+                    role="sequential_procedure",
+                    formula=(
+                        "Project partially observed functional trajectories onto a fixed contrast, "
+                        "compute CUSUM(k)=sqrt(k(n-k)/n)|mean_{t<=k}Z_t-mean_{t>k}Z_t|, "
+                        "estimate tau by argmax_k CUSUM(k), and report tau_hat ± h."
+                    ),
+                    informal_derivation=(
+                        "A single mean shift creates a triangular population CUSUM objective peaking at "
+                        "the true changepoint. The v0 algorithm keeps the procedure transparent: it uses "
+                        "a projection of partially observed trajectories, a finite grid search over split "
+                        "points, and a conservative post-detection interval. The formal trace proves only "
+                        "finite probability subclaims and leaves functional time-series CUSUM limit theory "
+                        "and selective/post-detection validity as gaps."
+                    ),
+                    algorithm="cusum_changepoint_detector",
+                    theorem_goals=tuple(goal.id for goal in goals),
+                    simulation_design=(
+                        "Simulate a discretized functional time series with AR dependence, one mean shift, "
+                        "and partial measurement error; estimate the changepoint by CUSUM, compare "
+                        "localization error, post-detection interval coverage, and null false-alarm rate."
+                    ),
+                    limitations=(
+                        "v0 uses a single projected mean shift, not arbitrary discontinuous trajectories",
+                        "post-detection/selective inference and dependent bootstrap validity remain formal gaps",
+                    ),
+                )
+            ]
+            return procedures, goals
         if problem.problem_class == "network_graph_inference":
             goals = [
                 TheoremGoal(
@@ -2713,6 +2933,16 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "adapted_hitting_after_is_stopping_time",
         "first_borel_cantelli_limsup_zero",
     ),
+    "sequential_changepoint_inference": (
+        "prob_measure_univ",
+        "prob_compl",
+        "event_probability_mono",
+        "finite_union_bound",
+        "finite_union_budget_control",
+        "coverage_lower_bound_of_complement_error",
+        "simultaneous_coverage_of_union_error_bound",
+        "markov_inequality",
+    ),
     "network_graph_inference": (
         "event_indicator_expectation",
         "finite_event_indicator_mean_unbiased",
@@ -2866,6 +3096,8 @@ class ResearchSimulator:
                 rows.append(self._benjamini_hochberg(procedure, rng))
             elif procedure.algorithm == "bernoulli_lr_eprocess":
                 rows.append(self._bernoulli_lr_eprocess(procedure, rng))
+            elif procedure.algorithm == "cusum_changepoint_detector":
+                rows.append(self._cusum_changepoint_detector(procedure, rng))
             elif procedure.algorithm == "spiked_pca":
                 rows.append(self._spiked_pca(procedure, rng))
             elif procedure.algorithm == "hill_tail_quantile":
@@ -2934,6 +3166,12 @@ class ResearchSimulator:
             return "type1_error", 0.08, "max"
         if "power" in metrics and any(token in text for token in ("weak", "alternative", "effect", "power")):
             return "power", 0.50, "min"
+        if "detection_rate" in metrics and any(token in text for token in ("shift", "change", "detection")):
+            return "detection_rate", 0.85, "min"
+        if "false_alarm_rate" in metrics and any(token in text for token in ("stopping", "null", "post-detection")):
+            return "false_alarm_rate", 0.12, "max"
+        if "mean_absolute_localization_error" in metrics and any(token in text for token in ("localization", "measurement", "change")):
+            return "mean_absolute_localization_error", 18.0, "max"
         if "mean_alignment" in metrics and any(token in text for token in ("eigengap", "alignment", "p/n", "pca")):
             return "mean_alignment", 0.65, "min"
         if "mean_angle_error_rad" in metrics and "angle" in text:
@@ -3016,6 +3254,10 @@ class ResearchSimulator:
             "empirical_fdr",
             "type1_error",
             "power",
+            "detection_rate",
+            "false_alarm_rate",
+            "mean_absolute_localization_error",
+            "mean_detection_delay",
             "mean_alignment",
             "mean_community_accuracy",
             "edge_density_relative_bias",
@@ -3111,6 +3353,15 @@ class ResearchSimulator:
             return math.isfinite(float(metrics["type1_error"])) and float(metrics["type1_error"]) > target + 0.03
         if "power" in text and "power" in metrics:
             return math.isfinite(float(metrics["power"])) and float(metrics["power"]) < 0.55
+        if "detection" in text and "detection_rate" in metrics:
+            return math.isfinite(float(metrics["detection_rate"])) and float(metrics["detection_rate"]) < 0.85
+        if "localization" in text and "mean_absolute_localization_error" in metrics:
+            return (
+                math.isfinite(float(metrics["mean_absolute_localization_error"]))
+                and float(metrics["mean_absolute_localization_error"]) > 18.0
+            )
+        if "false" in text and "false_alarm_rate" in metrics:
+            return math.isfinite(float(metrics["false_alarm_rate"])) and float(metrics["false_alarm_rate"]) > 0.12
         if any(token in text for token in ("alignment", "subspace", "pca")):
             if "mean_alignment" in metrics and math.isfinite(float(metrics["mean_alignment"])):
                 return float(metrics["mean_alignment"]) < 0.65
@@ -3951,6 +4202,102 @@ class ResearchSimulator:
                 "Bernoulli e-process optional-stopping simulation passed"
                 if passed
                 else "Bernoulli e-process simulation flagged type-I error or power"
+            ),
+        )
+
+    def _cusum_changepoint_detector(
+        self, procedure: CandidateProcedure, rng: np.random.Generator
+    ) -> ResearchSimulation:
+        n = 240
+        tau = 120
+        grid_size = 12
+        min_segment = 30
+        shift_size = 0.78
+        ar = 0.30
+        measurement_missing = 0.25
+        measurement_noise = 0.25
+        interval_half_width = 18
+        threshold = 3.8
+        grid = np.linspace(0.0, 1.0, grid_size)
+        contrast = np.sin(math.pi * grid) + 0.35 * np.cos(2.0 * math.pi * grid)
+        contrast = contrast / math.sqrt(float(np.mean(contrast**2)))
+
+        estimates: list[float] = []
+        max_stats: list[float] = []
+        covers = 0
+        detects = 0
+        false_alarms = 0
+        failed = 0
+        for _ in range(self.n_runs):
+            series = _functional_changepoint_projection(
+                rng,
+                n=n,
+                tau=tau,
+                contrast=contrast,
+                shift_size=shift_size,
+                ar=ar,
+                missing_prob=measurement_missing,
+                measurement_noise=measurement_noise,
+            )
+            tau_hat, max_stat = _cusum_changepoint_estimate(series, min_segment=min_segment)
+            if not math.isfinite(tau_hat) or not math.isfinite(max_stat):
+                failed += 1
+                continue
+            estimates.append(tau_hat)
+            max_stats.append(max_stat)
+            detects += int(max_stat >= threshold)
+            covers += int(abs(tau_hat - tau) <= interval_half_width)
+
+            null_series = _functional_changepoint_projection(
+                rng,
+                n=n,
+                tau=tau,
+                contrast=contrast,
+                shift_size=0.0,
+                ar=ar,
+                missing_prob=measurement_missing,
+                measurement_noise=measurement_noise,
+            )
+            _null_tau_hat, null_stat = _cusum_changepoint_estimate(null_series, min_segment=min_segment)
+            false_alarms += int(math.isfinite(null_stat) and null_stat >= threshold)
+
+        arr = np.asarray(estimates, dtype=float)
+        abs_errors = np.abs(arr - tau) if arr.size else np.asarray([], dtype=float)
+        metrics = {
+            "n_runs": float(self.n_runs),
+            "n_failed": float(failed),
+            "n_obs": float(n),
+            "true_changepoint": float(tau),
+            "functional_grid_size": float(grid_size),
+            "measurement_missing_probability": float(measurement_missing),
+            "shift_size": float(shift_size),
+            "detection_threshold": float(threshold),
+            "detection_rate": float(detects / max(len(estimates), 1)),
+            "false_alarm_rate": float(false_alarms / max(len(estimates), 1)),
+            "estimate_mean": float(np.mean(arr)) if arr.size else float("nan"),
+            "bias": float(np.mean(arr) - tau) if arr.size else float("nan"),
+            "mean_absolute_localization_error": float(np.mean(abs_errors)) if abs_errors.size else float("nan"),
+            "median_absolute_localization_error": float(np.median(abs_errors)) if abs_errors.size else float("nan"),
+            "coverage_95": float(covers / max(len(estimates), 1)),
+            "mean_detection_delay": float(np.mean(np.maximum(arr - tau, 0.0))) if arr.size else float("nan"),
+            "mean_cusum_statistic": float(np.mean(max_stats)) if max_stats else float("nan"),
+        }
+        passed = (
+            failed <= max(1, int(0.05 * self.n_runs))
+            and metrics["detection_rate"] >= 0.85
+            and metrics["false_alarm_rate"] <= 0.12
+            and metrics["mean_absolute_localization_error"] <= 18.0
+            and metrics["coverage_95"] >= 0.88
+        )
+        return ResearchSimulation(
+            procedure_id=procedure.id,
+            design=procedure.simulation_design,
+            metrics=metrics,
+            passed=passed,
+            feedback=(
+                "CUSUM changepoint localization simulation passed"
+                if passed
+                else "CUSUM changepoint simulation flagged detection, false alarm, or localization diagnostics"
             ),
         )
 
@@ -4923,6 +5270,27 @@ def _lean_gap_theorem(goal_id: str) -> str:
     likelihoodRatioProcess -> nullMartingale := by
   exact h_frontier_missing_conditional_expectation_product
 """,
+        "functional_cusum_changepoint_localization": """theorem functional_cusum_changepoint_localization_skeleton
+    (functionalTimeSeries partialMeasurementError populationSeparation localization : Prop)
+    (h_frontier_missing_functional_cusum :
+      functionalTimeSeries -> partialMeasurementError -> populationSeparation -> localization) :
+    functionalTimeSeries -> partialMeasurementError -> populationSeparation -> localization := by
+  exact h_frontier_missing_functional_cusum
+""",
+        "post_detection_changepoint_confidence_set": """theorem post_detection_changepoint_confidence_set_skeleton
+    (stoppingRule selectedInterval detectorErrorControl postDetectionCoverage : Prop)
+    (h_frontier_missing_post_detection :
+      stoppingRule -> selectedInterval -> detectorErrorControl -> postDetectionCoverage) :
+    stoppingRule -> selectedInterval -> detectorErrorControl -> postDetectionCoverage := by
+  exact h_frontier_missing_post_detection
+""",
+        "sequential_model_confidence_set_validity": """theorem sequential_model_confidence_set_validity_skeleton
+    (candidateLossProcess eliminationRule finiteTimeUnionControl modelConfidenceCoverage : Prop)
+    (h_frontier_missing_model_confidence :
+      candidateLossProcess -> eliminationRule -> finiteTimeUnionControl -> modelConfidenceCoverage) :
+    candidateLossProcess -> eliminationRule -> finiteTimeUnionControl -> modelConfidenceCoverage := by
+  exact h_frontier_missing_model_confidence
+""",
         "spiked_pca_population_target": """theorem spiked_pca_population_target_skeleton
     (rankOneSpikedCovariance leadingEigenspaceIsSignal : Prop)
     (h_frontier_missing_spectral_theory :
@@ -5122,6 +5490,54 @@ def _min_pairwise_distance(points: np.ndarray) -> float:
     distances = np.sqrt(np.sum(diffs**2, axis=2))
     upper = distances[np.triu_indices(arr.shape[0], k=1)]
     return float(np.min(upper)) if upper.size else 0.0
+
+
+def _functional_changepoint_projection(
+    rng: np.random.Generator,
+    *,
+    n: int,
+    tau: int,
+    contrast: np.ndarray,
+    shift_size: float,
+    ar: float,
+    missing_prob: float,
+    measurement_noise: float,
+) -> np.ndarray:
+    grid_size = len(contrast)
+    state = np.zeros(grid_size)
+    projected: list[float] = []
+    denom_full = float(np.sum(contrast**2))
+    for t in range(n):
+        state = ar * state + rng.normal(scale=0.75, size=grid_size)
+        mean_shift = shift_size * contrast if t >= tau else 0.0
+        full = state + mean_shift
+        observed = rng.random(grid_size) > missing_prob
+        if not np.any(observed):
+            observed[int(rng.integers(0, grid_size))] = True
+        noisy = full[observed] + rng.normal(scale=measurement_noise, size=int(np.sum(observed)))
+        local_contrast = contrast[observed]
+        denom = max(float(np.sum(local_contrast**2)), 1e-8)
+        projected.append(float(np.sum(noisy * local_contrast) / denom * math.sqrt(denom / denom_full)))
+    return np.asarray(projected, dtype=float)
+
+
+def _cusum_changepoint_estimate(series: np.ndarray, *, min_segment: int) -> tuple[float, float]:
+    values = np.asarray(series, dtype=float)
+    n = len(values)
+    if n < 2 * min_segment + 1:
+        return float("nan"), float("nan")
+    prefix = np.cumsum(values)
+    total = float(prefix[-1])
+    best_k = min_segment
+    best_stat = -float("inf")
+    for k in range(min_segment, n - min_segment):
+        left_mean = float(prefix[k - 1] / k)
+        right_mean = float((total - prefix[k - 1]) / (n - k))
+        stat = math.sqrt(k * (n - k) / n) * abs(left_mean - right_mean)
+        if stat > best_stat:
+            best_stat = stat
+            best_k = k
+    return float(best_k), float(best_stat)
 
 
 def _nonlinear_regression_sample(rng: np.random.Generator, n: int) -> tuple[np.ndarray, np.ndarray]:

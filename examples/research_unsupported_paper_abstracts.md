@@ -4,15 +4,6 @@ These paper-style abstracts should route to manual review in the deterministic
 v0 research formalizer. They are intentionally plausible frontier topics, but
 they are outside the currently registered research-procedure families.
 
-## structural_break_functional_ts: Structural breaks in functional time series
-
-Tags: functional_data, time_series, changepoint
-
-We observe locally stationary functional time series with partial measurement
-error and want a bootstrap-assisted procedure for detecting and localizing
-structural breaks. The target is asymptotic size control and localization
-consistency under nonstationarity and sparse trajectory observation.
-
 ## bayesian_graph_bart: Graph-structured Bayesian additive regression trees
 
 Tags: bayesian, graph_covariates, bart

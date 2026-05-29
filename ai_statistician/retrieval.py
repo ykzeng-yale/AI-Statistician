@@ -8,13 +8,14 @@ import urllib.parse
 import urllib.request
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
 
 from .proof_bank import all_obligations, proof_bank_fingerprint
 from .schema import FormalObligation, RetrievalHit
 
 
-TOKEN_RE = re.compile(r"[\w'.]+|[∀∃∧∨→↔=≤≥<>+*/^.-]+", re.UNICODE)
+TOKEN_RE = re.compile(r"[\w'₀-₉.]+|[∀∃∧∨→↔=≤≥<>+*/^.-]+", re.UNICODE)
 STOP_TOKENS = {
     "the",
     "a",
@@ -27,6 +28,16 @@ STOP_TOKENS = {
     "to",
     "by",
     "with",
+    "exact",
+    "fun",
+    "have",
+    "let",
+    "match",
+    "prop",
+    "sort",
+    "theorem",
+    "true",
+    "type",
     ".",
     ",",
     "-",
@@ -45,6 +56,24 @@ def _fallback_tokens(text: str) -> set[str]:
 
 def _openprover_tokens(text: str) -> set[str] | None:
     """Use OpenProver's Lean-ish tokenizer if that local codebase is available."""
+    if os.environ.get("AI_STATISTICIAN_USE_OPENPROVER_TOKENS") != "1":
+        return None
+    lean_tokens = _openprover_lean_tokens()
+    if lean_tokens is None:
+        return None
+    return set(lean_tokens(text))
+
+
+@lru_cache(maxsize=1)
+def _openprover_lean_tokens():
+    """Import OpenProver tokenization only when explicitly enabled.
+
+    The local OpenProver checkout is useful as a reference implementation, but
+    importing its retrieval module can recursively import a much larger prover
+    stack.  Retrieval tokenization is on the hot path for paper and knowledge
+    search, so the production default uses the local tokenizer above and keeps
+    the direct OpenProver import as an opt-in compatibility hook.
+    """
     openprover_src = Path(
         os.environ.get("OPENPROVER_SRC", "/Users/yukang/Documents/OpenProver/src")
     ).expanduser()
@@ -57,7 +86,7 @@ def _openprover_tokens(text: str) -> set[str] | None:
         from openprover.retrieval import lean_tokens
     except Exception:
         return None
-    return set(lean_tokens(text))
+    return lean_tokens
 
 
 def tokens(text: str) -> set[str]:
