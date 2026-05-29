@@ -309,6 +309,57 @@ EXTRACTION_EVIDENCE_TERMS: dict[str, dict[str, tuple[str, ...]]] = {
         "assumptions": ("fixed potential outcomes", "randomization", "heterogeneous", "interference", "assignment"),
         "asymptotic_regime": ("finite-sample", "design-based", "validity", "least conservative", "optimized"),
     },
+    "experimental_design_optimization": {
+        "problem_class": (
+            "space-filling",
+            "space filling",
+            "maximin",
+            "oracle arrays",
+            "order-of-addition",
+            "order of addition",
+            "covariate balance",
+            "gaussianized",
+            "design optimization",
+        ),
+        "dgp": (
+            "finite candidate design points",
+            "computer experiments",
+            "randomized experiment",
+            "component order",
+            "covariates",
+            "assignment",
+        ),
+        "estimand": (
+            "maximin distance criterion",
+            "space-filling design",
+            "covariate balance objective",
+            "stratum orthogonality",
+            "balanced assignment",
+        ),
+        "assumptions": (
+            "finite design space",
+            "limited run budget",
+            "covariates observed before assignment",
+            "symmetric randomized assignment",
+            "model uncertainty",
+            "quantitative factors",
+            "hamming-distance array",
+            "mapping from discrete arrays",
+            "treatments represented through gaussianized assignments",
+            "continuous optimization over covariance matrices",
+        ),
+        "asymptotic_regime": (
+            "finite design",
+            "randomization",
+            "design optimization",
+            "space-filling",
+            "balance",
+            "robustness",
+            "model-free",
+            "model uncertainty",
+            "continuous optimization",
+        ),
+    },
     "heteroskedastic_regression_inference": {
         "problem_class": ("heteroskedastic", "sandwich", "hc1", "robust standard", "regression slope"),
         "dgp": ("linear regression", "heteroskedastic", "errors", "covariates"),
@@ -471,6 +522,13 @@ RESEARCH_ALGORITHM_REGISTRY: dict[str, dict[str, object]] = {
         "version": "v1",
         "registry_status": "vetted",
     },
+    "covariate_balance_maximin_design": {
+        "summary": "maximin space-filling design selection plus covariate-balanced rerandomization simulation",
+        "method": "_covariate_balance_maximin_design",
+        "helpers": ("_min_pairwise_distance",),
+        "version": "v1",
+        "registry_status": "vetted",
+    },
 }
 
 
@@ -627,6 +685,59 @@ class ProblemFormalizer:
                 ),
                 diagnostics=("bias", "rmse", "coverage_95", "se_calibration", "conservativeness_ratio"),
                 stress_tests=("stronger treatment-effect heterogeneity", "unbalanced assignment", "cluster interference"),
+            )
+        if _matches(
+            body_text,
+            words=(),
+            phrases=(
+                "space-filling designs",
+                "space filling designs",
+                "maximin space-filling",
+                "maximin distance criterion",
+                "oracle arrays",
+                "hamming-distance array",
+                "order-of-addition designs",
+                "order of addition designs",
+                "stratum order-of-addition",
+                "stratum orthogonality",
+                "gaussianized design optimization",
+                "covariate balance objective",
+                "optimize covariate balance",
+                "gaussianized assignments",
+                "continuous optimization over covariance matrices",
+            ),
+        ):
+            return ResearchProblemSpec(
+                question_id=question.id,
+                problem_class="experimental_design_optimization",
+                dgp=(
+                    "Finite candidate design points or pre-treatment covariate profiles before "
+                    "an experiment; the v0 simulator combines maximin subset selection with "
+                    "covariate-balanced rerandomization."
+                ),
+                estimand=(
+                    "A design/procedure optimizing space-filling distance and covariate balance "
+                    "under a limited run or assignment budget."
+                ),
+                assumptions=(
+                    "finite candidate design space",
+                    "limited experimental run budget",
+                    "pre-treatment covariates observed before assignment",
+                    "symmetric candidate assignments preserve randomization validity in the baseline",
+                    "model-free order/addition and oracle-array optimality remain formal gaps",
+                ),
+                asymptotic_regime=(
+                    "finite-design optimization in the v0 simulator; frontier targets include "
+                    "maximin design guarantees, stratum orthogonality, and Gaussianized "
+                    "covariate-balance randomization theory."
+                ),
+                diagnostics=(
+                    "space_filling_ratio",
+                    "balance_improvement",
+                    "mean_standardized_imbalance",
+                    "assignment_acceptance_rate",
+                ),
+                stress_tests=("smaller run budget", "stronger covariate correlation", "near-tied balance criteria"),
             )
         if _matches(
             body_text,
@@ -1901,6 +2012,108 @@ class TheoryPlanner:
                 )
             ]
             return procedures, goals
+        if problem.problem_class == "experimental_design_optimization":
+            goals = [
+                TheoremGoal(
+                    id="maximin_space_filling_surrogate_validity",
+                    title="Maximin space-filling surrogate validity",
+                    informal_statement=(
+                        "A finite candidate subset chosen to maximize the minimum pairwise distance "
+                        "should improve the space-filling criterion over a random run-budget subset."
+                    ),
+                    proof_strategy=(
+                        "Formalize finite design spaces, pairwise distance objectives, and greedy "
+                        "or oracle-array surrogate selection; prove the selected design satisfies the "
+                        "registered finite maximin criterion before extending to Lp optimality."
+                    ),
+                    status="FORMAL_GAP",
+                    required_primitives=(
+                        "finite_design_space",
+                        "pairwise_design_distance",
+                        "maximin_distance_criterion",
+                        "oracle_array_surrogate_order",
+                    ),
+                    proof_obligations=("finite_union_bound", "finite_union_budget_control"),
+                ),
+                TheoremGoal(
+                    id="covariate_balance_rerandomization_validity",
+                    title="Covariate-balanced rerandomization validity",
+                    informal_statement=(
+                        "Choosing among symmetric candidate assignments by a covariate-balance score "
+                        "can improve balance while preserving a randomization-based interpretation."
+                    ),
+                    proof_strategy=(
+                        "Represent assignments as finite random variables, define standardized balance "
+                        "loss, prove symmetry of treated/control relabeling for the candidate generator, "
+                        "and then establish the acceptance/event-control bridge."
+                    ),
+                    status="FORMAL_GAP",
+                    required_primitives=(
+                        "finite_assignment_space",
+                        "covariate_balance_objective",
+                        "symmetric_rerandomization_rule",
+                        "randomization_validity_under_acceptance",
+                    ),
+                    proof_obligations=(
+                        "prob_measure_univ",
+                        "event_probability_mono",
+                        "finite_union_bound",
+                    ),
+                ),
+                TheoremGoal(
+                    id="order_addition_stratum_orthogonality",
+                    title="Order-of-addition stratum orthogonality",
+                    informal_statement=(
+                        "A stratum order-of-addition design should remain model-free and robust to "
+                        "model uncertainty by balancing position/order contrasts across strata."
+                    ),
+                    proof_strategy=(
+                        "Formalize component orders as permutations, define stratum balance and "
+                        "orthogonality contrasts, and prove contrast cancellation for the constructed "
+                        "finite design before developing full model-robust optimality."
+                    ),
+                    status="FORMAL_GAP",
+                    required_primitives=(
+                        "finite_permutation_design",
+                        "stratum_orthogonality_criterion",
+                        "order_contrast_balance",
+                        "model_free_design_robustness",
+                    ),
+                    proof_obligations=("integral_of_constant",),
+                ),
+            ]
+            procedures = [
+                CandidateProcedure(
+                    id="maximin_balance_rerandomized_design",
+                    name="Maximin covariate-balanced rerandomized design",
+                    role="design_procedure",
+                    formula=(
+                        "Select a finite run-budget subset by greedy maximin distance; among symmetric "
+                        "candidate treatment assignments choose the assignment minimizing standardized "
+                        "covariate imbalance with a small maximin-distance reward."
+                    ),
+                    informal_derivation=(
+                        "Space-filling design and covariate-balance randomization are both finite "
+                        "optimization problems over candidate design/assignment sets. The v0 procedure "
+                        "separates these concerns: greedy maximin selection improves geometric coverage "
+                        "of the design space, then rerandomization screens balanced assignments. The "
+                        "formal trace proves only reusable finite-probability subclaims and leaves "
+                        "oracle-array, stratum-orthogonality, and Gaussianized-design optimality as gaps."
+                    ),
+                    algorithm="covariate_balance_maximin_design",
+                    theorem_goals=tuple(goal.id for goal in goals),
+                    simulation_design=(
+                        "Generate correlated covariates, compare greedy maximin run selection with a "
+                        "random subset, then compare covariate-balanced rerandomized treatment assignment "
+                        "with simple random assignment using imbalance and space-filling diagnostics."
+                    ),
+                    limitations=(
+                        "v0 uses Euclidean finite-design surrogates, not full oracle-array construction",
+                        "order-of-addition and Gaussianized covariance-matrix optimality remain formal gaps",
+                    ),
+                )
+            ]
+            return procedures, goals
         if problem.problem_class == "heteroskedastic_regression_inference":
             goals = [
                 TheoremGoal(
@@ -2456,6 +2669,14 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "variance_nonneg",
         "markov_inequality",
     ),
+    "experimental_design_optimization": (
+        "prob_measure_univ",
+        "integral_of_constant",
+        "event_probability_mono",
+        "finite_union_bound",
+        "finite_union_budget_control",
+        "variance_nonneg",
+    ),
     "heteroskedastic_regression_inference": (
         "mean2_estimator_expectation",
         "mean2_estimator_unbiased",
@@ -2637,6 +2858,8 @@ class ResearchSimulator:
                 rows.append(self._neyman_conservative_variance(procedure, rng))
             elif procedure.algorithm == "sbm_edge_density_spectral":
                 rows.append(self._sbm_edge_density_spectral(procedure, rng))
+            elif procedure.algorithm == "covariate_balance_maximin_design":
+                rows.append(self._covariate_balance_maximin_design(procedure, rng))
             elif procedure.algorithm == "ols_hc1":
                 rows.append(self._ols_hc1(procedure, rng))
             elif procedure.algorithm == "benjamini_hochberg":
@@ -2737,6 +2960,12 @@ class ResearchSimulator:
             return "high_quantile_coverage", 0.85, "min"
         if "mean_conservativeness_ratio" in metrics and any(token in text for token in ("assignment", "design", "conservative")):
             return "mean_conservativeness_ratio", 1.00, "min"
+        if "space_filling_ratio" in metrics and any(token in text for token in ("space", "run budget", "design")):
+            return "space_filling_ratio", 1.05, "min"
+        if "balance_improvement" in metrics and any(token in text for token in ("balance", "covariate", "tied")):
+            return "balance_improvement", 1.15, "min"
+        if "mean_standardized_imbalance" in metrics and any(token in text for token in ("balance", "covariate", "assignment")):
+            return "mean_standardized_imbalance", 0.35, "max"
         if "mean_privacy_noise_sd" in metrics and any(token in text for token in ("epsilon", "privacy", "composed")):
             return "mean_privacy_noise_sd", 0.00, "min"
         if "mean_clipping_fraction" in metrics and any(token in text for token in ("clipping", "private", "outlier")):
@@ -2796,6 +3025,10 @@ class ResearchSimulator:
             "tail_index_coverage_95",
             "quantile_coverage_95",
             "high_quantile_coverage",
+            "space_filling_ratio",
+            "balance_improvement",
+            "mean_standardized_imbalance",
+            "assignment_acceptance_rate",
         }
         metric_evidence = {
             key: float(value)
@@ -2890,6 +3123,13 @@ class ResearchSimulator:
                 return abs(float(metrics["edge_density_relative_bias"])) > 0.10
             if "edge_density_rmse" in metrics and math.isfinite(float(metrics["edge_density_rmse"])):
                 return float(metrics["edge_density_rmse"]) > 0.08
+        if "space" in text and "space_filling_ratio" in metrics:
+            return math.isfinite(float(metrics["space_filling_ratio"])) and float(metrics["space_filling_ratio"]) < 1.05
+        if "balance" in text:
+            if "balance_improvement" in metrics and math.isfinite(float(metrics["balance_improvement"])):
+                return float(metrics["balance_improvement"]) < 1.15
+            if "mean_standardized_imbalance" in metrics and math.isfinite(float(metrics["mean_standardized_imbalance"])):
+                return float(metrics["mean_standardized_imbalance"]) > 0.35
         return False
 
     def _oracle_aipw(self, procedure: CandidateProcedure, rng: np.random.Generator) -> ResearchSimulation:
@@ -3456,6 +3696,114 @@ class ResearchSimulator:
                 "SBM edge-density and spectral community simulation passed"
                 if passed
                 else "SBM simulation flagged edge-density inference or community recovery diagnostics"
+            ),
+        )
+
+    def _covariate_balance_maximin_design(
+        self, procedure: CandidateProcedure, rng: np.random.Generator
+    ) -> ResearchSimulation:
+        n_candidates = 180
+        run_budget = 36
+        n_assign = run_budget // 2
+        p = 4
+        n_assignment_candidates = 120
+        min_distances: list[float] = []
+        random_min_distances: list[float] = []
+        imbalances: list[float] = []
+        random_imbalances: list[float] = []
+        failed = 0
+
+        corr = 0.35
+        covariance = corr * np.ones((p, p)) + (1.0 - corr) * np.eye(p)
+        for _ in range(self.n_runs):
+            candidates = rng.multivariate_normal(mean=np.zeros(p), cov=covariance, size=n_candidates)
+            candidates = (candidates - np.mean(candidates, axis=0)) / np.std(candidates, axis=0, ddof=1)
+
+            # Greedy maximin design: start at the most central point, then add
+            # the candidate with largest distance to the current selected set.
+            selected = [int(np.argmin(np.linalg.norm(candidates, axis=1)))]
+            remaining = set(range(n_candidates))
+            remaining.remove(selected[0])
+            while len(selected) < run_budget and remaining:
+                selected_array = candidates[np.asarray(selected)]
+                best_idx = max(
+                    remaining,
+                    key=lambda idx: float(np.min(np.linalg.norm(selected_array - candidates[idx], axis=1))),
+                )
+                selected.append(int(best_idx))
+                remaining.remove(best_idx)
+
+            design = candidates[np.asarray(selected)]
+            random_design = candidates[rng.choice(n_candidates, size=run_budget, replace=False)]
+            min_dist = _min_pairwise_distance(design)
+            random_min_dist = _min_pairwise_distance(random_design)
+            if not math.isfinite(min_dist) or not math.isfinite(random_min_dist) or random_min_dist <= 0:
+                failed += 1
+                continue
+
+            best_balance = float("inf")
+            random_balance = float("nan")
+            best_min_dist = 0.0
+            for candidate_idx in range(n_assignment_candidates):
+                treated_idx = rng.choice(run_budget, size=n_assign, replace=False)
+                treated = np.zeros(run_budget, dtype=bool)
+                treated[treated_idx] = True
+                treated_mean = np.mean(design[treated], axis=0)
+                control_mean = np.mean(design[~treated], axis=0)
+                pooled_sd = np.std(design, axis=0, ddof=1)
+                standardized = (treated_mean - control_mean) / np.maximum(pooled_sd, 1e-8)
+                balance = float(np.linalg.norm(standardized))
+                treated_min_dist = _min_pairwise_distance(design[treated])
+                # The small geometric reward breaks balance ties toward assignments
+                # that keep each arm spread out over the selected design region.
+                score = balance - 0.04 * treated_min_dist
+                if candidate_idx == 0:
+                    random_balance = balance
+                if score < best_balance - 0.04 * best_min_dist:
+                    best_balance = balance
+                    best_min_dist = treated_min_dist
+            if not math.isfinite(best_balance) or not math.isfinite(random_balance) or best_balance <= 0:
+                failed += 1
+                continue
+            min_distances.append(min_dist)
+            random_min_distances.append(random_min_dist)
+            imbalances.append(best_balance)
+            random_imbalances.append(random_balance)
+
+        mean_min_dist = float(np.mean(min_distances)) if min_distances else float("nan")
+        mean_random_min_dist = float(np.mean(random_min_distances)) if random_min_distances else float("nan")
+        mean_imbalance = float(np.mean(imbalances)) if imbalances else float("nan")
+        mean_random_imbalance = float(np.mean(random_imbalances)) if random_imbalances else float("nan")
+        metrics = {
+            "n_runs": float(self.n_runs),
+            "n_failed": float(failed),
+            "n_candidate_design_points": float(n_candidates),
+            "run_budget": float(run_budget),
+            "dimension": float(p),
+            "n_assignment_candidates": float(n_assignment_candidates),
+            "mean_min_pairwise_distance": mean_min_dist,
+            "random_mean_min_pairwise_distance": mean_random_min_dist,
+            "space_filling_ratio": mean_min_dist / max(mean_random_min_dist, 1e-12),
+            "mean_standardized_imbalance": mean_imbalance,
+            "random_mean_standardized_imbalance": mean_random_imbalance,
+            "balance_improvement": mean_random_imbalance / max(mean_imbalance, 1e-12),
+            "assignment_acceptance_rate": 1.0 / n_assignment_candidates,
+        }
+        passed = (
+            failed <= max(1, int(0.05 * self.n_runs))
+            and metrics["space_filling_ratio"] >= 1.10
+            and metrics["balance_improvement"] >= 1.25
+            and metrics["mean_standardized_imbalance"] <= 0.35
+        )
+        return ResearchSimulation(
+            procedure_id=procedure.id,
+            design=procedure.simulation_design,
+            metrics=metrics,
+            passed=passed,
+            feedback=(
+                "maximin covariate-balanced design simulation passed"
+                if passed
+                else "design optimization simulation flagged space-filling or balance diagnostics"
             ),
         )
 
@@ -4507,6 +4855,27 @@ def _lean_gap_theorem(goal_id: str) -> str:
     compatiblePotentialOutcomes -> conservativeBound -> optimality := by
   exact h_frontier_missing_variance_bound_optimization
 """,
+        "maximin_space_filling_surrogate_validity": """theorem maximin_space_filling_surrogate_validity_skeleton
+    (finiteDesignSpace pairwiseDistanceObjective maximinSurrogate : Prop)
+    (h_frontier_missing_maximin_design :
+      finiteDesignSpace -> pairwiseDistanceObjective -> maximinSurrogate) :
+    finiteDesignSpace -> pairwiseDistanceObjective -> maximinSurrogate := by
+  exact h_frontier_missing_maximin_design
+""",
+        "covariate_balance_rerandomization_validity": """theorem covariate_balance_rerandomization_validity_skeleton
+    (finiteAssignmentSpace symmetricRule balanceImproves randomizationValid : Prop)
+    (h_frontier_missing_rerandomization_validity :
+      finiteAssignmentSpace -> symmetricRule -> balanceImproves -> randomizationValid) :
+    finiteAssignmentSpace -> symmetricRule -> balanceImproves -> randomizationValid := by
+  exact h_frontier_missing_rerandomization_validity
+""",
+        "order_addition_stratum_orthogonality": """theorem order_addition_stratum_orthogonality_skeleton
+    (finitePermutationDesign stratumOrthogonality modelFreeRobustness : Prop)
+    (h_frontier_missing_stratum_orthogonality :
+      finitePermutationDesign -> stratumOrthogonality -> modelFreeRobustness) :
+    finitePermutationDesign -> stratumOrthogonality -> modelFreeRobustness := by
+  exact h_frontier_missing_stratum_orthogonality
+""",
         "ols_consistency": """theorem ols_slope_consistency_skeleton
     (betaHat : Nat -> Real) (beta : Real)
     (h_frontier_missing_lln_continuous_mapping :
@@ -4743,6 +5112,16 @@ def _rank_positions(values: np.ndarray) -> np.ndarray:
     ranks = np.empty(len(arr), dtype=float)
     ranks[order] = np.arange(1, len(arr) + 1, dtype=float)
     return ranks
+
+
+def _min_pairwise_distance(points: np.ndarray) -> float:
+    arr = np.asarray(points, dtype=float)
+    if arr.ndim != 2 or arr.shape[0] < 2:
+        return 0.0
+    diffs = arr[:, None, :] - arr[None, :, :]
+    distances = np.sqrt(np.sum(diffs**2, axis=2))
+    upper = distances[np.triu_indices(arr.shape[0], k=1)]
+    return float(np.min(upper)) if upper.size else 0.0
 
 
 def _nonlinear_regression_sample(rng: np.random.Generator, n: int) -> tuple[np.ndarray, np.ndarray]:

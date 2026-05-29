@@ -213,6 +213,29 @@ KNOWLEDGE_CARDS: tuple[KnowledgeCard, ...] = (
         ),
     ),
     KnowledgeCard(
+        id="experimental_design_maximin_balance",
+        title="Maximin space-filling and covariate-balanced experimental design",
+        source_type="statistical_method",
+        location="internal-method-card",
+        summary=(
+            "Finite experimental-design optimization can be release-gated through "
+            "a maximin/run-budget surrogate plus covariate-balanced rerandomization. "
+            "The baseline improves geometric space filling and standardized balance, "
+            "while oracle-array optimality, order-of-addition stratum orthogonality, "
+            "and Gaussianized covariance optimization remain formal theorem gaps."
+        ),
+        tags=(
+            "experimental_design",
+            "space_filling",
+            "maximin",
+            "oracle_array",
+            "order_of_addition",
+            "covariate_balance",
+            "gaussianized",
+            "experimental_design_optimization",
+        ),
+    ),
+    KnowledgeCard(
         id="heteroskedastic_robust_inference",
         title="Heteroskedasticity-consistent regression inference",
         source_type="statistical_method",
@@ -458,6 +481,7 @@ PRIMARY_KNOWLEDGE_BY_PROBLEM_CLASS: dict[str, str] = {
     "bayesian_posterior_calibration": "bayesian_predictive_prior_calibration",
     "measurement_bias_ranking_inference": "measurement_bias_assessment_ranking",
     "design_based_variance_inference": "design_based_variance_neyman",
+    "experimental_design_optimization": "experimental_design_maximin_balance",
     "heteroskedastic_regression_inference": "heteroskedastic_robust_inference",
     "multiple_testing_fdr": "benjamini_hochberg_fdr",
     "sequential_anytime_inference": "anytime_valid_eprocesses",
