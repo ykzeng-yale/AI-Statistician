@@ -267,6 +267,23 @@ class FormalSourceSqliteIndex:
                 hits.append(hit)
         return sorted(hits, key=lambda hit: (-hit.score, hit.declaration.source_id, hit.declaration.name))[:k]
 
+    def load_declarations(self) -> list[FormalDeclaration]:
+        """Read all declarations back from the persisted index.
+
+        Downstream graph audits can reuse the already-built SQLite corpus
+        instead of rescanning the Lean source tree during release-style audits.
+        """
+
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            rows = conn.execute(
+                """
+                SELECT *
+                FROM declarations
+                ORDER BY id
+                """
+            ).fetchall()
+        return [_decl_from_sqlite_row(row) for row in rows]
+
 
 DEFAULT_FORMAL_SOURCE_ROOTS: tuple[FormalSourceRoot, ...] = tuple(
     FormalSourceRoot(target.id, target.location, target.source_type)

@@ -15,6 +15,7 @@ from .frontier_precision_audit import audit_frontier_precision
 from .frontier_smoke_benchmark import FrontierSmokeConfig, run_frontier_smoke_benchmark
 from .frontier_theory_target_audit import audit_frontier_theory_targets
 from .formalization_target_audit import audit_formalization_targets
+from .formal_source_graph import audit_formal_source_graph
 from .formal_source_index import audit_formal_source_index
 from .intake_audit import audit_question_intake
 from .proof_audit import audit_proof_bank
@@ -479,6 +480,28 @@ def _formal_source_audit(args: argparse.Namespace) -> int:
     print(f"markdown report written to {(Path(args.out) / 'formal_source_index.md').resolve()}")
     if payload.get("sqlite_index_path"):
         print(f"sqlite index written to {Path(str(payload['sqlite_index_path'])).resolve()}")
+    return 0 if payload["all_queries_ok"] else 1
+
+
+def _formal_source_graph_audit(args: argparse.Namespace) -> int:
+    payload = audit_formal_source_graph(Path(args.out), k=args.k)
+    print("\nAI Statistical Theory Lab Formal Source Graph")
+    print("=" * 72)
+    print(
+        f"declarations={payload['n_declarations']} "
+        f"symbols={payload['n_symbol_nodes']} edges={payload['n_edges']} "
+        f"queries={payload['n_query_ok']}/{payload['n_queries']}"
+    )
+    for row in payload["query_rows"]:
+        first = row["top_hits"][0] if row["top_hits"] else None
+        first_name = first["name"] if first else "none"
+        first_source = first["source_id"] if first else "none"
+        print(f"  {row['query_id']}: ok={row['ok']} top={first_name} source={first_source}")
+    print(
+        f"\nformal source graph manifest written to "
+        f"{(Path(args.out) / 'formal_source_graph_manifest.json').resolve()}"
+    )
+    print(f"markdown report written to {(Path(args.out) / 'formal_source_graph.md').resolve()}")
     return 0 if payload["all_queries_ok"] else 1
 
 
@@ -1216,6 +1239,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="formal source index output directory",
     )
     formal_source_audit.set_defaults(func=_formal_source_audit)
+
+    formal_source_graph_audit = sub.add_parser(
+        "formal-source-graph-audit",
+        help="audit graph expansion over local Lean/stat declaration symbols",
+    )
+    formal_source_graph_audit.add_argument("--k", type=int, default=8, help="number of graph-expanded declarations to keep per query")
+    formal_source_graph_audit.add_argument(
+        "--out",
+        default="runs/formal_source_graph",
+        help="formal source graph output directory",
+    )
+    formal_source_graph_audit.set_defaults(func=_formal_source_graph_audit)
 
     intake_audit = sub.add_parser("intake-audit", help="audit supported question intake and unsupported question rejection")
     intake_audit.add_argument("--supported-file", action="append", help="supported question JSON file; repeatable")

@@ -286,8 +286,8 @@ runs proof-bank retrieval, frontier precision audit, research capability audit,
 research knowledge-source audit, research algorithm audit, proof verification,
 proof-training export, the proof-policy baseline, prover-component audit, the
 frontier research benchmark, frontier theory-target grading, the research trace
-audit, formal-gap backlog, formalization target queue, next-iteration queue,
-and the human-readable research report, then writes
+audit, formal-gap backlog, formalization target queue, formal-source graph,
+next-iteration queue, and the human-readable research report, then writes
 `research_system_audit_manifest.json` with gates and artifact paths. The
 training, baseline, and theory-target gates check
 artifact integrity and scoring coverage, not model quality: they make
@@ -595,10 +595,16 @@ The package integrates existing systems where appropriate:
   `formal_source_index.sqlite` using SQLite FTS, giving a cheap local
   candidate-generation pass before Lean-shape reranking and AXLE proof
   attempts.
+- `formal-source-graph-audit` adds a graph-style retrieval layer over the same
+  declarations by connecting Lean declarations to compressed theorem symbols.
+  It expands formal-gap queries through nearby Mathlib/StatInference
+  declarations with shared heads such as `variance`, `IndepFun`, `Rademacher`,
+  `Hajek`, or `ConditionalExpectation`.
 - The open-question `research-benchmark` path now accepts the same persisted
   backend and the CLI defaults to it. Formal-gap skeletons are therefore
   grounded through the local SQLite FTS + Lean-shape search path used by the
-  source audit, not a separate in-memory-only path.
+  source audit, with a separate symbol-graph audit recording graph expansion
+  quality.
 - CSLib is useful to track as an external Lean library for future algorithm and
   proof-search infrastructure work, but it is not yet a priority runtime corpus
   for statistical probability/asymptotic lemmas.
@@ -837,6 +843,22 @@ Research benchmark traces also attach the top local declaration hits to every
 `FORMAL_GAP` subclaim and copy them into the generated Lean skeleton comments,
 so a gap is always accompanied by concrete local source candidates rather than
 only a free-text missing-primitive label.
+
+Formal source graph:
+
+```bash
+python3 -m ai_statistician.cli formal-source-graph-audit \
+  --out runs/formal_source_graph
+```
+
+This audits graph expansion over the declaration corpus. Nodes are Lean
+declarations and compressed theorem symbols; edges record which declarations
+mention each symbol. The report surfaces high-degree cross-source symbols and
+checks graph-expanded retrieval for variance, Hajek ratio, Wald variance,
+Rademacher, martingale, Borel-Cantelli, and independence queries. This is the
+current lightweight graph-RAG layer for formal statistics: useful for finding
+reusable local declarations, while proof-dependency graphs from traced Lean
+proof states remain a future LeanDojo/ReProver-style integration.
 
 Algorithm registry audit:
 

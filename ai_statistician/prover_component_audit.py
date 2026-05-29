@@ -113,7 +113,7 @@ def build_prover_component_audit(
             component="premise retrieval / Lean RAG / formal-source search",
             paper_stack_layer="Layer 3: Mathlib Retrieval / Knowledge Graph / Long-Term Memory",
             status="PARTIAL_STRONG_LOCAL",
-            trained_or_built="Built local declaration-level retrieval with SQLite FTS, theorem compression, OpenProver-token fallback, and optional Loogle evidence; not learned semantic retrieval.",
+            trained_or_built="Built local declaration-level retrieval with SQLite FTS, theorem compression, declaration-symbol graph expansion, OpenProver-token fallback, and optional Loogle evidence; not learned semantic retrieval.",
             why_it_matters="Most current proof failures are premise-selection failures. Efficient local retrieval is the path from Mathlib/StatInference source to proof-bank expansion.",
             current_evidence=(
                 f"formal_source_declarations={len(declarations)}",
@@ -124,7 +124,7 @@ def build_prover_component_audit(
             ),
             missing_or_next=(
                 "No Lean Finder/ReProver runtime provider fusion yet.",
-                "No embedding index, proof dependency graph reranker, or tactic-state-aware retrieval yet.",
+                "No embedding index, proof-dependency graph from traced proofs, or tactic-state-aware retrieval yet.",
             ),
         ),
         ProverComponentRow(

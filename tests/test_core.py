@@ -12,6 +12,7 @@ from ai_statistician.frontier_coverage_audit import audit_frontier_coverage, loa
 from ai_statistician.frontier_precision_audit import audit_frontier_precision
 from ai_statistician.frontier_smoke_benchmark import FrontierSmokeConfig, run_frontier_smoke_benchmark, select_supported_frontier_questions
 from ai_statistician.formalization_target_audit import audit_formalization_targets
+from ai_statistician.formal_source_graph import FormalSourceGraphRetriever, audit_formal_source_graph
 from ai_statistician.formal_source_index import (
     FormalSourceRoot,
     FormalSourceSqliteIndex,
@@ -150,6 +151,20 @@ class ProofBankTests(unittest.TestCase):
         sqlite_hits = sqlite_index.search("variance equality IndepFun premise", k=3)
         self.assertTrue(sqlite_hits)
         self.assertEqual(sqlite_hits[0].declaration.name, "Demo.variance_sum_indep")
+        self.assertEqual(len(sqlite_index.load_declarations()), 2)
+        graph = FormalSourceGraphRetriever(declarations)
+        graph_hits = graph.search("independent variance estimator", k=3)
+        self.assertTrue(graph_hits)
+        self.assertEqual(graph_hits[0].declaration.name, "Demo.variance_sum_indep")
+        self.assertTrue(graph_hits[0].graph_symbols)
+        graph_payload = audit_formal_source_graph(
+            Path("runs/test_formal_source_graph"),
+            declarations=declarations,
+            queries=(("variance_graph", "independent variance estimator"),),
+        )
+        self.assertTrue(graph_payload["all_queries_ok"])
+        self.assertGreater(graph_payload["n_symbol_nodes"], 0)
+        self.assertTrue(Path("runs/test_formal_source_graph/formal_source_graph_manifest.json").exists())
         payload = audit_formal_source_index(
             Path("runs/test_formal_source_index"),
             roots=(root,),
@@ -1497,6 +1512,7 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(payload["gates"]["research_intake_audit"])
         self.assertTrue(payload["gates"]["research_knowledge_audit"])
         self.assertTrue(payload["gates"]["retrieval_audit"])
+        self.assertTrue(payload["gates"]["formal_source_graph"])
         self.assertTrue(payload["gates"]["research_algorithm_audit"])
         self.assertTrue(payload["gates"]["proof_audit"])
         self.assertTrue(payload["gates"]["proof_training_export"])
@@ -1545,6 +1561,12 @@ class SystemTests(unittest.TestCase):
             payload["counts"]["research_source_inventory_ok"],
             payload["counts"]["research_source_inventory_total"],
         )
+        self.assertEqual(
+            payload["counts"]["formal_source_graph_queries_ok"],
+            payload["counts"]["formal_source_graph_queries"],
+        )
+        self.assertGreater(payload["counts"]["formal_source_graph_symbols"], 0)
+        self.assertGreater(payload["counts"]["formal_source_graph_edges"], 0)
         self.assertEqual(payload["counts"]["research_algorithms_ok"], payload["counts"]["research_algorithms_total"])
         self.assertGreater(payload["counts"]["verifier_cache_hits"], 0)
         self.assertGreater(payload["counts"]["verifier_cache_misses"], 0)
@@ -1597,6 +1619,8 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(Path(payload["artifacts"]["research_intake_audit"]).exists())
         self.assertTrue(Path(payload["artifacts"]["research_knowledge_audit"]).exists())
         self.assertTrue(Path(payload["artifacts"]["research_source_inventory"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formal_source_graph"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formal_source_graph_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["research_algorithm_audit"]).exists())
         self.assertTrue(Path(payload["artifacts"]["proof_attempt_log"]).exists())
         self.assertTrue(Path(payload["artifacts"]["proof_training_export"]).exists())

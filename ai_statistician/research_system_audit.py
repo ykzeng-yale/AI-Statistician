@@ -9,6 +9,7 @@ from .frontier_backlog_audit import audit_frontier_backlog
 from .frontier_coverage_audit import audit_frontier_coverage
 from .frontier_precision_audit import audit_frontier_precision
 from .formalization_target_audit import audit_formalization_targets
+from .formal_source_graph import audit_formal_source_graph
 from .formal_source_index import build_formal_source_search_backend
 from .frontier_smoke_benchmark import FrontierSmokeConfig, run_frontier_smoke_benchmark
 from .proof_audit import audit_proof_bank
@@ -49,9 +50,20 @@ async def run_research_system_audit(
     questions = load_open_research_questions(actual_question_file)
     formal_source_index_path = out_dir / "formal_source_index.sqlite"
     formal_source_retriever = build_formal_source_search_backend(db_path=formal_source_index_path)
+    formal_source_declarations = (
+        formal_source_retriever.load_declarations()
+        if hasattr(formal_source_retriever, "load_declarations")
+        else []
+    )
+    formal_source_graph_manifest = audit_formal_source_graph(
+        out_dir / "formal_source_graph",
+        declarations=formal_source_declarations or None,
+    )
     formal_source_search = {
         "backend": "sqlite_fts_hybrid",
         "sqlite_index_path": str(formal_source_index_path),
+        "graph_backend": "declaration_symbol_graph",
+        "graph_manifest": str(out_dir / "formal_source_graph" / "formal_source_graph_manifest.json"),
     }
 
     frontier_manifest = audit_frontier_coverage(out_dir / "frontier_coverage_audit")
@@ -145,6 +157,7 @@ async def run_research_system_audit(
         "research_intake_audit": bool(intake_manifest["all_ok"]),
         "research_knowledge_audit": bool(knowledge_manifest["all_ok"]),
         "retrieval_audit": bool(retrieval_manifest["all_top_k"]),
+        "formal_source_graph": bool(formal_source_graph_manifest["all_queries_ok"]),
         "research_algorithm_audit": bool(algorithm_manifest["all_ok"]),
         "proof_audit": bool(proof_manifest["all_verified"])
         and bool(proof_manifest["dependency_graph"]["all_ok"]),
@@ -212,6 +225,10 @@ async def run_research_system_audit(
             "research_source_inventory_total": knowledge_manifest["source_inventory"]["n_sources"],
             "research_knowledge_problem_rows": knowledge_manifest["n_problem_rows"],
             "research_knowledge_problem_ok": knowledge_manifest["n_problem_ok"],
+            "formal_source_graph_symbols": formal_source_graph_manifest["n_symbol_nodes"],
+            "formal_source_graph_edges": formal_source_graph_manifest["n_edges"],
+            "formal_source_graph_queries_ok": formal_source_graph_manifest["n_query_ok"],
+            "formal_source_graph_queries": formal_source_graph_manifest["n_queries"],
             "research_ready_with_gaps": benchmark_manifest["n_ready_with_gaps"],
             "research_simulation_flagged": benchmark_manifest["n_simulation_flagged"],
             "research_formal_blocked": benchmark_manifest["n_formal_blocked"],
@@ -322,6 +339,8 @@ async def run_research_system_audit(
                 out_dir / "research_knowledge_audit" / "source_inventory" / "research_source_inventory.md"
             ),
             "retrieval_audit": str(out_dir / "retrieval_audit" / "retrieval_audit_manifest.json"),
+            "formal_source_graph": str(out_dir / "formal_source_graph" / "formal_source_graph_manifest.json"),
+            "formal_source_graph_report": str(out_dir / "formal_source_graph" / "formal_source_graph.md"),
             "research_algorithm_audit": str(
                 out_dir / "research_algorithm_audit" / "research_algorithm_audit_manifest.json"
             ),
