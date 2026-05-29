@@ -39,6 +39,7 @@ async def run_research_seed_eval(
             questions,
             seed_dir,
             proof_verifier=verifier,
+            formal_source_index_path=seed_dir / "formal_source_index.sqlite",
             n_runs=config.n_runs,
             seed=seed,
         )

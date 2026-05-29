@@ -65,7 +65,7 @@ async def run_research_system_audit(
         declarations=formal_source_declarations or None,
     )
     formal_source_search = {
-        "backend": "sqlite_fts_hybrid",
+        "backend": "sqlite_fts_shape_graph_hybrid",
         "sqlite_index_path": str(formal_source_index_path),
         "graph_backend": "declaration_symbol_graph",
         "graph_manifest": str(out_dir / "formal_source_graph" / "formal_source_graph_manifest.json"),

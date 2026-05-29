@@ -14,6 +14,7 @@ from ai_statistician.frontier_smoke_benchmark import FrontierSmokeConfig, run_fr
 from ai_statistician.formal_gap_task_export import export_formal_gap_lean_tasks
 from ai_statistician.formalization_target_audit import audit_formalization_targets
 from ai_statistician.formal_source_graph import FormalSourceGraphRetriever, audit_formal_source_graph
+from ai_statistician.formal_source_hybrid import FormalSourceHybridRetriever
 from ai_statistician.formal_source_index import (
     FormalSourceRoot,
     FormalSourceSqliteIndex,
@@ -186,6 +187,15 @@ class ProofBankTests(unittest.TestCase):
         self.assertTrue(graph_hits)
         self.assertEqual(graph_hits[0].declaration.name, "Demo.variance_sum_indep")
         self.assertTrue(graph_hits[0].graph_symbols)
+        hybrid = FormalSourceHybridRetriever(declarations, sqlite_index)
+        hybrid_hits = hybrid.search("independent variance estimator", k=3)
+        self.assertTrue(hybrid_hits)
+        self.assertEqual(hybrid_hits[0].declaration.name, "Demo.variance_sum_indep")
+        self.assertTrue(
+            any(term in hybrid_hits[0].matched_terms for term in ("symbol_graph", "sqlite_fts")),
+            hybrid_hits[0].matched_terms,
+        )
+        self.assertEqual(len(hybrid.load_declarations()), 2)
         graph_payload = audit_formal_source_graph(
             Path("runs/test_formal_source_graph"),
             declarations=declarations,
@@ -1588,7 +1598,8 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(payload["n_questions"], 10)
         self.assertEqual(payload["n_ready_with_gaps"], 10)
         self.assertEqual(payload["n_formal_blocked"], 0)
-        self.assertEqual(payload["formal_source_search"]["backend"], "sqlite_fts_hybrid")
+        self.assertEqual(payload["formal_source_search"]["backend"], "sqlite_fts_shape_graph_hybrid")
+        self.assertEqual(payload["formal_source_search"]["graph_backend"], "declaration_symbol_graph")
         self.assertTrue(Path(payload["formal_source_search"]["sqlite_index_path"]).exists())
         classes = {row["problem_class"] for row in payload["questions"]}
         self.assertEqual(

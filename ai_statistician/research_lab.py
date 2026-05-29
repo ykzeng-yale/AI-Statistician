@@ -8250,8 +8250,9 @@ async def run_research_benchmark(
     if formal_source_retriever is None and formal_source_index_path is not None:
         formal_source_retriever = build_formal_source_search_backend(db_path=formal_source_index_path)
         formal_source_search = {
-            "backend": "sqlite_fts_hybrid",
+            "backend": "sqlite_fts_shape_graph_hybrid",
             "sqlite_index_path": str(formal_source_index_path),
+            "graph_backend": "declaration_symbol_graph",
         }
     lab = AIStatisticalTheoryLab(
         proof_verifier=proof_verifier,

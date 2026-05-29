@@ -254,7 +254,7 @@ class FormalSourceSqliteIndex:
         fts_query = _fts_query(query)
         if not fts_query:
             return []
-        candidate_k = max(k * 25, 200)
+        candidate_k = max(k * 12, 80)
         with closing(sqlite3.connect(self.db_path)) as conn:
             rows = conn.execute(
                 """
@@ -370,18 +370,25 @@ def build_formal_source_search_backend(
     *,
     db_path: Path | str | None = None,
     roots: tuple[FormalSourceRoot, ...] = DEFAULT_FORMAL_SOURCE_ROOTS,
-) -> FormalSourceRetriever | FormalSourceSqliteIndex:
+    include_graph: bool = True,
+) -> object:
     """Build the local formal-source retriever used by research traces.
 
     Passing a database path gives the production path: scan local Lean/stat
     sources once, persist a SQLite FTS index, then let repeated formal-gap
-    searches use FTS candidate generation plus Lean-shape reranking. Omitting
-    the path keeps the old in-memory backend for small fixtures and tests.
+    searches use FTS candidate generation, Lean-shape reranking, and by default
+    declaration-symbol graph expansion. Omitting the path keeps the old
+    in-memory backend for small fixtures and tests.
     """
 
     declarations = build_formal_source_index(roots=roots)
     if db_path is not None:
-        return FormalSourceSqliteIndex.build(declarations, db_path)
+        sqlite_index = FormalSourceSqliteIndex.build(declarations, db_path)
+        if include_graph:
+            from .formal_source_hybrid import FormalSourceHybridRetriever
+
+            return FormalSourceHybridRetriever(declarations, sqlite_index)
+        return sqlite_index
     return FormalSourceRetriever(declarations)
 
 

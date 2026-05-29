@@ -43,9 +43,14 @@ class FormalSourceGraphRetriever:
 
     source = "formal_source_graph"
 
-    def __init__(self, declarations: list[FormalDeclaration] | None = None) -> None:
+    def __init__(
+        self,
+        declarations: list[FormalDeclaration] | None = None,
+        *,
+        base_retriever: object | None = None,
+    ) -> None:
         self.declarations = declarations if declarations is not None else build_formal_source_index()
-        self.base_retriever = FormalSourceRetriever(self.declarations)
+        self.base_retriever = base_retriever or FormalSourceRetriever(self.declarations)
         self._decl_key_to_idx = {_decl_key(decl): idx for idx, decl in enumerate(self.declarations)}
         self._decl_symbols = [_symbols_for_declaration(decl) for decl in self.declarations]
         self._symbol_to_decl: dict[str, set[int]] = defaultdict(set)

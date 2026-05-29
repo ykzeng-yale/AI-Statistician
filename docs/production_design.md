@@ -674,6 +674,12 @@ The package integrates existing systems where appropriate:
   It expands formal-gap queries through nearby Mathlib/StatInference
   declarations with shared heads such as `variance`, `IndepFun`, `Rademacher`,
   `Hajek`, or `ConditionalExpectation`.
+- The default persisted research benchmark backend now fuses those two paths:
+  `sqlite_fts_shape_graph_hybrid` first asks the SQLite FTS/shape index for
+  bounded candidates, then expands them through the declaration-symbol graph
+  and merges the two rankings. This keeps runtime local/reproducible while
+  moving formal-gap grounding closer to the provider-fusion architecture used
+  by Loogle/Lean Finder/ReProver-style premise selection.
 - The source inventory now also tracks the local LeanSearchClient checkout
   (`#leansearch`, `#loogle`, and state-search syntax) and the local LeanDojo-v2
   checkout (repository tracing, proof-state datasets, retrieval-augmented
@@ -681,9 +687,9 @@ The package integrates existing systems where appropriate:
   targets, not mandatory runtime dependencies for the offline release gate.
 - The open-question `research-benchmark` path now accepts the same persisted
   backend and the CLI defaults to it. Formal-gap skeletons are therefore
-  grounded through the local SQLite FTS + Lean-shape search path used by the
-  source audit, with a separate symbol-graph audit recording graph expansion
-  quality.
+  grounded through the local SQLite FTS + Lean-shape + symbol-graph path used by
+  the source audits, with a separate symbol-graph audit recording graph
+  expansion quality.
 - CSLib is useful to track as an external Lean library for future algorithm and
   proof-search infrastructure work, but it is not yet a priority runtime corpus
   for statistical probability/asymptotic lemmas.
