@@ -462,6 +462,18 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("meas_ge_le_variance_div_sq", content)
         self.assertNotIn("by sorry", content)
 
+    def test_wald_interval_obligation_links_containment_to_absolute_error(self) -> None:
+        obligation = get_obligation("wald_interval_contains_iff_abs_error")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertIn("theorem waldInterval_contains_iff_abs_error", content)
+        self.assertIn("estimate - radius ≤ theta", content)
+        self.assertIn("theta ≤ estimate + radius", content)
+        self.assertIn("|estimate - theta| ≤ radius", content)
+        self.assertIn("abs_le", content)
+        self.assertIn("linarith", content)
+        self.assertIn("coverage", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_finite_union_bound_obligation_uses_mathlib_bonferroni_lemma(self) -> None:
         obligation = get_obligation("finite_union_bound")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)

@@ -1917,6 +1917,7 @@ class TheoryPlanner:
                         "hc1_variance_consistency",
                         "wald_interval_slutsky",
                     ),
+                    proof_obligations=("wald_interval_contains_iff_abs_error",),
                 ),
             ]
             procedures = [
@@ -2441,6 +2442,7 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "finite_sample_mean_variance_indep",
         "finite_sample_mean_chebyshev_indep",
         "estimator_error_chebyshev",
+        "wald_interval_contains_iff_abs_error",
         "mean2_estimator_chebyshev_indep",
         "variance_nonneg",
     ),

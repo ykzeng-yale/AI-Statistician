@@ -175,6 +175,43 @@ theorem estimator_error_chebyshev {Ω : Type*} [MeasurableSpace Ω]
         tags=("estimator", "variance", "tail_bound", "chebyshev", "finite_sample", "concentration"),
         expected_lemmas=("meas_ge_le_variance_div_sq",),
     ),
+    "wald_interval_contains_iff_abs_error": FormalObligation(
+        id="wald_interval_contains_iff_abs_error",
+        title="Symmetric Wald interval containment is absolute-error control",
+        english=(
+            "For real-valued point estimates, a target lies inside the symmetric "
+            "interval estimate ± radius exactly when the absolute estimation "
+            "error is at most the radius. This is the deterministic bridge from "
+            "tail/error bounds to Wald-style confidence-interval coverage; it "
+            "does not assert CLT, standard-error consistency, or nominal coverage."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+
+theorem waldInterval_contains_iff_abs_error
+    (estimate theta radius : ℝ) :
+    (estimate - radius ≤ theta ∧ theta ≤ estimate + radius) ↔
+      |estimate - theta| ≤ radius := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  constructor\n"
+            "  · intro h\n"
+            "    rw [abs_le]\n"
+            "    constructor\n"
+            "    · linarith [h.2]\n"
+            "    · linarith [h.1]\n"
+            "  · intro h\n"
+            "    have h_abs := abs_le.mp h\n"
+            "    constructor\n"
+            "    · linarith [h_abs.2]\n"
+            "    · linarith [h_abs.1]"
+        ),
+        tags=("estimator", "confidence_interval", "coverage", "wald", "absolute_error", "real_algebra"),
+        expected_lemmas=("abs_le", "linarith"),
+    ),
     "mean2_estimator_chebyshev_indep": FormalObligation(
         id="mean2_estimator_chebyshev_indep",
         title="Chebyshev error bound for an average of independent estimators",
