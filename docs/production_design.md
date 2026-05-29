@@ -251,6 +251,23 @@ created or registered, and all rows preserve provenance back to the trace that
 generated them. `research-system-audit` includes this export as a release gate
 so future training work has a stable, audited data source.
 
+Research policy baseline:
+
+```bash
+python3 -m ai_statistician.cli research-policy-baseline \
+  --train-jsonl runs/research_training_export/research_sft_train.jsonl \
+  --validation-jsonl runs/research_training_export/research_sft_validation.jsonl \
+  --out runs/research_policy_baseline
+```
+
+This no-training baseline retrieves the nearest training trace example for each
+validation problem-formalization, theory-plan, formal-gap-routing, or
+simulation-critique task. It reports exact completion match, same-task routing,
+same-problem-class retrieval, valid-JSON rate, and JSON top-level key F1. The
+metric is deliberately modest: it is a floor for future trained research agents
+to beat, not a claim that nearest-neighbor memory solves theory development.
+`research-system-audit` runs this baseline after `research-training-export`.
+
 Next-iteration queue:
 
 ```bash
@@ -877,6 +894,9 @@ validation example's retrieved context. It is intentionally weak; future
 whole-proof SFT or rejection-sampling policies should beat it. The unified
 `research-system-audit` also runs this baseline automatically after exporting
 the proof SFT data, so every release snapshot has a no-training policy floor.
+The research-agent side has an analogous `research-policy-baseline` over
+problem-formalization, theory-plan, formal-gap-routing, and simulation-critique
+examples exported from full research traces.
 
 Retrieval audit:
 

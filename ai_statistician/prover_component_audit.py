@@ -12,6 +12,8 @@ from .proof_bank import all_obligations, proof_bank_fingerprint
 from .proof_policy_baseline import PROOF_POLICY_BASELINE_SCHEMA_VERSION
 from .proof_repair_export import PROOF_REPAIR_EXPORT_SCHEMA_VERSION
 from .proof_training_export import PROOF_TRAINING_EXPORT_SCHEMA_VERSION
+from .research_policy_baseline import RESEARCH_POLICY_BASELINE_SCHEMA_VERSION
+from .research_training_export import RESEARCH_TRAINING_EXPORT_SCHEMA_VERSION
 from .research_lab import (
     PROVABLE_SUBCLAIMS,
     all_research_algorithm_specs,
@@ -282,6 +284,23 @@ def build_prover_component_audit(
             missing_or_next=(
                 "No tactic-state transitions or earliest failing tactic extraction yet.",
                 "Use existing LeanDojo/ReProver/Lean Finder infrastructure where possible.",
+            ),
+        ),
+        ProverComponentRow(
+            component="research-agent trace training data substrate",
+            paper_stack_layer="Layer 2 -> Layer 4 learning loop",
+            status="PARTIAL_DATA_EXPORT",
+            trained_or_built="Built trace-level SFT/GRPO seed exports and a no-training nearest-neighbor baseline for theory-lab agents; no model weights trained.",
+            why_it_matters="Problem formalization, theory planning, formal-gap routing, and simulation critique need their own supervised and reward-labeled data, not only proof-bank data.",
+            current_evidence=(
+                f"research_training_export_schema_version={RESEARCH_TRAINING_EXPORT_SCHEMA_VERSION}",
+                f"research_policy_baseline_schema_version={RESEARCH_POLICY_BASELINE_SCHEMA_VERSION}",
+                "research-training-export writes research_sft_train.jsonl, research_sft_validation.jsonl, research_grpo_tasks.jsonl, and a legacy training manifest",
+                "research-policy-baseline evaluates nearest-neighbor memory on the exported research-agent validation examples",
+            ),
+            missing_or_next=(
+                "No trained research-agent policy, DPO pair export, or simulator-feedback RL loop yet.",
+                "No human-reviewed gold traces beyond registry-gated system traces.",
             ),
         ),
         ProverComponentRow(

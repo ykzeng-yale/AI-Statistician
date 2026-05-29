@@ -50,6 +50,7 @@ from ai_statistician.research_lab import (
 )
 from ai_statistician.research_next_iteration_audit import audit_next_iteration_queue
 from ai_statistician.research_paper_index import build_paper_source_index, retrieve_paper_sources
+from ai_statistician.research_policy_baseline import evaluate_research_policy_baseline
 from ai_statistician.research_report import build_research_markdown_report
 from ai_statistician.research_system_audit import ResearchSystemAuditConfig, run_research_system_audit
 from ai_statistician.research_trace_audit import audit_research_traces
@@ -1577,6 +1578,71 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(Path("runs/test_research_training_export/research_training_manifest.json").exists())
         self.assertTrue(Path("runs/test_research_training_export/research_training.md").exists())
 
+    def test_research_policy_baseline_scores_exported_agent_examples(self) -> None:
+        out = Path("runs/test_research_policy_baseline_fixture")
+        out.mkdir(parents=True, exist_ok=True)
+        train = out / "train.jsonl"
+        validation = out / "validation.jsonl"
+        train_rows = [
+            {
+                "example_id": "train:formalize:causal",
+                "task": "problem_formalization",
+                "prompt": "causal ATE binary treatment positivity",
+                "completion": json.dumps({"problem_class": "semiparametric_causal_ate", "estimand": "ATE"}),
+                "question_id": "causal_ate_aipw",
+                "problem_class": "semiparametric_causal_ate",
+                "procedure_ids": ["oracle_aipw_ate"],
+                "theorem_goal_ids": ["aipw_double_robustness"],
+                "tags": ["research_trace", "problem_formalization", "semiparametric_causal_ate"],
+            },
+            {
+                "example_id": "train:sim:causal",
+                "task": "simulation_critique",
+                "prompt": "causal ATE simulation coverage bias rmse",
+                "completion": json.dumps({"passed": True, "recommended_route": "accept"}),
+                "question_id": "causal_ate_aipw",
+                "problem_class": "semiparametric_causal_ate",
+                "procedure_ids": ["oracle_aipw_ate"],
+                "theorem_goal_ids": ["aipw_double_robustness"],
+                "tags": ["research_trace", "simulation_critique", "semiparametric_causal_ate"],
+            },
+        ]
+        validation_rows = [
+            {
+                "example_id": "val:formalize:causal",
+                "task": "problem_formalization",
+                "prompt": "paper asks average treatment effect with binary treatment and positivity",
+                "completion": json.dumps({"problem_class": "semiparametric_causal_ate", "estimand": "ATE"}),
+                "question_id": "causal_ate_holdout",
+                "problem_class": "semiparametric_causal_ate",
+                "procedure_ids": ["oracle_aipw_ate"],
+                "theorem_goal_ids": ["aipw_double_robustness"],
+                "tags": ["research_trace", "problem_formalization", "semiparametric_causal_ate"],
+            }
+        ]
+        train.write_text("\n".join(json.dumps(row) for row in train_rows) + "\n", encoding="utf-8")
+        validation.write_text("\n".join(json.dumps(row) for row in validation_rows) + "\n", encoding="utf-8")
+
+        payload = evaluate_research_policy_baseline(
+            train,
+            validation,
+            Path("runs/test_research_policy_baseline"),
+            k=2,
+        )
+        self.assertTrue(payload["all_ok"])
+        self.assertEqual(payload["n_train"], 2)
+        self.assertEqual(payload["n_validation"], 1)
+        self.assertEqual(payload["same_task"], 1)
+        self.assertEqual(payload["same_problem_class"], 1)
+        self.assertEqual(payload["predicted_valid_json"], 1)
+        self.assertGreater(payload["mean_json_key_f1"], 0)
+        self.assertTrue(Path(payload["predictions_jsonl"]).exists())
+        rows = [
+            json.loads(line)
+            for line in Path(payload["predictions_jsonl"]).read_text(encoding="utf-8").splitlines()
+        ]
+        self.assertEqual(rows[0]["predicted_from_task"], "problem_formalization")
+
     def test_research_capability_audit_maps_goal_to_evidence_and_gaps(self) -> None:
         report = build_research_capability_audit(
             root=Path("."),
@@ -1695,6 +1761,7 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(payload["gates"]["formal_gap_task_export"])
         self.assertTrue(payload["gates"]["proof_bank_expansion_export"])
         self.assertTrue(payload["gates"]["research_training_export"])
+        self.assertTrue(payload["gates"]["research_policy_baseline"])
         self.assertTrue(payload["gates"]["next_iteration_queue"])
         self.assertTrue(payload["gates"]["research_report"])
         self.assertEqual(payload["counts"]["questions"], 10)
@@ -1790,6 +1857,10 @@ class SystemTests(unittest.TestCase):
             payload["counts"]["research_training_sft_examples"],
         )
         self.assertEqual(payload["counts"]["research_training_grpo_tasks"], payload["counts"]["questions"])
+        self.assertEqual(payload["counts"]["research_policy_baseline_validation"], payload["counts"]["research_training_validation"])
+        self.assertEqual(payload["counts"]["research_policy_baseline_valid_json"], payload["counts"]["research_policy_baseline_validation"])
+        self.assertGreaterEqual(payload["counts"]["research_policy_baseline_same_task"], 0)
+        self.assertGreaterEqual(payload["counts"]["research_policy_baseline_mean_json_key_f1"], 0.0)
         self.assertEqual(payload["counts"]["next_iteration_ok"], payload["counts"]["next_iteration_items"])
         self.assertGreater(payload["counts"]["next_iteration_actionable_items"], 0)
         self.assertGreater(payload["counts"]["next_iteration_formal_verifier_items"], 0)
@@ -1845,6 +1916,8 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(Path(payload["artifacts"]["research_training_validation"]).exists())
         self.assertTrue(Path(payload["artifacts"]["research_training_grpo"]).exists())
         self.assertTrue(Path(payload["artifacts"]["research_training_legacy_manifest"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["research_policy_baseline"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["research_policy_baseline_predictions"]).exists())
         self.assertTrue(Path(payload["artifacts"]["next_iteration_queue"]).exists())
         self.assertTrue(Path(payload["artifacts"]["next_iteration_queue_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["research_report"]).exists())

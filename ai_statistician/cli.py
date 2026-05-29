@@ -34,6 +34,7 @@ from .research_knowledge_audit import audit_research_knowledge
 from .research_lab import audit_research_algorithm_registry, load_open_research_questions, run_research_benchmark
 from .research_next_iteration_audit import audit_next_iteration_queue
 from .research_capability_audit import build_research_capability_audit, write_research_capability_audit
+from .research_policy_baseline import evaluate_research_policy_baseline
 from .research_report import build_research_markdown_report
 from .research_system_audit import ResearchSystemAuditConfig, run_research_system_audit
 from .research_trace_audit import audit_research_traces
@@ -694,6 +695,27 @@ def _research_training_export(args: argparse.Namespace) -> int:
     print(f"\nresearch training manifest written to {(Path(args.out) / 'research_training_manifest.json').resolve()}")
     print(f"train JSONL written to {(Path(args.out) / 'research_sft_train.jsonl').resolve()}")
     print(f"validation JSONL written to {(Path(args.out) / 'research_sft_validation.jsonl').resolve()}")
+    return 0 if payload["all_ok"] else 1
+
+
+def _research_policy_baseline(args: argparse.Namespace) -> int:
+    payload = evaluate_research_policy_baseline(
+        Path(args.train_jsonl),
+        Path(args.validation_jsonl),
+        Path(args.out),
+        k=args.k,
+    )
+    print("\nAI Statistical Theory Lab Research Policy Baseline")
+    print("=" * 72)
+    print(
+        f"train={payload['n_train']} validation={payload['n_validation']} "
+        f"top1_exact={payload['top1_exact_rate']:.3f} "
+        f"same_task={payload['same_task_rate']:.3f} "
+        f"json_key_f1={payload['mean_json_key_f1']:.3f} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(f"\nmanifest written to {(Path(args.out) / 'research_policy_baseline_manifest.json').resolve()}")
+    print(f"predictions written to {(Path(args.out) / 'research_policy_baseline_predictions.jsonl').resolve()}")
     return 0 if payload["all_ok"] else 1
 
 
@@ -1488,6 +1510,20 @@ def build_parser() -> argparse.ArgumentParser:
         help="research trace training export output directory",
     )
     research_training_export.set_defaults(func=_research_training_export)
+
+    research_policy_baseline = sub.add_parser(
+        "research-policy-baseline",
+        help="evaluate a nearest-neighbor baseline over exported research-agent SFT data",
+    )
+    research_policy_baseline.add_argument("--train-jsonl", required=True, help="research_sft_train.jsonl")
+    research_policy_baseline.add_argument("--validation-jsonl", required=True, help="research_sft_validation.jsonl")
+    research_policy_baseline.add_argument("--k", type=int, default=5, help="top-k research-memory candidates")
+    research_policy_baseline.add_argument(
+        "--out",
+        default="runs/research_policy_baseline",
+        help="output directory for research policy baseline predictions and manifest",
+    )
+    research_policy_baseline.set_defaults(func=_research_policy_baseline)
 
     next_iteration_audit = sub.add_parser(
         "next-iteration-audit",
