@@ -8,6 +8,7 @@ from pathlib import Path
 from .frontier_backlog_audit import audit_frontier_backlog
 from .frontier_coverage_audit import audit_frontier_coverage
 from .frontier_precision_audit import audit_frontier_precision
+from .formal_gap_task_export import export_formal_gap_lean_tasks
 from .formalization_target_audit import audit_formalization_targets
 from .formal_source_graph import audit_formal_source_graph
 from .formal_source_index import build_formal_source_search_backend
@@ -136,6 +137,10 @@ async def run_research_system_audit(
         out_dir / "research_benchmark",
         out_dir / "formalization_target_audit",
     )
+    formal_gap_task_manifest = export_formal_gap_lean_tasks(
+        out_dir / "research_benchmark",
+        out_dir / "formal_gap_lean_tasks",
+    )
     next_iteration_manifest = audit_next_iteration_queue(
         out_dir / "research_benchmark",
         out_dir / "next_iteration_queue",
@@ -185,6 +190,7 @@ async def run_research_system_audit(
         "research_trace_audit": bool(trace_manifest["all_ok"]),
         "research_gap_backlog": bool(gap_backlog_manifest["all_ok"]),
         "formalization_target_audit": bool(formalization_target_manifest["all_ok"]),
+        "formal_gap_task_export": bool(formal_gap_task_manifest["all_ok"]),
         "next_iteration_queue": bool(next_iteration_manifest["all_ok"]),
         "research_report": bool(research_report_manifest["all_ok"]),
     }
@@ -290,6 +296,8 @@ async def run_research_system_audit(
             "formalization_targets_with_proof_bank_bridge": formalization_target_manifest[
                 "n_with_proof_bank_bridge"
             ],
+            "formal_gap_lean_tasks_ok": formal_gap_task_manifest["n_ok"],
+            "formal_gap_lean_tasks_total": formal_gap_task_manifest["n_tasks"],
             "next_iteration_items": next_iteration_manifest["n_items"],
             "next_iteration_actionable_items": next_iteration_manifest["n_actionable_items"],
             "next_iteration_ok": next_iteration_manifest["n_ok"],
@@ -392,6 +400,15 @@ async def run_research_system_audit(
             ),
             "formalization_target_report": str(
                 out_dir / "formalization_target_audit" / "formalization_targets.md"
+            ),
+            "formal_gap_lean_tasks": str(
+                out_dir / "formal_gap_lean_tasks" / "formal_gap_lean_task_manifest.json"
+            ),
+            "formal_gap_lean_tasks_jsonl": str(
+                out_dir / "formal_gap_lean_tasks" / "formal_gap_lean_tasks.jsonl"
+            ),
+            "formal_gap_lean_tasks_report": str(
+                out_dir / "formal_gap_lean_tasks" / "formal_gap_lean_tasks.md"
             ),
             "next_iteration_queue": str(
                 out_dir / "next_iteration_queue" / "next_iteration_queue_manifest.json"

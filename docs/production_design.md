@@ -195,6 +195,23 @@ developer sees the most relevant verified bridge first instead of an
 alphabetical list of every proof obligation attached to the broader theorem
 goal.
 
+Formal-gap Lean task export:
+
+```bash
+python3 -m ai_statistician.cli formal-gap-task-export \
+  --run-dir runs/research_benchmark \
+  --out runs/formal_gap_lean_tasks
+```
+
+This converts every audited `FORMAL_GAP` skeleton into a JSONL Lean task using
+the legacy `lean_task.schema.json` shape (`task_id`, `imports`, `namespace`,
+`statement`, `allowed_sorry`, `tags`, `dependencies`, and
+`expected_patterns`) plus richer statistical metadata. These tasks are not proof
+claims. They are theorem-development work packets for a future formalizer,
+LeanDojo/ReProver-style search loop, or human Lean developer. The release-style
+`research-system-audit` writes them as
+`formal_gap_lean_tasks/formal_gap_lean_tasks.jsonl`.
+
 Next-iteration queue:
 
 ```bash
@@ -286,8 +303,9 @@ runs proof-bank retrieval, frontier precision audit, research capability audit,
 research knowledge-source audit, research algorithm audit, proof verification,
 proof-training export, the proof-policy baseline, prover-component audit, the
 frontier research benchmark, frontier theory-target grading, the research trace
-audit, formal-gap backlog, formalization target queue, formal-source graph,
-next-iteration queue, and the human-readable research report, then writes
+audit, formal-gap backlog, formalization target queue, formal-gap Lean task
+export, formal-source graph, next-iteration queue, and the human-readable
+research report, then writes
 `research_system_audit_manifest.json` with gates and artifact paths. The
 training, baseline, and theory-target gates check
 artifact integrity and scoring coverage, not model quality: they make

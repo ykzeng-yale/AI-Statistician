@@ -11,6 +11,7 @@ from ai_statistician.doctor import build_doctor_report, write_doctor_manifest
 from ai_statistician.frontier_coverage_audit import audit_frontier_coverage, load_frontier_benchmark_questions
 from ai_statistician.frontier_precision_audit import audit_frontier_precision
 from ai_statistician.frontier_smoke_benchmark import FrontierSmokeConfig, run_frontier_smoke_benchmark, select_supported_frontier_questions
+from ai_statistician.formal_gap_task_export import export_formal_gap_lean_tasks
 from ai_statistician.formalization_target_audit import audit_formalization_targets
 from ai_statistician.formal_source_graph import FormalSourceGraphRetriever, audit_formal_source_graph
 from ai_statistician.formal_source_index import (
@@ -1443,6 +1444,41 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(Path("runs/test_formalization_target_audit/formalization_target_manifest.json").exists())
         self.assertTrue(Path("runs/test_formalization_target_audit/formalization_targets.md").exists())
 
+    def test_formal_gap_task_export_writes_lean_task_jsonl(self) -> None:
+        async def run():
+            questions = load_open_research_questions(Path("examples/research_questions.json"))[:2]
+            await run_research_benchmark(
+                questions,
+                Path("runs/test_formal_gap_task_run"),
+                proof_verifier=MockProofVerifier(),
+                n_runs=25,
+                seed=20260528,
+            )
+            return export_formal_gap_lean_tasks(
+                Path("runs/test_formal_gap_task_run"),
+                Path("runs/test_formal_gap_lean_tasks"),
+            )
+
+        payload = asyncio.run(run())
+        self.assertTrue(payload["all_ok"])
+        self.assertGreater(payload["n_tasks"], 0)
+        self.assertEqual(payload["n_ok"], payload["n_tasks"])
+        first = payload["tasks"][0]
+        self.assertTrue(first["task_id"].startswith("formal_gap:"))
+        self.assertIn("Mathlib", first["imports"])
+        self.assertEqual(first["namespace"], "AIStatisticianResearchGaps")
+        self.assertTrue(first["allowed_sorry"])
+        self.assertIn("FORMAL_GAP", first["expected_patterns"])
+        self.assertIn("FORMAL_GAP", first["statement"])
+        self.assertTrue(first["required_primitives"])
+        self.assertTrue(first["retrieved_formal_sources"])
+        jsonl = Path(payload["jsonl_path"])
+        self.assertTrue(jsonl.exists())
+        rows = [json.loads(line) for line in jsonl.read_text(encoding="utf-8").splitlines()]
+        self.assertEqual(len(rows), payload["n_tasks"])
+        self.assertTrue(Path("runs/test_formal_gap_lean_tasks/formal_gap_lean_task_manifest.json").exists())
+        self.assertTrue(Path("runs/test_formal_gap_lean_tasks/formal_gap_lean_tasks.md").exists())
+
     def test_research_capability_audit_maps_goal_to_evidence_and_gaps(self) -> None:
         report = build_research_capability_audit(
             root=Path("."),
@@ -1558,6 +1594,7 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(payload["gates"]["research_trace_audit"])
         self.assertTrue(payload["gates"]["research_gap_backlog"])
         self.assertTrue(payload["gates"]["formalization_target_audit"])
+        self.assertTrue(payload["gates"]["formal_gap_task_export"])
         self.assertTrue(payload["gates"]["next_iteration_queue"])
         self.assertTrue(payload["gates"]["research_report"])
         self.assertEqual(payload["counts"]["questions"], 10)
@@ -1637,6 +1674,8 @@ class SystemTests(unittest.TestCase):
         )
         self.assertGreater(payload["counts"]["formalization_targets_with_proof_bank_bridge"], 0)
         self.assertGreater(payload["counts"]["formalization_targets_total"], 0)
+        self.assertEqual(payload["counts"]["formal_gap_lean_tasks_ok"], payload["counts"]["formal_gap_lean_tasks_total"])
+        self.assertEqual(payload["counts"]["formal_gap_lean_tasks_total"], payload["counts"]["formal_gaps"])
         self.assertEqual(payload["counts"]["next_iteration_ok"], payload["counts"]["next_iteration_items"])
         self.assertGreater(payload["counts"]["next_iteration_actionable_items"], 0)
         self.assertGreater(payload["counts"]["next_iteration_formal_verifier_items"], 0)
@@ -1679,6 +1718,9 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(Path(payload["artifacts"]["research_gap_backlog"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formalization_target_audit"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formalization_target_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formal_gap_lean_tasks"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formal_gap_lean_tasks_jsonl"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formal_gap_lean_tasks_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["next_iteration_queue"]).exists())
         self.assertTrue(Path(payload["artifacts"]["next_iteration_queue_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["research_report"]).exists())

@@ -14,6 +14,7 @@ from .frontier_coverage_audit import audit_frontier_coverage
 from .frontier_precision_audit import audit_frontier_precision
 from .frontier_smoke_benchmark import FrontierSmokeConfig, run_frontier_smoke_benchmark
 from .frontier_theory_target_audit import audit_frontier_theory_targets
+from .formal_gap_task_export import export_formal_gap_lean_tasks
 from .formalization_target_audit import audit_formalization_targets
 from .formal_source_graph import audit_formal_source_graph
 from .formal_source_index import audit_formal_source_index
@@ -623,6 +624,25 @@ def _formalization_target_audit(args: argparse.Namespace) -> int:
         f"{(Path(args.out) / 'formalization_target_manifest.json').resolve()}"
     )
     print(f"markdown report written to {(Path(args.out) / 'formalization_targets.md').resolve()}")
+    return 0 if payload["all_ok"] else 1
+
+
+def _formal_gap_task_export(args: argparse.Namespace) -> int:
+    payload = export_formal_gap_lean_tasks(Path(args.run_dir), Path(args.out))
+    print("\nAI Statistical Theory Lab Formal Gap Lean Tasks")
+    print("=" * 72)
+    print(f"tasks={payload['n_ok']}/{payload['n_tasks']} all_ok={payload['all_ok']}")
+    for row in payload["tasks"][:10]:
+        print(
+            f"  {row['priority_hint']:24} {row['task_id']} "
+            f"primitives={len(row['required_primitives'])}"
+        )
+    print(
+        f"\nformal gap task manifest written to "
+        f"{(Path(args.out) / 'formal_gap_lean_task_manifest.json').resolve()}"
+    )
+    print(f"jsonl written to {(Path(args.out) / 'formal_gap_lean_tasks.jsonl').resolve()}")
+    print(f"markdown report written to {(Path(args.out) / 'formal_gap_lean_tasks.md').resolve()}")
     return 0 if payload["all_ok"] else 1
 
 
@@ -1358,6 +1378,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="formalization target audit output directory",
     )
     formalization_target_audit.set_defaults(func=_formalization_target_audit)
+
+    formal_gap_task_export = sub.add_parser(
+        "formal-gap-task-export",
+        help="export FORMAL_GAP skeletons as machine-readable Lean task JSONL",
+    )
+    formal_gap_task_export.add_argument(
+        "--run-dir",
+        required=True,
+        help="directory containing research_benchmark_manifest.json and research trace JSON files",
+    )
+    formal_gap_task_export.add_argument(
+        "--out",
+        default="runs/formal_gap_lean_tasks",
+        help="formal gap Lean task output directory",
+    )
+    formal_gap_task_export.set_defaults(func=_formal_gap_task_export)
 
     next_iteration_audit = sub.add_parser(
         "next-iteration-audit",
