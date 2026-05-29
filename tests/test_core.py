@@ -467,6 +467,18 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("conditional_mean_residual_zero", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_aipw_score_integrability_follows_from_components(self) -> None:
+        obligation = get_obligation("aipw_score_integrable_of_components")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("aipw_score_expectation_decompose",))
+        self.assertIn("def aipwScore", content)
+        self.assertIn("theorem aipwScore_integrable_of_components", content)
+        self.assertIn("Integrable (aipwScore contrast treatAug controlAug) μ", content)
+        self.assertIn("(hContrast.add hTreat).sub hControl", content)
+        self.assertIn("integrability_of_score_terms", obligation.tags)
+        self.assertIn("asymptotic_normality", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_finite_sample_mean_chebyshev_composes_mean_variance_and_tail_bound(self) -> None:
         obligation = get_obligation("finite_sample_mean_chebyshev_indep")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
@@ -1860,6 +1872,7 @@ class SystemTests(unittest.TestCase):
                 "difference_estimator_unbiased",
                 "aipw_score_expectation_decompose",
                 "aipw_score_expectation_target_of_aug_cancel",
+                "aipw_score_integrable_of_components",
             ],
         )
         conformal_trace = json.loads(Path("runs/test_research_benchmark/conformal_prediction_coverage.json").read_text())

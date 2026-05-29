@@ -8,20 +8,20 @@ Runtime used:
 PYTHONPATH=/Users/yukang/AI\ Statistician \
 /Users/yukang/LeanProjects/LeanPractice/.venv/bin/python \
   -m ai_statistician.cli proof-audit --real-lean \
-  --out runs/proof_audit_real_full_45
+  --out runs/proof_audit_real_full_46
 ```
 
 Result:
 
 ```text
-verified=45/45
-kernel=45/45
+verified=46/46
+kernel=46/46
 verifier=axle.verify_proof
 strength=axle_lean_kernel
 ```
 
 This is the current evidence that the registered proof bank is not only
-mock-checked: all 45 registered Mathlib-backed obligations were accepted by
+mock-checked: all 46 registered Mathlib-backed obligations were accepted by
 AXLE/Lean-kernel verification in the real external runtime.
 
 Latest real research-system validation: 2026-05-29.
@@ -32,7 +32,7 @@ Runtime used:
 PYTHONPATH=/Users/yukang/AI\ Statistician \
 /Users/yukang/LeanProjects/LeanPractice/.venv/bin/python \
   -m ai_statistician.cli research-system-audit --real-lean \
-  --runs 20 --out runs/research_system_real_lean_45_aipw_cancel_bridge
+  --runs 20 --out runs/research_system_real_lean_46_aipw_integrability_bridge
 ```
 
 Result:
@@ -46,8 +46,8 @@ frontier_supported=60/60
 frontier_precision=60/60
 frontier_backlog=0/0
 frontier_smoke=23/23
-proofs_verified=45/45
-proofs_kernel_verified=45/45
+proofs_verified=46/46
+proofs_kernel_verified=46/46
 proof_verification_strength=axle_lean_kernel
 research_traces_ok=10/10
 formal_gaps=20
@@ -55,9 +55,9 @@ formalized_gaps=20
 autoform_targets=20/20
 formal_source_graph_symbols=69330
 formal_source_graph_edges=1361926
-verifier_cache_hits=294
-verifier_cache_misses=45
-verifier_cache_size=45
+verifier_cache_hits=296
+verifier_cache_misses=46
+verifier_cache_size=46
 ```
 
 The research-system run proves that `--real-lean` now flows through the actual
@@ -101,6 +101,13 @@ that an AIPW-style score has expectation `psi` when its contrast has expectation
 and `nuisance_correctness_cases` now rank this theorem as their next verified
 bridge. This remains finite expectation algebra, not a proof of conditional
 expectation residual identities or full double robustness.
+
+The 46th obligation is `aipw_score_integrable_of_components`, proving that an
+AIPW-style score is integrable when its contrast and augmentation components
+are integrable. It raises `proof_bank_expansion_bridge_ready` from 10 to 11:
+`integrability_of_score_terms` now ranks this theorem as its verified bridge.
+This remains an integrability side-condition theorem, not a nuisance-rate or
+asymptotic-normality proof.
 
 Important boundary:
 

@@ -301,9 +301,9 @@ downstream by either a proved subclaim or a formal gap skeleton.
 Theorem goals can now also carry explicit `proof_obligations`, so a frontier
 gap can point to the exact AXLE-verified subclaims that already support part of
 the argument. The current templates use this for causal AIPW expectation
-linearity and augmentation-cancellation algebra, conformal probability
-complements, survival event indicators, robust mean Chebyshev/Markov steps,
-design-based variance algebra, BH/anytime
+linearity, augmentation-cancellation algebra, and score-term integrability,
+conformal probability complements, survival event indicators, robust mean
+Chebyshev/Markov steps, design-based variance algebra, BH/anytime
 probability inequalities, PCA variance positivity, extreme-tail probability
 facts, nonparametric sieve regression error bounds, and DP private-mean noise
 decomposition. For example, the private mean error-decomposition gap links to

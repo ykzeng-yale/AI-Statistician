@@ -709,6 +709,11 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   algebraic bridge now attached to `conditional_mean_residual_zero` and
   `nuisance_correctness_cases`; it is not a proof of conditional expectation
   residual identities or semiparametric double robustness.
+- `aipw_score_integrable_of_components`: if the contrast, treated
+  augmentation, and control augmentation terms are integrable, then the full
+  AIPW-style score is integrable. This is the verified bridge now attached to
+  `integrability_of_score_terms`; it is an integrability side-condition theorem,
+  not a nuisance-rate or asymptotic-normality result.
 - `variance_nonneg`: variance is nonnegative.
 - `variance_indep_add`: variance adds for independent L2 random variables.
 

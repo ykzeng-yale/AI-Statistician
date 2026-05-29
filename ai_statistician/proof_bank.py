@@ -1220,6 +1220,51 @@ theorem aipwScore_expectation_eq_target_of_aug_cancel {Ω : Type*} [MeasurableSp
         expected_lemmas=("integral_add", "integral_sub", "ring"),
         depends_on=("aipw_score_expectation_decompose",),
     ),
+    "aipw_score_integrable_of_components": FormalObligation(
+        id="aipw_score_integrable_of_components",
+        title="AIPW score integrability from component integrability",
+        english=(
+            "If the contrast, treated augmentation, and control augmentation "
+            "terms are integrable, then the AIPW-style contrast + treated "
+            "augmentation - control augmentation score is integrable. This is "
+            "the reusable bridge for the integrability side-condition in AIPW "
+            "double-robustness and asymptotic-normality theorem skeletons; it "
+            "does not prove conditional-expectation residual cancellation or "
+            "nuisance correctness."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+noncomputable def aipwScore {Ω : Type*}
+    (contrast treatAug controlAug : Ω → ℝ) : Ω → ℝ :=
+  contrast + treatAug - controlAug
+
+theorem aipwScore_integrable_of_components {Ω : Type*} [MeasurableSpace Ω]
+    (μ : Measure Ω) (contrast treatAug controlAug : Ω → ℝ)
+    (hContrast : Integrable contrast μ)
+    (hTreat : Integrable treatAug μ)
+    (hControl : Integrable controlAug μ) :
+    Integrable (aipwScore contrast treatAug controlAug) μ := by sorry
+"""
+        ),
+        proof_body="by\n  simpa [aipwScore] using (hContrast.add hTreat).sub hControl",
+        tags=(
+            "estimator",
+            "integrability",
+            "aipw",
+            "causal",
+            "semiparametric",
+            "double_robustness",
+            "asymptotic_normality",
+            "integrability_of_score_terms",
+            "conditional_mean_residual_zero",
+            "nuisance_correctness_cases",
+        ),
+        expected_lemmas=("Integrable.add", "Integrable.sub"),
+        depends_on=("aipw_score_expectation_decompose",),
+    ),
     "prob_measure_univ": FormalObligation(
         id="prob_measure_univ",
         title="Probability measure normalizes",
