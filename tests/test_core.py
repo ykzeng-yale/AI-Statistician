@@ -635,6 +635,18 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("IndepSet.measure_inter_eq_mul", content)
         self.assertNotIn("by sorry", content)
 
+    def test_independent_null_event_family_bridge_uses_iindep_inter_product(self) -> None:
+        obligation = get_obligation("independent_null_event_family_inter_probability")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("independent_event_inter_probability",))
+        self.assertIn("theorem independentFiniteEventInter_probability", content)
+        self.assertIn("iIndepSet A μ", content)
+        self.assertIn("μ (⋂ i ∈ I, A i) = ∏ i ∈ I, μ (A i)", content)
+        self.assertIn("iIndepSet.meas_biInter", content)
+        self.assertIn("null_pvalues", obligation.tags)
+        self.assertIn("fdr", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_first_borel_cantelli_obligation_uses_mathlib_limsup_lemma(self) -> None:
         obligation = get_obligation("first_borel_cantelli_limsup_zero")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)

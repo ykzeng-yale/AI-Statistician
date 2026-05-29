@@ -665,6 +665,13 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   Mathlib's `IndepSet.measure_inter_eq_mul`; this supports independent
   null-p-value decompositions and sequential likelihood-ratio product
   arguments.
+- `independent_null_event_family_inter_probability`: finite-family event
+  independence algebra
+  `iIndepSet A μ -> μ (⋂ i ∈ I, A i) = ∏ i ∈ I, μ (A i)`, proved directly
+  from Mathlib's `iIndepSet.meas_biInter`; this is the verified bridge now
+  attached to the BH/FDR `independent_null_pvalues` primitive. It proves the
+  product-form null-event probability ingredient only, not p-value validity,
+  ordering, or the full BH step-up FDR theorem.
 - `first_borel_cantelli_limsup_zero`: the first Borel-Cantelli repeated-event
   control lemma `sum μ(A_n) < ∞ -> μ(limsup A_n)=0`, wrapped around Mathlib's
   `MeasureTheory.measure_limsup_atTop_eq_zero`; this supports convergence,

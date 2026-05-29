@@ -1398,6 +1398,44 @@ theorem independent_event_inter_probability {Ω : Type*} [MeasurableSpace Ω]
         tags=("probability", "event", "independence", "intersection", "multiple_testing"),
         expected_lemmas=("IndepSet.measure_inter_eq_mul",),
     ),
+    "independent_null_event_family_inter_probability": FormalObligation(
+        id="independent_null_event_family_inter_probability",
+        title="Finite independent null-event intersection probability",
+        english=(
+            "For a finite family of independent null events, the probability of "
+            "their joint occurrence factors as the product of the individual "
+            "probabilities. This is a reusable finite-family bridge for "
+            "multiple-testing and BH/FDR proofs that need product-form null "
+            "event probabilities; it does not prove p-value validity, ordering, "
+            "or the BH step-up theorem."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+theorem independentFiniteEventInter_probability {Ω ι : Type*} [MeasurableSpace Ω]
+    (μ : Measure Ω) (A : ι → Set Ω) (I : Finset ι)
+    (h_indep : iIndepSet A μ) :
+    μ (⋂ i ∈ I, A i) = ∏ i ∈ I, μ (A i) := by sorry
+"""
+        ),
+        proof_body="by\n  exact iIndepSet.meas_biInter h_indep I",
+        tags=(
+            "probability",
+            "event",
+            "independence",
+            "intersection",
+            "finite_family",
+            "multiple_testing",
+            "fdr",
+            "bh",
+            "null_pvalues",
+            "pvalue",
+        ),
+        expected_lemmas=("iIndepSet.meas_biInter",),
+        depends_on=("independent_event_inter_probability",),
+    ),
     "first_borel_cantelli_limsup_zero": FormalObligation(
         id="first_borel_cantelli_limsup_zero",
         title="First Borel-Cantelli limsup event bound",
