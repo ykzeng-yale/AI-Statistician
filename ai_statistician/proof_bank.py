@@ -245,6 +245,51 @@ theorem coverageLowerBound_of_complement_error {Ω : Type*} [MeasurableSpace Ω]
         expected_lemmas=("prob_compl_eq_one_sub", "tsub_le_tsub_left"),
         depends_on=("prob_compl",),
     ),
+    "simultaneous_coverage_of_union_error_bound": FormalObligation(
+        id="simultaneous_coverage_of_union_error_bound",
+        title="Simultaneous coverage from finite bad-event union control",
+        english=(
+            "If the probability of the finite union of bad events is at most "
+            "alpha, then the probability that no bad event occurs is at least "
+            "1-alpha. This is the reusable bridge from Bonferroni/union error "
+            "control to simultaneous coverage; it does not prove the individual "
+            "bad-event bounds or exchangeability/rank arguments."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+theorem simultaneousCoverage_of_union_error_bound {Ω ι : Type*}
+    [MeasurableSpace Ω]
+    (μ : Measure Ω) [IsProbabilityMeasure μ]
+    (I : Finset ι) (A : ι → Set Ω) (α : ENNReal)
+    (hUnion : MeasurableSet (⋃ i ∈ I, A i))
+    (hbad : μ (⋃ i ∈ I, A i) ≤ α) :
+    1 - α ≤ μ (⋃ i ∈ I, A i)ᶜ := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  have hcoverage : μ (⋃ i ∈ I, A i)ᶜ = 1 - μ (⋃ i ∈ I, A i) := by\n"
+            "    exact prob_compl_eq_one_sub hUnion\n"
+            "  rw [hcoverage]\n"
+            "  exact tsub_le_tsub_left hbad 1"
+        ),
+        tags=(
+            "probability",
+            "event",
+            "coverage",
+            "simultaneous",
+            "simultaneous_coverage",
+            "union_bound",
+            "familywise_error",
+            "conformal",
+            "confidence_band",
+        ),
+        expected_lemmas=("prob_compl_eq_one_sub", "tsub_le_tsub_left"),
+        depends_on=("finite_union_budget_control", "coverage_lower_bound_of_complement_error"),
+    ),
     "finite_family_absolute_error_union_control": FormalObligation(
         id="finite_family_absolute_error_union_control",
         title="Finite-family simultaneous absolute-error control",

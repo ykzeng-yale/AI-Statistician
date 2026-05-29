@@ -1213,6 +1213,7 @@ class TheoryPlanner:
                         "event_probability_mono",
                         "finite_union_bound",
                         "finite_union_budget_control",
+                        "simultaneous_coverage_of_union_error_bound",
                     ),
                 )
             ]
@@ -1760,6 +1761,7 @@ class TheoryPlanner:
                         "finite_sample_mean_chebyshev_indep",
                         "estimator_error_chebyshev",
                         "finite_family_absolute_error_union_control",
+                        "simultaneous_coverage_of_union_error_bound",
                         "pairwise_top_rank_correct_of_separation",
                         "variance_nonneg",
                         "prob_compl",
@@ -2365,6 +2367,7 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "event_probability_mono",
         "finite_union_bound",
         "finite_union_budget_control",
+        "simultaneous_coverage_of_union_error_bound",
     ),
     "right_censored_survival_inference": (
         "event_indicator_expectation",
@@ -2433,6 +2436,7 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "integral_of_constant",
         "estimator_error_chebyshev",
         "finite_family_absolute_error_union_control",
+        "simultaneous_coverage_of_union_error_bound",
         "pairwise_top_rank_correct_of_separation",
         "variance_nonneg",
         "prob_compl",

@@ -486,6 +486,21 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("miscoverage", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_simultaneous_coverage_obligation_composes_union_error_bound(self) -> None:
+        obligation = get_obligation("simultaneous_coverage_of_union_error_bound")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(
+            obligation.depends_on,
+            ("finite_union_budget_control", "coverage_lower_bound_of_complement_error"),
+        )
+        self.assertIn("theorem simultaneousCoverage_of_union_error_bound", content)
+        self.assertIn("μ (⋃ i ∈ I, A i) ≤ α", content)
+        self.assertIn("1 - α ≤ μ (⋃ i ∈ I, A i)ᶜ", content)
+        self.assertIn("prob_compl_eq_one_sub", content)
+        self.assertIn("tsub_le_tsub_left", content)
+        self.assertIn("simultaneous_coverage", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_finite_family_error_union_control_supports_simultaneous_bands(self) -> None:
         obligation = get_obligation("finite_family_absolute_error_union_control")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
@@ -884,6 +899,7 @@ class SystemTests(unittest.TestCase):
         self.assertIn("affine_estimator_variance", measurement_rank_support)
         self.assertIn("finite_sample_mean_variance_indep", measurement_rank_support)
         self.assertIn("finite_family_absolute_error_union_control", measurement_rank_support)
+        self.assertIn("simultaneous_coverage_of_union_error_bound", measurement_rank_support)
         self.assertIn("pairwise_top_rank_correct_of_separation", measurement_rank_support)
 
     def test_mock_system_accepts_registered_questions(self) -> None:
@@ -1291,6 +1307,10 @@ class SystemTests(unittest.TestCase):
         conformal_goals = {row["id"]: row for row in conformal_trace["theorem_goals"]}
         self.assertIn(
             "coverage_lower_bound_of_complement_error",
+            conformal_goals["split_conformal_finite_sample_coverage"]["proof_obligations"],
+        )
+        self.assertIn(
+            "simultaneous_coverage_of_union_error_bound",
             conformal_goals["split_conformal_finite_sample_coverage"]["proof_obligations"],
         )
         hetero_trace = json.loads(Path("runs/test_research_benchmark/heteroskedastic_regression_hc.json").read_text())
