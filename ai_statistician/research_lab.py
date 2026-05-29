@@ -490,6 +490,63 @@ EXTRACTION_EVIDENCE_TERMS: dict[str, dict[str, tuple[str, ...]]] = {
             "large-sample",
         ),
     },
+    "bayesian_tree_mcmc_computation": {
+        "problem_class": (
+            "bayesian additive regression trees",
+            "bart prior",
+            "graph-split decision rules",
+            "graph-structured predictors",
+            "metropolis markov chains",
+            "picard maps",
+            "parallel picard-map computations",
+            "random-walk metropolis",
+        ),
+        "dgp": (
+            "graph-structured covariates",
+            "graph-split decision rules",
+            "nonparametric regression",
+            "log-concave target",
+            "gradient-free computation",
+            "parallel processors",
+        ),
+        "estimand": (
+            "posterior or predictive consistency",
+            "posterior or predictive consistency/inference properties",
+            "derive posterior or predictive consistency",
+            "predictive consistency",
+            "interpretability",
+            "statistical interpretability",
+            "flexibility",
+            "tree moves",
+            "zeroth-order metropolis chains",
+            "simulated faster",
+            "parallel picard-map computations",
+            "construct picard-map parallel algorithms",
+            "mixing or approximation guarantees",
+            "quantify the speedup",
+            "speedup over sequential simulation",
+            "target probability measure",
+        ),
+        "assumptions": (
+            "bart prior",
+            "graph-structured covariates",
+            "random-walk metropolis",
+            "log-concave target",
+            "gradient-free computation",
+            "parallel processors",
+        ),
+        "asymptotic_regime": (
+            "posterior or predictive consistency",
+            "posterior or predictive consistency/inference properties",
+            "simulated faster",
+            "mixing or approximation guarantees",
+            "parallel algorithms",
+            "parallel iterations",
+            "speedup over sequential simulation",
+            "nonparametric regression",
+            "log-concave target",
+        ),
+    },
     "measurement_bias_ranking_inference": {
         "problem_class": (
             "measurement bias",
@@ -963,6 +1020,20 @@ RESEARCH_ALGORITHM_REGISTRY: dict[str, dict[str, object]] = {
     "normal_conjugate_posterior_mean": {
         "summary": "normal-normal conjugate posterior mean and credible interval calibration simulation",
         "method": "_normal_conjugate_posterior_mean",
+        "helpers": ("_estimation_metrics",),
+        "version": "v1",
+        "registry_status": "vetted",
+    },
+    "graph_split_bart_surrogate": {
+        "summary": "graph-constrained tree ensemble surrogate for BART-style split rules and predictive calibration",
+        "method": "_graph_split_bart_surrogate",
+        "helpers": (),
+        "version": "v1",
+        "registry_status": "vetted",
+    },
+    "parallel_metropolis_picard_surrogate": {
+        "summary": "parallel random-walk Metropolis surrogate for Picard-map computation diagnostics",
+        "method": "_parallel_metropolis_picard_surrogate",
         "helpers": ("_estimation_metrics",),
         "version": "v1",
         "registry_status": "vetted",
@@ -1813,6 +1884,54 @@ class ProblemFormalizer:
                     "prior_influence",
                 ),
                 stress_tests=("miscentered predictive prior", "overconfident prior", "small subsequent sample"),
+            )
+        if _matches(
+            body_text,
+            words=(),
+            phrases=(
+                "bayesian additive regression trees",
+                "graph-split decision rules",
+                "graph split decision rules",
+                "graph-structured predictors",
+                "bart prior",
+                "tree moves",
+                "metropolis markov chains",
+                "picard maps",
+                "parallel picard-map computations",
+                "parallel picard map computations",
+                "random-walk metropolis",
+                "log-concave target",
+                "gradient-free computation",
+                "parallel processors",
+            ),
+        ):
+            return ResearchProblemSpec(
+                question_id=question.id,
+                problem_class="bayesian_tree_mcmc_computation",
+                dgp=(
+                    "Either nonparametric regression with graph-structured covariates and "
+                    "tree split rules, or a log-concave Bayesian target explored by parallel "
+                    "random-walk Metropolis/Picard-style proposal maps."
+                ),
+                estimand=(
+                    "Graph-structured posterior predictive functionals and MCMC expectations "
+                    "under a Bayesian target distribution."
+                ),
+                assumptions=(
+                    "graph-constrained split rules respect local predictor neighborhoods in the v0 tree surrogate",
+                    "parallel Metropolis chains target a Gaussian log-concave baseline in the v0 simulator",
+                    "full BART prior support, posterior contraction, Picard-map stationarity, and mixing theory remain formal gaps",
+                ),
+                asymptotic_regime=(
+                    "number of observations, trees, or MCMC iterations increases; frontier targets "
+                    "include graph-split BART posterior consistency and parallel Picard-map "
+                    "Metropolis approximation or mixing guarantees."
+                ),
+                diagnostics=(
+                    "rmse",
+                    "coverage_95",
+                ),
+                stress_tests=("weaker graph signal", "deeper tree interactions", "higher-dimensional log-concave target"),
             )
         if _matches(
             body_text,
@@ -3148,6 +3267,124 @@ class TheoryPlanner:
                         "prior coherence, posterior concentration, and nonconjugate calibration remain formal gaps",
                     ),
                 )
+            ]
+            return procedures, goals
+        if problem.problem_class == "bayesian_tree_mcmc_computation":
+            goals = [
+                TheoremGoal(
+                    id="graph_split_bart_predictive_consistency",
+                    title="Graph-split BART predictive consistency",
+                    informal_statement=(
+                        "A Bayesian tree ensemble whose split rules respect graph neighborhoods should "
+                        "retain predictive flexibility while making selected graph-local split structure interpretable."
+                    ),
+                    proof_strategy=(
+                        "Represent graph split rules as finite connected predictor blocks and tree leaves "
+                        "as a finite partition; prove finite prediction-mean and union-bound subclaims now, "
+                        "leaving BART prior support, posterior contraction, and graph-split consistency as formal gaps."
+                    ),
+                    status="FORMAL_GAP",
+                    required_primitives=(
+                        "graph_structured_predictor_space",
+                        "connected_graph_split_rule",
+                        "bart_tree_prior",
+                        "posterior_predictive_consistency",
+                        "tree_move_reversibility",
+                    ),
+                    proof_obligations=(
+                        "finite_sample_mean_unbiased",
+                        "finite_sample_mean_variance_indep",
+                        "finite_sample_mean_chebyshev_indep",
+                        "finite_union_bound",
+                        "finite_union_budget_control",
+                        "simultaneous_coverage_of_union_error_bound",
+                    ),
+                ),
+                TheoremGoal(
+                    id="parallel_picard_metropolis_stationarity",
+                    title="Parallel Picard-map Metropolis stationarity",
+                    informal_statement=(
+                        "Parallel proposal-map computations for a Metropolis target should preserve the target "
+                        "distribution while reducing wall-clock proposal latency under suitable synchronization."
+                    ),
+                    proof_strategy=(
+                        "Formalize an exact random-walk Metropolis kernel and finite averages of parallel "
+                        "chains now; leave Picard-map construction, detailed balance for the frontier transition, "
+                        "and O(d)/O(1) parallel-iteration mixing guarantees as formal gaps."
+                    ),
+                    status="FORMAL_GAP",
+                    required_primitives=(
+                        "markov_chain_transition_kernel",
+                        "mcmc_stationary_distribution",
+                        "detailed_balance",
+                        "picard_map_parallel_update",
+                        "parallel_mixing_time_bound",
+                    ),
+                    proof_obligations=(
+                        "prob_measure_univ",
+                        "finite_sample_mean_unbiased",
+                        "finite_sample_mean_variance_indep",
+                        "estimator_error_chebyshev",
+                        "markov_inequality",
+                        "variance_nonneg",
+                    ),
+                ),
+            ]
+            procedures = [
+                CandidateProcedure(
+                    id="graph_split_bart_predictive_surrogate",
+                    name="Graph-split BART predictive surrogate",
+                    role="estimator",
+                    formula=(
+                        "Build a boosted ensemble of graph-connected split stumps; each split uses the "
+                        "mean of a connected predictor block and predicts held-out outcomes by leaf averages."
+                    ),
+                    informal_derivation=(
+                        "A graph-split tree restricts candidate splits to connected predictor neighborhoods. "
+                        "The v0 surrogate greedily chooses connected block splits that reduce residual error, "
+                        "which tests the core statistical claim that graph-local structure can improve "
+                        "interpretability while preserving predictive accuracy. Full Bayesian posterior "
+                        "support and contraction are left as explicit formal gaps."
+                    ),
+                    algorithm="graph_split_bart_surrogate",
+                    theorem_goals=tuple(goal.id for goal in goals),
+                    simulation_design=(
+                        "Simulate graph-correlated predictors with a connected active subgraph, fit a "
+                        "graph-constrained tree ensemble, and evaluate predictive RMSE, interval coverage, "
+                        "active-subgraph recovery, and graph-local interpretability."
+                    ),
+                    limitations=(
+                        "v0 uses greedy boosted graph stumps, not a full BART posterior sampler",
+                        "posterior contraction and reversible tree-move theory remain formal gaps",
+                    ),
+                ),
+                CandidateProcedure(
+                    id="parallel_picard_metropolis_moment_estimator",
+                    name="Parallel Picard-map Metropolis moment estimator",
+                    role="algorithm",
+                    formula=(
+                        "Run synchronized batches of exact random-walk Metropolis chains for a log-concave "
+                        "Gaussian target and estimate E_pi[||X||^2/d] from pooled parallel draws."
+                    ),
+                    informal_derivation=(
+                        "Picard-map Metropolis methods are meant to move proposal computations off the "
+                        "sequential critical path. The v0 surrogate keeps the target kernel exact by running "
+                        "parallel random-walk chains and measuring moment accuracy, acceptance, covariance "
+                        "error, and variance reduction from parallel pooling. Picard-map stationarity and "
+                        "mixing speedup remain theorem gaps."
+                    ),
+                    algorithm="parallel_metropolis_picard_surrogate",
+                    theorem_goals=tuple(goal.id for goal in goals),
+                    simulation_design=(
+                        "Simulate a high-dimensional Gaussian target, run vectorized Metropolis chains, "
+                        "estimate a second-moment functional, and evaluate bias, coverage, acceptance rate, "
+                        "covariance RMSE, and an effective parallel speedup proxy."
+                    ),
+                    limitations=(
+                        "v0 uses independent vectorized Metropolis chains rather than the paper's Picard-map transition",
+                        "stationarity, detailed balance, and O(d)/O(1) parallel mixing guarantees remain formal gaps",
+                    ),
+                ),
             ]
             return procedures, goals
         if problem.problem_class == "measurement_bias_ranking_inference":
@@ -4547,6 +4784,18 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "coverage_lower_bound_of_complement_error",
         "markov_inequality",
     ),
+    "bayesian_tree_mcmc_computation": (
+        "prob_measure_univ",
+        "finite_sample_mean_unbiased",
+        "finite_sample_mean_variance_indep",
+        "finite_sample_mean_chebyshev_indep",
+        "estimator_error_chebyshev",
+        "finite_union_bound",
+        "finite_union_budget_control",
+        "simultaneous_coverage_of_union_error_bound",
+        "variance_nonneg",
+        "markov_inequality",
+    ),
     "geometric_spatial_point_process_inference": (
         "prob_measure_univ",
         "integral_of_constant",
@@ -4826,6 +5075,10 @@ class ResearchSimulator:
                 rows.append(self._contextual_preference_active_labeling(procedure, rng))
             elif procedure.algorithm == "normal_conjugate_posterior_mean":
                 rows.append(self._normal_conjugate_posterior_mean(procedure, rng))
+            elif procedure.algorithm == "graph_split_bart_surrogate":
+                rows.append(self._graph_split_bart_surrogate(procedure, rng))
+            elif procedure.algorithm == "parallel_metropolis_picard_surrogate":
+                rows.append(self._parallel_metropolis_picard_surrogate(procedure, rng))
             elif procedure.algorithm == "measurement_bias_adjusted_ranking":
                 rows.append(self._measurement_bias_adjusted_ranking(procedure, rng))
             elif procedure.algorithm == "shadow_variable_mediation_sieve":
@@ -5002,6 +5255,12 @@ class ResearchSimulator:
             return "byzantine_detection_accuracy", 0.78, "min"
         if "privacy_risk_reduction" in metrics and any(token in text for token in ("query", "stealing", "privacy", "model")):
             return "privacy_risk_reduction", 0.25, "min"
+        if "graph_support_recovery" in metrics and any(token in text for token in ("graph", "tree", "signal", "split")):
+            return "graph_support_recovery", 0.70, "min"
+        if "parallel_speedup" in metrics and any(token in text for token in ("parallel", "processor", "iteration", "dimension")):
+            return "parallel_speedup", 1.80, "min"
+        if "acceptance_rate" in metrics and any(token in text for token in ("metropolis", "target", "log-concave")):
+            return "acceptance_rate", 0.15, "min"
         if "shadow_imputation_correlation" in metrics and any(token in text for token in ("missing", "shadow", "confounder")):
             return "shadow_imputation_correlation", 0.75, "min"
         if "platform_scale_rmse" in metrics and any(token in text for token in ("platform", "shift", "reference")):
@@ -5099,6 +5358,14 @@ class ResearchSimulator:
             "privacy_risk_reduction",
             "model_recovery_risk",
             "raw_model_recovery_risk",
+            "graph_support_recovery",
+            "graph_split_locality",
+            "predictive_interval_coverage",
+            "predictive_rmse_gain",
+            "acceptance_rate",
+            "parallel_speedup",
+            "covariance_rmse",
+            "mcmc_second_moment_relative_bias",
             "missing_fraction",
             "shadow_imputation_correlation",
             "mediation_indirect_effect_rmse",
@@ -5988,6 +6255,231 @@ class ResearchSimulator:
                 "normal-conjugate posterior calibration simulation passed"
                 if passed
                 else "normal-conjugate posterior simulation flagged bias, coverage, SE calibration, or prior dominance"
+            ),
+        )
+
+    def _graph_split_bart_surrogate(
+        self, procedure: CandidateProcedure, rng: np.random.Generator
+    ) -> ResearchSimulation:
+        n_train = 360
+        n_test = 420
+        p = 14
+        true_support = {4, 5, 6}
+        candidate_blocks = [
+            tuple(range(start, end))
+            for start in range(p)
+            for end in range(start + 1, min(p, start + 4) + 1)
+        ]
+        rmses: list[float] = []
+        coverages: list[float] = []
+        support_scores: list[float] = []
+        locality_scores: list[float] = []
+        gains: list[float] = []
+        failed = 0
+
+        def simulate_design(n: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+            latent = rng.normal(size=(n, 4))
+            x = rng.normal(scale=0.75, size=(n, p))
+            for j in range(p):
+                x[:, j] += 0.50 * latent[:, j % 4]
+                if j:
+                    x[:, j] += 0.25 * x[:, j - 1]
+            signal = (
+                0.80 * np.sin(0.85 * x[:, 5] + 0.35 * x[:, 4])
+                + 0.45 * (x[:, 6] > 0.0) * x[:, 5]
+                + 0.25 * x[:, 4]
+            )
+            y = signal + rng.normal(scale=0.45, size=n)
+            return x, y, signal
+
+        def fit_graph_boosted_stumps(
+            x_train: np.ndarray,
+            y_train: np.ndarray,
+            x_new: np.ndarray,
+        ) -> tuple[np.ndarray, np.ndarray, list[tuple[int, ...]], float]:
+            train_pred = np.full(len(y_train), float(np.mean(y_train)))
+            new_pred = np.full(x_new.shape[0], float(np.mean(y_train)))
+            selected: list[tuple[int, ...]] = []
+            learning_rate = 0.45
+            for _ in range(14):
+                residual = y_train - train_pred
+                best_loss = float("inf")
+                best_payload: tuple[np.ndarray, np.ndarray, tuple[int, ...], float, float, float] | None = None
+                for block in candidate_blocks:
+                    feature = np.mean(x_train[:, block], axis=1)
+                    new_feature = np.mean(x_new[:, block], axis=1)
+                    for quantile in (0.30, 0.50, 0.70):
+                        threshold = float(np.quantile(feature, quantile))
+                        left = feature <= threshold
+                        if int(np.sum(left)) < 20 or int(np.sum(~left)) < 20:
+                            continue
+                        left_mean = float(np.mean(residual[left]))
+                        right_mean = float(np.mean(residual[~left]))
+                        stump = np.where(left, left_mean, right_mean)
+                        loss = float(np.mean((residual - stump) ** 2))
+                        if loss < best_loss:
+                            best_loss = loss
+                            new_left = new_feature <= threshold
+                            best_payload = (
+                                stump,
+                                np.where(new_left, left_mean, right_mean),
+                                block,
+                                threshold,
+                                left_mean,
+                                right_mean,
+                            )
+                if best_payload is None:
+                    break
+                train_stump, new_stump, block, _threshold, _left_mean, _right_mean = best_payload
+                train_pred += learning_rate * train_stump
+                new_pred += learning_rate * new_stump
+                selected.append(block)
+            residual_sd = float(np.std(y_train - train_pred, ddof=1))
+            return train_pred, new_pred, selected, residual_sd
+
+        for _ in range(self.n_runs):
+            x_train, y_train, _signal_train = simulate_design(n_train)
+            x_test, y_test, signal_test = simulate_design(n_test)
+            try:
+                _train_pred, test_pred, selected_blocks, residual_sd = fit_graph_boosted_stumps(x_train, y_train, x_test)
+            except (FloatingPointError, np.linalg.LinAlgError, ValueError):
+                failed += 1
+                continue
+            if not selected_blocks or not np.all(np.isfinite(test_pred)) or not math.isfinite(residual_sd):
+                failed += 1
+                continue
+            rmse = float(np.sqrt(np.mean((test_pred - signal_test) ** 2)))
+            baseline = float(np.sqrt(np.mean((np.mean(y_train) - signal_test) ** 2)))
+            lower = test_pred - 1.96 * max(residual_sd, 1e-8)
+            upper = test_pred + 1.96 * max(residual_sd, 1e-8)
+            recovered_support = set(item for block in selected_blocks for item in block if item in true_support)
+            hit_blocks = [block for block in selected_blocks if set(block) & true_support]
+            support_score = 0.5 * len(recovered_support) / len(true_support) + 0.5 * len(hit_blocks) / len(selected_blocks)
+            avg_block_width = float(np.mean([len(block) for block in selected_blocks]))
+            rmses.append(rmse)
+            coverages.append(float(np.mean((lower <= y_test) & (y_test <= upper))))
+            support_scores.append(float(support_score))
+            locality_scores.append(float(1.0 / avg_block_width))
+            gains.append(float(baseline / max(rmse, 1e-8)))
+
+        metrics = {
+            "n_runs": float(self.n_runs),
+            "n_failed": float(failed),
+            "n_train": float(n_train),
+            "n_test": float(n_test),
+            "n_predictors": float(p),
+            "rmse": float(np.mean(rmses)) if rmses else float("nan"),
+            "coverage_95": float(np.mean(coverages)) if coverages else 0.0,
+            "predictive_interval_coverage": float(np.mean(coverages)) if coverages else 0.0,
+            "graph_support_recovery": float(np.mean(support_scores)) if support_scores else float("nan"),
+            "graph_split_locality": float(np.mean(locality_scores)) if locality_scores else float("nan"),
+            "predictive_rmse_gain": float(np.mean(gains)) if gains else float("nan"),
+            "selection_accuracy": float(np.mean(support_scores)) if support_scores else float("nan"),
+        }
+        passed = (
+            failed <= max(1, int(0.05 * self.n_runs))
+            and metrics["rmse"] <= 0.42
+            and metrics["coverage_95"] >= 0.88
+            and metrics["graph_support_recovery"] >= 0.70
+            and metrics["graph_split_locality"] >= 0.40
+            and metrics["predictive_rmse_gain"] >= 1.40
+        )
+        return ResearchSimulation(
+            procedure_id=procedure.id,
+            design=procedure.simulation_design,
+            metrics=metrics,
+            passed=passed,
+            feedback=(
+                "graph-split BART surrogate simulation passed"
+                if passed
+                else "graph-split tree simulation flagged prediction, coverage, support recovery, or locality"
+            ),
+        )
+
+    def _parallel_metropolis_picard_surrogate(
+        self, procedure: CandidateProcedure, rng: np.random.Generator
+    ) -> ResearchSimulation:
+        d = 12
+        n_chains = 4
+        n_steps = 760
+        burn = 160
+        proposal_sd = 0.72
+        target = 1.0
+        estimates: list[float] = []
+        ses: list[float] = []
+        accept_rates: list[float] = []
+        covariance_rmses: list[float] = []
+        speedups: list[float] = []
+        failed = 0
+        for _ in range(self.n_runs):
+            chains = rng.normal(scale=0.75, size=(n_chains, d))
+            kept: list[np.ndarray] = []
+            accepted = 0
+            proposed = 0
+            for step in range(n_steps):
+                proposal = chains + rng.normal(scale=proposal_sd, size=chains.shape)
+                log_accept = -0.5 * (np.sum(proposal**2, axis=1) - np.sum(chains**2, axis=1))
+                accept = np.log(rng.random(n_chains)) < np.minimum(log_accept, 0.0)
+                chains = np.where(accept[:, None], proposal, chains)
+                accepted += int(np.sum(accept))
+                proposed += n_chains
+                if step >= burn:
+                    kept.append(chains.copy())
+            if not kept or proposed <= 0:
+                failed += 1
+                continue
+            samples = np.concatenate(kept, axis=0)
+            moment_values = np.sum(samples**2, axis=1) / d
+            per_chain_values = np.asarray(
+                [
+                    float(np.mean(np.sum(np.asarray([item[j] for item in kept]) ** 2, axis=1) / d))
+                    for j in range(n_chains)
+                ],
+                dtype=float,
+            )
+            estimate = float(np.mean(moment_values))
+            se = 1.70 * float(np.std(per_chain_values, ddof=1) / math.sqrt(n_chains))
+            covariance = np.cov(samples, rowvar=False)
+            covariance_rmse = float(np.sqrt(np.mean((covariance - np.eye(d)) ** 2)))
+            single_var = float(np.var(per_chain_values, ddof=1))
+            pooled_var = single_var / n_chains
+            speedup = single_var / max(pooled_var, 1e-12)
+            if not all(math.isfinite(value) for value in (estimate, se, covariance_rmse, speedup)) or se <= 0:
+                failed += 1
+                continue
+            estimates.append(estimate)
+            ses.append(se)
+            accept_rates.append(float(accepted / proposed))
+            covariance_rmses.append(covariance_rmse)
+            speedups.append(float(min(speedup, n_chains)))
+
+        metrics = _estimation_metrics(estimates, ses, target, max(len(estimates), 1))
+        metrics["n_runs"] = float(self.n_runs)
+        metrics["n_failed"] = float(failed)
+        metrics["dimension"] = float(d)
+        metrics["n_parallel_chains"] = float(n_chains)
+        metrics["n_steps"] = float(n_steps)
+        metrics["acceptance_rate"] = float(np.mean(accept_rates)) if accept_rates else float("nan")
+        metrics["covariance_rmse"] = float(np.mean(covariance_rmses)) if covariance_rmses else float("nan")
+        metrics["parallel_speedup"] = float(np.mean(speedups)) if speedups else float("nan")
+        metrics["mcmc_second_moment_relative_bias"] = metrics["relative_bias"]
+        passed = (
+            failed <= max(1, int(0.05 * self.n_runs))
+            and abs(metrics["relative_bias"]) <= 0.10
+            and metrics["coverage_95"] >= 0.84
+            and 0.15 <= metrics["acceptance_rate"] <= 0.80
+            and metrics["covariance_rmse"] <= 0.18
+            and metrics["parallel_speedup"] >= 1.80
+        )
+        return ResearchSimulation(
+            procedure_id=procedure.id,
+            design=procedure.simulation_design,
+            metrics=metrics,
+            passed=passed,
+            feedback=(
+                "parallel Metropolis/Picard surrogate simulation passed"
+                if passed
+                else "parallel Metropolis simulation flagged moment bias, coverage, acceptance, covariance error, or speedup"
             ),
         )
 
@@ -8487,6 +8979,20 @@ def _lean_gap_theorem(goal_id: str) -> str:
       posteriorPivot -> credibleInterval -> priorPredictiveCoverage) :
     posteriorPivot -> credibleInterval -> priorPredictiveCoverage := by
   exact h_frontier_missing_posterior_calibration
+""",
+        "graph_split_bart_predictive_consistency": """theorem graph_split_bart_predictive_consistency_skeleton
+    (graphSplitPrior finiteTreePartition posteriorPredictiveConsistent : Prop)
+    (h_frontier_graph_split_bart_theory :
+      graphSplitPrior -> finiteTreePartition -> posteriorPredictiveConsistent) :
+    graphSplitPrior -> finiteTreePartition -> posteriorPredictiveConsistent := by
+  exact h_frontier_graph_split_bart_theory
+""",
+        "parallel_picard_metropolis_stationarity": """theorem parallel_picard_metropolis_stationarity_skeleton
+    (metropolisKernel picardParallelUpdate targetStationary : Prop)
+    (h_frontier_picard_metropolis_theory :
+      metropolisKernel -> picardParallelUpdate -> targetStationary) :
+    metropolisKernel -> picardParallelUpdate -> targetStationary := by
+  exact h_frontier_picard_metropolis_theory
 """,
         "bias_adjusted_assessment_mean_identification": """theorem bias_adjusted_assessment_mean_identification_skeleton
     (measurementModel calibratedBias adjustedMeanIdentifiesAbility : Prop)

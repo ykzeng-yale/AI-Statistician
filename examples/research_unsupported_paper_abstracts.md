@@ -4,14 +4,14 @@ These paper-style abstracts should route to manual review in the deterministic
 v0 research formalizer. They are intentionally plausible frontier topics, but
 they are outside the currently registered research-procedure families.
 
-## bayesian_graph_bart: Graph-structured Bayesian additive regression trees
+## algebraic_phylogenetic_mixture: Algebraic inference for phylogenetic mixture varieties
 
-Tags: bayesian, graph_covariates, bart
+Tags: algebraic_statistics, phylogenetics, polynomial_invariants
 
-For nonparametric regression with graph-structured predictors, construct a
-Bayesian additive regression tree prior whose splits respect graph topology.
-The desired theory includes posterior consistency, interpretable graph-split
-moves, and calibrated predictive uncertainty under graph constraints.
+We observe site-pattern counts from an unknown mixture of phylogenetic
+evolutionary models. Develop identifiability theory and model-selection tests
+using polynomial invariants, singular varieties, and algebraic-geometric
+stratification of the parameter space.
 
 ## network_dependence_graph: Inference with graph-dependent observations
 

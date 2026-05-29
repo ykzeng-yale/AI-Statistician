@@ -669,7 +669,7 @@ class SystemTests(unittest.TestCase):
         payload = audit_research_algorithm_registry(Path("runs/test_research_algorithm_audit"))
         self.assertTrue(payload["all_ok"])
         self.assertEqual(payload["n_ok"], payload["n_algorithms"])
-        self.assertEqual(payload["n_algorithms"], 31)
+        self.assertEqual(payload["n_algorithms"], 33)
         self.assertEqual(len(payload["registry_fingerprint"]), 64)
         for row in payload["algorithms"]:
             self.assertEqual(row["registry_status"], "vetted")
@@ -748,8 +748,8 @@ class SystemTests(unittest.TestCase):
         payload = audit_frontier_coverage(Path("runs/test_frontier_coverage_audit"))
         self.assertTrue(payload["all_ok"])
         self.assertEqual(payload["n_questions"], 60)
-        self.assertGreater(payload["n_supported"], 0)
-        self.assertGreater(payload["n_unsupported"], 0)
+        self.assertEqual(payload["n_supported"], 60)
+        self.assertEqual(payload["n_unsupported"], 0)
         self.assertEqual(payload["by_problem_class"]["experimental_design_optimization"], 3)
         self.assertEqual(payload["by_problem_class"]["network_graph_inference"], 5)
         self.assertEqual(payload["by_problem_class"]["sequential_changepoint_inference"], 3)
@@ -758,8 +758,9 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(payload["by_problem_class"]["adaptive_transfer_active_preference_learning"], 3)
         self.assertEqual(payload["by_problem_class"]["robust_distributed_model_privacy_inference"], 3)
         self.assertEqual(payload["by_problem_class"]["heavy_tail_time_series_extremal_dependence"], 3)
+        self.assertEqual(payload["by_problem_class"]["bayesian_tree_mcmc_computation"], 2)
         self.assertEqual(payload["by_problem_class"]["missing_mediation_deconvolution_inference"], 2)
-        self.assertIn("unsupported_frontier_question", payload["by_problem_class"])
+        self.assertNotIn("unsupported_frontier_question", payload["by_problem_class"])
         self.assertTrue(Path("runs/test_frontier_coverage_audit/frontier_coverage_manifest.json").exists())
         self.assertTrue(Path("runs/test_frontier_coverage_audit/frontier_coverage.md").exists())
 
@@ -812,6 +813,18 @@ class SystemTests(unittest.TestCase):
             "heavy_tail_time_series_extremal_dependence",
         )
         self.assertTrue(by_id["extremes_tail_heavytail_03"]["evidence_terms"])
+        self.assertIn("bayesian_computation_posteriors_01", by_id)
+        self.assertEqual(
+            by_id["bayesian_computation_posteriors_01"]["problem_class"],
+            "bayesian_tree_mcmc_computation",
+        )
+        self.assertTrue(by_id["bayesian_computation_posteriors_01"]["evidence_terms"])
+        self.assertIn("bayesian_computation_posteriors_03", by_id)
+        self.assertEqual(
+            by_id["bayesian_computation_posteriors_03"]["problem_class"],
+            "bayesian_tree_mcmc_computation",
+        )
+        self.assertTrue(by_id["bayesian_computation_posteriors_03"]["evidence_terms"])
         self.assertIn("missing_censored_measurement_error_02", by_id)
         self.assertEqual(
             by_id["missing_censored_measurement_error_02"]["problem_class"],
@@ -839,11 +852,11 @@ class SystemTests(unittest.TestCase):
     def test_frontier_backlog_audit_maps_unsupported_questions(self) -> None:
         payload = audit_frontier_backlog(Path("runs/test_frontier_backlog_audit"))
         self.assertTrue(payload["all_ok"])
-        self.assertEqual(payload["n_backlog"], 2)
+        self.assertEqual(payload["n_backlog"], 0)
         self.assertEqual(payload["n_ok"], payload["n_backlog"])
-        self.assertGreaterEqual(payload["n_supported"], 1)
-        self.assertGreaterEqual(len(payload["by_domain"]), 1)
-        self.assertTrue(payload["by_required_primitive"])
+        self.assertEqual(payload["n_supported"], 60)
+        self.assertEqual(len(payload["by_domain"]), 0)
+        self.assertFalse(payload["by_required_primitive"])
         by_id = {row["question_id"]: row for row in payload["rows"]}
         self.assertNotIn("statistical_learning_nonparametric_02", by_id)
         self.assertNotIn("networks_graphs_01", by_id)
@@ -852,6 +865,8 @@ class SystemTests(unittest.TestCase):
         self.assertNotIn("geometric_spatial_point_process_02", by_id)
         self.assertNotIn("high_dimensional_inference_01", by_id)
         self.assertNotIn("bayesian_computation_posteriors_05", by_id)
+        self.assertNotIn("bayesian_computation_posteriors_01", by_id)
+        self.assertNotIn("bayesian_computation_posteriors_03", by_id)
         self.assertNotIn("robust_privacy_distributed_03", by_id)
         self.assertNotIn("extremes_tail_heavytail_03", by_id)
         self.assertNotIn("missing_censored_measurement_error_02", by_id)
@@ -1157,6 +1172,43 @@ class SystemTests(unittest.TestCase):
         self.assertLessEqual(deconv_sim.metrics["deconvolution_rmse"], 0.075)
         self.assertGreaterEqual(deconv_sim.metrics["dominant_cell_accuracy"], 0.80)
         self.assertLessEqual(deconv_sim.metrics["platform_scale_rmse"], 0.10)
+
+    def test_bayesian_tree_mcmc_frontier_question_runs_registered_simulators(self) -> None:
+        question = next(
+            row.to_open_research_question()
+            for row in load_frontier_benchmark_questions(Path("docs/frontier_stat_theory_benchmark.md"))
+            if row.id == "bayesian_computation_posteriors_01"
+        )
+        problem = ProblemFormalizer().formalize(question)
+        self.assertEqual(problem.problem_class, "bayesian_tree_mcmc_computation")
+        procedures, theorem_goals = TheoryPlanner().plan(problem)
+        self.assertEqual(
+            [procedure.algorithm for procedure in procedures],
+            [
+                "graph_split_bart_surrogate",
+                "parallel_metropolis_picard_surrogate",
+            ],
+        )
+        self.assertEqual(
+            {goal.id for goal in theorem_goals},
+            {
+                "graph_split_bart_predictive_consistency",
+                "parallel_picard_metropolis_stationarity",
+            },
+        )
+        simulations = ResearchSimulator(n_runs=35, seed=20260531).run(problem, procedures)
+        self.assertEqual(len(simulations), 2)
+        for simulation in simulations:
+            self.assertTrue(simulation.passed)
+            self.assertEqual(simulation.diagnosis.status, "OK")
+        graph_sim = next(row for row in simulations if row.procedure_id == "graph_split_bart_predictive_surrogate")
+        mcmc_sim = next(row for row in simulations if row.procedure_id == "parallel_picard_metropolis_moment_estimator")
+        self.assertLessEqual(graph_sim.metrics["rmse"], 0.42)
+        self.assertGreaterEqual(graph_sim.metrics["graph_support_recovery"], 0.70)
+        self.assertGreaterEqual(graph_sim.metrics["predictive_rmse_gain"], 1.40)
+        self.assertGreaterEqual(mcmc_sim.metrics["parallel_speedup"], 1.80)
+        self.assertGreaterEqual(mcmc_sim.metrics["acceptance_rate"], 0.15)
+        self.assertLessEqual(mcmc_sim.metrics["covariance_rmse"], 0.18)
 
     def test_frontier_smoke_benchmark_runs_selected_supported_papers(self) -> None:
         selected, metadata = select_supported_frontier_questions(max_per_class=1)
@@ -2184,8 +2236,8 @@ class SystemTests(unittest.TestCase):
         ]
         self.assertEqual(arbitrary_frontier["status"], "NOT_ACHIEVED")
         self.assertFalse(arbitrary_frontier["current_release_gate"])
-        self.assertGreater(report["frontier_summary"]["n_supported"], 0)
-        self.assertGreater(report["frontier_summary"]["n_unsupported"], 0)
+        self.assertEqual(report["frontier_summary"]["n_supported"], 60)
+        self.assertEqual(report["frontier_summary"]["n_unsupported"], 0)
 
         manifest = write_research_capability_audit(report, Path("runs/test_research_capability_audit"))
         self.assertTrue(manifest.exists())
@@ -2266,14 +2318,14 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(payload["gates"]["research_report"])
         self.assertEqual(payload["counts"]["questions"], 10)
         self.assertEqual(payload["counts"]["frontier_questions"], 60)
-        self.assertGreater(payload["counts"]["frontier_supported"], 0)
-        self.assertGreater(payload["counts"]["frontier_unsupported"], 0)
+        self.assertEqual(payload["counts"]["frontier_supported"], 60)
+        self.assertEqual(payload["counts"]["frontier_unsupported"], 0)
         self.assertEqual(payload["counts"]["frontier_precision_ok"], payload["counts"]["frontier_precision_supported"])
         self.assertEqual(payload["counts"]["frontier_precision_flagged"], 0)
         self.assertEqual(payload["counts"]["frontier_backlog_ok"], payload["counts"]["frontier_backlog_total"])
         self.assertEqual(payload["counts"]["frontier_backlog_total"], payload["counts"]["frontier_unsupported"])
-        self.assertGreater(payload["counts"]["frontier_backlog_domains"], 0)
-        self.assertGreater(payload["counts"]["frontier_backlog_required_primitives"], 0)
+        self.assertEqual(payload["counts"]["frontier_backlog_domains"], 0)
+        self.assertEqual(payload["counts"]["frontier_backlog_required_primitives"], 0)
         self.assertFalse(payload["counts"]["research_capability_goal_complete"])
         self.assertEqual(
             payload["counts"]["research_capability_current_release_gate_met"],

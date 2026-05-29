@@ -284,7 +284,7 @@ def audit_frontier_backlog(
         "n_supported": coverage["n_supported"],
         "n_backlog": len(rows),
         "n_ok": sum(1 for row in rows if row.ok),
-        "all_ok": bool(coverage["all_ok"]) and bool(rows) and all(row.ok for row in rows),
+        "all_ok": bool(coverage["all_ok"]) and all(row.ok for row in rows),
         "by_domain": dict(sorted(by_domain.items())),
         "by_required_primitive": dict(sorted(by_required_primitive.items())),
         "rows": [asdict(row) for row in rows],

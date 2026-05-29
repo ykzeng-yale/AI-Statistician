@@ -222,6 +222,31 @@ KNOWLEDGE_CARDS: tuple[KnowledgeCard, ...] = (
         ),
     ),
     KnowledgeCard(
+        id="bayesian_tree_mcmc_computation",
+        title="Bayesian graph-split trees and parallel Metropolis computation",
+        source_type="statistical_method",
+        location="internal-method-card",
+        summary=(
+            "Bayesian computation frontier questions include graph-split BART priors "
+            "for structured predictors and parallel Metropolis/Picard-map algorithms "
+            "for log-concave targets. The v0 bridge uses graph-constrained boosted "
+            "tree stumps and exact vectorized random-walk Metropolis chains, while "
+            "BART posterior contraction, reversible tree moves, Picard-map stationarity, "
+            "and parallel mixing-time theory remain explicit formal gaps."
+        ),
+        tags=(
+            "bayesian",
+            "bart",
+            "graph_split",
+            "tree_prior",
+            "mcmc",
+            "metropolis",
+            "picard_map",
+            "parallel_computation",
+            "bayesian_tree_mcmc_computation",
+        ),
+    ),
+    KnowledgeCard(
         id="geometric_spatial_point_process_inference",
         title="Geometric, spatial, metric-graph, and point-process inference",
         source_type="statistical_method",
@@ -655,6 +680,7 @@ PRIMARY_KNOWLEDGE_BY_PROBLEM_CLASS: dict[str, str] = {
     "adaptive_transfer_active_preference_learning": "adaptive_transfer_active_preference_learning",
     "network_graph_inference": "network_graph_sbm_spectral_inference",
     "bayesian_posterior_calibration": "bayesian_predictive_prior_calibration",
+    "bayesian_tree_mcmc_computation": "bayesian_tree_mcmc_computation",
     "geometric_spatial_point_process_inference": "geometric_spatial_point_process_inference",
     "measurement_bias_ranking_inference": "measurement_bias_assessment_ranking",
     "missing_mediation_deconvolution_inference": "missing_mediation_deconvolution_inference",
