@@ -474,6 +474,18 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("coverage", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_finite_family_error_union_control_supports_simultaneous_bands(self) -> None:
+        obligation = get_obligation("finite_family_absolute_error_union_control")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("finite_union_budget_control",))
+        self.assertIn("theorem finiteFamily_absolute_error_union_control", content)
+        self.assertIn("radius i ≤ |X i ω - theta i|", content)
+        self.assertIn("μ (⋃ i ∈ I, {ω | radius i ≤ |X i ω - theta i|})", content)
+        self.assertIn("measure_biUnion_finset_le", content)
+        self.assertIn("Finset.sum_le_sum", content)
+        self.assertIn("simultaneous_confidence_bands", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_finite_union_bound_obligation_uses_mathlib_bonferroni_lemma(self) -> None:
         obligation = get_obligation("finite_union_bound")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
@@ -845,6 +857,7 @@ class SystemTests(unittest.TestCase):
         ]
         self.assertIn("affine_estimator_variance", measurement_rank_support)
         self.assertIn("finite_sample_mean_variance_indep", measurement_rank_support)
+        self.assertIn("finite_family_absolute_error_union_control", measurement_rank_support)
 
     def test_mock_system_accepts_registered_questions(self) -> None:
         async def run():

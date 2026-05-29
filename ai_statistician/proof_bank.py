@@ -212,6 +212,60 @@ theorem waldInterval_contains_iff_abs_error
         tags=("estimator", "confidence_interval", "coverage", "wald", "absolute_error", "real_algebra"),
         expected_lemmas=("abs_le", "linarith"),
     ),
+    "finite_family_absolute_error_union_control": FormalObligation(
+        id="finite_family_absolute_error_union_control",
+        title="Finite-family simultaneous absolute-error control",
+        english=(
+            "For a finite family of estimators, if each absolute-error event is "
+            "bounded by a local error budget and the local budgets sum to a "
+            "total budget, then the probability that any estimator exceeds its "
+            "error radius is at most the total budget. This is a reusable "
+            "Bonferroni bridge for simultaneous confidence bands and ranking "
+            "uncertainty; it does not claim asymptotic normality or sharp rank "
+            "functional theory."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+theorem finiteFamily_absolute_error_union_control {Ω ι : Type*}
+    [MeasurableSpace Ω]
+    (μ : Measure Ω) (I : Finset ι)
+    (X : ι → Ω → ℝ) (theta radius : ι → ℝ)
+    (α : ι → ENNReal) (α_total : ENNReal)
+    (hA : ∀ i ∈ I, μ {ω | radius i ≤ |X i ω - theta i|} ≤ α i)
+    (h_total : (∑ i ∈ I, α i) ≤ α_total) :
+    μ (⋃ i ∈ I, {ω | radius i ≤ |X i ω - theta i|}) ≤ α_total := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  calc\n"
+            "    μ (⋃ i ∈ I, {ω | radius i ≤ |X i ω - theta i|}) ≤\n"
+            "        ∑ i ∈ I, μ {ω | radius i ≤ |X i ω - theta i|} := by\n"
+            "      exact measure_biUnion_finset_le (μ := μ) I\n"
+            "        (fun i => {ω | radius i ≤ |X i ω - theta i|})\n"
+            "    _ ≤ ∑ i ∈ I, α i := by\n"
+            "      exact Finset.sum_le_sum (fun i hi => hA i hi)\n"
+            "    _ ≤ α_total := h_total"
+        ),
+        tags=(
+            "estimator",
+            "absolute_error",
+            "simultaneous",
+            "confidence",
+            "bands",
+            "simultaneous_confidence_bands",
+            "ranking",
+            "familywise_error",
+            "union_bound",
+            "finite_sample",
+            "coverage",
+        ),
+        expected_lemmas=("measure_biUnion_finset_le", "Finset.sum_le_sum"),
+        depends_on=("finite_union_budget_control",),
+    ),
     "mean2_estimator_chebyshev_indep": FormalObligation(
         id="mean2_estimator_chebyshev_indep",
         title="Chebyshev error bound for an average of independent estimators",
