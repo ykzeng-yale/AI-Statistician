@@ -187,6 +187,15 @@ async def run_research_system_audit(
             "research_capability_current_release_gate": capability_report["n_current_release_gate"],
             "frontier_smoke_questions": frontier_smoke_manifest["n_selected"],
             "frontier_smoke_ready": frontier_smoke_manifest["counts"]["ready_with_gaps"],
+            "frontier_theory_targets_scored": frontier_smoke_manifest["counts"]["theory_targets_scored"],
+            "frontier_theory_targets_total": frontier_smoke_manifest["counts"]["theory_targets_total"],
+            "frontier_theory_expected_results": frontier_smoke_manifest["counts"]["theory_expected_results"],
+            "frontier_theory_expected_results_covered": frontier_smoke_manifest["counts"][
+                "theory_expected_results_covered"
+            ],
+            "frontier_theory_expected_result_coverage_rate": frontier_smoke_manifest["counts"][
+                "theory_expected_result_coverage_rate"
+            ],
             "research_intake_supported": intake_manifest["n_supported"],
             "research_intake_supported_accepted": intake_manifest["n_supported_accepted"],
             "research_intake_unsupported": intake_manifest["n_unsupported"],
@@ -268,6 +277,18 @@ async def run_research_system_audit(
             ),
             "frontier_smoke_benchmark": str(
                 out_dir / "frontier_smoke_benchmark" / "frontier_smoke_manifest.json"
+            ),
+            "frontier_theory_target_audit": str(
+                out_dir
+                / "frontier_smoke_benchmark"
+                / "frontier_theory_target_audit"
+                / "frontier_theory_target_manifest.json"
+            ),
+            "frontier_theory_target_report": str(
+                out_dir
+                / "frontier_smoke_benchmark"
+                / "frontier_theory_target_audit"
+                / "frontier_theory_target.md"
             ),
             "research_intake_audit": str(
                 out_dir / "research_intake_audit" / "research_intake_audit_manifest.json"

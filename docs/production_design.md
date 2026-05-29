@@ -253,13 +253,15 @@ The system audit is the preferred single command for evaluating this layer. It
 runs proof-bank retrieval, frontier precision audit, research capability audit,
 research knowledge-source audit, research algorithm audit, proof verification,
 proof-training export, the proof-policy baseline, prover-component audit, the
-frontier research benchmark, the research trace audit, formal-gap backlog,
-formalization target queue, and the human-readable research report, then writes
-`research_system_audit_manifest.json` with gates and artifact paths. The
-training and baseline gates check artifact integrity, not model quality: they
-make verifier-positive proof attempts available for future SFT/rejection
-sampling and record the no-training proof-memory baseline that trained policies
-must beat. With `--real-lean`, the proof gate and benchmark subclaims use AXLE
+frontier research benchmark, frontier theory-target grading, the research trace
+audit, formal-gap backlog, formalization target queue, and the human-readable
+research report, then writes `research_system_audit_manifest.json` with gates
+and artifact paths. The training, baseline, and theory-target gates check
+artifact integrity and scoring coverage, not model quality: they make
+verifier-positive proof attempts available for future SFT/rejection sampling,
+record the no-training proof-memory baseline that trained policies must beat,
+and quantify how much of the withheld paper-theory target text is recovered.
+With `--real-lean`, the proof gate and benchmark subclaims use AXLE
 `verify_proof`; frontier theorem goals still remain explicit formal gaps unless
 they have been added to the proof bank as real obligations.
 
@@ -366,6 +368,22 @@ paper IDs, the generated benchmark traces, trace audit, and formal-gap backlog.
 With `--real-lean`, the Mathlib-backed subclaims are verified through AXLE.
 This is a smoke test of executable paper-style coverage, distinct from the
 coverage audit's broader classification count.
+
+The smoke benchmark also writes `frontier_theory_target_audit/`. This audit
+uses the withheld `expected_theoretical_results` only after trace generation and
+computes token-overlap coverage between the generated theorem/procedure plan
+and the paper's expected theory targets. The gate checks that every selected
+trace was scored against available gold targets; the coverage rate is
+diagnostic, not a claim that the current system has reconstructed or proved the
+full frontier paper theorem.
+
+The same grader is available directly:
+
+```bash
+python3 -m ai_statistician.cli frontier-theory-target-audit \
+  --run-dir runs/frontier_smoke_benchmark/research_benchmark \
+  --out runs/frontier_theory_target_audit
+```
 
 The current benchmark covers fourteen frontier-style but controlled problems:
 

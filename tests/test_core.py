@@ -572,6 +572,10 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(len(questions), 60)
         self.assertTrue(all(question.open_question for question in questions))
         self.assertTrue(all(question.expected_results for question in questions))
+        open_question = questions[0].to_open_research_question()
+        self.assertNotIn("Expected theoretical results", open_question.description)
+        for expected in questions[0].expected_results:
+            self.assertNotIn(expected, open_question.description)
 
         payload = audit_frontier_coverage(Path("runs/test_frontier_coverage_audit"))
         self.assertTrue(payload["all_ok"])
@@ -640,12 +644,20 @@ class SystemTests(unittest.TestCase):
 
         payload = asyncio.run(run())
         self.assertTrue(payload["all_gates_passed"])
+        self.assertTrue(payload["gates"]["frontier_theory_target_audit"])
         self.assertEqual(payload["counts"]["questions"], payload["n_selected"])
         self.assertEqual(payload["counts"]["ready_with_gaps"], payload["n_selected"])
         self.assertEqual(payload["counts"]["traces_ok"], payload["n_selected"])
+        self.assertEqual(payload["counts"]["theory_targets_scored"], payload["n_selected"])
+        self.assertEqual(payload["counts"]["theory_targets_total"], payload["n_selected"])
+        self.assertGreater(payload["counts"]["theory_expected_results"], 0)
         self.assertTrue(Path("runs/test_frontier_smoke_benchmark/frontier_smoke_manifest.json").exists())
         self.assertTrue(Path("runs/test_frontier_smoke_benchmark/selected_questions.json").exists())
         self.assertTrue(Path(payload["artifacts"]["research_benchmark"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["frontier_theory_target_audit"]).exists())
+        target_audit = json.loads(Path(payload["artifacts"]["frontier_theory_target_audit"]).read_text())
+        self.assertTrue(target_audit["all_scored"])
+        self.assertFalse(target_audit["limitations"][0] == "")
         dp_trace_path = Path("runs/test_frontier_smoke_benchmark/research_benchmark/robust_privacy_distributed_02.json")
         self.assertTrue(dp_trace_path.exists())
         dp_trace = json.loads(dp_trace_path.read_text())
@@ -1435,6 +1447,15 @@ class SystemTests(unittest.TestCase):
         self.assertGreaterEqual(payload["counts"]["research_capability_not_achieved"], 1)
         self.assertGreaterEqual(payload["counts"]["frontier_smoke_questions"], 3)
         self.assertEqual(payload["counts"]["frontier_smoke_ready"], payload["counts"]["frontier_smoke_questions"])
+        self.assertEqual(
+            payload["counts"]["frontier_theory_targets_scored"],
+            payload["counts"]["frontier_theory_targets_total"],
+        )
+        self.assertEqual(
+            payload["counts"]["frontier_theory_targets_total"],
+            payload["counts"]["frontier_smoke_questions"],
+        )
+        self.assertGreater(payload["counts"]["frontier_theory_expected_results"], 0)
         self.assertEqual(payload["counts"]["research_intake_supported_accepted"], payload["counts"]["research_intake_supported"])
         self.assertEqual(payload["counts"]["research_intake_unsupported_rejected"], payload["counts"]["research_intake_unsupported"])
         self.assertEqual(payload["counts"]["research_knowledge_problem_ok"], payload["counts"]["research_knowledge_problem_rows"])
@@ -1486,6 +1507,8 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(Path(payload["artifacts"]["research_capability_audit"]).exists())
         self.assertTrue(Path(payload["artifacts"]["research_capability_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["frontier_smoke_benchmark"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["frontier_theory_target_audit"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["frontier_theory_target_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["research_benchmark"]).exists())
         self.assertTrue(Path(payload["artifacts"]["research_intake_audit"]).exists())
         self.assertTrue(Path(payload["artifacts"]["research_knowledge_audit"]).exists())

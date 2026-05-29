@@ -24,12 +24,13 @@ class FrontierBenchmarkQuestion:
     expected_results: tuple[str, ...]
 
     def to_open_research_question(self) -> OpenResearchQuestion:
+        # Gold targets are withheld from the system under test. They are used
+        # only by post-hoc grading audits such as frontier_theory_target_audit.
         description = "\n".join(
             part
             for part in (
                 f"Open question: {self.open_question}",
                 f"Assumptions to recover: {self.assumptions}",
-                "Expected theoretical results: " + "; ".join(self.expected_results),
             )
             if part.strip()
         )

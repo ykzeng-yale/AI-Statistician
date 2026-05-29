@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from .frontier_coverage_audit import FrontierBenchmarkQuestion, load_frontier_benchmark_questions
+from .frontier_theory_target_audit import audit_frontier_theory_targets
 from .research_gap_audit import audit_research_gap_backlog
 from .research_intake_audit import UNSUPPORTED_PROBLEM_CLASS
 from .research_lab import ProblemFormalizer, build_research_provenance, run_research_benchmark
@@ -101,6 +102,11 @@ async def run_frontier_smoke_benchmark(
         out_dir / "research_benchmark",
         out_dir / "research_gap_backlog",
     )
+    theory_target_manifest = audit_frontier_theory_targets(
+        out_dir / "research_benchmark",
+        out_dir / "frontier_theory_target_audit",
+        benchmark_file=benchmark_file,
+    )
     selected_classes = sorted({row.problem_class for row in selections})
     benchmark_ok = (
         bool(selections)
@@ -114,6 +120,7 @@ async def run_frontier_smoke_benchmark(
         "research_benchmark": benchmark_ok,
         "research_trace_audit": bool(trace_manifest["all_ok"]),
         "research_gap_backlog": bool(gap_manifest["all_ok"]),
+        "frontier_theory_target_audit": bool(theory_target_manifest["all_scored"]),
     }
     payload = {
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -140,6 +147,12 @@ async def run_frontier_smoke_benchmark(
             "traces_total": trace_manifest["n_traces"],
             "gap_backlog_ok": gap_manifest["n_ok"],
             "gap_backlog_total": gap_manifest["n_gaps"],
+            "theory_targets_scored": theory_target_manifest["n_scored"],
+            "theory_targets_total": theory_target_manifest["n_traces"],
+            "theory_expected_results": theory_target_manifest["n_expected_results"],
+            "theory_expected_results_covered": theory_target_manifest["n_covered_results"],
+            "theory_expected_result_coverage_rate": theory_target_manifest["expected_result_coverage_rate"],
+            "theory_mean_trace_coverage": theory_target_manifest["mean_trace_coverage"],
         },
         "questions": benchmark_manifest["questions"],
         "artifacts": {
@@ -156,6 +169,12 @@ async def run_frontier_smoke_benchmark(
                 out_dir / "research_gap_backlog" / "research_gap_backlog_manifest.json"
             ),
             "research_gap_backlog_report": str(out_dir / "research_gap_backlog" / "research_gap_backlog.md"),
+            "frontier_theory_target_audit": str(
+                out_dir / "frontier_theory_target_audit" / "frontier_theory_target_manifest.json"
+            ),
+            "frontier_theory_target_report": str(
+                out_dir / "frontier_theory_target_audit" / "frontier_theory_target.md"
+            ),
         },
     }
     (out_dir / "frontier_smoke_manifest.json").write_text(

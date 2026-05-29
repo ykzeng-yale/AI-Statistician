@@ -13,6 +13,7 @@ from .frontier_backlog_audit import audit_frontier_backlog
 from .frontier_coverage_audit import audit_frontier_coverage
 from .frontier_precision_audit import audit_frontier_precision
 from .frontier_smoke_benchmark import FrontierSmokeConfig, run_frontier_smoke_benchmark
+from .frontier_theory_target_audit import audit_frontier_theory_targets
 from .formalization_target_audit import audit_formalization_targets
 from .formal_source_index import audit_formal_source_index
 from .intake_audit import audit_question_intake
@@ -343,6 +344,35 @@ def _frontier_backlog_audit(args: argparse.Namespace) -> int:
     print(f"\nfrontier backlog manifest written to {(Path(args.out) / 'frontier_backlog_manifest.json').resolve()}")
     print(f"markdown report written to {(Path(args.out) / 'frontier_backlog.md').resolve()}")
     return 0 if payload["all_ok"] else 1
+
+
+def _frontier_theory_target_audit(args: argparse.Namespace) -> int:
+    payload = audit_frontier_theory_targets(
+        Path(args.run_dir),
+        Path(args.out),
+        benchmark_file=Path(args.benchmark_file),
+        coverage_threshold=args.coverage_threshold,
+    )
+    print("\nAI Statistical Theory Lab Frontier Theory Target Audit")
+    print("=" * 72)
+    print(
+        f"scored={payload['n_scored']}/{payload['n_traces']} "
+        f"covered={payload['n_covered_results']}/{payload['n_expected_results']} "
+        f"rate={payload['expected_result_coverage_rate']:.2f} "
+        f"all_scored={payload['all_scored']}"
+    )
+    for row in payload["rows"]:
+        print(
+            f"  {row['question_id']}: class={row['problem_class']} "
+            f"covered={row['n_covered_results']}/{row['n_expected_results']} "
+            f"mean={row['mean_expected_result_coverage']:.2f}"
+        )
+    print(
+        f"\nfrontier theory target manifest written to "
+        f"{(Path(args.out) / 'frontier_theory_target_manifest.json').resolve()}"
+    )
+    print(f"markdown report written to {(Path(args.out) / 'frontier_theory_target.md').resolve()}")
+    return 0 if payload["all_scored"] else 1
 
 
 def _research_knowledge_audit(args: argparse.Namespace) -> int:
@@ -1097,6 +1127,33 @@ def build_parser() -> argparse.ArgumentParser:
         help="frontier unsupported-theory backlog output directory",
     )
     frontier_backlog_audit.set_defaults(func=_frontier_backlog_audit)
+
+    frontier_theory_target_audit = sub.add_parser(
+        "frontier-theory-target-audit",
+        help="score generated frontier traces against withheld expected theoretical results",
+    )
+    frontier_theory_target_audit.add_argument(
+        "--run-dir",
+        required=True,
+        help="research_benchmark directory containing generated frontier trace JSON files",
+    )
+    frontier_theory_target_audit.add_argument(
+        "--benchmark-file",
+        default="docs/frontier_stat_theory_benchmark.md",
+        help="frontier statistical theory benchmark Markdown file",
+    )
+    frontier_theory_target_audit.add_argument(
+        "--coverage-threshold",
+        type=float,
+        default=0.18,
+        help="token-coverage threshold for marking one expected result as covered",
+    )
+    frontier_theory_target_audit.add_argument(
+        "--out",
+        default="runs/frontier_theory_target_audit",
+        help="frontier theory target audit output directory",
+    )
+    frontier_theory_target_audit.set_defaults(func=_frontier_theory_target_audit)
 
     frontier_smoke_benchmark = sub.add_parser(
         "frontier-smoke-benchmark",
