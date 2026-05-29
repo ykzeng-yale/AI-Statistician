@@ -618,8 +618,17 @@ Real AXLE proof-bank audit:
 
 ```bash
 /Users/yukang/LeanProjects/LeanPractice/.venv/bin/python \
+  -m ai_statistician.cli doctor --out runs/doctor
+/Users/yukang/LeanProjects/LeanPractice/.venv/bin/python \
   -m ai_statistician.cli proof-audit --real-lean --out runs/proof_audit_axle
 ```
+
+Run `doctor` in the same Python runtime first. It reports
+`real_lean_ready`, `real_lean_blockers`, `llm_theory_ready`, and
+`llm_theory_blockers`, so a release audit can distinguish "API key is present"
+from "the AXLE/Anthropic client package is actually importable." The current
+local venv can pass offline gates with mock proof rows, but real Lean evidence
+requires the `proof` extra in the runtime that invokes `--real-lean`.
 
 This writes `proof_audit_manifest.json` plus one exported Lean file per formal
 obligation. The Lean exports are intentionally per-obligation files because

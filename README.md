@@ -99,6 +99,7 @@ source.
 Real AXLE proof verification:
 
 ```bash
+python3 -m ai_statistician.cli doctor --out runs/doctor
 /Users/yukang/LeanProjects/LeanPractice/.venv/bin/python \
   -m ai_statistician.cli demo --real-lean --runs 300 --out runs/axle
 /Users/yukang/LeanProjects/LeanPractice/.venv/bin/python \
@@ -116,6 +117,11 @@ Real AXLE proof verification:
 /Users/yukang/LeanProjects/LeanPractice/.venv/bin/python \
   -m ai_statistician.cli research-system-audit --real-lean --runs 60 --out runs/research_system_audit_axle
 ```
+
+Check `doctor` first. It reports `real_lean_ready` and concrete
+`real_lean_blockers`; an AXLE key alone is not enough if the active Python
+runtime cannot import the `axle` package. Use `python -m pip install -e
+'.[proof]'` in the runtime that will launch `--real-lean`.
 
 `proof-audit` writes both human-auditable proof artifacts and future training
 data: `proof_audit_manifest.json`, exported Lean files, `proof_attempts.jsonl`,

@@ -871,6 +871,9 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(report["summary"]["required_ok"])
         self.assertEqual(report["summary"]["n_obligations"], len(all_obligations()))
         self.assertGreaterEqual(report["summary"]["n_algorithms"], 1)
+        self.assertIn("real_lean_ready", report["summary"])
+        self.assertIn("real_lean_blockers", report["summary"])
+        self.assertIn("llm_theory_blockers", report["summary"])
         serialized = json.dumps(report)
         self.assertNotIn("do-not-print-axle", serialized)
         self.assertNotIn("do-not-print-anthropic", serialized)
@@ -885,9 +888,10 @@ class SystemTests(unittest.TestCase):
         self.assertGreaterEqual(report["n_ready"], 8)
         self.assertGreaterEqual(report["n_partial"], 1)
         findings = {row["requirement"]: row for row in report["findings"]}
-        self.assertEqual(
-            findings["verify Mathlib-backed estimator/probability properties in Lean via AXLE"]["status"],
-            "PARTIAL",
+        axle_row = findings["verify Mathlib-backed estimator/probability properties in Lean via AXLE"]
+        self.assertIn(axle_row["status"], {"PARTIAL", "READY"})
+        self.assertTrue(
+            any("latest_proof_audit_kernel_verified=" in item for item in axle_row["evidence"])
         )
         self.assertIn("source_files", report)
         self.assertEqual(len(report["fingerprints"]["algorithm_registry"]), 64)

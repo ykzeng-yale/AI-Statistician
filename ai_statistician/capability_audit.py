@@ -45,6 +45,17 @@ def build_capability_audit(*, root: Path | None = None, max_manifests: int = 12)
         (row for row in manifests if row["name"] == "system_audit_manifest.json"),
         None,
     )
+    latest_proof_audit = next(
+        (row for row in manifests if row["name"] == "proof_audit_manifest.json"),
+        None,
+    )
+    latest_proof_payload = _read_manifest_payload(latest_proof_audit)
+    latest_kernel_verified = int(latest_proof_payload.get("n_kernel_verified", 0)) if latest_proof_payload else 0
+    latest_non_kernel_verified = (
+        int(latest_proof_payload.get("n_non_kernel_verified", 0)) if latest_proof_payload else 0
+    )
+    latest_all_kernel_verified = bool(latest_proof_payload.get("all_kernel_verified")) if latest_proof_payload else False
+    axle_proof_status = "READY" if latest_all_kernel_verified and latest_kernel_verified > 0 else "PARTIAL"
     metric_fields = tuple(SimulationMetrics.__dataclass_fields__)
 
     findings = [
@@ -87,15 +98,20 @@ def build_capability_audit(*, root: Path | None = None, max_manifests: int = 12)
         ),
         CapabilityFinding(
             requirement="verify Mathlib-backed estimator/probability properties in Lean via AXLE",
-            status="PARTIAL",
+            status=axle_proof_status,
             evidence=(
                 f"{len(obligations)} proof-bank obligations registered",
                 f"{len(estimator_obligations)} estimator-tagged obligations registered",
+                f"latest_proof_audit_kernel_verified={latest_kernel_verified}",
+                f"latest_proof_audit_non_kernel_verified={latest_non_kernel_verified}",
+                f"latest_proof_audit_all_kernel_verified={latest_all_kernel_verified}",
                 f"{AxleProofVerifier.__module__}.{AxleProofVerifier.__name__} calls AXLE verify_proof",
                 "proof-audit exports per-obligation Lean candidates",
+                latest_proof_audit["path"] if latest_proof_audit else "no latest proof audit manifest found",
             ),
             limitations=(
                 "Current Lean proofs cover finite Mathlib-backed facts, not full CLT, MLE consistency, or semiparametric efficiency.",
+                "Offline mock-positive proof rows are regression evidence only; READY requires a latest proof audit with kernel_verified=true for all selected rows.",
                 "AXLE availability is environment-dependent; run doctor/system-audit with --real-lean for live verification.",
             ),
         ),
@@ -200,3 +216,12 @@ def _roadmap_documented(path: Path) -> bool:
         return False
     text = path.read_text(encoding="utf-8").lower()
     return "next production steps" in text and "asymptotic" in text and "mathlib" in text
+
+
+def _read_manifest_payload(row: dict[str, object] | None) -> dict[str, object]:
+    if row is None:
+        return {}
+    try:
+        return json.loads(Path(str(row["path"])).read_text(encoding="utf-8"))
+    except Exception:
+        return {}

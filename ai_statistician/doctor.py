@@ -49,6 +49,24 @@ def build_doctor_report(
         env_path = project_root / env_path
     dotenv_values = _read_dotenv(env_path)
 
+    axle_key = _env_presence("AXLE_API_KEY", env, dotenv_values)["present"]
+    anthropic_key = _env_presence("ANTHROPIC_API_KEY", env, dotenv_values)["present"]
+    axle_importable = _has_module("axle")
+    anthropic_importable = _has_module("anthropic")
+    real_lean_blockers = _runtime_blockers(
+        key_present=bool(axle_key),
+        module_present=axle_importable,
+        key_name="AXLE_API_KEY",
+        package_name="axle",
+        install_extra="proof",
+    )
+    llm_theory_blockers = _runtime_blockers(
+        key_present=bool(anthropic_key),
+        module_present=anthropic_importable,
+        key_name="ANTHROPIC_API_KEY",
+        package_name="anthropic",
+        install_extra="llm",
+    )
     checks = [
         _python_check(),
         _import_check("numpy", required=True, label="required package: numpy"),
@@ -59,8 +77,10 @@ def build_doctor_report(
         _path_check(env_path, required=False, label=".env file"),
         _key_check("AXLE_API_KEY", env, dotenv_values, label="AXLE key"),
         _import_check("axle", required=False, label="optional package: axle"),
+        _runtime_check("real Lean / AXLE runtime", real_lean_blockers),
         _key_check("ANTHROPIC_API_KEY", env, dotenv_values, label="Anthropic key"),
         _import_check("anthropic", required=False, label="optional package: anthropic"),
+        _runtime_check("LLM theory runtime", llm_theory_blockers),
         _openprover_check(env),
         _path_check(
             project_root / "docs" / "production_design.md",
@@ -93,16 +113,16 @@ def build_doctor_report(
         )
 
     required_ok = all(check.status != "FAIL" for check in checks if check.required)
-    axle_key = _env_presence("AXLE_API_KEY", env, dotenv_values)["present"]
-    anthropic_key = _env_presence("ANTHROPIC_API_KEY", env, dotenv_values)["present"]
     report = {
         "created_at": datetime.now(timezone.utc).isoformat(),
         "root": str(project_root),
         "env_file": str(env_path),
         "summary": {
             "required_ok": required_ok,
-            "real_lean_ready": axle_key and _has_module("axle"),
-            "llm_theory_ready": anthropic_key and _has_module("anthropic"),
+            "real_lean_ready": not real_lean_blockers,
+            "real_lean_blockers": real_lean_blockers,
+            "llm_theory_ready": not llm_theory_blockers,
+            "llm_theory_blockers": llm_theory_blockers,
             "openprover_available": _openprover_path(env).exists(),
             "n_obligations": len(all_obligations()),
             "n_algorithms": len(all_algorithms()),
@@ -170,6 +190,30 @@ def _import_check(module: str, *, required: bool, label: str) -> DoctorCheck:
         return DoctorCheck(label, "OK", required, f"module {module!r} is importable")
     status = "FAIL" if required else "WARN"
     return DoctorCheck(label, status, required, f"module {module!r} is not importable")
+
+
+def _runtime_blockers(
+    *,
+    key_present: bool,
+    module_present: bool,
+    key_name: str,
+    package_name: str,
+    install_extra: str,
+) -> list[str]:
+    blockers: list[str] = []
+    if not key_present:
+        blockers.append(f"{key_name} missing")
+    if not module_present:
+        blockers.append(
+            f"Python package {package_name!r} missing; install with `python -m pip install -e '.[{install_extra}]'`"
+        )
+    return blockers
+
+
+def _runtime_check(label: str, blockers: list[str]) -> DoctorCheck:
+    if not blockers:
+        return DoctorCheck(label, "OK", False, "ready")
+    return DoctorCheck(label, "WARN", False, "; ".join(blockers))
 
 
 def _path_check(path: Path, *, required: bool, label: str) -> DoctorCheck:
