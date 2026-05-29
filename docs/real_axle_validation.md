@@ -8,20 +8,20 @@ Runtime used:
 PYTHONPATH=/Users/yukang/AI\ Statistician \
 /Users/yukang/LeanProjects/LeanPractice/.venv/bin/python \
   -m ai_statistician.cli proof-audit --real-lean \
-  --out runs/proof_audit_real_full_32
+  --out runs/proof_audit_real_full_39
 ```
 
 Result:
 
 ```text
-verified=32/32
-kernel=32/32
+verified=39/39
+kernel=39/39
 verifier=axle.verify_proof
 strength=axle_lean_kernel
 ```
 
 This is the current evidence that the registered proof bank is not only
-mock-checked: all 32 registered Mathlib-backed obligations were accepted by
+mock-checked: all 39 registered Mathlib-backed obligations were accepted by
 AXLE/Lean-kernel verification in the real external runtime.
 
 Latest real research-system validation: 2026-05-29.
@@ -32,36 +32,41 @@ Runtime used:
 PYTHONPATH=/Users/yukang/AI\ Statistician \
 /Users/yukang/LeanProjects/LeanPractice/.venv/bin/python \
   -m ai_statistician.cli research-system-audit --real-lean \
-  --runs 20 --out runs/research_system_real_lean_cached_32
+  --runs 20 --out runs/research_system_real_lean_39_60
 ```
 
 Result:
 
 ```text
 all_gates_passed=True
-proofs_verified=32/32
-proofs_kernel_verified=32/32
+frontier_supported=60/60
+frontier_precision=60/60
+frontier_backlog=0/0
+frontier_smoke=23/23
+proofs_verified=39/39
+proofs_kernel_verified=39/39
 proof_verification_strength=axle_lean_kernel
 research_traces_ok=10/10
-proved_research_subclaims=63
-kernel_verified_research_subclaims=63
-mock_verified_research_subclaims=0
 formal_gaps=20
-verifier_cache_hits=160
-verifier_cache_misses=32
-verifier_cache_size=32
+formalized_gaps=20
+verifier_cache_hits=276
+verifier_cache_misses=39
+verifier_cache_size=39
 ```
 
 The research-system run proves that `--real-lean` now flows through the actual
 open-question workflow, not only the standalone proof-bank audit. It verifies
-available registered subclaims with AXLE, writes research traces whose proved
-subclaims are marked `kernel_verified=true`, and still leaves frontier theorem
-claims as explicit formal gaps.
+all currently registered Mathlib-backed proof obligations with AXLE, runs the
+frontier smoke benchmark with one selected question per supported class, writes
+research traces whose proved subclaims are marked `kernel_verified=true`, and
+still leaves frontier theorem claims as explicit formal gaps.
 
 Important boundary:
 
 - These are finite, reusable Mathlib-backed estimator/probability/statistical
   subclaims.
+- The 60/60 frontier benchmark coverage is routing + scoped surrogate support,
+  not a claim that every frontier paper's full theorem has been formalized.
 - This does not prove full frontier asymptotic theorem goals such as CLT,
   semiparametric efficiency, Donsker conditions, BH FDR, Ville inequality,
   Davis-Kahan recovery, or Hill/Weissman asymptotics end to end.
