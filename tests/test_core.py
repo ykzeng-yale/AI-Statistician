@@ -669,7 +669,7 @@ class SystemTests(unittest.TestCase):
         payload = audit_research_algorithm_registry(Path("runs/test_research_algorithm_audit"))
         self.assertTrue(payload["all_ok"])
         self.assertEqual(payload["n_ok"], payload["n_algorithms"])
-        self.assertEqual(payload["n_algorithms"], 23)
+        self.assertEqual(payload["n_algorithms"], 26)
         self.assertEqual(len(payload["registry_fingerprint"]), 64)
         for row in payload["algorithms"]:
             self.assertEqual(row["registry_status"], "vetted")
@@ -756,6 +756,7 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(payload["by_problem_class"]["geometric_spatial_point_process_inference"], 6)
         self.assertEqual(payload["by_problem_class"]["high_dimensional_latent_structure_inference"], 3)
         self.assertEqual(payload["by_problem_class"]["adaptive_transfer_active_preference_learning"], 3)
+        self.assertEqual(payload["by_problem_class"]["robust_distributed_model_privacy_inference"], 3)
         self.assertIn("unsupported_frontier_question", payload["by_problem_class"])
         self.assertTrue(Path("runs/test_frontier_coverage_audit/frontier_coverage_manifest.json").exists())
         self.assertTrue(Path("runs/test_frontier_coverage_audit/frontier_coverage.md").exists())
@@ -797,6 +798,12 @@ class SystemTests(unittest.TestCase):
             "adaptive_transfer_active_preference_learning",
         )
         self.assertTrue(by_id["statistical_learning_nonparametric_02"]["evidence_terms"])
+        self.assertIn("robust_privacy_distributed_03", by_id)
+        self.assertEqual(
+            by_id["robust_privacy_distributed_03"]["problem_class"],
+            "robust_distributed_model_privacy_inference",
+        )
+        self.assertTrue(by_id["robust_privacy_distributed_03"]["evidence_terms"])
         self.assertIn("networks_graphs_01", by_id)
         self.assertEqual(by_id["networks_graphs_01"]["problem_class"], "network_graph_inference")
         self.assertTrue(by_id["networks_graphs_01"]["evidence_terms"])
@@ -812,10 +819,10 @@ class SystemTests(unittest.TestCase):
     def test_frontier_backlog_audit_maps_unsupported_questions(self) -> None:
         payload = audit_frontier_backlog(Path("runs/test_frontier_backlog_audit"))
         self.assertTrue(payload["all_ok"])
-        self.assertEqual(payload["n_backlog"], 10)
+        self.assertEqual(payload["n_backlog"], 7)
         self.assertEqual(payload["n_ok"], payload["n_backlog"])
         self.assertGreaterEqual(payload["n_supported"], 1)
-        self.assertGreaterEqual(len(payload["by_domain"]), 4)
+        self.assertGreaterEqual(len(payload["by_domain"]), 3)
         self.assertTrue(payload["by_required_primitive"])
         by_id = {row["question_id"]: row for row in payload["rows"]}
         self.assertNotIn("statistical_learning_nonparametric_02", by_id)
@@ -825,6 +832,7 @@ class SystemTests(unittest.TestCase):
         self.assertNotIn("geometric_spatial_point_process_02", by_id)
         self.assertNotIn("high_dimensional_inference_01", by_id)
         self.assertNotIn("bayesian_computation_posteriors_05", by_id)
+        self.assertNotIn("robust_privacy_distributed_03", by_id)
         for row in payload["rows"]:
             self.assertTrue(row["required_primitives"])
             self.assertTrue(row["likely_methods"])
@@ -1010,6 +1018,46 @@ class SystemTests(unittest.TestCase):
         self.assertGreaterEqual(transfer_sim.metrics["outlier_task_detection_accuracy"], 0.85)
         self.assertLessEqual(preference_sim.metrics["mean_regret"], 0.08)
         self.assertGreaterEqual(preference_sim.metrics["best_scheme_selection_accuracy"], 0.82)
+
+    def test_robust_distributed_privacy_frontier_question_runs_registered_simulators(self) -> None:
+        question = next(
+            row.to_open_research_question()
+            for row in load_frontier_benchmark_questions(Path("docs/frontier_stat_theory_benchmark.md"))
+            if row.id == "robust_privacy_distributed_03"
+        )
+        problem = ProblemFormalizer().formalize(question)
+        self.assertEqual(problem.problem_class, "robust_distributed_model_privacy_inference")
+        procedures, theorem_goals = TheoryPlanner().plan(problem)
+        self.assertEqual(
+            [procedure.algorithm for procedure in procedures],
+            [
+                "robust_proportional_regression",
+                "byzantine_distributed_mixture",
+                "model_stealing_query_defense",
+            ],
+        )
+        self.assertEqual(
+            {goal.id for goal in theorem_goals},
+            {
+                "robust_proportional_regression_validity",
+                "byzantine_distributed_mixture_consistency",
+                "query_response_model_privacy_bound",
+            },
+        )
+        simulations = ResearchSimulator(n_runs=35, seed=20260529).run(problem, procedures)
+        self.assertEqual(len(simulations), 3)
+        for simulation in simulations:
+            self.assertTrue(simulation.passed)
+            self.assertEqual(simulation.diagnosis.status, "OK")
+        proportional_sim = next(row for row in simulations if row.procedure_id == "winsorized_proportional_quasi_regression")
+        mixture_sim = next(row for row in simulations if row.procedure_id == "label_aligned_byzantine_mixture_aggregator")
+        privacy_sim = next(row for row in simulations if row.procedure_id == "noisy_query_model_privacy_defense")
+        self.assertLessEqual(proportional_sim.metrics["rmse"], 0.10)
+        self.assertGreaterEqual(proportional_sim.metrics["outlier_screening_accuracy"], 0.78)
+        self.assertLessEqual(mixture_sim.metrics["rmse"], 0.05)
+        self.assertGreaterEqual(mixture_sim.metrics["byzantine_detection_accuracy"], 0.78)
+        self.assertGreaterEqual(privacy_sim.metrics["privacy_risk_reduction"], 0.25)
+        self.assertGreaterEqual(privacy_sim.metrics["selection_accuracy"], 0.80)
 
     def test_frontier_smoke_benchmark_runs_selected_supported_papers(self) -> None:
         selected, metadata = select_supported_frontier_questions(max_per_class=1)

@@ -123,6 +123,33 @@ KNOWLEDGE_CARDS: tuple[KnowledgeCard, ...] = (
         ),
     ),
     KnowledgeCard(
+        id="robust_distributed_model_privacy_inference",
+        title="Robust proportional, Byzantine distributed, and model-privacy inference",
+        source_type="statistical_method",
+        location="internal-method-card",
+        summary=(
+            "This frontier class covers robust regression for bounded proportional "
+            "responses, Byzantine-tolerant aggregation of distributed mixture-model "
+            "fits, and query-response model privacy. The v0 release uses winsorized "
+            "quasi-regression, label-aligned robust worker aggregation, and a noisy "
+            "query-response defense simulator while full beta-regression robustness, "
+            "mixture EM label-switching theory, Byzantine convergence rates, and "
+            "model-stealing lower bounds remain formal gaps."
+        ),
+        tags=(
+            "robust_regression",
+            "proportional_response",
+            "continuous_unit_interval",
+            "byzantine",
+            "distributed_learning",
+            "finite_mixture",
+            "label_switching",
+            "model_privacy",
+            "model_stealing",
+            "robust_distributed_model_privacy_inference",
+        ),
+    ),
+    KnowledgeCard(
         id="adaptive_transfer_active_preference_learning",
         title="Adaptive transfer, preference, and active-label learning inference",
         source_type="statistical_method",
@@ -572,6 +599,7 @@ PRIMARY_KNOWLEDGE_BY_PROBLEM_CLASS: dict[str, str] = {
     "robust_mean_inference": "robust_mean_median_of_means",
     "differential_privacy_learning": "differential_privacy_gaussian_mechanism",
     "nonparametric_regression_inference": "nonparametric_sieve_regression_inference",
+    "robust_distributed_model_privacy_inference": "robust_distributed_model_privacy_inference",
     "adaptive_transfer_active_preference_learning": "adaptive_transfer_active_preference_learning",
     "network_graph_inference": "network_graph_sbm_spectral_inference",
     "bayesian_posterior_calibration": "bayesian_predictive_prior_calibration",

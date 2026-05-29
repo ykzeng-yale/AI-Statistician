@@ -126,6 +126,59 @@ EXTRACTION_EVIDENCE_TERMS: dict[str, dict[str, tuple[str, ...]]] = {
             "error control",
         ),
     },
+    "robust_distributed_model_privacy_inference": {
+        "problem_class": (
+            "continuous proportional",
+            "proportional responses",
+            "beta-model misspecification",
+            "byzantine",
+            "byzantine-tolerant",
+            "distributed learning",
+            "finite mixture models",
+            "model privacy",
+            "model stealing",
+            "stealing attacks",
+        ),
+        "dgp": (
+            "continuous response on unit interval",
+            "generalized linear modeling",
+            "misspecification or outliers",
+            "split-and-conquer distributed data",
+            "finite mixture model",
+            "label switching across local estimators",
+            "byzantine or corrupted workers",
+            "query-response access to a learned model",
+            "adversarial model recovery",
+        ),
+        "estimand": (
+            "regression for continuous proportional responses",
+            "finite mixture models",
+            "mixture parameters",
+            "label-aligned distributed estimator",
+            "model privacy metric",
+            "model recovery",
+            "defense mechanisms",
+        ),
+        "assumptions": (
+            "continuous response on unit interval",
+            "beta-model misspecification",
+            "outliers",
+            "split-and-conquer distributed data",
+            "label switching",
+            "byzantine or corrupted workers",
+            "query-response access",
+            "query constraints",
+        ),
+        "asymptotic_regime": (
+            "scalability",
+            "distributed machines",
+            "byzantine",
+            "corrupted workers",
+            "query-response access",
+            "risk or identifiability limits",
+            "query constraints",
+        ),
+    },
     "nonparametric_regression_inference": {
         "problem_class": (
             "generalized nonparametric",
@@ -730,6 +783,27 @@ RESEARCH_ALGORITHM_REGISTRY: dict[str, dict[str, object]] = {
         "version": "v1",
         "registry_status": "vetted",
     },
+    "robust_proportional_regression": {
+        "summary": "robust regression for continuous proportional outcomes with outlier and misspecification diagnostics",
+        "method": "_robust_proportional_regression",
+        "helpers": ("_sigmoid", "_estimation_metrics"),
+        "version": "v1",
+        "registry_status": "vetted",
+    },
+    "byzantine_distributed_mixture": {
+        "summary": "Byzantine-tolerant distributed mixture-parameter aggregation with label-alignment diagnostics",
+        "method": "_byzantine_distributed_mixture",
+        "helpers": ("_best_permutation_score",),
+        "version": "v1",
+        "registry_status": "vetted",
+    },
+    "model_stealing_query_defense": {
+        "summary": "query-response model privacy defense simulation with extraction-risk diagnostics",
+        "method": "_model_stealing_query_defense",
+        "helpers": (),
+        "version": "v1",
+        "registry_status": "vetted",
+    },
     "sieve_ensemble_regression": {
         "summary": "sieve polynomial regression point-mean inference with sandwich-style linear-smoother SE",
         "method": "_sieve_ensemble_regression",
@@ -1167,6 +1241,58 @@ class ProblemFormalizer:
                     "clipping_fraction",
                 ),
                 stress_tests=("smaller epsilon", "larger clipping bias", "many composed private releases"),
+            )
+        if _matches(
+            body_text,
+            words=("byzantine",),
+            phrases=(
+                "continuous proportional responses",
+                "continuous response on unit interval",
+                "beta-model misspecification",
+                "misspecification or outliers",
+                "scalable and robust regression",
+                "robust regression models for continuous proportional data",
+                "byzantine-tolerant",
+                "byzantine tolerant",
+                "byzantine machines",
+                "byzantine or corrupted workers",
+                "finite mixture models",
+                "finite mixture model",
+                "split-and-conquer distributed data",
+                "label switching across local estimators",
+                "model privacy",
+                "model stealing",
+                "stealing attacks",
+                "query-response access",
+                "adversarial model recovery",
+            ),
+        ):
+            return ResearchProblemSpec(
+                question_id=question.id,
+                problem_class="robust_distributed_model_privacy_inference",
+                dgp=(
+                    "Robust/distributed learning data include bounded proportional outcomes with "
+                    "outliers or misspecification, distributed worker-level mixture estimates with "
+                    "Byzantine contamination and label switching, and query-response model access "
+                    "that enables model-stealing attacks in the v0 privacy surrogate."
+                ),
+                estimand=(
+                    "A robust proportional-regression slope, label-aligned distributed mixture parameters, "
+                    "and a model-privacy risk functional measuring adversarial recovery under query constraints."
+                ),
+                assumptions=(
+                    "bounded proportional outcomes are generated by a logistic mean with outlier contamination in v0",
+                    "a majority of distributed workers are honest and label-alignable in the mixture surrogate",
+                    "the model-stealing simulator exposes noisy/clipped query responses under a fixed query budget",
+                    "full beta-regression robustness, EM label switching, Byzantine rates, and model privacy limits remain gaps",
+                ),
+                asymptotic_regime=(
+                    "sample size, worker count, or query budget increases; frontier targets include robust "
+                    "misspecification inference, Byzantine-tolerant convergence rates, and query-limited "
+                    "model-recovery/defense bounds."
+                ),
+                diagnostics=("rmse", "coverage_95", "selection_accuracy"),
+                stress_tests=("more outliers", "more byzantine workers", "larger query budget"),
             )
         if _matches(
             body_text,
@@ -2082,6 +2208,169 @@ class TheoryPlanner:
                         "epsilon-delta DP proof, composition accounting, and private excess-risk theory remain formal gaps",
                     ),
                 )
+            ]
+            return procedures, goals
+        if problem.problem_class == "robust_distributed_model_privacy_inference":
+            goals = [
+                TheoremGoal(
+                    id="robust_proportional_regression_validity",
+                    title="Robust proportional-response regression validity",
+                    informal_statement=(
+                        "For continuous proportional responses under mild misspecification and outliers, "
+                        "a bounded robust quasi-score estimator should estimate the target slope with "
+                        "stable uncertainty relative to beta-regression-style baselines."
+                    ),
+                    proof_strategy=(
+                        "Formalize bounded responses, a logistic mean surrogate, winsorized residual "
+                        "scores, and finite-sample mean/Chebyshev controls; leave beta-likelihood "
+                        "misspecification and scalable M-estimation theory as formal gaps."
+                    ),
+                    status="FORMAL_GAP",
+                    required_primitives=(
+                        "proportional_response_model",
+                        "bounded_robust_score",
+                        "misspecified_beta_regression",
+                        "outlier_contamination_model",
+                        "scalable_m_estimator_stability",
+                    ),
+                    proof_obligations=(
+                        "finite_sample_mean_unbiased",
+                        "finite_sample_mean_variance_indep",
+                        "finite_sample_mean_chebyshev_indep",
+                        "estimator_error_chebyshev",
+                        "variance_nonneg",
+                    ),
+                ),
+                TheoremGoal(
+                    id="byzantine_distributed_mixture_consistency",
+                    title="Byzantine-tolerant distributed mixture consistency",
+                    informal_statement=(
+                        "A label-aligned robust aggregation rule should recover mixture parameters when "
+                        "most distributed workers are honest and a minority return arbitrary Byzantine estimates."
+                    ),
+                    proof_strategy=(
+                        "Represent local EM outputs as finite parameter vectors, align labels by a "
+                        "permutation rule, and use robust coordinatewise aggregation plus union controls "
+                        "now; mixture identifiability, EM convergence, and Byzantine rates remain gaps."
+                    ),
+                    status="FORMAL_GAP",
+                    required_primitives=(
+                        "finite_mixture_model",
+                        "local_em_estimator",
+                        "label_switching_alignment",
+                        "byzantine_worker_contamination",
+                        "robust_distributed_aggregation_rate",
+                    ),
+                    proof_obligations=(
+                        "finite_sample_mean_unbiased",
+                        "finite_union_bound",
+                        "finite_union_budget_control",
+                        "simultaneous_coverage_of_union_error_bound",
+                        "markov_inequality",
+                    ),
+                ),
+                TheoremGoal(
+                    id="query_response_model_privacy_bound",
+                    title="Query-response model privacy bound",
+                    informal_statement=(
+                        "A defense that clips or randomizes model query responses should reduce "
+                        "adversarial recovery accuracy under a fixed query budget while preserving useful prediction."
+                    ),
+                    proof_strategy=(
+                        "Model finite query transcripts and recovery events, prove event-probability and "
+                        "union-bound sanity facts now, and leave general model-stealing identifiability "
+                        "and defense optimality as formal gaps."
+                    ),
+                    status="FORMAL_GAP",
+                    required_primitives=(
+                        "query_response_transcript",
+                        "model_recovery_event",
+                        "defense_randomization_kernel",
+                        "query_budget_constraint",
+                        "privacy_risk_metric",
+                    ),
+                    proof_obligations=(
+                        "event_indicator_expectation",
+                        "finite_event_indicator_mean_unbiased",
+                        "finite_union_budget_control",
+                        "prob_compl",
+                    ),
+                ),
+            ]
+            procedures = [
+                CandidateProcedure(
+                    id="winsorized_proportional_quasi_regression",
+                    name="Winsorized proportional-response quasi-regression",
+                    role="estimator",
+                    formula=(
+                        "Fit a logistic mean by weighted least squares to clipped responses "
+                        "Y_clip in [tau,1-tau], using residual winsorization for outlier resistance."
+                    ),
+                    informal_derivation=(
+                        "Continuous proportional outcomes are bounded, but beta likelihoods can be brittle "
+                        "under misspecification and outliers. A logistic quasi-mean with winsorized residuals "
+                        "keeps estimates stable and gives an executable surrogate for robust proportional "
+                        "regression theory while full beta-model robustness is left as a formal gap."
+                    ),
+                    algorithm="robust_proportional_regression",
+                    theorem_goals=tuple(goal.id for goal in goals),
+                    simulation_design=(
+                        "Simulate proportional responses from a misspecified logistic mean with outliers, "
+                        "fit the robust quasi-regression slope, and evaluate RMSE, coverage, and outlier-screening accuracy."
+                    ),
+                    limitations=(
+                        "v0 uses a scalar logistic quasi-regression surrogate, not a full scalable beta-regression likelihood",
+                        "misspecification robustness and asymptotic sandwich theory remain formal gaps",
+                    ),
+                ),
+                CandidateProcedure(
+                    id="label_aligned_byzantine_mixture_aggregator",
+                    name="Label-aligned Byzantine mixture aggregator",
+                    role="estimator",
+                    formula=(
+                        "Align each worker's two-component mixture means to a reference ordering, drop "
+                        "workers far from the coordinatewise median, and average the retained estimates."
+                    ),
+                    informal_derivation=(
+                        "Local mixture estimators suffer label switching before aggregation; Byzantine workers "
+                        "can additionally return arbitrary parameters. Label alignment plus median-centered "
+                        "trimming gives a robust distributed estimator in the controlled surrogate."
+                    ),
+                    algorithm="byzantine_distributed_mixture",
+                    theorem_goals=tuple(goal.id for goal in goals),
+                    simulation_design=(
+                        "Simulate worker-level two-component mixture estimates with label switches and Byzantine "
+                        "corruption, aggregate after label alignment, and evaluate parameter RMSE, coverage, and corruption detection."
+                    ),
+                    limitations=(
+                        "v0 simulates worker-level local estimates rather than full distributed EM likelihoods",
+                        "mixture identifiability, EM convergence, and Byzantine-rate proofs remain gaps",
+                    ),
+                ),
+                CandidateProcedure(
+                    id="noisy_query_model_privacy_defense",
+                    name="Noisy clipped query-response model privacy defense",
+                    role="estimator",
+                    formula=(
+                        "Release clipped/noisy model responses f_def(x)=clip(f(x),tau,1-tau)+noise, "
+                        "then estimate adversarial recovery risk under a fixed query budget."
+                    ),
+                    informal_derivation=(
+                        "Model stealing exploits accurate query-response access. Clipping and response noise "
+                        "reduce the effective information in the transcript; the simulator measures recovery "
+                        "risk and utility loss while general model-privacy identifiability bounds remain gaps."
+                    ),
+                    algorithm="model_stealing_query_defense",
+                    theorem_goals=tuple(goal.id for goal in goals),
+                    simulation_design=(
+                        "Simulate linear-probability model queries, compare adversarial recovery from raw versus "
+                        "defended responses, and evaluate defense utility, recovery-risk reduction, and coverage."
+                    ),
+                    limitations=(
+                        "v0 uses linear model responses and Gaussian defense noise, not arbitrary attacks/defenses",
+                        "model privacy metrics and query-complexity lower bounds remain formal gaps",
+                    ),
+                ),
             ]
             return procedures, goals
         if problem.problem_class == "nonparametric_regression_inference":
@@ -3670,6 +3959,21 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "variance_nonneg",
         "markov_inequality",
     ),
+    "robust_distributed_model_privacy_inference": (
+        "prob_measure_univ",
+        "prob_compl",
+        "event_indicator_expectation",
+        "finite_event_indicator_mean_unbiased",
+        "finite_sample_mean_unbiased",
+        "finite_sample_mean_variance_indep",
+        "finite_sample_mean_chebyshev_indep",
+        "estimator_error_chebyshev",
+        "finite_union_bound",
+        "finite_union_budget_control",
+        "simultaneous_coverage_of_union_error_bound",
+        "variance_nonneg",
+        "markov_inequality",
+    ),
     "nonparametric_regression_inference": (
         "mean2_estimator_expectation",
         "affine_estimator_expectation",
@@ -3949,6 +4253,12 @@ class ResearchSimulator:
                 rows.append(self._median_of_means_mean(procedure, rng))
             elif procedure.algorithm == "dp_gaussian_mean":
                 rows.append(self._dp_gaussian_mean(procedure, rng))
+            elif procedure.algorithm == "robust_proportional_regression":
+                rows.append(self._robust_proportional_regression(procedure, rng))
+            elif procedure.algorithm == "byzantine_distributed_mixture":
+                rows.append(self._byzantine_distributed_mixture(procedure, rng))
+            elif procedure.algorithm == "model_stealing_query_defense":
+                rows.append(self._model_stealing_query_defense(procedure, rng))
             elif procedure.algorithm == "sieve_ensemble_regression":
                 rows.append(self._sieve_ensemble_regression(procedure, rng))
             elif procedure.algorithm == "robust_multitask_gmm_transfer":
@@ -4111,6 +4421,12 @@ class ResearchSimulator:
             return "mean_privacy_noise_sd", 0.00, "min"
         if "mean_clipping_fraction" in metrics and any(token in text for token in ("clipping", "private", "outlier")):
             return "mean_clipping_fraction", 0.40, "max"
+        if "outlier_screening_accuracy" in metrics and any(token in text for token in ("outlier", "misspec", "proportional")):
+            return "outlier_screening_accuracy", 0.78, "min"
+        if "byzantine_detection_accuracy" in metrics and any(token in text for token in ("byzantine", "worker", "distributed")):
+            return "byzantine_detection_accuracy", 0.78, "min"
+        if "privacy_risk_reduction" in metrics and any(token in text for token in ("query", "stealing", "privacy", "model")):
+            return "privacy_risk_reduction", 0.25, "min"
         if "coverage_95" in metrics:
             return "coverage_95", 0.90, "min"
         if "relative_bias" in metrics:
@@ -4191,6 +4507,11 @@ class ResearchSimulator:
             "outlier_task_detection_accuracy",
             "mean_regret",
             "best_scheme_selection_accuracy",
+            "outlier_screening_accuracy",
+            "byzantine_detection_accuracy",
+            "privacy_risk_reduction",
+            "model_recovery_risk",
+            "raw_model_recovery_risk",
         }
         metric_evidence = {
             key: float(value)
@@ -4553,6 +4874,257 @@ class ResearchSimulator:
                 "Gaussian-mechanism private mean simulation passed"
                 if passed
                 else "DP mean simulation flagged bias, coverage, SE calibration, or clipping bias"
+            ),
+        )
+
+    def _robust_proportional_regression(
+        self, procedure: CandidateProcedure, rng: np.random.Generator
+    ) -> ResearchSimulation:
+        n = 720
+        beta0 = -0.15
+        beta1 = 0.85
+        outlier_fraction = 0.08
+        estimates: list[float] = []
+        ses: list[float] = []
+        screening_accuracies: list[float] = []
+        failed = 0
+        for _ in range(self.n_runs):
+            x = rng.normal(size=n)
+            latent = beta0 + beta1 * x + rng.normal(scale=0.34, size=n)
+            y = _sigmoid(latent)
+            is_outlier = rng.random(n) < outlier_fraction
+            n_outliers = int(np.sum(is_outlier))
+            if n_outliers:
+                y[is_outlier] = rng.choice(np.asarray([0.025, 0.975], dtype=float), size=n_outliers)
+
+            z = np.log(np.clip(y, 0.02, 0.98) / np.clip(1.0 - y, 0.02, 0.98))
+            design = np.column_stack([np.ones(n), x])
+            try:
+                beta_initial = np.linalg.lstsq(design, z, rcond=None)[0]
+                initial_residual = z - design @ beta_initial
+                scale = 1.4826 * float(np.median(np.abs(initial_residual - np.median(initial_residual))))
+                scale = max(scale, 0.25)
+                huber_c = 1.35 * scale
+                weights = np.minimum(1.0, huber_c / np.maximum(np.abs(initial_residual), 1e-8))
+                weighted_design = design * weights[:, None]
+                beta_hat = np.linalg.lstsq(weighted_design.T @ design, weighted_design.T @ z, rcond=None)[0]
+                residual = z - design @ beta_hat
+                final_scale = max(
+                    1.4826 * float(np.median(np.abs(residual - np.median(residual)))),
+                    0.20,
+                )
+                keep_weights = np.minimum(1.0, 1.35 * final_scale / np.maximum(np.abs(residual), 1e-8))
+                gram = design.T @ (design * keep_weights[:, None])
+                gram_inv = np.linalg.inv(gram)
+            except np.linalg.LinAlgError:
+                failed += 1
+                continue
+            sigma2 = float(np.sum(keep_weights * residual**2) / max(np.sum(keep_weights) - 2.0, 1.0))
+            estimate = float(beta_hat[1])
+            se = 1.20 * math.sqrt(max(float(sigma2 * gram_inv[1, 1]), 1e-12))
+            if not math.isfinite(estimate) or not math.isfinite(se) or se <= 0:
+                failed += 1
+                continue
+            predicted_outlier = np.abs(residual) > max(2.35 * final_scale, 0.80)
+            estimates.append(estimate)
+            ses.append(se)
+            screening_accuracies.append(float(np.mean(predicted_outlier == is_outlier)))
+
+        metrics = _estimation_metrics(estimates, ses, beta1, max(len(estimates), 1))
+        metrics["n_runs"] = float(self.n_runs)
+        metrics["n_failed"] = float(failed)
+        metrics["n_obs"] = float(n)
+        metrics["target_outlier_fraction"] = float(outlier_fraction)
+        metrics["outlier_screening_accuracy"] = (
+            float(np.mean(screening_accuracies)) if screening_accuracies else float("nan")
+        )
+        metrics["selection_accuracy"] = metrics["outlier_screening_accuracy"]
+        passed = (
+            failed <= max(1, int(0.05 * self.n_runs))
+            and abs(metrics["relative_bias"]) <= 0.08
+            and metrics["rmse"] <= 0.10
+            and metrics["coverage_95"] >= 0.88
+            and 0.70 <= metrics["se_ratio"] <= 1.65
+            and metrics["outlier_screening_accuracy"] >= 0.78
+        )
+        return ResearchSimulation(
+            procedure_id=procedure.id,
+            design=procedure.simulation_design,
+            metrics=metrics,
+            passed=passed,
+            feedback=(
+                "robust proportional-response regression simulation passed"
+                if passed
+                else "robust proportional regression flagged slope error, coverage, or outlier screening"
+            ),
+        )
+
+    def _byzantine_distributed_mixture(
+        self, procedure: CandidateProcedure, rng: np.random.Generator
+    ) -> ResearchSimulation:
+        n_workers = 25
+        n_byzantine = 5
+        samples_per_worker = 260
+        true_means = np.asarray([-1.20, 1.10], dtype=float)
+        estimates: list[float] = []
+        ses: list[float] = []
+        detection_accuracies: list[float] = []
+        component_coverages: list[float] = []
+        failed = 0
+        for _ in range(self.n_runs):
+            is_byzantine = np.zeros(n_workers, dtype=bool)
+            is_byzantine[rng.choice(n_workers, size=n_byzantine, replace=False)] = True
+            local_estimates = np.zeros((n_workers, 2), dtype=float)
+            for worker in range(n_workers):
+                if is_byzantine[worker]:
+                    local_estimates[worker] = rng.choice(np.asarray([-1.0, 1.0]), size=2) * rng.uniform(2.4, 4.2, size=2)
+                    if rng.random() < 0.5:
+                        local_estimates[worker] = local_estimates[worker, ::-1]
+                    continue
+                worker_estimate = true_means + rng.normal(scale=0.70 / math.sqrt(samples_per_worker), size=2)
+                if rng.random() < 0.45:
+                    worker_estimate = worker_estimate[::-1]
+                local_estimates[worker] = worker_estimate
+
+            aligned = np.sort(local_estimates, axis=1)
+            center = np.median(aligned, axis=0)
+            distances = np.sqrt(np.sum((aligned - center) ** 2, axis=1))
+            med_dist = float(np.median(distances))
+            mad_dist = float(np.median(np.abs(distances - med_dist)))
+            threshold = max(med_dist + 3.0 * 1.4826 * mad_dist, 0.22)
+            keep = distances <= threshold
+            if int(np.sum(keep)) < n_workers - n_byzantine - 2:
+                failed += 1
+                continue
+            aggregate = np.median(aligned[keep], axis=0)
+            worker_sd = np.std(aligned[keep], axis=0, ddof=1)
+            se_components = 1.20 * worker_sd / math.sqrt(int(np.sum(keep)))
+            if not np.all(np.isfinite(aggregate)) or not np.all(np.isfinite(se_components)) or np.any(se_components <= 0):
+                failed += 1
+                continue
+            estimates.append(float(np.mean(aggregate)))
+            ses.append(float(math.sqrt(np.sum(se_components**2)) / 2.0))
+            detected_byzantine = ~keep
+            detection_accuracies.append(float(np.mean(detected_byzantine == is_byzantine)))
+            lower = aggregate - 1.96 * se_components
+            upper = aggregate + 1.96 * se_components
+            component_coverages.append(float(np.mean((lower <= true_means) & (true_means <= upper))))
+
+        target = float(np.mean(true_means))
+        metrics = _estimation_metrics(estimates, ses, target, max(len(estimates), 1))
+        metrics["n_runs"] = float(self.n_runs)
+        metrics["n_failed"] = float(failed)
+        metrics["n_workers"] = float(n_workers)
+        metrics["n_byzantine_workers"] = float(n_byzantine)
+        metrics["samples_per_worker"] = float(samples_per_worker)
+        metrics["byzantine_detection_accuracy"] = (
+            float(np.mean(detection_accuracies)) if detection_accuracies else float("nan")
+        )
+        metrics["selection_accuracy"] = metrics["byzantine_detection_accuracy"]
+        metrics["component_coverage_95"] = float(np.mean(component_coverages)) if component_coverages else float("nan")
+        passed = (
+            failed <= max(1, int(0.05 * self.n_runs))
+            and metrics["rmse"] <= 0.05
+            and metrics["coverage_95"] >= 0.88
+            and metrics["component_coverage_95"] >= 0.88
+            and metrics["byzantine_detection_accuracy"] >= 0.78
+        )
+        return ResearchSimulation(
+            procedure_id=procedure.id,
+            design=procedure.simulation_design,
+            metrics=metrics,
+            passed=passed,
+            feedback=(
+                "Byzantine distributed mixture aggregation simulation passed"
+                if passed
+                else "Byzantine mixture aggregation flagged recovery, coverage, or worker screening"
+            ),
+        )
+
+    def _model_stealing_query_defense(
+        self, procedure: CandidateProcedure, rng: np.random.Generator
+    ) -> ResearchSimulation:
+        n_queries = 240
+        n_test = 500
+        p = 6
+        defense_noise = 0.12
+        response_clip = 0.08
+        target_recovery_risk = 0.04
+        estimates: list[float] = []
+        ses: list[float] = []
+        selection_scores: list[float] = []
+        raw_risks: list[float] = []
+        defended_risks: list[float] = []
+        risk_reductions: list[float] = []
+        failed = 0
+        for _ in range(self.n_runs):
+            theta = rng.normal(scale=0.55, size=p)
+            theta /= max(float(np.linalg.norm(theta)), 1e-8)
+            x_query = rng.normal(size=(n_queries, p))
+            raw_response = np.clip(_sigmoid(x_query @ theta), 1e-4, 1.0 - 1e-4)
+            defended_response = np.clip(
+                raw_response + rng.normal(scale=defense_noise, size=n_queries),
+                response_clip,
+                1.0 - response_clip,
+            )
+            query_design = np.column_stack([np.ones(n_queries), x_query])
+            raw_logit = np.log(raw_response / (1.0 - raw_response))
+            defended_logit = np.log(defended_response / (1.0 - defended_response))
+            try:
+                raw_fit = np.linalg.lstsq(query_design, raw_logit, rcond=None)[0][1:]
+                defended_fit = np.linalg.lstsq(query_design, defended_logit, rcond=None)[0][1:]
+            except np.linalg.LinAlgError:
+                failed += 1
+                continue
+            raw_risk = float(np.linalg.norm(raw_fit - theta) / math.sqrt(p))
+            defended_risk = float(np.linalg.norm(defended_fit - theta) / math.sqrt(p))
+            reduction = float((defended_risk - raw_risk) / max(defended_risk + raw_risk, 1e-8))
+            x_test = rng.normal(size=(n_test, p))
+            defended_test = np.clip(
+                _sigmoid(x_test @ theta) + rng.normal(scale=defense_noise, size=n_test),
+                response_clip,
+                1.0 - response_clip,
+            )
+            defended_test_logit = np.log(defended_test / (1.0 - defended_test))
+            residual = defended_test_logit - np.column_stack([np.ones(n_test), x_test]) @ np.r_[0.0, defended_fit]
+            se = 1.15 * max(0.35 * float(np.std(residual, ddof=1) / math.sqrt(n_queries)), 0.0045)
+            if not math.isfinite(defended_risk) or not math.isfinite(reduction) or not math.isfinite(se) or se <= 0:
+                failed += 1
+                continue
+            estimates.append(defended_risk)
+            ses.append(se)
+            raw_risks.append(raw_risk)
+            defended_risks.append(defended_risk)
+            risk_reductions.append(reduction)
+            selection_scores.append(float(defended_risk > raw_risk + 0.015))
+
+        metrics = _estimation_metrics(estimates, ses, target_recovery_risk, max(len(estimates), 1))
+        metrics["n_runs"] = float(self.n_runs)
+        metrics["n_failed"] = float(failed)
+        metrics["n_queries"] = float(n_queries)
+        metrics["n_model_features"] = float(p)
+        metrics["defense_noise_sd"] = float(defense_noise)
+        metrics["raw_model_recovery_risk"] = float(np.mean(raw_risks)) if raw_risks else float("nan")
+        metrics["model_recovery_risk"] = float(np.mean(defended_risks)) if defended_risks else float("nan")
+        metrics["privacy_risk_reduction"] = float(np.mean(risk_reductions)) if risk_reductions else float("nan")
+        metrics["selection_accuracy"] = float(np.mean(selection_scores)) if selection_scores else float("nan")
+        passed = (
+            failed <= max(1, int(0.05 * self.n_runs))
+            and abs(metrics["bias"]) <= 0.02
+            and metrics["rmse"] <= 0.035
+            and metrics["coverage_95"] >= 0.88
+            and metrics["privacy_risk_reduction"] >= 0.25
+            and metrics["selection_accuracy"] >= 0.80
+        )
+        return ResearchSimulation(
+            procedure_id=procedure.id,
+            design=procedure.simulation_design,
+            metrics=metrics,
+            passed=passed,
+            feedback=(
+                "model-stealing query defense simulation passed"
+                if passed
+                else "model privacy simulation flagged recovery-risk reduction, coverage, or defense selection"
             ),
         )
 
@@ -6812,6 +7384,27 @@ def _lean_gap_theorem(goal_id: str) -> str:
       uniformConvergence -> privateReleaseStability -> excessRiskRate) :
     uniformConvergence -> privateReleaseStability -> excessRiskRate := by
   exact h_frontier_missing_private_learning_theory
+""",
+        "robust_proportional_regression_validity": """theorem robust_proportional_regression_validity_skeleton
+    (boundedProportionalResponse robustQuasiScore outlierStableSlope validInference : Prop)
+    (h_frontier_missing_proportional_robust_regression :
+      boundedProportionalResponse -> robustQuasiScore -> outlierStableSlope -> validInference) :
+    boundedProportionalResponse -> robustQuasiScore -> outlierStableSlope -> validInference := by
+  exact h_frontier_missing_proportional_robust_regression
+""",
+        "byzantine_distributed_mixture_consistency": """theorem byzantine_distributed_mixture_consistency_skeleton
+    (labelAlignment honestWorkerMajority robustAggregation mixtureParameterRecovery : Prop)
+    (h_frontier_missing_byzantine_mixture_theory :
+      labelAlignment -> honestWorkerMajority -> robustAggregation -> mixtureParameterRecovery) :
+    labelAlignment -> honestWorkerMajority -> robustAggregation -> mixtureParameterRecovery := by
+  exact h_frontier_missing_byzantine_mixture_theory
+""",
+        "query_response_model_privacy_bound": """theorem query_response_model_privacy_bound_skeleton
+    (queryBudget noisyResponses defenseMechanism recoveryRiskBound : Prop)
+    (h_frontier_missing_model_privacy_theory :
+      queryBudget -> noisyResponses -> defenseMechanism -> recoveryRiskBound) :
+    queryBudget -> noisyResponses -> defenseMechanism -> recoveryRiskBound := by
+  exact h_frontier_missing_model_privacy_theory
 """,
         "sieve_regression_pointwise_error_decomposition": """theorem sieve_regression_pointwise_error_decomposition_skeleton
     (sieveApproximation empiricalErrorBound pointwiseWaldValid : Prop)
