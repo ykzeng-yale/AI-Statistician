@@ -111,6 +111,53 @@ theorem mean2Estimator_unbiased {Ω : Type*} [MeasurableSpace Ω]
         tags=("estimator", "expectation", "linearity", "mean", "unbiased"),
         expected_lemmas=("integral_add", "integral_div", "ring"),
     ),
+    "difference_estimator_unbiased": FormalObligation(
+        id="difference_estimator_unbiased",
+        title="Difference estimator is unbiased for a contrast",
+        english=(
+            "If two integrable estimators X and Y are unbiased for targets "
+            "thetaX and thetaY, then their difference X-Y is unbiased for the "
+            "contrast thetaX-thetaY. This is the reusable expectation bridge "
+            "behind difference-in-means, treatment-effect, and contrast "
+            "estimators; it does not prove randomization, identification, or "
+            "asymptotic normality."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+noncomputable def differenceEstimator {Ω : Type*} (X Y : Ω → ℝ) : Ω → ℝ :=
+  X - Y
+
+theorem differenceEstimator_unbiased {Ω : Type*} [MeasurableSpace Ω]
+    (μ : Measure Ω) (X Y : Ω → ℝ) (thetaX thetaY : ℝ)
+    (hX : Integrable X μ) (hY : Integrable Y μ)
+    (hEX : ∫ ω, X ω ∂μ = thetaX)
+    (hEY : ∫ ω, Y ω ∂μ = thetaY) :
+    ∫ ω, differenceEstimator X Y ω ∂μ = thetaX - thetaY := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  calc\n"
+            "    ∫ ω, differenceEstimator X Y ω ∂μ = μ[X] - μ[Y] := by\n"
+            "      simpa [differenceEstimator] using integral_sub hX hY\n"
+            "    _ = thetaX - thetaY := by\n"
+            "      rw [hEX, hEY]"
+        ),
+        tags=(
+            "estimator",
+            "expectation",
+            "linearity",
+            "contrast",
+            "difference_in_means",
+            "unbiased",
+            "causal",
+            "design_based",
+        ),
+        expected_lemmas=("integral_sub",),
+    ),
     "mean2_estimator_variance_indep": FormalObligation(
         id="mean2_estimator_variance_indep",
         title="Two-variable mean estimator variance under independence",

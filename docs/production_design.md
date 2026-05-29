@@ -571,6 +571,10 @@ The system includes estimator-level Lean obligations that AXLE has verified:
 - `mean2_estimator_unbiased`: if two integrable component estimators are each
   unbiased for the same target, their two-variable average is unbiased for that
   target.
+- `difference_estimator_unbiased`: if two integrable estimators are unbiased
+  for targets `thetaX` and `thetaY`, their difference is unbiased for the
+  contrast `thetaX-thetaY`; this is the reusable expectation bridge for
+  difference-in-means, treatment-effect, and contrast estimators.
 - `affine_estimator_expectation`: for an integrable estimator `X`, the affine
   shrinkage estimator `a*X+b` has expectation `a*E[X]+b`, supporting posterior
   mean and prior-shrinkage traces.

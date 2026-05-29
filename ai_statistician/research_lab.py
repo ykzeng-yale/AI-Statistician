@@ -2235,7 +2235,10 @@ class TheoryPlanner:
                         "nuisance_correctness_cases",
                         "integrability_of_score_terms",
                     ),
-                    proof_obligations=("aipw_score_expectation_decompose",),
+                    proof_obligations=(
+                        "difference_estimator_unbiased",
+                        "aipw_score_expectation_decompose",
+                    ),
                 ),
                 TheoremGoal(
                     id="aipw_asymptotic_normality",
@@ -3640,6 +3643,7 @@ class TheoryPlanner:
                     ),
                     proof_obligations=(
                         "finite_sample_mean_unbiased",
+                        "difference_estimator_unbiased",
                         "mean2_estimator_unbiased",
                         "mean2_estimator_variance_indep",
                         "finite_sample_mean_variance_indep",
@@ -4686,6 +4690,7 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "event_indicator_expectation",
         "prob_measure_univ",
         "integral_of_constant",
+        "difference_estimator_unbiased",
         "aipw_score_expectation_decompose",
     ),
     "distribution_free_conformal_prediction": (
@@ -4840,6 +4845,7 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
     "design_based_variance_inference": (
         "mean2_estimator_expectation",
         "mean2_estimator_unbiased",
+        "difference_estimator_unbiased",
         "mean2_estimator_variance_indep",
         "finite_sample_mean_unbiased",
         "finite_sample_mean_variance_indep",

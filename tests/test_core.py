@@ -400,6 +400,18 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("variance_smul", content)
         self.assertNotIn("by sorry", content)
 
+    def test_difference_estimator_unbiased_supports_contrast_estimands(self) -> None:
+        obligation = get_obligation("difference_estimator_unbiased")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertIn("def differenceEstimator", content)
+        self.assertIn("theorem differenceEstimator_unbiased", content)
+        self.assertIn("thetaX - thetaY", content)
+        self.assertIn("integral_sub", content)
+        self.assertIn("difference_in_means", obligation.tags)
+        self.assertIn("causal", obligation.tags)
+        self.assertIn("design_based", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_finite_sample_mean_chebyshev_composes_mean_variance_and_tail_bound(self) -> None:
         obligation = get_obligation("finite_sample_mean_chebyshev_indep")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
@@ -1724,7 +1736,7 @@ class SystemTests(unittest.TestCase):
         causal_goals = {row["id"]: row for row in trace_payload["theorem_goals"]}
         self.assertEqual(
             causal_goals["aipw_double_robustness"]["proof_obligations"],
-            ["aipw_score_expectation_decompose"],
+            ["difference_estimator_unbiased", "aipw_score_expectation_decompose"],
         )
         conformal_trace = json.loads(Path("runs/test_research_benchmark/conformal_prediction_coverage.json").read_text())
         conformal_goals = {row["id"]: row for row in conformal_trace["theorem_goals"]}
