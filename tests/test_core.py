@@ -45,6 +45,7 @@ from ai_statistician.research_lab import (
     audit_research_algorithm_registry,
     load_open_research_questions,
     ProblemFormalizer,
+    ResearchSimulator,
     run_research_benchmark,
     TheoryPlanner,
 )
@@ -579,7 +580,7 @@ class SystemTests(unittest.TestCase):
         payload = audit_research_algorithm_registry(Path("runs/test_research_algorithm_audit"))
         self.assertTrue(payload["all_ok"])
         self.assertEqual(payload["n_ok"], payload["n_algorithms"])
-        self.assertEqual(payload["n_algorithms"], 14)
+        self.assertEqual(payload["n_algorithms"], 15)
         self.assertEqual(len(payload["registry_fingerprint"]), 64)
         for row in payload["algorithms"]:
             self.assertEqual(row["registry_status"], "vetted")
@@ -648,6 +649,7 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(payload["n_questions"], 60)
         self.assertGreater(payload["n_supported"], 0)
         self.assertGreater(payload["n_unsupported"], 0)
+        self.assertEqual(payload["by_problem_class"]["network_graph_inference"], 5)
         self.assertIn("unsupported_frontier_question", payload["by_problem_class"])
         self.assertTrue(Path("runs/test_frontier_coverage_audit/frontier_coverage_manifest.json").exists())
         self.assertTrue(Path("runs/test_frontier_coverage_audit/frontier_coverage.md").exists())
@@ -662,6 +664,9 @@ class SystemTests(unittest.TestCase):
         self.assertIn("experimental_design_02", by_id)
         self.assertEqual(by_id["experimental_design_02"]["problem_class"], "design_based_variance_inference")
         self.assertTrue(by_id["experimental_design_02"]["evidence_terms"])
+        self.assertIn("networks_graphs_01", by_id)
+        self.assertEqual(by_id["networks_graphs_01"]["problem_class"], "network_graph_inference")
+        self.assertTrue(by_id["networks_graphs_01"]["evidence_terms"])
         self.assertIn("missing_censored_measurement_error_01", by_id)
         self.assertEqual(
             by_id["missing_censored_measurement_error_01"]["problem_class"],
@@ -674,7 +679,7 @@ class SystemTests(unittest.TestCase):
     def test_frontier_backlog_audit_maps_unsupported_questions(self) -> None:
         payload = audit_frontier_backlog(Path("runs/test_frontier_backlog_audit"))
         self.assertTrue(payload["all_ok"])
-        self.assertEqual(payload["n_backlog"], 33)
+        self.assertEqual(payload["n_backlog"], 28)
         self.assertEqual(payload["n_ok"], payload["n_backlog"])
         self.assertGreaterEqual(payload["n_supported"], 1)
         self.assertGreaterEqual(len(payload["by_domain"]), 6)
@@ -684,16 +689,38 @@ class SystemTests(unittest.TestCase):
             by_id["statistical_learning_nonparametric_02"]["roadmap_domain"],
             "statistical_learning_nonparametric",
         )
-        self.assertEqual(
-            by_id["networks_graphs_01"]["roadmap_domain"],
-            "network_graph_dependence",
-        )
+        self.assertNotIn("networks_graphs_01", by_id)
         for row in payload["rows"]:
             self.assertTrue(row["required_primitives"])
             self.assertTrue(row["likely_methods"])
             self.assertFalse(row["errors"])
         self.assertTrue(Path("runs/test_frontier_backlog_audit/frontier_backlog_manifest.json").exists())
         self.assertTrue(Path("runs/test_frontier_backlog_audit/frontier_backlog.md").exists())
+
+    def test_network_graph_frontier_question_runs_registered_simulator(self) -> None:
+        question = next(
+            row.to_open_research_question()
+            for row in load_frontier_benchmark_questions(Path("docs/frontier_stat_theory_benchmark.md"))
+            if row.id == "networks_graphs_01"
+        )
+        problem = ProblemFormalizer().formalize(question)
+        self.assertEqual(problem.problem_class, "network_graph_inference")
+        procedures, theorem_goals = TheoryPlanner().plan(problem)
+        self.assertEqual([procedure.algorithm for procedure in procedures], ["sbm_edge_density_spectral"])
+        self.assertEqual(
+            {goal.id for goal in theorem_goals},
+            {
+                "network_edge_density_unbiasedness",
+                "spectral_community_recovery",
+                "frontier_network_model_extensions",
+            },
+        )
+        simulations = ResearchSimulator(n_runs=25, seed=20260528).run(problem, procedures)
+        self.assertEqual(len(simulations), 1)
+        self.assertTrue(simulations[0].passed)
+        self.assertEqual(simulations[0].diagnosis.status, "OK")
+        self.assertIn("edge_density_rmse", simulations[0].metrics)
+        self.assertGreaterEqual(simulations[0].metrics["mean_community_accuracy"], 0.88)
 
     def test_frontier_smoke_benchmark_runs_selected_supported_papers(self) -> None:
         selected, metadata = select_supported_frontier_questions(max_per_class=1)

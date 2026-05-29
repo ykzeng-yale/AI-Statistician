@@ -123,6 +123,31 @@ KNOWLEDGE_CARDS: tuple[KnowledgeCard, ...] = (
         ),
     ),
     KnowledgeCard(
+        id="network_graph_sbm_spectral_inference",
+        title="Network graph inference via SBM edge density and spectral recovery",
+        source_type="statistical_method",
+        location="internal-method-card",
+        summary=(
+            "Graph-valued network inference can be release-gated through a dense "
+            "stochastic-block-model surrogate: average adjacency indicators estimate "
+            "edge density, while centered-adjacency spectral methods recover latent "
+            "communities under separation. Mixed-membership, signed, dynamic, and "
+            "graph-dependent frontier models require additional graph CLTs, matrix "
+            "concentration, and network-autoregression formalization."
+        ),
+        tags=(
+            "network",
+            "graph",
+            "sbm",
+            "stochastic_block_model",
+            "edge_density",
+            "spectral",
+            "community",
+            "mixed_membership",
+            "network_graph_inference",
+        ),
+    ),
+    KnowledgeCard(
         id="bayesian_predictive_prior_calibration",
         title="Predictive-distribution-to-prior Bayesian calibration",
         source_type="statistical_method",
@@ -404,6 +429,7 @@ PRIMARY_KNOWLEDGE_BY_PROBLEM_CLASS: dict[str, str] = {
     "robust_mean_inference": "robust_mean_median_of_means",
     "differential_privacy_learning": "differential_privacy_gaussian_mechanism",
     "nonparametric_regression_inference": "nonparametric_sieve_regression_inference",
+    "network_graph_inference": "network_graph_sbm_spectral_inference",
     "bayesian_posterior_calibration": "bayesian_predictive_prior_calibration",
     "measurement_bias_ranking_inference": "measurement_bias_assessment_ranking",
     "design_based_variance_inference": "design_based_variance_neyman",

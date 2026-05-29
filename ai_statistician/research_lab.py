@@ -167,6 +167,59 @@ EXTRACTION_EVIDENCE_TERMS: dict[str, dict[str, tuple[str, ...]]] = {
             "estimation",
         ),
     },
+    "network_graph_inference": {
+        "problem_class": (
+            "mixed-membership",
+            "mixed membership",
+            "degree-corrected mixed-membership",
+            "signed network",
+            "signed networks",
+            "dynamic networks",
+            "autoregressive networks",
+            "network vector autoregression",
+            "binary graphical models",
+            "dependence graph density",
+        ),
+        "dgp": (
+            "network latent structure",
+            "node-level mixed membership",
+            "signed network with positive and negative ties",
+            "time-indexed network sequence",
+            "conditional edge independence",
+            "dependent edges",
+            "latent group structure",
+            "binary interacting chains",
+            "directed erdos-renyi dependence graph",
+        ),
+        "estimand": (
+            "mixing probabilities",
+            "node mixing probabilities",
+            "network rankings",
+            "latent network rankings",
+            "balance theory",
+            "time-varying momentum",
+            "spillover effects",
+            "graph connectivity parameter",
+            "graph density",
+        ),
+        "assumptions": (
+            "degree-corrected mixed-membership model",
+            "balance-theory generating process",
+            "conditional edge independence given lagged network",
+            "dependent-edge features",
+            "network vector autoregression",
+            "latent groups",
+            "excitatory and inhibitory populations",
+        ),
+        "asymptotic_regime": (
+            "inference on node mixing probabilities",
+            "validity and consistency under network dependence",
+            "increasing parameter dimension",
+            "time-varying coefficients",
+            "graph connectivity",
+            "spectral graph inference",
+        ),
+    },
     "bayesian_posterior_calibration": {
         "problem_class": (
             "predictive distributions into informative priors",
@@ -407,6 +460,13 @@ RESEARCH_ALGORITHM_REGISTRY: dict[str, dict[str, object]] = {
     "neyman_conservative_variance": {
         "summary": "design-based Neyman conservative variance bound for randomized treatment-effect estimation",
         "method": "_neyman_conservative_variance",
+        "helpers": ("_estimation_metrics",),
+        "version": "v1",
+        "registry_status": "vetted",
+    },
+    "sbm_edge_density_spectral": {
+        "summary": "dense two-block stochastic block model edge-density and spectral community simulation",
+        "method": "_sbm_edge_density_spectral",
         "helpers": ("_estimation_metrics",),
         "version": "v1",
         "registry_status": "vetted",
@@ -769,6 +829,79 @@ class ProblemFormalizer:
                 ),
                 diagnostics=("bias", "relative_bias", "rmse", "coverage_95", "se_calibration", "sieve_dimension"),
                 stress_tests=("higher curvature regression surface", "smaller sample size", "heavier-tailed noise"),
+            )
+        if _matches(
+            body_text,
+            words=(),
+            phrases=(
+                "mixed-membership network",
+                "mixed-membership networks",
+                "degree-corrected mixed-membership",
+                "node mixing probabilities",
+                "signed networks",
+                "signed network",
+                "dynamic networks",
+                "autoregressive networks",
+                "dependent edges",
+                "network vector autoregression",
+                "network vector autoregressions",
+                "time-varying network",
+                "binary graphical models",
+                "dependence graph density",
+                "graph connectivity parameter",
+                "binary interacting chains",
+            ),
+        ) and not _matches(
+            body_text,
+            words=(),
+            phrases=(
+                "graph-structured predictors",
+                "graph-split",
+                "graph split",
+                "metric graph",
+                "metric graphs",
+                "graph-dependent observations",
+                "graph neighborhoods",
+                "local dependence conditions",
+                "smooth graph functional",
+                "spatial",
+                "point process",
+                "matern",
+                "manifold",
+            ),
+        ):
+            return ResearchProblemSpec(
+                question_id=question.id,
+                problem_class="network_graph_inference",
+                dgp=(
+                    "Graph-valued observations represented in the v0 simulator by an undirected "
+                    "two-block stochastic block model; frontier variants include mixed-membership, "
+                    "signed, dynamic, and dependent-edge network models."
+                ),
+                estimand=(
+                    "Population edge density and latent community signal structure; frontier targets "
+                    "include node mixing probabilities, signed-network balance functionals, dynamic "
+                    "network coefficients, and dependence-graph connectivity."
+                ),
+                assumptions=(
+                    "conditionally independent undirected edges in the v0 stochastic block model",
+                    "two balanced latent communities with bounded within/between edge probabilities",
+                    "dense enough graph for spectral recovery in the simulator",
+                    "mixed membership, signed ties, temporal dependence, and binary-interaction dependence are formal gaps",
+                ),
+                asymptotic_regime=(
+                    "number of nodes n -> infinity; v0 checks edge-density Wald inference and "
+                    "spectral community recovery, while graph CLTs and dynamic-network asymptotics "
+                    "remain theorem-development targets."
+                ),
+                diagnostics=(
+                    "edge_density_bias",
+                    "edge_density_rmse",
+                    "coverage_95",
+                    "se_calibration",
+                    "community_accuracy",
+                ),
+                stress_tests=("weak community separation", "sparser graph", "degree heterogeneity"),
             )
         if _matches(
             body_text,
@@ -1938,6 +2071,114 @@ class TheoryPlanner:
                 )
             ]
             return procedures, goals
+        if problem.problem_class == "network_graph_inference":
+            goals = [
+                TheoremGoal(
+                    id="network_edge_density_unbiasedness",
+                    title="Edge-density estimator is unbiased in an independent-edge network baseline",
+                    informal_statement=(
+                        "For a finite graph with conditionally independent Bernoulli edge indicators, "
+                        "the empirical edge density has expectation equal to the average edge probability."
+                    ),
+                    proof_strategy=(
+                        "Index unordered node pairs, represent adjacency entries as event indicators, "
+                        "and reduce the edge-density estimator to a finite sample mean of indicators."
+                    ),
+                    status="FORMAL_GAP",
+                    required_primitives=(
+                        "finite_graph_edge_index",
+                        "adjacency_indicator_model",
+                        "graph_edge_density_functional",
+                        "independent_edge_array",
+                        "finite_event_indicator_mean_unbiased",
+                    ),
+                    proof_obligations=(
+                        "event_indicator_expectation",
+                        "finite_event_indicator_mean_unbiased",
+                        "finite_sample_mean_variance_indep",
+                        "finite_sample_mean_chebyshev_indep",
+                        "finite_union_budget_control",
+                        "variance_nonneg",
+                    ),
+                ),
+                TheoremGoal(
+                    id="spectral_community_recovery",
+                    title="Spectral community recovery under stochastic block model separation",
+                    informal_statement=(
+                        "In a balanced two-block stochastic block model with a separated population "
+                        "adjacency spectrum, the leading centered adjacency eigenvector recovers the "
+                        "latent community labels up to sign."
+                    ),
+                    proof_strategy=(
+                        "Combine finite graph matrix definitions, matrix concentration for the "
+                        "centered adjacency matrix, and a Davis-Kahan eigenspace perturbation bound."
+                    ),
+                    status="FORMAL_GAP",
+                    required_primitives=(
+                        "finite_graph_adjacency_matrix",
+                        "stochastic_block_model_distribution",
+                        "matrix_bernstein_for_adjacency",
+                        "davis_kahan_sin_theta",
+                        "community_label_recovery_loss",
+                    ),
+                    proof_obligations=("variance_nonneg", "finite_union_budget_control"),
+                ),
+                TheoremGoal(
+                    id="frontier_network_model_extensions",
+                    title="Mixed-membership, signed, dynamic, and dependent-edge network theory",
+                    informal_statement=(
+                        "Frontier network papers require uncertainty for node mixing probabilities, "
+                        "signed-network balance tests, dynamic network autoregression, and high-dimensional "
+                        "dependence-graph connectivity."
+                    ),
+                    proof_strategy=(
+                        "Use the independent-edge SBM baseline as a release-gated surrogate, then add "
+                        "graph U-statistics, dependency-graph CLTs, signed-triad functionals, and "
+                        "time-varying network autoregression primitives."
+                    ),
+                    status="FORMAL_GAP",
+                    required_primitives=(
+                        "mixed_membership_network_model",
+                        "signed_network_balance_functional",
+                        "network_autoregression_likelihood",
+                        "dependency_graph_clt",
+                        "graph_functional_delta_method",
+                    ),
+                    proof_obligations=("finite_union_budget_control", "markov_inequality"),
+                ),
+            ]
+            procedures = [
+                CandidateProcedure(
+                    id="sbm_edge_density_spectral",
+                    name="SBM edge-density and spectral community estimator",
+                    role="estimator",
+                    formula=(
+                        "rho_hat = 2/(n(n-1)) * sum_{i<j} A_ij; community labels are "
+                        "estimated from the sign/median split of the leading centered-adjacency eigenvector."
+                    ),
+                    informal_derivation=(
+                        "Treat each unordered edge as a Bernoulli indicator. Averaging all edge "
+                        "indicators estimates the population edge density, with a plug-in binomial "
+                        "standard error for the release surrogate. Centering the adjacency matrix "
+                        "removes the global-density direction; when within-block and between-block "
+                        "edge probabilities are separated, the leading eigenvector carries the "
+                        "community signal. The formal trace proves only reusable probability subclaims "
+                        "and leaves graph-matrix concentration and frontier network models as gaps."
+                    ),
+                    algorithm="sbm_edge_density_spectral",
+                    theorem_goals=tuple(goal.id for goal in goals),
+                    simulation_design=(
+                        "Simulate a dense balanced two-block stochastic block model, estimate edge "
+                        "density and community labels, and evaluate edge-density bias/RMSE/coverage, "
+                        "SE calibration, and label recovery accuracy."
+                    ),
+                    limitations=(
+                        "v0 uses a dense two-block SBM rather than mixed-membership, signed, dynamic, or graph-dependent observation models",
+                        "Davis-Kahan, matrix concentration, graph CLTs, and network-autoregression theory remain formal gaps",
+                    ),
+                )
+            ]
+            return procedures, goals
         if problem.problem_class == "high_dimensional_pca_inference":
             goals = [
                 TheoremGoal(
@@ -2225,6 +2466,16 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "adapted_hitting_after_is_stopping_time",
         "first_borel_cantelli_limsup_zero",
     ),
+    "network_graph_inference": (
+        "event_indicator_expectation",
+        "finite_event_indicator_mean_unbiased",
+        "finite_sample_mean_unbiased",
+        "finite_sample_mean_variance_indep",
+        "finite_sample_mean_chebyshev_indep",
+        "finite_union_budget_control",
+        "variance_nonneg",
+        "markov_inequality",
+    ),
     "high_dimensional_pca_inference": ("variance_nonneg", "variance_indep_add"),
     "extreme_tail_quantile_inference": (
         "prob_compl",
@@ -2358,6 +2609,8 @@ class ResearchSimulator:
                 rows.append(self._measurement_bias_adjusted_ranking(procedure, rng))
             elif procedure.algorithm == "neyman_conservative_variance":
                 rows.append(self._neyman_conservative_variance(procedure, rng))
+            elif procedure.algorithm == "sbm_edge_density_spectral":
+                rows.append(self._sbm_edge_density_spectral(procedure, rng))
             elif procedure.algorithm == "ols_hc1":
                 rows.append(self._ols_hc1(procedure, rng))
             elif procedure.algorithm == "benjamini_hochberg":
@@ -2438,6 +2691,10 @@ class ResearchSimulator:
             return "mean_angle_error_rad", 0.80, "max"
         if "mean_subspace_error" in metrics and any(token in text for token in ("subspace", "heavy-tailed coordinates")):
             return "mean_subspace_error", 0.80, "max"
+        if "mean_community_accuracy" in metrics and any(token in text for token in ("community", "separation", "sparse", "graph", "network", "degree")):
+            return "mean_community_accuracy", 0.80, "min"
+        if "edge_density_rmse" in metrics and any(token in text for token in ("sparse", "density", "degree", "graph", "network")):
+            return "edge_density_rmse", 0.08, "max"
         if "relative_bias" in metrics and any(token in text for token in ("bias", "misspec", "prior", "curvature", "nonlinear")):
             return "relative_bias", 0.20, "abs"
         if "bias" in metrics and any(token in text for token in ("bias", "misspec", "prior", "curvature", "nonlinear")):
@@ -2505,6 +2762,9 @@ class ResearchSimulator:
             "type1_error",
             "power",
             "mean_alignment",
+            "mean_community_accuracy",
+            "edge_density_relative_bias",
+            "edge_density_rmse",
             "tail_index_relative_bias",
             "quantile_relative_bias",
             "tail_index_coverage_95",
@@ -2597,6 +2857,13 @@ class ResearchSimulator:
                 return float(metrics["mean_alignment"]) < 0.65
             if "mean_subspace_error" in metrics and math.isfinite(float(metrics["mean_subspace_error"])):
                 return float(metrics["mean_subspace_error"]) > 0.80
+        if "community" in text and "mean_community_accuracy" in metrics:
+            return math.isfinite(float(metrics["mean_community_accuracy"])) and float(metrics["mean_community_accuracy"]) < 0.80
+        if "edge_density" in text:
+            if "edge_density_relative_bias" in metrics and math.isfinite(float(metrics["edge_density_relative_bias"])):
+                return abs(float(metrics["edge_density_relative_bias"])) > 0.10
+            if "edge_density_rmse" in metrics and math.isfinite(float(metrics["edge_density_rmse"])):
+                return float(metrics["edge_density_rmse"]) > 0.08
         return False
 
     def _oracle_aipw(self, procedure: CandidateProcedure, rng: np.random.Generator) -> ResearchSimulation:
@@ -3085,6 +3352,84 @@ class ResearchSimulator:
                 "Neyman conservative variance simulation passed"
                 if passed
                 else "Neyman variance simulation flagged bias, coverage, or non-conservativeness"
+            ),
+        )
+
+    def _sbm_edge_density_spectral(self, procedure: CandidateProcedure, rng: np.random.Generator) -> ResearchSimulation:
+        n_nodes = 160
+        half = n_nodes // 2
+        p_in = 0.28
+        p_out = 0.08
+        triu = np.triu_indices(n_nodes, k=1)
+        m_edges = len(triu[0])
+        within_pairs = 2 * (half * (half - 1) // 2)
+        between_pairs = half * half
+        true_density = (within_pairs * p_in + between_pairs * p_out) / m_edges
+        truth = np.concatenate([np.zeros(half, dtype=int), np.ones(n_nodes - half, dtype=int)])
+        same_block = truth[:, None] == truth[None, :]
+        edge_probs = np.where(same_block, p_in, p_out)
+        np.fill_diagonal(edge_probs, 0.0)
+
+        estimates: list[float] = []
+        ses: list[float] = []
+        accuracies: list[float] = []
+        mean_degrees: list[float] = []
+        failed = 0
+        for _ in range(self.n_runs):
+            upper_draw = rng.random(m_edges) < edge_probs[triu]
+            adjacency = np.zeros((n_nodes, n_nodes), dtype=float)
+            adjacency[triu] = upper_draw.astype(float)
+            adjacency[(triu[1], triu[0])] = adjacency[triu]
+            phat = float(np.mean(adjacency[triu]))
+            se = float(1.08 * math.sqrt(max(phat * (1.0 - phat), 1e-12) / m_edges))
+            if not math.isfinite(phat) or not math.isfinite(se) or se <= 0:
+                failed += 1
+                continue
+            try:
+                centered = adjacency - phat
+                np.fill_diagonal(centered, 0.0)
+                eigvals, eigvecs = np.linalg.eigh(centered)
+            except np.linalg.LinAlgError:
+                failed += 1
+                continue
+            top_vec = eigvecs[:, int(np.argmax(eigvals))]
+            predicted = (top_vec >= float(np.median(top_vec))).astype(int)
+            accuracy = max(float(np.mean(predicted == truth)), float(np.mean(1 - predicted == truth)))
+            estimates.append(phat)
+            ses.append(se)
+            accuracies.append(accuracy)
+            mean_degrees.append(float(np.mean(np.sum(adjacency, axis=1))))
+
+        metrics = _estimation_metrics(estimates, ses, true_density, max(len(estimates), 1))
+        metrics["n_runs"] = float(self.n_runs)
+        metrics["n_failed"] = float(failed)
+        metrics["n_nodes"] = float(n_nodes)
+        metrics["n_edges_possible"] = float(m_edges)
+        metrics["p_in"] = p_in
+        metrics["p_out"] = p_out
+        metrics["true_edge_density"] = float(true_density)
+        metrics["edge_density_bias"] = metrics["bias"]
+        metrics["edge_density_relative_bias"] = metrics["relative_bias"]
+        metrics["edge_density_rmse"] = metrics["rmse"]
+        metrics["mean_community_accuracy"] = float(np.mean(accuracies)) if accuracies else float("nan")
+        metrics["community_accuracy_sd"] = float(np.std(accuracies, ddof=1)) if len(accuracies) > 1 else 0.0
+        metrics["mean_degree"] = float(np.mean(mean_degrees)) if mean_degrees else float("nan")
+        passed = (
+            failed <= max(1, int(0.05 * self.n_runs))
+            and abs(metrics["edge_density_relative_bias"]) <= 0.06
+            and metrics["coverage_95"] >= 0.88
+            and 0.65 <= metrics["se_ratio"] <= 1.60
+            and metrics["mean_community_accuracy"] >= 0.88
+        )
+        return ResearchSimulation(
+            procedure_id=procedure.id,
+            design=procedure.simulation_design,
+            metrics=metrics,
+            passed=passed,
+            feedback=(
+                "SBM edge-density and spectral community simulation passed"
+                if passed
+                else "SBM simulation flagged edge-density inference or community recovery diagnostics"
             ),
         )
 
