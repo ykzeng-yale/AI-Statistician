@@ -8,20 +8,20 @@ Runtime used:
 PYTHONPATH=/Users/yukang/AI\ Statistician \
 /Users/yukang/LeanProjects/LeanPractice/.venv/bin/python \
   -m ai_statistician.cli proof-audit --real-lean \
-  --out runs/proof_audit_real_full_43
+  --out runs/proof_audit_real_full_44
 ```
 
 Result:
 
 ```text
-verified=43/43
-kernel=43/43
+verified=44/44
+kernel=44/44
 verifier=axle.verify_proof
 strength=axle_lean_kernel
 ```
 
 This is the current evidence that the registered proof bank is not only
-mock-checked: all 43 registered Mathlib-backed obligations were accepted by
+mock-checked: all 44 registered Mathlib-backed obligations were accepted by
 AXLE/Lean-kernel verification in the real external runtime.
 
 Latest real research-system validation: 2026-05-29.
@@ -32,7 +32,7 @@ Runtime used:
 PYTHONPATH=/Users/yukang/AI\ Statistician \
 /Users/yukang/LeanProjects/LeanPractice/.venv/bin/python \
   -m ai_statistician.cli research-system-audit --real-lean \
-  --runs 20 --out runs/research_system_real_lean_43_bh_compl_bridge
+  --runs 20 --out runs/research_system_real_lean_44_evalue_bridge
 ```
 
 Result:
@@ -46,8 +46,8 @@ frontier_supported=60/60
 frontier_precision=60/60
 frontier_backlog=0/0
 frontier_smoke=23/23
-proofs_verified=43/43
-proofs_kernel_verified=43/43
+proofs_verified=44/44
+proofs_kernel_verified=44/44
 proof_verification_strength=axle_lean_kernel
 research_traces_ok=10/10
 formal_gaps=20
@@ -55,9 +55,9 @@ formalized_gaps=20
 autoform_targets=20/20
 formal_source_graph_symbols=69330
 formal_source_graph_edges=1361926
-verifier_cache_hits=290
-verifier_cache_misses=43
-verifier_cache_size=43
+verifier_cache_hits=292
+verifier_cache_misses=44
+verifier_cache_size=44
 ```
 
 The research-system run proves that `--real-lean` now flows through the actual
@@ -85,6 +85,14 @@ singleton sigma-algebra measurability. The formalization-target audit now ranks
 this complement bridge first for `independent_null_pvalues`, with both
 intersection and complement-intersection product obligations available as
 bridge candidates.
+
+The 44th obligation is `finite_horizon_evalue_markov_type1_control`, proving a
+finite-horizon e-value exceedance control theorem by combining Mathlib Markov
+tails with a finite union allocation. It raises
+`proof_bank_expansion_bridge_ready` from 6 to 8: `eprocess_type1_control`,
+`nonnegative_supermartingale`, and `ville_inequality` now rank this theorem as
+their next verified bridge. This remains a finite-horizon Markov/union bridge,
+not a proof of optional stopping or full Ville inequality.
 
 Important boundary:
 

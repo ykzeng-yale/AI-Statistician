@@ -1359,6 +1359,66 @@ theorem finite_union_budget_control {Ω ι : Type*} [MeasurableSpace Ω]
         expected_lemmas=("measure_biUnion_finset_le", "Finset.sum_le_sum"),
         depends_on=("finite_union_bound", "finite_horizon_type1_union_control"),
     ),
+    "finite_horizon_evalue_markov_type1_control": FormalObligation(
+        id="finite_horizon_evalue_markov_type1_control",
+        title="Finite-horizon e-value type-I control by Markov and union allocation",
+        english=(
+            "For a finite monitoring horizon, if each nonnegative ENNReal "
+            "e-value-like process coordinate has a Markov tail budget and the "
+            "tail budgets sum to alpha_total, then the probability that any "
+            "coordinate exceeds its threshold is at most alpha_total. This is "
+            "a finite-horizon bridge for e-process traces; it does not prove "
+            "nonnegative-supermartingale validity, Ville's inequality, or "
+            "optional-stopping anytime validity."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory
+open scoped ENNReal
+
+theorem finiteHorizonEValue_markov_type1_control {Ω ι : Type*} [MeasurableSpace Ω]
+    (μ : Measure Ω) (I : Finset ι) (E : ι → Ω → ENNReal)
+    (u α : ι → ENNReal) (α_total : ENNReal)
+    (hE : ∀ i ∈ I, Measurable (E i))
+    (hu0 : ∀ i ∈ I, u i ≠ 0) (hutop : ∀ i ∈ I, u i ≠ ⊤)
+    (hBudget : ∀ i ∈ I, (∫⁻ ω, E i ω ∂μ) / u i ≤ α i)
+    (hTotal : (∑ i ∈ I, α i) ≤ α_total) :
+    μ (⋃ i ∈ I, {ω | u i ≤ E i ω}) ≤ α_total := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  calc\n"
+            "    μ (⋃ i ∈ I, {ω | u i ≤ E i ω})\n"
+            "        ≤ ∑ i ∈ I, μ {ω | u i ≤ E i ω} := by\n"
+            "          exact measure_biUnion_finset_le (μ := μ) I (fun i => {ω | u i ≤ E i ω})\n"
+            "    _ ≤ ∑ i ∈ I, α i := by\n"
+            "          exact Finset.sum_le_sum (fun i hi =>\n"
+            "            le_trans\n"
+            "              (meas_ge_le_lintegral_div (hE i hi).aemeasurable (hu0 i hi) (hutop i hi))\n"
+            "              (hBudget i hi))\n"
+            "    _ ≤ α_total := hTotal"
+        ),
+        tags=(
+            "probability",
+            "event",
+            "markov",
+            "tail_bound",
+            "union_bound",
+            "finite_horizon",
+            "type1_error",
+            "sequential",
+            "evalue",
+            "eprocess",
+            "eprocess_type1_control",
+            "nonnegative_supermartingale",
+            "ville_inequality",
+            "optional_stopping",
+        ),
+        expected_lemmas=("measure_biUnion_finset_le", "meas_ge_le_lintegral_div", "Finset.sum_le_sum"),
+        depends_on=("markov_inequality", "finite_union_bound", "finite_union_budget_control"),
+    ),
     "event_probability_mono": FormalObligation(
         id="event_probability_mono",
         title="Event probability monotonicity",

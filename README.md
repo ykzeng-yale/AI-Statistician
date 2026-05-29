@@ -245,6 +245,12 @@ most its allocated `α_i`, then the probability of any rejection is at most the
 sum of those budgets. This supports sequential-testing traces while still
 leaving Ville's inequality and full anytime supermartingale validity as formal
 gaps.
+It also includes `finite_horizon_evalue_markov_type1_control`, a finite-horizon
+e-value exceedance bridge that combines Markov's inequality with a finite union
+allocation. It proves type-I control for finitely many ENNReal e-value-like
+coordinates with verified tail budgets, and gives the e-process/Ville
+formalization queue a proof-bank-backed stepping stone without claiming
+optional stopping or nonnegative-supermartingale validity.
 It also includes `event_probability_mono`, the measure monotonicity fact
 `A ⊆ B -> μ(A) ≤ μ(B)`, which is a reusable subclaim for bad-event containment
 arguments in conformal coverage, BH/FDR decompositions, and anytime-valid error

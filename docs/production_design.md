@@ -657,6 +657,16 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   This closes the finite-horizon union-allocation ingredient for sequential
   traces without claiming Ville's inequality or full anytime-valid
   supermartingale control.
+- `finite_horizon_evalue_markov_type1_control`: a finite-horizon e-value
+  exceedance bridge:
+  measurable ENNReal coordinates `E_i` with Markov tail budgets
+  `(∫⁻ E_i)/u_i ≤ α_i` satisfy
+  `μ (⋃ i∈I, {ω | u_i ≤ E_i ω}) ≤ α_total` whenever
+  `∑ i∈I α_i ≤ α_total`. It composes Mathlib's Markov inequality with a
+  finite union allocation and is the verified bridge now attached to
+  `eprocess_type1_control`, `nonnegative_supermartingale`, and
+  `ville_inequality` formalization primitives. It is not a proof of optional
+  stopping or Ville's inequality.
 - `event_probability_mono`: event monotonicity `A ⊆ B -> μ(A) ≤ μ(B)`,
   proved directly from Mathlib's `measure_mono`; this is the reusable
   bad-event-containment step used before applying union or tail bounds.
