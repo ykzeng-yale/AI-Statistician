@@ -131,8 +131,10 @@ failed rows preserve verifier errors, `first_error`, retrieval context, and
 reward `0.0` for future repair/value-model data. Every proof row records
 `verification_strength` and `kernel_verified`: offline mock checks are useful
 for regression gates, but only `--real-lean` AXLE rows with
-`kernel_verified=true` are Lean-kernel proof evidence. This is not tactic-state
-tracing yet.
+`kernel_verified=true` are Lean-kernel proof evidence. Capability audits mark
+the proof-bank path ready only when the latest real audit covers the full
+registered proof bank, not just a selected smoke subset. This is not
+tactic-state tracing yet.
 Convert those checked attempts into whole-proof SFT prompt/completion data with:
 
 ```bash
@@ -150,6 +152,7 @@ python3 -m ai_statistician.cli proof-policy-baseline \
 ```
 
 Read [docs/production_design.md](/Users/yukang/AI%20Statistician/docs/production_design.md) for the architecture and the exact honesty boundary.
+Read [docs/real_axle_validation.md](/Users/yukang/AI%20Statistician/docs/real_axle_validation.md) for the latest full proof-bank AXLE validation summary.
 
 ## Honest Capability Boundary
 

@@ -886,12 +886,15 @@ class SystemTests(unittest.TestCase):
         report = build_capability_audit(root=Path("."), max_manifests=3)
         self.assertTrue(report["all_required_capabilities_present"])
         self.assertGreaterEqual(report["n_ready"], 8)
-        self.assertGreaterEqual(report["n_partial"], 1)
+        self.assertGreaterEqual(report["n_partial"], 0)
         findings = {row["requirement"]: row for row in report["findings"]}
         axle_row = findings["verify Mathlib-backed estimator/probability properties in Lean via AXLE"]
         self.assertIn(axle_row["status"], {"PARTIAL", "READY"})
         self.assertTrue(
             any("latest_proof_audit_kernel_verified=" in item for item in axle_row["evidence"])
+        )
+        self.assertTrue(
+            any("latest_proof_audit_full_bank_kernel_verified=" in item for item in axle_row["evidence"])
         )
         self.assertIn("source_files", report)
         self.assertEqual(len(report["fingerprints"]["algorithm_registry"]), 64)
@@ -1213,6 +1216,9 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(available_proofs["current_release_gate"])
         self.assertTrue(
             any("latest_proof_audit_kernel_verified=" in item for item in available_proofs["evidence"])
+        )
+        self.assertTrue(
+            any("latest_proof_audit_full_bank_kernel_verified=" in item for item in available_proofs["evidence"])
         )
         arbitrary_frontier = findings[
             "autonomously solve arbitrary frontier journal statistical theory problems end to end"

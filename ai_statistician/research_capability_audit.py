@@ -93,12 +93,18 @@ def build_research_capability_audit(
     latest_research_eval = _latest_named(all_research_manifests, "research_evaluation_manifest.json")
     latest_proof_audit = _latest_named(all_research_manifests, "proof_audit_manifest.json")
     latest_proof_payload = _read_manifest_payload(latest_proof_audit)
+    latest_proof_obligations = int(latest_proof_payload.get("n_obligations", 0)) if latest_proof_payload else 0
     latest_kernel_verified = int(latest_proof_payload.get("n_kernel_verified", 0)) if latest_proof_payload else 0
     latest_non_kernel_verified = int(latest_proof_payload.get("n_non_kernel_verified", 0)) if latest_proof_payload else 0
     latest_all_kernel_verified = bool(latest_proof_payload.get("all_kernel_verified")) if latest_proof_payload else False
+    latest_full_bank_kernel_verified = (
+        latest_all_kernel_verified
+        and latest_proof_obligations >= len(obligations)
+        and latest_kernel_verified >= len(obligations)
+    )
     proof_subclaim_status = (
         "ACHIEVED"
-        if latest_all_kernel_verified and latest_kernel_verified > 0
+        if latest_full_bank_kernel_verified
         else "PARTIAL"
         if obligations and PROVABLE_SUBCLAIMS
         else "NOT_ACHIEVED"
@@ -184,9 +190,11 @@ def build_research_capability_audit(
             evidence=(
                 f"proof_bank_obligations={len(obligations)}",
                 f"research_problem_classes_with_subclaims={len(PROVABLE_SUBCLAIMS)}",
+                f"latest_proof_audit_obligations={latest_proof_obligations}",
                 f"latest_proof_audit_kernel_verified={latest_kernel_verified}",
                 f"latest_proof_audit_non_kernel_verified={latest_non_kernel_verified}",
                 f"latest_proof_audit_all_kernel_verified={latest_all_kernel_verified}",
+                f"latest_proof_audit_full_bank_kernel_verified={latest_full_bank_kernel_verified}",
                 f"{FormalSubclaimProver.__module__}.{FormalSubclaimProver.__name__}",
                 "research-system-audit --real-lean verifies these obligations with AXLE when available",
                 latest_proof_audit["path"] if latest_proof_audit else "no latest proof audit manifest found",
@@ -194,7 +202,7 @@ def build_research_capability_audit(
             ),
             limitations=(
                 "These are finite Mathlib-backed subclaims, not complete proofs of new frontier asymptotic theorems.",
-                "Offline mock-positive proof rows are regression evidence only; AXLE rows require kernel_verified=true.",
+                "Offline mock-positive proof rows are regression evidence only; AXLE readiness requires kernel_verified=true for the full registered proof bank.",
             ),
         ),
         ResearchCapabilityFinding(
