@@ -18,7 +18,7 @@ from .research_capability_audit import build_research_capability_audit, write_re
 from .research_lab import audit_research_algorithm_registry, load_open_research_questions, run_research_benchmark
 from .research_trace_audit import audit_research_traces
 from .retrieval import audit_proof_bank_retrieval
-from .verifier import AxleProofVerifier, MockProofVerifier, ProofVerifier
+from .verifier import AxleProofVerifier, CachingProofVerifier, MockProofVerifier, ProofVerifier
 
 
 @dataclass(frozen=True)
@@ -37,7 +37,8 @@ async def run_research_system_audit(
     """Run release-style gates for the open-question research workflow."""
 
     out_dir.mkdir(parents=True, exist_ok=True)
-    verifier: ProofVerifier = AxleProofVerifier() if config.use_axle else MockProofVerifier()
+    base_verifier: ProofVerifier = AxleProofVerifier() if config.use_axle else MockProofVerifier()
+    verifier = CachingProofVerifier(base_verifier)
     actual_question_file = question_file or Path("examples/research_questions.json")
     questions = load_open_research_questions(actual_question_file)
     formal_source_index_path = out_dir / "formal_source_index.sqlite"
@@ -170,6 +171,9 @@ async def run_research_system_audit(
             "proofs_all_kernel_verified": proof_manifest["all_kernel_verified"],
             "proof_verification_strength": proof_manifest["verification_strength"],
             "proofs_total": proof_manifest["n_obligations"],
+            "verifier_cache_hits": verifier.cache_hits,
+            "verifier_cache_misses": verifier.cache_misses,
+            "verifier_cache_size": verifier.cache_info()["size"],
             "proof_dependency_edges": proof_manifest["dependency_graph"]["n_edges"],
             "proof_dependencies_ok": proof_manifest["dependency_graph"]["all_ok"],
             "research_traces_ok": trace_manifest["n_ok"],

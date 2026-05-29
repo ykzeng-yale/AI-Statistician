@@ -841,6 +841,11 @@ Real Lean verification through AXLE, using the existing venv if needed:
 ```
 
 The real Lean path uses `AXLE_API_KEY` from `.env`.
+`research-system-audit` wraps the selected verifier in an in-run cache, so the
+same registered obligation is kernel-checked once and reused across frontier
+smoke, proof-bank audit, and research benchmark stages. The output counts
+`verifier_cache_hits`, `verifier_cache_misses`, and `verifier_cache_size` to make
+that reuse auditable.
 
 ## Next Production Steps
 

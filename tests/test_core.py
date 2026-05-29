@@ -53,7 +53,7 @@ from ai_statistician.system import write_run_manifest, write_trace
 from ai_statistician.system_audit import SystemAuditConfig, load_audit_questions, run_system_audit
 from ai_statistician.theory_proposal import MockTheoryProposer, TheoryProposal
 from ai_statistician.trace_audit import audit_run_traces
-from ai_statistician.verifier import MockProofVerifier
+from ai_statistician.verifier import CachingProofVerifier, MockProofVerifier
 from ai_statistician.verifier import splice_proof
 
 
@@ -223,6 +223,19 @@ class ProofBankTests(unittest.TestCase):
         self.assertEqual(baseline["n_train"] + baseline["n_validation"], 2)
         self.assertTrue(Path(baseline["predictions_jsonl"]).exists())
         self.assertIn("top1_exact_rate", baseline)
+
+    def test_caching_verifier_reuses_checked_obligations(self) -> None:
+        async def run():
+            verifier = CachingProofVerifier(MockProofVerifier())
+            obligation = get_obligation("prob_measure_univ")
+            first = await verifier.verify(obligation, obligation.proof_body, [])
+            second = await verifier.verify(obligation, obligation.proof_body, [])
+            return verifier, first, second
+
+        verifier, first, second = asyncio.run(run())
+        self.assertTrue(first.ok)
+        self.assertTrue(second.ok)
+        self.assertEqual(verifier.cache_info(), {"hits": 1, "misses": 1, "size": 1})
 
     def test_proof_audit_records_dependency_graph(self) -> None:
         async def run():
@@ -1321,6 +1334,9 @@ class SystemTests(unittest.TestCase):
             payload["counts"]["research_source_inventory_total"],
         )
         self.assertEqual(payload["counts"]["research_algorithms_ok"], payload["counts"]["research_algorithms_total"])
+        self.assertGreater(payload["counts"]["verifier_cache_hits"], 0)
+        self.assertGreater(payload["counts"]["verifier_cache_misses"], 0)
+        self.assertGreater(payload["counts"]["verifier_cache_size"], 0)
         self.assertEqual(payload["counts"]["research_traces_ok"], 10)
         self.assertEqual(payload["counts"]["formalized_gaps"], payload["counts"]["formal_gaps"])
         self.assertEqual(payload["counts"]["gap_backlog_ok"], payload["counts"]["gap_backlog_total"])
