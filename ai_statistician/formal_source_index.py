@@ -295,6 +295,8 @@ DEFAULT_AUDIT_QUERIES: tuple[tuple[str, str], ...] = (
     ("asymptotic_normality_bridge", "asymptotic normality estimator bridge influence function CLT"),
     ("glivenko_cantelli_bracketing", "Glivenko Cantelli empirical process bracketing endpoint class"),
     ("weak_convergence_donsker", "Donsker weak convergence probability measures empirical process"),
+    ("rademacher_shared_foundation", "Rademacher probability measure support sign symmetrization subGaussian"),
+    ("backward_martingale_shared_foundation", "backward martingale reverse filtration conditional expectation convergence"),
 )
 
 

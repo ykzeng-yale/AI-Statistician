@@ -319,12 +319,13 @@ KNOWLEDGE_CARDS: tuple[KnowledgeCard, ...] = (
         id="empirical_process_lean",
         title="EmpiricalProcessLEAN / StatInference integration target",
         source_type="local_repo",
-        location=str(VENDORED_EMPIRICAL_PROCESS_ROOT / "StatInference"),
+        location=str(VENDORED_EMPIRICAL_PROCESS_ROOT),
         summary=(
-            "Vendored GitHub main snapshot of EmpericalProcessLEAN/StatInference "
+            "Vendored GitHub main snapshot of the full EmpericalProcessLEAN project "
             "with VdVW, Durrett probability, Vaart asymptotic statistics, "
             "probability-measure foundations, empirical-process primitives, "
-            "matching/WDSM bridges, and optimization/shared foundation modules "
+            "Rademacher and martingale shared modules, matching/WDSM bridges, "
+            "and optimization/shared foundation modules "
             "to mine before creating new Lean definitions."
         ),
         tags=("empirical_process", "asymptotic", "statinference", "lean"),

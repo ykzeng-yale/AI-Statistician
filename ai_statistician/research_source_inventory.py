@@ -62,9 +62,17 @@ SOURCE_INVENTORY_TARGETS: tuple[SourceInventoryTarget, ...] = (
     SourceInventoryTarget(
         id="empirical_process_lean",
         source_type="lean_library",
-        location=str(VENDORED_EMPIRICAL_PROCESS_ROOT / "StatInference"),
+        location=str(VENDORED_EMPIRICAL_PROCESS_ROOT),
         required_extensions=(".lean",),
-        keywords=("Empirical", "Process", "Inference", "CLT", "Tightness", "Donsker", "ProbabilityTheory"),
+        keywords=(
+            "StatInference",
+            "AsymptoticStatistics",
+            "EmpiricalProcess",
+            "ProbabilityMeasure",
+            "ProbabilityTheory",
+            "Rademacher",
+            "BackwardMartingale",
+        ),
     ),
     SourceInventoryTarget(
         id="local_statinference_repo",

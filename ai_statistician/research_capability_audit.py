@@ -24,7 +24,7 @@ from .research_lab import (
     research_algorithm_registry_fingerprint,
     write_research_trace,
 )
-from .research_schema import CandidateProcedure, ResearchProblemSpec
+from .research_schema import CandidateProcedure, ResearchProblemSpec, ResearchSimulation, SimulationDiagnosis
 
 
 @dataclass(frozen=True)
@@ -254,6 +254,25 @@ def build_research_capability_audit(
                 latest_research_eval["path"] if latest_research_eval else "no latest research evaluation manifest found",
             ),
             limitations=("Simulation validates behavior empirically; it does not replace formal asymptotic proof.",),
+        ),
+        ResearchCapabilityFinding(
+            requirement="classify simulation outcomes and route feedback to the right agent",
+            status=(
+                "ACHIEVED"
+                if "diagnosis" in getattr(ResearchSimulation, "__dataclass_fields__", {})
+                and callable(getattr(ResearchSimulator, "_diagnose_simulation", None))
+                else "NOT_ACHIEVED"
+            ),
+            current_release_gate=True,
+            evidence=(
+                f"{SimulationDiagnosis.__module__}.{SimulationDiagnosis.__name__}",
+                "diagnosis.status in {OK, THEORY_OR_PROCEDURE_ISSUE, IMPLEMENTATION_OR_NUMERICAL_ISSUE, ENVIRONMENT_OR_DGP_ISSUE, INSUFFICIENT_MC_PRECISION}",
+                "diagnosis.escalate_to in {none, theory_developer, algorithm_engineer, simulator_environment, rerun_more_mc}",
+                "research_trace_audit validates diagnosis consistency for every simulation row",
+            ),
+            limitations=(
+                "Diagnosis is deterministic rule-based adjudication over registered metrics; it is not yet a learned simulator critic.",
+            ),
         ),
         ResearchCapabilityFinding(
             requirement="persist auditable traces, provenance, fingerprints, and gap backlog",

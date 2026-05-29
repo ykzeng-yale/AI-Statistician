@@ -1377,6 +1377,10 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(
             any("latest_proof_audit_full_bank_kernel_verified=" in item for item in available_proofs["evidence"])
         )
+        simulation_diagnosis = findings["classify simulation outcomes and route feedback to the right agent"]
+        self.assertEqual(simulation_diagnosis["status"], "ACHIEVED")
+        self.assertTrue(simulation_diagnosis["current_release_gate"])
+        self.assertTrue(any("SimulationDiagnosis" in item for item in simulation_diagnosis["evidence"]))
         arbitrary_frontier = findings[
             "autonomously solve arbitrary frontier journal statistical theory problems end to end"
         ]
