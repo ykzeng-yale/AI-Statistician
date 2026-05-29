@@ -232,6 +232,25 @@ by `h_frontier_missing_*` placeholders. This gives the formal verifier a
 concrete next proof-bank expansion queue while preserving the invariant that
 only AXLE `verify_proof` results enter the proof bank.
 
+Research trace training export:
+
+```bash
+python3 -m ai_statistician.cli research-training-export \
+  --run-dir runs/research_benchmark \
+  --out runs/research_training_export
+```
+
+This turns audited research traces into training-data substrates for the
+agentic theory lab. It writes SFT JSONL examples for problem formalization,
+theory-plan generation, formal-gap routing, and simulation critique, plus coarse
+GRPO seed tasks where the simulator pass/fail result becomes a reward label.
+The export also writes a legacy-compatible `training_manifest.schema.json`
+payload so older AI-Statistician training/evaluation code can consume the same
+examples. This is still an exporter, not a trainer: no model checkpoint is
+created or registered, and all rows preserve provenance back to the trace that
+generated them. `research-system-audit` includes this export as a release gate
+so future training work has a stable, audited data source.
+
 Next-iteration queue:
 
 ```bash

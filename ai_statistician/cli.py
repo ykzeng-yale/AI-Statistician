@@ -37,6 +37,7 @@ from .research_capability_audit import build_research_capability_audit, write_re
 from .research_report import build_research_markdown_report
 from .research_system_audit import ResearchSystemAuditConfig, run_research_system_audit
 from .research_trace_audit import audit_research_traces
+from .research_training_export import export_research_training_dataset
 from .questions import QUESTIONS, load_question_file
 from .retrieval import audit_proof_bank_retrieval
 from .system import AIStatisticianSystem, compact_summary, write_run_manifest, write_trace
@@ -671,6 +672,28 @@ def _proof_bank_expansion_export(args: argparse.Namespace) -> int:
         f"theorem-hole queue written to "
         f"{(Path(args.out) / 'theorem_hole_promotion_queue_manifest.json').resolve()}"
     )
+    return 0 if payload["all_ok"] else 1
+
+
+def _research_training_export(args: argparse.Namespace) -> int:
+    payload = export_research_training_dataset(
+        Path(args.run_dir),
+        Path(args.out),
+        validation_fraction=args.validation_fraction,
+        base_model=args.base_model,
+    )
+    print("\nAI Statistical Theory Lab Research Training Export")
+    print("=" * 72)
+    print(
+        f"traces={payload['n_traces']} sft={payload['n_sft_examples']} "
+        f"train={payload['n_train']} validation={payload['n_validation']} "
+        f"grpo={payload['n_grpo_tasks']} all_ok={payload['all_ok']}"
+    )
+    for task, count in payload["by_task"].items():
+        print(f"  {task}: {count}")
+    print(f"\nresearch training manifest written to {(Path(args.out) / 'research_training_manifest.json').resolve()}")
+    print(f"train JSONL written to {(Path(args.out) / 'research_sft_train.jsonl').resolve()}")
+    print(f"validation JSONL written to {(Path(args.out) / 'research_sft_validation.jsonl').resolve()}")
     return 0 if payload["all_ok"] else 1
 
 
@@ -1438,6 +1461,33 @@ def build_parser() -> argparse.ArgumentParser:
         help="proof-bank expansion candidate output directory",
     )
     proof_bank_expansion_export.set_defaults(func=_proof_bank_expansion_export)
+
+    research_training_export = sub.add_parser(
+        "research-training-export",
+        help="export research traces as SFT/GRPO seed data for theory-lab agents",
+    )
+    research_training_export.add_argument(
+        "--run-dir",
+        required=True,
+        help="directory containing research_benchmark_manifest.json and research trace JSON files",
+    )
+    research_training_export.add_argument(
+        "--validation-fraction",
+        type=float,
+        default=0.2,
+        help="deterministic validation split fraction in [0, 1)",
+    )
+    research_training_export.add_argument(
+        "--base-model",
+        default="untrained-trace-export",
+        help="base model label recorded in the legacy training manifest",
+    )
+    research_training_export.add_argument(
+        "--out",
+        default="runs/research_training_export",
+        help="research trace training export output directory",
+    )
+    research_training_export.set_defaults(func=_research_training_export)
 
     next_iteration_audit = sub.add_parser(
         "next-iteration-audit",

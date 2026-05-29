@@ -27,6 +27,7 @@ from .research_lab import audit_research_algorithm_registry, load_open_research_
 from .research_next_iteration_audit import audit_next_iteration_queue
 from .research_report import build_research_markdown_report
 from .research_trace_audit import audit_research_traces
+from .research_training_export import export_research_training_dataset
 from .retrieval import audit_proof_bank_retrieval
 from .verifier import AxleProofVerifier, CachingProofVerifier, MockProofVerifier, ProofVerifier
 
@@ -146,6 +147,11 @@ async def run_research_system_audit(
         out_dir / "research_benchmark",
         out_dir / "proof_bank_expansion",
     )
+    research_training_manifest = export_research_training_dataset(
+        out_dir / "research_benchmark",
+        out_dir / "research_training_export",
+        validation_fraction=0.2,
+    )
     next_iteration_manifest = audit_next_iteration_queue(
         out_dir / "research_benchmark",
         out_dir / "next_iteration_queue",
@@ -197,6 +203,7 @@ async def run_research_system_audit(
         "formalization_target_audit": bool(formalization_target_manifest["all_ok"]),
         "formal_gap_task_export": bool(formal_gap_task_manifest["all_ok"]),
         "proof_bank_expansion_export": bool(proof_bank_expansion_manifest["all_ok"]),
+        "research_training_export": bool(research_training_manifest["all_ok"]),
         "next_iteration_queue": bool(next_iteration_manifest["all_ok"]),
         "research_report": bool(research_report_manifest["all_ok"]),
     }
@@ -311,6 +318,11 @@ async def run_research_system_audit(
                 "n_blocked_placeholder"
             ],
             "proof_bank_expansion_candidate_ready": proof_bank_expansion_manifest["n_candidate_ready"],
+            "research_training_sft_examples": research_training_manifest["n_sft_examples"],
+            "research_training_train": research_training_manifest["n_train"],
+            "research_training_validation": research_training_manifest["n_validation"],
+            "research_training_grpo_tasks": research_training_manifest["n_grpo_tasks"],
+            "research_training_traces": research_training_manifest["n_traces"],
             "next_iteration_items": next_iteration_manifest["n_items"],
             "next_iteration_actionable_items": next_iteration_manifest["n_actionable_items"],
             "next_iteration_ok": next_iteration_manifest["n_ok"],
@@ -432,6 +444,18 @@ async def run_research_system_audit(
             ),
             "proof_bank_expansion_theorem_hole_queue": str(
                 out_dir / "proof_bank_expansion" / "theorem_hole_promotion_queue_manifest.json"
+            ),
+            "research_training_export": str(
+                out_dir / "research_training_export" / "research_training_manifest.json"
+            ),
+            "research_training_report": str(out_dir / "research_training_export" / "research_training.md"),
+            "research_training_train": str(out_dir / "research_training_export" / "research_sft_train.jsonl"),
+            "research_training_validation": str(
+                out_dir / "research_training_export" / "research_sft_validation.jsonl"
+            ),
+            "research_training_grpo": str(out_dir / "research_training_export" / "research_grpo_tasks.jsonl"),
+            "research_training_legacy_manifest": str(
+                out_dir / "research_training_export" / "legacy_training_manifest.json"
             ),
             "next_iteration_queue": str(
                 out_dir / "next_iteration_queue" / "next_iteration_queue_manifest.json"
