@@ -521,11 +521,12 @@ This layer is intentionally honest. It does not claim to prove a full JASA/AOAS
 paper theorem in Lean. It proves the Mathlib-backed subclaims available in the
 local proof bank, for example indicator expectations, probability normalization,
 expectation linearity, variance nonnegativity, finite-sample mean unbiasedness,
-sieve-relevant finite-sample Chebyshev bounds, and a noised-estimator
-Chebyshev bridge. The latter proves that independent
+sieve-relevant finite-sample Chebyshev bounds, contrast variance decomposition,
+and a noised-estimator Chebyshev bridge. The latter proves that independent
 mean-zero additive noise preserves unbiasedness, adds variance, and gives an
-error tail bound using `Var(X)+Var(Z)`, which directly supports the private mean
-trace's sampling-plus-privacy-noise decomposition. The hard theory pieces such
+error tail bound using `Var(X)+Var(Z)`, while the contrast-variance bridge
+proves `Var(X-Y)=Var(X)-2Cov(X,Y)+Var(Y)` for L2 estimators and directly
+supports ATE and design-based difference-in-means traces. The hard theory pieces such
 as AIPW double robustness, asymptotic normality, conformal rank coverage,
 sandwich covariance consistency, DP Gaussian-mechanism calibration, privacy
 composition, predictive-prior coherence, posterior credible-interval
@@ -575,6 +576,12 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   for targets `thetaX` and `thetaY`, their difference is unbiased for the
   contrast `thetaX-thetaY`; this is the reusable expectation bridge for
   difference-in-means, treatment-effect, and contrast estimators.
+- `difference_estimator_variance_decompose`: for L2 estimators `X` and `Y`,
+  the contrast estimator `X-Y` has variance
+  `Var(X)-2Cov(X,Y)+Var(Y)`, using Mathlib's `variance_fun_sub`; this is the
+  reusable second-moment bridge for ATE contrasts and design-based variance
+  decompositions. It does not prove randomization, covariance estimation, or
+  asymptotic normality.
 - `affine_estimator_expectation`: for an integrable estimator `X`, the affine
   shrinkage estimator `a*X+b` has expectation `a*E[X]+b`, supporting posterior
   mean and prior-shrinkage traces.

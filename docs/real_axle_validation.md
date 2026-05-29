@@ -8,20 +8,20 @@ Runtime used:
 PYTHONPATH=/Users/yukang/AI\ Statistician \
 /Users/yukang/LeanProjects/LeanPractice/.venv/bin/python \
   -m ai_statistician.cli proof-audit --real-lean \
-  --out runs/proof_audit_real_full_40
+  --out runs/proof_audit_real_full_41
 ```
 
 Result:
 
 ```text
-verified=40/40
-kernel=40/40
+verified=41/41
+kernel=41/41
 verifier=axle.verify_proof
 strength=axle_lean_kernel
 ```
 
 This is the current evidence that the registered proof bank is not only
-mock-checked: all 40 registered Mathlib-backed obligations were accepted by
+mock-checked: all 41 registered Mathlib-backed obligations were accepted by
 AXLE/Lean-kernel verification in the real external runtime.
 
 Latest real research-system validation: 2026-05-29.
@@ -32,7 +32,7 @@ Runtime used:
 PYTHONPATH=/Users/yukang/AI\ Statistician \
 /Users/yukang/LeanProjects/LeanPractice/.venv/bin/python \
   -m ai_statistician.cli research-system-audit --real-lean \
-  --runs 20 --out runs/research_system_real_lean_40_60
+  --runs 20 --out runs/research_system_real_lean_41_60
 ```
 
 Result:
@@ -43,15 +43,15 @@ frontier_supported=60/60
 frontier_precision=60/60
 frontier_backlog=0/0
 frontier_smoke=23/23
-proofs_verified=40/40
-proofs_kernel_verified=40/40
+proofs_verified=41/41
+proofs_kernel_verified=41/41
 proof_verification_strength=axle_lean_kernel
 research_traces_ok=10/10
 formal_gaps=20
 formalized_gaps=20
-verifier_cache_hits=280
-verifier_cache_misses=40
-verifier_cache_size=40
+verifier_cache_hits=286
+verifier_cache_misses=41
+verifier_cache_size=41
 ```
 
 The research-system run proves that `--real-lean` now flows through the actual

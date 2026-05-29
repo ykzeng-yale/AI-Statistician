@@ -158,6 +158,45 @@ theorem differenceEstimator_unbiased {Ω : Type*} [MeasurableSpace Ω]
         ),
         expected_lemmas=("integral_sub",),
     ),
+    "difference_estimator_variance_decompose": FormalObligation(
+        id="difference_estimator_variance_decompose",
+        title="Difference estimator variance decomposition",
+        english=(
+            "For L2 estimators X and Y on a probability space, the variance of "
+            "their contrast X-Y is Var(X)-2*Cov(X,Y)+Var(Y). This is the "
+            "reusable second-moment bridge behind difference-in-means, ATE "
+            "contrasts, and design-based variance calculations; it does not "
+            "prove randomization, covariance estimation, or asymptotic normality."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+noncomputable def differenceEstimator {Ω : Type*} (X Y : Ω → ℝ) : Ω → ℝ :=
+  X - Y
+
+theorem differenceEstimator_variance_decompose {Ω : Type*} [MeasurableSpace Ω]
+    (μ : Measure Ω) [IsProbabilityMeasure μ]
+    (X Y : Ω → ℝ) (hX : MemLp X 2 μ) (hY : MemLp Y 2 μ) :
+    variance (differenceEstimator X Y) μ =
+      variance X μ - 2 * cov[X, Y; μ] + variance Y μ := by sorry
+"""
+        ),
+        proof_body="by\n  simpa [differenceEstimator] using variance_fun_sub (μ := μ) hX hY",
+        tags=(
+            "estimator",
+            "variance",
+            "covariance",
+            "contrast",
+            "difference_in_means",
+            "causal",
+            "design_based",
+            "finite_sample",
+        ),
+        expected_lemmas=("variance_fun_sub", "variance_sub"),
+        depends_on=("difference_estimator_unbiased", "variance_nonneg"),
+    ),
     "mean2_estimator_variance_indep": FormalObligation(
         id="mean2_estimator_variance_indep",
         title="Two-variable mean estimator variance under independence",

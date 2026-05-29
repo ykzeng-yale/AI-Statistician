@@ -2253,6 +2253,10 @@ class TheoryPlanner:
                         "nuisance_rate_product_condition",
                         "slutsky_theorem",
                     ),
+                    proof_obligations=(
+                        "difference_estimator_variance_decompose",
+                        "variance_nonneg",
+                    ),
                 ),
             ]
             procedures = [
@@ -3644,6 +3648,7 @@ class TheoryPlanner:
                     proof_obligations=(
                         "finite_sample_mean_unbiased",
                         "difference_estimator_unbiased",
+                        "difference_estimator_variance_decompose",
                         "mean2_estimator_unbiased",
                         "mean2_estimator_variance_indep",
                         "finite_sample_mean_variance_indep",
@@ -4691,7 +4696,9 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "prob_measure_univ",
         "integral_of_constant",
         "difference_estimator_unbiased",
+        "difference_estimator_variance_decompose",
         "aipw_score_expectation_decompose",
+        "variance_nonneg",
     ),
     "distribution_free_conformal_prediction": (
         "prob_measure_univ",
@@ -4846,6 +4853,7 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "mean2_estimator_expectation",
         "mean2_estimator_unbiased",
         "difference_estimator_unbiased",
+        "difference_estimator_variance_decompose",
         "mean2_estimator_variance_indep",
         "finite_sample_mean_unbiased",
         "finite_sample_mean_variance_indep",

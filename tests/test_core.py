@@ -96,6 +96,18 @@ class ProofBankTests(unittest.TestCase):
         self.assertTrue(hits)
         self.assertEqual(hits[0].obligation_id, "finite_union_budget_control")
 
+    def test_retriever_finds_difference_variance_obligation(self) -> None:
+        retriever = ProofBankRetriever()
+        hits = retriever.retrieve(
+            RetrievalQuery(
+                "difference in means contrast variance covariance decomposition",
+                tags=("contrast", "variance", "covariance"),
+            ),
+            candidates=all_obligations(),
+        )
+        self.assertTrue(hits)
+        self.assertEqual(hits[0].obligation_id, "difference_estimator_variance_decompose")
+
     def test_retrieval_audit_recovers_proof_bank(self) -> None:
         payload = audit_proof_bank_retrieval(Path("runs/test_retrieval_audit"), k=5)
         self.assertTrue(payload["all_top_k"])
