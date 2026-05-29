@@ -45,6 +45,7 @@ from ai_statistician.research_lab import (
     TheoryPlanner,
 )
 from ai_statistician.research_paper_index import build_paper_source_index, retrieve_paper_sources
+from ai_statistician.research_report import build_research_markdown_report
 from ai_statistician.research_system_audit import ResearchSystemAuditConfig, run_research_system_audit
 from ai_statistician.research_trace_audit import audit_research_traces
 from ai_statistician.research_trace_audit import DIAGNOSTIC_METRIC_ALIASES
@@ -1191,6 +1192,39 @@ class SystemTests(unittest.TestCase):
             },
         )
         self.assertTrue(Path("runs/test_research_markdown_benchmark/research_benchmark_manifest.json").exists())
+
+    def test_research_report_summarizes_persisted_traces(self) -> None:
+        async def run():
+            questions = load_open_research_questions(Path("examples/research_paper_abstracts.md"))[:2]
+            await run_research_benchmark(
+                questions,
+                Path("runs/test_research_report_run"),
+                proof_verifier=MockProofVerifier(),
+                n_runs=20,
+                seed=20260528,
+            )
+            return build_research_markdown_report(
+                Path("runs/test_research_report_run"),
+                Path("runs/test_research_report"),
+            )
+
+        payload = asyncio.run(run())
+        self.assertTrue(payload["all_ok"])
+        self.assertEqual(payload["counts"]["questions"], 2)
+        self.assertGreater(payload["counts"]["proved_subclaims"], 0)
+        self.assertGreater(payload["counts"]["formal_gaps"], 0)
+        self.assertEqual(payload["counts"]["simulations"], 2)
+        report = Path("runs/test_research_report/research_report.md")
+        manifest = Path("runs/test_research_report/research_report_manifest.json")
+        self.assertTrue(report.exists())
+        self.assertTrue(manifest.exists())
+        text = report.read_text(encoding="utf-8")
+        self.assertIn("AI Statistical Theory Lab Research Report", text)
+        self.assertIn("Problem Extraction", text)
+        self.assertIn("Formal Proof Status", text)
+        self.assertIn("Simulation Diagnostics", text)
+        self.assertIn("Source Grounding", text)
+        self.assertIn("FORMAL_GAP", text)
 
     def test_research_trace_audit_validates_frontier_traces(self) -> None:
         async def run():

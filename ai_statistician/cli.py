@@ -28,6 +28,7 @@ from .research_intake_audit import audit_research_question_intake
 from .research_knowledge_audit import audit_research_knowledge
 from .research_lab import audit_research_algorithm_registry, load_open_research_questions, run_research_benchmark
 from .research_capability_audit import build_research_capability_audit, write_research_capability_audit
+from .research_report import build_research_markdown_report
 from .research_system_audit import ResearchSystemAuditConfig, run_research_system_audit
 from .research_trace_audit import audit_research_traces
 from .questions import QUESTIONS, load_question_file
@@ -547,6 +548,23 @@ def _formalization_target_audit(args: argparse.Namespace) -> int:
         f"{(Path(args.out) / 'formalization_target_manifest.json').resolve()}"
     )
     print(f"markdown report written to {(Path(args.out) / 'formalization_targets.md').resolve()}")
+    return 0 if payload["all_ok"] else 1
+
+
+def _research_report(args: argparse.Namespace) -> int:
+    payload = build_research_markdown_report(Path(args.run_dir), Path(args.out))
+    counts = payload["counts"]
+    print("\nAI Statistical Theory Lab Research Report")
+    print("=" * 72)
+    print(
+        f"questions={counts['questions']} ready_with_gaps={counts['ready_with_gaps']} "
+        f"proved={counts['proved_subclaims']} gaps={counts['formal_gaps']} "
+        f"simulations={counts['simulations_passed']}/{counts['simulations']}"
+    )
+    for error in payload["errors"]:
+        print(f"  report error: {error[:180]}")
+    print(f"\nmarkdown report written to {(Path(args.out) / 'research_report.md').resolve()}")
+    print(f"report manifest written to {(Path(args.out) / 'research_report_manifest.json').resolve()}")
     return 0 if payload["all_ok"] else 1
 
 
@@ -1181,6 +1199,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="formalization target audit output directory",
     )
     formalization_target_audit.set_defaults(func=_formalization_target_audit)
+
+    research_report = sub.add_parser(
+        "research-report",
+        help="write a human-readable Markdown report from persisted AI Statistical Theory Lab traces",
+    )
+    research_report.add_argument(
+        "--run-dir",
+        required=True,
+        help="directory containing research_benchmark_manifest.json and research trace JSON files",
+    )
+    research_report.add_argument(
+        "--out",
+        default="runs/research_report",
+        help="research report output directory",
+    )
+    research_report.set_defaults(func=_research_report)
 
     doctor = sub.add_parser("doctor", help="inspect local readiness for proof, LLM, retrieval, and audit runs")
     doctor.add_argument("--root", default=".", help="project root to inspect")

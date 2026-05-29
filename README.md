@@ -39,6 +39,7 @@ python3 -m ai_statistician.cli system-audit --include-partial-examples --runs 30
 python3 -m ai_statistician.cli release-bundle --include-partial-examples --runs 300 --out runs/release_bundle
 python3 -m ai_statistician.cli research-benchmark --runs 100 --out runs/research_benchmark
 python3 -m ai_statistician.cli research-benchmark --question-file examples/research_paper_abstracts.md --runs 100 --out runs/research_paper_benchmark
+python3 -m ai_statistician.cli research-report --run-dir runs/research_benchmark --out runs/research_report
 python3 -m ai_statistician.cli research-eval --n-seeds 3 --runs 80 --out runs/research_eval
 python3 -m ai_statistician.cli research-trace-audit --run-dir runs/research_benchmark --out runs/research_trace_audit
 python3 -m ai_statistician.cli research-gap-audit --run-dir runs/research_benchmark --out runs/research_gap_backlog

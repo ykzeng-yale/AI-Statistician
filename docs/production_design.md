@@ -91,6 +91,21 @@ Real AXLE verification for the Mathlib-backed subclaims:
   --out runs/research_benchmark_axle
 ```
 
+Human-readable research report:
+
+```bash
+python3 -m ai_statistician.cli research-report \
+  --run-dir runs/research_benchmark \
+  --out runs/research_report
+```
+
+This consumes persisted research traces and writes `research_report.md` plus
+`research_report_manifest.json`. The report is not new proof evidence; it is a
+review layer over the audited traces, assembling problem extraction, informal
+procedure derivations, theorem goals, proved subclaims, formal gaps, simulation
+diagnostics, stress tests, paper/source grounding, and local Lean/StatInference
+candidates into one document.
+
 Research trace audit:
 
 ```bash
