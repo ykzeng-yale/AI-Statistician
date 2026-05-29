@@ -12,6 +12,9 @@ from .formalization_target_audit import audit_formalization_targets
 from .formal_source_index import build_formal_source_search_backend
 from .frontier_smoke_benchmark import FrontierSmokeConfig, run_frontier_smoke_benchmark
 from .proof_audit import audit_proof_bank
+from .proof_policy_baseline import evaluate_retrieval_proof_policy_baseline
+from .proof_training_export import export_proof_training_dataset
+from .prover_component_audit import build_prover_component_audit, write_prover_component_audit
 from .research_gap_audit import audit_research_gap_backlog
 from .research_intake_audit import audit_research_question_intake
 from .research_knowledge_audit import audit_research_knowledge
@@ -75,6 +78,23 @@ async def run_research_system_audit(
         out_dir / "proof_audit",
         export_lean=True,
     )
+    proof_attempt_log = Path(str(proof_manifest["proof_attempt_log"]["attempt_log"]))
+    proof_training_manifest = export_proof_training_dataset(
+        proof_attempt_log,
+        out_dir / "proof_training_export",
+        validation_fraction=0.2,
+    )
+    proof_policy_manifest = evaluate_retrieval_proof_policy_baseline(
+        Path(str(proof_training_manifest["train_jsonl"])),
+        Path(str(proof_training_manifest["validation_jsonl"])),
+        out_dir / "proof_policy_baseline",
+        k=5,
+    )
+    prover_component_report = build_prover_component_audit(
+        root=Path.cwd(),
+        question_file=actual_question_file,
+    )
+    write_prover_component_audit(prover_component_report, out_dir / "prover_component_audit")
     benchmark_manifest = await run_research_benchmark(
         questions,
         out_dir / "research_benchmark",
@@ -123,6 +143,13 @@ async def run_research_system_audit(
         "research_algorithm_audit": bool(algorithm_manifest["all_ok"]),
         "proof_audit": bool(proof_manifest["all_verified"])
         and bool(proof_manifest["dependency_graph"]["all_ok"]),
+        "proof_training_export": int(proof_training_manifest["n_sft_examples"])
+        == int(proof_manifest["proof_attempt_log"]["n_positive"]),
+        "proof_policy_baseline": int(proof_policy_manifest["n_train"])
+        + int(proof_policy_manifest["n_validation"])
+        == int(proof_training_manifest["n_sft_examples"]),
+        "prover_component_audit": bool(prover_component_report["paper_outline_exists"])
+        and int(prover_component_report["summary"]["components"]) > 0,
         "research_benchmark": benchmark_gate_ok,
         "formal_gap_skeletons": formalized_gaps_ok,
         "research_trace_audit": bool(trace_manifest["all_ok"]),
@@ -188,6 +215,19 @@ async def run_research_system_audit(
             "verifier_cache_size": verifier.cache_info()["size"],
             "proof_dependency_edges": proof_manifest["dependency_graph"]["n_edges"],
             "proof_dependencies_ok": proof_manifest["dependency_graph"]["all_ok"],
+            "proof_training_examples": proof_training_manifest["n_sft_examples"],
+            "proof_training_kernel_examples": proof_training_manifest["n_kernel_positive_attempts"],
+            "proof_training_train": proof_training_manifest["n_train"],
+            "proof_training_validation": proof_training_manifest["n_validation"],
+            "proof_policy_baseline_top1_exact": proof_policy_manifest["top1_exact"],
+            "proof_policy_baseline_top_k_exact": proof_policy_manifest["top_k_exact"],
+            "proof_policy_baseline_validation": proof_policy_manifest["n_validation"],
+            "proof_policy_baseline_context_hits": proof_policy_manifest["predicted_in_retrieved_context"],
+            "prover_components_total": prover_component_report["summary"]["components"],
+            "prover_components_ready": prover_component_report["summary"]["ready"],
+            "prover_components_partial": prover_component_report["summary"]["partial"],
+            "prover_components_missing_or_not_trained": prover_component_report["summary"]["missing_or_not_trained"],
+            "prover_component_goal_complete": prover_component_report["summary"]["honest_goal_complete"],
             "research_traces_ok": trace_manifest["n_ok"],
             "research_traces_total": trace_manifest["n_traces"],
             "formal_gaps": sum(row["formal"]["gaps"] for row in benchmark_manifest["questions"]),
@@ -252,6 +292,20 @@ async def run_research_system_audit(
                 out_dir / "research_algorithm_audit" / "research_algorithm_audit_manifest.json"
             ),
             "proof_audit": str(out_dir / "proof_audit" / "proof_audit_manifest.json"),
+            "proof_attempt_log": str(out_dir / "proof_audit" / "proof_attempts.jsonl"),
+            "proof_training_export": str(out_dir / "proof_training_export" / "proof_training_manifest.json"),
+            "proof_training_train": str(out_dir / "proof_training_export" / "proof_sft_train.jsonl"),
+            "proof_training_validation": str(out_dir / "proof_training_export" / "proof_sft_validation.jsonl"),
+            "proof_policy_baseline": str(
+                out_dir / "proof_policy_baseline" / "proof_policy_baseline_manifest.json"
+            ),
+            "proof_policy_baseline_predictions": str(
+                out_dir / "proof_policy_baseline" / "proof_policy_baseline_predictions.jsonl"
+            ),
+            "prover_component_audit": str(
+                out_dir / "prover_component_audit" / "prover_component_audit_manifest.json"
+            ),
+            "prover_component_report": str(out_dir / "prover_component_audit" / "prover_component_audit.md"),
             "research_benchmark": str(out_dir / "research_benchmark" / "research_benchmark_manifest.json"),
             "formal_source_index": str(formal_source_index_path),
             "research_trace_audit": str(out_dir / "research_trace_audit" / "research_trace_audit_manifest.json"),

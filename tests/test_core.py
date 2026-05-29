@@ -1407,6 +1407,9 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(payload["gates"]["retrieval_audit"])
         self.assertTrue(payload["gates"]["research_algorithm_audit"])
         self.assertTrue(payload["gates"]["proof_audit"])
+        self.assertTrue(payload["gates"]["proof_training_export"])
+        self.assertTrue(payload["gates"]["proof_policy_baseline"])
+        self.assertTrue(payload["gates"]["prover_component_audit"])
         self.assertTrue(payload["gates"]["research_benchmark"])
         self.assertTrue(payload["gates"]["formal_gap_skeletons"])
         self.assertTrue(payload["gates"]["research_trace_audit"])
@@ -1444,6 +1447,20 @@ class SystemTests(unittest.TestCase):
         self.assertGreater(payload["counts"]["verifier_cache_hits"], 0)
         self.assertGreater(payload["counts"]["verifier_cache_misses"], 0)
         self.assertGreater(payload["counts"]["verifier_cache_size"], 0)
+        self.assertEqual(payload["counts"]["proof_training_examples"], payload["counts"]["proofs_verified"])
+        self.assertEqual(
+            payload["counts"]["proof_training_train"] + payload["counts"]["proof_training_validation"],
+            payload["counts"]["proof_training_examples"],
+        )
+        self.assertEqual(
+            payload["counts"]["proof_policy_baseline_validation"],
+            payload["counts"]["proof_training_validation"],
+        )
+        self.assertGreater(payload["counts"]["prover_components_total"], 0)
+        self.assertFalse(payload["counts"]["prover_component_goal_complete"])
+        self.assertGreater(payload["counts"]["prover_components_ready"], 0)
+        self.assertGreater(payload["counts"]["prover_components_partial"], 0)
+        self.assertGreater(payload["counts"]["prover_components_missing_or_not_trained"], 0)
         self.assertEqual(payload["counts"]["research_traces_ok"], 10)
         self.assertEqual(payload["counts"]["formalized_gaps"], payload["counts"]["formal_gaps"])
         self.assertEqual(payload["counts"]["gap_backlog_ok"], payload["counts"]["gap_backlog_total"])
@@ -1474,6 +1491,14 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(Path(payload["artifacts"]["research_knowledge_audit"]).exists())
         self.assertTrue(Path(payload["artifacts"]["research_source_inventory"]).exists())
         self.assertTrue(Path(payload["artifacts"]["research_algorithm_audit"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["proof_attempt_log"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["proof_training_export"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["proof_training_train"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["proof_training_validation"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["proof_policy_baseline"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["proof_policy_baseline_predictions"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["prover_component_audit"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["prover_component_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["research_trace_audit"]).exists())
         self.assertTrue(Path(payload["artifacts"]["research_gap_backlog"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formalization_target_audit"]).exists())

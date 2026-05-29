@@ -252,10 +252,14 @@ python3 -m ai_statistician.cli research-system-audit \
 The system audit is the preferred single command for evaluating this layer. It
 runs proof-bank retrieval, frontier precision audit, research capability audit,
 research knowledge-source audit, research algorithm audit, proof verification,
-the frontier research benchmark, the research trace audit, formal-gap backlog,
+proof-training export, the proof-policy baseline, prover-component audit, the
+frontier research benchmark, the research trace audit, formal-gap backlog,
 formalization target queue, and the human-readable research report, then writes
-`research_system_audit_manifest.json` with gates and artifact paths. With
-`--real-lean`, the proof gate and benchmark subclaims use AXLE
+`research_system_audit_manifest.json` with gates and artifact paths. The
+training and baseline gates check artifact integrity, not model quality: they
+make verifier-positive proof attempts available for future SFT/rejection
+sampling and record the no-training proof-memory baseline that trained policies
+must beat. With `--real-lean`, the proof gate and benchmark subclaims use AXLE
 `verify_proof`; frontier theorem goals still remain explicit formal gaps unless
 they have been added to the proof bank as real obligations.
 
@@ -709,7 +713,10 @@ python3 -m ai_statistician.cli proof-training-export \
 
 This writes `proof_sft_train.jsonl`, `proof_sft_validation.jsonl`,
 `proof_sft_all.jsonl`, and `proof_training_manifest.json`. The train/validation
-split is deterministic from the attempt id so reruns are comparable.
+split is deterministic from the attempt id so reruns are comparable. The
+release-style `research-system-audit` now emits this export automatically from
+its proof-audit attempt log so training data provenance is captured beside the
+proof, retrieval, simulation, and gap manifests.
 Before training a model, run the no-training whole-proof baseline:
 
 ```bash
@@ -722,7 +729,9 @@ python3 -m ai_statistician.cli proof-policy-baseline \
 This nearest-neighbor proof-memory policy reports top-1/top-k exact completion
 match and whether the predicted source obligation was already in the
 validation example's retrieved context. It is intentionally weak; future
-whole-proof SFT or rejection-sampling policies should beat it.
+whole-proof SFT or rejection-sampling policies should beat it. The unified
+`research-system-audit` also runs this baseline automatically after exporting
+the proof SFT data, so every release snapshot has a no-training policy floor.
 
 Retrieval audit:
 
@@ -821,7 +830,9 @@ AI-for-math stack in `AI for Math Resources/master_ai_for_math_formal_verificati
 hard verifier, formal data/autoformalization, premise retrieval, tactic/proof
 policy, search/RL, subgoal decomposition, skill library, construction,
 counterexample generation, simulation, provenance, and model training. This is
-the honest check for whether we have actually trained/built each component.
+the honest check for whether we have actually trained/built each component. It
+is now part of `research-system-audit`, so the single release manifest records
+both production-readiness gates and the remaining prover-stack training gaps.
 Current expected result: verifier, benchmark data, simulation, and provenance
 are release-ready; retrieval, subgoal planning, skill memory, construction,
 counterexample loops, and proof-attempt logging are partial; tactic policy,
