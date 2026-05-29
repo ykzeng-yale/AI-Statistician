@@ -53,6 +53,8 @@ FORMAL_SEARCH_KNOWLEDGE = {
     "lean_finder",
     "leandojo_reprover",
     "loogle",
+    "leansearch_client_local",
+    "leandojo_v2_local",
     "openprover_pipeline",
 }
 

@@ -618,6 +618,9 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(payload["source_inventory"]["all_ok"])
         self.assertEqual(payload["source_inventory"]["n_ok"], payload["source_inventory"]["n_sources"])
         self.assertEqual(len(payload["source_inventory"]["inventory_fingerprint"]), 64)
+        source_card_ids = {row["card_id"] for row in payload["source_rows"]}
+        self.assertIn("leansearch_client_local", source_card_ids)
+        self.assertIn("leandojo_v2_local", source_card_ids)
         self.assertEqual(payload["n_problem_rows"], 10)
         self.assertEqual(payload["n_problem_ok"], 10)
         self.assertFalse(payload["duplicate_ids"])
@@ -633,6 +636,14 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(
             Path("runs/test_research_knowledge_audit/source_inventory/research_source_inventory_manifest.json").exists()
         )
+        source_inventory = json.loads(
+            Path("runs/test_research_knowledge_audit/source_inventory/research_source_inventory_manifest.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        source_inventory_ids = {row["source_id"] for row in source_inventory["rows"]}
+        self.assertIn("leansearch_client", source_inventory_ids)
+        self.assertIn("leandojo_v2_local", source_inventory_ids)
 
     def test_frontier_coverage_audit_parses_paper_benchmark(self) -> None:
         questions = load_frontier_benchmark_questions(Path("docs/frontier_stat_theory_benchmark.md"))

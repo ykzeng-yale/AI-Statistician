@@ -674,6 +674,11 @@ The package integrates existing systems where appropriate:
   It expands formal-gap queries through nearby Mathlib/StatInference
   declarations with shared heads such as `variance`, `IndepFun`, `Rademacher`,
   `Hajek`, or `ConditionalExpectation`.
+- The source inventory now also tracks the local LeanSearchClient checkout
+  (`#leansearch`, `#loogle`, and state-search syntax) and the local LeanDojo-v2
+  checkout (repository tracing, proof-state datasets, retrieval-augmented
+  proving, SFT/GRPO, and LeanProgress-style value models). These are integration
+  targets, not mandatory runtime dependencies for the offline release gate.
 - The open-question `research-benchmark` path now accepts the same persisted
   backend and the CLI defaults to it. Formal-gap skeletons are therefore
   grounded through the local SQLite FTS + Lean-shape search path used by the

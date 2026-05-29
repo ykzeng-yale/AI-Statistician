@@ -117,6 +117,20 @@ SOURCE_INVENTORY_TARGETS: tuple[SourceInventoryTarget, ...] = (
         keywords=("dpo", "grpo", "premise", "reward", "attempt"),
     ),
     SourceInventoryTarget(
+        id="leansearch_client",
+        source_type="lean_library",
+        location="/Users/yukang/Axiom Interview/.lake/packages/LeanSearchClient",
+        required_extensions=(".lean",),
+        keywords=("LeanSearchClient", "Loogle", "leansearch", "statesearch", "TryThis"),
+    ),
+    SourceInventoryTarget(
+        id="leandojo_v2_local",
+        source_type="prover_pipeline",
+        location="/Users/yukang/Desktop/AI for Math/Axiom Code Practice/external/LeanDojo-v2",
+        required_extensions=(".py", ".md"),
+        keywords=("lean_dojo_v2", "retrieval", "prover", "trainer", "GRPO", "LeanProgress"),
+    ),
+    SourceInventoryTarget(
         id="openprover_pipeline",
         source_type="prover_pipeline",
         location="/Users/yukang/Documents/OpenProver",

@@ -329,6 +329,31 @@ KNOWLEDGE_CARDS: tuple[KnowledgeCard, ...] = (
         tags=("retrieval", "mathlib", "loogle"),
     ),
     KnowledgeCard(
+        id="leansearch_client_local",
+        title="Local LeanSearchClient / Loogle syntax integration",
+        source_type="local_repo",
+        location="/Users/yukang/Axiom Interview/.lake/packages/LeanSearchClient",
+        summary=(
+            "Local Lean package exposing #leansearch, #loogle, and state-search "
+            "syntax from inside Lean. It is an integration target for using "
+            "external Mathlib search providers without rebuilding search clients "
+            "inside the statistician repo."
+        ),
+        tags=("retrieval", "mathlib", "leansearch", "loogle", "statesearch", "lean"),
+    ),
+    KnowledgeCard(
+        id="leandojo_v2_local",
+        title="Local LeanDojo-v2 prover training and tracing stack",
+        source_type="local_repo",
+        location="/Users/yukang/Desktop/AI for Math/Axiom Code Practice/external/LeanDojo-v2",
+        summary=(
+            "Local LeanDojo-v2 checkout for repository tracing, proof-state "
+            "dataset generation, retrieval-augmented proving, SFT/GRPO training, "
+            "and LeanProgress-style value/progress modeling."
+        ),
+        tags=("retrieval", "prover", "training", "leandojo", "reprover", "grpo", "lean_progress"),
+    ),
+    KnowledgeCard(
         id="local_mathlib_probability",
         title="Local Mathlib probability and statistics source",
         source_type="local_repo",
@@ -450,6 +475,8 @@ FORMAL_INFRASTRUCTURE_KNOWLEDGE: tuple[str, ...] = (
     "lean_finder",
     "leandojo_reprover",
     "loogle",
+    "leansearch_client_local",
+    "leandojo_v2_local",
     "openprover_pipeline",
 )
 
