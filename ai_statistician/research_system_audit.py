@@ -13,6 +13,7 @@ from .formalization_target_audit import audit_formalization_targets
 from .formal_source_graph import audit_formal_source_graph
 from .formal_source_index import build_formal_source_search_backend
 from .autoform_harness import audit_autoform_harness
+from .autoform_target_export import export_autoform_targets
 from .frontier_smoke_benchmark import FrontierSmokeConfig, run_frontier_smoke_benchmark
 from .proof_audit import audit_proof_bank
 from .proof_bank_expansion_export import export_proof_bank_expansion_candidates
@@ -146,6 +147,10 @@ async def run_research_system_audit(
         out_dir / "research_benchmark",
         out_dir / "formal_gap_lean_tasks",
     )
+    autoform_target_manifest = export_autoform_targets(
+        out_dir / "research_benchmark",
+        out_dir / "autoform_targets",
+    )
     proof_bank_expansion_manifest = export_proof_bank_expansion_candidates(
         out_dir / "research_benchmark",
         out_dir / "proof_bank_expansion",
@@ -212,6 +217,8 @@ async def run_research_system_audit(
         "research_gap_backlog": bool(gap_backlog_manifest["all_ok"]),
         "formalization_target_audit": bool(formalization_target_manifest["all_ok"]),
         "formal_gap_task_export": bool(formal_gap_task_manifest["all_ok"]),
+        "autoform_target_export": bool(autoform_target_manifest["all_ok"])
+        and int(autoform_target_manifest["n_targets"]) == int(formal_gap_task_manifest["n_tasks"]),
         "proof_bank_expansion_export": bool(proof_bank_expansion_manifest["all_ok"]),
         "research_training_export": bool(research_training_manifest["all_ok"]),
         "research_policy_baseline": bool(research_policy_manifest["all_ok"]),
@@ -323,6 +330,8 @@ async def run_research_system_audit(
             ],
             "formal_gap_lean_tasks_ok": formal_gap_task_manifest["n_ok"],
             "formal_gap_lean_tasks_total": formal_gap_task_manifest["n_tasks"],
+            "autoform_targets_ok": autoform_target_manifest["n_ok"],
+            "autoform_targets_total": autoform_target_manifest["n_targets"],
             "proof_bank_expansion_candidates_ok": proof_bank_expansion_manifest["n_ok"],
             "proof_bank_expansion_candidates_total": proof_bank_expansion_manifest["n_candidates"],
             "proof_bank_expansion_bridge_ready": proof_bank_expansion_manifest["n_bridge_ready"],
@@ -454,6 +463,9 @@ async def run_research_system_audit(
             "formal_gap_lean_tasks_report": str(
                 out_dir / "formal_gap_lean_tasks" / "formal_gap_lean_tasks.md"
             ),
+            "autoform_targets": str(out_dir / "autoform_targets" / "autoform_targets_manifest.json"),
+            "autoform_targets_yaml": str(out_dir / "autoform_targets" / "autoform_targets.yaml"),
+            "autoform_targets_report": str(out_dir / "autoform_targets" / "autoform_targets.md"),
             "proof_bank_expansion": str(
                 out_dir / "proof_bank_expansion" / "proof_bank_expansion_manifest.json"
             ),

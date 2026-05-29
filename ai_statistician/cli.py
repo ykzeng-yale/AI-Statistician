@@ -9,6 +9,7 @@ from .algorithms import audit_algorithm_registry
 from .capability_audit import build_capability_audit, write_capability_audit
 from .doctor import build_doctor_report, write_doctor_manifest
 from .evaluation import EvalConfig, run_seed_eval
+from .autoform_target_export import export_autoform_targets
 from .frontier_backlog_audit import audit_frontier_backlog
 from .frontier_coverage_audit import audit_frontier_coverage
 from .frontier_precision_audit import audit_frontier_precision
@@ -649,6 +650,20 @@ def _formal_gap_task_export(args: argparse.Namespace) -> int:
     return 0 if payload["all_ok"] else 1
 
 
+def _autoform_target_export(args: argparse.Namespace) -> int:
+    payload = export_autoform_targets(Path(args.run_dir), Path(args.out))
+    print("\nAI Statistical Theory Lab Autoform Target Export")
+    print("=" * 72)
+    print(f"targets={payload['n_ok']}/{payload['n_targets']} all_ok={payload['all_ok']}")
+    print(f"yaml written to {Path(str(payload['autoform_targets_yaml'])).resolve()}")
+    print(f"book dir written to {Path(str(payload['autoform_book_dir'])).resolve()}")
+    for command in payload["command_templates"]:
+        print(f"  {command}")
+    for error in payload["errors"]:
+        print(f"  error: {error}")
+    return 0 if payload["all_ok"] else 1
+
+
 def _proof_bank_expansion_export(args: argparse.Namespace) -> int:
     payload = export_proof_bank_expansion_candidates(Path(args.run_dir), Path(args.out))
     print("\nAI Statistical Theory Lab Proof-Bank Expansion Candidates")
@@ -1086,6 +1101,7 @@ async def _research_system_audit(args: argparse.Namespace) -> int:
         f"proofs={counts['proofs_verified']}/{counts['proofs_total']} "
         f"traces={counts['research_traces_ok']}/{counts['research_traces_total']} "
         f"formalized_gaps={counts['formalized_gaps']}/{counts['formal_gaps']} "
+        f"autoform_targets={counts['autoform_targets_ok']}/{counts['autoform_targets_total']} "
         f"gap_backlog={counts['gap_backlog_ok']}/{counts['gap_backlog_total']} "
         f"missing_primitives={counts['missing_formal_primitives']}"
     )
@@ -1467,6 +1483,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="formal gap Lean task output directory",
     )
     formal_gap_task_export.set_defaults(func=_formal_gap_task_export)
+
+    autoform_target_export = sub.add_parser(
+        "autoform-target-export",
+        help="export FORMAL_GAP tasks as Autoform-Bot-compatible target YAML",
+    )
+    autoform_target_export.add_argument(
+        "--run-dir",
+        required=True,
+        help="directory containing research_benchmark_manifest.json and research trace JSON files",
+    )
+    autoform_target_export.add_argument(
+        "--out",
+        default="runs/autoform_targets",
+        help="Autoform target YAML/book output directory",
+    )
+    autoform_target_export.set_defaults(func=_autoform_target_export)
 
     proof_bank_expansion_export = sub.add_parser(
         "proof-bank-expansion-export",

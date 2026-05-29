@@ -25,6 +25,7 @@ from ai_statistician.formal_source_index import (
 from ai_statistician.autoform_harness import audit_autoform_harness
 from ai_statistician.proof_bank import all_obligations, get_obligation
 from ai_statistician.evaluation import EvalConfig, run_seed_eval
+from ai_statistician.autoform_target_export import export_autoform_targets
 from ai_statistician.intake_audit import audit_question_intake
 from ai_statistician.frontier_backlog_audit import audit_frontier_backlog
 from ai_statistician.proof_audit import audit_proof_bank
@@ -2111,6 +2112,44 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(Path("runs/test_formal_gap_lean_tasks/formal_gap_lean_task_manifest.json").exists())
         self.assertTrue(Path("runs/test_formal_gap_lean_tasks/formal_gap_lean_tasks.md").exists())
 
+    def test_autoform_target_export_writes_target_yaml_and_book(self) -> None:
+        async def run():
+            questions = load_open_research_questions(Path("examples/research_questions.json"))[:2]
+            await run_research_benchmark(
+                questions,
+                Path("runs/test_autoform_target_run"),
+                proof_verifier=MockProofVerifier(),
+                n_runs=25,
+                seed=20260528,
+            )
+            return export_autoform_targets(
+                Path("runs/test_autoform_target_run"),
+                Path("runs/test_autoform_targets"),
+            )
+
+        payload = asyncio.run(run())
+        self.assertTrue(payload["all_ok"])
+        self.assertGreater(payload["n_targets"], 0)
+        self.assertEqual(payload["n_ok"], payload["n_targets"])
+        first = payload["targets"][0]
+        self.assertTrue(first["name"].startswith("formal_gap:"))
+        self.assertEqual(first["kind"], "theorem")
+        self.assertTrue(first["lean_declaration"])
+        self.assertNotEqual(first["lean_declaration"], "skeleton.")
+        self.assertTrue(first["lean_declaration"].endswith("_skeleton"))
+        self.assertTrue(first["lean_file"].endswith(".lean"))
+        self.assertIn("FORMAL_GAP", first["description"])
+        yaml_path = Path(payload["autoform_targets_yaml"])
+        book_path = Path(payload["autoform_book_markdown"])
+        self.assertTrue(yaml_path.exists())
+        self.assertTrue(book_path.exists())
+        yaml_text = yaml_path.read_text(encoding="utf-8")
+        self.assertIn("lean_declaration", yaml_text)
+        self.assertIn(first["lean_declaration"], yaml_text)
+        self.assertIn("autoform.eval run", payload["command_templates"][0])
+        self.assertTrue(Path("runs/test_autoform_targets/autoform_targets_manifest.json").exists())
+        self.assertTrue(Path("runs/test_autoform_targets/autoform_targets.md").exists())
+
     def test_proof_bank_expansion_export_writes_legacy_proposal_queue(self) -> None:
         async def run():
             questions = load_open_research_questions(Path("examples/research_questions.json"))[:2]
@@ -2392,6 +2431,7 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(payload["gates"]["research_gap_backlog"])
         self.assertTrue(payload["gates"]["formalization_target_audit"])
         self.assertTrue(payload["gates"]["formal_gap_task_export"])
+        self.assertTrue(payload["gates"]["autoform_target_export"])
         self.assertTrue(payload["gates"]["proof_bank_expansion_export"])
         self.assertTrue(payload["gates"]["research_training_export"])
         self.assertTrue(payload["gates"]["research_policy_baseline"])
@@ -2476,6 +2516,8 @@ class SystemTests(unittest.TestCase):
         self.assertGreater(payload["counts"]["formalization_targets_total"], 0)
         self.assertEqual(payload["counts"]["formal_gap_lean_tasks_ok"], payload["counts"]["formal_gap_lean_tasks_total"])
         self.assertEqual(payload["counts"]["formal_gap_lean_tasks_total"], payload["counts"]["formal_gaps"])
+        self.assertEqual(payload["counts"]["autoform_targets_ok"], payload["counts"]["autoform_targets_total"])
+        self.assertEqual(payload["counts"]["autoform_targets_total"], payload["counts"]["formal_gap_lean_tasks_total"])
         self.assertEqual(
             payload["counts"]["proof_bank_expansion_candidates_ok"],
             payload["counts"]["proof_bank_expansion_candidates_total"],
@@ -2539,6 +2581,9 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(Path(payload["artifacts"]["formal_gap_lean_tasks"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_gap_lean_tasks_jsonl"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_gap_lean_tasks_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["autoform_targets"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["autoform_targets_yaml"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["autoform_targets_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["proof_bank_expansion"]).exists())
         self.assertTrue(Path(payload["artifacts"]["proof_bank_expansion_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["proof_bank_expansion_lemma_proposals"]).exists())

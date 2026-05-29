@@ -64,13 +64,33 @@ Current detected command templates:
 ```bash
 python -m autoform.statement_extraction run --book-dir <book_dir> --output <book_dir>/targets.yaml
 python -m autoform.bot.main run --config <config.yaml> --name <run_name>
-python -m autoform.eval run --repo-dir <lean_repo> --task-file <targets.yaml> --book-dir <book_dir>
+python -m autoform.eval run --repo_dir <lean_repo> --code_dir <lean_source_dir> --task_file <targets.yaml> --book_dir <book_dir>
 python -m autoform.visualizer.app --runs-dir <workspace> --port 8003
 ```
 
 The real research-system audit gate `autoform_harness` now requires the local
 harness to expose the statement extraction, Lean eval, Lean REPL, and multi-agent
 bot components.
+
+The AI Statistician now also writes concrete Autoform inputs from its own formal
+gap queue:
+
+```bash
+python -m ai_statistician.cli autoform-target-export \
+  --run-dir runs/research_benchmark \
+  --out runs/autoform_targets
+```
+
+That command emits:
+
+- `autoform_targets.yaml`: Autoform-Bot `FormalizationTarget` records.
+- `autoform_book/formal_gap_statements.md`: book-style descriptions of each
+  statistical theorem-development target.
+- `autoform_targets_manifest.json`: audit/provenance, command templates, and
+  target fingerprint.
+
+This is still a formalization handoff, not a proof claim: the exported targets
+preserve `FORMAL_GAP` and placeholder-assumption boundaries.
 
 ## Usage Boundary
 
@@ -92,7 +112,7 @@ Real Lean/AXLE system audit:
 PYTHONPATH=/Users/yukang/AI\ Statistician \
 /Users/yukang/LeanProjects/LeanPractice/.venv/bin/python \
   -m ai_statistician.cli research-system-audit --real-lean \
-  --runs 20 --out runs/research_system_real_lean_ykzeng_atlas
+  --runs 20 --out runs/research_system_real_lean_autoform_targets
 ```
 
 Result:
@@ -100,6 +120,7 @@ Result:
 ```text
 all_gates_passed=True
 autoform_harness=True
+autoform_targets=20/20
 sources=19/19
 proofs=41/41
 frontier_supported=60/60

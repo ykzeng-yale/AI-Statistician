@@ -32,7 +32,7 @@ Runtime used:
 PYTHONPATH=/Users/yukang/AI\ Statistician \
 /Users/yukang/LeanProjects/LeanPractice/.venv/bin/python \
   -m ai_statistician.cli research-system-audit --real-lean \
-  --runs 20 --out runs/research_system_real_lean_ykzeng_atlas
+  --runs 20 --out runs/research_system_real_lean_autoform_targets
 ```
 
 Result:
@@ -40,6 +40,7 @@ Result:
 ```text
 all_gates_passed=True
 autoform_harness=True
+autoform_target_export=True
 sources=19/19
 frontier_supported=60/60
 frontier_precision=60/60
@@ -51,6 +52,7 @@ proof_verification_strength=axle_lean_kernel
 research_traces_ok=10/10
 formal_gaps=20
 formalized_gaps=20
+autoform_targets=20/20
 formal_source_graph_symbols=69308
 formal_source_graph_edges=1361304
 verifier_cache_hits=286
@@ -63,9 +65,10 @@ open-question workflow, not only the standalone proof-bank audit. It verifies
 all currently registered Mathlib-backed proof obligations with AXLE, runs the
 frontier smoke benchmark with one selected question per supported class, indexes
 the Meta Atlas Lean mirror through the formal-source graph, detects reusable
-Autoform-Bot harness entrypoints, writes research traces whose proved subclaims
-are marked `kernel_verified=true`, and still leaves frontier theorem claims as
-explicit formal gaps.
+Autoform-Bot harness entrypoints, exports all current formal-gap skeletons as
+Autoform-compatible target YAML/book artifacts, writes research traces whose
+proved subclaims are marked `kernel_verified=true`, and still leaves frontier
+theorem claims as explicit formal gaps.
 
 Important boundary:
 

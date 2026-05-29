@@ -50,7 +50,7 @@ def build_autoform_harness_profile(root: Path = AUTOFORM_BOT_ROOT) -> AutoformHa
     command_templates = (
         "python -m autoform.statement_extraction run --book-dir <book_dir> --output <book_dir>/targets.yaml",
         "python -m autoform.bot.main run --config <config.yaml> --name <run_name>",
-        "python -m autoform.eval run --repo-dir <lean_repo> --task-file <targets.yaml> --book-dir <book_dir>",
+        "python -m autoform.eval run --repo_dir <lean_repo> --code_dir <lean_source_dir> --task_file <targets.yaml> --book_dir <book_dir>",
         "python -m autoform.visualizer.app --runs-dir <workspace> --port 8003",
     )
     return AutoformHarnessProfile(

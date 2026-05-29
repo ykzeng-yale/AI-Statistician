@@ -44,6 +44,7 @@ python3 -m ai_statistician.cli research-eval --n-seeds 3 --runs 80 --out runs/re
 python3 -m ai_statistician.cli research-trace-audit --run-dir runs/research_benchmark --out runs/research_trace_audit
 python3 -m ai_statistician.cli research-gap-audit --run-dir runs/research_benchmark --out runs/research_gap_backlog
 python3 -m ai_statistician.cli formalization-target-audit --run-dir runs/research_benchmark --out runs/formalization_target_audit
+python3 -m ai_statistician.cli autoform-target-export --run-dir runs/research_benchmark --out runs/autoform_targets
 python3 -m ai_statistician.cli research-system-audit --runs 100 --out runs/research_system_audit
 ```
 
@@ -106,6 +107,10 @@ existing AXLE-verified proof-bank bridges from primitives that need fresh source
 search or library design. The queue also ranks
 `bridge_candidate_obligations` for each primitive, so theorem mining starts
 from the most relevant verified bridge instead of a broad proof-obligation list.
+`autoform-target-export` bridges the same audited formal gaps into
+Autoform-Bot's target-list format. It writes `autoform_targets.yaml` plus a
+small book-style Markdown directory so the external Autoform evaluation and
+visualizer harness can assess or route these theorem-development targets.
 `formal-source-audit` now defaults to a persistent SQLite FTS + Lean-shape
 reranking backend and writes `formal_source_index.sqlite` next to the audit
 manifest, so repeated search and interactive theorem mining can query the local

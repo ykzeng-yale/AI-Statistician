@@ -212,6 +212,25 @@ LeanDojo/ReProver-style search loop, or human Lean developer. The release-style
 `research-system-audit` writes them as
 `formal_gap_lean_tasks/formal_gap_lean_tasks.jsonl`.
 
+Autoform target export:
+
+```bash
+python3 -m ai_statistician.cli autoform-target-export \
+  --run-dir runs/research_benchmark \
+  --out runs/autoform_targets
+```
+
+This is the operational bridge from the AI Statistician formal-gap queue to the
+Autoform-Bot harness. It consumes the audited Lean task export and writes
+`autoform_targets.yaml` in Autoform-Bot's `FormalizationTarget` shape
+(`name`, `description`, `kind`, `location`, `lean_declaration`, `lean_file`),
+plus an `autoform_book/` Markdown directory containing book-style descriptions
+of each theorem-development target. The target descriptions preserve
+`FORMAL_GAP`, required primitives, proof-bank dependencies, and problem-class
+metadata, so Autoform-Bot can assess or route the target without mistaking it
+for a verified theorem. The release-style `research-system-audit` writes this
+export as `autoform_targets/autoform_targets.yaml` and includes it as a gate.
+
 Proof-bank expansion candidates:
 
 ```bash
@@ -713,7 +732,9 @@ The package integrates existing systems where appropriate:
   `ykzeng-yale/autoform-bot` mirror, with upstream-compatible fallback. `autoform_harness` records reusable
   statement-extraction, multi-agent formalization, Lean-checking, REPL/LSP,
   evaluation, and visualizer entrypoints. This is an integration adapter, not a
-  vendored training dataset.
+  vendored training dataset. `autoform-target-export` then converts audited
+  FORMAL_GAP tasks into Autoform-compatible target YAML and a book-style
+  Markdown directory, so the external harness has a concrete input queue.
 - The open-question `research-benchmark` path now accepts the same persisted
   backend and the CLI defaults to it. Formal-gap skeletons are therefore
   grounded through the local SQLite FTS + Lean-shape + symbol-graph path used by
