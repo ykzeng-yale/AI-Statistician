@@ -1204,6 +1204,12 @@ class SystemTests(unittest.TestCase):
         full_proof = findings["prove full frontier asymptotic/statistical theorem goals in Lean"]
         self.assertEqual(full_proof["status"], "PARTIAL")
         self.assertFalse(full_proof["current_release_gate"])
+        available_proofs = findings["prove available Mathlib-backed subclaims in Lean via AXLE"]
+        self.assertIn(available_proofs["status"], {"PARTIAL", "ACHIEVED"})
+        self.assertTrue(available_proofs["current_release_gate"])
+        self.assertTrue(
+            any("latest_proof_audit_kernel_verified=" in item for item in available_proofs["evidence"])
+        )
         arbitrary_frontier = findings[
             "autonomously solve arbitrary frontier journal statistical theory problems end to end"
         ]

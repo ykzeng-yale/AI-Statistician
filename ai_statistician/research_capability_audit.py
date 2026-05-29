@@ -91,6 +91,18 @@ def build_research_capability_audit(
     latest_research_system = _latest_named(all_research_manifests, "research_system_audit_manifest.json")
     latest_research_benchmark = _latest_named(all_research_manifests, "research_benchmark_manifest.json")
     latest_research_eval = _latest_named(all_research_manifests, "research_evaluation_manifest.json")
+    latest_proof_audit = _latest_named(all_research_manifests, "proof_audit_manifest.json")
+    latest_proof_payload = _read_manifest_payload(latest_proof_audit)
+    latest_kernel_verified = int(latest_proof_payload.get("n_kernel_verified", 0)) if latest_proof_payload else 0
+    latest_non_kernel_verified = int(latest_proof_payload.get("n_non_kernel_verified", 0)) if latest_proof_payload else 0
+    latest_all_kernel_verified = bool(latest_proof_payload.get("all_kernel_verified")) if latest_proof_payload else False
+    proof_subclaim_status = (
+        "ACHIEVED"
+        if latest_all_kernel_verified and latest_kernel_verified > 0
+        else "PARTIAL"
+        if obligations and PROVABLE_SUBCLAIMS
+        else "NOT_ACHIEVED"
+    )
 
     findings = [
         ResearchCapabilityFinding(
@@ -167,17 +179,22 @@ def build_research_capability_audit(
         ),
         ResearchCapabilityFinding(
             requirement="prove available Mathlib-backed subclaims in Lean via AXLE",
-            status="ACHIEVED" if obligations and PROVABLE_SUBCLAIMS else "NOT_ACHIEVED",
+            status=proof_subclaim_status,
             current_release_gate=True,
             evidence=(
                 f"proof_bank_obligations={len(obligations)}",
                 f"research_problem_classes_with_subclaims={len(PROVABLE_SUBCLAIMS)}",
+                f"latest_proof_audit_kernel_verified={latest_kernel_verified}",
+                f"latest_proof_audit_non_kernel_verified={latest_non_kernel_verified}",
+                f"latest_proof_audit_all_kernel_verified={latest_all_kernel_verified}",
                 f"{FormalSubclaimProver.__module__}.{FormalSubclaimProver.__name__}",
                 "research-system-audit --real-lean verifies these obligations with AXLE when available",
+                latest_proof_audit["path"] if latest_proof_audit else "no latest proof audit manifest found",
                 latest_research_system["path"] if latest_research_system else "no latest research system audit manifest found",
             ),
             limitations=(
                 "These are finite Mathlib-backed subclaims, not complete proofs of new frontier asymptotic theorems.",
+                "Offline mock-positive proof rows are regression evidence only; AXLE rows require kernel_verified=true.",
             ),
         ),
         ResearchCapabilityFinding(
@@ -428,6 +445,16 @@ def _latest_research_manifests(run_dir: Path, *, max_count: int) -> list[dict[st
 
 def _latest_named(rows: list[dict[str, object]], name: str) -> dict[str, object] | None:
     return next((row for row in rows if row["name"] == name), None)
+
+
+def _read_manifest_payload(row: dict[str, object] | None) -> dict[str, Any]:
+    if row is None:
+        return {}
+    try:
+        path = Path(str(row["path"]))
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
 
 
 def _markdown_report(payload: dict[str, object]) -> str:

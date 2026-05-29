@@ -633,6 +633,10 @@ proof bodies. Mock-positive rows are regression-test evidence only; AXLE rows
 with `kernel_verified=true` are the Lean-kernel proof evidence. This is
 proof-level logging only; tactic-state transitions and process rewards remain
 future work.
+The capability audit uses the same distinction: available subclaims are marked
+`ACHIEVED` for the AXLE requirement only when the latest proof audit has
+`all_kernel_verified=true`; otherwise they remain `PARTIAL` while still passing
+offline release gates as regression evidence.
 Use `proof-training-export` to convert a checked attempt log into deterministic
 whole-proof SFT data:
 
