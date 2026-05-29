@@ -23,6 +23,7 @@ REQUIRED_RESEARCH_TRACE_KEYS = {
     "formal_subclaims",
     "simulations",
     "theorem_goals",
+    "theory_plan",
     "status",
     "limitations",
 }
@@ -379,6 +380,20 @@ def _validate_research_trace(
             )
         )
 
+    theory_plan = data.get("theory_plan")
+    if not isinstance(theory_plan, dict) or not theory_plan:
+        errors.append("theory_plan section missing or empty")
+    else:
+        errors.extend(
+            _validate_theory_plan(
+                theory_plan,
+                problem,
+                procedure_ids,
+                theorem_goal_ids,
+                data.get("status"),
+            )
+        )
+
     simulations = data.get("simulations")
     if not isinstance(simulations, list) or not simulations:
         errors.append("simulations section missing or empty")
@@ -483,6 +498,91 @@ def _validate_procedure_theorem_goal_coverage(
             "procedure theorem_goals not covered by proved subclaims or formal gaps: "
             + ", ".join(missing)
         )
+    return errors
+
+
+def _validate_theory_plan(
+    theory_plan: dict[str, Any],
+    problem: object,
+    procedure_ids: set[str],
+    theorem_goal_ids: set[str],
+    status: object,
+) -> list[str]:
+    errors: list[str] = []
+    if theory_plan.get("plan_version") != 1:
+        errors.append("theory_plan plan_version is not 1")
+    if theory_plan.get("status") != status:
+        errors.append("theory_plan status does not match trace status")
+
+    problem_formalization = theory_plan.get("problem_formalization")
+    if not isinstance(problem_formalization, dict):
+        errors.append("theory_plan problem_formalization missing")
+    elif isinstance(problem, dict):
+        for key in ("question_id", "problem_class", "dgp", "estimand", "asymptotic_regime"):
+            if problem_formalization.get(key) != problem.get(key):
+                errors.append(f"theory_plan problem_formalization.{key} does not match problem")
+        if set(problem_formalization.get("assumptions", []) or []) != set(problem.get("assumptions", []) or []):
+            errors.append("theory_plan assumptions do not match problem")
+
+    candidate_procedures = theory_plan.get("candidate_procedures")
+    if not isinstance(candidate_procedures, list) or not candidate_procedures:
+        errors.append("theory_plan candidate_procedures missing")
+    else:
+        plan_procedure_ids = {str(row.get("id", "")) for row in candidate_procedures if isinstance(row, dict)}
+        if plan_procedure_ids != procedure_ids:
+            errors.append("theory_plan candidate_procedures do not match trace procedures")
+        for idx, row in enumerate(candidate_procedures):
+            if not isinstance(row, dict):
+                errors.append(f"theory_plan candidate_procedure {idx} is not an object")
+                continue
+            for key in ("id", "role", "algorithm", "theorem_goals", "simulation_design"):
+                if not row.get(key):
+                    errors.append(f"theory_plan candidate_procedure {idx} missing {key}")
+
+    roadmap = theory_plan.get("theorem_roadmap")
+    if not isinstance(roadmap, list) or not roadmap:
+        errors.append("theory_plan theorem_roadmap missing")
+    else:
+        roadmap_ids = {str(row.get("id", "")) for row in roadmap if isinstance(row, dict)}
+        if roadmap_ids != theorem_goal_ids:
+            errors.append("theory_plan theorem_roadmap does not match theorem_goals")
+        for idx, row in enumerate(roadmap):
+            if not isinstance(row, dict):
+                errors.append(f"theory_plan theorem_roadmap {idx} is not an object")
+                continue
+            for key in ("id", "title", "status", "informal_statement", "proof_strategy", "required_primitives"):
+                if not row.get(key):
+                    errors.append(f"theory_plan theorem_roadmap {idx} missing {key}")
+
+    verification = theory_plan.get("formal_verification_plan")
+    if not isinstance(verification, dict):
+        errors.append("theory_plan formal_verification_plan missing")
+    else:
+        if not isinstance(verification.get("proved_obligations"), list):
+            errors.append("theory_plan formal_verification_plan proved_obligations missing")
+        if not isinstance(verification.get("formal_gaps"), list):
+            errors.append("theory_plan formal_verification_plan formal_gaps missing")
+
+    simulation_plan = theory_plan.get("simulation_plan")
+    if not isinstance(simulation_plan, dict):
+        errors.append("theory_plan simulation_plan missing")
+    elif not simulation_plan.get("procedure_runs"):
+        errors.append("theory_plan simulation_plan procedure_runs missing")
+
+    retrieval_context = theory_plan.get("retrieval_context")
+    if not isinstance(retrieval_context, dict):
+        errors.append("theory_plan retrieval_context missing")
+    else:
+        if not retrieval_context.get("knowledge_cards"):
+            errors.append("theory_plan retrieval_context knowledge_cards missing")
+        if not retrieval_context.get("paper_sources"):
+            errors.append("theory_plan retrieval_context paper_sources missing")
+
+    honesty = theory_plan.get("honesty_boundary")
+    if not isinstance(honesty, dict):
+        errors.append("theory_plan honesty_boundary missing")
+    elif honesty.get("full_frontier_theorem_proved") is not False:
+        errors.append("theory_plan honesty_boundary must not claim full frontier theorem proof")
     return errors
 
 

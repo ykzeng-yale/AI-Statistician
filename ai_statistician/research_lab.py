@@ -3268,6 +3268,16 @@ class AIStatisticalTheoryLab:
             status = "RESEARCH_TRACE_READY_WITH_FORMAL_GAPS"
         else:
             status = "SIMULATION_FLAGGED_WITH_FORMAL_GAPS"
+        theory_plan = build_theory_plan(
+            problem=problem,
+            procedures=procedures,
+            theorem_goals=theorem_goals,
+            knowledge=knowledge,
+            paper_sources=paper_sources,
+            formal_subclaims=subclaims,
+            simulations=simulations,
+            status=status,
+        )
         return ResearchReport(
             question=question,
             problem=problem,
@@ -3277,9 +3287,142 @@ class AIStatisticalTheoryLab:
             formal_subclaims=subclaims,
             simulations=simulations,
             theorem_goals=theorem_goals,
+            theory_plan=theory_plan,
             status=status,
             limitations=_report_limitations(subclaims),
         )
+
+
+def build_theory_plan(
+    *,
+    problem: ResearchProblemSpec,
+    procedures: list[CandidateProcedure],
+    theorem_goals: list[TheoremGoal],
+    knowledge: list[KnowledgeCard],
+    paper_sources: list[Any],
+    formal_subclaims: list[FormalSubclaim],
+    simulations: list[ResearchSimulation],
+    status: str,
+) -> dict[str, Any]:
+    """Build the explicit informal-to-formal theory plan stored in each trace."""
+
+    proved_subclaims = [row for row in formal_subclaims if row.status == "PROVED"]
+    formal_gaps = [row for row in formal_subclaims if row.status == "FORMAL_GAP"]
+    failed_subclaims = [row for row in formal_subclaims if row.status == "FAILED"]
+    simulation_by_procedure = {row.procedure_id: row for row in simulations}
+    return {
+        "plan_version": 1,
+        "status": status,
+        "problem_formalization": {
+            "question_id": problem.question_id,
+            "problem_class": problem.problem_class,
+            "dgp": problem.dgp,
+            "estimand": problem.estimand,
+            "assumptions": list(problem.assumptions),
+            "asymptotic_regime": problem.asymptotic_regime,
+            "diagnostics": list(problem.diagnostics),
+            "stress_tests": list(problem.stress_tests),
+        },
+        "retrieval_context": {
+            "knowledge_cards": [row.id for row in knowledge],
+            "paper_sources": [row.id for row in paper_sources],
+            "frontier_sources": [
+                row.id for row in paper_sources if getattr(row, "source_type", "") == "frontier_stat_paper"
+            ],
+        },
+        "informal_derivation_steps": [
+            {
+                "procedure_id": procedure.id,
+                "role": procedure.role,
+                "formula": procedure.formula,
+                "derivation": procedure.informal_derivation,
+                "limitations": list(procedure.limitations),
+            }
+            for procedure in procedures
+        ],
+        "candidate_procedures": [
+            {
+                "id": procedure.id,
+                "name": procedure.name,
+                "role": procedure.role,
+                "algorithm": procedure.algorithm,
+                "algorithm_registry_status": (
+                    procedure.algorithm_spec.registry_status if procedure.algorithm_spec else "missing"
+                ),
+                "theorem_goals": list(procedure.theorem_goals),
+                "simulation_design": procedure.simulation_design,
+            }
+            for procedure in procedures
+        ],
+        "theorem_roadmap": [
+            {
+                "id": goal.id,
+                "title": goal.title,
+                "status": goal.status,
+                "informal_statement": goal.informal_statement,
+                "proof_strategy": goal.proof_strategy,
+                "required_primitives": list(goal.required_primitives),
+                "proof_obligations": list(goal.proof_obligations),
+            }
+            for goal in theorem_goals
+        ],
+        "formal_verification_plan": {
+            "proved_obligations": [
+                row.proof_obligation_id for row in proved_subclaims if row.proof_obligation_id
+            ],
+            "kernel_verified_obligations": [
+                row.proof_obligation_id
+                for row in proved_subclaims
+                if row.proof_obligation_id and row.kernel_verified
+            ],
+            "formal_gaps": [
+                {
+                    "id": row.id,
+                    "title": row.title,
+                    "required_primitives": _required_primitives_for_gap(row, theorem_goals),
+                    "gap_reason": row.gap_reason or "",
+                }
+                for row in formal_gaps
+            ],
+            "failed_obligations": [
+                row.proof_obligation_id for row in failed_subclaims if row.proof_obligation_id
+            ],
+        },
+        "simulation_plan": {
+            "diagnostics": list(problem.diagnostics),
+            "stress_tests": list(problem.stress_tests),
+            "procedure_runs": [
+                {
+                    "procedure_id": procedure.id,
+                    "design": procedure.simulation_design,
+                    "passed": (
+                        simulation_by_procedure[procedure.id].passed
+                        if procedure.id in simulation_by_procedure
+                        else False
+                    ),
+                    "metric_keys": sorted(simulation_by_procedure[procedure.id].metrics)
+                    if procedure.id in simulation_by_procedure
+                    else [],
+                }
+                for procedure in procedures
+            ],
+        },
+        "honesty_boundary": {
+            "proved_subclaims": len(proved_subclaims),
+            "formal_gaps": len(formal_gaps),
+            "failed_subclaims": len(failed_subclaims),
+            "simulation_flagged": any(not row.passed for row in simulations),
+            "full_frontier_theorem_proved": False,
+        },
+    }
+
+
+def _required_primitives_for_gap(row: FormalSubclaim, theorem_goals: list[TheoremGoal]) -> list[str]:
+    goal_id = row.id.split(":")[-1]
+    for goal in theorem_goals:
+        if goal.id == goal_id:
+            return list(goal.required_primitives)
+    return []
 
 
 async def run_research_benchmark(

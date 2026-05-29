@@ -117,10 +117,13 @@ python3 -m ai_statistician.cli research-trace-audit \
 The audit validates that each research trace matches the benchmark manifest,
 contains the extracted problem specification, source-text extraction evidence
 for the problem class / DGP / estimand / assumptions / asymptotic regime,
-candidate procedures, theorem goals, retrieved knowledge cards, related local
-paper/source hits, formal proof/gap records, exported gap skeleton files,
-simulation metrics, diagnostic-to-metric coverage, stress-test ledgers, vetted
-research algorithm fingerprints, and honest limitations when gaps remain.
+candidate procedures, theorem goals, a first-class `theory_plan` tying the
+informal derivation to candidate procedures, retrieval context, theorem
+roadmap, proof/gap status, and simulation plan, retrieved knowledge cards,
+related local paper/source hits, formal proof/gap records, exported gap
+skeleton files, simulation metrics, diagnostic-to-metric coverage, stress-test
+ledgers, vetted research algorithm fingerprints, and honest limitations when
+gaps remain.
 
 The `paper_sources` section is a separate local retrieval layer over the
 frontier statistical-theory benchmark and the AI-for-math paper log. For

@@ -129,6 +129,7 @@ class ResearchReport:
     formal_subclaims: list[FormalSubclaim]
     simulations: list[ResearchSimulation]
     theorem_goals: list[TheoremGoal]
+    theory_plan: dict[str, Any]
     status: Literal[
         "RESEARCH_TRACE_READY_WITH_FORMAL_GAPS",
         "SIMULATION_FLAGGED_WITH_FORMAL_GAPS",

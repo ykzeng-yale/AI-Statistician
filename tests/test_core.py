@@ -1066,6 +1066,22 @@ class SystemTests(unittest.TestCase):
             & {"local_mathlib_probability", "local_statinference_repo", "empirical_process_lean", "lean_stat_learning_theory"}
         )
         self.assertTrue(knowledge_ids & {"lean_finder", "leandojo_reprover", "loogle", "openprover_pipeline"})
+        theory_plan = trace_payload["theory_plan"]
+        self.assertEqual(theory_plan["plan_version"], 1)
+        self.assertEqual(theory_plan["problem_formalization"]["problem_class"], trace_payload["problem"]["problem_class"])
+        self.assertEqual(
+            {row["id"] for row in theory_plan["candidate_procedures"]},
+            {row["id"] for row in trace_payload["procedures"]},
+        )
+        self.assertEqual(
+            {row["id"] for row in theory_plan["theorem_roadmap"]},
+            {row["id"] for row in trace_payload["theorem_goals"]},
+        )
+        self.assertTrue(theory_plan["informal_derivation_steps"][0]["derivation"])
+        self.assertTrue(theory_plan["retrieval_context"]["knowledge_cards"])
+        self.assertTrue(theory_plan["retrieval_context"]["paper_sources"])
+        self.assertTrue(theory_plan["formal_verification_plan"]["formal_gaps"])
+        self.assertFalse(theory_plan["honesty_boundary"]["full_frontier_theorem_proved"])
         extraction = trace_payload["problem"]["extraction_evidence"]
         for key in ("problem_class", "dgp", "estimand", "assumptions", "asymptotic_regime"):
             self.assertTrue(extraction[key], key)
