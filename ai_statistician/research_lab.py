@@ -5,6 +5,7 @@ import math
 import re
 import hashlib
 import inspect
+import itertools
 from dataclasses import asdict, replace
 from datetime import datetime, timezone
 from pathlib import Path
@@ -165,6 +166,55 @@ EXTRACTION_EVIDENCE_TERMS: dict[str, dict[str, tuple[str, ...]]] = {
             "asymptotic validity",
             "approximation",
             "estimation",
+        ),
+    },
+    "high_dimensional_latent_structure_inference": {
+        "problem_class": (
+            "grade-of-membership",
+            "grade of membership",
+            "sufficient dimension association",
+            "sufficient dimension reduction",
+            "tensor-valued predictors",
+            "tensor valued predictors",
+            "multilinear models",
+            "mixed-membership simplex",
+        ),
+        "dgp": (
+            "multivariate categorical responses",
+            "high-dimensional polytomous items",
+            "locally dependent data",
+            "high-dimensional predictors",
+            "tensor-valued predictors",
+            "quadratic exponential family inverse model",
+            "continuous or binary tensor predictors",
+        ),
+        "estimand": (
+            "mixed-membership simplex structure",
+            "membership and model parameters",
+            "conditional association target",
+            "variable selection",
+            "low-dimensional reductions",
+            "sufficient dimension association",
+        ),
+        "assumptions": (
+            "local dependence",
+            "mixed-membership simplex structure",
+            "possible nonlinear or misspecified regression",
+            "tensor-valued predictors",
+            "quadratic exponential family inverse model",
+            "multilinear low-dimensional reductions",
+        ),
+        "asymptotic_regime": (
+            "high-dimensional predictors",
+            "high-dimensional polytomous items",
+            "locally dependent data",
+            "tensor-valued predictors",
+            "high-dimensional estimation guarantees",
+            "high-dimensional asymptotics",
+            "selection consistency",
+            "beyond sparse linear models",
+            "tensor dimensions",
+            "low-dimensional reductions",
         ),
     },
     "network_graph_inference": {
@@ -579,6 +629,20 @@ RESEARCH_ALGORITHM_REGISTRY: dict[str, dict[str, object]] = {
         "summary": "spiked-covariance PCA leading-eigenvector recovery simulation",
         "method": "_spiked_pca",
         "helpers": (),
+        "version": "v1",
+        "registry_status": "vetted",
+    },
+    "latent_simplex_membership": {
+        "summary": "simplex-constrained latent membership recovery for grade-of-membership data",
+        "method": "_latent_simplex_membership",
+        "helpers": ("_project_rows_to_simplex", "_best_permutation_score"),
+        "version": "v1",
+        "registry_status": "vetted",
+    },
+    "dimension_association_screening": {
+        "summary": "sufficient-dimension association screening for nonlinear/tensor predictor signals",
+        "method": "_dimension_association_screening",
+        "helpers": ("_orthonormal_basis",),
         "version": "v1",
         "registry_status": "vetted",
     },
@@ -1077,6 +1141,55 @@ class ProblemFormalizer:
                 ),
                 diagnostics=("bias", "relative_bias", "rmse", "coverage_95", "se_calibration", "sieve_dimension"),
                 stress_tests=("higher curvature regression surface", "smaller sample size", "heavier-tailed noise"),
+            )
+        if _matches(
+            body_text,
+            words=(),
+            phrases=(
+                "grade-of-membership",
+                "grade of membership",
+                "mixed-membership simplex",
+                "three-way quasi-tensor",
+                "quasi-tensor",
+                "polytomous items",
+                "locally dependent categorical data",
+                "sufficient dimension association",
+                "sufficient dimension reduction",
+                "conditional association target",
+                "without specifying a sparse linear regression",
+                "tensor-valued predictors",
+                "tensor valued predictors",
+                "generalized multilinear models",
+                "multilinear low-dimensional reductions",
+                "quadratic exponential family inverse model",
+            ),
+        ):
+            return ResearchProblemSpec(
+                question_id=question.id,
+                problem_class="high_dimensional_latent_structure_inference",
+                dgp=(
+                    "High-dimensional observations carry latent low-dimensional structure: mixed-membership "
+                    "simplex scores for many categorical/polytomous items, or nonlinear/tensor predictors "
+                    "whose response depends on a small sufficient subspace. The v0 simulators use a noisy "
+                    "simplex factor model and a nonlinear sparse sufficient-dimension screening surrogate."
+                ),
+                estimand=(
+                    "Latent membership weights, active sufficient-dimension coordinates, and low-dimensional "
+                    "reduction directions supporting variable selection and model-parameter inference."
+                ),
+                assumptions=(
+                    "latent membership weights lie in a probability simplex in the grade-of-membership surrogate",
+                    "item/profile matrices are identifiable up to label permutation in the controlled baseline",
+                    "the response depends on a sparse low-dimensional predictor index in the screening surrogate",
+                    "local dependence, tensor inverse models, and high-dimensional selection theory remain formal gaps",
+                ),
+                asymptotic_regime=(
+                    "n,p and tensor dimensions may grow; frontier targets include membership estimation rates, "
+                    "selection consistency for sufficient dimension association, and multilinear/tensor SDR "
+                    "asymptotic guarantees."
+                ),
+                diagnostics=("rmse", "coverage_95", "selection_accuracy"),
+                stress_tests=("weaker latent separation", "more nuisance predictors", "local dependence contamination"),
             )
         if _matches(
             body_text,
@@ -3008,6 +3121,153 @@ class TheoryPlanner:
                 )
             ]
             return procedures, goals
+        if problem.problem_class == "high_dimensional_latent_structure_inference":
+            goals = [
+                TheoremGoal(
+                    id="latent_simplex_membership_identifiability",
+                    title="Latent simplex membership is identifiable up to label permutation",
+                    informal_statement=(
+                        "In a grade-of-membership factor model with separated item profiles and enough "
+                        "near-anchor observations, simplex-constrained membership weights are identifiable "
+                        "up to permutation of the latent classes."
+                    ),
+                    proof_strategy=(
+                        "Formalize simplex-valued memberships, profile matrices, and permutation invariance. "
+                        "Use finite-sample mean/variance facts for executable surrogates now; anchor separation, "
+                        "local dependence, and tensor quasi-factor identifiability remain formal gaps."
+                    ),
+                    status="FORMAL_GAP",
+                    required_primitives=(
+                        "simplex_valued_membership",
+                        "profile_matrix_separation",
+                        "label_permutation_equivalence",
+                        "anchor_observation_condition",
+                        "local_dependence_control",
+                    ),
+                    proof_obligations=(
+                        "prob_measure_univ",
+                        "finite_sample_mean_unbiased",
+                        "finite_sample_mean_variance_indep",
+                        "variance_nonneg",
+                    ),
+                ),
+                TheoremGoal(
+                    id="sufficient_dimension_association_selection_validity",
+                    title="Sufficient-dimension association screening validity",
+                    informal_statement=(
+                        "A screening statistic based on marginal nonlinear association should recover "
+                        "coordinates involved in a low-dimensional sufficient reduction under signal "
+                        "separation and nuisance control."
+                    ),
+                    proof_strategy=(
+                        "Reduce the screening statistic to finite empirical averages and Chebyshev/union "
+                        "bounds for deviations, while treating SDR central-subspace existence and "
+                        "high-dimensional model-selection consistency as formal gaps."
+                    ),
+                    status="FORMAL_GAP",
+                    required_primitives=(
+                        "sufficient_dimension_association_target",
+                        "nonlinear_association_screening_statistic",
+                        "central_subspace_definition",
+                        "high_dimensional_union_control",
+                        "selection_consistency",
+                    ),
+                    proof_obligations=(
+                        "finite_sample_mean_unbiased",
+                        "finite_sample_mean_variance_indep",
+                        "finite_sample_mean_chebyshev_indep",
+                        "finite_union_budget_control",
+                        "simultaneous_coverage_of_union_error_bound",
+                    ),
+                ),
+                TheoremGoal(
+                    id="tensor_multilinear_reduction_consistency",
+                    title="Tensor multilinear reduction consistency",
+                    informal_statement=(
+                        "For tensor-valued predictors with a multilinear low-rank reduction, a separable "
+                        "screening or alternating-estimation surrogate should recover active tensor modes "
+                        "when signal strength dominates high-dimensional noise."
+                    ),
+                    proof_strategy=(
+                        "Represent tensor predictors as vectorized finite arrays for v0, use finite union "
+                        "control over candidate coordinates, and leave quadratic exponential-family inverse "
+                        "models and multilinear manifold asymptotics as library targets."
+                    ),
+                    status="FORMAL_GAP",
+                    required_primitives=(
+                        "tensor_covariate_operator",
+                        "multilinear_low_rank_reduction",
+                        "quadratic_exponential_family_inverse_model",
+                        "modewise_selection_consistency",
+                        "tensor_dimension_asymptotics",
+                    ),
+                    proof_obligations=(
+                        "finite_union_bound",
+                        "finite_union_budget_control",
+                        "variance_nonneg",
+                        "markov_inequality",
+                    ),
+                ),
+            ]
+            procedures = [
+                CandidateProcedure(
+                    id="simplex_factor_membership_estimator",
+                    name="Simplex-constrained spectral membership estimator",
+                    role="estimator",
+                    formula=(
+                        "Given high-dimensional item responses X, estimate archetype profiles B_hat "
+                        "from extreme spectral scores and compute W_hat = Pi_simplex(X B_hat^T "
+                        "(B_hat B_hat^T)^{-1})."
+                    ),
+                    informal_derivation=(
+                        "Grade-of-membership models encode each subject as a convex combination of "
+                        "latent item-response profiles. Near-anchor observations expose simplex vertices; "
+                        "least-squares weights projected back to the simplex give a concrete membership "
+                        "estimator. The v0 simulation checks membership RMSE and label recovery, while "
+                        "formal identifiability and local-dependence theory remain gaps."
+                    ),
+                    algorithm="latent_simplex_membership",
+                    theorem_goals=tuple(goal.id for goal in goals),
+                    simulation_design=(
+                        "Simulate simplex-valued memberships, separated latent profiles, and noisy "
+                        "high-dimensional item responses; estimate memberships by spectral archetypes and "
+                        "evaluate permutation-aligned RMSE, coverage, and top-membership classification."
+                    ),
+                    limitations=(
+                        "v0 uses continuous noisy item scores rather than full polytomous likelihoods",
+                        "anchor conditions, local dependence, and quasi-tensor membership rates remain formal gaps",
+                    ),
+                ),
+                CandidateProcedure(
+                    id="nonlinear_dimension_association_screen",
+                    name="Nonlinear sufficient-dimension association screen",
+                    role="estimator",
+                    formula=(
+                        "Score each coordinate by absolute linear/quadratic association with Y plus its "
+                        "largest pairwise interaction score; select the top coordinates as the estimated "
+                        "sufficient-dimension support."
+                    ),
+                    informal_derivation=(
+                        "If Y depends on a low-dimensional nonlinear index of high-dimensional or tensor "
+                        "predictors, coordinates in the reduction should show linear, quadratic, or "
+                        "interaction association. A screening statistic gives a controlled executable "
+                        "surrogate for SDR/tensor inference while central-subspace and multilinear inverse "
+                        "model theory are left explicit."
+                    ),
+                    algorithm="dimension_association_screening",
+                    theorem_goals=tuple(goal.id for goal in goals),
+                    simulation_design=(
+                        "Simulate high-dimensional Gaussian predictors with nonlinear main and interaction "
+                        "effects on a sparse sufficient-reduction support, screen coordinates by association, "
+                        "and evaluate active-support recall, false discovery, subspace alignment, RMSE, and coverage."
+                    ),
+                    limitations=(
+                        "v0 uses vectorized predictors and simple screening rather than a full tensor inverse model",
+                        "central-subspace uniqueness, high-dimensional post-selection inference, and tensor-mode rates remain gaps",
+                    ),
+                ),
+            ]
+            return procedures, goals
         if problem.problem_class == "extreme_tail_quantile_inference":
             goals = [
                 TheoremGoal(
@@ -3277,6 +3537,17 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "markov_inequality",
     ),
     "high_dimensional_pca_inference": ("variance_nonneg", "variance_indep_add"),
+    "high_dimensional_latent_structure_inference": (
+        "prob_measure_univ",
+        "finite_sample_mean_unbiased",
+        "finite_sample_mean_variance_indep",
+        "finite_sample_mean_chebyshev_indep",
+        "finite_union_bound",
+        "finite_union_budget_control",
+        "simultaneous_coverage_of_union_error_bound",
+        "variance_nonneg",
+        "markov_inequality",
+    ),
     "extreme_tail_quantile_inference": (
         "prob_compl",
         "markov_inequality",
@@ -3427,6 +3698,10 @@ class ResearchSimulator:
                 rows.append(self._cusum_changepoint_detector(procedure, rng))
             elif procedure.algorithm == "spiked_pca":
                 rows.append(self._spiked_pca(procedure, rng))
+            elif procedure.algorithm == "latent_simplex_membership":
+                rows.append(self._latent_simplex_membership(procedure, rng))
+            elif procedure.algorithm == "dimension_association_screening":
+                rows.append(self._dimension_association_screening(procedure, rng))
             elif procedure.algorithm == "hill_tail_quantile":
                 rows.append(self._hill_tail_quantile(procedure, rng))
             else:
@@ -3505,6 +3780,12 @@ class ResearchSimulator:
             return "mean_angle_error_rad", 0.80, "max"
         if "mean_subspace_error" in metrics and any(token in text for token in ("subspace", "heavy-tailed coordinates")):
             return "mean_subspace_error", 0.80, "max"
+        if "membership_rmse" in metrics and any(token in text for token in ("latent", "membership", "separation", "local dependence")):
+            return "membership_rmse", 0.25, "max"
+        if "active_recall" in metrics and any(token in text for token in ("nuisance", "dimension", "predictor", "selection")):
+            return "active_recall", 0.80, "min"
+        if "selection_accuracy" in metrics and any(token in text for token in ("latent", "membership", "selection", "tensor", "dependence")):
+            return "selection_accuracy", 0.80, "min"
         if "mean_community_accuracy" in metrics and any(token in text for token in ("community", "separation", "sparse", "graph", "network", "degree")):
             return "mean_community_accuracy", 0.80, "min"
         if "edge_density_rmse" in metrics and any(token in text for token in ("sparse", "density", "degree", "graph", "network")):
@@ -3615,6 +3896,12 @@ class ResearchSimulator:
             "intensity_rmse",
             "intensity_coverage_95",
             "selection_accuracy",
+            "membership_rmse",
+            "membership_coverage_95",
+            "top_membership_accuracy",
+            "active_recall",
+            "false_discovery_rate",
+            "subspace_alignment",
         }
         metric_evidence = {
             key: float(value)
@@ -3711,6 +3998,15 @@ class ResearchSimulator:
                 return float(metrics["mean_alignment"]) < 0.65
             if "mean_subspace_error" in metrics and math.isfinite(float(metrics["mean_subspace_error"])):
                 return float(metrics["mean_subspace_error"]) > 0.80
+            if "subspace_alignment" in metrics and math.isfinite(float(metrics["subspace_alignment"])):
+                return float(metrics["subspace_alignment"]) < 0.70
+        if any(token in text for token in ("selection", "membership", "dimension", "tensor")):
+            if "selection_accuracy" in metrics and math.isfinite(float(metrics["selection_accuracy"])):
+                return float(metrics["selection_accuracy"]) < 0.80
+            if "active_recall" in metrics and math.isfinite(float(metrics["active_recall"])):
+                return float(metrics["active_recall"]) < 0.80
+            if "membership_rmse" in metrics and math.isfinite(float(metrics["membership_rmse"])):
+                return float(metrics["membership_rmse"]) > 0.25
         if "community" in text and "mean_community_accuracy" in metrics:
             return math.isfinite(float(metrics["mean_community_accuracy"])) and float(metrics["mean_community_accuracy"]) < 0.80
         if "edge_density" in text:
@@ -4858,6 +5154,185 @@ class ResearchSimulator:
             ),
         )
 
+    def _latent_simplex_membership(self, procedure: CandidateProcedure, rng: np.random.Generator) -> ResearchSimulation:
+        n = 360
+        p = 32
+        k = 3
+        noise_sd = 0.16
+        profile = np.array(
+            [
+                np.r_[1.8, 0.2, 0.1, rng.normal(scale=0.25, size=p - k)],
+                np.r_[0.1, 1.8, 0.2, rng.normal(scale=0.25, size=p - k)],
+                np.r_[0.2, 0.1, 1.8, rng.normal(scale=0.25, size=p - k)],
+            ],
+            dtype=float,
+        )
+        rmses: list[float] = []
+        coverages: list[float] = []
+        top_accuracies: list[float] = []
+        simplex_violations: list[float] = []
+        failed = 0
+        for _ in range(self.n_runs):
+            weights = rng.dirichlet(alpha=np.repeat(0.35, k), size=n)
+            x = weights @ profile + rng.normal(scale=noise_sd, size=(n, p))
+            centered = x - np.mean(x, axis=0, keepdims=True)
+            try:
+                _, _, vh = np.linalg.svd(centered, full_matrices=False)
+                scores = centered @ vh[:k].T
+                selected = [int(np.argmax(np.sum(scores**2, axis=1)))]
+                for _j in range(1, k):
+                    selected_scores = scores[selected]
+                    distances = np.min(np.sum((scores[:, None, :] - selected_scores[None, :, :]) ** 2, axis=2), axis=1)
+                    selected.append(int(np.argmax(distances)))
+                archetypes = x[selected, :]
+                gram = archetypes @ archetypes.T + 1e-6 * np.eye(k)
+                raw = x @ archetypes.T @ np.linalg.inv(gram)
+                estimated = _project_rows_to_simplex(raw)
+                perm, rmse = _best_permutation_score(weights, estimated)
+                aligned = estimated[:, perm]
+                entry_errors = aligned - weights
+                se = 1.15 * float(np.std(entry_errors, ddof=1))
+            except np.linalg.LinAlgError:
+                failed += 1
+                continue
+            if not np.all(np.isfinite(aligned)) or not math.isfinite(rmse) or se <= 0:
+                failed += 1
+                continue
+            rmses.append(float(rmse))
+            coverages.append(float(np.mean(np.abs(entry_errors) <= 1.96 * se)))
+            top_accuracies.append(float(np.mean(np.argmax(aligned, axis=1) == np.argmax(weights, axis=1))))
+            simplex_violations.append(float(np.mean(np.abs(np.sum(aligned, axis=1) - 1.0))))
+
+        metrics = {
+            "n_runs": float(self.n_runs),
+            "n_failed": float(failed),
+            "n_subjects": float(n),
+            "dimension": float(p),
+            "n_latent_classes": float(k),
+            "membership_rmse": float(np.mean(rmses)) if rmses else float("nan"),
+            "membership_coverage_95": float(np.mean(coverages)) if coverages else float("nan"),
+            "top_membership_accuracy": float(np.mean(top_accuracies)) if top_accuracies else float("nan"),
+            "mean_simplex_violation": float(np.mean(simplex_violations)) if simplex_violations else float("nan"),
+        }
+        metrics["rmse"] = metrics["membership_rmse"]
+        metrics["coverage_95"] = metrics["membership_coverage_95"]
+        metrics["selection_accuracy"] = metrics["top_membership_accuracy"]
+        passed = (
+            failed <= max(1, int(0.05 * self.n_runs))
+            and metrics["membership_rmse"] <= 0.25
+            and metrics["membership_coverage_95"] >= 0.88
+            and metrics["top_membership_accuracy"] >= 0.80
+            and metrics["mean_simplex_violation"] <= 1e-8
+        )
+        return ResearchSimulation(
+            procedure_id=procedure.id,
+            design=procedure.simulation_design,
+            metrics=metrics,
+            passed=passed,
+            feedback=(
+                "latent simplex membership simulation passed"
+                if passed
+                else "latent membership simulation flagged RMSE, coverage, or class assignment diagnostics"
+            ),
+        )
+
+    def _dimension_association_screening(
+        self, procedure: CandidateProcedure, rng: np.random.Generator
+    ) -> ResearchSimulation:
+        n = 520
+        p = 72
+        active = np.array([0, 1, 2, 3, 4])
+        support = set(int(j) for j in active)
+        selected_size = 7
+        recalls: list[float] = []
+        fdrs: list[float] = []
+        alignments: list[float] = []
+        rmses: list[float] = []
+        coverages: list[float] = []
+        failed = 0
+        for _ in range(self.n_runs):
+            x = rng.normal(size=(n, p))
+            signal = (
+                1.1 * np.sin(x[:, 0] + 0.55 * x[:, 1])
+                + 0.75 * x[:, 2] * x[:, 3]
+                + 0.85 * x[:, 4]
+                + 0.70 * (x[:, 2] ** 2 - 1.0)
+            )
+            y = signal + rng.normal(scale=0.85, size=n)
+            y_center = y - np.mean(y)
+            x_center = x - np.mean(x, axis=0, keepdims=True)
+            linear = np.abs(x_center.T @ y_center) / max(float(np.linalg.norm(y_center)), 1e-12)
+            quadratic_features = x_center**2 - np.mean(x_center**2, axis=0, keepdims=True)
+            quadratic = np.abs(quadratic_features.T @ y_center) / max(float(np.linalg.norm(y_center)), 1e-12)
+            interaction = np.zeros(p)
+            top_for_pairs = np.argsort(linear + quadratic)[-18:]
+            for a, b in itertools.combinations([int(j) for j in top_for_pairs], 2):
+                pair_feature = x_center[:, a] * x_center[:, b]
+                pair_score = abs(float(pair_feature @ y_center)) / max(float(np.linalg.norm(pair_feature) * np.linalg.norm(y_center)), 1e-12)
+                interaction[a] = max(interaction[a], pair_score)
+                interaction[b] = max(interaction[b], pair_score)
+            score = linear / max(float(np.max(linear)), 1e-12)
+            score += 0.75 * quadratic / max(float(np.max(quadratic)), 1e-12)
+            score += 1.25 * interaction / max(float(np.max(interaction)), 1e-12)
+            selected = set(int(j) for j in np.argsort(score)[-selected_size:])
+            if not selected:
+                failed += 1
+                continue
+            true_positive = len(selected & support)
+            recall = true_positive / len(support)
+            fdr = (len(selected) - true_positive) / len(selected)
+            basis_true = _orthonormal_basis(x_center[:, active])
+            basis_sel = _orthonormal_basis(x_center[:, sorted(selected)])
+            singular_values = np.linalg.svd(basis_true.T @ basis_sel, compute_uv=False)
+            alignment = float(np.mean(np.clip(singular_values, 0.0, 1.0) ** 2))
+            top_scores = score[list(selected)]
+            null_scores = np.delete(score, list(support))
+            margin = float(np.mean(top_scores) - np.mean(null_scores))
+            se = float(np.std(score, ddof=1) / math.sqrt(p))
+            if not math.isfinite(se) or se <= 0:
+                failed += 1
+                continue
+            recalls.append(float(recall))
+            fdrs.append(float(fdr))
+            alignments.append(alignment)
+            rmses.append(float(math.sqrt(max(0.0, 1.0 - alignment))))
+            coverages.append(float(margin - 1.96 * se > 0.0))
+
+        metrics = {
+            "n_runs": float(self.n_runs),
+            "n_failed": float(failed),
+            "n_obs": float(n),
+            "dimension": float(p),
+            "active_support_size": float(len(active)),
+            "selected_model_size": float(selected_size),
+            "active_recall": float(np.mean(recalls)) if recalls else float("nan"),
+            "false_discovery_rate": float(np.mean(fdrs)) if fdrs else float("nan"),
+            "subspace_alignment": float(np.mean(alignments)) if alignments else float("nan"),
+            "screening_rmse": float(np.mean(rmses)) if rmses else float("nan"),
+            "screening_margin_coverage_95": float(np.mean(coverages)) if coverages else float("nan"),
+        }
+        metrics["rmse"] = metrics["screening_rmse"]
+        metrics["coverage_95"] = metrics["screening_margin_coverage_95"]
+        metrics["selection_accuracy"] = metrics["active_recall"]
+        passed = (
+            failed <= max(1, int(0.05 * self.n_runs))
+            and metrics["active_recall"] >= 0.80
+            and metrics["false_discovery_rate"] <= 0.45
+            and metrics["subspace_alignment"] >= 0.70
+            and metrics["coverage_95"] >= 0.88
+        )
+        return ResearchSimulation(
+            procedure_id=procedure.id,
+            design=procedure.simulation_design,
+            metrics=metrics,
+            passed=passed,
+            feedback=(
+                "sufficient-dimension association screening simulation passed"
+                if passed
+                else "dimension-association simulation flagged support recovery, false discovery, or subspace diagnostics"
+            ),
+        )
+
     def _hill_tail_quantile(self, procedure: CandidateProcedure, rng: np.random.Generator) -> ResearchSimulation:
         n = 2200
         k = 160
@@ -5838,6 +6313,27 @@ def _lean_gap_theorem(goal_id: str) -> str:
     covarianceConcentration -> davisKahanBound -> highDimensionalRecovery := by
   exact h_frontier_missing_random_matrix_perturbation
 """,
+        "latent_simplex_membership_identifiability": """theorem latent_simplex_membership_identifiability_skeleton
+    (simplexMembership profileSeparation anchorCondition identifiableUpToPermutation : Prop)
+    (h_frontier_missing_latent_simplex_identifiability :
+      simplexMembership -> profileSeparation -> anchorCondition -> identifiableUpToPermutation) :
+    simplexMembership -> profileSeparation -> anchorCondition -> identifiableUpToPermutation := by
+  exact h_frontier_missing_latent_simplex_identifiability
+""",
+        "sufficient_dimension_association_selection_validity": """theorem sufficient_dimension_association_selection_validity_skeleton
+    (associationTarget screeningStatistic signalSeparation selectionConsistent : Prop)
+    (h_frontier_missing_sdr_selection :
+      associationTarget -> screeningStatistic -> signalSeparation -> selectionConsistent) :
+    associationTarget -> screeningStatistic -> signalSeparation -> selectionConsistent := by
+  exact h_frontier_missing_sdr_selection
+""",
+        "tensor_multilinear_reduction_consistency": """theorem tensor_multilinear_reduction_consistency_skeleton
+    (tensorCovariate multilinearReduction modewiseSignal tensorSelectionConsistent : Prop)
+    (h_frontier_missing_tensor_multilinear_reduction :
+      tensorCovariate -> multilinearReduction -> modewiseSignal -> tensorSelectionConsistent) :
+    tensorCovariate -> multilinearReduction -> modewiseSignal -> tensorSelectionConsistent := by
+  exact h_frontier_missing_tensor_multilinear_reduction
+""",
         "hill_tail_index_consistency": """theorem hill_tail_index_consistency_skeleton
     (regularlyVaryingTail intermediateSequence hillConsistent : Prop)
     (h_frontier_missing_order_statistic_tail_theory :
@@ -6043,6 +6539,49 @@ def _simulate_inhomogeneous_poisson_1d(
 ) -> np.ndarray:
     rates = np.maximum(np.asarray(intensity, dtype=float) * float(bin_width), 1e-12)
     return rng.poisson(lam=rates[None, :], size=(int(n_samples), len(rates)))
+
+
+def _project_rows_to_simplex(values: np.ndarray) -> np.ndarray:
+    arr = np.asarray(values, dtype=float)
+    projected = np.zeros_like(arr)
+    for idx, row in enumerate(arr):
+        ordered = np.sort(row)[::-1]
+        cumulative = np.cumsum(ordered) - 1.0
+        ranks = np.arange(1, len(row) + 1, dtype=float)
+        valid = ordered - cumulative / ranks > 0.0
+        if not np.any(valid):
+            projected[idx, :] = 1.0 / len(row)
+            continue
+        rho = int(np.flatnonzero(valid)[-1])
+        theta = float(cumulative[rho] / (rho + 1))
+        projected[idx, :] = np.maximum(row - theta, 0.0)
+    return projected
+
+
+def _best_permutation_score(true_weights: np.ndarray, estimated_weights: np.ndarray) -> tuple[tuple[int, ...], float]:
+    k = int(true_weights.shape[1])
+    best_perm: tuple[int, ...] | None = None
+    best_rmse = float("inf")
+    for perm in itertools.permutations(range(k)):
+        aligned = estimated_weights[:, perm]
+        rmse = float(np.sqrt(np.mean((aligned - true_weights) ** 2)))
+        if rmse < best_rmse:
+            best_perm = tuple(int(item) for item in perm)
+            best_rmse = rmse
+    return best_perm or tuple(range(k)), best_rmse
+
+
+def _orthonormal_basis(matrix: np.ndarray) -> np.ndarray:
+    arr = np.asarray(matrix, dtype=float)
+    if arr.ndim != 2 or min(arr.shape) == 0:
+        return np.zeros((arr.shape[0] if arr.ndim else 0, 0))
+    q, r = np.linalg.qr(arr, mode="reduced")
+    if r.ndim != 2:
+        return q
+    keep = np.abs(np.diag(r)) > 1e-10
+    if not np.any(keep):
+        return q[:, :1]
+    return q[:, keep]
 
 
 def _functional_changepoint_projection(

@@ -339,6 +339,29 @@ KNOWLEDGE_CARDS: tuple[KnowledgeCard, ...] = (
         ),
     ),
     KnowledgeCard(
+        id="high_dimensional_latent_structure_inference",
+        title="Latent membership, sufficient-dimension association, and tensor SDR",
+        source_type="statistical_method",
+        location="internal-method-card",
+        summary=(
+            "High-dimensional latent-structure problems include grade-of-membership "
+            "simplex models, sufficient-dimension association without a sparse linear "
+            "model, and tensor-valued predictors with multilinear reductions. The "
+            "current executable layer uses simplex membership recovery and nonlinear "
+            "association screening, while local-dependence, tensor inverse-model, and "
+            "high-dimensional selection-consistency proofs remain formal gaps."
+        ),
+        tags=(
+            "high_dimensional",
+            "latent_membership",
+            "grade_of_membership",
+            "sufficient_dimension_reduction",
+            "tensor_predictors",
+            "variable_selection",
+            "high_dimensional_latent_structure_inference",
+        ),
+    ),
+    KnowledgeCard(
         id="extreme_tail_hill_weissman",
         title="Extreme-value tail index and high-quantile inference",
         source_type="statistical_method",
@@ -536,6 +559,7 @@ PRIMARY_KNOWLEDGE_BY_PROBLEM_CLASS: dict[str, str] = {
     "sequential_anytime_inference": "anytime_valid_eprocesses",
     "sequential_changepoint_inference": "sequential_changepoint_post_detection",
     "high_dimensional_pca_inference": "spiked_pca_dimension_reduction",
+    "high_dimensional_latent_structure_inference": "high_dimensional_latent_structure_inference",
     "extreme_tail_quantile_inference": "extreme_tail_hill_weissman",
 }
 

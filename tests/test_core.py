@@ -669,7 +669,7 @@ class SystemTests(unittest.TestCase):
         payload = audit_research_algorithm_registry(Path("runs/test_research_algorithm_audit"))
         self.assertTrue(payload["all_ok"])
         self.assertEqual(payload["n_ok"], payload["n_algorithms"])
-        self.assertEqual(payload["n_algorithms"], 19)
+        self.assertEqual(payload["n_algorithms"], 21)
         self.assertEqual(len(payload["registry_fingerprint"]), 64)
         for row in payload["algorithms"]:
             self.assertEqual(row["registry_status"], "vetted")
@@ -754,6 +754,7 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(payload["by_problem_class"]["network_graph_inference"], 5)
         self.assertEqual(payload["by_problem_class"]["sequential_changepoint_inference"], 3)
         self.assertEqual(payload["by_problem_class"]["geometric_spatial_point_process_inference"], 6)
+        self.assertEqual(payload["by_problem_class"]["high_dimensional_latent_structure_inference"], 3)
         self.assertIn("unsupported_frontier_question", payload["by_problem_class"])
         self.assertTrue(Path("runs/test_frontier_coverage_audit/frontier_coverage_manifest.json").exists())
         self.assertTrue(Path("runs/test_frontier_coverage_audit/frontier_coverage.md").exists())
@@ -783,6 +784,12 @@ class SystemTests(unittest.TestCase):
             "geometric_spatial_point_process_inference",
         )
         self.assertTrue(by_id["geometric_spatial_point_process_02"]["evidence_terms"])
+        self.assertIn("high_dimensional_inference_01", by_id)
+        self.assertEqual(
+            by_id["high_dimensional_inference_01"]["problem_class"],
+            "high_dimensional_latent_structure_inference",
+        )
+        self.assertTrue(by_id["high_dimensional_inference_01"]["evidence_terms"])
         self.assertIn("networks_graphs_01", by_id)
         self.assertEqual(by_id["networks_graphs_01"]["problem_class"], "network_graph_inference")
         self.assertTrue(by_id["networks_graphs_01"]["evidence_terms"])
@@ -798,10 +805,10 @@ class SystemTests(unittest.TestCase):
     def test_frontier_backlog_audit_maps_unsupported_questions(self) -> None:
         payload = audit_frontier_backlog(Path("runs/test_frontier_backlog_audit"))
         self.assertTrue(payload["all_ok"])
-        self.assertEqual(payload["n_backlog"], 16)
+        self.assertEqual(payload["n_backlog"], 13)
         self.assertEqual(payload["n_ok"], payload["n_backlog"])
         self.assertGreaterEqual(payload["n_supported"], 1)
-        self.assertGreaterEqual(len(payload["by_domain"]), 6)
+        self.assertGreaterEqual(len(payload["by_domain"]), 5)
         self.assertTrue(payload["by_required_primitive"])
         by_id = {row["question_id"]: row for row in payload["rows"]}
         self.assertEqual(
@@ -812,6 +819,7 @@ class SystemTests(unittest.TestCase):
         self.assertNotIn("experimental_design_01", by_id)
         self.assertNotIn("sequential_change_anytime_01", by_id)
         self.assertNotIn("geometric_spatial_point_process_02", by_id)
+        self.assertNotIn("high_dimensional_inference_01", by_id)
         self.assertNotIn("bayesian_computation_posteriors_05", by_id)
         for row in payload["rows"]:
             self.assertTrue(row["required_primitives"])
@@ -931,6 +939,40 @@ class SystemTests(unittest.TestCase):
         self.assertLessEqual(abs(point_sim.metrics["intensity_relative_bias"]), 0.10)
         self.assertGreaterEqual(point_sim.metrics["intensity_coverage_95"], 0.88)
         self.assertGreaterEqual(point_sim.metrics["selection_accuracy"], 0.80)
+
+    def test_high_dimensional_latent_frontier_question_runs_registered_simulators(self) -> None:
+        question = next(
+            row.to_open_research_question()
+            for row in load_frontier_benchmark_questions(Path("docs/frontier_stat_theory_benchmark.md"))
+            if row.id == "high_dimensional_inference_01"
+        )
+        problem = ProblemFormalizer().formalize(question)
+        self.assertEqual(problem.problem_class, "high_dimensional_latent_structure_inference")
+        procedures, theorem_goals = TheoryPlanner().plan(problem)
+        self.assertEqual(
+            [procedure.algorithm for procedure in procedures],
+            ["latent_simplex_membership", "dimension_association_screening"],
+        )
+        self.assertEqual(
+            {goal.id for goal in theorem_goals},
+            {
+                "latent_simplex_membership_identifiability",
+                "sufficient_dimension_association_selection_validity",
+                "tensor_multilinear_reduction_consistency",
+            },
+        )
+        simulations = ResearchSimulator(n_runs=35, seed=20260529).run(problem, procedures)
+        self.assertEqual(len(simulations), 2)
+        for simulation in simulations:
+            self.assertTrue(simulation.passed)
+            self.assertEqual(simulation.diagnosis.status, "OK")
+        membership_sim = next(row for row in simulations if row.procedure_id == "simplex_factor_membership_estimator")
+        screening_sim = next(row for row in simulations if row.procedure_id == "nonlinear_dimension_association_screen")
+        self.assertLessEqual(membership_sim.metrics["membership_rmse"], 0.25)
+        self.assertGreaterEqual(membership_sim.metrics["top_membership_accuracy"], 0.80)
+        self.assertGreaterEqual(screening_sim.metrics["active_recall"], 0.80)
+        self.assertLessEqual(screening_sim.metrics["false_discovery_rate"], 0.45)
+        self.assertGreaterEqual(screening_sim.metrics["subspace_alignment"], 0.70)
 
     def test_frontier_smoke_benchmark_runs_selected_supported_papers(self) -> None:
         selected, metadata = select_supported_frontier_questions(max_per_class=1)
