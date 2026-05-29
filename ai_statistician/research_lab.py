@@ -3445,6 +3445,13 @@ def build_theory_plan(
     formal_gaps = [row for row in formal_subclaims if row.status == "FORMAL_GAP"]
     failed_subclaims = [row for row in formal_subclaims if row.status == "FAILED"]
     simulation_by_procedure = {row.procedure_id: row for row in simulations}
+    next_iteration_agenda = _build_next_iteration_agenda(
+        problem=problem,
+        formal_gaps=formal_gaps,
+        failed_subclaims=failed_subclaims,
+        theorem_goals=theorem_goals,
+        simulations=simulations,
+    )
     return {
         "plan_version": 1,
         "status": status,
@@ -3552,6 +3559,7 @@ def build_theory_plan(
                 for procedure in procedures
             ],
         },
+        "next_iteration_agenda": next_iteration_agenda,
         "honesty_boundary": {
             "proved_subclaims": len(proved_subclaims),
             "formal_gaps": len(formal_gaps),
@@ -3559,6 +3567,101 @@ def build_theory_plan(
             "simulation_flagged": any(not row.passed for row in simulations),
             "full_frontier_theorem_proved": False,
         },
+    }
+
+
+def _build_next_iteration_agenda(
+    *,
+    problem: ResearchProblemSpec,
+    formal_gaps: list[FormalSubclaim],
+    failed_subclaims: list[FormalSubclaim],
+    theorem_goals: list[TheoremGoal],
+    simulations: list[ResearchSimulation],
+) -> dict[str, Any]:
+    items: list[dict[str, Any]] = []
+    for row in formal_gaps:
+        required_primitives = _required_primitives_for_gap(row, theorem_goals)
+        items.append(
+            {
+                "id": f"formal_gap:{row.id}",
+                "owner_agent": "formal_verifier",
+                "trigger": "FORMAL_GAP",
+                "priority": "high" if required_primitives else "medium",
+                "action": "retrieve_or_build_missing_lean_primitives",
+                "evidence": row.gap_reason or row.title,
+                "required_primitives": required_primitives,
+                "target_theorem_goal": row.id.split(":")[-1],
+            }
+        )
+    for row in failed_subclaims:
+        items.append(
+            {
+                "id": f"failed_obligation:{row.id}",
+                "owner_agent": "formal_verifier",
+                "trigger": "FAILED_PROOF_OBLIGATION",
+                "priority": "high",
+                "action": "repair_axiom_verified_proof_or_downgrade_to_gap",
+                "evidence": "; ".join(row.errors) or row.title,
+                "required_primitives": list(row.proof_dependencies),
+                "target_theorem_goal": row.proof_obligation_id or row.id,
+            }
+        )
+    for row in simulations:
+        diagnosis = row.diagnosis
+        if diagnosis is None or diagnosis.status == "OK":
+            continue
+        owner_agent = {
+            "theory_developer": "theory_developer",
+            "algorithm_engineer": "algorithm_engineer",
+            "simulator_environment": "simulator_agent",
+            "rerun_more_mc": "simulator_agent",
+        }.get(diagnosis.escalate_to, "research_coordinator")
+        action = {
+            "THEORY_OR_PROCEDURE_ISSUE": "revise_estimator_or_theorem_acceptance_rule",
+            "IMPLEMENTATION_OR_NUMERICAL_ISSUE": "repair_algorithm_implementation_or_numerical_stability",
+            "ENVIRONMENT_OR_DGP_ISSUE": "implement_or_correct_simulation_environment",
+            "INSUFFICIENT_MC_PRECISION": "rerun_with_larger_monte_carlo_budget",
+        }.get(diagnosis.status, "triage_simulation_failure")
+        items.append(
+            {
+                "id": f"simulation:{row.procedure_id}",
+                "owner_agent": owner_agent,
+                "trigger": diagnosis.status,
+                "priority": "high",
+                "action": action,
+                "evidence": diagnosis.rationale or row.feedback,
+                "failed_diagnostics": list(diagnosis.failed_diagnostics),
+                "failed_stress_tests": list(diagnosis.failed_stress_tests),
+                "metric_evidence_keys": sorted(diagnosis.metric_evidence),
+                "target_procedure": row.procedure_id,
+            }
+        )
+    if not items:
+        items.append(
+            {
+                "id": f"monitor:{problem.question_id}",
+                "owner_agent": "research_coordinator",
+                "trigger": "NO_BLOCKING_GAPS_OR_FAILED_SIMULATIONS",
+                "priority": "low",
+                "action": "archive_trace_or_expand_benchmark_stress_tests",
+                "evidence": "All current proof obligations and simulation acceptance checks passed.",
+                "required_primitives": [],
+                "target_theorem_goal": "",
+            }
+        )
+    owner_counts: dict[str, int] = {}
+    for item in items:
+        owner = str(item["owner_agent"])
+        owner_counts[owner] = owner_counts.get(owner, 0) + 1
+    return {
+        "agenda_version": 1,
+        "problem_class": problem.problem_class,
+        "items": items,
+        "owner_counts": dict(sorted(owner_counts.items())),
+        "stop_condition": (
+            "All agenda items are resolved, AXLE-verified obligations remain green, "
+            "and simulations either pass or have an explicit accepted limitation."
+        ),
     }
 
 

@@ -93,6 +93,12 @@ def _report_row(trace: dict[str, Any], summary: dict[str, Any], trace_path: Path
     simulations = trace.get("simulations", []) if isinstance(trace.get("simulations"), list) else []
     paper_sources = trace.get("paper_sources", []) if isinstance(trace.get("paper_sources"), list) else []
     knowledge = trace.get("knowledge", []) if isinstance(trace.get("knowledge"), list) else []
+    theory_plan = trace.get("theory_plan") if isinstance(trace.get("theory_plan"), dict) else {}
+    agenda = (
+        theory_plan.get("next_iteration_agenda", {})
+        if isinstance(theory_plan.get("next_iteration_agenda"), dict)
+        else {}
+    )
 
     proved = [row for row in formal_subclaims if isinstance(row, dict) and row.get("status") == "PROVED"]
     gaps = [row for row in formal_subclaims if isinstance(row, dict) and row.get("status") == "FORMAL_GAP"]
@@ -180,6 +186,19 @@ def _report_row(trace: dict[str, Any], summary: dict[str, Any], trace_path: Path
             for row in knowledge[:8]
             if isinstance(row, dict)
         ],
+        "next_iteration_agenda": {
+            "owner_counts": agenda.get("owner_counts", {}) if isinstance(agenda.get("owner_counts"), dict) else {},
+            "items": [
+                {
+                    "id": str(item.get("id", "")),
+                    "owner_agent": str(item.get("owner_agent", "")),
+                    "trigger": str(item.get("trigger", "")),
+                    "action": str(item.get("action", "")),
+                }
+                for item in (agenda.get("items", []) if isinstance(agenda.get("items"), list) else [])[:6]
+                if isinstance(item, dict)
+            ],
+        },
     }
 
 
@@ -332,6 +351,20 @@ def _question_markdown(row: dict[str, Any]) -> list[str]:
                 lines.append(f"  - Stress tests: {stress_tests}")
     else:
         lines.append("- none")
+    agenda = row.get("next_iteration_agenda", {})
+    if isinstance(agenda, dict) and agenda.get("items"):
+        lines.extend(["", "### Next Iteration Agenda", ""])
+        owner_counts = agenda.get("owner_counts", {})
+        if isinstance(owner_counts, dict) and owner_counts:
+            counts = ", ".join(f"{owner}:{count}" for owner, count in sorted(owner_counts.items()))
+            lines.append(f"- Owner counts: {counts}")
+        for item in agenda.get("items", []):
+            if not isinstance(item, dict):
+                continue
+            lines.append(
+                f"- `{item.get('id')}` -> {item.get('owner_agent')}: "
+                f"{item.get('action')} ({item.get('trigger')})"
+            )
     lines.extend(["", "### Source Grounding", ""])
     paper_sources = row.get("paper_sources", [])
     if paper_sources:

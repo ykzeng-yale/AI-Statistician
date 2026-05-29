@@ -23,6 +23,7 @@ from .research_lab import (
     load_open_research_questions,
     research_algorithm_registry_fingerprint,
     write_research_trace,
+    _build_next_iteration_agenda,
 )
 from .research_schema import CandidateProcedure, ResearchProblemSpec, ResearchSimulation, SimulationDiagnosis
 
@@ -272,6 +273,20 @@ def build_research_capability_audit(
             ),
             limitations=(
                 "Diagnosis is deterministic rule-based adjudication over registered metrics; it is not yet a learned simulator critic.",
+            ),
+        ),
+        ResearchCapabilityFinding(
+            requirement="turn proof gaps and simulation diagnoses into a next-iteration research agenda",
+            status="ACHIEVED" if callable(_build_next_iteration_agenda) else "NOT_ACHIEVED",
+            current_release_gate=True,
+            evidence=(
+                f"{_build_next_iteration_agenda.__module__}.{_build_next_iteration_agenda.__name__}",
+                "theory_plan.next_iteration_agenda records owner_agent, trigger, action, evidence, owner_counts, and stop_condition",
+                "research_trace_audit validates next_iteration_agenda shape for every trace",
+                "research_report renders the agenda for human review",
+            ),
+            limitations=(
+                "Agenda items are deterministic handoff instructions; the current release does not automatically execute another improvement round.",
             ),
         ),
         ResearchCapabilityFinding(

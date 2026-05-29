@@ -119,11 +119,12 @@ contains the extracted problem specification, source-text extraction evidence
 for the problem class / DGP / estimand / assumptions / asymptotic regime,
 candidate procedures, theorem goals, a first-class `theory_plan` tying the
 informal derivation to candidate procedures, retrieval context, theorem
-roadmap, proof/gap status, and simulation plan, retrieved knowledge cards,
-related local paper/source hits, formal proof/gap records, exported gap
-skeleton files, simulation metrics, diagnostic-to-metric coverage, stress-test
-ledgers, vetted research algorithm fingerprints, and honest limitations when
-gaps remain.
+roadmap, proof/gap status, simulation plan, and a `next_iteration_agenda` that
+routes formal gaps, failed proof obligations, and simulation diagnoses back to
+the responsible agent. It also validates retrieved knowledge cards, related
+local paper/source hits, formal proof/gap records, exported gap skeleton files,
+simulation metrics, diagnostic-to-metric coverage, stress-test ledgers, vetted
+research algorithm fingerprints, and honest limitations when gaps remain.
 
 The `paper_sources` section is a separate local retrieval layer over the
 frontier statistical-theory benchmark and the AI-for-math paper log. For
@@ -138,6 +139,13 @@ rather than over-claimed: they certify that the simulation layer evaluated the
 declared stress scenarios against available metrics, while full theorem-level
 coverage for those scenarios remains part of the formal-gap backlog when it is
 not already in the proof bank.
+
+The `next_iteration_agenda` is the explicit research-loop handoff. Each item
+has an owner agent (`formal_verifier`, `theory_developer`,
+`algorithm_engineer`, `simulator_agent`, or `research_coordinator`), a trigger,
+an action, evidence, and a stop condition. This keeps the trace from ending at
+"metrics plus gaps": it records exactly what the next round should repair or
+formalize.
 
 Formal gap backlog audit:
 
@@ -267,7 +275,9 @@ record the no-training proof-memory baseline that trained policies must beat,
 quantify how much of the withheld paper-theory target text is recovered, and
 check that every simulation contains a deterministic diagnosis routing failures
 to the theory developer, algorithm engineer, simulator environment, or a larger
-Monte Carlo run instead of leaving metric failures as unstructured text.
+Monte Carlo run instead of leaving metric failures as unstructured text. Trace
+audit also checks that every theory plan includes a next-iteration agenda with
+owner counts and a stop condition.
 With `--real-lean`, the proof gate and benchmark subclaims use AXLE
 `verify_proof`; frontier theorem goals still remain explicit formal gaps unless
 they have been added to the proof bank as real obligations.

@@ -608,6 +608,29 @@ def _validate_theory_plan(
     elif not simulation_plan.get("procedure_runs"):
         errors.append("theory_plan simulation_plan procedure_runs missing")
 
+    agenda = theory_plan.get("next_iteration_agenda")
+    if not isinstance(agenda, dict):
+        errors.append("theory_plan next_iteration_agenda missing")
+    else:
+        if agenda.get("agenda_version") != 1:
+            errors.append("theory_plan next_iteration_agenda agenda_version is not 1")
+        items = agenda.get("items")
+        if not isinstance(items, list) or not items:
+            errors.append("theory_plan next_iteration_agenda items missing")
+        else:
+            for idx, item in enumerate(items):
+                if not isinstance(item, dict):
+                    errors.append(f"theory_plan next_iteration_agenda item {idx} is not an object")
+                    continue
+                for key in ("id", "owner_agent", "trigger", "priority", "action", "evidence"):
+                    if not item.get(key):
+                        errors.append(f"theory_plan next_iteration_agenda item {idx} missing {key}")
+        owner_counts = agenda.get("owner_counts")
+        if not isinstance(owner_counts, dict) or not owner_counts:
+            errors.append("theory_plan next_iteration_agenda owner_counts missing")
+        if not agenda.get("stop_condition"):
+            errors.append("theory_plan next_iteration_agenda stop_condition missing")
+
     retrieval_context = theory_plan.get("retrieval_context")
     if not isinstance(retrieval_context, dict):
         errors.append("theory_plan retrieval_context missing")

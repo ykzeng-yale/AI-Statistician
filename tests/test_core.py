@@ -1081,6 +1081,11 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(theory_plan["retrieval_context"]["knowledge_cards"])
         self.assertTrue(theory_plan["retrieval_context"]["paper_sources"])
         self.assertTrue(theory_plan["formal_verification_plan"]["formal_gaps"])
+        next_agenda = theory_plan["next_iteration_agenda"]
+        self.assertEqual(next_agenda["agenda_version"], 1)
+        self.assertTrue(next_agenda["items"])
+        self.assertIn("formal_verifier", next_agenda["owner_counts"])
+        self.assertTrue(next_agenda["stop_condition"])
         self.assertFalse(theory_plan["honesty_boundary"]["full_frontier_theorem_proved"])
         extraction = trace_payload["problem"]["extraction_evidence"]
         for key in ("problem_class", "dgp", "estimand", "assumptions", "asymptotic_regime"):
@@ -1262,6 +1267,7 @@ class SystemTests(unittest.TestCase):
         self.assertIn("Formal Proof Status", text)
         self.assertIn("Simulation Diagnostics", text)
         self.assertIn("Diagnosis:", text)
+        self.assertIn("Next Iteration Agenda", text)
         self.assertIn("Source Grounding", text)
         self.assertIn("FORMAL_GAP", text)
 
@@ -1381,6 +1387,12 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(simulation_diagnosis["status"], "ACHIEVED")
         self.assertTrue(simulation_diagnosis["current_release_gate"])
         self.assertTrue(any("SimulationDiagnosis" in item for item in simulation_diagnosis["evidence"]))
+        next_iteration = findings[
+            "turn proof gaps and simulation diagnoses into a next-iteration research agenda"
+        ]
+        self.assertEqual(next_iteration["status"], "ACHIEVED")
+        self.assertTrue(next_iteration["current_release_gate"])
+        self.assertTrue(any("next_iteration_agenda" in item for item in next_iteration["evidence"]))
         arbitrary_frontier = findings[
             "autonomously solve arbitrary frontier journal statistical theory problems end to end"
         ]
