@@ -89,7 +89,9 @@ unlocks, local candidate declarations, supporting proof obligations, and a
 suggested next proof-bank/library step. It also classifies each target's
 `bridge_readiness` so the lab can distinguish primitives that can start from
 existing AXLE-verified proof-bank bridges from primitives that need fresh source
-search or library design.
+search or library design. The queue also ranks
+`bridge_candidate_obligations` for each primitive, so theorem mining starts
+from the most relevant verified bridge instead of a broad proof-obligation list.
 `formal-source-audit` now defaults to a persistent SQLite FTS + Lean-shape
 reranking backend and writes `formal_source_index.sqlite` next to the audit
 manifest, so repeated search and interactive theorem mining can query the local

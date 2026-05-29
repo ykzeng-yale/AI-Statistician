@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+import re
 from collections import defaultdict
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .proof_bank import get_obligation
 from .research_gap_audit import audit_research_gap_backlog
 
 
@@ -21,6 +23,8 @@ class FormalizationTargetRow:
     gap_ids: tuple[str, ...]
     candidate_declarations: tuple[str, ...]
     supporting_proof_obligations: tuple[str, ...]
+    bridge_candidate_obligations: tuple[str, ...]
+    bridge_candidate_score: int
     proof_bank_bridge_available: bool
     bridge_readiness: str
     suggested_next_step: str
@@ -45,6 +49,7 @@ def audit_formalization_targets(run_dir: Path, out_dir: Path | None = None) -> d
         "n_targets": len(rows),
         "n_ok": sum(1 for row in rows if row.ok),
         "n_with_proof_bank_bridge": sum(1 for row in rows if row.proof_bank_bridge_available),
+        "n_with_ranked_bridge_candidate": sum(1 for row in rows if row.bridge_candidate_obligations),
         "by_bridge_readiness": _count_by_bridge_readiness(rows),
         "all_ok": bool(backlog.get("all_ok")) and bool(rows) and all(row.ok for row in rows),
         "top_targets": [asdict(row) for row in rows[:10]],
@@ -97,7 +102,19 @@ def _target_rows(backlog: dict[str, object]) -> list[FormalizationTargetRow]:
     rows: list[FormalizationTargetRow] = []
     for primitive, bucket in grouped.items():
         candidate_declarations = tuple(bucket["candidate_declarations"][:8])
-        supporting_proofs = tuple(sorted(bucket["supporting_proof_obligations"]))
+        supporting_proofs = _rank_supporting_proofs(
+            primitive,
+            tuple(sorted(bucket["supporting_proof_obligations"])),
+        )
+        bridge_candidates = tuple(
+            obligation_id
+            for obligation_id in supporting_proofs
+            if _is_direct_bridge_candidate(primitive, obligation_id)
+        )
+        bridge_candidate_score = sum(
+            _proof_bridge_score(primitive, obligation_id)
+            for obligation_id in bridge_candidates
+        )
         bridge_readiness = _bridge_readiness(candidate_declarations, supporting_proofs)
         n_gaps = len(bucket["gap_ids"])
         score = (
@@ -105,7 +122,9 @@ def _target_rows(backlog: dict[str, object]) -> list[FormalizationTargetRow]:
             + 10 * len(bucket["problem_classes"])
             + 3 * min(len(candidate_declarations), 8)
             + 2 * len(supporting_proofs)
+            + 4 * len(bridge_candidates)
             + (15 if supporting_proofs and candidate_declarations else 0)
+            + (10 if bridge_candidates else 0)
         )
         errors: list[str] = []
         if not candidate_declarations:
@@ -116,16 +135,23 @@ def _target_rows(backlog: dict[str, object]) -> list[FormalizationTargetRow]:
             FormalizationTargetRow(
                 primitive=primitive,
                 priority_score=score,
-                priority_band=_priority_band(score, n_gaps, candidate_declarations),
+                priority_band=_priority_band(score, n_gaps, candidate_declarations, bridge_candidates),
                 n_gaps=n_gaps,
                 problem_classes=tuple(sorted(bucket["problem_classes"])),
                 theorem_goals=tuple(sorted(bucket["theorem_goals"])),
                 gap_ids=tuple(sorted(bucket["gap_ids"])),
                 candidate_declarations=candidate_declarations,
                 supporting_proof_obligations=supporting_proofs,
+                bridge_candidate_obligations=bridge_candidates,
+                bridge_candidate_score=bridge_candidate_score,
                 proof_bank_bridge_available=bool(supporting_proofs),
                 bridge_readiness=bridge_readiness,
-                suggested_next_step=_suggest_next_step(primitive, candidate_declarations, supporting_proofs),
+                suggested_next_step=_suggest_next_step(
+                    primitive,
+                    candidate_declarations,
+                    supporting_proofs,
+                    bridge_candidates,
+                ),
                 ok=not errors,
                 errors=tuple(errors),
             )
@@ -133,7 +159,16 @@ def _target_rows(backlog: dict[str, object]) -> list[FormalizationTargetRow]:
     return sorted(rows, key=lambda row: (-row.priority_score, row.primitive))
 
 
-def _priority_band(score: int, n_gaps: int, candidates: tuple[str, ...]) -> str:
+def _priority_band(
+    score: int,
+    n_gaps: int,
+    candidates: tuple[str, ...],
+    bridge_candidates: tuple[str, ...] = (),
+) -> str:
+    if n_gaps >= 2 and candidates and bridge_candidates:
+        return "HIGH_REUSE_BRIDGE_READY"
+    if candidates and bridge_candidates:
+        return "BRIDGE_REUSE_READY"
     if n_gaps >= 2 and candidates:
         return "HIGH_REUSE_READY"
     if candidates:
@@ -167,15 +202,131 @@ def _suggest_next_step(
     primitive: str,
     candidate_declarations: tuple[str, ...],
     supporting_proofs: tuple[str, ...],
+    bridge_candidates: tuple[str, ...] = (),
 ) -> str:
+    if candidate_declarations and bridge_candidates:
+        return (
+            f"Use ranked verified bridge {bridge_candidates[0]} with local declaration "
+            f"{candidate_declarations[0]} to formalize `{primitive}`."
+        )
+    if bridge_candidates:
+        return f"Start from ranked verified proof-bank bridge {bridge_candidates[0]} and add the missing Lean interface for `{primitive}`."
     if candidate_declarations and supporting_proofs:
         return (
-            f"Mine {candidate_declarations[0]} and existing proof obligations "
-            f"{', '.join(supporting_proofs[:3])} into a new proof-bank bridge for `{primitive}`."
+            f"Mine {candidate_declarations[0]} with ranked supporting obligations "
+            f"{', '.join(supporting_proofs[:3])} while designing a new proof-bank bridge for `{primitive}`."
         )
     if candidate_declarations:
         return f"Start from local declaration {candidate_declarations[0]} and add a minimal AXLE proof-bank obligation."
     return f"Search Mathlib/StatInference/OpenProver for `{primitive}` before designing a new Lean interface."
+
+
+def _rank_supporting_proofs(
+    primitive: str,
+    supporting_proofs: tuple[str, ...],
+) -> tuple[str, ...]:
+    return tuple(
+        sorted(
+            supporting_proofs,
+            key=lambda obligation_id: (-_proof_bridge_score(primitive, obligation_id), obligation_id),
+        )
+    )
+
+
+def _proof_bridge_score(primitive: str, obligation_id: str) -> int:
+    primitive_tokens = _tokens(primitive)
+    if not primitive_tokens:
+        return 0
+    try:
+        obligation = get_obligation(obligation_id)
+    except KeyError:
+        return 0
+    id_tokens = _tokens(obligation.id)
+    tag_tokens = set().union(*(_tokens(tag) for tag in obligation.tags)) if obligation.tags else set()
+    text_tokens = _tokens(
+        " ".join(
+            (
+                obligation.id,
+                obligation.title,
+                obligation.english,
+                obligation.formal_statement,
+                " ".join(obligation.tags),
+                " ".join(obligation.expected_lemmas),
+            )
+        )
+    )
+    overlap = primitive_tokens & text_tokens
+    id_overlap = primitive_tokens & id_tokens
+    tag_overlap = primitive_tokens & tag_tokens
+    score = 0
+    score += 8 * len(id_overlap)
+    score += 5 * len(tag_overlap)
+    score += 3 * len(overlap)
+    if primitive_tokens <= text_tokens:
+        score += 20
+    if obligation.id == primitive:
+        score += 50
+    return score
+
+
+_COMMON_PRIMITIVE_TOKENS = {
+    "bound",
+    "control",
+    "definition",
+    "deviation",
+    "error",
+    "event",
+    "failure",
+    "finite",
+    "horizon",
+    "inequality",
+    "probability",
+    "tail",
+    "theorem",
+    "type1",
+}
+
+
+def _is_direct_bridge_candidate(primitive: str, obligation_id: str) -> bool:
+    primitive_tokens = _tokens(primitive)
+    specific_tokens = primitive_tokens - _COMMON_PRIMITIVE_TOKENS
+    if not specific_tokens:
+        return _proof_bridge_score(primitive, obligation_id) > 0
+    try:
+        obligation = get_obligation(obligation_id)
+    except KeyError:
+        return False
+    bridge_tokens = _tokens(
+        " ".join(
+            (
+                obligation.id,
+                obligation.title,
+                " ".join(obligation.tags),
+                " ".join(obligation.expected_lemmas),
+            )
+        )
+    )
+    return specific_tokens <= bridge_tokens
+
+
+def _tokens(text: str) -> set[str]:
+    words = re.findall(r"[a-z0-9]+", text.lower().replace("_", " "))
+    aliases: set[str] = set()
+    for word in words:
+        aliases.add(word)
+        if word == "type" or word == "i":
+            continue
+        if word == "type1":
+            aliases.update({"type", "i"})
+        if word == "eprocess":
+            aliases.update({"e", "process"})
+        if word == "chebyshev":
+            aliases.add("tail")
+    if "type" in words and "i" in words:
+        aliases.add("type1")
+    if "e" in words and "process" in words:
+        aliases.add("eprocess")
+    return aliases
 
 
 def _markdown_report(payload: dict[str, object]) -> str:
@@ -208,6 +359,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
                 f"- Theorem goals: {', '.join(f'`{item}`' for item in row.get('theorem_goals', [])) or 'none'}",
                 f"- Local candidates: {', '.join(f'`{item}`' for item in row.get('candidate_declarations', [])) or 'none'}",
                 f"- Supporting proof obligations: {', '.join(f'`{item}`' for item in row.get('supporting_proof_obligations', [])) or 'none'}",
+                f"- Ranked bridge candidates: {', '.join(f'`{item}`' for item in row.get('bridge_candidate_obligations', [])) or 'none'}",
+                f"- Bridge candidate score: {row.get('bridge_candidate_score')}",
                 f"- Suggested next step: {row.get('suggested_next_step')}",
                 "",
             ]

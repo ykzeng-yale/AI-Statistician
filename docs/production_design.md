@@ -161,6 +161,11 @@ move from "known gaps" to a prioritized theorem-building plan.
 Rows also include `bridge_readiness`, for example
 `PROOF_BANK_AND_LOCAL_SOURCE` when a target has both a local declaration
 candidate and existing AXLE-verified proof-bank obligations to build from.
+They also include `bridge_candidate_obligations`: a narrower, token- and
+tag-aware ranking over the supporting proof obligations, so the next theorem
+developer sees the most relevant verified bridge first instead of an
+alphabetical list of every proof obligation attached to the broader theorem
+goal.
 
 Research source inventory:
 
