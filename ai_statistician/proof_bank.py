@@ -266,6 +266,49 @@ theorem finiteFamily_absolute_error_union_control {Ω ι : Type*}
         expected_lemmas=("measure_biUnion_finset_le", "Finset.sum_le_sum"),
         depends_on=("finite_union_budget_control",),
     ),
+    "pairwise_top_rank_correct_of_separation": FormalObligation(
+        id="pairwise_top_rank_correct_of_separation",
+        title="Pairwise top-rank correctness under separation and error control",
+        english=(
+            "If item i's true target exceeds item j's true target by more than "
+            "twice a common error radius, and both point estimates are within "
+            "that radius of their targets, then item i is ranked above item j "
+            "by the estimated values. This is a deterministic bridge from "
+            "simultaneous confidence bands to pairwise ranking reliability; it "
+            "does not prove full rank-functional asymptotics."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+
+theorem pairwiseTopRank_correct_of_separation
+    (estimate_i estimate_j theta_i theta_j radius : ℝ)
+    (hsep : theta_j + 2 * radius < theta_i)
+    (hi : |estimate_i - theta_i| ≤ radius)
+    (hj : |estimate_j - theta_j| ≤ radius) :
+    estimate_j < estimate_i := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  have hi_abs := abs_le.mp hi\n"
+            "  have hj_abs := abs_le.mp hj\n"
+            "  linarith"
+        ),
+        tags=(
+            "estimator",
+            "absolute_error",
+            "ranking",
+            "rank_functional",
+            "pairwise",
+            "pairwise_country_mean_separation",
+            "top_rank",
+            "confidence_band",
+            "real_algebra",
+        ),
+        expected_lemmas=("abs_le", "linarith"),
+        depends_on=("wald_interval_contains_iff_abs_error",),
+    ),
     "mean2_estimator_chebyshev_indep": FormalObligation(
         id="mean2_estimator_chebyshev_indep",
         title="Chebyshev error bound for an average of independent estimators",

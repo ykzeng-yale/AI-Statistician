@@ -486,6 +486,20 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("simultaneous_confidence_bands", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_pairwise_top_rank_bridge_uses_separation_and_error_bounds(self) -> None:
+        obligation = get_obligation("pairwise_top_rank_correct_of_separation")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("wald_interval_contains_iff_abs_error",))
+        self.assertIn("theorem pairwiseTopRank_correct_of_separation", content)
+        self.assertIn("theta_j + 2 * radius < theta_i", content)
+        self.assertIn("|estimate_i - theta_i| ≤ radius", content)
+        self.assertIn("|estimate_j - theta_j| ≤ radius", content)
+        self.assertIn("estimate_j < estimate_i", content)
+        self.assertIn("abs_le.mp", content)
+        self.assertIn("linarith", content)
+        self.assertIn("pairwise_country_mean_separation", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_finite_union_bound_obligation_uses_mathlib_bonferroni_lemma(self) -> None:
         obligation = get_obligation("finite_union_bound")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
@@ -858,6 +872,7 @@ class SystemTests(unittest.TestCase):
         self.assertIn("affine_estimator_variance", measurement_rank_support)
         self.assertIn("finite_sample_mean_variance_indep", measurement_rank_support)
         self.assertIn("finite_family_absolute_error_union_control", measurement_rank_support)
+        self.assertIn("pairwise_top_rank_correct_of_separation", measurement_rank_support)
 
     def test_mock_system_accepts_registered_questions(self) -> None:
         async def run():
