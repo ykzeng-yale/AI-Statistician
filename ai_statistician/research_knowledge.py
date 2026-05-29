@@ -268,6 +268,32 @@ KNOWLEDGE_CARDS: tuple[KnowledgeCard, ...] = (
         ),
     ),
     KnowledgeCard(
+        id="missing_mediation_deconvolution_inference",
+        title="Missing-confounder mediation and platform-adjusted deconvolution inference",
+        source_type="statistical_method",
+        location="internal-method-card",
+        summary=(
+            "This class covers mediation analysis with nonignorable missing confounders "
+            "using shadow variables or auxiliary data, and cell-type deconvolution when "
+            "bulk/reference expression measurements come from heterogeneous platforms. "
+            "The v0 executable layer uses shadow-variable confounder reconstruction and "
+            "platform-scaled constrained least squares while nonparametric bridge "
+            "identification, sieve inverse problems, reference uncertainty, and "
+            "downstream comparison theory remain formal gaps."
+        ),
+        tags=(
+            "missing_data",
+            "mediation",
+            "shadow_variable",
+            "nonignorable_missingness",
+            "cell_deconvolution",
+            "bulk_rna_seq",
+            "single_cell_reference",
+            "platform_shift",
+            "missing_mediation_deconvolution_inference",
+        ),
+    ),
+    KnowledgeCard(
         id="design_based_variance_neyman",
         title="Design-based conservative variance estimation",
         source_type="statistical_method",
@@ -631,6 +657,7 @@ PRIMARY_KNOWLEDGE_BY_PROBLEM_CLASS: dict[str, str] = {
     "bayesian_posterior_calibration": "bayesian_predictive_prior_calibration",
     "geometric_spatial_point_process_inference": "geometric_spatial_point_process_inference",
     "measurement_bias_ranking_inference": "measurement_bias_assessment_ranking",
+    "missing_mediation_deconvolution_inference": "missing_mediation_deconvolution_inference",
     "design_based_variance_inference": "design_based_variance_neyman",
     "experimental_design_optimization": "experimental_design_maximin_balance",
     "heteroskedastic_regression_inference": "heteroskedastic_robust_inference",

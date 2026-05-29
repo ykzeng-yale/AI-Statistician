@@ -669,7 +669,7 @@ class SystemTests(unittest.TestCase):
         payload = audit_research_algorithm_registry(Path("runs/test_research_algorithm_audit"))
         self.assertTrue(payload["all_ok"])
         self.assertEqual(payload["n_ok"], payload["n_algorithms"])
-        self.assertEqual(payload["n_algorithms"], 29)
+        self.assertEqual(payload["n_algorithms"], 31)
         self.assertEqual(len(payload["registry_fingerprint"]), 64)
         for row in payload["algorithms"]:
             self.assertEqual(row["registry_status"], "vetted")
@@ -758,6 +758,7 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(payload["by_problem_class"]["adaptive_transfer_active_preference_learning"], 3)
         self.assertEqual(payload["by_problem_class"]["robust_distributed_model_privacy_inference"], 3)
         self.assertEqual(payload["by_problem_class"]["heavy_tail_time_series_extremal_dependence"], 3)
+        self.assertEqual(payload["by_problem_class"]["missing_mediation_deconvolution_inference"], 2)
         self.assertIn("unsupported_frontier_question", payload["by_problem_class"])
         self.assertTrue(Path("runs/test_frontier_coverage_audit/frontier_coverage_manifest.json").exists())
         self.assertTrue(Path("runs/test_frontier_coverage_audit/frontier_coverage.md").exists())
@@ -811,6 +812,18 @@ class SystemTests(unittest.TestCase):
             "heavy_tail_time_series_extremal_dependence",
         )
         self.assertTrue(by_id["extremes_tail_heavytail_03"]["evidence_terms"])
+        self.assertIn("missing_censored_measurement_error_02", by_id)
+        self.assertEqual(
+            by_id["missing_censored_measurement_error_02"]["problem_class"],
+            "missing_mediation_deconvolution_inference",
+        )
+        self.assertTrue(by_id["missing_censored_measurement_error_02"]["evidence_terms"])
+        self.assertIn("missing_censored_measurement_error_05", by_id)
+        self.assertEqual(
+            by_id["missing_censored_measurement_error_05"]["problem_class"],
+            "missing_mediation_deconvolution_inference",
+        )
+        self.assertTrue(by_id["missing_censored_measurement_error_05"]["evidence_terms"])
         self.assertIn("networks_graphs_01", by_id)
         self.assertEqual(by_id["networks_graphs_01"]["problem_class"], "network_graph_inference")
         self.assertTrue(by_id["networks_graphs_01"]["evidence_terms"])
@@ -826,10 +839,10 @@ class SystemTests(unittest.TestCase):
     def test_frontier_backlog_audit_maps_unsupported_questions(self) -> None:
         payload = audit_frontier_backlog(Path("runs/test_frontier_backlog_audit"))
         self.assertTrue(payload["all_ok"])
-        self.assertEqual(payload["n_backlog"], 4)
+        self.assertEqual(payload["n_backlog"], 2)
         self.assertEqual(payload["n_ok"], payload["n_backlog"])
         self.assertGreaterEqual(payload["n_supported"], 1)
-        self.assertGreaterEqual(len(payload["by_domain"]), 2)
+        self.assertGreaterEqual(len(payload["by_domain"]), 1)
         self.assertTrue(payload["by_required_primitive"])
         by_id = {row["question_id"]: row for row in payload["rows"]}
         self.assertNotIn("statistical_learning_nonparametric_02", by_id)
@@ -841,6 +854,8 @@ class SystemTests(unittest.TestCase):
         self.assertNotIn("bayesian_computation_posteriors_05", by_id)
         self.assertNotIn("robust_privacy_distributed_03", by_id)
         self.assertNotIn("extremes_tail_heavytail_03", by_id)
+        self.assertNotIn("missing_censored_measurement_error_02", by_id)
+        self.assertNotIn("missing_censored_measurement_error_05", by_id)
         for row in payload["rows"]:
             self.assertTrue(row["required_primitives"])
             self.assertTrue(row["likely_methods"])
@@ -1106,6 +1121,42 @@ class SystemTests(unittest.TestCase):
         self.assertGreaterEqual(hyperplane_sim.metrics["selection_accuracy"], 0.85)
         self.assertGreaterEqual(factor_sim.metrics["factor_alignment"], 0.75)
         self.assertLessEqual(factor_sim.metrics["rmse"], 0.38)
+
+    def test_missing_mediation_deconvolution_frontier_question_runs_registered_simulators(self) -> None:
+        question = next(
+            row.to_open_research_question()
+            for row in load_frontier_benchmark_questions(Path("docs/frontier_stat_theory_benchmark.md"))
+            if row.id == "missing_censored_measurement_error_02"
+        )
+        problem = ProblemFormalizer().formalize(question)
+        self.assertEqual(problem.problem_class, "missing_mediation_deconvolution_inference")
+        procedures, theorem_goals = TheoryPlanner().plan(problem)
+        self.assertEqual(
+            [procedure.algorithm for procedure in procedures],
+            [
+                "shadow_variable_mediation_sieve",
+                "platform_adjusted_cell_deconvolution",
+            ],
+        )
+        self.assertEqual(
+            {goal.id for goal in theorem_goals},
+            {
+                "shadow_variable_mediation_identification",
+                "platform_adjusted_deconvolution_validity",
+            },
+        )
+        simulations = ResearchSimulator(n_runs=45, seed=20260530).run(problem, procedures)
+        self.assertEqual(len(simulations), 2)
+        for simulation in simulations:
+            self.assertTrue(simulation.passed)
+            self.assertEqual(simulation.diagnosis.status, "OK")
+        mediation_sim = next(row for row in simulations if row.procedure_id == "shadow_variable_mediation_bridge_estimator")
+        deconv_sim = next(row for row in simulations if row.procedure_id == "platform_adjusted_cell_type_deconvolution")
+        self.assertGreaterEqual(mediation_sim.metrics["shadow_imputation_correlation"], 0.75)
+        self.assertLessEqual(mediation_sim.metrics["mediation_indirect_effect_rmse"], 0.06)
+        self.assertLessEqual(deconv_sim.metrics["deconvolution_rmse"], 0.075)
+        self.assertGreaterEqual(deconv_sim.metrics["dominant_cell_accuracy"], 0.80)
+        self.assertLessEqual(deconv_sim.metrics["platform_scale_rmse"], 0.10)
 
     def test_frontier_smoke_benchmark_runs_selected_supported_papers(self) -> None:
         selected, metadata = select_supported_frontier_questions(max_per_class=1)

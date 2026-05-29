@@ -529,6 +529,60 @@ EXTRACTION_EVIDENCE_TERMS: dict[str, dict[str, tuple[str, ...]]] = {
             "measurement noninvariance",
         ),
     },
+    "missing_mediation_deconvolution_inference": {
+        "problem_class": (
+            "mediation analysis",
+            "nonignorable missing confounders",
+            "shadow variables",
+            "cell type deconvolution",
+            "cell-type deconvolution",
+            "bulk rna-seq",
+            "reference single-cell data",
+            "heterogeneous measurement platforms",
+        ),
+        "dgp": (
+            "mediation analysis",
+            "nonignorable missing confounders",
+            "shadow variables from covariates or auxiliary data",
+            "ill-posed inverse problem",
+            "bulk rna-seq and reference single-cell data",
+            "platform-specific scaling effects",
+            "measurement noise",
+            "external approximation of cell-type proportions",
+        ),
+        "estimand": (
+            "mediation effects",
+            "shadow-variable identification",
+            "sieve iterative outward estimation",
+            "cell-type proportions",
+            "cell type proportions",
+            "measurement-error-adjusted deconvolution",
+            "downstream comparisons",
+        ),
+        "assumptions": (
+            "nonignorable missing confounders",
+            "shadow variables",
+            "auxiliary data",
+            "ill-posed inverse problem",
+            "platform-specific scaling effects",
+            "reference uncertainty",
+            "platform shifts",
+            "measurement noise",
+        ),
+        "asymptotic_regime": (
+            "large-sample theory",
+            "asymptotic distribution",
+            "efficiency loss from missingness",
+            "ill-posed inverse problem",
+            "reference uncertainty",
+            "platform shifts",
+            "platform-specific scaling effects",
+            "measurement noise",
+            "external approximation of cell-type proportions",
+            "downstream comparisons",
+            "validity",
+        ),
+    },
     "design_based_variance_inference": {
         "problem_class": ("optimized variance estimation", "conservative variance", "estimable variance bound", "design-based", "complex experimental designs", "variance estimation"),
         "dgp": ("randomized experiment", "potential outcomes", "assignment", "interference", "complex designs"),
@@ -917,6 +971,20 @@ RESEARCH_ALGORITHM_REGISTRY: dict[str, dict[str, object]] = {
         "summary": "bias-adjusted country mean and ranking reliability simulation for assessment measurement bias",
         "method": "_measurement_bias_adjusted_ranking",
         "helpers": ("_estimation_metrics", "_rank_positions"),
+        "version": "v1",
+        "registry_status": "vetted",
+    },
+    "shadow_variable_mediation_sieve": {
+        "summary": "shadow-variable imputation and mediation-effect simulation under nonignorable missing confounding",
+        "method": "_shadow_variable_mediation_sieve",
+        "helpers": ("_estimation_metrics",),
+        "version": "v1",
+        "registry_status": "vetted",
+    },
+    "platform_adjusted_cell_deconvolution": {
+        "summary": "measurement-error adjusted cell-type deconvolution under platform-specific scaling",
+        "method": "_platform_adjusted_cell_deconvolution",
+        "helpers": ("_project_rows_to_simplex", "_estimation_metrics"),
         "version": "v1",
         "registry_status": "vetted",
     },
@@ -1789,6 +1857,53 @@ class ProblemFormalizer:
                     "mean_abs_rank_error",
                 ),
                 stress_tests=("stronger measurement bias", "fewer items", "near-tied country abilities"),
+            )
+        if _matches(
+            body_text,
+            words=(),
+            phrases=(
+                "mediation analysis",
+                "mediation effects",
+                "nonignorable missing confounders",
+                "shadow variables from covariates or auxiliary data",
+                "shadow-variable identification",
+                "sieve iterative outward estimation",
+                "ill-posed inverse problem",
+                "efficiency loss from missingness",
+                "cell type deconvolution",
+                "cell-type deconvolution",
+                "bulk rna-seq and reference single-cell data",
+                "heterogeneous measurement platforms",
+                "platform-specific scaling effects",
+                "external approximation of cell-type proportions",
+                "measurement-error-adjusted deconvolution",
+            ),
+        ):
+            return ResearchProblemSpec(
+                question_id=question.id,
+                problem_class="missing_mediation_deconvolution_inference",
+                dgp=(
+                    "Observed data include either mediation outcomes with a latent confounder missing "
+                    "nonignorably but accompanied by a shadow variable, or bulk/reference expression "
+                    "measurements from heterogeneous platforms with cell-type proportion targets."
+                ),
+                estimand=(
+                    "A mediation indirect effect adjusted for nonignorable missing confounding, and "
+                    "platform-adjusted cell-type proportions for downstream group comparisons."
+                ),
+                assumptions=(
+                    "shadow variables are informative about the missing confounder and conditionally useful in v0",
+                    "mediation structural equations are linear in the simulation surrogate",
+                    "bulk expression is a convex mixture of cell-type profiles after platform scaling correction",
+                    "ill-posed inverse estimation, sieve outward iteration, and reference uncertainty remain formal gaps",
+                ),
+                asymptotic_regime=(
+                    "sample size or number of genes/cells increases; frontier targets include efficient "
+                    "large-sample mediation theory with missing confounders and valid deconvolution inference "
+                    "under platform shifts."
+                ),
+                diagnostics=("rmse", "coverage_95", "selection_accuracy"),
+                stress_tests=("more nonignorable missingness", "stronger platform shift", "higher reference noise"),
             )
         if _matches(
             body_text,
@@ -3144,6 +3259,126 @@ class TheoryPlanner:
                 )
             ]
             return procedures, goals
+        if problem.problem_class == "missing_mediation_deconvolution_inference":
+            goals = [
+                TheoremGoal(
+                    id="shadow_variable_mediation_identification",
+                    title="Shadow-variable mediation identification",
+                    informal_statement=(
+                        "With a shadow variable informative about a nonignorably missing confounder, "
+                        "a corrected mediation estimator should recover the indirect effect under the "
+                        "specified bridge or imputation model."
+                    ),
+                    proof_strategy=(
+                        "Formalize linear mediation structural equations, shadow-variable confounder "
+                        "reconstruction, and a product-of-coefficients indirect effect; prove finite "
+                        "mean and affine-estimator subclaims now, leaving nonparametric bridge "
+                        "identification and ill-posed inverse analysis as formal gaps."
+                    ),
+                    status="FORMAL_GAP",
+                    required_primitives=(
+                        "nonignorable_missing_confounder_model",
+                        "shadow_variable_bridge_function",
+                        "sieve_iterative_outward_estimator",
+                        "mediation_indirect_effect_functional",
+                        "efficiency_loss_from_missingness",
+                    ),
+                    proof_obligations=(
+                        "affine_estimator_expectation",
+                        "finite_sample_mean_unbiased",
+                        "finite_sample_mean_variance_indep",
+                        "finite_sample_mean_chebyshev_indep",
+                        "estimator_error_chebyshev",
+                    ),
+                ),
+                TheoremGoal(
+                    id="platform_adjusted_deconvolution_validity",
+                    title="Platform-adjusted cell-type deconvolution validity",
+                    informal_statement=(
+                        "After correcting reference and bulk expression for platform-specific scaling, "
+                        "a constrained deconvolution estimator should recover cell-type proportions and "
+                        "support valid downstream comparisons."
+                    ),
+                    proof_strategy=(
+                        "Represent bulk expression as a finite linear mixture of cell-type profiles, "
+                        "include multiplicative platform scaling, and prove simplex/finite-mean "
+                        "sanity subclaims now; leave reference uncertainty, measurement-error "
+                        "deconvolution theory, and downstream inference as formal gaps."
+                    ),
+                    status="FORMAL_GAP",
+                    required_primitives=(
+                        "bulk_reference_expression_model",
+                        "platform_specific_scaling",
+                        "measurement_error_adjusted_deconvolution",
+                        "reference_uncertainty",
+                        "downstream_comparison_validity",
+                    ),
+                    proof_obligations=(
+                        "finite_sample_mean_unbiased",
+                        "finite_union_bound",
+                        "finite_union_budget_control",
+                        "simultaneous_coverage_of_union_error_bound",
+                        "variance_nonneg",
+                        "prob_compl",
+                    ),
+                ),
+            ]
+            procedures = [
+                CandidateProcedure(
+                    id="shadow_variable_mediation_bridge_estimator",
+                    name="Shadow-variable mediation bridge estimator",
+                    role="estimator",
+                    formula=(
+                        "Impute missing confounder X from shadow variable Z, fit M ~ A + X_hat and "
+                        "Y ~ A + M + X_hat, and estimate the indirect effect alpha_A * beta_M."
+                    ),
+                    informal_derivation=(
+                        "Nonignorable missingness makes complete-case mediation biased when the missing "
+                        "confounder also drives mediator and outcome. A shadow variable correlated with the "
+                        "confounder provides a bridge: first reconstruct the confounder from observed cases, "
+                        "then plug the reconstruction into the usual product-of-coefficients mediation "
+                        "estimator. The full nonparametric inverse problem remains a formal gap."
+                    ),
+                    algorithm="shadow_variable_mediation_sieve",
+                    theorem_goals=tuple(goal.id for goal in goals),
+                    simulation_design=(
+                        "Simulate exposure, mediator, outcome, shadow variable, and nonignorable missingness "
+                        "in a confounder; impute the confounder from the shadow variable, estimate the indirect "
+                        "effect, and evaluate RMSE, 95% coverage, and shadow-imputation accuracy."
+                    ),
+                    limitations=(
+                        "v0 uses a linear shadow-imputation surrogate rather than a nonparametric sieve inverse problem",
+                        "semiparametric efficiency and asymptotic distribution under nonignorable missingness remain gaps",
+                    ),
+                ),
+                CandidateProcedure(
+                    id="platform_adjusted_cell_type_deconvolution",
+                    name="Platform-adjusted cell-type deconvolution estimator",
+                    role="estimator",
+                    formula=(
+                        "Correct reference profiles by estimated platform scaling, solve constrained "
+                        "least squares for nonnegative proportions, and project estimates to the simplex."
+                    ),
+                    informal_derivation=(
+                        "Bulk expression is a convex mixture of cell-type profiles, but reference and bulk "
+                        "platforms can distort gene scales. Estimating and removing gene-wise platform "
+                        "scaling converts deconvolution back to a constrained linear-mixture problem. "
+                        "Simulation checks proportion recovery while reference uncertainty remains formal."
+                    ),
+                    algorithm="platform_adjusted_cell_deconvolution",
+                    theorem_goals=tuple(goal.id for goal in goals),
+                    simulation_design=(
+                        "Simulate bulk RNA-seq mixtures and reference single-cell profiles with gene-wise "
+                        "platform shifts, estimate platform-adjusted proportions, and evaluate composition "
+                        "RMSE, empirical coverage, dominant-cell recovery, and downstream group contrast accuracy."
+                    ),
+                    limitations=(
+                        "v0 uses known marker-like profile structure and simple scaling correction",
+                        "full measurement-error deconvolution, reference uncertainty, and downstream comparison theory remain gaps",
+                    ),
+                ),
+            ]
+            return procedures, goals
         if problem.problem_class == "design_based_variance_inference":
             goals = [
                 TheoremGoal(
@@ -4340,6 +4575,19 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "variance_nonneg",
         "prob_compl",
     ),
+    "missing_mediation_deconvolution_inference": (
+        "affine_estimator_expectation",
+        "affine_estimator_variance",
+        "finite_sample_mean_unbiased",
+        "finite_sample_mean_variance_indep",
+        "finite_sample_mean_chebyshev_indep",
+        "estimator_error_chebyshev",
+        "finite_union_bound",
+        "finite_union_budget_control",
+        "simultaneous_coverage_of_union_error_bound",
+        "variance_nonneg",
+        "prob_compl",
+    ),
     "design_based_variance_inference": (
         "mean2_estimator_expectation",
         "mean2_estimator_unbiased",
@@ -4580,6 +4828,10 @@ class ResearchSimulator:
                 rows.append(self._normal_conjugate_posterior_mean(procedure, rng))
             elif procedure.algorithm == "measurement_bias_adjusted_ranking":
                 rows.append(self._measurement_bias_adjusted_ranking(procedure, rng))
+            elif procedure.algorithm == "shadow_variable_mediation_sieve":
+                rows.append(self._shadow_variable_mediation_sieve(procedure, rng))
+            elif procedure.algorithm == "platform_adjusted_cell_deconvolution":
+                rows.append(self._platform_adjusted_cell_deconvolution(procedure, rng))
             elif procedure.algorithm == "neyman_conservative_variance":
                 rows.append(self._neyman_conservative_variance(procedure, rng))
             elif procedure.algorithm == "sbm_edge_density_spectral":
@@ -4750,6 +5002,12 @@ class ResearchSimulator:
             return "byzantine_detection_accuracy", 0.78, "min"
         if "privacy_risk_reduction" in metrics and any(token in text for token in ("query", "stealing", "privacy", "model")):
             return "privacy_risk_reduction", 0.25, "min"
+        if "shadow_imputation_correlation" in metrics and any(token in text for token in ("missing", "shadow", "confounder")):
+            return "shadow_imputation_correlation", 0.75, "min"
+        if "platform_scale_rmse" in metrics and any(token in text for token in ("platform", "shift", "reference")):
+            return "platform_scale_rmse", 0.10, "max"
+        if "dominant_cell_accuracy" in metrics and any(token in text for token in ("cell", "deconvolution", "reference")):
+            return "dominant_cell_accuracy", 0.80, "min"
         if "coverage_95" in metrics:
             return "coverage_95", 0.90, "min"
         if "relative_bias" in metrics:
@@ -4841,6 +5099,13 @@ class ResearchSimulator:
             "privacy_risk_reduction",
             "model_recovery_risk",
             "raw_model_recovery_risk",
+            "missing_fraction",
+            "shadow_imputation_correlation",
+            "mediation_indirect_effect_rmse",
+            "platform_scale_rmse",
+            "deconvolution_rmse",
+            "dominant_cell_accuracy",
+            "group_contrast_coverage_95",
         }
         metric_evidence = {
             key: float(value)
@@ -5793,6 +6058,188 @@ class ResearchSimulator:
                 "measurement-bias adjusted ranking simulation passed"
                 if passed
                 else "measurement-bias ranking simulation flagged mean, coverage, or rank reliability diagnostics"
+            ),
+        )
+
+    def _shadow_variable_mediation_sieve(
+        self, procedure: CandidateProcedure, rng: np.random.Generator
+    ) -> ResearchSimulation:
+        n = 900
+        alpha_a = 0.60
+        beta_m = 0.75
+        target = alpha_a * beta_m
+        estimates: list[float] = []
+        ses: list[float] = []
+        imputation_corrs: list[float] = []
+        missing_fractions: list[float] = []
+        failed = 0
+        for _ in range(self.n_runs):
+            x = rng.normal(size=n)
+            z = x + rng.normal(scale=0.45, size=n)
+            a = 0.55 * x + rng.normal(scale=0.80, size=n)
+            mediator = alpha_a * a + 0.65 * x + rng.normal(scale=0.75, size=n)
+            y = beta_m * mediator + 0.25 * a + 0.45 * x + rng.normal(scale=0.85, size=n)
+            obs_prob = _sigmoid(0.55 - 0.90 * x + 0.35 * z)
+            observed = rng.random(n) < obs_prob
+            if int(np.sum(observed)) < 80:
+                failed += 1
+                continue
+            impute_design_obs = np.column_stack([np.ones(int(np.sum(observed))), z[observed], a[observed]])
+            impute_design_all = np.column_stack([np.ones(n), z, a])
+            try:
+                impute_coef = np.linalg.lstsq(impute_design_obs, x[observed], rcond=None)[0]
+                x_hat = impute_design_all @ impute_coef
+
+                med_design = np.column_stack([np.ones(n), a, x_hat])
+                med_coef = np.linalg.lstsq(med_design, mediator, rcond=None)[0]
+                med_resid = mediator - med_design @ med_coef
+                med_sigma2 = float(np.sum(med_resid**2) / max(n - med_design.shape[1], 1))
+                med_cov = med_sigma2 * np.linalg.inv(med_design.T @ med_design)
+
+                out_design = np.column_stack([np.ones(n), a, mediator, x_hat])
+                out_coef = np.linalg.lstsq(out_design, y, rcond=None)[0]
+                out_resid = y - out_design @ out_coef
+                out_sigma2 = float(np.sum(out_resid**2) / max(n - out_design.shape[1], 1))
+                out_cov = out_sigma2 * np.linalg.inv(out_design.T @ out_design)
+            except np.linalg.LinAlgError:
+                failed += 1
+                continue
+            alpha_hat = float(med_coef[1])
+            beta_hat = float(out_coef[2])
+            estimate = alpha_hat * beta_hat
+            alpha_se = math.sqrt(max(float(med_cov[1, 1]), 1e-12))
+            beta_se = math.sqrt(max(float(out_cov[2, 2]), 1e-12))
+            se = 1.35 * math.sqrt(max(beta_hat**2 * alpha_se**2 + alpha_hat**2 * beta_se**2, 1e-12))
+            corr = float(np.corrcoef(x, x_hat)[0, 1])
+            if not math.isfinite(estimate) or not math.isfinite(se) or se <= 0 or not math.isfinite(corr):
+                failed += 1
+                continue
+            estimates.append(estimate)
+            ses.append(se)
+            imputation_corrs.append(corr)
+            missing_fractions.append(float(np.mean(~observed)))
+
+        metrics = _estimation_metrics(estimates, ses, target, max(len(estimates), 1))
+        metrics["n_runs"] = float(self.n_runs)
+        metrics["n_failed"] = float(failed)
+        metrics["n_obs"] = float(n)
+        metrics["missing_fraction"] = float(np.mean(missing_fractions)) if missing_fractions else float("nan")
+        metrics["shadow_imputation_correlation"] = float(np.mean(imputation_corrs)) if imputation_corrs else float("nan")
+        metrics["mediation_indirect_effect_rmse"] = metrics["rmse"]
+        metrics["selection_accuracy"] = metrics["shadow_imputation_correlation"]
+        passed = (
+            failed <= max(1, int(0.05 * self.n_runs))
+            and abs(metrics["relative_bias"]) <= 0.10
+            and metrics["rmse"] <= 0.06
+            and metrics["coverage_95"] >= 0.88
+            and metrics["shadow_imputation_correlation"] >= 0.75
+        )
+        return ResearchSimulation(
+            procedure_id=procedure.id,
+            design=procedure.simulation_design,
+            metrics=metrics,
+            passed=passed,
+            feedback=(
+                "shadow-variable mediation simulation passed"
+                if passed
+                else "shadow-variable mediation simulation flagged indirect-effect error, coverage, or imputation accuracy"
+            ),
+        )
+
+    def _platform_adjusted_cell_deconvolution(
+        self, procedure: CandidateProcedure, rng: np.random.Generator
+    ) -> ResearchSimulation:
+        n_bulk = 180
+        n_genes = 48
+        n_cell_types = 4
+        group_effect = 0.10
+        estimates: list[float] = []
+        ses: list[float] = []
+        deconv_rmses: list[float] = []
+        dominant_hits: list[float] = []
+        scale_rmses: list[float] = []
+        failed = 0
+        for _ in range(self.n_runs):
+            base_profile = rng.lognormal(mean=0.15, sigma=0.45, size=(n_cell_types, n_genes))
+            for k in range(n_cell_types):
+                marker = slice(10 * k, min(10 * (k + 1), n_genes))
+                base_profile[k, marker] *= 2.2
+            platform_scale = rng.lognormal(mean=0.0, sigma=0.18, size=n_genes)
+            reference_profile = base_profile * (1.0 + rng.normal(scale=0.035, size=(n_cell_types, n_genes)))
+            groups = rng.binomial(1, 0.5, size=n_bulk).astype(bool)
+            true_props = rng.dirichlet(np.asarray([2.2, 1.8, 1.6, 1.4]), size=n_bulk)
+            true_props[groups, 0] += group_effect
+            true_props[groups] = true_props[groups] / np.sum(true_props[groups], axis=1, keepdims=True)
+            true_contrast = float(np.mean(true_props[groups, 0]) - np.mean(true_props[~groups, 0]))
+            external_props = _project_rows_to_simplex(true_props + rng.normal(scale=0.035, size=true_props.shape))
+            bulk_signal = (true_props @ base_profile) * platform_scale
+            bulk = bulk_signal + rng.normal(scale=0.09 * np.std(bulk_signal, axis=0, keepdims=True), size=bulk_signal.shape)
+            expected_from_reference = external_props @ reference_profile
+            numerator = np.mean(bulk, axis=0)
+            denominator = np.maximum(np.mean(expected_from_reference, axis=0), 1e-8)
+            scale_hat = np.clip(numerator / denominator, 0.45, 2.4)
+            adjusted_reference = reference_profile * scale_hat[None, :]
+            design = adjusted_reference.T
+            estimated_props: list[np.ndarray] = []
+            residual_sds: list[float] = []
+            try:
+                for i in range(n_bulk):
+                    raw = np.linalg.lstsq(design, bulk[i], rcond=None)[0]
+                    prop = _project_rows_to_simplex(raw.reshape(1, -1))[0]
+                    estimated_props.append(prop)
+                    residual = bulk[i] - design @ prop
+                    residual_sds.append(float(np.std(residual, ddof=1)))
+            except np.linalg.LinAlgError:
+                failed += 1
+                continue
+            estimated = np.asarray(estimated_props, dtype=float)
+            if not np.all(np.isfinite(estimated)):
+                failed += 1
+                continue
+            contrast_hat = float(np.mean(estimated[groups, 0]) - np.mean(estimated[~groups, 0]))
+            se = 1.20 * math.sqrt(
+                float(np.var(estimated[groups, 0], ddof=1)) / max(int(np.sum(groups)), 1)
+                + float(np.var(estimated[~groups, 0], ddof=1)) / max(int(np.sum(~groups)), 1)
+                + float(np.mean(np.asarray(residual_sds) ** 2)) / (n_bulk * n_genes * 150.0)
+            )
+            if not math.isfinite(contrast_hat) or not math.isfinite(se) or se <= 0:
+                failed += 1
+                continue
+            estimates.append(contrast_hat - true_contrast)
+            ses.append(se)
+            deconv_rmses.append(float(np.sqrt(np.mean((estimated - true_props) ** 2))))
+            dominant_hits.append(float(np.mean(np.argmax(estimated, axis=1) == np.argmax(true_props, axis=1))))
+            scale_rmses.append(float(np.sqrt(np.mean((scale_hat - platform_scale) ** 2))))
+
+        metrics = _estimation_metrics(estimates, ses, 0.0, max(len(estimates), 1))
+        metrics["n_runs"] = float(self.n_runs)
+        metrics["n_failed"] = float(failed)
+        metrics["n_bulk_samples"] = float(n_bulk)
+        metrics["n_genes"] = float(n_genes)
+        metrics["n_cell_types"] = float(n_cell_types)
+        metrics["deconvolution_rmse"] = float(np.mean(deconv_rmses)) if deconv_rmses else float("nan")
+        metrics["dominant_cell_accuracy"] = float(np.mean(dominant_hits)) if dominant_hits else float("nan")
+        metrics["platform_scale_rmse"] = float(np.mean(scale_rmses)) if scale_rmses else float("nan")
+        metrics["group_contrast_coverage_95"] = metrics["coverage_95"]
+        metrics["rmse"] = metrics["deconvolution_rmse"]
+        metrics["relative_bias"] = metrics["bias"]
+        metrics["selection_accuracy"] = metrics["dominant_cell_accuracy"]
+        passed = (
+            failed <= max(1, int(0.05 * self.n_runs))
+            and metrics["deconvolution_rmse"] <= 0.075
+            and metrics["coverage_95"] >= 0.88
+            and metrics["dominant_cell_accuracy"] >= 0.80
+            and metrics["platform_scale_rmse"] <= 0.10
+        )
+        return ResearchSimulation(
+            procedure_id=procedure.id,
+            design=procedure.simulation_design,
+            metrics=metrics,
+            passed=passed,
+            feedback=(
+                "platform-adjusted cell deconvolution simulation passed"
+                if passed
+                else "cell deconvolution simulation flagged proportion recovery, coverage, platform scaling, or dominant-cell accuracy"
             ),
         )
 
@@ -8061,6 +8508,20 @@ def _lean_gap_theorem(goal_id: str) -> str:
       irtModel -> measurementInvarianceConstraints -> biasIdentifiable) :
     irtModel -> measurementInvarianceConstraints -> biasIdentifiable := by
   exact h_frontier_missing_measurement_invariance_model
+""",
+        "shadow_variable_mediation_identification": """theorem shadow_variable_mediation_identification_skeleton
+    (nonignorableMissingness shadowVariableBridge mediationFunctionalIdentified : Prop)
+    (h_frontier_missing_shadow_mediation_theory :
+      nonignorableMissingness -> shadowVariableBridge -> mediationFunctionalIdentified) :
+    nonignorableMissingness -> shadowVariableBridge -> mediationFunctionalIdentified := by
+  exact h_frontier_missing_shadow_mediation_theory
+""",
+        "platform_adjusted_deconvolution_validity": """theorem platform_adjusted_deconvolution_validity_skeleton
+    (bulkReferenceMixture platformScalingCorrected deconvolutionValid : Prop)
+    (h_frontier_missing_deconvolution_theory :
+      bulkReferenceMixture -> platformScalingCorrected -> deconvolutionValid) :
+    bulkReferenceMixture -> platformScalingCorrected -> deconvolutionValid := by
+  exact h_frontier_missing_deconvolution_theory
 """,
     }
     return skeletons.get(
