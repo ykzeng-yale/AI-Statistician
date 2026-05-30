@@ -84,6 +84,21 @@ criteria. It is the first executable bridge from `next_iteration_agenda` to live
 action and training/exportable repair work. It is not yet full autonomous
 theory repair.
 
+Repair-task audit and training export:
+
+```bash
+python3 -m ai_statistician.cli research-loop-repair-audit \
+  --loop-dir runs/research_loop \
+  --out runs/research_loop_repair_audit
+```
+
+This validates every loop repair task and writes
+`research_loop_repair_sft_train.jsonl`,
+`research_loop_repair_sft_validation.jsonl`, and
+`research_loop_repair_audit_manifest.json`. These are planning examples for the
+next TheoryDeveloper / ProofEngineer / AlgorithmEngineer agents; they do not
+claim the repair has already been solved.
+
 ## Target Closed-Loop Research Lab
 
 The broader target is not only a registered estimator executor. It is an AI

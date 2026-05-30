@@ -36,6 +36,7 @@ from .research_intake_audit import audit_research_question_intake
 from .research_knowledge_audit import audit_research_knowledge
 from .research_lab import audit_research_algorithm_registry, load_open_research_questions, run_research_benchmark
 from .research_loop import LoopConfig, run_research_loop_benchmark
+from .research_loop_repair_audit import audit_research_loop_repair_tasks
 from .research_next_iteration_audit import audit_next_iteration_queue
 from .research_capability_audit import build_research_capability_audit, write_research_capability_audit
 from .research_policy_baseline import evaluate_research_policy_baseline
@@ -1105,6 +1106,27 @@ async def _research_loop(args: argparse.Namespace) -> int:
     return 0 if payload["all_loop_traces_written"] else 1
 
 
+def _research_loop_repair_audit(args: argparse.Namespace) -> int:
+    payload = audit_research_loop_repair_tasks(
+        Path(args.loop_dir),
+        Path(args.out),
+        validation_fraction=args.validation_fraction,
+    )
+    print("\nAI Statistical Theory Lab Research Loop Repair Audit")
+    print("=" * 72)
+    print(
+        f"tasks={payload['n_ok']}/{payload['n_tasks']} "
+        f"sft={payload['n_sft_examples']} all_ok={payload['all_ok']}"
+    )
+    for owner, count in payload["by_owner"].items():
+        print(f"  {owner}: {count}")
+    print(
+        f"\nrepair audit manifest written to "
+        f"{(Path(args.out) / 'research_loop_repair_audit_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
 async def _research_eval(args: argparse.Namespace) -> int:
     _load_dotenv(Path(args.env_file))
     questions = load_open_research_questions(Path(args.question_file))
@@ -1833,6 +1855,19 @@ def build_parser() -> argparse.ArgumentParser:
     research_loop.add_argument("--out", default="runs/research_loop", help="research loop output directory")
     research_loop.add_argument("--env-file", default=".env")
     research_loop.set_defaults(func=lambda args: asyncio.run(_research_loop(args)))
+
+    research_loop_repair_audit = sub.add_parser(
+        "research-loop-repair-audit",
+        help="audit research-loop repair tasks and export SFT planning examples",
+    )
+    research_loop_repair_audit.add_argument("--loop-dir", required=True, help="directory containing research_loop_manifest.json")
+    research_loop_repair_audit.add_argument(
+        "--out",
+        default="runs/research_loop_repair_audit",
+        help="research loop repair audit output directory",
+    )
+    research_loop_repair_audit.add_argument("--validation-fraction", type=float, default=0.2)
+    research_loop_repair_audit.set_defaults(func=_research_loop_repair_audit)
 
     research_eval = sub.add_parser(
         "research-eval",

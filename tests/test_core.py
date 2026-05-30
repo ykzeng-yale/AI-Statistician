@@ -56,6 +56,7 @@ from ai_statistician.research_lab import (
     TheoryPlanner,
 )
 from ai_statistician.research_loop import ResearchLoopCoordinator
+from ai_statistician.research_loop_repair_audit import audit_research_loop_repair_tasks
 from ai_statistician.research_next_iteration_audit import audit_next_iteration_queue
 from ai_statistician.research_paper_index import build_paper_source_index, retrieve_paper_sources
 from ai_statistician.research_policy_baseline import evaluate_research_policy_baseline
@@ -2828,6 +2829,61 @@ class SystemTests(unittest.TestCase):
         self.assertIn("revised_theorem_goals", task["output_contract"]["required_fields"])
         self.assertTrue(any("simulation" in item for item in task["acceptance_criteria"]))
 
+    def test_research_loop_repair_audit_exports_sft_examples(self) -> None:
+        loop_dir = Path("runs/test_research_loop_repair_audit_input")
+        loop_dir.mkdir(parents=True, exist_ok=True)
+        task_path = loop_dir / "research_loop_repair_tasks.jsonl"
+        task = {
+            "schema_version": 1,
+            "task_id": "loop_repair:theory_developer:theory_revision_from_simulation_failure:test",
+            "source_action_id": "simulation:test",
+            "question_id": "q",
+            "problem_class": "semiparametric_causal_ate",
+            "owner_agent": "theory_developer",
+            "task_type": "theory_revision_from_simulation_failure",
+            "trigger": "THEORY_OR_PROCEDURE_ISSUE",
+            "priority": "high",
+            "prompt": "Revise the theory plan.",
+            "evidence": "coverage below threshold",
+            "context": {
+                "dgp": "iid observations",
+                "estimand": "ATE",
+                "assumptions": ["iid"],
+                "asymptotic_regime": "sqrt(n)",
+            },
+            "acceptance_criteria": ["simulation diagnostics pass after revision"],
+            "output_contract": {
+                "required_fields": [
+                    "revised_procedure",
+                    "revised_theorem_goals",
+                    "assumption_delta",
+                    "expected_simulation_delta",
+                ],
+                "required_gate": "rerun research-loop without same diagnosis",
+            },
+        }
+        task_path.write_text(json.dumps(task) + "\n", encoding="utf-8")
+        (loop_dir / "research_loop_manifest.json").write_text(
+            json.dumps({"repair_tasks_jsonl": str(task_path), "n_repair_tasks": 1}),
+            encoding="utf-8",
+        )
+        payload = audit_research_loop_repair_tasks(
+            loop_dir,
+            Path("runs/test_research_loop_repair_audit"),
+            validation_fraction=0.0,
+        )
+        self.assertTrue(payload["all_ok"])
+        self.assertEqual(payload["n_tasks"], 1)
+        self.assertEqual(payload["n_sft_examples"], 1)
+        self.assertEqual(payload["by_owner"]["theory_developer"], 1)
+        self.assertTrue(Path(payload["train_jsonl"]).exists())
+        rows = [
+            json.loads(line)
+            for line in Path(payload["train_jsonl"]).read_text(encoding="utf-8").splitlines()
+        ]
+        self.assertEqual(rows[0]["task"], "research_loop_repair_planning")
+        self.assertIn("theory_revision_from_simulation_failure", rows[0]["tags"])
+
     def test_prover_component_audit_is_honest_about_training_gaps(self) -> None:
         payload = build_prover_component_audit(root=Path("."))
         self.assertTrue(payload["paper_outline_exists"])
@@ -2901,6 +2957,7 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(payload["gates"]["next_iteration_queue"])
         self.assertTrue(payload["gates"]["research_report"])
         self.assertTrue(payload["gates"]["research_loop"])
+        self.assertTrue(payload["gates"]["research_loop_repair_audit"])
         self.assertEqual(payload["counts"]["questions"], 10)
         self.assertEqual(payload["counts"]["frontier_questions"], 60)
         self.assertEqual(payload["counts"]["frontier_supported"], 60)
@@ -2927,6 +2984,11 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(payload["counts"]["research_loop_traces_written"])
         self.assertTrue(payload["counts"]["research_loop_repair_tasks_exported"])
         self.assertGreaterEqual(payload["counts"]["research_loop_repair_tasks"], 1)
+        self.assertEqual(
+            payload["counts"]["research_loop_repair_tasks_ok"],
+            payload["counts"]["research_loop_repair_tasks"],
+        )
+        self.assertGreaterEqual(payload["counts"]["research_loop_repair_sft_examples"], 1)
         self.assertEqual(
             payload["counts"]["frontier_theory_targets_scored"],
             payload["counts"]["frontier_theory_targets_total"],
