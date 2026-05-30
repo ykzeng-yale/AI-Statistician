@@ -1334,6 +1334,8 @@ async def _research_system_audit(args: argparse.Namespace) -> int:
             refresh_frontier_smoke_cache=args.refresh_frontier_smoke_cache,
             formal_source_graph_cache=args.formal_source_graph_cache,
             refresh_formal_source_graph_cache=args.refresh_formal_source_graph_cache,
+            research_benchmark_cache=args.research_benchmark_cache,
+            refresh_research_benchmark_cache=args.refresh_research_benchmark_cache,
         ),
     )
     print("\nAI Statistical Theory Lab System Audit")
@@ -1350,6 +1352,7 @@ async def _research_system_audit(args: argparse.Namespace) -> int:
         f"frontier_smoke={counts['frontier_smoke_ready']}/{counts['frontier_smoke_questions']} "
         f"frontier_smoke_cache={counts['frontier_smoke_cache_status']} "
         f"formal_graph_cache={counts['formal_source_graph_cache_status']} "
+        f"research_cache={counts['research_benchmark_cache_status']} "
         f"intake_supported={counts['research_intake_supported_accepted']}/{counts['research_intake_supported']} "
         f"intake_unsupported={counts['research_intake_unsupported_rejected']}/{counts['research_intake_unsupported']} "
         f"knowledge={counts['research_knowledge_problem_ok']}/{counts['research_knowledge_problem_rows']} "
@@ -2188,6 +2191,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--refresh-frontier-smoke-cache",
         action="store_true",
         help="rebuild and overwrite the matching frontier smoke trace cache entry",
+    )
+    research_system_audit.add_argument(
+        "--research-benchmark-cache",
+        default="runs/research_benchmark_cache",
+        help="persistent cache directory for repeated main research benchmark traces; pass empty string to disable",
+    )
+    research_system_audit.add_argument(
+        "--refresh-research-benchmark-cache",
+        action="store_true",
+        help="rebuild and overwrite the matching main research benchmark trace cache entry",
     )
     research_system_audit.add_argument("--seed", type=int, default=20260528)
     research_system_audit.add_argument("--out", default="runs/research_system_audit", help="research system audit output directory")
