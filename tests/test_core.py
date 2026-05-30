@@ -1712,19 +1712,25 @@ class SystemTests(unittest.TestCase):
         self.assertLessEqual(mcmc_sim.metrics["covariance_rmse"], 0.18)
 
     def test_frontier_smoke_benchmark_runs_selected_supported_papers(self) -> None:
+        out_dir = Path("runs/test_frontier_smoke_benchmark")
+        cached_out_dir = Path("runs/test_frontier_smoke_benchmark_cached")
+        cache_dir = Path("runs/test_frontier_smoke_cache")
+        for path in (out_dir, cached_out_dir, cache_dir):
+            shutil.rmtree(path, ignore_errors=True)
+
         selected, metadata = select_supported_frontier_questions(max_per_class=1)
         self.assertGreaterEqual(len(selected), 3)
         self.assertEqual(len(selected), len(metadata))
         self.assertEqual(len({row.problem_class for row in metadata}), len(metadata))
 
-        async def run():
+        async def run(out: Path):
             return await run_frontier_smoke_benchmark(
-                Path("runs/test_frontier_smoke_benchmark"),
-                config=FrontierSmokeConfig(n_runs=25, seed=20260528),
+                out,
+                config=FrontierSmokeConfig(n_runs=25, seed=20260528, cache_dir=str(cache_dir)),
                 proof_verifier=MockProofVerifier(),
             )
 
-        payload = asyncio.run(run())
+        payload = asyncio.run(run(out_dir))
         self.assertTrue(payload["all_gates_passed"])
         self.assertTrue(payload["gates"]["frontier_theory_target_audit"])
         self.assertEqual(payload["counts"]["questions"], payload["n_selected"])
@@ -1737,16 +1743,24 @@ class SystemTests(unittest.TestCase):
         self.assertGreater(payload["timings"]["total_elapsed_ms"], 0)
         self.assertTrue(payload["timings"]["stages"])
         self.assertIn("research_benchmark", {row["stage"] for row in payload["timings"]["stages"]})
+        self.assertEqual(payload["counts"]["frontier_smoke_cache_status"], "miss")
+        payload_cached = asyncio.run(run(cached_out_dir))
+        self.assertTrue(payload_cached["all_gates_passed"])
+        self.assertEqual(payload_cached["counts"]["frontier_smoke_cache_status"], "hit")
+        self.assertIn(
+            "research_benchmark_cache_hit",
+            {row["stage"] for row in payload_cached["timings"]["stages"]},
+        )
         self.assertEqual(payload["counts"]["frontier_smoke_total_elapsed_ms"], payload["timings"]["total_elapsed_ms"])
         self.assertTrue(payload["counts"]["frontier_smoke_slowest_stage"])
-        self.assertTrue(Path("runs/test_frontier_smoke_benchmark/frontier_smoke_manifest.json").exists())
-        self.assertTrue(Path("runs/test_frontier_smoke_benchmark/selected_questions.json").exists())
+        self.assertTrue((out_dir / "frontier_smoke_manifest.json").exists())
+        self.assertTrue((out_dir / "selected_questions.json").exists())
         self.assertTrue(Path(payload["artifacts"]["research_benchmark"]).exists())
         self.assertTrue(Path(payload["artifacts"]["frontier_theory_target_audit"]).exists())
         target_audit = json.loads(Path(payload["artifacts"]["frontier_theory_target_audit"]).read_text())
         self.assertTrue(target_audit["all_scored"])
         self.assertFalse(target_audit["limitations"][0] == "")
-        dp_trace_path = Path("runs/test_frontier_smoke_benchmark/research_benchmark/robust_privacy_distributed_02.json")
+        dp_trace_path = out_dir / "research_benchmark" / "robust_privacy_distributed_02.json"
         self.assertTrue(dp_trace_path.exists())
         dp_trace = json.loads(dp_trace_path.read_text())
         dp_goals = {row["id"]: row for row in dp_trace["theorem_goals"]}
@@ -3889,6 +3903,9 @@ class SystemTests(unittest.TestCase):
         self.assertGreater(payload["counts"]["frontier_smoke_total_elapsed_ms"], 0)
         self.assertTrue(payload["counts"]["frontier_smoke_slowest_stage"])
         self.assertGreater(payload["counts"]["frontier_smoke_slowest_stage_elapsed_ms"], 0)
+        self.assertTrue(payload["counts"]["frontier_smoke_cache_enabled"])
+        self.assertIn(payload["counts"]["frontier_smoke_cache_status"], {"hit", "miss"})
+        self.assertTrue(payload["counts"]["frontier_smoke_cache_key"])
         self.assertEqual(payload["counts"]["research_loop_questions"], 1)
         self.assertTrue(payload["counts"]["research_loop_traces_written"])
         self.assertTrue(payload["counts"]["research_loop_repair_tasks_exported"])

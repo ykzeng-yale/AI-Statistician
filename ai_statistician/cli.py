@@ -456,6 +456,8 @@ async def _frontier_smoke_benchmark(args: argparse.Namespace) -> int:
             seed=args.seed,
             max_per_class=args.max_per_class,
             use_axle=args.real_lean,
+            cache_dir=args.frontier_smoke_cache or None,
+            refresh_cache=args.refresh_frontier_smoke_cache,
         ),
         proof_verifier=verifier,
     )
@@ -463,7 +465,8 @@ async def _frontier_smoke_benchmark(args: argparse.Namespace) -> int:
     print("=" * 72)
     print(
         f"selected={payload['n_selected']} ready={payload['counts']['ready_with_gaps']}/{payload['counts']['questions']} "
-        f"all_gates_passed={payload['all_gates_passed']}"
+        f"all_gates_passed={payload['all_gates_passed']} "
+        f"cache={payload['counts']['frontier_smoke_cache_status']}"
     )
     for row in payload["selections"]:
         print(f"  {row['question_id']}: class={row['problem_class']} topic={row['topic']}")
@@ -1321,6 +1324,8 @@ async def _research_system_audit(args: argparse.Namespace) -> int:
             local_lean_timeout=args.lean_timeout,
             formal_source_index_cache=args.formal_source_index_cache,
             refresh_formal_source_index_cache=args.refresh_formal_source_index_cache,
+            frontier_smoke_cache=args.frontier_smoke_cache,
+            refresh_frontier_smoke_cache=args.refresh_frontier_smoke_cache,
         ),
     )
     print("\nAI Statistical Theory Lab System Audit")
@@ -1335,6 +1340,7 @@ async def _research_system_audit(args: argparse.Namespace) -> int:
         f"frontier_precision={counts['frontier_precision_ok']}/{counts['frontier_precision_supported']} "
         f"frontier_backlog={counts['frontier_backlog_ok']}/{counts['frontier_backlog_total']} "
         f"frontier_smoke={counts['frontier_smoke_ready']}/{counts['frontier_smoke_questions']} "
+        f"frontier_smoke_cache={counts['frontier_smoke_cache_status']} "
         f"intake_supported={counts['research_intake_supported_accepted']}/{counts['research_intake_supported']} "
         f"intake_unsupported={counts['research_intake_unsupported_rejected']}/{counts['research_intake_unsupported']} "
         f"knowledge={counts['research_knowledge_problem_ok']}/{counts['research_knowledge_problem_rows']} "
@@ -1615,6 +1621,16 @@ def build_parser() -> argparse.ArgumentParser:
     frontier_smoke_benchmark.add_argument("--runs", type=int, default=60, help="Monte Carlo replicates for each selected paper-style question")
     frontier_smoke_benchmark.add_argument("--seed", type=int, default=20260528)
     frontier_smoke_benchmark.add_argument("--max-per-class", type=int, default=1)
+    frontier_smoke_benchmark.add_argument(
+        "--frontier-smoke-cache",
+        default="",
+        help="optional persistent cache directory for selected frontier smoke traces; empty disables",
+    )
+    frontier_smoke_benchmark.add_argument(
+        "--refresh-frontier-smoke-cache",
+        action="store_true",
+        help="rebuild the selected frontier smoke trace cache entry",
+    )
     frontier_smoke_benchmark.add_argument("--out", default="runs/frontier_smoke_benchmark", help="frontier smoke output directory")
     frontier_smoke_benchmark.add_argument("--env-file", default=".env")
     frontier_smoke_benchmark.set_defaults(func=lambda args: asyncio.run(_frontier_smoke_benchmark(args)))
@@ -2133,6 +2149,16 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=25,
         help="Monte Carlo replicates for broad frontier smoke traces; keep lower than --runs for fast release gates",
+    )
+    research_system_audit.add_argument(
+        "--frontier-smoke-cache",
+        default="runs/frontier_smoke_cache",
+        help="persistent cache directory for repeated frontier smoke trace generation; pass empty string to disable",
+    )
+    research_system_audit.add_argument(
+        "--refresh-frontier-smoke-cache",
+        action="store_true",
+        help="rebuild and overwrite the matching frontier smoke trace cache entry",
     )
     research_system_audit.add_argument("--seed", type=int, default=20260528)
     research_system_audit.add_argument("--out", default="runs/research_system_audit", help="research system audit output directory")
