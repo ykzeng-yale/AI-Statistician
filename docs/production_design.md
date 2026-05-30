@@ -1235,6 +1235,9 @@ release audits can copy that cache into the run directory instead of rescanning
 all local Mathlib/StatInference/Atlas Lean sources. Use
 `--refresh-formal-source-index-cache` when local formal sources have changed, or
 pass `--formal-source-index-cache ""` to force the old per-run rebuild path.
+The manifest includes a `timings` block with coarse stage elapsed milliseconds
+and `slowest_stages`, plus `counts.audit_slowest_stage`, so optimization work
+can target the actual bottleneck in the current environment.
 
 This writes `proof_audit_manifest.json` plus one exported Lean file per formal
 obligation. The Lean exports are intentionally per-obligation files because

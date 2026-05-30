@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -63,6 +64,10 @@ async def run_research_system_audit(
 ) -> dict[str, object]:
     """Run release-style gates for the open-question research workflow."""
 
+    audit_start = time.perf_counter()
+    stage_timings: list[dict[str, object]] = []
+    stage_start = audit_start
+
     out_dir.mkdir(parents=True, exist_ok=True)
     if config.use_local_lean:
         base_verifier: ProofVerifier = LocalLeanProofVerifier(
@@ -74,6 +79,8 @@ async def run_research_system_audit(
     verifier = CachingProofVerifier(base_verifier)
     actual_question_file = question_file or Path("examples/research_questions.json")
     questions = load_open_research_questions(actual_question_file)
+    stage_start = _record_stage(stage_timings, "setup", stage_start)
+
     formal_source_index_path = out_dir / "formal_source_index.sqlite"
     formal_source_retriever = build_formal_source_search_backend(
         db_path=formal_source_index_path,
@@ -84,6 +91,8 @@ async def run_research_system_audit(
         ),
         refresh_cache=config.refresh_formal_source_index_cache,
     )
+    stage_start = _record_stage(stage_timings, "formal_source_index_backend", stage_start)
+
     formal_source_declarations = (
         formal_source_retriever.load_declarations()
         if hasattr(formal_source_retriever, "load_declarations")
@@ -99,10 +108,13 @@ async def run_research_system_audit(
         "graph_backend": "declaration_symbol_graph",
         "graph_manifest": str(out_dir / "formal_source_graph" / "formal_source_graph_manifest.json"),
     }
+    stage_start = _record_stage(stage_timings, "formal_source_graph", stage_start)
 
     frontier_manifest = audit_frontier_coverage(out_dir / "frontier_coverage_audit")
     frontier_precision_manifest = audit_frontier_precision(out_dir / "frontier_precision_audit")
     frontier_backlog_manifest = audit_frontier_backlog(out_dir / "frontier_backlog_audit")
+    stage_start = _record_stage(stage_timings, "frontier_static_audits", stage_start)
+
     architecture_manifest = audit_architecture(out_dir / "architecture_audit")
     capability_report = build_research_capability_audit(
         root=Path.cwd(),
@@ -110,12 +122,16 @@ async def run_research_system_audit(
         max_manifests=12,
     )
     write_research_capability_audit(capability_report, out_dir / "research_capability_audit")
+    stage_start = _record_stage(stage_timings, "architecture_capability_audits", stage_start)
+
     proof_manifest = await audit_proof_bank(
         verifier,
         out_dir / "proof_audit",
         export_lean=True,
         include_negative_controls=not (config.use_axle or config.use_local_lean),
     )
+    stage_start = _record_stage(stage_timings, "proof_audit", stage_start)
+
     frontier_smoke_manifest = await run_frontier_smoke_benchmark(
         out_dir / "frontier_smoke_benchmark",
         config=FrontierSmokeConfig(n_runs=config.n_runs, seed=config.seed, max_per_class=1, use_axle=config.use_axle),
@@ -123,11 +139,15 @@ async def run_research_system_audit(
         formal_source_retriever=formal_source_retriever,
         formal_source_search=formal_source_search,
     )
+    stage_start = _record_stage(stage_timings, "frontier_smoke_benchmark", stage_start)
+
     intake_manifest = audit_research_question_intake(out_dir / "research_intake_audit")
     knowledge_manifest = audit_research_knowledge(out_dir / "research_knowledge_audit")
     autoform_harness_manifest = audit_autoform_harness(out_dir / "autoform_harness")
     retrieval_manifest = audit_proof_bank_retrieval(out_dir / "retrieval_audit", k=5)
     algorithm_manifest = audit_research_algorithm_registry(out_dir / "research_algorithm_audit")
+    stage_start = _record_stage(stage_timings, "small_static_audits", stage_start)
+
     proof_attempt_log = Path(str(proof_manifest["proof_attempt_log"]["attempt_log"]))
     proof_training_manifest = export_proof_training_dataset(
         proof_attempt_log,
@@ -145,11 +165,15 @@ async def run_research_system_audit(
         out_dir / "proof_policy_baseline",
         k=5,
     )
+    stage_start = _record_stage(stage_timings, "proof_training_repair_policy_exports", stage_start)
+
     prover_component_report = build_prover_component_audit(
         root=Path.cwd(),
         question_file=actual_question_file,
     )
     write_prover_component_audit(prover_component_report, out_dir / "prover_component_audit")
+    stage_start = _record_stage(stage_timings, "prover_component_audit", stage_start)
+
     benchmark_manifest = await run_research_benchmark(
         questions,
         out_dir / "research_benchmark",
@@ -159,6 +183,8 @@ async def run_research_system_audit(
         n_runs=config.n_runs,
         seed=config.seed,
     )
+    stage_start = _record_stage(stage_timings, "research_benchmark", stage_start)
+
     trace_manifest = audit_research_traces(
         out_dir / "research_benchmark",
         out_dir / "research_trace_audit",
@@ -183,6 +209,8 @@ async def run_research_system_audit(
         out_dir / "research_benchmark",
         out_dir / "proof_bank_expansion",
     )
+    stage_start = _record_stage(stage_timings, "research_trace_gap_exports", stage_start)
+
     research_training_manifest = export_research_training_dataset(
         out_dir / "research_benchmark",
         out_dir / "research_training_export",
@@ -202,6 +230,8 @@ async def run_research_system_audit(
         out_dir / "research_benchmark",
         out_dir / "research_report",
     )
+    stage_start = _record_stage(stage_timings, "research_training_policy_report_exports", stage_start)
+
     research_loop_manifest = await run_research_loop_benchmark(
         questions[:1],
         out_dir / "research_loop",
@@ -209,6 +239,8 @@ async def run_research_system_audit(
         formal_source_index_path=formal_source_index_path,
         config=LoopConfig(max_rounds=2, n_runs=config.n_runs, seed=config.seed),
     )
+    stage_start = _record_stage(stage_timings, "research_loop", stage_start)
+
     research_loop_repair_manifest = audit_research_loop_repair_tasks(
         out_dir / "research_loop",
         out_dir / "research_loop_repair_audit",
@@ -217,6 +249,8 @@ async def run_research_system_audit(
         out_dir / "research_loop",
         out_dir / "research_loop_live_repair_audit",
     )
+    stage_start = _record_stage(stage_timings, "research_loop_repair_audits", stage_start)
+
     algorithm_repair_promotion_manifest = export_algorithm_repair_promotion_queue(
         out_dir / "research_loop",
         out_dir / "algorithm_repair_promotion",
@@ -236,6 +270,7 @@ async def run_research_system_audit(
         n_runs=max(10, min(config.n_runs, 50)),
         seed=config.seed + 17,
     )
+    stage_start = _record_stage(stage_timings, "algorithm_repair_pipeline", stage_start)
 
     benchmark_gate_ok = (
         int(benchmark_manifest["n_questions"]) == len(questions)
@@ -302,6 +337,11 @@ async def run_research_system_audit(
         "algorithm_repair_sandbox_apply": bool(algorithm_repair_sandbox_apply_manifest["all_ok"]),
         "algorithm_repair_sandbox_rerun": bool(algorithm_repair_sandbox_rerun_manifest["all_ok"]),
     }
+    total_elapsed_ms = int((time.perf_counter() - audit_start) * 1000)
+    slowest_stages = sorted(
+        stage_timings,
+        key=lambda row: (-int(row["elapsed_ms"]), str(row["stage"])),
+    )[:8]
     payload = {
         "created_at": datetime.now(timezone.utc).isoformat(),
         "config": {
@@ -317,8 +357,16 @@ async def run_research_system_audit(
         },
         "all_gates_passed": all(gates.values()),
         "gates": gates,
+        "timings": {
+            "total_elapsed_ms": total_elapsed_ms,
+            "stages": stage_timings,
+            "slowest_stages": slowest_stages,
+        },
         "counts": {
             "questions": len(questions),
+            "audit_total_elapsed_ms": total_elapsed_ms,
+            "audit_slowest_stage": str(slowest_stages[0]["stage"]) if slowest_stages else "",
+            "audit_slowest_stage_elapsed_ms": int(slowest_stages[0]["elapsed_ms"]) if slowest_stages else 0,
             "frontier_questions": frontier_manifest["n_questions"],
             "frontier_supported": frontier_manifest["n_supported"],
             "frontier_unsupported": frontier_manifest["n_unsupported"],
@@ -691,3 +739,18 @@ async def run_research_system_audit(
         encoding="utf-8",
     )
     return payload
+
+
+def _record_stage(
+    stage_timings: list[dict[str, object]],
+    stage: str,
+    started_at: float,
+) -> float:
+    now = time.perf_counter()
+    stage_timings.append(
+        {
+            "stage": stage,
+            "elapsed_ms": int((now - started_at) * 1000),
+        }
+    )
+    return now
