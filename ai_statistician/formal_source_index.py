@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import sqlite3
 from contextlib import closing
 from dataclasses import asdict, dataclass
@@ -377,6 +378,8 @@ def build_formal_source_search_backend(
     db_path: Path | str | None = None,
     roots: tuple[FormalSourceRoot, ...] = DEFAULT_FORMAL_SOURCE_ROOTS,
     include_graph: bool = True,
+    cache_path: Path | str | None = None,
+    refresh_cache: bool = False,
 ) -> object:
     """Build the local formal-source retriever used by research traces.
 
@@ -387,15 +390,50 @@ def build_formal_source_search_backend(
     in-memory backend for small fixtures and tests.
     """
 
+    cache_file = Path(cache_path) if cache_path is not None else None
+    if db_path is not None:
+        target_db = Path(db_path)
+        if cache_file is not None and cache_file.exists() and not refresh_cache:
+            try:
+                target_db.parent.mkdir(parents=True, exist_ok=True)
+                if target_db.resolve() != cache_file.resolve():
+                    shutil.copy2(cache_file, target_db)
+                sqlite_index = FormalSourceSqliteIndex(target_db)
+                declarations = sqlite_index.load_declarations()
+                if include_graph:
+                    from .formal_source_hybrid import FormalSourceHybridRetriever
+
+                    retriever = FormalSourceHybridRetriever(declarations, sqlite_index)
+                else:
+                    retriever = sqlite_index
+                setattr(retriever, "cache_status", "hit")
+                setattr(retriever, "cache_path", str(cache_file))
+                return retriever
+            except Exception:
+                # Stale or incompatible cache. Rebuild below and overwrite it.
+                if target_db.exists():
+                    target_db.unlink()
+
     declarations = build_formal_source_index(roots=roots)
     if db_path is not None:
         sqlite_index = FormalSourceSqliteIndex.build(declarations, db_path)
+        if cache_file is not None:
+            cache_file.parent.mkdir(parents=True, exist_ok=True)
+            if Path(db_path).resolve() != cache_file.resolve():
+                shutil.copy2(db_path, cache_file)
         if include_graph:
             from .formal_source_hybrid import FormalSourceHybridRetriever
 
-            return FormalSourceHybridRetriever(declarations, sqlite_index)
-        return sqlite_index
-    return FormalSourceRetriever(declarations)
+            retriever = FormalSourceHybridRetriever(declarations, sqlite_index)
+        else:
+            retriever = sqlite_index
+        setattr(retriever, "cache_status", "miss" if cache_file is not None else "disabled")
+        setattr(retriever, "cache_path", str(cache_file) if cache_file is not None else "")
+        return retriever
+    retriever = FormalSourceRetriever(declarations)
+    setattr(retriever, "cache_status", "disabled")
+    setattr(retriever, "cache_path", "")
+    return retriever
 
 
 def audit_formal_source_index(

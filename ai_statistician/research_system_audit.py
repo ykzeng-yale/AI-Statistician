@@ -51,6 +51,8 @@ class ResearchSystemAuditConfig:
     use_local_lean: bool = False
     local_lean_project: str | None = None
     local_lean_timeout: int = 90
+    formal_source_index_cache: str | None = "runs/formal_source_index_cache/formal_source_index.sqlite"
+    refresh_formal_source_index_cache: bool = False
 
 
 async def run_research_system_audit(
@@ -73,7 +75,15 @@ async def run_research_system_audit(
     actual_question_file = question_file or Path("examples/research_questions.json")
     questions = load_open_research_questions(actual_question_file)
     formal_source_index_path = out_dir / "formal_source_index.sqlite"
-    formal_source_retriever = build_formal_source_search_backend(db_path=formal_source_index_path)
+    formal_source_retriever = build_formal_source_search_backend(
+        db_path=formal_source_index_path,
+        cache_path=(
+            Path(config.formal_source_index_cache)
+            if config.formal_source_index_cache
+            else None
+        ),
+        refresh_cache=config.refresh_formal_source_index_cache,
+    )
     formal_source_declarations = (
         formal_source_retriever.load_declarations()
         if hasattr(formal_source_retriever, "load_declarations")
@@ -301,6 +311,8 @@ async def run_research_system_audit(
             "use_local_lean": config.use_local_lean,
             "local_lean_project": config.local_lean_project or "",
             "local_lean_timeout": config.local_lean_timeout,
+            "formal_source_index_cache": config.formal_source_index_cache or "",
+            "refresh_formal_source_index_cache": config.refresh_formal_source_index_cache,
             "question_file": str(question_file or Path("examples/research_questions.json")),
         },
         "all_gates_passed": all(gates.values()),
@@ -354,6 +366,8 @@ async def run_research_system_audit(
             "formal_source_graph_edges": formal_source_graph_manifest["n_edges"],
             "formal_source_graph_queries_ok": formal_source_graph_manifest["n_query_ok"],
             "formal_source_graph_queries": formal_source_graph_manifest["n_queries"],
+            "formal_source_index_cache_status": getattr(formal_source_retriever, "cache_status", "unknown"),
+            "formal_source_index_cache_path": getattr(formal_source_retriever, "cache_path", ""),
             "research_ready_with_gaps": benchmark_manifest["n_ready_with_gaps"],
             "research_simulation_flagged": benchmark_manifest["n_simulation_flagged"],
             "research_formal_blocked": benchmark_manifest["n_formal_blocked"],

@@ -1318,6 +1318,8 @@ async def _research_system_audit(args: argparse.Namespace) -> int:
             use_local_lean=args.local_lean,
             local_lean_project=args.lean_project,
             local_lean_timeout=args.lean_timeout,
+            formal_source_index_cache=args.formal_source_index_cache,
+            refresh_formal_source_index_cache=args.refresh_formal_source_index_cache,
         ),
     )
     print("\nAI Statistical Theory Lab System Audit")
@@ -2114,6 +2116,16 @@ def build_parser() -> argparse.ArgumentParser:
     research_system_audit.add_argument("--local-lean", action="store_true", help="use local lake env lean kernel verification")
     research_system_audit.add_argument("--lean-project", help="local Lake project used by --local-lean")
     research_system_audit.add_argument("--lean-timeout", type=int, default=90, help="timeout seconds for each local Lean check")
+    research_system_audit.add_argument(
+        "--formal-source-index-cache",
+        default="runs/formal_source_index_cache/formal_source_index.sqlite",
+        help="persistent SQLite cache for repeated formal-source index builds; pass empty string to disable",
+    )
+    research_system_audit.add_argument(
+        "--refresh-formal-source-index-cache",
+        action="store_true",
+        help="rebuild and overwrite the persistent formal-source index cache",
+    )
     research_system_audit.add_argument("--runs", type=int, default=100, help="Monte Carlo research-simulation replicates")
     research_system_audit.add_argument("--seed", type=int, default=20260528)
     research_system_audit.add_argument("--out", default="runs/research_system_audit", help="research system audit output directory")

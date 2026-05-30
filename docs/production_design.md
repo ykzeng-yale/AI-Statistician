@@ -1229,6 +1229,12 @@ The release-style research-system audit runs this proof-bank audit before
 frontier/research smoke gates so a caching verifier can reuse the full-bank
 kernel results downstream; for real AXLE or local-Lean runs, the proof gate
 requires `all_kernel_verified=true`.
+The same audit also uses a persistent SQLite formal-source index cache by
+default (`runs/formal_source_index_cache/formal_source_index.sqlite`). Repeated
+release audits can copy that cache into the run directory instead of rescanning
+all local Mathlib/StatInference/Atlas Lean sources. Use
+`--refresh-formal-source-index-cache` when local formal sources have changed, or
+pass `--formal-source-index-cache ""` to force the old per-run rebuild path.
 
 This writes `proof_audit_manifest.json` plus one exported Lean file per formal
 obligation. The Lean exports are intentionally per-obligation files because

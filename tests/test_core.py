@@ -26,6 +26,7 @@ from ai_statistician.formal_source_index import (
     FormalSourceRoot,
     FormalSourceSqliteIndex,
     audit_formal_source_index,
+    build_formal_source_search_backend,
     build_formal_source_index,
     search_formal_sources,
 )
@@ -244,6 +245,43 @@ class ProofBankTests(unittest.TestCase):
         self.assertTrue(Path(payload["sqlite_index_path"]).exists())
         self.assertEqual(payload["n_declarations"], 2)
         self.assertTrue(Path("runs/test_formal_source_index/formal_source_index_manifest.json").exists())
+
+    def test_formal_source_search_backend_reuses_sqlite_cache(self) -> None:
+        fixture = Path("runs/test_formal_source_cache_fixture")
+        fixture.mkdir(parents=True, exist_ok=True)
+        (fixture / "CacheDemo.lean").write_text(
+            "\n".join(
+                [
+                    "import Mathlib",
+                    "namespace CacheDemo",
+                    "lemma cached_variance_lookup : True := by trivial",
+                    "end CacheDemo",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        root = FormalSourceRoot("cache_fixture", str(fixture))
+        cache_path = Path("runs/test_formal_source_cache/formal_source_index_cache.sqlite")
+        first = build_formal_source_search_backend(
+            db_path=Path("runs/test_formal_source_cache/first.sqlite"),
+            roots=(root,),
+            cache_path=cache_path,
+        )
+        self.assertEqual(getattr(first, "cache_status"), "miss")
+        self.assertTrue(cache_path.exists())
+        first_hits = first.search("cached variance lookup", k=3)
+        self.assertTrue(first_hits)
+        self.assertEqual(first_hits[0].declaration.name, "CacheDemo.cached_variance_lookup")
+
+        second = build_formal_source_search_backend(
+            db_path=Path("runs/test_formal_source_cache/second.sqlite"),
+            roots=(root,),
+            cache_path=cache_path,
+        )
+        self.assertEqual(getattr(second, "cache_status"), "hit")
+        second_hits = second.search("cached variance lookup", k=3)
+        self.assertTrue(second_hits)
+        self.assertEqual(second_hits[0].declaration.name, "CacheDemo.cached_variance_lookup")
 
     def test_meta_atlas_sources_are_indexed_for_retrieval_only(self) -> None:
         atlas_probability = ATLAS_LEAN_ROOT / "Atlas" / "TheoryOfProbability"
