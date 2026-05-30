@@ -443,6 +443,9 @@ async def run_research_loop_benchmark(
     repair_tasks = _repair_tasks_from_results(results)
     repair_task_path = out_dir / "research_loop_repair_tasks.jsonl"
     _write_jsonl(repair_task_path, repair_tasks)
+    live_repair_artifacts = _live_repair_artifacts_from_results(results)
+    live_repair_artifact_path = out_dir / "research_loop_live_repair_artifacts.jsonl"
+    _write_jsonl(live_repair_artifact_path, live_repair_artifacts)
     status_counts: dict[str, int] = {}
     for row in results:
         status = str(row["status"])
@@ -474,9 +477,23 @@ async def run_research_loop_benchmark(
         "n_repair_tasks": len(repair_tasks),
         "repair_tasks_by_agent": _count_by_key(repair_tasks, "owner_agent"),
         "repair_tasks_by_type": _count_by_key(repair_tasks, "task_type"),
+        "live_repair_artifacts_jsonl": str(live_repair_artifact_path),
+        "n_live_repair_artifacts": len(live_repair_artifacts),
+        "live_repair_artifacts_by_handler": _count_by_key(live_repair_artifacts, "live_repair_handler"),
+        "live_repair_artifacts_by_type": _count_by_key(live_repair_artifacts, "task_type"),
+        "live_repair_artifacts_contract_ok": sum(
+            1 for row in live_repair_artifacts if row.get("repair_contract_ok") is True
+        ),
+        "live_repair_artifacts_kernel_verified": sum(
+            1
+            for row in live_repair_artifacts
+            if isinstance(row.get("repair_artifact"), dict)
+            and row["repair_artifact"].get("kernel_verified") is True
+        ),
         "formal_source_index_path": str(formal_source_index_path) if formal_source_index_path else "",
         "all_loop_traces_written": all(path.exists() for path in trace_paths),
         "all_repair_tasks_exported": repair_task_path.exists(),
+        "all_live_repair_artifacts_exported": live_repair_artifact_path.exists(),
     }
     (out_dir / "research_loop_manifest.json").write_text(
         json.dumps(manifest, indent=2, default=str),
@@ -605,6 +622,39 @@ def _repair_tasks_from_results(results: list[dict[str, Any]]) -> list[dict[str, 
                 if isinstance(task, dict):
                     tasks.append(task)
     return tasks
+
+
+def _live_repair_artifacts_from_results(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    artifacts: list[dict[str, Any]] = []
+    for result in results:
+        for round_row in result.get("rounds", []):
+            for action in round_row.get("actions", []):
+                artifact = action.get("repair_artifact")
+                if not isinstance(artifact, dict):
+                    continue
+                artifacts.append(
+                    {
+                        "schema_version": 1,
+                        "artifact_id": (
+                            "live_repair:"
+                            f"{stable_hash([result.get('question_id'), round_row.get('round'), action.get('id'), artifact])[:16]}"
+                        ),
+                        "question_id": str(result.get("question_id", "")),
+                        "round": int(round_row.get("round", 0) or 0),
+                        "source_action_id": str(action.get("id", "")),
+                        "owner_agent": str(action.get("owner_agent", "")),
+                        "trigger": str(action.get("trigger", "")),
+                        "execution_status": str(action.get("execution_status", "")),
+                        "task_type": str(action.get("live_repair_task_type", "")),
+                        "live_repair_handler": str(action.get("live_repair_handler", "")),
+                        "repair_contract_ok": bool(action.get("repair_contract_ok", False)),
+                        "repair_contract_errors": list(action.get("repair_contract_errors", []) or []),
+                        "rerun_requested": bool(action.get("rerun_requested", False)),
+                        "repair_artifact": artifact,
+                        "repair_contract": action.get("repair_contract", {}),
+                    }
+                )
+    return artifacts
 
 
 def _write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:

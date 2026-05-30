@@ -3107,6 +3107,36 @@ class SystemTests(unittest.TestCase):
         self.assertFalse(action["rerun_requested"])
         self.assertEqual(action["repair_task"]["task_type"], "proof_bank_expansion_from_formal_gap")
 
+    def test_research_loop_benchmark_exports_live_repair_artifacts(self) -> None:
+        async def run():
+            questions = load_open_research_questions(Path("examples/research_questions.json"))[:1]
+            return await run_research_loop_benchmark(
+                questions,
+                Path("runs/test_research_loop_live_repair_artifacts"),
+                proof_verifier=MockProofVerifier(),
+                config=LoopConfig(max_rounds=2, n_runs=25, seed=20260528),
+            )
+
+        from ai_statistician.research_loop import LoopConfig, run_research_loop_benchmark
+
+        payload = asyncio.run(run())
+        self.assertTrue(payload["all_loop_traces_written"])
+        self.assertTrue(payload["all_repair_tasks_exported"])
+        self.assertTrue(payload["all_live_repair_artifacts_exported"])
+        self.assertGreater(payload["n_live_repair_artifacts"], 0)
+        self.assertEqual(
+            payload["live_repair_artifacts_contract_ok"],
+            payload["n_live_repair_artifacts"],
+        )
+        self.assertIn("DefaultProofEngineer", payload["live_repair_artifacts_by_handler"])
+        artifact_path = Path(payload["live_repair_artifacts_jsonl"])
+        self.assertTrue(artifact_path.exists())
+        rows = [json.loads(line) for line in artifact_path.read_text(encoding="utf-8").splitlines()]
+        self.assertEqual(len(rows), payload["n_live_repair_artifacts"])
+        self.assertTrue(rows[0]["repair_contract_ok"])
+        self.assertIn("repair_artifact", rows[0])
+        self.assertIn("proof_obligation_id", rows[0]["repair_artifact"])
+
     def test_research_loop_repair_audit_exports_sft_examples(self) -> None:
         loop_dir = Path("runs/test_research_loop_repair_audit_input")
         loop_dir.mkdir(parents=True, exist_ok=True)
@@ -3262,6 +3292,12 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(payload["counts"]["research_loop_traces_written"])
         self.assertTrue(payload["counts"]["research_loop_repair_tasks_exported"])
         self.assertGreaterEqual(payload["counts"]["research_loop_repair_tasks"], 1)
+        self.assertTrue(payload["counts"]["research_loop_live_repair_artifacts_exported"])
+        self.assertGreaterEqual(payload["counts"]["research_loop_live_repair_artifacts"], 1)
+        self.assertEqual(
+            payload["counts"]["research_loop_live_repair_artifacts_contract_ok"],
+            payload["counts"]["research_loop_live_repair_artifacts"],
+        )
         self.assertEqual(
             payload["counts"]["research_loop_repair_tasks_ok"],
             payload["counts"]["research_loop_repair_tasks"],

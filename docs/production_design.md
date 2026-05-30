@@ -92,11 +92,14 @@ python3 -m ai_statistician.cli research-loop \
 ```
 
 This writes `research_loop_manifest.json`, one trace per question, and
-`research_loop_repair_tasks.jsonl`. The JSONL file turns blocked routes into
-agent-ready repair tasks with prompts, context, output contracts, and acceptance
-criteria. It is the first executable bridge from `next_iteration_agenda` to live
-action and training/exportable repair work. It is not yet full autonomous
-theory repair.
+`research_loop_repair_tasks.jsonl`. When a live handler actually executes, the
+loop also writes `research_loop_live_repair_artifacts.jsonl`, a first-class
+record of verified bridge artifacts or contract-checked theory/algorithm repair
+outputs. The repair-task JSONL turns blocked routes into agent-ready repair
+tasks with prompts, context, output contracts, and acceptance criteria. Together
+these files are the first executable bridge from `next_iteration_agenda` to live
+action, training/exportable repair work, and replayable repair artifacts. It is
+not yet full autonomous theory repair.
 
 Repair-task audit and training export:
 

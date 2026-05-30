@@ -242,6 +242,7 @@ async def run_research_system_audit(
         "research_report": bool(research_report_manifest["all_ok"]),
         "research_loop": bool(research_loop_manifest["all_loop_traces_written"])
         and bool(research_loop_manifest["all_repair_tasks_exported"])
+        and bool(research_loop_manifest["all_live_repair_artifacts_exported"])
         and int(research_loop_manifest["n_questions"]) == 1,
         "research_loop_repair_audit": bool(research_loop_repair_manifest["all_ok"]),
     }
@@ -389,6 +390,16 @@ async def run_research_system_audit(
             "research_loop_traces_written": research_loop_manifest["all_loop_traces_written"],
             "research_loop_repair_tasks_exported": research_loop_manifest["all_repair_tasks_exported"],
             "research_loop_repair_tasks": research_loop_manifest["n_repair_tasks"],
+            "research_loop_live_repair_artifacts_exported": research_loop_manifest[
+                "all_live_repair_artifacts_exported"
+            ],
+            "research_loop_live_repair_artifacts": research_loop_manifest["n_live_repair_artifacts"],
+            "research_loop_live_repair_artifacts_contract_ok": research_loop_manifest[
+                "live_repair_artifacts_contract_ok"
+            ],
+            "research_loop_live_repair_artifacts_kernel_verified": research_loop_manifest[
+                "live_repair_artifacts_kernel_verified"
+            ],
             "research_loop_status_kinds": len(research_loop_manifest["status_counts"]),
             "research_loop_repair_tasks_ok": research_loop_repair_manifest["n_ok"],
             "research_loop_repair_sft_examples": research_loop_repair_manifest["n_sft_examples"],
@@ -538,6 +549,9 @@ async def run_research_system_audit(
             "research_report_manifest": str(out_dir / "research_report" / "research_report_manifest.json"),
             "research_loop": str(out_dir / "research_loop" / "research_loop_manifest.json"),
             "research_loop_repair_tasks": str(out_dir / "research_loop" / "research_loop_repair_tasks.jsonl"),
+            "research_loop_live_repair_artifacts": str(
+                out_dir / "research_loop" / "research_loop_live_repair_artifacts.jsonl"
+            ),
             "research_loop_repair_audit": str(
                 out_dir / "research_loop_repair_audit" / "research_loop_repair_audit_manifest.json"
             ),
