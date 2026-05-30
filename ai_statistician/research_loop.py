@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from .fingerprint import stable_hash
+from .algorithm_engineer import DefaultAlgorithmEngineer
 from .formal_source_index import build_formal_source_search_backend
 from .proof_engineer import DefaultProofEngineer
 from .research_lab import AIStatisticalTheoryLab
@@ -63,6 +64,7 @@ class ResearchLoopCoordinator:
         repair_handlers: dict[str, LiveRepairHandler] | None = None,
         enable_default_proof_engineer: bool = True,
         enable_default_theory_developer: bool = True,
+        enable_default_algorithm_engineer: bool = True,
     ) -> None:
         self.proof_verifier = proof_verifier
         self.formal_source_retriever = formal_source_retriever
@@ -72,10 +74,14 @@ class ResearchLoopCoordinator:
         self.repair_handlers = dict(repair_handlers or {})
         self.enable_default_proof_engineer = enable_default_proof_engineer
         self.enable_default_theory_developer = enable_default_theory_developer
+        self.enable_default_algorithm_engineer = enable_default_algorithm_engineer
         self.default_proof_engineer = (
             DefaultProofEngineer(self.proof_verifier) if enable_default_proof_engineer else None
         )
         self.default_theory_developer = DefaultTheoryDeveloper() if enable_default_theory_developer else None
+        self.default_algorithm_engineer = (
+            DefaultAlgorithmEngineer() if enable_default_algorithm_engineer else None
+        )
 
     async def iterate(
         self,
@@ -138,6 +144,7 @@ class ResearchLoopCoordinator:
                 "executes_registered_live_repair_handlers": bool(self.repair_handlers),
                 "executes_default_proof_engineer_bridge_handler": self.enable_default_proof_engineer,
                 "executes_default_theory_developer_revision_handler": self.enable_default_theory_developer,
+                "executes_default_algorithm_engineer_repair_handler": self.enable_default_algorithm_engineer,
                 "free_form_theory_revision": False,
                 "arbitrary_lean_proof_search": False,
                 "arbitrary_algorithm_generation": False,
@@ -341,6 +348,38 @@ class ResearchLoopCoordinator:
                 ),
             }
         if trigger == "IMPLEMENTATION_OR_NUMERICAL_ISSUE":
+            if self.default_algorithm_engineer is not None:
+                default_result = self.default_algorithm_engineer.repair_algorithm_issue(item, report)
+                if default_result is not None:
+                    default_action = self._contract_checked_live_result(
+                        default_result,
+                        trigger=trigger,
+                        base=base,
+                        handler_name="DefaultAlgorithmEngineer",
+                    )
+                    default_action.setdefault(
+                        "repair_task",
+                        _repair_task(
+                            report=report,
+                            item=item,
+                            task_type="algorithm_repair_from_numerical_failure",
+                            prompt=(
+                                "Review the DefaultAlgorithmEngineer scoped repair artifact and convert it "
+                                "into a vetted implementation patch before requesting a rerun."
+                            ),
+                            acceptance_criteria=(
+                                "implementation hash changes or numerical guard is justified",
+                                "property/simulation test reproduces the old failure before repair",
+                                "rerun has finite metrics and fewer failed replicates",
+                            ),
+                            context={
+                                "target_procedure": item.get("target_procedure", ""),
+                                "failed_diagnostics": item.get("failed_diagnostics", []),
+                                "default_algorithm_engineer_status": default_action.get("execution_status", ""),
+                            },
+                        ),
+                    )
+                    return default_action
             return {
                 **base,
                 "execution_status": "REQUIRES_ALGORITHM_ENGINEER",
@@ -810,6 +849,8 @@ def _blocking_status(actions: list[dict[str, Any]]) -> str:
         return "FORMAL_GAPS_BRIDGED"
     if "EXECUTED_SCOPED_THEORY_REVISION_PROPOSAL" in statuses:
         return "THEORY_REPAIR_PROPOSED"
+    if "EXECUTED_SCOPED_ALGORITHM_REPAIR_PROPOSAL" in statuses:
+        return "ALGORITHM_REPAIR_PROPOSED"
     if "EXECUTED_RETRIEVAL_REVIEW" in statuses:
         return "FORMAL_GAPS_REVIEWED"
     return ""

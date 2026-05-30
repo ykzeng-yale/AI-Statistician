@@ -49,6 +49,7 @@ from ai_statistician.research_capability_audit import (
 )
 from ai_statistician.research_lab import (
     AIStatisticalTheoryLab,
+    attach_research_algorithm_metadata,
     audit_research_algorithm_registry,
     load_open_research_questions,
     ProblemFormalizer,
@@ -2697,6 +2698,11 @@ class SystemTests(unittest.TestCase):
             "algorithm_engineer",
         )
         self.assertEqual(
+            route_by_trigger["IMPLEMENTATION_OR_NUMERICAL_ISSUE"]["live_execution_status"],
+            "EXECUTABLE_SCOPED_ALGORITHM_REPAIR_PROPOSAL",
+        )
+        self.assertTrue(any("DefaultAlgorithmEngineer" in item for item in live_loop["evidence"]))
+        self.assertEqual(
             route_by_trigger["FORMAL_GAP"]["live_execution_status"],
             "EXECUTABLE_DEFAULT_PROOF_BANK_BRIDGE_OR_RETRIEVAL_REVIEW",
         )
@@ -3119,6 +3125,70 @@ class SystemTests(unittest.TestCase):
         self.assertFalse(action["rerun_requested"])
         self.assertFalse(action["repair_contract_ok"])
         self.assertTrue(any("revised_procedure" in err for err in action["repair_contract_errors"]))
+
+    def test_research_loop_default_algorithm_engineer_proposes_scoped_repair(self) -> None:
+        question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+        problem = ProblemFormalizer().formalize(question)
+        procedure, theorem_goal = TheoryPlanner().plan(problem)
+        procedure = attach_research_algorithm_metadata(procedure)
+        bad_sim = ResearchSimulator(n_runs=25, seed=16).run(problem, procedure)[0]
+        bad_sim.passed = False
+        bad_sim.metrics["n_runs"] = 25.0
+        bad_sim.metrics["n_failed"] = 10.0
+        bad_sim.diagnosis.status = "IMPLEMENTATION_OR_NUMERICAL_ISSUE"
+        bad_sim.diagnosis.escalate_to = "algorithm_engineer"
+        bad_sim.diagnosis.failed_diagnostics = ("n_failed",)
+        bad_sim.diagnosis.rationale = "test forces algorithm repair"
+
+        report = ResearchReport(
+            question=question,
+            problem=problem,
+            procedures=procedure,
+            knowledge=[],
+            paper_sources=[],
+            formal_subclaims=[],
+            simulations=[bad_sim],
+            theorem_goals=theorem_goal,
+            theory_plan={
+                "next_iteration_agenda": {
+                    "items": [
+                        {
+                            "id": "simulation:algorithm",
+                            "owner_agent": "algorithm_engineer",
+                            "trigger": "IMPLEMENTATION_OR_NUMERICAL_ISSUE",
+                            "action": "repair_algorithm_implementation_or_numerical_stability",
+                            "evidence": "too many failed replicates",
+                            "failed_diagnostics": ["n_failed"],
+                            "target_procedure": procedure[0].id,
+                        }
+                    ]
+                }
+            },
+            status="SIMULATION_FLAGGED_WITH_FORMAL_GAPS",
+        )
+
+        class FakeLab:
+            async def run(self, question):
+                return report
+
+        result = asyncio.run(
+            ResearchLoopCoordinator(n_runs=25, seed=16, lab_factory=lambda _n, _s: FakeLab()).iterate(
+                question,
+                max_rounds=2,
+            )
+        )
+        self.assertEqual(result["status"], "ALGORITHM_REPAIR_PROPOSED")
+        self.assertTrue(result["honesty_boundary"]["executes_default_algorithm_engineer_repair_handler"])
+        action = result["rounds"][0]["actions"][0]
+        self.assertEqual(action["execution_status"], "EXECUTED_SCOPED_ALGORITHM_REPAIR_PROPOSAL")
+        self.assertEqual(action["live_repair_handler"], "DefaultAlgorithmEngineer")
+        self.assertTrue(action["repair_contract_ok"])
+        self.assertFalse(action["rerun_requested"])
+        artifact = action["repair_artifact"]
+        self.assertEqual(artifact["target_procedure"], procedure[0].id)
+        self.assertEqual(len(artifact["implementation_hash"]), 64)
+        self.assertEqual(artifact["rerun_metrics"]["n_failed_target"], 0.0)
+        self.assertIn("patch_summary", artifact)
 
     def test_research_loop_default_proof_engineer_bridges_formal_gap(self) -> None:
         question = load_open_research_questions(Path("examples/research_questions.json"))[0]

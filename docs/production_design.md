@@ -58,7 +58,12 @@ invention. When the artifact satisfies its contract, the coordinator carries it
 as revision state into the next round, where `AIStatisticalTheoryLab` applies it
 as a safe overlay before retrieval, proof, and simulation: it may rename and
 annotate the candidate procedure and add new theorem goals/formal gaps, but it
-does not change the vetted algorithm implementation. The coordinator also has a
+does not change the vetted algorithm implementation. A conservative
+`DefaultAlgorithmEngineer` handles `IMPLEMENTATION_OR_NUMERICAL_ISSUE` by
+emitting a repair artifact with the current implementation hash, reproduction
+test context, finite-metric/numerical-guard patch summary, and rerun metric
+targets. This is a repair contract, not arbitrary generated code execution. The
+coordinator also has a
 registered live-repair handler interface: a
 TheoryDeveloper, ProofEngineer, AlgorithmEngineer, or simulator-extension agent
 can be plugged in for a trigger such as `THEORY_OR_PROCEDURE_ISSUE`; if it
@@ -68,9 +73,9 @@ is trigger-specific: theory repairs must include revised procedures/theorem
 goals/assumption deltas/expected simulation deltas; proof repairs must include
 AXLE-verifiable proof fields and cannot request a rerun unless
 `kernel_verified=true`. Routes that need substantive new proof search,
-algorithm repair, or simulator construction still stop honestly with
-`REQUIRES_PROOF_ENGINEER`, `REQUIRES_ALGORITHM_ENGINEER`, or
-`REQUIRES_SIMULATOR_EXTENSION` unless a stronger handler is registered.
+sandboxed code patching, or simulator construction still stop honestly with
+`REQUIRES_PROOF_ENGINEER` or `REQUIRES_SIMULATOR_EXTENSION`, or with a scoped
+repair proposal, unless a stronger handler is registered.
 
 `StatisticalQuestion` can come from the built-in registry or from JSON. External
 questions may name a supported `dgp_family` and `estimator_family` explicitly,
@@ -197,12 +202,14 @@ and theorem roadmaps, `FormalSubclaimProver` already performs real AXLE/Lean
 verification for registered proof-bank obligations, `ResearchSimulator` already
 diagnoses failures, and `ResearchLoopCoordinator` now executes the scoped
 actions above, including `DefaultProofEngineer`,
-`DefaultTheoryDeveloper`, and registered live repair handlers when supplied. The
+`DefaultTheoryDeveloper`, `DefaultAlgorithmEngineer`, and registered live repair
+handlers when supplied. The
 missing architecture piece is default substantive autonomous *solution* of
 repairs: an LLM TheoryDeveloper that can invent and justify new estimator
 families rather than only applying scoped overlays, a ProofEngineer that proves
 new Lean obligations rather than only bridge-selecting from the proof bank, and
-a sandboxed AlgorithmEngineer that repairs code from simulator evidence.
+a sandboxed AlgorithmEngineer that applies and reruns vetted code patches from
+simulator evidence.
 
 The CLI entry point is:
 

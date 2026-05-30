@@ -17,6 +17,7 @@ from .research_lab import (
     _build_next_iteration_agenda,
 )
 from .research_loop import ResearchLoopCoordinator
+from .algorithm_engineer import DefaultAlgorithmEngineer
 from .proof_engineer import DefaultProofEngineer
 from .theory_developer import DefaultTheoryDeveloper
 from .theory_proposal import AnthropicTheoryProposer
@@ -130,17 +131,19 @@ def audit_architecture(out_dir: Path | None = None) -> dict[str, object]:
                 f"{ResearchLoopCoordinator.__module__}.{ResearchLoopCoordinator.__name__}.iterate",
                 f"{DefaultProofEngineer.__module__}.{DefaultProofEngineer.__name__}",
                 f"{DefaultTheoryDeveloper.__module__}.{DefaultTheoryDeveloper.__name__}",
+                f"{DefaultAlgorithmEngineer.__module__}.{DefaultAlgorithmEngineer.__name__}",
                 "AIStatisticalTheoryLab.run remains one-pass; ResearchLoopCoordinator executes the next_iteration_agenda around it",
                 "registered repair_handlers can execute live proof/theory/algorithm/simulator repair actions and request reruns",
                 "live repair handler outputs are checked against per-trigger repair contracts before reruns are allowed",
                 "DefaultProofEngineer verifies existing proof-bank bridges for FORMAL_GAP actions before emitting repair artifacts",
                 "DefaultTheoryDeveloper converts simulation theory/procedure failures into scoped revision artifacts",
+                "DefaultAlgorithmEngineer converts numerical/implementation failures into scoped repair artifacts",
                 "AIStatisticalTheoryLab accepts theory_revisions overlays and applies them before retrieval/proof/simulation",
             ),
             limitation=(
                 "The loop executes safe built-in routes, can call registered live repair handlers, and has a narrow "
                 "default proof-bank bridge handler plus scoped default theory-revision proposal handler; free-form "
-                "theory repair, new proof search, and arbitrary algorithm repair still require stronger agents."
+                "theory repair, new proof search, and arbitrary code mutation still require stronger agents."
             ),
             target_delta="Register default LLM TheoryDeveloper, proof-search ProofEngineer, and sandboxed AlgorithmEngineer repair handlers.",
         ),
@@ -172,8 +175,8 @@ def audit_architecture(out_dir: Path | None = None) -> dict[str, object]:
             trigger="IMPLEMENTATION_OR_NUMERICAL_ISSUE",
             owner_agent="algorithm_engineer",
             action="repair_algorithm_implementation_or_numerical_stability",
-            live_execution_status="EXECUTABLE_WITH_REGISTERED_LIVE_HANDLER",
-            evidence="ResearchLoopCoordinator can call a registered IMPLEMENTATION_OR_NUMERICAL_ISSUE handler, otherwise exports algorithm repair work",
+            live_execution_status="EXECUTABLE_SCOPED_ALGORITHM_REPAIR_PROPOSAL",
+            evidence="ResearchLoopCoordinator invokes DefaultAlgorithmEngineer or a registered handler for IMPLEMENTATION_OR_NUMERICAL_ISSUE",
         ),
         FeedbackRoute(
             trigger="ENVIRONMENT_OR_DGP_ISSUE",
@@ -215,7 +218,7 @@ def audit_architecture(out_dir: Path | None = None) -> dict[str, object]:
             "requirement": "Simulator feedback actively revises algorithm or theory in the same run",
             "status": "PARTIAL",
             "current_evidence": "ResearchLoopCoordinator executes MC precision reruns, invokes DefaultTheoryDeveloper for scoped theory-revision proposals, applies contract-valid theory revision overlays to the next lab round, and can invoke contract-checked registered live theory/algorithm/simulator repair handlers before rerunning.",
-            "missing": "Default trained TheoryDeveloper that can invent and justify new estimator families, plus AlgorithmEngineer repair handlers that work without test stubs or manual registration.",
+            "missing": "Default trained TheoryDeveloper that can invent and justify new estimator families, plus AlgorithmEngineer promotion that applies sandboxed patches and reruns them.",
         },
         {
             "requirement": "Formal proof feedback actively revises assumptions/theorem statements/proof search",
