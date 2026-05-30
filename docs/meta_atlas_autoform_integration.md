@@ -140,7 +140,7 @@ Real Lean/AXLE system audit:
 PYTHONPATH=/Users/yukang/AI\ Statistician \
 /Users/yukang/LeanProjects/LeanPractice/.venv/bin/python \
   -m ai_statistician.cli research-system-audit --real-lean \
-  --runs 20 --out runs/research_system_real_lean_48_filtration_bridge
+  --runs 20 --out runs/research_system_real_lean_49_stopping_time_event_bridge
 ```
 
 Result:
@@ -150,7 +150,7 @@ all_gates_passed=True
 autoform_harness=True
 autoform_targets=20/20
 sources=23/23
-proofs=47/47
+proofs=48/48
 frontier_supported=60/60
 formalized_gaps=20/20
 missing_primitives=97
@@ -180,4 +180,7 @@ robustness as formal gaps. `integrability_of_score_terms` now ranks
 The `filtration` primitive now ranks `filtration_mono_measurable_set` as its
 verified bridge, and `stopping_time` / `ville_inequality` also list it as a
 candidate bridge while preserving optional stopping and full Ville as formal
-gaps.
+gaps. The proof bank now also includes
+`stopping_time_le_event_measurable`, a direct wrapper around Mathlib's
+`IsStoppingTime.measurableSet_le`, and the sequential-anytime theorem plan cites
+it as the verified stopping-time event measurability primitive.

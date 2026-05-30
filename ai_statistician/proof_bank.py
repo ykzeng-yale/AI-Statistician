@@ -1569,6 +1569,48 @@ theorem filtration_mono_measurableSet {Ω ι : Type*} {m : MeasurableSpace Ω}
         ),
         expected_lemmas=("Filtration.mono",),
     ),
+    "stopping_time_le_event_measurable": FormalObligation(
+        id="stopping_time_le_event_measurable",
+        title="Stopping-time lower event is filtration-measurable",
+        english=(
+            "If tau is a stopping time with respect to a filtration, then at "
+            "each deterministic time i the event {tau <= i} is measurable with "
+            "respect to the sigma-algebra at time i. This is the defining "
+            "measurability bridge used by optional-stopping, stopped-process, "
+            "and anytime-valid inference proofs; it does not prove optional "
+            "stopping or Ville's inequality."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory
+
+theorem stoppingTime_le_event_measurable {Ω ι : Type*} {m : MeasurableSpace Ω}
+    [Preorder ι] (ℱ : Filtration ι m) {τ : Ω → WithTop ι}
+    (hτ : IsStoppingTime ℱ τ) (i : ι) :
+    MeasurableSet[ℱ i] {ω | τ ω ≤ i} := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  exact hτ.measurableSet_le i"
+        ),
+        tags=(
+            "probability",
+            "process",
+            "filtration",
+            "measurability",
+            "stopping_time",
+            "stopped_process",
+            "adapted",
+            "sequential",
+            "eprocess",
+            "optional_stopping",
+            "ville_inequality",
+        ),
+        expected_lemmas=("IsStoppingTime.measurableSet_le",),
+        depends_on=("filtration_mono_measurable_set",),
+    ),
     "event_probability_mono": FormalObligation(
         id="event_probability_mono",
         title="Event probability monotonicity",

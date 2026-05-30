@@ -262,6 +262,11 @@ index remains measurable at any later index. This is now the verified bridge
 for the `filtration` primitive and an additional bridge candidate for
 stopping-time/Ville theorem skeletons, while full optional-stopping and Ville
 inequality remain formal gaps.
+It also includes `stopping_time_le_event_measurable`, proving the defining
+stopping-time measurability fact that `{ω | τ ω ≤ i}` is measurable in the
+sigma-algebra `ℱ i`. This gives stopped-process and optional-stopping theorem
+skeletons a real AXLE-verified stopping-time event primitive while still
+leaving optional-stopping and Ville inequality as explicit formal gaps.
 It also includes `event_probability_mono`, the measure monotonicity fact
 `A ⊆ B -> μ(A) ≤ μ(B)`, which is a reusable subclaim for bad-event containment
 arguments in conformal coverage, BH/FDR decompositions, and anytime-valid error

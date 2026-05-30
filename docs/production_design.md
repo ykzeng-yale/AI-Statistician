@@ -677,6 +677,12 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   Mathlib's `Filtration.mono`. It is the verified bridge now attached to the
   `filtration` primitive and a candidate bridge for stopping-time/Ville
   skeletons. It is not a proof of optional stopping or Ville's inequality.
+- `stopping_time_le_event_measurable`: the defining stopping-time event
+  measurability theorem
+  `IsStoppingTime ℱ τ -> MeasurableSet[ℱ i] {ω | τ ω ≤ i}`, wrapped around
+  Mathlib's `IsStoppingTime.measurableSet_le`. It is a verified primitive for
+  stopped-process, optional-stopping, and e-process theorem skeletons, but it
+  does not prove optional-stopping validity or Ville's inequality.
 - `event_probability_mono`: event monotonicity `A ⊆ B -> μ(A) ≤ μ(B)`,
   proved directly from Mathlib's `measure_mono`; this is the reusable
   bad-event-containment step used before applying union or tail bounds.

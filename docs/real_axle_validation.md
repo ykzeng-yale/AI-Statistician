@@ -8,20 +8,20 @@ Runtime used:
 PYTHONPATH=/Users/yukang/AI\ Statistician \
 /Users/yukang/LeanProjects/LeanPractice/.venv/bin/python \
   -m ai_statistician.cli proof-audit --real-lean \
-  --out runs/proof_audit_real_full_47
+  --out runs/proof_audit_real_full_48
 ```
 
 Result:
 
 ```text
-verified=47/47
-kernel=47/47
+verified=48/48
+kernel=48/48
 verifier=axle.verify_proof
 strength=axle_lean_kernel
 ```
 
 This is the current evidence that the registered proof bank is not only
-mock-checked: all 47 registered Mathlib-backed obligations were accepted by
+mock-checked: all 48 registered Mathlib-backed obligations were accepted by
 AXLE/Lean-kernel verification in the real external runtime.
 
 Latest real research-system validation: 2026-05-29.
@@ -32,7 +32,7 @@ Runtime used:
 PYTHONPATH=/Users/yukang/AI\ Statistician \
 /Users/yukang/LeanProjects/LeanPractice/.venv/bin/python \
   -m ai_statistician.cli research-system-audit --real-lean \
-  --runs 20 --out runs/research_system_real_lean_48_filtration_bridge
+  --runs 20 --out runs/research_system_real_lean_49_stopping_time_event_bridge
 ```
 
 Result:
@@ -46,18 +46,18 @@ frontier_supported=60/60
 frontier_precision=60/60
 frontier_backlog=0/0
 frontier_smoke=23/23
-proofs_verified=47/47
-proofs_kernel_verified=47/47
+proofs_verified=48/48
+proofs_kernel_verified=48/48
 proof_verification_strength=axle_lean_kernel
 research_traces_ok=10/10
 formal_gaps=20
 formalized_gaps=20
 autoform_targets=20/20
-formal_source_graph_symbols=74926
-formal_source_graph_edges=1474246
-verifier_cache_hits=298
-verifier_cache_misses=47
-verifier_cache_size=47
+formal_source_graph_symbols=74934
+formal_source_graph_edges=1474839
+verifier_cache_hits=300
+verifier_cache_misses=48
+verifier_cache_size=48
 ```
 
 The research-system run proves that `--real-lean` now flows through the actual
@@ -118,6 +118,15 @@ candidate for `stopping_time` and `ville_inequality`; this raises
 `proof_bank_expansion_bridge_ready` from 11 to 12. This remains a structural
 filtration measurability theorem, not a proof of optional stopping or full
 Ville inequality.
+
+The 48th obligation is `stopping_time_le_event_measurable`, proving the
+defining stopping-time event measurability theorem
+`IsStoppingTime ℱ τ -> MeasurableSet[ℱ i] {ω | τ ω ≤ i}` from Mathlib's
+`IsStoppingTime.measurableSet_le`. It is now wired into the
+`sequential_anytime_inference` theorem goal and the provable-subclaim registry
+as a real stopping-time bridge. This remains a measurability primitive, not a
+proof of optional-stopping validity, nonnegative-supermartingale maximal
+inequalities, or full Ville inequality.
 
 Important boundary:
 
