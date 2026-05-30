@@ -8,20 +8,20 @@ Runtime used:
 PYTHONPATH=/Users/yukang/AI\ Statistician \
 /Users/yukang/LeanProjects/LeanPractice/.venv/bin/python \
   -m ai_statistician.cli proof-audit --real-lean \
-  --out runs/proof_audit_real_full_53
+  --out runs/proof_audit_real_full_54
 ```
 
 Result:
 
 ```text
-verified=53/53
-kernel=53/53
+verified=54/54
+kernel=54/54
 verifier=axle.verify_proof
 strength=axle_lean_kernel
 ```
 
 This is the current evidence that the registered proof bank is not only
-mock-checked: all 53 registered Mathlib-backed obligations were accepted by
+mock-checked: all 54 registered Mathlib-backed obligations were accepted by
 AXLE/Lean-kernel verification in the real external runtime.
 
 Latest real research-system validation: 2026-05-30.
@@ -32,7 +32,7 @@ Runtime used:
 PYTHONPATH=/Users/yukang/AI\ Statistician \
 /Users/yukang/LeanProjects/LeanPractice/.venv/bin/python \
   -m ai_statistician.cli research-system-audit --real-lean \
-  --runs 20 --out runs/research_system_real_lean_54_doob_probability_bridge
+  --runs 20 --out runs/research_system_real_lean_55_supermartingale_optional_stopping
 ```
 
 Result:
@@ -46,8 +46,8 @@ frontier_supported=60/60
 frontier_precision=60/60
 frontier_backlog=0/0
 frontier_smoke=23/23
-proofs_verified=53/53
-proofs_kernel_verified=53/53
+proofs_verified=54/54
+proofs_kernel_verified=54/54
 proof_verification_strength=axle_lean_kernel
 research_traces_ok=10/10
 formal_gaps=20
@@ -55,9 +55,9 @@ formalized_gaps=20
 autoform_targets=20/20
 formal_source_graph_symbols=74972
 formal_source_graph_edges=1475530
-verifier_cache_hits=310
-verifier_cache_misses=53
-verifier_cache_size=53
+verifier_cache_hits=312
+verifier_cache_misses=54
+verifier_cache_size=54
 ```
 
 The research-system run proves that `--real-lean` now flows through the actual
@@ -151,7 +151,15 @@ StatInference Durrett 4.2.9 stopped-submartingale theorem family. This is a real
 stopped-process preservation theorem; it still does not prove Ville's maximal
 inequality or construct a valid e-process end to end.
 
-The 51st obligation is `submartingale_doob_maximal_ineq`, a direct wrapper
+The sequential martingale block also includes
+`supermartingale_expected_stopped_value_antimono`, a bounded optional-stopping
+expectation theorem for real-valued supermartingales. For stopping times
+`τ ≤ π` with bounded `π`, it proves `μ[stoppedValue f π] ≤ μ[stoppedValue f τ]`
+using Mathlib's `Supermartingale.setIntegral_le` and stopped-value
+decomposition. This is the direct expectation-budget primitive needed by
+nonnegative-supermartingale/e-process theorem skeletons.
+
+The Doob bridge `submartingale_doob_maximal_ineq` is a direct wrapper
 around Mathlib's finite-horizon Doob maximal inequality `maximal_ineq` for
 nonnegative real-valued submartingales. It proves a running-maximum tail bridge
 of the form
@@ -162,7 +170,7 @@ optional-stopping bridges, so `nonnegative_supermartingale`,
 maximal-inequality subclaim. This still does not construct an e-process or
 prove anytime type-I control end to end.
 
-The 52nd obligation is `submartingale_doob_maximal_budget`, a budgeted
+The budget bridge `submartingale_doob_maximal_budget` is a budgeted
 corollary of the same Mathlib maximal inequality. It proves that a terminal
 integral budget over the running-maximum event transfers to a
 threshold-weighted probability budget:
@@ -170,7 +178,7 @@ threshold-weighted probability budget:
 ε * μ {sup f ≥ ε} ≤ ε * α`. The sequential-anytime theorem plan now has both a
 raw maximal-inequality bridge and a budgeted tail-control bridge.
 
-The 53rd obligation is `submartingale_doob_maximal_probability_bound`, the
+The probability-bound bridge `submartingale_doob_maximal_probability_bound` is the
 post-Doob cancellation step. It assumes the threshold is nonzero and proves
 `μ {sup f ≥ ε} ≤ α` from the same terminal integral budget by combining
 `maximal_ineq`, `le_trans`, and Mathlib's `ENNReal.mul_le_mul_iff_right`.

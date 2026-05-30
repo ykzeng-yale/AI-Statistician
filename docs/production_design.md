@@ -697,6 +697,11 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   Submartingale (stoppedProcess f τ) 𝒢 μ`, wrapped around Mathlib's
   `Submartingale.stoppedProcess`. This is a verified bridge for stopped-process
   and nonnegative-supermartingale skeletons.
+- `supermartingale_expected_stopped_value_antimono`: bounded optional-stopping
+  expectation monotonicity for real-valued supermartingales:
+  if `τ ≤ π`, then `μ[stoppedValue f π] ≤ μ[stoppedValue f τ]`. It reuses
+  Mathlib's `Supermartingale.setIntegral_le` and stopped-value decomposition,
+  giving e-process/Ville skeletons a direct expectation-budget theorem.
 - `submartingale_doob_maximal_ineq`: finite-horizon Doob maximal inequality for
   nonnegative real-valued submartingales, wrapped around Mathlib's
   `maximal_ineq`. This gives the Ville/e-process route a verified maximal

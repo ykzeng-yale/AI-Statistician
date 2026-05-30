@@ -1707,6 +1707,77 @@ theorem submartingale_stoppedProcess_bridge {Ω : Type*} {m0 : MeasurableSpace �
         expected_lemmas=("Submartingale.stoppedProcess",),
         depends_on=("submartingale_expected_stopped_value_mono",),
     ),
+    "supermartingale_expected_stopped_value_antimono": FormalObligation(
+        id="supermartingale_expected_stopped_value_antimono",
+        title="Optional stopping expectation monotonicity for supermartingales",
+        english=(
+            "For bounded stopping times τ ≤ π, the stopped value of a real-valued "
+            "supermartingale has decreasing expectation: E[f_π] ≤ E[f_τ]. "
+            "This is the supermartingale counterpart of the existing optional-"
+            "stopping submartingale bridge and is the expectation budget theorem "
+            "needed for e-process/Ville type-I control skeletons."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+
+open scoped NNReal ENNReal MeasureTheory ProbabilityTheory
+open MeasureTheory
+
+theorem supermartingale_expected_stoppedValue_antimono_bridge {Ω : Type*} {m0 : MeasurableSpace Ω}
+    {μ : Measure Ω} {𝒢 : Filtration ℕ m0} {f : ℕ → Ω → ℝ} {τ π : Ω → ℕ∞}
+    [SigmaFiniteFiltration μ 𝒢] (hf : Supermartingale f 𝒢 μ)
+    (hτ : IsStoppingTime 𝒢 τ) (hπ : IsStoppingTime 𝒢 π) (hle : τ ≤ π)
+    {N : ℕ} (hbdd : ∀ ω, π ω ≤ N) : μ[stoppedValue f π] ≤ μ[stoppedValue f τ] := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  rw [← sub_nonpos, ← integral_sub', stoppedValue_sub_eq_sum' hle hbdd]\n"
+            "  · simp only [Finset.sum_apply]\n"
+            "    have : ∀ i, MeasurableSet[𝒢 i] {ω : Ω | τ ω ≤ i ∧ i < π ω} := by\n"
+            "      intro i\n"
+            "      refine (hτ i).inter ?_\n"
+            "      convert (hπ i).compl using 1\n"
+            "      ext x\n"
+            "      simp\n"
+            "      rfl\n"
+            "    rw [integral_finset_sum]\n"
+            "    · refine Finset.sum_nonpos fun i _ => ?_\n"
+            "      rw [integral_indicator (𝒢.le _ _ (this _)), integral_sub', sub_nonpos]\n"
+            "      · exact hf.setIntegral_le (Nat.le_succ i) (this _)\n"
+            "      · exact (hf.integrable _).integrableOn\n"
+            "      · exact (hf.integrable _).integrableOn\n"
+            "    intro i _\n"
+            "    exact Integrable.indicator (Integrable.sub (hf.integrable _) (hf.integrable _))\n"
+            "      (𝒢.le _ _ (this _))\n"
+            "  · exact integrable_stoppedValue ℕ hπ hf.integrable hbdd\n"
+            "  · exact integrable_stoppedValue ℕ hτ hf.integrable fun ω => le_trans (hle ω) (hbdd ω)"
+        ),
+        tags=(
+            "probability",
+            "martingale",
+            "supermartingale",
+            "optional_stopping",
+            "stopping_time",
+            "stopped_value",
+            "expectation_budget",
+            "filtration",
+            "sequential",
+            "anytime",
+            "eprocess",
+            "eprocess_type1_control",
+            "nonnegative_supermartingale",
+            "ville_inequality",
+        ),
+        expected_lemmas=(
+            "Supermartingale.setIntegral_le",
+            "stoppedValue_sub_eq_sum'",
+            "integrable_stoppedValue",
+            "integral_finset_sum",
+        ),
+        depends_on=("submartingale_expected_stopped_value_mono",),
+    ),
     "submartingale_doob_maximal_ineq": FormalObligation(
         id="submartingale_doob_maximal_ineq",
         title="Doob maximal inequality for nonnegative submartingales",

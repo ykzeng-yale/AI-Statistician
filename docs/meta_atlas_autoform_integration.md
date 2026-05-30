@@ -174,7 +174,7 @@ all_gates_passed=True
 autoform_harness=True
 autoform_targets=20/20
 sources=23/23
-proofs=53/53
+proofs=54/54
 frontier_supported=60/60
 formalized_gaps=20/20
 missing_primitives=97
@@ -216,6 +216,11 @@ family while preserving e-process construction and full Ville as formal gaps.
 The stopped-process bridge `submartingale_stopped_process` is also verified via
 Mathlib's `Submartingale.stoppedProcess`, and the graph queue aligns it with the
 local StatInference Durrett 4.2.9 stopped-submartingale theorem family.
+The supermartingale bridge `supermartingale_expected_stopped_value_antimono`
+adds the reversed bounded optional-stopping expectation budget for
+supermartingales. This gives Autoform targets a direct e-process/Ville
+primitive instead of forcing them to reconstruct it from the submartingale
+optional-stopping proof.
 The Doob bridge `submartingale_doob_maximal_ineq` is now verified via Mathlib's
 finite-horizon `maximal_ineq`, so the sequential-anytime Autoform target queue
 contains a real maximal-inequality subclaim before the remaining full

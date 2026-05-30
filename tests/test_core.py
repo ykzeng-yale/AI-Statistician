@@ -413,6 +413,7 @@ class ProofBankTests(unittest.TestCase):
                     "stopping_time_le_event_measurable",
                     "submartingale_expected_stopped_value_mono",
                     "submartingale_stopped_process",
+                    "supermartingale_expected_stopped_value_antimono",
                     "submartingale_doob_maximal_ineq",
                     "submartingale_doob_maximal_budget",
                     "submartingale_doob_maximal_probability_bound",
@@ -644,6 +645,21 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("0 ≤ f", content)
         self.assertIn("range (n + 1)", content)
         self.assertIn("maximal_ineq hsub hnonneg n", content)
+        self.assertNotIn("by sorry", content)
+
+    def test_supermartingale_optional_stopping_bridge_supports_eprocess_gap(self) -> None:
+        obligation = get_obligation("supermartingale_expected_stopped_value_antimono")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("submartingale_expected_stopped_value_mono",))
+        self.assertIn("supermartingale", obligation.tags)
+        self.assertIn("expectation_budget", obligation.tags)
+        self.assertIn("ville_inequality", obligation.tags)
+        self.assertIn("eprocess_type1_control", obligation.tags)
+        self.assertIn("theorem supermartingale_expected_stoppedValue_antimono_bridge", content)
+        self.assertIn("Supermartingale f 𝒢 μ", content)
+        self.assertIn("μ[stoppedValue f π] ≤ μ[stoppedValue f τ]", content)
+        self.assertIn("hf.setIntegral_le", content)
+        self.assertIn("stoppedValue_sub_eq_sum' hle hbdd", content)
         self.assertNotIn("by sorry", content)
 
     def test_submartingale_doob_budget_bridge_supports_eprocess_gap(self) -> None:
@@ -2056,6 +2072,10 @@ class SystemTests(unittest.TestCase):
         )
         self.assertIn(
             "submartingale_doob_maximal_budget",
+            sequential_goals["eprocess_optional_stopping_control"]["proof_obligations"],
+        )
+        self.assertIn(
+            "supermartingale_expected_stopped_value_antimono",
             sequential_goals["eprocess_optional_stopping_control"]["proof_obligations"],
         )
         self.assertIn(

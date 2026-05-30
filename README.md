@@ -283,6 +283,10 @@ It also includes `submartingale_stopped_process`, proving that stopping a
 real-valued submartingale at a stopping time preserves the submartingale
 property. This gives the sequential queue a verified stopped-process theorem
 for nonnegative-supermartingale/e-process skeletons.
+It also includes `supermartingale_expected_stopped_value_antimono`, proving the
+bounded-stopping expectation budget for real-valued supermartingales:
+if `τ ≤ π`, then `E[f_π] <= E[f_τ]`. This is the direct optional-stopping
+primitive needed by nonnegative-supermartingale/e-process arguments.
 It also includes `submartingale_doob_maximal_ineq`, a direct wrapper around
 Mathlib's finite-horizon Doob maximal inequality for nonnegative
 submartingales. This gives the Ville/e-process queue a verified maximal
