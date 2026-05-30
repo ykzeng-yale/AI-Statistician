@@ -869,6 +869,17 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   `μ (⋃ i∈I, A i) ≤ ∑ i∈I, μ(A i)` proved directly from Mathlib's
   `measure_biUnion_finset_le`, supporting conformal coverage counting,
   BH/FDR error decompositions, and finite-horizon anytime-valid error control.
+- `finite_family_absolute_error_union_control`: a finite-family estimator
+  bridge: if each absolute-error event
+  `{ω | radius i ≤ |X_i ω-theta_i|}` has local error budget `α_i`, then the
+  probability that any estimator exceeds its radius is bounded by
+  `∑ i∈I α_i`.
+- `finite_family_absolute_error_simultaneous_coverage`: composes that
+  absolute-error union bridge with complement-event probability algebra to show
+  that the simultaneous no-error event has coverage at least `1-α_total`
+  whenever the local budgets sum to `α_total`. This is a verified finite-sample
+  bridge for simultaneous confidence bands and ranking uncertainty; it still
+  does not prove CLT calibration or standard-error consistency.
 - `finite_horizon_type1_union_control`: a sequential finite-horizon bridge:
   if each monitored rejection event `A_i` has mass at most `α_i`, then the
   probability of rejecting at some monitored time is at most `∑ i∈I, α_i`.

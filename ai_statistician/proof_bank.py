@@ -483,6 +483,77 @@ theorem finiteFamily_absolute_error_union_control {Ω ι : Type*}
         expected_lemmas=("measure_biUnion_finset_le", "Finset.sum_le_sum"),
         depends_on=("finite_union_budget_control",),
     ),
+    "finite_family_absolute_error_simultaneous_coverage": FormalObligation(
+        id="finite_family_absolute_error_simultaneous_coverage",
+        title="Finite-family absolute-error control implies simultaneous coverage",
+        english=(
+            "For a finite family of estimators, if every absolute-error event "
+            "has a local probability budget and those budgets sum to a total "
+            "budget, then the probability that no estimator exceeds its radius "
+            "is at least one minus the total budget. This composes the "
+            "Bonferroni absolute-error union bridge with the complement-event "
+            "coverage bridge; it still does not assert model-specific CLT or "
+            "standard-error consistency."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+theorem finiteFamily_absolute_error_simultaneous_coverage {Ω ι : Type*}
+    [MeasurableSpace Ω]
+    (μ : Measure Ω) [IsProbabilityMeasure μ] (I : Finset ι)
+    (X : ι → Ω → ℝ) (theta radius : ι → ℝ)
+    (α : ι → ENNReal) (α_total : ENNReal)
+    (hUnion : MeasurableSet (⋃ i ∈ I, {ω | radius i ≤ |X i ω - theta i|}))
+    (hA : ∀ i ∈ I, μ {ω | radius i ≤ |X i ω - theta i|} ≤ α i)
+    (h_total : (∑ i ∈ I, α i) ≤ α_total) :
+    1 - α_total ≤ μ (⋃ i ∈ I, {ω | radius i ≤ |X i ω - theta i|})ᶜ := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  have hbad : μ (⋃ i ∈ I, {ω | radius i ≤ |X i ω - theta i|}) ≤ α_total := by\n"
+            "    calc\n"
+            "      μ (⋃ i ∈ I, {ω | radius i ≤ |X i ω - theta i|}) ≤\n"
+            "          ∑ i ∈ I, μ {ω | radius i ≤ |X i ω - theta i|} := by\n"
+            "        exact measure_biUnion_finset_le (μ := μ) I\n"
+            "          (fun i => {ω | radius i ≤ |X i ω - theta i|})\n"
+            "      _ ≤ ∑ i ∈ I, α i := by\n"
+            "        exact Finset.sum_le_sum (fun i hi => hA i hi)\n"
+            "      _ ≤ α_total := h_total\n"
+            "  have hcoverage : μ (⋃ i ∈ I, {ω | radius i ≤ |X i ω - theta i|})ᶜ =\n"
+            "      1 - μ (⋃ i ∈ I, {ω | radius i ≤ |X i ω - theta i|}) := by\n"
+            "    exact prob_compl_eq_one_sub hUnion\n"
+            "  rw [hcoverage]\n"
+            "  exact tsub_le_tsub_left hbad 1"
+        ),
+        tags=(
+            "estimator",
+            "absolute_error",
+            "simultaneous",
+            "confidence",
+            "bands",
+            "simultaneous_confidence_bands",
+            "ranking",
+            "familywise_error",
+            "union_bound",
+            "finite_sample",
+            "coverage",
+            "miscoverage",
+        ),
+        expected_lemmas=(
+            "measure_biUnion_finset_le",
+            "Finset.sum_le_sum",
+            "prob_compl_eq_one_sub",
+            "tsub_le_tsub_left",
+        ),
+        depends_on=(
+            "finite_family_absolute_error_union_control",
+            "simultaneous_coverage_of_union_error_bound",
+            "coverage_lower_bound_of_complement_error",
+        ),
+    ),
     "pairwise_top_rank_correct_of_separation": FormalObligation(
         id="pairwise_top_rank_correct_of_separation",
         title="Pairwise top-rank correctness under separation and error control",

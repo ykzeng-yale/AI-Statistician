@@ -430,6 +430,7 @@ class ProofBankTests(unittest.TestCase):
                     "submartingale_doob_maximal_probability_bound",
                     "mean2_estimator_chebyshev_indep",
                     "finite_sample_mean_chebyshev_indep",
+                    "finite_family_absolute_error_simultaneous_coverage",
                 ],
             )
 
@@ -466,6 +467,14 @@ class ProofBankTests(unittest.TestCase):
         self.assertEqual(
             rows["finite_horizon_evalue_markov_type1_control"]["depends_on"],
             ["markov_inequality", "finite_union_bound", "finite_union_budget_control"],
+        )
+        self.assertEqual(
+            rows["finite_family_absolute_error_simultaneous_coverage"]["depends_on"],
+            [
+                "finite_family_absolute_error_union_control",
+                "simultaneous_coverage_of_union_error_bound",
+                "coverage_lower_bound_of_complement_error",
+            ],
         )
 
     def test_finite_sample_mean_obligation_defines_estimator(self) -> None:
@@ -822,6 +831,27 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("measure_biUnion_finset_le", content)
         self.assertIn("Finset.sum_le_sum", content)
         self.assertIn("simultaneous_confidence_bands", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
+    def test_finite_family_absolute_error_coverage_composes_union_and_complement(self) -> None:
+        obligation = get_obligation("finite_family_absolute_error_simultaneous_coverage")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(
+            obligation.depends_on,
+            (
+                "finite_family_absolute_error_union_control",
+                "simultaneous_coverage_of_union_error_bound",
+                "coverage_lower_bound_of_complement_error",
+            ),
+        )
+        self.assertIn("theorem finiteFamily_absolute_error_simultaneous_coverage", content)
+        self.assertIn("1 - α_total ≤ μ (⋃ i ∈ I, {ω | radius i ≤ |X i ω - theta i|})ᶜ", content)
+        self.assertIn("measure_biUnion_finset_le", content)
+        self.assertIn("Finset.sum_le_sum", content)
+        self.assertIn("prob_compl_eq_one_sub", content)
+        self.assertIn("tsub_le_tsub_left", content)
+        self.assertIn("simultaneous_confidence_bands", obligation.tags)
+        self.assertIn("miscoverage", obligation.tags)
         self.assertNotIn("by sorry", content)
 
     def test_pairwise_top_rank_bridge_uses_separation_and_error_bounds(self) -> None:
