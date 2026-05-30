@@ -2674,6 +2674,7 @@ class SystemTests(unittest.TestCase):
         self.assertFalse(payload["is_current_architecture_correct_for_full_autonomous_ai_statistician"])
         self.assertEqual(payload["implemented_feedback_mode"], "bounded_research_loop_over_next_iteration_agenda")
         self.assertTrue(payload["has_live_revision_loop"])
+        self.assertTrue(payload["has_registered_live_repair_handler_interface"])
         self.assertTrue(payload["all_release_scaffold_components_present"])
 
         statuses = {row["component"]: row["status"] for row in payload["components"]}
@@ -2682,6 +2683,10 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(statuses["llm_theory_developer"], "PARTIAL")
         route_by_trigger = {row["trigger"]: row for row in payload["feedback_routes"]}
         self.assertEqual(route_by_trigger["THEORY_OR_PROCEDURE_ISSUE"]["owner_agent"], "theory_developer")
+        self.assertEqual(
+            route_by_trigger["THEORY_OR_PROCEDURE_ISSUE"]["live_execution_status"],
+            "EXECUTABLE_WITH_REGISTERED_LIVE_HANDLER",
+        )
         self.assertEqual(
             route_by_trigger["IMPLEMENTATION_OR_NUMERICAL_ISSUE"]["owner_agent"],
             "algorithm_engineer",
@@ -2929,11 +2934,18 @@ class SystemTests(unittest.TestCase):
             handler_calls.append((item["id"], report.question.id))
             return {
                 "execution_status": "EXECUTED_THEORY_REVISION",
+                "task_type": "theory_revision_from_simulation_failure",
                 "result": "Test handler revised the theorem plan and requested a rerun.",
                 "rerun_requested": True,
                 "revision_artifact": {
                     "revised_theorem_goals": ["test_revised_goal"],
                     "assumption_delta": [],
+                },
+                "repair_artifact": {
+                    "revised_procedure": procedure[0].id,
+                    "revised_theorem_goals": ["test_revised_goal"],
+                    "assumption_delta": ["coverage diagnostic requires revised standard-error theorem"],
+                    "expected_simulation_delta": "coverage diagnostic should pass on rerun",
                 },
             }
 
@@ -2954,7 +2966,75 @@ class SystemTests(unittest.TestCase):
         action = result["rounds"][0]["actions"][0]
         self.assertEqual(action["execution_status"], "EXECUTED_THEORY_REVISION")
         self.assertTrue(action["rerun_requested"])
+        self.assertTrue(action["repair_contract_ok"])
         self.assertEqual(result["rounds"][1]["actions"][0]["execution_status"], "EXECUTED_MONITOR")
+
+    def test_research_loop_blocks_invalid_live_repair_handler_artifact(self) -> None:
+        question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+        problem = ProblemFormalizer().formalize(question)
+        procedure, theorem_goal = TheoryPlanner().plan(problem)
+        bad_sim = ResearchSimulator(n_runs=25, seed=15).run(problem, procedure)[0]
+        bad_sim.passed = False
+        bad_sim.diagnosis.status = "THEORY_OR_PROCEDURE_ISSUE"
+        bad_sim.diagnosis.escalate_to = "theory_developer"
+        bad_sim.diagnosis.failed_diagnostics = ("coverage",)
+        bad_sim.diagnosis.rationale = "test invalid repair artifact"
+
+        report = ResearchReport(
+            question=question,
+            problem=problem,
+            procedures=procedure,
+            knowledge=[],
+            paper_sources=[],
+            formal_subclaims=[],
+            simulations=[bad_sim],
+            theorem_goals=theorem_goal,
+            theory_plan={
+                "next_iteration_agenda": {
+                    "items": [
+                        {
+                            "id": "simulation:theory",
+                            "owner_agent": "theory_developer",
+                            "trigger": "THEORY_OR_PROCEDURE_ISSUE",
+                            "action": "revise_estimator_or_theorem_acceptance_rule",
+                            "evidence": "coverage below threshold",
+                        }
+                    ]
+                }
+            },
+            status="SIMULATION_FLAGGED_WITH_FORMAL_GAPS",
+        )
+
+        class FakeLab:
+            async def run(self, question):
+                return report
+
+        def invalid_handler(item, report):
+            return {
+                "execution_status": "EXECUTED_THEORY_REVISION",
+                "result": "invalid artifact asks for rerun without required fields",
+                "rerun_requested": True,
+                "repair_artifact": {"revised_theorem_goals": ["too_small"]},
+            }
+
+        result = asyncio.run(
+            ResearchLoopCoordinator(
+                n_runs=25,
+                seed=15,
+                lab_factory=lambda _n, _s: FakeLab(),
+                repair_handlers={"THEORY_OR_PROCEDURE_ISSUE": invalid_handler},
+            ).iterate(
+                question,
+                max_rounds=2,
+            )
+        )
+        self.assertEqual(result["status"], "REPAIR_HANDLER_CONTRACT_FAILED")
+        self.assertEqual(result["n_rounds"], 1)
+        action = result["rounds"][0]["actions"][0]
+        self.assertEqual(action["execution_status"], "REPAIR_HANDLER_CONTRACT_FAILED")
+        self.assertFalse(action["rerun_requested"])
+        self.assertFalse(action["repair_contract_ok"])
+        self.assertTrue(any("revised_procedure" in err for err in action["repair_contract_errors"]))
 
     def test_research_loop_repair_audit_exports_sft_examples(self) -> None:
         loop_dir = Path("runs/test_research_loop_repair_audit_input")

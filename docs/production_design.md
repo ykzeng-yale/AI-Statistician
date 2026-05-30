@@ -48,11 +48,15 @@ and formal gaps are reviewed against attached local Lean/source hits. The
 coordinator also has a registered live-repair handler interface: a
 TheoryDeveloper, ProofEngineer, AlgorithmEngineer, or simulator-extension agent
 can be plugged in for a trigger such as `THEORY_OR_PROCEDURE_ISSUE`; if it
-returns a verified repair artifact and requests a rerun, the coordinator
-executes the next round inside the same bounded loop. Without a registered
-handler, routes that need substantive new reasoning still stop honestly with
-`REQUIRES_THEORY_DEVELOPER`, `REQUIRES_PROOF_ENGINEER`,
-`REQUIRES_ALGORITHM_ENGINEER`, or `REQUIRES_SIMULATOR_EXTENSION`.
+returns a contract-complete repair artifact and requests a rerun, the
+coordinator executes the next round inside the same bounded loop. The contract
+is trigger-specific: theory repairs must include revised procedures/theorem
+goals/assumption deltas/expected simulation deltas; proof repairs must include
+AXLE-verifiable proof fields and cannot request a rerun unless
+`kernel_verified=true`. Without a registered handler, routes that need
+substantive new reasoning still stop honestly with `REQUIRES_THEORY_DEVELOPER`,
+`REQUIRES_PROOF_ENGINEER`, `REQUIRES_ALGORITHM_ENGINEER`, or
+`REQUIRES_SIMULATOR_EXTENSION`.
 
 `StatisticalQuestion` can come from the built-in registry or from JSON. External
 questions may name a supported `dgp_family` and `estimator_family` explicitly,

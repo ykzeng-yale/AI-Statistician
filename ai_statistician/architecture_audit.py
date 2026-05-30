@@ -128,6 +128,7 @@ def audit_architecture(out_dir: Path | None = None) -> dict[str, object]:
                 f"{ResearchLoopCoordinator.__module__}.{ResearchLoopCoordinator.__name__}.iterate",
                 "AIStatisticalTheoryLab.run remains one-pass; ResearchLoopCoordinator executes the next_iteration_agenda around it",
                 "registered repair_handlers can execute live proof/theory/algorithm/simulator repair actions and request reruns",
+                "live repair handler outputs are checked against per-trigger repair contracts before reruns are allowed",
             ),
             limitation=(
                 "The loop executes safe built-in routes and can call registered live repair handlers; "
@@ -205,13 +206,13 @@ def audit_architecture(out_dir: Path | None = None) -> dict[str, object]:
         {
             "requirement": "Simulator feedback actively revises algorithm or theory in the same run",
             "status": "PARTIAL",
-            "current_evidence": "ResearchLoopCoordinator executes MC precision reruns and can invoke registered live theory/algorithm/simulator repair handlers before rerunning.",
+            "current_evidence": "ResearchLoopCoordinator executes MC precision reruns and can invoke contract-checked registered live theory/algorithm/simulator repair handlers before rerunning.",
             "missing": "Default trained TheoryDeveloper and AlgorithmEngineer repair handlers that work without test stubs or manual registration.",
         },
         {
             "requirement": "Formal proof feedback actively revises assumptions/theorem statements/proof search",
             "status": "PARTIAL",
-            "current_evidence": "ResearchLoopCoordinator reviews formal-source hits for FORMAL_GAP rows and can invoke registered proof-repair handlers.",
+            "current_evidence": "ResearchLoopCoordinator reviews formal-source hits for FORMAL_GAP rows and can invoke contract-checked registered proof-repair handlers.",
             "missing": "Default automated statement repair, premise search, tactic/proof search, and proof-bank promotion within the same loop.",
         },
         {

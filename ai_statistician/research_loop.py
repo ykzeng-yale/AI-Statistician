@@ -23,6 +23,14 @@ class ResearchLabLike(Protocol):
 LabFactory = Callable[[int, int], ResearchLabLike]
 LiveRepairHandler = Callable[[dict[str, Any], ResearchReport], Any]
 
+LIVE_REPAIR_TASK_TYPE_BY_TRIGGER = {
+    "FORMAL_GAP": "proof_bank_expansion_from_formal_gap",
+    "FAILED_PROOF_OBLIGATION": "lean_proof_repair_from_axle_error",
+    "THEORY_OR_PROCEDURE_ISSUE": "theory_revision_from_simulation_failure",
+    "IMPLEMENTATION_OR_NUMERICAL_ISSUE": "algorithm_repair_from_numerical_failure",
+    "ENVIRONMENT_OR_DGP_ISSUE": "simulator_environment_extension",
+}
+
 
 @dataclass(frozen=True)
 class LoopConfig:
@@ -322,6 +330,22 @@ class ResearchLoopCoordinator:
                 "result": "Registered live repair handler did not return a dictionary.",
                 "rerun_requested": False,
             }
+        task_type = str(raw.get("task_type") or LIVE_REPAIR_TASK_TYPE_BY_TRIGGER.get(trigger, ""))
+        contract = _output_contract(task_type)
+        contract_errors = _validate_live_repair_output(raw, task_type)
+        if contract_errors:
+            return {
+                **base,
+                **raw,
+                "execution_status": "REPAIR_HANDLER_CONTRACT_FAILED",
+                "result": "Registered live repair handler output failed its repair contract.",
+                "rerun_requested": False,
+                "live_repair_task_type": task_type,
+                "repair_contract": contract,
+                "repair_contract_ok": False,
+                "repair_contract_errors": contract_errors,
+                "live_repair_handler": raw.get("live_repair_handler", handler.__class__.__name__),
+            }
         execution_status = str(raw.get("execution_status", "EXECUTED_LIVE_REPAIR"))
         result = str(raw.get("result", "Registered live repair handler executed."))
         return {
@@ -330,6 +354,10 @@ class ResearchLoopCoordinator:
             "execution_status": execution_status,
             "result": result,
             "rerun_requested": bool(raw.get("rerun_requested", False)),
+            "live_repair_task_type": task_type,
+            "repair_contract": contract,
+            "repair_contract_ok": True,
+            "repair_contract_errors": [],
             "live_repair_handler": raw.get("live_repair_handler", handler.__class__.__name__),
         }
 
@@ -497,6 +525,28 @@ def _output_contract(task_type: str) -> dict[str, Any]:
     }
 
 
+def _validate_live_repair_output(raw: dict[str, Any], task_type: str) -> list[str]:
+    errors: list[str] = []
+    if not task_type:
+        errors.append("live repair task_type missing and could not be inferred from trigger")
+    artifact = raw.get("repair_artifact")
+    if not isinstance(artifact, dict):
+        errors.append("repair_artifact must be an object")
+        artifact = {}
+    contract = _output_contract(task_type)
+    required_fields = [str(row) for row in contract.get("required_fields", []) if str(row)]
+    for field in required_fields:
+        if field not in artifact or artifact.get(field) in (None, "", [], {}):
+            errors.append(f"repair_artifact missing required field: {field}")
+    if raw.get("rerun_requested") and errors:
+        errors.append("rerun_requested=true is forbidden until the repair contract is satisfied")
+    if task_type in {"proof_bank_expansion_from_formal_gap", "lean_proof_repair_from_axle_error"}:
+        verified = artifact.get("kernel_verified") is True or raw.get("kernel_verified") is True
+        if raw.get("rerun_requested") and not verified:
+            errors.append("proof repair rerun requires kernel_verified=true")
+    return errors
+
+
 def _repair_tasks_from_results(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
     tasks: list[dict[str, Any]] = []
     for result in results:
@@ -564,6 +614,8 @@ def _should_rerun_after_live_repair(actions: list[dict[str, Any]]) -> bool:
 
 def _blocking_status(actions: list[dict[str, Any]]) -> str:
     statuses = {row["execution_status"] for row in actions}
+    if "REPAIR_HANDLER_INVALID_OUTPUT" in statuses or "REPAIR_HANDLER_CONTRACT_FAILED" in statuses:
+        return "REPAIR_HANDLER_CONTRACT_FAILED"
     if "REQUIRES_THEORY_DEVELOPER" in statuses:
         return "REQUIRES_THEORY_DEVELOPER"
     if "REQUIRES_ALGORITHM_ENGINEER" in statuses:
