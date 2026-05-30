@@ -15,21 +15,32 @@ claims are auditable:
 6. Every run writes a JSON trace that can be used for debugging, evaluation,
    and future training.
 
-## Current Architecture
+## Current Implemented Architecture
 
 ```text
-StatisticalQuestion
-  -> TheoryDeveloperAgent
-       EstimatorSpec + formal obligation IDs
-  -> FormalVerifierAgent
-       ProofBank/OpenProver-token retrieval -> AXLE verify_proof
-  -> AlgorithmEngineerAgent
-       registered implementation + code hash
-  -> SimulatorAgent
-       DGP, Monte Carlo metrics, feedback
-  -> SystemReport
-       ACCEPTED | FORMAL_BLOCKED | SIMULATION_BLOCKED
+OpenResearchQuestion
+  -> ProblemFormalizer
+       problem class, DGP sketch, estimand, assumptions, asymptotic regime
+  -> TheoryPlanner
+       registry-backed candidate procedure, informal derivation text, theorem goals
+  -> KnowledgeRetriever
+       method cards + local Lean/proof-search sources + paper/source grounding
+  -> FormalSubclaimProver
+       AXLE/mock verification for registered Mathlib-backed subclaims
+       explicit FORMAL_GAP records for frontier theorem pieces
+  -> AlgorithmEngineer / Registry
+       vetted implementation + code hash
+  -> ResearchSimulator
+       DGP environment, Monte Carlo diagnostics, simulation diagnosis
+  -> ResearchReport
+       theory plan + proof status + simulation evidence + next_iteration_agenda
 ```
+
+This is a one-pass production scaffold with queued feedback. The simulator and
+formal prover do not disappear at the bottom of the pipeline: their failures are
+classified into `next_iteration_agenda` items with an owner agent, trigger,
+action, evidence, and stop condition. The current release stops there; it does
+not yet automatically execute the next revision round in the same call.
 
 `StatisticalQuestion` can come from the built-in registry or from JSON. External
 questions may name a supported `dgp_family` and `estimator_family` explicitly,
@@ -37,29 +48,72 @@ or the intake layer can infer them for the supported families below. Unsupported
 or ambiguous questions fail before simulation rather than silently inventing
 unsupported formal guarantees.
 
-## Next-Stage Research Lab
+Architecture audit:
+
+```bash
+python3 -m ai_statistician.cli architecture-audit \
+  --out runs/architecture_audit
+```
+
+This writes `architecture_audit_manifest.json` and `architecture_audit.md`. The
+expected status is
+`SCAFFOLD_WITH_QUEUED_FEEDBACK_NOT_LIVE_CLOSED_LOOP`: correct for the current
+auditable release scaffold, not correct as a claim of a fully autonomous AI
+statistician.
+
+## Target Closed-Loop Research Lab
 
 The broader target is not only a registered estimator executor. It is an AI
 statistical theory lab that can accept paper-style open questions and produce an
-auditable research trace:
+auditable research trace, then actively revise itself from verifier and
+simulator feedback:
 
 ```text
 OpenResearchQuestion
   -> ProblemFormalizer
-       problem class, DGP sketch, estimand, assumptions, asymptotic regime
-  -> TheoryPlanner
-       candidate estimator/test/procedure, informal derivation, theorem goals
-  -> KnowledgeRetriever
-       method cards + local Lean/proof-search resources + AI-for-math papers
-  -> FormalSubclaimProver
-       AXLE/mock verification for Mathlib-backed subclaims
-       explicit FORMAL_GAP records for frontier theorem pieces
-       Lean-facing theorem skeletons exported for each gap
-  -> ResearchSimulator
-       problem-specific Monte Carlo environment and diagnostics
-  -> ResearchReport
-       theory plan + proof status + simulation evidence + limitations
+  -> ResearchCoordinator.iterate(max_rounds)
+       -> LLM TheoryDeveloper
+            propose/revise estimand, estimator/test/procedure, assumptions,
+            theorem statements, informal proof plan, and expected diagnostics
+       -> Retrieval Layer
+            Mathlib, StatInference, EmpiricalProcessLEAN, atlas-lean,
+            papers, proof bank, Autoform targets, provider-fusion candidates
+       -> Formalizer + ProofEngineer
+            formalize definitions/theorems, prove available subclaims,
+            repair statements/proofs, or emit explicit FORMAL_GAP
+       -> AlgorithmEngineer
+            implement or repair vetted/sandboxed procedure code
+       -> ResearchSimulator / Empirical Critic
+            run DGP/stress tests, classify bias/SE/coverage/FDR/power failures
+       -> Coordinator diagnosis
+            proof syntax/type error -> Formalizer repair
+            missing lemma -> retrieval/proof-bank expansion
+            assumptions too weak -> TheoryDeveloper revision
+            biased estimator or wrong SE -> TheoryDeveloper revision
+            implementation/numerical issue -> AlgorithmEngineer repair
+            DGP mismatch -> ProblemFormalizer/Simulator revision
+  -> ResearchReport + AuditTrace + ProofBank/Gaps/Training Queues
 ```
+
+So the intended system is not `question -> theory -> proof -> code -> sim ->
+report`. It is a closed loop:
+
+```text
+question
+  -> informal statistical theory development
+  -> formalization/proof attempts
+  -> algorithm implementation
+  -> simulation criticism
+  -> theory/proof/algorithm revision
+  -> repeat until proved/validated, explicitly gapped, or budget exhausted
+```
+
+Current honest boundary: `TheoryPlanner` already emits informal derivation text
+and theorem roadmaps, `FormalSubclaimProver` already performs real AXLE/Lean
+verification for registered proof-bank obligations, and `ResearchSimulator`
+already diagnoses failures. The missing architecture piece is a live
+`ResearchLoopCoordinator.iterate(max_rounds)` that executes those diagnoses
+rather than only recording them as next-iteration work.
 
 The CLI entry point is:
 

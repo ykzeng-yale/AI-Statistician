@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from ai_statistician.algorithms import audit_algorithm_registry
+from ai_statistician.architecture_audit import audit_architecture
 from ai_statistician.capability_audit import build_capability_audit, write_capability_audit
 from ai_statistician.doctor import build_doctor_report, write_doctor_manifest
 from ai_statistician.frontier_coverage_audit import audit_frontier_coverage, load_frontier_benchmark_questions
@@ -2643,6 +2644,35 @@ class SystemTests(unittest.TestCase):
         self.assertFalse(payload["goal_complete"])
         self.assertTrue(payload["all_current_release_requirements_met"])
 
+    def test_architecture_audit_marks_queued_feedback_not_live_loop(self) -> None:
+        payload = audit_architecture(Path("runs/test_architecture_audit"))
+        self.assertEqual(
+            payload["architecture_status"],
+            "SCAFFOLD_WITH_QUEUED_FEEDBACK_NOT_LIVE_CLOSED_LOOP",
+        )
+        self.assertTrue(payload["is_current_architecture_correct_for_release_scaffold"])
+        self.assertFalse(payload["is_current_architecture_correct_for_full_autonomous_ai_statistician"])
+        self.assertEqual(payload["implemented_feedback_mode"], "queued_next_iteration_agenda")
+        self.assertFalse(payload["has_live_revision_loop"])
+        self.assertTrue(payload["all_release_scaffold_components_present"])
+
+        statuses = {row["component"]: row["status"] for row in payload["components"]}
+        self.assertEqual(statuses["feedback_router"], "ACHIEVED")
+        self.assertEqual(statuses["live_revision_loop"], "NOT_IMPLEMENTED")
+        self.assertEqual(statuses["llm_theory_developer"], "PARTIAL")
+        route_by_trigger = {row["trigger"]: row for row in payload["feedback_routes"]}
+        self.assertEqual(route_by_trigger["THEORY_OR_PROCEDURE_ISSUE"]["owner_agent"], "theory_developer")
+        self.assertEqual(
+            route_by_trigger["IMPLEMENTATION_OR_NUMERICAL_ISSUE"]["owner_agent"],
+            "algorithm_engineer",
+        )
+        self.assertEqual(
+            route_by_trigger["FORMAL_GAP"]["live_execution_status"],
+            "QUEUED_NOT_EXECUTED",
+        )
+        self.assertTrue(Path("runs/test_architecture_audit/architecture_audit_manifest.json").exists())
+        self.assertTrue(Path("runs/test_architecture_audit/architecture_audit.md").exists())
+
     def test_prover_component_audit_is_honest_about_training_gaps(self) -> None:
         payload = build_prover_component_audit(root=Path("."))
         self.assertTrue(payload["paper_outline_exists"])
@@ -2690,6 +2720,7 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(payload["gates"]["frontier_coverage_audit"])
         self.assertTrue(payload["gates"]["frontier_precision_audit"])
         self.assertTrue(payload["gates"]["frontier_backlog_audit"])
+        self.assertTrue(payload["gates"]["architecture_audit"])
         self.assertTrue(payload["gates"]["research_capability_audit"])
         self.assertTrue(payload["gates"]["frontier_smoke_benchmark"])
         self.assertTrue(payload["gates"]["research_intake_audit"])
@@ -2724,6 +2755,9 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(payload["counts"]["frontier_backlog_total"], payload["counts"]["frontier_unsupported"])
         self.assertEqual(payload["counts"]["frontier_backlog_domains"], 0)
         self.assertEqual(payload["counts"]["frontier_backlog_required_primitives"], 0)
+        self.assertFalse(payload["counts"]["architecture_has_live_revision_loop"])
+        self.assertGreaterEqual(payload["counts"]["architecture_components_not_implemented"], 1)
+        self.assertGreaterEqual(payload["counts"]["architecture_feedback_routes"], 5)
         self.assertFalse(payload["counts"]["research_capability_goal_complete"])
         self.assertEqual(
             payload["counts"]["research_capability_current_release_gate_met"],

@@ -8,6 +8,7 @@ from pathlib import Path
 from .frontier_backlog_audit import audit_frontier_backlog
 from .frontier_coverage_audit import audit_frontier_coverage
 from .frontier_precision_audit import audit_frontier_precision
+from .architecture_audit import audit_architecture
 from .formal_gap_task_export import export_formal_gap_lean_tasks
 from .formalization_target_audit import audit_formalization_targets
 from .formal_source_graph import audit_formal_source_graph
@@ -76,6 +77,7 @@ async def run_research_system_audit(
     frontier_manifest = audit_frontier_coverage(out_dir / "frontier_coverage_audit")
     frontier_precision_manifest = audit_frontier_precision(out_dir / "frontier_precision_audit")
     frontier_backlog_manifest = audit_frontier_backlog(out_dir / "frontier_backlog_audit")
+    architecture_manifest = audit_architecture(out_dir / "architecture_audit")
     capability_report = build_research_capability_audit(
         root=Path.cwd(),
         question_file=actual_question_file,
@@ -189,6 +191,7 @@ async def run_research_system_audit(
         "frontier_coverage_audit": bool(frontier_manifest["all_ok"]),
         "frontier_precision_audit": bool(frontier_precision_manifest["all_ok"]),
         "frontier_backlog_audit": bool(frontier_backlog_manifest["all_ok"]),
+        "architecture_audit": bool(architecture_manifest["all_release_scaffold_components_present"]),
         "research_capability_audit": bool(capability_report["all_current_release_requirements_met"]),
         "frontier_smoke_benchmark": bool(frontier_smoke_manifest["all_gates_passed"]),
         "research_intake_audit": bool(intake_manifest["all_ok"]),
@@ -247,6 +250,11 @@ async def run_research_system_audit(
             "frontier_backlog_total": frontier_backlog_manifest["n_backlog"],
             "frontier_backlog_domains": len(frontier_backlog_manifest["by_domain"]),
             "frontier_backlog_required_primitives": len(frontier_backlog_manifest["by_required_primitive"]),
+            "architecture_components_achieved": architecture_manifest["component_counts"].get("ACHIEVED", 0),
+            "architecture_components_partial": architecture_manifest["component_counts"].get("PARTIAL", 0),
+            "architecture_components_not_implemented": architecture_manifest["component_counts"].get("NOT_IMPLEMENTED", 0),
+            "architecture_has_live_revision_loop": architecture_manifest["has_live_revision_loop"],
+            "architecture_feedback_routes": len(architecture_manifest["feedback_routes"]),
             "research_capability_achieved": capability_report["n_achieved"],
             "research_capability_partial": capability_report["n_partial"],
             "research_capability_not_achieved": capability_report["n_not_achieved"],
@@ -376,6 +384,8 @@ async def run_research_system_audit(
                 out_dir / "frontier_backlog_audit" / "frontier_backlog_manifest.json"
             ),
             "frontier_backlog_report": str(out_dir / "frontier_backlog_audit" / "frontier_backlog.md"),
+            "architecture_audit": str(out_dir / "architecture_audit" / "architecture_audit_manifest.json"),
+            "architecture_report": str(out_dir / "architecture_audit" / "architecture_audit.md"),
             "research_capability_audit": str(
                 out_dir / "research_capability_audit" / "research_capability_audit_manifest.json"
             ),

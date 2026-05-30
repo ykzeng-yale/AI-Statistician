@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 
 from .algorithms import audit_algorithm_registry
+from .architecture_audit import audit_architecture
 from .autoform_harness import audit_autoform_harness
 from .capability_audit import build_capability_audit, write_capability_audit
 from .doctor import build_doctor_report, write_doctor_manifest
@@ -893,6 +894,28 @@ def _research_capability_audit(args: argparse.Namespace) -> int:
     return 0 if report["all_current_release_requirements_met"] else 1
 
 
+def _architecture_audit(args: argparse.Namespace) -> int:
+    payload = audit_architecture(Path(args.out))
+    print("\nAI Statistician Architecture Audit")
+    print("=" * 72)
+    print(f"architecture_status={payload['architecture_status']}")
+    print(
+        "release_scaffold_correct="
+        f"{payload['is_current_architecture_correct_for_release_scaffold']}"
+    )
+    print(
+        "full_autonomous_correct="
+        f"{payload['is_current_architecture_correct_for_full_autonomous_ai_statistician']}"
+    )
+    print(f"implemented_feedback_mode={payload['implemented_feedback_mode']}")
+    print(f"target_feedback_mode={payload['target_feedback_mode']}")
+    for row in payload["components"]:
+        print(f"  {row['status']:15} {row['component']}")
+    print(f"\narchitecture audit manifest written to {(Path(args.out) / 'architecture_audit_manifest.json').resolve()}")
+    print(f"markdown report written to {(Path(args.out) / 'architecture_audit.md').resolve()}")
+    return 0 if payload["all_release_scaffold_components_present"] else 1
+
+
 def _prover_component_audit(args: argparse.Namespace) -> int:
     payload = build_prover_component_audit(
         root=Path(args.root),
@@ -1664,6 +1687,17 @@ def build_parser() -> argparse.ArgumentParser:
     research_capability_audit.add_argument("--max-manifests", type=int, default=12, help="number of recent research manifests to include")
     research_capability_audit.add_argument("--json", action="store_true", help="print machine-readable JSON")
     research_capability_audit.set_defaults(func=_research_capability_audit)
+
+    architecture_audit = sub.add_parser(
+        "architecture-audit",
+        help="audit current one-pass scaffold vs target closed-loop AI statistician architecture",
+    )
+    architecture_audit.add_argument(
+        "--out",
+        default="runs/architecture_audit",
+        help="write architecture_audit_manifest.json here",
+    )
+    architecture_audit.set_defaults(func=_architecture_audit)
 
     prover_component_audit = sub.add_parser(
         "prover-component-audit",
