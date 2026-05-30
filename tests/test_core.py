@@ -409,6 +409,7 @@ class ProofBankTests(unittest.TestCase):
                     "finite_union_bound",
                     "finite_horizon_type1_union_control",
                     "finite_horizon_evalue_markov_type1_control",
+                    "filtration_mono_measurable_set",
                     "mean2_estimator_chebyshev_indep",
                     "finite_sample_mean_chebyshev_indep",
                 ],
@@ -567,6 +568,18 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("meas_ge_le_lintegral_div", content)
         self.assertIn("measure_biUnion_finset_le", content)
         self.assertIn("Finset.sum_le_sum", content)
+        self.assertNotIn("by sorry", content)
+
+    def test_filtration_mono_bridge_supports_sequential_gap(self) -> None:
+        obligation = get_obligation("filtration_mono_measurable_set")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertIn("filtration", obligation.tags)
+        self.assertIn("sequential", obligation.tags)
+        self.assertIn("optional_stopping", obligation.tags)
+        self.assertIn("theorem filtration_mono_measurableSet", content)
+        self.assertIn("MeasurableSet[ℱ i] A", content)
+        self.assertIn("MeasurableSet[ℱ j] A", content)
+        self.assertIn("ℱ.mono hij", content)
         self.assertNotIn("by sorry", content)
 
     def test_affine_estimator_obligation_supports_shrinkage_expectation(self) -> None:

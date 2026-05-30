@@ -3947,6 +3947,7 @@ class TheoryPlanner:
                     proof_obligations=(
                         "prob_measure_univ",
                         "event_probability_mono",
+                        "filtration_mono_measurable_set",
                         "finite_union_bound",
                         "finite_horizon_type1_union_control",
                         "finite_union_budget_control",
@@ -4908,6 +4909,7 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "event_indicator_expectation",
         "finite_event_indicator_mean_unbiased",
         "event_probability_mono",
+        "filtration_mono_measurable_set",
         "independent_event_inter_probability",
         "finite_union_bound",
         "finite_horizon_type1_union_control",

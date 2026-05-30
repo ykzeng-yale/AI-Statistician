@@ -256,6 +256,12 @@ allocation. It proves type-I control for finitely many ENNReal e-value-like
 coordinates with verified tail budgets, and gives the e-process/Ville
 formalization queue a proof-bank-backed stepping stone without claiming
 optional stopping or nonnegative-supermartingale validity.
+It also includes `filtration_mono_measurable_set`, proving that event
+measurability is monotone along a filtration: an event measurable at an earlier
+index remains measurable at any later index. This is now the verified bridge
+for the `filtration` primitive and an additional bridge candidate for
+stopping-time/Ville theorem skeletons, while full optional-stopping and Ville
+inequality remain formal gaps.
 It also includes `event_probability_mono`, the measure monotonicity fact
 `A ⊆ B -> μ(A) ≤ μ(B)`, which is a reusable subclaim for bad-event containment
 arguments in conformal coverage, BH/FDR decompositions, and anytime-valid error

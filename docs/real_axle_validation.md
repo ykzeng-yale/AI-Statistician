@@ -8,20 +8,20 @@ Runtime used:
 PYTHONPATH=/Users/yukang/AI\ Statistician \
 /Users/yukang/LeanProjects/LeanPractice/.venv/bin/python \
   -m ai_statistician.cli proof-audit --real-lean \
-  --out runs/proof_audit_real_full_46
+  --out runs/proof_audit_real_full_47
 ```
 
 Result:
 
 ```text
-verified=46/46
-kernel=46/46
+verified=47/47
+kernel=47/47
 verifier=axle.verify_proof
 strength=axle_lean_kernel
 ```
 
 This is the current evidence that the registered proof bank is not only
-mock-checked: all 46 registered Mathlib-backed obligations were accepted by
+mock-checked: all 47 registered Mathlib-backed obligations were accepted by
 AXLE/Lean-kernel verification in the real external runtime.
 
 Latest real research-system validation: 2026-05-29.
@@ -32,7 +32,7 @@ Runtime used:
 PYTHONPATH=/Users/yukang/AI\ Statistician \
 /Users/yukang/LeanProjects/LeanPractice/.venv/bin/python \
   -m ai_statistician.cli research-system-audit --real-lean \
-  --runs 20 --out runs/research_system_real_lean_46_aipw_integrability_bridge
+  --runs 20 --out runs/research_system_real_lean_48_filtration_bridge
 ```
 
 Result:
@@ -41,23 +41,23 @@ Result:
 all_gates_passed=True
 autoform_harness=True
 autoform_target_export=True
-sources=19/19
+sources=23/23
 frontier_supported=60/60
 frontier_precision=60/60
 frontier_backlog=0/0
 frontier_smoke=23/23
-proofs_verified=46/46
-proofs_kernel_verified=46/46
+proofs_verified=47/47
+proofs_kernel_verified=47/47
 proof_verification_strength=axle_lean_kernel
 research_traces_ok=10/10
 formal_gaps=20
 formalized_gaps=20
 autoform_targets=20/20
-formal_source_graph_symbols=69330
-formal_source_graph_edges=1361926
-verifier_cache_hits=296
-verifier_cache_misses=46
-verifier_cache_size=46
+formal_source_graph_symbols=74926
+formal_source_graph_edges=1474246
+verifier_cache_hits=298
+verifier_cache_misses=47
+verifier_cache_size=47
 ```
 
 The research-system run proves that `--real-lean` now flows through the actual
@@ -108,6 +108,16 @@ are integrable. It raises `proof_bank_expansion_bridge_ready` from 10 to 11:
 `integrability_of_score_terms` now ranks this theorem as its verified bridge.
 This remains an integrability side-condition theorem, not a nuisance-rate or
 asymptotic-normality proof.
+
+The 47th obligation is `filtration_mono_measurable_set`, proving that if an
+event is measurable with respect to an earlier sigma-algebra in a filtration,
+then it remains measurable at any later index. It is a direct wrapper around
+Mathlib's `Filtration.mono`. The formalization-target audit now ranks it as the
+verified bridge for the `filtration` primitive and as an additional bridge
+candidate for `stopping_time` and `ville_inequality`; this raises
+`proof_bank_expansion_bridge_ready` from 11 to 12. This remains a structural
+filtration measurability theorem, not a proof of optional stopping or full
+Ville inequality.
 
 Important boundary:
 

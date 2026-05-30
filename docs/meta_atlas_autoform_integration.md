@@ -140,7 +140,7 @@ Real Lean/AXLE system audit:
 PYTHONPATH=/Users/yukang/AI\ Statistician \
 /Users/yukang/LeanProjects/LeanPractice/.venv/bin/python \
   -m ai_statistician.cli research-system-audit --real-lean \
-  --runs 20 --out runs/research_system_real_lean_46_aipw_integrability_bridge
+  --runs 20 --out runs/research_system_real_lean_48_filtration_bridge
 ```
 
 Result:
@@ -150,7 +150,7 @@ all_gates_passed=True
 autoform_harness=True
 autoform_targets=20/20
 sources=23/23
-proofs=46/46
+proofs=47/47
 frontier_supported=60/60
 formalized_gaps=20/20
 missing_primitives=97
@@ -164,7 +164,7 @@ autoform_harness: ready_for_integration=True
 source_inventory: 23/23 all_ok=True
 ```
 
-The same audit now reports `proof_bank_expansion_bridge_ready=11`.
+The same audit now reports `proof_bank_expansion_bridge_ready=12`.
 `independent_null_pvalues` is backed by the verified
 `independent_null_event_family_inter_probability` and
 `independent_null_event_family_compl_inter_probability` obligations. The
@@ -177,3 +177,7 @@ stopping and full Ville as formal gaps. The AIPW primitives
 while preserving conditional-expectation residual identities and full double
 robustness as formal gaps. `integrability_of_score_terms` now ranks
 `aipw_score_integrable_of_components` as its verified integrability bridge.
+The `filtration` primitive now ranks `filtration_mono_measurable_set` as its
+verified bridge, and `stopping_time` / `ville_inequality` also list it as a
+candidate bridge while preserving optional stopping and full Ville as formal
+gaps.

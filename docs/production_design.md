@@ -671,6 +671,12 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   `eprocess_type1_control`, `nonnegative_supermartingale`, and
   `ville_inequality` formalization primitives. It is not a proof of optional
   stopping or Ville's inequality.
+- `filtration_mono_measurable_set`: filtration monotonicity for event
+  measurability:
+  `MeasurableSet[ℱ i] A -> i ≤ j -> MeasurableSet[ℱ j] A`, proved from
+  Mathlib's `Filtration.mono`. It is the verified bridge now attached to the
+  `filtration` primitive and a candidate bridge for stopping-time/Ville
+  skeletons. It is not a proof of optional stopping or Ville's inequality.
 - `event_probability_mono`: event monotonicity `A ⊆ B -> μ(A) ≤ μ(B)`,
   proved directly from Mathlib's `measure_mono`; this is the reusable
   bad-event-containment step used before applying union or tail bounds.

@@ -1528,6 +1528,47 @@ theorem finiteHorizonEValue_markov_type1_control {Ω ι : Type*} [MeasurableSpac
         expected_lemmas=("measure_biUnion_finset_le", "meas_ge_le_lintegral_div", "Finset.sum_le_sum"),
         depends_on=("markov_inequality", "finite_union_bound", "finite_union_budget_control"),
     ),
+    "filtration_mono_measurable_set": FormalObligation(
+        id="filtration_mono_measurable_set",
+        title="Filtration monotonicity preserves measurability",
+        english=(
+            "If an event is measurable with respect to an earlier sigma-algebra "
+            "in a filtration, then it remains measurable with respect to any "
+            "later sigma-algebra. This is a reusable structural bridge for "
+            "sequential inference, adapted processes, stopping times, and "
+            "finite-horizon reductions of optional-stopping arguments; it does "
+            "not prove Ville's inequality or optional-stopping validity."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory
+
+theorem filtration_mono_measurableSet {Ω ι : Type*} {m : MeasurableSpace Ω}
+    [Preorder ι] (ℱ : Filtration ι m) {i j : ι} (hij : i ≤ j)
+    {A : Set Ω} (hA : MeasurableSet[ℱ i] A) :
+    MeasurableSet[ℱ j] A := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  exact (ℱ.mono hij) A hA"
+        ),
+        tags=(
+            "probability",
+            "process",
+            "filtration",
+            "measurability",
+            "monotonicity",
+            "adapted",
+            "stopping_time",
+            "sequential",
+            "eprocess",
+            "optional_stopping",
+            "ville_inequality",
+        ),
+        expected_lemmas=("Filtration.mono",),
+    ),
     "event_probability_mono": FormalObligation(
         id="event_probability_mono",
         title="Event probability monotonicity",
