@@ -236,6 +236,7 @@ async def run_research_system_audit(
         "next_iteration_queue": bool(next_iteration_manifest["all_ok"]),
         "research_report": bool(research_report_manifest["all_ok"]),
         "research_loop": bool(research_loop_manifest["all_loop_traces_written"])
+        and bool(research_loop_manifest["all_repair_tasks_exported"])
         and int(research_loop_manifest["n_questions"]) == 1,
     }
     payload = {
@@ -380,6 +381,8 @@ async def run_research_system_audit(
             "research_report_simulations": research_report_manifest["counts"]["simulations"],
             "research_loop_questions": research_loop_manifest["n_questions"],
             "research_loop_traces_written": research_loop_manifest["all_loop_traces_written"],
+            "research_loop_repair_tasks_exported": research_loop_manifest["all_repair_tasks_exported"],
+            "research_loop_repair_tasks": research_loop_manifest["n_repair_tasks"],
             "research_loop_status_kinds": len(research_loop_manifest["status_counts"]),
         },
         "questions": benchmark_manifest["questions"],
@@ -524,6 +527,7 @@ async def run_research_system_audit(
             "research_report": str(out_dir / "research_report" / "research_report.md"),
             "research_report_manifest": str(out_dir / "research_report" / "research_report_manifest.json"),
             "research_loop": str(out_dir / "research_loop" / "research_loop_manifest.json"),
+            "research_loop_repair_tasks": str(out_dir / "research_loop" / "research_loop_repair_tasks.jsonl"),
             "formal_gaps": str(out_dir / "research_benchmark" / "formal_gaps"),
         },
     }

@@ -77,9 +77,12 @@ python3 -m ai_statistician.cli research-loop \
   --out runs/research_loop
 ```
 
-This writes `research_loop_manifest.json` plus one trace per question. It is the
-first executable bridge from `next_iteration_agenda` to live action. It is not
-yet full autonomous theory repair.
+This writes `research_loop_manifest.json`, one trace per question, and
+`research_loop_repair_tasks.jsonl`. The JSONL file turns blocked routes into
+agent-ready repair tasks with prompts, context, output contracts, and acceptance
+criteria. It is the first executable bridge from `next_iteration_agenda` to live
+action and training/exportable repair work. It is not yet full autonomous
+theory repair.
 
 ## Target Closed-Loop Research Lab
 

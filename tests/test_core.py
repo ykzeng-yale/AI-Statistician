@@ -2771,6 +2771,63 @@ class SystemTests(unittest.TestCase):
             "EXECUTED_MONITOR",
         )
 
+    def test_research_loop_exports_structured_repair_task_for_theory_failure(self) -> None:
+        question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+        problem = ProblemFormalizer().formalize(question)
+        procedure, theorem_goal = TheoryPlanner().plan(problem)
+        bad_sim = ResearchSimulator(n_runs=25, seed=11).run(problem, procedure)[0]
+        bad_sim.passed = False
+        bad_sim.diagnosis.status = "THEORY_OR_PROCEDURE_ISSUE"
+        bad_sim.diagnosis.escalate_to = "theory_developer"
+        bad_sim.diagnosis.failed_diagnostics = ("coverage",)
+        bad_sim.diagnosis.rationale = "test forces theory revision"
+
+        report = ResearchReport(
+            question=question,
+            problem=problem,
+            procedures=procedure,
+            knowledge=[],
+            paper_sources=[],
+            formal_subclaims=[],
+            simulations=[bad_sim],
+            theorem_goals=theorem_goal,
+            theory_plan={
+                "next_iteration_agenda": {
+                    "items": [
+                        {
+                            "id": "simulation:theory",
+                            "owner_agent": "theory_developer",
+                            "trigger": "THEORY_OR_PROCEDURE_ISSUE",
+                            "action": "revise_estimator_or_theorem_acceptance_rule",
+                            "evidence": "coverage below threshold",
+                            "failed_diagnostics": ["coverage"],
+                            "target_procedure": procedure[0].id,
+                        }
+                    ]
+                }
+            },
+            status="SIMULATION_FLAGGED_WITH_FORMAL_GAPS",
+        )
+
+        class FakeLab:
+            async def run(self, question):
+                return report
+
+        result = asyncio.run(
+            ResearchLoopCoordinator(n_runs=25, seed=11, lab_factory=lambda _n, _s: FakeLab()).iterate(
+                question,
+                max_rounds=2,
+            )
+        )
+        self.assertEqual(result["status"], "REQUIRES_THEORY_DEVELOPER")
+        action = result["rounds"][0]["actions"][0]
+        self.assertEqual(action["execution_status"], "REQUIRES_THEORY_DEVELOPER")
+        task = action["repair_task"]
+        self.assertEqual(task["owner_agent"], "theory_developer")
+        self.assertEqual(task["task_type"], "theory_revision_from_simulation_failure")
+        self.assertIn("revised_theorem_goals", task["output_contract"]["required_fields"])
+        self.assertTrue(any("simulation" in item for item in task["acceptance_criteria"]))
+
     def test_prover_component_audit_is_honest_about_training_gaps(self) -> None:
         payload = build_prover_component_audit(root=Path("."))
         self.assertTrue(payload["paper_outline_exists"])
@@ -2868,6 +2925,8 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(payload["counts"]["frontier_smoke_ready"], payload["counts"]["frontier_smoke_questions"])
         self.assertEqual(payload["counts"]["research_loop_questions"], 1)
         self.assertTrue(payload["counts"]["research_loop_traces_written"])
+        self.assertTrue(payload["counts"]["research_loop_repair_tasks_exported"])
+        self.assertGreaterEqual(payload["counts"]["research_loop_repair_tasks"], 1)
         self.assertEqual(
             payload["counts"]["frontier_theory_targets_scored"],
             payload["counts"]["frontier_theory_targets_total"],

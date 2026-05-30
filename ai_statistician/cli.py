@@ -1091,7 +1091,8 @@ async def _research_loop(args: argparse.Namespace) -> int:
     print("=" * 72)
     print(
         f"questions={payload['n_questions']} max_rounds={payload['config']['max_rounds']} "
-        f"all_traces_written={payload['all_loop_traces_written']}"
+        f"all_traces_written={payload['all_loop_traces_written']} "
+        f"repair_tasks={payload['n_repair_tasks']}"
     )
     for status, count in payload["status_counts"].items():
         print(f"  {status}: {count}")
