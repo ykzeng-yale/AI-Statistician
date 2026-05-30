@@ -44,8 +44,13 @@ agent, trigger, action, evidence, and stop condition.
 The first live loop over this scaffold is `ResearchLoopCoordinator.iterate()`.
 It executes the agenda routes that are safe today: Monte Carlo precision
 failures trigger a larger-budget rerun, monitor-only traces terminate cleanly,
-and formal gaps are reviewed against attached local Lean/source hits. Routes
-that need substantive new reasoning still stop honestly with
+and formal gaps are reviewed against attached local Lean/source hits. The
+coordinator also has a registered live-repair handler interface: a
+TheoryDeveloper, ProofEngineer, AlgorithmEngineer, or simulator-extension agent
+can be plugged in for a trigger such as `THEORY_OR_PROCEDURE_ISSUE`; if it
+returns a verified repair artifact and requests a rerun, the coordinator
+executes the next round inside the same bounded loop. Without a registered
+handler, routes that need substantive new reasoning still stop honestly with
 `REQUIRES_THEORY_DEVELOPER`, `REQUIRES_PROOF_ENGINEER`,
 `REQUIRES_ALGORITHM_ENGINEER`, or `REQUIRES_SIMULATOR_EXTENSION`.
 
@@ -150,10 +155,11 @@ Current honest boundary: `TheoryPlanner` already emits informal derivation text
 and theorem roadmaps, `FormalSubclaimProver` already performs real AXLE/Lean
 verification for registered proof-bank obligations, `ResearchSimulator` already
 diagnoses failures, and `ResearchLoopCoordinator` now executes the scoped
-actions above. The missing architecture piece is substantive autonomous repair:
-an LLM TheoryDeveloper that revises estimators/theorems, a ProofEngineer that
-promotes gaps to verified Lean obligations, and a sandboxed AlgorithmEngineer
-that repairs code from simulator evidence.
+actions above, including registered live repair handlers when supplied. The
+missing architecture piece is default substantive autonomous repair: an LLM
+TheoryDeveloper that revises estimators/theorems without a test stub, a
+ProofEngineer that promotes gaps to verified Lean obligations, and a sandboxed
+AlgorithmEngineer that repairs code from simulator evidence.
 
 The CLI entry point is:
 

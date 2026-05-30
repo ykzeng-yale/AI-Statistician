@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import inspect
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -20,6 +21,7 @@ class ResearchLabLike(Protocol):
 
 
 LabFactory = Callable[[int, int], ResearchLabLike]
+LiveRepairHandler = Callable[[dict[str, Any], ResearchReport], Any]
 
 
 @dataclass(frozen=True)
@@ -48,12 +50,14 @@ class ResearchLoopCoordinator:
         n_runs: int = 100,
         seed: int = 20260528,
         lab_factory: LabFactory | None = None,
+        repair_handlers: dict[str, LiveRepairHandler] | None = None,
     ) -> None:
         self.proof_verifier = proof_verifier
         self.formal_source_retriever = formal_source_retriever
         self.n_runs = n_runs
         self.seed = seed
         self.lab_factory = lab_factory
+        self.repair_handlers = dict(repair_handlers or {})
 
     async def iterate(
         self,
@@ -72,7 +76,7 @@ class ResearchLoopCoordinator:
             report = await lab.run(question)
             final_report = report
             agenda = _agenda_from_report(report)
-            actions = [self._execute_agenda_item(item, report) for item in agenda.get("items", [])]
+            actions = [await self._execute_agenda_item(item, report) for item in agenda.get("items", [])]
             round_summary = _round_summary(round_index, n_runs, report, actions)
             rounds.append(round_summary)
 
@@ -81,6 +85,8 @@ class ResearchLoopCoordinator:
                 break
             if _should_rerun_more_mc(actions) and round_index < max_rounds:
                 n_runs = max(n_runs + 1, n_runs * mc_rerun_multiplier)
+                continue
+            if _should_rerun_after_live_repair(actions) and round_index < max_rounds:
                 continue
             blocking_status = _blocking_status(actions)
             if blocking_status:
@@ -103,6 +109,7 @@ class ResearchLoopCoordinator:
             "final_report": final_report.to_json() if final_report is not None else None,
             "honesty_boundary": {
                 "executes_feedback_agenda": True,
+                "executes_registered_live_repair_handlers": bool(self.repair_handlers),
                 "free_form_theory_revision": False,
                 "arbitrary_lean_proof_search": False,
                 "arbitrary_algorithm_generation": False,
@@ -119,7 +126,7 @@ class ResearchLoopCoordinator:
             seed=seed,
         )
 
-    def _execute_agenda_item(self, item: dict[str, Any], report: ResearchReport) -> dict[str, Any]:
+    async def _execute_agenda_item(self, item: dict[str, Any], report: ResearchReport) -> dict[str, Any]:
         trigger = str(item.get("trigger", "UNKNOWN"))
         owner = str(item.get("owner_agent", "research_coordinator"))
         action = str(item.get("action", "triage"))
@@ -142,6 +149,9 @@ class ResearchLoopCoordinator:
                 "execution_status": "EXECUTED_RERUN_MORE_MC",
                 "result": "Coordinator will rerun the research lab with a larger Monte Carlo budget if round budget remains.",
             }
+        live_result = await self._try_live_repair_handler(item, report, base)
+        if live_result is not None:
+            return live_result
         if trigger == "FORMAL_GAP":
             target = str(item.get("target_theorem_goal", ""))
             matching_gap = next((row for row in report.formal_subclaims if row.id.endswith(target)), None)
@@ -289,6 +299,38 @@ class ResearchLoopCoordinator:
                 acceptance_criteria=("trigger is mapped to an owner agent", "a new loop handler or explicit limitation is added"),
                 context={},
             ),
+        }
+
+    async def _try_live_repair_handler(
+        self,
+        item: dict[str, Any],
+        report: ResearchReport,
+        base: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        trigger = str(item.get("trigger", ""))
+        owner = str(item.get("owner_agent", ""))
+        handler = self.repair_handlers.get(trigger) or self.repair_handlers.get(owner)
+        if handler is None:
+            return None
+        raw = handler(item, report)
+        if inspect.isawaitable(raw):
+            raw = await raw
+        if not isinstance(raw, dict):
+            return {
+                **base,
+                "execution_status": "REPAIR_HANDLER_INVALID_OUTPUT",
+                "result": "Registered live repair handler did not return a dictionary.",
+                "rerun_requested": False,
+            }
+        execution_status = str(raw.get("execution_status", "EXECUTED_LIVE_REPAIR"))
+        result = str(raw.get("result", "Registered live repair handler executed."))
+        return {
+            **base,
+            **raw,
+            "execution_status": execution_status,
+            "result": result,
+            "rerun_requested": bool(raw.get("rerun_requested", False)),
+            "live_repair_handler": raw.get("live_repair_handler", handler.__class__.__name__),
         }
 
 
@@ -514,6 +556,10 @@ def _only_monitor_actions(actions: list[dict[str, Any]]) -> bool:
 
 def _should_rerun_more_mc(actions: list[dict[str, Any]]) -> bool:
     return any(row["execution_status"] == "EXECUTED_RERUN_MORE_MC" for row in actions)
+
+
+def _should_rerun_after_live_repair(actions: list[dict[str, Any]]) -> bool:
+    return any(bool(row.get("rerun_requested")) for row in actions)
 
 
 def _blocking_status(actions: list[dict[str, Any]]) -> str:

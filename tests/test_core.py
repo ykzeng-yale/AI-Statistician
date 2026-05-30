@@ -2846,6 +2846,116 @@ class SystemTests(unittest.TestCase):
         self.assertIn("revised_theorem_goals", task["output_contract"]["required_fields"])
         self.assertTrue(any("simulation" in item for item in task["acceptance_criteria"]))
 
+    def test_research_loop_executes_registered_live_theory_repair_handler(self) -> None:
+        question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+        problem = ProblemFormalizer().formalize(question)
+        procedure, theorem_goal = TheoryPlanner().plan(problem)
+        bad_sim = ResearchSimulator(n_runs=25, seed=13).run(problem, procedure)[0]
+        bad_sim.passed = False
+        bad_sim.diagnosis.status = "THEORY_OR_PROCEDURE_ISSUE"
+        bad_sim.diagnosis.escalate_to = "theory_developer"
+        bad_sim.diagnosis.failed_diagnostics = ("coverage",)
+        bad_sim.diagnosis.rationale = "test forces live theory repair"
+        ok_sim = ResearchSimulator(n_runs=25, seed=14).run(problem, procedure)[0]
+        ok_sim.passed = True
+        ok_sim.diagnosis.status = "OK"
+        ok_sim.diagnosis.escalate_to = "none"
+        ok_sim.diagnosis.rationale = "test live repair second round passes"
+
+        first = ResearchReport(
+            question=question,
+            problem=problem,
+            procedures=procedure,
+            knowledge=[],
+            paper_sources=[],
+            formal_subclaims=[],
+            simulations=[bad_sim],
+            theorem_goals=theorem_goal,
+            theory_plan={
+                "next_iteration_agenda": {
+                    "items": [
+                        {
+                            "id": "simulation:theory",
+                            "owner_agent": "theory_developer",
+                            "trigger": "THEORY_OR_PROCEDURE_ISSUE",
+                            "action": "revise_estimator_or_theorem_acceptance_rule",
+                            "evidence": "coverage below threshold",
+                            "failed_diagnostics": ["coverage"],
+                            "target_procedure": procedure[0].id,
+                        }
+                    ]
+                }
+            },
+            status="SIMULATION_FLAGGED_WITH_FORMAL_GAPS",
+        )
+        second = ResearchReport(
+            question=question,
+            problem=problem,
+            procedures=procedure,
+            knowledge=[],
+            paper_sources=[],
+            formal_subclaims=[],
+            simulations=[ok_sim],
+            theorem_goals=theorem_goal,
+            theory_plan={
+                "next_iteration_agenda": {
+                    "items": [
+                        {
+                            "id": "monitor:test",
+                            "owner_agent": "research_coordinator",
+                            "trigger": "NO_BLOCKING_GAPS_OR_FAILED_SIMULATIONS",
+                            "action": "archive_trace_or_expand_benchmark_stress_tests",
+                            "evidence": "test monitor",
+                        }
+                    ]
+                }
+            },
+            status="RESEARCH_TRACE_READY_WITH_FORMAL_GAPS",
+        )
+        reports = [first, second]
+        handler_calls = []
+
+        class FakeLab:
+            def __init__(self, report):
+                self.report = report
+
+            async def run(self, question):
+                return self.report
+
+        def factory(n_runs, seed):
+            return FakeLab(reports.pop(0))
+
+        def live_theory_handler(item, report):
+            handler_calls.append((item["id"], report.question.id))
+            return {
+                "execution_status": "EXECUTED_THEORY_REVISION",
+                "result": "Test handler revised the theorem plan and requested a rerun.",
+                "rerun_requested": True,
+                "revision_artifact": {
+                    "revised_theorem_goals": ["test_revised_goal"],
+                    "assumption_delta": [],
+                },
+            }
+
+        result = asyncio.run(
+            ResearchLoopCoordinator(
+                n_runs=25,
+                seed=13,
+                lab_factory=factory,
+                repair_handlers={"THEORY_OR_PROCEDURE_ISSUE": live_theory_handler},
+            ).iterate(
+                question,
+                max_rounds=2,
+            )
+        )
+        self.assertEqual(result["status"], "CONVERGED_MONITOR_READY")
+        self.assertTrue(result["honesty_boundary"]["executes_registered_live_repair_handlers"])
+        self.assertEqual(handler_calls, [("simulation:theory", question.id)])
+        action = result["rounds"][0]["actions"][0]
+        self.assertEqual(action["execution_status"], "EXECUTED_THEORY_REVISION")
+        self.assertTrue(action["rerun_requested"])
+        self.assertEqual(result["rounds"][1]["actions"][0]["execution_status"], "EXECUTED_MONITOR")
+
     def test_research_loop_repair_audit_exports_sft_examples(self) -> None:
         loop_dir = Path("runs/test_research_loop_repair_audit_input")
         loop_dir.mkdir(parents=True, exist_ok=True)

@@ -59,6 +59,9 @@ def audit_architecture(out_dir: Path | None = None) -> dict[str, object]:
         )
     )
     has_live_revision_loop = callable(getattr(ResearchLoopCoordinator, "iterate", None))
+    has_registered_live_repair_handler_interface = (
+        "repair_handlers" in inspect.signature(ResearchLoopCoordinator).parameters
+    )
     has_next_iteration_agenda = callable(_build_next_iteration_agenda)
 
     components = [
@@ -124,12 +127,13 @@ def audit_architecture(out_dir: Path | None = None) -> dict[str, object]:
             evidence=(
                 f"{ResearchLoopCoordinator.__module__}.{ResearchLoopCoordinator.__name__}.iterate",
                 "AIStatisticalTheoryLab.run remains one-pass; ResearchLoopCoordinator executes the next_iteration_agenda around it",
+                "registered repair_handlers can execute live proof/theory/algorithm/simulator repair actions and request reruns",
             ),
             limitation=(
-                "The loop executes safe agenda routes such as MC reruns and formal-gap retrieval review; "
-                "free-form theory repair, proof search, and arbitrary algorithm repair still require stronger agents."
+                "The loop executes safe built-in routes and can call registered live repair handlers; "
+                "default free-form theory repair, proof search, and arbitrary algorithm repair still require stronger agents."
             ),
-            target_delta="Expand ResearchLoopCoordinator with LLM TheoryDeveloper, ProofEngineer, and sandboxed AlgorithmEngineer revision actions.",
+            target_delta="Register default LLM TheoryDeveloper, ProofEngineer, and sandboxed AlgorithmEngineer repair handlers.",
         ),
     ]
 
@@ -145,29 +149,29 @@ def audit_architecture(out_dir: Path | None = None) -> dict[str, object]:
             trigger="FAILED_PROOF_OBLIGATION",
             owner_agent="formal_verifier",
             action="repair_axiom_verified_proof_or_downgrade_to_gap",
-            live_execution_status="ROUTED_REQUIRES_PROOF_ENGINEER",
-            evidence="ResearchLoopCoordinator classifies failed_obligation:* items as proof-engineer repair work",
+            live_execution_status="EXECUTABLE_WITH_REGISTERED_LIVE_HANDLER",
+            evidence="ResearchLoopCoordinator can call a registered FAILED_PROOF_OBLIGATION/proof handler, otherwise exports proof-engineer repair work",
         ),
         FeedbackRoute(
             trigger="THEORY_OR_PROCEDURE_ISSUE",
             owner_agent="theory_developer",
             action="revise_estimator_or_theorem_acceptance_rule",
-            live_execution_status="ROUTED_REQUIRES_THEORY_MODEL",
-            evidence="ResearchSimulator diagnosis escalates biased or invalid statistical behavior to theory_developer",
+            live_execution_status="EXECUTABLE_WITH_REGISTERED_LIVE_HANDLER",
+            evidence="ResearchLoopCoordinator can call a registered THEORY_OR_PROCEDURE_ISSUE handler and rerun the lab",
         ),
         FeedbackRoute(
             trigger="IMPLEMENTATION_OR_NUMERICAL_ISSUE",
             owner_agent="algorithm_engineer",
             action="repair_algorithm_implementation_or_numerical_stability",
-            live_execution_status="ROUTED_REQUIRES_ALGORITHM_REPAIR_ENGINE",
-            evidence="ResearchSimulator diagnosis escalates numerical/implementation issues to algorithm_engineer",
+            live_execution_status="EXECUTABLE_WITH_REGISTERED_LIVE_HANDLER",
+            evidence="ResearchLoopCoordinator can call a registered IMPLEMENTATION_OR_NUMERICAL_ISSUE handler, otherwise exports algorithm repair work",
         ),
         FeedbackRoute(
             trigger="ENVIRONMENT_OR_DGP_ISSUE",
             owner_agent="simulator_agent",
             action="implement_or_correct_simulation_environment",
-            live_execution_status="ROUTED_REQUIRES_SIMULATOR_EXTENSION",
-            evidence="ResearchSimulator diagnosis escalates simulation-design issues to simulator_agent",
+            live_execution_status="EXECUTABLE_WITH_REGISTERED_LIVE_HANDLER",
+            evidence="ResearchLoopCoordinator can call a registered ENVIRONMENT_OR_DGP_ISSUE handler, otherwise exports simulator-extension work",
         ),
         FeedbackRoute(
             trigger="INSUFFICIENT_MC_PRECISION",
@@ -201,14 +205,14 @@ def audit_architecture(out_dir: Path | None = None) -> dict[str, object]:
         {
             "requirement": "Simulator feedback actively revises algorithm or theory in the same run",
             "status": "PARTIAL",
-            "current_evidence": "ResearchLoopCoordinator executes MC precision reruns and routes theory/algorithm/simulator failures to explicit owner-agent statuses.",
-            "missing": "TheoryDeveloper and AlgorithmEngineer models that actually repair estimators/theorems/code after routed failures.",
+            "current_evidence": "ResearchLoopCoordinator executes MC precision reruns and can invoke registered live theory/algorithm/simulator repair handlers before rerunning.",
+            "missing": "Default trained TheoryDeveloper and AlgorithmEngineer repair handlers that work without test stubs or manual registration.",
         },
         {
             "requirement": "Formal proof feedback actively revises assumptions/theorem statements/proof search",
             "status": "PARTIAL",
-            "current_evidence": "ResearchLoopCoordinator reviews formal-source hits for FORMAL_GAP rows and routes failed proof obligations.",
-            "missing": "Automated statement repair, premise search, tactic/proof search, and proof-bank promotion within the same loop.",
+            "current_evidence": "ResearchLoopCoordinator reviews formal-source hits for FORMAL_GAP rows and can invoke registered proof-repair handlers.",
+            "missing": "Default automated statement repair, premise search, tactic/proof search, and proof-bank promotion within the same loop.",
         },
         {
             "requirement": "End-to-end arbitrary frontier stat theory development",
@@ -228,6 +232,7 @@ def audit_architecture(out_dir: Path | None = None) -> dict[str, object]:
         "target_feedback_mode": "fully_live_iterative_research_loop",
         "has_one_pass_research_run": has_one_pass_run,
         "has_live_revision_loop": has_live_revision_loop,
+        "has_registered_live_repair_handler_interface": has_registered_live_repair_handler_interface,
         "all_release_scaffold_components_present": all(
             row.status != "NOT_IMPLEMENTED" for row in components if row.component != "live_revision_loop"
         ),
@@ -238,9 +243,9 @@ def audit_architecture(out_dir: Path | None = None) -> dict[str, object]:
         "next_architecture_step": {
             "name": "ResearchLoopCoordinator.iterate(max_rounds)",
             "description": (
-                "Upgrade the current bounded coordinator from routing/retry actions to substantive agent repair: "
-                "proof gaps should trigger Formalizer/ProofEngineer search, theory failures should revise estimators "
-                "or assumptions, and numerical failures should repair sandboxed implementations."
+                "Register default repair handlers behind the bounded coordinator: proof gaps should trigger "
+                "Formalizer/ProofEngineer search, theory failures should revise estimators or assumptions, "
+                "and numerical failures should repair sandboxed implementations."
             ),
             "minimum_acceptance_tests": [
                 "a simulation THEORY_OR_PROCEDURE_ISSUE triggers a revised theory plan in round 2",
