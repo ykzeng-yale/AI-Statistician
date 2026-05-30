@@ -10,6 +10,7 @@ from typing import Any, Protocol
 
 from .fingerprint import stable_hash
 from .formal_source_index import build_formal_source_search_backend
+from .proof_engineer import DefaultProofEngineer
 from .research_lab import AIStatisticalTheoryLab
 from .research_schema import OpenResearchQuestion, ResearchReport
 from .verifier import ProofVerifier
@@ -59,6 +60,7 @@ class ResearchLoopCoordinator:
         seed: int = 20260528,
         lab_factory: LabFactory | None = None,
         repair_handlers: dict[str, LiveRepairHandler] | None = None,
+        enable_default_proof_engineer: bool = True,
     ) -> None:
         self.proof_verifier = proof_verifier
         self.formal_source_retriever = formal_source_retriever
@@ -66,6 +68,10 @@ class ResearchLoopCoordinator:
         self.seed = seed
         self.lab_factory = lab_factory
         self.repair_handlers = dict(repair_handlers or {})
+        self.enable_default_proof_engineer = enable_default_proof_engineer
+        self.default_proof_engineer = (
+            DefaultProofEngineer(self.proof_verifier) if enable_default_proof_engineer else None
+        )
 
     async def iterate(
         self,
@@ -118,6 +124,7 @@ class ResearchLoopCoordinator:
             "honesty_boundary": {
                 "executes_feedback_agenda": True,
                 "executes_registered_live_repair_handlers": bool(self.repair_handlers),
+                "executes_default_proof_engineer_bridge_handler": self.enable_default_proof_engineer,
                 "free_form_theory_revision": False,
                 "arbitrary_lean_proof_search": False,
                 "arbitrary_algorithm_generation": False,
@@ -160,6 +167,38 @@ class ResearchLoopCoordinator:
         live_result = await self._try_live_repair_handler(item, report, base)
         if live_result is not None:
             return live_result
+        if trigger == "FORMAL_GAP" and self.default_proof_engineer is not None:
+            default_result = await self.default_proof_engineer.repair_formal_gap(item, report)
+            if default_result is not None:
+                default_action = self._contract_checked_live_result(
+                    default_result,
+                    trigger=trigger,
+                    base=base,
+                    handler_name="DefaultProofEngineer",
+                )
+                default_action.setdefault(
+                    "repair_task",
+                    _repair_task(
+                        report=report,
+                        item=item,
+                        task_type="proof_bank_expansion_from_formal_gap",
+                        prompt=(
+                            "Review the DefaultProofEngineer bridge artifact and promote it into the "
+                            "smallest reusable Lean theorem or theory-plan obligation that reduces this FORMAL_GAP."
+                        ),
+                        acceptance_criteria=(
+                            "bridge artifact is AXLE verify_proof checked when kernel verification is required",
+                            "the theory plan records the proof-bank bridge as a reusable dependency",
+                            "the frontier theorem still retains explicit gaps for primitives not covered by the bridge",
+                        ),
+                        context={
+                            "target_theorem_goal": item.get("target_theorem_goal", ""),
+                            "required_primitives": item.get("required_primitives", []),
+                            "default_proof_engineer_status": default_action.get("execution_status", ""),
+                        },
+                    ),
+                )
+                return default_action
         if trigger == "FORMAL_GAP":
             target = str(item.get("target_theorem_goal", ""))
             matching_gap = next((row for row in report.formal_subclaims if row.id.endswith(target)), None)
@@ -330,6 +369,16 @@ class ResearchLoopCoordinator:
                 "result": "Registered live repair handler did not return a dictionary.",
                 "rerun_requested": False,
             }
+        return self._contract_checked_live_result(raw, trigger=trigger, base=base, handler_name=handler.__class__.__name__)
+
+    def _contract_checked_live_result(
+        self,
+        raw: dict[str, Any],
+        *,
+        trigger: str,
+        base: dict[str, Any],
+        handler_name: str,
+    ) -> dict[str, Any]:
         task_type = str(raw.get("task_type") or LIVE_REPAIR_TASK_TYPE_BY_TRIGGER.get(trigger, ""))
         contract = _output_contract(task_type)
         contract_errors = _validate_live_repair_output(raw, task_type)
@@ -344,7 +393,7 @@ class ResearchLoopCoordinator:
                 "repair_contract": contract,
                 "repair_contract_ok": False,
                 "repair_contract_errors": contract_errors,
-                "live_repair_handler": raw.get("live_repair_handler", handler.__class__.__name__),
+                "live_repair_handler": raw.get("live_repair_handler", handler_name),
             }
         execution_status = str(raw.get("execution_status", "EXECUTED_LIVE_REPAIR"))
         result = str(raw.get("result", "Registered live repair handler executed."))
@@ -358,7 +407,7 @@ class ResearchLoopCoordinator:
             "repair_contract": contract,
             "repair_contract_ok": True,
             "repair_contract_errors": [],
-            "live_repair_handler": raw.get("live_repair_handler", handler.__class__.__name__),
+            "live_repair_handler": raw.get("live_repair_handler", handler_name),
         }
 
 
@@ -626,6 +675,8 @@ def _blocking_status(actions: list[dict[str, Any]]) -> str:
         return "REQUIRES_PROOF_ENGINEER"
     if "REQUIRES_COORDINATOR_TRIAGE" in statuses:
         return "REQUIRES_COORDINATOR_TRIAGE"
+    if "EXECUTED_PROOF_BANK_BRIDGE_REPAIR" in statuses:
+        return "FORMAL_GAPS_BRIDGED"
     if "EXECUTED_RETRIEVAL_REVIEW" in statuses:
         return "FORMAL_GAPS_REVIEWED"
     return ""

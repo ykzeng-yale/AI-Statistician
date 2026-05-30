@@ -61,7 +61,7 @@ from ai_statistician.research_next_iteration_audit import audit_next_iteration_q
 from ai_statistician.research_paper_index import build_paper_source_index, retrieve_paper_sources
 from ai_statistician.research_policy_baseline import evaluate_research_policy_baseline
 from ai_statistician.research_report import build_research_markdown_report
-from ai_statistician.research_schema import ResearchReport
+from ai_statistician.research_schema import FormalSubclaim, ResearchReport
 from ai_statistician.research_system_audit import ResearchSystemAuditConfig, run_research_system_audit
 from ai_statistician.research_trace_audit import audit_research_traces
 from ai_statistician.research_trace_audit import DIAGNOSTIC_METRIC_ALIASES
@@ -2681,6 +2681,8 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(statuses["feedback_router"], "ACHIEVED")
         self.assertEqual(statuses["live_revision_loop"], "PARTIAL")
         self.assertEqual(statuses["llm_theory_developer"], "PARTIAL")
+        live_loop = next(row for row in payload["components"] if row["component"] == "live_revision_loop")
+        self.assertTrue(any("DefaultProofEngineer" in item for item in live_loop["evidence"]))
         route_by_trigger = {row["trigger"]: row for row in payload["feedback_routes"]}
         self.assertEqual(route_by_trigger["THEORY_OR_PROCEDURE_ISSUE"]["owner_agent"], "theory_developer")
         self.assertEqual(
@@ -3035,6 +3037,75 @@ class SystemTests(unittest.TestCase):
         self.assertFalse(action["rerun_requested"])
         self.assertFalse(action["repair_contract_ok"])
         self.assertTrue(any("revised_procedure" in err for err in action["repair_contract_errors"]))
+
+    def test_research_loop_default_proof_engineer_bridges_formal_gap(self) -> None:
+        question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+        problem = ProblemFormalizer().formalize(question)
+        procedure, theorem_goal = TheoryPlanner().plan(problem)
+        gap = FormalSubclaim(
+            id="gap:aipw_double_robustness",
+            title="AIPW double robustness conditional residual bridge",
+            status="FORMAL_GAP",
+            claim="conditional mean residual zero should cancel AIPW augmentation terms",
+            claim_type="theory_gap",
+            gap_reason="conditional_mean_residual_zero is not fully formalized",
+            lean_statement="-- FORMAL_GAP conditional_mean_residual_zero",
+        )
+        report = ResearchReport(
+            question=question,
+            problem=problem,
+            procedures=procedure,
+            knowledge=[],
+            paper_sources=[],
+            formal_subclaims=[gap],
+            simulations=[],
+            theorem_goals=theorem_goal,
+            theory_plan={
+                "next_iteration_agenda": {
+                    "items": [
+                        {
+                            "id": "formal_gap:gap:aipw_double_robustness",
+                            "owner_agent": "formal_verifier",
+                            "trigger": "FORMAL_GAP",
+                            "priority": "high",
+                            "action": "retrieve_or_build_missing_lean_primitives",
+                            "evidence": "conditional_mean_residual_zero is needed",
+                            "required_primitives": ["conditional_mean_residual_zero"],
+                            "target_theorem_goal": "aipw_double_robustness",
+                        }
+                    ]
+                }
+            },
+            status="RESEARCH_TRACE_READY_WITH_FORMAL_GAPS",
+        )
+
+        class FakeLab:
+            async def run(self, question):
+                return report
+
+        result = asyncio.run(
+            ResearchLoopCoordinator(
+                proof_verifier=MockProofVerifier(),
+                n_runs=25,
+                seed=17,
+                lab_factory=lambda _n, _s: FakeLab(),
+            ).iterate(
+                question,
+                max_rounds=2,
+            )
+        )
+        self.assertEqual(result["status"], "FORMAL_GAPS_BRIDGED")
+        self.assertTrue(result["honesty_boundary"]["executes_default_proof_engineer_bridge_handler"])
+        action = result["rounds"][0]["actions"][0]
+        self.assertEqual(action["execution_status"], "EXECUTED_PROOF_BANK_BRIDGE_REPAIR")
+        self.assertTrue(action["repair_contract_ok"])
+        self.assertEqual(
+            action["repair_artifact"]["proof_obligation_id"],
+            "aipw_score_expectation_target_of_zero_aug",
+        )
+        self.assertIn("lean_statement", action["repair_artifact"])
+        self.assertFalse(action["rerun_requested"])
+        self.assertEqual(action["repair_task"]["task_type"], "proof_bank_expansion_from_formal_gap")
 
     def test_research_loop_repair_audit_exports_sft_examples(self) -> None:
         loop_dir = Path("runs/test_research_loop_repair_audit_input")

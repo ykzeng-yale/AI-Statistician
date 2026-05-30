@@ -17,6 +17,7 @@ from .research_lab import (
     _build_next_iteration_agenda,
 )
 from .research_loop import ResearchLoopCoordinator
+from .proof_engineer import DefaultProofEngineer
 from .theory_proposal import AnthropicTheoryProposer
 
 
@@ -126,15 +127,18 @@ def audit_architecture(out_dir: Path | None = None) -> dict[str, object]:
             status="PARTIAL" if has_live_revision_loop else "NOT_IMPLEMENTED",
             evidence=(
                 f"{ResearchLoopCoordinator.__module__}.{ResearchLoopCoordinator.__name__}.iterate",
+                f"{DefaultProofEngineer.__module__}.{DefaultProofEngineer.__name__}",
                 "AIStatisticalTheoryLab.run remains one-pass; ResearchLoopCoordinator executes the next_iteration_agenda around it",
                 "registered repair_handlers can execute live proof/theory/algorithm/simulator repair actions and request reruns",
                 "live repair handler outputs are checked against per-trigger repair contracts before reruns are allowed",
+                "DefaultProofEngineer verifies existing proof-bank bridges for FORMAL_GAP actions before emitting repair artifacts",
             ),
             limitation=(
-                "The loop executes safe built-in routes and can call registered live repair handlers; "
-                "default free-form theory repair, proof search, and arbitrary algorithm repair still require stronger agents."
+                "The loop executes safe built-in routes, can call registered live repair handlers, and has a narrow "
+                "default proof-bank bridge handler; free-form theory repair, new proof search, and arbitrary algorithm "
+                "repair still require stronger agents."
             ),
-            target_delta="Register default LLM TheoryDeveloper, ProofEngineer, and sandboxed AlgorithmEngineer repair handlers.",
+            target_delta="Register default LLM TheoryDeveloper, proof-search ProofEngineer, and sandboxed AlgorithmEngineer repair handlers.",
         ),
     ]
 
@@ -212,8 +216,8 @@ def audit_architecture(out_dir: Path | None = None) -> dict[str, object]:
         {
             "requirement": "Formal proof feedback actively revises assumptions/theorem statements/proof search",
             "status": "PARTIAL",
-            "current_evidence": "ResearchLoopCoordinator reviews formal-source hits for FORMAL_GAP rows and can invoke contract-checked registered proof-repair handlers.",
-            "missing": "Default automated statement repair, premise search, tactic/proof search, and proof-bank promotion within the same loop.",
+            "current_evidence": "ResearchLoopCoordinator reviews formal-source hits for FORMAL_GAP rows, invokes a default verified proof-bank bridge handler, and can invoke contract-checked registered proof-repair handlers.",
+            "missing": "Default automated statement repair, premise search, tactic/proof search, and true new proof-bank theorem promotion within the same loop.",
         },
         {
             "requirement": "End-to-end arbitrary frontier stat theory development",

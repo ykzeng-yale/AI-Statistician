@@ -44,8 +44,13 @@ agent, trigger, action, evidence, and stop condition.
 The first live loop over this scaffold is `ResearchLoopCoordinator.iterate()`.
 It executes the agenda routes that are safe today: Monte Carlo precision
 failures trigger a larger-budget rerun, monitor-only traces terminate cleanly,
-and formal gaps are reviewed against attached local Lean/source hits. The
-coordinator also has a registered live-repair handler interface: a
+and formal gaps are reviewed against attached local Lean/source hits. There is
+also a narrow default `DefaultProofEngineer`: for a `FORMAL_GAP`, it can select
+an already registered proof-bank bridge, verify that bridge with the configured
+verifier, and emit a contract-complete repair artifact for downstream theory
+plan promotion. This is not new theorem discovery; it is a safe bridge-promotion
+step that keeps the full frontier gap explicit. The coordinator also has a
+registered live-repair handler interface: a
 TheoryDeveloper, ProofEngineer, AlgorithmEngineer, or simulator-extension agent
 can be plugged in for a trigger such as `THEORY_OR_PROCEDURE_ISSUE`; if it
 returns a contract-complete repair artifact and requests a rerun, the
