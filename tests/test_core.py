@@ -412,6 +412,7 @@ class ProofBankTests(unittest.TestCase):
                     "filtration_mono_measurable_set",
                     "stopping_time_le_event_measurable",
                     "submartingale_expected_stopped_value_mono",
+                    "submartingale_stopped_process",
                     "mean2_estimator_chebyshev_indep",
                     "finite_sample_mean_chebyshev_indep",
                 ],
@@ -608,6 +609,19 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("IsStoppingTime 𝒢 τ", content)
         self.assertIn("μ[stoppedValue f τ] ≤ μ[stoppedValue f π]", content)
         self.assertIn("hf.expected_stoppedValue_mono hτ hπ hle hbdd", content)
+        self.assertNotIn("by sorry", content)
+
+    def test_submartingale_stopped_process_bridge_supports_sequential_gap(self) -> None:
+        obligation = get_obligation("submartingale_stopped_process")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("submartingale_expected_stopped_value_mono",))
+        self.assertIn("submartingale", obligation.tags)
+        self.assertIn("stopped_process", obligation.tags)
+        self.assertIn("nonnegative_supermartingale", obligation.tags)
+        self.assertIn("theorem submartingale_stoppedProcess_bridge", content)
+        self.assertIn("Submartingale f 𝒢 μ", content)
+        self.assertIn("Submartingale (stoppedProcess f τ) 𝒢 μ", content)
+        self.assertIn("hf.stoppedProcess hτ", content)
         self.assertNotIn("by sorry", content)
 
     def test_affine_estimator_obligation_supports_shrinkage_expectation(self) -> None:

@@ -1661,6 +1661,52 @@ theorem submartingale_expected_stoppedValue_mono_bridge {Ω E : Type*}
         expected_lemmas=("Submartingale.expected_stoppedValue_mono",),
         depends_on=("stopping_time_le_event_measurable",),
     ),
+    "submartingale_stopped_process": FormalObligation(
+        id="submartingale_stopped_process",
+        title="Stopped process of a submartingale is a submartingale",
+        english=(
+            "Stopping a real-valued submartingale at a stopping time preserves "
+            "the submartingale property. This is a reusable Mathlib bridge for "
+            "stopped-process and optional-stopping theorem skeletons, and a "
+            "concrete step toward nonnegative-supermartingale/e-process "
+            "formalization. It does not construct an e-process or prove Ville's "
+            "inequality."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+
+open scoped NNReal ENNReal MeasureTheory ProbabilityTheory
+open MeasureTheory
+
+theorem submartingale_stoppedProcess_bridge {Ω : Type*} {m0 : MeasurableSpace Ω}
+    {μ : Measure Ω} {𝒢 : Filtration ℕ m0} {f : ℕ → Ω → ℝ} {τ : Ω → ℕ∞}
+    [SigmaFiniteFiltration μ 𝒢] (hf : Submartingale f 𝒢 μ) (hτ : IsStoppingTime 𝒢 τ) :
+    Submartingale (stoppedProcess f τ) 𝒢 μ := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  exact hf.stoppedProcess hτ"
+        ),
+        tags=(
+            "probability",
+            "martingale",
+            "submartingale",
+            "process",
+            "filtration",
+            "stopping_time",
+            "stopped_process",
+            "optional_stopping",
+            "sequential",
+            "anytime",
+            "eprocess",
+            "nonnegative_supermartingale",
+            "ville_inequality",
+        ),
+        expected_lemmas=("Submartingale.stoppedProcess",),
+        depends_on=("submartingale_expected_stopped_value_mono",),
+    ),
     "event_probability_mono": FormalObligation(
         id="event_probability_mono",
         title="Event probability monotonicity",

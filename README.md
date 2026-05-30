@@ -274,6 +274,11 @@ expected stopped value at `π`. This is a substantially stronger bridge for
 optional-stopping theorem skeletons, while e-process validity, Ville's
 inequality, and nonnegative-supermartingale maximal inequalities remain explicit
 formal gaps.
+It also includes `submartingale_stopped_process`, proving that stopping a
+real-valued submartingale at a stopping time preserves the submartingale
+property. This gives the sequential queue a verified stopped-process theorem
+for nonnegative-supermartingale/e-process skeletons while still leaving Ville's
+maximal inequality as a formal gap.
 It also includes `event_probability_mono`, the measure monotonicity fact
 `A ⊆ B -> μ(A) ≤ μ(B)`, which is a reusable subclaim for bad-event containment
 arguments in conformal coverage, BH/FDR decompositions, and anytime-valid error

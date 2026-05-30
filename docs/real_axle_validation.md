@@ -8,20 +8,20 @@ Runtime used:
 PYTHONPATH=/Users/yukang/AI\ Statistician \
 /Users/yukang/LeanProjects/LeanPractice/.venv/bin/python \
   -m ai_statistician.cli proof-audit --real-lean \
-  --out runs/proof_audit_real_full_49
+  --out runs/proof_audit_real_full_50
 ```
 
 Result:
 
 ```text
-verified=49/49
-kernel=49/49
+verified=50/50
+kernel=50/50
 verifier=axle.verify_proof
 strength=axle_lean_kernel
 ```
 
 This is the current evidence that the registered proof bank is not only
-mock-checked: all 49 registered Mathlib-backed obligations were accepted by
+mock-checked: all 50 registered Mathlib-backed obligations were accepted by
 AXLE/Lean-kernel verification in the real external runtime.
 
 Latest real research-system validation: 2026-05-30.
@@ -32,7 +32,7 @@ Runtime used:
 PYTHONPATH=/Users/yukang/AI\ Statistician \
 /Users/yukang/LeanProjects/LeanPractice/.venv/bin/python \
   -m ai_statistician.cli research-system-audit --real-lean \
-  --runs 20 --out runs/research_system_real_lean_50_optional_stopping_bridge
+  --runs 20 --out runs/research_system_real_lean_51_stopped_submartingale_bridge
 ```
 
 Result:
@@ -46,8 +46,8 @@ frontier_supported=60/60
 frontier_precision=60/60
 frontier_backlog=0/0
 frontier_smoke=23/23
-proofs_verified=49/49
-proofs_kernel_verified=49/49
+proofs_verified=50/50
+proofs_kernel_verified=50/50
 proof_verification_strength=axle_lean_kernel
 research_traces_ok=10/10
 formal_gaps=20
@@ -55,9 +55,9 @@ formalized_gaps=20
 autoform_targets=20/20
 formal_source_graph_symbols=74968
 formal_source_graph_edges=1475474
-verifier_cache_hits=302
-verifier_cache_misses=49
-verifier_cache_size=49
+verifier_cache_hits=304
+verifier_cache_misses=50
+verifier_cache_size=50
 ```
 
 The research-system run proves that `--real-lean` now flows through the actual
@@ -140,6 +140,16 @@ with the StatInference theorem family around
 `durrett2019_theorem_4_4_1_submartingale_expected_stoppedValue_mono`. This is a
 real optional-stopping theorem bridge; it still does not construct e-processes
 or prove Ville's inequality end to end.
+
+The 50th obligation is `submartingale_stopped_process`, a direct wrapper around
+Mathlib's `Submartingale.stoppedProcess`. It proves that stopping a real-valued
+submartingale at a stopping time preserves the submartingale property. The
+formalization-target audit now includes it among ranked bridge candidates for
+`stopping_time`, `ville_inequality`, `filtration`, `nonnegative_supermartingale`,
+and `eprocess_type1_control`, and aligns those targets with the local
+StatInference Durrett 4.2.9 stopped-submartingale theorem family. This is a real
+stopped-process preservation theorem; it still does not prove Ville's maximal
+inequality or construct a valid e-process end to end.
 
 Important boundary:
 
