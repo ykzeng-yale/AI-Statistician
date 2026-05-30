@@ -10,6 +10,7 @@ from .frontier_coverage_audit import audit_frontier_coverage
 from .frontier_precision_audit import audit_frontier_precision
 from .algorithm_repair_promotion import export_algorithm_repair_promotion_queue
 from .algorithm_repair_sandbox import evaluate_algorithm_repair_sandbox
+from .algorithm_repair_sandbox_apply import apply_algorithm_repair_sandbox_results
 from .architecture_audit import audit_architecture
 from .formal_gap_task_export import export_formal_gap_lean_tasks
 from .formalization_target_audit import audit_formalization_targets
@@ -204,6 +205,10 @@ async def run_research_system_audit(
         out_dir / "algorithm_repair_promotion",
         out_dir / "algorithm_repair_sandbox",
     )
+    algorithm_repair_sandbox_apply_manifest = apply_algorithm_repair_sandbox_results(
+        out_dir / "algorithm_repair_sandbox",
+        out_dir / "algorithm_repair_sandbox_apply",
+    )
 
     benchmark_gate_ok = (
         int(benchmark_manifest["n_questions"]) == len(questions)
@@ -263,6 +268,7 @@ async def run_research_system_audit(
         "research_loop_live_repair_audit": bool(research_loop_live_repair_manifest["all_ok"]),
         "algorithm_repair_promotion": bool(algorithm_repair_promotion_manifest["all_ok"]),
         "algorithm_repair_sandbox": bool(algorithm_repair_sandbox_manifest["all_ok"]),
+        "algorithm_repair_sandbox_apply": bool(algorithm_repair_sandbox_apply_manifest["all_ok"]),
     }
     payload = {
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -439,6 +445,8 @@ async def run_research_system_audit(
             ],
             "algorithm_repair_sandbox_candidates": algorithm_repair_sandbox_manifest["n_candidates"],
             "algorithm_repair_sandbox_candidates_ok": algorithm_repair_sandbox_manifest["n_ok"],
+            "algorithm_repair_sandbox_apply_candidates": algorithm_repair_sandbox_apply_manifest["n_candidates"],
+            "algorithm_repair_sandbox_apply_candidates_ok": algorithm_repair_sandbox_apply_manifest["n_ok"],
         },
         "questions": benchmark_manifest["questions"],
         "provenance": benchmark_manifest["provenance"],
@@ -621,6 +629,12 @@ async def run_research_system_audit(
             ),
             "algorithm_repair_sandbox_results": str(
                 out_dir / "algorithm_repair_sandbox" / "algorithm_repair_sandbox_results.jsonl"
+            ),
+            "algorithm_repair_sandbox_apply": str(
+                out_dir / "algorithm_repair_sandbox_apply" / "algorithm_repair_sandbox_apply_manifest.json"
+            ),
+            "algorithm_repair_sandbox_apply_results": str(
+                out_dir / "algorithm_repair_sandbox_apply" / "algorithm_repair_sandbox_apply_results.jsonl"
             ),
             "formal_gaps": str(out_dir / "research_benchmark" / "formal_gaps"),
         },

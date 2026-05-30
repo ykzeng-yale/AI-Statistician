@@ -18,6 +18,7 @@ from .research_lab import (
 )
 from .research_loop import ResearchLoopCoordinator
 from .algorithm_engineer import DefaultAlgorithmEngineer
+from .algorithm_repair_sandbox_apply import apply_algorithm_repair_sandbox_results
 from .proof_engineer import DefaultProofEngineer
 from .theory_developer import DefaultTheoryDeveloper
 from .theory_proposal import AnthropicTheoryProposer
@@ -106,9 +107,12 @@ def audit_architecture(out_dir: Path | None = None) -> dict[str, object]:
         ArchitectureComponent(
             component="algorithm_engineer",
             status="ACHIEVED",
-            evidence=("vetted research algorithm registry is executed by ResearchSimulator",),
-            limitation="Algorithms are registry-vetted; arbitrary LLM-written code is not admitted into production execution.",
-            target_delta="Add sandboxed algorithm proposal/repair with property tests, implementation hashes, and simulator feedback gates.",
+            evidence=(
+                "vetted research algorithm registry is executed by ResearchSimulator",
+                f"{apply_algorithm_repair_sandbox_results.__module__}.{apply_algorithm_repair_sandbox_results.__name__}",
+            ),
+            limitation="Algorithms are registry-vetted; arbitrary LLM-written code is not admitted into production execution. Sandbox apply is non-mutating and still requires a real isolated patch/rerun gate before promotion.",
+            target_delta="Add isolated code-patch workspace execution with property tests, implementation hashes, and simulator feedback gates.",
         ),
         ArchitectureComponent(
             component="research_simulator",
@@ -138,14 +142,15 @@ def audit_architecture(out_dir: Path | None = None) -> dict[str, object]:
                 "DefaultProofEngineer verifies existing proof-bank bridges for FORMAL_GAP actions before emitting repair artifacts",
                 "DefaultTheoryDeveloper converts simulation theory/procedure failures into scoped revision artifacts",
                 "DefaultAlgorithmEngineer converts numerical/implementation failures into scoped repair artifacts",
+                "algorithm repair artifacts can be promoted, sandbox-readiness checked, and converted into non-mutating applied sandbox artifacts",
                 "AIStatisticalTheoryLab accepts theory_revisions overlays and applies them before retrieval/proof/simulation",
             ),
             limitation=(
                 "The loop executes safe built-in routes, can call registered live repair handlers, and has a narrow "
                 "default proof-bank bridge handler plus scoped default theory-revision proposal handler; free-form "
-                "theory repair, new proof search, and arbitrary code mutation still require stronger agents."
+                "theory repair, new proof search, and production code mutation still require stronger agents."
             ),
-            target_delta="Register default LLM TheoryDeveloper, proof-search ProofEngineer, and sandboxed AlgorithmEngineer repair handlers.",
+            target_delta="Register default LLM TheoryDeveloper, proof-search ProofEngineer, and isolated code-patching AlgorithmEngineer repair handlers.",
         ),
     ]
 
@@ -217,8 +222,8 @@ def audit_architecture(out_dir: Path | None = None) -> dict[str, object]:
         {
             "requirement": "Simulator feedback actively revises algorithm or theory in the same run",
             "status": "PARTIAL",
-            "current_evidence": "ResearchLoopCoordinator executes MC precision reruns, invokes DefaultTheoryDeveloper for scoped theory-revision proposals, applies contract-valid theory revision overlays to the next lab round, and can invoke contract-checked registered live theory/algorithm/simulator repair handlers before rerunning.",
-            "missing": "Default trained TheoryDeveloper that can invent and justify new estimator families, plus AlgorithmEngineer promotion that applies sandboxed patches and reruns them.",
+            "current_evidence": "ResearchLoopCoordinator executes MC precision reruns, invokes DefaultTheoryDeveloper for scoped theory-revision proposals, applies contract-valid theory revision overlays to the next lab round, invokes DefaultAlgorithmEngineer for scoped repair artifacts, and can promote/sandbox/apply non-mutating algorithm repair plans.",
+            "missing": "Default trained TheoryDeveloper that can invent and justify new estimator families, plus AlgorithmEngineer execution that applies isolated code patches and reruns finite simulations.",
         },
         {
             "requirement": "Formal proof feedback actively revises assumptions/theorem statements/proof search",
@@ -257,7 +262,7 @@ def audit_architecture(out_dir: Path | None = None) -> dict[str, object]:
             "description": (
                 "Register default repair handlers behind the bounded coordinator: proof gaps should trigger "
                 "Formalizer/ProofEngineer search, theory failures should revise estimators or assumptions, "
-                "and numerical failures should repair sandboxed implementations."
+                "and numerical failures should repair sandboxed implementations with isolated patch/rerun evidence."
             ),
             "minimum_acceptance_tests": [
                 "a simulation THEORY_OR_PROCEDURE_ISSUE triggers a revised theory plan in round 2",
@@ -294,7 +299,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         "",
         "- Correct for the current production-safe scaffold: yes.",
         "- Correct for a fully autonomous closed-loop AI statistician: no.",
-        "- Implemented feedback mode: queued `next_iteration_agenda`.",
+        "- Implemented feedback mode: bounded loop over `next_iteration_agenda` with scoped default repair handlers.",
         "- Target feedback mode: live iterative research loop.",
         "",
         "## Implemented Components",

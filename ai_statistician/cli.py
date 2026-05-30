@@ -8,6 +8,7 @@ from pathlib import Path
 from .algorithms import audit_algorithm_registry
 from .algorithm_repair_promotion import export_algorithm_repair_promotion_queue
 from .algorithm_repair_sandbox import evaluate_algorithm_repair_sandbox
+from .algorithm_repair_sandbox_apply import apply_algorithm_repair_sandbox_results
 from .architecture_audit import audit_architecture
 from .autoform_harness import audit_autoform_harness
 from .capability_audit import build_capability_audit, write_capability_audit
@@ -1194,6 +1195,27 @@ def _algorithm_repair_sandbox(args: argparse.Namespace) -> int:
     return 0 if payload["all_ok"] else 1
 
 
+def _algorithm_repair_sandbox_apply(args: argparse.Namespace) -> int:
+    payload = apply_algorithm_repair_sandbox_results(
+        Path(args.sandbox_dir),
+        Path(args.out),
+    )
+    print("\nAI Statistical Theory Lab Algorithm Repair Sandbox Apply Evaluation")
+    print("=" * 72)
+    print(
+        f"applied_artifacts={payload['n_ok']}/{payload['n_candidates']} "
+        f"algorithm_audit_ok={payload['algorithm_audit_all_ok']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    for mode, count in payload["by_application_mode"].items():
+        print(f"  {mode}: {count}")
+    print(
+        f"\nalgorithm repair sandbox apply manifest written to "
+        f"{(Path(args.out) / 'algorithm_repair_sandbox_apply_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
 async def _research_eval(args: argparse.Namespace) -> int:
     _load_dotenv(Path(args.env_file))
     questions = load_open_research_questions(Path(args.question_file))
@@ -1984,6 +2006,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="algorithm repair sandbox output directory",
     )
     algorithm_repair_sandbox.set_defaults(func=_algorithm_repair_sandbox)
+
+    algorithm_repair_sandbox_apply = sub.add_parser(
+        "algorithm-repair-sandbox-apply",
+        help="create non-mutating applied sandbox artifacts for ready algorithm repair plans",
+    )
+    algorithm_repair_sandbox_apply.add_argument(
+        "--sandbox-dir",
+        required=True,
+        help="directory containing algorithm_repair_sandbox_manifest.json",
+    )
+    algorithm_repair_sandbox_apply.add_argument(
+        "--out",
+        default="runs/algorithm_repair_sandbox_apply",
+        help="algorithm repair sandbox apply output directory",
+    )
+    algorithm_repair_sandbox_apply.set_defaults(func=_algorithm_repair_sandbox_apply)
 
     research_eval = sub.add_parser(
         "research-eval",

@@ -180,6 +180,22 @@ emits `algorithm_repair_sandbox_results.jsonl` with allowed patch scopes and the
 next required gate. This is the bridge between repair contracts and future
 patch/apply/rerun automation.
 
+The second bounded sandbox worker records non-mutating application evidence:
+
+```bash
+python3 -m ai_statistician.cli algorithm-repair-sandbox-apply \
+  --sandbox-dir runs/algorithm_repair_sandbox \
+  --out runs/algorithm_repair_sandbox_apply
+```
+
+It accepts only `SANDBOX_PATCH_PLAN_READY` rows, checks that production was not
+mutated, reruns the deterministic algorithm registry audit, and emits
+`algorithm_repair_sandbox_apply_results.jsonl`. The resulting artifact is still
+not a production patch: `patch_applied_to_production=false`,
+`patch_application_mode=non_mutating_guard_plan`, and the required next gate is
+an isolated code patch plus finite simulation rerun. This keeps the feedback
+loop executable and auditable without admitting arbitrary generated code.
+
 ## Target Closed-Loop Research Lab
 
 The broader target is not only a registered estimator executor. It is an AI
@@ -238,8 +254,10 @@ missing architecture piece is default substantive autonomous *solution* of
 repairs: an LLM TheoryDeveloper that can invent and justify new estimator
 families rather than only applying scoped overlays, a ProofEngineer that proves
 new Lean obligations rather than only bridge-selecting from the proof bank, and
-a sandboxed AlgorithmEngineer that applies and reruns vetted code patches from
-simulator evidence.
+an isolated AlgorithmEngineer worker that applies real code patches and reruns
+finite simulation diagnostics from simulator evidence. The current algorithm
+repair lane reaches non-mutating sandbox apply artifacts; it intentionally stops
+before production mutation.
 
 The CLI entry point is:
 
