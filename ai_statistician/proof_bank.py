@@ -1611,6 +1611,56 @@ theorem stoppingTime_le_event_measurable {Ω ι : Type*} {m : MeasurableSpace Ω
         expected_lemmas=("IsStoppingTime.measurableSet_le",),
         depends_on=("filtration_mono_measurable_set",),
     ),
+    "submartingale_expected_stopped_value_mono": FormalObligation(
+        id="submartingale_expected_stopped_value_mono",
+        title="Optional stopping expectation monotonicity for bounded stopping times",
+        english=(
+            "For a submartingale and two bounded stopping times tau <= pi, "
+            "the expected stopped value at tau is at most the expected stopped "
+            "value at pi. This is a direct Mathlib optional-stopping bridge for "
+            "sequential inference and stopped-process theorem skeletons; it "
+            "still does not prove e-process validity or Ville's inequality."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+
+open scoped NNReal ENNReal MeasureTheory ProbabilityTheory
+open MeasureTheory
+
+theorem submartingale_expected_stoppedValue_mono_bridge {Ω E : Type*}
+    {m0 : MeasurableSpace Ω} {μ : Measure Ω} {𝒢 : Filtration ℕ m0}
+    [NormedAddCommGroup E] [NormedSpace ℝ E] [CompleteSpace E] [PartialOrder E]
+    [IsOrderedAddMonoid E] [IsOrderedModule ℝ E] [ClosedIciTopology E]
+    [SigmaFiniteFiltration μ 𝒢] {f : ℕ → Ω → E} {τ π : Ω → ℕ∞}
+    (hf : Submartingale f 𝒢 μ) (hτ : IsStoppingTime 𝒢 τ) (hπ : IsStoppingTime 𝒢 π)
+    (hle : τ ≤ π) {N : ℕ} (hbdd : ∀ ω, π ω ≤ N) :
+    μ[stoppedValue f τ] ≤ μ[stoppedValue f π] := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  exact hf.expected_stoppedValue_mono hτ hπ hle hbdd"
+        ),
+        tags=(
+            "probability",
+            "martingale",
+            "submartingale",
+            "process",
+            "filtration",
+            "stopping_time",
+            "stopped_process",
+            "stopped_value",
+            "optional_stopping",
+            "sequential",
+            "anytime",
+            "eprocess",
+            "nonnegative_supermartingale",
+            "ville_inequality",
+        ),
+        expected_lemmas=("Submartingale.expected_stoppedValue_mono",),
+        depends_on=("stopping_time_le_event_measurable",),
+    ),
     "event_probability_mono": FormalObligation(
         id="event_probability_mono",
         title="Event probability monotonicity",

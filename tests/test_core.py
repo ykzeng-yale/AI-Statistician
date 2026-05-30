@@ -411,6 +411,7 @@ class ProofBankTests(unittest.TestCase):
                     "finite_horizon_evalue_markov_type1_control",
                     "filtration_mono_measurable_set",
                     "stopping_time_le_event_measurable",
+                    "submartingale_expected_stopped_value_mono",
                     "mean2_estimator_chebyshev_indep",
                     "finite_sample_mean_chebyshev_indep",
                 ],
@@ -593,6 +594,20 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("IsStoppingTime ℱ τ", content)
         self.assertIn("MeasurableSet[ℱ i] {ω | τ ω ≤ i}", content)
         self.assertIn("hτ.measurableSet_le i", content)
+        self.assertNotIn("by sorry", content)
+
+    def test_submartingale_optional_stopping_bridge_supports_sequential_gap(self) -> None:
+        obligation = get_obligation("submartingale_expected_stopped_value_mono")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("stopping_time_le_event_measurable",))
+        self.assertIn("submartingale", obligation.tags)
+        self.assertIn("optional_stopping", obligation.tags)
+        self.assertIn("nonnegative_supermartingale", obligation.tags)
+        self.assertIn("theorem submartingale_expected_stoppedValue_mono_bridge", content)
+        self.assertIn("Submartingale f 𝒢 μ", content)
+        self.assertIn("IsStoppingTime 𝒢 τ", content)
+        self.assertIn("μ[stoppedValue f τ] ≤ μ[stoppedValue f π]", content)
+        self.assertIn("hf.expected_stoppedValue_mono hτ hπ hle hbdd", content)
         self.assertNotIn("by sorry", content)
 
     def test_affine_estimator_obligation_supports_shrinkage_expectation(self) -> None:

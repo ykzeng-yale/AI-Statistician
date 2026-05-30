@@ -683,6 +683,14 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   Mathlib's `IsStoppingTime.measurableSet_le`. It is a verified primitive for
   stopped-process, optional-stopping, and e-process theorem skeletons, but it
   does not prove optional-stopping validity or Ville's inequality.
+- `submartingale_expected_stopped_value_mono`: the forward optional-stopping
+  expectation monotonicity theorem for bounded stopping times:
+  `Submartingale f 𝒢 μ -> IsStoppingTime 𝒢 τ -> IsStoppingTime 𝒢 π ->
+  τ ≤ π -> (∀ ω, π ω ≤ N) -> μ[stoppedValue f τ] ≤ μ[stoppedValue f π]`,
+  wrapped around Mathlib's `Submartingale.expected_stoppedValue_mono`. This is
+  now a verified bridge for optional-stopping theorem skeletons, but it is not
+  an e-process construction, Ville inequality, or nonnegative-supermartingale
+  maximal inequality.
 - `event_probability_mono`: event monotonicity `A ⊆ B -> μ(A) ≤ μ(B)`,
   proved directly from Mathlib's `measure_mono`; this is the reusable
   bad-event-containment step used before applying union or tail bounds.

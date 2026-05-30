@@ -1,6 +1,6 @@
 # Real AXLE Validation
 
-Latest real proof-bank validation: 2026-05-29.
+Latest real proof-bank validation: 2026-05-30.
 
 Runtime used:
 
@@ -8,23 +8,23 @@ Runtime used:
 PYTHONPATH=/Users/yukang/AI\ Statistician \
 /Users/yukang/LeanProjects/LeanPractice/.venv/bin/python \
   -m ai_statistician.cli proof-audit --real-lean \
-  --out runs/proof_audit_real_full_48
+  --out runs/proof_audit_real_full_49
 ```
 
 Result:
 
 ```text
-verified=48/48
-kernel=48/48
+verified=49/49
+kernel=49/49
 verifier=axle.verify_proof
 strength=axle_lean_kernel
 ```
 
 This is the current evidence that the registered proof bank is not only
-mock-checked: all 48 registered Mathlib-backed obligations were accepted by
+mock-checked: all 49 registered Mathlib-backed obligations were accepted by
 AXLE/Lean-kernel verification in the real external runtime.
 
-Latest real research-system validation: 2026-05-29.
+Latest real research-system validation: 2026-05-30.
 
 Runtime used:
 
@@ -32,7 +32,7 @@ Runtime used:
 PYTHONPATH=/Users/yukang/AI\ Statistician \
 /Users/yukang/LeanProjects/LeanPractice/.venv/bin/python \
   -m ai_statistician.cli research-system-audit --real-lean \
-  --runs 20 --out runs/research_system_real_lean_49_stopping_time_event_bridge
+  --runs 20 --out runs/research_system_real_lean_50_optional_stopping_bridge
 ```
 
 Result:
@@ -46,18 +46,18 @@ frontier_supported=60/60
 frontier_precision=60/60
 frontier_backlog=0/0
 frontier_smoke=23/23
-proofs_verified=48/48
-proofs_kernel_verified=48/48
+proofs_verified=49/49
+proofs_kernel_verified=49/49
 proof_verification_strength=axle_lean_kernel
 research_traces_ok=10/10
 formal_gaps=20
 formalized_gaps=20
 autoform_targets=20/20
-formal_source_graph_symbols=74934
-formal_source_graph_edges=1474839
-verifier_cache_hits=300
-verifier_cache_misses=48
-verifier_cache_size=48
+formal_source_graph_symbols=74968
+formal_source_graph_edges=1475474
+verifier_cache_hits=302
+verifier_cache_misses=49
+verifier_cache_size=49
 ```
 
 The research-system run proves that `--real-lean` now flows through the actual
@@ -127,6 +127,19 @@ defining stopping-time event measurability theorem
 as a real stopping-time bridge. This remains a measurability primitive, not a
 proof of optional-stopping validity, nonnegative-supermartingale maximal
 inequalities, or full Ville inequality.
+
+The 49th obligation is `submartingale_expected_stopped_value_mono`, a direct
+wrapper around Mathlib's `Submartingale.expected_stoppedValue_mono`. It proves
+the forward optional-stopping expectation monotonicity theorem for bounded
+stopping times of a submartingale:
+`τ ≤ π -> (∀ ω, π ω ≤ N) -> μ[stoppedValue f τ] ≤ μ[stoppedValue f π]`.
+The formalization-target audit now lists it as a ranked bridge candidate for
+`stopping_time`, `ville_inequality`, `filtration`, and
+`nonnegative_supermartingale`, and the local-source retriever aligns those gaps
+with the StatInference theorem family around
+`durrett2019_theorem_4_4_1_submartingale_expected_stoppedValue_mono`. This is a
+real optional-stopping theorem bridge; it still does not construct e-processes
+or prove Ville's inequality end to end.
 
 Important boundary:
 

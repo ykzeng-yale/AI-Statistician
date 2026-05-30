@@ -267,6 +267,13 @@ stopping-time measurability fact that `{ω | τ ω ≤ i}` is measurable in the
 sigma-algebra `ℱ i`. This gives stopped-process and optional-stopping theorem
 skeletons a real AXLE-verified stopping-time event primitive while still
 leaving optional-stopping and Ville inequality as explicit formal gaps.
+It also includes `submartingale_expected_stopped_value_mono`, a direct wrapper
+around Mathlib's forward optional-stopping theorem: for bounded stopping times
+`τ ≤ π` of a submartingale, the expected stopped value at `τ` is at most the
+expected stopped value at `π`. This is a substantially stronger bridge for
+optional-stopping theorem skeletons, while e-process validity, Ville's
+inequality, and nonnegative-supermartingale maximal inequalities remain explicit
+formal gaps.
 It also includes `event_probability_mono`, the measure monotonicity fact
 `A ⊆ B -> μ(A) ≤ μ(B)`, which is a reusable subclaim for bad-event containment
 arguments in conformal coverage, BH/FDR decompositions, and anytime-valid error

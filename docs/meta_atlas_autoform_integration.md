@@ -140,7 +140,7 @@ Real Lean/AXLE system audit:
 PYTHONPATH=/Users/yukang/AI\ Statistician \
 /Users/yukang/LeanProjects/LeanPractice/.venv/bin/python \
   -m ai_statistician.cli research-system-audit --real-lean \
-  --runs 20 --out runs/research_system_real_lean_49_stopping_time_event_bridge
+  --runs 20 --out runs/research_system_real_lean_50_optional_stopping_bridge
 ```
 
 Result:
@@ -150,7 +150,7 @@ all_gates_passed=True
 autoform_harness=True
 autoform_targets=20/20
 sources=23/23
-proofs=48/48
+proofs=49/49
 frontier_supported=60/60
 formalized_gaps=20/20
 missing_primitives=97
@@ -183,4 +183,8 @@ candidate bridge while preserving optional stopping and full Ville as formal
 gaps. The proof bank now also includes
 `stopping_time_le_event_measurable`, a direct wrapper around Mathlib's
 `IsStoppingTime.measurableSet_le`, and the sequential-anytime theorem plan cites
-it as the verified stopping-time event measurability primitive.
+it as the verified stopping-time event measurability primitive. It also now
+includes `submartingale_expected_stopped_value_mono`, a wrapper around Mathlib's
+`Submartingale.expected_stoppedValue_mono`; the formal-source/graph queue aligns
+this bridge with the local StatInference Durrett 4.4.1 optional-stopping theorem
+family while preserving e-process construction and full Ville as formal gaps.
