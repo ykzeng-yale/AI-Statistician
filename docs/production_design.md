@@ -116,6 +116,26 @@ This validates every loop repair task and writes
 next TheoryDeveloper / ProofEngineer / AlgorithmEngineer agents; they do not
 claim the repair has already been solved.
 
+Executed live-repair artifacts have a separate audit because they are stronger
+than planning tasks: they are the handler outputs that may include AXLE/Lean
+kernel evidence or rerun-ready theory/algorithm artifacts.
+
+```bash
+python3 -m ai_statistician.cli research-loop-live-repair-audit \
+  --loop-dir runs/research_loop \
+  --out runs/research_loop_live_repair_audit
+```
+
+This validates `research_loop_live_repair_artifacts.jsonl` independently and
+writes `research_loop_live_repair_sft_train.jsonl`,
+`research_loop_live_repair_sft_validation.jsonl`, and
+`research_loop_live_repair_audit_manifest.json`. Proof repair artifacts are
+training-ready only when their output contract is satisfied and AXLE/Lean kernel
+verification evidence is present for `axle_lean_kernel` claims. This closes a
+small but important architecture loop: live feedback no longer ends as a log; it
+becomes validated repair data for future ProofEngineer / TheoryDeveloper
+training.
+
 ## Target Closed-Loop Research Lab
 
 The broader target is not only a registered estimator executor. It is an AI

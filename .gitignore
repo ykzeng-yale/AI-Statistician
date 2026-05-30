@@ -14,6 +14,8 @@ __pycache__/
 venv/
 .ipynb_checkpoints/
 runs/
+.tmp_frontier/
+.tmp_publish/
 
 # Lean / Mathlib build artifacts
 .lake/

@@ -36,6 +36,7 @@ from .research_intake_audit import audit_research_question_intake
 from .research_knowledge_audit import audit_research_knowledge
 from .research_lab import audit_research_algorithm_registry, load_open_research_questions, run_research_benchmark
 from .research_loop import LoopConfig, run_research_loop_benchmark
+from .research_loop_live_repair_audit import audit_research_loop_live_repair_artifacts
 from .research_loop_repair_audit import audit_research_loop_repair_tasks
 from .research_next_iteration_audit import audit_next_iteration_queue
 from .research_capability_audit import build_research_capability_audit, write_research_capability_audit
@@ -1127,6 +1128,28 @@ def _research_loop_repair_audit(args: argparse.Namespace) -> int:
     return 0 if payload["all_ok"] else 1
 
 
+def _research_loop_live_repair_audit(args: argparse.Namespace) -> int:
+    payload = audit_research_loop_live_repair_artifacts(
+        Path(args.loop_dir),
+        Path(args.out),
+        validation_fraction=args.validation_fraction,
+    )
+    print("\nAI Statistical Theory Lab Research Loop Live Repair Audit")
+    print("=" * 72)
+    print(
+        f"artifacts={payload['n_ok']}/{payload['n_artifacts']} "
+        f"kernel_verified={payload['n_kernel_verified']} "
+        f"sft={payload['n_sft_examples']} all_ok={payload['all_ok']}"
+    )
+    for handler, count in payload["by_handler"].items():
+        print(f"  {handler}: {count}")
+    print(
+        f"\nlive repair audit manifest written to "
+        f"{(Path(args.out) / 'research_loop_live_repair_audit_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
 async def _research_eval(args: argparse.Namespace) -> int:
     _load_dotenv(Path(args.env_file))
     questions = load_open_research_questions(Path(args.question_file))
@@ -1868,6 +1891,23 @@ def build_parser() -> argparse.ArgumentParser:
     )
     research_loop_repair_audit.add_argument("--validation-fraction", type=float, default=0.2)
     research_loop_repair_audit.set_defaults(func=_research_loop_repair_audit)
+
+    research_loop_live_repair_audit = sub.add_parser(
+        "research-loop-live-repair-audit",
+        help="audit executed live repair artifacts and export SFT execution examples",
+    )
+    research_loop_live_repair_audit.add_argument(
+        "--loop-dir",
+        required=True,
+        help="directory containing research_loop_manifest.json",
+    )
+    research_loop_live_repair_audit.add_argument(
+        "--out",
+        default="runs/research_loop_live_repair_audit",
+        help="research loop live repair audit output directory",
+    )
+    research_loop_live_repair_audit.add_argument("--validation-fraction", type=float, default=0.2)
+    research_loop_live_repair_audit.set_defaults(func=_research_loop_live_repair_audit)
 
     research_eval = sub.add_parser(
         "research-eval",

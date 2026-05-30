@@ -56,6 +56,7 @@ from ai_statistician.research_lab import (
     TheoryPlanner,
 )
 from ai_statistician.research_loop import ResearchLoopCoordinator
+from ai_statistician.research_loop_live_repair_audit import audit_research_loop_live_repair_artifacts
 from ai_statistician.research_loop_repair_audit import audit_research_loop_repair_tasks
 from ai_statistician.research_next_iteration_audit import audit_next_iteration_queue
 from ai_statistician.research_paper_index import build_paper_source_index, retrieve_paper_sources
@@ -3192,6 +3193,80 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(rows[0]["task"], "research_loop_repair_planning")
         self.assertIn("theory_revision_from_simulation_failure", rows[0]["tags"])
 
+    def test_research_loop_live_repair_audit_exports_sft_examples(self) -> None:
+        loop_dir = Path("runs/test_research_loop_live_repair_audit_input")
+        loop_dir.mkdir(parents=True, exist_ok=True)
+        artifact_path = loop_dir / "research_loop_live_repair_artifacts.jsonl"
+        required_fields = [
+            "lean_statement",
+            "proof_body",
+            "expected_lemmas",
+            "proof_dependencies",
+            "reuse_targets",
+            "proof_obligation_id",
+            "kernel_verified",
+            "verification_strength",
+        ]
+        artifact = {
+            "schema_version": 1,
+            "artifact_id": "live_repair:test",
+            "question_id": "q",
+            "round": 1,
+            "source_action_id": "formal_gap:test",
+            "owner_agent": "formal_verifier",
+            "trigger": "FORMAL_GAP",
+            "execution_status": "EXECUTED_PROOF_BANK_BRIDGE_REPAIR",
+            "task_type": "proof_bank_expansion_from_formal_gap",
+            "live_repair_handler": "DefaultProofEngineer",
+            "repair_contract_ok": True,
+            "repair_contract_errors": [],
+            "rerun_requested": False,
+            "repair_artifact": {
+                "lean_statement": "theorem test_live_repair : True := by sorry",
+                "proof_body": "by trivial",
+                "expected_lemmas": ["trivial"],
+                "proof_dependencies": ["trivial"],
+                "reuse_targets": ["test_goal"],
+                "proof_obligation_id": "test_live_repair",
+                "kernel_verified": True,
+                "verification_strength": "axle_lean_kernel",
+            },
+            "repair_contract": {
+                "required_fields": required_fields,
+                "required_gate": "AXLE verify_proof kernel_verified=true",
+            },
+        }
+        artifact_path.write_text(json.dumps(artifact) + "\n", encoding="utf-8")
+        (loop_dir / "research_loop_manifest.json").write_text(
+            json.dumps(
+                {
+                    "live_repair_artifacts_jsonl": str(artifact_path),
+                    "n_live_repair_artifacts": 1,
+                }
+            ),
+            encoding="utf-8",
+        )
+        payload = audit_research_loop_live_repair_artifacts(
+            loop_dir,
+            Path("runs/test_research_loop_live_repair_audit"),
+            validation_fraction=0.0,
+        )
+        self.assertTrue(payload["all_ok"])
+        self.assertEqual(payload["n_artifacts"], 1)
+        self.assertEqual(payload["n_ok"], 1)
+        self.assertEqual(payload["n_kernel_verified"], 1)
+        self.assertEqual(payload["n_sft_examples"], 1)
+        self.assertEqual(payload["by_handler"]["DefaultProofEngineer"], 1)
+        self.assertTrue(Path(payload["train_jsonl"]).exists())
+        rows = [
+            json.loads(line)
+            for line in Path(payload["train_jsonl"]).read_text(encoding="utf-8").splitlines()
+        ]
+        self.assertEqual(rows[0]["task"], "research_loop_live_repair_execution")
+        completion = json.loads(rows[0]["completion"])
+        self.assertEqual(completion["repair_artifact"]["proof_obligation_id"], "test_live_repair")
+        self.assertIn("proof_bank_expansion_from_formal_gap", rows[0]["tags"])
+
     def test_prover_component_audit_is_honest_about_training_gaps(self) -> None:
         payload = build_prover_component_audit(root=Path("."))
         self.assertTrue(payload["paper_outline_exists"])
@@ -3266,6 +3341,7 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(payload["gates"]["research_report"])
         self.assertTrue(payload["gates"]["research_loop"])
         self.assertTrue(payload["gates"]["research_loop_repair_audit"])
+        self.assertTrue(payload["gates"]["research_loop_live_repair_audit"])
         self.assertEqual(payload["counts"]["questions"], 10)
         self.assertEqual(payload["counts"]["frontier_questions"], 60)
         self.assertEqual(payload["counts"]["frontier_supported"], 60)
@@ -3303,6 +3379,11 @@ class SystemTests(unittest.TestCase):
             payload["counts"]["research_loop_repair_tasks"],
         )
         self.assertGreaterEqual(payload["counts"]["research_loop_repair_sft_examples"], 1)
+        self.assertEqual(
+            payload["counts"]["research_loop_live_repair_artifacts_ok"],
+            payload["counts"]["research_loop_live_repair_artifacts"],
+        )
+        self.assertGreaterEqual(payload["counts"]["research_loop_live_repair_sft_examples"], 1)
         self.assertEqual(
             payload["counts"]["frontier_theory_targets_scored"],
             payload["counts"]["frontier_theory_targets_total"],
