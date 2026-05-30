@@ -696,8 +696,12 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   `Submartingale f 𝒢 μ -> IsStoppingTime 𝒢 τ ->
   Submartingale (stoppedProcess f τ) 𝒢 μ`, wrapped around Mathlib's
   `Submartingale.stoppedProcess`. This is a verified bridge for stopped-process
-  and nonnegative-supermartingale skeletons, but it is not a proof of Ville's
-  maximal inequality or an e-process construction.
+  and nonnegative-supermartingale skeletons.
+- `submartingale_doob_maximal_ineq`: finite-horizon Doob maximal inequality for
+  nonnegative real-valued submartingales, wrapped around Mathlib's
+  `maximal_ineq`. This gives the Ville/e-process route a verified maximal
+  inequality bridge over running suprema while still leaving full e-process
+  construction and anytime type-I control as formal gaps.
 - `event_probability_mono`: event monotonicity `A ⊆ B -> μ(A) ≤ μ(B)`,
   proved directly from Mathlib's `measure_mono`; this is the reusable
   bad-event-containment step used before applying union or tail bounds.

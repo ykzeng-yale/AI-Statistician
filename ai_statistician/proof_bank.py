@@ -1707,6 +1707,61 @@ theorem submartingale_stoppedProcess_bridge {Ω : Type*} {m0 : MeasurableSpace �
         expected_lemmas=("Submartingale.stoppedProcess",),
         depends_on=("submartingale_expected_stopped_value_mono",),
     ),
+    "submartingale_doob_maximal_ineq": FormalObligation(
+        id="submartingale_doob_maximal_ineq",
+        title="Doob maximal inequality for nonnegative submartingales",
+        english=(
+            "Doob's finite-horizon maximal inequality bounds the probability "
+            "mass of the running maximum event of a nonnegative real-valued "
+            "submartingale by the terminal integral over that event. This is "
+            "a direct Mathlib bridge toward Ville/e-process theorem skeletons; "
+            "it still does not construct an e-process or prove full anytime "
+            "type-I error control."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+
+open scoped NNReal ENNReal MeasureTheory ProbabilityTheory
+open MeasureTheory
+open Finset
+
+theorem submartingale_doob_maximal_ineq_bridge {Ω : Type*} {m0 : MeasurableSpace Ω}
+    {μ : Measure Ω} {𝒢 : Filtration ℕ m0} {f : ℕ → Ω → ℝ}
+    [IsFiniteMeasure μ] (hsub : Submartingale f 𝒢 μ) (hnonneg : 0 ≤ f)
+    {ε : ℝ≥0} (n : ℕ) :
+    ε * μ {ω | (ε : ℝ) ≤ (range (n + 1)).sup' nonempty_range_add_one fun k => f k ω} ≤
+    ENNReal.ofReal
+      (∫ ω in {ω | (ε : ℝ) ≤ (range (n + 1)).sup' nonempty_range_add_one fun k => f k ω},
+        f n ω ∂μ) := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  exact maximal_ineq hsub hnonneg n"
+        ),
+        tags=(
+            "probability",
+            "martingale",
+            "submartingale",
+            "maximal_inequality",
+            "doob",
+            "tail_bound",
+            "process",
+            "filtration",
+            "stopping_time",
+            "stopped_process",
+            "optional_stopping",
+            "sequential",
+            "anytime",
+            "eprocess",
+            "eprocess_type1_control",
+            "nonnegative_supermartingale",
+            "ville_inequality",
+        ),
+        expected_lemmas=("maximal_ineq",),
+        depends_on=("submartingale_stopped_process", "submartingale_expected_stopped_value_mono"),
+    ),
     "event_probability_mono": FormalObligation(
         id="event_probability_mono",
         title="Event probability monotonicity",

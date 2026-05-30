@@ -3951,6 +3951,7 @@ class TheoryPlanner:
                         "stopping_time_le_event_measurable",
                         "submartingale_expected_stopped_value_mono",
                         "submartingale_stopped_process",
+                        "submartingale_doob_maximal_ineq",
                         "finite_union_bound",
                         "finite_horizon_type1_union_control",
                         "finite_union_budget_control",
@@ -3999,7 +4000,7 @@ class TheoryPlanner:
                     simulation_design="Simulate optional stopping under p0=0.5 and power under p=0.65 over a finite horizon.",
                     limitations=(
                         "v0 uses a simple-vs-simple Bernoulli alternative, not composite anytime confidence sequences",
-                        "Ville inequality and filtration formalization remain outside the current proof bank",
+                        "filtration, stopping-time, stopped-process, optional-stopping, and Doob maximal-inequality bridges are proved, but full e-process construction and anytime type-I control remain formal gaps",
                     ),
                 )
             ]
@@ -4916,6 +4917,7 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "stopping_time_le_event_measurable",
         "submartingale_expected_stopped_value_mono",
         "submartingale_stopped_process",
+        "submartingale_doob_maximal_ineq",
         "independent_event_inter_probability",
         "finite_union_bound",
         "finite_horizon_type1_union_control",

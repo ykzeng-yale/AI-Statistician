@@ -277,14 +277,17 @@ It also includes `submartingale_expected_stopped_value_mono`, a direct wrapper
 around Mathlib's forward optional-stopping theorem: for bounded stopping times
 `τ ≤ π` of a submartingale, the expected stopped value at `τ` is at most the
 expected stopped value at `π`. This is a substantially stronger bridge for
-optional-stopping theorem skeletons, while e-process validity, Ville's
-inequality, and nonnegative-supermartingale maximal inequalities remain explicit
-formal gaps.
+optional-stopping theorem skeletons, while full e-process validity and
+anytime type-I control remain explicit formal gaps.
 It also includes `submartingale_stopped_process`, proving that stopping a
 real-valued submartingale at a stopping time preserves the submartingale
 property. This gives the sequential queue a verified stopped-process theorem
-for nonnegative-supermartingale/e-process skeletons while still leaving Ville's
-maximal inequality as a formal gap.
+for nonnegative-supermartingale/e-process skeletons.
+It also includes `submartingale_doob_maximal_ineq`, a direct wrapper around
+Mathlib's finite-horizon Doob maximal inequality for nonnegative
+submartingales. This gives the Ville/e-process queue a verified maximal
+inequality bridge while still leaving the full e-process construction and
+anytime type-I theorem as explicit formal gaps.
 It also includes `event_probability_mono`, the measure monotonicity fact
 `A ⊆ B -> μ(A) ≤ μ(B)`, which is a reusable subclaim for bad-event containment
 arguments in conformal coverage, BH/FDR decompositions, and anytime-valid error

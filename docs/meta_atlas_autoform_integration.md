@@ -164,7 +164,7 @@ Real Lean/AXLE system audit:
 PYTHONPATH=/Users/yukang/AI\ Statistician \
 /Users/yukang/LeanProjects/LeanPractice/.venv/bin/python \
   -m ai_statistician.cli research-system-audit --real-lean \
-  --runs 20 --out runs/research_system_real_lean_51_stopped_submartingale_bridge
+  --runs 20 --out runs/research_system_real_lean_52_doob_maximal_bridge
 ```
 
 Result:
@@ -174,7 +174,7 @@ all_gates_passed=True
 autoform_harness=True
 autoform_targets=20/20
 sources=23/23
-proofs=50/50
+proofs=51/51
 frontier_supported=60/60
 formalized_gaps=20/20
 missing_primitives=97
@@ -216,3 +216,7 @@ family while preserving e-process construction and full Ville as formal gaps.
 The stopped-process bridge `submartingale_stopped_process` is also verified via
 Mathlib's `Submartingale.stoppedProcess`, and the graph queue aligns it with the
 local StatInference Durrett 4.2.9 stopped-submartingale theorem family.
+The Doob bridge `submartingale_doob_maximal_ineq` is now verified via Mathlib's
+finite-horizon `maximal_ineq`, so the sequential-anytime Autoform target queue
+contains a real maximal-inequality subclaim before the remaining full
+Ville/e-process construction gaps.

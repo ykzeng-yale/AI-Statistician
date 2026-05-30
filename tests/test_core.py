@@ -413,6 +413,7 @@ class ProofBankTests(unittest.TestCase):
                     "stopping_time_le_event_measurable",
                     "submartingale_expected_stopped_value_mono",
                     "submartingale_stopped_process",
+                    "submartingale_doob_maximal_ineq",
                     "mean2_estimator_chebyshev_indep",
                     "finite_sample_mean_chebyshev_indep",
                 ],
@@ -622,6 +623,25 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("Submartingale f 𝒢 μ", content)
         self.assertIn("Submartingale (stoppedProcess f τ) 𝒢 μ", content)
         self.assertIn("hf.stoppedProcess hτ", content)
+        self.assertNotIn("by sorry", content)
+
+    def test_submartingale_doob_maximal_bridge_supports_ville_gap(self) -> None:
+        obligation = get_obligation("submartingale_doob_maximal_ineq")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(
+            obligation.depends_on,
+            ("submartingale_stopped_process", "submartingale_expected_stopped_value_mono"),
+        )
+        self.assertIn("maximal_inequality", obligation.tags)
+        self.assertIn("doob", obligation.tags)
+        self.assertIn("ville_inequality", obligation.tags)
+        self.assertIn("nonnegative_supermartingale", obligation.tags)
+        self.assertIn("eprocess_type1_control", obligation.tags)
+        self.assertIn("theorem submartingale_doob_maximal_ineq_bridge", content)
+        self.assertIn("Submartingale f 𝒢 μ", content)
+        self.assertIn("0 ≤ f", content)
+        self.assertIn("range (n + 1)", content)
+        self.assertIn("maximal_ineq hsub hnonneg n", content)
         self.assertNotIn("by sorry", content)
 
     def test_affine_estimator_obligation_supports_shrinkage_expectation(self) -> None:
@@ -1995,6 +2015,12 @@ class SystemTests(unittest.TestCase):
         self.assertIn(
             "wald_interval_miscoverage_iff_abs_error_gt",
             hetero_goals["hc1_asymptotic_normality"]["proof_obligations"],
+        )
+        sequential_trace = json.loads(Path("runs/test_research_benchmark/sequential_anytime_bernoulli.json").read_text())
+        sequential_goals = {row["id"]: row for row in sequential_trace["theorem_goals"]}
+        self.assertIn(
+            "submartingale_doob_maximal_ineq",
+            sequential_goals["eprocess_optional_stopping_control"]["proof_obligations"],
         )
         algorithm_spec = trace_payload["procedures"][0]["algorithm_spec"]
         self.assertEqual(algorithm_spec["registry_status"], "vetted")
