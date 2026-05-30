@@ -706,9 +706,13 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   inequality:
   if `ENNReal.ofReal (∫_{sup f ≥ ε} f_n dμ) ≤ ε * α`, then
   `ε * μ {sup f ≥ ε} ≤ ε * α`. This is the finite-horizon maximal-tail budget
-  step needed by Ville-style type-I arguments; the remaining gaps are the
-  e-process construction, terminal-budget proof, and cancellation/division to
-  a final probability bound.
+  step needed by Ville-style type-I arguments.
+- `submartingale_doob_maximal_probability_bound`: the ENNReal cancellation
+  corollary after the budgeted Doob step:
+  if `ε ≠ 0` and `ENNReal.ofReal (∫_{sup f ≥ ε} f_n dμ) ≤ ε * α`, then
+  `μ {sup f ≥ ε} ≤ α`. It uses `ENNReal.mul_le_mul_iff_right`, so the
+  remaining Ville/e-process gaps are now the e-process construction and
+  terminal-budget proof, not the post-Doob algebra.
 - `event_probability_mono`: event monotonicity `A ⊆ B -> μ(A) ≤ μ(B)`,
   proved directly from Mathlib's `measure_mono`; this is the reusable
   bad-event-containment step used before applying union or tail bounds.

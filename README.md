@@ -292,8 +292,13 @@ It also includes `submartingale_doob_maximal_budget`, a budgeted Doob corollary:
 if the terminal integral over the running-maximum event is bounded by a
 threshold times an error budget, then the threshold-weighted event probability
 obeys the same budget. This moves the sequential queue closer to Ville-style
-type-I control while keeping the final e-process construction and cancellation
-step explicit.
+type-I control while keeping the final e-process construction explicit.
+It also includes `submartingale_doob_maximal_probability_bound`, which cancels
+the nonzero threshold using `ENNReal.mul_le_mul_iff_right` and turns the
+budgeted weighted tail bound into the actual event-probability bound
+`μ {sup f >= ε} <= α`. This closes the algebraic division step in the
+finite-horizon Ville/e-process skeleton; the remaining gaps are the e-process
+construction and proof of the terminal budget assumption.
 It also includes `event_probability_mono`, the measure monotonicity fact
 `A ⊆ B -> μ(A) ≤ μ(B)`, which is a reusable subclaim for bad-event containment
 arguments in conformal coverage, BH/FDR decompositions, and anytime-valid error

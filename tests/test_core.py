@@ -415,6 +415,7 @@ class ProofBankTests(unittest.TestCase):
                     "submartingale_stopped_process",
                     "submartingale_doob_maximal_ineq",
                     "submartingale_doob_maximal_budget",
+                    "submartingale_doob_maximal_probability_bound",
                     "mean2_estimator_chebyshev_indep",
                     "finite_sample_mean_chebyshev_indep",
                 ],
@@ -657,6 +658,22 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("hbudget", content)
         self.assertIn("ε * α", content)
         self.assertIn("le_trans (maximal_ineq hsub hnonneg n) hbudget", content)
+        self.assertNotIn("by sorry", content)
+
+    def test_submartingale_doob_probability_bound_supports_eprocess_gap(self) -> None:
+        obligation = get_obligation("submartingale_doob_maximal_probability_bound")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("submartingale_doob_maximal_budget",))
+        self.assertIn("probability_bound", obligation.tags)
+        self.assertIn("cancellation", obligation.tags)
+        self.assertIn("ville_inequality", obligation.tags)
+        self.assertIn("eprocess_type1_control", obligation.tags)
+        self.assertIn("theorem submartingale_doob_maximal_probability_bound_bridge", content)
+        self.assertIn("hε : ε ≠ 0", content)
+        self.assertIn("μ {ω |", content)
+        self.assertIn("≤ α", content)
+        self.assertIn("ENNReal.mul_le_mul_iff_right", content)
+        self.assertIn("exact_mod_cast hε", content)
         self.assertNotIn("by sorry", content)
 
     def test_affine_estimator_obligation_supports_shrinkage_expectation(self) -> None:
@@ -2039,6 +2056,10 @@ class SystemTests(unittest.TestCase):
         )
         self.assertIn(
             "submartingale_doob_maximal_budget",
+            sequential_goals["eprocess_optional_stopping_control"]["proof_obligations"],
+        )
+        self.assertIn(
+            "submartingale_doob_maximal_probability_bound",
             sequential_goals["eprocess_optional_stopping_control"]["proof_obligations"],
         )
         algorithm_spec = trace_payload["procedures"][0]["algorithm_spec"]

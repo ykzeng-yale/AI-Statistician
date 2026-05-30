@@ -174,7 +174,7 @@ all_gates_passed=True
 autoform_harness=True
 autoform_targets=20/20
 sources=23/23
-proofs=52/52
+proofs=53/53
 frontier_supported=60/60
 formalized_gaps=20/20
 missing_primitives=97
@@ -222,5 +222,9 @@ contains a real maximal-inequality subclaim before the remaining full
 Ville/e-process construction gaps.
 The budgeted bridge `submartingale_doob_maximal_budget` is also verified, so
 the Autoform target queue can hand off a sharper formal gap: construct the
-e-process and prove the terminal budget/cancellation steps rather than
-rediscovering Doob's maximal inequality.
+e-process and prove the terminal budget rather than rediscovering Doob's
+maximal inequality.
+The probability-bound bridge `submartingale_doob_maximal_probability_bound`
+then cancels the nonzero threshold using Mathlib's
+`ENNReal.mul_le_mul_iff_right`, so Autoform targets no longer need to spend
+search budget on the post-Doob algebraic division step.

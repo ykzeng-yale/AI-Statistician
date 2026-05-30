@@ -1819,6 +1819,73 @@ theorem submartingale_doob_maximal_budget_bridge {Ω : Type*} {m0 : MeasurableSp
         expected_lemmas=("maximal_ineq", "le_trans"),
         depends_on=("submartingale_doob_maximal_ineq",),
     ),
+    "submartingale_doob_maximal_probability_bound": FormalObligation(
+        id="submartingale_doob_maximal_probability_bound",
+        title="Doob maximal probability bound from a terminal budget",
+        english=(
+            "If the terminal integral over the Doob running-maximum event is "
+            "bounded by a nonzero threshold times an error budget, then the "
+            "running-maximum event probability itself is bounded by that "
+            "budget. This composes Mathlib's finite-horizon maximal inequality "
+            "with ENNReal cancellation, closing the algebraic division step in "
+            "the Ville/e-process theorem skeleton while still leaving the "
+            "e-process construction and terminal-budget proof as explicit "
+            "formal gaps."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+
+open scoped NNReal ENNReal MeasureTheory ProbabilityTheory
+open MeasureTheory
+open Finset
+
+theorem submartingale_doob_maximal_probability_bound_bridge {Ω : Type*} {m0 : MeasurableSpace Ω}
+    {μ : Measure Ω} {𝒢 : Filtration ℕ m0} {f : ℕ → Ω → ℝ}
+    [IsFiniteMeasure μ] (hsub : Submartingale f 𝒢 μ) (hnonneg : 0 ≤ f)
+    {ε : ℝ≥0} {α : ℝ≥0∞} (hε : ε ≠ 0) (n : ℕ)
+    (hbudget :
+      ENNReal.ofReal
+        (∫ ω in {ω | (ε : ℝ) ≤ (range (n + 1)).sup' nonempty_range_add_one fun k => f k ω},
+          f n ω ∂μ) ≤ ε * α) :
+    μ {ω | (ε : ℝ) ≤ (range (n + 1)).sup' nonempty_range_add_one fun k => f k ω} ≤ α := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  have hmul :\n"
+            "      ε * μ {ω | (ε : ℝ) ≤ (range (n + 1)).sup' nonempty_range_add_one fun k => f k ω} ≤\n"
+            "        ε * α := by\n"
+            "    exact le_trans (maximal_ineq hsub hnonneg n) hbudget\n"
+            "  have hε0 : (ε : ℝ≥0∞) ≠ 0 := by\n"
+            "    exact_mod_cast hε\n"
+            "  exact (ENNReal.mul_le_mul_iff_right hε0 ENNReal.coe_ne_top).mp hmul"
+        ),
+        tags=(
+            "probability",
+            "martingale",
+            "submartingale",
+            "maximal_inequality",
+            "doob",
+            "tail_bound",
+            "budget",
+            "probability_bound",
+            "ennreal",
+            "cancellation",
+            "process",
+            "filtration",
+            "stopping_time",
+            "optional_stopping",
+            "sequential",
+            "anytime",
+            "eprocess",
+            "eprocess_type1_control",
+            "nonnegative_supermartingale",
+            "ville_inequality",
+        ),
+        expected_lemmas=("maximal_ineq", "le_trans", "ENNReal.mul_le_mul_iff_right"),
+        depends_on=("submartingale_doob_maximal_budget",),
+    ),
     "event_probability_mono": FormalObligation(
         id="event_probability_mono",
         title="Event probability monotonicity",

@@ -8,20 +8,20 @@ Runtime used:
 PYTHONPATH=/Users/yukang/AI\ Statistician \
 /Users/yukang/LeanProjects/LeanPractice/.venv/bin/python \
   -m ai_statistician.cli proof-audit --real-lean \
-  --out runs/proof_audit_real_full_52
+  --out runs/proof_audit_real_full_53
 ```
 
 Result:
 
 ```text
-verified=52/52
-kernel=52/52
+verified=53/53
+kernel=53/53
 verifier=axle.verify_proof
 strength=axle_lean_kernel
 ```
 
 This is the current evidence that the registered proof bank is not only
-mock-checked: all 52 registered Mathlib-backed obligations were accepted by
+mock-checked: all 53 registered Mathlib-backed obligations were accepted by
 AXLE/Lean-kernel verification in the real external runtime.
 
 Latest real research-system validation: 2026-05-30.
@@ -32,7 +32,7 @@ Runtime used:
 PYTHONPATH=/Users/yukang/AI\ Statistician \
 /Users/yukang/LeanProjects/LeanPractice/.venv/bin/python \
   -m ai_statistician.cli research-system-audit --real-lean \
-  --runs 20 --out runs/research_system_real_lean_53_doob_budget_bridge
+  --runs 20 --out runs/research_system_real_lean_54_doob_probability_bridge
 ```
 
 Result:
@@ -46,18 +46,18 @@ frontier_supported=60/60
 frontier_precision=60/60
 frontier_backlog=0/0
 frontier_smoke=23/23
-proofs_verified=52/52
-proofs_kernel_verified=52/52
+proofs_verified=53/53
+proofs_kernel_verified=53/53
 proof_verification_strength=axle_lean_kernel
 research_traces_ok=10/10
 formal_gaps=20
 formalized_gaps=20
 autoform_targets=20/20
-formal_source_graph_symbols=74968
-formal_source_graph_edges=1475474
-verifier_cache_hits=308
-verifier_cache_misses=52
-verifier_cache_size=52
+formal_source_graph_symbols=74972
+formal_source_graph_edges=1475530
+verifier_cache_hits=310
+verifier_cache_misses=53
+verifier_cache_size=53
 ```
 
 The research-system run proves that `--real-lean` now flows through the actual
@@ -168,9 +168,15 @@ integral budget over the running-maximum event transfers to a
 threshold-weighted probability budget:
 `ENNReal.ofReal (∫_{sup f ≥ ε} f_n dμ) ≤ ε * α ->
 ε * μ {sup f ≥ ε} ≤ ε * α`. The sequential-anytime theorem plan now has both a
-raw maximal-inequality bridge and a budgeted tail-control bridge. This still
-does not construct the e-process, prove the terminal-budget assumption, or
-cancel/divide by the threshold to a final probability bound.
+raw maximal-inequality bridge and a budgeted tail-control bridge.
+
+The 53rd obligation is `submartingale_doob_maximal_probability_bound`, the
+post-Doob cancellation step. It assumes the threshold is nonzero and proves
+`μ {sup f ≥ ε} ≤ α` from the same terminal integral budget by combining
+`maximal_ineq`, `le_trans`, and Mathlib's `ENNReal.mul_le_mul_iff_right`.
+This closes the algebraic division step toward Ville-style type-I control.
+The remaining formal gaps are the e-process construction and the proof that
+the terminal budget assumption holds for the constructed process.
 
 Important boundary:
 
