@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 
 from .algorithms import audit_algorithm_registry
+from .algorithm_repair_promotion import export_algorithm_repair_promotion_queue
 from .architecture_audit import audit_architecture
 from .autoform_harness import audit_autoform_harness
 from .capability_audit import build_capability_audit, write_capability_audit
@@ -1150,6 +1151,27 @@ def _research_loop_live_repair_audit(args: argparse.Namespace) -> int:
     return 0 if payload["all_ok"] else 1
 
 
+def _algorithm_repair_promotion(args: argparse.Namespace) -> int:
+    payload = export_algorithm_repair_promotion_queue(
+        Path(args.loop_dir),
+        Path(args.out),
+    )
+    print("\nAI Statistical Theory Lab Algorithm Repair Promotion Queue")
+    print("=" * 72)
+    print(
+        f"algorithm_artifacts={payload['n_algorithm_repair_artifacts']} "
+        f"candidates={payload['n_ok']}/{payload['n_candidates']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    for status, count in payload["by_sandbox_status"].items():
+        print(f"  {status}: {count}")
+    print(
+        f"\nalgorithm repair promotion manifest written to "
+        f"{(Path(args.out) / 'algorithm_repair_promotion_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
 async def _research_eval(args: argparse.Namespace) -> int:
     _load_dotenv(Path(args.env_file))
     questions = load_open_research_questions(Path(args.question_file))
@@ -1908,6 +1930,22 @@ def build_parser() -> argparse.ArgumentParser:
     )
     research_loop_live_repair_audit.add_argument("--validation-fraction", type=float, default=0.2)
     research_loop_live_repair_audit.set_defaults(func=_research_loop_live_repair_audit)
+
+    algorithm_repair_promotion = sub.add_parser(
+        "algorithm-repair-promotion",
+        help="convert algorithm live-repair artifacts into sandbox patch candidates",
+    )
+    algorithm_repair_promotion.add_argument(
+        "--loop-dir",
+        required=True,
+        help="directory containing research_loop_manifest.json",
+    )
+    algorithm_repair_promotion.add_argument(
+        "--out",
+        default="runs/algorithm_repair_promotion",
+        help="algorithm repair promotion output directory",
+    )
+    algorithm_repair_promotion.set_defaults(func=_algorithm_repair_promotion)
 
     research_eval = sub.add_parser(
         "research-eval",

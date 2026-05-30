@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from ai_statistician.algorithms import audit_algorithm_registry
+from ai_statistician.algorithm_repair_promotion import export_algorithm_repair_promotion_queue
 from ai_statistician.architecture_audit import audit_architecture
 from ai_statistician.capability_audit import build_capability_audit, write_capability_audit
 from ai_statistician.doctor import build_doctor_report, write_doctor_manifest
@@ -3190,6 +3191,67 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(artifact["rerun_metrics"]["n_failed_target"], 0.0)
         self.assertIn("patch_summary", artifact)
 
+    def test_algorithm_repair_promotion_queue_filters_sandbox_candidates(self) -> None:
+        loop_dir = Path("runs/test_algorithm_repair_promotion_input")
+        loop_dir.mkdir(parents=True, exist_ok=True)
+        artifact_path = loop_dir / "research_loop_live_repair_artifacts.jsonl"
+        good_artifact = {
+            "schema_version": 1,
+            "artifact_id": "live_repair:algorithm-good",
+            "question_id": "q",
+            "round": 1,
+            "source_action_id": "simulation:algorithm",
+            "owner_agent": "algorithm_engineer",
+            "trigger": "IMPLEMENTATION_OR_NUMERICAL_ISSUE",
+            "execution_status": "EXECUTED_SCOPED_ALGORITHM_REPAIR_PROPOSAL",
+            "task_type": "algorithm_repair_from_numerical_failure",
+            "live_repair_handler": "DefaultAlgorithmEngineer",
+            "repair_contract_ok": True,
+            "repair_contract_errors": [],
+            "rerun_requested": False,
+            "repair_artifact": {
+                "target_procedure": "oracle_aipw_ate",
+                "algorithm_id": "oracle_aipw",
+                "patch_summary": "Add deterministic finite-value guard.",
+                "implementation_hash": "a" * 64,
+                "reproduction_test": {"procedure_id": "oracle_aipw_ate", "nonfinite_metrics": ["rmse"]},
+                "rerun_metrics": {
+                    "n_failed_target": 0.0,
+                    "finite_metric_required": 1.0,
+                    "max_failed_fraction": 0.05,
+                },
+                "numerical_repair_kind": "finite_metric_guard",
+                "algorithm_registry_status": "vetted",
+            },
+            "repair_contract": {
+                "required_fields": [
+                    "patch_summary",
+                    "implementation_hash",
+                    "reproduction_test",
+                    "rerun_metrics",
+                ],
+                "required_gate": "algorithm audit plus finite simulation metrics",
+            },
+        }
+        artifact_path.write_text(json.dumps(good_artifact) + "\n", encoding="utf-8")
+        (loop_dir / "research_loop_manifest.json").write_text(
+            json.dumps({"live_repair_artifacts_jsonl": str(artifact_path)}),
+            encoding="utf-8",
+        )
+        payload = export_algorithm_repair_promotion_queue(
+            loop_dir,
+            Path("runs/test_algorithm_repair_promotion"),
+        )
+        self.assertTrue(payload["all_ok"])
+        self.assertEqual(payload["n_candidates"], 1)
+        self.assertEqual(payload["n_ok"], 1)
+        self.assertEqual(payload["by_sandbox_status"]["READY_FOR_SANDBOX_PATCH"], 1)
+        queue_path = Path(payload["queue_jsonl"])
+        self.assertTrue(queue_path.exists())
+        rows = [json.loads(line) for line in queue_path.read_text(encoding="utf-8").splitlines()]
+        self.assertEqual(rows[0]["algorithm_id"], "oracle_aipw")
+        self.assertEqual(rows[0]["sandbox_status"], "READY_FOR_SANDBOX_PATCH")
+
     def test_research_loop_default_proof_engineer_bridges_formal_gap(self) -> None:
         question = load_open_research_questions(Path("examples/research_questions.json"))[0]
         problem = ProblemFormalizer().formalize(question)
@@ -3493,6 +3555,7 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(payload["gates"]["research_loop"])
         self.assertTrue(payload["gates"]["research_loop_repair_audit"])
         self.assertTrue(payload["gates"]["research_loop_live_repair_audit"])
+        self.assertTrue(payload["gates"]["algorithm_repair_promotion"])
         self.assertEqual(payload["counts"]["questions"], 10)
         self.assertEqual(payload["counts"]["frontier_questions"], 60)
         self.assertEqual(payload["counts"]["frontier_supported"], 60)
@@ -3535,6 +3598,10 @@ class SystemTests(unittest.TestCase):
             payload["counts"]["research_loop_live_repair_artifacts"],
         )
         self.assertGreaterEqual(payload["counts"]["research_loop_live_repair_sft_examples"], 1)
+        self.assertEqual(
+            payload["counts"]["algorithm_repair_promotion_candidates_ok"],
+            payload["counts"]["algorithm_repair_promotion_candidates"],
+        )
         self.assertEqual(
             payload["counts"]["frontier_theory_targets_scored"],
             payload["counts"]["frontier_theory_targets_total"],

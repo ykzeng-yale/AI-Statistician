@@ -150,6 +150,22 @@ small but important architecture loop: live feedback no longer ends as a log; it
 becomes validated repair data for future ProofEngineer / TheoryDeveloper
 training.
 
+Algorithm repair promotion is intentionally one more step beyond generic live
+repair auditing:
+
+```bash
+python3 -m ai_statistician.cli algorithm-repair-promotion \
+  --loop-dir runs/research_loop \
+  --out runs/algorithm_repair_promotion
+```
+
+This filters `algorithm_repair_from_numerical_failure` artifacts into
+`algorithm_repair_promotion_queue.jsonl`. The queue contains sandbox patch
+candidates with implementation hashes, reproduction context, and rerun gates. It
+rejects any artifact that embeds executable code fields such as `generated_code`
+or `python_code`; the next worker must create the patch in a sandbox, run the
+algorithm audit, and rerun finite simulations before promotion.
+
 ## Target Closed-Loop Research Lab
 
 The broader target is not only a registered estimator executor. It is an AI
