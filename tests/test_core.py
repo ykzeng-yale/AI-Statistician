@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import shutil
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -79,7 +80,7 @@ from ai_statistician.system import write_run_manifest, write_trace
 from ai_statistician.system_audit import SystemAuditConfig, load_audit_questions, run_system_audit
 from ai_statistician.theory_proposal import MockTheoryProposer, TheoryProposal
 from ai_statistician.trace_audit import audit_run_traces
-from ai_statistician.verifier import CachingProofVerifier, MockProofVerifier
+from ai_statistician.verifier import CachingProofVerifier, LocalLeanProofVerifier, MockProofVerifier
 from ai_statistician.verifier import splice_proof
 
 
@@ -403,6 +404,22 @@ class ProofBankTests(unittest.TestCase):
         self.assertTrue(first.ok)
         self.assertTrue(second.ok)
         self.assertEqual(verifier.cache_info(), {"hits": 1, "misses": 1, "size": 1})
+
+    def test_local_lean_verifier_checks_mathlib_proof_when_available(self) -> None:
+        lean_project = Path("/Users/yukang/LeanProjects/LeanPractice")
+        if shutil.which("lake") is None or not (lean_project / "lakefile.toml").exists():
+            raise unittest.SkipTest("local Lake/Mathlib project not available")
+
+        async def run():
+            verifier = LocalLeanProofVerifier(project_root=lean_project, timeout_s=90)
+            obligation = get_obligation("prob_measure_univ")
+            return await verifier.verify(obligation, obligation.proof_body, [])
+
+        check = asyncio.run(run())
+        self.assertTrue(check.ok, check.errors[:1])
+        self.assertTrue(check.kernel_verified)
+        self.assertEqual(check.verifier, "local.lake_env_lean")
+        self.assertEqual(check.verification_strength, "local_lean_kernel")
 
     def test_proof_audit_records_dependency_graph(self) -> None:
         async def run():

@@ -1013,7 +1013,8 @@ The package integrates existing systems where appropriate:
   exists.
 - Loogle integration is exposed as a small optional retriever class. It is not
   required for the default offline run.
-- AXLE is the real proof-verification backend for `--real-lean`.
+- AXLE is the remote proof-verification backend for `--real-lean`; local
+  `lake env lean` kernel checking is available through `--local-lean`.
 - The local formal-source index performs declaration-level retrieval with
   theorem compression features: binder counts, premise heads, conclusion head,
   left/right equality heads, and major symbols. This is the local-first
@@ -1201,12 +1202,25 @@ Real AXLE proof-bank audit:
   -m ai_statistician.cli proof-audit --real-lean --out runs/proof_audit_axle
 ```
 
+Local Lean kernel proof-bank audit, useful when the AXLE Python package or API
+is unavailable but a pinned Mathlib Lake workspace exists locally:
+
+```bash
+python3 -m ai_statistician.cli proof-audit \
+  --local-lean \
+  --lean-project /Users/yukang/LeanProjects/LeanPractice \
+  --out runs/proof_audit_local_lean
+```
+
 Run `doctor` in the same Python runtime first. It reports
 `real_lean_ready`, `real_lean_blockers`, `llm_theory_ready`, and
 `llm_theory_blockers`, so a release audit can distinguish "API key is present"
 from "the AXLE/Anthropic client package is actually importable." The current
 local venv can pass offline gates with mock proof rows, but real Lean evidence
-requires the `proof` extra in the runtime that invokes `--real-lean`.
+requires either the `proof` extra in the runtime that invokes `--real-lean`, or
+the `--local-lean` backend with a local Lake project. Both AXLE and local Lean
+rows set `kernel_verified=true` only when a real Lean kernel check succeeds;
+mock-positive rows remain regression-test evidence only.
 
 This writes `proof_audit_manifest.json` plus one exported Lean file per formal
 obligation. The Lean exports are intentionally per-obligation files because
@@ -1216,8 +1230,8 @@ It also writes `proof_attempts.jsonl` and
 training substrate: they include the formal statement, spliced Lean candidate,
 candidate hash, verifier, `verification_strength`, `kernel_verified`, reward,
 errors/first error, retrieval hits, and a `supervision_target` for successful
-proof bodies. Mock-positive rows are regression-test evidence only; AXLE rows
-with `kernel_verified=true` are the Lean-kernel proof evidence. This is
+proof bodies. Mock-positive rows are regression-test evidence only; AXLE or
+local-Lean rows with `kernel_verified=true` are Lean-kernel proof evidence. This is
 proof-level logging only; tactic-state transitions and process rewards remain
 future work.
 With `--negative-controls`, the audit also records one intentionally empty

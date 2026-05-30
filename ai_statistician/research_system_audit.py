@@ -40,7 +40,7 @@ from .research_report import build_research_markdown_report
 from .research_trace_audit import audit_research_traces
 from .research_training_export import export_research_training_dataset
 from .retrieval import audit_proof_bank_retrieval
-from .verifier import AxleProofVerifier, CachingProofVerifier, MockProofVerifier, ProofVerifier
+from .verifier import AxleProofVerifier, CachingProofVerifier, LocalLeanProofVerifier, MockProofVerifier, ProofVerifier
 
 
 @dataclass(frozen=True)
@@ -48,6 +48,9 @@ class ResearchSystemAuditConfig:
     n_runs: int = 100
     seed: int = 20260528
     use_axle: bool = False
+    use_local_lean: bool = False
+    local_lean_project: str | None = None
+    local_lean_timeout: int = 90
 
 
 async def run_research_system_audit(
@@ -59,7 +62,13 @@ async def run_research_system_audit(
     """Run release-style gates for the open-question research workflow."""
 
     out_dir.mkdir(parents=True, exist_ok=True)
-    base_verifier: ProofVerifier = AxleProofVerifier() if config.use_axle else MockProofVerifier()
+    if config.use_local_lean:
+        base_verifier: ProofVerifier = LocalLeanProofVerifier(
+            project_root=config.local_lean_project,
+            timeout_s=config.local_lean_timeout,
+        )
+    else:
+        base_verifier = AxleProofVerifier() if config.use_axle else MockProofVerifier()
     verifier = CachingProofVerifier(base_verifier)
     actual_question_file = question_file or Path("examples/research_questions.json")
     questions = load_open_research_questions(actual_question_file)
@@ -285,6 +294,9 @@ async def run_research_system_audit(
             "n_runs": config.n_runs,
             "seed": config.seed,
             "use_axle": config.use_axle,
+            "use_local_lean": config.use_local_lean,
+            "local_lean_project": config.local_lean_project or "",
+            "local_lean_timeout": config.local_lean_timeout,
             "question_file": str(question_file or Path("examples/research_questions.json")),
         },
         "all_gates_passed": all(gates.values()),

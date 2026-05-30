@@ -1,16 +1,27 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import copy
 import os
+import shutil
+import tempfile
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Protocol
 
 from .schema import FormalObligation, ProofCheck, RetrievalHit
 
 
 LEAN_ENV = os.environ.get("AXLE_ENVIRONMENT", "lean-4.29.0")
+DEFAULT_LOCAL_LEAN_PROJECTS = (
+    Path(os.environ["AI_STATISTICIAN_LEAN_PROJECT"])
+    if os.environ.get("AI_STATISTICIAN_LEAN_PROJECT")
+    else None,
+    Path("/Users/yukang/LeanProjects/LeanPractice"),
+    Path("/Users/yukang/Desktop/AI for Math/Codex"),
+)
 
 
 def splice_proof(formal_statement: str, proof_body: str) -> str:
@@ -135,6 +146,115 @@ class AxleProofVerifier:
         )
 
 
+class LocalLeanProofVerifier:
+    """Local `lake env lean` verifier for Mathlib-backed proof-bank checks.
+
+    AXLE remains the preferred remote verifier when available. This backend is
+    an auditable kernel fallback: it splices the proof body into the Lean file,
+    runs the local Lean executable through an existing Mathlib Lake workspace,
+    and treats Lean's exit code as the trusted proof result.
+    """
+
+    name = "local.lake_env_lean"
+
+    def __init__(self, project_root: str | Path | None = None, timeout_s: int = 90):
+        self.project_root = _resolve_local_lean_project(project_root)
+        self.timeout_s = int(timeout_s)
+
+    async def verify(
+        self,
+        obligation: FormalObligation,
+        proof_body: str,
+        retrieval_hits: list[RetrievalHit],
+    ) -> ProofCheck:
+        start = time.perf_counter()
+        if shutil.which("lake") is None:
+            return ProofCheck(
+                obligation_id=obligation.id,
+                ok=False,
+                proof_body=proof_body,
+                verifier=self.name,
+                verification_strength="local_lean_unavailable",
+                kernel_verified=False,
+                elapsed_ms=int((time.perf_counter() - start) * 1000),
+                errors=["lake executable not found on PATH"],
+                retrieval_hits=retrieval_hits,
+            )
+        if self.project_root is None:
+            return ProofCheck(
+                obligation_id=obligation.id,
+                ok=False,
+                proof_body=proof_body,
+                verifier=self.name,
+                verification_strength="local_lean_unavailable",
+                kernel_verified=False,
+                elapsed_ms=int((time.perf_counter() - start) * 1000),
+                errors=["no local Lean/Lake project found; set AI_STATISTICIAN_LEAN_PROJECT or --lean-project"],
+                retrieval_hits=retrieval_hits,
+            )
+
+        candidate = splice_proof(obligation.formal_statement, proof_body)
+        with tempfile.TemporaryDirectory(prefix="ai_stat_lean_") as tmp:
+            lean_file = Path(tmp) / f"{obligation.id}.lean"
+            lean_file.write_text(candidate, encoding="utf-8")
+            proc = None
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    "lake",
+                    "env",
+                    "lean",
+                    str(lean_file),
+                    cwd=str(self.project_root),
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=self.timeout_s)
+            except asyncio.TimeoutError:
+                with contextlib.suppress(Exception):
+                    if proc is not None:
+                        proc.kill()
+                        await proc.wait()
+                errors = [f"local Lean verification timed out after {self.timeout_s}s"]
+                return ProofCheck(
+                    obligation_id=obligation.id,
+                    ok=False,
+                    proof_body=proof_body,
+                    verifier=self.name,
+                    verification_strength="local_lean_kernel",
+                    kernel_verified=False,
+                    elapsed_ms=int((time.perf_counter() - start) * 1000),
+                    errors=errors,
+                    retrieval_hits=retrieval_hits,
+                )
+            except Exception as exc:
+                return ProofCheck(
+                    obligation_id=obligation.id,
+                    ok=False,
+                    proof_body=proof_body,
+                    verifier=self.name,
+                    verification_strength="local_lean_kernel",
+                    kernel_verified=False,
+                    elapsed_ms=int((time.perf_counter() - start) * 1000),
+                    errors=[f"{type(exc).__name__}: {exc}"],
+                    retrieval_hits=retrieval_hits,
+                )
+        output = (stdout or b"").decode(errors="replace").strip()
+        error_output = (stderr or b"").decode(errors="replace").strip()
+        errors = [line for line in (output + "\n" + error_output).splitlines() if line.strip()]
+        ok = proc.returncode == 0
+        return ProofCheck(
+            obligation_id=obligation.id,
+            ok=ok,
+            proof_body=proof_body,
+            verifier=self.name,
+            verification_strength="local_lean_kernel",
+            kernel_verified=ok,
+            elapsed_ms=int((time.perf_counter() - start) * 1000),
+            errors=[] if ok else errors,
+            retrieval_hits=retrieval_hits,
+        )
+
+
 class CachingProofVerifier:
     """Memoize verifier calls within one audit/run.
 
@@ -178,3 +298,13 @@ class CachingProofVerifier:
 
 def run_async(coro):
     return asyncio.run(coro)
+
+
+def _resolve_local_lean_project(project_root: str | Path | None) -> Path | None:
+    candidates = (Path(project_root),) if project_root else tuple(
+        path for path in DEFAULT_LOCAL_LEAN_PROJECTS if path is not None
+    )
+    for candidate in candidates:
+        if (candidate / "lakefile.toml").exists() or (candidate / "lakefile.lean").exists():
+            return candidate
+    return None

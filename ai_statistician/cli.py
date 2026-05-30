@@ -55,7 +55,7 @@ from .system import AIStatisticianSystem, compact_summary, write_run_manifest, w
 from .system_audit import SystemAuditConfig, load_audit_questions, run_system_audit
 from .theory_proposal import AnthropicTheoryProposer
 from .trace_audit import audit_run_traces
-from .verifier import AxleProofVerifier, MockProofVerifier
+from .verifier import AxleProofVerifier, LocalLeanProofVerifier, MockProofVerifier
 
 
 def _load_dotenv(path: Path) -> None:
@@ -137,6 +137,15 @@ def _theory_proposer_from_args(args: argparse.Namespace):
     return AnthropicTheoryProposer(model=getattr(args, "llm_model", "claude-haiku-4-5"))
 
 
+def _proof_verifier_from_args(args: argparse.Namespace):
+    if getattr(args, "local_lean", False):
+        return LocalLeanProofVerifier(
+            project_root=getattr(args, "lean_project", None),
+            timeout_s=getattr(args, "lean_timeout", 90),
+        )
+    return AxleProofVerifier() if getattr(args, "real_lean", False) else MockProofVerifier()
+
+
 async def _eval(args: argparse.Namespace) -> int:
     _load_dotenv(Path(args.env_file))
     questions = _questions_from_args(args)
@@ -180,7 +189,7 @@ def _theory_intake(args: argparse.Namespace) -> int:
 
 async def _proof_audit(args: argparse.Namespace) -> int:
     _load_dotenv(Path(args.env_file))
-    verifier = AxleProofVerifier() if args.real_lean else MockProofVerifier()
+    verifier = _proof_verifier_from_args(args)
     payload = await audit_proof_bank(
         verifier,
         Path(args.out),
@@ -438,7 +447,7 @@ def _research_knowledge_audit(args: argparse.Namespace) -> int:
 
 async def _frontier_smoke_benchmark(args: argparse.Namespace) -> int:
     _load_dotenv(Path(args.env_file))
-    verifier = AxleProofVerifier() if args.real_lean else MockProofVerifier()
+    verifier = _proof_verifier_from_args(args)
     payload = await run_frontier_smoke_benchmark(
         Path(args.out),
         benchmark_file=Path(args.benchmark_file),
@@ -1020,7 +1029,7 @@ async def _release_bundle(args: argparse.Namespace) -> int:
 
 async def _research_benchmark(args: argparse.Namespace) -> int:
     _load_dotenv(Path(args.env_file))
-    verifier = AxleProofVerifier() if args.real_lean else MockProofVerifier()
+    verifier = _proof_verifier_from_args(args)
     questions = load_open_research_questions(Path(args.question_file))
     payload = await run_research_benchmark(
         questions,
@@ -1073,7 +1082,7 @@ async def _research_benchmark(args: argparse.Namespace) -> int:
 
 async def _research_loop(args: argparse.Namespace) -> int:
     _load_dotenv(Path(args.env_file))
-    verifier = AxleProofVerifier() if args.real_lean else MockProofVerifier()
+    verifier = _proof_verifier_from_args(args)
     questions = load_open_research_questions(Path(args.question_file))
     if args.max_questions:
         questions = questions[: args.max_questions]
@@ -1306,6 +1315,9 @@ async def _research_system_audit(args: argparse.Namespace) -> int:
             n_runs=args.runs,
             seed=args.seed,
             use_axle=args.real_lean,
+            use_local_lean=args.local_lean,
+            local_lean_project=args.lean_project,
+            local_lean_timeout=args.lean_timeout,
         ),
     )
     print("\nAI Statistical Theory Lab System Audit")
@@ -1385,6 +1397,9 @@ def build_parser() -> argparse.ArgumentParser:
     proof_audit.add_argument("--tag", action="append", help="filter obligations by tag; repeatable")
     proof_audit.add_argument("--require-all-tags", action="store_true", help="require all provided tags instead of any")
     proof_audit.add_argument("--real-lean", action="store_true", help="use AXLE verify_proof instead of mock verifier")
+    proof_audit.add_argument("--local-lean", action="store_true", help="use local lake env lean kernel verification")
+    proof_audit.add_argument("--lean-project", help="local Lake project used by --local-lean")
+    proof_audit.add_argument("--lean-timeout", type=int, default=90, help="timeout seconds for each local Lean check")
     proof_audit.add_argument("--out", default="runs/proof_audit", help="proof audit output directory")
     proof_audit.add_argument("--env-file", default=".env")
     proof_audit.add_argument("--no-export-lean", action="store_true", help="do not export checked Lean candidates")
@@ -1591,6 +1606,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="frontier statistical theory benchmark Markdown file",
     )
     frontier_smoke_benchmark.add_argument("--real-lean", action="store_true", help="use AXLE verify_proof for Mathlib-backed subclaims")
+    frontier_smoke_benchmark.add_argument("--local-lean", action="store_true", help="use local lake env lean kernel verification")
+    frontier_smoke_benchmark.add_argument("--lean-project", help="local Lake project used by --local-lean")
+    frontier_smoke_benchmark.add_argument("--lean-timeout", type=int, default=90, help="timeout seconds for each local Lean check")
     frontier_smoke_benchmark.add_argument("--runs", type=int, default=60, help="Monte Carlo replicates for each selected paper-style question")
     frontier_smoke_benchmark.add_argument("--seed", type=int, default=20260528)
     frontier_smoke_benchmark.add_argument("--max-per-class", type=int, default=1)
@@ -1937,6 +1955,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     research_benchmark.add_argument("--question-file", default="examples/research_questions.json")
     research_benchmark.add_argument("--real-lean", action="store_true", help="use AXLE verify_proof for Mathlib-backed subclaims")
+    research_benchmark.add_argument("--local-lean", action="store_true", help="use local lake env lean kernel verification")
+    research_benchmark.add_argument("--lean-project", help="local Lake project used by --local-lean")
+    research_benchmark.add_argument("--lean-timeout", type=int, default=90, help="timeout seconds for each local Lean check")
     research_benchmark.add_argument("--runs", type=int, default=100, help="Monte Carlo research-simulation replicates")
     research_benchmark.add_argument("--seed", type=int, default=20260528)
     research_benchmark.add_argument(
@@ -1955,6 +1976,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     research_loop.add_argument("--question-file", default="examples/research_questions.json")
     research_loop.add_argument("--real-lean", action="store_true", help="use AXLE verify_proof for Mathlib-backed subclaims")
+    research_loop.add_argument("--local-lean", action="store_true", help="use local lake env lean kernel verification")
+    research_loop.add_argument("--lean-project", help="local Lake project used by --local-lean")
+    research_loop.add_argument("--lean-timeout", type=int, default=90, help="timeout seconds for each local Lean check")
     research_loop.add_argument("--runs", type=int, default=100, help="initial Monte Carlo research-simulation replicates")
     research_loop.add_argument("--seed", type=int, default=20260528)
     research_loop.add_argument("--max-rounds", type=int, default=2)
@@ -2087,6 +2111,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     research_system_audit.add_argument("--question-file", default="examples/research_questions.json")
     research_system_audit.add_argument("--real-lean", action="store_true", help="use AXLE verify_proof for Mathlib-backed subclaims")
+    research_system_audit.add_argument("--local-lean", action="store_true", help="use local lake env lean kernel verification")
+    research_system_audit.add_argument("--lean-project", help="local Lake project used by --local-lean")
+    research_system_audit.add_argument("--lean-timeout", type=int, default=90, help="timeout seconds for each local Lean check")
     research_system_audit.add_argument("--runs", type=int, default=100, help="Monte Carlo research-simulation replicates")
     research_system_audit.add_argument("--seed", type=int, default=20260528)
     research_system_audit.add_argument("--out", default="runs/research_system_audit", help="research system audit output directory")
