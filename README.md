@@ -288,6 +288,12 @@ Mathlib's finite-horizon Doob maximal inequality for nonnegative
 submartingales. This gives the Ville/e-process queue a verified maximal
 inequality bridge while still leaving the full e-process construction and
 anytime type-I theorem as explicit formal gaps.
+It also includes `submartingale_doob_maximal_budget`, a budgeted Doob corollary:
+if the terminal integral over the running-maximum event is bounded by a
+threshold times an error budget, then the threshold-weighted event probability
+obeys the same budget. This moves the sequential queue closer to Ville-style
+type-I control while keeping the final e-process construction and cancellation
+step explicit.
 It also includes `event_probability_mono`, the measure monotonicity fact
 `A ⊆ B -> μ(A) ≤ μ(B)`, which is a reusable subclaim for bad-event containment
 arguments in conformal coverage, BH/FDR decompositions, and anytime-valid error

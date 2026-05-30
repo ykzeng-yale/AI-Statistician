@@ -1762,6 +1762,63 @@ theorem submartingale_doob_maximal_ineq_bridge {Ω : Type*} {m0 : MeasurableSpac
         expected_lemmas=("maximal_ineq",),
         depends_on=("submartingale_stopped_process", "submartingale_expected_stopped_value_mono"),
     ),
+    "submartingale_doob_maximal_budget": FormalObligation(
+        id="submartingale_doob_maximal_budget",
+        title="Budgeted Doob maximal inequality for nonnegative submartingales",
+        english=(
+            "If the terminal integral over the Doob running-maximum event is "
+            "bounded by a threshold times an error budget, then the same budget "
+            "bounds the threshold-weighted event probability. This is the "
+            "finite-horizon maximal-tail budget bridge closest to Ville-style "
+            "type-I control, while still leaving the e-process construction and "
+            "division/cancellation step as explicit formal gaps."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+
+open scoped NNReal ENNReal MeasureTheory ProbabilityTheory
+open MeasureTheory
+open Finset
+
+theorem submartingale_doob_maximal_budget_bridge {Ω : Type*} {m0 : MeasurableSpace Ω}
+    {μ : Measure Ω} {𝒢 : Filtration ℕ m0} {f : ℕ → Ω → ℝ}
+    [IsFiniteMeasure μ] (hsub : Submartingale f 𝒢 μ) (hnonneg : 0 ≤ f)
+    {ε : ℝ≥0} {α : ℝ≥0∞} (n : ℕ)
+    (hbudget :
+      ENNReal.ofReal
+        (∫ ω in {ω | (ε : ℝ) ≤ (range (n + 1)).sup' nonempty_range_add_one fun k => f k ω},
+          f n ω ∂μ) ≤ ε * α) :
+    ε * μ {ω | (ε : ℝ) ≤ (range (n + 1)).sup' nonempty_range_add_one fun k => f k ω} ≤
+      ε * α := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  exact le_trans (maximal_ineq hsub hnonneg n) hbudget"
+        ),
+        tags=(
+            "probability",
+            "martingale",
+            "submartingale",
+            "maximal_inequality",
+            "doob",
+            "tail_bound",
+            "budget",
+            "process",
+            "filtration",
+            "stopping_time",
+            "optional_stopping",
+            "sequential",
+            "anytime",
+            "eprocess",
+            "eprocess_type1_control",
+            "nonnegative_supermartingale",
+            "ville_inequality",
+        ),
+        expected_lemmas=("maximal_ineq", "le_trans"),
+        depends_on=("submartingale_doob_maximal_ineq",),
+    ),
     "event_probability_mono": FormalObligation(
         id="event_probability_mono",
         title="Event probability monotonicity",

@@ -414,6 +414,7 @@ class ProofBankTests(unittest.TestCase):
                     "submartingale_expected_stopped_value_mono",
                     "submartingale_stopped_process",
                     "submartingale_doob_maximal_ineq",
+                    "submartingale_doob_maximal_budget",
                     "mean2_estimator_chebyshev_indep",
                     "finite_sample_mean_chebyshev_indep",
                 ],
@@ -642,6 +643,20 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("0 ≤ f", content)
         self.assertIn("range (n + 1)", content)
         self.assertIn("maximal_ineq hsub hnonneg n", content)
+        self.assertNotIn("by sorry", content)
+
+    def test_submartingale_doob_budget_bridge_supports_eprocess_gap(self) -> None:
+        obligation = get_obligation("submartingale_doob_maximal_budget")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("submartingale_doob_maximal_ineq",))
+        self.assertIn("maximal_inequality", obligation.tags)
+        self.assertIn("budget", obligation.tags)
+        self.assertIn("ville_inequality", obligation.tags)
+        self.assertIn("eprocess_type1_control", obligation.tags)
+        self.assertIn("theorem submartingale_doob_maximal_budget_bridge", content)
+        self.assertIn("hbudget", content)
+        self.assertIn("ε * α", content)
+        self.assertIn("le_trans (maximal_ineq hsub hnonneg n) hbudget", content)
         self.assertNotIn("by sorry", content)
 
     def test_affine_estimator_obligation_supports_shrinkage_expectation(self) -> None:
@@ -2020,6 +2035,10 @@ class SystemTests(unittest.TestCase):
         sequential_goals = {row["id"]: row for row in sequential_trace["theorem_goals"]}
         self.assertIn(
             "submartingale_doob_maximal_ineq",
+            sequential_goals["eprocess_optional_stopping_control"]["proof_obligations"],
+        )
+        self.assertIn(
+            "submartingale_doob_maximal_budget",
             sequential_goals["eprocess_optional_stopping_control"]["proof_obligations"],
         )
         algorithm_spec = trace_payload["procedures"][0]["algorithm_spec"]

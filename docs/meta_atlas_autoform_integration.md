@@ -164,7 +164,7 @@ Real Lean/AXLE system audit:
 PYTHONPATH=/Users/yukang/AI\ Statistician \
 /Users/yukang/LeanProjects/LeanPractice/.venv/bin/python \
   -m ai_statistician.cli research-system-audit --real-lean \
-  --runs 20 --out runs/research_system_real_lean_52_doob_maximal_bridge
+  --runs 20 --out runs/research_system_real_lean_53_doob_budget_bridge
 ```
 
 Result:
@@ -174,7 +174,7 @@ all_gates_passed=True
 autoform_harness=True
 autoform_targets=20/20
 sources=23/23
-proofs=51/51
+proofs=52/52
 frontier_supported=60/60
 formalized_gaps=20/20
 missing_primitives=97
@@ -220,3 +220,7 @@ The Doob bridge `submartingale_doob_maximal_ineq` is now verified via Mathlib's
 finite-horizon `maximal_ineq`, so the sequential-anytime Autoform target queue
 contains a real maximal-inequality subclaim before the remaining full
 Ville/e-process construction gaps.
+The budgeted bridge `submartingale_doob_maximal_budget` is also verified, so
+the Autoform target queue can hand off a sharper formal gap: construct the
+e-process and prove the terminal budget/cancellation steps rather than
+rediscovering Doob's maximal inequality.

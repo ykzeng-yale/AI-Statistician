@@ -702,6 +702,13 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   `maximal_ineq`. This gives the Ville/e-process route a verified maximal
   inequality bridge over running suprema while still leaving full e-process
   construction and anytime type-I control as formal gaps.
+- `submartingale_doob_maximal_budget`: a budgeted corollary of the same Doob
+  inequality:
+  if `ENNReal.ofReal (∫_{sup f ≥ ε} f_n dμ) ≤ ε * α`, then
+  `ε * μ {sup f ≥ ε} ≤ ε * α`. This is the finite-horizon maximal-tail budget
+  step needed by Ville-style type-I arguments; the remaining gaps are the
+  e-process construction, terminal-budget proof, and cancellation/division to
+  a final probability bound.
 - `event_probability_mono`: event monotonicity `A ⊆ B -> μ(A) ≤ μ(B)`,
   proved directly from Mathlib's `measure_mono`; this is the reusable
   bad-event-containment step used before applying union or tail bounds.
