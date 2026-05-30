@@ -802,8 +802,9 @@ The package integrates existing systems where appropriate:
   statement-extraction, multi-agent formalization, Lean-checking,
   dependency-graph evaluation, proof-checker, REPL/native-LSP, Lean skill-doc,
   evaluation, and visualizer entrypoints. This is an integration adapter, not a
-  vendored training dataset. `autoform-target-export` then converts audited
-  FORMAL_GAP tasks into Autoform-compatible target YAML and a book-style
+  vendored training dataset. `autoform-harness-audit` exposes that readiness
+  check as a direct CLI gate, and `autoform-target-export` then converts
+  audited FORMAL_GAP tasks into Autoform-compatible target YAML and a book-style
   Markdown directory, so the external harness has a concrete input queue.
 - The open-question `research-benchmark` path now accepts the same persisted
   backend and the CLI defaults to it. Formal-gap skeletons are therefore

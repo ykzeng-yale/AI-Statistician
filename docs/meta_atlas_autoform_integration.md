@@ -1,6 +1,6 @@
 # Meta Atlas Lean and Autoform-Bot Integration
 
-Latest integration audit: 2026-05-29.
+Latest integration audit: 2026-05-30.
 
 The system now uses local mirrors of the user-owned forks as preferred sources,
 with upstream Meta repositories as fallback acquisition/provenance references:
@@ -98,6 +98,30 @@ harness to expose the statement extraction, Lean eval, dependency-graph eval,
 proof-checker, Lean REPL/native-LSP, Lean skill-doc, and multi-agent bot
 components.
 
+The same check is exposed as a standalone command so the Autoform integration
+can be validated without running the full research-system audit:
+
+```bash
+python -m ai_statistician.cli autoform-harness-audit --out runs/autoform_harness
+```
+
+Latest focused harness audit:
+
+```text
+ready=True
+root=/Users/yukang/.codex/external/ykzeng-autoform-bot
+commit=f137da6cc9a6
+statement_extraction=True
+lean_eval=True
+dependency_graph_eval=True
+proof_checker=True
+lean_repl=True
+native_lsp=True
+lean_skill_docs=True
+multi_agent_bot=True
+visualizer=True
+```
+
 The AI Statistician now also writes concrete Autoform inputs from its own formal
 gap queue:
 
@@ -159,8 +183,9 @@ missing_primitives=97
 Focused Atlas/Autoform source audit:
 
 ```text
-formal_source_audit: sources=15 declarations=43967 queries=27/27 backend=sqlite_fts_hybrid
-autoform_harness: ready_for_integration=True
+formal_source_audit: sources=15 declarations=44000 queries=27/27 backend=sqlite_fts_hybrid
+formal_source_graph_audit: declarations=44000 symbols=74968 edges=1475474 queries=11/11
+autoform_harness_audit: ready_for_integration=True
 source_inventory: 23/23 all_ok=True
 ```
 

@@ -44,6 +44,7 @@ python3 -m ai_statistician.cli research-eval --n-seeds 3 --runs 80 --out runs/re
 python3 -m ai_statistician.cli research-trace-audit --run-dir runs/research_benchmark --out runs/research_trace_audit
 python3 -m ai_statistician.cli research-gap-audit --run-dir runs/research_benchmark --out runs/research_gap_backlog
 python3 -m ai_statistician.cli formalization-target-audit --run-dir runs/research_benchmark --out runs/formalization_target_audit
+python3 -m ai_statistician.cli autoform-harness-audit --out runs/autoform_harness
 python3 -m ai_statistician.cli autoform-target-export --run-dir runs/research_benchmark --out runs/autoform_targets
 python3 -m ai_statistician.cli research-system-audit --runs 100 --out runs/research_system_audit
 ```
@@ -116,6 +117,11 @@ from the most relevant verified bridge instead of a broad proof-obligation list.
 Autoform-Bot's target-list format. It writes `autoform_targets.yaml` plus a
 small book-style Markdown directory so the external Autoform evaluation and
 visualizer harness can assess or route these theorem-development targets.
+`autoform-harness-audit` is the direct readiness gate for the local
+`ykzeng-yale/autoform-bot` mirror: it records statement extraction, Lean eval,
+dependency-graph evaluation, proof-checker, REPL/native-LSP, Lean skill docs,
+multi-agent bot, and visualizer entrypoints before any target queue is handed
+off.
 `formal-source-audit` now defaults to a persistent SQLite FTS + Lean-shape
 reranking backend and writes `formal_source_index.sqlite` next to the audit
 manifest, so repeated search and interactive theorem mining can query the local

@@ -982,6 +982,13 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(profile["has_lean_skill_docs"])
         self.assertEqual(profile["usage_policy"], "integration_reference_no_training_export")
         self.assertTrue(Path("runs/test_autoform_harness/autoform_harness_manifest.json").exists())
+        from ai_statistician.cli import build_parser
+
+        args = build_parser().parse_args(
+            ["autoform-harness-audit", "--out", "runs/test_autoform_harness_cli"]
+        )
+        self.assertEqual(args.func(args), 0)
+        self.assertTrue(Path("runs/test_autoform_harness_cli/autoform_harness_manifest.json").exists())
 
     def test_frontier_coverage_audit_parses_paper_benchmark(self) -> None:
         questions = load_frontier_benchmark_questions(Path("docs/frontier_stat_theory_benchmark.md"))

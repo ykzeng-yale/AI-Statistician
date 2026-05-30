@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 
 from .algorithms import audit_algorithm_registry
+from .autoform_harness import audit_autoform_harness
 from .capability_audit import build_capability_audit, write_capability_audit
 from .doctor import build_doctor_report, write_doctor_manifest
 from .evaluation import EvalConfig, run_seed_eval
@@ -662,6 +663,32 @@ def _autoform_target_export(args: argparse.Namespace) -> int:
     for error in payload["errors"]:
         print(f"  error: {error}")
     return 0 if payload["all_ok"] else 1
+
+
+def _autoform_harness_audit(args: argparse.Namespace) -> int:
+    payload = audit_autoform_harness(Path(args.out))
+    profile = payload["profile"]
+    print("\nAI Statistical Theory Lab Autoform Harness Audit")
+    print("=" * 72)
+    print(
+        f"ready={payload['ready_for_integration']} "
+        f"root={profile['root']} commit={str(profile['git_commit'])[:12]}"
+    )
+    for key in (
+        "has_statement_extraction",
+        "has_lean_eval",
+        "has_dependency_graph_eval",
+        "has_lean_proof_checker",
+        "has_lean_repl_tool",
+        "has_native_lsp_tool",
+        "has_lean_skill_docs",
+        "has_multi_agent_bot",
+        "has_visualizer",
+    ):
+        print(f"  {key}: {profile[key]}")
+    print(f"\nautoform harness manifest written to {(Path(args.out) / 'autoform_harness_manifest.json').resolve()}")
+    print(f"markdown report written to {(Path(args.out) / 'autoform_harness.md').resolve()}")
+    return 0 if payload["ready_for_integration"] else 1
 
 
 def _proof_bank_expansion_export(args: argparse.Namespace) -> int:
@@ -1499,6 +1526,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="Autoform target YAML/book output directory",
     )
     autoform_target_export.set_defaults(func=_autoform_target_export)
+
+    autoform_harness_audit = sub.add_parser(
+        "autoform-harness-audit",
+        help="audit the local Autoform-Bot harness checkout and reusable entrypoints",
+    )
+    autoform_harness_audit.add_argument(
+        "--out",
+        default="runs/autoform_harness",
+        help="Autoform harness audit output directory",
+    )
+    autoform_harness_audit.set_defaults(func=_autoform_harness_audit)
 
     proof_bank_expansion_export = sub.add_parser(
         "proof-bank-expansion-export",
