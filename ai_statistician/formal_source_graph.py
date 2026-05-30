@@ -1,16 +1,19 @@
 from __future__ import annotations
 
 import json
+import shutil
 from collections import Counter, defaultdict
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .fingerprint import stable_hash
 from .formal_source_index import (
     DEFAULT_AUDIT_QUERIES,
     FormalDeclaration,
     FormalSourceRetriever,
     build_formal_source_index,
+    formal_source_index_fingerprint,
 )
 
 
@@ -141,8 +144,24 @@ def audit_formal_source_graph(
     declarations: list[FormalDeclaration] | None = None,
     queries: tuple[tuple[str, str], ...] = DEFAULT_GRAPH_AUDIT_QUERIES,
     k: int = 8,
+    cache_path: Path | str | None = None,
+    refresh_cache: bool = False,
 ) -> dict[str, object]:
     decls = declarations if declarations is not None else build_formal_source_index()
+    cache_info = _graph_cache_info(
+        declarations=decls,
+        queries=queries,
+        k=k,
+        cache_path=cache_path,
+        refresh_cache=refresh_cache,
+    )
+    cached_payload = _load_cached_graph_payload(cache_info=cache_info)
+    if cached_payload is not None:
+        payload = _payload_with_cache_status(cached_payload, cache_info=cache_info, status="hit", stored=False)
+        if out_dir is not None:
+            _write_graph_outputs(payload, out_dir)
+        return payload
+
     graph = FormalSourceGraphRetriever(decls)
     symbol_counts = Counter(symbol for symbols in graph._decl_symbols for symbol in symbols)
     source_by_symbol: dict[str, set[str]] = defaultdict(set)
@@ -194,14 +213,115 @@ def audit_formal_source_graph(
         "all_queries_ok": all(row["ok"] for row in query_rows),
         "query_rows": query_rows,
     }
-    if out_dir is not None:
-        out_dir.mkdir(parents=True, exist_ok=True)
-        (out_dir / "formal_source_graph_manifest.json").write_text(
-            json.dumps(payload, indent=2, default=str),
-            encoding="utf-8",
+    cache_stored = False
+    if cache_info["enabled"] and payload["all_queries_ok"]:
+        payload = _payload_with_cache_status(payload, cache_info=cache_info, status="miss", stored=True)
+        _store_cached_graph_payload(cache_info=cache_info, payload=payload)
+        cache_stored = True
+    if not cache_stored:
+        payload = _payload_with_cache_status(
+            payload,
+            cache_info=cache_info,
+            status="disabled" if not cache_info["enabled"] else "miss",
+            stored=False,
         )
-        (out_dir / "formal_source_graph.md").write_text(_markdown_report(payload), encoding="utf-8")
+    if out_dir is not None:
+        _write_graph_outputs(payload, out_dir)
     return payload
+
+
+def _graph_cache_info(
+    *,
+    declarations: list[FormalDeclaration],
+    queries: tuple[tuple[str, str], ...],
+    k: int,
+    cache_path: Path | str | None,
+    refresh_cache: bool,
+) -> dict[str, object]:
+    root = Path(cache_path) if cache_path is not None else None
+    key = _graph_cache_key(declarations=declarations, queries=queries, k=k)
+    return {
+        "enabled": root is not None,
+        "root": root or Path(),
+        "key": key,
+        "entry": (root / key) if root is not None else Path(),
+        "refresh": refresh_cache,
+    }
+
+
+def _graph_cache_key(
+    *,
+    declarations: list[FormalDeclaration],
+    queries: tuple[tuple[str, str], ...],
+    k: int,
+) -> str:
+    payload = {
+        "cache_schema": 1,
+        "formal_source_index_fingerprint": formal_source_index_fingerprint(declarations),
+        "queries": queries,
+        "k": k,
+        "engine_fingerprint": _source_file_hash(Path(__file__)),
+    }
+    return stable_hash(payload)[:24]
+
+
+def _source_file_hash(path: Path) -> str:
+    return stable_hash(path.read_text(encoding="utf-8")) if path.exists() else ""
+
+
+def _load_cached_graph_payload(*, cache_info: dict[str, object]) -> dict[str, object] | None:
+    if not cache_info["enabled"] or cache_info["refresh"]:
+        return None
+    entry = Path(str(cache_info["entry"]))
+    manifest_path = entry / "formal_source_graph_manifest.json"
+    if not manifest_path.exists():
+        return None
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if not payload.get("all_queries_ok"):
+        return None
+    return payload
+
+
+def _store_cached_graph_payload(*, cache_info: dict[str, object], payload: dict[str, object]) -> None:
+    if not cache_info["enabled"]:
+        return
+    entry = Path(str(cache_info["entry"]))
+    if entry.exists():
+        shutil.rmtree(entry)
+    entry.mkdir(parents=True, exist_ok=True)
+    (entry / "formal_source_graph_manifest.json").write_text(
+        json.dumps(payload, indent=2, default=str),
+        encoding="utf-8",
+    )
+    (entry / "formal_source_graph.md").write_text(_markdown_report(payload), encoding="utf-8")
+
+
+def _payload_with_cache_status(
+    payload: dict[str, object],
+    *,
+    cache_info: dict[str, object],
+    status: str,
+    stored: bool,
+) -> dict[str, object]:
+    updated = dict(payload)
+    updated["cache"] = {
+        "enabled": bool(cache_info["enabled"]),
+        "status": status,
+        "cache_key": str(cache_info["key"]),
+        "cache_dir": str(cache_info["root"]) if cache_info["enabled"] else "",
+        "cache_entry": str(cache_info["entry"]) if cache_info["enabled"] else "",
+        "stored": stored,
+    }
+    return updated
+
+
+def _write_graph_outputs(payload: dict[str, object], out_dir: Path) -> None:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "formal_source_graph_manifest.json").write_text(
+        json.dumps(payload, indent=2, default=str),
+        encoding="utf-8",
+    )
+    (out_dir / "formal_source_graph.md").write_text(_markdown_report(payload), encoding="utf-8")
 
 
 def _symbols_for_declaration(decl: FormalDeclaration) -> set[str]:
@@ -264,6 +384,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Declaration-symbol edges: {payload['n_edges']}",
         f"- Cross-source symbols: {payload['n_cross_source_symbols']}",
         f"- Query coverage: {payload['n_query_ok']}/{payload['n_queries']}",
+        f"- Cache: {dict(payload.get('cache', {})).get('status', 'unknown')}",
         "",
         "## Sources",
         "",

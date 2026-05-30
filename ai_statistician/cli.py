@@ -531,13 +531,19 @@ def _formal_source_audit(args: argparse.Namespace) -> int:
 
 
 def _formal_source_graph_audit(args: argparse.Namespace) -> int:
-    payload = audit_formal_source_graph(Path(args.out), k=args.k)
+    payload = audit_formal_source_graph(
+        Path(args.out),
+        k=args.k,
+        cache_path=Path(args.formal_source_graph_cache) if args.formal_source_graph_cache else None,
+        refresh_cache=args.refresh_formal_source_graph_cache,
+    )
     print("\nAI Statistical Theory Lab Formal Source Graph")
     print("=" * 72)
     print(
         f"declarations={payload['n_declarations']} "
         f"symbols={payload['n_symbol_nodes']} edges={payload['n_edges']} "
-        f"queries={payload['n_query_ok']}/{payload['n_queries']}"
+        f"queries={payload['n_query_ok']}/{payload['n_queries']} "
+        f"cache={payload['cache']['status']}"
     )
     for row in payload["query_rows"]:
         first = row["top_hits"][0] if row["top_hits"] else None
@@ -1326,6 +1332,8 @@ async def _research_system_audit(args: argparse.Namespace) -> int:
             refresh_formal_source_index_cache=args.refresh_formal_source_index_cache,
             frontier_smoke_cache=args.frontier_smoke_cache,
             refresh_frontier_smoke_cache=args.refresh_frontier_smoke_cache,
+            formal_source_graph_cache=args.formal_source_graph_cache,
+            refresh_formal_source_graph_cache=args.refresh_formal_source_graph_cache,
         ),
     )
     print("\nAI Statistical Theory Lab System Audit")
@@ -1341,6 +1349,7 @@ async def _research_system_audit(args: argparse.Namespace) -> int:
         f"frontier_backlog={counts['frontier_backlog_ok']}/{counts['frontier_backlog_total']} "
         f"frontier_smoke={counts['frontier_smoke_ready']}/{counts['frontier_smoke_questions']} "
         f"frontier_smoke_cache={counts['frontier_smoke_cache_status']} "
+        f"formal_graph_cache={counts['formal_source_graph_cache_status']} "
         f"intake_supported={counts['research_intake_supported_accepted']}/{counts['research_intake_supported']} "
         f"intake_unsupported={counts['research_intake_unsupported_rejected']}/{counts['research_intake_unsupported']} "
         f"knowledge={counts['research_knowledge_problem_ok']}/{counts['research_knowledge_problem_rows']} "
@@ -1666,6 +1675,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="audit graph expansion over local Lean/stat declaration symbols",
     )
     formal_source_graph_audit.add_argument("--k", type=int, default=8, help="number of graph-expanded declarations to keep per query")
+    formal_source_graph_audit.add_argument(
+        "--formal-source-graph-cache",
+        default="",
+        help="optional persistent cache directory for formal-source graph audits; empty disables",
+    )
+    formal_source_graph_audit.add_argument(
+        "--refresh-formal-source-graph-cache",
+        action="store_true",
+        help="rebuild the matching formal-source graph cache entry",
+    )
     formal_source_graph_audit.add_argument(
         "--out",
         default="runs/formal_source_graph",
@@ -2142,6 +2161,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--refresh-formal-source-index-cache",
         action="store_true",
         help="rebuild and overwrite the persistent formal-source index cache",
+    )
+    research_system_audit.add_argument(
+        "--formal-source-graph-cache",
+        default="runs/formal_source_graph_cache",
+        help="persistent cache directory for repeated formal-source graph audits; pass empty string to disable",
+    )
+    research_system_audit.add_argument(
+        "--refresh-formal-source-graph-cache",
+        action="store_true",
+        help="rebuild and overwrite the matching formal-source graph cache entry",
     )
     research_system_audit.add_argument("--runs", type=int, default=100, help="Monte Carlo research-simulation replicates")
     research_system_audit.add_argument(

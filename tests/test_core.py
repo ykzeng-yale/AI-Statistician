@@ -232,8 +232,28 @@ class ProofBankTests(unittest.TestCase):
             queries=(("variance_graph", "independent variance estimator"),),
         )
         self.assertTrue(graph_payload["all_queries_ok"])
+        self.assertEqual(graph_payload["cache"]["status"], "disabled")
         self.assertGreater(graph_payload["n_symbol_nodes"], 0)
         self.assertTrue(Path("runs/test_formal_source_graph/formal_source_graph_manifest.json").exists())
+        graph_cache_dir = Path("runs/test_formal_source_graph_cache")
+        shutil.rmtree(graph_cache_dir, ignore_errors=True)
+        graph_cached_1 = audit_formal_source_graph(
+            Path("runs/test_formal_source_graph_cache_miss"),
+            declarations=declarations,
+            queries=(("variance_graph", "independent variance estimator"),),
+            cache_path=graph_cache_dir,
+        )
+        graph_cached_2 = audit_formal_source_graph(
+            Path("runs/test_formal_source_graph_cache_hit"),
+            declarations=declarations,
+            queries=(("variance_graph", "independent variance estimator"),),
+            cache_path=graph_cache_dir,
+        )
+        self.assertEqual(graph_cached_1["cache"]["status"], "miss")
+        self.assertTrue(graph_cached_1["cache"]["stored"])
+        self.assertEqual(graph_cached_2["cache"]["status"], "hit")
+        self.assertFalse(graph_cached_2["cache"]["stored"])
+        self.assertTrue(Path("runs/test_formal_source_graph_cache_hit/formal_source_graph_manifest.json").exists())
         payload = audit_formal_source_index(
             Path("runs/test_formal_source_index"),
             roots=(root,),
@@ -248,6 +268,8 @@ class ProofBankTests(unittest.TestCase):
 
     def test_formal_source_search_backend_reuses_sqlite_cache(self) -> None:
         fixture = Path("runs/test_formal_source_cache_fixture")
+        shutil.rmtree(fixture, ignore_errors=True)
+        shutil.rmtree(Path("runs/test_formal_source_cache"), ignore_errors=True)
         fixture.mkdir(parents=True, exist_ok=True)
         (fixture / "CacheDemo.lean").write_text(
             "\n".join(
@@ -3965,6 +3987,9 @@ class SystemTests(unittest.TestCase):
         )
         self.assertGreater(payload["counts"]["formal_source_graph_symbols"], 0)
         self.assertGreater(payload["counts"]["formal_source_graph_edges"], 0)
+        self.assertTrue(payload["counts"]["formal_source_graph_cache_enabled"])
+        self.assertIn(payload["counts"]["formal_source_graph_cache_status"], {"hit", "miss"})
+        self.assertTrue(payload["counts"]["formal_source_graph_cache_key"])
         self.assertIn("timings", payload)
         self.assertGreater(payload["timings"]["total_elapsed_ms"], 0)
         self.assertTrue(payload["timings"]["stages"])

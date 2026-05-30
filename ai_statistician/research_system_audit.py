@@ -57,6 +57,8 @@ class ResearchSystemAuditConfig:
     refresh_formal_source_index_cache: bool = False
     frontier_smoke_cache: str | None = "runs/frontier_smoke_cache"
     refresh_frontier_smoke_cache: bool = False
+    formal_source_graph_cache: str | None = "runs/formal_source_graph_cache"
+    refresh_formal_source_graph_cache: bool = False
 
 
 async def run_research_system_audit(
@@ -104,6 +106,12 @@ async def run_research_system_audit(
     formal_source_graph_manifest = audit_formal_source_graph(
         out_dir / "formal_source_graph",
         declarations=formal_source_declarations or None,
+        cache_path=(
+            Path(config.formal_source_graph_cache)
+            if config.formal_source_graph_cache
+            else None
+        ),
+        refresh_cache=config.refresh_formal_source_graph_cache,
     )
     formal_source_search = {
         "backend": "sqlite_fts_shape_graph_hybrid",
@@ -366,6 +374,8 @@ async def run_research_system_audit(
             "refresh_formal_source_index_cache": config.refresh_formal_source_index_cache,
             "frontier_smoke_cache": config.frontier_smoke_cache or "",
             "refresh_frontier_smoke_cache": config.refresh_frontier_smoke_cache,
+            "formal_source_graph_cache": config.formal_source_graph_cache or "",
+            "refresh_formal_source_graph_cache": config.refresh_formal_source_graph_cache,
             "question_file": str(question_file or Path("examples/research_questions.json")),
         },
         "all_gates_passed": all(gates.values()),
@@ -446,6 +456,9 @@ async def run_research_system_audit(
             "formal_source_graph_edges": formal_source_graph_manifest["n_edges"],
             "formal_source_graph_queries_ok": formal_source_graph_manifest["n_query_ok"],
             "formal_source_graph_queries": formal_source_graph_manifest["n_queries"],
+            "formal_source_graph_cache_enabled": formal_source_graph_manifest["cache"]["enabled"],
+            "formal_source_graph_cache_status": formal_source_graph_manifest["cache"]["status"],
+            "formal_source_graph_cache_key": formal_source_graph_manifest["cache"]["cache_key"],
             "formal_source_index_cache_status": getattr(formal_source_retriever, "cache_status", "unknown"),
             "formal_source_index_cache_path": getattr(formal_source_retriever, "cache_path", ""),
             "research_ready_with_gaps": benchmark_manifest["n_ready_with_gaps"],
