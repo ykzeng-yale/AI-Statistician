@@ -2684,11 +2684,12 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(statuses["llm_theory_developer"], "PARTIAL")
         live_loop = next(row for row in payload["components"] if row["component"] == "live_revision_loop")
         self.assertTrue(any("DefaultProofEngineer" in item for item in live_loop["evidence"]))
+        self.assertTrue(any("DefaultTheoryDeveloper" in item for item in live_loop["evidence"]))
         route_by_trigger = {row["trigger"]: row for row in payload["feedback_routes"]}
         self.assertEqual(route_by_trigger["THEORY_OR_PROCEDURE_ISSUE"]["owner_agent"], "theory_developer")
         self.assertEqual(
             route_by_trigger["THEORY_OR_PROCEDURE_ISSUE"]["live_execution_status"],
-            "EXECUTABLE_WITH_REGISTERED_LIVE_HANDLER",
+            "EXECUTABLE_SCOPED_THEORY_REVISION_PROPOSAL",
         )
         self.assertEqual(
             route_by_trigger["IMPLEMENTATION_OR_NUMERICAL_ISSUE"]["owner_agent"],
@@ -2696,7 +2697,7 @@ class SystemTests(unittest.TestCase):
         )
         self.assertEqual(
             route_by_trigger["FORMAL_GAP"]["live_execution_status"],
-            "EXECUTABLE_RETRIEVAL_REVIEW_ONLY",
+            "EXECUTABLE_DEFAULT_PROOF_BANK_BRIDGE_OR_RETRIEVAL_REVIEW",
         )
         self.assertTrue(Path("runs/test_architecture_audit/architecture_audit_manifest.json").exists())
         self.assertTrue(Path("runs/test_architecture_audit/architecture_audit.md").exists())
@@ -2797,7 +2798,7 @@ class SystemTests(unittest.TestCase):
             "EXECUTED_MONITOR",
         )
 
-    def test_research_loop_exports_structured_repair_task_for_theory_failure(self) -> None:
+    def test_research_loop_default_theory_developer_proposes_scoped_revision(self) -> None:
         question = load_open_research_questions(Path("examples/research_questions.json"))[0]
         problem = ProblemFormalizer().formalize(question)
         procedure, theorem_goal = TheoryPlanner().plan(problem)
@@ -2845,9 +2846,15 @@ class SystemTests(unittest.TestCase):
                 max_rounds=2,
             )
         )
-        self.assertEqual(result["status"], "REQUIRES_THEORY_DEVELOPER")
+        self.assertEqual(result["status"], "THEORY_REPAIR_PROPOSED")
+        self.assertTrue(result["honesty_boundary"]["executes_default_theory_developer_revision_handler"])
         action = result["rounds"][0]["actions"][0]
-        self.assertEqual(action["execution_status"], "REQUIRES_THEORY_DEVELOPER")
+        self.assertEqual(action["execution_status"], "EXECUTED_SCOPED_THEORY_REVISION_PROPOSAL")
+        self.assertTrue(action["repair_contract_ok"])
+        self.assertEqual(action["live_repair_handler"], "DefaultTheoryDeveloper")
+        self.assertFalse(action["rerun_requested"])
+        self.assertIn("coverage", action["repair_artifact"]["failure_class"])
+        self.assertIn("revised_theorem_goals", action["repair_artifact"])
         task = action["repair_task"]
         self.assertEqual(task["owner_agent"], "theory_developer")
         self.assertEqual(task["task_type"], "theory_revision_from_simulation_failure")

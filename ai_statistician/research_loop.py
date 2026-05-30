@@ -13,6 +13,7 @@ from .formal_source_index import build_formal_source_search_backend
 from .proof_engineer import DefaultProofEngineer
 from .research_lab import AIStatisticalTheoryLab
 from .research_schema import OpenResearchQuestion, ResearchReport
+from .theory_developer import DefaultTheoryDeveloper
 from .verifier import ProofVerifier
 
 
@@ -61,6 +62,7 @@ class ResearchLoopCoordinator:
         lab_factory: LabFactory | None = None,
         repair_handlers: dict[str, LiveRepairHandler] | None = None,
         enable_default_proof_engineer: bool = True,
+        enable_default_theory_developer: bool = True,
     ) -> None:
         self.proof_verifier = proof_verifier
         self.formal_source_retriever = formal_source_retriever
@@ -69,9 +71,11 @@ class ResearchLoopCoordinator:
         self.lab_factory = lab_factory
         self.repair_handlers = dict(repair_handlers or {})
         self.enable_default_proof_engineer = enable_default_proof_engineer
+        self.enable_default_theory_developer = enable_default_theory_developer
         self.default_proof_engineer = (
             DefaultProofEngineer(self.proof_verifier) if enable_default_proof_engineer else None
         )
+        self.default_theory_developer = DefaultTheoryDeveloper() if enable_default_theory_developer else None
 
     async def iterate(
         self,
@@ -125,6 +129,7 @@ class ResearchLoopCoordinator:
                 "executes_feedback_agenda": True,
                 "executes_registered_live_repair_handlers": bool(self.repair_handlers),
                 "executes_default_proof_engineer_bridge_handler": self.enable_default_proof_engineer,
+                "executes_default_theory_developer_revision_handler": self.enable_default_theory_developer,
                 "free_form_theory_revision": False,
                 "arbitrary_lean_proof_search": False,
                 "arbitrary_algorithm_generation": False,
@@ -258,6 +263,41 @@ class ResearchLoopCoordinator:
                 ),
             }
         if trigger == "THEORY_OR_PROCEDURE_ISSUE":
+            if self.default_theory_developer is not None:
+                default_result = self.default_theory_developer.repair_theory_issue(item, report)
+                if default_result is not None:
+                    default_action = self._contract_checked_live_result(
+                        default_result,
+                        trigger=trigger,
+                        base=base,
+                        handler_name="DefaultTheoryDeveloper",
+                    )
+                    default_action.setdefault(
+                        "repair_task",
+                        _repair_task(
+                            report=report,
+                            item=item,
+                            task_type="theory_revision_from_simulation_failure",
+                            prompt=(
+                                "Review the DefaultTheoryDeveloper scoped revision artifact and apply it "
+                                "to the TheoryPlanner/algorithm registry before requesting a rerun."
+                            ),
+                            acceptance_criteria=(
+                                "revised theorem statement explains the failed diagnostics",
+                                "revised procedure has a registered or sandboxable algorithm path",
+                                "simulation diagnostics are expected to pass under the declared DGP/stress tests",
+                                "new assumptions are explicit and not silently stronger than the input problem",
+                            ),
+                            context={
+                                "target_procedure": item.get("target_procedure", ""),
+                                "failed_diagnostics": item.get("failed_diagnostics", []),
+                                "failed_stress_tests": item.get("failed_stress_tests", []),
+                                "metric_evidence_keys": item.get("metric_evidence_keys", []),
+                                "default_theory_developer_status": default_action.get("execution_status", ""),
+                            },
+                        ),
+                    )
+                    return default_action
             return {
                 **base,
                 "execution_status": "REQUIRES_THEORY_DEVELOPER",
@@ -727,6 +767,8 @@ def _blocking_status(actions: list[dict[str, Any]]) -> str:
         return "REQUIRES_COORDINATOR_TRIAGE"
     if "EXECUTED_PROOF_BANK_BRIDGE_REPAIR" in statuses:
         return "FORMAL_GAPS_BRIDGED"
+    if "EXECUTED_SCOPED_THEORY_REVISION_PROPOSAL" in statuses:
+        return "THEORY_REPAIR_PROPOSED"
     if "EXECUTED_RETRIEVAL_REVIEW" in statuses:
         return "FORMAL_GAPS_REVIEWED"
     return ""

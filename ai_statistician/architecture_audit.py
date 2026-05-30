@@ -18,6 +18,7 @@ from .research_lab import (
 )
 from .research_loop import ResearchLoopCoordinator
 from .proof_engineer import DefaultProofEngineer
+from .theory_developer import DefaultTheoryDeveloper
 from .theory_proposal import AnthropicTheoryProposer
 
 
@@ -128,15 +129,17 @@ def audit_architecture(out_dir: Path | None = None) -> dict[str, object]:
             evidence=(
                 f"{ResearchLoopCoordinator.__module__}.{ResearchLoopCoordinator.__name__}.iterate",
                 f"{DefaultProofEngineer.__module__}.{DefaultProofEngineer.__name__}",
+                f"{DefaultTheoryDeveloper.__module__}.{DefaultTheoryDeveloper.__name__}",
                 "AIStatisticalTheoryLab.run remains one-pass; ResearchLoopCoordinator executes the next_iteration_agenda around it",
                 "registered repair_handlers can execute live proof/theory/algorithm/simulator repair actions and request reruns",
                 "live repair handler outputs are checked against per-trigger repair contracts before reruns are allowed",
                 "DefaultProofEngineer verifies existing proof-bank bridges for FORMAL_GAP actions before emitting repair artifacts",
+                "DefaultTheoryDeveloper converts simulation theory/procedure failures into scoped revision artifacts",
             ),
             limitation=(
                 "The loop executes safe built-in routes, can call registered live repair handlers, and has a narrow "
-                "default proof-bank bridge handler; free-form theory repair, new proof search, and arbitrary algorithm "
-                "repair still require stronger agents."
+                "default proof-bank bridge handler plus scoped default theory-revision proposal handler; free-form "
+                "theory repair, new proof search, and arbitrary algorithm repair still require stronger agents."
             ),
             target_delta="Register default LLM TheoryDeveloper, proof-search ProofEngineer, and sandboxed AlgorithmEngineer repair handlers.",
         ),
@@ -147,8 +150,8 @@ def audit_architecture(out_dir: Path | None = None) -> dict[str, object]:
             trigger="FORMAL_GAP",
             owner_agent="formal_verifier",
             action="retrieve_or_build_missing_lean_primitives",
-            live_execution_status="EXECUTABLE_RETRIEVAL_REVIEW_ONLY",
-            evidence="ResearchLoopCoordinator reviews attached formal-source hits for formal_gap:* items",
+            live_execution_status="EXECUTABLE_DEFAULT_PROOF_BANK_BRIDGE_OR_RETRIEVAL_REVIEW",
+            evidence="ResearchLoopCoordinator invokes DefaultProofEngineer for bridgeable FORMAL_GAP items and otherwise reviews formal-source hits",
         ),
         FeedbackRoute(
             trigger="FAILED_PROOF_OBLIGATION",
@@ -161,8 +164,8 @@ def audit_architecture(out_dir: Path | None = None) -> dict[str, object]:
             trigger="THEORY_OR_PROCEDURE_ISSUE",
             owner_agent="theory_developer",
             action="revise_estimator_or_theorem_acceptance_rule",
-            live_execution_status="EXECUTABLE_WITH_REGISTERED_LIVE_HANDLER",
-            evidence="ResearchLoopCoordinator can call a registered THEORY_OR_PROCEDURE_ISSUE handler and rerun the lab",
+            live_execution_status="EXECUTABLE_SCOPED_THEORY_REVISION_PROPOSAL",
+            evidence="ResearchLoopCoordinator invokes DefaultTheoryDeveloper or a registered handler for THEORY_OR_PROCEDURE_ISSUE",
         ),
         FeedbackRoute(
             trigger="IMPLEMENTATION_OR_NUMERICAL_ISSUE",
@@ -210,8 +213,8 @@ def audit_architecture(out_dir: Path | None = None) -> dict[str, object]:
         {
             "requirement": "Simulator feedback actively revises algorithm or theory in the same run",
             "status": "PARTIAL",
-            "current_evidence": "ResearchLoopCoordinator executes MC precision reruns and can invoke contract-checked registered live theory/algorithm/simulator repair handlers before rerunning.",
-            "missing": "Default trained TheoryDeveloper and AlgorithmEngineer repair handlers that work without test stubs or manual registration.",
+            "current_evidence": "ResearchLoopCoordinator executes MC precision reruns, invokes DefaultTheoryDeveloper for scoped theory-revision proposals, and can invoke contract-checked registered live theory/algorithm/simulator repair handlers before rerunning.",
+            "missing": "Default trained TheoryDeveloper that can apply revisions to planner state, plus AlgorithmEngineer repair handlers that work without test stubs or manual registration.",
         },
         {
             "requirement": "Formal proof feedback actively revises assumptions/theorem statements/proof search",
