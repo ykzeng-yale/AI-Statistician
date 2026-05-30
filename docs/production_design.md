@@ -854,6 +854,11 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   algebraic bridge now attached to `conditional_mean_residual_zero` and
   `nuisance_correctness_cases`; it is not a proof of conditional expectation
   residual identities or semiparametric double robustness.
+- `aipw_score_expectation_target_of_zero_aug`: if the contrast term has
+  expectation `psi` and both augmentation residual terms have mean zero, then
+  the AIPW-style score has expectation `psi`. This is the direct finite bridge
+  from future conditional-mean-residual-zero lemmas to the double-robustness
+  theorem skeleton.
 - `aipw_score_integrable_of_components`: if the contrast, treated
   augmentation, and control augmentation terms are integrable, then the full
   AIPW-style score is integrable. This is the verified bridge now attached to

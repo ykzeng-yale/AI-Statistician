@@ -510,6 +510,22 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("conditional_mean_residual_zero", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_aipw_score_expectation_target_of_zero_aug_supports_residual_zero_bridge(self) -> None:
+        obligation = get_obligation("aipw_score_expectation_target_of_zero_aug")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(
+            obligation.depends_on,
+            ("aipw_score_expectation_decompose", "aipw_score_expectation_target_of_aug_cancel"),
+        )
+        self.assertIn("def aipwScore", content)
+        self.assertIn("theorem aipwScore_expectation_eq_target_of_zero_aug", content)
+        self.assertIn("hTreatZero", content)
+        self.assertIn("hControlZero", content)
+        self.assertIn("∫ ω, aipwScore contrast treatAug controlAug ω ∂μ = psi", content)
+        self.assertIn("conditional_mean_residual_zero", obligation.tags)
+        self.assertIn("zero_residual", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_aipw_score_integrability_follows_from_components(self) -> None:
         obligation = get_obligation("aipw_score_integrable_of_components")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
@@ -2045,6 +2061,7 @@ class SystemTests(unittest.TestCase):
                 "difference_estimator_unbiased",
                 "aipw_score_expectation_decompose",
                 "aipw_score_expectation_target_of_aug_cancel",
+                "aipw_score_expectation_target_of_zero_aug",
                 "aipw_score_integrable_of_components",
             ],
         )

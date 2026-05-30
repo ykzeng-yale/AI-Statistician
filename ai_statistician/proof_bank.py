@@ -1220,6 +1220,71 @@ theorem aipwScore_expectation_eq_target_of_aug_cancel {Ω : Type*} [MeasurableSp
         expected_lemmas=("integral_add", "integral_sub", "ring"),
         depends_on=("aipw_score_expectation_decompose",),
     ),
+    "aipw_score_expectation_target_of_zero_aug": FormalObligation(
+        id="aipw_score_expectation_target_of_zero_aug",
+        title="AIPW score expectation equals target when augmentation terms have mean zero",
+        english=(
+            "If an AIPW-style contrast has expectation psi and both treated "
+            "and control augmentation residual terms have expectation zero, "
+            "then the full contrast + treated augmentation - control "
+            "augmentation score has expectation psi. This is the finite "
+            "expectation bridge used after conditional mean residual zero "
+            "lemmas are available; it still does not prove those conditional "
+            "expectation identities."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+noncomputable def aipwScore {Ω : Type*}
+    (contrast treatAug controlAug : Ω → ℝ) : Ω → ℝ :=
+  contrast + treatAug - controlAug
+
+theorem aipwScore_expectation_eq_target_of_zero_aug {Ω : Type*} [MeasurableSpace Ω]
+    (μ : Measure Ω) (contrast treatAug controlAug : Ω → ℝ) (psi : ℝ)
+    (hContrast : Integrable contrast μ)
+    (hTreat : Integrable treatAug μ)
+    (hControl : Integrable controlAug μ)
+    (hContrastMean : (∫ ω, contrast ω ∂μ) = psi)
+    (hTreatZero : (∫ ω, treatAug ω ∂μ) = 0)
+    (hControlZero : (∫ ω, controlAug ω ∂μ) = 0) :
+    ∫ ω, aipwScore contrast treatAug controlAug ω ∂μ = psi := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  calc\n"
+            "    ∫ ω, aipwScore contrast treatAug controlAug ω ∂μ =\n"
+            "        ∫ ω, ((contrast + treatAug - controlAug) : Ω → ℝ) ω ∂μ := by\n"
+            "          rfl\n"
+            "    _ = ∫ ω, ((contrast + treatAug) : Ω → ℝ) ω ∂μ - ∫ ω, controlAug ω ∂μ := by\n"
+            "          exact integral_sub (hContrast.add hTreat) hControl\n"
+            "    _ = (∫ ω, contrast ω ∂μ) + (∫ ω, treatAug ω ∂μ) -\n"
+            "          ∫ ω, controlAug ω ∂μ := by\n"
+            "          have hAdd : ∫ ω, ((contrast + treatAug) : Ω → ℝ) ω ∂μ =\n"
+            "              (∫ ω, contrast ω ∂μ) + (∫ ω, treatAug ω ∂μ) := by\n"
+            "            simpa using integral_add hContrast hTreat\n"
+            "          rw [hAdd]\n"
+            "    _ = psi := by\n"
+            "          rw [hContrastMean, hTreatZero, hControlZero]\n"
+            "          ring"
+        ),
+        tags=(
+            "estimator",
+            "expectation",
+            "linearity",
+            "aipw",
+            "causal",
+            "semiparametric",
+            "double_robustness",
+            "conditional_mean_residual_zero",
+            "zero_residual",
+            "augmentation_cancel",
+        ),
+        expected_lemmas=("integral_add", "integral_sub", "ring"),
+        depends_on=("aipw_score_expectation_decompose", "aipw_score_expectation_target_of_aug_cancel"),
+    ),
     "aipw_score_integrable_of_components": FormalObligation(
         id="aipw_score_integrable_of_components",
         title="AIPW score integrability from component integrability",
