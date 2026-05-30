@@ -35,6 +35,7 @@ from .research_gap_audit import audit_research_gap_backlog
 from .research_intake_audit import audit_research_question_intake
 from .research_knowledge_audit import audit_research_knowledge
 from .research_lab import audit_research_algorithm_registry, load_open_research_questions, run_research_benchmark
+from .research_loop import LoopConfig, run_research_loop_benchmark
 from .research_next_iteration_audit import audit_next_iteration_queue
 from .research_capability_audit import build_research_capability_audit, write_research_capability_audit
 from .research_policy_baseline import evaluate_research_policy_baseline
@@ -1064,6 +1065,45 @@ async def _research_benchmark(args: argparse.Namespace) -> int:
     return 0
 
 
+async def _research_loop(args: argparse.Namespace) -> int:
+    _load_dotenv(Path(args.env_file))
+    verifier = AxleProofVerifier() if args.real_lean else MockProofVerifier()
+    questions = load_open_research_questions(Path(args.question_file))
+    if args.max_questions:
+        questions = questions[: args.max_questions]
+    payload = await run_research_loop_benchmark(
+        questions,
+        Path(args.out),
+        proof_verifier=verifier,
+        formal_source_index_path=(
+            Path(args.out) / "formal_source_index.sqlite"
+            if args.formal_source_backend == "sqlite"
+            else None
+        ),
+        config=LoopConfig(
+            max_rounds=args.max_rounds,
+            n_runs=args.runs,
+            seed=args.seed,
+            mc_rerun_multiplier=args.mc_rerun_multiplier,
+        ),
+    )
+    print("\nAI Statistical Theory Lab Research Loop")
+    print("=" * 72)
+    print(
+        f"questions={payload['n_questions']} max_rounds={payload['config']['max_rounds']} "
+        f"all_traces_written={payload['all_loop_traces_written']}"
+    )
+    for status, count in payload["status_counts"].items():
+        print(f"  {status}: {count}")
+    for row in payload["questions"]:
+        print(
+            f"{row['status']:32} {row['question_id']:34} "
+            f"rounds={row['n_rounds']} actions={', '.join(row['action_statuses'])}"
+        )
+    print(f"\nresearch loop manifest written to {(Path(args.out) / 'research_loop_manifest.json').resolve()}")
+    return 0 if payload["all_loop_traces_written"] else 1
+
+
 async def _research_eval(args: argparse.Namespace) -> int:
     _load_dotenv(Path(args.env_file))
     questions = load_open_research_questions(Path(args.question_file))
@@ -1771,6 +1811,27 @@ def build_parser() -> argparse.ArgumentParser:
     research_benchmark.add_argument("--out", default="runs/research_benchmark", help="research trace output directory")
     research_benchmark.add_argument("--env-file", default=".env")
     research_benchmark.set_defaults(func=lambda args: asyncio.run(_research_benchmark(args)))
+
+    research_loop = sub.add_parser(
+        "research-loop",
+        help="execute bounded live feedback rounds over research traces",
+    )
+    research_loop.add_argument("--question-file", default="examples/research_questions.json")
+    research_loop.add_argument("--real-lean", action="store_true", help="use AXLE verify_proof for Mathlib-backed subclaims")
+    research_loop.add_argument("--runs", type=int, default=100, help="initial Monte Carlo research-simulation replicates")
+    research_loop.add_argument("--seed", type=int, default=20260528)
+    research_loop.add_argument("--max-rounds", type=int, default=2)
+    research_loop.add_argument("--mc-rerun-multiplier", type=int, default=3)
+    research_loop.add_argument("--max-questions", type=int, default=0, help="optional cap for quick smoke runs")
+    research_loop.add_argument(
+        "--formal-source-backend",
+        choices=("sqlite", "memory"),
+        default="sqlite",
+        help="formal-gap retrieval backend for local Lean/stat source search",
+    )
+    research_loop.add_argument("--out", default="runs/research_loop", help="research loop output directory")
+    research_loop.add_argument("--env-file", default=".env")
+    research_loop.set_defaults(func=lambda args: asyncio.run(_research_loop(args)))
 
     research_eval = sub.add_parser(
         "research-eval",

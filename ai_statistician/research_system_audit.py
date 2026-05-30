@@ -27,6 +27,7 @@ from .research_intake_audit import audit_research_question_intake
 from .research_knowledge_audit import audit_research_knowledge
 from .research_capability_audit import build_research_capability_audit, write_research_capability_audit
 from .research_lab import audit_research_algorithm_registry, load_open_research_questions, run_research_benchmark
+from .research_loop import LoopConfig, run_research_loop_benchmark
 from .research_next_iteration_audit import audit_next_iteration_queue
 from .research_policy_baseline import evaluate_research_policy_baseline
 from .research_report import build_research_markdown_report
@@ -176,6 +177,13 @@ async def run_research_system_audit(
         out_dir / "research_benchmark",
         out_dir / "research_report",
     )
+    research_loop_manifest = await run_research_loop_benchmark(
+        questions[:1],
+        out_dir / "research_loop",
+        proof_verifier=verifier,
+        formal_source_index_path=formal_source_index_path,
+        config=LoopConfig(max_rounds=2, n_runs=config.n_runs, seed=config.seed),
+    )
 
     benchmark_gate_ok = (
         int(benchmark_manifest["n_questions"]) == len(questions)
@@ -227,6 +235,8 @@ async def run_research_system_audit(
         "research_policy_baseline": bool(research_policy_manifest["all_ok"]),
         "next_iteration_queue": bool(next_iteration_manifest["all_ok"]),
         "research_report": bool(research_report_manifest["all_ok"]),
+        "research_loop": bool(research_loop_manifest["all_loop_traces_written"])
+        and int(research_loop_manifest["n_questions"]) == 1,
     }
     payload = {
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -368,6 +378,9 @@ async def run_research_system_audit(
             "research_report_formal_gaps": research_report_manifest["counts"]["formal_gaps"],
             "research_report_simulations_passed": research_report_manifest["counts"]["simulations_passed"],
             "research_report_simulations": research_report_manifest["counts"]["simulations"],
+            "research_loop_questions": research_loop_manifest["n_questions"],
+            "research_loop_traces_written": research_loop_manifest["all_loop_traces_written"],
+            "research_loop_status_kinds": len(research_loop_manifest["status_counts"]),
         },
         "questions": benchmark_manifest["questions"],
         "provenance": benchmark_manifest["provenance"],
@@ -510,6 +523,7 @@ async def run_research_system_audit(
             "next_iteration_queue_report": str(out_dir / "next_iteration_queue" / "next_iteration_queue.md"),
             "research_report": str(out_dir / "research_report" / "research_report.md"),
             "research_report_manifest": str(out_dir / "research_report" / "research_report_manifest.json"),
+            "research_loop": str(out_dir / "research_loop" / "research_loop_manifest.json"),
             "formal_gaps": str(out_dir / "research_benchmark" / "formal_gaps"),
         },
     }

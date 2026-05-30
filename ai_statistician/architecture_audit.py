@@ -16,6 +16,7 @@ from .research_lab import (
     TheoryPlanner,
     _build_next_iteration_agenda,
 )
+from .research_loop import ResearchLoopCoordinator
 from .theory_proposal import AnthropicTheoryProposer
 
 
@@ -57,7 +58,7 @@ def audit_architecture(out_dir: Path | None = None) -> dict[str, object]:
             "build_theory_plan",
         )
     )
-    has_live_revision_loop = "for " in run_source and "max_round" in run_source
+    has_live_revision_loop = callable(getattr(ResearchLoopCoordinator, "iterate", None))
     has_next_iteration_agenda = callable(_build_next_iteration_agenda)
 
     components = [
@@ -119,10 +120,16 @@ def audit_architecture(out_dir: Path | None = None) -> dict[str, object]:
         ),
         ArchitectureComponent(
             component="live_revision_loop",
-            status="NOT_IMPLEMENTED" if not has_live_revision_loop else "ACHIEVED",
-            evidence=("AIStatisticalTheoryLab.run is one-pass" if has_one_pass_run else "run method requires manual inspection",),
-            limitation="No iterate(max_rounds) coordinator currently reruns theory planning, formal proof repair, algorithm repair, and simulation after feedback.",
-            target_delta="Implement ResearchLoopCoordinator.iterate(max_rounds) with stop conditions: proved/validated, explicit gap, or exhausted budget.",
+            status="PARTIAL" if has_live_revision_loop else "NOT_IMPLEMENTED",
+            evidence=(
+                f"{ResearchLoopCoordinator.__module__}.{ResearchLoopCoordinator.__name__}.iterate",
+                "AIStatisticalTheoryLab.run remains one-pass; ResearchLoopCoordinator executes the next_iteration_agenda around it",
+            ),
+            limitation=(
+                "The loop executes safe agenda routes such as MC reruns and formal-gap retrieval review; "
+                "free-form theory repair, proof search, and arbitrary algorithm repair still require stronger agents."
+            ),
+            target_delta="Expand ResearchLoopCoordinator with LLM TheoryDeveloper, ProofEngineer, and sandboxed AlgorithmEngineer revision actions.",
         ),
     ]
 
@@ -131,43 +138,50 @@ def audit_architecture(out_dir: Path | None = None) -> dict[str, object]:
             trigger="FORMAL_GAP",
             owner_agent="formal_verifier",
             action="retrieve_or_build_missing_lean_primitives",
-            live_execution_status="QUEUED_NOT_EXECUTED",
-            evidence="_build_next_iteration_agenda creates formal_gap:* items",
+            live_execution_status="EXECUTABLE_RETRIEVAL_REVIEW_ONLY",
+            evidence="ResearchLoopCoordinator reviews attached formal-source hits for formal_gap:* items",
         ),
         FeedbackRoute(
             trigger="FAILED_PROOF_OBLIGATION",
             owner_agent="formal_verifier",
             action="repair_axiom_verified_proof_or_downgrade_to_gap",
-            live_execution_status="QUEUED_NOT_EXECUTED",
-            evidence="_build_next_iteration_agenda creates failed_obligation:* items",
+            live_execution_status="ROUTED_REQUIRES_PROOF_ENGINEER",
+            evidence="ResearchLoopCoordinator classifies failed_obligation:* items as proof-engineer repair work",
         ),
         FeedbackRoute(
             trigger="THEORY_OR_PROCEDURE_ISSUE",
             owner_agent="theory_developer",
             action="revise_estimator_or_theorem_acceptance_rule",
-            live_execution_status="QUEUED_NOT_EXECUTED",
+            live_execution_status="ROUTED_REQUIRES_THEORY_MODEL",
             evidence="ResearchSimulator diagnosis escalates biased or invalid statistical behavior to theory_developer",
         ),
         FeedbackRoute(
             trigger="IMPLEMENTATION_OR_NUMERICAL_ISSUE",
             owner_agent="algorithm_engineer",
             action="repair_algorithm_implementation_or_numerical_stability",
-            live_execution_status="QUEUED_NOT_EXECUTED",
+            live_execution_status="ROUTED_REQUIRES_ALGORITHM_REPAIR_ENGINE",
             evidence="ResearchSimulator diagnosis escalates numerical/implementation issues to algorithm_engineer",
         ),
         FeedbackRoute(
             trigger="ENVIRONMENT_OR_DGP_ISSUE",
             owner_agent="simulator_agent",
             action="implement_or_correct_simulation_environment",
-            live_execution_status="QUEUED_NOT_EXECUTED",
+            live_execution_status="ROUTED_REQUIRES_SIMULATOR_EXTENSION",
             evidence="ResearchSimulator diagnosis escalates simulation-design issues to simulator_agent",
+        ),
+        FeedbackRoute(
+            trigger="INSUFFICIENT_MC_PRECISION",
+            owner_agent="simulator_agent",
+            action="rerun_with_larger_monte_carlo_budget",
+            live_execution_status="EXECUTABLE_RERUN_MORE_MC",
+            evidence="ResearchLoopCoordinator increases n_runs and reruns when round budget remains",
         ),
         FeedbackRoute(
             trigger="NO_BLOCKING_GAPS_OR_FAILED_SIMULATIONS",
             owner_agent="research_coordinator",
             action="archive_trace_or_expand_benchmark_stress_tests",
-            live_execution_status="QUEUED_NOT_EXECUTED",
-            evidence="_build_next_iteration_agenda creates monitor:* items for clean traces",
+            live_execution_status="EXECUTABLE_MONITOR",
+            evidence="ResearchLoopCoordinator terminates clean monitor-only traces",
         ),
     ]
 
@@ -186,15 +200,15 @@ def audit_architecture(out_dir: Path | None = None) -> dict[str, object]:
         },
         {
             "requirement": "Simulator feedback actively revises algorithm or theory in the same run",
-            "status": "NOT_IMPLEMENTED",
-            "current_evidence": "SimulationDiagnosis and next_iteration_agenda route the issue.",
-            "missing": "Coordinator applies the route, reruns the owner agent, and re-evaluates.",
+            "status": "PARTIAL",
+            "current_evidence": "ResearchLoopCoordinator executes MC precision reruns and routes theory/algorithm/simulator failures to explicit owner-agent statuses.",
+            "missing": "TheoryDeveloper and AlgorithmEngineer models that actually repair estimators/theorems/code after routed failures.",
         },
         {
             "requirement": "Formal proof feedback actively revises assumptions/theorem statements/proof search",
-            "status": "NOT_IMPLEMENTED",
-            "current_evidence": "Failed proof obligations and FORMAL_GAP rows are queued.",
-            "missing": "Automated proof repair, assumption revision, or proof-bank expansion within the same loop.",
+            "status": "PARTIAL",
+            "current_evidence": "ResearchLoopCoordinator reviews formal-source hits for FORMAL_GAP rows and routes failed proof obligations.",
+            "missing": "Automated statement repair, premise search, tactic/proof search, and proof-bank promotion within the same loop.",
         },
         {
             "requirement": "End-to-end arbitrary frontier stat theory development",
@@ -207,11 +221,11 @@ def audit_architecture(out_dir: Path | None = None) -> dict[str, object]:
     status_counts = Counter(row.status for row in components)
     payload: dict[str, Any] = {
         "created_at": datetime.now(timezone.utc).isoformat(),
-        "architecture_status": "SCAFFOLD_WITH_QUEUED_FEEDBACK_NOT_LIVE_CLOSED_LOOP",
+        "architecture_status": "PARTIAL_LIVE_FEEDBACK_LOOP_WITH_SCOPED_AUTONOMY",
         "is_current_architecture_correct_for_release_scaffold": True,
         "is_current_architecture_correct_for_full_autonomous_ai_statistician": False,
-        "implemented_feedback_mode": "queued_next_iteration_agenda",
-        "target_feedback_mode": "live_iterative_research_loop",
+        "implemented_feedback_mode": "bounded_research_loop_over_next_iteration_agenda",
+        "target_feedback_mode": "fully_live_iterative_research_loop",
         "has_one_pass_research_run": has_one_pass_run,
         "has_live_revision_loop": has_live_revision_loop,
         "all_release_scaffold_components_present": all(
@@ -224,9 +238,9 @@ def audit_architecture(out_dir: Path | None = None) -> dict[str, object]:
         "next_architecture_step": {
             "name": "ResearchLoopCoordinator.iterate(max_rounds)",
             "description": (
-                "Execute the next_iteration_agenda: route proof gaps to Formalizer/ProofEngineer, "
-                "simulation theory failures to TheoryDeveloper, numerical failures to AlgorithmEngineer, "
-                "then rerun proof and simulation until convergence, explicit formal gap, or budget exhaustion."
+                "Upgrade the current bounded coordinator from routing/retry actions to substantive agent repair: "
+                "proof gaps should trigger Formalizer/ProofEngineer search, theory failures should revise estimators "
+                "or assumptions, and numerical failures should repair sandboxed implementations."
             ),
             "minimum_acceptance_tests": [
                 "a simulation THEORY_OR_PROCEDURE_ISSUE triggers a revised theory plan in round 2",

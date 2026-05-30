@@ -36,11 +36,18 @@ OpenResearchQuestion
        theory plan + proof status + simulation evidence + next_iteration_agenda
 ```
 
-This is a one-pass production scaffold with queued feedback. The simulator and
-formal prover do not disappear at the bottom of the pipeline: their failures are
-classified into `next_iteration_agenda` items with an owner agent, trigger,
-action, evidence, and stop condition. The current release stops there; it does
-not yet automatically execute the next revision round in the same call.
+The base `AIStatisticalTheoryLab.run()` path is a one-pass production scaffold.
+The simulator and formal prover do not disappear at the bottom of the pipeline:
+their failures are classified into `next_iteration_agenda` items with an owner
+agent, trigger, action, evidence, and stop condition.
+
+The first live loop over this scaffold is `ResearchLoopCoordinator.iterate()`.
+It executes the agenda routes that are safe today: Monte Carlo precision
+failures trigger a larger-budget rerun, monitor-only traces terminate cleanly,
+and formal gaps are reviewed against attached local Lean/source hits. Routes
+that need substantive new reasoning still stop honestly with
+`REQUIRES_THEORY_DEVELOPER`, `REQUIRES_PROOF_ENGINEER`,
+`REQUIRES_ALGORITHM_ENGINEER`, or `REQUIRES_SIMULATOR_EXTENSION`.
 
 `StatisticalQuestion` can come from the built-in registry or from JSON. External
 questions may name a supported `dgp_family` and `estimator_family` explicitly,
@@ -56,10 +63,23 @@ python3 -m ai_statistician.cli architecture-audit \
 ```
 
 This writes `architecture_audit_manifest.json` and `architecture_audit.md`. The
-expected status is
-`SCAFFOLD_WITH_QUEUED_FEEDBACK_NOT_LIVE_CLOSED_LOOP`: correct for the current
-auditable release scaffold, not correct as a claim of a fully autonomous AI
-statistician.
+expected status is `PARTIAL_LIVE_FEEDBACK_LOOP_WITH_SCOPED_AUTONOMY`: correct
+for the current auditable release scaffold, still not correct as a claim of a
+fully autonomous AI statistician.
+
+Bounded research loop:
+
+```bash
+python3 -m ai_statistician.cli research-loop \
+  --question-file examples/research_questions.json \
+  --max-rounds 2 \
+  --runs 100 \
+  --out runs/research_loop
+```
+
+This writes `research_loop_manifest.json` plus one trace per question. It is the
+first executable bridge from `next_iteration_agenda` to live action. It is not
+yet full autonomous theory repair.
 
 ## Target Closed-Loop Research Lab
 
@@ -110,10 +130,12 @@ question
 
 Current honest boundary: `TheoryPlanner` already emits informal derivation text
 and theorem roadmaps, `FormalSubclaimProver` already performs real AXLE/Lean
-verification for registered proof-bank obligations, and `ResearchSimulator`
-already diagnoses failures. The missing architecture piece is a live
-`ResearchLoopCoordinator.iterate(max_rounds)` that executes those diagnoses
-rather than only recording them as next-iteration work.
+verification for registered proof-bank obligations, `ResearchSimulator` already
+diagnoses failures, and `ResearchLoopCoordinator` now executes the scoped
+actions above. The missing architecture piece is substantive autonomous repair:
+an LLM TheoryDeveloper that revises estimators/theorems, a ProofEngineer that
+promotes gaps to verified Lean obligations, and a sandboxed AlgorithmEngineer
+that repairs code from simulator evidence.
 
 The CLI entry point is:
 

@@ -55,10 +55,12 @@ from ai_statistician.research_lab import (
     run_research_benchmark,
     TheoryPlanner,
 )
+from ai_statistician.research_loop import ResearchLoopCoordinator
 from ai_statistician.research_next_iteration_audit import audit_next_iteration_queue
 from ai_statistician.research_paper_index import build_paper_source_index, retrieve_paper_sources
 from ai_statistician.research_policy_baseline import evaluate_research_policy_baseline
 from ai_statistician.research_report import build_research_markdown_report
+from ai_statistician.research_schema import ResearchReport
 from ai_statistician.research_system_audit import ResearchSystemAuditConfig, run_research_system_audit
 from ai_statistician.research_trace_audit import audit_research_traces
 from ai_statistician.research_trace_audit import DIAGNOSTIC_METRIC_ALIASES
@@ -2648,17 +2650,17 @@ class SystemTests(unittest.TestCase):
         payload = audit_architecture(Path("runs/test_architecture_audit"))
         self.assertEqual(
             payload["architecture_status"],
-            "SCAFFOLD_WITH_QUEUED_FEEDBACK_NOT_LIVE_CLOSED_LOOP",
+            "PARTIAL_LIVE_FEEDBACK_LOOP_WITH_SCOPED_AUTONOMY",
         )
         self.assertTrue(payload["is_current_architecture_correct_for_release_scaffold"])
         self.assertFalse(payload["is_current_architecture_correct_for_full_autonomous_ai_statistician"])
-        self.assertEqual(payload["implemented_feedback_mode"], "queued_next_iteration_agenda")
-        self.assertFalse(payload["has_live_revision_loop"])
+        self.assertEqual(payload["implemented_feedback_mode"], "bounded_research_loop_over_next_iteration_agenda")
+        self.assertTrue(payload["has_live_revision_loop"])
         self.assertTrue(payload["all_release_scaffold_components_present"])
 
         statuses = {row["component"]: row["status"] for row in payload["components"]}
         self.assertEqual(statuses["feedback_router"], "ACHIEVED")
-        self.assertEqual(statuses["live_revision_loop"], "NOT_IMPLEMENTED")
+        self.assertEqual(statuses["live_revision_loop"], "PARTIAL")
         self.assertEqual(statuses["llm_theory_developer"], "PARTIAL")
         route_by_trigger = {row["trigger"]: row for row in payload["feedback_routes"]}
         self.assertEqual(route_by_trigger["THEORY_OR_PROCEDURE_ISSUE"]["owner_agent"], "theory_developer")
@@ -2668,10 +2670,106 @@ class SystemTests(unittest.TestCase):
         )
         self.assertEqual(
             route_by_trigger["FORMAL_GAP"]["live_execution_status"],
-            "QUEUED_NOT_EXECUTED",
+            "EXECUTABLE_RETRIEVAL_REVIEW_ONLY",
         )
         self.assertTrue(Path("runs/test_architecture_audit/architecture_audit_manifest.json").exists())
         self.assertTrue(Path("runs/test_architecture_audit/architecture_audit.md").exists())
+
+    def test_research_loop_executes_mc_precision_rerun(self) -> None:
+        question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+        problem = ProblemFormalizer().formalize(question)
+        procedure, theorem_goal = TheoryPlanner().plan(problem)
+        low_precision_sim = ResearchSimulator(n_runs=5, seed=7).run(problem, procedure)[0]
+        low_precision_sim.passed = False
+        low_precision_sim.diagnosis.status = "INSUFFICIENT_MC_PRECISION"
+        low_precision_sim.diagnosis.escalate_to = "rerun_more_mc"
+        low_precision_sim.diagnosis.rationale = "test forces a Monte Carlo precision rerun"
+        ok_sim = ResearchSimulator(n_runs=25, seed=8).run(problem, procedure)[0]
+        ok_sim.passed = True
+        ok_sim.diagnosis.status = "OK"
+        ok_sim.diagnosis.escalate_to = "none"
+        ok_sim.diagnosis.rationale = "test second round passes"
+
+        first = ResearchReport(
+            question=question,
+            problem=problem,
+            procedures=procedure,
+            knowledge=[],
+            paper_sources=[],
+            formal_subclaims=[],
+            simulations=[low_precision_sim],
+            theorem_goals=theorem_goal,
+            theory_plan={
+                "next_iteration_agenda": {
+                    "items": [
+                        {
+                            "id": "simulation:test",
+                            "owner_agent": "simulator_agent",
+                            "trigger": "INSUFFICIENT_MC_PRECISION",
+                            "action": "rerun_with_larger_monte_carlo_budget",
+                            "evidence": "test precision",
+                        }
+                    ]
+                }
+            },
+            status="SIMULATION_FLAGGED_WITH_FORMAL_GAPS",
+        )
+        second = ResearchReport(
+            question=question,
+            problem=problem,
+            procedures=procedure,
+            knowledge=[],
+            paper_sources=[],
+            formal_subclaims=[],
+            simulations=[ok_sim],
+            theorem_goals=theorem_goal,
+            theory_plan={
+                "next_iteration_agenda": {
+                    "items": [
+                        {
+                            "id": "monitor:test",
+                            "owner_agent": "research_coordinator",
+                            "trigger": "NO_BLOCKING_GAPS_OR_FAILED_SIMULATIONS",
+                            "action": "archive_trace_or_expand_benchmark_stress_tests",
+                            "evidence": "test monitor",
+                        }
+                    ]
+                }
+            },
+            status="RESEARCH_TRACE_READY_WITH_FORMAL_GAPS",
+        )
+        reports = [first, second]
+        seen_n_runs = []
+
+        class FakeLab:
+            def __init__(self, report):
+                self.report = report
+
+            async def run(self, question):
+                return self.report
+
+        def factory(n_runs, seed):
+            seen_n_runs.append(n_runs)
+            return FakeLab(reports.pop(0))
+
+        result = asyncio.run(
+            ResearchLoopCoordinator(n_runs=5, seed=7, lab_factory=factory).iterate(
+                question,
+                max_rounds=2,
+                mc_rerun_multiplier=3,
+            )
+        )
+        self.assertEqual(result["status"], "CONVERGED_MONITOR_READY")
+        self.assertEqual(result["n_rounds"], 2)
+        self.assertEqual(seen_n_runs, [5, 15])
+        self.assertEqual(
+            result["rounds"][0]["actions"][0]["execution_status"],
+            "EXECUTED_RERUN_MORE_MC",
+        )
+        self.assertEqual(
+            result["rounds"][1]["actions"][0]["execution_status"],
+            "EXECUTED_MONITOR",
+        )
 
     def test_prover_component_audit_is_honest_about_training_gaps(self) -> None:
         payload = build_prover_component_audit(root=Path("."))
@@ -2745,6 +2843,7 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(payload["gates"]["research_policy_baseline"])
         self.assertTrue(payload["gates"]["next_iteration_queue"])
         self.assertTrue(payload["gates"]["research_report"])
+        self.assertTrue(payload["gates"]["research_loop"])
         self.assertEqual(payload["counts"]["questions"], 10)
         self.assertEqual(payload["counts"]["frontier_questions"], 60)
         self.assertEqual(payload["counts"]["frontier_supported"], 60)
@@ -2755,8 +2854,8 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(payload["counts"]["frontier_backlog_total"], payload["counts"]["frontier_unsupported"])
         self.assertEqual(payload["counts"]["frontier_backlog_domains"], 0)
         self.assertEqual(payload["counts"]["frontier_backlog_required_primitives"], 0)
-        self.assertFalse(payload["counts"]["architecture_has_live_revision_loop"])
-        self.assertGreaterEqual(payload["counts"]["architecture_components_not_implemented"], 1)
+        self.assertTrue(payload["counts"]["architecture_has_live_revision_loop"])
+        self.assertGreaterEqual(payload["counts"]["architecture_components_partial"], 1)
         self.assertGreaterEqual(payload["counts"]["architecture_feedback_routes"], 5)
         self.assertFalse(payload["counts"]["research_capability_goal_complete"])
         self.assertEqual(
@@ -2767,6 +2866,8 @@ class SystemTests(unittest.TestCase):
         self.assertGreaterEqual(payload["counts"]["research_capability_not_achieved"], 1)
         self.assertGreaterEqual(payload["counts"]["frontier_smoke_questions"], 3)
         self.assertEqual(payload["counts"]["frontier_smoke_ready"], payload["counts"]["frontier_smoke_questions"])
+        self.assertEqual(payload["counts"]["research_loop_questions"], 1)
+        self.assertTrue(payload["counts"]["research_loop_traces_written"])
         self.assertEqual(
             payload["counts"]["frontier_theory_targets_scored"],
             payload["counts"]["frontier_theory_targets_total"],
