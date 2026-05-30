@@ -166,6 +166,20 @@ rejects any artifact that embeds executable code fields such as `generated_code`
 or `python_code`; the next worker must create the patch in a sandbox, run the
 algorithm audit, and rerun finite simulations before promotion.
 
+The first bounded sandbox worker is:
+
+```bash
+python3 -m ai_statistician.cli algorithm-repair-sandbox \
+  --promotion-dir runs/algorithm_repair_promotion \
+  --out runs/algorithm_repair_sandbox
+```
+
+It still does not mutate production code. It checks that each candidate targets
+the current vetted implementation hash, reruns the algorithm registry audit, and
+emits `algorithm_repair_sandbox_results.jsonl` with allowed patch scopes and the
+next required gate. This is the bridge between repair contracts and future
+patch/apply/rerun automation.
+
 ## Target Closed-Loop Research Lab
 
 The broader target is not only a registered estimator executor. It is an AI

@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 from ai_statistician.algorithms import audit_algorithm_registry
 from ai_statistician.algorithm_repair_promotion import export_algorithm_repair_promotion_queue
+from ai_statistician.algorithm_repair_sandbox import evaluate_algorithm_repair_sandbox
 from ai_statistician.architecture_audit import audit_architecture
 from ai_statistician.capability_audit import build_capability_audit, write_capability_audit
 from ai_statistician.doctor import build_doctor_report, write_doctor_manifest
@@ -3252,6 +3253,48 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(rows[0]["algorithm_id"], "oracle_aipw")
         self.assertEqual(rows[0]["sandbox_status"], "READY_FOR_SANDBOX_PATCH")
 
+    def test_algorithm_repair_sandbox_validates_current_registry_hash(self) -> None:
+        promotion_dir = Path("runs/test_algorithm_repair_sandbox_input")
+        promotion_dir.mkdir(parents=True, exist_ok=True)
+        spec = attach_research_algorithm_metadata(
+            TheoryPlanner().plan(ProblemFormalizer().formalize(load_open_research_questions(Path("examples/research_questions.json"))[0]))[0]
+        )[0].algorithm_spec
+        self.assertIsNotNone(spec)
+        candidate = {
+            "candidate_id": "algorithm_repair_candidate:test",
+            "artifact_id": "live_repair:algorithm-good",
+            "question_id": "q",
+            "source_action_id": "simulation:algorithm",
+            "target_procedure": "oracle_aipw_ate",
+            "algorithm_id": "oracle_aipw",
+            "implementation_hash": spec.implementation_hash,
+            "numerical_repair_kind": "finite_metric_guard",
+            "sandbox_status": "READY_FOR_SANDBOX_PATCH",
+            "required_gate": "sandboxed algorithm patch + algorithm audit + finite simulation rerun",
+            "ok": True,
+            "errors": [],
+        }
+        queue_path = promotion_dir / "algorithm_repair_promotion_queue.jsonl"
+        queue_path.write_text(json.dumps(candidate) + "\n", encoding="utf-8")
+        (promotion_dir / "algorithm_repair_promotion_manifest.json").write_text(
+            json.dumps({"queue_jsonl": str(queue_path), "n_candidates": 1, "all_ok": True}),
+            encoding="utf-8",
+        )
+        payload = evaluate_algorithm_repair_sandbox(
+            promotion_dir,
+            Path("runs/test_algorithm_repair_sandbox"),
+        )
+        self.assertTrue(payload["all_ok"])
+        self.assertEqual(payload["n_ok"], 1)
+        self.assertEqual(payload["by_sandbox_status"]["SANDBOX_PATCH_PLAN_READY"], 1)
+        rows = [
+            json.loads(line)
+            for line in Path(payload["results_jsonl"]).read_text(encoding="utf-8").splitlines()
+        ]
+        self.assertTrue(rows[0]["hash_matches_current_registry"])
+        self.assertFalse(rows[0]["patch_applied_to_production"])
+        self.assertIn("finite-value", " ".join(rows[0]["allowed_patch_scope"]))
+
     def test_research_loop_default_proof_engineer_bridges_formal_gap(self) -> None:
         question = load_open_research_questions(Path("examples/research_questions.json"))[0]
         problem = ProblemFormalizer().formalize(question)
@@ -3556,6 +3599,7 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(payload["gates"]["research_loop_repair_audit"])
         self.assertTrue(payload["gates"]["research_loop_live_repair_audit"])
         self.assertTrue(payload["gates"]["algorithm_repair_promotion"])
+        self.assertTrue(payload["gates"]["algorithm_repair_sandbox"])
         self.assertEqual(payload["counts"]["questions"], 10)
         self.assertEqual(payload["counts"]["frontier_questions"], 60)
         self.assertEqual(payload["counts"]["frontier_supported"], 60)
@@ -3601,6 +3645,10 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(
             payload["counts"]["algorithm_repair_promotion_candidates_ok"],
             payload["counts"]["algorithm_repair_promotion_candidates"],
+        )
+        self.assertEqual(
+            payload["counts"]["algorithm_repair_sandbox_candidates_ok"],
+            payload["counts"]["algorithm_repair_sandbox_candidates"],
         )
         self.assertEqual(
             payload["counts"]["frontier_theory_targets_scored"],

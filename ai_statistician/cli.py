@@ -7,6 +7,7 @@ from pathlib import Path
 
 from .algorithms import audit_algorithm_registry
 from .algorithm_repair_promotion import export_algorithm_repair_promotion_queue
+from .algorithm_repair_sandbox import evaluate_algorithm_repair_sandbox
 from .architecture_audit import audit_architecture
 from .autoform_harness import audit_autoform_harness
 from .capability_audit import build_capability_audit, write_capability_audit
@@ -1172,6 +1173,27 @@ def _algorithm_repair_promotion(args: argparse.Namespace) -> int:
     return 0 if payload["all_ok"] else 1
 
 
+def _algorithm_repair_sandbox(args: argparse.Namespace) -> int:
+    payload = evaluate_algorithm_repair_sandbox(
+        Path(args.promotion_dir),
+        Path(args.out),
+    )
+    print("\nAI Statistical Theory Lab Algorithm Repair Sandbox Evaluation")
+    print("=" * 72)
+    print(
+        f"candidates={payload['n_ok']}/{payload['n_candidates']} "
+        f"algorithm_audit_ok={payload['algorithm_audit_all_ok']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    for status, count in payload["by_sandbox_status"].items():
+        print(f"  {status}: {count}")
+    print(
+        f"\nalgorithm repair sandbox manifest written to "
+        f"{(Path(args.out) / 'algorithm_repair_sandbox_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
 async def _research_eval(args: argparse.Namespace) -> int:
     _load_dotenv(Path(args.env_file))
     questions = load_open_research_questions(Path(args.question_file))
@@ -1946,6 +1968,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="algorithm repair promotion output directory",
     )
     algorithm_repair_promotion.set_defaults(func=_algorithm_repair_promotion)
+
+    algorithm_repair_sandbox = sub.add_parser(
+        "algorithm-repair-sandbox",
+        help="evaluate algorithm repair promotion candidates against the current vetted registry",
+    )
+    algorithm_repair_sandbox.add_argument(
+        "--promotion-dir",
+        required=True,
+        help="directory containing algorithm_repair_promotion_manifest.json",
+    )
+    algorithm_repair_sandbox.add_argument(
+        "--out",
+        default="runs/algorithm_repair_sandbox",
+        help="algorithm repair sandbox output directory",
+    )
+    algorithm_repair_sandbox.set_defaults(func=_algorithm_repair_sandbox)
 
     research_eval = sub.add_parser(
         "research-eval",
