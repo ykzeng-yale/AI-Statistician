@@ -1238,6 +1238,11 @@ pass `--formal-source-index-cache ""` to force the old per-run rebuild path.
 The manifest includes a `timings` block with coarse stage elapsed milliseconds
 and `slowest_stages`, plus `counts.audit_slowest_stage`, so optimization work
 can target the actual bottleneck in the current environment.
+Because frontier coverage is a breadth smoke gate, `research-system-audit`
+uses a separate `--frontier-smoke-runs` budget (default 25) instead of the main
+`--runs` budget. Raise it for a heavier frontier simulation pass; leave it low
+for fast release checks while `research-benchmark` and `research-eval` carry
+the heavier simulation evidence.
 
 This writes `proof_audit_manifest.json` plus one exported Lean file per formal
 obligation. The Lean exports are intentionally per-obligation files because

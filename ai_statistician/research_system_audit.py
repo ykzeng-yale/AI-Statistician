@@ -48,6 +48,7 @@ from .verifier import AxleProofVerifier, CachingProofVerifier, LocalLeanProofVer
 class ResearchSystemAuditConfig:
     n_runs: int = 100
     seed: int = 20260528
+    frontier_smoke_runs: int = 25
     use_axle: bool = False
     use_local_lean: bool = False
     local_lean_project: str | None = None
@@ -134,7 +135,12 @@ async def run_research_system_audit(
 
     frontier_smoke_manifest = await run_frontier_smoke_benchmark(
         out_dir / "frontier_smoke_benchmark",
-        config=FrontierSmokeConfig(n_runs=config.n_runs, seed=config.seed, max_per_class=1, use_axle=config.use_axle),
+        config=FrontierSmokeConfig(
+            n_runs=config.frontier_smoke_runs,
+            seed=config.seed,
+            max_per_class=1,
+            use_axle=config.use_axle,
+        ),
         proof_verifier=verifier,
         formal_source_retriever=formal_source_retriever,
         formal_source_search=formal_source_search,
@@ -347,6 +353,7 @@ async def run_research_system_audit(
         "config": {
             "n_runs": config.n_runs,
             "seed": config.seed,
+            "frontier_smoke_runs": config.frontier_smoke_runs,
             "use_axle": config.use_axle,
             "use_local_lean": config.use_local_lean,
             "local_lean_project": config.local_lean_project or "",
@@ -389,6 +396,16 @@ async def run_research_system_audit(
             "research_capability_current_release_gate_met": capability_report["n_current_release_gate_met"],
             "research_capability_current_release_gate": capability_report["n_current_release_gate"],
             "frontier_smoke_questions": frontier_smoke_manifest["n_selected"],
+            "frontier_smoke_runs": frontier_smoke_manifest["config"]["n_runs"],
+            "frontier_smoke_total_elapsed_ms": frontier_smoke_manifest["counts"][
+                "frontier_smoke_total_elapsed_ms"
+            ],
+            "frontier_smoke_slowest_stage": frontier_smoke_manifest["counts"][
+                "frontier_smoke_slowest_stage"
+            ],
+            "frontier_smoke_slowest_stage_elapsed_ms": frontier_smoke_manifest["counts"][
+                "frontier_smoke_slowest_stage_elapsed_ms"
+            ],
             "frontier_smoke_ready": frontier_smoke_manifest["counts"]["ready_with_gaps"],
             "frontier_theory_targets_scored": frontier_smoke_manifest["counts"]["theory_targets_scored"],
             "frontier_theory_targets_total": frontier_smoke_manifest["counts"]["theory_targets_total"],

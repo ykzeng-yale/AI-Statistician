@@ -1314,6 +1314,7 @@ async def _research_system_audit(args: argparse.Namespace) -> int:
         config=ResearchSystemAuditConfig(
             n_runs=args.runs,
             seed=args.seed,
+            frontier_smoke_runs=args.frontier_smoke_runs,
             use_axle=args.real_lean,
             use_local_lean=args.local_lean,
             local_lean_project=args.lean_project,
@@ -2127,6 +2128,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="rebuild and overwrite the persistent formal-source index cache",
     )
     research_system_audit.add_argument("--runs", type=int, default=100, help="Monte Carlo research-simulation replicates")
+    research_system_audit.add_argument(
+        "--frontier-smoke-runs",
+        type=int,
+        default=25,
+        help="Monte Carlo replicates for broad frontier smoke traces; keep lower than --runs for fast release gates",
+    )
     research_system_audit.add_argument("--seed", type=int, default=20260528)
     research_system_audit.add_argument("--out", default="runs/research_system_audit", help="research system audit output directory")
     research_system_audit.add_argument("--env-file", default=".env")

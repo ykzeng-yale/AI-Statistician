@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -78,12 +79,18 @@ async def run_frontier_smoke_benchmark(
 ) -> dict[str, object]:
     """Run full research traces on selected supported entries from the frontier corpus."""
 
+    started_at = time.perf_counter()
+    stage_timings: list[dict[str, object]] = []
+    stage_start = started_at
+
     out_dir.mkdir(parents=True, exist_ok=True)
     verifier = proof_verifier or (AxleProofVerifier() if config.use_axle else MockProofVerifier())
     questions, selections = select_supported_frontier_questions(
         benchmark_file,
         max_per_class=config.max_per_class,
     )
+    stage_start = _record_stage(stage_timings, "select_supported_frontier_questions", stage_start)
+
     benchmark_manifest = await run_research_benchmark(
         questions,
         out_dir / "research_benchmark",
@@ -94,6 +101,8 @@ async def run_frontier_smoke_benchmark(
         n_runs=config.n_runs,
         seed=config.seed,
     )
+    stage_start = _record_stage(stage_timings, "research_benchmark", stage_start)
+
     trace_manifest = audit_research_traces(
         out_dir / "research_benchmark",
         out_dir / "research_trace_audit",
@@ -102,11 +111,15 @@ async def run_frontier_smoke_benchmark(
         out_dir / "research_benchmark",
         out_dir / "research_gap_backlog",
     )
+    stage_start = _record_stage(stage_timings, "trace_and_gap_audits", stage_start)
+
     theory_target_manifest = audit_frontier_theory_targets(
         out_dir / "research_benchmark",
         out_dir / "frontier_theory_target_audit",
         benchmark_file=benchmark_file,
     )
+    stage_start = _record_stage(stage_timings, "frontier_theory_target_audit", stage_start)
+
     selected_classes = sorted({row.problem_class for row in selections})
     benchmark_ok = (
         bool(selections)
@@ -122,6 +135,11 @@ async def run_frontier_smoke_benchmark(
         "research_gap_backlog": bool(gap_manifest["all_ok"]),
         "frontier_theory_target_audit": bool(theory_target_manifest["all_scored"]),
     }
+    total_elapsed_ms = int((time.perf_counter() - started_at) * 1000)
+    slowest_stages = sorted(
+        stage_timings,
+        key=lambda row: (-int(row["elapsed_ms"]), str(row["stage"])),
+    )[:6]
     payload = {
         "created_at": datetime.now(timezone.utc).isoformat(),
         "benchmark_file": str(benchmark_file),
@@ -135,6 +153,11 @@ async def run_frontier_smoke_benchmark(
         "provenance": build_research_provenance(),
         "all_gates_passed": all(gates.values()),
         "gates": gates,
+        "timings": {
+            "total_elapsed_ms": total_elapsed_ms,
+            "stages": stage_timings,
+            "slowest_stages": slowest_stages,
+        },
         "n_selected": len(selections),
         "selected_problem_classes": selected_classes,
         "selections": [asdict(row) for row in selections],
@@ -153,6 +176,9 @@ async def run_frontier_smoke_benchmark(
             "theory_expected_results_covered": theory_target_manifest["n_covered_results"],
             "theory_expected_result_coverage_rate": theory_target_manifest["expected_result_coverage_rate"],
             "theory_mean_trace_coverage": theory_target_manifest["mean_trace_coverage"],
+            "frontier_smoke_total_elapsed_ms": total_elapsed_ms,
+            "frontier_smoke_slowest_stage": str(slowest_stages[0]["stage"]) if slowest_stages else "",
+            "frontier_smoke_slowest_stage_elapsed_ms": int(slowest_stages[0]["elapsed_ms"]) if slowest_stages else 0,
         },
         "questions": benchmark_manifest["questions"],
         "artifacts": {
@@ -186,6 +212,21 @@ async def run_frontier_smoke_benchmark(
         encoding="utf-8",
     )
     return payload
+
+
+def _record_stage(
+    stage_timings: list[dict[str, object]],
+    stage: str,
+    started_at: float,
+) -> float:
+    now = time.perf_counter()
+    stage_timings.append(
+        {
+            "stage": stage,
+            "elapsed_ms": int((now - started_at) * 1000),
+        }
+    )
+    return now
 
 
 def _frontier_question_with_tags(
