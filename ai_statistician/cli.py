@@ -9,6 +9,7 @@ from .algorithms import audit_algorithm_registry
 from .algorithm_repair_promotion import export_algorithm_repair_promotion_queue
 from .algorithm_repair_sandbox import evaluate_algorithm_repair_sandbox
 from .algorithm_repair_sandbox_apply import apply_algorithm_repair_sandbox_results
+from .algorithm_repair_sandbox_rerun import rerun_algorithm_repair_sandbox_applications
 from .architecture_audit import audit_architecture
 from .autoform_harness import audit_autoform_harness
 from .capability_audit import build_capability_audit, write_capability_audit
@@ -1216,6 +1217,30 @@ def _algorithm_repair_sandbox_apply(args: argparse.Namespace) -> int:
     return 0 if payload["all_ok"] else 1
 
 
+def _algorithm_repair_sandbox_rerun(args: argparse.Namespace) -> int:
+    payload = rerun_algorithm_repair_sandbox_applications(
+        Path(args.apply_dir),
+        Path(args.out),
+        question_file=Path(args.question_file),
+        n_runs=args.runs,
+        seed=args.seed,
+    )
+    print("\nAI Statistical Theory Lab Algorithm Repair Sandbox Rerun Evaluation")
+    print("=" * 72)
+    print(
+        f"rerun_artifacts={payload['n_ok']}/{payload['n_candidates']} "
+        f"algorithm_audit_ok={payload['algorithm_audit_all_ok']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    for status, count in payload["by_rerun_status"].items():
+        print(f"  {status}: {count}")
+    print(
+        f"\nalgorithm repair sandbox rerun manifest written to "
+        f"{(Path(args.out) / 'algorithm_repair_sandbox_rerun_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
 async def _research_eval(args: argparse.Namespace) -> int:
     _load_dotenv(Path(args.env_file))
     questions = load_open_research_questions(Path(args.question_file))
@@ -2022,6 +2047,25 @@ def build_parser() -> argparse.ArgumentParser:
         help="algorithm repair sandbox apply output directory",
     )
     algorithm_repair_sandbox_apply.set_defaults(func=_algorithm_repair_sandbox_apply)
+
+    algorithm_repair_sandbox_rerun = sub.add_parser(
+        "algorithm-repair-sandbox-rerun",
+        help="rerun current vetted simulators for sandbox-applied algorithm repair plans",
+    )
+    algorithm_repair_sandbox_rerun.add_argument(
+        "--apply-dir",
+        required=True,
+        help="directory containing algorithm_repair_sandbox_apply_manifest.json",
+    )
+    algorithm_repair_sandbox_rerun.add_argument("--question-file", default="examples/research_questions.json")
+    algorithm_repair_sandbox_rerun.add_argument("--runs", type=int, default=50)
+    algorithm_repair_sandbox_rerun.add_argument("--seed", type=int, default=20260530)
+    algorithm_repair_sandbox_rerun.add_argument(
+        "--out",
+        default="runs/algorithm_repair_sandbox_rerun",
+        help="algorithm repair sandbox rerun output directory",
+    )
+    algorithm_repair_sandbox_rerun.set_defaults(func=_algorithm_repair_sandbox_rerun)
 
     research_eval = sub.add_parser(
         "research-eval",

@@ -10,6 +10,7 @@ from ai_statistician.algorithms import audit_algorithm_registry
 from ai_statistician.algorithm_repair_promotion import export_algorithm_repair_promotion_queue
 from ai_statistician.algorithm_repair_sandbox import evaluate_algorithm_repair_sandbox
 from ai_statistician.algorithm_repair_sandbox_apply import apply_algorithm_repair_sandbox_results
+from ai_statistician.algorithm_repair_sandbox_rerun import rerun_algorithm_repair_sandbox_applications
 from ai_statistician.architecture_audit import audit_architecture
 from ai_statistician.capability_audit import build_capability_audit, write_capability_audit
 from ai_statistician.doctor import build_doctor_report, write_doctor_manifest
@@ -3344,6 +3345,60 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(rows[0]["rerun_evidence_kind"], "registry_audit_plus_guard_gate")
         self.assertIn("isolated workspace", rows[0]["required_next_gate"])
 
+    def test_algorithm_repair_sandbox_rerun_records_current_registry_evidence(self) -> None:
+        apply_dir = Path("runs/test_algorithm_repair_sandbox_rerun_input")
+        apply_dir.mkdir(parents=True, exist_ok=True)
+        result = {
+            "application_id": "algorithm_repair_sandbox_apply:test",
+            "candidate_id": "algorithm_repair_candidate:test",
+            "algorithm_id": "oracle_aipw",
+            "target_procedure": "oracle_aipw_ate",
+            "patch_application_mode": "non_mutating_guard_plan",
+            "patch_applied_to_production": False,
+            "sandbox_artifact_created": True,
+            "registry_audit_ok": True,
+            "rerun_evidence_kind": "registry_audit_plus_guard_gate",
+            "allowed_patch_scope": [
+                "add finite-value metric guards",
+                "record non-finite replicate diagnostics",
+                "do not change estimand or theorem statement",
+            ],
+            "required_next_gate": (
+                "apply bounded patch in isolated workspace, rerun algorithm audit, "
+                "then rerun finite simulation diagnostics before promotion"
+            ),
+            "ok": True,
+            "errors": [],
+        }
+        results_path = apply_dir / "algorithm_repair_sandbox_apply_results.jsonl"
+        results_path.write_text(json.dumps(result) + "\n", encoding="utf-8")
+        (apply_dir / "algorithm_repair_sandbox_apply_manifest.json").write_text(
+            json.dumps({"results_jsonl": str(results_path), "n_candidates": 1, "all_ok": True}),
+            encoding="utf-8",
+        )
+        payload = rerun_algorithm_repair_sandbox_applications(
+            apply_dir,
+            Path("runs/test_algorithm_repair_sandbox_rerun"),
+            question_file=Path("examples/research_questions.json"),
+            n_runs=12,
+            seed=20260530,
+        )
+        self.assertTrue(payload["all_ok"])
+        self.assertEqual(payload["n_candidates"], 1)
+        self.assertEqual(payload["n_ok"], 1)
+        rows = [
+            json.loads(line)
+            for line in Path(payload["results_jsonl"]).read_text(encoding="utf-8").splitlines()
+        ]
+        self.assertEqual(rows[0]["evidence_kind"], "current_registry_rerun_with_guard_replay")
+        self.assertTrue(rows[0]["registry_rerun_completed"])
+        self.assertTrue(rows[0]["guard_plan_replayed"])
+        self.assertFalse(rows[0]["production_patch_applied"])
+        self.assertEqual(rows[0]["rerun_status"], "RERUN_EVIDENCE_READY")
+        self.assertEqual(rows[0]["baseline_metrics"]["n_runs"], 12.0)
+        self.assertIn("guard_failed_fraction", rows[0]["guarded_metrics"])
+        self.assertIn("isolated code workspace", rows[0]["required_next_gate"])
+
     def test_research_loop_default_proof_engineer_bridges_formal_gap(self) -> None:
         question = load_open_research_questions(Path("examples/research_questions.json"))[0]
         problem = ProblemFormalizer().formalize(question)
@@ -3650,6 +3705,7 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(payload["gates"]["algorithm_repair_promotion"])
         self.assertTrue(payload["gates"]["algorithm_repair_sandbox"])
         self.assertTrue(payload["gates"]["algorithm_repair_sandbox_apply"])
+        self.assertTrue(payload["gates"]["algorithm_repair_sandbox_rerun"])
         self.assertEqual(payload["counts"]["questions"], 10)
         self.assertEqual(payload["counts"]["frontier_questions"], 60)
         self.assertEqual(payload["counts"]["frontier_supported"], 60)
@@ -3703,6 +3759,10 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(
             payload["counts"]["algorithm_repair_sandbox_apply_candidates_ok"],
             payload["counts"]["algorithm_repair_sandbox_apply_candidates"],
+        )
+        self.assertEqual(
+            payload["counts"]["algorithm_repair_sandbox_rerun_candidates_ok"],
+            payload["counts"]["algorithm_repair_sandbox_rerun_candidates"],
         )
         self.assertEqual(
             payload["counts"]["frontier_theory_targets_scored"],
@@ -3854,6 +3914,8 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(Path(payload["artifacts"]["algorithm_repair_sandbox_results"]).exists())
         self.assertTrue(Path(payload["artifacts"]["algorithm_repair_sandbox_apply"]).exists())
         self.assertTrue(Path(payload["artifacts"]["algorithm_repair_sandbox_apply_results"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["algorithm_repair_sandbox_rerun"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["algorithm_repair_sandbox_rerun_results"]).exists())
 
 
 if __name__ == "__main__":

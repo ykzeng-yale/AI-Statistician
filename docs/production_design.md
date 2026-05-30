@@ -196,6 +196,22 @@ not a production patch: `patch_applied_to_production=false`,
 an isolated code patch plus finite simulation rerun. This keeps the feedback
 loop executable and auditable without admitting arbitrary generated code.
 
+The third bounded sandbox worker adds rerun-style evidence:
+
+```bash
+python3 -m ai_statistician.cli algorithm-repair-sandbox-rerun \
+  --apply-dir runs/algorithm_repair_sandbox_apply \
+  --question-file examples/research_questions.json \
+  --runs 50 \
+  --out runs/algorithm_repair_sandbox_rerun
+```
+
+It locates the target procedure in the open-question registry, reruns the
+current vetted simulator, and records baseline plus ledger-level guarded
+metrics. This is still not patched-code evidence. The artifact explicitly says
+`production_patch_applied=false` and requires a future isolated workspace patch
+with before/after simulation comparison before any production promotion.
+
 ## Target Closed-Loop Research Lab
 
 The broader target is not only a registered estimator executor. It is an AI
@@ -256,8 +272,8 @@ families rather than only applying scoped overlays, a ProofEngineer that proves
 new Lean obligations rather than only bridge-selecting from the proof bank, and
 an isolated AlgorithmEngineer worker that applies real code patches and reruns
 finite simulation diagnostics from simulator evidence. The current algorithm
-repair lane reaches non-mutating sandbox apply artifacts; it intentionally stops
-before production mutation.
+repair lane reaches non-mutating sandbox apply and current-registry rerun
+artifacts; it intentionally stops before production mutation.
 
 The CLI entry point is:
 

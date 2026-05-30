@@ -19,6 +19,7 @@ from .research_lab import (
 from .research_loop import ResearchLoopCoordinator
 from .algorithm_engineer import DefaultAlgorithmEngineer
 from .algorithm_repair_sandbox_apply import apply_algorithm_repair_sandbox_results
+from .algorithm_repair_sandbox_rerun import rerun_algorithm_repair_sandbox_applications
 from .proof_engineer import DefaultProofEngineer
 from .theory_developer import DefaultTheoryDeveloper
 from .theory_proposal import AnthropicTheoryProposer
@@ -110,8 +111,9 @@ def audit_architecture(out_dir: Path | None = None) -> dict[str, object]:
             evidence=(
                 "vetted research algorithm registry is executed by ResearchSimulator",
                 f"{apply_algorithm_repair_sandbox_results.__module__}.{apply_algorithm_repair_sandbox_results.__name__}",
+                f"{rerun_algorithm_repair_sandbox_applications.__module__}.{rerun_algorithm_repair_sandbox_applications.__name__}",
             ),
-            limitation="Algorithms are registry-vetted; arbitrary LLM-written code is not admitted into production execution. Sandbox apply is non-mutating and still requires a real isolated patch/rerun gate before promotion.",
+            limitation="Algorithms are registry-vetted; arbitrary LLM-written code is not admitted into production execution. Sandbox apply/rerun evidence is non-mutating and still requires a real isolated patch workspace before promotion.",
             target_delta="Add isolated code-patch workspace execution with property tests, implementation hashes, and simulator feedback gates.",
         ),
         ArchitectureComponent(
@@ -142,7 +144,7 @@ def audit_architecture(out_dir: Path | None = None) -> dict[str, object]:
                 "DefaultProofEngineer verifies existing proof-bank bridges for FORMAL_GAP actions before emitting repair artifacts",
                 "DefaultTheoryDeveloper converts simulation theory/procedure failures into scoped revision artifacts",
                 "DefaultAlgorithmEngineer converts numerical/implementation failures into scoped repair artifacts",
-                "algorithm repair artifacts can be promoted, sandbox-readiness checked, and converted into non-mutating applied sandbox artifacts",
+                "algorithm repair artifacts can be promoted, sandbox-readiness checked, converted into non-mutating applied sandbox artifacts, and replayed against current vetted simulator reruns",
                 "AIStatisticalTheoryLab accepts theory_revisions overlays and applies them before retrieval/proof/simulation",
             ),
             limitation=(
@@ -222,7 +224,7 @@ def audit_architecture(out_dir: Path | None = None) -> dict[str, object]:
         {
             "requirement": "Simulator feedback actively revises algorithm or theory in the same run",
             "status": "PARTIAL",
-            "current_evidence": "ResearchLoopCoordinator executes MC precision reruns, invokes DefaultTheoryDeveloper for scoped theory-revision proposals, applies contract-valid theory revision overlays to the next lab round, invokes DefaultAlgorithmEngineer for scoped repair artifacts, and can promote/sandbox/apply non-mutating algorithm repair plans.",
+            "current_evidence": "ResearchLoopCoordinator executes MC precision reruns, invokes DefaultTheoryDeveloper for scoped theory-revision proposals, applies contract-valid theory revision overlays to the next lab round, invokes DefaultAlgorithmEngineer for scoped repair artifacts, and can promote/sandbox/apply/rerun non-mutating algorithm repair plans.",
             "missing": "Default trained TheoryDeveloper that can invent and justify new estimator families, plus AlgorithmEngineer execution that applies isolated code patches and reruns finite simulations.",
         },
         {
