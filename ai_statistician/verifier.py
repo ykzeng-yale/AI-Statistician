@@ -161,6 +161,86 @@ class LocalLeanProofVerifier:
         self.project_root = _resolve_local_lean_project(project_root)
         self.timeout_s = int(timeout_s)
 
+    async def verify_many(
+        self,
+        items: list[tuple[FormalObligation, str, list[RetrievalHit]]],
+    ) -> list[ProofCheck]:
+        """Verify many obligations with one Lean process when possible.
+
+        Per-obligation `lake env lean` startup dominates local proof-bank audits.
+        Batch mode namespaces each candidate to avoid local definition clashes,
+        runs Lean once, and falls back to individual checks if the combined file
+        fails so diagnostics stay precise.
+        """
+
+        start = time.perf_counter()
+        if not items:
+            return []
+        if shutil.which("lake") is None or self.project_root is None:
+            return [
+                await self.verify(obligation, proof_body, retrieval_hits)
+                for obligation, proof_body, retrieval_hits in items
+            ]
+
+        code = _batch_local_lean_code(
+            [
+                (obligation.id, splice_proof(obligation.formal_statement, proof_body))
+                for obligation, proof_body, _ in items
+            ]
+        )
+        with tempfile.TemporaryDirectory(prefix="ai_stat_lean_batch_") as tmp:
+            lean_file = Path(tmp) / "proof_bank_batch.lean"
+            lean_file.write_text(code, encoding="utf-8")
+            proc = None
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    "lake",
+                    "env",
+                    "lean",
+                    str(lean_file),
+                    cwd=str(self.project_root),
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=self.timeout_s)
+            except asyncio.TimeoutError:
+                with contextlib.suppress(Exception):
+                    if proc is not None:
+                        proc.kill()
+                        await proc.wait()
+                return [
+                    await self.verify(obligation, proof_body, retrieval_hits)
+                    for obligation, proof_body, retrieval_hits in items
+                ]
+            except Exception:
+                return [
+                    await self.verify(obligation, proof_body, retrieval_hits)
+                    for obligation, proof_body, retrieval_hits in items
+                ]
+
+        if proc.returncode != 0:
+            return [
+                await self.verify(obligation, proof_body, retrieval_hits)
+                for obligation, proof_body, retrieval_hits in items
+            ]
+
+        elapsed_ms = int((time.perf_counter() - start) * 1000)
+        per_item_elapsed_ms = max(1, elapsed_ms // len(items))
+        return [
+            ProofCheck(
+                obligation_id=obligation.id,
+                ok=True,
+                proof_body=proof_body,
+                verifier=self.name,
+                verification_strength="local_lean_kernel_batch",
+                kernel_verified=True,
+                elapsed_ms=per_item_elapsed_ms,
+                errors=[],
+                retrieval_hits=retrieval_hits,
+            )
+            for obligation, proof_body, retrieval_hits in items
+        ]
+
     async def verify(
         self,
         obligation: FormalObligation,
@@ -271,6 +351,49 @@ class CachingProofVerifier:
         self.cache_misses = 0
         self._cache: dict[tuple[str, str], ProofCheck] = {}
 
+    async def verify_many(
+        self,
+        items: list[tuple[FormalObligation, str, list[RetrievalHit]]],
+    ) -> list[ProofCheck]:
+        results: list[ProofCheck | None] = [None] * len(items)
+        misses: list[tuple[int, FormalObligation, str, list[RetrievalHit]]] = []
+        for index, (obligation, proof_body, retrieval_hits) in enumerate(items):
+            key = (obligation.id, proof_body)
+            if key in self._cache:
+                self.cache_hits += 1
+                cached = copy.deepcopy(self._cache[key])
+                cached.retrieval_hits = retrieval_hits
+                results[index] = cached
+            else:
+                self.cache_misses += 1
+                misses.append((index, obligation, proof_body, retrieval_hits))
+
+        if misses:
+            verify_many = getattr(self.verifier, "verify_many", None)
+            if callable(verify_many):
+                checks = await verify_many(
+                    [
+                        (obligation, proof_body, retrieval_hits)
+                        for _, obligation, proof_body, retrieval_hits in misses
+                    ]
+                )
+            else:
+                checks = [
+                    await self.verifier.verify(obligation, proof_body, retrieval_hits)
+                    for _, obligation, proof_body, retrieval_hits in misses
+                ]
+            if len(checks) != len(misses):
+                raise RuntimeError(
+                    f"cached verifier received {len(checks)} checks for {len(misses)} misses"
+                )
+            for (index, obligation, proof_body, _), check in zip(misses, checks):
+                self._cache[(obligation.id, proof_body)] = copy.deepcopy(check)
+                results[index] = check
+
+        if any(check is None for check in results):
+            raise RuntimeError("cached verifier failed to fill all batch verification results")
+        return [check for check in results if check is not None]
+
     async def verify(
         self,
         obligation: FormalObligation,
@@ -308,3 +431,37 @@ def _resolve_local_lean_project(project_root: str | Path | None) -> Path | None:
         if (candidate / "lakefile.toml").exists() or (candidate / "lakefile.lean").exists():
             return candidate
     return None
+
+
+def _batch_local_lean_code(candidates: list[tuple[str, str]]) -> str:
+    imports: list[str] = []
+    bodies: list[str] = []
+    for index, (obligation_id, candidate) in enumerate(candidates, start=1):
+        body_lines: list[str] = []
+        for line in candidate.splitlines():
+            if line.startswith("import "):
+                if line not in imports:
+                    imports.append(line)
+            else:
+                body_lines.append(line)
+        namespace = f"O{index}_{_lean_identifier_suffix(obligation_id)}"
+        bodies.append(
+            "\n".join(
+                [
+                    f"namespace {namespace}",
+                    "\n".join(body_lines).strip(),
+                    f"end {namespace}",
+                ]
+            )
+        )
+    if not imports:
+        imports = ["import Mathlib"]
+    return "\n\n".join(imports + ["namespace AIStatisticianProofAudit", *bodies, "end AIStatisticianProofAudit"]) + "\n"
+
+
+def _lean_identifier_suffix(value: str) -> str:
+    cleaned = "".join(char if char.isalnum() or char == "_" else "_" for char in value)
+    cleaned = cleaned.strip("_") or "obligation"
+    if cleaned[0].isdigit():
+        cleaned = "obligation_" + cleaned
+    return cleaned

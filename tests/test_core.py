@@ -75,6 +75,7 @@ from ai_statistician.research_trace_audit import audit_research_traces
 from ai_statistician.research_trace_audit import DIAGNOSTIC_METRIC_ALIASES
 from ai_statistician.research_training_export import export_research_training_dataset
 from ai_statistician.retrieval import ProofBankRetriever, RetrievalQuery, audit_proof_bank_retrieval
+from ai_statistician.schema import FormalObligation, ProofCheck, RetrievalHit
 from ai_statistician.system import AIStatisticianSystem
 from ai_statistician.system import write_run_manifest, write_trace
 from ai_statistician.system_audit import SystemAuditConfig, load_audit_questions, run_system_audit
@@ -405,6 +406,53 @@ class ProofBankTests(unittest.TestCase):
         self.assertTrue(second.ok)
         self.assertEqual(verifier.cache_info(), {"hits": 1, "misses": 1, "size": 1})
 
+    def test_caching_verifier_delegates_batch_verification(self) -> None:
+        class BatchVerifier:
+            name = "batch-test"
+
+            def __init__(self) -> None:
+                self.n_batch_calls = 0
+
+            async def verify_many(
+                self,
+                items: list[tuple[FormalObligation, str, list[RetrievalHit]]],
+            ) -> list[ProofCheck]:
+                self.n_batch_calls += 1
+                return [
+                    ProofCheck(
+                        obligation_id=obligation.id,
+                        ok=True,
+                        proof_body=proof_body,
+                        verifier=self.name,
+                        verification_strength="batch-test",
+                        kernel_verified=True,
+                        retrieval_hits=retrieval_hits,
+                    )
+                    for obligation, proof_body, retrieval_hits in items
+                ]
+
+            async def verify(
+                self,
+                obligation: FormalObligation,
+                proof_body: str,
+                retrieval_hits: list[RetrievalHit],
+            ) -> ProofCheck:
+                raise AssertionError("verify_many should be used for batch-capable verifiers")
+
+        async def run():
+            base = BatchVerifier()
+            verifier = CachingProofVerifier(base)
+            obligation = get_obligation("prob_measure_univ")
+            first = await verifier.verify_many([(obligation, obligation.proof_body, [])])
+            second = await verifier.verify_many([(obligation, obligation.proof_body, [])])
+            return base, verifier, first, second
+
+        base, verifier, first, second = asyncio.run(run())
+        self.assertEqual(base.n_batch_calls, 1)
+        self.assertTrue(first[0].kernel_verified)
+        self.assertTrue(second[0].kernel_verified)
+        self.assertEqual(verifier.cache_info(), {"hits": 1, "misses": 1, "size": 1})
+
     def test_local_lean_verifier_checks_mathlib_proof_when_available(self) -> None:
         lean_project = Path("/Users/yukang/LeanProjects/LeanPractice")
         if shutil.which("lake") is None or not (lean_project / "lakefile.toml").exists():
@@ -420,6 +468,24 @@ class ProofBankTests(unittest.TestCase):
         self.assertTrue(check.kernel_verified)
         self.assertEqual(check.verifier, "local.lake_env_lean")
         self.assertEqual(check.verification_strength, "local_lean_kernel")
+
+    def test_local_lean_proof_audit_batches_mathlib_proofs_when_available(self) -> None:
+        lean_project = Path("/Users/yukang/LeanProjects/LeanPractice")
+        if shutil.which("lake") is None or not (lean_project / "lakefile.toml").exists():
+            raise unittest.SkipTest("local Lake/Mathlib project not available")
+
+        async def run():
+            return await audit_proof_bank(
+                LocalLeanProofVerifier(project_root=lean_project, timeout_s=90),
+                Path("runs/test_local_lean_batch_audit"),
+                ids=["prob_measure_univ", "integral_of_constant"],
+                export_lean=False,
+            )
+
+        payload = asyncio.run(run())
+        self.assertTrue(payload["all_verified"])
+        self.assertTrue(payload["all_kernel_verified"])
+        self.assertEqual(payload["verification_strength"], "local_lean_kernel_batch")
 
     def test_proof_audit_records_dependency_graph(self) -> None:
         async def run():

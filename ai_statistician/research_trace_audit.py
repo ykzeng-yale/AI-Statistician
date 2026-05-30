@@ -63,6 +63,12 @@ SIMULATION_ESCALATION_TARGETS = {
     "rerun_more_mc",
 }
 
+LEAN_KERNEL_VERIFICATION_STRENGTHS = {
+    "axle_lean_kernel",
+    "local_lean_kernel",
+    "local_lean_kernel_batch",
+}
+
 
 DIAGNOSTIC_METRIC_ALIASES: dict[str, tuple[str, ...]] = {
     "se_calibration": ("se_ratio", "mean_estimated_se", "empirical_se"),
@@ -802,11 +808,11 @@ def _validate_formal_subclaims(
                 errors.append(f"proved subclaim {idx} missing verification_strength")
             if not isinstance(subclaim.get("kernel_verified"), bool):
                 errors.append(f"proved subclaim {idx} kernel_verified flag missing")
-            if strength == "axle_lean_kernel":
+            if strength in LEAN_KERNEL_VERIFICATION_STRENGTHS:
                 if subclaim.get("formalization_status") != "kernel_verified_proof":
-                    errors.append(f"proved subclaim {idx} AXLE proof status is not kernel_verified_proof")
+                    errors.append(f"proved subclaim {idx} Lean proof status is not kernel_verified_proof")
                 if not subclaim.get("kernel_verified"):
-                    errors.append(f"proved subclaim {idx} AXLE proof is not marked kernel_verified")
+                    errors.append(f"proved subclaim {idx} Lean proof is not marked kernel_verified")
             elif strength == "mock_static_check":
                 if subclaim.get("formalization_status") != "mock_verified_proof":
                     errors.append(f"proved subclaim {idx} mock proof status is not mock_verified_proof")

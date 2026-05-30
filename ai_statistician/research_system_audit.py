@@ -100,6 +100,12 @@ async def run_research_system_audit(
         max_manifests=12,
     )
     write_research_capability_audit(capability_report, out_dir / "research_capability_audit")
+    proof_manifest = await audit_proof_bank(
+        verifier,
+        out_dir / "proof_audit",
+        export_lean=True,
+        include_negative_controls=not (config.use_axle or config.use_local_lean),
+    )
     frontier_smoke_manifest = await run_frontier_smoke_benchmark(
         out_dir / "frontier_smoke_benchmark",
         config=FrontierSmokeConfig(n_runs=config.n_runs, seed=config.seed, max_per_class=1, use_axle=config.use_axle),
@@ -112,12 +118,6 @@ async def run_research_system_audit(
     autoform_harness_manifest = audit_autoform_harness(out_dir / "autoform_harness")
     retrieval_manifest = audit_proof_bank_retrieval(out_dir / "retrieval_audit", k=5)
     algorithm_manifest = audit_research_algorithm_registry(out_dir / "research_algorithm_audit")
-    proof_manifest = await audit_proof_bank(
-        verifier,
-        out_dir / "proof_audit",
-        export_lean=True,
-        include_negative_controls=not config.use_axle,
-    )
     proof_attempt_log = Path(str(proof_manifest["proof_attempt_log"]["attempt_log"]))
     proof_training_manifest = export_proof_training_dataset(
         proof_attempt_log,
@@ -251,7 +251,11 @@ async def run_research_system_audit(
         "formal_source_graph": bool(formal_source_graph_manifest["all_queries_ok"]),
         "research_algorithm_audit": bool(algorithm_manifest["all_ok"]),
         "proof_audit": bool(proof_manifest["all_verified"])
-        and bool(proof_manifest["dependency_graph"]["all_ok"]),
+        and bool(proof_manifest["dependency_graph"]["all_ok"])
+        and (
+            not (config.use_axle or config.use_local_lean)
+            or bool(proof_manifest["all_kernel_verified"])
+        ),
         "proof_training_export": int(proof_training_manifest["n_sft_examples"])
         == int(proof_manifest["proof_attempt_log"]["n_positive"]),
         "proof_repair_export": (

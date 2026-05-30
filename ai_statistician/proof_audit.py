@@ -46,9 +46,29 @@ async def audit_proof_bank(
     if export_lean:
         lean_dir.mkdir(parents=True, exist_ok=True)
 
-    for attempt_index, obligation in enumerate(obligations, start=1):
-        hits = retriever.retrieve(query_for_obligation(obligation), k=5)
-        check = await verifier.verify(obligation, obligation.proof_body, hits)
+    obligation_hits = [
+        (obligation, retriever.retrieve(query_for_obligation(obligation), k=5))
+        for obligation in obligations
+    ]
+    verify_many = getattr(verifier, "verify_many", None)
+    if callable(verify_many):
+        positive_checks = await verify_many(
+            [
+                (obligation, obligation.proof_body, hits)
+                for obligation, hits in obligation_hits
+            ]
+        )
+    else:
+        positive_checks = [
+            await verifier.verify(obligation, obligation.proof_body, hits)
+            for obligation, hits in obligation_hits
+        ]
+    if len(positive_checks) != len(obligation_hits):
+        raise RuntimeError(
+            f"verifier returned {len(positive_checks)} checks for {len(obligation_hits)} obligations"
+        )
+
+    for attempt_index, ((obligation, hits), check) in enumerate(zip(obligation_hits, positive_checks), start=1):
         checks.append(check)
         attempt_records.append(
             build_proof_attempt_record(

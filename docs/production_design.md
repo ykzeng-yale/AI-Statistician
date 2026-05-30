@@ -1221,6 +1221,14 @@ requires either the `proof` extra in the runtime that invokes `--real-lean`, or
 the `--local-lean` backend with a local Lake project. Both AXLE and local Lean
 rows set `kernel_verified=true` only when a real Lean kernel check succeeds;
 mock-positive rows remain regression-test evidence only.
+For proof-bank audits, the local Lean backend batches positive obligations into
+one namespaced Lean file and runs `lake env lean` once, falling back to
+per-obligation checks only when the batch file fails. This keeps full-bank
+kernel audits practical while preserving precise diagnostics on failure.
+The release-style research-system audit runs this proof-bank audit before
+frontier/research smoke gates so a caching verifier can reuse the full-bank
+kernel results downstream; for real AXLE or local-Lean runs, the proof gate
+requires `all_kernel_verified=true`.
 
 This writes `proof_audit_manifest.json` plus one exported Lean file per formal
 obligation. The Lean exports are intentionally per-obligation files because
