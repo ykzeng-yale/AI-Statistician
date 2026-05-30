@@ -400,6 +400,7 @@ async def run_research_system_audit(
                 "all_live_repair_artifacts_exported"
             ],
             "research_loop_live_repair_artifacts": research_loop_manifest["n_live_repair_artifacts"],
+            "research_loop_theory_revisions": research_loop_manifest["n_theory_revisions"],
             "research_loop_live_repair_artifacts_contract_ok": research_loop_manifest[
                 "live_repair_artifacts_contract_ok"
             ],

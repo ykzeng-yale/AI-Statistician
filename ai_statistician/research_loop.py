@@ -86,15 +86,21 @@ class ResearchLoopCoordinator:
     ) -> dict[str, Any]:
         n_runs = self.n_runs
         rounds: list[dict[str, Any]] = []
+        theory_revisions: list[dict[str, Any]] = []
         final_report: ResearchReport | None = None
         final_status = "MAX_ROUNDS_REACHED"
 
         for round_index in range(1, max_rounds + 1):
-            lab = self._make_lab(n_runs=n_runs, seed=self.seed + round_index - 1)
+            lab = self._make_lab(
+                n_runs=n_runs,
+                seed=self.seed + round_index - 1,
+                theory_revisions=theory_revisions,
+            )
             report = await lab.run(question)
             final_report = report
             agenda = _agenda_from_report(report)
             actions = [await self._execute_agenda_item(item, report) for item in agenda.get("items", [])]
+            theory_revisions.extend(_theory_revisions_from_actions(actions))
             round_summary = _round_summary(round_index, n_runs, report, actions)
             rounds.append(round_summary)
 
@@ -124,6 +130,8 @@ class ResearchLoopCoordinator:
             "mc_rerun_multiplier": mc_rerun_multiplier,
             "n_rounds": len(rounds),
             "rounds": rounds,
+            "theory_revisions": theory_revisions,
+            "n_theory_revisions": len(theory_revisions),
             "final_report": final_report.to_json() if final_report is not None else None,
             "honesty_boundary": {
                 "executes_feedback_agenda": True,
@@ -136,7 +144,13 @@ class ResearchLoopCoordinator:
             },
         }
 
-    def _make_lab(self, *, n_runs: int, seed: int) -> ResearchLabLike:
+    def _make_lab(
+        self,
+        *,
+        n_runs: int,
+        seed: int,
+        theory_revisions: list[dict[str, Any]] | None = None,
+    ) -> ResearchLabLike:
         if self.lab_factory is not None:
             return self.lab_factory(n_runs, seed)
         return AIStatisticalTheoryLab(
@@ -144,6 +158,7 @@ class ResearchLoopCoordinator:
             formal_source_retriever=self.formal_source_retriever,
             n_runs=n_runs,
             seed=seed,
+            theory_revisions=theory_revisions,
         )
 
     async def _execute_agenda_item(self, item: dict[str, Any], report: ResearchReport) -> dict[str, Any]:
@@ -501,6 +516,7 @@ async def run_research_loop_benchmark(
                 "question_id": row["question_id"],
                 "status": row["status"],
                 "n_rounds": row["n_rounds"],
+                "n_theory_revisions": row.get("n_theory_revisions", 0),
                 "round_statuses": [round_row["report_status"] for round_row in row["rounds"]],
                 "action_statuses": sorted(
                     {
@@ -519,6 +535,7 @@ async def run_research_loop_benchmark(
         "repair_tasks_by_type": _count_by_key(repair_tasks, "task_type"),
         "live_repair_artifacts_jsonl": str(live_repair_artifact_path),
         "n_live_repair_artifacts": len(live_repair_artifacts),
+        "n_theory_revisions": sum(int(row.get("n_theory_revisions", 0) or 0) for row in results),
         "live_repair_artifacts_by_handler": _count_by_key(live_repair_artifacts, "live_repair_handler"),
         "live_repair_artifacts_by_type": _count_by_key(live_repair_artifacts, "task_type"),
         "live_repair_artifacts_contract_ok": sum(
@@ -662,6 +679,30 @@ def _repair_tasks_from_results(results: list[dict[str, Any]]) -> list[dict[str, 
                 if isinstance(task, dict):
                     tasks.append(task)
     return tasks
+
+
+def _theory_revisions_from_actions(actions: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    revisions: list[dict[str, Any]] = []
+    for action in actions:
+        if action.get("live_repair_task_type") != "theory_revision_from_simulation_failure":
+            continue
+        if action.get("repair_contract_ok") is not True:
+            continue
+        artifact = action.get("repair_artifact")
+        if not isinstance(artifact, dict):
+            continue
+        revisions.append(
+            {
+                "artifact_id": "theory_revision:"
+                f"{stable_hash([action.get('id'), artifact])[:16]}",
+                "source_action_id": str(action.get("id", "")),
+                "target_procedure": artifact.get("target_procedure") or action.get("target_procedure", ""),
+                "repair_artifact": artifact,
+                "live_repair_handler": str(action.get("live_repair_handler", "")),
+                "execution_status": str(action.get("execution_status", "")),
+            }
+        )
+    return revisions
 
 
 def _live_repair_artifacts_from_results(results: list[dict[str, Any]]) -> list[dict[str, Any]]:

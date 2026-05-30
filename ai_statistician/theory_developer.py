@@ -39,7 +39,7 @@ class DefaultTheoryDeveloper:
                 "Default TheoryDeveloper produced a scoped revision artifact from simulation feedback. "
                 "It is a theory repair proposal; applying it to the planner/algorithm registry is a separate step."
             ),
-            "rerun_requested": False,
+            "rerun_requested": True,
             "repair_artifact": revision,
             "theory_developer_scope": "simulation-diagnosis-to-theory-revision",
         }
@@ -98,6 +98,7 @@ def _coverage_revision(
     metric_evidence: dict[str, float],
 ) -> dict[str, Any]:
     return {
+        "target_procedure": target_procedure,
         "revised_procedure": f"{target_procedure}:calibrated_interval_variant",
         "revised_theorem_goals": [
             *_suffix_goals(theorem_goals, "coverage_calibration"),
@@ -129,6 +130,7 @@ def _bias_revision(
     metric_evidence: dict[str, float],
 ) -> dict[str, Any]:
     return {
+        "target_procedure": target_procedure,
         "revised_procedure": f"{target_procedure}:bias_corrected_or_reidentified_variant",
         "revised_theorem_goals": [
             *_suffix_goals(theorem_goals, "identification_bias_control"),
@@ -160,6 +162,7 @@ def _testing_revision(
     metric_evidence: dict[str, float],
 ) -> dict[str, Any]:
     return {
+        "target_procedure": target_procedure,
         "revised_procedure": f"{target_procedure}:error_rate_calibrated_variant",
         "revised_theorem_goals": [
             *_suffix_goals(theorem_goals, "error_rate_control"),
@@ -191,6 +194,7 @@ def _generic_revision(
     metric_evidence: dict[str, float],
 ) -> dict[str, Any]:
     return {
+        "target_procedure": target_procedure,
         "revised_procedure": f"{target_procedure}:diagnostic_revised_variant",
         "revised_theorem_goals": [
             *_suffix_goals(theorem_goals, "diagnostic_alignment"),
@@ -222,7 +226,7 @@ def _suffix_goals(goals: tuple[str, ...], suffix: str) -> list[str]:
     selected = list(goals[:3])
     if not selected:
         return []
-    return [f"{goal}:{suffix}" for goal in selected]
+    return [f"{goal}_{suffix}" for goal in selected]
 
 
 def theory_developer_fingerprint() -> str:

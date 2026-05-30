@@ -48,6 +48,7 @@ from ai_statistician.research_capability_audit import (
     write_research_capability_audit,
 )
 from ai_statistician.research_lab import (
+    AIStatisticalTheoryLab,
     audit_research_algorithm_registry,
     load_open_research_questions,
     ProblemFormalizer,
@@ -2809,7 +2810,7 @@ class SystemTests(unittest.TestCase):
         bad_sim.diagnosis.failed_diagnostics = ("coverage",)
         bad_sim.diagnosis.rationale = "test forces theory revision"
 
-        report = ResearchReport(
+        first = ResearchReport(
             question=question,
             problem=problem,
             procedures=procedure,
@@ -2835,31 +2836,104 @@ class SystemTests(unittest.TestCase):
             },
             status="SIMULATION_FLAGGED_WITH_FORMAL_GAPS",
         )
+        second = ResearchReport(
+            question=question,
+            problem=problem,
+            procedures=procedure,
+            knowledge=[],
+            paper_sources=[],
+            formal_subclaims=[],
+            simulations=[],
+            theorem_goals=theorem_goal,
+            theory_plan={
+                "next_iteration_agenda": {
+                    "items": [
+                        {
+                            "id": "monitor:test",
+                            "owner_agent": "research_coordinator",
+                            "trigger": "NO_BLOCKING_GAPS_OR_FAILED_SIMULATIONS",
+                            "action": "archive_trace_or_expand_benchmark_stress_tests",
+                            "evidence": "test monitor after applied theory revision",
+                        }
+                    ]
+                }
+            },
+            status="RESEARCH_TRACE_READY_WITH_FORMAL_GAPS",
+        )
+        reports = [first, second]
 
         class FakeLab:
+            def __init__(self, report):
+                self.report = report
+
             async def run(self, question):
-                return report
+                return self.report
+
+        def factory(n_runs, seed):
+            return FakeLab(reports.pop(0))
 
         result = asyncio.run(
-            ResearchLoopCoordinator(n_runs=25, seed=11, lab_factory=lambda _n, _s: FakeLab()).iterate(
+            ResearchLoopCoordinator(n_runs=25, seed=11, lab_factory=factory).iterate(
                 question,
                 max_rounds=2,
             )
         )
-        self.assertEqual(result["status"], "THEORY_REPAIR_PROPOSED")
+        self.assertEqual(result["status"], "CONVERGED_MONITOR_READY")
         self.assertTrue(result["honesty_boundary"]["executes_default_theory_developer_revision_handler"])
+        self.assertEqual(result["n_theory_revisions"], 1)
         action = result["rounds"][0]["actions"][0]
         self.assertEqual(action["execution_status"], "EXECUTED_SCOPED_THEORY_REVISION_PROPOSAL")
         self.assertTrue(action["repair_contract_ok"])
         self.assertEqual(action["live_repair_handler"], "DefaultTheoryDeveloper")
-        self.assertFalse(action["rerun_requested"])
+        self.assertTrue(action["rerun_requested"])
         self.assertIn("coverage", action["repair_artifact"]["failure_class"])
         self.assertIn("revised_theorem_goals", action["repair_artifact"])
+        self.assertEqual(result["rounds"][1]["actions"][0]["execution_status"], "EXECUTED_MONITOR")
         task = action["repair_task"]
         self.assertEqual(task["owner_agent"], "theory_developer")
         self.assertEqual(task["task_type"], "theory_revision_from_simulation_failure")
         self.assertIn("revised_theorem_goals", task["output_contract"]["required_fields"])
         self.assertTrue(any("simulation" in item for item in task["acceptance_criteria"]))
+
+    def test_theory_revision_overlay_enters_lab_theorem_roadmap(self) -> None:
+        question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+        revision = {
+            "artifact_id": "theory_revision:test",
+            "target_procedure": "oracle_aipw_ate",
+            "repair_artifact": {
+                "target_procedure": "oracle_aipw_ate",
+                "revised_procedure": "oracle_aipw_ate:calibrated_interval_variant",
+                "revised_theorem_goals": [
+                    "coverage_lower_bound_under_declared_dgp",
+                    "standard_error_or_quantile_calibration",
+                ],
+                "assumption_delta": ["separate point consistency from interval calibration"],
+                "expected_simulation_delta": "coverage should improve under the declared DGP",
+                "failure_class": "coverage_or_standard_error_failure",
+                "next_formal_obligations": ["coverage_lower_bound_of_complement_error"],
+            },
+        }
+
+        async def run():
+            return await AIStatisticalTheoryLab(
+                proof_verifier=MockProofVerifier(),
+                n_runs=10,
+                seed=20260530,
+                theory_revisions=[revision],
+            ).run(question)
+
+        report = asyncio.run(run())
+        applied = report.theory_plan["applied_theory_revisions"]
+        self.assertEqual(len(applied), 1)
+        self.assertTrue(applied[0]["algorithm_unchanged"])
+        procedure_row = report.theory_plan["candidate_procedures"][0]
+        self.assertEqual(procedure_row["id"], "oracle_aipw_ate_calibrated_interval_variant")
+        self.assertEqual(procedure_row["algorithm"], "oracle_aipw")
+        roadmap_ids = {row["id"] for row in report.theory_plan["theorem_roadmap"]}
+        self.assertIn("coverage_lower_bound_under_declared_dgp", roadmap_ids)
+        self.assertIn("standard_error_or_quantile_calibration", roadmap_ids)
+        formal_gap_ids = {row.id.split(":")[-1] for row in report.formal_subclaims if row.status == "FORMAL_GAP"}
+        self.assertIn("coverage_lower_bound_under_declared_dgp", formal_gap_ids)
 
     def test_research_loop_executes_registered_live_theory_repair_handler(self) -> None:
         question = load_open_research_questions(Path("examples/research_questions.json"))[0]

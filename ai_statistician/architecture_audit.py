@@ -135,6 +135,7 @@ def audit_architecture(out_dir: Path | None = None) -> dict[str, object]:
                 "live repair handler outputs are checked against per-trigger repair contracts before reruns are allowed",
                 "DefaultProofEngineer verifies existing proof-bank bridges for FORMAL_GAP actions before emitting repair artifacts",
                 "DefaultTheoryDeveloper converts simulation theory/procedure failures into scoped revision artifacts",
+                "AIStatisticalTheoryLab accepts theory_revisions overlays and applies them before retrieval/proof/simulation",
             ),
             limitation=(
                 "The loop executes safe built-in routes, can call registered live repair handlers, and has a narrow "
@@ -213,8 +214,8 @@ def audit_architecture(out_dir: Path | None = None) -> dict[str, object]:
         {
             "requirement": "Simulator feedback actively revises algorithm or theory in the same run",
             "status": "PARTIAL",
-            "current_evidence": "ResearchLoopCoordinator executes MC precision reruns, invokes DefaultTheoryDeveloper for scoped theory-revision proposals, and can invoke contract-checked registered live theory/algorithm/simulator repair handlers before rerunning.",
-            "missing": "Default trained TheoryDeveloper that can apply revisions to planner state, plus AlgorithmEngineer repair handlers that work without test stubs or manual registration.",
+            "current_evidence": "ResearchLoopCoordinator executes MC precision reruns, invokes DefaultTheoryDeveloper for scoped theory-revision proposals, applies contract-valid theory revision overlays to the next lab round, and can invoke contract-checked registered live theory/algorithm/simulator repair handlers before rerunning.",
+            "missing": "Default trained TheoryDeveloper that can invent and justify new estimator families, plus AlgorithmEngineer repair handlers that work without test stubs or manual registration.",
         },
         {
             "requirement": "Formal proof feedback actively revises assumptions/theorem statements/proof search",

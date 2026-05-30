@@ -7978,6 +7978,7 @@ class AIStatisticalTheoryLab:
         formal_source_retriever: Any | None = None,
         n_runs: int = 100,
         seed: int = 20260528,
+        theory_revisions: list[dict[str, Any]] | None = None,
     ) -> None:
         self.formalizer = ProblemFormalizer()
         self.planner = TheoryPlanner()
@@ -7986,10 +7987,16 @@ class AIStatisticalTheoryLab:
             formal_source_retriever=formal_source_retriever,
         )
         self.simulator = ResearchSimulator(n_runs=n_runs, seed=seed)
+        self.theory_revisions = list(theory_revisions or [])
 
     async def run(self, question: OpenResearchQuestion) -> ResearchReport:
         problem = self.formalizer.formalize(question)
         procedures, theorem_goals = self.planner.plan(problem)
+        procedures, theorem_goals, applied_theory_revisions = apply_theory_revisions(
+            procedures,
+            theorem_goals,
+            self.theory_revisions,
+        )
         procedures = attach_research_algorithm_metadata(procedures)
         knowledge = retrieve_problem_knowledge(question, problem, theorem_goals, k=8)
         paper_sources = retrieve_paper_sources(question, problem, theorem_goals, k=5)
@@ -8012,6 +8019,7 @@ class AIStatisticalTheoryLab:
             formal_subclaims=subclaims,
             simulations=simulations,
             status=status,
+            applied_theory_revisions=applied_theory_revisions,
         )
         return ResearchReport(
             question=question,
@@ -8028,6 +8036,123 @@ class AIStatisticalTheoryLab:
         )
 
 
+def apply_theory_revisions(
+    procedures: list[CandidateProcedure],
+    theorem_goals: list[TheoremGoal],
+    theory_revisions: list[dict[str, Any]],
+) -> tuple[list[CandidateProcedure], list[TheoremGoal], list[dict[str, Any]]]:
+    """Apply safe theory-revision overlays before retrieval/proof/simulation.
+
+    This is intentionally conservative: a theory revision may rename/annotate a
+    procedure and add formal theorem goals, but it does not change the vetted
+    algorithm implementation. Algorithm changes remain the AlgorithmEngineer
+    lane.
+    """
+
+    if not theory_revisions:
+        return procedures, theorem_goals, []
+    revised_procedures = list(procedures)
+    revised_goals = list(theorem_goals)
+    existing_goal_ids = {goal.id for goal in revised_goals}
+    applied: list[dict[str, Any]] = []
+    for raw in theory_revisions:
+        artifact = raw.get("repair_artifact") if isinstance(raw.get("repair_artifact"), dict) else raw
+        if not isinstance(artifact, dict):
+            continue
+        target_procedure = str(raw.get("target_procedure") or artifact.get("target_procedure") or "")
+        target_index = _procedure_index(revised_procedures, target_procedure)
+        if target_index is None:
+            continue
+        current = revised_procedures[target_index]
+        revised_procedure = _safe_identifier(str(artifact.get("revised_procedure", ""))) or (
+            f"{current.id}_theory_revised"
+        )
+        next_formal_obligations = tuple(
+            _safe_identifier(str(row))
+            for row in artifact.get("next_formal_obligations", []) or []
+            if _safe_identifier(str(row))
+        )
+        new_goal_ids: list[str] = []
+        for raw_goal in artifact.get("revised_theorem_goals", []) or []:
+            goal_id = _safe_identifier(str(raw_goal))
+            if not goal_id:
+                continue
+            new_goal_ids.append(goal_id)
+            if goal_id in existing_goal_ids:
+                continue
+            existing_goal_ids.add(goal_id)
+            revised_goals.append(
+                TheoremGoal(
+                    id=goal_id,
+                    title=f"Live theory revision goal: {goal_id}",
+                    informal_statement=(
+                        "Goal introduced by a live theory-revision artifact after simulator feedback. "
+                        f"Failure class: {artifact.get('failure_class', 'unspecified')}."
+                    ),
+                    proof_strategy=(
+                        "Formalize the revised statistical claim, connect it to the failed simulator "
+                        "diagnostic, and discharge any reusable subclaim through the proof bank."
+                    ),
+                    status="FORMAL_GAP",
+                    required_primitives=next_formal_obligations
+                    or ("theory_revision_formalization", "diagnostic_to_theorem_bridge"),
+                )
+            )
+        combined_goal_ids = tuple(dict.fromkeys((*current.theorem_goals, *new_goal_ids)))
+        revised_procedures[target_index] = replace(
+            current,
+            id=revised_procedure,
+            name=f"{current.name} (theory revision proposal)",
+            informal_derivation=(
+                current.informal_derivation
+                + "\n\nLive theory revision applied as a proposal before retrieval/formalization: "
+                + str(artifact.get("expected_simulation_delta", ""))
+            ),
+            theorem_goals=combined_goal_ids,
+            limitations=tuple(
+                dict.fromkeys(
+                    (
+                        *current.limitations,
+                        "live theory revision proposal applied to theorem roadmap",
+                        "algorithm implementation unchanged until AlgorithmEngineer promotion",
+                    )
+                )
+            ),
+        )
+        applied.append(
+            {
+                "target_procedure": current.id,
+                "revised_procedure": revised_procedure,
+                "algorithm_unchanged": True,
+                "algorithm": current.algorithm,
+                "new_theorem_goals": new_goal_ids,
+                "assumption_delta": list(artifact.get("assumption_delta", []) or []),
+                "expected_simulation_delta": str(artifact.get("expected_simulation_delta", "")),
+                "failure_class": str(artifact.get("failure_class", "")),
+                "source_artifact_id": str(raw.get("artifact_id", "")),
+            }
+        )
+    return revised_procedures, revised_goals, applied
+
+
+def _procedure_index(procedures: list[CandidateProcedure], target_procedure: str) -> int | None:
+    if target_procedure:
+        for idx, procedure in enumerate(procedures):
+            if procedure.id == target_procedure:
+                return idx
+    return 0 if len(procedures) == 1 else None
+
+
+def _safe_identifier(raw: str) -> str:
+    value = re.sub(r"[^A-Za-z0-9_]+", "_", raw.strip())
+    value = re.sub(r"_+", "_", value).strip("_")
+    if not value:
+        return ""
+    if value[0].isdigit():
+        value = f"g_{value}"
+    return value
+
+
 def build_theory_plan(
     *,
     problem: ResearchProblemSpec,
@@ -8038,6 +8163,7 @@ def build_theory_plan(
     formal_subclaims: list[FormalSubclaim],
     simulations: list[ResearchSimulation],
     status: str,
+    applied_theory_revisions: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Build the explicit informal-to-formal theory plan stored in each trace."""
 
@@ -8159,6 +8285,7 @@ def build_theory_plan(
                 for procedure in procedures
             ],
         },
+        "applied_theory_revisions": list(applied_theory_revisions or []),
         "next_iteration_agenda": next_iteration_agenda,
         "honesty_boundary": {
             "proved_subclaims": len(proved_subclaims),

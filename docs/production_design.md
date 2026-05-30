@@ -54,8 +54,11 @@ step that keeps the full frontier gap explicit. There is also a conservative
 `DefaultTheoryDeveloper`: for a `THEORY_OR_PROCEDURE_ISSUE`, it turns failed
 simulation diagnostics such as coverage or bias into a concrete revised
 procedure/theorem/assumption artifact. This is not yet free-form theory
-invention and it does not silently apply the revision to the planner; it makes
-the next theory-development action executable and auditable. The coordinator also has a
+invention. When the artifact satisfies its contract, the coordinator carries it
+as revision state into the next round, where `AIStatisticalTheoryLab` applies it
+as a safe overlay before retrieval, proof, and simulation: it may rename and
+annotate the candidate procedure and add new theorem goals/formal gaps, but it
+does not change the vetted algorithm implementation. The coordinator also has a
 registered live-repair handler interface: a
 TheoryDeveloper, ProofEngineer, AlgorithmEngineer, or simulator-extension agent
 can be plugged in for a trigger such as `THEORY_OR_PROCEDURE_ISSUE`; if it
@@ -195,11 +198,11 @@ verification for registered proof-bank obligations, `ResearchSimulator` already
 diagnoses failures, and `ResearchLoopCoordinator` now executes the scoped
 actions above, including `DefaultProofEngineer`,
 `DefaultTheoryDeveloper`, and registered live repair handlers when supplied. The
-missing architecture piece is default substantive autonomous application of
-repairs: an LLM TheoryDeveloper that can revise and re-enter planner state, a
-ProofEngineer that proves new Lean obligations rather than only bridge-selecting
-from the proof bank, and a sandboxed AlgorithmEngineer that repairs code from
-simulator evidence.
+missing architecture piece is default substantive autonomous *solution* of
+repairs: an LLM TheoryDeveloper that can invent and justify new estimator
+families rather than only applying scoped overlays, a ProofEngineer that proves
+new Lean obligations rather than only bridge-selecting from the proof bank, and
+a sandboxed AlgorithmEngineer that repairs code from simulator evidence.
 
 The CLI entry point is:
 
