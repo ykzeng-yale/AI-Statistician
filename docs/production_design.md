@@ -869,6 +869,13 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   `μ (⋃ i∈I, A i) ≤ ∑ i∈I, μ(A i)` proved directly from Mathlib's
   `measure_biUnion_finset_le`, supporting conformal coverage counting,
   BH/FDR error decompositions, and finite-horizon anytime-valid error control.
+- `finite_conformal_rank_coverage_counting`: a split-conformal finite-rank
+  counting bridge. If each bad-rank event has a local probability budget and
+  those budgets sum to `α_total`, then the complement of the bad-rank event has
+  probability at least `1-α_total`. This is the verified finite-sample counting
+  ingredient for conformal coverage traces, while exchangeability, rank
+  uniformity, and the order-statistic quantile theorem remain explicit formal
+  gaps.
 - `finite_family_absolute_error_union_control`: a finite-family estimator
   bridge: if each absolute-error event
   `{ω | radius i ≤ |X_i ω-theta_i|}` has local error budget `α_i`, then the
@@ -1248,11 +1255,11 @@ python3 -m ai_statistician.cli proof-audit \
 Current full-bank local Lean evidence (2026-05-31):
 
 ```text
-verified=61/61
-kernel=61/61
+verified=62/62
+kernel=62/62
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=cbb4624129e5687a5c5b01efc934316c7496d143fb954ed6f5ace0c312b01483
+proof_bank_fingerprint=02316c1491a230bf21eb26cf40dd7448a5e074800618126728287a9deaa97fe0
 ```
 
 Run `doctor` in the same Python runtime first. It reports

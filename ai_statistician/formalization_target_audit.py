@@ -252,6 +252,19 @@ _PRIMITIVE_PROOF_BRIDGE_HINTS: dict[str, tuple[str, ...]] = {
         "selected_good_event_coverage_of_finite_union_budget",
         "selected_bad_event_probability_le_finite_union_budget",
     ),
+    "finite_sample_coverage_counting": (
+        "finite_conformal_rank_coverage_counting",
+        "simultaneous_coverage_of_union_error_bound",
+        "coverage_lower_bound_of_complement_error",
+    ),
+    "rank_uniformity": (
+        "finite_conformal_rank_coverage_counting",
+        "simultaneous_coverage_of_union_error_bound",
+    ),
+    "order_statistic_quantile_rule": (
+        "finite_conformal_rank_coverage_counting",
+        "coverage_lower_bound_of_complement_error",
+    ),
     "sequential_elimination_rule": (
         "sequential_elimination_rule_finite_union_control",
         "selected_bad_event_probability_le_finite_union_budget",

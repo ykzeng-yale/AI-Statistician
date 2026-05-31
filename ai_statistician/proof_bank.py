@@ -429,6 +429,82 @@ theorem simultaneousCoverage_of_union_error_bound {Ω ι : Type*}
         expected_lemmas=("prob_compl_eq_one_sub", "tsub_le_tsub_left"),
         depends_on=("finite_union_budget_control", "coverage_lower_bound_of_complement_error"),
     ),
+    "finite_conformal_rank_coverage_counting": FormalObligation(
+        id="finite_conformal_rank_coverage_counting",
+        title="Finite conformal rank coverage counting bridge",
+        english=(
+            "For a finite set of bad ranks, if each rank event has a local "
+            "probability budget and the budgets sum to a total budget, then "
+            "the event that the observed rank lands in the bad-rank set has "
+            "probability at most the total budget. Under measurability of this "
+            "bad-rank event and a probability measure, its complement has "
+            "coverage at least one minus the total budget. This is a reusable "
+            "finite counting bridge for split conformal traces; it does not "
+            "prove exchangeability, rank uniformity, or the order-statistic "
+            "quantile theorem itself."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+theorem finiteConformalRank_coverage_counting {Ω ρ : Type*}
+    [MeasurableSpace Ω]
+    (μ : Measure Ω) [IsProbabilityMeasure μ]
+    (BadRanks : Finset ρ) (rank : Ω → ρ)
+    (α : ρ → ENNReal) (α_total : ENNReal)
+    (hBadEvent : MeasurableSet {ω | rank ω ∈ BadRanks})
+    (hRank : ∀ r ∈ BadRanks, μ {ω | rank ω = r} ≤ α r)
+    (h_total : (∑ r ∈ BadRanks, α r) ≤ α_total) :
+    1 - α_total ≤ μ ({ω | rank ω ∈ BadRanks}ᶜ) := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  have hbad : μ {ω | rank ω ∈ BadRanks} ≤ α_total := by\n"
+            "    calc\n"
+            "      μ {ω | rank ω ∈ BadRanks} ≤ μ (⋃ r ∈ BadRanks, {ω | rank ω = r}) := by\n"
+            "        apply measure_mono\n"
+            "        intro ω hω\n"
+            "        exact Set.mem_iUnion.mpr ⟨rank ω, Set.mem_iUnion.mpr ⟨hω, rfl⟩⟩\n"
+            "      _ ≤ ∑ r ∈ BadRanks, μ {ω | rank ω = r} := by\n"
+            "        exact measure_biUnion_finset_le (μ := μ) BadRanks (fun r => {ω | rank ω = r})\n"
+            "      _ ≤ ∑ r ∈ BadRanks, α r := by\n"
+            "        exact Finset.sum_le_sum (fun r hr => hRank r hr)\n"
+            "      _ ≤ α_total := h_total\n"
+            "  have hcoverage : μ ({ω | rank ω ∈ BadRanks}ᶜ) =\n"
+            "      1 - μ {ω | rank ω ∈ BadRanks} := by\n"
+            "    exact prob_compl_eq_one_sub hBadEvent\n"
+            "  rw [hcoverage]\n"
+            "  exact tsub_le_tsub_left hbad 1"
+        ),
+        tags=(
+            "probability",
+            "event",
+            "coverage",
+            "finite_sample",
+            "conformal",
+            "rank",
+            "rank_uniformity",
+            "coverage_counting",
+            "finite_sample_coverage_counting",
+            "order_statistic_quantile_rule",
+            "union_bound",
+        ),
+        expected_lemmas=(
+            "measure_mono",
+            "Set.mem_iUnion",
+            "measure_biUnion_finset_le",
+            "Finset.sum_le_sum",
+            "prob_compl_eq_one_sub",
+            "tsub_le_tsub_left",
+        ),
+        depends_on=(
+            "simultaneous_coverage_of_union_error_bound",
+            "coverage_lower_bound_of_complement_error",
+            "finite_union_budget_control",
+        ),
+    ),
     "finite_family_absolute_error_union_control": FormalObligation(
         id="finite_family_absolute_error_union_control",
         title="Finite-family simultaneous absolute-error control",

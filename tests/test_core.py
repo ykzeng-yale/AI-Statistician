@@ -964,6 +964,29 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("simultaneous_coverage", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_finite_conformal_rank_coverage_counting_uses_bad_rank_union(self) -> None:
+        obligation = get_obligation("finite_conformal_rank_coverage_counting")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(
+            obligation.depends_on,
+            (
+                "simultaneous_coverage_of_union_error_bound",
+                "coverage_lower_bound_of_complement_error",
+                "finite_union_budget_control",
+            ),
+        )
+        self.assertIn("theorem finiteConformalRank_coverage_counting", content)
+        self.assertIn("BadRanks : Finset ρ", content)
+        self.assertIn("rank : Ω → ρ", content)
+        self.assertIn("μ {ω | rank ω = r} ≤ α r", content)
+        self.assertIn("1 - α_total ≤ μ ({ω | rank ω ∈ BadRanks}ᶜ)", content)
+        self.assertIn("measure_biUnion_finset_le", content)
+        self.assertIn("prob_compl_eq_one_sub", content)
+        self.assertIn("finite_sample_coverage_counting", obligation.tags)
+        self.assertIn("rank_uniformity", obligation.tags)
+        self.assertIn("order_statistic_quantile_rule", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_finite_family_error_union_control_supports_simultaneous_bands(self) -> None:
         obligation = get_obligation("finite_family_absolute_error_union_control")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
@@ -2841,6 +2864,84 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(rows["post_selection_inference"]["priority_band"], "BRIDGE_REUSE_READY")
         self.assertEqual(rows["model_confidence_set_coverage"]["priority_band"], "BRIDGE_REUSE_READY")
         self.assertEqual(rows["sequential_elimination_rule"]["priority_band"], "BRIDGE_REUSE_READY")
+
+    def test_formalization_target_audit_maps_conformal_counting_primitives_to_verified_bridge(self) -> None:
+        run_dir = Path("runs/test_formalization_target_conformal_run")
+        out_dir = Path("runs/test_formalization_target_conformal_audit")
+        shutil.rmtree(run_dir, ignore_errors=True)
+        shutil.rmtree(out_dir, ignore_errors=True)
+        gap_dir = run_dir / "formal_gaps"
+        gap_dir.mkdir(parents=True, exist_ok=True)
+        gap_path = gap_dir / "split_conformal_finite_sample_coverage.lean"
+        primitives = (
+            "exchangeable_scores",
+            "rank_uniformity",
+            "order_statistic_quantile_rule",
+            "finite_sample_coverage_counting",
+        )
+        gap_path.write_text("FORMAL_GAP " + " ".join(primitives), encoding="utf-8")
+        (run_dir / "research_benchmark_manifest.json").write_text(
+            json.dumps({"questions": [{"question": "q_conformal", "formal": {"gaps": 1}}]}),
+            encoding="utf-8",
+        )
+        proof_obligations = (
+            "prob_measure_univ",
+            "prob_compl",
+            "coverage_lower_bound_of_complement_error",
+            "event_probability_mono",
+            "finite_union_bound",
+            "finite_union_budget_control",
+            "simultaneous_coverage_of_union_error_bound",
+            "finite_conformal_rank_coverage_counting",
+        )
+        trace = {
+            "question": {"id": "q_conformal"},
+            "problem": {"problem_class": "distribution_free_conformal_prediction"},
+            "procedures": [],
+            "knowledge": [{"id": "split_conformal_prediction"}],
+            "theorem_goals": [
+                {
+                    "id": "split_conformal_finite_sample_coverage",
+                    "title": "Split conformal finite-sample coverage",
+                    "proof_strategy": "Formalize ranks of exchangeable nonconformity scores and order-statistic quantile rule.",
+                    "required_primitives": list(primitives),
+                    "proof_obligations": list(proof_obligations),
+                },
+            ],
+            "formal_subclaims": [
+                *[
+                    {"status": "PROVED", "proof_obligation_id": obligation_id}
+                    for obligation_id in proof_obligations
+                ],
+                {
+                    "id": "gap:split_conformal_finite_sample_coverage",
+                    "status": "FORMAL_GAP",
+                    "claim_type": "theory_gap",
+                    "gap_reason": "exchangeability and order-statistic rank theorem remain library work",
+                    "artifact_path": str(gap_path),
+                    "lean_statement": gap_path.read_text(encoding="utf-8"),
+                    "formal_source_hits": [{"name": "StatInference.VdVWInnerProbability_add_outerMeasure_compl"}],
+                    "primitive_formal_source_hits": {
+                        primitive: [{"name": "StatInference.VdVWInnerProbability_add_outerMeasure_compl"}]
+                        for primitive in primitives
+                    },
+                },
+            ],
+        }
+        (run_dir / "q_conformal.json").write_text(json.dumps(trace), encoding="utf-8")
+
+        payload = audit_formalization_targets(run_dir, out_dir)
+        rows = {row["primitive"]: row for row in payload["rows"]}
+        for primitive in (
+            "finite_sample_coverage_counting",
+            "rank_uniformity",
+            "order_statistic_quantile_rule",
+        ):
+            self.assertIn(
+                "finite_conformal_rank_coverage_counting",
+                rows[primitive]["bridge_candidate_obligations"],
+            )
+            self.assertEqual(rows[primitive]["priority_band"], "BRIDGE_REUSE_READY")
 
     def test_formal_gap_task_export_writes_lean_task_jsonl(self) -> None:
         async def run():
