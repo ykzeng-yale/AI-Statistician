@@ -362,6 +362,7 @@ _PRIMITIVE_PROOF_BRIDGE_HINTS: dict[str, tuple[str, ...]] = {
         "event_indicator_expectation",
     ),
     "conditional_expectation_product_step": (
+        "martingale_ae_eq_condexp_limit_process",
         "independent_event_indicator_condExp_filtration_eq_prob",
         "independent_real_condExp_natural_eq_mean",
         "independent_event_indicator_product_lintegral_eq_mul",
@@ -375,6 +376,7 @@ _PRIMITIVE_PROOF_BRIDGE_HINTS: dict[str, tuple[str, ...]] = {
         "event_indicator_product_integral_eq_inter",
     ),
     "martingale_definition": (
+        "martingale_ae_eq_condexp_limit_process",
         "independent_event_indicator_condExp_filtration_eq_prob",
         "independent_real_condExp_natural_eq_mean",
         "independent_event_indicator_product_lintegral_eq_mul",
@@ -382,6 +384,7 @@ _PRIMITIVE_PROOF_BRIDGE_HINTS: dict[str, tuple[str, ...]] = {
         "event_indicator_expectation",
     ),
     "survival_martingale_clt": (
+        "martingale_ae_eq_condexp_limit_process",
         "submartingale_l1_tendsto_limit_process",
         "submartingale_ae_tendsto_limit_process",
         "submartingale_expected_stopped_value_mono",
@@ -390,6 +393,7 @@ _PRIMITIVE_PROOF_BRIDGE_HINTS: dict[str, tuple[str, ...]] = {
         "iid_real_clt_tendsto_distribution",
     ),
     "nelson_aalen_martingale_decomposition": (
+        "martingale_ae_eq_condexp_limit_process",
         "submartingale_l1_tendsto_limit_process",
         "submartingale_ae_tendsto_limit_process",
         "submartingale_expected_stopped_value_mono",
@@ -397,6 +401,7 @@ _PRIMITIVE_PROOF_BRIDGE_HINTS: dict[str, tuple[str, ...]] = {
         "event_indicator_expectation",
     ),
     "greenwood_variance_consistency": (
+        "martingale_ae_eq_condexp_limit_process",
         "submartingale_l1_tendsto_limit_process",
         "submartingale_ae_tendsto_limit_process",
         "finite_sample_mean_variance_indep",

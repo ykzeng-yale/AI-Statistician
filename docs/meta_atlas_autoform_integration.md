@@ -173,7 +173,7 @@ python3 -m ai_statistician.cli research-system-audit \
 Result:
 
 ```text
-proof_bank_kernel=85/85
+proof_bank_kernel=86/86
 proof_verifier=local.lake_env_lean
 proof_strength=local_lean_kernel_batch
 system_all_gates_passed=True
@@ -182,7 +182,7 @@ sources=23/23
 frontier_supported=60/60
 frontier_smoke=23/23
 formalized_gaps=20/20
-proof_bank_expansion_bridge_ready=52/97
+proof_bank_expansion_bridge_ready=53/97
 formalization_targets_with_proof_bank_bridge=74
 missing_primitives=97
 ```
@@ -196,7 +196,7 @@ autoform_harness_audit: ready_for_integration=True
 source_inventory: 23/23 all_ok=True
 ```
 
-The same audit now reports `proof_bank_expansion_bridge_ready=52/97`.
+The same audit now reports `proof_bank_expansion_bridge_ready=53/97`.
 `independent_null_pvalues` is backed by the verified
 `independent_null_event_family_inter_probability` and
 `independent_null_event_family_compl_inter_probability` obligations. The
@@ -310,3 +310,12 @@ Mathlib's `Submartingale.tendsto_eLpNorm_one_limitProcess`, giving the same
 survival and martingale-convergence targets a stronger norm-convergence
 primitive while preserving the martingale CLT and product-limit delta-method
 steps as formal gaps.
+The conditional-expectation representation bridge
+`martingale_ae_eq_condexp_limit_process` wraps Mathlib's
+`Martingale.ae_eq_condExp_limitProcess`, raising
+`proof_bank_expansion_bridge_ready` to `53/97`. It gives
+`martingale_definition`, `conditional_expectation_product_step`,
+`survival_martingale_clt`, `nelson_aalen_martingale_decomposition`, and
+`greenwood_variance_consistency` a verified limit-process conditional-
+expectation primitive before attempting the remaining product-process and CLT
+arguments.

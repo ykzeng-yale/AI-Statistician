@@ -3617,6 +3617,58 @@ theorem submartingale_tendsto_eLpNorm_one_limitProcess_bridge {Ω : Type*}
         expected_lemmas=("Submartingale.tendsto_eLpNorm_one_limitProcess",),
         depends_on=("submartingale_ae_tendsto_limit_process",),
     ),
+    "martingale_ae_eq_condexp_limit_process": FormalObligation(
+        id="martingale_ae_eq_condexp_limit_process",
+        title="Martingale values are conditional expectations of the limit process",
+        english=(
+            "A uniformly integrable real-valued martingale is almost everywhere "
+            "equal at each time n to the conditional expectation of its "
+            "filtration limit process given the nth sigma-field. This wraps "
+            "the representation part of Mathlib's L1 martingale convergence "
+            "theorem, giving martingale-definition and survival-theory "
+            "roadmaps a direct conditional-expectation bridge. It is still not "
+            "a martingale CLT, Greenwood variance consistency, or a "
+            "product-limit delta-method proof."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+
+open TopologicalSpace Filter MeasureTheory.Filtration
+open scoped NNReal ENNReal MeasureTheory ProbabilityTheory Topology
+open MeasureTheory
+
+theorem martingale_ae_eq_condExp_limitProcess_bridge {Ω : Type*}
+    {m0 : MeasurableSpace Ω} {μ : Measure Ω} {𝒢 : Filtration ℕ m0}
+    {f : ℕ → Ω → ℝ} [IsFiniteMeasure μ] [SigmaFiniteFiltration μ 𝒢]
+    (hf : Martingale f 𝒢 μ) (hunif : UniformIntegrable f 1 μ) (n : ℕ) :
+    f n =ᵐ[μ] μ[𝒢.limitProcess f μ | 𝒢 n] := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  exact hf.ae_eq_condExp_limitProcess hunif n"
+        ),
+        tags=(
+            "probability",
+            "martingale",
+            "convergence",
+            "conditional_expectation",
+            "l1_convergence",
+            "uniform_integrability",
+            "limit_process",
+            "filtration",
+            "survival",
+            "kaplan_meier",
+            "nelson_aalen",
+            "survival_martingale_clt",
+            "greenwood_variance_consistency",
+            "conditional_expectation_product_step",
+            "martingale_definition",
+        ),
+        expected_lemmas=("Martingale.ae_eq_condExp_limitProcess",),
+        depends_on=("submartingale_l1_tendsto_limit_process",),
+    ),
     "event_probability_mono": FormalObligation(
         id="event_probability_mono",
         title="Event probability monotonicity",
