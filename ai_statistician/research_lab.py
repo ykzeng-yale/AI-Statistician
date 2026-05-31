@@ -2385,6 +2385,13 @@ class TheoryPlanner:
                         "product_limit_delta_method",
                         "greenwood_variance_consistency",
                     ),
+                    proof_obligations=(
+                        "event_indicator_expectation",
+                        "prob_compl",
+                        "submartingale_ae_tendsto_limit_process",
+                        "submartingale_expected_stopped_value_mono",
+                        "submartingale_stopped_process",
+                    ),
                 ),
             ]
             procedures = [
@@ -4774,6 +4781,9 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "event_indicator_expectation",
         "prob_compl",
         "markov_inequality",
+        "submartingale_ae_tendsto_limit_process",
+        "submartingale_expected_stopped_value_mono",
+        "submartingale_stopped_process",
     ),
     "robust_mean_inference": (
         "mean2_estimator_expectation",

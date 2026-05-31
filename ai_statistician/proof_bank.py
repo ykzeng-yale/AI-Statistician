@@ -3514,6 +3514,56 @@ theorem submartingale_doob_maximal_probability_bound_bridge {Ω : Type*} {m0 : M
         expected_lemmas=("maximal_ineq", "le_trans", "ENNReal.mul_le_mul_iff_right"),
         depends_on=("submartingale_doob_maximal_budget",),
     ),
+    "submartingale_ae_tendsto_limit_process": FormalObligation(
+        id="submartingale_ae_tendsto_limit_process",
+        title="Almost-everywhere convergence of an L1-bounded submartingale",
+        english=(
+            "An L1-bounded real-valued submartingale converges almost "
+            "everywhere to Mathlib's filtration limit process. This wraps "
+            "Mathlib's martingale convergence theorem and gives survival, "
+            "Nelson-Aalen/Kaplan-Meier, backward-martingale, and sequential "
+            "theorem skeletons a real convergence bridge. It is still not a "
+            "martingale CLT or a product-limit delta-method proof."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+
+open TopologicalSpace Filter MeasureTheory.Filtration
+open scoped NNReal ENNReal MeasureTheory ProbabilityTheory Topology
+open MeasureTheory
+
+theorem submartingale_ae_tendsto_limitProcess_bridge {Ω : Type*} {m0 : MeasurableSpace Ω}
+    {μ : Measure Ω} {𝒢 : Filtration ℕ m0} {f : ℕ → Ω → ℝ} {R : ℝ≥0}
+    [IsFiniteMeasure μ] [SigmaFiniteFiltration μ 𝒢]
+    (hf : Submartingale f 𝒢 μ)
+    (hbdd : ∀ n, eLpNorm (f n) 1 μ ≤ R) :
+    ∀ᵐ ω ∂μ, Tendsto (fun n => f n ω) atTop (𝓝 (𝒢.limitProcess f μ ω)) := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  exact hf.ae_tendsto_limitProcess hbdd"
+        ),
+        tags=(
+            "probability",
+            "martingale",
+            "submartingale",
+            "convergence",
+            "almost_everywhere",
+            "limit_process",
+            "filtration",
+            "survival",
+            "kaplan_meier",
+            "nelson_aalen",
+            "survival_martingale_clt",
+            "backward_martingale",
+            "sequential",
+            "anytime",
+        ),
+        expected_lemmas=("Submartingale.ae_tendsto_limitProcess",),
+        depends_on=("submartingale_expected_stopped_value_mono",),
+    ),
     "event_probability_mono": FormalObligation(
         id="event_probability_mono",
         title="Event probability monotonicity",

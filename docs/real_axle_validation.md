@@ -13,15 +13,15 @@ python3 -m ai_statistician.cli proof-audit \
 Result:
 
 ```text
-verified=83/83
-kernel=83/83
+verified=84/84
+kernel=84/84
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=c05e02b0a8ce4e77cae26aa377ddf2b47deb072d5b330c9ffaf5fe5a4c00e054
+proof_bank_fingerprint=ea1f781ca341cc42848acf387bf223c8ce243ee0b33956a5261b0d97ab45d045
 ```
 
 This is the current evidence that the registered proof bank is not only
-mock-checked: all 83 registered Mathlib-backed obligations were accepted by a
+mock-checked: all 84 registered Mathlib-backed obligations were accepted by a
 real Lean kernel check through the local Lake/Mathlib runtime. AXLE remains the
 preferred remote verifier for release bundles when its Python package and API
 runtime are available; the local Lean backend is the offline kernel-equivalent
@@ -247,6 +247,14 @@ post-Doob cancellation step. It assumes the threshold is nonzero and proves
 This closes the algebraic division step toward Ville-style type-I control.
 The remaining formal gaps are the e-process construction and the proof that
 the terminal budget assumption holds for the constructed process.
+
+The martingale-convergence bridge `submartingale_ae_tendsto_limit_process`
+wraps Mathlib's `Submartingale.ae_tendsto_limitProcess`. It proves that an
+L1-bounded real-valued submartingale converges almost everywhere to the
+filtration `limitProcess`. The right-censored survival/Kaplan-Meier roadmap now
+uses it as a kernel-checked convergence primitive for Nelson-Aalen and survival
+martingale skeletons, while still leaving the martingale CLT, Greenwood
+variance consistency, and product-limit delta method as formal gaps.
 
 The robust-mean block now includes `median_of_means_failure_union_control`, a
 finite block-event union bridge. It proves that a median-of-means failure event

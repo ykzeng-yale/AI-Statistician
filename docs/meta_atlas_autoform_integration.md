@@ -173,17 +173,17 @@ python3 -m ai_statistician.cli research-system-audit \
 Result:
 
 ```text
-proof_bank_kernel=83/83
+proof_bank_kernel=84/84
 proof_verifier=local.lake_env_lean
 proof_strength=local_lean_kernel_batch
 system_all_gates_passed=True
-system_elapsed_latest=146.2s
+system_elapsed_latest=109.4s
 sources=23/23
 frontier_supported=60/60
 frontier_smoke=23/23
 formalized_gaps=20/20
-proof_bank_expansion_bridge_ready=49/97
-formalization_targets_with_proof_bank_bridge=70
+proof_bank_expansion_bridge_ready=52/97
+formalization_targets_with_proof_bank_bridge=74
 missing_primitives=97
 ```
 
@@ -196,7 +196,7 @@ autoform_harness_audit: ready_for_integration=True
 source_inventory: 23/23 all_ok=True
 ```
 
-The same audit now reports `proof_bank_expansion_bridge_ready=49/97`.
+The same audit now reports `proof_bank_expansion_bridge_ready=52/97`.
 `independent_null_pvalues` is backed by the verified
 `independent_null_event_family_inter_probability` and
 `independent_null_event_family_compl_inter_probability` obligations. The
@@ -277,8 +277,8 @@ The same asymptotic lane now also includes
 `tendsto_in_distribution_continuous_mapping`, a wrapper around Mathlib's
 continuous mapping theorem, and `slutsky_add_negligible_zero_real`, a wrapper
 around Mathlib's real-valued Slutsky/add-negligible-remainder theorem. Together
-they raise `proof_bank_expansion_bridge_ready` to `49/97` and
-`formalization_targets_with_proof_bank_bridge` to `70`, giving Autoform targets
+they raise `proof_bank_expansion_bridge_ready` to `52/97` and
+`formalization_targets_with_proof_bank_bridge` to `74`, giving Autoform targets
 for `slutsky_theorem`, `matrix_inverse_continuous_mapping`,
 `tail_quantile_continuous_mapping`, `product_limit_delta_method`, and
 `wald_interval_slutsky` a kernel-checked asymptotic transport bridge.
@@ -299,3 +299,9 @@ The probability-bound bridge `submartingale_doob_maximal_probability_bound`
 then cancels the nonzero threshold using Mathlib's
 `ENNReal.mul_le_mul_iff_right`, so Autoform targets no longer need to spend
 search budget on the post-Doob algebraic division step.
+The martingale-convergence bridge `submartingale_ae_tendsto_limit_process`
+wraps Mathlib's `Submartingale.ae_tendsto_limitProcess` and is now ranked for
+`survival_martingale_clt`, `nelson_aalen_martingale_decomposition`, and
+`greenwood_variance_consistency`. This gives survival/Kaplan-Meier Autoform
+targets a real kernel-checked convergence primitive before attempting the
+martingale CLT, Greenwood consistency, or product-limit delta method.

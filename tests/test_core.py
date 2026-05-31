@@ -1278,6 +1278,20 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("exact_mod_cast hε", content)
         self.assertNotIn("by sorry", content)
 
+    def test_submartingale_ae_tendsto_limit_process_supports_survival_gap(self) -> None:
+        obligation = get_obligation("submartingale_ae_tendsto_limit_process")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("submartingale_expected_stopped_value_mono",))
+        self.assertIn("submartingale", obligation.tags)
+        self.assertIn("convergence", obligation.tags)
+        self.assertIn("survival_martingale_clt", obligation.tags)
+        self.assertIn("theorem submartingale_ae_tendsto_limitProcess_bridge", content)
+        self.assertIn("Submartingale f 𝒢 μ", content)
+        self.assertIn("eLpNorm (f n) 1 μ ≤ R", content)
+        self.assertIn("∀ᵐ ω ∂μ, Tendsto", content)
+        self.assertIn("hf.ae_tendsto_limitProcess hbdd", content)
+        self.assertNotIn("by sorry", content)
+
     def test_affine_estimator_obligation_supports_shrinkage_expectation(self) -> None:
         obligation = get_obligation("affine_estimator_expectation")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
@@ -3017,6 +3031,16 @@ class SystemTests(unittest.TestCase):
             "wald_interval_miscoverage_iff_abs_error_gt",
             hetero_goals["hc1_asymptotic_normality"]["proof_obligations"],
         )
+        survival_trace = json.loads(Path("runs/test_research_benchmark/right_censored_survival_km.json").read_text())
+        survival_goals = {row["id"]: row for row in survival_trace["theorem_goals"]}
+        self.assertIn(
+            "submartingale_ae_tendsto_limit_process",
+            survival_goals["kaplan_meier_fixed_time_asymptotic_normality"]["proof_obligations"],
+        )
+        self.assertIn(
+            "submartingale_expected_stopped_value_mono",
+            survival_goals["kaplan_meier_fixed_time_asymptotic_normality"]["proof_obligations"],
+        )
         sequential_trace = json.loads(Path("runs/test_research_benchmark/sequential_anytime_bernoulli.json").read_text())
         sequential_goals = {row["id"]: row for row in sequential_trace["theorem_goals"]}
         self.assertIn(
@@ -4135,6 +4159,78 @@ class SystemTests(unittest.TestCase):
                 "tendsto_in_distribution_continuous_mapping",
                 rows[primitive]["bridge_candidate_obligations"],
             )
+
+    def test_formalization_target_audit_maps_survival_martingale_primitives_to_convergence_bridge(self) -> None:
+        run_dir = Path("runs/test_formalization_target_survival_martingale_run")
+        out_dir = Path("runs/test_formalization_target_survival_martingale_audit")
+        shutil.rmtree(run_dir, ignore_errors=True)
+        shutil.rmtree(out_dir, ignore_errors=True)
+        gap_dir = run_dir / "formal_gaps"
+        gap_dir.mkdir(parents=True, exist_ok=True)
+        gap_path = gap_dir / "kaplan_meier_fixed_time_asymptotic_normality.lean"
+        primitives = (
+            "nelson_aalen_martingale_decomposition",
+            "survival_martingale_clt",
+            "greenwood_variance_consistency",
+        )
+        gap_path.write_text("FORMAL_GAP " + " ".join(primitives), encoding="utf-8")
+        (run_dir / "research_benchmark_manifest.json").write_text(
+            json.dumps({"questions": [{"question": "q_survival", "formal": {"gaps": 1}}]}),
+            encoding="utf-8",
+        )
+        proof_obligations = (
+            "event_indicator_expectation",
+            "submartingale_ae_tendsto_limit_process",
+            "submartingale_expected_stopped_value_mono",
+        )
+        trace = {
+            "question": {"id": "q_survival"},
+            "problem": {"problem_class": "right_censored_survival_inference"},
+            "procedures": [],
+            "knowledge": [{"id": "kaplan_meier_fixed_time"}],
+            "theorem_goals": [
+                {
+                    "id": "kaplan_meier_fixed_time_asymptotic_normality",
+                    "title": "Kaplan-Meier fixed-time asymptotic normality",
+                    "proof_strategy": "Use Nelson-Aalen martingale decomposition and martingale convergence.",
+                    "required_primitives": list(primitives),
+                    "proof_obligations": list(proof_obligations),
+                },
+            ],
+            "formal_subclaims": [
+                *[
+                    {"status": "PROVED", "proof_obligation_id": obligation_id}
+                    for obligation_id in proof_obligations
+                ],
+                {
+                    "id": "gap:kaplan_meier_fixed_time_asymptotic_normality",
+                    "status": "FORMAL_GAP",
+                    "claim_type": "theory_gap",
+                    "gap_reason": "full survival martingale CLT still requires library work",
+                    "artifact_path": str(gap_path),
+                    "lean_statement": gap_path.read_text(encoding="utf-8"),
+                    "formal_source_hits": [{"name": "Submartingale.ae_tendsto_limitProcess"}],
+                    "primitive_formal_source_hits": {
+                        primitive: [{"name": "Submartingale.ae_tendsto_limitProcess"}]
+                        for primitive in primitives
+                    },
+                },
+            ],
+        }
+        (run_dir / "q_survival.json").write_text(json.dumps(trace), encoding="utf-8")
+
+        payload = audit_formalization_targets(run_dir, out_dir)
+        rows = {row["primitive"]: row for row in payload["rows"]}
+        for primitive in ("survival_martingale_clt", "nelson_aalen_martingale_decomposition"):
+            self.assertIn(
+                "submartingale_ae_tendsto_limit_process",
+                rows[primitive]["bridge_candidate_obligations"],
+            )
+            self.assertEqual(rows[primitive]["priority_band"], "BRIDGE_REUSE_READY")
+        self.assertIn(
+            "submartingale_ae_tendsto_limit_process",
+            rows["greenwood_variance_consistency"]["bridge_candidate_obligations"],
+        )
 
     def test_formal_gap_task_export_writes_lean_task_jsonl(self) -> None:
         async def run():

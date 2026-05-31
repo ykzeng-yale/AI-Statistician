@@ -82,7 +82,7 @@ sandboxed code patching, or simulator construction still stop honestly with
 repair proposal, unless a stronger handler is registered.
 
 Current release-style local-kernel evidence for this bounded loop:
-`research-system-audit --local-lean --runs 100` passes all gates with `83/83`
+`research-system-audit --local-lean --runs 100` passes all gates with `84/84`
 kernel-verified proof obligations, `6` kernel-verified live proof-bridge repair
 artifacts, `6` resulting theory revisions, and a `12/12` kernel-verified
 proof-search audit sample. The status remains `FORMAL_GAPS_BRIDGED`, which is
@@ -1110,6 +1110,12 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   `μ {sup f ≥ ε} ≤ α`. It uses `ENNReal.mul_le_mul_iff_right`, so the
   remaining Ville/e-process gaps are now the e-process construction and
   terminal-budget proof, not the post-Doob algebra.
+- `submartingale_ae_tendsto_limit_process`: almost-everywhere convergence of
+  an L1-bounded real-valued submartingale to Mathlib's filtration
+  `limitProcess`, wrapped around `Submartingale.ae_tendsto_limitProcess`.
+  This is now attached to survival/Kaplan-Meier, Nelson-Aalen, backward-
+  martingale, and sequential theorem skeletons as a real convergence bridge;
+  it is not a martingale CLT or product-limit delta-method proof.
 - `event_probability_mono`: event monotonicity `A ⊆ B -> μ(A) ≤ μ(B)`,
   proved directly from Mathlib's `measure_mono`; this is the reusable
   bad-event-containment step used before applying union or tail bounds.
@@ -1469,11 +1475,11 @@ python3 -m ai_statistician.cli proof-audit \
 Current full-bank local Lean evidence (2026-05-31):
 
 ```text
-verified=83/83
-kernel=83/83
+verified=84/84
+kernel=84/84
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=c05e02b0a8ce4e77cae26aa377ddf2b47deb072d5b330c9ffaf5fe5a4c00e054
+proof_bank_fingerprint=ea1f781ca341cc42848acf387bf223c8ce243ee0b33956a5261b0d97ab45d045
 ```
 
 Run `doctor` in the same Python runtime first. It reports
