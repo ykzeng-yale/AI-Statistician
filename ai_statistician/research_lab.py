@@ -8108,6 +8108,88 @@ def apply_theory_revisions(
         artifact = raw.get("repair_artifact") if isinstance(raw.get("repair_artifact"), dict) else raw
         if not isinstance(artifact, dict):
             continue
+        if artifact.get("revision_kind") == "proof_bridge_integration":
+            target_goal_id = _safe_identifier(str(artifact.get("target_theorem_goal", "")))
+            proof_obligation_id = _safe_identifier(str(artifact.get("proof_obligation_id", "")))
+            if not target_goal_id or not proof_obligation_id:
+                continue
+            target_procedure = str(raw.get("target_procedure") or artifact.get("target_procedure") or "")
+            target_index = _procedure_index(revised_procedures, target_procedure)
+            proof_strategy_note = (
+                "\n\nLive proof-bank bridge integrated: "
+                f"{proof_obligation_id}. This is a verified subclaim dependency, "
+                "not a proof of the full frontier theorem."
+            )
+            updated_goal = False
+            for idx, goal in enumerate(revised_goals):
+                if goal.id != target_goal_id:
+                    continue
+                revised_goals[idx] = replace(
+                    goal,
+                    proof_strategy=goal.proof_strategy + proof_strategy_note,
+                    status="FORMAL_GAP",
+                    proof_obligations=tuple(
+                        dict.fromkeys((*goal.proof_obligations, proof_obligation_id))
+                    ),
+                )
+                updated_goal = True
+                break
+            if not updated_goal:
+                revised_goals.append(
+                    TheoremGoal(
+                        id=target_goal_id,
+                        title=f"Live proof-bridge goal: {target_goal_id}",
+                        informal_statement=(
+                            "Goal preserved as a formal gap after a kernel-verified proof-bank "
+                            f"bridge ({proof_obligation_id}) was attached as reusable support."
+                        ),
+                        proof_strategy=(
+                            "Use the attached verified bridge as a dependency while continuing "
+                            "to formalize the remaining primitives required for the full theorem."
+                        ),
+                        status="FORMAL_GAP",
+                        required_primitives=tuple(
+                            _safe_identifier(str(row))
+                            for row in artifact.get("bridge_for_primitives", []) or []
+                            if _safe_identifier(str(row))
+                        ),
+                        proof_obligations=(proof_obligation_id,),
+                    )
+                )
+                existing_goal_ids.add(target_goal_id)
+            if target_index is not None:
+                current = revised_procedures[target_index]
+                revised_procedures[target_index] = replace(
+                    current,
+                    informal_derivation=(
+                        current.informal_derivation
+                        + "\n\nLive proof-bank bridge attached to theorem roadmap: "
+                        + proof_obligation_id
+                    ),
+                    theorem_goals=tuple(dict.fromkeys((*current.theorem_goals, target_goal_id))),
+                    limitations=tuple(
+                        dict.fromkeys(
+                            (
+                                *current.limitations,
+                                "kernel-verified proof bridge attached; full frontier theorem remains a FORMAL_GAP",
+                            )
+                        )
+                    ),
+                )
+            applied.append(
+                {
+                    "revision_kind": "proof_bridge_integration",
+                    "target_procedure": target_procedure,
+                    "target_theorem_goal": target_goal_id,
+                    "proof_obligation_id": proof_obligation_id,
+                    "algorithm_unchanged": True,
+                    "full_theorem_proved": False,
+                    "new_theorem_goals": [] if updated_goal else [target_goal_id],
+                    "source_artifact_id": str(raw.get("artifact_id", "")),
+                    "failure_class": str(artifact.get("failure_class", "")),
+                }
+            )
+            continue
         target_procedure = str(raw.get("target_procedure") or artifact.get("target_procedure") or "")
         target_index = _procedure_index(revised_procedures, target_procedure)
         if target_index is None:

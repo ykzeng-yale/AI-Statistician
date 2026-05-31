@@ -49,8 +49,12 @@ theory/procedure failures can be converted into scoped revision artifacts. There
 is a narrow default `DefaultProofEngineer`: for a `FORMAL_GAP`, it can select
 an already registered proof-bank bridge, verify that bridge with the configured
 verifier, and emit a contract-complete repair artifact for downstream theory
-plan promotion. This is not new theorem discovery; it is a safe bridge-promotion
-step that keeps the full frontier gap explicit. There is also a conservative
+plan promotion. When the bridge is kernel verified, the coordinator now requests
+a bounded rerun and carries a `proof_bridge_integration` theory revision into
+the next round. `AIStatisticalTheoryLab` applies that revision by attaching the
+verified proof obligation to the matching theorem goal and procedure roadmap.
+The theorem status remains `FORMAL_GAP`; the bridge is a verified dependency,
+not a proof of the full frontier theorem. There is also a conservative
 `DefaultTheoryDeveloper`: for a `THEORY_OR_PROCEDURE_ISSUE`, it turns failed
 simulation diagnostics such as coverage or bias into a concrete revised
 procedure/theorem/assumption artifact. This is not yet free-form theory
@@ -76,6 +80,14 @@ AXLE-verifiable proof fields and cannot request a rerun unless
 sandboxed code patching, or simulator construction still stop honestly with
 `REQUIRES_PROOF_ENGINEER` or `REQUIRES_SIMULATOR_EXTENSION`, or with a scoped
 repair proposal, unless a stronger handler is registered.
+
+Current release-style local-kernel evidence for this bounded loop:
+`research-system-audit --local-lean --runs 100` passes all gates with `79/79`
+kernel-verified proof obligations, `6` kernel-verified live proof-bridge repair
+artifacts, and `6` resulting theory revisions. The status remains
+`FORMAL_GAPS_BRIDGED`, which is intentional: proof bridges are integrated into
+the theory roadmap while the remaining asymptotic/frontier primitives stay
+explicitly open.
 
 `StatisticalQuestion` can come from the built-in registry or from JSON. External
 questions may name a supported `dgp_family` and `estimator_family` explicitly,

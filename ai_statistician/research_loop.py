@@ -106,7 +106,7 @@ class ResearchLoopCoordinator:
             final_report = report
             agenda = _agenda_from_report(report)
             actions = [await self._execute_agenda_item(item, report) for item in agenda.get("items", [])]
-            theory_revisions.extend(_theory_revisions_from_actions(actions))
+            theory_revisions.extend(_theory_revisions_from_actions(actions, report))
             round_summary = _round_summary(round_index, n_runs, report, actions)
             rounds.append(round_summary)
 
@@ -203,6 +203,15 @@ class ResearchLoopCoordinator:
                     base=base,
                     handler_name="DefaultProofEngineer",
                 )
+                if (
+                    default_action.get("execution_status") == "EXECUTED_PROOF_BANK_BRIDGE_REPAIR"
+                    and default_action.get("repair_contract_ok") is True
+                    and (
+                        default_action.get("kernel_verified") is True
+                        or default_action.get("repair_artifact", {}).get("kernel_verified") is True
+                    )
+                ):
+                    default_action["rerun_requested"] = True
                 default_action.setdefault(
                     "repair_task",
                     _repair_task(
@@ -719,28 +728,91 @@ def _repair_tasks_from_results(results: list[dict[str, Any]]) -> list[dict[str, 
     return tasks
 
 
-def _theory_revisions_from_actions(actions: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _theory_revisions_from_actions(
+    actions: list[dict[str, Any]],
+    report: ResearchReport | None = None,
+) -> list[dict[str, Any]]:
     revisions: list[dict[str, Any]] = []
     for action in actions:
-        if action.get("live_repair_task_type") != "theory_revision_from_simulation_failure":
-            continue
         if action.get("repair_contract_ok") is not True:
             continue
         artifact = action.get("repair_artifact")
         if not isinstance(artifact, dict):
             continue
-        revisions.append(
-            {
-                "artifact_id": "theory_revision:"
-                f"{stable_hash([action.get('id'), artifact])[:16]}",
-                "source_action_id": str(action.get("id", "")),
-                "target_procedure": artifact.get("target_procedure") or action.get("target_procedure", ""),
-                "repair_artifact": artifact,
-                "live_repair_handler": str(action.get("live_repair_handler", "")),
-                "execution_status": str(action.get("execution_status", "")),
-            }
-        )
+        task_type = action.get("live_repair_task_type")
+        if task_type == "theory_revision_from_simulation_failure":
+            revisions.append(
+                {
+                    "artifact_id": "theory_revision:"
+                    f"{stable_hash([action.get('id'), artifact])[:16]}",
+                    "source_action_id": str(action.get("id", "")),
+                    "target_procedure": artifact.get("target_procedure") or action.get("target_procedure", ""),
+                    "repair_artifact": artifact,
+                    "live_repair_handler": str(action.get("live_repair_handler", "")),
+                    "execution_status": str(action.get("execution_status", "")),
+                }
+            )
+            continue
+        if task_type == "proof_bank_expansion_from_formal_gap":
+            revision = _proof_bridge_theory_revision_from_action(action, artifact, report)
+            if revision is not None:
+                revisions.append(revision)
     return revisions
+
+
+def _proof_bridge_theory_revision_from_action(
+    action: dict[str, Any],
+    artifact: dict[str, Any],
+    report: ResearchReport | None,
+) -> dict[str, Any] | None:
+    if action.get("execution_status") != "EXECUTED_PROOF_BANK_BRIDGE_REPAIR":
+        return None
+    if artifact.get("kernel_verified") is not True and action.get("kernel_verified") is not True:
+        return None
+    proof_obligation_id = str(artifact.get("proof_obligation_id", ""))
+    if not proof_obligation_id:
+        return None
+    target_theorem_goal = str(artifact.get("target_theorem_goal", ""))
+    if not target_theorem_goal:
+        reuse_targets = artifact.get("reuse_targets", []) or []
+        target_theorem_goal = str(reuse_targets[0]) if reuse_targets else ""
+    if not target_theorem_goal:
+        return None
+    target_procedure = _procedure_for_theorem_goal(report, target_theorem_goal)
+    bridge_artifact = {
+        "revision_kind": "proof_bridge_integration",
+        "target_procedure": target_procedure,
+        "target_theorem_goal": target_theorem_goal,
+        "proof_obligation_id": proof_obligation_id,
+        "bridge_for_primitives": list(artifact.get("bridge_for_primitives", []) or []),
+        "next_formal_obligations": [proof_obligation_id],
+        "assumption_delta": [],
+        "failure_class": "formal_gap_bridge_verified",
+        "expected_simulation_delta": (
+            "No algorithmic simulation delta is claimed. This revision only wires a "
+            "kernel-verified proof-bank bridge into the theorem roadmap while preserving "
+            "the remaining frontier formal gap."
+        ),
+        "full_theorem_proved": False,
+    }
+    return {
+        "artifact_id": "theory_revision:proof_bridge:"
+        f"{stable_hash([action.get('id'), bridge_artifact])[:16]}",
+        "source_action_id": str(action.get("id", "")),
+        "target_procedure": target_procedure,
+        "repair_artifact": bridge_artifact,
+        "live_repair_handler": str(action.get("live_repair_handler", "")),
+        "execution_status": str(action.get("execution_status", "")),
+    }
+
+
+def _procedure_for_theorem_goal(report: ResearchReport | None, target_theorem_goal: str) -> str:
+    if report is None:
+        return ""
+    for procedure in report.procedures:
+        if target_theorem_goal in procedure.theorem_goals:
+            return procedure.id
+    return report.procedures[0].id if len(report.procedures) == 1 else ""
 
 
 def _live_repair_artifacts_from_results(results: list[dict[str, Any]]) -> list[dict[str, Any]]:

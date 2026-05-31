@@ -4891,22 +4891,67 @@ class SystemTests(unittest.TestCase):
             status="RESEARCH_TRACE_READY_WITH_FORMAL_GAPS",
         )
 
+        second = ResearchReport(
+            question=question,
+            problem=problem,
+            procedures=procedure,
+            knowledge=[],
+            paper_sources=[],
+            formal_subclaims=[gap],
+            simulations=[],
+            theorem_goals=theorem_goal,
+            theory_plan={
+                "next_iteration_agenda": {
+                    "items": [
+                        {
+                            "id": "monitor:proof_bridge",
+                            "owner_agent": "research_coordinator",
+                            "trigger": "NO_BLOCKING_GAPS_OR_FAILED_SIMULATIONS",
+                            "action": "archive_trace_or_expand_benchmark_stress_tests",
+                            "evidence": "proof bridge revision was available for the next round",
+                        }
+                    ]
+                }
+            },
+            status="RESEARCH_TRACE_READY_WITH_FORMAL_GAPS",
+        )
+        reports = [report, second]
+
         class FakeLab:
+            def __init__(self, report):
+                self.report = report
+
             async def run(self, question):
-                return report
+                return self.report
+
+        class KernelVerifiedMockProofVerifier(MockProofVerifier):
+            async def verify(self, obligation, proof_body, retrieval_hits):
+                check = await super().verify(obligation, proof_body, retrieval_hits)
+                return ProofCheck(
+                    obligation_id=check.obligation_id,
+                    ok=check.ok,
+                    proof_body=check.proof_body,
+                    verifier="kernel-verified-mock",
+                    verification_strength="mock_kernel_verified_for_loop_routing",
+                    kernel_verified=check.ok,
+                    elapsed_ms=check.elapsed_ms,
+                    errors=check.errors,
+                    retrieval_hits=check.retrieval_hits,
+                )
 
         result = asyncio.run(
             ResearchLoopCoordinator(
-                proof_verifier=MockProofVerifier(),
+                proof_verifier=KernelVerifiedMockProofVerifier(),
                 n_runs=25,
                 seed=17,
-                lab_factory=lambda _n, _s: FakeLab(),
+                lab_factory=lambda _n, _s: FakeLab(reports.pop(0)),
             ).iterate(
                 question,
                 max_rounds=2,
             )
         )
-        self.assertEqual(result["status"], "FORMAL_GAPS_BRIDGED")
+        self.assertEqual(result["status"], "CONVERGED_MONITOR_READY")
+        self.assertEqual(result["n_theory_revisions"], 1)
         self.assertTrue(result["honesty_boundary"]["executes_default_proof_engineer_bridge_handler"])
         action = result["rounds"][0]["actions"][0]
         self.assertEqual(action["execution_status"], "EXECUTED_PROOF_BANK_BRIDGE_REPAIR")
@@ -4916,8 +4961,51 @@ class SystemTests(unittest.TestCase):
             "aipw_score_expectation_target_of_zero_aug",
         )
         self.assertIn("lean_statement", action["repair_artifact"])
-        self.assertFalse(action["rerun_requested"])
+        self.assertTrue(action["rerun_requested"])
         self.assertEqual(action["repair_task"]["task_type"], "proof_bank_expansion_from_formal_gap")
+        bridge_revision = result["theory_revisions"][0]["repair_artifact"]
+        self.assertEqual(bridge_revision["revision_kind"], "proof_bridge_integration")
+        self.assertFalse(bridge_revision["full_theorem_proved"])
+        self.assertEqual(result["rounds"][1]["actions"][0]["execution_status"], "EXECUTED_MONITOR")
+
+    def test_proof_bridge_revision_overlay_updates_existing_theorem_goal(self) -> None:
+        question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+        revision = {
+            "artifact_id": "theory_revision:proof_bridge:test",
+            "target_procedure": "oracle_aipw_ate",
+            "repair_artifact": {
+                "revision_kind": "proof_bridge_integration",
+                "target_procedure": "oracle_aipw_ate",
+                "target_theorem_goal": "aipw_double_robustness",
+                "proof_obligation_id": "aipw_score_expectation_target_of_zero_aug",
+                "bridge_for_primitives": ["conditional_mean_residual_zero"],
+                "full_theorem_proved": False,
+            },
+        }
+
+        async def run():
+            return await AIStatisticalTheoryLab(
+                proof_verifier=MockProofVerifier(),
+                n_runs=10,
+                seed=20260531,
+                theory_revisions=[revision],
+            ).run(question)
+
+        report = asyncio.run(run())
+        applied = report.theory_plan["applied_theory_revisions"]
+        self.assertEqual(len(applied), 1)
+        self.assertEqual(applied[0]["revision_kind"], "proof_bridge_integration")
+        self.assertFalse(applied[0]["full_theorem_proved"])
+        self.assertTrue(applied[0]["algorithm_unchanged"])
+        procedure_row = report.theory_plan["candidate_procedures"][0]
+        self.assertEqual(procedure_row["id"], "oracle_aipw_ate")
+        self.assertEqual(procedure_row["algorithm"], "oracle_aipw")
+        roadmap = {row["id"]: row for row in report.theory_plan["theorem_roadmap"]}
+        self.assertIn("aipw_double_robustness", roadmap)
+        self.assertIn(
+            "aipw_score_expectation_target_of_zero_aug",
+            roadmap["aipw_double_robustness"]["proof_obligations"],
+        )
 
     def test_research_loop_benchmark_exports_live_repair_artifacts(self) -> None:
         async def run():

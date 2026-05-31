@@ -169,6 +169,11 @@ python3 -m ai_statistician.cli proof-audit \
 Current evidence: `79/79` registered proof-bank obligations pass
 `local_lean_kernel_batch` with proof-bank fingerprint
 `eb3c4f62ac8372a7fe228cdfcde73ee65d361a6daa4596ec8de5e664485eabba`.
+The latest release-style local-kernel research-system audit also passes all
+gates with `research_loop_theory_revisions=6`, all coming from
+kernel-verified `DefaultProofEngineer` proof-bridge integrations. These
+revisions attach verified proof obligations to theorem roadmaps; they do not
+claim the full frontier asymptotic theorems are closed.
 
 Check `doctor` first. It reports `real_lean_ready` and concrete
 `real_lean_blockers`; an AXLE key alone is not enough if the active Python
