@@ -1088,6 +1088,16 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   `martingale_definition` a direct factorization bridge while preserving the
   full conditional-expectation and likelihood-ratio martingale theorem as a
   formal gap.
+- `independent_event_indicator_condExp_filtration_eq_prob`: a direct
+  conditional-expectation bridge for independent Bernoulli/event sequences.
+  For an independent sequence of measurable events, the proof bank verifies
+  `μ[1_{s_j} | filtrationOfSet s i] =ᵐ μ.real (s_j)` whenever `i < j`, using
+  Mathlib's Borel-Cantelli conditional-expectation lemma. This gives
+  `conditional_expectation_product_step`, `independent_bernoulli_sequence`,
+  `adapted_product_process`, `bernoulli_likelihood_ratio`, and
+  `martingale_definition` a stronger route toward the product-process
+  martingale proof, while still leaving the full conditional-expectation
+  preservation theorem as a formal gap.
 - `aipw_score_expectation_decompose`: expectation of an AIPW-style contrast plus
   augmentation score decomposes by linearity.
 - `aipw_score_expectation_target_of_aug_cancel`: if the contrast term has
@@ -1326,11 +1336,11 @@ python3 -m ai_statistician.cli proof-audit \
 Current full-bank local Lean evidence (2026-05-31):
 
 ```text
-verified=74/74
-kernel=74/74
+verified=75/75
+kernel=75/75
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=ed6a1d014eaedbec1241dfa5e1198bfd0c80945fae1b4400622a21f265f313ac
+proof_bank_fingerprint=18d5f4740ef259cf614ee7094f290be5f2aae5dda50510845efd999eeda550d2
 ```
 
 Run `doctor` in the same Python runtime first. It reports

@@ -1433,6 +1433,27 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("martingale_definition", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_independent_event_indicator_condexp_filtration_bridge_uses_mathlib_borel_cantelli(self) -> None:
+        obligation = get_obligation("independent_event_indicator_condExp_filtration_eq_prob")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(
+            obligation.depends_on,
+            (
+                "event_indicator_expectation",
+                "filtration_mono_measurable_set",
+                "independent_event_indicator_product_lintegral_eq_mul",
+            ),
+        )
+        self.assertIn("theorem independentSet_indicator_condExp_filtrationOfSet_ae_eq", content)
+        self.assertIn("iIndepSet s μ", content)
+        self.assertIn("filtrationOfSet hsm i", content)
+        self.assertIn("=ᵐ[μ]", content)
+        self.assertIn("fun _ => μ.real (s j)", content)
+        self.assertIn("hs.condExp_indicator_filtrationOfSet_ae_eq hsm hij", content)
+        self.assertIn("conditional_expectation_product_step", obligation.tags)
+        self.assertIn("martingale_definition", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_noised_estimator_obligations_bridge_private_mean_error(self) -> None:
         unbiased = get_obligation("noised_estimator_unbiased")
         variance = get_obligation("noised_estimator_variance_indep")
@@ -2632,6 +2653,10 @@ class SystemTests(unittest.TestCase):
             "independent_event_indicator_product_lintegral_eq_mul",
             sequential_goals["bernoulli_lr_eprocess_martingale"]["proof_obligations"],
         )
+        self.assertIn(
+            "independent_event_indicator_condExp_filtration_eq_prob",
+            sequential_goals["bernoulli_lr_eprocess_martingale"]["proof_obligations"],
+        )
         fdr_trace = json.loads(Path("runs/test_research_benchmark/multiple_testing_fdr_bh.json").read_text())
         fdr_goals = {row["id"]: row for row in fdr_trace["theorem_goals"]}
         self.assertIn(
@@ -3531,6 +3556,7 @@ class SystemTests(unittest.TestCase):
             "event_indicator_expectation",
             "event_indicator_product_integral_eq_inter",
             "independent_event_indicator_product_lintegral_eq_mul",
+            "independent_event_indicator_condExp_filtration_eq_prob",
             "finite_event_indicator_mean_unbiased",
             "independent_event_inter_probability",
         )
@@ -3586,6 +3612,17 @@ class SystemTests(unittest.TestCase):
                 rows[primitive]["bridge_candidate_obligations"],
             )
             self.assertEqual(rows[primitive]["priority_band"], "BRIDGE_REUSE_READY")
+        for primitive in (
+            "adapted_product_process",
+            "bernoulli_likelihood_ratio",
+            "conditional_expectation_product_step",
+            "independent_bernoulli_sequence",
+            "martingale_definition",
+        ):
+            self.assertIn(
+                "independent_event_indicator_condExp_filtration_eq_prob",
+                rows[primitive]["bridge_candidate_obligations"],
+            )
 
     def test_formal_gap_task_export_writes_lean_task_jsonl(self) -> None:
         async def run():

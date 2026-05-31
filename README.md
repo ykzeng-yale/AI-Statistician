@@ -166,9 +166,9 @@ python3 -m ai_statistician.cli proof-audit \
   --out runs/proof_audit_local_lean_current
 ```
 
-Current evidence: `74/74` registered proof-bank obligations pass
+Current evidence: `75/75` registered proof-bank obligations pass
 `local_lean_kernel_batch` with proof-bank fingerprint
-`ed6a1d014eaedbec1241dfa5e1198bfd0c80945fae1b4400622a21f265f313ac`.
+`18d5f4740ef259cf614ee7094f290be5f2aae5dda50510845efd999eeda550d2`.
 
 Check `doctor` first. It reports `real_lean_ready` and concrete
 `real_lean_blockers`; an AXLE key alone is not enough if the active Python
