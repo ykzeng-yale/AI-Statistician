@@ -8,6 +8,7 @@ from pathlib import Path
 from .fingerprint import stable_hash
 from .proof_bank import all_obligations, proof_bank_fingerprint
 from .proof_policy_model import load_proof_policy_model
+from .proof_search_value_model import load_proof_search_value_model
 from .proof_search import (
     PROOF_SEARCH_SCHEMA_VERSION,
     BestFirstWholeProofSearchController,
@@ -24,6 +25,7 @@ async def audit_proof_search_controller(
     max_nodes: int = 8,
     include_invalid_probe: bool = False,
     proof_policy_model_json: Path | None = None,
+    proof_value_model_json: Path | None = None,
 ) -> dict[str, object]:
     """Run a bounded whole-proof search audit over proof-bank obligations."""
 
@@ -34,9 +36,15 @@ async def audit_proof_search_controller(
     out_dir.mkdir(parents=True, exist_ok=True)
     proof_verifier = verifier or MockProofVerifier()
     proof_policy_model = load_proof_policy_model(proof_policy_model_json) if proof_policy_model_json else None
+    proof_value_model = (
+        load_proof_search_value_model(proof_value_model_json)
+        if proof_value_model_json
+        else None
+    )
     controller = BestFirstWholeProofSearchController(
         proof_verifier,
         proof_policy_model=proof_policy_model,
+        proof_value_model=proof_value_model,
     )
     obligations = sorted(all_obligations(), key=lambda row: row.id)[:max_obligations]
     results = []
@@ -72,6 +80,12 @@ async def audit_proof_search_controller(
         for node in result.nodes
         if node.policy_score is not None
     )
+    value_scored_candidates = sum(
+        1
+        for result in results
+        for node in result.nodes
+        if node.value_score is not None
+    )
     manifest = {
         "schema_version": PROOF_SEARCH_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -83,6 +97,9 @@ async def audit_proof_search_controller(
         "policy_model_enabled": proof_policy_model is not None,
         "policy_model_json": str(proof_policy_model_json) if proof_policy_model_json else "",
         "policy_model_fingerprint": proof_policy_model.model_fingerprint if proof_policy_model else "",
+        "value_model_enabled": proof_value_model is not None,
+        "value_model_json": str(proof_value_model_json) if proof_value_model_json else "",
+        "value_model_fingerprint": proof_value_model.model_fingerprint if proof_value_model else "",
         "n_obligations": n,
         "n_solved": solved,
         "n_failed": n - solved,
@@ -93,12 +110,13 @@ async def audit_proof_search_controller(
         ),
         "nodes_expanded": nodes_expanded,
         "policy_scored_expanded_nodes": policy_scored_candidates,
+        "value_scored_expanded_nodes": value_scored_candidates,
         "mean_nodes_expanded": nodes_expanded / n if n else 0.0,
         "results_jsonl": str(results_jsonl),
         "search_audit_fingerprint": stable_hash([asdict(row) for row in results]),
         "limitations": [
             "whole-proof candidate search only; no tactic-state environment yet",
-            "best-first candidate priority can use the trained whole-proof policy ranker when a model JSON is supplied",
+            "best-first candidate priority can use trained whole-proof policy and value rankers when model JSON files are supplied",
             "registered proof bodies are included as a high-priority gold skill-memory candidate",
             "invalid_probe is for branch/error-path testing and is disabled in release-style audits",
         ],

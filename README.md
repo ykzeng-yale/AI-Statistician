@@ -181,10 +181,11 @@ claim the full frontier asymptotic theorems are closed.
 
 `proof-search-audit` is the first bounded proof-search controller layer above
 one-shot proof lookup. It runs a best-first whole-proof candidate frontier,
-can load the `proof-policy-train` model to score proof bodies, verifies each
-expanded node, and writes `proof_search_results.jsonl`. This is still not
-tactic-state MCTS or RL, but it gives the prover stack an auditable search
-object with failed-node, policy-score, and solved-node evidence.
+can load the `proof-policy-train` model and the `proof-search-value-train`
+model to score proof bodies, verifies each expanded node, and writes
+`proof_search_results.jsonl`. This is still not tactic-state MCTS or RL, but it
+gives the prover stack an auditable search object with failed-node,
+policy-score, value-score, and solved-node evidence.
 Current local-kernel release evidence: `proof_search_solved=12/12` and
 `proof_search_kernel_verified=12/12` inside `research-system-audit --local-lean`.
 `proof-search-training-export` converts the expanded proof-search nodes into
@@ -192,8 +193,10 @@ process-reward/value-model examples, preserving candidate proof bodies, verifier
 errors, binary reward, and `kernel_verified` provenance. This is a training data
 substrate, not a trained value/RL model.
 `proof-search-value-train` consumes those process examples and fits a small
-deterministic logistic value baseline. This is the first actual model-training
-stage in the prover stack, but it is not a neural prover or RL policy.
+deterministic logistic value baseline. The release audit now uses it in a
+second proof-search pass after bootstrap trace collection, so verifier-labeled
+process data affects final candidate ordering. This is still not a neural
+prover or RL policy.
 `proof-policy-train` similarly trains a deterministic whole-proof candidate
 ranking policy over proof SFT examples. The release audit now feeds this model
 back into `proof-search-audit`, so it influences candidate ordering rather than

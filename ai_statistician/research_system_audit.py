@@ -205,6 +205,24 @@ async def run_research_system_audit(
         validation_jsonl=Path(str(proof_training_manifest["validation_jsonl"])),
         k=5,
     )
+    proof_search_bootstrap_manifest = await audit_proof_search_controller(
+        out_dir / "proof_search_bootstrap_audit",
+        verifier=verifier,
+        max_obligations=12,
+        max_nodes=8,
+        include_invalid_probe=True,
+        proof_policy_model_json=Path(str(proof_policy_model_manifest["model_json"])),
+    )
+    proof_search_bootstrap_training_manifest = export_proof_search_process_dataset(
+        Path(str(proof_search_bootstrap_manifest["results_jsonl"])),
+        out_dir / "proof_search_bootstrap_training_export",
+        validation_fraction=0.2,
+    )
+    proof_search_value_manifest = train_proof_search_value_model(
+        Path(str(proof_search_bootstrap_training_manifest["train_jsonl"])),
+        out_dir / "proof_search_value_model",
+        validation_jsonl=Path(str(proof_search_bootstrap_training_manifest["validation_jsonl"])),
+    )
     proof_search_manifest = await audit_proof_search_controller(
         out_dir / "proof_search_audit",
         verifier=verifier,
@@ -212,16 +230,12 @@ async def run_research_system_audit(
         max_nodes=8,
         include_invalid_probe=True,
         proof_policy_model_json=Path(str(proof_policy_model_manifest["model_json"])),
+        proof_value_model_json=Path(str(proof_search_value_manifest["model_json"])),
     )
     proof_search_training_manifest = export_proof_search_process_dataset(
         Path(str(proof_search_manifest["results_jsonl"])),
         out_dir / "proof_search_training_export",
         validation_fraction=0.2,
-    )
-    proof_search_value_manifest = train_proof_search_value_model(
-        Path(str(proof_search_training_manifest["train_jsonl"])),
-        out_dir / "proof_search_value_model",
-        validation_jsonl=Path(str(proof_search_training_manifest["validation_jsonl"])),
     )
     stage_start = _record_stage(stage_timings, "proof_training_repair_policy_exports", stage_start)
 
@@ -394,7 +408,9 @@ async def run_research_system_audit(
         and int(proof_policy_model_manifest["n_features"]) > 0,
         "proof_search_audit": bool(proof_search_manifest["all_solved"])
         and bool(proof_search_manifest["policy_model_enabled"])
-        and int(proof_search_manifest["policy_scored_expanded_nodes"]) > 0,
+        and bool(proof_search_manifest["value_model_enabled"])
+        and int(proof_search_manifest["policy_scored_expanded_nodes"]) > 0
+        and int(proof_search_manifest["value_scored_expanded_nodes"]) > 0,
         "proof_search_training_export": int(proof_search_training_manifest["n_process_examples"])
         == int(proof_search_manifest["nodes_expanded"]),
         "proof_search_value_model": int(proof_search_value_manifest["n_train"]) > 0
@@ -602,9 +618,17 @@ async def run_research_system_audit(
             "proof_search_kernel_verified": proof_search_manifest["n_kernel_verified"],
             "proof_search_nodes_expanded": proof_search_manifest["nodes_expanded"],
             "proof_search_mean_nodes_expanded": proof_search_manifest["mean_nodes_expanded"],
+            "proof_search_bootstrap_nodes_expanded": proof_search_bootstrap_manifest["nodes_expanded"],
+            "proof_search_bootstrap_process_examples": proof_search_bootstrap_training_manifest[
+                "n_process_examples"
+            ],
             "proof_search_policy_model_enabled": proof_search_manifest["policy_model_enabled"],
             "proof_search_policy_scored_expanded_nodes": proof_search_manifest[
                 "policy_scored_expanded_nodes"
+            ],
+            "proof_search_value_model_enabled": proof_search_manifest["value_model_enabled"],
+            "proof_search_value_scored_expanded_nodes": proof_search_manifest[
+                "value_scored_expanded_nodes"
             ],
             "proof_search_process_examples": proof_search_training_manifest["n_process_examples"],
             "proof_search_process_positive": proof_search_training_manifest["n_positive"],
@@ -790,6 +814,15 @@ async def run_research_system_audit(
             ),
             "proof_search_audit": str(out_dir / "proof_search_audit" / "proof_search_audit_manifest.json"),
             "proof_search_results": str(out_dir / "proof_search_audit" / "proof_search_results.jsonl"),
+            "proof_search_bootstrap_audit": str(
+                out_dir / "proof_search_bootstrap_audit" / "proof_search_audit_manifest.json"
+            ),
+            "proof_search_bootstrap_results": str(
+                out_dir / "proof_search_bootstrap_audit" / "proof_search_results.jsonl"
+            ),
+            "proof_search_bootstrap_training_export": str(
+                out_dir / "proof_search_bootstrap_training_export" / "proof_search_training_manifest.json"
+            ),
             "proof_search_training_export": str(
                 out_dir / "proof_search_training_export" / "proof_search_training_manifest.json"
             ),

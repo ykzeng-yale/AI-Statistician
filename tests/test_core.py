@@ -44,7 +44,10 @@ from ai_statistician.proof_repair_export import export_proof_repair_dataset
 from ai_statistician.proof_search import BestFirstWholeProofSearchController, ProofCandidate
 from ai_statistician.proof_search_audit import audit_proof_search_controller
 from ai_statistician.proof_search_training_export import export_proof_search_process_dataset
-from ai_statistician.proof_search_value_model import train_proof_search_value_model
+from ai_statistician.proof_search_value_model import (
+    load_proof_search_value_model,
+    train_proof_search_value_model,
+)
 from ai_statistician.proof_training_export import export_proof_training_dataset
 from ai_statistician.prover_component_audit import build_prover_component_audit, write_prover_component_audit
 from ai_statistician.questions import load_question_file, question_from_json
@@ -497,7 +500,7 @@ class ProofBankTests(unittest.TestCase):
         self.assertFalse(result.nodes[0].ok)
         self.assertEqual(result.selected_source, "registered_proof_body")
         self.assertFalse(result.kernel_verified)
-        self.assertEqual(result.schema_version, 2)
+        self.assertEqual(result.schema_version, 3)
 
     def test_best_first_whole_proof_search_uses_trained_policy_scores(self) -> None:
         examples = [
@@ -564,10 +567,11 @@ class ProofBankTests(unittest.TestCase):
         results_path = Path(payload["results_jsonl"])
         self.assertTrue(results_path.exists())
         rows = [json.loads(line) for line in results_path.read_text(encoding="utf-8").splitlines()]
-        self.assertEqual(rows[0]["schema_version"], 2)
+        self.assertEqual(rows[0]["schema_version"], 3)
         self.assertEqual(rows[0]["nodes"][0]["source"], "invalid_probe")
         self.assertIn("proof_body", rows[0]["nodes"][0])
         self.assertIn("policy_score", rows[0]["nodes"][0])
+        self.assertIn("value_score", rows[0]["nodes"][0])
         self.assertFalse(rows[0]["nodes"][0]["ok"])
         self.assertEqual(rows[0]["selected_source"], "registered_proof_body")
         process = export_proof_search_process_dataset(
@@ -601,6 +605,31 @@ class ProofBankTests(unittest.TestCase):
         self.assertTrue(Path(value_model["model_json"]).exists())
         model_payload = json.loads(Path(value_model["model_json"]).read_text(encoding="utf-8"))
         self.assertEqual(model_payload["model_type"], "logistic_feature_baseline")
+        loaded_value_model = load_proof_search_value_model(Path(str(value_model["model_json"])))
+
+        async def run_value_guided():
+            obligation = get_obligation("variance_nonneg")
+            controller = BestFirstWholeProofSearchController(
+                MockProofVerifier(),
+                proof_value_model=loaded_value_model,
+            )
+            return await controller.solve(
+                obligation,
+                max_nodes=2,
+                extra_candidates=[
+                    ProofCandidate(
+                        candidate_id="bad:first",
+                        proof_body="by\n  sorry",
+                        source="invalid_probe",
+                        score=1500.0,
+                    )
+                ],
+            )
+
+        value_guided = asyncio.run(run_value_guided())
+        self.assertTrue(value_guided.solved)
+        self.assertIsNotNone(value_guided.nodes[0].value_score)
+        self.assertEqual(value_guided.nodes[0].source, "registered_proof_body")
 
     def test_caching_verifier_reuses_checked_obligations(self) -> None:
         async def run():
@@ -5534,6 +5563,9 @@ class SystemTests(unittest.TestCase):
         )
         self.assertTrue(payload["counts"]["proof_search_policy_model_enabled"])
         self.assertGreater(payload["counts"]["proof_search_policy_scored_expanded_nodes"], 0)
+        self.assertTrue(payload["counts"]["proof_search_value_model_enabled"])
+        self.assertGreater(payload["counts"]["proof_search_value_scored_expanded_nodes"], 0)
+        self.assertGreater(payload["counts"]["proof_search_bootstrap_process_examples"], 0)
         self.assertGreater(payload["counts"]["prover_components_total"], 0)
         self.assertFalse(payload["counts"]["prover_component_goal_complete"])
         self.assertGreater(payload["counts"]["prover_components_ready"], 0)

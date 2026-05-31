@@ -24,6 +24,47 @@ class ValueModelPrediction:
     correct: bool
 
 
+@dataclass(frozen=True)
+class ProofSearchValueModel:
+    schema_version: int
+    model_type: str
+    feature_names: tuple[str, ...]
+    weights: dict[str, float]
+    threshold: float
+    model_fingerprint: str
+
+    def score(self, candidate_row: dict[str, object]) -> float:
+        """Return a learned pre-verification value score in [0, 1]."""
+
+        return _sigmoid(_dot(self.weights, _features(candidate_row)))
+
+
+def load_proof_search_value_model(model_json: Path) -> ProofSearchValueModel:
+    """Load a trained proof-search value model."""
+
+    payload = json.loads(model_json.read_text(encoding="utf-8"))
+    if int(payload.get("schema_version", -1)) != PROOF_SEARCH_VALUE_MODEL_SCHEMA_VERSION:
+        raise ValueError(
+            f"unsupported proof-search value schema_version={payload.get('schema_version')!r}"
+        )
+    model_type = str(payload.get("model_type", ""))
+    if model_type != "logistic_feature_baseline":
+        raise ValueError(f"unsupported proof-search value model_type={model_type!r}")
+    weights = {str(key): float(value) for key, value in dict(payload.get("weights", {})).items()}
+    feature_names = tuple(str(item) for item in payload.get("feature_names", []) or [])
+    missing = [name for name in feature_names if name not in weights]
+    if missing:
+        raise ValueError(f"proof-search value model missing weights for features: {missing}")
+    return ProofSearchValueModel(
+        schema_version=PROOF_SEARCH_VALUE_MODEL_SCHEMA_VERSION,
+        model_type=model_type,
+        feature_names=feature_names,
+        weights=weights,
+        threshold=float(payload.get("threshold", 0.5)),
+        model_fingerprint=stable_hash(payload),
+    )
+
+
 def train_proof_search_value_model(
     train_jsonl: Path,
     out_dir: Path,

@@ -7,12 +7,13 @@ from typing import Iterable
 from .fingerprint import stable_hash
 from .proof_bank import all_obligations
 from .proof_policy_model import ProofPolicyModel
+from .proof_search_value_model import ProofSearchValueModel
 from .retrieval import tokens
 from .schema import FormalObligation, ProofCheck, RetrievalHit
 from .verifier import ProofVerifier
 
 
-PROOF_SEARCH_SCHEMA_VERSION = 2
+PROOF_SEARCH_SCHEMA_VERSION = 3
 
 
 @dataclass(frozen=True)
@@ -22,6 +23,7 @@ class ProofCandidate:
     source: str
     score: float
     policy_score: float | None = None
+    value_score: float | None = None
     base_score: float | None = None
     origin_obligation_id: str = ""
     expected_lemmas: tuple[str, ...] = ()
@@ -37,6 +39,7 @@ class ProofSearchNode:
     source: str
     score: float
     policy_score: float | None
+    value_score: float | None
     base_score: float | None
     expanded_index: int
     ok: bool
@@ -81,13 +84,19 @@ class BestFirstWholeProofSearchController:
         proof_memory: Iterable[FormalObligation] | None = None,
         proof_policy_model: ProofPolicyModel | None = None,
         proof_policy_weight: float = 100.0,
+        proof_value_model: ProofSearchValueModel | None = None,
+        proof_value_weight: float = 1000.0,
     ) -> None:
         if proof_policy_weight < 0:
             raise ValueError("proof_policy_weight must be nonnegative")
+        if proof_value_weight < 0:
+            raise ValueError("proof_value_weight must be nonnegative")
         self.verifier = verifier
         self.proof_memory = tuple(proof_memory or all_obligations())
         self.proof_policy_model = proof_policy_model
         self.proof_policy_weight = proof_policy_weight
+        self.proof_value_model = proof_value_model
+        self.proof_value_weight = proof_value_weight
 
     async def solve(
         self,
@@ -106,6 +115,7 @@ class BestFirstWholeProofSearchController:
             include_registered_proof=include_registered_proof,
         )
         candidates = self._apply_policy_scores(obligation, candidates)
+        candidates = self._apply_value_scores(obligation, candidates)
         frontier: list[tuple[float, str, ProofCandidate]] = []
         for candidate in candidates:
             heapq.heappush(frontier, (-candidate.score, candidate.candidate_id, candidate))
@@ -131,6 +141,7 @@ class BestFirstWholeProofSearchController:
                 source=candidate.source,
                 score=candidate.score,
                 policy_score=candidate.policy_score,
+                value_score=candidate.value_score,
                 base_score=candidate.base_score,
                 expanded_index=len(nodes) + 1,
                 ok=check.ok,
@@ -192,6 +203,7 @@ class BestFirstWholeProofSearchController:
                     source="registered_proof_body",
                     score=1000.0,
                     base_score=1000.0,
+                    value_score=None,
                     origin_obligation_id=obligation.id,
                     expected_lemmas=tuple(obligation.expected_lemmas),
                     tags=tuple(obligation.tags),
@@ -208,6 +220,7 @@ class BestFirstWholeProofSearchController:
                     source="expected_lemma_template",
                     score=250.0 - idx,
                     base_score=250.0 - idx,
+                    value_score=None,
                     origin_obligation_id=obligation.id,
                     expected_lemmas=tuple(obligation.expected_lemmas),
                     tags=tuple(obligation.tags),
@@ -221,6 +234,7 @@ class BestFirstWholeProofSearchController:
                     source="expected_lemma_template",
                     score=200.0 - idx,
                     base_score=200.0 - idx,
+                    value_score=None,
                     origin_obligation_id=obligation.id,
                     expected_lemmas=tuple(obligation.expected_lemmas),
                     tags=tuple(obligation.tags),
@@ -238,6 +252,7 @@ class BestFirstWholeProofSearchController:
                     source=f"proof_memory:{neighbor.id}",
                     score=100.0 - idx,
                     base_score=100.0 - idx,
+                    value_score=None,
                     origin_obligation_id=neighbor.id,
                     expected_lemmas=tuple(neighbor.expected_lemmas),
                     tags=tuple(neighbor.tags),
@@ -266,6 +281,38 @@ class BestFirstWholeProofSearchController:
                     source=candidate.source,
                     score=base_score + self.proof_policy_weight * policy_score,
                     policy_score=round(policy_score, 6),
+                    value_score=candidate.value_score,
+                    base_score=base_score,
+                    origin_obligation_id=candidate.origin_obligation_id,
+                    expected_lemmas=candidate.expected_lemmas,
+                    tags=candidate.tags,
+                    policy_prompt=candidate.policy_prompt,
+                )
+            )
+        return _dedupe_candidates(scored)
+
+    def _apply_value_scores(
+        self,
+        obligation: FormalObligation,
+        candidates: Iterable[ProofCandidate],
+    ) -> list[ProofCandidate]:
+        rows = list(candidates)
+        if self.proof_value_model is None:
+            return rows
+        scored: list[ProofCandidate] = []
+        for candidate in rows:
+            base_score = candidate.base_score if candidate.base_score is not None else candidate.score
+            value_score = self.proof_value_model.score(
+                _value_candidate_dict(obligation, candidate)
+            )
+            scored.append(
+                ProofCandidate(
+                    candidate_id=candidate.candidate_id,
+                    proof_body=candidate.proof_body,
+                    source=candidate.source,
+                    score=candidate.score + self.proof_value_weight * value_score,
+                    policy_score=candidate.policy_score,
+                    value_score=round(value_score, 6),
                     base_score=base_score,
                     origin_obligation_id=candidate.origin_obligation_id,
                     expected_lemmas=candidate.expected_lemmas,
@@ -337,6 +384,31 @@ def _policy_candidate_dict(candidate: ProofCandidate) -> dict[str, object]:
         "expected_lemmas": tuple(candidate.expected_lemmas),
         "retrieved_obligations": (),
         "tags": tuple(candidate.tags),
+    }
+
+
+def _value_candidate_dict(
+    obligation: FormalObligation,
+    candidate: ProofCandidate,
+) -> dict[str, object]:
+    errors: tuple[str, ...] = ()
+    return {
+        "obligation_id": obligation.id,
+        "candidate_id": candidate.candidate_id,
+        "candidate_source": candidate.source,
+        "candidate_score": candidate.score,
+        "expanded_index": 0,
+        "prompt": "\n".join(
+            [
+                f"Obligation: {obligation.title}",
+                f"Candidate source: {candidate.source}",
+                f"Candidate score: {candidate.score}",
+                "Candidate proof body:",
+                candidate.proof_body.strip(),
+            ]
+        ),
+        "errors": errors,
+        "first_error": "",
     }
 
 
