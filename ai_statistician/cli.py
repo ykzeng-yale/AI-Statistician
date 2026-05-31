@@ -22,6 +22,7 @@ from .frontier_evaluation_triage import audit_frontier_evaluation_triage
 from .frontier_precision_audit import audit_frontier_precision
 from .frontier_simulation_rerun_audit import audit_frontier_simulation_reruns
 from .frontier_smoke_benchmark import FrontierSmokeConfig, run_frontier_smoke_benchmark
+from .frontier_theory_revision_formalization_audit import audit_frontier_theory_revision_formalization
 from .frontier_theory_revision_queue import export_frontier_theory_revision_queue
 from .frontier_theory_target_audit import audit_frontier_theory_targets
 from .formal_gap_task_export import export_formal_gap_lean_tasks
@@ -587,6 +588,38 @@ def _frontier_theory_revision_queue(args: argparse.Namespace) -> int:
     return 0 if payload["all_ok"] else 1
 
 
+def _frontier_theory_revision_formalization_audit(args: argparse.Namespace) -> int:
+    source_index = Path(args.formal_source_index) if args.formal_source_index else Path(args.out) / "formal_source_index.sqlite"
+    payload = audit_frontier_theory_revision_formalization(
+        Path(args.revision_queue_manifest),
+        Path(args.out),
+        formal_source_index_path=source_index,
+        k=args.k,
+    )
+    print("\nAI Statistical Theory Lab Frontier Theory Revision Formalization Audit")
+    print("=" * 72)
+    print(
+        f"obligations={payload['n_ok']}/{payload['n_obligations']} "
+        f"unique={payload['n_unique_obligations']} "
+        f"proof_bank_bridge={payload['n_unique_proof_bank_bridge']} "
+        f"local_source_only={payload['n_unique_local_source_only']} "
+        f"source_gap={payload['n_unique_source_gap']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    for classification, count in payload["by_unique_classification"].items():
+        print(f"  {classification}: {count}")
+    print(
+        f"\nfrontier theory revision formalization manifest written to "
+        f"{(Path(args.out) / 'frontier_theory_revision_formalization_manifest.json').resolve()}"
+    )
+    print(
+        f"jsonl written to "
+        f"{(Path(args.out) / 'frontier_theory_revision_formalization_tasks.jsonl').resolve()}"
+    )
+    print(f"markdown report written to {(Path(args.out) / 'frontier_theory_revision_formalization.md').resolve()}")
+    return 0 if payload["all_ok"] else 1
+
+
 def _research_knowledge_audit(args: argparse.Namespace) -> int:
     payload = audit_research_knowledge(Path(args.out), question_file=Path(args.question_file))
     print("\nAI Statistical Theory Lab Knowledge Audit")
@@ -635,6 +668,7 @@ async def _frontier_smoke_benchmark(args: argparse.Namespace) -> int:
         f"triage={payload['counts']['frontier_triage_items']} "
         f"rerun_resolved={payload['counts']['frontier_simulation_rerun_resolved']} "
         f"theory_revisions={payload['counts']['frontier_theory_revision_tasks']} "
+        f"formalized_revision_obligations={payload['counts']['frontier_theory_revision_formal_obligations']} "
         f"all_gates_passed={payload['all_gates_passed']} "
         f"cache={payload['counts']['frontier_smoke_cache_status']}"
     )
@@ -1941,6 +1975,28 @@ def build_parser() -> argparse.ArgumentParser:
         help="frontier theory revision queue output directory",
     )
     frontier_theory_revision_queue.set_defaults(func=_frontier_theory_revision_queue)
+
+    frontier_theory_revision_formalization = sub.add_parser(
+        "frontier-theory-revision-formalization-audit",
+        help="ground frontier theory-revision obligations in proof-bank and Lean-source retrieval",
+    )
+    frontier_theory_revision_formalization.add_argument(
+        "--revision-queue-manifest",
+        required=True,
+        help="frontier_theory_revision_queue_manifest.json produced by frontier-theory-revision-queue",
+    )
+    frontier_theory_revision_formalization.add_argument(
+        "--formal-source-index",
+        default="",
+        help="optional existing formal_source_index.sqlite; defaults to an index under --out",
+    )
+    frontier_theory_revision_formalization.add_argument("--k", type=int, default=5)
+    frontier_theory_revision_formalization.add_argument(
+        "--out",
+        default="runs/frontier_theory_revision_formalization",
+        help="frontier theory-revision formalization audit output directory",
+    )
+    frontier_theory_revision_formalization.set_defaults(func=_frontier_theory_revision_formalization_audit)
 
     frontier_smoke_benchmark = sub.add_parser(
         "frontier-smoke-benchmark",

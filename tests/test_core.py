@@ -2575,9 +2575,11 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(Path(payload["artifacts"]["frontier_evaluation_triage"]).exists())
         self.assertTrue(Path(payload["artifacts"]["frontier_simulation_rerun"]).exists())
         self.assertTrue(Path(payload["artifacts"]["frontier_theory_revision_queue"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["frontier_theory_revision_formalization"]).exists())
         self.assertTrue(payload["gates"]["frontier_evaluation_triage"])
         self.assertTrue(payload["gates"]["frontier_simulation_rerun"])
         self.assertTrue(payload["gates"]["frontier_theory_revision_queue"])
+        self.assertTrue(payload["gates"]["frontier_theory_revision_formalization"])
         target_audit = json.loads(Path(payload["artifacts"]["frontier_theory_target_audit"]).read_text())
         self.assertTrue(target_audit["all_scored"])
         self.assertFalse(target_audit["limitations"][0] == "")
@@ -2590,6 +2592,24 @@ class SystemTests(unittest.TestCase):
         revision_queue = json.loads(Path(payload["artifacts"]["frontier_theory_revision_queue"]).read_text())
         self.assertTrue(revision_queue["all_ok"])
         self.assertEqual(payload["counts"]["frontier_theory_revision_tasks"], revision_queue["n_tasks"])
+        revision_formalization = json.loads(
+            Path(payload["artifacts"]["frontier_theory_revision_formalization"]).read_text()
+        )
+        self.assertTrue(revision_formalization["all_ok"])
+        self.assertEqual(
+            payload["counts"]["frontier_theory_revision_formal_obligations"],
+            revision_formalization["n_obligations"],
+        )
+        self.assertEqual(
+            payload["counts"]["frontier_theory_revision_unique_formal_obligations"],
+            revision_formalization["n_unique_obligations"],
+        )
+        self.assertEqual(
+            payload["counts"]["frontier_theory_revision_unique_proof_bank_bridge"]
+            + payload["counts"]["frontier_theory_revision_unique_local_source_only"]
+            + payload["counts"]["frontier_theory_revision_unique_source_gap"],
+            revision_formalization["n_unique_obligations"],
+        )
         dp_trace_path = out_dir / "research_benchmark" / "robust_privacy_distributed_02.json"
         self.assertTrue(dp_trace_path.exists())
         dp_trace = json.loads(dp_trace_path.read_text())
@@ -2707,6 +2727,7 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(Path(payload["artifacts"]["frontier_evaluation_triage"]).exists())
         self.assertTrue(Path(payload["artifacts"]["frontier_simulation_rerun"]).exists())
         self.assertTrue(Path(payload["artifacts"]["frontier_theory_revision_queue"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["frontier_theory_revision_formalization"]).exists())
         target_audit = json.loads(Path(payload["artifacts"]["frontier_theory_target_audit"]).read_text())
         self.assertTrue(target_audit["all_scored"])
         triage = json.loads(Path(payload["artifacts"]["frontier_evaluation_triage"]).read_text())
@@ -2729,6 +2750,30 @@ class SystemTests(unittest.TestCase):
         first_revision = revision_queue["rows"][0]
         self.assertIn("screening_selection_accuracy_under_signal_separation", first_revision["revised_theorem_goals"])
         self.assertIn("selection_accuracy_lower_bound_from_support_events", first_revision["next_formal_obligations"])
+        revision_formalization = json.loads(
+            Path(payload["artifacts"]["frontier_theory_revision_formalization"]).read_text()
+        )
+        self.assertTrue(revision_formalization["all_ok"])
+        self.assertEqual(revision_formalization["n_revision_tasks"], 3)
+        self.assertEqual(revision_formalization["n_obligations"], 12)
+        self.assertEqual(revision_formalization["n_unique_obligations"], 4)
+        self.assertEqual(payload["counts"]["frontier_theory_revision_formal_obligations"], 12)
+        self.assertEqual(payload["counts"]["frontier_theory_revision_unique_formal_obligations"], 4)
+        self.assertEqual(
+            revision_formalization["n_unique_proof_bank_bridge"]
+            + revision_formalization["n_unique_local_source_only"]
+            + revision_formalization["n_unique_source_gap"],
+            4,
+        )
+        self.assertEqual(
+            {row["formal_obligation"] for row in revision_formalization["rows"]},
+            {
+                "screening_statistic_concentration",
+                "signal_margin_implies_active_selection",
+                "inactive_coordinate_union_bound",
+                "selection_accuracy_lower_bound_from_support_events",
+            },
+        )
 
     def test_mock_system_accepts_registered_questions(self) -> None:
         async def run():
