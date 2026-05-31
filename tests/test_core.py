@@ -2666,6 +2666,156 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(Path("runs/test_formalization_target_audit/formalization_target_manifest.json").exists())
         self.assertTrue(Path("runs/test_formalization_target_audit/formalization_targets.md").exists())
 
+    def test_formalization_target_audit_maps_post_selection_primitives_to_verified_bridges(self) -> None:
+        run_dir = Path("runs/test_formalization_target_post_selection_run")
+        out_dir = Path("runs/test_formalization_target_post_selection_audit")
+        shutil.rmtree(run_dir, ignore_errors=True)
+        shutil.rmtree(out_dir, ignore_errors=True)
+        gap_dir = run_dir / "formal_gaps"
+        gap_dir.mkdir(parents=True, exist_ok=True)
+        post_gap_path = gap_dir / "post_detection_changepoint_confidence_set.lean"
+        model_gap_path = gap_dir / "sequential_model_confidence_set_validity.lean"
+        post_gap_path.write_text(
+            "FORMAL_GAP post_selection_inference selected_interval_coverage changepoint_stopping_rule "
+            "bootstrap_validity_for_dependent_data",
+            encoding="utf-8",
+        )
+        model_gap_path.write_text(
+            "FORMAL_GAP model_confidence_set_coverage sequential_elimination_rule "
+            "candidate_model_loss_process dependent_performance_process_bootstrap",
+            encoding="utf-8",
+        )
+        manifest = {
+            "questions": [
+                {"question": "q_post_selection", "formal": {"gaps": 2}},
+            ],
+        }
+        (run_dir / "research_benchmark_manifest.json").write_text(
+            json.dumps(manifest),
+            encoding="utf-8",
+        )
+        proved = [
+            {"status": "PROVED", "proof_obligation_id": obligation_id}
+            for obligation_id in (
+                "prob_compl",
+                "coverage_lower_bound_of_complement_error",
+                "event_probability_mono",
+                "finite_union_bound",
+                "selected_bad_event_probability_le_finite_union_budget",
+                "selected_good_event_coverage_of_finite_union_budget",
+                "prob_measure_univ",
+                "simultaneous_coverage_of_union_error_bound",
+            )
+        ]
+        trace = {
+            "question": {"id": "q_post_selection"},
+            "problem": {"problem_class": "sequential_changepoint_inference"},
+            "procedures": [],
+            "knowledge": [{"id": "sequential_changepoint_post_detection"}],
+            "theorem_goals": [
+                {
+                    "id": "post_detection_changepoint_confidence_set",
+                    "title": "Post-detection changepoint confidence set validity",
+                    "proof_strategy": "Bridge detector error control to selected-interval coverage.",
+                    "required_primitives": [
+                        "changepoint_stopping_rule",
+                        "post_selection_inference",
+                        "selected_interval_coverage",
+                        "bootstrap_validity_for_dependent_data",
+                    ],
+                    "proof_obligations": [
+                        "prob_compl",
+                        "coverage_lower_bound_of_complement_error",
+                        "event_probability_mono",
+                        "finite_union_bound",
+                        "selected_bad_event_probability_le_finite_union_budget",
+                        "selected_good_event_coverage_of_finite_union_budget",
+                    ],
+                },
+                {
+                    "id": "sequential_model_confidence_set_validity",
+                    "title": "Sequential model confidence set validity",
+                    "proof_strategy": "Reduce model-confidence coverage to finite-time union control.",
+                    "required_primitives": [
+                        "candidate_model_loss_process",
+                        "sequential_elimination_rule",
+                        "model_confidence_set_coverage",
+                        "dependent_performance_process_bootstrap",
+                    ],
+                    "proof_obligations": [
+                        "prob_measure_univ",
+                        "finite_union_bound",
+                        "simultaneous_coverage_of_union_error_bound",
+                    ],
+                },
+            ],
+            "formal_subclaims": [
+                *proved,
+                {
+                    "id": "gap:post_detection_changepoint_confidence_set",
+                    "status": "FORMAL_GAP",
+                    "claim_type": "theory_gap",
+                    "gap_reason": "selective inference primitives remain library work",
+                    "artifact_path": str(post_gap_path),
+                    "lean_statement": post_gap_path.read_text(encoding="utf-8"),
+                    "formal_source_hits": [{"name": "StatInference.AsymptoticStatistics.vaart1998_confidenceIntervalCoverageEvent_efron"}],
+                    "primitive_formal_source_hits": {
+                        primitive: [
+                            {"name": "StatInference.AsymptoticStatistics.vaart1998_confidenceIntervalCoverageEvent_efron"}
+                        ]
+                        for primitive in (
+                            "changepoint_stopping_rule",
+                            "post_selection_inference",
+                            "selected_interval_coverage",
+                            "bootstrap_validity_for_dependent_data",
+                        )
+                    },
+                },
+                {
+                    "id": "gap:sequential_model_confidence_set_validity",
+                    "status": "FORMAL_GAP",
+                    "claim_type": "theory_gap",
+                    "gap_reason": "model-confidence selective coverage primitives remain library work",
+                    "artifact_path": str(model_gap_path),
+                    "lean_statement": model_gap_path.read_text(encoding="utf-8"),
+                    "formal_source_hits": [{"name": "StatInference.FiniteUnionDeviationCertificate.toEmpiricalDeviationBoundOn"}],
+                    "primitive_formal_source_hits": {
+                        primitive: [
+                            {"name": "StatInference.FiniteUnionDeviationCertificate.toEmpiricalDeviationBoundOn"}
+                        ]
+                        for primitive in (
+                            "candidate_model_loss_process",
+                            "sequential_elimination_rule",
+                            "model_confidence_set_coverage",
+                            "dependent_performance_process_bootstrap",
+                        )
+                    },
+                },
+            ],
+        }
+        (run_dir / "q_post_selection.json").write_text(json.dumps(trace), encoding="utf-8")
+
+        payload = audit_formalization_targets(run_dir, out_dir)
+        rows = {row["primitive"]: row for row in payload["rows"]}
+        self.assertIn(
+            "selected_bad_event_probability_le_finite_union_budget",
+            rows["post_selection_inference"]["bridge_candidate_obligations"],
+        )
+        self.assertIn(
+            "selected_good_event_coverage_of_finite_union_budget",
+            rows["post_selection_inference"]["bridge_candidate_obligations"],
+        )
+        self.assertIn(
+            "selected_good_event_coverage_of_finite_union_budget",
+            rows["selected_interval_coverage"]["bridge_candidate_obligations"],
+        )
+        self.assertIn(
+            "selected_good_event_coverage_of_finite_union_budget",
+            rows["model_confidence_set_coverage"]["bridge_candidate_obligations"],
+        )
+        self.assertEqual(rows["post_selection_inference"]["priority_band"], "BRIDGE_REUSE_READY")
+        self.assertEqual(rows["model_confidence_set_coverage"]["priority_band"], "BRIDGE_REUSE_READY")
+
     def test_formal_gap_task_export_writes_lean_task_jsonl(self) -> None:
         async def run():
             questions = load_open_research_questions(Path("examples/research_questions.json"))[:2]

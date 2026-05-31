@@ -102,9 +102,10 @@ def _target_rows(backlog: dict[str, object]) -> list[FormalizationTargetRow]:
     rows: list[FormalizationTargetRow] = []
     for primitive, bucket in grouped.items():
         candidate_declarations = tuple(bucket["candidate_declarations"][:8])
+        semantic_bridge_candidates = _semantic_bridge_candidates(primitive)
         supporting_proofs = _rank_supporting_proofs(
             primitive,
-            tuple(sorted(bucket["supporting_proof_obligations"])),
+            tuple(sorted(set(bucket["supporting_proof_obligations"]) | set(semantic_bridge_candidates))),
         )
         bridge_candidates = tuple(
             obligation_id
@@ -233,6 +234,44 @@ def _rank_supporting_proofs(
     )
 
 
+_PRIMITIVE_PROOF_BRIDGE_HINTS: dict[str, tuple[str, ...]] = {
+    # These are not full selective-inference theorems. They are verified finite
+    # event/coverage bridges that the target queue should surface when a
+    # frontier gap asks for post-selection or data-dependent coverage machinery.
+    "post_selection_inference": (
+        "selected_good_event_coverage_of_finite_union_budget",
+        "selected_bad_event_probability_le_finite_union_budget",
+    ),
+    "selected_interval_coverage": (
+        "selected_good_event_coverage_of_finite_union_budget",
+        "selected_bad_event_probability_le_finite_union_budget",
+        "coverage_lower_bound_of_complement_error",
+    ),
+    "model_confidence_set_coverage": (
+        "simultaneous_coverage_of_union_error_bound",
+        "selected_good_event_coverage_of_finite_union_budget",
+        "selected_bad_event_probability_le_finite_union_budget",
+    ),
+    "sequential_elimination_rule": (
+        "selected_bad_event_probability_le_finite_union_budget",
+        "finite_union_budget_control",
+        "simultaneous_coverage_of_union_error_bound",
+    ),
+}
+
+
+def _semantic_bridge_candidates(primitive: str) -> tuple[str, ...]:
+    candidates: list[str] = []
+    for obligation_id in _PRIMITIVE_PROOF_BRIDGE_HINTS.get(primitive, ()):
+        try:
+            get_obligation(obligation_id)
+        except KeyError:
+            continue
+        if obligation_id not in candidates:
+            candidates.append(obligation_id)
+    return tuple(candidates)
+
+
 def _proof_bridge_score(primitive: str, obligation_id: str) -> int:
     primitive_tokens = _tokens(primitive)
     if not primitive_tokens:
@@ -279,6 +318,7 @@ _COMMON_PRIMITIVE_TOKENS = {
     "failure",
     "finite",
     "horizon",
+    "inference",
     "inequality",
     "probability",
     "tail",
