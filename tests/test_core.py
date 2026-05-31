@@ -91,6 +91,7 @@ from ai_statistician.schema import FormalObligation, ProofCheck, RetrievalHit
 from ai_statistician.system import AIStatisticianSystem
 from ai_statistician.system import write_run_manifest, write_trace
 from ai_statistician.system_audit import SystemAuditConfig, load_audit_questions, run_system_audit
+from ai_statistician.theory_developer import DefaultTheoryDeveloper
 from ai_statistician.theory_proposal import MockTheoryProposer, TheoryProposal
 from ai_statistician.trace_audit import audit_run_traces
 from ai_statistician.verifier import CachingProofVerifier, LocalLeanProofVerifier, MockProofVerifier
@@ -2573,8 +2574,10 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(Path(payload["artifacts"]["frontier_theory_target_audit"]).exists())
         self.assertTrue(Path(payload["artifacts"]["frontier_evaluation_triage"]).exists())
         self.assertTrue(Path(payload["artifacts"]["frontier_simulation_rerun"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["frontier_theory_revision_queue"]).exists())
         self.assertTrue(payload["gates"]["frontier_evaluation_triage"])
         self.assertTrue(payload["gates"]["frontier_simulation_rerun"])
+        self.assertTrue(payload["gates"]["frontier_theory_revision_queue"])
         target_audit = json.loads(Path(payload["artifacts"]["frontier_theory_target_audit"]).read_text())
         self.assertTrue(target_audit["all_scored"])
         self.assertFalse(target_audit["limitations"][0] == "")
@@ -2584,6 +2587,9 @@ class SystemTests(unittest.TestCase):
         rerun = json.loads(Path(payload["artifacts"]["frontier_simulation_rerun"]).read_text())
         self.assertTrue(rerun["all_ok"])
         self.assertEqual(payload["counts"]["frontier_simulation_rerun_items"], rerun["n_items"])
+        revision_queue = json.loads(Path(payload["artifacts"]["frontier_theory_revision_queue"]).read_text())
+        self.assertTrue(revision_queue["all_ok"])
+        self.assertEqual(payload["counts"]["frontier_theory_revision_tasks"], revision_queue["n_tasks"])
         dp_trace_path = out_dir / "research_benchmark" / "robust_privacy_distributed_02.json"
         self.assertTrue(dp_trace_path.exists())
         dp_trace = json.loads(dp_trace_path.read_text())
@@ -2694,10 +2700,13 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(payload["counts"]["frontier_simulation_rerun_items"], 16)
         self.assertEqual(payload["counts"]["frontier_simulation_rerun_resolved"], 13)
         self.assertEqual(payload["counts"]["frontier_simulation_rerun_still_flagged"], 3)
+        self.assertEqual(payload["counts"]["frontier_theory_revision_tasks"], 3)
+        self.assertEqual(payload["counts"]["frontier_theory_revision_tasks_ok"], 3)
         self.assertTrue((out_dir / "frontier_smoke_manifest.json").exists())
         self.assertTrue(Path(payload["artifacts"]["frontier_theory_target_audit"]).exists())
         self.assertTrue(Path(payload["artifacts"]["frontier_evaluation_triage"]).exists())
         self.assertTrue(Path(payload["artifacts"]["frontier_simulation_rerun"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["frontier_theory_revision_queue"]).exists())
         target_audit = json.loads(Path(payload["artifacts"]["frontier_theory_target_audit"]).read_text())
         self.assertTrue(target_audit["all_scored"])
         triage = json.loads(Path(payload["artifacts"]["frontier_evaluation_triage"]).read_text())
@@ -2713,6 +2722,13 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(rerun["n_still_flagged"], 3)
         self.assertEqual(rerun["by_new_owner_agent"]["research_coordinator"], 13)
         self.assertEqual(rerun["by_new_owner_agent"]["theory_developer"], 3)
+        revision_queue = json.loads(Path(payload["artifacts"]["frontier_theory_revision_queue"]).read_text())
+        self.assertTrue(revision_queue["all_ok"])
+        self.assertEqual(revision_queue["n_tasks"], 3)
+        self.assertEqual(revision_queue["by_failure_class"]["selection_or_screening_failure"], 3)
+        first_revision = revision_queue["rows"][0]
+        self.assertIn("screening_selection_accuracy_under_signal_separation", first_revision["revised_theorem_goals"])
+        self.assertIn("selection_accuracy_lower_bound_from_support_events", first_revision["next_formal_obligations"])
 
     def test_mock_system_accepts_registered_questions(self) -> None:
         async def run():
@@ -3006,6 +3022,10 @@ class SystemTests(unittest.TestCase):
             suites["S3_frontier_blind_theory_target"]["current_all_supported_simulation_rerun_still_flagged"],
             3,
         )
+        self.assertEqual(
+            suites["S3_frontier_blind_theory_target"]["current_all_supported_theory_revision_tasks"],
+            3,
+        )
         self.assertIn("S7_feedback_loop_repair_with_seeded_failures", payload["recommended_next_gate_stack"])
 
         doc = Path("docs/evaluation_benchmark_strategy.md").read_text(encoding="utf-8")
@@ -3013,6 +3033,7 @@ class SystemTests(unittest.TestCase):
         self.assertIn("expected-result coverage about 82.8%", doc)
         self.assertIn("47 frontier-evaluation triage items", doc)
         self.assertIn("resolves 13/16 simulation flags", doc)
+        self.assertIn("3 unresolved reruns now export scoped TheoryDeveloper revision tasks", doc)
         self.assertIn("53 have ranked proof-bank bridge candidates", doc)
         self.assertNotIn("79/79", doc)
         self.assertNotIn("82/82", doc)
@@ -5021,6 +5042,37 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(task["task_type"], "theory_revision_from_simulation_failure")
         self.assertIn("revised_theorem_goals", task["output_contract"]["required_fields"])
         self.assertTrue(any("simulation" in item for item in task["acceptance_criteria"]))
+
+    def test_default_theory_developer_handles_selection_failures(self) -> None:
+        question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+        problem = ProblemFormalizer().formalize(question)
+        procedures, theorem_goals = TheoryPlanner().plan(problem)
+        report = ResearchReport(
+            question=question,
+            problem=problem,
+            procedures=procedures,
+            knowledge=[],
+            paper_sources=[],
+            formal_subclaims=[],
+            simulations=[],
+            theorem_goals=theorem_goals,
+            theory_plan={"next_iteration_agenda": {"items": []}},
+            status="SIMULATION_FLAGGED_WITH_FORMAL_GAPS",
+        )
+        artifact = DefaultTheoryDeveloper().repair_theory_issue(
+            {
+                "owner_agent": "theory_developer",
+                "trigger": "THEORY_OR_PROCEDURE_ISSUE",
+                "failed_diagnostics": ["selection_accuracy"],
+                "target_procedure": procedures[0].id,
+            },
+            report,
+        )
+        self.assertIsNotNone(artifact)
+        repair = artifact["repair_artifact"]
+        self.assertEqual(repair["failure_class"], "selection_or_screening_failure")
+        self.assertIn("screening_selection_accuracy_under_signal_separation", repair["revised_theorem_goals"])
+        self.assertIn("selection_accuracy_lower_bound_from_support_events", repair["next_formal_obligations"])
 
     def test_theory_revision_overlay_enters_lab_theorem_roadmap(self) -> None:
         question = load_open_research_questions(Path("examples/research_questions.json"))[0]

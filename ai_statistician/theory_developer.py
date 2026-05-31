@@ -82,6 +82,8 @@ def _revision_from_diagnostics(
 ) -> dict[str, Any]:
     diagnostic_text = " ".join(failed_diagnostics).lower()
     theorem_goals = _current_theorem_goal_ids(report)
+    if any(token in diagnostic_text for token in ("selection", "screen", "support", "recall", "subspace")):
+        return _selection_revision(target_procedure, theorem_goals, failed_diagnostics, metric_evidence)
     if any(token in diagnostic_text for token in ("coverage", "confidence", "calibration", "se")):
         return _coverage_revision(target_procedure, theorem_goals, failed_diagnostics, metric_evidence)
     if "bias" in diagnostic_text or "identification" in diagnostic_text:
@@ -183,6 +185,41 @@ def _testing_revision(
             "event_error_bound_to_error_rate_control",
             "union_or_stopping_bound_bridge",
             "power_monotonicity_under_signal_strength",
+        ],
+    }
+
+
+def _selection_revision(
+    target_procedure: str,
+    theorem_goals: tuple[str, ...],
+    failed_diagnostics: tuple[str, ...],
+    metric_evidence: dict[str, float],
+) -> dict[str, Any]:
+    return {
+        "target_procedure": target_procedure,
+        "revised_procedure": f"{target_procedure}:threshold_calibrated_screening_variant",
+        "revised_theorem_goals": [
+            *_suffix_goals(theorem_goals, "selection_consistency"),
+            "screening_selection_accuracy_under_signal_separation",
+            "false_discovery_control_for_screening_rule",
+            "subspace_alignment_under_nuisance_dependence",
+        ],
+        "assumption_delta": [
+            "state an explicit signal-separation or margin condition for active coordinates",
+            "calibrate the screening threshold against nuisance predictor dependence and dimensionality",
+            "separate support-recovery accuracy from estimation RMSE and interval coverage claims",
+        ],
+        "expected_simulation_delta": (
+            "selection_accuracy and active_recall should clear the registered threshold while false_discovery_rate does not increase materially"
+        ),
+        "failure_class": "selection_or_screening_failure",
+        "failed_diagnostics": list(failed_diagnostics),
+        "metric_evidence": metric_evidence,
+        "next_formal_obligations": [
+            "screening_statistic_concentration",
+            "signal_margin_implies_active_selection",
+            "inactive_coordinate_union_bound",
+            "selection_accuracy_lower_bound_from_support_events",
         ],
     }
 

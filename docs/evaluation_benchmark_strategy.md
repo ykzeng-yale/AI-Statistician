@@ -142,6 +142,8 @@ Current all-supported local signal:
   simulation flags
 - higher-budget simulator rerun resolves 13/16 simulation flags and leaves 3
   high-dimensional screening traces routed to theory/procedure revision
+- those 3 unresolved reruns now export scoped TheoryDeveloper revision tasks
+  with screening-specific theorem goals and formal obligations
 
 The all-supported run is intentionally stricter than the release smoke. It is a
 scoring gate and limitation surfacer, not a claim that all 60 frontier problems

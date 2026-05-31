@@ -22,6 +22,7 @@ from .frontier_evaluation_triage import audit_frontier_evaluation_triage
 from .frontier_precision_audit import audit_frontier_precision
 from .frontier_simulation_rerun_audit import audit_frontier_simulation_reruns
 from .frontier_smoke_benchmark import FrontierSmokeConfig, run_frontier_smoke_benchmark
+from .frontier_theory_revision_queue import export_frontier_theory_revision_queue
 from .frontier_theory_target_audit import audit_frontier_theory_targets
 from .formal_gap_task_export import export_formal_gap_lean_tasks
 from .formalization_target_audit import audit_formalization_targets
@@ -564,6 +565,28 @@ def _frontier_simulation_rerun_audit(args: argparse.Namespace) -> int:
     return 0 if payload["all_ok"] else 1
 
 
+def _frontier_theory_revision_queue(args: argparse.Namespace) -> int:
+    payload = export_frontier_theory_revision_queue(
+        Path(args.simulation_rerun_manifest),
+        Path(args.out),
+    )
+    print("\nAI Statistical Theory Lab Frontier Theory Revision Queue")
+    print("=" * 72)
+    print(
+        f"tasks={payload['n_ok']}/{payload['n_tasks']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    for failure_class, count in payload["by_failure_class"].items():
+        print(f"  {failure_class}: {count}")
+    print(
+        f"\nfrontier theory revision queue manifest written to "
+        f"{(Path(args.out) / 'frontier_theory_revision_queue_manifest.json').resolve()}"
+    )
+    print(f"jsonl written to {(Path(args.out) / 'frontier_theory_revision_queue.jsonl').resolve()}")
+    print(f"markdown report written to {(Path(args.out) / 'frontier_theory_revision_queue.md').resolve()}")
+    return 0 if payload["all_ok"] else 1
+
+
 def _research_knowledge_audit(args: argparse.Namespace) -> int:
     payload = audit_research_knowledge(Path(args.out), question_file=Path(args.question_file))
     print("\nAI Statistical Theory Lab Knowledge Audit")
@@ -611,6 +634,7 @@ async def _frontier_smoke_benchmark(args: argparse.Namespace) -> int:
         f"selected={payload['n_selected']} ready={payload['counts']['ready_with_gaps']}/{payload['counts']['questions']} "
         f"triage={payload['counts']['frontier_triage_items']} "
         f"rerun_resolved={payload['counts']['frontier_simulation_rerun_resolved']} "
+        f"theory_revisions={payload['counts']['frontier_theory_revision_tasks']} "
         f"all_gates_passed={payload['all_gates_passed']} "
         f"cache={payload['counts']['frontier_smoke_cache_status']}"
     )
@@ -1901,6 +1925,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="frontier simulation rerun output directory",
     )
     frontier_simulation_rerun_audit.set_defaults(func=_frontier_simulation_rerun_audit)
+
+    frontier_theory_revision_queue = sub.add_parser(
+        "frontier-theory-revision-queue",
+        help="export scoped TheoryDeveloper tasks for still-flagged frontier simulation reruns",
+    )
+    frontier_theory_revision_queue.add_argument(
+        "--simulation-rerun-manifest",
+        required=True,
+        help="frontier_simulation_rerun_manifest.json produced by frontier-simulation-rerun-audit",
+    )
+    frontier_theory_revision_queue.add_argument(
+        "--out",
+        default="runs/frontier_theory_revision_queue",
+        help="frontier theory revision queue output directory",
+    )
+    frontier_theory_revision_queue.set_defaults(func=_frontier_theory_revision_queue)
 
     frontier_smoke_benchmark = sub.add_parser(
         "frontier-smoke-benchmark",
