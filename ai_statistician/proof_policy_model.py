@@ -27,6 +27,45 @@ class ProofPolicyPrediction:
     top_k_obligations: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class ProofPolicyModel:
+    schema_version: int
+    model_type: str
+    feature_names: tuple[str, ...]
+    weights: dict[str, float]
+    model_fingerprint: str
+
+    def score(self, query: dict[str, object], candidate: dict[str, object]) -> float:
+        """Return a learned whole-proof ranking score in [0, 1]."""
+
+        return _sigmoid(_dot(self.weights, _features(query, candidate)))
+
+
+def load_proof_policy_model(model_json: Path) -> ProofPolicyModel:
+    """Load a trained whole-proof policy ranker."""
+
+    payload = json.loads(model_json.read_text(encoding="utf-8"))
+    if int(payload.get("schema_version", -1)) != PROOF_POLICY_MODEL_SCHEMA_VERSION:
+        raise ValueError(
+            f"unsupported proof policy model schema_version={payload.get('schema_version')!r}"
+        )
+    model_type = str(payload.get("model_type", ""))
+    if model_type != "logistic_whole_proof_ranker":
+        raise ValueError(f"unsupported proof policy model_type={model_type!r}")
+    weights = {str(key): float(value) for key, value in dict(payload.get("weights", {})).items()}
+    feature_names = tuple(str(item) for item in payload.get("feature_names", []) or [])
+    missing = [name for name in feature_names if name not in weights]
+    if missing:
+        raise ValueError(f"proof policy model missing weights for features: {missing}")
+    return ProofPolicyModel(
+        schema_version=PROOF_POLICY_MODEL_SCHEMA_VERSION,
+        model_type=model_type,
+        feature_names=feature_names,
+        weights=weights,
+        model_fingerprint=stable_hash(payload),
+    )
+
+
 def train_proof_policy_model(
     train_jsonl: Path,
     out_dir: Path,

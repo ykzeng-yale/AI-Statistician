@@ -39,7 +39,7 @@ from ai_statistician.frontier_backlog_audit import audit_frontier_backlog
 from ai_statistician.proof_audit import audit_proof_bank
 from ai_statistician.proof_bank_expansion_export import export_proof_bank_expansion_candidates
 from ai_statistician.proof_policy_baseline import evaluate_retrieval_proof_policy_baseline
-from ai_statistician.proof_policy_model import train_proof_policy_model
+from ai_statistician.proof_policy_model import load_proof_policy_model, train_proof_policy_model
 from ai_statistician.proof_repair_export import export_proof_repair_dataset
 from ai_statistician.proof_search import BestFirstWholeProofSearchController, ProofCandidate
 from ai_statistician.proof_search_audit import audit_proof_search_controller
@@ -497,7 +497,55 @@ class ProofBankTests(unittest.TestCase):
         self.assertFalse(result.nodes[0].ok)
         self.assertEqual(result.selected_source, "registered_proof_body")
         self.assertFalse(result.kernel_verified)
-        self.assertEqual(result.schema_version, 1)
+        self.assertEqual(result.schema_version, 2)
+
+    def test_best_first_whole_proof_search_uses_trained_policy_scores(self) -> None:
+        examples = [
+            {
+                "example_id": "variance_nonneg:train",
+                "obligation_id": "variance_nonneg",
+                "prompt": "variance nonnegative expected lemma variance_nonneg",
+                "completion": "by\n  exact variance_nonneg X μ",
+                "expected_lemmas": ["variance_nonneg X μ"],
+                "retrieved_obligations": [],
+                "tags": ["variance"],
+            },
+            {
+                "example_id": "markov_inequality:train",
+                "obligation_id": "markov_inequality",
+                "prompt": "markov inequality tail probability integral bound",
+                "completion": "by\n  simpa using hf.meas_ge_le_lintegral_div hε hεt",
+                "expected_lemmas": ["hf.meas_ge_le_lintegral_div hε hεt"],
+                "retrieved_obligations": [],
+                "tags": ["probability", "inequality"],
+            },
+        ]
+        train_path = Path("runs/test_policy_guided_search_examples.jsonl")
+        train_path.parent.mkdir(parents=True, exist_ok=True)
+        train_path.write_text("\n".join(json.dumps(row) for row in examples) + "\n", encoding="utf-8")
+        policy_manifest = train_proof_policy_model(
+            train_path,
+            Path("runs/test_policy_guided_search_model"),
+            validation_jsonl=train_path,
+            k=2,
+            epochs=30,
+            negatives_per_query=1,
+        )
+        policy_model = load_proof_policy_model(Path(str(policy_manifest["model_json"])))
+
+        async def run():
+            obligation = get_obligation("variance_nonneg")
+            controller = BestFirstWholeProofSearchController(
+                MockProofVerifier(),
+                proof_policy_model=policy_model,
+            )
+            return await controller.solve(obligation, max_nodes=2)
+
+        result = asyncio.run(run())
+        self.assertTrue(result.solved)
+        self.assertIsNotNone(result.nodes[0].policy_score)
+        self.assertIsNotNone(result.nodes[0].base_score)
+        self.assertGreater(result.nodes[0].score, result.nodes[0].base_score)
 
     def test_proof_search_audit_exports_node_level_results(self) -> None:
         async def run():
@@ -516,9 +564,10 @@ class ProofBankTests(unittest.TestCase):
         results_path = Path(payload["results_jsonl"])
         self.assertTrue(results_path.exists())
         rows = [json.loads(line) for line in results_path.read_text(encoding="utf-8").splitlines()]
-        self.assertEqual(rows[0]["schema_version"], 1)
+        self.assertEqual(rows[0]["schema_version"], 2)
         self.assertEqual(rows[0]["nodes"][0]["source"], "invalid_probe")
         self.assertIn("proof_body", rows[0]["nodes"][0])
+        self.assertIn("policy_score", rows[0]["nodes"][0])
         self.assertFalse(rows[0]["nodes"][0]["ok"])
         self.assertEqual(rows[0]["selected_source"], "registered_proof_body")
         process = export_proof_search_process_dataset(
@@ -5483,6 +5532,8 @@ class SystemTests(unittest.TestCase):
             payload["counts"]["proof_policy_baseline_validation"],
             payload["counts"]["proof_training_validation"],
         )
+        self.assertTrue(payload["counts"]["proof_search_policy_model_enabled"])
+        self.assertGreater(payload["counts"]["proof_search_policy_scored_expanded_nodes"], 0)
         self.assertGreater(payload["counts"]["prover_components_total"], 0)
         self.assertFalse(payload["counts"]["prover_component_goal_complete"])
         self.assertGreater(payload["counts"]["prover_components_ready"], 0)

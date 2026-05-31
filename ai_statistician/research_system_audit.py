@@ -211,6 +211,7 @@ async def run_research_system_audit(
         max_obligations=12,
         max_nodes=8,
         include_invalid_probe=True,
+        proof_policy_model_json=Path(str(proof_policy_model_manifest["model_json"])),
     )
     proof_search_training_manifest = export_proof_search_process_dataset(
         Path(str(proof_search_manifest["results_jsonl"])),
@@ -391,7 +392,9 @@ async def run_research_system_audit(
         == int(proof_training_manifest["n_sft_examples"]),
         "proof_policy_model": int(proof_policy_model_manifest["n_train"]) > 0
         and int(proof_policy_model_manifest["n_features"]) > 0,
-        "proof_search_audit": bool(proof_search_manifest["all_solved"]),
+        "proof_search_audit": bool(proof_search_manifest["all_solved"])
+        and bool(proof_search_manifest["policy_model_enabled"])
+        and int(proof_search_manifest["policy_scored_expanded_nodes"]) > 0,
         "proof_search_training_export": int(proof_search_training_manifest["n_process_examples"])
         == int(proof_search_manifest["nodes_expanded"]),
         "proof_search_value_model": int(proof_search_value_manifest["n_train"]) > 0
@@ -599,6 +602,10 @@ async def run_research_system_audit(
             "proof_search_kernel_verified": proof_search_manifest["n_kernel_verified"],
             "proof_search_nodes_expanded": proof_search_manifest["nodes_expanded"],
             "proof_search_mean_nodes_expanded": proof_search_manifest["mean_nodes_expanded"],
+            "proof_search_policy_model_enabled": proof_search_manifest["policy_model_enabled"],
+            "proof_search_policy_scored_expanded_nodes": proof_search_manifest[
+                "policy_scored_expanded_nodes"
+            ],
             "proof_search_process_examples": proof_search_training_manifest["n_process_examples"],
             "proof_search_process_positive": proof_search_training_manifest["n_positive"],
             "proof_search_process_negative": proof_search_training_manifest["n_negative"],

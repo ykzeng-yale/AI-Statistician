@@ -180,10 +180,11 @@ revisions attach verified proof obligations to theorem roadmaps; they do not
 claim the full frontier asymptotic theorems are closed.
 
 `proof-search-audit` is the first bounded proof-search controller layer above
-one-shot proof lookup. It runs a deterministic best-first whole-proof candidate
-frontier, verifies each expanded node, and writes `proof_search_results.jsonl`.
-This is still not tactic-state MCTS or RL, but it gives the prover stack an
-auditable search object with failed-node and solved-node evidence.
+one-shot proof lookup. It runs a best-first whole-proof candidate frontier,
+can load the `proof-policy-train` model to score proof bodies, verifies each
+expanded node, and writes `proof_search_results.jsonl`. This is still not
+tactic-state MCTS or RL, but it gives the prover stack an auditable search
+object with failed-node, policy-score, and solved-node evidence.
 Current local-kernel release evidence: `proof_search_solved=12/12` and
 `proof_search_kernel_verified=12/12` inside `research-system-audit --local-lean`.
 `proof-search-training-export` converts the expanded proof-search nodes into
@@ -194,7 +195,9 @@ substrate, not a trained value/RL model.
 deterministic logistic value baseline. This is the first actual model-training
 stage in the prover stack, but it is not a neural prover or RL policy.
 `proof-policy-train` similarly trains a deterministic whole-proof candidate
-ranking policy over proof SFT examples. It ranks known proof bodies; it does not
+ranking policy over proof SFT examples. The release audit now feeds this model
+back into `proof-search-audit`, so it influences candidate ordering rather than
+only existing as an offline report. It ranks known proof bodies; it does not
 generate novel Lean syntax or replace a tactic-state policy.
 Current local-kernel release evidence includes `24` proof-search process
 examples (`12` positive, `12` negative from rejected invalid probes) and a

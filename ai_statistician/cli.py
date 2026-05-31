@@ -330,13 +330,15 @@ async def _proof_search_audit(args: argparse.Namespace) -> int:
         max_obligations=args.max_obligations,
         max_nodes=args.max_nodes,
         include_invalid_probe=args.include_invalid_probe,
+        proof_policy_model_json=Path(args.policy_model_json) if args.policy_model_json else None,
     )
     print("\nAI Statistician Proof Search Audit")
     print("=" * 72)
     print(
         f"solved={payload['n_solved']}/{payload['n_obligations']} "
         f"kernel_verified={payload['n_kernel_verified']} "
-        f"mean_nodes={payload['mean_nodes_expanded']:.2f}"
+        f"mean_nodes={payload['mean_nodes_expanded']:.2f} "
+        f"policy_model={'on' if payload['policy_model_enabled'] else 'off'}"
     )
     print(f"results={Path(str(payload['results_jsonl'])).resolve()}")
     print(f"manifest written to {(Path(args.out) / 'proof_search_audit_manifest.json').resolve()}")
@@ -1619,6 +1621,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--include-invalid-probe",
         action="store_true",
         help="put one invalid high-priority candidate before the registered proof to test branch/error logging",
+    )
+    proof_search_audit.add_argument(
+        "--policy-model-json",
+        default=None,
+        help="optional proof_policy_model.json used to score and rerank candidate proof bodies",
     )
     proof_search_audit.add_argument(
         "--out",

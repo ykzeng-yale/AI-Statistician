@@ -6,12 +6,13 @@ from typing import Iterable
 
 from .fingerprint import stable_hash
 from .proof_bank import all_obligations
+from .proof_policy_model import ProofPolicyModel
 from .retrieval import tokens
 from .schema import FormalObligation, ProofCheck, RetrievalHit
 from .verifier import ProofVerifier
 
 
-PROOF_SEARCH_SCHEMA_VERSION = 1
+PROOF_SEARCH_SCHEMA_VERSION = 2
 
 
 @dataclass(frozen=True)
@@ -20,6 +21,12 @@ class ProofCandidate:
     proof_body: str
     source: str
     score: float
+    policy_score: float | None = None
+    base_score: float | None = None
+    origin_obligation_id: str = ""
+    expected_lemmas: tuple[str, ...] = ()
+    tags: tuple[str, ...] = ()
+    policy_prompt: str = ""
 
 
 @dataclass(frozen=True)
@@ -29,6 +36,8 @@ class ProofSearchNode:
     proof_body: str
     source: str
     score: float
+    policy_score: float | None
+    base_score: float | None
     expanded_index: int
     ok: bool
     kernel_verified: bool
@@ -70,9 +79,15 @@ class BestFirstWholeProofSearchController:
         verifier: ProofVerifier,
         *,
         proof_memory: Iterable[FormalObligation] | None = None,
+        proof_policy_model: ProofPolicyModel | None = None,
+        proof_policy_weight: float = 100.0,
     ) -> None:
+        if proof_policy_weight < 0:
+            raise ValueError("proof_policy_weight must be nonnegative")
         self.verifier = verifier
         self.proof_memory = tuple(proof_memory or all_obligations())
+        self.proof_policy_model = proof_policy_model
+        self.proof_policy_weight = proof_policy_weight
 
     async def solve(
         self,
@@ -90,6 +105,7 @@ class BestFirstWholeProofSearchController:
             extra_candidates=extra_candidates,
             include_registered_proof=include_registered_proof,
         )
+        candidates = self._apply_policy_scores(obligation, candidates)
         frontier: list[tuple[float, str, ProofCandidate]] = []
         for candidate in candidates:
             heapq.heappush(frontier, (-candidate.score, candidate.candidate_id, candidate))
@@ -114,6 +130,8 @@ class BestFirstWholeProofSearchController:
                 proof_body=candidate.proof_body,
                 source=candidate.source,
                 score=candidate.score,
+                policy_score=candidate.policy_score,
+                base_score=candidate.base_score,
                 expanded_index=len(nodes) + 1,
                 ok=check.ok,
                 kernel_verified=check.kernel_verified,
@@ -165,6 +183,7 @@ class BestFirstWholeProofSearchController:
     ) -> list[ProofCandidate]:
         candidates: list[ProofCandidate] = []
         candidates.extend(extra_candidates)
+        query_metadata = _metadata_for_obligation(obligation)
         if include_registered_proof:
             candidates.append(
                 ProofCandidate(
@@ -172,6 +191,11 @@ class BestFirstWholeProofSearchController:
                     proof_body=obligation.proof_body,
                     source="registered_proof_body",
                     score=1000.0,
+                    base_score=1000.0,
+                    origin_obligation_id=obligation.id,
+                    expected_lemmas=tuple(obligation.expected_lemmas),
+                    tags=tuple(obligation.tags),
+                    policy_prompt=query_metadata["prompt"],
                 )
             )
         for idx, lemma in enumerate(obligation.expected_lemmas):
@@ -183,6 +207,11 @@ class BestFirstWholeProofSearchController:
                     proof_body=f"by\n  simpa using {lemma}",
                     source="expected_lemma_template",
                     score=250.0 - idx,
+                    base_score=250.0 - idx,
+                    origin_obligation_id=obligation.id,
+                    expected_lemmas=tuple(obligation.expected_lemmas),
+                    tags=tuple(obligation.tags),
+                    policy_prompt=query_metadata["prompt"],
                 )
             )
             candidates.append(
@@ -191,20 +220,60 @@ class BestFirstWholeProofSearchController:
                     proof_body=f"by\n  exact {lemma}",
                     source="expected_lemma_template",
                     score=200.0 - idx,
+                    base_score=200.0 - idx,
+                    origin_obligation_id=obligation.id,
+                    expected_lemmas=tuple(obligation.expected_lemmas),
+                    tags=tuple(obligation.tags),
+                    policy_prompt=query_metadata["prompt"],
                 )
             )
         for idx, neighbor in enumerate(_rank_memory_neighbors(obligation, self.proof_memory)[:5]):
             if neighbor.id == obligation.id:
                 continue
+            neighbor_metadata = _metadata_for_obligation(neighbor)
             candidates.append(
                 ProofCandidate(
                     candidate_id=f"{obligation.id}:memory:{neighbor.id}",
                     proof_body=neighbor.proof_body,
                     source=f"proof_memory:{neighbor.id}",
                     score=100.0 - idx,
+                    base_score=100.0 - idx,
+                    origin_obligation_id=neighbor.id,
+                    expected_lemmas=tuple(neighbor.expected_lemmas),
+                    tags=tuple(neighbor.tags),
+                    policy_prompt=neighbor_metadata["prompt"],
                 )
             )
         return _dedupe_candidates(candidates)
+
+    def _apply_policy_scores(
+        self,
+        obligation: FormalObligation,
+        candidates: Iterable[ProofCandidate],
+    ) -> list[ProofCandidate]:
+        rows = list(candidates)
+        if self.proof_policy_model is None:
+            return rows
+        query = _policy_query_for_obligation(obligation)
+        scored: list[ProofCandidate] = []
+        for candidate in rows:
+            base_score = candidate.base_score if candidate.base_score is not None else candidate.score
+            policy_score = self.proof_policy_model.score(query, _policy_candidate_dict(candidate))
+            scored.append(
+                ProofCandidate(
+                    candidate_id=candidate.candidate_id,
+                    proof_body=candidate.proof_body,
+                    source=candidate.source,
+                    score=base_score + self.proof_policy_weight * policy_score,
+                    policy_score=round(policy_score, 6),
+                    base_score=base_score,
+                    origin_obligation_id=candidate.origin_obligation_id,
+                    expected_lemmas=candidate.expected_lemmas,
+                    tags=candidate.tags,
+                    policy_prompt=candidate.policy_prompt,
+                )
+            )
+        return _dedupe_candidates(scored)
 
 
 def _rank_memory_neighbors(
@@ -244,6 +313,49 @@ def _rank_memory_neighbors(
         if score > 0:
             scored.append((score, candidate.id, candidate))
     return [row[2] for row in sorted(scored, key=lambda item: (-item[0], item[1]))]
+
+
+def _policy_query_for_obligation(obligation: FormalObligation) -> dict[str, object]:
+    metadata = _metadata_for_obligation(obligation)
+    return {
+        "example_id": f"{obligation.id}:search_query",
+        "obligation_id": obligation.id,
+        "prompt": metadata["prompt"],
+        "completion": "",
+        "expected_lemmas": tuple(obligation.expected_lemmas),
+        "retrieved_obligations": tuple(row.id for row in _rank_memory_neighbors(obligation, all_obligations())[:8]),
+        "tags": tuple(obligation.tags),
+    }
+
+
+def _policy_candidate_dict(candidate: ProofCandidate) -> dict[str, object]:
+    return {
+        "example_id": candidate.candidate_id,
+        "obligation_id": candidate.origin_obligation_id or candidate.candidate_id,
+        "prompt": candidate.policy_prompt,
+        "completion": candidate.proof_body.strip(),
+        "expected_lemmas": tuple(candidate.expected_lemmas),
+        "retrieved_obligations": (),
+        "tags": tuple(candidate.tags),
+    }
+
+
+def _metadata_for_obligation(obligation: FormalObligation) -> dict[str, str]:
+    expected = "\n".join(f"- {lemma}" for lemma in obligation.expected_lemmas) or "- none"
+    tags = ", ".join(obligation.tags) or "none"
+    return {
+        "prompt": "\n".join(
+            [
+                f"Obligation: {obligation.title}",
+                f"Tags: {tags}",
+                f"English: {obligation.english}",
+                "Expected useful lemmas:",
+                expected,
+                "Formal statement:",
+                obligation.formal_statement,
+            ]
+        )
+    }
 
 
 def _dedupe_candidates(candidates: Iterable[ProofCandidate]) -> list[ProofCandidate]:
