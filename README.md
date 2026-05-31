@@ -166,9 +166,9 @@ python3 -m ai_statistician.cli proof-audit \
   --out runs/proof_audit_local_lean_current
 ```
 
-Current evidence: `65/65` registered proof-bank obligations pass
+Current evidence: `66/66` registered proof-bank obligations pass
 `local_lean_kernel_batch` with proof-bank fingerprint
-`28eae3c01ee127f056c59af937c75e8fbc00172587817dd63c62a3ba01b0374a`.
+`e5fb63016b0e61e1d15b173d965891b774868934e61d5aee9d5994782ead171c`.
 
 Check `doctor` first. It reports `real_lean_ready` and concrete
 `real_lean_blockers`; an AXLE key alone is not enough if the active Python
@@ -261,6 +261,12 @@ an observable Neyman bound minus a nonnegative treatment-effect variance term,
 then the observable bound is conservative. This verifies the algebraic
 conservativeness step while still leaving complete randomization and the
 finite-population randomization variance formula as explicit formal gaps.
+It also includes `finite_population_ate_mean_difference`, a deterministic
+finite-population potential-outcome target bridge. It proves that the mean of
+unit-level effects `Y(1)-Y(0)` equals the treated potential-outcome mean minus
+the control potential-outcome mean. This formalizes the ATE target algebra while
+still leaving complete-randomization assignment and estimator unbiasedness as
+separate theorem goals.
 Another composed guarantee is `mean2_estimator_chebyshev_indep`, which derives
 an explicit Chebyshev error bound for the average of two independent unbiased L2
 estimators using both the expectation and variance proof ingredients. Composed

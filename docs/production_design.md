@@ -854,6 +854,12 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   observable bound is conservative. This verifies the core algebraic
   conservativeness step while leaving complete randomization and the
   finite-population randomization variance derivation as formal gaps.
+- `finite_population_ate_mean_difference`: a deterministic potential-outcome
+  target bridge. For a finite population, the mean of unit-level effects
+  `Y(1)-Y(0)` equals the treated potential-outcome mean minus the control
+  potential-outcome mean. This formalizes finite-population ATE algebra while
+  leaving assignment distribution and randomization-unbiasedness proofs as
+  separate formalization targets.
 - `mean2_estimator_chebyshev_indep`: combines unbiasedness, L2 closure,
   independence variance additivity, variance scaling, and Chebyshev to bound
   the absolute-error probability of `(X+Y)/2` by
@@ -1273,11 +1279,11 @@ python3 -m ai_statistician.cli proof-audit \
 Current full-bank local Lean evidence (2026-05-31):
 
 ```text
-verified=65/65
-kernel=65/65
+verified=66/66
+kernel=66/66
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=28eae3c01ee127f056c59af937c75e8fbc00172587817dd63c62a3ba01b0374a
+proof_bank_fingerprint=e5fb63016b0e61e1d15b173d965891b774868934e61d5aee9d5994782ead171c
 ```
 
 Run `doctor` in the same Python runtime first. It reports

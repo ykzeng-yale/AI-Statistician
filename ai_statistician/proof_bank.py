@@ -233,6 +233,49 @@ theorem neymanVariance_conservative_of_nonneg_effect_variance
         expected_lemmas=("nlinarith",),
         depends_on=("difference_estimator_variance_decompose", "variance_nonneg"),
     ),
+    "finite_population_ate_mean_difference": FormalObligation(
+        id="finite_population_ate_mean_difference",
+        title="Finite-population ATE mean-difference algebra",
+        english=(
+            "For finite-population potential outcomes Y(1) and Y(0), the "
+            "finite-population mean of the unit-level treatment effects "
+            "Y(1)-Y(0) equals the difference between the finite-population "
+            "treated and control potential-outcome means. This formalizes the "
+            "ATE target algebra used by design-based traces; it does not prove "
+            "complete randomization, assignment ignorability, or estimator "
+            "unbiasedness under a randomization distribution."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+
+noncomputable def finitePopulationMean {n : Nat} (Y : Fin n → ℝ) : ℝ :=
+  (∑ i, Y i) / (n : ℝ)
+
+theorem finitePopulationATE_mean_difference {n : Nat}
+    (Y1 Y0 : Fin n → ℝ) :
+    finitePopulationMean (fun i => Y1 i - Y0 i) =
+      finitePopulationMean Y1 - finitePopulationMean Y0 := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  simp [finitePopulationMean, Finset.sum_sub_distrib]\n"
+            "  ring"
+        ),
+        tags=(
+            "estimator",
+            "finite_population",
+            "potential_outcomes",
+            "ate",
+            "difference_in_means",
+            "design_based",
+            "finite_sample",
+            "algebra",
+        ),
+        expected_lemmas=("Finset.sum_sub_distrib", "ring"),
+        depends_on=("difference_estimator_unbiased",),
+    ),
     "mean2_estimator_variance_indep": FormalObligation(
         id="mean2_estimator_variance_indep",
         title="Two-variable mean estimator variance under independence",

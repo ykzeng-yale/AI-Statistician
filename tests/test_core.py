@@ -670,6 +670,21 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("randomization_variance", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_finite_population_ate_mean_difference_formalizes_potential_outcome_target(self) -> None:
+        obligation = get_obligation("finite_population_ate_mean_difference")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("difference_estimator_unbiased",))
+        self.assertIn("def finitePopulationMean", content)
+        self.assertIn("theorem finitePopulationATE_mean_difference", content)
+        self.assertIn("finitePopulationMean (fun i => Y1 i - Y0 i)", content)
+        self.assertIn("finitePopulationMean Y1 - finitePopulationMean Y0", content)
+        self.assertIn("Finset.sum_sub_distrib", content)
+        self.assertIn("ring", content)
+        self.assertIn("finite_population", obligation.tags)
+        self.assertIn("potential_outcomes", obligation.tags)
+        self.assertIn("design_based", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_aipw_score_expectation_target_cancels_augmentation_means(self) -> None:
         obligation = get_obligation("aipw_score_expectation_target_of_aug_cancel")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
@@ -3102,6 +3117,7 @@ class SystemTests(unittest.TestCase):
             encoding="utf-8",
         )
         proof_obligations = (
+            "finite_population_ate_mean_difference",
             "finite_sample_mean_unbiased",
             "difference_estimator_unbiased",
             "difference_estimator_variance_decompose",
@@ -3151,6 +3167,10 @@ class SystemTests(unittest.TestCase):
 
         payload = audit_formalization_targets(run_dir, out_dir)
         rows = {row["primitive"]: row for row in payload["rows"]}
+        self.assertIn(
+            "finite_population_ate_mean_difference",
+            rows["finite_population_potential_outcomes"]["bridge_candidate_obligations"],
+        )
         self.assertIn(
             "difference_estimator_unbiased",
             rows["difference_in_means_unbiasedness"]["bridge_candidate_obligations"],

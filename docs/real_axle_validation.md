@@ -13,15 +13,15 @@ python3 -m ai_statistician.cli proof-audit \
 Result:
 
 ```text
-verified=65/65
-kernel=65/65
+verified=66/66
+kernel=66/66
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=28eae3c01ee127f056c59af937c75e8fbc00172587817dd63c62a3ba01b0374a
+proof_bank_fingerprint=e5fb63016b0e61e1d15b173d965891b774868934e61d5aee9d5994782ead171c
 ```
 
 This is the current evidence that the registered proof bank is not only
-mock-checked: all 65 registered Mathlib-backed obligations were accepted by a
+mock-checked: all 66 registered Mathlib-backed obligations were accepted by a
 real Lean kernel check through the local Lake/Mathlib runtime. AXLE remains the
 preferred remote verifier for release bundles when its Python package and API
 runtime are available; the local Lean backend is the offline kernel-equivalent
@@ -225,6 +225,13 @@ variance term, then the observable bound is conservative. This is a real
 verified algebra bridge for Neyman-style variance traces; it still does not
 prove complete randomization, finite-population potential-outcome
 identification, or the randomization variance decomposition end to end.
+
+The same design-based block now includes `finite_population_ate_mean_difference`.
+It proves the deterministic finite-population potential-outcome identity that
+the mean of unit-level effects `Y(1)-Y(0)` equals the treated potential-outcome
+mean minus the control potential-outcome mean. This is a real verified target
+algebra bridge; it still does not prove complete-randomization assignment or
+randomization-unbiasedness of the observed difference-in-means estimator.
 
 Important boundary:
 
