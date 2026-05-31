@@ -1023,6 +1023,61 @@ theorem blockEstimator_error_chebyshev {Ω : Type*} [MeasurableSpace Ω]
         expected_lemmas=("meas_ge_le_variance_div_sq",),
         depends_on=("estimator_error_chebyshev",),
     ),
+    "median_of_means_failure_union_control": FormalObligation(
+        id="median_of_means_failure_union_control",
+        title="Median-of-means bad-block union control",
+        english=(
+            "If a median-of-means failure event is contained in the finite "
+            "union of bad block events, and each block failure has a local "
+            "probability budget, then the median failure probability is "
+            "controlled by the sum of those budgets. This is a reusable finite "
+            "block-control bridge for median-of-means traces; it does not prove "
+            "the binomial majority tail or the sharp sub-Gaussian MoM theorem."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+theorem medianOfMeans_failure_union_control {Ω ι : Type*}
+    [MeasurableSpace Ω]
+    (μ : Measure Ω) (Blocks : Finset ι) (BadBlock : ι → Set Ω)
+    (MedianBad : Set Ω) (α : ι → ENNReal) (α_total : ENNReal)
+    (hSubset : MedianBad ⊆ ⋃ i ∈ Blocks, BadBlock i)
+    (hBlock : ∀ i ∈ Blocks, μ (BadBlock i) ≤ α i)
+    (h_total : (∑ i ∈ Blocks, α i) ≤ α_total) :
+    μ MedianBad ≤ α_total := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  calc\n"
+            "    μ MedianBad ≤ μ (⋃ i ∈ Blocks, BadBlock i) := by\n"
+            "      exact measure_mono hSubset\n"
+            "    _ ≤ ∑ i ∈ Blocks, μ (BadBlock i) := by\n"
+            "      exact measure_biUnion_finset_le (μ := μ) Blocks BadBlock\n"
+            "    _ ≤ ∑ i ∈ Blocks, α i := by\n"
+            "      exact Finset.sum_le_sum (fun i hi => hBlock i hi)\n"
+            "    _ ≤ α_total := h_total"
+        ),
+        tags=(
+            "probability",
+            "event",
+            "union_bound",
+            "finite_sample",
+            "robust",
+            "median_of_means",
+            "median_of_means_deviation",
+            "block",
+            "block_mean",
+            "block_mean_definition",
+            "independent_blocks",
+            "chebyshev_block_failure_bound",
+            "concentration",
+        ),
+        expected_lemmas=("measure_mono", "measure_biUnion_finset_le", "Finset.sum_le_sum"),
+        depends_on=("block_estimator_chebyshev_bound", "finite_union_budget_control"),
+    ),
     "affine_estimator_expectation": FormalObligation(
         id="affine_estimator_expectation",
         title="Affine estimator expectation",

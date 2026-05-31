@@ -173,11 +173,11 @@ python3 -m ai_statistician.cli research-system-audit \
 Result:
 
 ```text
-proof_bank_kernel=63/63
+proof_bank_kernel=64/64
 proof_verifier=local.lake_env_lean
 proof_strength=local_lean_kernel_batch
 system_all_gates_passed=True
-system_elapsed_latest=118.2s
+system_elapsed_latest=153.5s
 sources=23/23
 frontier_supported=60/60
 frontier_smoke=23/23

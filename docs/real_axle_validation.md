@@ -13,15 +13,15 @@ python3 -m ai_statistician.cli proof-audit \
 Result:
 
 ```text
-verified=63/63
-kernel=63/63
+verified=64/64
+kernel=64/64
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=ab9c0a942a4a1bf3b12179a6344b8b963f1e47eef21172ce7a2fb6367762991d
+proof_bank_fingerprint=8d204798c67801ccae8f9ed142365bfe29018858e341da31726087699ac2624d
 ```
 
 This is the current evidence that the registered proof bank is not only
-mock-checked: all 63 registered Mathlib-backed obligations were accepted by a
+mock-checked: all 64 registered Mathlib-backed obligations were accepted by a
 real Lean kernel check through the local Lake/Mathlib runtime. AXLE remains the
 preferred remote verifier for release bundles when its Python package and API
 runtime are available; the local Lean backend is the offline kernel-equivalent
@@ -209,6 +209,14 @@ post-Doob cancellation step. It assumes the threshold is nonzero and proves
 This closes the algebraic division step toward Ville-style type-I control.
 The remaining formal gaps are the e-process construction and the proof that
 the terminal budget assumption holds for the constructed process.
+
+The robust-mean block now includes `median_of_means_failure_union_control`, a
+finite block-event union bridge. It proves that a median-of-means failure event
+contained in the finite union of bad block events has probability bounded by
+the sum of the bad-block budgets. This is a real verified bridge from
+block-level Chebyshev control toward MoM theorem skeletons; it still does not
+prove the binomial majority tail or the sharp sub-Gaussian MoM deviation
+theorem.
 
 Important boundary:
 

@@ -726,6 +726,24 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("meas_ge_le_variance_div_sq", content)
         self.assertNotIn("by sorry", content)
 
+    def test_median_of_means_failure_union_control_uses_bad_block_union(self) -> None:
+        obligation = get_obligation("median_of_means_failure_union_control")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(
+            obligation.depends_on,
+            ("block_estimator_chebyshev_bound", "finite_union_budget_control"),
+        )
+        self.assertIn("theorem medianOfMeans_failure_union_control", content)
+        self.assertIn("MedianBad ⊆ ⋃ i ∈ Blocks, BadBlock i", content)
+        self.assertIn("μ MedianBad ≤ α_total", content)
+        self.assertIn("measure_mono", content)
+        self.assertIn("measure_biUnion_finset_le", content)
+        self.assertIn("Finset.sum_le_sum", content)
+        self.assertIn("block_mean_definition", obligation.tags)
+        self.assertIn("independent_blocks", obligation.tags)
+        self.assertIn("median_of_means_deviation", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_finite_horizon_type1_union_control_supports_sequential_gap(self) -> None:
         obligation = get_obligation("finite_horizon_type1_union_control")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
@@ -3046,6 +3064,90 @@ class SystemTests(unittest.TestCase):
                 rows[primitive]["bridge_candidate_obligations"],
             )
             self.assertEqual(rows[primitive]["priority_band"], "BRIDGE_REUSE_READY")
+
+    def test_formalization_target_audit_maps_robust_mean_primitives_to_verified_bridge(self) -> None:
+        run_dir = Path("runs/test_formalization_target_robust_mean_run")
+        out_dir = Path("runs/test_formalization_target_robust_mean_audit")
+        shutil.rmtree(run_dir, ignore_errors=True)
+        shutil.rmtree(out_dir, ignore_errors=True)
+        gap_dir = run_dir / "formal_gaps"
+        gap_dir.mkdir(parents=True, exist_ok=True)
+        gap_path = gap_dir / "median_of_means_subgaussian_deviation.lean"
+        primitives = (
+            "block_mean_definition",
+            "chebyshev_block_failure_bound",
+            "independent_blocks",
+            "median_of_means_deviation",
+            "binomial_median_tail_bound",
+        )
+        gap_path.write_text("FORMAL_GAP " + " ".join(primitives), encoding="utf-8")
+        (run_dir / "research_benchmark_manifest.json").write_text(
+            json.dumps({"questions": [{"question": "q_robust_mean", "formal": {"gaps": 1}}]}),
+            encoding="utf-8",
+        )
+        proof_obligations = (
+            "finite_sample_mean_unbiased",
+            "finite_sample_mean_variance_indep",
+            "finite_sample_mean_chebyshev_indep",
+            "block_estimator_chebyshev_bound",
+            "median_of_means_failure_union_control",
+            "estimator_error_chebyshev",
+            "markov_inequality",
+        )
+        trace = {
+            "question": {"id": "q_robust_mean"},
+            "problem": {"problem_class": "robust_mean_inference"},
+            "procedures": [],
+            "knowledge": [{"id": "robust_mean_median_of_means"}],
+            "theorem_goals": [
+                {
+                    "id": "median_of_means_subgaussian_deviation",
+                    "title": "Median-of-means robust sub-Gaussian deviation bound",
+                    "proof_strategy": "Bridge block-level Chebyshev failures to finite-block MoM failure control.",
+                    "required_primitives": list(primitives),
+                    "proof_obligations": list(proof_obligations),
+                },
+            ],
+            "formal_subclaims": [
+                *[
+                    {"status": "PROVED", "proof_obligation_id": obligation_id}
+                    for obligation_id in proof_obligations
+                ],
+                {
+                    "id": "gap:median_of_means_subgaussian_deviation",
+                    "status": "FORMAL_GAP",
+                    "claim_type": "theory_gap",
+                    "gap_reason": "binomial median amplification remains library work",
+                    "artifact_path": str(gap_path),
+                    "lean_statement": gap_path.read_text(encoding="utf-8"),
+                    "formal_source_hits": [{"name": "StatInference.FiniteUnionDeviationCertificate.toEmpiricalDeviationBoundOn"}],
+                    "primitive_formal_source_hits": {
+                        primitive: [{"name": "StatInference.FiniteUnionDeviationCertificate.toEmpiricalDeviationBoundOn"}]
+                        for primitive in primitives
+                    },
+                },
+            ],
+        }
+        (run_dir / "q_robust_mean.json").write_text(json.dumps(trace), encoding="utf-8")
+
+        payload = audit_formalization_targets(run_dir, out_dir)
+        rows = {row["primitive"]: row for row in payload["rows"]}
+        for primitive in (
+            "block_mean_definition",
+            "chebyshev_block_failure_bound",
+            "independent_blocks",
+            "median_of_means_deviation",
+        ):
+            self.assertIn(
+                "median_of_means_failure_union_control",
+                rows[primitive]["bridge_candidate_obligations"],
+            )
+            self.assertEqual(rows[primitive]["priority_band"], "BRIDGE_REUSE_READY")
+        self.assertIn("binomial_median_tail_bound", rows)
+        self.assertNotIn(
+            "median_of_means_failure_union_control",
+            rows["binomial_median_tail_bound"]["bridge_candidate_obligations"],
+        )
 
     def test_formal_gap_task_export_writes_lean_task_jsonl(self) -> None:
         async def run():

@@ -166,9 +166,9 @@ python3 -m ai_statistician.cli proof-audit \
   --out runs/proof_audit_local_lean_current
 ```
 
-Current evidence: `63/63` registered proof-bank obligations pass
+Current evidence: `64/64` registered proof-bank obligations pass
 `local_lean_kernel_batch` with proof-bank fingerprint
-`ab9c0a942a4a1bf3b12179a6344b8b963f1e47eef21172ce7a2fb6367762991d`.
+`8d204798c67801ccae8f9ed142365bfe29018858e341da31726087699ac2624d`.
 
 Check `doctor` first. It reports `real_lean_ready` and concrete
 `real_lean_blockers`; an AXLE key alone is not enough if the active Python
@@ -249,6 +249,12 @@ Chebyshev ingredient exposed as a block-estimator bridge for robust
 median-of-means traces. This proves the block failure probability ingredient
 only; the binomial median amplification and full robust sub-Gaussian deviation
 theorem remain explicit formal gaps.
+It also includes `median_of_means_failure_union_control`, a finite block-event
+union bridge. If the median-of-means failure event is contained in the union of
+bad block events, and each bad block event has a local error budget, then the
+median failure event is bounded by the sum of those budgets. This improves the
+robust-mean formalization queue while still leaving the binomial majority tail
+and sharp sub-Gaussian MoM theorem as explicit formal gaps.
 Another composed guarantee is `mean2_estimator_chebyshev_indep`, which derives
 an explicit Chebyshev error bound for the average of two independent unbiased L2
 estimators using both the expectation and variance proof ingredients. Composed

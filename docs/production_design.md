@@ -842,6 +842,12 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   exposed as a block-estimator bridge for robust median-of-means traces. This
   verifies the block failure probability ingredient and deliberately leaves the
   binomial median amplification theorem as a separate formalization target.
+- `median_of_means_failure_union_control`: a finite block-event union bridge
+  for robust mean traces. If the MoM failure event is contained in the finite
+  union of bad block events, and each bad block has a local error budget, then
+  the MoM failure probability is controlled by the sum of those budgets. This
+  bridges block-level Chebyshev control toward the MoM theorem skeleton without
+  claiming the binomial majority tail or sharp sub-Gaussian deviation theorem.
 - `mean2_estimator_chebyshev_indep`: combines unbiasedness, L2 closure,
   independence variance additivity, variance scaling, and Chebyshev to bound
   the absolute-error probability of `(X+Y)/2` by
@@ -1261,11 +1267,11 @@ python3 -m ai_statistician.cli proof-audit \
 Current full-bank local Lean evidence (2026-05-31):
 
 ```text
-verified=63/63
-kernel=63/63
+verified=64/64
+kernel=64/64
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=ab9c0a942a4a1bf3b12179a6344b8b963f1e47eef21172ce7a2fb6367762991d
+proof_bank_fingerprint=8d204798c67801ccae8f9ed142365bfe29018858e341da31726087699ac2624d
 ```
 
 Run `doctor` in the same Python runtime first. It reports

@@ -282,6 +282,24 @@ _PRIMITIVE_PROOF_BRIDGE_HINTS: dict[str, tuple[str, ...]] = {
         "finite_null_pvalue_no_false_rejection_probability",
         "finite_null_family_no_false_rejection_probability",
     ),
+    "block_mean_definition": (
+        "median_of_means_failure_union_control",
+        "block_estimator_chebyshev_bound",
+        "finite_sample_mean_chebyshev_indep",
+    ),
+    "independent_blocks": (
+        "median_of_means_failure_union_control",
+        "block_estimator_chebyshev_bound",
+        "finite_sample_mean_variance_indep",
+    ),
+    "median_of_means_deviation": (
+        "median_of_means_failure_union_control",
+        "block_estimator_chebyshev_bound",
+    ),
+    "chebyshev_block_failure_bound": (
+        "median_of_means_failure_union_control",
+        "block_estimator_chebyshev_bound",
+    ),
     "sequential_elimination_rule": (
         "sequential_elimination_rule_finite_union_control",
         "selected_bad_event_probability_le_finite_union_budget",
