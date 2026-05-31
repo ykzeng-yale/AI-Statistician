@@ -138,6 +138,8 @@ Current all-supported local signal:
 - expected-result coverage about 82.8%
 - 44 traces ready with formal gaps
 - 16 traces simulation-flagged
+- 47 frontier-evaluation triage items: 31 theory-target misses and 16
+  simulation flags
 
 The all-supported run is intentionally stricter than the release smoke. It is a
 scoring gate and limitation surfacer, not a claim that all 60 frontier problems

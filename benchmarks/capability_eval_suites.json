@@ -88,6 +88,9 @@
       "current_all_supported_ready_with_gaps": 44,
       "current_all_supported_simulation_flagged": 16,
       "current_all_supported_traces_ok": 42,
+      "current_all_supported_triage_items": 47,
+      "current_all_supported_triage_theory_target_misses": 31,
+      "current_all_supported_triage_simulation_flags": 16,
       "release_floor": [
         "at least 85% expected-result coverage on current smoke set",
         "per-topic coverage reported",

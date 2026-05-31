@@ -10,6 +10,7 @@ from typing import Any
 
 from .fingerprint import stable_hash
 from .frontier_coverage_audit import FrontierBenchmarkQuestion, load_frontier_benchmark_questions
+from .frontier_evaluation_triage import audit_frontier_evaluation_triage
 from .frontier_theory_target_audit import audit_frontier_theory_targets
 from .proof_bank import proof_bank_fingerprint
 from .research_gap_audit import audit_research_gap_backlog
@@ -149,6 +150,12 @@ async def run_frontier_smoke_benchmark(
         benchmark_file=benchmark_file,
     )
     stage_start = _record_stage(stage_timings, "frontier_theory_target_audit", stage_start)
+    evaluation_triage_manifest = audit_frontier_evaluation_triage(
+        out_dir / "research_benchmark",
+        out_dir / "frontier_theory_target_audit" / "frontier_theory_target_manifest.json",
+        out_dir / "frontier_evaluation_triage",
+    )
+    stage_start = _record_stage(stage_timings, "frontier_evaluation_triage", stage_start)
 
     selected_classes = sorted({row.problem_class for row in selections})
     benchmark_ok = (
@@ -164,6 +171,7 @@ async def run_frontier_smoke_benchmark(
         "research_trace_audit": bool(trace_manifest["all_ok"]),
         "research_gap_backlog": bool(gap_manifest["all_ok"]),
         "frontier_theory_target_audit": bool(theory_target_manifest["all_scored"]),
+        "frontier_evaluation_triage": bool(evaluation_triage_manifest["all_ok"]),
     }
     if cache_info["enabled"] and cache_status == "miss" and all(gates.values()):
         _store_cached_research_benchmark(cache_info=cache_info, source_dir=benchmark_dir)
@@ -221,6 +229,9 @@ async def run_frontier_smoke_benchmark(
             "theory_expected_results_covered": theory_target_manifest["n_covered_results"],
             "theory_expected_result_coverage_rate": theory_target_manifest["expected_result_coverage_rate"],
             "theory_mean_trace_coverage": theory_target_manifest["mean_trace_coverage"],
+            "frontier_triage_items": evaluation_triage_manifest["n_items"],
+            "frontier_triage_theory_target_misses": evaluation_triage_manifest["n_theory_target_misses"],
+            "frontier_triage_simulation_flags": evaluation_triage_manifest["n_simulation_flags"],
             "frontier_smoke_total_elapsed_ms": total_elapsed_ms,
             "frontier_smoke_slowest_stage": str(slowest_stages[0]["stage"]) if slowest_stages else "",
             "frontier_smoke_slowest_stage_elapsed_ms": int(slowest_stages[0]["elapsed_ms"]) if slowest_stages else 0,
@@ -249,6 +260,12 @@ async def run_frontier_smoke_benchmark(
             ),
             "frontier_theory_target_report": str(
                 out_dir / "frontier_theory_target_audit" / "frontier_theory_target.md"
+            ),
+            "frontier_evaluation_triage": str(
+                out_dir / "frontier_evaluation_triage" / "frontier_evaluation_triage_manifest.json"
+            ),
+            "frontier_evaluation_triage_report": str(
+                out_dir / "frontier_evaluation_triage" / "frontier_evaluation_triage.md"
             ),
         },
     }

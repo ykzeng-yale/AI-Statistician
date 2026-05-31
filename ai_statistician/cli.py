@@ -18,6 +18,7 @@ from .evaluation import EvalConfig, run_seed_eval
 from .autoform_target_export import export_autoform_targets
 from .frontier_backlog_audit import audit_frontier_backlog
 from .frontier_coverage_audit import audit_frontier_coverage
+from .frontier_evaluation_triage import audit_frontier_evaluation_triage
 from .frontier_precision_audit import audit_frontier_precision
 from .frontier_smoke_benchmark import FrontierSmokeConfig, run_frontier_smoke_benchmark
 from .frontier_theory_target_audit import audit_frontier_theory_targets
@@ -513,6 +514,30 @@ def _frontier_theory_target_audit(args: argparse.Namespace) -> int:
     return 0 if payload["all_scored"] else 1
 
 
+def _frontier_evaluation_triage(args: argparse.Namespace) -> int:
+    payload = audit_frontier_evaluation_triage(
+        Path(args.run_dir),
+        Path(args.theory_target_manifest),
+        Path(args.out),
+    )
+    print("\nAI Statistical Theory Lab Frontier Evaluation Triage")
+    print("=" * 72)
+    print(
+        f"items={payload['n_ok']}/{payload['n_items']} "
+        f"theory_misses={payload['n_theory_target_misses']} "
+        f"simulation_flags={payload['n_simulation_flags']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    for owner, count in payload["by_owner"].items():
+        print(f"  {owner}: {count}")
+    print(
+        f"\nfrontier evaluation triage manifest written to "
+        f"{(Path(args.out) / 'frontier_evaluation_triage_manifest.json').resolve()}"
+    )
+    print(f"markdown report written to {(Path(args.out) / 'frontier_evaluation_triage.md').resolve()}")
+    return 0 if payload["all_ok"] else 1
+
+
 def _research_knowledge_audit(args: argparse.Namespace) -> int:
     payload = audit_research_knowledge(Path(args.out), question_file=Path(args.question_file))
     print("\nAI Statistical Theory Lab Knowledge Audit")
@@ -557,6 +582,7 @@ async def _frontier_smoke_benchmark(args: argparse.Namespace) -> int:
     print("=" * 72)
     print(
         f"selected={payload['n_selected']} ready={payload['counts']['ready_with_gaps']}/{payload['counts']['questions']} "
+        f"triage={payload['counts']['frontier_triage_items']} "
         f"all_gates_passed={payload['all_gates_passed']} "
         f"cache={payload['counts']['frontier_smoke_cache_status']}"
     )
@@ -1808,6 +1834,27 @@ def build_parser() -> argparse.ArgumentParser:
         help="frontier theory target audit output directory",
     )
     frontier_theory_target_audit.set_defaults(func=_frontier_theory_target_audit)
+
+    frontier_evaluation_triage = sub.add_parser(
+        "frontier-evaluation-triage",
+        help="turn frontier theory-target misses and simulation flags into owner-routed work items",
+    )
+    frontier_evaluation_triage.add_argument(
+        "--run-dir",
+        required=True,
+        help="research_benchmark directory containing generated frontier trace JSON files",
+    )
+    frontier_evaluation_triage.add_argument(
+        "--theory-target-manifest",
+        required=True,
+        help="frontier_theory_target_manifest.json produced by frontier-theory-target-audit",
+    )
+    frontier_evaluation_triage.add_argument(
+        "--out",
+        default="runs/frontier_evaluation_triage",
+        help="frontier evaluation triage output directory",
+    )
+    frontier_evaluation_triage.set_defaults(func=_frontier_evaluation_triage)
 
     frontier_smoke_benchmark = sub.add_parser(
         "frontier-smoke-benchmark",
