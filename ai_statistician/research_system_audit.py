@@ -286,6 +286,7 @@ async def run_research_system_audit(
         questions[:1],
         out_dir / "research_loop",
         proof_verifier=verifier,
+        formal_source_retriever=formal_source_retriever,
         formal_source_index_path=formal_source_index_path,
         config=LoopConfig(max_rounds=2, n_runs=config.n_runs, seed=config.seed),
     )

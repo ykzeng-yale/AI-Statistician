@@ -510,15 +510,13 @@ async def run_research_loop_benchmark(
     out_dir: Path,
     *,
     proof_verifier: ProofVerifier | None = None,
+    formal_source_retriever: Any | None = None,
     formal_source_index_path: Path | None = None,
     config: LoopConfig = LoopConfig(),
 ) -> dict[str, Any]:
     out_dir.mkdir(parents=True, exist_ok=True)
-    formal_source_retriever = (
-        build_formal_source_search_backend(db_path=formal_source_index_path)
-        if formal_source_index_path is not None
-        else None
-    )
+    if formal_source_retriever is None and formal_source_index_path is not None:
+        formal_source_retriever = build_formal_source_search_backend(db_path=formal_source_index_path)
     coordinator = ResearchLoopCoordinator(
         proof_verifier=proof_verifier,
         formal_source_retriever=formal_source_retriever,
@@ -587,6 +585,7 @@ async def run_research_loop_benchmark(
             and row["repair_artifact"].get("kernel_verified") is True
         ),
         "formal_source_index_path": str(formal_source_index_path) if formal_source_index_path else "",
+        "formal_source_retriever_reused": formal_source_retriever is not None,
         "all_loop_traces_written": all(path.exists() for path in trace_paths),
         "all_repair_tasks_exported": repair_task_path.exists(),
         "all_live_repair_artifacts_exported": live_repair_artifact_path.exists(),

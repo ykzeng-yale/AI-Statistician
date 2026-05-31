@@ -3933,6 +3933,8 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(payload["counts"]["research_benchmark_cache_key"])
         self.assertEqual(payload["counts"]["research_loop_questions"], 1)
         self.assertTrue(payload["counts"]["research_loop_traces_written"])
+        loop_manifest = json.loads(Path(payload["artifacts"]["research_loop"]).read_text())
+        self.assertTrue(loop_manifest["formal_source_retriever_reused"])
         self.assertTrue(payload["counts"]["research_loop_repair_tasks_exported"])
         self.assertGreaterEqual(payload["counts"]["research_loop_repair_tasks"], 1)
         self.assertTrue(payload["counts"]["research_loop_live_repair_artifacts_exported"])
