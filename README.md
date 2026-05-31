@@ -158,6 +158,18 @@ python3 -m ai_statistician.cli doctor --out runs/doctor
   -m ai_statistician.cli research-system-audit --real-lean --runs 60 --out runs/research_system_audit_axle
 ```
 
+Offline local Lean kernel proof-bank verification:
+
+```bash
+python3 -m ai_statistician.cli proof-audit \
+  --local-lean \
+  --out runs/proof_audit_local_lean_current
+```
+
+Current evidence: `57/57` registered proof-bank obligations pass
+`local_lean_kernel_batch` with proof-bank fingerprint
+`4988449dfad10bfd6f830c8e0df13553c9d964974e0821f028d411a06a95c9f7`.
+
 Check `doctor` first. It reports `real_lean_ready` and concrete
 `real_lean_blockers`; an AXLE key alone is not enough if the active Python
 runtime cannot import the `axle` package. Use `python -m pip install -e

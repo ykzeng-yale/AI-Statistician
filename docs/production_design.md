@@ -1218,6 +1218,16 @@ python3 -m ai_statistician.cli proof-audit \
   --out runs/proof_audit_local_lean
 ```
 
+Current full-bank local Lean evidence (2026-05-30):
+
+```text
+verified=57/57
+kernel=57/57
+verifier=local.lake_env_lean
+strength=local_lean_kernel_batch
+proof_bank_fingerprint=4988449dfad10bfd6f830c8e0df13553c9d964974e0821f028d411a06a95c9f7
+```
+
 Run `doctor` in the same Python runtime first. It reports
 `real_lean_ready`, `real_lean_blockers`, `llm_theory_ready`, and
 `llm_theory_blockers`, so a release audit can distinguish "API key is present"

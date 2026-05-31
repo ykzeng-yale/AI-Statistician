@@ -158,24 +158,29 @@ owner-authorized training export, set
 
 ## Latest Validation
 
-Real Lean/AXLE system audit:
+Current local Lean kernel proof-bank audit plus latest cached system audit:
 
 ```bash
-PYTHONPATH=/Users/yukang/AI\ Statistician \
-/Users/yukang/LeanProjects/LeanPractice/.venv/bin/python \
-  -m ai_statistician.cli research-system-audit --real-lean \
-  --runs 20 --out runs/research_system_real_lean_53_doob_budget_bridge
+python3 -m ai_statistician.cli proof-audit \
+  --local-lean \
+  --out runs/proof_audit_local_lean_current
+
+python3 -m ai_statistician.cli research-system-audit \
+  --runs 25 \
+  --out runs/test_research_system_audit
 ```
 
 Result:
 
 ```text
-all_gates_passed=True
-autoform_harness=True
-autoform_targets=20/20
+proof_bank_kernel=57/57
+proof_verifier=local.lake_env_lean
+proof_strength=local_lean_kernel_batch
+system_all_gates_passed=True
+system_elapsed_warm=13.7s
 sources=23/23
-proofs=54/54
 frontier_supported=60/60
+frontier_smoke=23/23
 formalized_gaps=20/20
 missing_primitives=97
 ```
