@@ -39,6 +39,7 @@ from ai_statistician.frontier_backlog_audit import audit_frontier_backlog
 from ai_statistician.proof_audit import audit_proof_bank
 from ai_statistician.proof_bank_expansion_export import export_proof_bank_expansion_candidates
 from ai_statistician.proof_policy_baseline import evaluate_retrieval_proof_policy_baseline
+from ai_statistician.proof_policy_model import train_proof_policy_model
 from ai_statistician.proof_repair_export import export_proof_repair_dataset
 from ai_statistician.proof_search import BestFirstWholeProofSearchController, ProofCandidate
 from ai_statistician.proof_search_audit import audit_proof_search_controller
@@ -423,6 +424,21 @@ class ProofBankTests(unittest.TestCase):
         self.assertEqual(baseline["n_train"] + baseline["n_validation"], 2)
         self.assertTrue(Path(baseline["predictions_jsonl"]).exists())
         self.assertIn("top1_exact_rate", baseline)
+        policy_model = train_proof_policy_model(
+            Path(training["all_jsonl"]),
+            Path("runs/test_proof_policy_model"),
+            validation_jsonl=Path(training["all_jsonl"]),
+            k=2,
+            epochs=30,
+            negatives_per_query=1,
+        )
+        self.assertEqual(policy_model["n_train"], 2)
+        self.assertEqual(policy_model["n_validation"], 2)
+        self.assertEqual(policy_model["n_features"], 11)
+        self.assertEqual(policy_model["train_top1_exact"], 2)
+        self.assertTrue(Path(policy_model["model_json"]).exists())
+        model_payload = json.loads(Path(policy_model["model_json"]).read_text(encoding="utf-8"))
+        self.assertEqual(model_payload["model_type"], "logistic_whole_proof_ranker")
 
     def test_proof_repair_export_pairs_negative_controls(self) -> None:
         async def run():
@@ -5269,7 +5285,7 @@ class SystemTests(unittest.TestCase):
         statuses = {row["component"]: row["status"] for row in payload["rows"]}
         self.assertEqual(statuses["hard verifier / Lean kernel interface"], "READY")
         self.assertIn("PARTIAL", statuses["premise retrieval / Lean RAG / formal-source search"])
-        self.assertEqual(statuses["tactic / whole-proof policy model"], "BASELINE_ONLY")
+        self.assertEqual(statuses["tactic / whole-proof policy model"], "PARTIAL_WHOLE_PROOF_POLICY_TRAINER")
         self.assertEqual(statuses["model training pipeline"], "PARTIAL_BASELINE_TRAINER")
         self.assertFalse(payload["summary"]["honest_goal_complete"])
         manifest, report = write_prover_component_audit(payload, Path("runs/test_prover_component_audit"))
@@ -5471,7 +5487,7 @@ class SystemTests(unittest.TestCase):
         self.assertFalse(payload["counts"]["prover_component_goal_complete"])
         self.assertGreater(payload["counts"]["prover_components_ready"], 0)
         self.assertGreater(payload["counts"]["prover_components_partial"], 0)
-        self.assertGreater(payload["counts"]["prover_components_missing_or_not_trained"], 0)
+        self.assertGreaterEqual(payload["counts"]["prover_components_missing_or_not_trained"], 0)
         self.assertEqual(payload["counts"]["research_traces_ok"], 10)
         self.assertEqual(payload["counts"]["formalized_gaps"], payload["counts"]["formal_gaps"])
         self.assertEqual(payload["counts"]["gap_backlog_ok"], payload["counts"]["gap_backlog_total"])

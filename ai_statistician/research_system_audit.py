@@ -28,6 +28,7 @@ from .proof_audit import audit_proof_bank
 from .proof_bank import proof_bank_fingerprint
 from .proof_bank_expansion_export import export_proof_bank_expansion_candidates
 from .proof_policy_baseline import evaluate_retrieval_proof_policy_baseline
+from .proof_policy_model import train_proof_policy_model
 from .proof_repair_export import export_proof_repair_dataset
 from .proof_search_audit import audit_proof_search_controller
 from .proof_search_training_export import export_proof_search_process_dataset
@@ -196,6 +197,12 @@ async def run_research_system_audit(
         Path(str(proof_training_manifest["train_jsonl"])),
         Path(str(proof_training_manifest["validation_jsonl"])),
         out_dir / "proof_policy_baseline",
+        k=5,
+    )
+    proof_policy_model_manifest = train_proof_policy_model(
+        Path(str(proof_training_manifest["train_jsonl"])),
+        out_dir / "proof_policy_model",
+        validation_jsonl=Path(str(proof_training_manifest["validation_jsonl"])),
         k=5,
     )
     proof_search_manifest = await audit_proof_search_controller(
@@ -382,6 +389,8 @@ async def run_research_system_audit(
         "proof_policy_baseline": int(proof_policy_manifest["n_train"])
         + int(proof_policy_manifest["n_validation"])
         == int(proof_training_manifest["n_sft_examples"]),
+        "proof_policy_model": int(proof_policy_model_manifest["n_train"]) > 0
+        and int(proof_policy_model_manifest["n_features"]) > 0,
         "proof_search_audit": bool(proof_search_manifest["all_solved"]),
         "proof_search_training_export": int(proof_search_training_manifest["n_process_examples"])
         == int(proof_search_manifest["nodes_expanded"]),
@@ -579,6 +588,12 @@ async def run_research_system_audit(
             "proof_policy_baseline_top_k_exact": proof_policy_manifest["top_k_exact"],
             "proof_policy_baseline_validation": proof_policy_manifest["n_validation"],
             "proof_policy_baseline_context_hits": proof_policy_manifest["predicted_in_retrieved_context"],
+            "proof_policy_model_train": proof_policy_model_manifest["n_train"],
+            "proof_policy_model_validation": proof_policy_model_manifest["n_validation"],
+            "proof_policy_model_features": proof_policy_model_manifest["n_features"],
+            "proof_policy_model_train_top1_exact": proof_policy_model_manifest["train_top1_exact"],
+            "proof_policy_model_validation_top1_exact": proof_policy_model_manifest["validation_top1_exact"],
+            "proof_policy_model_validation_top_k_exact": proof_policy_model_manifest["validation_top_k_exact"],
             "proof_search_obligations": proof_search_manifest["n_obligations"],
             "proof_search_solved": proof_search_manifest["n_solved"],
             "proof_search_kernel_verified": proof_search_manifest["n_kernel_verified"],
@@ -760,6 +775,11 @@ async def run_research_system_audit(
             ),
             "proof_policy_baseline_predictions": str(
                 out_dir / "proof_policy_baseline" / "proof_policy_baseline_predictions.jsonl"
+            ),
+            "proof_policy_model": str(out_dir / "proof_policy_model" / "proof_policy_model_manifest.json"),
+            "proof_policy_model_json": str(out_dir / "proof_policy_model" / "proof_policy_model.json"),
+            "proof_policy_model_predictions": str(
+                out_dir / "proof_policy_model" / "proof_policy_model_predictions.jsonl"
             ),
             "proof_search_audit": str(out_dir / "proof_search_audit" / "proof_search_audit_manifest.json"),
             "proof_search_results": str(out_dir / "proof_search_audit" / "proof_search_results.jsonl"),

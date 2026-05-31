@@ -209,6 +209,19 @@ as failed candidates, not kernel evidence. Current local-kernel release evidence
 exports `24` proof-search process examples from the audit sample: `12` positive
 kernel-verified registered proofs and `12` negative rejected invalid probes.
 
+The first trainable proof-policy stage is separate from the value baseline:
+
+```bash
+python3 -m ai_statistician.cli proof-policy-train \
+  --train-jsonl runs/proof_training_export/proof_sft_train.jsonl \
+  --validation-jsonl runs/proof_training_export/proof_sft_validation.jsonl \
+  --out runs/proof_policy_model
+```
+
+It trains a logistic whole-proof candidate ranker over proof SFT examples. The
+model ranks known proof bodies as candidates for a theorem; it does not generate
+novel Lean syntax and it is not a tactic-state policy.
+
 Algorithm repair promotion is intentionally one more step beyond generic live
 repair auditing:
 
@@ -1535,6 +1548,9 @@ validation example's retrieved context. It is intentionally weak; future
 whole-proof SFT or rejection-sampling policies should beat it. The unified
 `research-system-audit` also runs this baseline automatically after exporting
 the proof SFT data, so every release snapshot has a no-training policy floor.
+The same audit now also runs `proof-policy-train`, producing
+`proof_policy_model.json` and train/validation prediction rows as the first
+trained whole-proof policy baseline.
 The research-agent side has an analogous `research-policy-baseline` over
 problem-formalization, theory-plan, formal-gap-routing, and simulation-critique
 examples exported from full research traces.

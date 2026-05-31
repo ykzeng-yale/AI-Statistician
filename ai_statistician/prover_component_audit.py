@@ -11,6 +11,7 @@ from .autoform_harness import build_autoform_harness_profile
 from .proof_attempt_log import PROOF_ATTEMPT_SCHEMA_VERSION
 from .proof_bank import all_obligations, proof_bank_fingerprint
 from .proof_policy_baseline import PROOF_POLICY_BASELINE_SCHEMA_VERSION
+from .proof_policy_model import PROOF_POLICY_MODEL_SCHEMA_VERSION
 from .proof_repair_export import PROOF_REPAIR_EXPORT_SCHEMA_VERSION
 from .proof_search import PROOF_SEARCH_SCHEMA_VERSION
 from .proof_search_training_export import PROOF_SEARCH_TRAINING_EXPORT_SCHEMA_VERSION
@@ -140,18 +141,21 @@ def build_prover_component_audit(
         ProverComponentRow(
             component="tactic / whole-proof policy model",
             paper_stack_layer="Layer 4: Formal Prover Engines / RL / Proof Search",
-            status="BASELINE_ONLY",
-            trained_or_built="Not trained. A deterministic nearest-neighbor whole-proof policy baseline exists for exported SFT data.",
+            status="PARTIAL_WHOLE_PROOF_POLICY_TRAINER",
+            trained_or_built="Built a deterministic trainable whole-proof candidate ranker over proof SFT examples; no tactic-state policy yet.",
             why_it_matters="A real prover needs a policy that proposes tactics/proof blocks from proof states and retrieved premises.",
             current_evidence=(
                 "Proof-bank obligations contain known proof bodies",
                 "FormalSubclaimProver retrieves and verifies registered obligations",
                 f"proof_policy_baseline_schema_version={PROOF_POLICY_BASELINE_SCHEMA_VERSION}",
+                f"proof_policy_model_schema_version={PROOF_POLICY_MODEL_SCHEMA_VERSION}",
                 "proof-policy-baseline evaluates proof-memory predictions on validation examples",
+                "proof-policy-train writes proof_policy_model.json plus train/validation proof-body ranking predictions",
             ),
             missing_or_next=(
-                "Train or integrate a tactic/whole-proof generator over traced Lean states.",
+                "Integrate a neural or external whole-proof generator over traced Lean states.",
                 "Add error-message repair and pass@k proof sampling.",
+                "Upgrade from whole-proof proof-body ranking to tactic-state policy learning.",
             ),
         ),
         ProverComponentRow(

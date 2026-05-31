@@ -22,6 +22,7 @@ python3 -m ai_statistician.cli proof-audit --out runs/proof_audit
 python3 -m ai_statistician.cli proof-search-audit --max-obligations 12 --out runs/proof_search_audit
 python3 -m ai_statistician.cli proof-search-training-export --results-jsonl runs/proof_search_audit/proof_search_results.jsonl --out runs/proof_search_training_export
 python3 -m ai_statistician.cli proof-search-value-train --train-jsonl runs/proof_search_training_export/proof_search_process_train.jsonl --validation-jsonl runs/proof_search_training_export/proof_search_process_validation.jsonl --out runs/proof_search_value_model
+python3 -m ai_statistician.cli proof-policy-train --train-jsonl runs/proof_training_export/proof_sft_train.jsonl --validation-jsonl runs/proof_training_export/proof_sft_validation.jsonl --out runs/proof_policy_model
 python3 -m ai_statistician.cli intake-audit --out runs/intake_audit
 python3 -m ai_statistician.cli retrieval-audit --out runs/retrieval_audit
 python3 -m ai_statistician.cli retrieval-audit --loogle --out runs/retrieval_audit_loogle
@@ -192,6 +193,9 @@ substrate, not a trained value/RL model.
 `proof-search-value-train` consumes those process examples and fits a small
 deterministic logistic value baseline. This is the first actual model-training
 stage in the prover stack, but it is not a neural prover or RL policy.
+`proof-policy-train` similarly trains a deterministic whole-proof candidate
+ranking policy over proof SFT examples. It ranks known proof bodies; it does not
+generate novel Lean syntax or replace a tactic-state policy.
 Current local-kernel release evidence includes `24` proof-search process
 examples (`12` positive, `12` negative from rejected invalid probes) and a
 baseline value model with validation accuracy `1.0` on that controlled audit
@@ -230,6 +234,15 @@ python3 -m ai_statistician.cli proof-policy-baseline \
   --train-jsonl runs/proof_training_export/proof_sft_train.jsonl \
   --validation-jsonl runs/proof_training_export/proof_sft_validation.jsonl \
   --out runs/proof_policy_baseline
+```
+
+Then fit the first trainable whole-proof ranking policy:
+
+```bash
+python3 -m ai_statistician.cli proof-policy-train \
+  --train-jsonl runs/proof_training_export/proof_sft_train.jsonl \
+  --validation-jsonl runs/proof_training_export/proof_sft_validation.jsonl \
+  --out runs/proof_policy_model
 ```
 
 Read [docs/production_design.md](/Users/yukang/AI%20Statistician/docs/production_design.md) for the architecture and the exact honesty boundary.

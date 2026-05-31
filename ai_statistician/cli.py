@@ -30,6 +30,7 @@ from .proof_audit import audit_proof_bank
 from .proof_bank import all_obligations, obligations_by_tags
 from .proof_bank_expansion_export import export_proof_bank_expansion_candidates
 from .proof_policy_baseline import evaluate_retrieval_proof_policy_baseline
+from .proof_policy_model import train_proof_policy_model
 from .proof_repair_export import export_proof_repair_dataset
 from .proof_search_audit import audit_proof_search_controller
 from .proof_search_training_export import export_proof_search_process_dataset
@@ -295,6 +296,29 @@ def _proof_policy_baseline(args: argparse.Namespace) -> int:
     )
     print(f"predictions={Path(str(payload['predictions_jsonl'])).resolve()}")
     print(f"manifest written to {(Path(args.out) / 'proof_policy_baseline_manifest.json').resolve()}")
+    return 0
+
+
+def _proof_policy_train(args: argparse.Namespace) -> int:
+    payload = train_proof_policy_model(
+        Path(args.train_jsonl),
+        Path(args.out),
+        validation_jsonl=Path(args.validation_jsonl) if args.validation_jsonl else None,
+        k=args.k,
+        epochs=args.epochs,
+        learning_rate=args.learning_rate,
+        l2=args.l2,
+        negatives_per_query=args.negatives_per_query,
+    )
+    print("\nAI Statistician Proof Policy Model")
+    print("=" * 72)
+    print(
+        f"train={payload['n_train']} validation={payload['n_validation']} "
+        f"train_top1={payload['train_top1_exact']}/{payload['n_train']} "
+        f"validation_top{payload['k']}={payload['validation_top_k_exact']}/{payload['n_validation']}"
+    )
+    print(f"model={Path(str(payload['model_json'])).resolve()}")
+    print(f"manifest written to {(Path(args.out) / 'proof_policy_model_manifest.json').resolve()}")
     return 0
 
 
@@ -1553,6 +1577,28 @@ def build_parser() -> argparse.ArgumentParser:
         help="output directory for baseline predictions and manifest",
     )
     proof_policy_baseline.set_defaults(func=_proof_policy_baseline)
+
+    proof_policy_train = sub.add_parser(
+        "proof-policy-train",
+        help="train a small whole-proof candidate ranking policy from proof SFT examples",
+    )
+    proof_policy_train.add_argument("--train-jsonl", required=True, help="proof_sft_train.jsonl")
+    proof_policy_train.add_argument(
+        "--validation-jsonl",
+        default="",
+        help="optional proof_sft_validation.jsonl; defaults to train set",
+    )
+    proof_policy_train.add_argument("--k", type=int, default=5)
+    proof_policy_train.add_argument("--epochs", type=int, default=80)
+    proof_policy_train.add_argument("--learning-rate", type=float, default=0.1)
+    proof_policy_train.add_argument("--l2", type=float, default=0.001)
+    proof_policy_train.add_argument("--negatives-per-query", type=int, default=8)
+    proof_policy_train.add_argument(
+        "--out",
+        default="runs/proof_policy_model",
+        help="output directory for proof_policy_model.json and predictions",
+    )
+    proof_policy_train.set_defaults(func=_proof_policy_train)
 
     proof_search_audit = sub.add_parser(
         "proof-search-audit",
