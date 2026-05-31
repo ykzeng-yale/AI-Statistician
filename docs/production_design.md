@@ -82,7 +82,7 @@ sandboxed code patching, or simulator construction still stop honestly with
 repair proposal, unless a stronger handler is registered.
 
 Current release-style local-kernel evidence for this bounded loop:
-`research-system-audit --local-lean --runs 100` passes all gates with `81/81`
+`research-system-audit --local-lean --runs 100` passes all gates with `82/82`
 kernel-verified proof obligations, `6` kernel-verified live proof-bridge repair
 artifacts, `6` resulting theory revisions, and a `12/12` kernel-verified
 proof-search audit sample. The status remains `FORMAL_GAPS_BRIDGED`, which is
@@ -1219,6 +1219,11 @@ The system includes estimator-level Lean obligations that AXLE has verified:
 - `conditional_mean_residual_zero_of_mean_eq`: if an integrable real outcome
   has mean `m`, then the centered residual `Y - m` has mean zero. This is the
   ordinary centered-mean fallback for residual moment arguments.
+- `condexp_integral_eq_integral_real`: the integral of a real conditional
+  expectation equals the original integral. This is the Mathlib
+  `integral_condExp` bridge now attached to `conditional_expectation`,
+  `iterated_expectation`, and exogeneity theorem skeletons; it still assumes
+  the conditioning sigma-field setup rather than proving model assumptions.
 - `conditional_mean_residual_zero_of_condExp_ae_eq`: if a conditional
   expectation given a score sigma-field equals a supplied score-space version
   almost everywhere, then the centered residual has population integral zero.
@@ -1458,11 +1463,11 @@ python3 -m ai_statistician.cli proof-audit \
 Current full-bank local Lean evidence (2026-05-31):
 
 ```text
-verified=81/81
-kernel=81/81
+verified=82/82
+kernel=82/82
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=9b238bee83d070723d05036931b9d2a534c9b03cd8a65d2a34c5d91e7db49a9f
+proof_bank_fingerprint=f68865684191460e7dfce682ed535d9a63a5a4745280d4594cb0c86041b73ed3
 ```
 
 Run `doctor` in the same Python runtime first. It reports

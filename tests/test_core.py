@@ -1011,10 +1011,24 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("nuisance_correctness_cases", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_condexp_integral_eq_integral_real_wraps_total_expectation(self) -> None:
+        obligation = get_obligation("condexp_integral_eq_integral_real")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertIn("theorem condExp_integral_eq_integral_real", content)
+        self.assertIn("∫ ω, μ[X | m] ω ∂μ = ∫ ω, X ω ∂μ", content)
+        self.assertIn("integral_condExp", content)
+        self.assertIn("conditional_expectation", obligation.tags)
+        self.assertIn("iterated_expectation", obligation.tags)
+        self.assertIn("law_of_total_expectation", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_conditional_mean_residual_zero_bridge_uses_conditional_expectation(self) -> None:
         obligation = get_obligation("conditional_mean_residual_zero_of_condExp_ae_eq")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
-        self.assertEqual(obligation.depends_on, ("conditional_mean_residual_zero_of_mean_eq",))
+        self.assertEqual(
+            obligation.depends_on,
+            ("condexp_integral_eq_integral_real", "conditional_mean_residual_zero_of_mean_eq"),
+        )
         self.assertIn("theorem conditionalMeanResidual_integral_zero_of_condExp_ae_eq", content)
         self.assertIn("hcond : μ[outcome | scoreSigma] =ᵐ[μ] scoreVersion", content)
         self.assertIn("∫ ω, (outcome ω - scoreVersion ω) ∂μ = 0", content)
@@ -2947,6 +2961,7 @@ class SystemTests(unittest.TestCase):
                 "difference_estimator_unbiased",
                 "aipw_score_expectation_decompose",
                 "aipw_score_expectation_target_of_aug_cancel",
+                "condexp_integral_eq_integral_real",
                 "conditional_mean_residual_zero_of_condExp_ae_eq",
                 "conditional_mean_residual_zero_of_mean_eq",
                 "aipw_score_expectation_target_of_zero_aug",
@@ -3653,6 +3668,7 @@ class SystemTests(unittest.TestCase):
             "prob_measure_univ",
             "integral_of_constant",
             "potential_outcome_observed_consistency",
+            "condexp_integral_eq_integral_real",
             "aipw_score_expectation_decompose",
             "aipw_score_expectation_target_of_aug_cancel",
             "conditional_mean_residual_zero_of_condExp_ae_eq",
@@ -4025,6 +4041,7 @@ class SystemTests(unittest.TestCase):
         proof_obligations = (
             "iid_real_clt_tendsto_distribution",
             "independent_real_condExp_natural_eq_mean",
+            "condexp_integral_eq_integral_real",
             "finite_sample_mean_unbiased",
             "finite_sample_mean_variance_indep",
         )
@@ -4077,6 +4094,11 @@ class SystemTests(unittest.TestCase):
                 rows[primitive]["bridge_candidate_obligations"],
             )
             self.assertEqual(rows[primitive]["priority_band"], "BRIDGE_REUSE_READY")
+        for primitive in ("exogeneity_moment_condition", "conditional_expectation"):
+            self.assertIn(
+                "condexp_integral_eq_integral_real",
+                rows[primitive]["bridge_candidate_obligations"],
+            )
         for primitive in ("sample_moment_lln", "iid_empirical_mean_clt"):
             self.assertIn(
                 "iid_real_clt_tendsto_distribution",

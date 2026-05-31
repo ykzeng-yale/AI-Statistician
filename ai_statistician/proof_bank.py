@@ -2166,6 +2166,49 @@ theorem conditionalMeanResidual_zero_of_mean_eq {Ω : Type*} [MeasurableSpace Ω
         ),
         expected_lemmas=("integral_sub", "integrable_const", "integral_const", "measure_univ"),
     ),
+    "condexp_integral_eq_integral_real": FormalObligation(
+        id="condexp_integral_eq_integral_real",
+        title="The integral of a real conditional expectation equals the original integral",
+        english=(
+            "For a real-valued random variable, the integral of its conditional "
+            "expectation with respect to a sub-sigma-field equals the original "
+            "integral. This is the Mathlib-backed law-of-total-expectation "
+            "bridge used by iterated-expectation, exogeneity, and conditional "
+            "mean arguments; it does not prove model-specific conditional "
+            "exchangeability or nuisance correctness."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+open scoped MeasureTheory
+
+theorem condExp_integral_eq_integral_real
+    {Ω : Type*} [mΩ : MeasurableSpace Ω]
+    (m : MeasurableSpace Ω)
+    (μ : Measure[mΩ] Ω)
+    (hm : m ≤ mΩ) [SigmaFinite (μ.trim hm)]
+    (X : Ω → ℝ) :
+    ∫ ω, μ[X | m] ω ∂μ = ∫ ω, X ω ∂μ := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  rw [integral_condExp (m := m) (m₀ := mΩ) (μ := μ) (f := X) hm]"
+        ),
+        tags=(
+            "expectation",
+            "conditional_expectation",
+            "iterated_expectation",
+            "law_of_total_expectation",
+            "exogeneity_moment_condition",
+            "conditional_mean_residual_zero",
+            "aipw",
+            "causal",
+            "semiparametric",
+        ),
+        expected_lemmas=("integral_condExp",),
+    ),
     "conditional_mean_residual_zero_of_condExp_ae_eq": FormalObligation(
         id="conditional_mean_residual_zero_of_condExp_ae_eq",
         title="Conditional-mean residual has zero population integral",
@@ -2225,7 +2268,7 @@ theorem conditionalMeanResidual_integral_zero_of_condExp_ae_eq
             "orthogonal_score",
         ),
         expected_lemmas=("integral_condExp", "integral_congr_ae", "integral_sub"),
-        depends_on=("conditional_mean_residual_zero_of_mean_eq",),
+        depends_on=("condexp_integral_eq_integral_real", "conditional_mean_residual_zero_of_mean_eq"),
     ),
     "aipw_score_expectation_target_of_zero_aug": FormalObligation(
         id="aipw_score_expectation_target_of_zero_aug",

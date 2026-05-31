@@ -173,7 +173,7 @@ python3 -m ai_statistician.cli research-system-audit \
 Result:
 
 ```text
-proof_bank_kernel=81/81
+proof_bank_kernel=82/82
 proof_verifier=local.lake_env_lean
 proof_strength=local_lean_kernel_batch
 system_all_gates_passed=True
@@ -182,8 +182,8 @@ sources=23/23
 frontier_supported=60/60
 frontier_smoke=23/23
 formalized_gaps=20/20
-proof_bank_expansion_bridge_ready=48/97
-formalization_targets_with_proof_bank_bridge=68
+proof_bank_expansion_bridge_ready=49/97
+formalization_targets_with_proof_bank_bridge=70
 missing_primitives=97
 ```
 
@@ -196,7 +196,7 @@ autoform_harness_audit: ready_for_integration=True
 source_inventory: 23/23 all_ok=True
 ```
 
-The same audit now reports `proof_bank_expansion_bridge_ready=48/97`.
+The same audit now reports `proof_bank_expansion_bridge_ready=49/97`.
 `independent_null_pvalues` is backed by the verified
 `independent_null_event_family_inter_probability` and
 `independent_null_event_family_compl_inter_probability` obligations. The
@@ -206,9 +206,10 @@ as their verified finite-horizon Markov/union bridge while preserving optional
 stopping and full Ville as formal gaps. The AIPW primitives
 `conditional_mean_residual_zero` and `exogeneity_moment_condition` now rank
 `conditional_mean_residual_zero_of_condExp_ae_eq` as their direct
-conditional-mean residual bridge, while `conditional_mean_residual_zero_of_mean_eq`
-remains the ordinary centered-mean fallback and `nuisance_correctness_cases`
-still ranks
+conditional-mean residual bridge. `condexp_integral_eq_integral_real` now backs
+the broader `conditional_expectation` and `iterated_expectation` primitives,
+while `conditional_mean_residual_zero_of_mean_eq` remains the ordinary
+centered-mean fallback and `nuisance_correctness_cases` still ranks
 `aipw_score_expectation_target_of_aug_cancel` as its verified algebraic bridge.
 These preserve conditional-expectation residual identities and full double
 robustness as formal gaps. `integrability_of_score_terms` now ranks
@@ -271,8 +272,8 @@ The same asymptotic lane now also includes
 `tendsto_in_distribution_continuous_mapping`, a wrapper around Mathlib's
 continuous mapping theorem, and `slutsky_add_negligible_zero_real`, a wrapper
 around Mathlib's real-valued Slutsky/add-negligible-remainder theorem. Together
-they raise `proof_bank_expansion_bridge_ready` to `48/97` and
-`formalization_targets_with_proof_bank_bridge` to `68`, giving Autoform targets
+they raise `proof_bank_expansion_bridge_ready` to `49/97` and
+`formalization_targets_with_proof_bank_bridge` to `70`, giving Autoform targets
 for `slutsky_theorem`, `matrix_inverse_continuous_mapping`,
 `tail_quantile_continuous_mapping`, `product_limit_delta_method`, and
 `wald_interval_slutsky` a kernel-checked asymptotic transport bridge.

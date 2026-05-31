@@ -2221,6 +2221,12 @@ class TheoryPlanner:
                         "positivity",
                         "iterated_expectation",
                     ),
+                    proof_obligations=(
+                        "potential_outcome_observed_consistency",
+                        "condexp_integral_eq_integral_real",
+                        "propensity_score_ne_zero_of_lower_bound",
+                        "propensity_weight_mul_cancel_of_lower_bound",
+                    ),
                 ),
                 TheoremGoal(
                     id="aipw_double_robustness",
@@ -2239,6 +2245,7 @@ class TheoryPlanner:
                         "difference_estimator_unbiased",
                         "aipw_score_expectation_decompose",
                         "aipw_score_expectation_target_of_aug_cancel",
+                        "condexp_integral_eq_integral_real",
                         "conditional_mean_residual_zero_of_condExp_ae_eq",
                         "conditional_mean_residual_zero_of_mean_eq",
                         "aipw_score_expectation_target_of_zero_aug",
@@ -4738,6 +4745,7 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "propensity_weight_mul_cancel_of_lower_bound",
         "difference_estimator_unbiased",
         "difference_estimator_variance_decompose",
+        "condexp_integral_eq_integral_real",
         "aipw_score_expectation_decompose",
         "aipw_score_expectation_target_of_aug_cancel",
         "conditional_mean_residual_zero_of_condExp_ae_eq",
