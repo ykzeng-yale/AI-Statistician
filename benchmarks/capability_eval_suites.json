@@ -1,0 +1,225 @@
+{
+  "schema_version": 1,
+  "created_date": "2026-05-31",
+  "decision": "Use multiple capability-specific benchmark suites instead of one monolithic benchmark.",
+  "current_release_evidence": {
+    "frontier_supported": "60/60",
+    "frontier_smoke_questions": 23,
+    "frontier_theory_expected_results": 69,
+    "frontier_theory_expected_results_covered": 59,
+    "frontier_theory_expected_result_coverage_rate": 0.855072463768116,
+    "core_research_questions": 10,
+    "proof_bank_kernel_verified_release": "88/88",
+    "proof_bank_fingerprint": "31fa33a3e4fba52691611de455275463706699e9d9c15c02e6c6bea17cfbcd34",
+    "proof_search_kernel_verified_release": "12/12",
+    "vetted_research_algorithms": "33/33",
+    "formal_gaps": 20,
+    "missing_formal_primitives": 97,
+    "formalization_targets_with_proof_bank_bridge": 74,
+    "formalization_targets_local_source_only": 23,
+    "proof_bank_expansion_bridge_ready": 53
+  },
+  "suites": [
+    {
+      "id": "S0_release_sanity",
+      "name": "Release Sanity Suite",
+      "capability": "internal consistency of the scaffold",
+      "primary_artifacts": [
+        "runs/release_local_kernel_audit/research_system_audit_manifest.json",
+        "runs/release_local_kernel_audit/proof_audit/proof_audit_manifest.json"
+      ],
+      "recommended_commands": [
+        "pytest -q",
+        "python3 -m ai_statistician.cli research-system-audit --local-lean --runs 60 --out runs/research_system_audit_local_lean"
+      ],
+      "release_floor": [
+        "all unit tests pass",
+        "all research-system-audit gates pass",
+        "proof-bank obligations are kernel verified when local Lean is requested"
+      ]
+    },
+    {
+      "id": "S1_core_method_e2e",
+      "name": "Core Method End-to-End Suite",
+      "capability": "complete traces on canonical statistical theory problems",
+      "primary_artifacts": [
+        "examples/research_questions.json",
+        "runs/release_local_kernel_audit/research_benchmark/research_benchmark_manifest.json"
+      ],
+      "current_size": 10,
+      "release_floor": [
+        "all questions reach RESEARCH_TRACE_READY_WITH_FORMAL_GAPS",
+        "no simulation flagged under nominal settings",
+        "all formal gaps are exported as Lean skeletons"
+      ]
+    },
+    {
+      "id": "S2_frontier_static_coverage",
+      "name": "Frontier Static Coverage Suite",
+      "capability": "paper-style routing and supported/unsupported honesty",
+      "primary_artifacts": [
+        "docs/frontier_stat_theory_benchmark.md",
+        "benchmarks/frontier_stat_theory_benchmark.json",
+        "runs/release_local_kernel_audit/frontier_coverage_audit/frontier_coverage_manifest.json"
+      ],
+      "current_size": 60,
+      "release_floor": [
+        "no duplicate question IDs",
+        "required fields present",
+        "supported and unsupported routing recorded without hallucinated theorem closure"
+      ]
+    },
+    {
+      "id": "S3_frontier_blind_theory_target",
+      "name": "Frontier Blind Theory-Target Suite",
+      "capability": "recovering theorem targets from open questions with gold answers withheld",
+      "primary_artifacts": [
+        "runs/release_local_kernel_audit/frontier_smoke_benchmark/frontier_theory_target_audit/frontier_theory_target_manifest.json"
+      ],
+      "current_smoke_size": 23,
+      "current_expected_result_coverage_rate": 0.855072463768116,
+      "release_floor": [
+        "at least 85% expected-result coverage on current smoke set",
+        "per-topic coverage reported",
+        "formal gaps kept explicit for unsolved theorem pieces"
+      ],
+      "next_milestone": [
+        "score all 60 frontier entries, not only one per problem class",
+        "raise expected-result coverage to at least 90%"
+      ]
+    },
+    {
+      "id": "S4_formal_primitive_ladder",
+      "name": "Formal Primitive Ladder Suite",
+      "capability": "turning frontier formal gaps into reusable Lean theorem targets",
+      "primary_artifacts": [
+        "runs/release_local_kernel_audit/formalization_target_audit/formalization_target_manifest.json",
+        "runs/release_local_kernel_audit/proof_bank_expansion/proof_bank_expansion_manifest.json"
+      ],
+      "current_size": 97,
+      "current_bridge_ready": 53,
+      "current_local_source_only": 23,
+      "release_floor": [
+        "each primitive has an owning theorem goal",
+        "each primitive has local source candidates or an explicit source gap",
+        "bridge readiness is classified"
+      ],
+      "next_milestone": [
+        "close or upgrade the top 10 primitive targets",
+        "decrease missing primitive count or increase proof-bank bridge readiness"
+      ]
+    },
+    {
+      "id": "S5_proof_bank_and_search",
+      "name": "Proof Bank and Proof Search Suite",
+      "capability": "kernel verification, proof-memory regression, and bounded proof search",
+      "primary_artifacts": [
+        "runs/release_local_kernel_audit/proof_audit/proof_audit_manifest.json",
+        "runs/release_local_kernel_audit/proof_search_audit/proof_search_audit_manifest.json",
+        "runs/release_local_kernel_audit/proof_training_export/proof_training_manifest.json"
+      ],
+      "current_proof_bank_size": 88,
+      "current_search_size": 12,
+      "release_floor": [
+        "proof-bank obligations verified",
+        "search audit solved obligations verified",
+        "proof attempts exported with verifier status"
+      ],
+      "next_milestone": [
+        "add real-Lean negative proof attempts",
+        "add pass@k proof sampling",
+        "add tactic-state traces after a Lean step environment exists"
+      ]
+    },
+    {
+      "id": "S6_algorithm_simulation_stress",
+      "name": "Algorithm and Simulation Stress Suite",
+      "capability": "empirical falsification of procedures and statistical diagnostics",
+      "primary_artifacts": [
+        "runs/release_local_kernel_audit/research_algorithm_audit/research_algorithm_audit_manifest.json",
+        "runs/test_research_eval/research_evaluation_manifest.json"
+      ],
+      "current_algorithm_count": 33,
+      "release_floor": [
+        "all vetted algorithms pass registry audit",
+        "core simulations have no flagged diagnostics under nominal settings",
+        "seed-level evaluation reports MC stability"
+      ],
+      "next_milestone": [
+        "add adversarial DGP sweeps",
+        "add wrong-algorithm negative controls",
+        "exercise non-empty algorithm repair promotion queues"
+      ]
+    },
+    {
+      "id": "S7_feedback_loop_repair",
+      "name": "Feedback Loop and Repair Suite",
+      "capability": "proof/simulation feedback causing changed theory or algorithm traces",
+      "primary_artifacts": [
+        "runs/release_local_kernel_audit/research_loop/research_loop_manifest.json",
+        "runs/release_local_kernel_audit/research_loop_live_repair_audit/research_loop_live_repair_audit_manifest.json"
+      ],
+      "current_release_signal": "research_loop_theory_revisions=6 in the local-kernel release audit",
+      "release_floor": [
+        "repair tasks exported",
+        "live repair artifacts exported",
+        "kernel-verified proof bridges enter the next theory roadmap when local Lean is used"
+      ],
+      "next_milestone": [
+        "seed at least one proof failure that requires revision",
+        "seed at least one simulation failure that requires diagnosis",
+        "prove before/after traces differ for the right reason"
+      ]
+    },
+    {
+      "id": "S8_adversarial_unsupported_intake",
+      "name": "Adversarial and Unsupported Intake Suite",
+      "capability": "honest refusal, ambiguity handling, and leakage prevention",
+      "primary_artifacts": [
+        "examples/research_unsupported_paper_abstracts.md",
+        "runs/release_local_kernel_audit/research_intake_audit/research_intake_audit_manifest.json"
+      ],
+      "release_floor": [
+        "unsupported examples are rejected or routed to manual review",
+        "contradictory assumptions are not normalized into false support",
+        "gold expected results are not used as retrieval/planning input"
+      ],
+      "next_milestone": [
+        "add adversarial near-duplicate frontier paper prompts",
+        "add prompt-leakage tests",
+        "add vague-no-estimand and contradictory-assumption cases"
+      ]
+    },
+    {
+      "id": "S9_fresh_holdout_frontier",
+      "name": "Fresh Holdout Frontier Suite",
+      "capability": "generalization to papers not used in templates, retrieval cards, or tuning",
+      "primary_artifacts": [],
+      "recommended_sources": [
+        "JASA",
+        "AOAS",
+        "Annals of Statistics",
+        "JRSSB",
+        "Biometrika",
+        "Annals of Applied Statistics"
+      ],
+      "protocol": [
+        "curate after code freeze",
+        "withhold DOI/title where possible",
+        "do not add holdout entries to retrieval cards or training exports before evaluation",
+        "grade only after traces are written"
+      ],
+      "release_floor": [
+        "reported separately from training/tuning corpora",
+        "manual gold review for theorem target and limitation grading"
+      ]
+    }
+  ],
+  "recommended_next_gate_stack": [
+    "S0_release_sanity",
+    "S1_core_method_e2e",
+    "S3_frontier_blind_theory_target_on_all_60",
+    "S4_formal_primitive_ladder_top_10",
+    "S7_feedback_loop_repair_with_seeded_failures"
+  ]
+}

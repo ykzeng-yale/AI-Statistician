@@ -2862,6 +2862,48 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(manifest.exists())
         self.assertEqual(manifest.name, "capability_audit_manifest.json")
 
+    def test_capability_eval_suite_ladder_records_current_release_evidence(self) -> None:
+        path = Path("benchmarks/capability_eval_suites.json")
+        self.assertTrue(path.exists())
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(payload["schema_version"], 1)
+        evidence = payload["current_release_evidence"]
+        proof_bank_size = len(all_obligations())
+        self.assertEqual(
+            evidence["proof_bank_kernel_verified_release"],
+            f"{proof_bank_size}/{proof_bank_size}",
+        )
+        self.assertEqual(len(evidence["proof_bank_fingerprint"]), 64)
+        self.assertEqual(evidence["frontier_supported"], "60/60")
+        self.assertEqual(evidence["missing_formal_primitives"], 97)
+        self.assertEqual(evidence["formalization_targets_with_proof_bank_bridge"], 74)
+        self.assertEqual(evidence["formalization_targets_local_source_only"], 23)
+        self.assertEqual(evidence["proof_bank_expansion_bridge_ready"], 53)
+
+        suites = {row["id"]: row for row in payload["suites"]}
+        self.assertEqual(set(suites), {f"S{i}_{suffix}" for i, suffix in (
+            (0, "release_sanity"),
+            (1, "core_method_e2e"),
+            (2, "frontier_static_coverage"),
+            (3, "frontier_blind_theory_target"),
+            (4, "formal_primitive_ladder"),
+            (5, "proof_bank_and_search"),
+            (6, "algorithm_simulation_stress"),
+            (7, "feedback_loop_repair"),
+            (8, "adversarial_unsupported_intake"),
+            (9, "fresh_holdout_frontier"),
+        )})
+        self.assertEqual(suites["S4_formal_primitive_ladder"]["current_bridge_ready"], 53)
+        self.assertEqual(suites["S4_formal_primitive_ladder"]["current_local_source_only"], 23)
+        self.assertEqual(suites["S5_proof_bank_and_search"]["current_proof_bank_size"], proof_bank_size)
+        self.assertIn("S7_feedback_loop_repair_with_seeded_failures", payload["recommended_next_gate_stack"])
+
+        doc = Path("docs/evaluation_benchmark_strategy.md").read_text(encoding="utf-8")
+        self.assertIn("`proofs_kernel_verified=88/88`", doc)
+        self.assertIn("53 have ranked proof-bank bridge candidates", doc)
+        self.assertNotIn("79/79", doc)
+        self.assertNotIn("82/82", doc)
+
     def test_release_bundle_writes_top_level_manifest(self) -> None:
         async def run():
             questions = load_audit_questions(None, include_partial_examples=False)[:2]
