@@ -276,6 +276,41 @@ theorem finitePopulationATE_mean_difference {n : Nat}
         expected_lemmas=("Finset.sum_sub_distrib", "ring"),
         depends_on=("difference_estimator_unbiased",),
     ),
+    "complete_randomization_uniform_assignment_mass": FormalObligation(
+        id="complete_randomization_uniform_assignment_mass",
+        title="Complete-randomization uniform assignment mass",
+        english=(
+            "For a finite nonempty assignment space, the uniform assignment "
+            "PMF gives every assignment probability mass equal to the inverse "
+            "of the number of assignments. This is the basic distributional "
+            "bridge behind complete-randomization traces; it does not yet "
+            "formalize fixed treated-count assignment sets, combinatorial "
+            "cardinality, or design-based covariance formulas."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+
+theorem completeRandomization_uniform_assignment_mass
+    (Assignment : Type*) [Fintype Assignment] [Nonempty Assignment]
+    (a : Assignment) :
+    PMF.uniformOfFintype Assignment a = (Fintype.card Assignment : ENNReal)⁻¹ := by sorry
+"""
+        ),
+        proof_body="by\n  exact PMF.uniformOfFintype_apply a",
+        tags=(
+            "probability",
+            "pmf",
+            "uniform",
+            "complete_randomization",
+            "complete_randomization_distribution",
+            "assignment",
+            "design_based",
+            "finite_population",
+        ),
+        expected_lemmas=("PMF.uniformOfFintype_apply",),
+        depends_on=("finite_population_ate_mean_difference",),
+    ),
     "mean2_estimator_variance_indep": FormalObligation(
         id="mean2_estimator_variance_indep",
         title="Two-variable mean estimator variance under independence",

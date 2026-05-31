@@ -285,6 +285,9 @@ _PRIMITIVE_PROOF_BRIDGE_HINTS: dict[str, tuple[str, ...]] = {
     "finite_population_potential_outcomes": (
         "finite_population_ate_mean_difference",
     ),
+    "complete_randomization_distribution": (
+        "complete_randomization_uniform_assignment_mass",
+    ),
     "difference_in_means_unbiasedness": (
         "finite_population_ate_mean_difference",
         "difference_estimator_unbiased",

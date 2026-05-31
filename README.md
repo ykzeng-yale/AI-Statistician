@@ -166,9 +166,9 @@ python3 -m ai_statistician.cli proof-audit \
   --out runs/proof_audit_local_lean_current
 ```
 
-Current evidence: `66/66` registered proof-bank obligations pass
+Current evidence: `67/67` registered proof-bank obligations pass
 `local_lean_kernel_batch` with proof-bank fingerprint
-`e5fb63016b0e61e1d15b173d965891b774868934e61d5aee9d5994782ead171c`.
+`63b93eaca528a51a7fd6e327712c48141a056fcf250c03af021b88e4dd2abc3b`.
 
 Check `doctor` first. It reports `real_lean_ready` and concrete
 `real_lean_blockers`; an AXLE key alone is not enough if the active Python
@@ -267,6 +267,12 @@ unit-level effects `Y(1)-Y(0)` equals the treated potential-outcome mean minus
 the control potential-outcome mean. This formalizes the ATE target algebra while
 still leaving complete-randomization assignment and estimator unbiasedness as
 separate theorem goals.
+It also includes `complete_randomization_uniform_assignment_mass`, a finite
+uniform-randomization bridge. For any finite nonempty assignment space, Mathlib's
+uniform PMF assigns each assignment mass `1 / card`. This gives the
+complete-randomization distribution primitive a real Lean bridge while still
+leaving fixed-treated-count combinatorics and design-based covariance formulas
+as formal gaps.
 Another composed guarantee is `mean2_estimator_chebyshev_indep`, which derives
 an explicit Chebyshev error bound for the average of two independent unbiased L2
 estimators using both the expectation and variance proof ingredients. Composed

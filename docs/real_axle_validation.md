@@ -13,15 +13,15 @@ python3 -m ai_statistician.cli proof-audit \
 Result:
 
 ```text
-verified=66/66
-kernel=66/66
+verified=67/67
+kernel=67/67
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=e5fb63016b0e61e1d15b173d965891b774868934e61d5aee9d5994782ead171c
+proof_bank_fingerprint=63b93eaca528a51a7fd6e327712c48141a056fcf250c03af021b88e4dd2abc3b
 ```
 
 This is the current evidence that the registered proof bank is not only
-mock-checked: all 66 registered Mathlib-backed obligations were accepted by a
+mock-checked: all 67 registered Mathlib-backed obligations were accepted by a
 real Lean kernel check through the local Lake/Mathlib runtime. AXLE remains the
 preferred remote verifier for release bundles when its Python package and API
 runtime are available; the local Lean backend is the offline kernel-equivalent
@@ -232,6 +232,13 @@ the mean of unit-level effects `Y(1)-Y(0)` equals the treated potential-outcome
 mean minus the control potential-outcome mean. This is a real verified target
 algebra bridge; it still does not prove complete-randomization assignment or
 randomization-unbiasedness of the observed difference-in-means estimator.
+
+The design-based block also includes
+`complete_randomization_uniform_assignment_mass`. It proves that Mathlib's
+uniform PMF on a finite nonempty assignment space gives each assignment mass
+`1/card`. This is a real verified distribution bridge for complete-randomization
+traces; it still does not prove fixed-treated-count combinatorics,
+randomization-unbiasedness, or the design-based covariance formula.
 
 Important boundary:
 

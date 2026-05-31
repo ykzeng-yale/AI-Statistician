@@ -685,6 +685,18 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("design_based", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_complete_randomization_uniform_assignment_mass_uses_mathlib_pmf_uniform(self) -> None:
+        obligation = get_obligation("complete_randomization_uniform_assignment_mass")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("finite_population_ate_mean_difference",))
+        self.assertIn("theorem completeRandomization_uniform_assignment_mass", content)
+        self.assertIn("PMF.uniformOfFintype Assignment a", content)
+        self.assertIn("(Fintype.card Assignment : ENNReal)⁻¹", content)
+        self.assertIn("PMF.uniformOfFintype_apply", content)
+        self.assertIn("complete_randomization_distribution", obligation.tags)
+        self.assertIn("design_based", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_aipw_score_expectation_target_cancels_augmentation_means(self) -> None:
         obligation = get_obligation("aipw_score_expectation_target_of_aug_cancel")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
@@ -3118,6 +3130,7 @@ class SystemTests(unittest.TestCase):
         )
         proof_obligations = (
             "finite_population_ate_mean_difference",
+            "complete_randomization_uniform_assignment_mass",
             "finite_sample_mean_unbiased",
             "difference_estimator_unbiased",
             "difference_estimator_variance_decompose",
@@ -3172,6 +3185,10 @@ class SystemTests(unittest.TestCase):
             rows["finite_population_potential_outcomes"]["bridge_candidate_obligations"],
         )
         self.assertIn(
+            "complete_randomization_uniform_assignment_mass",
+            rows["complete_randomization_distribution"]["bridge_candidate_obligations"],
+        )
+        self.assertIn(
             "difference_estimator_unbiased",
             rows["difference_in_means_unbiasedness"]["bridge_candidate_obligations"],
         )
@@ -3184,7 +3201,6 @@ class SystemTests(unittest.TestCase):
                 rows[primitive]["bridge_candidate_obligations"],
             )
             self.assertEqual(rows[primitive]["priority_band"], "BRIDGE_REUSE_READY")
-        self.assertIn("complete_randomization_distribution", rows)
         self.assertNotIn(
             "neyman_variance_conservative_algebra",
             rows["complete_randomization_distribution"]["bridge_candidate_obligations"],

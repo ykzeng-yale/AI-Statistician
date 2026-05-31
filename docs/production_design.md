@@ -860,6 +860,11 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   potential-outcome mean. This formalizes finite-population ATE algebra while
   leaving assignment distribution and randomization-unbiasedness proofs as
   separate formalization targets.
+- `complete_randomization_uniform_assignment_mass`: a finite uniform-assignment
+  distribution bridge. For any finite nonempty assignment space, Mathlib's
+  uniform PMF assigns each assignment mass `1/card`. This upgrades the
+  complete-randomization distribution primitive while leaving fixed-treated-count
+  combinatorics and design-based covariance calculations as formal gaps.
 - `mean2_estimator_chebyshev_indep`: combines unbiasedness, L2 closure,
   independence variance additivity, variance scaling, and Chebyshev to bound
   the absolute-error probability of `(X+Y)/2` by
@@ -1279,11 +1284,11 @@ python3 -m ai_statistician.cli proof-audit \
 Current full-bank local Lean evidence (2026-05-31):
 
 ```text
-verified=66/66
-kernel=66/66
+verified=67/67
+kernel=67/67
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=e5fb63016b0e61e1d15b173d965891b774868934e61d5aee9d5994782ead171c
+proof_bank_fingerprint=63b93eaca528a51a7fd6e327712c48141a056fcf250c03af021b88e4dd2abc3b
 ```
 
 Run `doctor` in the same Python runtime first. It reports
