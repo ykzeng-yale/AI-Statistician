@@ -174,13 +174,15 @@ python3 -m ai_statistician.cli proof-search-audit \
 
 `BestFirstWholeProofSearchController` builds a candidate proof-body frontier
 from registered proof memory, expected-lemma templates, retrieved proof-bank
-neighbors, and optional probes, optionally scores each candidate with the
-trained whole-proof policy ranker and the trained value model, then verifies
-expanded nodes with the configured verifier. The audit writes
-`proof_search_results.jsonl` with node-level verifier feedback, retrieval
-candidate counts, base scores, policy scores, and value scores. This is a real
-search controller rather than one-shot lookup, but it is not tactic-state
-best-first search, MCTS, or RL yet; those remain the next prover-engine layer.
+neighbors, formal-source declaration templates from the local
+Lean/StatInference/Atlas index, and optional probes. It can score each
+candidate with the trained whole-proof policy ranker and the trained value
+model, then verifies expanded nodes with the configured verifier. The audit
+writes `proof_search_results.jsonl` with node-level verifier feedback,
+retrieval candidate counts, formal-source candidate counts, base scores, policy
+scores, and value scores. This is a real search controller rather than one-shot
+lookup, but it is not tactic-state best-first search, MCTS, or RL yet; those
+remain the next prover-engine layer.
 
 The node traces can be exported as process-reward/value-model data:
 

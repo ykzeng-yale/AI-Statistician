@@ -23,6 +23,8 @@ from ai_statistician.formalization_target_audit import audit_formalization_targe
 from ai_statistician.formal_source_graph import FormalSourceGraphRetriever, audit_formal_source_graph
 from ai_statistician.formal_source_hybrid import FormalSourceHybridRetriever
 from ai_statistician.formal_source_index import (
+    FormalDeclaration,
+    FormalSourceHit,
     FormalSourceRoot,
     FormalSourceSqliteIndex,
     audit_formal_source_index,
@@ -508,8 +510,9 @@ class ProofBankTests(unittest.TestCase):
         self.assertFalse(result.nodes[0].ok)
         self.assertEqual(result.selected_source, "registered_proof_body")
         self.assertFalse(result.kernel_verified)
-        self.assertEqual(result.schema_version, 4)
+        self.assertEqual(result.schema_version, 5)
         self.assertGreater(result.retrieval_candidates_total, 0)
+        self.assertEqual(result.formal_source_candidates_total, 0)
 
     def test_best_first_whole_proof_search_uses_trained_policy_scores(self) -> None:
         examples = [
@@ -560,6 +563,25 @@ class ProofBankTests(unittest.TestCase):
         self.assertGreater(result.nodes[0].score, result.nodes[0].base_score)
 
     def test_proof_search_audit_exports_node_level_results(self) -> None:
+        class DummyFormalSourceRetriever:
+            def search(self, query: str, *, k: int = 10):
+                return [
+                    FormalSourceHit(
+                        FormalDeclaration(
+                            source_id="unit_formal_source",
+                            source_type="lean_library",
+                            path="Unit/Formal.lean",
+                            line=1,
+                            kind="theorem",
+                            name="unit_variance_nonneg",
+                            namespace="Unit",
+                            signature="theorem unit_variance_nonneg : 0 <= variance X μ",
+                        ),
+                        9.0,
+                        ("variance",),
+                    )
+                ][:k]
+
         async def run():
             return await audit_proof_search_controller(
                 Path("runs/test_proof_search_audit"),
@@ -567,17 +589,21 @@ class ProofBankTests(unittest.TestCase):
                 max_obligations=2,
                 max_nodes=3,
                 include_invalid_probe=True,
+                formal_source_retriever=DummyFormalSourceRetriever(),
             )
 
         payload = asyncio.run(run())
         self.assertTrue(payload["all_solved"])
         self.assertEqual(payload["n_obligations"], 2)
         self.assertEqual(payload["nodes_expanded"], 4)
+        self.assertTrue(payload["formal_source_retriever_enabled"])
+        self.assertEqual(payload["formal_source_candidates_total"], 4)
         results_path = Path(payload["results_jsonl"])
         self.assertTrue(results_path.exists())
         rows = [json.loads(line) for line in results_path.read_text(encoding="utf-8").splitlines()]
-        self.assertEqual(rows[0]["schema_version"], 4)
+        self.assertEqual(rows[0]["schema_version"], 5)
         self.assertGreater(rows[0]["retrieval_candidates_total"], 0)
+        self.assertGreater(rows[0]["formal_source_candidates_total"], 0)
         self.assertGreater(payload["retrieval_candidates_total"], 0)
         self.assertEqual(rows[0]["nodes"][0]["source"], "invalid_probe")
         self.assertIn("proof_body", rows[0]["nodes"][0])
@@ -5577,6 +5603,8 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(payload["counts"]["proof_search_value_model_enabled"])
         self.assertGreater(payload["counts"]["proof_search_value_scored_expanded_nodes"], 0)
         self.assertGreater(payload["counts"]["proof_search_retrieval_candidates_total"], 0)
+        self.assertTrue(payload["counts"]["proof_search_formal_source_retriever_enabled"])
+        self.assertGreater(payload["counts"]["proof_search_formal_source_candidates_total"], 0)
         self.assertGreater(payload["counts"]["proof_search_bootstrap_process_examples"], 0)
         self.assertGreater(payload["counts"]["prover_components_total"], 0)
         self.assertFalse(payload["counts"]["prover_component_goal_complete"])

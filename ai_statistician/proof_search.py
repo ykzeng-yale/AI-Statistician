@@ -13,7 +13,7 @@ from .schema import FormalObligation, ProofCheck, RetrievalHit
 from .verifier import ProofVerifier
 
 
-PROOF_SEARCH_SCHEMA_VERSION = 4
+PROOF_SEARCH_SCHEMA_VERSION = 5
 
 
 @dataclass(frozen=True)
@@ -63,6 +63,7 @@ class ProofSearchResult:
     nodes_expanded: int
     candidates_total: int
     retrieval_candidates_total: int
+    formal_source_candidates_total: int
     frontier_exhausted: bool
     verifier: str
     search_fingerprint: str
@@ -182,6 +183,9 @@ class BestFirstWholeProofSearchController:
             nodes_expanded=len(nodes),
             candidates_total=len(candidates),
             retrieval_candidates_total=sum(1 for row in candidates if row.source.startswith("proof_retrieval:")),
+            formal_source_candidates_total=sum(
+                1 for row in candidates if row.source.startswith("formal_source_template:")
+            ),
             frontier_exhausted=not solved and (not frontier or len(nodes) >= max_nodes),
             verifier=selected_check.verifier if selected_check else getattr(self.verifier, "name", "unknown"),
             search_fingerprint=stable_hash(fingerprint_payload),

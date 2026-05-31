@@ -4,6 +4,7 @@ import json
 from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 from .fingerprint import stable_hash
 from .proof_bank import all_obligations, proof_bank_fingerprint
@@ -27,6 +28,8 @@ async def audit_proof_search_controller(
     include_invalid_probe: bool = False,
     proof_policy_model_json: Path | None = None,
     proof_value_model_json: Path | None = None,
+    formal_source_retriever: Any | None = None,
+    formal_source_k: int = 4,
 ) -> dict[str, object]:
     """Run a bounded whole-proof search audit over proof-bank obligations."""
 
@@ -34,6 +37,8 @@ async def audit_proof_search_controller(
         raise ValueError("max_obligations must be positive")
     if max_nodes <= 0:
         raise ValueError("max_nodes must be positive")
+    if formal_source_k < 0:
+        raise ValueError("formal_source_k must be nonnegative")
     out_dir.mkdir(parents=True, exist_ok=True)
     proof_verifier = verifier or MockProofVerifier()
     proof_policy_model = load_proof_policy_model(proof_policy_model_json) if proof_policy_model_json else None
@@ -62,6 +67,13 @@ async def audit_proof_search_controller(
                     score=1500.0,
                 )
             )
+        probes.extend(
+            _formal_source_candidates(
+                obligation,
+                formal_source_retriever=formal_source_retriever,
+                k=formal_source_k,
+            )
+        )
         results.append(
             await controller.solve(
                 obligation,
@@ -91,11 +103,18 @@ async def audit_proof_search_controller(
         if node.value_score is not None
     )
     retrieval_candidates_total = sum(row.retrieval_candidates_total for row in results)
+    formal_source_candidates_total = sum(row.formal_source_candidates_total for row in results)
     retrieval_candidate_nodes_expanded = sum(
         1
         for result in results
         for node in result.nodes
         if node.source.startswith("proof_retrieval:")
+    )
+    formal_source_candidate_nodes_expanded = sum(
+        1
+        for result in results
+        for node in result.nodes
+        if node.source.startswith("formal_source_template:")
     )
     manifest = {
         "schema_version": PROOF_SEARCH_SCHEMA_VERSION,
@@ -111,6 +130,8 @@ async def audit_proof_search_controller(
         "value_model_enabled": proof_value_model is not None,
         "value_model_json": str(proof_value_model_json) if proof_value_model_json else "",
         "value_model_fingerprint": proof_value_model.model_fingerprint if proof_value_model else "",
+        "formal_source_retriever_enabled": formal_source_retriever is not None,
+        "formal_source_k": formal_source_k,
         "n_obligations": n,
         "n_solved": solved,
         "n_failed": n - solved,
@@ -121,7 +142,9 @@ async def audit_proof_search_controller(
         ),
         "nodes_expanded": nodes_expanded,
         "retrieval_candidates_total": retrieval_candidates_total,
+        "formal_source_candidates_total": formal_source_candidates_total,
         "retrieval_candidate_nodes_expanded": retrieval_candidate_nodes_expanded,
+        "formal_source_candidate_nodes_expanded": formal_source_candidate_nodes_expanded,
         "policy_scored_expanded_nodes": policy_scored_candidates,
         "value_scored_expanded_nodes": value_scored_candidates,
         "mean_nodes_expanded": nodes_expanded / n if n else 0.0,
@@ -130,6 +153,7 @@ async def audit_proof_search_controller(
         "limitations": [
             "whole-proof candidate search only; no tactic-state environment yet",
             "best-first candidate priority can use trained whole-proof policy and value rankers when model JSON files are supplied",
+            "formal-source templates are verifier-tested candidates; source-only declarations may fail if imports/types do not line up",
             "registered proof bodies are included as a high-priority gold skill-memory candidate",
             "invalid_probe is for branch/error-path testing and is disabled in release-style audits",
         ],
@@ -137,3 +161,73 @@ async def audit_proof_search_controller(
     manifest_path = out_dir / "proof_search_audit_manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2, default=str), encoding="utf-8")
     return manifest
+
+
+def _formal_source_candidates(
+    obligation,
+    *,
+    formal_source_retriever: Any | None,
+    k: int,
+) -> list[ProofCandidate]:
+    if formal_source_retriever is None or k <= 0:
+        return []
+    search = getattr(formal_source_retriever, "search", None)
+    if not callable(search):
+        return []
+    query = " ".join(
+        [
+            obligation.title,
+            obligation.english,
+            obligation.formal_statement,
+            " ".join(obligation.expected_lemmas),
+            " ".join(obligation.tags),
+        ]
+    )
+    hits = search(query, k=k)
+    candidates: list[ProofCandidate] = []
+    for idx, hit in enumerate(hits):
+        decl = getattr(hit, "declaration", None)
+        if decl is None:
+            continue
+        name = _formal_declaration_full_name(decl)
+        if not name:
+            continue
+        source_id = str(getattr(decl, "source_id", "formal_source"))
+        score = 80.0 + float(getattr(hit, "score", 0.0) or 0.0) - idx
+        candidates.append(
+            ProofCandidate(
+                candidate_id=f"{obligation.id}:formal_source:{name}:simpa",
+                proof_body=f"by\n  simpa using {name}",
+                source=f"formal_source_template:{source_id}",
+                score=score,
+                base_score=score,
+                origin_obligation_id=name,
+                expected_lemmas=(name,),
+                tags=tuple(obligation.tags),
+                policy_prompt=str(getattr(decl, "signature", "")),
+            )
+        )
+        candidates.append(
+            ProofCandidate(
+                candidate_id=f"{obligation.id}:formal_source:{name}:exact",
+                proof_body=f"by\n  exact {name}",
+                source=f"formal_source_template:{source_id}",
+                score=score - 5.0,
+                base_score=score - 5.0,
+                origin_obligation_id=name,
+                expected_lemmas=(name,),
+                tags=tuple(obligation.tags),
+                policy_prompt=str(getattr(decl, "signature", "")),
+            )
+        )
+    return candidates
+
+
+def _formal_declaration_full_name(decl: Any) -> str:
+    name = str(getattr(decl, "name", "")).strip()
+    namespace = str(getattr(decl, "namespace", "")).strip()
+    if not name:
+        return ""
+    if namespace and "." not in name:
+        return f"{namespace}.{name}"
+    return name
