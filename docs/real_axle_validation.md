@@ -13,15 +13,15 @@ python3 -m ai_statistician.cli proof-audit \
 Result:
 
 ```text
-verified=73/73
-kernel=73/73
+verified=74/74
+kernel=74/74
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=a9dbba24a2694b9af45f86ac981cb7435312e720b0aa101038f3b5cb661fc3fc
+proof_bank_fingerprint=ed6a1d014eaedbec1241dfa5e1198bfd0c80945fae1b4400622a21f265f313ac
 ```
 
 This is the current evidence that the registered proof bank is not only
-mock-checked: all 73 registered Mathlib-backed obligations were accepted by a
+mock-checked: all 74 registered Mathlib-backed obligations were accepted by a
 real Lean kernel check through the local Lake/Mathlib runtime. AXLE remains the
 preferred remote verifier for release bundles when its Python package and API
 runtime are available; the local Lean backend is the offline kernel-equivalent
@@ -44,9 +44,9 @@ strength=axle_lean_kernel
 ```
 
 That remote AXLE run predates the newest proof-bank additions. The current
-73-obligation proof bank has full local Lean kernel evidence above; run the
+74-obligation proof bank has full local Lean kernel evidence above; run the
 same `proof-audit --real-lean` command again from an AXLE-ready runtime to
-refresh remote AXLE evidence for all 73 obligations.
+refresh remote AXLE evidence for all 74 obligations.
 
 Latest real research-system validation: 2026-05-30.
 
@@ -279,6 +279,18 @@ Mathlib's `Set.inter_indicator_one` and `integral_indicator_one`. This gives
 `adapted_product_process`, `bernoulli_likelihood_ratio`, and
 `conditional_expectation_product_step` a kernel-checked algebraic bridge while
 leaving the full Bernoulli likelihood-ratio martingale theorem as a formal gap.
+
+The next sequential/product-process bridge is
+`independent_event_indicator_product_lintegral_eq_mul`. It proves that for two
+independent measurable events, the lintegral of the product of their ENNReal
+event indicators factors as `μ A * μ B`, using Mathlib's
+`Set.inter_indicator_one`, `lintegral_indicator_one`, and
+`IndepSet.measure_inter_eq_mul`. This gives
+`independent_bernoulli_sequence`, `adapted_product_process`,
+`bernoulli_likelihood_ratio`, `conditional_expectation_product_step`, and
+`martingale_definition` a stronger kernel-checked product bridge. It still does
+not prove conditional-expectation preservation or the full likelihood-ratio
+martingale theorem end to end.
 
 Important boundary:
 

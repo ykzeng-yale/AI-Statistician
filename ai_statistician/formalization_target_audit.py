@@ -348,18 +348,31 @@ _PRIMITIVE_PROOF_BRIDGE_HINTS: dict[str, tuple[str, ...]] = {
         "simultaneous_coverage_of_union_error_bound",
     ),
     "adapted_product_process": (
+        "independent_event_indicator_product_lintegral_eq_mul",
         "event_indicator_product_integral_eq_inter",
         "independent_event_inter_probability",
         "event_indicator_expectation",
     ),
     "bernoulli_likelihood_ratio": (
+        "independent_event_indicator_product_lintegral_eq_mul",
         "event_indicator_product_integral_eq_inter",
         "finite_event_indicator_mean_unbiased",
         "event_indicator_expectation",
     ),
     "conditional_expectation_product_step": (
+        "independent_event_indicator_product_lintegral_eq_mul",
         "event_indicator_product_integral_eq_inter",
         "independent_event_inter_probability",
+    ),
+    "independent_bernoulli_sequence": (
+        "independent_event_indicator_product_lintegral_eq_mul",
+        "independent_event_inter_probability",
+        "event_indicator_product_integral_eq_inter",
+    ),
+    "martingale_definition": (
+        "independent_event_indicator_product_lintegral_eq_mul",
+        "event_indicator_product_integral_eq_inter",
+        "event_indicator_expectation",
     ),
 }
 

@@ -1415,6 +1415,24 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("conditional_expectation_product_step", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_independent_event_indicator_product_lintegral_factors_under_independence(self) -> None:
+        obligation = get_obligation("independent_event_indicator_product_lintegral_eq_mul")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(
+            obligation.depends_on,
+            ("event_indicator_product_integral_eq_inter", "independent_event_inter_probability"),
+        )
+        self.assertIn("theorem independentEventIndicatorProduct_lintegral_eq_mul", content)
+        self.assertIn("IndepSet A B μ", content)
+        self.assertIn("∫⁻ ω, (A.indicator (1 : Ω → ENNReal) * B.indicator (1 : Ω → ENNReal)) ω ∂μ", content)
+        self.assertIn("μ A * μ B", content)
+        self.assertIn("Set.inter_indicator_one", content)
+        self.assertIn("lintegral_indicator_one", content)
+        self.assertIn("h_indep.measure_inter_eq_mul", content)
+        self.assertIn("independent_bernoulli_sequence", obligation.tags)
+        self.assertIn("martingale_definition", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_noised_estimator_obligations_bridge_private_mean_error(self) -> None:
         unbiased = get_obligation("noised_estimator_unbiased")
         variance = get_obligation("noised_estimator_variance_indep")
@@ -2610,6 +2628,10 @@ class SystemTests(unittest.TestCase):
             "event_indicator_product_integral_eq_inter",
             sequential_goals["bernoulli_lr_eprocess_martingale"]["proof_obligations"],
         )
+        self.assertIn(
+            "independent_event_indicator_product_lintegral_eq_mul",
+            sequential_goals["bernoulli_lr_eprocess_martingale"]["proof_obligations"],
+        )
         fdr_trace = json.loads(Path("runs/test_research_benchmark/multiple_testing_fdr_bh.json").read_text())
         fdr_goals = {row["id"]: row for row in fdr_trace["theorem_goals"]}
         self.assertIn(
@@ -3497,6 +3519,8 @@ class SystemTests(unittest.TestCase):
             "bernoulli_likelihood_ratio",
             "adapted_product_process",
             "conditional_expectation_product_step",
+            "independent_bernoulli_sequence",
+            "martingale_definition",
         )
         gap_path.write_text("FORMAL_GAP " + " ".join(primitives), encoding="utf-8")
         (run_dir / "research_benchmark_manifest.json").write_text(
@@ -3506,6 +3530,7 @@ class SystemTests(unittest.TestCase):
         proof_obligations = (
             "event_indicator_expectation",
             "event_indicator_product_integral_eq_inter",
+            "independent_event_indicator_product_lintegral_eq_mul",
             "finite_event_indicator_mean_unbiased",
             "independent_event_inter_probability",
         )
@@ -3557,7 +3582,7 @@ class SystemTests(unittest.TestCase):
         rows = {row["primitive"]: row for row in payload["rows"]}
         for primitive in primitives:
             self.assertIn(
-                "event_indicator_product_integral_eq_inter",
+                "independent_event_indicator_product_lintegral_eq_mul",
                 rows[primitive]["bridge_candidate_obligations"],
             )
             self.assertEqual(rows[primitive]["priority_band"], "BRIDGE_REUSE_READY")

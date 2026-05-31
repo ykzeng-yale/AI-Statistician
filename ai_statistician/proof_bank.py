@@ -1491,6 +1491,58 @@ theorem eventIndicatorProduct_integral_eq_inter {Ω : Type*} [MeasurableSpace Ω
         expected_lemmas=("Set.inter_indicator_one", "integral_indicator_one"),
         depends_on=("event_indicator_expectation",),
     ),
+    "independent_event_indicator_product_lintegral_eq_mul": FormalObligation(
+        id="independent_event_indicator_product_lintegral_eq_mul",
+        title="Independent event indicators have factored product lintegral",
+        english=(
+            "For independent measurable events A and B, the lintegral of the "
+            "product of their ENNReal 0/1 indicators factors as `μ A * μ B`. "
+            "This is a reusable bridge for independent Bernoulli sequences, "
+            "product-process likelihood ratios, and martingale skeletons; it "
+            "does not prove conditional-expectation preservation for an entire "
+            "process."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+theorem independentEventIndicatorProduct_lintegral_eq_mul {Ω : Type*} [MeasurableSpace Ω]
+    (μ : Measure Ω) (A B : Set Ω)
+    (hA : MeasurableSet A) (hB : MeasurableSet B)
+    (h_indep : IndepSet A B μ) :
+    ∫⁻ ω, (A.indicator (1 : Ω → ENNReal) * B.indicator (1 : Ω → ENNReal)) ω ∂μ =
+      μ A * μ B := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  rw [← Set.inter_indicator_one]\n"
+            "  rw [lintegral_indicator_one (hA.inter hB)]\n"
+            "  exact h_indep.measure_inter_eq_mul"
+        ),
+        tags=(
+            "probability",
+            "event",
+            "indicator",
+            "indicator_product",
+            "independence",
+            "bernoulli",
+            "independent_bernoulli_sequence",
+            "likelihood_ratio",
+            "product_process",
+            "adapted_product_process",
+            "conditional_expectation_product_step",
+            "martingale_definition",
+            "sequential",
+        ),
+        expected_lemmas=(
+            "Set.inter_indicator_one",
+            "lintegral_indicator_one",
+            "IndepSet.measure_inter_eq_mul",
+        ),
+        depends_on=("event_indicator_product_integral_eq_inter", "independent_event_inter_probability"),
+    ),
     "finite_event_indicator_mean_unbiased": FormalObligation(
         id="finite_event_indicator_mean_unbiased",
         title="Finite-sample event-indicator mean is unbiased",

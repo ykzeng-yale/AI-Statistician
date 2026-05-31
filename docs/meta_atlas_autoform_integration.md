@@ -173,16 +173,16 @@ python3 -m ai_statistician.cli research-system-audit \
 Result:
 
 ```text
-proof_bank_kernel=73/73
+proof_bank_kernel=74/74
 proof_verifier=local.lake_env_lean
 proof_strength=local_lean_kernel_batch
 system_all_gates_passed=True
-system_elapsed_latest=121.6s
+system_elapsed_latest=123.1s
 sources=23/23
 frontier_supported=60/60
 frontier_smoke=23/23
 formalized_gaps=20/20
-proof_bank_expansion_bridge_ready=34/97
+proof_bank_expansion_bridge_ready=36/97
 missing_primitives=97
 ```
 
@@ -231,7 +231,13 @@ The product-process queue now also has
 the product of two event indicators integrates to the intersection measure.
 Autoform targets for `adapted_product_process`, `bernoulli_likelihood_ratio`,
 and `conditional_expectation_product_step` can start from this bridge before
-attempting the remaining martingale conditional-expectation lift.
+attempting the remaining martingale conditional-expectation lift. It now also
+has `independent_event_indicator_product_lintegral_eq_mul`, a kernel-checked
+ENNReal lintegral factorization for independent event indicators. That bridge
+routes `independent_bernoulli_sequence`, `adapted_product_process`,
+`bernoulli_likelihood_ratio`, `conditional_expectation_product_step`, and
+`martingale_definition` to a stronger product-process starting point while
+still preserving the full likelihood-ratio martingale theorem as a formal gap.
 The supermartingale bridge `supermartingale_expected_stopped_value_antimono`
 adds the reversed bounded optional-stopping expectation budget for
 supermartingales. This gives Autoform targets a direct e-process/Ville
