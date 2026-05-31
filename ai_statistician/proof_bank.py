@@ -311,6 +311,44 @@ theorem completeRandomization_uniform_assignment_mass
         expected_lemmas=("PMF.uniformOfFintype_apply",),
         depends_on=("finite_population_ate_mean_difference",),
     ),
+    "uniform_rank_pmf_mass": FormalObligation(
+        id="uniform_rank_pmf_mass",
+        title="Finite uniform-rank PMF mass",
+        english=(
+            "For a finite nonempty rank space `Fin n`, Mathlib's uniform PMF "
+            "assigns every rank mass `1 / n`. This is the finite distribution "
+            "bridge used by conformal rank arguments after exchangeability has "
+            "been reduced to uniform rank. It does not itself prove that "
+            "exchangeable scores induce a uniform rank, nor does it prove the "
+            "order-statistic conformal coverage theorem."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+
+theorem uniformRank_pmf_mass {n : Nat} [Nonempty (Fin n)] (r : Fin n) :
+    PMF.uniformOfFintype (Fin n) r = (n : ENNReal)⁻¹ := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  simpa [Fintype.card_fin] using (PMF.uniformOfFintype_apply r)"
+        ),
+        tags=(
+            "probability",
+            "pmf",
+            "uniform",
+            "rank",
+            "uniform_rank",
+            "rank_uniformity",
+            "exchangeable_scores",
+            "finite_sample",
+            "conformal",
+            "distribution_free_conformal_prediction",
+        ),
+        expected_lemmas=("PMF.uniformOfFintype_apply", "Fintype.card_fin"),
+        depends_on=("complete_randomization_uniform_assignment_mass",),
+    ),
     "mean2_estimator_variance_indep": FormalObligation(
         id="mean2_estimator_variance_indep",
         title="Two-variable mean estimator variance under independence",

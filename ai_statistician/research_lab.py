@@ -4736,6 +4736,7 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "finite_union_bound",
         "finite_union_budget_control",
         "simultaneous_coverage_of_union_error_bound",
+        "uniform_rank_pmf_mass",
         "finite_conformal_rank_coverage_counting",
     ),
     "right_censored_survival_inference": (

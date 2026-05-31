@@ -166,9 +166,9 @@ python3 -m ai_statistician.cli proof-audit \
   --out runs/proof_audit_local_lean_current
 ```
 
-Current evidence: `67/67` registered proof-bank obligations pass
+Current evidence: `68/68` registered proof-bank obligations pass
 `local_lean_kernel_batch` with proof-bank fingerprint
-`63b93eaca528a51a7fd6e327712c48141a056fcf250c03af021b88e4dd2abc3b`.
+`9316f9db2872fc77ee64b7da2cfe74c143d78d6682737c604ebc0b5c84debd40`.
 
 Check `doctor` first. It reports `real_lean_ready` and concrete
 `real_lean_blockers`; an AXLE key alone is not enough if the active Python
@@ -273,6 +273,11 @@ uniform PMF assigns each assignment mass `1 / card`. This gives the
 complete-randomization distribution primitive a real Lean bridge while still
 leaving fixed-treated-count combinatorics and design-based covariance formulas
 as formal gaps.
+It also includes `uniform_rank_pmf_mass`, a finite conformal-rank distribution
+bridge. For a finite nonempty rank space `Fin n`, Mathlib's uniform PMF assigns
+each rank mass `1 / n`. This gives conformal rank-uniformity traces a verified
+PMF building block while still leaving the exchangeable-scores-to-uniform-rank
+theorem and the full order-statistic conformal coverage theorem as formal gaps.
 Another composed guarantee is `mean2_estimator_chebyshev_indep`, which derives
 an explicit Chebyshev error bound for the average of two independent unbiased L2
 estimators using both the expectation and variance proof ingredients. Composed

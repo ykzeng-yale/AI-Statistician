@@ -13,15 +13,15 @@ python3 -m ai_statistician.cli proof-audit \
 Result:
 
 ```text
-verified=67/67
-kernel=67/67
+verified=68/68
+kernel=68/68
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=63b93eaca528a51a7fd6e327712c48141a056fcf250c03af021b88e4dd2abc3b
+proof_bank_fingerprint=9316f9db2872fc77ee64b7da2cfe74c143d78d6682737c604ebc0b5c84debd40
 ```
 
 This is the current evidence that the registered proof bank is not only
-mock-checked: all 67 registered Mathlib-backed obligations were accepted by a
+mock-checked: all 68 registered Mathlib-backed obligations were accepted by a
 real Lean kernel check through the local Lake/Mathlib runtime. AXLE remains the
 preferred remote verifier for release bundles when its Python package and API
 runtime are available; the local Lean backend is the offline kernel-equivalent
@@ -239,6 +239,12 @@ uniform PMF on a finite nonempty assignment space gives each assignment mass
 `1/card`. This is a real verified distribution bridge for complete-randomization
 traces; it still does not prove fixed-treated-count combinatorics,
 randomization-unbiasedness, or the design-based covariance formula.
+
+The conformal-rank block now includes `uniform_rank_pmf_mass`. It proves that
+Mathlib's uniform PMF on a finite nonempty rank space `Fin n` gives each rank
+mass `1/n`. This is a real verified PMF bridge for rank-uniformity traces; it
+still does not prove that exchangeable nonconformity scores induce a uniform
+rank, nor the full order-statistic conformal coverage theorem.
 
 Important boundary:
 

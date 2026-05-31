@@ -257,7 +257,12 @@ _PRIMITIVE_PROOF_BRIDGE_HINTS: dict[str, tuple[str, ...]] = {
         "simultaneous_coverage_of_union_error_bound",
         "coverage_lower_bound_of_complement_error",
     ),
+    "exchangeable_scores": (
+        "uniform_rank_pmf_mass",
+        "finite_conformal_rank_coverage_counting",
+    ),
     "rank_uniformity": (
+        "uniform_rank_pmf_mass",
         "finite_conformal_rank_coverage_counting",
         "simultaneous_coverage_of_union_error_bound",
     ),

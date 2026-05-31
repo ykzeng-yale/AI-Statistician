@@ -697,6 +697,20 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("design_based", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_uniform_rank_pmf_mass_uses_mathlib_uniform_rank_distribution(self) -> None:
+        obligation = get_obligation("uniform_rank_pmf_mass")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("complete_randomization_uniform_assignment_mass",))
+        self.assertIn("theorem uniformRank_pmf_mass", content)
+        self.assertIn("PMF.uniformOfFintype (Fin n) r", content)
+        self.assertIn("(n : ENNReal)⁻¹", content)
+        self.assertIn("PMF.uniformOfFintype_apply", content)
+        self.assertIn("Fintype.card_fin", content)
+        self.assertIn("exchangeable_scores", obligation.tags)
+        self.assertIn("rank_uniformity", obligation.tags)
+        self.assertIn("conformal", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_aipw_score_expectation_target_cancels_augmentation_means(self) -> None:
         obligation = get_obligation("aipw_score_expectation_target_of_aug_cancel")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
@@ -3014,6 +3028,15 @@ class SystemTests(unittest.TestCase):
 
         payload = audit_formalization_targets(run_dir, out_dir)
         rows = {row["primitive"]: row for row in payload["rows"]}
+        self.assertIn(
+            "uniform_rank_pmf_mass",
+            rows["exchangeable_scores"]["bridge_candidate_obligations"],
+        )
+        self.assertEqual(rows["exchangeable_scores"]["priority_band"], "BRIDGE_REUSE_READY")
+        self.assertIn(
+            "uniform_rank_pmf_mass",
+            rows["rank_uniformity"]["bridge_candidate_obligations"],
+        )
         for primitive in (
             "finite_sample_coverage_counting",
             "rank_uniformity",

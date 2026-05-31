@@ -865,6 +865,11 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   uniform PMF assigns each assignment mass `1/card`. This upgrades the
   complete-randomization distribution primitive while leaving fixed-treated-count
   combinatorics and design-based covariance calculations as formal gaps.
+- `uniform_rank_pmf_mass`: a finite uniform-rank distribution bridge. For a
+  finite nonempty rank space `Fin n`, Mathlib's uniform PMF assigns every rank
+  mass `1/n`. This upgrades conformal rank-uniformity traces with a verified PMF
+  primitive while leaving the exchangeability-to-uniform-rank and
+  order-statistic conformal coverage theorems as formal gaps.
 - `mean2_estimator_chebyshev_indep`: combines unbiasedness, L2 closure,
   independence variance additivity, variance scaling, and Chebyshev to bound
   the absolute-error probability of `(X+Y)/2` by
@@ -1284,11 +1289,11 @@ python3 -m ai_statistician.cli proof-audit \
 Current full-bank local Lean evidence (2026-05-31):
 
 ```text
-verified=67/67
-kernel=67/67
+verified=68/68
+kernel=68/68
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=63b93eaca528a51a7fd6e327712c48141a056fcf250c03af021b88e4dd2abc3b
+proof_bank_fingerprint=9316f9db2872fc77ee64b7da2cfe74c143d78d6682737c604ebc0b5c84debd40
 ```
 
 Run `doctor` in the same Python runtime first. It reports
