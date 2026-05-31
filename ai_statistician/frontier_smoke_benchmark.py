@@ -11,6 +11,7 @@ from typing import Any
 from .fingerprint import stable_hash
 from .frontier_coverage_audit import FrontierBenchmarkQuestion, load_frontier_benchmark_questions
 from .frontier_evaluation_triage import audit_frontier_evaluation_triage
+from .frontier_simulation_rerun_audit import audit_frontier_simulation_reruns
 from .frontier_theory_target_audit import audit_frontier_theory_targets
 from .proof_bank import proof_bank_fingerprint
 from .research_gap_audit import audit_research_gap_backlog
@@ -32,6 +33,7 @@ class FrontierSmokeConfig:
     use_axle: bool = False
     cache_dir: str | None = None
     refresh_cache: bool = False
+    simulation_rerun_runs: int = 60
 
 
 @dataclass(frozen=True)
@@ -156,6 +158,13 @@ async def run_frontier_smoke_benchmark(
         out_dir / "frontier_evaluation_triage",
     )
     stage_start = _record_stage(stage_timings, "frontier_evaluation_triage", stage_start)
+    simulation_rerun_manifest = audit_frontier_simulation_reruns(
+        out_dir / "frontier_evaluation_triage" / "frontier_evaluation_triage_manifest.json",
+        out_dir / "frontier_simulation_rerun",
+        n_runs=max(config.simulation_rerun_runs, config.n_runs),
+        seed=config.seed,
+    )
+    stage_start = _record_stage(stage_timings, "frontier_simulation_rerun", stage_start)
 
     selected_classes = sorted({row.problem_class for row in selections})
     benchmark_ok = (
@@ -172,6 +181,7 @@ async def run_frontier_smoke_benchmark(
         "research_gap_backlog": bool(gap_manifest["all_ok"]),
         "frontier_theory_target_audit": bool(theory_target_manifest["all_scored"]),
         "frontier_evaluation_triage": bool(evaluation_triage_manifest["all_ok"]),
+        "frontier_simulation_rerun": bool(simulation_rerun_manifest["all_ok"]),
     }
     if cache_info["enabled"] and cache_status == "miss" and all(gates.values()):
         _store_cached_research_benchmark(cache_info=cache_info, source_dir=benchmark_dir)
@@ -193,6 +203,7 @@ async def run_frontier_smoke_benchmark(
             "verifier": verifier.name,
             "cache_dir": str(cache_info["root"]) if cache_info["enabled"] else "",
             "refresh_cache": config.refresh_cache,
+            "simulation_rerun_runs": config.simulation_rerun_runs,
         },
         "provenance": build_research_provenance(),
         "cache": {
@@ -232,6 +243,9 @@ async def run_frontier_smoke_benchmark(
             "frontier_triage_items": evaluation_triage_manifest["n_items"],
             "frontier_triage_theory_target_misses": evaluation_triage_manifest["n_theory_target_misses"],
             "frontier_triage_simulation_flags": evaluation_triage_manifest["n_simulation_flags"],
+            "frontier_simulation_rerun_items": simulation_rerun_manifest["n_items"],
+            "frontier_simulation_rerun_resolved": simulation_rerun_manifest["n_resolved"],
+            "frontier_simulation_rerun_still_flagged": simulation_rerun_manifest["n_still_flagged"],
             "frontier_smoke_total_elapsed_ms": total_elapsed_ms,
             "frontier_smoke_slowest_stage": str(slowest_stages[0]["stage"]) if slowest_stages else "",
             "frontier_smoke_slowest_stage_elapsed_ms": int(slowest_stages[0]["elapsed_ms"]) if slowest_stages else 0,
@@ -266,6 +280,12 @@ async def run_frontier_smoke_benchmark(
             ),
             "frontier_evaluation_triage_report": str(
                 out_dir / "frontier_evaluation_triage" / "frontier_evaluation_triage.md"
+            ),
+            "frontier_simulation_rerun": str(
+                out_dir / "frontier_simulation_rerun" / "frontier_simulation_rerun_manifest.json"
+            ),
+            "frontier_simulation_rerun_report": str(
+                out_dir / "frontier_simulation_rerun" / "frontier_simulation_rerun.md"
             ),
         },
     }

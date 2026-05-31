@@ -91,6 +91,8 @@
       "current_all_supported_triage_items": 47,
       "current_all_supported_triage_theory_target_misses": 31,
       "current_all_supported_triage_simulation_flags": 16,
+      "current_all_supported_simulation_rerun_resolved": 13,
+      "current_all_supported_simulation_rerun_still_flagged": 3,
       "release_floor": [
         "at least 85% expected-result coverage on current smoke set",
         "per-topic coverage reported",

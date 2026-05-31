@@ -140,6 +140,8 @@ Current all-supported local signal:
 - 16 traces simulation-flagged
 - 47 frontier-evaluation triage items: 31 theory-target misses and 16
   simulation flags
+- higher-budget simulator rerun resolves 13/16 simulation flags and leaves 3
+  high-dimensional screening traces routed to theory/procedure revision
 
 The all-supported run is intentionally stricter than the release smoke. It is a
 scoring gate and limitation surfacer, not a claim that all 60 frontier problems

@@ -20,6 +20,7 @@ from .frontier_backlog_audit import audit_frontier_backlog
 from .frontier_coverage_audit import audit_frontier_coverage
 from .frontier_evaluation_triage import audit_frontier_evaluation_triage
 from .frontier_precision_audit import audit_frontier_precision
+from .frontier_simulation_rerun_audit import audit_frontier_simulation_reruns
 from .frontier_smoke_benchmark import FrontierSmokeConfig, run_frontier_smoke_benchmark
 from .frontier_theory_target_audit import audit_frontier_theory_targets
 from .formal_gap_task_export import export_formal_gap_lean_tasks
@@ -538,6 +539,31 @@ def _frontier_evaluation_triage(args: argparse.Namespace) -> int:
     return 0 if payload["all_ok"] else 1
 
 
+def _frontier_simulation_rerun_audit(args: argparse.Namespace) -> int:
+    payload = audit_frontier_simulation_reruns(
+        Path(args.triage_manifest),
+        Path(args.out),
+        n_runs=args.runs,
+        seed=args.seed,
+    )
+    print("\nAI Statistical Theory Lab Frontier Simulation Rerun Audit")
+    print("=" * 72)
+    print(
+        f"items={payload['n_ok']}/{payload['n_items']} "
+        f"resolved={payload['n_resolved']} "
+        f"still_flagged={payload['n_still_flagged']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    for owner, count in payload["by_new_owner_agent"].items():
+        print(f"  {owner}: {count}")
+    print(
+        f"\nfrontier simulation rerun manifest written to "
+        f"{(Path(args.out) / 'frontier_simulation_rerun_manifest.json').resolve()}"
+    )
+    print(f"markdown report written to {(Path(args.out) / 'frontier_simulation_rerun.md').resolve()}")
+    return 0 if payload["all_ok"] else 1
+
+
 def _research_knowledge_audit(args: argparse.Namespace) -> int:
     payload = audit_research_knowledge(Path(args.out), question_file=Path(args.question_file))
     print("\nAI Statistical Theory Lab Knowledge Audit")
@@ -575,6 +601,7 @@ async def _frontier_smoke_benchmark(args: argparse.Namespace) -> int:
             use_axle=args.real_lean,
             cache_dir=args.frontier_smoke_cache or None,
             refresh_cache=args.refresh_frontier_smoke_cache,
+            simulation_rerun_runs=args.simulation_rerun_runs,
         ),
         proof_verifier=verifier,
     )
@@ -583,6 +610,7 @@ async def _frontier_smoke_benchmark(args: argparse.Namespace) -> int:
     print(
         f"selected={payload['n_selected']} ready={payload['counts']['ready_with_gaps']}/{payload['counts']['questions']} "
         f"triage={payload['counts']['frontier_triage_items']} "
+        f"rerun_resolved={payload['counts']['frontier_simulation_rerun_resolved']} "
         f"all_gates_passed={payload['all_gates_passed']} "
         f"cache={payload['counts']['frontier_smoke_cache_status']}"
     )
@@ -1856,6 +1884,24 @@ def build_parser() -> argparse.ArgumentParser:
     )
     frontier_evaluation_triage.set_defaults(func=_frontier_evaluation_triage)
 
+    frontier_simulation_rerun_audit = sub.add_parser(
+        "frontier-simulation-rerun-audit",
+        help="rerun simulator-agent frontier triage items with a larger Monte Carlo budget",
+    )
+    frontier_simulation_rerun_audit.add_argument(
+        "--triage-manifest",
+        required=True,
+        help="frontier_evaluation_triage_manifest.json containing simulator-agent items",
+    )
+    frontier_simulation_rerun_audit.add_argument("--runs", type=int, default=60)
+    frontier_simulation_rerun_audit.add_argument("--seed", type=int, default=20260531)
+    frontier_simulation_rerun_audit.add_argument(
+        "--out",
+        default="runs/frontier_simulation_rerun",
+        help="frontier simulation rerun output directory",
+    )
+    frontier_simulation_rerun_audit.set_defaults(func=_frontier_simulation_rerun_audit)
+
     frontier_smoke_benchmark = sub.add_parser(
         "frontier-smoke-benchmark",
         help="run full research traces on selected supported entries from the frontier paper benchmark",
@@ -1870,6 +1916,12 @@ def build_parser() -> argparse.ArgumentParser:
     frontier_smoke_benchmark.add_argument("--lean-project", help="local Lake project used by --local-lean")
     frontier_smoke_benchmark.add_argument("--lean-timeout", type=int, default=90, help="timeout seconds for each local Lean check")
     frontier_smoke_benchmark.add_argument("--runs", type=int, default=60, help="Monte Carlo replicates for each selected paper-style question")
+    frontier_smoke_benchmark.add_argument(
+        "--simulation-rerun-runs",
+        type=int,
+        default=60,
+        help="Monte Carlo replicates for simulator-agent reruns of flagged frontier triage items",
+    )
     frontier_smoke_benchmark.add_argument("--seed", type=int, default=20260528)
     frontier_smoke_benchmark.add_argument(
         "--max-per-class",

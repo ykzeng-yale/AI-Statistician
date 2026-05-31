@@ -2572,13 +2572,18 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(Path(payload["artifacts"]["research_benchmark"]).exists())
         self.assertTrue(Path(payload["artifacts"]["frontier_theory_target_audit"]).exists())
         self.assertTrue(Path(payload["artifacts"]["frontier_evaluation_triage"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["frontier_simulation_rerun"]).exists())
         self.assertTrue(payload["gates"]["frontier_evaluation_triage"])
+        self.assertTrue(payload["gates"]["frontier_simulation_rerun"])
         target_audit = json.loads(Path(payload["artifacts"]["frontier_theory_target_audit"]).read_text())
         self.assertTrue(target_audit["all_scored"])
         self.assertFalse(target_audit["limitations"][0] == "")
         triage = json.loads(Path(payload["artifacts"]["frontier_evaluation_triage"]).read_text())
         self.assertTrue(triage["all_ok"])
         self.assertEqual(payload["counts"]["frontier_triage_items"], triage["n_items"])
+        rerun = json.loads(Path(payload["artifacts"]["frontier_simulation_rerun"]).read_text())
+        self.assertTrue(rerun["all_ok"])
+        self.assertEqual(payload["counts"]["frontier_simulation_rerun_items"], rerun["n_items"])
         dp_trace_path = out_dir / "research_benchmark" / "robust_privacy_distributed_02.json"
         self.assertTrue(dp_trace_path.exists())
         dp_trace = json.loads(dp_trace_path.read_text())
@@ -2686,9 +2691,13 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(payload["counts"]["frontier_triage_theory_target_misses"], 31)
         self.assertEqual(payload["counts"]["frontier_triage_simulation_flags"], 16)
         self.assertEqual(payload["counts"]["frontier_triage_items"], 47)
+        self.assertEqual(payload["counts"]["frontier_simulation_rerun_items"], 16)
+        self.assertEqual(payload["counts"]["frontier_simulation_rerun_resolved"], 13)
+        self.assertEqual(payload["counts"]["frontier_simulation_rerun_still_flagged"], 3)
         self.assertTrue((out_dir / "frontier_smoke_manifest.json").exists())
         self.assertTrue(Path(payload["artifacts"]["frontier_theory_target_audit"]).exists())
         self.assertTrue(Path(payload["artifacts"]["frontier_evaluation_triage"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["frontier_simulation_rerun"]).exists())
         target_audit = json.loads(Path(payload["artifacts"]["frontier_theory_target_audit"]).read_text())
         self.assertTrue(target_audit["all_scored"])
         triage = json.loads(Path(payload["artifacts"]["frontier_evaluation_triage"]).read_text())
@@ -2697,6 +2706,13 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(triage["n_simulation_flags"], 16)
         self.assertIn("theory_developer", triage["by_owner"])
         self.assertIn("simulator_agent", triage["by_owner"])
+        rerun = json.loads(Path(payload["artifacts"]["frontier_simulation_rerun"]).read_text())
+        self.assertTrue(rerun["all_ok"])
+        self.assertFalse(rerun["all_resolved"])
+        self.assertEqual(rerun["n_resolved"], 13)
+        self.assertEqual(rerun["n_still_flagged"], 3)
+        self.assertEqual(rerun["by_new_owner_agent"]["research_coordinator"], 13)
+        self.assertEqual(rerun["by_new_owner_agent"]["theory_developer"], 3)
 
     def test_mock_system_accepts_registered_questions(self) -> None:
         async def run():
@@ -2982,12 +2998,21 @@ class SystemTests(unittest.TestCase):
             suites["S3_frontier_blind_theory_target"]["current_all_supported_triage_theory_target_misses"],
             31,
         )
+        self.assertEqual(
+            suites["S3_frontier_blind_theory_target"]["current_all_supported_simulation_rerun_resolved"],
+            13,
+        )
+        self.assertEqual(
+            suites["S3_frontier_blind_theory_target"]["current_all_supported_simulation_rerun_still_flagged"],
+            3,
+        )
         self.assertIn("S7_feedback_loop_repair_with_seeded_failures", payload["recommended_next_gate_stack"])
 
         doc = Path("docs/evaluation_benchmark_strategy.md").read_text(encoding="utf-8")
         self.assertIn("`proofs_kernel_verified=88/88`", doc)
         self.assertIn("expected-result coverage about 82.8%", doc)
         self.assertIn("47 frontier-evaluation triage items", doc)
+        self.assertIn("resolves 13/16 simulation flags", doc)
         self.assertIn("53 have ranked proof-bank bridge candidates", doc)
         self.assertNotIn("79/79", doc)
         self.assertNotIn("82/82", doc)
