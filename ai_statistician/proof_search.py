@@ -26,6 +26,7 @@ class ProofCandidate:
 class ProofSearchNode:
     node_id: str
     candidate_id: str
+    proof_body: str
     source: str
     score: float
     expanded_index: int
@@ -110,6 +111,7 @@ class BestFirstWholeProofSearchController:
             node = ProofSearchNode(
                 node_id=f"{obligation.id}:node:{len(nodes) + 1}",
                 candidate_id=candidate.candidate_id,
+                proof_body=candidate.proof_body,
                 source=candidate.source,
                 score=candidate.score,
                 expanded_index=len(nodes) + 1,

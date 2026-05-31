@@ -30,6 +30,7 @@ from .proof_bank_expansion_export import export_proof_bank_expansion_candidates
 from .proof_policy_baseline import evaluate_retrieval_proof_policy_baseline
 from .proof_repair_export import export_proof_repair_dataset
 from .proof_search_audit import audit_proof_search_controller
+from .proof_search_training_export import export_proof_search_process_dataset
 from .proof_training_export import export_proof_training_dataset
 from .prover_component_audit import build_prover_component_audit, write_prover_component_audit
 from .research_gap_audit import audit_research_gap_backlog
@@ -201,6 +202,12 @@ async def run_research_system_audit(
         verifier=verifier,
         max_obligations=12,
         max_nodes=8,
+        include_invalid_probe=not (config.use_axle or config.use_local_lean),
+    )
+    proof_search_training_manifest = export_proof_search_process_dataset(
+        Path(str(proof_search_manifest["results_jsonl"])),
+        out_dir / "proof_search_training_export",
+        validation_fraction=0.2,
     )
     stage_start = _record_stage(stage_timings, "proof_training_repair_policy_exports", stage_start)
 
@@ -370,6 +377,8 @@ async def run_research_system_audit(
         + int(proof_policy_manifest["n_validation"])
         == int(proof_training_manifest["n_sft_examples"]),
         "proof_search_audit": bool(proof_search_manifest["all_solved"]),
+        "proof_search_training_export": int(proof_search_training_manifest["n_process_examples"])
+        == int(proof_search_manifest["nodes_expanded"]),
         "prover_component_audit": bool(prover_component_report["paper_outline_exists"])
         and int(prover_component_report["summary"]["components"]) > 0,
         "research_benchmark": benchmark_gate_ok,
@@ -567,6 +576,11 @@ async def run_research_system_audit(
             "proof_search_kernel_verified": proof_search_manifest["n_kernel_verified"],
             "proof_search_nodes_expanded": proof_search_manifest["nodes_expanded"],
             "proof_search_mean_nodes_expanded": proof_search_manifest["mean_nodes_expanded"],
+            "proof_search_process_examples": proof_search_training_manifest["n_process_examples"],
+            "proof_search_process_positive": proof_search_training_manifest["n_positive"],
+            "proof_search_process_negative": proof_search_training_manifest["n_negative"],
+            "proof_search_process_train": proof_search_training_manifest["n_train"],
+            "proof_search_process_validation": proof_search_training_manifest["n_validation"],
             "prover_components_total": prover_component_report["summary"]["components"],
             "prover_components_ready": prover_component_report["summary"]["ready"],
             "prover_components_partial": prover_component_report["summary"]["partial"],
@@ -736,6 +750,15 @@ async def run_research_system_audit(
             ),
             "proof_search_audit": str(out_dir / "proof_search_audit" / "proof_search_audit_manifest.json"),
             "proof_search_results": str(out_dir / "proof_search_audit" / "proof_search_results.jsonl"),
+            "proof_search_training_export": str(
+                out_dir / "proof_search_training_export" / "proof_search_training_manifest.json"
+            ),
+            "proof_search_process_train": str(
+                out_dir / "proof_search_training_export" / "proof_search_process_train.jsonl"
+            ),
+            "proof_search_process_validation": str(
+                out_dir / "proof_search_training_export" / "proof_search_process_validation.jsonl"
+            ),
             "prover_component_audit": str(
                 out_dir / "prover_component_audit" / "prover_component_audit_manifest.json"
             ),

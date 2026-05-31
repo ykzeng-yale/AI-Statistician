@@ -177,6 +177,18 @@ then verifies expanded nodes with the configured verifier. The audit writes
 search controller rather than one-shot lookup, but it is not tactic-state
 best-first search, MCTS, or RL yet; those remain the next prover-engine layer.
 
+The node traces can be exported as process-reward/value-model data:
+
+```bash
+python3 -m ai_statistician.cli proof-search-training-export \
+  --results-jsonl runs/proof_search_audit/proof_search_results.jsonl \
+  --out runs/proof_search_training_export
+```
+
+Each row preserves the theorem, candidate proof body, verifier errors, reward,
+and `kernel_verified` flag. This converts verifier feedback into learning data
+without claiming a trained value model exists yet.
+
 Algorithm repair promotion is intentionally one more step beyond generic live
 repair auditing:
 

@@ -13,6 +13,7 @@ from .proof_bank import all_obligations, proof_bank_fingerprint
 from .proof_policy_baseline import PROOF_POLICY_BASELINE_SCHEMA_VERSION
 from .proof_repair_export import PROOF_REPAIR_EXPORT_SCHEMA_VERSION
 from .proof_search import PROOF_SEARCH_SCHEMA_VERSION
+from .proof_search_training_export import PROOF_SEARCH_TRAINING_EXPORT_SCHEMA_VERSION
 from .proof_training_export import PROOF_TRAINING_EXPORT_SCHEMA_VERSION
 from .research_policy_baseline import RESEARCH_POLICY_BASELINE_SCHEMA_VERSION
 from .research_training_export import RESEARCH_TRAINING_EXPORT_SCHEMA_VERSION
@@ -172,16 +173,18 @@ def build_prover_component_audit(
         ProverComponentRow(
             component="value/progress model and verifier-grounded RL",
             paper_stack_layer="Layer 4: Formal Prover Engines / RL / Proof Search",
-            status="MISSING",
-            trained_or_built="Not trained. Current audits use verifier outcomes as release gates, not as gradient/RL data.",
+            status="PARTIAL_PROCESS_REWARD_EXPORT",
+            trained_or_built="Not trained. Proof-search node outcomes are exported as process-reward/value examples for future training.",
             why_it_matters="Process reward and progress prediction reduce branch explosion and convert Lean feedback into learning.",
             current_evidence=(
                 "Proof audits persist verification results and elapsed times",
-                "No training buffer, value head, PPO/GRPO/DPO, or expert-iteration loop",
+                f"proof_search_training_export_schema_version={PROOF_SEARCH_TRAINING_EXPORT_SCHEMA_VERSION}",
+                "proof-search-training-export writes proof_search_process_train.jsonl and proof_search_process_validation.jsonl",
+                "expanded nodes retain candidate proof body, verifier errors, reward, and kernel_verified",
             ),
             missing_or_next=(
-                "Log failed proof attempts and earliest Lean errors.",
-                "Train progress/value models only after tactic-state traces exist.",
+                "No trained value head, PPO/GRPO/DPO, or expert-iteration loop yet.",
+                "Upgrade whole-proof node rewards to tactic-state process rewards when a Lean step environment exists.",
             ),
         ),
         ProverComponentRow(

@@ -32,6 +32,7 @@ from .proof_bank_expansion_export import export_proof_bank_expansion_candidates
 from .proof_policy_baseline import evaluate_retrieval_proof_policy_baseline
 from .proof_repair_export import export_proof_repair_dataset
 from .proof_search_audit import audit_proof_search_controller
+from .proof_search_training_export import export_proof_search_process_dataset
 from .proof_training_export import export_proof_training_dataset
 from .prover_component_audit import build_prover_component_audit, write_prover_component_audit
 from .release import ReleaseBundleConfig, build_release_bundle
@@ -314,6 +315,25 @@ async def _proof_search_audit(args: argparse.Namespace) -> int:
     )
     print(f"results={Path(str(payload['results_jsonl'])).resolve()}")
     print(f"manifest written to {(Path(args.out) / 'proof_search_audit_manifest.json').resolve()}")
+    return 0
+
+
+def _proof_search_training_export(args: argparse.Namespace) -> int:
+    payload = export_proof_search_process_dataset(
+        Path(args.results_jsonl),
+        Path(args.out),
+        validation_fraction=args.validation_fraction,
+    )
+    print("\nAI Statistician Proof Search Process Export")
+    print("=" * 72)
+    print(
+        f"examples={payload['n_process_examples']} "
+        f"positive={payload['n_positive']} negative={payload['n_negative']} "
+        f"train={payload['n_train']} validation={payload['n_validation']}"
+    )
+    print(f"train_jsonl={Path(str(payload['train_jsonl'])).resolve()}")
+    print(f"validation_jsonl={Path(str(payload['validation_jsonl'])).resolve()}")
+    print(f"manifest written to {(Path(args.out) / 'proof_search_training_manifest.json').resolve()}")
     return 0
 
 
@@ -1538,6 +1558,23 @@ def build_parser() -> argparse.ArgumentParser:
         help="output directory for proof_search_results.jsonl and manifest",
     )
     proof_search_audit.set_defaults(func=lambda args: asyncio.run(_proof_search_audit(args)))
+
+    proof_search_training_export = sub.add_parser(
+        "proof-search-training-export",
+        help="export proof-search expanded nodes as process-reward/value-model training examples",
+    )
+    proof_search_training_export.add_argument(
+        "--results-jsonl",
+        required=True,
+        help="proof_search_results.jsonl from proof-search-audit",
+    )
+    proof_search_training_export.add_argument("--validation-fraction", type=float, default=0.2)
+    proof_search_training_export.add_argument(
+        "--out",
+        default="runs/proof_search_training_export",
+        help="output directory for proof_search_process_*.jsonl and manifest",
+    )
+    proof_search_training_export.set_defaults(func=_proof_search_training_export)
 
     algorithm_audit = sub.add_parser("algorithm-audit", help="audit vetted algorithm implementations")
     algorithm_audit.add_argument("--out", default="runs/algorithm_audit", help="algorithm audit output directory")

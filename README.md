@@ -20,6 +20,7 @@ python3 -m ai_statistician.cli trace-audit --run-dir runs/partial --out runs/tra
 python3 -m ai_statistician.cli eval --question-file examples/questions.json --n-seeds 3 --runs 300 --out runs/eval_external
 python3 -m ai_statistician.cli proof-audit --out runs/proof_audit
 python3 -m ai_statistician.cli proof-search-audit --max-obligations 12 --out runs/proof_search_audit
+python3 -m ai_statistician.cli proof-search-training-export --results-jsonl runs/proof_search_audit/proof_search_results.jsonl --out runs/proof_search_training_export
 python3 -m ai_statistician.cli intake-audit --out runs/intake_audit
 python3 -m ai_statistician.cli retrieval-audit --out runs/retrieval_audit
 python3 -m ai_statistician.cli retrieval-audit --loogle --out runs/retrieval_audit_loogle
@@ -183,6 +184,10 @@ This is still not tactic-state MCTS or RL, but it gives the prover stack an
 auditable search object with failed-node and solved-node evidence.
 Current local-kernel release evidence: `proof_search_solved=12/12` and
 `proof_search_kernel_verified=12/12` inside `research-system-audit --local-lean`.
+`proof-search-training-export` converts the expanded proof-search nodes into
+process-reward/value-model examples, preserving candidate proof bodies, verifier
+errors, binary reward, and `kernel_verified` provenance. This is a training data
+substrate, not a trained value/RL model.
 
 Check `doctor` first. It reports `real_lean_ready` and concrete
 `real_lean_blockers`; an AXLE key alone is not enough if the active Python

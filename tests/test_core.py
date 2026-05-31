@@ -42,6 +42,7 @@ from ai_statistician.proof_policy_baseline import evaluate_retrieval_proof_polic
 from ai_statistician.proof_repair_export import export_proof_repair_dataset
 from ai_statistician.proof_search import BestFirstWholeProofSearchController, ProofCandidate
 from ai_statistician.proof_search_audit import audit_proof_search_controller
+from ai_statistician.proof_search_training_export import export_proof_search_process_dataset
 from ai_statistician.proof_training_export import export_proof_training_dataset
 from ai_statistician.prover_component_audit import build_prover_component_audit, write_prover_component_audit
 from ai_statistician.questions import load_question_file, question_from_json
@@ -500,8 +501,26 @@ class ProofBankTests(unittest.TestCase):
         rows = [json.loads(line) for line in results_path.read_text(encoding="utf-8").splitlines()]
         self.assertEqual(rows[0]["schema_version"], 1)
         self.assertEqual(rows[0]["nodes"][0]["source"], "invalid_probe")
+        self.assertIn("proof_body", rows[0]["nodes"][0])
         self.assertFalse(rows[0]["nodes"][0]["ok"])
         self.assertEqual(rows[0]["selected_source"], "registered_proof_body")
+        process = export_proof_search_process_dataset(
+            results_path,
+            Path("runs/test_proof_search_process_export"),
+            validation_fraction=0.0,
+        )
+        self.assertEqual(process["n_process_examples"], 4)
+        self.assertEqual(process["n_positive"], 2)
+        self.assertEqual(process["n_negative"], 2)
+        self.assertEqual(process["n_train"], 4)
+        process_rows = [
+            json.loads(line)
+            for line in Path(process["all_jsonl"]).read_text(encoding="utf-8").splitlines()
+        ]
+        self.assertEqual(process_rows[0]["task"], "lean_whole_proof_process_reward")
+        self.assertEqual(process_rows[0]["reward"], 0.0)
+        self.assertIn("Candidate proof body", process_rows[0]["prompt"])
+        self.assertIn("candidate still contains sorry", process_rows[0]["first_error"])
 
     def test_caching_verifier_reuses_checked_obligations(self) -> None:
         async def run():
