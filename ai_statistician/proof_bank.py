@@ -361,6 +361,49 @@ theorem propensityScore_ne_zero_of_lower_bound {δ p : ℝ}
         expected_lemmas=("lt_of_lt_of_le", "ne_of_gt"),
         depends_on=("potential_outcome_observed_consistency",),
     ),
+    "propensity_weight_mul_cancel_of_lower_bound": FormalObligation(
+        id="propensity_weight_mul_cancel_of_lower_bound",
+        title="Propensity lower bound licenses inverse-weight cancellation",
+        english=(
+            "If a propensity score `p` is bounded below by a strictly positive "
+            "constant `δ`, then the inverse-propensity factor cancels: "
+            "`p⁻¹ * p = 1`. This is the algebraic bridge that lets AIPW and "
+            "IPW proof traces use positivity to simplify inverse-weighted "
+            "terms; it does not prove conditional exchangeability, "
+            "identification, or double robustness."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+
+theorem propensityWeight_mul_cancel_of_lower_bound {δ p : ℝ}
+    (hδ : 0 < δ) (hp : δ ≤ p) :
+    p⁻¹ * p = 1 := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  have hp_pos : 0 < p := lt_of_lt_of_le hδ hp\n"
+            "  exact inv_mul_cancel₀ (ne_of_gt hp_pos)"
+        ),
+        tags=(
+            "causal",
+            "ate",
+            "positivity",
+            "overlap",
+            "propensity",
+            "propensity_score",
+            "propensity_weight",
+            "propensity_weight_identity",
+            "inverse_probability_weight",
+            "aipw",
+            "semiparametric",
+            "denominator_safety",
+            "algebra",
+        ),
+        expected_lemmas=("lt_of_lt_of_le", "ne_of_gt", "inv_mul_cancel₀"),
+        depends_on=("propensity_score_ne_zero_of_lower_bound",),
+    ),
     "complete_randomization_uniform_assignment_mass": FormalObligation(
         id="complete_randomization_uniform_assignment_mass",
         title="Complete-randomization uniform assignment mass",

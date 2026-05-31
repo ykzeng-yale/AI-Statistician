@@ -13,15 +13,15 @@ python3 -m ai_statistician.cli proof-audit \
 Result:
 
 ```text
-verified=71/71
-kernel=71/71
+verified=72/72
+kernel=72/72
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=16a274425b08407880ae924a9675fc22581f21cad8eff334a1030b5408f1fcf9
+proof_bank_fingerprint=68a23b504de72148036ffea0caff7b271fd7589bf4e9adeffc29ef34187a8104
 ```
 
 This is the current evidence that the registered proof bank is not only
-mock-checked: all 71 registered Mathlib-backed obligations were accepted by a
+mock-checked: all 72 registered Mathlib-backed obligations were accepted by a
 real Lean kernel check through the local Lake/Mathlib runtime. AXLE remains the
 preferred remote verifier for release bundles when its Python package and API
 runtime are available; the local Lean backend is the offline kernel-equivalent
@@ -43,10 +43,10 @@ verifier=axle.verify_proof
 strength=axle_lean_kernel
 ```
 
-That remote AXLE run predates the nine newest proof-bank additions. The
-current 63-obligation proof bank has full local Lean kernel evidence above; run
-the same `proof-audit --real-lean` command again from an AXLE-ready runtime to
-refresh remote AXLE evidence for all 63 obligations.
+That remote AXLE run predates the newest proof-bank additions. The current
+72-obligation proof bank has full local Lean kernel evidence above; run the
+same `proof-audit --real-lean` command again from an AXLE-ready runtime to
+refresh remote AXLE evidence for all 72 obligations.
 
 Latest real research-system validation: 2026-05-30.
 
@@ -264,6 +264,13 @@ proves that a propensity score bounded below by a strictly positive constant is
 nonzero, providing the denominator-safety step needed by inverse-propensity and
 AIPW algebra. It still does not prove overlap as a model assumption,
 conditional exchangeability, identification, or double robustness.
+
+The next causal bridge is `propensity_weight_mul_cancel_of_lower_bound`. It
+uses the same strict lower-bound assumption to prove the inverse-weight
+identity `p⁻¹ * p = 1` via Mathlib's `inv_mul_cancel₀`. This gives
+`propensity_weight_identity` and AIPW/IPW score algebra a kernel-checked bridge,
+while still leaving conditional exchangeability, nuisance correctness,
+identification, and double robustness as explicit formal gaps.
 
 Important boundary:
 

@@ -885,6 +885,12 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   which gives inverse-propensity and AIPW traces a verified denominator-safety
   primitive while leaving overlap, conditional exchangeability, and
   identification as formal gaps.
+- `propensity_weight_mul_cancel_of_lower_bound`: the corresponding
+  inverse-weight algebra bridge. Under the same strict positive lower bound,
+  the proof bank now verifies `p⁻¹ * p = 1`, so
+  `propensity_weight_identity` has a direct Lean bridge while conditional
+  exchangeability, nuisance correctness, identification, and double robustness
+  remain formal gaps.
 - `mean2_estimator_chebyshev_indep`: combines unbiasedness, L2 closure,
   independence variance additivity, variance scaling, and Chebyshev to bound
   the absolute-error probability of `(X+Y)/2` by
@@ -1304,11 +1310,11 @@ python3 -m ai_statistician.cli proof-audit \
 Current full-bank local Lean evidence (2026-05-31):
 
 ```text
-verified=71/71
-kernel=71/71
+verified=72/72
+kernel=72/72
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=16a274425b08407880ae924a9675fc22581f21cad8eff334a1030b5408f1fcf9
+proof_bank_fingerprint=68a23b504de72148036ffea0caff7b271fd7589bf4e9adeffc29ef34187a8104
 ```
 
 Run `doctor` in the same Python runtime first. It reports

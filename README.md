@@ -166,9 +166,9 @@ python3 -m ai_statistician.cli proof-audit \
   --out runs/proof_audit_local_lean_current
 ```
 
-Current evidence: `71/71` registered proof-bank obligations pass
+Current evidence: `72/72` registered proof-bank obligations pass
 `local_lean_kernel_batch` with proof-bank fingerprint
-`16a274425b08407880ae924a9675fc22581f21cad8eff334a1030b5408f1fcf9`.
+`68a23b504de72148036ffea0caff7b271fd7589bf4e9adeffc29ef34187a8104`.
 
 Check `doctor` first. It reports `real_lean_ready` and concrete
 `real_lean_blockers`; an AXLE key alone is not enough if the active Python
@@ -294,6 +294,12 @@ bridge. A propensity score bounded below by a strictly positive constant is
 nonzero, so inverse-propensity denominators are safe under the stated lower
 bound. This upgrades the positivity primitive while still leaving overlap,
 conditional exchangeability, and identification as formal gaps.
+It also includes `propensity_weight_mul_cancel_of_lower_bound`, the next
+inverse-weight algebra bridge. Under the same strict positive lower bound, Lean
+proves `p⁻¹ * p = 1`, giving AIPW/IPW traces a verified
+`propensity_weight_identity` primitive while still leaving conditional
+exchangeability, nuisance correctness, identification, and double robustness as
+formal gaps.
 Another composed guarantee is `mean2_estimator_chebyshev_indep`, which derives
 an explicit Chebyshev error bound for the average of two independent unbiased L2
 estimators using both the expectation and variance proof ingredients. Composed

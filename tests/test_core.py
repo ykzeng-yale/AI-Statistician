@@ -713,6 +713,20 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("denominator_safety", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_propensity_weight_cancel_uses_lower_bound_denominator_safety(self) -> None:
+        obligation = get_obligation("propensity_weight_mul_cancel_of_lower_bound")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("propensity_score_ne_zero_of_lower_bound",))
+        self.assertIn("theorem propensityWeight_mul_cancel_of_lower_bound", content)
+        self.assertIn("(hδ : 0 < δ) (hp : δ ≤ p)", content)
+        self.assertIn("p⁻¹ * p = 1", content)
+        self.assertIn("lt_of_lt_of_le hδ hp", content)
+        self.assertIn("inv_mul_cancel₀", content)
+        self.assertIn("propensity_weight_identity", obligation.tags)
+        self.assertIn("aipw", obligation.tags)
+        self.assertIn("denominator_safety", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_complete_randomization_uniform_assignment_mass_uses_mathlib_pmf_uniform(self) -> None:
         obligation = get_obligation("complete_randomization_uniform_assignment_mass")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
@@ -3197,6 +3211,7 @@ class SystemTests(unittest.TestCase):
             "potential_outcome_consistency",
             "conditional_exchangeability",
             "positivity",
+            "propensity_weight_identity",
         )
         gap_path.write_text("FORMAL_GAP " + " ".join(primitives), encoding="utf-8")
         (run_dir / "research_benchmark_manifest.json").write_text(
@@ -3260,7 +3275,16 @@ class SystemTests(unittest.TestCase):
             "propensity_score_ne_zero_of_lower_bound",
             rows["positivity"]["bridge_candidate_obligations"],
         )
+        self.assertIn(
+            "propensity_weight_mul_cancel_of_lower_bound",
+            rows["positivity"]["bridge_candidate_obligations"],
+        )
         self.assertEqual(rows["positivity"]["priority_band"], "BRIDGE_REUSE_READY")
+        self.assertIn(
+            "propensity_weight_mul_cancel_of_lower_bound",
+            rows["propensity_weight_identity"]["bridge_candidate_obligations"],
+        )
+        self.assertEqual(rows["propensity_weight_identity"]["priority_band"], "BRIDGE_REUSE_READY")
 
     def test_formalization_target_audit_maps_design_based_primitives_to_verified_bridge(self) -> None:
         run_dir = Path("runs/test_formalization_target_design_based_run")

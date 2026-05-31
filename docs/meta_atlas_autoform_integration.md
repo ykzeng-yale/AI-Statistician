@@ -173,15 +173,16 @@ python3 -m ai_statistician.cli research-system-audit \
 Result:
 
 ```text
-proof_bank_kernel=71/71
+proof_bank_kernel=72/72
 proof_verifier=local.lake_env_lean
 proof_strength=local_lean_kernel_batch
 system_all_gates_passed=True
-system_elapsed_latest=135.1s
+system_elapsed_latest=142.4s
 sources=23/23
 frontier_supported=60/60
 frontier_smoke=23/23
 formalized_gaps=20/20
+proof_bank_expansion_bridge_ready=31/97
 missing_primitives=97
 ```
 
@@ -207,6 +208,10 @@ stopping and full Ville as formal gaps. The AIPW primitives
 while preserving conditional-expectation residual identities and full double
 robustness as formal gaps. `integrability_of_score_terms` now ranks
 `aipw_score_integrable_of_components` as its verified integrability bridge.
+The causal/AIPW queue also ranks `propensity_weight_identity` against the new
+`propensity_weight_mul_cancel_of_lower_bound` proof-bank bridge, so Autoform
+targets can start from a kernel-checked inverse-propensity cancellation lemma
+instead of reconstructing denominator algebra from scratch.
 The `filtration` primitive now ranks `filtration_mono_measurable_set` as its
 verified bridge, and `stopping_time` / `ville_inequality` also list it as a
 candidate bridge while preserving optional stopping and full Ville as formal
