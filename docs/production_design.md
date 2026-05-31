@@ -1072,6 +1072,13 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   time is a stopping time, wrapped around Mathlib's
   `Adapted.isStoppingTime_hittingAfter`; this is a verified primitive for
   optional-stopping/e-process theorem skeletons.
+- `event_indicator_product_integral_eq_inter`: product-of-event-indicators
+  algebra for sequential likelihood-ratio traces. For measurable events `A`
+  and `B`, the proof bank verifies
+  `∫ 1_A * 1_B dμ = μ.real (A ∩ B)`, giving `adapted_product_process`,
+  `bernoulli_likelihood_ratio`, and `conditional_expectation_product_step`
+  direct bridge candidates while preserving the full likelihood-ratio martingale
+  theorem as a formal gap.
 - `aipw_score_expectation_decompose`: expectation of an AIPW-style contrast plus
   augmentation score decomposes by linearity.
 - `aipw_score_expectation_target_of_aug_cancel`: if the contrast term has
@@ -1310,11 +1317,11 @@ python3 -m ai_statistician.cli proof-audit \
 Current full-bank local Lean evidence (2026-05-31):
 
 ```text
-verified=72/72
-kernel=72/72
+verified=73/73
+kernel=73/73
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=68a23b504de72148036ffea0caff7b271fd7589bf4e9adeffc29ef34187a8104
+proof_bank_fingerprint=a9dbba24a2694b9af45f86ac981cb7435312e720b0aa101038f3b5cb661fc3fc
 ```
 
 Run `doctor` in the same Python runtime first. It reports

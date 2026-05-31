@@ -1402,6 +1402,19 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("integral_finset_sum", content)
         self.assertNotIn("by sorry", content)
 
+    def test_event_indicator_product_integral_bridge_uses_intersection_indicator(self) -> None:
+        obligation = get_obligation("event_indicator_product_integral_eq_inter")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("event_indicator_expectation",))
+        self.assertIn("theorem eventIndicatorProduct_integral_eq_inter", content)
+        self.assertIn("A.indicator (1 : Ω → ℝ) * B.indicator (1 : Ω → ℝ)", content)
+        self.assertIn("μ.real (A ∩ B)", content)
+        self.assertIn("Set.inter_indicator_one", content)
+        self.assertIn("integral_indicator_one", content)
+        self.assertIn("adapted_product_process", obligation.tags)
+        self.assertIn("conditional_expectation_product_step", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_noised_estimator_obligations_bridge_private_mean_error(self) -> None:
         unbiased = get_obligation("noised_estimator_unbiased")
         variance = get_obligation("noised_estimator_variance_indep")
@@ -2593,6 +2606,10 @@ class SystemTests(unittest.TestCase):
             "submartingale_doob_maximal_probability_bound",
             sequential_goals["eprocess_optional_stopping_control"]["proof_obligations"],
         )
+        self.assertIn(
+            "event_indicator_product_integral_eq_inter",
+            sequential_goals["bernoulli_lr_eprocess_martingale"]["proof_obligations"],
+        )
         fdr_trace = json.loads(Path("runs/test_research_benchmark/multiple_testing_fdr_bh.json").read_text())
         fdr_goals = {row["id"]: row for row in fdr_trace["theorem_goals"]}
         self.assertIn(
@@ -3467,6 +3484,83 @@ class SystemTests(unittest.TestCase):
             "median_of_means_failure_union_control",
             rows["binomial_median_tail_bound"]["bridge_candidate_obligations"],
         )
+
+    def test_formalization_target_audit_maps_product_process_primitives_to_indicator_product_bridge(self) -> None:
+        run_dir = Path("runs/test_formalization_target_product_process_run")
+        out_dir = Path("runs/test_formalization_target_product_process_audit")
+        shutil.rmtree(run_dir, ignore_errors=True)
+        shutil.rmtree(out_dir, ignore_errors=True)
+        gap_dir = run_dir / "formal_gaps"
+        gap_dir.mkdir(parents=True, exist_ok=True)
+        gap_path = gap_dir / "bernoulli_lr_eprocess_martingale.lean"
+        primitives = (
+            "bernoulli_likelihood_ratio",
+            "adapted_product_process",
+            "conditional_expectation_product_step",
+        )
+        gap_path.write_text("FORMAL_GAP " + " ".join(primitives), encoding="utf-8")
+        (run_dir / "research_benchmark_manifest.json").write_text(
+            json.dumps({"questions": [{"question": "q_seq", "formal": {"gaps": 1}}]}),
+            encoding="utf-8",
+        )
+        proof_obligations = (
+            "event_indicator_expectation",
+            "event_indicator_product_integral_eq_inter",
+            "finite_event_indicator_mean_unbiased",
+            "independent_event_inter_probability",
+        )
+        trace = {
+            "question": {"id": "q_seq"},
+            "problem": {"problem_class": "sequential_anytime_inference"},
+            "procedures": [],
+            "knowledge": [{"id": "eprocess_anytime_testing"}],
+            "theorem_goals": [
+                {
+                    "id": "bernoulli_lr_eprocess_martingale",
+                    "title": "Bernoulli likelihood-ratio process is a null martingale",
+                    "proof_strategy": "Use event-indicator product integrals and independence before martingale lifting.",
+                    "required_primitives": list(primitives),
+                    "proof_obligations": list(proof_obligations),
+                },
+            ],
+            "formal_subclaims": [
+                *[
+                    {"status": "PROVED", "proof_obligation_id": obligation_id}
+                    for obligation_id in proof_obligations
+                ],
+                {
+                    "id": "gap:bernoulli_lr_eprocess_martingale",
+                    "status": "FORMAL_GAP",
+                    "claim_type": "theory_gap",
+                    "gap_reason": "martingale conditional-expectation lifting remains library work",
+                    "artifact_path": str(gap_path),
+                    "lean_statement": gap_path.read_text(encoding="utf-8"),
+                    "formal_source_hits": [
+                        {
+                            "name": "StatInference.ProbabilityTheory.durrett2019_example_4_2_3_productProcess_martingale_of_iIndepFun_meanOne"
+                        }
+                    ],
+                    "primitive_formal_source_hits": {
+                        primitive: [
+                            {
+                                "name": "StatInference.ProbabilityTheory.durrett2019_example_4_2_3_productProcess_martingale_of_iIndepFun_meanOne"
+                            }
+                        ]
+                        for primitive in primitives
+                    },
+                },
+            ],
+        }
+        (run_dir / "q_seq.json").write_text(json.dumps(trace), encoding="utf-8")
+
+        payload = audit_formalization_targets(run_dir, out_dir)
+        rows = {row["primitive"]: row for row in payload["rows"]}
+        for primitive in primitives:
+            self.assertIn(
+                "event_indicator_product_integral_eq_inter",
+                rows[primitive]["bridge_candidate_obligations"],
+            )
+            self.assertEqual(rows[primitive]["priority_band"], "BRIDGE_REUSE_READY")
 
     def test_formal_gap_task_export_writes_lean_task_jsonl(self) -> None:
         async def run():

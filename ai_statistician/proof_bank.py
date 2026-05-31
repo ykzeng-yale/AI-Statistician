@@ -1446,6 +1446,51 @@ theorem eventIndicator_expectation {Ω : Type*} [MeasurableSpace Ω]
         tags=("estimator", "bernoulli", "indicator", "expectation", "probability"),
         expected_lemmas=("integral_indicator_const",),
     ),
+    "event_indicator_product_integral_eq_inter": FormalObligation(
+        id="event_indicator_product_integral_eq_inter",
+        title="Product of two event indicators integrates to intersection mass",
+        english=(
+            "For measurable events A and B, the integral of the product of "
+            "their 0/1 indicators is the measure of the intersection. This is "
+            "the finite product-process bridge used before independence turns "
+            "intersection probabilities into products; it does not prove "
+            "conditional-expectation martingale preservation or likelihood-ratio "
+            "validity by itself."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory
+
+theorem eventIndicatorProduct_integral_eq_inter {Ω : Type*} [MeasurableSpace Ω]
+    (μ : Measure Ω) (A B : Set Ω)
+    (hA : MeasurableSet A) (hB : MeasurableSet B) :
+    ∫ ω, (A.indicator (1 : Ω → ℝ) * B.indicator (1 : Ω → ℝ)) ω ∂μ =
+      μ.real (A ∩ B) := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  rw [← Set.inter_indicator_one]\n"
+            "  exact integral_indicator_one (hA.inter hB)"
+        ),
+        tags=(
+            "probability",
+            "event",
+            "indicator",
+            "indicator_product",
+            "intersection",
+            "expectation",
+            "bernoulli",
+            "likelihood_ratio",
+            "product_process",
+            "adapted_product_process",
+            "conditional_expectation_product_step",
+            "sequential",
+        ),
+        expected_lemmas=("Set.inter_indicator_one", "integral_indicator_one"),
+        depends_on=("event_indicator_expectation",),
+    ),
     "finite_event_indicator_mean_unbiased": FormalObligation(
         id="finite_event_indicator_mean_unbiased",
         title="Finite-sample event-indicator mean is unbiased",

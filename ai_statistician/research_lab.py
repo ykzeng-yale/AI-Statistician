@@ -3988,6 +3988,7 @@ class TheoryPlanner:
                     ),
                     proof_obligations=(
                         "event_indicator_expectation",
+                        "event_indicator_product_integral_eq_inter",
                         "finite_event_indicator_mean_unbiased",
                         "independent_event_inter_probability",
                     ),
@@ -4940,6 +4941,7 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
     "sequential_anytime_inference": (
         "prob_measure_univ",
         "event_indicator_expectation",
+        "event_indicator_product_integral_eq_inter",
         "finite_event_indicator_mean_unbiased",
         "event_probability_mono",
         "filtration_mono_measurable_set",

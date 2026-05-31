@@ -173,16 +173,16 @@ python3 -m ai_statistician.cli research-system-audit \
 Result:
 
 ```text
-proof_bank_kernel=72/72
+proof_bank_kernel=73/73
 proof_verifier=local.lake_env_lean
 proof_strength=local_lean_kernel_batch
 system_all_gates_passed=True
-system_elapsed_latest=142.4s
+system_elapsed_latest=121.6s
 sources=23/23
 frontier_supported=60/60
 frontier_smoke=23/23
 formalized_gaps=20/20
-proof_bank_expansion_bridge_ready=31/97
+proof_bank_expansion_bridge_ready=34/97
 missing_primitives=97
 ```
 
@@ -226,6 +226,12 @@ family while preserving e-process construction and full Ville as formal gaps.
 The stopped-process bridge `submartingale_stopped_process` is also verified via
 Mathlib's `Submartingale.stoppedProcess`, and the graph queue aligns it with the
 local StatInference Durrett 4.2.9 stopped-submartingale theorem family.
+The product-process queue now also has
+`event_indicator_product_integral_eq_inter`, a Lean-checked bridge proving that
+the product of two event indicators integrates to the intersection measure.
+Autoform targets for `adapted_product_process`, `bernoulli_likelihood_ratio`,
+and `conditional_expectation_product_step` can start from this bridge before
+attempting the remaining martingale conditional-expectation lift.
 The supermartingale bridge `supermartingale_expected_stopped_value_antimono`
 adds the reversed bounded optional-stopping expectation budget for
 supermartingales. This gives Autoform targets a direct e-process/Ville

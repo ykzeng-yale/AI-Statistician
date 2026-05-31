@@ -166,9 +166,9 @@ python3 -m ai_statistician.cli proof-audit \
   --out runs/proof_audit_local_lean_current
 ```
 
-Current evidence: `72/72` registered proof-bank obligations pass
+Current evidence: `73/73` registered proof-bank obligations pass
 `local_lean_kernel_batch` with proof-bank fingerprint
-`68a23b504de72148036ffea0caff7b271fd7589bf4e9adeffc29ef34187a8104`.
+`a9dbba24a2694b9af45f86ac981cb7435312e720b0aa101038f3b5cb661fc3fc`.
 
 Check `doctor` first. It reports `real_lean_ready` and concrete
 `real_lean_blockers`; an AXLE key alone is not enough if the active Python
@@ -399,6 +399,12 @@ It also includes `adapted_hitting_after_is_stopping_time`, proving that the
 first hitting time of a measurable set by an adapted discrete process is a
 stopping time. This is a concrete verified primitive for optional-stopping and
 e-process traces.
+It also includes `event_indicator_product_integral_eq_inter`, proving that the
+integral of the product of two event indicators is the measure of their
+intersection. This gives Bernoulli likelihood-ratio and product-process traces
+a verified bridge before independence or conditional-expectation martingale
+lifting is applied; it still does not prove the full likelihood-ratio
+martingale theorem.
 For private/noised inference, the proof bank now also contains
 `noised_estimator_unbiased`, `noised_estimator_variance_indep`, and
 `noised_estimator_chebyshev_indep`: real AXLE-verified Lean obligations showing

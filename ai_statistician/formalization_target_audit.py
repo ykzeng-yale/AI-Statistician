@@ -347,6 +347,20 @@ _PRIMITIVE_PROOF_BRIDGE_HINTS: dict[str, tuple[str, ...]] = {
         "finite_union_budget_control",
         "simultaneous_coverage_of_union_error_bound",
     ),
+    "adapted_product_process": (
+        "event_indicator_product_integral_eq_inter",
+        "independent_event_inter_probability",
+        "event_indicator_expectation",
+    ),
+    "bernoulli_likelihood_ratio": (
+        "event_indicator_product_integral_eq_inter",
+        "finite_event_indicator_mean_unbiased",
+        "event_indicator_expectation",
+    ),
+    "conditional_expectation_product_step": (
+        "event_indicator_product_integral_eq_inter",
+        "independent_event_inter_probability",
+    ),
 }
 
 

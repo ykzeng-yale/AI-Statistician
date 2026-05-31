@@ -13,15 +13,15 @@ python3 -m ai_statistician.cli proof-audit \
 Result:
 
 ```text
-verified=72/72
-kernel=72/72
+verified=73/73
+kernel=73/73
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=68a23b504de72148036ffea0caff7b271fd7589bf4e9adeffc29ef34187a8104
+proof_bank_fingerprint=a9dbba24a2694b9af45f86ac981cb7435312e720b0aa101038f3b5cb661fc3fc
 ```
 
 This is the current evidence that the registered proof bank is not only
-mock-checked: all 72 registered Mathlib-backed obligations were accepted by a
+mock-checked: all 73 registered Mathlib-backed obligations were accepted by a
 real Lean kernel check through the local Lake/Mathlib runtime. AXLE remains the
 preferred remote verifier for release bundles when its Python package and API
 runtime are available; the local Lean backend is the offline kernel-equivalent
@@ -44,9 +44,9 @@ strength=axle_lean_kernel
 ```
 
 That remote AXLE run predates the newest proof-bank additions. The current
-72-obligation proof bank has full local Lean kernel evidence above; run the
+73-obligation proof bank has full local Lean kernel evidence above; run the
 same `proof-audit --real-lean` command again from an AXLE-ready runtime to
-refresh remote AXLE evidence for all 72 obligations.
+refresh remote AXLE evidence for all 73 obligations.
 
 Latest real research-system validation: 2026-05-30.
 
@@ -271,6 +271,14 @@ identity `p⁻¹ * p = 1` via Mathlib's `inv_mul_cancel₀`. This gives
 `propensity_weight_identity` and AIPW/IPW score algebra a kernel-checked bridge,
 while still leaving conditional exchangeability, nuisance correctness,
 identification, and double robustness as explicit formal gaps.
+
+The latest sequential/product-process bridge is
+`event_indicator_product_integral_eq_inter`. It proves that the integral of the
+product of two event indicators equals the measure of the intersection, using
+Mathlib's `Set.inter_indicator_one` and `integral_indicator_one`. This gives
+`adapted_product_process`, `bernoulli_likelihood_ratio`, and
+`conditional_expectation_product_step` a kernel-checked algebraic bridge while
+leaving the full Bernoulli likelihood-ratio martingale theorem as a formal gap.
 
 Important boundary:
 
