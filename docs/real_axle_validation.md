@@ -13,15 +13,15 @@ python3 -m ai_statistician.cli proof-audit \
 Result:
 
 ```text
-verified=80/80
-kernel=80/80
+verified=81/81
+kernel=81/81
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=b2e893afd1e5640f90089c25971f0d9f7fa45130a54ed24b872f26e4e4301ee9
+proof_bank_fingerprint=9b238bee83d070723d05036931b9d2a534c9b03cd8a65d2a34c5d91e7db49a9f
 ```
 
 This is the current evidence that the registered proof bank is not only
-mock-checked: all 80 registered Mathlib-backed obligations were accepted by a
+mock-checked: all 81 registered Mathlib-backed obligations were accepted by a
 real Lean kernel check through the local Lake/Mathlib runtime. AXLE remains the
 preferred remote verifier for release bundles when its Python package and API
 runtime are available; the local Lean backend is the offline kernel-equivalent
@@ -134,14 +134,23 @@ after a conditional-expectation argument has reduced the problem to an ordinary
 mean equality; it still does not prove conditional expectation residual
 identities themselves.
 
-The 47th obligation is `aipw_score_integrable_of_components`, proving that an
+The 47th obligation is `conditional_mean_residual_zero_of_condExp_ae_eq`,
+promoted from the local StatInference conditional-mean integral bridge. It
+proves that if `E[outcome | scoreSigma]` is almost everywhere equal to a
+score-space version, then the centered residual has population integral zero.
+The proof uses Mathlib's `integral_condExp`, `integral_congr_ae`, and
+`integral_sub`. This is the direct bridge for AIPW residual orthogonality and
+exogeneity moment conditions, while still assuming the conditional-expectation
+equality premise rather than proving nuisance correctness.
+
+The 48th obligation is `aipw_score_integrable_of_components`, proving that an
 AIPW-style score is integrable when its contrast and augmentation components
 are integrable. It raises `proof_bank_expansion_bridge_ready` from 10 to 11:
 `integrability_of_score_terms` now ranks this theorem as its verified bridge.
 This remains an integrability side-condition theorem, not a nuisance-rate or
 asymptotic-normality proof.
 
-The 48th obligation is `filtration_mono_measurable_set`, proving that if an
+The 49th obligation is `filtration_mono_measurable_set`, proving that if an
 event is measurable with respect to an earlier sigma-algebra in a filtration,
 then it remains measurable at any later index. It is a direct wrapper around
 Mathlib's `Filtration.mono`. The formalization-target audit now ranks it as the
@@ -151,7 +160,7 @@ candidate for `stopping_time` and `ville_inequality`; this raises
 filtration measurability theorem, not a proof of optional stopping or full
 Ville inequality.
 
-The 49th obligation is `stopping_time_le_event_measurable`, proving the
+The 50th obligation is `stopping_time_le_event_measurable`, proving the
 defining stopping-time event measurability theorem
 `IsStoppingTime ℱ τ -> MeasurableSet[ℱ i] {ω | τ ω ≤ i}` from Mathlib's
 `IsStoppingTime.measurableSet_le`. It is now wired into the
@@ -160,7 +169,7 @@ as a real stopping-time bridge. This remains a measurability primitive, not a
 proof of optional-stopping validity, nonnegative-supermartingale maximal
 inequalities, or full Ville inequality.
 
-The 50th obligation is `submartingale_expected_stopped_value_mono`, a direct
+The 51st obligation is `submartingale_expected_stopped_value_mono`, a direct
 wrapper around Mathlib's `Submartingale.expected_stoppedValue_mono`. It proves
 the forward optional-stopping expectation monotonicity theorem for bounded
 stopping times of a submartingale:
@@ -173,7 +182,7 @@ with the StatInference theorem family around
 real optional-stopping theorem bridge; it still does not construct e-processes
 or prove Ville's inequality end to end.
 
-The 51st obligation is `submartingale_stopped_process`, a direct wrapper around
+The 52nd obligation is `submartingale_stopped_process`, a direct wrapper around
 Mathlib's `Submartingale.stoppedProcess`. It proves that stopping a real-valued
 submartingale at a stopping time preserves the submartingale property. The
 formalization-target audit now includes it among ranked bridge candidates for

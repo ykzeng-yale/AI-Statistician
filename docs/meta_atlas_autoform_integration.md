@@ -173,7 +173,7 @@ python3 -m ai_statistician.cli research-system-audit \
 Result:
 
 ```text
-proof_bank_kernel=80/80
+proof_bank_kernel=81/81
 proof_verifier=local.lake_env_lean
 proof_strength=local_lean_kernel_batch
 system_all_gates_passed=True
@@ -205,8 +205,10 @@ and `ville_inequality` now rank `finite_horizon_evalue_markov_type1_control`
 as their verified finite-horizon Markov/union bridge while preserving optional
 stopping and full Ville as formal gaps. The AIPW primitives
 `conditional_mean_residual_zero` and `exogeneity_moment_condition` now rank
-`conditional_mean_residual_zero_of_mean_eq` as their direct centered-residual
-bridge, while `nuisance_correctness_cases` still ranks
+`conditional_mean_residual_zero_of_condExp_ae_eq` as their direct
+conditional-mean residual bridge, while `conditional_mean_residual_zero_of_mean_eq`
+remains the ordinary centered-mean fallback and `nuisance_correctness_cases`
+still ranks
 `aipw_score_expectation_target_of_aug_cancel` as its verified algebraic bridge.
 These preserve conditional-expectation residual identities and full double
 robustness as formal gaps. `integrability_of_score_terms` now ranks

@@ -134,6 +134,10 @@ def _rank_bridge_obligations(
         score += 6 * len(primitive_tokens & id_tokens)
         if "zero" in primitive_tokens and "zero" in id_tokens:
             score += 25
+        if "conditional_mean_residual_zero" in primitive_tokens and "condexp" in id_tokens:
+            score += 20
+        if "conditional" in primitive_tokens and "conditional_expectation" in bridge_tokens:
+            score += 8
         if primitive_tokens and primitive_tokens <= bridge_tokens:
             score += 30
         if obligation.tags and primitive_overlap & set().union(*(_tokens(tag) for tag in obligation.tags)):
@@ -150,6 +154,8 @@ def _tokens(text: str) -> set[str]:
         aliases.add("type1")
     if "e" in words and "process" in words:
         aliases.add("eprocess")
+    if "condexp" in words:
+        aliases.update({"conditional", "expectation", "conditional_expectation"})
     if "zero" in words and "residual" in words:
         aliases.add("zero_residual")
     if "conditional" in words and "mean" in words and "residual" in words:

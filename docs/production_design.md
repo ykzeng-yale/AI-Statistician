@@ -82,7 +82,7 @@ sandboxed code patching, or simulator construction still stop honestly with
 repair proposal, unless a stronger handler is registered.
 
 Current release-style local-kernel evidence for this bounded loop:
-`research-system-audit --local-lean --runs 100` passes all gates with `80/80`
+`research-system-audit --local-lean --runs 100` passes all gates with `81/81`
 kernel-verified proof obligations, `6` kernel-verified live proof-bridge repair
 artifacts, `6` resulting theory revisions, and a `12/12` kernel-verified
 proof-search audit sample. The status remains `FORMAL_GAPS_BRIDGED`, which is
@@ -1218,10 +1218,14 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   robustness.
 - `conditional_mean_residual_zero_of_mean_eq`: if an integrable real outcome
   has mean `m`, then the centered residual `Y - m` has mean zero. This is the
-  direct finite bridge now attached to `conditional_mean_residual_zero` and
-  `exogeneity_moment_condition`; it proves the ordinary expectation step after
-  a conditional-expectation argument has reduced the claim to `E[Y] = m`, not
-  the conditional-expectation identity itself.
+  ordinary centered-mean fallback for residual moment arguments.
+- `conditional_mean_residual_zero_of_condExp_ae_eq`: if a conditional
+  expectation given a score sigma-field equals a supplied score-space version
+  almost everywhere, then the centered residual has population integral zero.
+  This is the direct finite bridge now attached to
+  `conditional_mean_residual_zero` and `exogeneity_moment_condition`; it proves
+  the residual-zero consequence of a conditional-expectation equality while
+  still assuming that equality as a premise.
 - `aipw_score_expectation_target_of_zero_aug`: if the contrast term has
   expectation `psi` and both augmentation residual terms have mean zero, then
   the AIPW-style score has expectation `psi`. This is the direct finite bridge
@@ -1454,11 +1458,11 @@ python3 -m ai_statistician.cli proof-audit \
 Current full-bank local Lean evidence (2026-05-31):
 
 ```text
-verified=80/80
-kernel=80/80
+verified=81/81
+kernel=81/81
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=b2e893afd1e5640f90089c25971f0d9f7fa45130a54ed24b872f26e4e4301ee9
+proof_bank_fingerprint=9b238bee83d070723d05036931b9d2a534c9b03cd8a65d2a34c5d91e7db49a9f
 ```
 
 Run `doctor` in the same Python runtime first. It reports

@@ -1011,6 +1011,21 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("nuisance_correctness_cases", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_conditional_mean_residual_zero_bridge_uses_conditional_expectation(self) -> None:
+        obligation = get_obligation("conditional_mean_residual_zero_of_condExp_ae_eq")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("conditional_mean_residual_zero_of_mean_eq",))
+        self.assertIn("theorem conditionalMeanResidual_integral_zero_of_condExp_ae_eq", content)
+        self.assertIn("hcond : μ[outcome | scoreSigma] =ᵐ[μ] scoreVersion", content)
+        self.assertIn("∫ ω, (outcome ω - scoreVersion ω) ∂μ = 0", content)
+        self.assertIn("integral_condExp", content)
+        self.assertIn("integral_congr_ae", content)
+        self.assertIn("integral_sub", content)
+        self.assertIn("conditional_expectation", obligation.tags)
+        self.assertIn("conditional_mean_residual_zero", obligation.tags)
+        self.assertIn("orthogonal_score", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_aipw_score_expectation_target_of_zero_aug_supports_residual_zero_bridge(self) -> None:
         obligation = get_obligation("aipw_score_expectation_target_of_zero_aug")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
@@ -1019,6 +1034,7 @@ class ProofBankTests(unittest.TestCase):
             (
                 "aipw_score_expectation_decompose",
                 "aipw_score_expectation_target_of_aug_cancel",
+                "conditional_mean_residual_zero_of_condExp_ae_eq",
                 "conditional_mean_residual_zero_of_mean_eq",
             ),
         )
@@ -2931,6 +2947,7 @@ class SystemTests(unittest.TestCase):
                 "difference_estimator_unbiased",
                 "aipw_score_expectation_decompose",
                 "aipw_score_expectation_target_of_aug_cancel",
+                "conditional_mean_residual_zero_of_condExp_ae_eq",
                 "conditional_mean_residual_zero_of_mean_eq",
                 "aipw_score_expectation_target_of_zero_aug",
                 "aipw_score_integrable_of_components",
@@ -3638,6 +3655,7 @@ class SystemTests(unittest.TestCase):
             "potential_outcome_observed_consistency",
             "aipw_score_expectation_decompose",
             "aipw_score_expectation_target_of_aug_cancel",
+            "conditional_mean_residual_zero_of_condExp_ae_eq",
             "conditional_mean_residual_zero_of_mean_eq",
             "aipw_score_expectation_target_of_zero_aug",
             "aipw_score_integrable_of_components",
@@ -5207,7 +5225,7 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(action["repair_contract_ok"])
         self.assertEqual(
             action["repair_artifact"]["proof_obligation_id"],
-            "conditional_mean_residual_zero_of_mean_eq",
+            "conditional_mean_residual_zero_of_condExp_ae_eq",
         )
         self.assertIn("lean_statement", action["repair_artifact"])
         self.assertTrue(action["rerun_requested"])

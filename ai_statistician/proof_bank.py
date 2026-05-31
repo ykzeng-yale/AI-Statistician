@@ -2166,6 +2166,67 @@ theorem conditionalMeanResidual_zero_of_mean_eq {Ω : Type*} [MeasurableSpace Ω
         ),
         expected_lemmas=("integral_sub", "integrable_const", "integral_const", "measure_univ"),
     ),
+    "conditional_mean_residual_zero_of_condExp_ae_eq": FormalObligation(
+        id="conditional_mean_residual_zero_of_condExp_ae_eq",
+        title="Conditional-mean residual has zero population integral",
+        english=(
+            "If the conditional expectation of an integrable outcome given a "
+            "score sigma-field is almost everywhere equal to a supplied "
+            "score-space version, then the centered residual outcome minus "
+            "that version has population integral zero. This is the direct "
+            "conditional-mean residual bridge needed by AIPW orthogonality, "
+            "exogeneity moment conditions, and conditional-mean identification "
+            "arguments. It still assumes the conditional-expectation equality "
+            "premise rather than proving nuisance correctness."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+open scoped MeasureTheory
+
+theorem conditionalMeanResidual_integral_zero_of_condExp_ae_eq
+    {Ω : Type*} [mΩ : MeasurableSpace Ω]
+    (scoreSigma : MeasurableSpace Ω)
+    (μ : Measure[mΩ] Ω)
+    (hsub : scoreSigma ≤ mΩ) [SigmaFinite (μ.trim hsub)]
+    (outcome scoreVersion : Ω → ℝ)
+    (houtcome : Integrable outcome μ)
+    (hscore : Integrable scoreVersion μ)
+    (hcond : μ[outcome | scoreSigma] =ᵐ[μ] scoreVersion) :
+    ∫ ω, (outcome ω - scoreVersion ω) ∂μ = 0 := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  have hmean : ∫ ω, outcome ω ∂μ = ∫ ω, scoreVersion ω ∂μ := by\n"
+            "    rw [← integral_condExp\n"
+            "      (m := scoreSigma) (m₀ := mΩ) (μ := μ) (f := outcome)\n"
+            "      hsub]\n"
+            "    exact integral_congr_ae hcond\n"
+            "  rw [integral_sub houtcome hscore]\n"
+            "  rw [hmean]\n"
+            "  simp"
+        ),
+        tags=(
+            "estimator",
+            "expectation",
+            "conditional_expectation",
+            "linearity",
+            "residual",
+            "zero_residual",
+            "aipw",
+            "causal",
+            "semiparametric",
+            "double_robustness",
+            "conditional_mean_residual_zero",
+            "exogeneity_moment_condition",
+            "nuisance_correctness_cases",
+            "orthogonal_score",
+        ),
+        expected_lemmas=("integral_condExp", "integral_congr_ae", "integral_sub"),
+        depends_on=("conditional_mean_residual_zero_of_mean_eq",),
+    ),
     "aipw_score_expectation_target_of_zero_aug": FormalObligation(
         id="aipw_score_expectation_target_of_zero_aug",
         title="AIPW score expectation equals target when augmentation terms have mean zero",
@@ -2232,6 +2293,7 @@ theorem aipwScore_expectation_eq_target_of_zero_aug {Ω : Type*} [MeasurableSpac
         depends_on=(
             "aipw_score_expectation_decompose",
             "aipw_score_expectation_target_of_aug_cancel",
+            "conditional_mean_residual_zero_of_condExp_ae_eq",
             "conditional_mean_residual_zero_of_mean_eq",
         ),
     ),
