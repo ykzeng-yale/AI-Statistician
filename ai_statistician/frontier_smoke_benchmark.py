@@ -24,6 +24,9 @@ from .verifier import AxleProofVerifier, MockProofVerifier, ProofVerifier
 class FrontierSmokeConfig:
     n_runs: int = 60
     seed: int = 20260528
+    # max_per_class=0 disables the per-class cap and selects every supported
+    # frontier entry. This is the S3 all-frontier theory-target gate; the
+    # default remains a one-per-class smoke suite for release speed.
     max_per_class: int = 1
     use_axle: bool = False
     cache_dir: str | None = None
@@ -56,7 +59,7 @@ def select_supported_frontier_questions(
         problem = formalizer.formalize(open_question)
         if problem.problem_class == UNSUPPORTED_PROBLEM_CLASS:
             continue
-        if counts.get(problem.problem_class, 0) >= max_per_class:
+        if max_per_class > 0 and counts.get(problem.problem_class, 0) >= max_per_class:
             continue
         counts[problem.problem_class] = counts.get(problem.problem_class, 0) + 1
         questions.append(_frontier_question_with_tags(row, open_question, problem.problem_class))
@@ -200,6 +203,7 @@ async def run_frontier_smoke_benchmark(
             "slowest_stages": slowest_stages,
         },
         "n_selected": len(selections),
+        "selection_scope": "all_supported" if config.max_per_class <= 0 else "per_problem_class_cap",
         "selected_problem_classes": selected_classes,
         "selections": [asdict(row) for row in selections],
         "counts": {

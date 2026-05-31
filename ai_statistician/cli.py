@@ -1824,7 +1824,12 @@ def build_parser() -> argparse.ArgumentParser:
     frontier_smoke_benchmark.add_argument("--lean-timeout", type=int, default=90, help="timeout seconds for each local Lean check")
     frontier_smoke_benchmark.add_argument("--runs", type=int, default=60, help="Monte Carlo replicates for each selected paper-style question")
     frontier_smoke_benchmark.add_argument("--seed", type=int, default=20260528)
-    frontier_smoke_benchmark.add_argument("--max-per-class", type=int, default=1)
+    frontier_smoke_benchmark.add_argument(
+        "--max-per-class",
+        type=int,
+        default=1,
+        help="maximum selected questions per formalized problem class; use 0 to score all supported frontier entries",
+    )
     frontier_smoke_benchmark.add_argument(
         "--frontier-smoke-cache",
         default="",

@@ -76,15 +76,26 @@
       "primary_artifacts": [
         "runs/release_local_kernel_audit/frontier_smoke_benchmark/frontier_theory_target_audit/frontier_theory_target_manifest.json"
       ],
+      "recommended_commands": [
+        "python3 -m ai_statistician.cli frontier-smoke-benchmark --max-per-class 0 --runs 25 --out runs/frontier_theory_target_all60"
+      ],
       "current_smoke_size": 23,
       "current_expected_result_coverage_rate": 0.855072463768116,
+      "current_all_supported_size": 60,
+      "current_all_supported_expected_results": 180,
+      "current_all_supported_expected_results_covered": 149,
+      "current_all_supported_expected_result_coverage_rate": 0.8277777777777777,
+      "current_all_supported_ready_with_gaps": 44,
+      "current_all_supported_simulation_flagged": 16,
+      "current_all_supported_traces_ok": 42,
       "release_floor": [
         "at least 85% expected-result coverage on current smoke set",
         "per-topic coverage reported",
         "formal gaps kept explicit for unsolved theorem pieces"
       ],
       "next_milestone": [
-        "score all 60 frontier entries, not only one per problem class",
+        "raise all-supported expected-result coverage above the 85% smoke release floor",
+        "reduce all-supported simulation-flagged traces",
         "raise expected-result coverage to at least 90%"
       ]
     },

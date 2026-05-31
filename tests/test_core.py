@@ -2514,6 +2514,13 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(len(selected), len(metadata))
         self.assertEqual(len({row.problem_class for row in metadata}), len(metadata))
 
+        all_selected, all_metadata = select_supported_frontier_questions(max_per_class=0)
+        all_frontier_rows = load_frontier_benchmark_questions(Path("docs/frontier_stat_theory_benchmark.md"))
+        self.assertEqual(len(all_selected), len(all_metadata))
+        self.assertEqual(len(all_selected), len(all_frontier_rows))
+        self.assertGreater(len(all_selected), len(selected))
+        self.assertEqual(len({row.question_id for row in all_metadata}), len(all_metadata))
+
         async def run(out: Path):
             return await run_frontier_smoke_benchmark(
                 out,
@@ -2524,6 +2531,7 @@ class SystemTests(unittest.TestCase):
         payload = asyncio.run(run(out_dir))
         self.assertTrue(payload["all_gates_passed"])
         self.assertTrue(payload["gates"]["frontier_theory_target_audit"])
+        self.assertEqual(payload["selection_scope"], "per_problem_class_cap")
         self.assertEqual(payload["counts"]["questions"], payload["n_selected"])
         self.assertEqual(payload["counts"]["ready_with_gaps"], payload["n_selected"])
         self.assertEqual(payload["counts"]["traces_ok"], payload["n_selected"])
@@ -2626,6 +2634,39 @@ class SystemTests(unittest.TestCase):
         self.assertIn("simultaneous_coverage_of_union_error_bound", measurement_rank_support)
         self.assertIn("pairwise_top_rank_correct_of_separation", measurement_rank_support)
         self.assertIn("top_rank_correct_of_uniform_error_separation", measurement_rank_support)
+
+    def test_frontier_smoke_benchmark_can_score_all_supported_frontier_entries(self) -> None:
+        out_dir = Path("runs/test_frontier_smoke_all_supported")
+        shutil.rmtree(out_dir, ignore_errors=True)
+
+        async def run():
+            return await run_frontier_smoke_benchmark(
+                out_dir,
+                config=FrontierSmokeConfig(n_runs=5, seed=20260531, max_per_class=0),
+                proof_verifier=MockProofVerifier(),
+            )
+
+        payload = asyncio.run(run())
+        benchmark_rows = load_frontier_benchmark_questions(Path("docs/frontier_stat_theory_benchmark.md"))
+        self.assertIsInstance(payload["all_gates_passed"], bool)
+        self.assertEqual(payload["selection_scope"], "all_supported")
+        self.assertEqual(payload["n_selected"], len(benchmark_rows))
+        self.assertEqual(payload["counts"]["questions"], len(benchmark_rows))
+        self.assertEqual(payload["counts"]["traces_total"], len(benchmark_rows))
+        self.assertEqual(payload["counts"]["theory_targets_scored"], len(benchmark_rows))
+        self.assertEqual(payload["counts"]["theory_targets_total"], len(benchmark_rows))
+        self.assertEqual(payload["counts"]["formal_blocked"], 0)
+        self.assertEqual(
+            payload["counts"]["ready_with_gaps"] + payload["counts"]["simulation_flagged"],
+            len(benchmark_rows),
+        )
+        self.assertGreater(payload["counts"]["theory_expected_results"], 69)
+        self.assertGreater(payload["counts"]["theory_expected_results_covered"], 59)
+        self.assertGreater(payload["counts"]["theory_expected_result_coverage_rate"], 0.75)
+        self.assertTrue((out_dir / "frontier_smoke_manifest.json").exists())
+        self.assertTrue(Path(payload["artifacts"]["frontier_theory_target_audit"]).exists())
+        target_audit = json.loads(Path(payload["artifacts"]["frontier_theory_target_audit"]).read_text())
+        self.assertTrue(target_audit["all_scored"])
 
     def test_mock_system_accepts_registered_questions(self) -> None:
         async def run():
@@ -2896,10 +2937,21 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(suites["S4_formal_primitive_ladder"]["current_bridge_ready"], 53)
         self.assertEqual(suites["S4_formal_primitive_ladder"]["current_local_source_only"], 23)
         self.assertEqual(suites["S5_proof_bank_and_search"]["current_proof_bank_size"], proof_bank_size)
+        self.assertEqual(suites["S3_frontier_blind_theory_target"]["current_all_supported_size"], 60)
+        self.assertEqual(
+            suites["S3_frontier_blind_theory_target"]["current_all_supported_expected_results"],
+            180,
+        )
+        self.assertEqual(
+            suites["S3_frontier_blind_theory_target"]["current_all_supported_expected_results_covered"],
+            149,
+        )
+        self.assertEqual(suites["S3_frontier_blind_theory_target"]["current_all_supported_simulation_flagged"], 16)
         self.assertIn("S7_feedback_loop_repair_with_seeded_failures", payload["recommended_next_gate_stack"])
 
         doc = Path("docs/evaluation_benchmark_strategy.md").read_text(encoding="utf-8")
         self.assertIn("`proofs_kernel_verified=88/88`", doc)
+        self.assertIn("expected-result coverage about 82.8%", doc)
         self.assertIn("53 have ranked proof-bank bridge candidates", doc)
         self.assertNotIn("79/79", doc)
         self.assertNotIn("82/82", doc)

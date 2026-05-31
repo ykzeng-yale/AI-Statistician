@@ -110,6 +110,11 @@ Source:
 - same 60-paper frontier corpus, but `expected_theoretical_results` and paper
   identity are withheld from the system under test
 
+Execution:
+
+- fast release smoke: `frontier-smoke-benchmark --max-per-class 1`
+- all-supported gate: `frontier-smoke-benchmark --max-per-class 0`
+
 Metrics:
 
 - assumption recovery
@@ -125,11 +130,25 @@ Current release signal:
 - 59 covered
 - expected-result coverage about 85.5%
 
+Current all-supported local signal:
+
+- `--max-per-class 0` selects and scores all 60 frontier entries
+- 180 expected results
+- 149 covered
+- expected-result coverage about 82.8%
+- 44 traces ready with formal gaps
+- 16 traces simulation-flagged
+
+The all-supported run is intentionally stricter than the release smoke. It is a
+scoring gate and limitation surfacer, not a claim that all 60 frontier problems
+are cleanly solved.
+
 Recommended next gate:
 
 - keep 85% as the release floor for current registry-backed traces
 - set 90% as the next milestone
 - require per-topic coverage reporting, not only aggregate coverage
+- use `--max-per-class 0` when claiming all-60 frontier theory-target coverage
 
 ### S4. Formal Primitive Ladder Suite
 
