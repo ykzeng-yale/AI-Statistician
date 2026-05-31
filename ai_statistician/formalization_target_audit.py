@@ -382,12 +382,14 @@ _PRIMITIVE_PROOF_BRIDGE_HINTS: dict[str, tuple[str, ...]] = {
         "event_indicator_expectation",
     ),
     "iid_empirical_mean_clt": (
+        "iid_real_clt_tendsto_distribution",
         "independent_real_condExp_natural_eq_mean",
         "finite_sample_mean_unbiased",
         "finite_sample_mean_variance_indep",
         "finite_sample_mean_chebyshev_indep",
     ),
     "sample_moment_lln": (
+        "iid_real_clt_tendsto_distribution",
         "independent_real_condExp_natural_eq_mean",
         "finite_sample_mean_unbiased",
         "finite_sample_mean_variance_indep",
@@ -401,6 +403,21 @@ _PRIMITIVE_PROOF_BRIDGE_HINTS: dict[str, tuple[str, ...]] = {
         "independent_real_condExp_natural_eq_mean",
         "independent_event_indicator_condExp_filtration_eq_prob",
         "event_indicator_expectation",
+    ),
+    "multivariate_score_clt": (
+        "iid_real_clt_tendsto_distribution",
+        "independent_real_condExp_natural_eq_mean",
+        "variance_nonneg",
+    ),
+    "wald_interval_slutsky": (
+        "iid_real_clt_tendsto_distribution",
+        "wald_interval_contains_iff_abs_error",
+        "wald_interval_miscoverage_iff_abs_error_gt",
+    ),
+    "influence_function_variance": (
+        "iid_real_clt_tendsto_distribution",
+        "difference_estimator_variance_decompose",
+        "variance_nonneg",
     ),
 }
 

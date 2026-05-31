@@ -2260,6 +2260,7 @@ class TheoryPlanner:
                         "difference_estimator_variance_decompose",
                         "variance_nonneg",
                         "independent_real_condExp_natural_eq_mean",
+                        "iid_real_clt_tendsto_distribution",
                     ),
                 ),
             ]
@@ -3851,6 +3852,7 @@ class TheoryPlanner:
                         "wald_interval_contains_iff_abs_error",
                         "wald_interval_miscoverage_iff_abs_error_gt",
                         "coverage_lower_bound_of_complement_error",
+                        "iid_real_clt_tendsto_distribution",
                     ),
                 ),
             ]
@@ -4737,6 +4739,7 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "aipw_score_integrable_of_components",
         "variance_nonneg",
         "independent_real_condExp_natural_eq_mean",
+        "iid_real_clt_tendsto_distribution",
     ),
     "distribution_free_conformal_prediction": (
         "prob_measure_univ",
@@ -4928,6 +4931,7 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "wald_interval_contains_iff_abs_error",
         "wald_interval_miscoverage_iff_abs_error_gt",
         "coverage_lower_bound_of_complement_error",
+        "iid_real_clt_tendsto_distribution",
         "mean2_estimator_chebyshev_indep",
         "variance_nonneg",
     ),

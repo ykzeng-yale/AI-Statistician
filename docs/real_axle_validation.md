@@ -13,15 +13,15 @@ python3 -m ai_statistician.cli proof-audit \
 Result:
 
 ```text
-verified=76/76
-kernel=76/76
+verified=77/77
+kernel=77/77
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=bb86e4f5d46a484621b70ec2c8f2ae4ce83898f62b53552efb031432e6247fb8
+proof_bank_fingerprint=b47d65964a04505650dfa0d4241ae7da59ca22a12f67d14eb8dcf060ab0c2c9f
 ```
 
 This is the current evidence that the registered proof bank is not only
-mock-checked: all 76 registered Mathlib-backed obligations were accepted by a
+mock-checked: all 77 registered Mathlib-backed obligations were accepted by a
 real Lean kernel check through the local Lake/Mathlib runtime. AXLE remains the
 preferred remote verifier for release bundles when its Python package and API
 runtime are available; the local Lean backend is the offline kernel-equivalent
@@ -44,9 +44,9 @@ strength=axle_lean_kernel
 ```
 
 That remote AXLE run predates the newest proof-bank additions. The current
-76-obligation proof bank has full local Lean kernel evidence above; run the
+77-obligation proof bank has full local Lean kernel evidence above; run the
 same `proof-audit --real-lean` command again from an AXLE-ready runtime to
-refresh remote AXLE evidence for all 76 obligations.
+refresh remote AXLE evidence for all 77 obligations.
 
 Latest real research-system validation: 2026-05-30.
 
@@ -313,14 +313,26 @@ everywhere its mean. This gives `sample_moment_lln`, `iid_empirical_mean_clt`,
 `martingale_definition` a kernel-checked starting point. It still does not
 prove LLN, CLT, Slutsky, or asymptotic normality end to end.
 
+The first registered full asymptotic limit theorem bridge is
+`iid_real_clt_tendsto_distribution`. It wraps Mathlib's one-dimensional central
+limit theorem `tendstoInDistribution_inv_sqrt_mul_sum_sub`, proving convergence
+in distribution of the centered sqrt(n)-scaled iid real partial sum to the
+Gaussian law with matching variance. This gives `iid_empirical_mean_clt`,
+`multivariate_score_clt`, `wald_interval_slutsky`, and
+`influence_function_variance` a real kernel-checked CLT starting point. It is
+still univariate and does not prove multivariate score CLTs, Slutsky/sandwich
+variance consistency, or a problem-specific estimator asymptotic-normality
+theorem end to end.
+
 Important boundary:
 
 - These are finite, reusable Mathlib-backed estimator/probability/statistical
   subclaims.
 - The 60/60 frontier benchmark coverage is routing + scoped surrogate support,
   not a claim that every frontier paper's full theorem has been formalized.
-- This does not prove full frontier asymptotic theorem goals such as CLT,
-  semiparametric efficiency, Donsker conditions, BH FDR, Ville inequality,
-  Davis-Kahan recovery, or Hill/Weissman asymptotics end to end.
+- This does not prove full frontier asymptotic theorem goals such as
+  multivariate CLT, semiparametric efficiency, Donsker conditions, BH FDR,
+  Ville inequality, Davis-Kahan recovery, or Hill/Weissman asymptotics end to
+  end.
 - `runs/` artifacts stay local and are not committed; regenerate with the
   command above when auditing a release.

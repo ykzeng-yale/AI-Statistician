@@ -1639,6 +1639,60 @@ theorem independentReal_condExp_natural_ae_eq_of_lt {Ω : Type*} [MeasurableSpac
         expected_lemmas=("iIndepFun.condExp_natural_ae_eq_of_lt",),
         depends_on=("filtration_mono_measurable_set",),
     ),
+    "iid_real_clt_tendsto_distribution": FormalObligation(
+        id="iid_real_clt_tendsto_distribution",
+        title="Mathlib one-dimensional iid real central limit theorem bridge",
+        english=(
+            "For an independent identically distributed real-valued sequence "
+            "with finite second moment, the centered sqrt(n)-scaled partial sum "
+            "converges in distribution to the Gaussian law with matching "
+            "variance. This is the first registered full asymptotic limit "
+            "theorem in the AI Statistician proof bank; it still does not prove "
+            "multivariate score CLTs, Slutsky, sandwich variance consistency, or "
+            "problem-specific estimator asymptotic normality end to end."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory Filter
+open scoped Real Topology
+
+theorem iidReal_tendstoInDistribution_inv_sqrt_sum_sub {Ω Ω' : Type*}
+    [MeasurableSpace Ω] [MeasurableSpace Ω']
+    {P : Measure Ω} {P' : Measure Ω'} [IsProbabilityMeasure P] [IsProbabilityMeasure P']
+    {X : ℕ → Ω → ℝ} {Y : Ω' → ℝ}
+    (hY : HasLaw Y (gaussianReal 0 Var[X 0; P].toNNReal) P')
+    (hX : MemLp (X 0) 2 P) (hindep : iIndepFun X P)
+    (hident : ∀ (i : ℕ), IdentDistrib (X i) (X 0) P P) :
+    TendstoInDistribution
+      (fun (n : ℕ) ω => (√n)⁻¹ * (∑ k ∈ Finset.range n, X k ω - n * P[X 0]))
+      atTop Y (fun _ => P) P' := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  exact tendstoInDistribution_inv_sqrt_mul_sum_sub hY hX hindep hident"
+        ),
+        tags=(
+            "probability",
+            "central_limit_theorem",
+            "asymptotic_normality",
+            "convergence_in_distribution",
+            "iid_empirical_mean_clt",
+            "multivariate_score_clt",
+            "sample_moment_lln",
+            "wald_interval_slutsky",
+            "semiparametric_causal_ate",
+            "heteroskedastic_regression",
+            "influence_function_variance",
+        ),
+        expected_lemmas=("tendstoInDistribution_inv_sqrt_mul_sum_sub",),
+        depends_on=(
+            "independent_real_condExp_natural_eq_mean",
+            "finite_sample_mean_variance_indep",
+            "variance_nonneg",
+        ),
+    ),
     "finite_event_indicator_mean_unbiased": FormalObligation(
         id="finite_event_indicator_mean_unbiased",
         title="Finite-sample event-indicator mean is unbiased",

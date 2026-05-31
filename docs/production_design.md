@@ -1108,6 +1108,16 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   `martingale_definition` to a kernel-checked independence/filtration theorem,
   while still leaving LLN, CLT, Slutsky, and full asymptotic-normality proofs as
   formal gaps.
+- `iid_real_clt_tendsto_distribution`: the first registered full asymptotic
+  limit theorem bridge in the proof bank. It wraps Mathlib's one-dimensional
+  iid real central limit theorem
+  `tendstoInDistribution_inv_sqrt_mul_sum_sub`, verifying convergence in
+  distribution of the centered sqrt(n)-scaled partial sum to a Gaussian law.
+  This gives `iid_empirical_mean_clt`, `multivariate_score_clt`,
+  `wald_interval_slutsky`, and `influence_function_variance` a kernel-checked
+  CLT starting point while still leaving multivariate score CLTs, Slutsky,
+  sandwich variance consistency, and estimator-specific asymptotic normality as
+  formal gaps.
 - `aipw_score_expectation_decompose`: expectation of an AIPW-style contrast plus
   augmentation score decomposes by linearity.
 - `aipw_score_expectation_target_of_aug_cancel`: if the contrast term has
@@ -1130,8 +1140,10 @@ The system includes estimator-level Lean obligations that AXLE has verified:
 - `variance_indep_add`: variance adds for independent L2 random variables.
 
 These are deliberately chosen because Mathlib already contains the needed
-measure/probability facts. The system does not claim a full CLT, MLE
-consistency theorem, or semiparametric efficiency proof yet.
+measure/probability facts. The system now includes a full one-dimensional iid
+real CLT bridge, but it still does not claim multivariate score CLTs, MLE
+consistency, semiparametric efficiency, or problem-specific asymptotic
+normality end to end.
 
 ## Existing Code Reuse
 
@@ -1346,11 +1358,11 @@ python3 -m ai_statistician.cli proof-audit \
 Current full-bank local Lean evidence (2026-05-31):
 
 ```text
-verified=76/76
-kernel=76/76
+verified=77/77
+kernel=77/77
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=bb86e4f5d46a484621b70ec2c8f2ae4ce83898f62b53552efb031432e6247fb8
+proof_bank_fingerprint=b47d65964a04505650dfa0d4241ae7da59ca22a12f67d14eb8dcf060ab0c2c9f
 ```
 
 Run `doctor` in the same Python runtime first. It reports

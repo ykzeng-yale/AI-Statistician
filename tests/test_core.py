@@ -1469,6 +1469,28 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("exogeneity_moment_condition", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_iid_real_clt_bridge_uses_mathlib_central_limit_theorem(self) -> None:
+        obligation = get_obligation("iid_real_clt_tendsto_distribution")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(
+            obligation.depends_on,
+            (
+                "independent_real_condExp_natural_eq_mean",
+                "finite_sample_mean_variance_indep",
+                "variance_nonneg",
+            ),
+        )
+        self.assertIn("theorem iidReal_tendstoInDistribution_inv_sqrt_sum_sub", content)
+        self.assertIn("HasLaw Y (gaussianReal 0 Var[X 0; P].toNNReal) P'", content)
+        self.assertIn("MemLp (X 0) 2 P", content)
+        self.assertIn("iIndepFun X P", content)
+        self.assertIn("IdentDistrib (X i) (X 0) P P", content)
+        self.assertIn("TendstoInDistribution", content)
+        self.assertIn("tendstoInDistribution_inv_sqrt_mul_sum_sub hY hX hindep hident", content)
+        self.assertIn("iid_empirical_mean_clt", obligation.tags)
+        self.assertIn("asymptotic_normality", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_noised_estimator_obligations_bridge_private_mean_error(self) -> None:
         unbiased = get_obligation("noised_estimator_unbiased")
         variance = get_obligation("noised_estimator_variance_indep")
@@ -2533,6 +2555,10 @@ class SystemTests(unittest.TestCase):
             "independent_real_condExp_natural_eq_mean",
             causal_goals["aipw_asymptotic_normality"]["proof_obligations"],
         )
+        self.assertIn(
+            "iid_real_clt_tendsto_distribution",
+            causal_goals["aipw_asymptotic_normality"]["proof_obligations"],
+        )
         self.assertIn("research_knowledge_fingerprint", trace_payload["provenance"])
         self.assertIn("paper_source_index_fingerprint", trace_payload["provenance"])
         self.assertIn("research_source_inventory_fingerprint", trace_payload["provenance"])
@@ -2645,6 +2671,10 @@ class SystemTests(unittest.TestCase):
         )
         self.assertIn(
             "coverage_lower_bound_of_complement_error",
+            hetero_goals["hc1_asymptotic_normality"]["proof_obligations"],
+        )
+        self.assertIn(
+            "iid_real_clt_tendsto_distribution",
             hetero_goals["hc1_asymptotic_normality"]["proof_obligations"],
         )
         self.assertIn(
@@ -3680,6 +3710,7 @@ class SystemTests(unittest.TestCase):
             encoding="utf-8",
         )
         proof_obligations = (
+            "iid_real_clt_tendsto_distribution",
             "independent_real_condExp_natural_eq_mean",
             "finite_sample_mean_unbiased",
             "finite_sample_mean_variance_indep",
@@ -3728,6 +3759,11 @@ class SystemTests(unittest.TestCase):
                 rows[primitive]["bridge_candidate_obligations"],
             )
             self.assertEqual(rows[primitive]["priority_band"], "BRIDGE_REUSE_READY")
+        for primitive in ("sample_moment_lln", "iid_empirical_mean_clt"):
+            self.assertIn(
+                "iid_real_clt_tendsto_distribution",
+                rows[primitive]["bridge_candidate_obligations"],
+            )
 
     def test_formal_gap_task_export_writes_lean_task_jsonl(self) -> None:
         async def run():
