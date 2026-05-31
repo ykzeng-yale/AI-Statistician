@@ -9,6 +9,7 @@ from .fingerprint import stable_hash
 from .proof_bank import all_obligations, proof_bank_fingerprint
 from .proof_policy_model import load_proof_policy_model
 from .proof_search_value_model import load_proof_search_value_model
+from .retrieval import ProofBankRetriever, query_for_obligation
 from .proof_search import (
     PROOF_SEARCH_SCHEMA_VERSION,
     BestFirstWholeProofSearchController,
@@ -46,9 +47,11 @@ async def audit_proof_search_controller(
         proof_policy_model=proof_policy_model,
         proof_value_model=proof_value_model,
     )
+    retriever = ProofBankRetriever()
     obligations = sorted(all_obligations(), key=lambda row: row.id)[:max_obligations]
     results = []
     for obligation in obligations:
+        retrieval_hits = retriever.retrieve(query_for_obligation(obligation), k=8)
         probes = []
         if include_invalid_probe:
             probes.append(
@@ -64,6 +67,7 @@ async def audit_proof_search_controller(
                 obligation,
                 max_nodes=max_nodes,
                 extra_candidates=probes,
+                retrieval_hits=retrieval_hits,
             )
         )
     results_jsonl = out_dir / "proof_search_results.jsonl"
@@ -85,6 +89,13 @@ async def audit_proof_search_controller(
         for result in results
         for node in result.nodes
         if node.value_score is not None
+    )
+    retrieval_candidates_total = sum(row.retrieval_candidates_total for row in results)
+    retrieval_candidate_nodes_expanded = sum(
+        1
+        for result in results
+        for node in result.nodes
+        if node.source.startswith("proof_retrieval:")
     )
     manifest = {
         "schema_version": PROOF_SEARCH_SCHEMA_VERSION,
@@ -109,6 +120,8 @@ async def audit_proof_search_controller(
             kernel_verified == solved if "kernel" in getattr(proof_verifier, "name", "").lower() else True
         ),
         "nodes_expanded": nodes_expanded,
+        "retrieval_candidates_total": retrieval_candidates_total,
+        "retrieval_candidate_nodes_expanded": retrieval_candidate_nodes_expanded,
         "policy_scored_expanded_nodes": policy_scored_candidates,
         "value_scored_expanded_nodes": value_scored_candidates,
         "mean_nodes_expanded": nodes_expanded / n if n else 0.0,

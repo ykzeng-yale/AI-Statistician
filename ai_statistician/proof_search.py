@@ -13,7 +13,7 @@ from .schema import FormalObligation, ProofCheck, RetrievalHit
 from .verifier import ProofVerifier
 
 
-PROOF_SEARCH_SCHEMA_VERSION = 3
+PROOF_SEARCH_SCHEMA_VERSION = 4
 
 
 @dataclass(frozen=True)
@@ -62,6 +62,7 @@ class ProofSearchResult:
     selected_verification_strength: str
     nodes_expanded: int
     candidates_total: int
+    retrieval_candidates_total: int
     frontier_exhausted: bool
     verifier: str
     search_fingerprint: str
@@ -113,6 +114,7 @@ class BestFirstWholeProofSearchController:
             obligation,
             extra_candidates=extra_candidates,
             include_registered_proof=include_registered_proof,
+            retrieval_hits=retrieval_hits or [],
         )
         candidates = self._apply_policy_scores(obligation, candidates)
         candidates = self._apply_value_scores(obligation, candidates)
@@ -179,6 +181,7 @@ class BestFirstWholeProofSearchController:
             selected_verification_strength=selected_strength,
             nodes_expanded=len(nodes),
             candidates_total=len(candidates),
+            retrieval_candidates_total=sum(1 for row in candidates if row.source.startswith("proof_retrieval:")),
             frontier_exhausted=not solved and (not frontier or len(nodes) >= max_nodes),
             verifier=selected_check.verifier if selected_check else getattr(self.verifier, "name", "unknown"),
             search_fingerprint=stable_hash(fingerprint_payload),
@@ -191,10 +194,12 @@ class BestFirstWholeProofSearchController:
         *,
         extra_candidates: Iterable[ProofCandidate],
         include_registered_proof: bool,
+        retrieval_hits: Iterable[RetrievalHit],
     ) -> list[ProofCandidate]:
         candidates: list[ProofCandidate] = []
         candidates.extend(extra_candidates)
         query_metadata = _metadata_for_obligation(obligation)
+        memory_by_id = {row.id: row for row in self.proof_memory}
         if include_registered_proof:
             candidates.append(
                 ProofCandidate(
@@ -253,6 +258,25 @@ class BestFirstWholeProofSearchController:
                     score=100.0 - idx,
                     base_score=100.0 - idx,
                     value_score=None,
+                    origin_obligation_id=neighbor.id,
+                    expected_lemmas=tuple(neighbor.expected_lemmas),
+                    tags=tuple(neighbor.tags),
+                    policy_prompt=neighbor_metadata["prompt"],
+                )
+            )
+        for idx, hit in enumerate(retrieval_hits):
+            neighbor = memory_by_id.get(hit.obligation_id)
+            if neighbor is None or neighbor.id == obligation.id:
+                continue
+            neighbor_metadata = _metadata_for_obligation(neighbor)
+            score = 120.0 + float(hit.score) - idx
+            candidates.append(
+                ProofCandidate(
+                    candidate_id=f"{obligation.id}:retrieval:{neighbor.id}",
+                    proof_body=neighbor.proof_body,
+                    source=f"proof_retrieval:{hit.source}:{neighbor.id}",
+                    score=score,
+                    base_score=score,
                     origin_obligation_id=neighbor.id,
                     expected_lemmas=tuple(neighbor.expected_lemmas),
                     tags=tuple(neighbor.tags),

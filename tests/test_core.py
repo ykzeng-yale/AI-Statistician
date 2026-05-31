@@ -483,6 +483,14 @@ class ProofBankTests(unittest.TestCase):
             return await controller.solve(
                 obligation,
                 max_nodes=3,
+                retrieval_hits=[
+                    RetrievalHit(
+                        obligation_id="markov_inequality",
+                        score=7.0,
+                        source="unit_test_retrieval",
+                        matched_terms=("inequality",),
+                    )
+                ],
                 extra_candidates=[
                     ProofCandidate(
                         candidate_id="bad:first",
@@ -500,7 +508,8 @@ class ProofBankTests(unittest.TestCase):
         self.assertFalse(result.nodes[0].ok)
         self.assertEqual(result.selected_source, "registered_proof_body")
         self.assertFalse(result.kernel_verified)
-        self.assertEqual(result.schema_version, 3)
+        self.assertEqual(result.schema_version, 4)
+        self.assertGreater(result.retrieval_candidates_total, 0)
 
     def test_best_first_whole_proof_search_uses_trained_policy_scores(self) -> None:
         examples = [
@@ -567,7 +576,9 @@ class ProofBankTests(unittest.TestCase):
         results_path = Path(payload["results_jsonl"])
         self.assertTrue(results_path.exists())
         rows = [json.loads(line) for line in results_path.read_text(encoding="utf-8").splitlines()]
-        self.assertEqual(rows[0]["schema_version"], 3)
+        self.assertEqual(rows[0]["schema_version"], 4)
+        self.assertGreater(rows[0]["retrieval_candidates_total"], 0)
+        self.assertGreater(payload["retrieval_candidates_total"], 0)
         self.assertEqual(rows[0]["nodes"][0]["source"], "invalid_probe")
         self.assertIn("proof_body", rows[0]["nodes"][0])
         self.assertIn("policy_score", rows[0]["nodes"][0])
@@ -5565,6 +5576,7 @@ class SystemTests(unittest.TestCase):
         self.assertGreater(payload["counts"]["proof_search_policy_scored_expanded_nodes"], 0)
         self.assertTrue(payload["counts"]["proof_search_value_model_enabled"])
         self.assertGreater(payload["counts"]["proof_search_value_scored_expanded_nodes"], 0)
+        self.assertGreater(payload["counts"]["proof_search_retrieval_candidates_total"], 0)
         self.assertGreater(payload["counts"]["proof_search_bootstrap_process_examples"], 0)
         self.assertGreater(payload["counts"]["prover_components_total"], 0)
         self.assertFalse(payload["counts"]["prover_component_goal_complete"])

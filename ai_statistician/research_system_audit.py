@@ -409,6 +409,7 @@ async def run_research_system_audit(
         "proof_search_audit": bool(proof_search_manifest["all_solved"])
         and bool(proof_search_manifest["policy_model_enabled"])
         and bool(proof_search_manifest["value_model_enabled"])
+        and int(proof_search_manifest["retrieval_candidates_total"]) > 0
         and int(proof_search_manifest["policy_scored_expanded_nodes"]) > 0
         and int(proof_search_manifest["value_scored_expanded_nodes"]) > 0,
         "proof_search_training_export": int(proof_search_training_manifest["n_process_examples"])
@@ -618,6 +619,12 @@ async def run_research_system_audit(
             "proof_search_kernel_verified": proof_search_manifest["n_kernel_verified"],
             "proof_search_nodes_expanded": proof_search_manifest["nodes_expanded"],
             "proof_search_mean_nodes_expanded": proof_search_manifest["mean_nodes_expanded"],
+            "proof_search_retrieval_candidates_total": proof_search_manifest[
+                "retrieval_candidates_total"
+            ],
+            "proof_search_retrieval_candidate_nodes_expanded": proof_search_manifest[
+                "retrieval_candidate_nodes_expanded"
+            ],
             "proof_search_bootstrap_nodes_expanded": proof_search_bootstrap_manifest["nodes_expanded"],
             "proof_search_bootstrap_process_examples": proof_search_bootstrap_training_manifest[
                 "n_process_examples"
