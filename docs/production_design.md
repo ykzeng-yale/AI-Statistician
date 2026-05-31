@@ -82,7 +82,7 @@ sandboxed code patching, or simulator construction still stop honestly with
 repair proposal, unless a stronger handler is registered.
 
 Current release-style local-kernel evidence for this bounded loop:
-`research-system-audit --local-lean --runs 100` passes all gates with `88/88`
+`research-system-audit --local-lean --runs 100` passes all gates with `92/92`
 kernel-verified proof obligations, `6` kernel-verified live proof-bridge repair
 artifacts, `6` resulting theory revisions, and a `12/12` kernel-verified
 proof-search audit sample. The status remains `FORMAL_GAPS_BRIDGED`, which is
@@ -1501,11 +1501,11 @@ python3 -m ai_statistician.cli proof-audit \
 Current full-bank local Lean evidence (2026-05-31):
 
 ```text
-verified=88/88
-kernel=88/88
+verified=92/92
+kernel=92/92
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=31fa33a3e4fba52691611de455275463706699e9d9c15c02e6c6bea17cfbcd34
+proof_bank_fingerprint=d3163e108d374e2cd15a3d56c894299055c678e2295490758cbd108cf9631de8
 ```
 
 Run `doctor` in the same Python runtime first. It reports

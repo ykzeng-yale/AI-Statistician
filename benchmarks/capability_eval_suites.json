@@ -9,15 +9,15 @@
     "frontier_theory_expected_results_covered": 59,
     "frontier_theory_expected_result_coverage_rate": 0.855072463768116,
     "core_research_questions": 10,
-    "proof_bank_kernel_verified_release": "88/88",
-    "proof_bank_fingerprint": "31fa33a3e4fba52691611de455275463706699e9d9c15c02e6c6bea17cfbcd34",
+    "proof_bank_kernel_verified_release": "92/92",
+    "proof_bank_fingerprint": "d3163e108d374e2cd15a3d56c894299055c678e2295490758cbd108cf9631de8",
     "proof_search_kernel_verified_release": "12/12",
     "vetted_research_algorithms": "33/33",
     "formal_gaps": 20,
     "missing_formal_primitives": 97,
     "formalization_targets_with_proof_bank_bridge": 74,
     "formalization_targets_local_source_only": 23,
-    "proof_bank_expansion_bridge_ready": 53
+    "proof_bank_expansion_bridge_ready": 60
   },
   "suites": [
     {
@@ -114,7 +114,7 @@
         "runs/release_local_kernel_audit/proof_bank_expansion/proof_bank_expansion_manifest.json"
       ],
       "current_size": 97,
-      "current_bridge_ready": 53,
+      "current_bridge_ready": 60,
       "current_local_source_only": 23,
       "release_floor": [
         "each primitive has an owning theorem goal",
@@ -135,7 +135,7 @@
         "runs/release_local_kernel_audit/proof_search_audit/proof_search_audit_manifest.json",
         "runs/release_local_kernel_audit/proof_training_export/proof_training_manifest.json"
       ],
-      "current_proof_bank_size": 88,
+      "current_proof_bank_size": 92,
       "current_search_size": 12,
       "release_floor": [
         "proof-bank obligations verified",

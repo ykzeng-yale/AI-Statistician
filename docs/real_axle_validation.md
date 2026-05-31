@@ -13,15 +13,15 @@ python3 -m ai_statistician.cli proof-audit \
 Result:
 
 ```text
-verified=88/88
-kernel=88/88
+verified=92/92
+kernel=92/92
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=31fa33a3e4fba52691611de455275463706699e9d9c15c02e6c6bea17cfbcd34
+proof_bank_fingerprint=d3163e108d374e2cd15a3d56c894299055c678e2295490758cbd108cf9631de8
 ```
 
 This is the current evidence that the registered proof bank is not only
-mock-checked: all 88 registered Mathlib-backed obligations were accepted by a
+mock-checked: all 92 registered Mathlib-backed obligations were accepted by a
 real Lean kernel check through the local Lake/Mathlib runtime. AXLE remains the
 preferred remote verifier for release bundles when its Python package and API
 runtime are available; the local Lean backend is the offline kernel-equivalent
@@ -198,6 +198,21 @@ stopping times of a submartingale:
 The formalization-target audit now lists it as a ranked bridge candidate for
 `stopping_time`, `ville_inequality`, `filtration`, and
 `nonnegative_supermartingale`, and the local-source retriever aligns those gaps
+with a real kernel-checked Mathlib theorem.
+
+The screening/selection bridge family adds four local-kernel verified proof-bank
+obligations:
+
+- `screening_statistic_concentration`
+- `signal_margin_implies_active_selection`
+- `inactive_coordinate_union_bound`
+- `selection_accuracy_lower_bound_from_support_events`
+
+These obligations are intentionally finite-sample event-algebra and margin
+bridges. They do not prove a full high-dimensional selection theorem, but they
+turn the frontier theory-revision queue's screening obligations into verified
+proof-bank bridge targets before the remaining model-specific concentration and
+signal-separation assumptions are formalized.
 with the StatInference theorem family around
 `durrett2019_theorem_4_4_1_submartingale_expected_stoppedValue_mono`. This is a
 real optional-stopping theorem bridge; it still does not construct e-processes

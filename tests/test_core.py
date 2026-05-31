@@ -2757,8 +2757,14 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(revision_formalization["n_revision_tasks"], 3)
         self.assertEqual(revision_formalization["n_obligations"], 12)
         self.assertEqual(revision_formalization["n_unique_obligations"], 4)
+        self.assertEqual(revision_formalization["n_unique_proof_bank_bridge"], 4)
+        self.assertEqual(revision_formalization["n_unique_local_source_only"], 0)
+        self.assertEqual(revision_formalization["n_unique_source_gap"], 0)
         self.assertEqual(payload["counts"]["frontier_theory_revision_formal_obligations"], 12)
         self.assertEqual(payload["counts"]["frontier_theory_revision_unique_formal_obligations"], 4)
+        self.assertEqual(payload["counts"]["frontier_theory_revision_unique_proof_bank_bridge"], 4)
+        self.assertEqual(payload["counts"]["frontier_theory_revision_unique_local_source_only"], 0)
+        self.assertEqual(payload["counts"]["frontier_theory_revision_unique_source_gap"], 0)
         self.assertEqual(
             revision_formalization["n_unique_proof_bank_bridge"]
             + revision_formalization["n_unique_local_source_only"]
@@ -3026,7 +3032,7 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(evidence["missing_formal_primitives"], 97)
         self.assertEqual(evidence["formalization_targets_with_proof_bank_bridge"], 74)
         self.assertEqual(evidence["formalization_targets_local_source_only"], 23)
-        self.assertEqual(evidence["proof_bank_expansion_bridge_ready"], 53)
+        self.assertEqual(evidence["proof_bank_expansion_bridge_ready"], 60)
 
         suites = {row["id"]: row for row in payload["suites"]}
         self.assertEqual(set(suites), {f"S{i}_{suffix}" for i, suffix in (
@@ -3041,7 +3047,7 @@ class SystemTests(unittest.TestCase):
             (8, "adversarial_unsupported_intake"),
             (9, "fresh_holdout_frontier"),
         )})
-        self.assertEqual(suites["S4_formal_primitive_ladder"]["current_bridge_ready"], 53)
+        self.assertEqual(suites["S4_formal_primitive_ladder"]["current_bridge_ready"], 60)
         self.assertEqual(suites["S4_formal_primitive_ladder"]["current_local_source_only"], 23)
         self.assertEqual(suites["S5_proof_bank_and_search"]["current_proof_bank_size"], proof_bank_size)
         self.assertEqual(suites["S3_frontier_blind_theory_target"]["current_all_supported_size"], 60)
@@ -3074,12 +3080,12 @@ class SystemTests(unittest.TestCase):
         self.assertIn("S7_feedback_loop_repair_with_seeded_failures", payload["recommended_next_gate_stack"])
 
         doc = Path("docs/evaluation_benchmark_strategy.md").read_text(encoding="utf-8")
-        self.assertIn("`proofs_kernel_verified=88/88`", doc)
+        self.assertIn("`proofs_kernel_verified=92/92`", doc)
         self.assertIn("expected-result coverage about 82.8%", doc)
         self.assertIn("47 frontier-evaluation triage items", doc)
         self.assertIn("resolves 13/16 simulation flags", doc)
         self.assertIn("3 unresolved reruns now export scoped TheoryDeveloper revision tasks", doc)
-        self.assertIn("53 have ranked proof-bank bridge candidates", doc)
+        self.assertIn("60 have ranked proof-bank bridge candidates", doc)
         self.assertNotIn("79/79", doc)
         self.assertNotIn("82/82", doc)
 

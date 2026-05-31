@@ -173,7 +173,7 @@ python3 -m ai_statistician.cli research-system-audit \
 Result:
 
 ```text
-proof_bank_kernel=88/88
+proof_bank_kernel=92/92
 proof_verifier=local.lake_env_lean
 proof_strength=local_lean_kernel_batch
 system_all_gates_passed=True
@@ -182,7 +182,7 @@ sources=23/23
 frontier_supported=60/60
 frontier_smoke=23/23
 formalized_gaps=20/20
-proof_bank_expansion_bridge_ready=53/97
+proof_bank_expansion_bridge_ready=60/97
 formalization_targets_with_proof_bank_bridge=74
 missing_primitives=97
 ```
@@ -196,7 +196,7 @@ autoform_harness_audit: ready_for_integration=True
 source_inventory: 23/23 all_ok=True
 ```
 
-The same audit now reports `proof_bank_expansion_bridge_ready=53/97`.
+The same audit now reports `proof_bank_expansion_bridge_ready=60/97`.
 `independent_null_pvalues` is backed by the verified
 `independent_null_event_family_inter_probability` and
 `independent_null_event_family_compl_inter_probability` obligations. The
@@ -319,6 +319,16 @@ The conditional-expectation representation bridge
 `greenwood_variance_consistency` a verified limit-process conditional-
 expectation primitive before attempting the remaining product-process and CLT
 arguments.
+The screening/selection bridge family then adds
+`screening_statistic_concentration`,
+`signal_margin_implies_active_selection`,
+`inactive_coordinate_union_bound`, and
+`selection_accuracy_lower_bound_from_support_events`. These are finite-sample
+event-algebra and margin bridges, not high-dimensional asymptotic selection
+theorems, but they convert the frontier theory-revision queue's four unique
+screening obligations from local-source-only support into proof-bank bridge
+targets. The proof-bank expansion audit now reports
+`proof_bank_expansion_bridge_ready=60/97`.
 The upward conditional-expectation bridges
 `integrable_ae_tendsto_condexp_filtration` and
 `integrable_l1_tendsto_condexp_filtration` wrap Mathlib's

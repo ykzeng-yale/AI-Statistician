@@ -1007,6 +1007,226 @@ theorem topRank_correct_of_uniform_error_separation {ι : Type*}
             "finite_family_absolute_error_simultaneous_coverage",
         ),
     ),
+    "screening_statistic_concentration": FormalObligation(
+        id="screening_statistic_concentration",
+        title="Finite screening-statistic concentration by coordinate budgets",
+        english=(
+            "For a finite family of screening statistics, if each coordinate's "
+            "absolute screening-statistic error event has a local probability "
+            "budget and the local budgets sum to a total budget, then the "
+            "probability that any coordinate exceeds its tolerance is bounded "
+            "by the total budget. This is a reusable concentration bridge for "
+            "screening/selection traces; it does not prove a model-specific "
+            "sub-Gaussian, martingale, or empirical-process concentration "
+            "inequality."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+theorem screeningStatistic_concentration {Ω ι : Type*}
+    [MeasurableSpace Ω]
+    (μ : Measure Ω) (I : Finset ι)
+    (score : ι → Ω → ℝ) (signal tolerance : ι → ℝ)
+    (α : ι → ENNReal) (α_total : ENNReal)
+    (hA : ∀ i ∈ I, μ {ω | tolerance i ≤ |score i ω - signal i|} ≤ α i)
+    (h_total : (∑ i ∈ I, α i) ≤ α_total) :
+    μ (⋃ i ∈ I, {ω | tolerance i ≤ |score i ω - signal i|}) ≤ α_total := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  calc\n"
+            "    μ (⋃ i ∈ I, {ω | tolerance i ≤ |score i ω - signal i|}) ≤\n"
+            "        ∑ i ∈ I, μ {ω | tolerance i ≤ |score i ω - signal i|} := by\n"
+            "      exact measure_biUnion_finset_le (μ := μ) I\n"
+            "        (fun i => {ω | tolerance i ≤ |score i ω - signal i|})\n"
+            "    _ ≤ ∑ i ∈ I, α i := by\n"
+            "      exact Finset.sum_le_sum (fun i hi => hA i hi)\n"
+            "    _ ≤ α_total := h_total"
+        ),
+        tags=(
+            "probability",
+            "event",
+            "screening",
+            "selection",
+            "screening_statistic",
+            "concentration",
+            "coordinate_error",
+            "high_dimensional",
+            "union_bound",
+            "finite_sample",
+        ),
+        expected_lemmas=("measure_biUnion_finset_le", "Finset.sum_le_sum"),
+        depends_on=("finite_family_absolute_error_union_control", "finite_union_budget_control"),
+    ),
+    "signal_margin_implies_active_selection": FormalObligation(
+        id="signal_margin_implies_active_selection",
+        title="Signal margin implies active coordinate selection",
+        english=(
+            "If a true signal is larger than a selection cutoff by more than "
+            "an error tolerance, and the screening statistic is within that "
+            "tolerance of the signal, then the screening statistic exceeds the "
+            "cutoff. This deterministic bridge turns a margin/separation "
+            "condition plus concentration into active-coordinate selection; it "
+            "does not prove the concentration event itself."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+
+theorem signalMargin_implies_active_selection
+    (score signal cutoff tolerance : ℝ)
+    (hmargin : cutoff + tolerance < signal)
+    (herr : |score - signal| ≤ tolerance) :
+    cutoff < score := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  have herr_bounds := abs_le.mp herr\n"
+            "  linarith"
+        ),
+        tags=(
+            "screening",
+            "selection",
+            "active_selection",
+            "signal_margin",
+            "margin_condition",
+            "support_recovery",
+            "high_dimensional",
+            "real_algebra",
+        ),
+        expected_lemmas=("abs_le", "linarith"),
+        depends_on=("screening_statistic_concentration",),
+    ),
+    "inactive_coordinate_union_bound": FormalObligation(
+        id="inactive_coordinate_union_bound",
+        title="Inactive-coordinate false-selection finite union bound",
+        english=(
+            "For a finite inactive coordinate set, if each false-selection "
+            "event has a local probability budget and those budgets sum to a "
+            "total budget, then the probability of any inactive coordinate "
+            "being selected is at most the total budget. This is a reusable "
+            "false-selection bridge for high-dimensional screening traces; it "
+            "does not prove the coordinate-level false-selection bound."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+theorem inactiveCoordinate_union_bound {Ω ι : Type*}
+    [MeasurableSpace Ω]
+    (μ : Measure Ω) (Inactive : Finset ι) (falseSelect : ι → Set Ω)
+    (α : ι → ENNReal) (α_total : ENNReal)
+    (hFalse : ∀ i ∈ Inactive, μ (falseSelect i) ≤ α i)
+    (h_total : (∑ i ∈ Inactive, α i) ≤ α_total) :
+    μ (⋃ i ∈ Inactive, falseSelect i) ≤ α_total := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  calc\n"
+            "    μ (⋃ i ∈ Inactive, falseSelect i) ≤ ∑ i ∈ Inactive, μ (falseSelect i) := by\n"
+            "      exact measure_biUnion_finset_le (μ := μ) Inactive falseSelect\n"
+            "    _ ≤ ∑ i ∈ Inactive, α i := by\n"
+            "      exact Finset.sum_le_sum (fun i hi => hFalse i hi)\n"
+            "    _ ≤ α_total := h_total"
+        ),
+        tags=(
+            "probability",
+            "event",
+            "screening",
+            "selection",
+            "inactive_coordinate",
+            "false_selection",
+            "support_recovery",
+            "high_dimensional",
+            "union_bound",
+            "finite_sample",
+        ),
+        expected_lemmas=("measure_biUnion_finset_le", "Finset.sum_le_sum"),
+        depends_on=("finite_union_budget_control", "selected_bad_event_probability_le_finite_union_budget"),
+    ),
+    "selection_accuracy_lower_bound_from_support_events": FormalObligation(
+        id="selection_accuracy_lower_bound_from_support_events",
+        title="Selection accuracy lower bound from support-recovery events",
+        english=(
+            "If a correct-selection event contains the complement of a finite "
+            "union of support-recovery failure events, and each failure event "
+            "has a local probability budget summing to a total budget, then "
+            "the correct-selection event has probability at least one minus "
+            "the total budget. This is the event-algebra bridge from active/"
+            "inactive screening guarantees to selection-accuracy reporting; "
+            "it does not prove the model-specific screening concentration or "
+            "signal-margin conditions."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+theorem selectionAccuracy_lower_bound_from_support_events {Ω ι : Type*}
+    [MeasurableSpace Ω]
+    (μ : Measure Ω) [IsProbabilityMeasure μ]
+    (I : Finset ι) (Bad : ι → Set Ω) (Correct : Set Ω)
+    (α : ι → ENNReal) (α_total : ENNReal)
+    (hUnion : MeasurableSet (⋃ i ∈ I, Bad i))
+    (hCorrect : (⋃ i ∈ I, Bad i)ᶜ ⊆ Correct)
+    (hBad : ∀ i ∈ I, μ (Bad i) ≤ α i)
+    (h_total : (∑ i ∈ I, α i) ≤ α_total) :
+    1 - α_total ≤ μ Correct := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  have hbad_union : μ (⋃ i ∈ I, Bad i) ≤ α_total := by\n"
+            "    calc\n"
+            "      μ (⋃ i ∈ I, Bad i) ≤ ∑ i ∈ I, μ (Bad i) := by\n"
+            "        exact measure_biUnion_finset_le (μ := μ) I Bad\n"
+            "      _ ≤ ∑ i ∈ I, α i := by\n"
+            "        exact Finset.sum_le_sum (fun i hi => hBad i hi)\n"
+            "      _ ≤ α_total := h_total\n"
+            "  have hcoverage : μ (⋃ i ∈ I, Bad i)ᶜ = 1 - μ (⋃ i ∈ I, Bad i) := by\n"
+            "    exact prob_compl_eq_one_sub hUnion\n"
+            "  calc\n"
+            "    1 - α_total ≤ μ (⋃ i ∈ I, Bad i)ᶜ := by\n"
+            "      rw [hcoverage]\n"
+            "      exact tsub_le_tsub_left hbad_union 1\n"
+            "    _ ≤ μ Correct := by\n"
+            "      exact measure_mono hCorrect"
+        ),
+        tags=(
+            "probability",
+            "event",
+            "screening",
+            "selection",
+            "selection_accuracy",
+            "support_recovery",
+            "active_selection",
+            "inactive_coordinate",
+            "false_selection",
+            "coverage",
+            "high_dimensional",
+            "union_bound",
+            "finite_sample",
+        ),
+        expected_lemmas=(
+            "measure_biUnion_finset_le",
+            "Finset.sum_le_sum",
+            "prob_compl_eq_one_sub",
+            "tsub_le_tsub_left",
+            "measure_mono",
+        ),
+        depends_on=(
+            "screening_statistic_concentration",
+            "signal_margin_implies_active_selection",
+            "inactive_coordinate_union_bound",
+            "simultaneous_coverage_of_union_error_bound",
+        ),
+    ),
     "mean2_estimator_chebyshev_indep": FormalObligation(
         id="mean2_estimator_chebyshev_indep",
         title="Chebyshev error bound for an average of independent estimators",
