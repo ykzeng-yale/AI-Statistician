@@ -13,15 +13,15 @@ python3 -m ai_statistician.cli proof-audit \
 Result:
 
 ```text
-verified=58/58
-kernel=58/58
+verified=59/59
+kernel=59/59
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=39ff5bdbe67cfe955e1a3dd71807b632a885357cd472fa1704e1c6a944c82961
+proof_bank_fingerprint=27e26413be6798464aac5b7587f5523efdd0c3b5310c598212fe9561e1f6f779
 ```
 
 This is the current evidence that the registered proof bank is not only
-mock-checked: all 58 registered Mathlib-backed obligations were accepted by a
+mock-checked: all 59 registered Mathlib-backed obligations were accepted by a
 real Lean kernel check through the local Lake/Mathlib runtime. AXLE remains the
 preferred remote verifier for release bundles when its Python package and API
 runtime are available; the local Lean backend is the offline kernel-equivalent
@@ -43,10 +43,10 @@ verifier=axle.verify_proof
 strength=axle_lean_kernel
 ```
 
-That remote AXLE run predates the four newest proof-bank additions. The
-current 58-obligation proof bank has full local Lean kernel evidence above; run
+That remote AXLE run predates the five newest proof-bank additions. The
+current 59-obligation proof bank has full local Lean kernel evidence above; run
 the same `proof-audit --real-lean` command again from an AXLE-ready runtime to
-refresh remote AXLE evidence for all 58 obligations.
+refresh remote AXLE evidence for all 59 obligations.
 
 Latest real research-system validation: 2026-05-30.
 

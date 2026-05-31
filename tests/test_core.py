@@ -1040,6 +1040,24 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("measure_biUnion_finset_le", content)
         self.assertNotIn("by sorry", content)
 
+    def test_selected_bad_event_bridge_controls_data_dependent_selection(self) -> None:
+        obligation = get_obligation("selected_bad_event_probability_le_finite_union_budget")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(
+            obligation.depends_on,
+            ("finite_union_bound", "finite_union_budget_control", "event_probability_mono"),
+        )
+        self.assertIn("theorem selectedBadEvent_probability_le_finite_union_budget", content)
+        self.assertIn("select : Ω → ι", content)
+        self.assertIn("μ {ω | ω ∈ B (select ω)} ≤ α_total", content)
+        self.assertIn("measure_mono", content)
+        self.assertIn("Set.mem_iUnion.mpr", content)
+        self.assertIn("measure_biUnion_finset_le", content)
+        self.assertIn("Finset.sum_le_sum", content)
+        self.assertIn("post_selection", obligation.tags)
+        self.assertIn("adaptive_selection", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_finite_null_family_no_false_rejection_bridge_uses_union_and_complement(self) -> None:
         obligation = get_obligation("finite_null_family_no_false_rejection_probability")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
@@ -1511,6 +1529,13 @@ class SystemTests(unittest.TestCase):
                 "post_detection_changepoint_confidence_set",
                 "sequential_model_confidence_set_validity",
             },
+        )
+        post_detection_goal = {
+            goal.id: goal for goal in theorem_goals
+        }["post_detection_changepoint_confidence_set"]
+        self.assertIn(
+            "selected_bad_event_probability_le_finite_union_budget",
+            post_detection_goal.proof_obligations,
         )
         simulations = ResearchSimulator(n_runs=25, seed=20260528).run(problem, procedures)
         self.assertEqual(len(simulations), 1)

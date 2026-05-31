@@ -892,6 +892,13 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   This closes the finite-horizon union-allocation ingredient for sequential
   traces without claiming Ville's inequality or full anytime-valid
   supermartingale control.
+- `selected_bad_event_probability_le_finite_union_budget`: a post-selection
+  finite-union bridge. If a data-dependent selector always picks from a finite
+  candidate set, then the selected bad event is contained in the finite union
+  of all candidate bad events and is controlled by the same Bonferroni budget.
+  This supports selected intervals, model-confidence sets, adaptive
+  active-learning choices, and post-detection changepoint traces while leaving
+  selective CLTs and bootstrap validity as explicit formal gaps.
 - `finite_horizon_evalue_markov_type1_control`: a finite-horizon e-value
   exceedance bridge:
   measurable ENNReal coordinates `E_i` with Markov tail budgets
@@ -1228,11 +1235,11 @@ python3 -m ai_statistician.cli proof-audit \
 Current full-bank local Lean evidence (2026-05-30):
 
 ```text
-verified=58/58
-kernel=58/58
+verified=59/59
+kernel=59/59
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=39ff5bdbe67cfe955e1a3dd71807b632a885357cd472fa1704e1c6a944c82961
+proof_bank_fingerprint=27e26413be6798464aac5b7587f5523efdd0c3b5310c598212fe9561e1f6f779
 ```
 
 Run `doctor` in the same Python runtime first. It reports

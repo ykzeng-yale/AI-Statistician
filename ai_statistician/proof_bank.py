@@ -1658,6 +1658,70 @@ theorem finite_union_budget_control {Ω ι : Type*} [MeasurableSpace Ω]
         expected_lemmas=("measure_biUnion_finset_le", "Finset.sum_le_sum"),
         depends_on=("finite_union_bound", "finite_horizon_type1_union_control"),
     ),
+    "selected_bad_event_probability_le_finite_union_budget": FormalObligation(
+        id="selected_bad_event_probability_le_finite_union_budget",
+        title="Selected bad event is controlled by a finite union budget",
+        english=(
+            "If a data-dependent selector always chooses an index from a finite "
+            "candidate set, then the bad event for the selected candidate is "
+            "contained in the finite union of all candidate bad events. If each "
+            "candidate bad event has a local error budget and those budgets sum "
+            "to a total budget, then the selected bad event is controlled by "
+            "the same total budget. This is a reusable post-selection bridge; "
+            "it does not prove selective CLTs, bootstrap validity, or model-"
+            "selection consistency."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+theorem selectedBadEvent_probability_le_finite_union_budget {Ω ι : Type*}
+    [MeasurableSpace Ω]
+    (μ : Measure Ω) (I : Finset ι) (select : Ω → ι) (B : ι → Set Ω)
+    (α : ι → ENNReal) (α_total : ENNReal)
+    (hselect : ∀ ω, select ω ∈ I)
+    (hB : ∀ i ∈ I, μ (B i) ≤ α i)
+    (h_total : (∑ i ∈ I, α i) ≤ α_total) :
+    μ {ω | ω ∈ B (select ω)} ≤ α_total := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  calc\n"
+            "    μ {ω | ω ∈ B (select ω)} ≤ μ (⋃ i ∈ I, B i) := by\n"
+            "      apply measure_mono\n"
+            "      intro ω hbad\n"
+            "      exact Set.mem_iUnion.mpr ⟨select ω, Set.mem_iUnion.mpr ⟨hselect ω, hbad⟩⟩\n"
+            "    _ ≤ ∑ i ∈ I, μ (B i) := by\n"
+            "      exact measure_biUnion_finset_le (μ := μ) I B\n"
+            "    _ ≤ ∑ i ∈ I, α i := by\n"
+            "      exact Finset.sum_le_sum (fun i hi => hB i hi)\n"
+            "    _ ≤ α_total := h_total"
+        ),
+        tags=(
+            "probability",
+            "event",
+            "union_bound",
+            "bonferroni",
+            "finite_sample",
+            "selection",
+            "post_selection",
+            "adaptive_selection",
+            "model_selection",
+            "selected_interval",
+            "familywise_error",
+            "conformal",
+            "multiple_testing",
+        ),
+        expected_lemmas=(
+            "measure_mono",
+            "Set.mem_iUnion",
+            "measure_biUnion_finset_le",
+            "Finset.sum_le_sum",
+        ),
+        depends_on=("finite_union_bound", "finite_union_budget_control", "event_probability_mono"),
+    ),
     "finite_null_family_no_false_rejection_probability": FormalObligation(
         id="finite_null_family_no_false_rejection_probability",
         title="Finite null-family no-false-rejection probability",
