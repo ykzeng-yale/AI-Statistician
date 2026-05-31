@@ -4090,6 +4090,7 @@ class TheoryPlanner:
                         "prob_measure_univ",
                         "finite_union_bound",
                         "simultaneous_coverage_of_union_error_bound",
+                        "sequential_elimination_rule_finite_union_control",
                     ),
                 ),
             ]
@@ -4951,6 +4952,7 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "selected_bad_event_probability_le_finite_union_budget",
         "selected_good_event_coverage_of_finite_union_budget",
         "simultaneous_coverage_of_union_error_bound",
+        "sequential_elimination_rule_finite_union_control",
         "markov_inequality",
     ),
     "network_graph_inference": (

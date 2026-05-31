@@ -1799,6 +1799,73 @@ theorem selectedGoodEvent_coverage_of_finite_union_budget {Ω ι : Type*}
             "finite_union_budget_control",
         ),
     ),
+    "sequential_elimination_rule_finite_union_control": FormalObligation(
+        id="sequential_elimination_rule_finite_union_control",
+        title="Sequential elimination rule finite-union error control",
+        english=(
+            "If a sequential elimination rule data-dependently selects one "
+            "candidate from a finite active set, and each candidate's bad "
+            "elimination event has a local error budget, then the bad event "
+            "for the selected elimination is controlled by the same finite "
+            "union budget. This is a finite-sample bridge for sequential "
+            "model-confidence-set traces; it is not a proof of bootstrap "
+            "validity, martingale elimination validity, or a full selective "
+            "inference theorem."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+theorem sequentialEliminationRule_finite_union_control {Ω ι : Type*}
+    [MeasurableSpace Ω]
+    (μ : Measure Ω) (I : Finset ι) (eliminate : Ω → ι) (Bad : ι → Set Ω)
+    (α : ι → ENNReal) (α_total : ENNReal)
+    (hEliminate : ∀ ω, eliminate ω ∈ I)
+    (hBad : ∀ i ∈ I, μ (Bad i) ≤ α i)
+    (h_total : (∑ i ∈ I, α i) ≤ α_total) :
+    μ {ω | ω ∈ Bad (eliminate ω)} ≤ α_total := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  calc\n"
+            "    μ {ω | ω ∈ Bad (eliminate ω)} ≤ μ (⋃ i ∈ I, Bad i) := by\n"
+            "      apply measure_mono\n"
+            "      intro ω hbadω\n"
+            "      exact Set.mem_iUnion.mpr ⟨eliminate ω, Set.mem_iUnion.mpr ⟨hEliminate ω, hbadω⟩⟩\n"
+            "    _ ≤ ∑ i ∈ I, μ (Bad i) := by\n"
+            "      exact measure_biUnion_finset_le (μ := μ) I Bad\n"
+            "    _ ≤ ∑ i ∈ I, α i := by\n"
+            "      exact Finset.sum_le_sum (fun i hi => hBad i hi)\n"
+            "    _ ≤ α_total := h_total"
+        ),
+        tags=(
+            "probability",
+            "event",
+            "union_bound",
+            "bonferroni",
+            "finite_sample",
+            "sequential",
+            "sequential_elimination",
+            "sequential_elimination_rule",
+            "elimination_rule",
+            "model_confidence_set",
+            "model_selection",
+            "post_selection",
+        ),
+        expected_lemmas=(
+            "measure_mono",
+            "Set.mem_iUnion",
+            "measure_biUnion_finset_le",
+            "Finset.sum_le_sum",
+        ),
+        depends_on=(
+            "selected_bad_event_probability_le_finite_union_budget",
+            "finite_union_budget_control",
+            "finite_union_bound",
+        ),
+    ),
     "finite_null_family_no_false_rejection_probability": FormalObligation(
         id="finite_null_family_no_false_rejection_probability",
         title="Finite null-family no-false-rejection probability",

@@ -253,6 +253,7 @@ _PRIMITIVE_PROOF_BRIDGE_HINTS: dict[str, tuple[str, ...]] = {
         "selected_bad_event_probability_le_finite_union_budget",
     ),
     "sequential_elimination_rule": (
+        "sequential_elimination_rule_finite_union_control",
         "selected_bad_event_probability_le_finite_union_budget",
         "finite_union_budget_control",
         "simultaneous_coverage_of_union_error_bound",

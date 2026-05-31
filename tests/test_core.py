@@ -1079,6 +1079,27 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("confidence_set", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_sequential_elimination_rule_bridge_controls_selected_bad_event(self) -> None:
+        obligation = get_obligation("sequential_elimination_rule_finite_union_control")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(
+            obligation.depends_on,
+            (
+                "selected_bad_event_probability_le_finite_union_budget",
+                "finite_union_budget_control",
+                "finite_union_bound",
+            ),
+        )
+        self.assertIn("theorem sequentialEliminationRule_finite_union_control", content)
+        self.assertIn("eliminate : Ω → ι", content)
+        self.assertIn("μ {ω | ω ∈ Bad (eliminate ω)} ≤ α_total", content)
+        self.assertIn("measure_mono", content)
+        self.assertIn("measure_biUnion_finset_le", content)
+        self.assertIn("Finset.sum_le_sum", content)
+        self.assertIn("sequential_elimination_rule", obligation.tags)
+        self.assertIn("model_confidence_set", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_finite_null_family_no_false_rejection_bridge_uses_union_and_complement(self) -> None:
         obligation = get_obligation("finite_null_family_no_false_rejection_probability")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
@@ -2813,8 +2834,13 @@ class SystemTests(unittest.TestCase):
             "selected_good_event_coverage_of_finite_union_budget",
             rows["model_confidence_set_coverage"]["bridge_candidate_obligations"],
         )
+        self.assertIn(
+            "sequential_elimination_rule_finite_union_control",
+            rows["sequential_elimination_rule"]["bridge_candidate_obligations"],
+        )
         self.assertEqual(rows["post_selection_inference"]["priority_band"], "BRIDGE_REUSE_READY")
         self.assertEqual(rows["model_confidence_set_coverage"]["priority_band"], "BRIDGE_REUSE_READY")
+        self.assertEqual(rows["sequential_elimination_rule"]["priority_band"], "BRIDGE_REUSE_READY")
 
     def test_formal_gap_task_export_writes_lean_task_jsonl(self) -> None:
         async def run():

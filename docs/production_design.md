@@ -905,6 +905,13 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   bad event, it proves the selected-good event has probability at least
   `1-α_total`. This is the verified finite-sample ingredient for selected
   interval coverage before any selective asymptotic theory is claimed.
+- `sequential_elimination_rule_finite_union_control`: a sequential
+  model-confidence bridge. If a data-dependent elimination rule selects one
+  candidate from a finite active set and each candidate bad-elimination event
+  has a local error budget, then the selected elimination bad event is bounded
+  by the finite union budget. This is the verified finite-sample ingredient for
+  sequential elimination traces, not a proof of bootstrap validity or full
+  selective inference.
 - `finite_horizon_evalue_markov_type1_control`: a finite-horizon e-value
   exceedance bridge:
   measurable ENNReal coordinates `E_i` with Markov tail budgets
@@ -1238,14 +1245,14 @@ python3 -m ai_statistician.cli proof-audit \
   --out runs/proof_audit_local_lean
 ```
 
-Current full-bank local Lean evidence (2026-05-30):
+Current full-bank local Lean evidence (2026-05-31):
 
 ```text
-verified=60/60
-kernel=60/60
+verified=61/61
+kernel=61/61
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=419242564c344d0304e12d21d90cc1bcb12fe8e01deca14421166fc6c8c291ca
+proof_bank_fingerprint=cbb4624129e5687a5c5b01efc934316c7496d143fb954ed6f5ace0c312b01483
 ```
 
 Run `doctor` in the same Python runtime first. It reports
