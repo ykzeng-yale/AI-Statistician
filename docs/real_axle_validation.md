@@ -13,15 +13,15 @@ python3 -m ai_statistician.cli proof-audit \
 Result:
 
 ```text
-verified=69/69
-kernel=69/69
+verified=70/70
+kernel=70/70
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=65cdec90bd3b5d5b399cf46880db638a9463eff81ed82a82e86e55406a4932b6
+proof_bank_fingerprint=fee2465c0f973c49743cc67e52f25fffb19c6aaf432c1dbea548047e54231694
 ```
 
 This is the current evidence that the registered proof bank is not only
-mock-checked: all 69 registered Mathlib-backed obligations were accepted by a
+mock-checked: all 70 registered Mathlib-backed obligations were accepted by a
 real Lean kernel check through the local Lake/Mathlib runtime. AXLE remains the
 preferred remote verifier for release bundles when its Python package and API
 runtime are available; the local Lean backend is the offline kernel-equivalent
@@ -251,6 +251,13 @@ Benjamini-Hochberg threshold grid `q*k/m` is monotone in the rank index `k`
 whenever the nominal level `q` is nonnegative. This is a real verified algebraic
 bridge for ordered-p-value and step-up fixed-point traces; it still does not
 prove BH self-consistency, p-value independence, or the full FDR control theorem.
+
+The causal ATE block now includes `potential_outcome_observed_consistency`. It
+proves the deterministic consistency identity for a binary observed outcome:
+treated units reveal `Y(1)` and control units reveal `Y(0)` by construction.
+This is a real verified bridge for the potential-outcome consistency primitive;
+it still does not prove conditional exchangeability, positivity, identification,
+or AIPW double robustness.
 
 Important boundary:
 

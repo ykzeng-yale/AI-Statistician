@@ -295,6 +295,10 @@ _PRIMITIVE_PROOF_BRIDGE_HINTS: dict[str, tuple[str, ...]] = {
     "finite_population_potential_outcomes": (
         "finite_population_ate_mean_difference",
     ),
+    "potential_outcome_consistency": (
+        "potential_outcome_observed_consistency",
+        "finite_population_ate_mean_difference",
+    ),
     "complete_randomization_distribution": (
         "complete_randomization_uniform_assignment_mass",
     ),

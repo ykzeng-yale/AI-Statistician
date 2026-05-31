@@ -685,6 +685,20 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("design_based", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_potential_outcome_observed_consistency_uses_if_simp(self) -> None:
+        obligation = get_obligation("potential_outcome_observed_consistency")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("finite_population_ate_mean_difference",))
+        self.assertIn("def observedPotentialOutcome", content)
+        self.assertIn("if W i then Y1 i else Y0 i", content)
+        self.assertIn("theorem observedPotentialOutcome_consistency", content)
+        self.assertIn("W i = true → observedPotentialOutcome Y1 Y0 W i = Y1 i", content)
+        self.assertIn("W i = false → observedPotentialOutcome Y1 Y0 W i = Y0 i", content)
+        self.assertIn("simp [observedPotentialOutcome, h]", content)
+        self.assertIn("potential_outcome_consistency", obligation.tags)
+        self.assertIn("binary_treatment", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_complete_randomization_uniform_assignment_mass_uses_mathlib_pmf_uniform(self) -> None:
         obligation = get_obligation("complete_randomization_uniform_assignment_mass")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
@@ -3156,6 +3170,78 @@ class SystemTests(unittest.TestCase):
             rows["bh_threshold_fixed_point"]["bridge_candidate_obligations"],
         )
         self.assertEqual(rows["bh_threshold_fixed_point"]["priority_band"], "BRIDGE_REUSE_READY")
+
+    def test_formalization_target_audit_maps_causal_consistency_primitive_to_verified_bridge(self) -> None:
+        run_dir = Path("runs/test_formalization_target_causal_run")
+        out_dir = Path("runs/test_formalization_target_causal_audit")
+        shutil.rmtree(run_dir, ignore_errors=True)
+        shutil.rmtree(out_dir, ignore_errors=True)
+        gap_dir = run_dir / "formal_gaps"
+        gap_dir.mkdir(parents=True, exist_ok=True)
+        gap_path = gap_dir / "aipw_identification.lean"
+        primitives = (
+            "potential_outcome_consistency",
+            "conditional_exchangeability",
+            "positivity",
+        )
+        gap_path.write_text("FORMAL_GAP " + " ".join(primitives), encoding="utf-8")
+        (run_dir / "research_benchmark_manifest.json").write_text(
+            json.dumps({"questions": [{"question": "q_causal", "formal": {"gaps": 1}}]}),
+            encoding="utf-8",
+        )
+        proof_obligations = (
+            "event_indicator_expectation",
+            "prob_measure_univ",
+            "integral_of_constant",
+            "potential_outcome_observed_consistency",
+            "aipw_score_expectation_decompose",
+            "aipw_score_expectation_target_of_aug_cancel",
+            "aipw_score_expectation_target_of_zero_aug",
+            "aipw_score_integrable_of_components",
+        )
+        trace = {
+            "question": {"id": "q_causal"},
+            "problem": {"problem_class": "semiparametric_causal_ate"},
+            "procedures": [],
+            "knowledge": [{"id": "aipw_double_robustness"}],
+            "theorem_goals": [
+                {
+                    "id": "aipw_identification",
+                    "title": "ATE identification by consistency, exchangeability, and positivity",
+                    "proof_strategy": "Formalize potential-outcome consistency first, then conditional exchangeability and positivity.",
+                    "required_primitives": list(primitives),
+                    "proof_obligations": list(proof_obligations),
+                },
+            ],
+            "formal_subclaims": [
+                *[
+                    {"status": "PROVED", "proof_obligation_id": obligation_id}
+                    for obligation_id in proof_obligations
+                ],
+                {
+                    "id": "gap:aipw_identification",
+                    "status": "FORMAL_GAP",
+                    "claim_type": "theory_gap",
+                    "gap_reason": "conditional exchangeability and positivity remain library work",
+                    "artifact_path": str(gap_path),
+                    "lean_statement": gap_path.read_text(encoding="utf-8"),
+                    "formal_source_hits": [{"name": "StatInference.DeterministicATECase.ateEstimand"}],
+                    "primitive_formal_source_hits": {
+                        primitive: [{"name": "StatInference.DeterministicATECase.ateEstimand"}]
+                        for primitive in primitives
+                    },
+                },
+            ],
+        }
+        (run_dir / "q_causal.json").write_text(json.dumps(trace), encoding="utf-8")
+
+        payload = audit_formalization_targets(run_dir, out_dir)
+        rows = {row["primitive"]: row for row in payload["rows"]}
+        self.assertIn(
+            "potential_outcome_observed_consistency",
+            rows["potential_outcome_consistency"]["bridge_candidate_obligations"],
+        )
+        self.assertEqual(rows["potential_outcome_consistency"]["priority_band"], "BRIDGE_REUSE_READY")
 
     def test_formalization_target_audit_maps_design_based_primitives_to_verified_bridge(self) -> None:
         run_dir = Path("runs/test_formalization_target_design_based_run")

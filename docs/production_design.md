@@ -875,6 +875,11 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   the rank index `k`. This upgrades ordered-p-value and BH step-up fixed-point
   traces with a verified algebraic primitive while leaving BH self-consistency
   and FDR control as formal gaps.
+- `potential_outcome_observed_consistency`: a deterministic causal-inference
+  bridge. For binary treatment assignment, the observed outcome equals `Y(1)`
+  on treated units and `Y(0)` on control units by definition. This upgrades the
+  potential-outcome consistency primitive while leaving conditional
+  exchangeability, positivity, and ATE identification as formal gaps.
 - `mean2_estimator_chebyshev_indep`: combines unbiasedness, L2 closure,
   independence variance additivity, variance scaling, and Chebyshev to bound
   the absolute-error probability of `(X+Y)/2` by
@@ -1294,11 +1299,11 @@ python3 -m ai_statistician.cli proof-audit \
 Current full-bank local Lean evidence (2026-05-31):
 
 ```text
-verified=69/69
-kernel=69/69
+verified=70/70
+kernel=70/70
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=65cdec90bd3b5d5b399cf46880db638a9463eff81ed82a82e86e55406a4932b6
+proof_bank_fingerprint=fee2465c0f973c49743cc67e52f25fffb19c6aaf432c1dbea548047e54231694
 ```
 
 Run `doctor` in the same Python runtime first. It reports

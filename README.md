@@ -166,9 +166,9 @@ python3 -m ai_statistician.cli proof-audit \
   --out runs/proof_audit_local_lean_current
 ```
 
-Current evidence: `69/69` registered proof-bank obligations pass
+Current evidence: `70/70` registered proof-bank obligations pass
 `local_lean_kernel_batch` with proof-bank fingerprint
-`65cdec90bd3b5d5b399cf46880db638a9463eff81ed82a82e86e55406a4932b6`.
+`fee2465c0f973c49743cc67e52f25fffb19c6aaf432c1dbea548047e54231694`.
 
 Check `doctor` first. It reports `real_lean_ready` and concrete
 `real_lean_blockers`; an AXLE key alone is not enough if the active Python
@@ -283,6 +283,12 @@ bridge. For nonnegative nominal level `q`, the Benjamini-Hochberg threshold
 grid `q * k / m` is monotone in the rank index `k`. This gives ordered-p-value
 and BH step-up fixed-point traces a verified algebraic primitive while still
 leaving BH self-consistency and FDR control as formal gaps.
+It also includes `potential_outcome_observed_consistency`, a deterministic
+causal-inference bridge. For a binary treatment assignment, the observed
+outcome equals `Y(1)` on treated units and `Y(0)` on control units by
+definition. This upgrades the potential-outcome consistency primitive while
+still leaving conditional exchangeability, positivity, and ATE identification
+as formal gaps.
 Another composed guarantee is `mean2_estimator_chebyshev_indep`, which derives
 an explicit Chebyshev error bound for the average of two independent unbiased L2
 estimators using both the expectation and variance proof ingredients. Composed

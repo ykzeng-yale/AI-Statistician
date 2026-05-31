@@ -4720,6 +4720,7 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "event_indicator_expectation",
         "prob_measure_univ",
         "integral_of_constant",
+        "potential_outcome_observed_consistency",
         "difference_estimator_unbiased",
         "difference_estimator_variance_decompose",
         "aipw_score_expectation_decompose",

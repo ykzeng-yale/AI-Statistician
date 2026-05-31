@@ -276,6 +276,52 @@ theorem finitePopulationATE_mean_difference {n : Nat}
         expected_lemmas=("Finset.sum_sub_distrib", "ring"),
         depends_on=("difference_estimator_unbiased",),
     ),
+    "potential_outcome_observed_consistency": FormalObligation(
+        id="potential_outcome_observed_consistency",
+        title="Potential-outcome observed-outcome consistency",
+        english=(
+            "For binary treatment assignment, the observed outcome defined as "
+            "`Y(1)` for treated units and `Y(0)` for control units satisfies "
+            "the deterministic consistency identities on each unit. This is a "
+            "reusable potential-outcome bridge for causal ATE traces; it does "
+            "not prove conditional exchangeability, positivity, identification, "
+            "or double robustness."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+
+def observedPotentialOutcome {Unit : Type*}
+    (Y1 Y0 : Unit → ℝ) (W : Unit → Bool) : Unit → ℝ :=
+  fun i => if W i then Y1 i else Y0 i
+
+theorem observedPotentialOutcome_consistency {Unit : Type*}
+    (Y1 Y0 : Unit → ℝ) (W : Unit → Bool) (i : Unit) :
+    (W i = true → observedPotentialOutcome Y1 Y0 W i = Y1 i) ∧
+      (W i = false → observedPotentialOutcome Y1 Y0 W i = Y0 i) := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  constructor\n"
+            "  · intro h\n"
+            "    simp [observedPotentialOutcome, h]\n"
+            "  · intro h\n"
+            "    simp [observedPotentialOutcome, h]"
+        ),
+        tags=(
+            "causal",
+            "ate",
+            "potential_outcomes",
+            "potential_outcome_consistency",
+            "observed_outcome",
+            "binary_treatment",
+            "semiparametric",
+            "identification",
+        ),
+        expected_lemmas=("simp",),
+        depends_on=("finite_population_ate_mean_difference",),
+    ),
     "complete_randomization_uniform_assignment_mass": FormalObligation(
         id="complete_randomization_uniform_assignment_mass",
         title="Complete-randomization uniform assignment mass",
