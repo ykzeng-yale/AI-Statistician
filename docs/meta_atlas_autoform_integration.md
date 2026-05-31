@@ -173,11 +173,11 @@ python3 -m ai_statistician.cli research-system-audit \
 Result:
 
 ```text
-proof_bank_kernel=86/86
+proof_bank_kernel=88/88
 proof_verifier=local.lake_env_lean
 proof_strength=local_lean_kernel_batch
 system_all_gates_passed=True
-system_elapsed_latest=146.6s
+system_elapsed_latest=194.5s
 sources=23/23
 frontier_supported=60/60
 frontier_smoke=23/23
@@ -319,3 +319,12 @@ The conditional-expectation representation bridge
 `greenwood_variance_consistency` a verified limit-process conditional-
 expectation primitive before attempting the remaining product-process and CLT
 arguments.
+The upward conditional-expectation bridges
+`integrable_ae_tendsto_condexp_filtration` and
+`integrable_l1_tendsto_condexp_filtration` wrap Mathlib's
+`Integrable.tendsto_ae_condExp` and `Integrable.tendsto_eLpNorm_condExp`.
+They give `conditional_expectation`, `iterated_expectation`,
+`exogeneity_moment_condition`, `conditional_expectation_product_step`, and
+`martingale_definition` direct a.e. and L1 convergence primitives along
+filtrations, while preserving model-specific identification assumptions and
+empirical-process arguments as formal gaps.

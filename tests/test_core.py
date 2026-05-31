@@ -1035,6 +1035,33 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("tower_property", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_integrable_ae_tendsto_condexp_filtration_wraps_upward_theorem(self) -> None:
+        obligation = get_obligation("integrable_ae_tendsto_condexp_filtration")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("martingale_ae_eq_condexp_limit_process",))
+        self.assertIn("conditional_expectation", obligation.tags)
+        self.assertIn("almost_everywhere_convergence", obligation.tags)
+        self.assertIn("iterated_expectation", obligation.tags)
+        self.assertIn("exogeneity_moment_condition", obligation.tags)
+        self.assertIn("theorem integrable_tendsto_ae_condExp_filtration_bridge", content)
+        self.assertIn("StronglyMeasurable[⨆ n, 𝒢 n] g", content)
+        self.assertIn("∀ᵐ x ∂μ, Tendsto", content)
+        self.assertIn("hg.tendsto_ae_condExp hgmeas", content)
+        self.assertNotIn("by sorry", content)
+
+    def test_integrable_l1_tendsto_condexp_filtration_wraps_upward_theorem(self) -> None:
+        obligation = get_obligation("integrable_l1_tendsto_condexp_filtration")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("integrable_ae_tendsto_condexp_filtration",))
+        self.assertIn("conditional_expectation", obligation.tags)
+        self.assertIn("l1_convergence", obligation.tags)
+        self.assertIn("iterated_expectation", obligation.tags)
+        self.assertIn("martingale_definition", obligation.tags)
+        self.assertIn("theorem integrable_tendsto_eLpNorm_condExp_filtration_bridge", content)
+        self.assertIn("eLpNorm (μ[g | 𝒢 n] - g) 1 μ", content)
+        self.assertIn("hg.tendsto_eLpNorm_condExp hgmeas", content)
+        self.assertNotIn("by sorry", content)
+
     def test_conditional_mean_residual_zero_bridge_uses_conditional_expectation(self) -> None:
         obligation = get_obligation("conditional_mean_residual_zero_of_condExp_ae_eq")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
@@ -3017,6 +3044,8 @@ class SystemTests(unittest.TestCase):
                 "difference_estimator_unbiased",
                 "aipw_score_expectation_decompose",
                 "aipw_score_expectation_target_of_aug_cancel",
+                "integrable_l1_tendsto_condexp_filtration",
+                "integrable_ae_tendsto_condexp_filtration",
                 "condexp_integral_eq_integral_real",
                 "conditional_mean_residual_zero_of_condExp_ae_eq",
                 "conditional_mean_residual_zero_of_mean_eq",
@@ -4086,7 +4115,15 @@ class SystemTests(unittest.TestCase):
             rows["conditional_expectation_product_step"]["bridge_candidate_obligations"],
         )
         self.assertIn(
+            "integrable_l1_tendsto_condexp_filtration",
+            rows["conditional_expectation_product_step"]["bridge_candidate_obligations"],
+        )
+        self.assertIn(
             "independent_real_condExp_natural_eq_mean",
+            rows["martingale_definition"]["bridge_candidate_obligations"],
+        )
+        self.assertIn(
+            "integrable_ae_tendsto_condexp_filtration",
             rows["martingale_definition"]["bridge_candidate_obligations"],
         )
 
@@ -4178,8 +4215,20 @@ class SystemTests(unittest.TestCase):
                 "condexp_tower_of_sub_sigma_real",
                 rows[primitive]["bridge_candidate_obligations"],
             )
+            self.assertIn(
+                "integrable_l1_tendsto_condexp_filtration",
+                rows[primitive]["bridge_candidate_obligations"],
+            )
+            self.assertIn(
+                "integrable_ae_tendsto_condexp_filtration",
+                rows[primitive]["bridge_candidate_obligations"],
+            )
         self.assertIn(
             "condexp_tower_of_sub_sigma_real",
+            rows["iterated_expectation"]["bridge_candidate_obligations"],
+        )
+        self.assertIn(
+            "integrable_l1_tendsto_condexp_filtration",
             rows["iterated_expectation"]["bridge_candidate_obligations"],
         )
         for primitive in ("sample_moment_lln", "iid_empirical_mean_clt"):

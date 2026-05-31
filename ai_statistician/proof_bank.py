@@ -3669,6 +3669,97 @@ theorem martingale_ae_eq_condExp_limitProcess_bridge {Ω : Type*}
         expected_lemmas=("Martingale.ae_eq_condExp_limitProcess",),
         depends_on=("submartingale_l1_tendsto_limit_process",),
     ),
+    "integrable_ae_tendsto_condexp_filtration": FormalObligation(
+        id="integrable_ae_tendsto_condexp_filtration",
+        title="Conditional expectations along a filtration converge almost everywhere",
+        english=(
+            "For an integrable real function measurable with respect to the "
+            "terminal sigma-field of a filtration, the conditional expectations "
+            "given the finite filtration levels converge almost everywhere to "
+            "the function. This wraps Mathlib's upward martingale convergence "
+            "theorem for conditional expectations, giving iterated-expectation, "
+            "exogeneity, and martingale-definition roadmaps a direct "
+            "conditional-expectation convergence bridge."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+
+open TopologicalSpace Filter MeasureTheory.Filtration
+open scoped NNReal ENNReal MeasureTheory ProbabilityTheory Topology
+open MeasureTheory
+
+theorem integrable_tendsto_ae_condExp_filtration_bridge {Ω : Type*}
+    {m0 : MeasurableSpace Ω} {μ : Measure Ω} {𝒢 : Filtration ℕ m0}
+    {g : Ω → ℝ} [IsFiniteMeasure μ] [SigmaFiniteFiltration μ 𝒢]
+    (hg : Integrable g μ) (hgmeas : StronglyMeasurable[⨆ n, 𝒢 n] g) :
+    ∀ᵐ x ∂μ, Tendsto (fun n => (μ[g | 𝒢 n]) x) atTop (𝓝 (g x)) := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  exact hg.tendsto_ae_condExp hgmeas"
+        ),
+        tags=(
+            "probability",
+            "martingale",
+            "conditional_expectation",
+            "almost_everywhere_convergence",
+            "filtration",
+            "upward_theorem",
+            "integrable",
+            "iterated_expectation",
+            "exogeneity_moment_condition",
+            "martingale_definition",
+        ),
+        expected_lemmas=("Integrable.tendsto_ae_condExp",),
+        depends_on=("martingale_ae_eq_condexp_limit_process",),
+    ),
+    "integrable_l1_tendsto_condexp_filtration": FormalObligation(
+        id="integrable_l1_tendsto_condexp_filtration",
+        title="Conditional expectations along a filtration converge in L1",
+        english=(
+            "For an integrable real function measurable with respect to the "
+            "terminal sigma-field of a filtration, the conditional expectations "
+            "given finite filtration levels converge in L1 to the function. "
+            "This wraps Mathlib's L1 upward martingale convergence theorem and "
+            "is a reusable bridge for conditional-expectation, exogeneity, "
+            "martingale-definition, and iterative-theory formalization targets."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+
+open TopologicalSpace Filter MeasureTheory.Filtration
+open scoped NNReal ENNReal MeasureTheory ProbabilityTheory Topology
+open MeasureTheory
+
+theorem integrable_tendsto_eLpNorm_condExp_filtration_bridge {Ω : Type*}
+    {m0 : MeasurableSpace Ω} {μ : Measure Ω} {𝒢 : Filtration ℕ m0}
+    {g : Ω → ℝ} [IsFiniteMeasure μ] [SigmaFiniteFiltration μ 𝒢]
+    (hg : Integrable g μ) (hgmeas : StronglyMeasurable[⨆ n, 𝒢 n] g) :
+    Tendsto (fun n => eLpNorm (μ[g | 𝒢 n] - g) 1 μ) atTop (𝓝 0) := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  exact hg.tendsto_eLpNorm_condExp hgmeas"
+        ),
+        tags=(
+            "probability",
+            "martingale",
+            "conditional_expectation",
+            "l1_convergence",
+            "filtration",
+            "upward_theorem",
+            "integrable",
+            "iterated_expectation",
+            "exogeneity_moment_condition",
+            "martingale_definition",
+        ),
+        expected_lemmas=("Integrable.tendsto_eLpNorm_condExp",),
+        depends_on=("integrable_ae_tendsto_condexp_filtration",),
+    ),
     "event_probability_mono": FormalObligation(
         id="event_probability_mono",
         title="Event probability monotonicity",

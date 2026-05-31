@@ -170,9 +170,9 @@ python3 -m ai_statistician.cli proof-audit \
   --out runs/proof_audit_local_lean_current
 ```
 
-Current evidence: `86/86` registered proof-bank obligations pass
+Current evidence: `88/88` registered proof-bank obligations pass
 `local_lean_kernel_batch` with proof-bank fingerprint
-`3fd61ae2d36e74f7c158e93c848514c3fdd98a1266c3b64f7d4f1ca9c4350ff7`.
+`31fa33a3e4fba52691611de455275463706699e9d9c15c02e6c6bea17cfbcd34`.
 The latest release-style local-kernel research-system audit also passes all
 gates with `research_loop_theory_revisions=6`, all coming from
 kernel-verified `DefaultProofEngineer` proof-bridge integrations. These

@@ -82,7 +82,7 @@ sandboxed code patching, or simulator construction still stop honestly with
 repair proposal, unless a stronger handler is registered.
 
 Current release-style local-kernel evidence for this bounded loop:
-`research-system-audit --local-lean --runs 100` passes all gates with `86/86`
+`research-system-audit --local-lean --runs 100` passes all gates with `88/88`
 kernel-verified proof obligations, `6` kernel-verified live proof-bridge repair
 artifacts, `6` resulting theory revisions, and a `12/12` kernel-verified
 proof-search audit sample. The status remains `FORMAL_GAPS_BRIDGED`, which is
@@ -1131,6 +1131,17 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   skeletons a direct limit-process conditional-expectation bridge while still
   leaving product-process martingale construction and martingale CLTs as formal
   gaps.
+- `integrable_ae_tendsto_condexp_filtration`: upward martingale convergence
+  for conditional expectations in the almost-everywhere sense. If an integrable
+  real function is measurable with respect to the terminal sigma-field
+  `⨆ n, 𝒢 n`, then `μ[g | 𝒢 n]` converges almost everywhere to `g`, wrapped
+  around Mathlib's `Integrable.tendsto_ae_condExp`.
+- `integrable_l1_tendsto_condexp_filtration`: the matching L1/eLpNorm upward
+  theorem for conditional expectations, wrapped around
+  `Integrable.tendsto_eLpNorm_condExp`. It gives conditional-expectation,
+  iterated-expectation, exogeneity, and martingale-definition theorem skeletons
+  a direct convergence bridge while preserving model-specific identification
+  and empirical-process remainder arguments as formal gaps.
 - `event_probability_mono`: event monotonicity `A ⊆ B -> μ(A) ≤ μ(B)`,
   proved directly from Mathlib's `measure_mono`; this is the reusable
   bad-event-containment step used before applying union or tail bounds.
@@ -1490,11 +1501,11 @@ python3 -m ai_statistician.cli proof-audit \
 Current full-bank local Lean evidence (2026-05-31):
 
 ```text
-verified=86/86
-kernel=86/86
+verified=88/88
+kernel=88/88
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=3fd61ae2d36e74f7c158e93c848514c3fdd98a1266c3b64f7d4f1ca9c4350ff7
+proof_bank_fingerprint=31fa33a3e4fba52691611de455275463706699e9d9c15c02e6c6bea17cfbcd34
 ```
 
 Run `doctor` in the same Python runtime first. It reports
