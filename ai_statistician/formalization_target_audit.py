@@ -363,6 +363,7 @@ _PRIMITIVE_PROOF_BRIDGE_HINTS: dict[str, tuple[str, ...]] = {
     ),
     "conditional_expectation_product_step": (
         "independent_event_indicator_condExp_filtration_eq_prob",
+        "independent_real_condExp_natural_eq_mean",
         "independent_event_indicator_product_lintegral_eq_mul",
         "event_indicator_product_integral_eq_inter",
         "independent_event_inter_probability",
@@ -375,8 +376,30 @@ _PRIMITIVE_PROOF_BRIDGE_HINTS: dict[str, tuple[str, ...]] = {
     ),
     "martingale_definition": (
         "independent_event_indicator_condExp_filtration_eq_prob",
+        "independent_real_condExp_natural_eq_mean",
         "independent_event_indicator_product_lintegral_eq_mul",
         "event_indicator_product_integral_eq_inter",
+        "event_indicator_expectation",
+    ),
+    "iid_empirical_mean_clt": (
+        "independent_real_condExp_natural_eq_mean",
+        "finite_sample_mean_unbiased",
+        "finite_sample_mean_variance_indep",
+        "finite_sample_mean_chebyshev_indep",
+    ),
+    "sample_moment_lln": (
+        "independent_real_condExp_natural_eq_mean",
+        "finite_sample_mean_unbiased",
+        "finite_sample_mean_variance_indep",
+    ),
+    "exogeneity_moment_condition": (
+        "independent_real_condExp_natural_eq_mean",
+        "mean2_estimator_unbiased",
+        "mean2_estimator_variance_indep",
+    ),
+    "conditional_expectation": (
+        "independent_real_condExp_natural_eq_mean",
+        "independent_event_indicator_condExp_filtration_eq_prob",
         "event_indicator_expectation",
     ),
 }

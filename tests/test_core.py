@@ -1454,6 +1454,21 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("martingale_definition", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_independent_real_condexp_natural_bridge_uses_mathlib_borel_cantelli(self) -> None:
+        obligation = get_obligation("independent_real_condExp_natural_eq_mean")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("filtration_mono_measurable_set",))
+        self.assertIn("theorem independentReal_condExp_natural_ae_eq_of_lt", content)
+        self.assertIn("X : ℕ → Ω → ℝ", content)
+        self.assertIn("iIndepFun X μ", content)
+        self.assertIn("Filtration.natural X hX i", content)
+        self.assertIn("=ᵐ[μ] fun _ => μ[X j]", content)
+        self.assertIn("h_ind.condExp_natural_ae_eq_of_lt hX hij", content)
+        self.assertIn("iid_empirical_mean_clt", obligation.tags)
+        self.assertIn("sample_moment_lln", obligation.tags)
+        self.assertIn("exogeneity_moment_condition", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_noised_estimator_obligations_bridge_private_mean_error(self) -> None:
         unbiased = get_obligation("noised_estimator_unbiased")
         variance = get_obligation("noised_estimator_variance_indep")
@@ -2513,6 +2528,11 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(trace.exists())
         trace_payload = json.loads(trace.read_text())
         self.assertEqual(trace_payload["trace_kind"], "research_theory_lab")
+        causal_goals = {row["id"]: row for row in trace_payload["theorem_goals"]}
+        self.assertIn(
+            "independent_real_condExp_natural_eq_mean",
+            causal_goals["aipw_asymptotic_normality"]["proof_obligations"],
+        )
         self.assertIn("research_knowledge_fingerprint", trace_payload["provenance"])
         self.assertIn("paper_source_index_fingerprint", trace_payload["provenance"])
         self.assertIn("research_source_inventory_fingerprint", trace_payload["provenance"])
@@ -2620,6 +2640,10 @@ class SystemTests(unittest.TestCase):
         hetero_trace = json.loads(Path("runs/test_research_benchmark/heteroskedastic_regression_hc.json").read_text())
         hetero_goals = {row["id"]: row for row in hetero_trace["theorem_goals"]}
         self.assertIn(
+            "independent_real_condExp_natural_eq_mean",
+            hetero_goals["ols_consistency"]["proof_obligations"],
+        )
+        self.assertIn(
             "coverage_lower_bound_of_complement_error",
             hetero_goals["hc1_asymptotic_normality"]["proof_obligations"],
         )
@@ -2655,6 +2679,10 @@ class SystemTests(unittest.TestCase):
         )
         self.assertIn(
             "independent_event_indicator_condExp_filtration_eq_prob",
+            sequential_goals["bernoulli_lr_eprocess_martingale"]["proof_obligations"],
+        )
+        self.assertIn(
+            "independent_real_condExp_natural_eq_mean",
             sequential_goals["bernoulli_lr_eprocess_martingale"]["proof_obligations"],
         )
         fdr_trace = json.loads(Path("runs/test_research_benchmark/multiple_testing_fdr_bh.json").read_text())
@@ -3623,6 +3651,83 @@ class SystemTests(unittest.TestCase):
                 "independent_event_indicator_condExp_filtration_eq_prob",
                 rows[primitive]["bridge_candidate_obligations"],
             )
+        self.assertIn(
+            "independent_real_condExp_natural_eq_mean",
+            rows["conditional_expectation_product_step"]["bridge_candidate_obligations"],
+        )
+        self.assertIn(
+            "independent_real_condExp_natural_eq_mean",
+            rows["martingale_definition"]["bridge_candidate_obligations"],
+        )
+
+    def test_formalization_target_audit_maps_lln_clt_primitives_to_independent_condexp_bridge(self) -> None:
+        run_dir = Path("runs/test_formalization_target_independent_real_condexp_run")
+        out_dir = Path("runs/test_formalization_target_independent_real_condexp_audit")
+        shutil.rmtree(run_dir, ignore_errors=True)
+        shutil.rmtree(out_dir, ignore_errors=True)
+        gap_dir = run_dir / "formal_gaps"
+        gap_dir.mkdir(parents=True, exist_ok=True)
+        gap_path = gap_dir / "sample_moment_lln.lean"
+        primitives = (
+            "sample_moment_lln",
+            "iid_empirical_mean_clt",
+            "exogeneity_moment_condition",
+            "conditional_expectation",
+        )
+        gap_path.write_text("FORMAL_GAP " + " ".join(primitives), encoding="utf-8")
+        (run_dir / "research_benchmark_manifest.json").write_text(
+            json.dumps({"questions": [{"question": "q_lln", "formal": {"gaps": 1}}]}),
+            encoding="utf-8",
+        )
+        proof_obligations = (
+            "independent_real_condExp_natural_eq_mean",
+            "finite_sample_mean_unbiased",
+            "finite_sample_mean_variance_indep",
+        )
+        trace = {
+            "question": {"id": "q_lln"},
+            "problem": {"problem_class": "heteroskedastic_regression_inference"},
+            "procedures": [],
+            "knowledge": [{"id": "heteroskedastic_regression_hc"}],
+            "theorem_goals": [
+                {
+                    "id": "ols_consistency",
+                    "title": "OLS consistency",
+                    "proof_strategy": "Use sample-moment laws and exogeneity.",
+                    "required_primitives": list(primitives),
+                    "proof_obligations": list(proof_obligations),
+                },
+            ],
+            "formal_subclaims": [
+                *[
+                    {"status": "PROVED", "proof_obligation_id": obligation_id}
+                    for obligation_id in proof_obligations
+                ],
+                {
+                    "id": "gap:ols_consistency",
+                    "status": "FORMAL_GAP",
+                    "claim_type": "theory_gap",
+                    "gap_reason": "full LLN/CLT still requires library work",
+                    "artifact_path": str(gap_path),
+                    "lean_statement": gap_path.read_text(encoding="utf-8"),
+                    "formal_source_hits": [{"name": "ProbabilityTheory.iIndepFun.condExp_natural_ae_eq_of_lt"}],
+                    "primitive_formal_source_hits": {
+                        primitive: [{"name": "ProbabilityTheory.iIndepFun.condExp_natural_ae_eq_of_lt"}]
+                        for primitive in primitives
+                    },
+                },
+            ],
+        }
+        (run_dir / "q_lln.json").write_text(json.dumps(trace), encoding="utf-8")
+
+        payload = audit_formalization_targets(run_dir, out_dir)
+        rows = {row["primitive"]: row for row in payload["rows"]}
+        for primitive in primitives:
+            self.assertIn(
+                "independent_real_condExp_natural_eq_mean",
+                rows[primitive]["bridge_candidate_obligations"],
+            )
+            self.assertEqual(rows[primitive]["priority_band"], "BRIDGE_REUSE_READY")
 
     def test_formal_gap_task_export_writes_lean_task_jsonl(self) -> None:
         async def run():

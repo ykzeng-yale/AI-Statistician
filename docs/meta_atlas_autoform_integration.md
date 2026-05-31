@@ -173,16 +173,17 @@ python3 -m ai_statistician.cli research-system-audit \
 Result:
 
 ```text
-proof_bank_kernel=75/75
+proof_bank_kernel=76/76
 proof_verifier=local.lake_env_lean
 proof_strength=local_lean_kernel_batch
 system_all_gates_passed=True
-system_elapsed_latest=132.8s
+system_elapsed_latest=121.2s
 sources=23/23
 frontier_supported=60/60
 frontier_smoke=23/23
 formalized_gaps=20/20
-proof_bank_expansion_bridge_ready=36/97
+proof_bank_expansion_bridge_ready=40/97
+formalization_targets_with_proof_bank_bridge=66
 missing_primitives=97
 ```
 
@@ -246,6 +247,13 @@ filtration. Autoform targets for `conditional_expectation_product_step`,
 `independent_bernoulli_sequence`, and `martingale_definition` can now start
 from a verified conditional-expectation fact instead of only product-integral
 algebra.
+The independent-real-sequence queue now has
+`independent_real_condExp_natural_eq_mean`, a kernel-checked wrapper around
+Mathlib's `iIndepFun.condExp_natural_ae_eq_of_lt`. This moves
+`sample_moment_lln`, `iid_empirical_mean_clt`, `exogeneity_moment_condition`,
+and broad `conditional_expectation` targets from source-only grounding toward a
+verified bridge. The bridge-ready count is now `40/97`; this is still a
+starting theorem, not a proof of LLN, CLT, Slutsky, or asymptotic normality.
 The supermartingale bridge `supermartingale_expected_stopped_value_antimono`
 adds the reversed bounded optional-stopping expectation budget for
 supermartingales. This gives Autoform targets a direct e-process/Ville

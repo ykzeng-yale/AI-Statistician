@@ -2259,6 +2259,7 @@ class TheoryPlanner:
                     proof_obligations=(
                         "difference_estimator_variance_decompose",
                         "variance_nonneg",
+                        "independent_real_condExp_natural_eq_mean",
                     ),
                 ),
             ]
@@ -3832,6 +3833,7 @@ class TheoryPlanner:
                         "gram_matrix_full_rank",
                         "matrix_inverse_continuous_mapping",
                     ),
+                    proof_obligations=("independent_real_condExp_natural_eq_mean",),
                 ),
                 TheoremGoal(
                     id="hc1_asymptotic_normality",
@@ -3991,6 +3993,7 @@ class TheoryPlanner:
                         "event_indicator_product_integral_eq_inter",
                         "independent_event_indicator_product_lintegral_eq_mul",
                         "independent_event_indicator_condExp_filtration_eq_prob",
+                        "independent_real_condExp_natural_eq_mean",
                         "finite_event_indicator_mean_unbiased",
                         "independent_event_inter_probability",
                     ),
@@ -4733,6 +4736,7 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "aipw_score_expectation_target_of_zero_aug",
         "aipw_score_integrable_of_components",
         "variance_nonneg",
+        "independent_real_condExp_natural_eq_mean",
     ),
     "distribution_free_conformal_prediction": (
         "prob_measure_univ",
@@ -4920,6 +4924,7 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "finite_sample_mean_variance_indep",
         "finite_sample_mean_chebyshev_indep",
         "estimator_error_chebyshev",
+        "independent_real_condExp_natural_eq_mean",
         "wald_interval_contains_iff_abs_error",
         "wald_interval_miscoverage_iff_abs_error_gt",
         "coverage_lower_bound_of_complement_error",
@@ -4946,6 +4951,7 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "event_indicator_product_integral_eq_inter",
         "independent_event_indicator_product_lintegral_eq_mul",
         "independent_event_indicator_condExp_filtration_eq_prob",
+        "independent_real_condExp_natural_eq_mean",
         "finite_event_indicator_mean_unbiased",
         "event_probability_mono",
         "filtration_mono_measurable_set",

@@ -1098,6 +1098,16 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   `martingale_definition` a stronger route toward the product-process
   martingale proof, while still leaving the full conditional-expectation
   preservation theorem as a formal gap.
+- `independent_real_condExp_natural_eq_mean`: a real-valued sequence version of
+  the same conditional-expectation pattern. For an independent real-valued
+  stochastic sequence, the proof bank verifies
+  `μ[X_j | Filtration.natural X i] =ᵐ μ[X_j]` for `i < j`, using Mathlib's
+  `iIndepFun.condExp_natural_ae_eq_of_lt`. This now bridges
+  `sample_moment_lln`, `iid_empirical_mean_clt`,
+  `exogeneity_moment_condition`, `conditional_expectation`, and
+  `martingale_definition` to a kernel-checked independence/filtration theorem,
+  while still leaving LLN, CLT, Slutsky, and full asymptotic-normality proofs as
+  formal gaps.
 - `aipw_score_expectation_decompose`: expectation of an AIPW-style contrast plus
   augmentation score decomposes by linearity.
 - `aipw_score_expectation_target_of_aug_cancel`: if the contrast term has
@@ -1336,11 +1346,11 @@ python3 -m ai_statistician.cli proof-audit \
 Current full-bank local Lean evidence (2026-05-31):
 
 ```text
-verified=75/75
-kernel=75/75
+verified=76/76
+kernel=76/76
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=18d5f4740ef259cf614ee7094f290be5f2aae5dda50510845efd999eeda550d2
+proof_bank_fingerprint=bb86e4f5d46a484621b70ec2c8f2ae4ce83898f62b53552efb031432e6247fb8
 ```
 
 Run `doctor` in the same Python runtime first. It reports

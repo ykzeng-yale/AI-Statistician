@@ -1594,6 +1594,51 @@ theorem independentSet_indicator_condExp_filtrationOfSet_ae_eq {Ω : Type*} [Mea
             "independent_event_indicator_product_lintegral_eq_mul",
         ),
     ),
+    "independent_real_condExp_natural_eq_mean": FormalObligation(
+        id="independent_real_condExp_natural_eq_mean",
+        title="Future independent real variable has mean conditional expectation over natural past filtration",
+        english=(
+            "For an independent real-valued stochastic sequence, the "
+            "conditional expectation of a future variable given the natural "
+            "filtration of past variables is almost everywhere its mean. This "
+            "is a reusable bridge for sample-moment LLN/CLT skeletons, "
+            "martingale-difference decompositions, and regression/asymptotic "
+            "normality traces; it is not a full CLT or LLN proof."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+theorem independentReal_condExp_natural_ae_eq_of_lt {Ω : Type*} [MeasurableSpace Ω]
+    {μ : Measure Ω} {X : ℕ → Ω → ℝ}
+    (hX : ∀ n, StronglyMeasurable (X n)) (h_ind : iIndepFun X μ)
+    {i j : ℕ} (hij : i < j) :
+    μ[X j | Filtration.natural X hX i] =ᵐ[μ] fun _ => μ[X j] := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  exact h_ind.condExp_natural_ae_eq_of_lt hX hij"
+        ),
+        tags=(
+            "probability",
+            "conditional_expectation",
+            "filtration",
+            "independence",
+            "real_valued_sequence",
+            "martingale_difference",
+            "iid_empirical_mean_clt",
+            "sample_moment_lln",
+            "exogeneity_moment_condition",
+            "martingale_definition",
+            "heteroskedastic_regression",
+            "semiparametric_causal_ate",
+            "asymptotic_normality",
+        ),
+        expected_lemmas=("iIndepFun.condExp_natural_ae_eq_of_lt",),
+        depends_on=("filtration_mono_measurable_set",),
+    ),
     "finite_event_indicator_mean_unbiased": FormalObligation(
         id="finite_event_indicator_mean_unbiased",
         title="Finite-sample event-indicator mean is unbiased",
