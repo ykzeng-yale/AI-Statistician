@@ -1058,6 +1058,27 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("adaptive_selection", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_selected_good_event_coverage_bridge_uses_complement_budget(self) -> None:
+        obligation = get_obligation("selected_good_event_coverage_of_finite_union_budget")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(
+            obligation.depends_on,
+            (
+                "selected_bad_event_probability_le_finite_union_budget",
+                "coverage_lower_bound_of_complement_error",
+                "finite_union_budget_control",
+            ),
+        )
+        self.assertIn("theorem selectedGoodEvent_coverage_of_finite_union_budget", content)
+        self.assertIn("hSelectedBad : MeasurableSet {ω | ω ∈ B (select ω)}", content)
+        self.assertIn("1 - α_total ≤ μ ({ω | ω ∈ B (select ω)}ᶜ)", content)
+        self.assertIn("measure_mono", content)
+        self.assertIn("prob_compl_eq_one_sub", content)
+        self.assertIn("tsub_le_tsub_left", content)
+        self.assertIn("selected_interval", obligation.tags)
+        self.assertIn("confidence_set", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_finite_null_family_no_false_rejection_bridge_uses_union_and_complement(self) -> None:
         obligation = get_obligation("finite_null_family_no_false_rejection_probability")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
@@ -1535,6 +1556,10 @@ class SystemTests(unittest.TestCase):
         }["post_detection_changepoint_confidence_set"]
         self.assertIn(
             "selected_bad_event_probability_le_finite_union_budget",
+            post_detection_goal.proof_obligations,
+        )
+        self.assertIn(
+            "selected_good_event_coverage_of_finite_union_budget",
             post_detection_goal.proof_obligations,
         )
         simulations = ResearchSimulator(n_runs=25, seed=20260528).run(problem, procedures)

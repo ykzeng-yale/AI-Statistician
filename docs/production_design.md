@@ -899,6 +899,12 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   This supports selected intervals, model-confidence sets, adaptive
   active-learning choices, and post-detection changepoint traces while leaving
   selective CLTs and bootstrap validity as explicit formal gaps.
+- `selected_good_event_coverage_of_finite_union_budget`: the coverage-form
+  companion to the selected bad-event bridge. Under the same finite-candidate
+  selector and Bonferroni-budget assumptions, plus measurability of the selected
+  bad event, it proves the selected-good event has probability at least
+  `1-α_total`. This is the verified finite-sample ingredient for selected
+  interval coverage before any selective asymptotic theory is claimed.
 - `finite_horizon_evalue_markov_type1_control`: a finite-horizon e-value
   exceedance bridge:
   measurable ENNReal coordinates `E_i` with Markov tail budgets
@@ -1235,11 +1241,11 @@ python3 -m ai_statistician.cli proof-audit \
 Current full-bank local Lean evidence (2026-05-30):
 
 ```text
-verified=59/59
-kernel=59/59
+verified=60/60
+kernel=60/60
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=27e26413be6798464aac5b7587f5523efdd0c3b5310c598212fe9561e1f6f779
+proof_bank_fingerprint=419242564c344d0304e12d21d90cc1bcb12fe8e01deca14421166fc6c8c291ca
 ```
 
 Run `doctor` in the same Python runtime first. It reports

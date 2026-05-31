@@ -1722,6 +1722,83 @@ theorem selectedBadEvent_probability_le_finite_union_budget {Ω ι : Type*}
         ),
         depends_on=("finite_union_bound", "finite_union_budget_control", "event_probability_mono"),
     ),
+    "selected_good_event_coverage_of_finite_union_budget": FormalObligation(
+        id="selected_good_event_coverage_of_finite_union_budget",
+        title="Selected good-event coverage from a finite union budget",
+        english=(
+            "If a data-dependent selector always chooses from a finite "
+            "candidate set, each candidate bad event has a local error budget, "
+            "and the budgets sum to a total budget, then the complement of the "
+            "selected bad event has probability at least one minus the total "
+            "budget. This is the coverage-form companion to the selected bad-"
+            "event bridge for post-selection and selected-interval traces."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+theorem selectedGoodEvent_coverage_of_finite_union_budget {Ω ι : Type*}
+    [MeasurableSpace Ω]
+    (μ : Measure Ω) [IsProbabilityMeasure μ]
+    (I : Finset ι) (select : Ω → ι) (B : ι → Set Ω)
+    (α : ι → ENNReal) (α_total : ENNReal)
+    (hSelectedBad : MeasurableSet {ω | ω ∈ B (select ω)})
+    (hselect : ∀ ω, select ω ∈ I)
+    (hB : ∀ i ∈ I, μ (B i) ≤ α i)
+    (h_total : (∑ i ∈ I, α i) ≤ α_total) :
+    1 - α_total ≤ μ ({ω | ω ∈ B (select ω)}ᶜ) := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  have hbad : μ {ω | ω ∈ B (select ω)} ≤ α_total := by\n"
+            "    calc\n"
+            "      μ {ω | ω ∈ B (select ω)} ≤ μ (⋃ i ∈ I, B i) := by\n"
+            "        apply measure_mono\n"
+            "        intro ω hbadω\n"
+            "        exact Set.mem_iUnion.mpr ⟨select ω, Set.mem_iUnion.mpr ⟨hselect ω, hbadω⟩⟩\n"
+            "      _ ≤ ∑ i ∈ I, μ (B i) := by\n"
+            "        exact measure_biUnion_finset_le (μ := μ) I B\n"
+            "      _ ≤ ∑ i ∈ I, α i := by\n"
+            "        exact Finset.sum_le_sum (fun i hi => hB i hi)\n"
+            "      _ ≤ α_total := h_total\n"
+            "  have hcoverage : μ ({ω | ω ∈ B (select ω)}ᶜ) =\n"
+            "      1 - μ {ω | ω ∈ B (select ω)} := by\n"
+            "    exact prob_compl_eq_one_sub hSelectedBad\n"
+            "  rw [hcoverage]\n"
+            "  exact tsub_le_tsub_left hbad 1"
+        ),
+        tags=(
+            "probability",
+            "event",
+            "coverage",
+            "union_bound",
+            "bonferroni",
+            "finite_sample",
+            "selection",
+            "post_selection",
+            "adaptive_selection",
+            "model_selection",
+            "selected_interval",
+            "confidence_set",
+            "conformal",
+            "multiple_testing",
+        ),
+        expected_lemmas=(
+            "measure_mono",
+            "Set.mem_iUnion",
+            "measure_biUnion_finset_le",
+            "Finset.sum_le_sum",
+            "prob_compl_eq_one_sub",
+            "tsub_le_tsub_left",
+        ),
+        depends_on=(
+            "selected_bad_event_probability_le_finite_union_budget",
+            "coverage_lower_bound_of_complement_error",
+            "finite_union_budget_control",
+        ),
+    ),
     "finite_null_family_no_false_rejection_probability": FormalObligation(
         id="finite_null_family_no_false_rejection_probability",
         title="Finite null-family no-false-rejection probability",

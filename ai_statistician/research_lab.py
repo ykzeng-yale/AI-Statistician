@@ -4064,6 +4064,7 @@ class TheoryPlanner:
                         "event_probability_mono",
                         "finite_union_bound",
                         "selected_bad_event_probability_le_finite_union_budget",
+                        "selected_good_event_coverage_of_finite_union_budget",
                     ),
                 ),
                 TheoremGoal(
@@ -4948,6 +4949,7 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "finite_union_budget_control",
         "coverage_lower_bound_of_complement_error",
         "selected_bad_event_probability_le_finite_union_budget",
+        "selected_good_event_coverage_of_finite_union_budget",
         "simultaneous_coverage_of_union_error_bound",
         "markov_inequality",
     ),
