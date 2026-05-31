@@ -13,15 +13,15 @@ python3 -m ai_statistician.cli proof-audit \
 Result:
 
 ```text
-verified=79/79
-kernel=79/79
+verified=80/80
+kernel=80/80
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=eb3c4f62ac8372a7fe228cdfcde73ee65d361a6daa4596ec8de5e664485eabba
+proof_bank_fingerprint=b2e893afd1e5640f90089c25971f0d9f7fa45130a54ed24b872f26e4e4301ee9
 ```
 
 This is the current evidence that the registered proof bank is not only
-mock-checked: all 79 registered Mathlib-backed obligations were accepted by a
+mock-checked: all 80 registered Mathlib-backed obligations were accepted by a
 real Lean kernel check through the local Lake/Mathlib runtime. AXLE remains the
 preferred remote verifier for release bundles when its Python package and API
 runtime are available; the local Lean backend is the offline kernel-equivalent
@@ -120,20 +120,28 @@ not a proof of optional stopping or full Ville inequality.
 
 The 45th obligation is `aipw_score_expectation_target_of_aug_cancel`, proving
 that an AIPW-style score has expectation `psi` when its contrast has expectation
-`psi` and treated/control augmentation expectations cancel. It raises
-`proof_bank_expansion_bridge_ready` from 8 to 10: `conditional_mean_residual_zero`
-and `nuisance_correctness_cases` now rank this theorem as their next verified
-bridge. This remains finite expectation algebra, not a proof of conditional
-expectation residual identities or full double robustness.
+`psi` and treated/control augmentation expectations cancel.
+`nuisance_correctness_cases` ranks this theorem as a verified algebraic bridge,
+while `conditional_mean_residual_zero` is now served by the direct centered
+residual theorem below. This remains finite expectation algebra, not a proof of
+conditional expectation residual identities or full double robustness.
 
-The 46th obligation is `aipw_score_integrable_of_components`, proving that an
+The 46th obligation is `conditional_mean_residual_zero_of_mean_eq`, proving the
+direct centered-residual fact `E[Y - m] = 0` when `E[Y] = m`. It is now the
+first-ranked bridge for `conditional_mean_residual_zero` and
+`exogeneity_moment_condition`. This proves the finite expectation step used
+after a conditional-expectation argument has reduced the problem to an ordinary
+mean equality; it still does not prove conditional expectation residual
+identities themselves.
+
+The 47th obligation is `aipw_score_integrable_of_components`, proving that an
 AIPW-style score is integrable when its contrast and augmentation components
 are integrable. It raises `proof_bank_expansion_bridge_ready` from 10 to 11:
 `integrability_of_score_terms` now ranks this theorem as its verified bridge.
 This remains an integrability side-condition theorem, not a nuisance-rate or
 asymptotic-normality proof.
 
-The 47th obligation is `filtration_mono_measurable_set`, proving that if an
+The 48th obligation is `filtration_mono_measurable_set`, proving that if an
 event is measurable with respect to an earlier sigma-algebra in a filtration,
 then it remains measurable at any later index. It is a direct wrapper around
 Mathlib's `Filtration.mono`. The formalization-target audit now ranks it as the
@@ -143,7 +151,7 @@ candidate for `stopping_time` and `ville_inequality`; this raises
 filtration measurability theorem, not a proof of optional stopping or full
 Ville inequality.
 
-The 48th obligation is `stopping_time_le_event_measurable`, proving the
+The 49th obligation is `stopping_time_le_event_measurable`, proving the
 defining stopping-time event measurability theorem
 `IsStoppingTime ℱ τ -> MeasurableSet[ℱ i] {ω | τ ω ≤ i}` from Mathlib's
 `IsStoppingTime.measurableSet_le`. It is now wired into the
@@ -152,7 +160,7 @@ as a real stopping-time bridge. This remains a measurability primitive, not a
 proof of optional-stopping validity, nonnegative-supermartingale maximal
 inequalities, or full Ville inequality.
 
-The 49th obligation is `submartingale_expected_stopped_value_mono`, a direct
+The 50th obligation is `submartingale_expected_stopped_value_mono`, a direct
 wrapper around Mathlib's `Submartingale.expected_stoppedValue_mono`. It proves
 the forward optional-stopping expectation monotonicity theorem for bounded
 stopping times of a submartingale:
@@ -165,7 +173,7 @@ with the StatInference theorem family around
 real optional-stopping theorem bridge; it still does not construct e-processes
 or prove Ville's inequality end to end.
 
-The 50th obligation is `submartingale_stopped_process`, a direct wrapper around
+The 51st obligation is `submartingale_stopped_process`, a direct wrapper around
 Mathlib's `Submartingale.stoppedProcess`. It proves that stopping a real-valued
 submartingale at a stopping time preserves the submartingale property. The
 formalization-target audit now includes it among ranked bridge candidates for

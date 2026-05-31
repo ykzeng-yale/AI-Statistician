@@ -2121,6 +2121,51 @@ theorem aipwScore_expectation_eq_target_of_aug_cancel {Ω : Type*} [MeasurableSp
         expected_lemmas=("integral_add", "integral_sub", "ring"),
         depends_on=("aipw_score_expectation_decompose",),
     ),
+    "conditional_mean_residual_zero_of_mean_eq": FormalObligation(
+        id="conditional_mean_residual_zero_of_mean_eq",
+        title="Residual mean is zero when centered at its expectation",
+        english=(
+            "If a real-valued outcome has finite mean m, then the centered "
+            "residual Y - m has mean zero. This is the direct finite "
+            "expectation bridge used after a conditional-expectation or "
+            "nuisance-correctness argument has reduced an AIPW residual term "
+            "to an ordinary mean-equality premise; it does not prove the "
+            "conditional-expectation identity itself."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+theorem conditionalMeanResidual_zero_of_mean_eq {Ω : Type*} [MeasurableSpace Ω]
+    (μ : Measure Ω) [IsProbabilityMeasure μ]
+    (Y : Ω → ℝ) (m : ℝ)
+    (hY : Integrable Y μ)
+    (hMean : ∫ ω, Y ω ∂μ = m) :
+    ∫ ω, (Y ω - m) ∂μ = 0 := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  rw [integral_sub hY (integrable_const m)]\n"
+            "  simp [hMean]"
+        ),
+        tags=(
+            "estimator",
+            "expectation",
+            "linearity",
+            "residual",
+            "zero_residual",
+            "aipw",
+            "causal",
+            "semiparametric",
+            "double_robustness",
+            "conditional_mean_residual_zero",
+            "exogeneity_moment_condition",
+            "nuisance_correctness_cases",
+        ),
+        expected_lemmas=("integral_sub", "integrable_const", "integral_const", "measure_univ"),
+    ),
     "aipw_score_expectation_target_of_zero_aug": FormalObligation(
         id="aipw_score_expectation_target_of_zero_aug",
         title="AIPW score expectation equals target when augmentation terms have mean zero",
@@ -2184,7 +2229,11 @@ theorem aipwScore_expectation_eq_target_of_zero_aug {Ω : Type*} [MeasurableSpac
             "augmentation_cancel",
         ),
         expected_lemmas=("integral_add", "integral_sub", "ring"),
-        depends_on=("aipw_score_expectation_decompose", "aipw_score_expectation_target_of_aug_cancel"),
+        depends_on=(
+            "aipw_score_expectation_decompose",
+            "aipw_score_expectation_target_of_aug_cancel",
+            "conditional_mean_residual_zero_of_mean_eq",
+        ),
     ),
     "aipw_score_integrable_of_components": FormalObligation(
         id="aipw_score_integrable_of_components",

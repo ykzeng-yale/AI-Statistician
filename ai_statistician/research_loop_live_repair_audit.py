@@ -219,7 +219,8 @@ def _row_for_artifact(artifact_row: dict[str, Any]) -> ResearchLoopLiveRepairRow
     if not required_gate:
         errors.append("repair_contract.required_gate missing")
     for field in required_fields:
-        if field not in repair_artifact or repair_artifact.get(field) in (None, "", [], {}):
+        missing_values = (None, "", {}) if field == "proof_dependencies" else (None, "", [], {})
+        if field not in repair_artifact or repair_artifact.get(field) in missing_values:
             errors.append(f"repair_artifact missing required field: {field}")
     if rerun_requested and not repair_contract_ok:
         errors.append("rerun_requested=true is forbidden when repair_contract_ok=false")

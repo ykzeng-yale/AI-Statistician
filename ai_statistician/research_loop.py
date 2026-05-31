@@ -706,7 +706,8 @@ def _validate_live_repair_output(raw: dict[str, Any], task_type: str) -> list[st
     contract = _output_contract(task_type)
     required_fields = [str(row) for row in contract.get("required_fields", []) if str(row)]
     for field in required_fields:
-        if field not in artifact or artifact.get(field) in (None, "", [], {}):
+        missing_values = (None, "", {}) if field == "proof_dependencies" else (None, "", [], {})
+        if field not in artifact or artifact.get(field) in missing_values:
             errors.append(f"repair_artifact missing required field: {field}")
     if raw.get("rerun_requested") and errors:
         errors.append("rerun_requested=true is forbidden until the repair contract is satisfied")

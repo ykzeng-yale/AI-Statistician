@@ -173,7 +173,7 @@ python3 -m ai_statistician.cli research-system-audit \
 Result:
 
 ```text
-proof_bank_kernel=79/79
+proof_bank_kernel=80/80
 proof_verifier=local.lake_env_lean
 proof_strength=local_lean_kernel_batch
 system_all_gates_passed=True
@@ -196,7 +196,7 @@ autoform_harness_audit: ready_for_integration=True
 source_inventory: 23/23 all_ok=True
 ```
 
-The same audit now reports `proof_bank_expansion_bridge_ready=12`.
+The same audit now reports `proof_bank_expansion_bridge_ready=48/97`.
 `independent_null_pvalues` is backed by the verified
 `independent_null_event_family_inter_probability` and
 `independent_null_event_family_compl_inter_probability` obligations. The
@@ -204,9 +204,11 @@ sequential primitives `eprocess_type1_control`, `nonnegative_supermartingale`,
 and `ville_inequality` now rank `finite_horizon_evalue_markov_type1_control`
 as their verified finite-horizon Markov/union bridge while preserving optional
 stopping and full Ville as formal gaps. The AIPW primitives
-`conditional_mean_residual_zero` and `nuisance_correctness_cases` now rank
-`aipw_score_expectation_target_of_aug_cancel` as their verified algebraic bridge
-while preserving conditional-expectation residual identities and full double
+`conditional_mean_residual_zero` and `exogeneity_moment_condition` now rank
+`conditional_mean_residual_zero_of_mean_eq` as their direct centered-residual
+bridge, while `nuisance_correctness_cases` still ranks
+`aipw_score_expectation_target_of_aug_cancel` as its verified algebraic bridge.
+These preserve conditional-expectation residual identities and full double
 robustness as formal gaps. `integrability_of_score_terms` now ranks
 `aipw_score_integrable_of_components` as its verified integrability bridge.
 The causal/AIPW queue also ranks `propensity_weight_identity` against the new
