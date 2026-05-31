@@ -1491,6 +1491,37 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("asymptotic_normality", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_continuous_mapping_bridge_uses_mathlib_tendsto_in_distribution(self) -> None:
+        obligation = get_obligation("tendsto_in_distribution_continuous_mapping")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("iid_real_clt_tendsto_distribution",))
+        self.assertIn("theorem tendstoInDistribution_continuousMapping_bridge", content)
+        self.assertIn("TendstoInDistribution X l Z μ μ'", content)
+        self.assertIn("Continuous g", content)
+        self.assertIn("TendstoInDistribution (fun i => g ∘ X i)", content)
+        self.assertIn("h.continuous_comp hg", content)
+        self.assertIn("continuous_mapping", obligation.tags)
+        self.assertIn("delta_method", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
+    def test_slutsky_add_negligible_zero_bridge_uses_mathlib_tendsto_in_measure(self) -> None:
+        obligation = get_obligation("slutsky_add_negligible_zero_real")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(
+            obligation.depends_on,
+            (
+                "iid_real_clt_tendsto_distribution",
+                "tendsto_in_distribution_continuous_mapping",
+            ),
+        )
+        self.assertIn("theorem real_slutsky_add_negligible_zero", content)
+        self.assertIn("TendstoInMeasure sampleLaw remainder l", content)
+        self.assertIn("hmain.add_of_tendstoInMeasure_const", content)
+        self.assertIn("(c := (0 : ℝ))", content)
+        self.assertIn("slutsky", obligation.tags)
+        self.assertIn("negligible_remainder", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_noised_estimator_obligations_bridge_private_mean_error(self) -> None:
         unbiased = get_obligation("noised_estimator_unbiased")
         variance = get_obligation("noised_estimator_variance_indep")
@@ -2559,6 +2590,10 @@ class SystemTests(unittest.TestCase):
             "iid_real_clt_tendsto_distribution",
             causal_goals["aipw_asymptotic_normality"]["proof_obligations"],
         )
+        self.assertIn(
+            "slutsky_add_negligible_zero_real",
+            causal_goals["aipw_asymptotic_normality"]["proof_obligations"],
+        )
         self.assertIn("research_knowledge_fingerprint", trace_payload["provenance"])
         self.assertIn("paper_source_index_fingerprint", trace_payload["provenance"])
         self.assertIn("research_source_inventory_fingerprint", trace_payload["provenance"])
@@ -2675,6 +2710,14 @@ class SystemTests(unittest.TestCase):
         )
         self.assertIn(
             "iid_real_clt_tendsto_distribution",
+            hetero_goals["hc1_asymptotic_normality"]["proof_obligations"],
+        )
+        self.assertIn(
+            "tendsto_in_distribution_continuous_mapping",
+            hetero_goals["hc1_asymptotic_normality"]["proof_obligations"],
+        )
+        self.assertIn(
+            "slutsky_add_negligible_zero_real",
             hetero_goals["hc1_asymptotic_normality"]["proof_obligations"],
         )
         self.assertIn(
@@ -3703,6 +3746,9 @@ class SystemTests(unittest.TestCase):
             "iid_empirical_mean_clt",
             "exogeneity_moment_condition",
             "conditional_expectation",
+            "slutsky_theorem",
+            "matrix_inverse_continuous_mapping",
+            "tail_quantile_continuous_mapping",
         )
         gap_path.write_text("FORMAL_GAP " + " ".join(primitives), encoding="utf-8")
         (run_dir / "research_benchmark_manifest.json").write_text(
@@ -3753,7 +3799,12 @@ class SystemTests(unittest.TestCase):
 
         payload = audit_formalization_targets(run_dir, out_dir)
         rows = {row["primitive"]: row for row in payload["rows"]}
-        for primitive in primitives:
+        for primitive in (
+            "sample_moment_lln",
+            "iid_empirical_mean_clt",
+            "exogeneity_moment_condition",
+            "conditional_expectation",
+        ):
             self.assertIn(
                 "independent_real_condExp_natural_eq_mean",
                 rows[primitive]["bridge_candidate_obligations"],
@@ -3762,6 +3813,15 @@ class SystemTests(unittest.TestCase):
         for primitive in ("sample_moment_lln", "iid_empirical_mean_clt"):
             self.assertIn(
                 "iid_real_clt_tendsto_distribution",
+                rows[primitive]["bridge_candidate_obligations"],
+            )
+        self.assertIn(
+            "slutsky_add_negligible_zero_real",
+            rows["slutsky_theorem"]["bridge_candidate_obligations"],
+        )
+        for primitive in ("matrix_inverse_continuous_mapping", "tail_quantile_continuous_mapping"):
+            self.assertIn(
+                "tendsto_in_distribution_continuous_mapping",
                 rows[primitive]["bridge_candidate_obligations"],
             )
 

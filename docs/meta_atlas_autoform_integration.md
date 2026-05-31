@@ -173,17 +173,17 @@ python3 -m ai_statistician.cli research-system-audit \
 Result:
 
 ```text
-proof_bank_kernel=77/77
+proof_bank_kernel=79/79
 proof_verifier=local.lake_env_lean
 proof_strength=local_lean_kernel_batch
 system_all_gates_passed=True
-system_elapsed_latest=141.2s
+system_elapsed_latest=128.5s
 sources=23/23
 frontier_supported=60/60
 frontier_smoke=23/23
 formalized_gaps=20/20
-proof_bank_expansion_bridge_ready=44/97
-formalization_targets_with_proof_bank_bridge=66
+proof_bank_expansion_bridge_ready=48/97
+formalization_targets_with_proof_bank_bridge=68
 missing_primitives=97
 ```
 
@@ -252,16 +252,26 @@ The independent-real-sequence queue now has
 Mathlib's `iIndepFun.condExp_natural_ae_eq_of_lt`. This moves
 `sample_moment_lln`, `iid_empirical_mean_clt`, `exogeneity_moment_condition`,
 and broad `conditional_expectation` targets from source-only grounding toward a
-verified bridge. The bridge-ready count is now `44/97`; this is still a
-starting theorem, not a proof of LLN, CLT, Slutsky, or asymptotic normality.
+verified bridge. That earlier step moved the bridge-ready count to `44/97`;
+this is still a
+starting theorem, not a proof of LLN or asymptotic normality.
 The same lane now has `iid_real_clt_tendsto_distribution`, a kernel-checked
 wrapper around Mathlib's one-dimensional iid real CLT. This is the first proof
 bank obligation that is itself a full asymptotic distributional limit theorem.
-It raises `proof_bank_expansion_bridge_ready` to `44/97` by giving
+It gives
 `iid_empirical_mean_clt`, `multivariate_score_clt`, `wald_interval_slutsky`,
 and `influence_function_variance` a verified CLT bridge, while preserving
-multivariate CLT, Slutsky, sandwich covariance consistency, and
+multivariate CLT, sandwich covariance consistency, and
 estimator-specific asymptotic normality as formal gaps.
+The same asymptotic lane now also includes
+`tendsto_in_distribution_continuous_mapping`, a wrapper around Mathlib's
+continuous mapping theorem, and `slutsky_add_negligible_zero_real`, a wrapper
+around Mathlib's real-valued Slutsky/add-negligible-remainder theorem. Together
+they raise `proof_bank_expansion_bridge_ready` to `48/97` and
+`formalization_targets_with_proof_bank_bridge` to `68`, giving Autoform targets
+for `slutsky_theorem`, `matrix_inverse_continuous_mapping`,
+`tail_quantile_continuous_mapping`, `product_limit_delta_method`, and
+`wald_interval_slutsky` a kernel-checked asymptotic transport bridge.
 The supermartingale bridge `supermartingale_expected_stopped_value_antimono`
 adds the reversed bounded optional-stopping expectation budget for
 supermartingales. This gives Autoform targets a direct e-process/Ville

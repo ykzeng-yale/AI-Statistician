@@ -1693,6 +1693,124 @@ theorem iidReal_tendstoInDistribution_inv_sqrt_sum_sub {Ω Ω' : Type*}
             "variance_nonneg",
         ),
     ),
+    "tendsto_in_distribution_continuous_mapping": FormalObligation(
+        id="tendsto_in_distribution_continuous_mapping",
+        title="Continuous mapping theorem for convergence in distribution",
+        english=(
+            "If random variables X_i converge in distribution to Z and g is "
+            "continuous, then g ∘ X_i converges in distribution to g ∘ Z. "
+            "This is the reusable Mathlib bridge behind delta-method, "
+            "Wald-transform, matrix inverse, rank-functional, and tail-quantile "
+            "continuous-mapping theorem skeletons. It does not prove Frechet "
+            "differentiability, estimator consistency, or problem-specific "
+            "linearization remainders."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory Filter
+open scoped Topology
+
+theorem tendstoInDistribution_continuousMapping_bridge
+    {ι : Type*} {E F : Type*} {Ω : ι → Type*} {Ω' : Type*}
+    {mΩ : (i : ι) → MeasurableSpace (Ω i)}
+    {μ : (i : ι) → @Measure (Ω i) (mΩ i)}
+    [∀ i, IsProbabilityMeasure (μ i)]
+    {mΩ' : MeasurableSpace Ω'} {μ' : @Measure Ω' mΩ'}
+    [IsProbabilityMeasure μ']
+    [TopologicalSpace E] [MeasurableSpace E] [OpensMeasurableSpace E]
+    [TopologicalSpace F] [MeasurableSpace F] [BorelSpace F]
+    {X : (i : ι) → Ω i → E} {Z : Ω' → E} {l : Filter ι} {g : E → F}
+    (h : TendstoInDistribution X l Z μ μ') (hg : Continuous g) :
+    TendstoInDistribution (fun i => g ∘ X i) l (g ∘ Z) μ μ' := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  exact h.continuous_comp hg"
+        ),
+        tags=(
+            "probability",
+            "continuous_mapping",
+            "convergence_in_distribution",
+            "delta_method",
+            "asymptotic_normality",
+            "wald_interval_slutsky",
+            "matrix_inverse_continuous_mapping",
+            "tail_quantile_continuous_mapping",
+            "rank_uncertainty_functional_delta_method",
+            "graph_functional_delta_method",
+            "product_limit_delta_method",
+        ),
+        expected_lemmas=("TendstoInDistribution.continuous_comp",),
+        depends_on=("iid_real_clt_tendsto_distribution",),
+    ),
+    "slutsky_add_negligible_zero_real": FormalObligation(
+        id="slutsky_add_negligible_zero_real",
+        title="Real Slutsky addition bridge for a negligible remainder",
+        english=(
+            "If a real-valued main statistic converges in distribution and an "
+            "additive real-valued remainder converges to zero in probability, "
+            "then their sum has the same distributional limit. This is the "
+            "reusable Mathlib Slutsky bridge behind asymptotic linearity, "
+            "Wald intervals, semiparametric influence-function expansions, "
+            "and regression sandwich skeletons. It still assumes the negligible "
+            "remainder as a `TendstoInMeasure` input rather than proving a "
+            "specific empirical-process remainder bound."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory Filter
+open scoped Topology
+
+theorem real_slutsky_add_negligible_zero
+    {ι Sample LimitSample : Type*}
+    [MeasurableSpace Sample] [MeasurableSpace LimitSample]
+    {sampleLaw : Measure Sample} {limitLaw : Measure LimitSample}
+    [IsProbabilityMeasure sampleLaw] [IsProbabilityMeasure limitLaw]
+    {l : Filter ι} [l.IsCountablyGenerated]
+    (main remainder : ι → Sample → ℝ)
+    (limit : LimitSample → ℝ)
+    (hmain :
+      TendstoInDistribution main l limit (fun _ => sampleLaw) limitLaw)
+    (hremainder :
+      TendstoInMeasure sampleLaw remainder l (fun _ => (0 : ℝ)))
+    (hremainder_meas :
+      ∀ index, AEMeasurable (remainder index) sampleLaw) :
+    TendstoInDistribution
+      (fun index sample => main index sample + remainder index sample)
+      l limit (fun _ => sampleLaw) limitLaw := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  simpa using\n"
+            "    hmain.add_of_tendstoInMeasure_const\n"
+            "      (Y := remainder)\n"
+            "      (c := (0 : ℝ))\n"
+            "      hremainder hremainder_meas"
+        ),
+        tags=(
+            "probability",
+            "slutsky",
+            "convergence_in_distribution",
+            "convergence_in_probability",
+            "negligible_remainder",
+            "asymptotic_linearity",
+            "asymptotic_normality",
+            "wald_interval_slutsky",
+            "semiparametric_causal_ate",
+            "heteroskedastic_regression",
+            "influence_function_variance",
+            "empirical_process_remainder_bound",
+        ),
+        expected_lemmas=("TendstoInDistribution.add_of_tendstoInMeasure_const",),
+        depends_on=(
+            "iid_real_clt_tendsto_distribution",
+            "tendsto_in_distribution_continuous_mapping",
+        ),
+    ),
     "finite_event_indicator_mean_unbiased": FormalObligation(
         id="finite_event_indicator_mean_unbiased",
         title="Finite-sample event-indicator mean is unbiased",

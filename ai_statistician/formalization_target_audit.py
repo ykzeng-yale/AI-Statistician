@@ -406,16 +406,48 @@ _PRIMITIVE_PROOF_BRIDGE_HINTS: dict[str, tuple[str, ...]] = {
     ),
     "multivariate_score_clt": (
         "iid_real_clt_tendsto_distribution",
+        "tendsto_in_distribution_continuous_mapping",
+        "slutsky_add_negligible_zero_real",
         "independent_real_condExp_natural_eq_mean",
         "variance_nonneg",
     ),
     "wald_interval_slutsky": (
+        "slutsky_add_negligible_zero_real",
+        "tendsto_in_distribution_continuous_mapping",
         "iid_real_clt_tendsto_distribution",
         "wald_interval_contains_iff_abs_error",
         "wald_interval_miscoverage_iff_abs_error_gt",
     ),
+    "slutsky_theorem": (
+        "slutsky_add_negligible_zero_real",
+        "tendsto_in_distribution_continuous_mapping",
+        "iid_real_clt_tendsto_distribution",
+    ),
+    "empirical_process_remainder_bound": (
+        "slutsky_add_negligible_zero_real",
+        "iid_real_clt_tendsto_distribution",
+    ),
+    "matrix_inverse_continuous_mapping": (
+        "tendsto_in_distribution_continuous_mapping",
+    ),
+    "tail_quantile_continuous_mapping": (
+        "tendsto_in_distribution_continuous_mapping",
+    ),
+    "graph_functional_delta_method": (
+        "tendsto_in_distribution_continuous_mapping",
+        "slutsky_add_negligible_zero_real",
+    ),
+    "rank_uncertainty_functional_delta_method": (
+        "tendsto_in_distribution_continuous_mapping",
+        "slutsky_add_negligible_zero_real",
+    ),
+    "product_limit_delta_method": (
+        "tendsto_in_distribution_continuous_mapping",
+        "slutsky_add_negligible_zero_real",
+    ),
     "influence_function_variance": (
         "iid_real_clt_tendsto_distribution",
+        "slutsky_add_negligible_zero_real",
         "difference_estimator_variance_decompose",
         "variance_nonneg",
     ),

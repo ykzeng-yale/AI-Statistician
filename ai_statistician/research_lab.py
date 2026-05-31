@@ -2261,6 +2261,7 @@ class TheoryPlanner:
                         "variance_nonneg",
                         "independent_real_condExp_natural_eq_mean",
                         "iid_real_clt_tendsto_distribution",
+                        "slutsky_add_negligible_zero_real",
                     ),
                 ),
             ]
@@ -3853,6 +3854,8 @@ class TheoryPlanner:
                         "wald_interval_miscoverage_iff_abs_error_gt",
                         "coverage_lower_bound_of_complement_error",
                         "iid_real_clt_tendsto_distribution",
+                        "tendsto_in_distribution_continuous_mapping",
+                        "slutsky_add_negligible_zero_real",
                     ),
                 ),
             ]
@@ -4740,6 +4743,7 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "variance_nonneg",
         "independent_real_condExp_natural_eq_mean",
         "iid_real_clt_tendsto_distribution",
+        "slutsky_add_negligible_zero_real",
     ),
     "distribution_free_conformal_prediction": (
         "prob_measure_univ",
@@ -4932,6 +4936,8 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "wald_interval_miscoverage_iff_abs_error_gt",
         "coverage_lower_bound_of_complement_error",
         "iid_real_clt_tendsto_distribution",
+        "tendsto_in_distribution_continuous_mapping",
+        "slutsky_add_negligible_zero_real",
         "mean2_estimator_chebyshev_indep",
         "variance_nonneg",
     ),

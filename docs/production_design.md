@@ -1106,7 +1106,7 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   `sample_moment_lln`, `iid_empirical_mean_clt`,
   `exogeneity_moment_condition`, `conditional_expectation`, and
   `martingale_definition` to a kernel-checked independence/filtration theorem,
-  while still leaving LLN, CLT, Slutsky, and full asymptotic-normality proofs as
+  while still leaving LLN and full asymptotic-normality proofs as
   formal gaps.
 - `iid_real_clt_tendsto_distribution`: the first registered full asymptotic
   limit theorem bridge in the proof bank. It wraps Mathlib's one-dimensional
@@ -1115,9 +1115,20 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   distribution of the centered sqrt(n)-scaled partial sum to a Gaussian law.
   This gives `iid_empirical_mean_clt`, `multivariate_score_clt`,
   `wald_interval_slutsky`, and `influence_function_variance` a kernel-checked
-  CLT starting point while still leaving multivariate score CLTs, Slutsky,
-  sandwich variance consistency, and estimator-specific asymptotic normality as
+  CLT starting point while still leaving multivariate score CLTs, sandwich
+  variance consistency, and estimator-specific asymptotic normality as
   formal gaps.
+- `tendsto_in_distribution_continuous_mapping`: the Mathlib continuous mapping
+  theorem for convergence in distribution. It wraps
+  `TendstoInDistribution.continuous_comp`, giving delta-method-style and
+  transform-theorem skeletons a kernel-checked transport step while leaving
+  differentiability and model-specific linearization as formal gaps.
+- `slutsky_add_negligible_zero_real`: the real-valued Slutsky addition bridge.
+  It wraps `TendstoInDistribution.add_of_tendstoInMeasure_const`, proving that
+  adding a real remainder converging to zero in probability preserves the
+  distributional limit. It is now linked to Wald, influence-function, AIPW, and
+  heteroskedastic-regression theorem plans, but it still assumes the negligible
+  remainder premise rather than proving an empirical-process bound.
 - `aipw_score_expectation_decompose`: expectation of an AIPW-style contrast plus
   augmentation score decomposes by linearity.
 - `aipw_score_expectation_target_of_aug_cancel`: if the contrast term has
@@ -1358,11 +1369,11 @@ python3 -m ai_statistician.cli proof-audit \
 Current full-bank local Lean evidence (2026-05-31):
 
 ```text
-verified=77/77
-kernel=77/77
+verified=79/79
+kernel=79/79
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=b47d65964a04505650dfa0d4241ae7da59ca22a12f67d14eb8dcf060ab0c2c9f
+proof_bank_fingerprint=eb3c4f62ac8372a7fe228cdfcde73ee65d361a6daa4596ec8de5e664485eabba
 ```
 
 Run `doctor` in the same Python runtime first. It reports
