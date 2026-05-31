@@ -159,6 +159,31 @@ class FormalSourceSqliteIndex:
         index.write(declarations)
         return index
 
+    def is_healthy(self) -> bool:
+        """Return whether this database has both row storage and FTS tables."""
+
+        if not self.db_path.exists():
+            return False
+        try:
+            with closing(sqlite3.connect(self.db_path)) as conn:
+                tables = {
+                    row[0]
+                    for row in conn.execute(
+                        """
+                        SELECT name
+                        FROM sqlite_master
+                        WHERE type IN ('table', 'virtual table')
+                        """
+                    ).fetchall()
+                }
+                if "declarations" not in tables or "declarations_fts" not in tables:
+                    return False
+                conn.execute("SELECT COUNT(*) FROM declarations").fetchone()
+                conn.execute("SELECT COUNT(*) FROM declarations_fts").fetchone()
+            return True
+        except sqlite3.DatabaseError:
+            return False
+
     def write(self, declarations: list[FormalDeclaration]) -> None:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         if self.db_path.exists():
@@ -399,6 +424,8 @@ def build_formal_source_search_backend(
                 if target_db.resolve() != cache_file.resolve():
                     shutil.copy2(cache_file, target_db)
                 sqlite_index = FormalSourceSqliteIndex(target_db)
+                if not sqlite_index.is_healthy():
+                    raise sqlite3.DatabaseError("formal-source SQLite cache is missing required tables")
                 declarations = sqlite_index.load_declarations()
                 if include_graph:
                     from .formal_source_hybrid import FormalSourceHybridRetriever

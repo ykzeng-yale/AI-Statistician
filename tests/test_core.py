@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import shutil
+import sqlite3
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -314,6 +315,20 @@ class ProofBankTests(unittest.TestCase):
         second_hits = second.search("cached variance lookup", k=3)
         self.assertTrue(second_hits)
         self.assertEqual(second_hits[0].declaration.name, "CacheDemo.cached_variance_lookup")
+
+        with sqlite3.connect(cache_path) as conn:
+            conn.execute("DROP TABLE declarations_fts")
+            conn.commit()
+
+        rebuilt = build_formal_source_search_backend(
+            db_path=Path("runs/test_formal_source_cache/rebuilt.sqlite"),
+            roots=(root,),
+            cache_path=cache_path,
+        )
+        self.assertEqual(getattr(rebuilt, "cache_status"), "miss")
+        rebuilt_hits = rebuilt.search("cached variance lookup", k=3)
+        self.assertTrue(rebuilt_hits)
+        self.assertEqual(rebuilt_hits[0].declaration.name, "CacheDemo.cached_variance_lookup")
 
     def test_meta_atlas_sources_are_indexed_for_retrieval_only(self) -> None:
         atlas_probability = ATLAS_LEAN_ROOT / "Atlas" / "TheoryOfProbability"
