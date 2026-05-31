@@ -166,9 +166,9 @@ python3 -m ai_statistician.cli proof-audit \
   --out runs/proof_audit_local_lean_current
 ```
 
-Current evidence: `70/70` registered proof-bank obligations pass
+Current evidence: `71/71` registered proof-bank obligations pass
 `local_lean_kernel_batch` with proof-bank fingerprint
-`fee2465c0f973c49743cc67e52f25fffb19c6aaf432c1dbea548047e54231694`.
+`16a274425b08407880ae924a9675fc22581f21cad8eff334a1030b5408f1fcf9`.
 
 Check `doctor` first. It reports `real_lean_ready` and concrete
 `real_lean_blockers`; an AXLE key alone is not enough if the active Python
@@ -289,6 +289,11 @@ outcome equals `Y(1)` on treated units and `Y(0)` on control units by
 definition. This upgrades the potential-outcome consistency primitive while
 still leaving conditional exchangeability, positivity, and ATE identification
 as formal gaps.
+It also includes `propensity_score_ne_zero_of_lower_bound`, a causal positivity
+bridge. A propensity score bounded below by a strictly positive constant is
+nonzero, so inverse-propensity denominators are safe under the stated lower
+bound. This upgrades the positivity primitive while still leaving overlap,
+conditional exchangeability, and identification as formal gaps.
 Another composed guarantee is `mean2_estimator_chebyshev_indep`, which derives
 an explicit Chebyshev error bound for the average of two independent unbiased L2
 estimators using both the expectation and variance proof ingredients. Composed

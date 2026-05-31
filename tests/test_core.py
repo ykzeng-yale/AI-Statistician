@@ -699,6 +699,20 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("binary_treatment", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_propensity_score_lower_bound_gives_nonzero_denominator(self) -> None:
+        obligation = get_obligation("propensity_score_ne_zero_of_lower_bound")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("potential_outcome_observed_consistency",))
+        self.assertIn("theorem propensityScore_ne_zero_of_lower_bound", content)
+        self.assertIn("(hδ : 0 < δ) (hp : δ ≤ p)", content)
+        self.assertIn("p ≠ 0", content)
+        self.assertIn("lt_of_lt_of_le hδ hp", content)
+        self.assertIn("ne_of_gt hp_pos", content)
+        self.assertIn("positivity", obligation.tags)
+        self.assertIn("propensity_score", obligation.tags)
+        self.assertIn("denominator_safety", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_complete_randomization_uniform_assignment_mass_uses_mathlib_pmf_uniform(self) -> None:
         obligation = get_obligation("complete_randomization_uniform_assignment_mass")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
@@ -3242,6 +3256,11 @@ class SystemTests(unittest.TestCase):
             rows["potential_outcome_consistency"]["bridge_candidate_obligations"],
         )
         self.assertEqual(rows["potential_outcome_consistency"]["priority_band"], "BRIDGE_REUSE_READY")
+        self.assertIn(
+            "propensity_score_ne_zero_of_lower_bound",
+            rows["positivity"]["bridge_candidate_obligations"],
+        )
+        self.assertEqual(rows["positivity"]["priority_band"], "BRIDGE_REUSE_READY")
 
     def test_formalization_target_audit_maps_design_based_primitives_to_verified_bridge(self) -> None:
         run_dir = Path("runs/test_formalization_target_design_based_run")

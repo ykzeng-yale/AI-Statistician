@@ -13,15 +13,15 @@ python3 -m ai_statistician.cli proof-audit \
 Result:
 
 ```text
-verified=70/70
-kernel=70/70
+verified=71/71
+kernel=71/71
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=fee2465c0f973c49743cc67e52f25fffb19c6aaf432c1dbea548047e54231694
+proof_bank_fingerprint=16a274425b08407880ae924a9675fc22581f21cad8eff334a1030b5408f1fcf9
 ```
 
 This is the current evidence that the registered proof bank is not only
-mock-checked: all 70 registered Mathlib-backed obligations were accepted by a
+mock-checked: all 71 registered Mathlib-backed obligations were accepted by a
 real Lean kernel check through the local Lake/Mathlib runtime. AXLE remains the
 preferred remote verifier for release bundles when its Python package and API
 runtime are available; the local Lean backend is the offline kernel-equivalent
@@ -258,6 +258,12 @@ treated units reveal `Y(1)` and control units reveal `Y(0)` by construction.
 This is a real verified bridge for the potential-outcome consistency primitive;
 it still does not prove conditional exchangeability, positivity, identification,
 or AIPW double robustness.
+
+The same causal block now includes `propensity_score_ne_zero_of_lower_bound`. It
+proves that a propensity score bounded below by a strictly positive constant is
+nonzero, providing the denominator-safety step needed by inverse-propensity and
+AIPW algebra. It still does not prove overlap as a model assumption,
+conditional exchangeability, identification, or double robustness.
 
 Important boundary:
 

@@ -322,6 +322,45 @@ theorem observedPotentialOutcome_consistency {Unit : Type*}
         expected_lemmas=("simp",),
         depends_on=("finite_population_ate_mean_difference",),
     ),
+    "propensity_score_ne_zero_of_lower_bound": FormalObligation(
+        id="propensity_score_ne_zero_of_lower_bound",
+        title="Propensity lower bound gives nonzero denominator",
+        english=(
+            "If a propensity score `p` is bounded below by a strictly positive "
+            "constant `δ`, then `p` is nonzero. This is a denominator-safety "
+            "bridge for inverse-propensity and AIPW traces under positivity; "
+            "it does not prove overlap, conditional exchangeability, or causal "
+            "identification."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+
+theorem propensityScore_ne_zero_of_lower_bound {δ p : ℝ}
+    (hδ : 0 < δ) (hp : δ ≤ p) :
+    p ≠ 0 := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  have hp_pos : 0 < p := lt_of_lt_of_le hδ hp\n"
+            "  exact ne_of_gt hp_pos"
+        ),
+        tags=(
+            "causal",
+            "ate",
+            "positivity",
+            "overlap",
+            "propensity",
+            "propensity_score",
+            "inverse_probability_weight",
+            "aipw",
+            "semiparametric",
+            "denominator_safety",
+        ),
+        expected_lemmas=("lt_of_lt_of_le", "ne_of_gt"),
+        depends_on=("potential_outcome_observed_consistency",),
+    ),
     "complete_randomization_uniform_assignment_mass": FormalObligation(
         id="complete_randomization_uniform_assignment_mass",
         title="Complete-randomization uniform assignment mass",
