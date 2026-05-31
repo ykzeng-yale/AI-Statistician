@@ -29,6 +29,7 @@ from .proof_bank import proof_bank_fingerprint
 from .proof_bank_expansion_export import export_proof_bank_expansion_candidates
 from .proof_policy_baseline import evaluate_retrieval_proof_policy_baseline
 from .proof_repair_export import export_proof_repair_dataset
+from .proof_search_audit import audit_proof_search_controller
 from .proof_training_export import export_proof_training_dataset
 from .prover_component_audit import build_prover_component_audit, write_prover_component_audit
 from .research_gap_audit import audit_research_gap_backlog
@@ -194,6 +195,12 @@ async def run_research_system_audit(
         Path(str(proof_training_manifest["validation_jsonl"])),
         out_dir / "proof_policy_baseline",
         k=5,
+    )
+    proof_search_manifest = await audit_proof_search_controller(
+        out_dir / "proof_search_audit",
+        verifier=verifier,
+        max_obligations=12,
+        max_nodes=8,
     )
     stage_start = _record_stage(stage_timings, "proof_training_repair_policy_exports", stage_start)
 
@@ -362,6 +369,7 @@ async def run_research_system_audit(
         "proof_policy_baseline": int(proof_policy_manifest["n_train"])
         + int(proof_policy_manifest["n_validation"])
         == int(proof_training_manifest["n_sft_examples"]),
+        "proof_search_audit": bool(proof_search_manifest["all_solved"]),
         "prover_component_audit": bool(prover_component_report["paper_outline_exists"])
         and int(prover_component_report["summary"]["components"]) > 0,
         "research_benchmark": benchmark_gate_ok,
@@ -554,6 +562,11 @@ async def run_research_system_audit(
             "proof_policy_baseline_top_k_exact": proof_policy_manifest["top_k_exact"],
             "proof_policy_baseline_validation": proof_policy_manifest["n_validation"],
             "proof_policy_baseline_context_hits": proof_policy_manifest["predicted_in_retrieved_context"],
+            "proof_search_obligations": proof_search_manifest["n_obligations"],
+            "proof_search_solved": proof_search_manifest["n_solved"],
+            "proof_search_kernel_verified": proof_search_manifest["n_kernel_verified"],
+            "proof_search_nodes_expanded": proof_search_manifest["nodes_expanded"],
+            "proof_search_mean_nodes_expanded": proof_search_manifest["mean_nodes_expanded"],
             "prover_components_total": prover_component_report["summary"]["components"],
             "prover_components_ready": prover_component_report["summary"]["ready"],
             "prover_components_partial": prover_component_report["summary"]["partial"],
@@ -721,6 +734,8 @@ async def run_research_system_audit(
             "proof_policy_baseline_predictions": str(
                 out_dir / "proof_policy_baseline" / "proof_policy_baseline_predictions.jsonl"
             ),
+            "proof_search_audit": str(out_dir / "proof_search_audit" / "proof_search_audit_manifest.json"),
+            "proof_search_results": str(out_dir / "proof_search_audit" / "proof_search_results.jsonl"),
             "prover_component_audit": str(
                 out_dir / "prover_component_audit" / "prover_component_audit_manifest.json"
             ),

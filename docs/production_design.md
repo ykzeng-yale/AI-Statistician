@@ -84,10 +84,10 @@ repair proposal, unless a stronger handler is registered.
 Current release-style local-kernel evidence for this bounded loop:
 `research-system-audit --local-lean --runs 100` passes all gates with `79/79`
 kernel-verified proof obligations, `6` kernel-verified live proof-bridge repair
-artifacts, and `6` resulting theory revisions. The status remains
-`FORMAL_GAPS_BRIDGED`, which is intentional: proof bridges are integrated into
-the theory roadmap while the remaining asymptotic/frontier primitives stay
-explicitly open.
+artifacts, `6` resulting theory revisions, and a `12/12` kernel-verified
+proof-search audit sample. The status remains `FORMAL_GAPS_BRIDGED`, which is
+intentional: proof bridges are integrated into the theory roadmap while the
+remaining asymptotic/frontier primitives stay explicitly open.
 
 `StatisticalQuestion` can come from the built-in registry or from JSON. External
 questions may name a supported `dgp_family` and `estimator_family` explicitly,
@@ -161,6 +161,21 @@ verification evidence is present for `axle_lean_kernel` claims. This closes a
 small but important architecture loop: live feedback no longer ends as a log; it
 becomes validated repair data for future ProofEngineer / TheoryDeveloper
 training.
+
+The first proof-search controller is deliberately bounded and whole-proof level:
+
+```bash
+python3 -m ai_statistician.cli proof-search-audit \
+  --max-obligations 12 \
+  --out runs/proof_search_audit
+```
+
+`BestFirstWholeProofSearchController` builds a candidate proof-body frontier
+from registered proof memory, expected-lemma templates, and optional probes,
+then verifies expanded nodes with the configured verifier. The audit writes
+`proof_search_results.jsonl` with node-level verifier feedback. This is a real
+search controller rather than one-shot lookup, but it is not tactic-state
+best-first search, MCTS, or RL yet; those remain the next prover-engine layer.
 
 Algorithm repair promotion is intentionally one more step beyond generic live
 repair auditing:

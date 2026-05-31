@@ -21,6 +21,7 @@ from .algorithm_engineer import DefaultAlgorithmEngineer
 from .algorithm_repair_sandbox_apply import apply_algorithm_repair_sandbox_results
 from .algorithm_repair_sandbox_rerun import rerun_algorithm_repair_sandbox_applications
 from .proof_engineer import DefaultProofEngineer
+from .proof_search import BestFirstWholeProofSearchController
 from .theory_developer import DefaultTheoryDeveloper
 from .theory_proposal import AnthropicTheoryProposer
 
@@ -101,9 +102,14 @@ def audit_architecture(out_dir: Path | None = None) -> dict[str, object]:
         ArchitectureComponent(
             component="formal_subclaim_prover",
             status="ACHIEVED",
-            evidence=(f"{FormalSubclaimProver.__module__}.{FormalSubclaimProver.__name__}", "AXLE/Lean verifies registered proof-bank obligations"),
-            limitation="Verifies reusable subclaims; it is not yet a general proof-search/autoformalization engine for arbitrary frontier theorems.",
-            target_delta="Add Formalizer + ProofEngineer loop: statement repair, premise retrieval, tactic/proof search, proof-bank promotion.",
+            evidence=(
+                f"{FormalSubclaimProver.__module__}.{FormalSubclaimProver.__name__}",
+                "AXLE/Lean verifies registered proof-bank obligations",
+                f"{BestFirstWholeProofSearchController.__module__}.{BestFirstWholeProofSearchController.__name__}",
+                "bounded whole-proof best-first search is available for proof-body candidate frontiers",
+            ),
+            limitation="Verifies reusable subclaims and can run bounded whole-proof search; it is not yet a tactic-state proof-search/autoformalization engine for arbitrary frontier theorems.",
+            target_delta="Add Formalizer + ProofEngineer loop: statement repair, premise retrieval, tactic-state search, proof-bank promotion.",
         ),
         ArchitectureComponent(
             component="algorithm_engineer",

@@ -12,6 +12,7 @@ from .proof_attempt_log import PROOF_ATTEMPT_SCHEMA_VERSION
 from .proof_bank import all_obligations, proof_bank_fingerprint
 from .proof_policy_baseline import PROOF_POLICY_BASELINE_SCHEMA_VERSION
 from .proof_repair_export import PROOF_REPAIR_EXPORT_SCHEMA_VERSION
+from .proof_search import PROOF_SEARCH_SCHEMA_VERSION
 from .proof_training_export import PROOF_TRAINING_EXPORT_SCHEMA_VERSION
 from .research_policy_baseline import RESEARCH_POLICY_BASELINE_SCHEMA_VERSION
 from .research_training_export import RESEARCH_TRAINING_EXPORT_SCHEMA_VERSION
@@ -154,15 +155,18 @@ def build_prover_component_audit(
         ProverComponentRow(
             component="search controller / MCTS / best-first proof search",
             paper_stack_layer="Layer 4: Formal Prover Engines / RL / Proof Search",
-            status="MISSING",
-            trained_or_built="Not built beyond deterministic obligation lookup and AXLE verification.",
+            status="PARTIAL_WHOLE_PROOF_SEARCH",
+            trained_or_built="Built a bounded best-first whole-proof search controller over proof-body candidates; not tactic-state search or MCTS.",
             why_it_matters="Search decides which proof branch to expand when one-shot proof generation fails.",
             current_evidence=(
-                "No tactic tree, proof-state frontier, MCTS, or best-first prover class in the current codebase",
+                f"proof_search_schema_version={PROOF_SEARCH_SCHEMA_VERSION}",
+                "BestFirstWholeProofSearchController expands a bounded candidate frontier and verifies each node",
+                "proof-search-audit writes proof_search_results.jsonl with node-level verifier feedback",
             ),
             missing_or_next=(
                 "Build a Lean step environment wrapper.",
-                "Implement best-first tactic search before RL.",
+                "Upgrade from whole-proof candidate search to tactic-state best-first search before RL.",
+                "Add MCTS/value guidance after tactic-state traces exist.",
             ),
         ),
         ProverComponentRow(

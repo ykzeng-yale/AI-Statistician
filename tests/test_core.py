@@ -40,6 +40,8 @@ from ai_statistician.proof_audit import audit_proof_bank
 from ai_statistician.proof_bank_expansion_export import export_proof_bank_expansion_candidates
 from ai_statistician.proof_policy_baseline import evaluate_retrieval_proof_policy_baseline
 from ai_statistician.proof_repair_export import export_proof_repair_dataset
+from ai_statistician.proof_search import BestFirstWholeProofSearchController, ProofCandidate
+from ai_statistician.proof_search_audit import audit_proof_search_controller
 from ai_statistician.proof_training_export import export_proof_training_dataset
 from ai_statistician.prover_component_audit import build_prover_component_audit, write_prover_component_audit
 from ai_statistician.questions import load_question_file, question_from_json
@@ -452,6 +454,54 @@ class ProofBankTests(unittest.TestCase):
         self.assertEqual(rows[0]["task"], "lean_whole_proof_repair_from_verifier_error")
         self.assertTrue(rows[0]["target_completion"])
         self.assertIn("Verifier errors", rows[0]["prompt"])
+
+    def test_best_first_whole_proof_search_logs_failed_probe_then_solves(self) -> None:
+        async def run():
+            obligation = get_obligation("variance_nonneg")
+            controller = BestFirstWholeProofSearchController(MockProofVerifier())
+            return await controller.solve(
+                obligation,
+                max_nodes=3,
+                extra_candidates=[
+                    ProofCandidate(
+                        candidate_id="bad:first",
+                        proof_body="by\n  sorry",
+                        source="invalid_probe",
+                        score=1500.0,
+                    )
+                ],
+            )
+
+        result = asyncio.run(run())
+        self.assertTrue(result.solved)
+        self.assertEqual(result.nodes_expanded, 2)
+        self.assertEqual(result.nodes[0].source, "invalid_probe")
+        self.assertFalse(result.nodes[0].ok)
+        self.assertEqual(result.selected_source, "registered_proof_body")
+        self.assertFalse(result.kernel_verified)
+        self.assertEqual(result.schema_version, 1)
+
+    def test_proof_search_audit_exports_node_level_results(self) -> None:
+        async def run():
+            return await audit_proof_search_controller(
+                Path("runs/test_proof_search_audit"),
+                verifier=MockProofVerifier(),
+                max_obligations=2,
+                max_nodes=3,
+                include_invalid_probe=True,
+            )
+
+        payload = asyncio.run(run())
+        self.assertTrue(payload["all_solved"])
+        self.assertEqual(payload["n_obligations"], 2)
+        self.assertEqual(payload["nodes_expanded"], 4)
+        results_path = Path(payload["results_jsonl"])
+        self.assertTrue(results_path.exists())
+        rows = [json.loads(line) for line in results_path.read_text(encoding="utf-8").splitlines()]
+        self.assertEqual(rows[0]["schema_version"], 1)
+        self.assertEqual(rows[0]["nodes"][0]["source"], "invalid_probe")
+        self.assertFalse(rows[0]["nodes"][0]["ok"])
+        self.assertEqual(rows[0]["selected_source"], "registered_proof_body")
 
     def test_caching_verifier_reuses_checked_obligations(self) -> None:
         async def run():

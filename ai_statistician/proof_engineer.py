@@ -5,6 +5,7 @@ from dataclasses import asdict
 from typing import Any
 
 from .proof_bank import all_obligations
+from .proof_search import BestFirstWholeProofSearchController
 from .research_schema import ResearchReport
 from .schema import FormalObligation
 from .verifier import MockProofVerifier, ProofVerifier
@@ -45,8 +46,11 @@ class DefaultProofEngineer:
         if not ranked:
             return None
         obligation, score = ranked[0]
-        check = await self.verifier.verify(obligation, obligation.proof_body, [])
-        if not check.ok:
+        search = await BestFirstWholeProofSearchController(self.verifier).solve(
+            obligation,
+            max_nodes=4,
+        )
+        if not search.solved:
             return {
                 "execution_status": "PROOF_ENGINEER_BRIDGE_VERIFICATION_FAILED",
                 "task_type": "proof_bank_expansion_from_formal_gap",
@@ -59,7 +63,13 @@ class DefaultProofEngineer:
                     "proof_dependencies": list(obligation.depends_on),
                     "target_theorem_goal": str(item.get("target_theorem_goal", "")),
                     "reuse_targets": [str(item.get("target_theorem_goal", "")), report.problem.problem_class],
-                    "verification_errors": list(check.errors),
+                    "verification_errors": [
+                        error
+                        for node in search.nodes
+                        for error in node.errors
+                    ],
+                    "proof_search_nodes_expanded": search.nodes_expanded,
+                    "proof_search_frontier_exhausted": search.frontier_exhausted,
                 },
                 "proof_engineer_score": score,
             }
@@ -73,22 +83,26 @@ class DefaultProofEngineer:
             "rerun_requested": False,
             "repair_artifact": {
                 "lean_statement": obligation.formal_statement,
-                "proof_body": obligation.proof_body,
+                "proof_body": search.selected_proof_body,
                 "expected_lemmas": list(obligation.expected_lemmas),
                 "proof_dependencies": list(obligation.depends_on),
                 "target_theorem_goal": str(item.get("target_theorem_goal", "")),
                 "reuse_targets": [str(item.get("target_theorem_goal", "")), report.problem.problem_class],
                 "proof_obligation_id": obligation.id,
                 "bridge_for_primitives": list(item.get("required_primitives", []) or []),
-                "kernel_verified": check.kernel_verified,
-                "verified": check.ok,
-                "verifier": check.verifier,
-                "verification_strength": check.verification_strength,
-                "elapsed_ms": check.elapsed_ms,
+                "kernel_verified": search.kernel_verified,
+                "verified": search.solved,
+                "verifier": search.verifier,
+                "verification_strength": search.selected_verification_strength,
+                "proof_search_strategy": "best_first_whole_proof",
+                "proof_search_selected_candidate_id": search.selected_candidate_id,
+                "proof_search_selected_source": search.selected_source,
+                "proof_search_nodes_expanded": search.nodes_expanded,
+                "proof_search_candidates_total": search.candidates_total,
             },
             "proof_engineer_score": score,
-            "kernel_verified": check.kernel_verified,
-            "verified": check.ok,
+            "kernel_verified": search.kernel_verified,
+            "verified": search.solved,
         }
 
 

@@ -31,6 +31,7 @@ from .proof_bank import all_obligations, obligations_by_tags
 from .proof_bank_expansion_export import export_proof_bank_expansion_candidates
 from .proof_policy_baseline import evaluate_retrieval_proof_policy_baseline
 from .proof_repair_export import export_proof_repair_dataset
+from .proof_search_audit import audit_proof_search_controller
 from .proof_training_export import export_proof_training_dataset
 from .prover_component_audit import build_prover_component_audit, write_prover_component_audit
 from .release import ReleaseBundleConfig, build_release_bundle
@@ -292,6 +293,27 @@ def _proof_policy_baseline(args: argparse.Namespace) -> int:
     )
     print(f"predictions={Path(str(payload['predictions_jsonl'])).resolve()}")
     print(f"manifest written to {(Path(args.out) / 'proof_policy_baseline_manifest.json').resolve()}")
+    return 0
+
+
+async def _proof_search_audit(args: argparse.Namespace) -> int:
+    verifier = _proof_verifier_from_args(args)
+    payload = await audit_proof_search_controller(
+        Path(args.out),
+        verifier=verifier,
+        max_obligations=args.max_obligations,
+        max_nodes=args.max_nodes,
+        include_invalid_probe=args.include_invalid_probe,
+    )
+    print("\nAI Statistician Proof Search Audit")
+    print("=" * 72)
+    print(
+        f"solved={payload['n_solved']}/{payload['n_obligations']} "
+        f"kernel_verified={payload['n_kernel_verified']} "
+        f"mean_nodes={payload['mean_nodes_expanded']:.2f}"
+    )
+    print(f"results={Path(str(payload['results_jsonl'])).resolve()}")
+    print(f"manifest written to {(Path(args.out) / 'proof_search_audit_manifest.json').resolve()}")
     return 0
 
 
@@ -1489,6 +1511,33 @@ def build_parser() -> argparse.ArgumentParser:
         help="output directory for baseline predictions and manifest",
     )
     proof_policy_baseline.set_defaults(func=_proof_policy_baseline)
+
+    proof_search_audit = sub.add_parser(
+        "proof-search-audit",
+        help="audit the bounded best-first whole-proof search controller",
+    )
+    proof_search_audit.add_argument("--real-lean", action="store_true", help="use AXLE verify_proof")
+    proof_search_audit.add_argument("--local-lean", action="store_true", help="use local Lean kernel verifier")
+    proof_search_audit.add_argument("--local-lean-project", default=None)
+    proof_search_audit.add_argument("--local-lean-timeout", type=int, default=90)
+    proof_search_audit.add_argument(
+        "--max-obligations",
+        type=int,
+        default=12,
+        help="number of proof-bank obligations to search",
+    )
+    proof_search_audit.add_argument("--max-nodes", type=int, default=8, help="candidate nodes per obligation")
+    proof_search_audit.add_argument(
+        "--include-invalid-probe",
+        action="store_true",
+        help="put one invalid high-priority candidate before the registered proof to test branch/error logging",
+    )
+    proof_search_audit.add_argument(
+        "--out",
+        default="runs/proof_search_audit",
+        help="output directory for proof_search_results.jsonl and manifest",
+    )
+    proof_search_audit.set_defaults(func=lambda args: asyncio.run(_proof_search_audit(args)))
 
     algorithm_audit = sub.add_parser("algorithm-audit", help="audit vetted algorithm implementations")
     algorithm_audit.add_argument("--out", default="runs/algorithm_audit", help="algorithm audit output directory")
