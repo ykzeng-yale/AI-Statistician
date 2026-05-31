@@ -382,6 +382,7 @@ _PRIMITIVE_PROOF_BRIDGE_HINTS: dict[str, tuple[str, ...]] = {
         "event_indicator_expectation",
     ),
     "survival_martingale_clt": (
+        "submartingale_l1_tendsto_limit_process",
         "submartingale_ae_tendsto_limit_process",
         "submartingale_expected_stopped_value_mono",
         "supermartingale_expected_stopped_value_antimono",
@@ -389,12 +390,14 @@ _PRIMITIVE_PROOF_BRIDGE_HINTS: dict[str, tuple[str, ...]] = {
         "iid_real_clt_tendsto_distribution",
     ),
     "nelson_aalen_martingale_decomposition": (
+        "submartingale_l1_tendsto_limit_process",
         "submartingale_ae_tendsto_limit_process",
         "submartingale_expected_stopped_value_mono",
         "submartingale_stopped_process",
         "event_indicator_expectation",
     ),
     "greenwood_variance_consistency": (
+        "submartingale_l1_tendsto_limit_process",
         "submartingale_ae_tendsto_limit_process",
         "finite_sample_mean_variance_indep",
         "variance_nonneg",

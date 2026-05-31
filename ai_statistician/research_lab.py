@@ -2388,6 +2388,7 @@ class TheoryPlanner:
                     proof_obligations=(
                         "event_indicator_expectation",
                         "prob_compl",
+                        "submartingale_l1_tendsto_limit_process",
                         "submartingale_ae_tendsto_limit_process",
                         "submartingale_expected_stopped_value_mono",
                         "submartingale_stopped_process",
@@ -4781,6 +4782,7 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "event_indicator_expectation",
         "prob_compl",
         "markov_inequality",
+        "submartingale_l1_tendsto_limit_process",
         "submartingale_ae_tendsto_limit_process",
         "submartingale_expected_stopped_value_mono",
         "submartingale_stopped_process",

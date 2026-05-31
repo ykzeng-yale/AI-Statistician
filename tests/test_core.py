@@ -1292,6 +1292,20 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("hf.ae_tendsto_limitProcess hbdd", content)
         self.assertNotIn("by sorry", content)
 
+    def test_submartingale_l1_tendsto_limit_process_supports_survival_gap(self) -> None:
+        obligation = get_obligation("submartingale_l1_tendsto_limit_process")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("submartingale_ae_tendsto_limit_process",))
+        self.assertIn("submartingale", obligation.tags)
+        self.assertIn("l1_convergence", obligation.tags)
+        self.assertIn("uniform_integrability", obligation.tags)
+        self.assertIn("survival_martingale_clt", obligation.tags)
+        self.assertIn("theorem submartingale_tendsto_eLpNorm_one_limitProcess_bridge", content)
+        self.assertIn("UniformIntegrable f 1 μ", content)
+        self.assertIn("Tendsto (fun n => eLpNorm", content)
+        self.assertIn("hf.tendsto_eLpNorm_one_limitProcess hunif", content)
+        self.assertNotIn("by sorry", content)
+
     def test_affine_estimator_obligation_supports_shrinkage_expectation(self) -> None:
         obligation = get_obligation("affine_estimator_expectation")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
@@ -3034,6 +3048,10 @@ class SystemTests(unittest.TestCase):
         survival_trace = json.loads(Path("runs/test_research_benchmark/right_censored_survival_km.json").read_text())
         survival_goals = {row["id"]: row for row in survival_trace["theorem_goals"]}
         self.assertIn(
+            "submartingale_l1_tendsto_limit_process",
+            survival_goals["kaplan_meier_fixed_time_asymptotic_normality"]["proof_obligations"],
+        )
+        self.assertIn(
             "submartingale_ae_tendsto_limit_process",
             survival_goals["kaplan_meier_fixed_time_asymptotic_normality"]["proof_obligations"],
         )
@@ -4223,10 +4241,18 @@ class SystemTests(unittest.TestCase):
         rows = {row["primitive"]: row for row in payload["rows"]}
         for primitive in ("survival_martingale_clt", "nelson_aalen_martingale_decomposition"):
             self.assertIn(
+                "submartingale_l1_tendsto_limit_process",
+                rows[primitive]["bridge_candidate_obligations"],
+            )
+            self.assertIn(
                 "submartingale_ae_tendsto_limit_process",
                 rows[primitive]["bridge_candidate_obligations"],
             )
             self.assertEqual(rows[primitive]["priority_band"], "BRIDGE_REUSE_READY")
+        self.assertIn(
+            "submartingale_l1_tendsto_limit_process",
+            rows["greenwood_variance_consistency"]["bridge_candidate_obligations"],
+        )
         self.assertIn(
             "submartingale_ae_tendsto_limit_process",
             rows["greenwood_variance_consistency"]["bridge_candidate_obligations"],

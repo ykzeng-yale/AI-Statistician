@@ -3564,6 +3564,59 @@ theorem submartingale_ae_tendsto_limitProcess_bridge {Ω : Type*} {m0 : Measurab
         expected_lemmas=("Submartingale.ae_tendsto_limitProcess",),
         depends_on=("submartingale_expected_stopped_value_mono",),
     ),
+    "submartingale_l1_tendsto_limit_process": FormalObligation(
+        id="submartingale_l1_tendsto_limit_process",
+        title="L1 convergence of a uniformly integrable submartingale to its limit process",
+        english=(
+            "A uniformly integrable real-valued submartingale converges in L1 "
+            "to Mathlib's filtration limit process. This wraps the L1 "
+            "martingale convergence theorem and strengthens the survival/"
+            "Kaplan-Meier and Nelson-Aalen roadmap from almost-everywhere "
+            "convergence to an eLpNorm convergence bridge. It is still not a "
+            "martingale CLT, Greenwood variance consistency, or a product-limit "
+            "delta-method proof."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+
+open TopologicalSpace Filter MeasureTheory.Filtration
+open scoped NNReal ENNReal MeasureTheory ProbabilityTheory Topology
+open MeasureTheory
+
+theorem submartingale_tendsto_eLpNorm_one_limitProcess_bridge {Ω : Type*}
+    {m0 : MeasurableSpace Ω} {μ : Measure Ω} {𝒢 : Filtration ℕ m0}
+    {f : ℕ → Ω → ℝ} [IsFiniteMeasure μ] [SigmaFiniteFiltration μ 𝒢]
+    (hf : Submartingale f 𝒢 μ)
+    (hunif : UniformIntegrable f 1 μ) :
+    Tendsto (fun n => eLpNorm (f n - 𝒢.limitProcess f μ) 1 μ) atTop (𝓝 0) := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  exact hf.tendsto_eLpNorm_one_limitProcess hunif"
+        ),
+        tags=(
+            "probability",
+            "martingale",
+            "submartingale",
+            "convergence",
+            "l1_convergence",
+            "uniform_integrability",
+            "limit_process",
+            "filtration",
+            "survival",
+            "kaplan_meier",
+            "nelson_aalen",
+            "survival_martingale_clt",
+            "greenwood_variance_consistency",
+            "backward_martingale",
+            "sequential",
+            "anytime",
+        ),
+        expected_lemmas=("Submartingale.tendsto_eLpNorm_one_limitProcess",),
+        depends_on=("submartingale_ae_tendsto_limit_process",),
+    ),
     "event_probability_mono": FormalObligation(
         id="event_probability_mono",
         title="Event probability monotonicity",

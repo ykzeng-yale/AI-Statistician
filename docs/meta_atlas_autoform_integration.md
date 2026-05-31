@@ -173,11 +173,11 @@ python3 -m ai_statistician.cli research-system-audit \
 Result:
 
 ```text
-proof_bank_kernel=84/84
+proof_bank_kernel=85/85
 proof_verifier=local.lake_env_lean
 proof_strength=local_lean_kernel_batch
 system_all_gates_passed=True
-system_elapsed_latest=109.4s
+system_elapsed_latest=146.6s
 sources=23/23
 frontier_supported=60/60
 frontier_smoke=23/23
@@ -305,3 +305,8 @@ wraps Mathlib's `Submartingale.ae_tendsto_limitProcess` and is now ranked for
 `greenwood_variance_consistency`. This gives survival/Kaplan-Meier Autoform
 targets a real kernel-checked convergence primitive before attempting the
 martingale CLT, Greenwood consistency, or product-limit delta method.
+The L1 convergence bridge `submartingale_l1_tendsto_limit_process` now wraps
+Mathlib's `Submartingale.tendsto_eLpNorm_one_limitProcess`, giving the same
+survival and martingale-convergence targets a stronger norm-convergence
+primitive while preserving the martingale CLT and product-limit delta-method
+steps as formal gaps.

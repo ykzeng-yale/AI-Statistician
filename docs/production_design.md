@@ -82,7 +82,7 @@ sandboxed code patching, or simulator construction still stop honestly with
 repair proposal, unless a stronger handler is registered.
 
 Current release-style local-kernel evidence for this bounded loop:
-`research-system-audit --local-lean --runs 100` passes all gates with `84/84`
+`research-system-audit --local-lean --runs 100` passes all gates with `85/85`
 kernel-verified proof obligations, `6` kernel-verified live proof-bridge repair
 artifacts, `6` resulting theory revisions, and a `12/12` kernel-verified
 proof-search audit sample. The status remains `FORMAL_GAPS_BRIDGED`, which is
@@ -1116,6 +1116,13 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   This is now attached to survival/Kaplan-Meier, Nelson-Aalen, backward-
   martingale, and sequential theorem skeletons as a real convergence bridge;
   it is not a martingale CLT or product-limit delta-method proof.
+- `submartingale_l1_tendsto_limit_process`: L1 convergence of a uniformly
+  integrable real-valued submartingale to Mathlib's filtration `limitProcess`,
+  wrapped around `Submartingale.tendsto_eLpNorm_one_limitProcess`. This gives
+  survival/Kaplan-Meier, Nelson-Aalen, and martingale-convergence theorem
+  skeletons a stronger norm-convergence bridge while still leaving martingale
+  CLTs, Greenwood consistency, and product-limit delta-method arguments as
+  formal gaps.
 - `event_probability_mono`: event monotonicity `A ⊆ B -> μ(A) ≤ μ(B)`,
   proved directly from Mathlib's `measure_mono`; this is the reusable
   bad-event-containment step used before applying union or tail bounds.
@@ -1475,11 +1482,11 @@ python3 -m ai_statistician.cli proof-audit \
 Current full-bank local Lean evidence (2026-05-31):
 
 ```text
-verified=84/84
-kernel=84/84
+verified=85/85
+kernel=85/85
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=ea1f781ca341cc42848acf387bf223c8ce243ee0b33956a5261b0d97ab45d045
+proof_bank_fingerprint=a8c170d25db913178d49afa054d89aa8791c374ebf470cbeb5504aa76efbf850
 ```
 
 Run `doctor` in the same Python runtime first. It reports
