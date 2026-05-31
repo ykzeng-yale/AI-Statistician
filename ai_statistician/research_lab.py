@@ -3889,6 +3889,7 @@ class TheoryPlanner:
                         "independent_null_event_family_compl_inter_probability",
                         "finite_union_bound",
                         "finite_union_budget_control",
+                        "finite_null_family_no_false_rejection_probability",
                         "markov_inequality",
                     ),
                 ),
@@ -4913,6 +4914,7 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "independent_null_event_family_compl_inter_probability",
         "finite_union_bound",
         "finite_union_budget_control",
+        "finite_null_family_no_false_rejection_probability",
         "markov_inequality",
     ),
     "sequential_anytime_inference": (

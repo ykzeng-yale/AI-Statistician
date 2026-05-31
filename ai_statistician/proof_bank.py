@@ -1658,6 +1658,72 @@ theorem finite_union_budget_control {Ω ι : Type*} [MeasurableSpace Ω]
         expected_lemmas=("measure_biUnion_finset_le", "Finset.sum_le_sum"),
         depends_on=("finite_union_bound", "finite_horizon_type1_union_control"),
     ),
+    "finite_null_family_no_false_rejection_probability": FormalObligation(
+        id="finite_null_family_no_false_rejection_probability",
+        title="Finite null-family no-false-rejection probability",
+        english=(
+            "For a finite family of true-null rejection events, if every null "
+            "event has a local error budget and the local budgets sum to a "
+            "total budget, then the probability of making no false rejection "
+            "is at least one minus the total budget. This is a reusable "
+            "familywise-error bridge for multiple-testing traces; it is not a "
+            "proof of the BH step-up FDR theorem."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+theorem finiteNullFamily_noFalseRejection_probability {Ω ι : Type*}
+    [MeasurableSpace Ω]
+    (μ : Measure Ω) [IsProbabilityMeasure μ]
+    (I : Finset ι) (R : ι → Set Ω)
+    (α : ι → ENNReal) (α_total : ENNReal)
+    (hUnion : MeasurableSet (⋃ i ∈ I, R i))
+    (hR : ∀ i ∈ I, μ (R i) ≤ α i)
+    (h_total : (∑ i ∈ I, α i) ≤ α_total) :
+    1 - α_total ≤ μ (⋃ i ∈ I, R i)ᶜ := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  have hbad : μ (⋃ i ∈ I, R i) ≤ α_total := by\n"
+            "    calc\n"
+            "      μ (⋃ i ∈ I, R i) ≤ ∑ i ∈ I, μ (R i) := by\n"
+            "        exact measure_biUnion_finset_le (μ := μ) I R\n"
+            "      _ ≤ ∑ i ∈ I, α i := by\n"
+            "        exact Finset.sum_le_sum (fun i hi => hR i hi)\n"
+            "      _ ≤ α_total := h_total\n"
+            "  have hnone : μ (⋃ i ∈ I, R i)ᶜ = 1 - μ (⋃ i ∈ I, R i) := by\n"
+            "    exact prob_compl_eq_one_sub hUnion\n"
+            "  rw [hnone]\n"
+            "  exact tsub_le_tsub_left hbad 1"
+        ),
+        tags=(
+            "probability",
+            "event",
+            "union_bound",
+            "bonferroni",
+            "finite_sample",
+            "multiple_testing",
+            "familywise_error",
+            "false_rejection",
+            "no_false_discovery",
+            "fdr",
+            "pvalue",
+        ),
+        expected_lemmas=(
+            "measure_biUnion_finset_le",
+            "Finset.sum_le_sum",
+            "prob_compl_eq_one_sub",
+            "tsub_le_tsub_left",
+        ),
+        depends_on=(
+            "finite_union_budget_control",
+            "simultaneous_coverage_of_union_error_bound",
+            "prob_compl",
+        ),
+    ),
     "finite_horizon_evalue_markov_type1_control": FormalObligation(
         id="finite_horizon_evalue_markov_type1_control",
         title="Finite-horizon e-value type-I control by Markov and union allocation",

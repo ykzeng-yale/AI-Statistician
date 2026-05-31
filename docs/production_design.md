@@ -971,6 +971,13 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   singleton sigma-algebras, giving BH/FDR and familywise-error traces a
   verified "no false null event" product bridge while preserving the full BH
   theorem as a formal gap.
+- `finite_null_family_no_false_rejection_probability`: a finite null-family
+  familywise-error bridge. If every true-null rejection event has local budget
+  `α_i` and the budgets sum to `α_total`, then the probability of no false
+  rejection is at least `1-α_total`. This gives multiple-testing traces a
+  verified no-false-rejection coverage ingredient while still leaving the
+  ordered-p-value, BH self-consistency, and leave-one-out FDR arguments as
+  explicit formal gaps.
 - `first_borel_cantelli_limsup_zero`: the first Borel-Cantelli repeated-event
   control lemma `sum μ(A_n) < ∞ -> μ(limsup A_n)=0`, wrapped around Mathlib's
   `MeasureTheory.measure_limsup_atTop_eq_zero`; this supports convergence,
@@ -1221,11 +1228,11 @@ python3 -m ai_statistician.cli proof-audit \
 Current full-bank local Lean evidence (2026-05-30):
 
 ```text
-verified=57/57
-kernel=57/57
+verified=58/58
+kernel=58/58
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=4988449dfad10bfd6f830c8e0df13553c9d964974e0821f028d411a06a95c9f7
+proof_bank_fingerprint=39ff5bdbe67cfe955e1a3dd71807b632a885357cd472fa1704e1c6a944c82961
 ```
 
 Run `doctor` in the same Python runtime first. It reports

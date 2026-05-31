@@ -1040,6 +1040,28 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("measure_biUnion_finset_le", content)
         self.assertNotIn("by sorry", content)
 
+    def test_finite_null_family_no_false_rejection_bridge_uses_union_and_complement(self) -> None:
+        obligation = get_obligation("finite_null_family_no_false_rejection_probability")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(
+            obligation.depends_on,
+            (
+                "finite_union_budget_control",
+                "simultaneous_coverage_of_union_error_bound",
+                "prob_compl",
+            ),
+        )
+        self.assertIn("theorem finiteNullFamily_noFalseRejection_probability", content)
+        self.assertIn("1 - α_total ≤ μ (⋃ i ∈ I, R i)ᶜ", content)
+        self.assertIn("measure_biUnion_finset_le", content)
+        self.assertIn("Finset.sum_le_sum", content)
+        self.assertIn("prob_compl_eq_one_sub", content)
+        self.assertIn("tsub_le_tsub_left", content)
+        self.assertIn("familywise_error", obligation.tags)
+        self.assertIn("false_rejection", obligation.tags)
+        self.assertIn("fdr", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_event_probability_mono_obligation_uses_measure_mono(self) -> None:
         obligation = get_obligation("event_probability_mono")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
@@ -2323,6 +2345,12 @@ class SystemTests(unittest.TestCase):
         self.assertIn(
             "submartingale_doob_maximal_probability_bound",
             sequential_goals["eprocess_optional_stopping_control"]["proof_obligations"],
+        )
+        fdr_trace = json.loads(Path("runs/test_research_benchmark/multiple_testing_fdr_bh.json").read_text())
+        fdr_goals = {row["id"]: row for row in fdr_trace["theorem_goals"]}
+        self.assertIn(
+            "finite_null_family_no_false_rejection_probability",
+            fdr_goals["bh_fdr_control_independence"]["proof_obligations"],
         )
         algorithm_spec = trace_payload["procedures"][0]["algorithm_spec"]
         self.assertEqual(algorithm_spec["registry_status"], "vetted")
