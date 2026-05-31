@@ -869,6 +869,12 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   `μ (⋃ i∈I, A i) ≤ ∑ i∈I, μ(A i)` proved directly from Mathlib's
   `measure_biUnion_finset_le`, supporting conformal coverage counting,
   BH/FDR error decompositions, and finite-horizon anytime-valid error control.
+- `finite_null_pvalue_no_false_rejection_probability`: a finite valid-null
+  p-value bridge. If each true null p-value satisfies
+  `P(p_i <= tau_i) <= tau_i` at its chosen threshold and the thresholds sum to
+  `α_total`, then the no-false-rejection event has probability at least
+  `1-α_total`. This supports p-value validity and BH/FDR skeleton traces while
+  leaving step-up self-consistency and FDR decomposition as formal gaps.
 - `finite_conformal_rank_coverage_counting`: a split-conformal finite-rank
   counting bridge. If each bad-rank event has a local probability budget and
   those budgets sum to `α_total`, then the complement of the bad-rank event has
@@ -1255,11 +1261,11 @@ python3 -m ai_statistician.cli proof-audit \
 Current full-bank local Lean evidence (2026-05-31):
 
 ```text
-verified=62/62
-kernel=62/62
+verified=63/63
+kernel=63/63
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=02316c1491a230bf21eb26cf40dd7448a5e074800618126728287a9deaa97fe0
+proof_bank_fingerprint=ab9c0a942a4a1bf3b12179a6344b8b963f1e47eef21172ce7a2fb6367762991d
 ```
 
 Run `doctor` in the same Python runtime first. It reports

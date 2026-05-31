@@ -265,6 +265,23 @@ _PRIMITIVE_PROOF_BRIDGE_HINTS: dict[str, tuple[str, ...]] = {
         "finite_conformal_rank_coverage_counting",
         "coverage_lower_bound_of_complement_error",
     ),
+    "valid_null_pvalue_uniformity": (
+        "finite_null_pvalue_no_false_rejection_probability",
+        "finite_null_family_no_false_rejection_probability",
+        "finite_union_budget_control",
+    ),
+    "ordered_pvalues": (
+        "finite_null_pvalue_no_false_rejection_probability",
+        "finite_null_family_no_false_rejection_probability",
+    ),
+    "bh_stepup_self_consistency": (
+        "finite_null_pvalue_no_false_rejection_probability",
+        "finite_null_family_no_false_rejection_probability",
+    ),
+    "leave_one_out_fdr_decomposition": (
+        "finite_null_pvalue_no_false_rejection_probability",
+        "finite_null_family_no_false_rejection_probability",
+    ),
     "sequential_elimination_rule": (
         "sequential_elimination_rule_finite_union_control",
         "selected_bad_event_probability_le_finite_union_budget",

@@ -1145,6 +1145,27 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("fdr", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_finite_null_pvalue_no_false_rejection_bridge_uses_validity_budget(self) -> None:
+        obligation = get_obligation("finite_null_pvalue_no_false_rejection_probability")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(
+            obligation.depends_on,
+            (
+                "finite_null_family_no_false_rejection_probability",
+                "finite_union_budget_control",
+                "prob_compl",
+            ),
+        )
+        self.assertIn("theorem finiteNullPValue_noFalseRejection_probability", content)
+        self.assertIn("p : ι → Ω → ENNReal", content)
+        self.assertIn("μ {ω | p i ω ≤ τ i} ≤ τ i", content)
+        self.assertIn("1 - α_total ≤ μ (⋃ i ∈ I, {ω | p i ω ≤ τ i})ᶜ", content)
+        self.assertIn("measure_biUnion_finset_le", content)
+        self.assertIn("prob_compl_eq_one_sub", content)
+        self.assertIn("valid_null_pvalue_uniformity", obligation.tags)
+        self.assertIn("ordered_pvalues", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_event_probability_mono_obligation_uses_measure_mono(self) -> None:
         obligation = get_obligation("event_probability_mono")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
@@ -2939,6 +2960,89 @@ class SystemTests(unittest.TestCase):
         ):
             self.assertIn(
                 "finite_conformal_rank_coverage_counting",
+                rows[primitive]["bridge_candidate_obligations"],
+            )
+            self.assertEqual(rows[primitive]["priority_band"], "BRIDGE_REUSE_READY")
+
+    def test_formalization_target_audit_maps_multiple_testing_pvalue_primitives_to_verified_bridge(self) -> None:
+        run_dir = Path("runs/test_formalization_target_pvalue_run")
+        out_dir = Path("runs/test_formalization_target_pvalue_audit")
+        shutil.rmtree(run_dir, ignore_errors=True)
+        shutil.rmtree(out_dir, ignore_errors=True)
+        gap_dir = run_dir / "formal_gaps"
+        gap_dir.mkdir(parents=True, exist_ok=True)
+        gap_path = gap_dir / "bh_fdr_control_independence.lean"
+        primitives = (
+            "valid_null_pvalue_uniformity",
+            "ordered_pvalues",
+            "bh_stepup_self_consistency",
+            "leave_one_out_fdr_decomposition",
+            "independent_null_pvalues",
+        )
+        gap_path.write_text("FORMAL_GAP " + " ".join(primitives), encoding="utf-8")
+        (run_dir / "research_benchmark_manifest.json").write_text(
+            json.dumps({"questions": [{"question": "q_pvalues", "formal": {"gaps": 1}}]}),
+            encoding="utf-8",
+        )
+        proof_obligations = (
+            "prob_measure_univ",
+            "prob_compl",
+            "event_probability_mono",
+            "independent_event_inter_probability",
+            "independent_null_event_family_inter_probability",
+            "independent_null_event_family_compl_inter_probability",
+            "finite_union_bound",
+            "finite_union_budget_control",
+            "finite_null_family_no_false_rejection_probability",
+            "finite_null_pvalue_no_false_rejection_probability",
+            "markov_inequality",
+        )
+        trace = {
+            "question": {"id": "q_pvalues"},
+            "problem": {"problem_class": "multiple_testing_fdr"},
+            "procedures": [],
+            "knowledge": [{"id": "multiple_testing_bh"}],
+            "theorem_goals": [
+                {
+                    "id": "bh_fdr_control_independence",
+                    "title": "Benjamini-Hochberg FDR control under independent null p-values",
+                    "proof_strategy": "Formalize ordered p-values, self-consistency, and leave-one-out decomposition.",
+                    "required_primitives": list(primitives),
+                    "proof_obligations": list(proof_obligations),
+                },
+            ],
+            "formal_subclaims": [
+                *[
+                    {"status": "PROVED", "proof_obligation_id": obligation_id}
+                    for obligation_id in proof_obligations
+                ],
+                {
+                    "id": "gap:bh_fdr_control_independence",
+                    "status": "FORMAL_GAP",
+                    "claim_type": "theory_gap",
+                    "gap_reason": "BH step-up FDR proof remains theorem-library work",
+                    "artifact_path": str(gap_path),
+                    "lean_statement": gap_path.read_text(encoding="utf-8"),
+                    "formal_source_hits": [{"name": "StatInference.FiniteUnionDeviationCertificate.toEmpiricalDeviationBoundOn"}],
+                    "primitive_formal_source_hits": {
+                        primitive: [{"name": "StatInference.FiniteUnionDeviationCertificate.toEmpiricalDeviationBoundOn"}]
+                        for primitive in primitives
+                    },
+                },
+            ],
+        }
+        (run_dir / "q_pvalues.json").write_text(json.dumps(trace), encoding="utf-8")
+
+        payload = audit_formalization_targets(run_dir, out_dir)
+        rows = {row["primitive"]: row for row in payload["rows"]}
+        for primitive in (
+            "valid_null_pvalue_uniformity",
+            "ordered_pvalues",
+            "bh_stepup_self_consistency",
+            "leave_one_out_fdr_decomposition",
+        ):
+            self.assertIn(
+                "finite_null_pvalue_no_false_rejection_probability",
                 rows[primitive]["bridge_candidate_obligations"],
             )
             self.assertEqual(rows[primitive]["priority_band"], "BRIDGE_REUSE_READY")
