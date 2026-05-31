@@ -13,15 +13,15 @@ python3 -m ai_statistician.cli proof-audit \
 Result:
 
 ```text
-verified=82/82
-kernel=82/82
+verified=83/83
+kernel=83/83
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=f68865684191460e7dfce682ed535d9a63a5a4745280d4594cb0c86041b73ed3
+proof_bank_fingerprint=c05e02b0a8ce4e77cae26aa377ddf2b47deb072d5b330c9ffaf5fe5a4c00e054
 ```
 
 This is the current evidence that the registered proof bank is not only
-mock-checked: all 81 registered Mathlib-backed obligations were accepted by a
+mock-checked: all 83 registered Mathlib-backed obligations were accepted by a
 real Lean kernel check through the local Lake/Mathlib runtime. AXLE remains the
 preferred remote verifier for release bundles when its Python package and API
 runtime are available; the local Lean backend is the offline kernel-equivalent
@@ -140,6 +140,14 @@ is the Mathlib `integral_condExp` bridge for law-of-total-expectation,
 `conditional_expectation`, `iterated_expectation`, and exogeneity theorem
 skeletons. It is a reusable conditional-expectation integration rule, not a
 proof of any model-specific conditional exchangeability assumption.
+
+The added tower-property bridge is `condexp_tower_of_sub_sigma_real`, proving
+that for nested sigma-fields `m1 <= m2 <= mΩ`, conditioning a real random
+variable on `m2` and then on `m1` is almost everywhere the same as conditioning
+directly on `m1`. It wraps Mathlib's `condExp_condExp_of_le` and gives
+iterated-expectation, filtration/martingale, causal-identification, and
+exogeneity theorem skeletons a direct kernel-verified bridge for staged
+conditioning, while still assuming the nested sigma-field hypotheses.
 
 The 48th obligation is `conditional_mean_residual_zero_of_condExp_ae_eq`,
 promoted from the local StatInference conditional-mean integral bridge. It

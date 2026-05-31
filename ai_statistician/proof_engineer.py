@@ -136,6 +136,8 @@ def _rank_bridge_obligations(
             score += 25
         if "conditional_mean_residual_zero" in primitive_tokens and "condexp" in id_tokens:
             score += 20
+        if ("iterated" in primitive_tokens or "tower" in primitive_tokens) and "tower" in id_tokens:
+            score += 25
         if "conditional" in primitive_tokens and "conditional_expectation" in bridge_tokens:
             score += 8
         if primitive_tokens and primitive_tokens <= bridge_tokens:

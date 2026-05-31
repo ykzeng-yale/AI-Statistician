@@ -404,6 +404,7 @@ _PRIMITIVE_PROOF_BRIDGE_HINTS: dict[str, tuple[str, ...]] = {
     ),
     "exogeneity_moment_condition": (
         "conditional_mean_residual_zero_of_condExp_ae_eq",
+        "condexp_tower_of_sub_sigma_real",
         "condexp_integral_eq_integral_real",
         "conditional_mean_residual_zero_of_mean_eq",
         "independent_real_condExp_natural_eq_mean",
@@ -411,12 +412,14 @@ _PRIMITIVE_PROOF_BRIDGE_HINTS: dict[str, tuple[str, ...]] = {
         "mean2_estimator_variance_indep",
     ),
     "conditional_expectation": (
+        "condexp_tower_of_sub_sigma_real",
         "condexp_integral_eq_integral_real",
         "independent_real_condExp_natural_eq_mean",
         "independent_event_indicator_condExp_filtration_eq_prob",
         "event_indicator_expectation",
     ),
     "iterated_expectation": (
+        "condexp_tower_of_sub_sigma_real",
         "condexp_integral_eq_integral_real",
         "independent_real_condExp_natural_eq_mean",
         "independent_event_indicator_condExp_filtration_eq_prob",

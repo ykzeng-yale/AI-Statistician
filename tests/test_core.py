@@ -1022,6 +1022,19 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("law_of_total_expectation", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_condexp_tower_of_sub_sigma_real_wraps_tower_property(self) -> None:
+        obligation = get_obligation("condexp_tower_of_sub_sigma_real")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("condexp_integral_eq_integral_real",))
+        self.assertIn("theorem condExp_tower_of_sub_sigma_real", content)
+        self.assertIn("hm12 : m1 ≤ m2", content)
+        self.assertIn("μ[μ[X | m2] | m1] =ᵐ[μ] μ[X | m1]", content)
+        self.assertIn("condExp_condExp_of_le", content)
+        self.assertIn("conditional_expectation", obligation.tags)
+        self.assertIn("iterated_expectation", obligation.tags)
+        self.assertIn("tower_property", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_conditional_mean_residual_zero_bridge_uses_conditional_expectation(self) -> None:
         obligation = get_obligation("conditional_mean_residual_zero_of_condExp_ae_eq")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
@@ -4029,6 +4042,7 @@ class SystemTests(unittest.TestCase):
             "iid_empirical_mean_clt",
             "exogeneity_moment_condition",
             "conditional_expectation",
+            "iterated_expectation",
             "slutsky_theorem",
             "matrix_inverse_continuous_mapping",
             "tail_quantile_continuous_mapping",
@@ -4099,6 +4113,14 @@ class SystemTests(unittest.TestCase):
                 "condexp_integral_eq_integral_real",
                 rows[primitive]["bridge_candidate_obligations"],
             )
+            self.assertIn(
+                "condexp_tower_of_sub_sigma_real",
+                rows[primitive]["bridge_candidate_obligations"],
+            )
+        self.assertIn(
+            "condexp_tower_of_sub_sigma_real",
+            rows["iterated_expectation"]["bridge_candidate_obligations"],
+        )
         for primitive in ("sample_moment_lln", "iid_empirical_mean_clt"):
             self.assertIn(
                 "iid_real_clt_tendsto_distribution",

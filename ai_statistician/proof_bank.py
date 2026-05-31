@@ -2209,6 +2209,52 @@ theorem condExp_integral_eq_integral_real
         ),
         expected_lemmas=("integral_condExp",),
     ),
+    "condexp_tower_of_sub_sigma_real": FormalObligation(
+        id="condexp_tower_of_sub_sigma_real",
+        title="Tower property for real conditional expectations over nested sigma-fields",
+        english=(
+            "For nested sigma-fields m1 <= m2 <= mΩ, taking the m2-conditional "
+            "expectation of a real random variable and then conditioning again "
+            "on m1 is almost everywhere the same as conditioning directly on "
+            "m1. This is the Mathlib-backed tower-property bridge used by "
+            "iterated-expectation, filtration, martingale, and causal "
+            "identification theorem skeletons; it still assumes the nested "
+            "sigma-field setup rather than proving model-specific exchangeability."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+open scoped MeasureTheory
+
+theorem condExp_tower_of_sub_sigma_real
+    {Ω : Type*} [mΩ : MeasurableSpace Ω]
+    (m1 m2 : MeasurableSpace Ω)
+    (μ : Measure[mΩ] Ω)
+    (hm12 : m1 ≤ m2)
+    (hm2 : m2 ≤ mΩ) [SigmaFinite (μ.trim hm2)]
+    (X : Ω → ℝ) :
+    μ[μ[X | m2] | m1] =ᵐ[μ] μ[X | m1] := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  exact condExp_condExp_of_le (μ := μ) (f := X) hm12 hm2"
+        ),
+        tags=(
+            "expectation",
+            "conditional_expectation",
+            "iterated_expectation",
+            "tower_property",
+            "filtration",
+            "martingale",
+            "causal",
+            "semiparametric",
+            "exogeneity_moment_condition",
+        ),
+        expected_lemmas=("condExp_condExp_of_le",),
+        depends_on=("condexp_integral_eq_integral_real",),
+    ),
     "conditional_mean_residual_zero_of_condExp_ae_eq": FormalObligation(
         id="conditional_mean_residual_zero_of_condExp_ae_eq",
         title="Conditional-mean residual has zero population integral",

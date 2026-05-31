@@ -173,11 +173,11 @@ python3 -m ai_statistician.cli research-system-audit \
 Result:
 
 ```text
-proof_bank_kernel=82/82
+proof_bank_kernel=83/83
 proof_verifier=local.lake_env_lean
 proof_strength=local_lean_kernel_batch
 system_all_gates_passed=True
-system_elapsed_latest=128.5s
+system_elapsed_latest=146.2s
 sources=23/23
 frontier_supported=60/60
 frontier_smoke=23/23
@@ -211,6 +211,11 @@ the broader `conditional_expectation` and `iterated_expectation` primitives,
 while `conditional_mean_residual_zero_of_mean_eq` remains the ordinary
 centered-mean fallback and `nuisance_correctness_cases` still ranks
 `aipw_score_expectation_target_of_aug_cancel` as its verified algebraic bridge.
+`condexp_tower_of_sub_sigma_real` now adds a Mathlib-backed tower-property
+bridge for nested sigma-fields, giving conditional-expectation,
+iterated-expectation, filtration/martingale, causal-identification, and
+exogeneity targets a staged-conditioning proof primitive before model-specific
+exchangeability or nuisance-correctness work begins.
 These preserve conditional-expectation residual identities and full double
 robustness as formal gaps. `integrability_of_score_terms` now ranks
 `aipw_score_integrable_of_components` as its verified integrability bridge.

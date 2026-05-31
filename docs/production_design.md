@@ -82,7 +82,7 @@ sandboxed code patching, or simulator construction still stop honestly with
 repair proposal, unless a stronger handler is registered.
 
 Current release-style local-kernel evidence for this bounded loop:
-`research-system-audit --local-lean --runs 100` passes all gates with `82/82`
+`research-system-audit --local-lean --runs 100` passes all gates with `83/83`
 kernel-verified proof obligations, `6` kernel-verified live proof-bridge repair
 artifacts, `6` resulting theory revisions, and a `12/12` kernel-verified
 proof-search audit sample. The status remains `FORMAL_GAPS_BRIDGED`, which is
@@ -1224,6 +1224,12 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   `integral_condExp` bridge now attached to `conditional_expectation`,
   `iterated_expectation`, and exogeneity theorem skeletons; it still assumes
   the conditioning sigma-field setup rather than proving model assumptions.
+- `condexp_tower_of_sub_sigma_real`: the tower property for real conditional
+  expectations over nested sigma-fields. This wraps Mathlib's
+  `condExp_condExp_of_le` and gives causal-identification, filtration,
+  martingale, and iterated-expectation theorem plans a direct kernel-verified
+  bridge for `E[E[X|m2]|m1] = E[X|m1]`; it still assumes the nested
+  sigma-field hypotheses rather than deriving model-specific exchangeability.
 - `conditional_mean_residual_zero_of_condExp_ae_eq`: if a conditional
   expectation given a score sigma-field equals a supplied score-space version
   almost everywhere, then the centered residual has population integral zero.
@@ -1463,11 +1469,11 @@ python3 -m ai_statistician.cli proof-audit \
 Current full-bank local Lean evidence (2026-05-31):
 
 ```text
-verified=82/82
-kernel=82/82
+verified=83/83
+kernel=83/83
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=f68865684191460e7dfce682ed535d9a63a5a4745280d4594cb0c86041b73ed3
+proof_bank_fingerprint=c05e02b0a8ce4e77cae26aa377ddf2b47deb072d5b330c9ffaf5fe5a4c00e054
 ```
 
 Run `doctor` in the same Python runtime first. It reports
