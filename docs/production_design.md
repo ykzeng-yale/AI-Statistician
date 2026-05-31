@@ -880,6 +880,12 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   whenever the local budgets sum to `α_total`. This is a verified finite-sample
   bridge for simultaneous confidence bands and ranking uncertainty; it still
   does not prove CLT calibration or standard-error consistency.
+- `top_rank_correct_of_uniform_error_separation`: a deterministic ranking
+  bridge: if one target is separated from every competitor by more than twice a
+  common error radius, and all estimates are within that radius of their
+  targets, then the separated item is ranked top by the estimates. This turns
+  simultaneous absolute-error control into finite-sample top-rank reliability,
+  without claiming full rank-functional asymptotics.
 - `finite_horizon_type1_union_control`: a sequential finite-horizon bridge:
   if each monitored rejection event `A_i` has mass at most `α_i`, then the
   probability of rejecting at some monitored time is at most `∑ i∈I, α_i`.

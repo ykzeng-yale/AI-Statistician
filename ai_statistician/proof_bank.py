@@ -597,6 +597,60 @@ theorem pairwiseTopRank_correct_of_separation
         expected_lemmas=("abs_le", "linarith"),
         depends_on=("wald_interval_contains_iff_abs_error",),
     ),
+    "top_rank_correct_of_uniform_error_separation": FormalObligation(
+        id="top_rank_correct_of_uniform_error_separation",
+        title="Top-rank correctness under uniform error control and separation",
+        english=(
+            "If a candidate i is separated from every competitor by more than "
+            "twice a common estimation-error radius, and every estimate is "
+            "within that radius of its target, then every competitor's "
+            "estimated value is below i's estimated value. This is the "
+            "finite-family deterministic bridge that turns simultaneous "
+            "absolute-error control into top-item ranking reliability."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+
+theorem topRank_correct_of_uniform_error_separation {ι : Type*}
+    (theta estimate : ι → ℝ) (radius : ℝ) (i : ι)
+    (hsep : ∀ j, j ≠ i → theta j + 2 * radius < theta i)
+    (herr_i : |estimate i - theta i| ≤ radius)
+    (herr_all : ∀ j, |estimate j - theta j| ≤ radius) :
+    ∀ j, j ≠ i → estimate j < estimate i := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  intro j hij\n"
+            "  have hj_abs := abs_le.mp (herr_all j)\n"
+            "  have hi_abs := abs_le.mp herr_i\n"
+            "  have hj_upper : estimate j ≤ theta j + radius := by\n"
+            "    linarith [hj_abs.1, hj_abs.2]\n"
+            "  have hi_lower : theta i - radius ≤ estimate i := by\n"
+            "    linarith [hi_abs.1, hi_abs.2]\n"
+            "  have hsep_j : theta j + 2 * radius < theta i := hsep j hij\n"
+            "  linarith"
+        ),
+        tags=(
+            "estimator",
+            "absolute_error",
+            "ranking",
+            "rank_functional",
+            "top_rank",
+            "selection",
+            "best_arm",
+            "simultaneous",
+            "confidence_band",
+            "finite_sample",
+            "real_algebra",
+        ),
+        expected_lemmas=("abs_le", "linarith"),
+        depends_on=(
+            "pairwise_top_rank_correct_of_separation",
+            "finite_family_absolute_error_simultaneous_coverage",
+        ),
+    ),
     "mean2_estimator_chebyshev_indep": FormalObligation(
         id="mean2_estimator_chebyshev_indep",
         title="Chebyshev error bound for an average of independent estimators",

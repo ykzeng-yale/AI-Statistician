@@ -1011,6 +1011,26 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("pairwise_country_mean_separation", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_top_rank_correct_obligation_uses_uniform_error_separation(self) -> None:
+        obligation = get_obligation("top_rank_correct_of_uniform_error_separation")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(
+            obligation.depends_on,
+            (
+                "pairwise_top_rank_correct_of_separation",
+                "finite_family_absolute_error_simultaneous_coverage",
+            ),
+        )
+        self.assertIn("theorem topRank_correct_of_uniform_error_separation", content)
+        self.assertIn("∀ j, j ≠ i → theta j + 2 * radius < theta i", content)
+        self.assertIn("∀ j, |estimate j - theta j| ≤ radius", content)
+        self.assertIn("∀ j, j ≠ i → estimate j < estimate i", content)
+        self.assertIn("abs_le.mp", content)
+        self.assertIn("linarith", content)
+        self.assertIn("selection", obligation.tags)
+        self.assertIn("finite_sample", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_finite_union_bound_obligation_uses_mathlib_bonferroni_lemma(self) -> None:
         obligation = get_obligation("finite_union_bound")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
@@ -1856,6 +1876,7 @@ class SystemTests(unittest.TestCase):
         self.assertIn("finite_family_absolute_error_union_control", measurement_rank_support)
         self.assertIn("simultaneous_coverage_of_union_error_bound", measurement_rank_support)
         self.assertIn("pairwise_top_rank_correct_of_separation", measurement_rank_support)
+        self.assertIn("top_rank_correct_of_uniform_error_separation", measurement_rank_support)
 
     def test_mock_system_accepts_registered_questions(self) -> None:
         async def run():
