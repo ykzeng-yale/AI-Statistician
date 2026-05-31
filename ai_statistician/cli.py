@@ -33,6 +33,7 @@ from .proof_policy_baseline import evaluate_retrieval_proof_policy_baseline
 from .proof_repair_export import export_proof_repair_dataset
 from .proof_search_audit import audit_proof_search_controller
 from .proof_search_training_export import export_proof_search_process_dataset
+from .proof_search_value_model import train_proof_search_value_model
 from .proof_training_export import export_proof_training_dataset
 from .prover_component_audit import build_prover_component_audit, write_prover_component_audit
 from .release import ReleaseBundleConfig, build_release_bundle
@@ -334,6 +335,27 @@ def _proof_search_training_export(args: argparse.Namespace) -> int:
     print(f"train_jsonl={Path(str(payload['train_jsonl'])).resolve()}")
     print(f"validation_jsonl={Path(str(payload['validation_jsonl'])).resolve()}")
     print(f"manifest written to {(Path(args.out) / 'proof_search_training_manifest.json').resolve()}")
+    return 0
+
+
+def _proof_search_value_train(args: argparse.Namespace) -> int:
+    payload = train_proof_search_value_model(
+        Path(args.train_jsonl),
+        Path(args.out),
+        validation_jsonl=Path(args.validation_jsonl) if args.validation_jsonl else None,
+        epochs=args.epochs,
+        learning_rate=args.learning_rate,
+        l2=args.l2,
+    )
+    print("\nAI Statistician Proof Search Value Model")
+    print("=" * 72)
+    print(
+        f"train={payload['n_train']} validation={payload['n_validation']} "
+        f"train_acc={payload['train_accuracy']:.3f} "
+        f"val_acc={payload['validation_accuracy']:.3f}"
+    )
+    print(f"model={Path(str(payload['model_json'])).resolve()}")
+    print(f"manifest written to {(Path(args.out) / 'proof_search_value_model_manifest.json').resolve()}")
     return 0
 
 
@@ -1575,6 +1597,30 @@ def build_parser() -> argparse.ArgumentParser:
         help="output directory for proof_search_process_*.jsonl and manifest",
     )
     proof_search_training_export.set_defaults(func=_proof_search_training_export)
+
+    proof_search_value_train = sub.add_parser(
+        "proof-search-value-train",
+        help="train a small logistic value baseline from proof-search process examples",
+    )
+    proof_search_value_train.add_argument(
+        "--train-jsonl",
+        required=True,
+        help="proof_search_process_train.jsonl",
+    )
+    proof_search_value_train.add_argument(
+        "--validation-jsonl",
+        default="",
+        help="optional proof_search_process_validation.jsonl; defaults to train set",
+    )
+    proof_search_value_train.add_argument("--epochs", type=int, default=200)
+    proof_search_value_train.add_argument("--learning-rate", type=float, default=0.2)
+    proof_search_value_train.add_argument("--l2", type=float, default=0.001)
+    proof_search_value_train.add_argument(
+        "--out",
+        default="runs/proof_search_value_model",
+        help="output directory for value model and prediction manifests",
+    )
+    proof_search_value_train.set_defaults(func=_proof_search_value_train)
 
     algorithm_audit = sub.add_parser("algorithm-audit", help="audit vetted algorithm implementations")
     algorithm_audit.add_argument("--out", default="runs/algorithm_audit", help="algorithm audit output directory")

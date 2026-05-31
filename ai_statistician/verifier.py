@@ -4,6 +4,7 @@ import asyncio
 import contextlib
 import copy
 import os
+import re
 import shutil
 import tempfile
 import time
@@ -31,6 +32,17 @@ def splice_proof(formal_statement: str, proof_body: str) -> str:
     if any(proof.startswith(prefix) for prefix in ("exact ", "apply ", "simp", "rfl", "omega", "linarith")):
         return formal_statement.replace("by sorry", "by\n  " + proof, 1)
     return formal_statement.replace(":= by sorry", ":=\n  " + proof, 1)
+
+
+def placeholder_proof_errors(content: str) -> list[str]:
+    """Reject Lean placeholders that compile by warning but are not proofs."""
+
+    patterns = (
+        (r"\bsorry\b", "candidate still contains sorry"),
+        (r"\badmit\b", "candidate still contains admit"),
+        (r"\baxiom\b", "candidate introduces axiom"),
+    )
+    return [message for pattern, message in patterns if re.search(pattern, content)]
 
 
 class ProofVerifier(Protocol):
@@ -62,9 +74,7 @@ class MockProofVerifier:
     ) -> ProofCheck:
         start = time.perf_counter()
         content = splice_proof(obligation.formal_statement, proof_body)
-        errors: list[str] = []
-        if "sorry" in content:
-            errors.append("candidate still contains sorry")
+        errors: list[str] = placeholder_proof_errors(content)
         if not proof_body.strip():
             errors.append("empty proof body")
         return ProofCheck(
@@ -95,6 +105,19 @@ class AxleProofVerifier:
         proof_body: str,
         retrieval_hits: list[RetrievalHit],
     ) -> ProofCheck:
+        candidate = splice_proof(obligation.formal_statement, proof_body)
+        placeholder_errors = placeholder_proof_errors(candidate)
+        if placeholder_errors:
+            return ProofCheck(
+                obligation_id=obligation.id,
+                ok=False,
+                proof_body=proof_body,
+                verifier=self.name,
+                verification_strength="axle_placeholder_rejected",
+                kernel_verified=False,
+                errors=placeholder_errors,
+                retrieval_hits=retrieval_hits,
+            )
         if not self.api_key:
             return ProofCheck(
                 obligation_id=obligation.id,
@@ -107,7 +130,6 @@ class AxleProofVerifier:
                 retrieval_hits=retrieval_hits,
             )
 
-        candidate = splice_proof(obligation.formal_statement, proof_body)
         start = time.perf_counter()
 
         async def _run() -> tuple[bool, list[str]]:
@@ -176,6 +198,14 @@ class LocalLeanProofVerifier:
         start = time.perf_counter()
         if not items:
             return []
+        if any(
+            placeholder_proof_errors(splice_proof(obligation.formal_statement, proof_body))
+            for obligation, proof_body, _ in items
+        ):
+            return [
+                await self.verify(obligation, proof_body, retrieval_hits)
+                for obligation, proof_body, retrieval_hits in items
+            ]
         if shutil.which("lake") is None or self.project_root is None:
             return [
                 await self.verify(obligation, proof_body, retrieval_hits)
@@ -248,6 +278,20 @@ class LocalLeanProofVerifier:
         retrieval_hits: list[RetrievalHit],
     ) -> ProofCheck:
         start = time.perf_counter()
+        candidate = splice_proof(obligation.formal_statement, proof_body)
+        placeholder_errors = placeholder_proof_errors(candidate)
+        if placeholder_errors:
+            return ProofCheck(
+                obligation_id=obligation.id,
+                ok=False,
+                proof_body=proof_body,
+                verifier=self.name,
+                verification_strength="local_lean_placeholder_rejected",
+                kernel_verified=False,
+                elapsed_ms=int((time.perf_counter() - start) * 1000),
+                errors=placeholder_errors,
+                retrieval_hits=retrieval_hits,
+            )
         if shutil.which("lake") is None:
             return ProofCheck(
                 obligation_id=obligation.id,
@@ -272,8 +316,6 @@ class LocalLeanProofVerifier:
                 errors=["no local Lean/Lake project found; set AI_STATISTICIAN_LEAN_PROJECT or --lean-project"],
                 retrieval_hits=retrieval_hits,
             )
-
-        candidate = splice_proof(obligation.formal_statement, proof_body)
         with tempfile.TemporaryDirectory(prefix="ai_stat_lean_") as tmp:
             lean_file = Path(tmp) / f"{obligation.id}.lean"
             lean_file.write_text(candidate, encoding="utf-8")

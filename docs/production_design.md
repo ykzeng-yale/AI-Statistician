@@ -189,6 +189,26 @@ Each row preserves the theorem, candidate proof body, verifier errors, reward,
 and `kernel_verified` flag. This converts verifier feedback into learning data
 without claiming a trained value model exists yet.
 
+The first actual training stage is a small deterministic value baseline:
+
+```bash
+python3 -m ai_statistician.cli proof-search-value-train \
+  --train-jsonl runs/proof_search_training_export/proof_search_process_train.jsonl \
+  --validation-jsonl runs/proof_search_training_export/proof_search_process_validation.jsonl \
+  --out runs/proof_search_value_model
+```
+
+It fits logistic feature weights over proof-search node features such as
+candidate source, score, proof-body markers, and verifier errors. This closes
+the first training-pipeline gap in an auditable way while keeping the limit
+clear: it is a baseline value model, not a neural tactic policy or RL prover.
+The local/AXLE verifier wrappers reject `sorry`, `admit`, and introduced
+`axiom`s before invoking the backend. This is required because Lean can compile
+`sorry` with a warning; the AI Statistician proof boundary treats placeholders
+as failed candidates, not kernel evidence. Current local-kernel release evidence
+exports `24` proof-search process examples from the audit sample: `12` positive
+kernel-verified registered proofs and `12` negative rejected invalid probes.
+
 Algorithm repair promotion is intentionally one more step beyond generic live
 repair auditing:
 

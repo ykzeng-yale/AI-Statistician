@@ -31,6 +31,7 @@ from .proof_policy_baseline import evaluate_retrieval_proof_policy_baseline
 from .proof_repair_export import export_proof_repair_dataset
 from .proof_search_audit import audit_proof_search_controller
 from .proof_search_training_export import export_proof_search_process_dataset
+from .proof_search_value_model import train_proof_search_value_model
 from .proof_training_export import export_proof_training_dataset
 from .prover_component_audit import build_prover_component_audit, write_prover_component_audit
 from .research_gap_audit import audit_research_gap_backlog
@@ -202,12 +203,17 @@ async def run_research_system_audit(
         verifier=verifier,
         max_obligations=12,
         max_nodes=8,
-        include_invalid_probe=not (config.use_axle or config.use_local_lean),
+        include_invalid_probe=True,
     )
     proof_search_training_manifest = export_proof_search_process_dataset(
         Path(str(proof_search_manifest["results_jsonl"])),
         out_dir / "proof_search_training_export",
         validation_fraction=0.2,
+    )
+    proof_search_value_manifest = train_proof_search_value_model(
+        Path(str(proof_search_training_manifest["train_jsonl"])),
+        out_dir / "proof_search_value_model",
+        validation_jsonl=Path(str(proof_search_training_manifest["validation_jsonl"])),
     )
     stage_start = _record_stage(stage_timings, "proof_training_repair_policy_exports", stage_start)
 
@@ -379,6 +385,8 @@ async def run_research_system_audit(
         "proof_search_audit": bool(proof_search_manifest["all_solved"]),
         "proof_search_training_export": int(proof_search_training_manifest["n_process_examples"])
         == int(proof_search_manifest["nodes_expanded"]),
+        "proof_search_value_model": int(proof_search_value_manifest["n_train"]) > 0
+        and int(proof_search_value_manifest["n_features"]) > 0,
         "prover_component_audit": bool(prover_component_report["paper_outline_exists"])
         and int(prover_component_report["summary"]["components"]) > 0,
         "research_benchmark": benchmark_gate_ok,
@@ -581,6 +589,11 @@ async def run_research_system_audit(
             "proof_search_process_negative": proof_search_training_manifest["n_negative"],
             "proof_search_process_train": proof_search_training_manifest["n_train"],
             "proof_search_process_validation": proof_search_training_manifest["n_validation"],
+            "proof_search_value_train": proof_search_value_manifest["n_train"],
+            "proof_search_value_validation": proof_search_value_manifest["n_validation"],
+            "proof_search_value_features": proof_search_value_manifest["n_features"],
+            "proof_search_value_train_accuracy": proof_search_value_manifest["train_accuracy"],
+            "proof_search_value_validation_accuracy": proof_search_value_manifest["validation_accuracy"],
             "prover_components_total": prover_component_report["summary"]["components"],
             "prover_components_ready": prover_component_report["summary"]["ready"],
             "prover_components_partial": prover_component_report["summary"]["partial"],
@@ -758,6 +771,12 @@ async def run_research_system_audit(
             ),
             "proof_search_process_validation": str(
                 out_dir / "proof_search_training_export" / "proof_search_process_validation.jsonl"
+            ),
+            "proof_search_value_model": str(
+                out_dir / "proof_search_value_model" / "proof_search_value_model_manifest.json"
+            ),
+            "proof_search_value_model_json": str(
+                out_dir / "proof_search_value_model" / "proof_search_value_model.json"
             ),
             "prover_component_audit": str(
                 out_dir / "prover_component_audit" / "prover_component_audit_manifest.json"

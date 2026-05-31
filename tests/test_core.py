@@ -43,6 +43,7 @@ from ai_statistician.proof_repair_export import export_proof_repair_dataset
 from ai_statistician.proof_search import BestFirstWholeProofSearchController, ProofCandidate
 from ai_statistician.proof_search_audit import audit_proof_search_controller
 from ai_statistician.proof_search_training_export import export_proof_search_process_dataset
+from ai_statistician.proof_search_value_model import train_proof_search_value_model
 from ai_statistician.proof_training_export import export_proof_training_dataset
 from ai_statistician.prover_component_audit import build_prover_component_audit, write_prover_component_audit
 from ai_statistician.questions import load_question_file, question_from_json
@@ -521,6 +522,20 @@ class ProofBankTests(unittest.TestCase):
         self.assertEqual(process_rows[0]["reward"], 0.0)
         self.assertIn("Candidate proof body", process_rows[0]["prompt"])
         self.assertIn("candidate still contains sorry", process_rows[0]["first_error"])
+        value_model = train_proof_search_value_model(
+            Path(process["train_jsonl"]),
+            Path("runs/test_proof_search_value_model"),
+            validation_jsonl=Path(process["all_jsonl"]),
+            epochs=80,
+            learning_rate=0.2,
+        )
+        self.assertEqual(value_model["n_train"], 4)
+        self.assertEqual(value_model["n_validation"], 4)
+        self.assertEqual(value_model["n_features"], 12)
+        self.assertGreaterEqual(value_model["validation_accuracy"], 0.75)
+        self.assertTrue(Path(value_model["model_json"]).exists())
+        model_payload = json.loads(Path(value_model["model_json"]).read_text(encoding="utf-8"))
+        self.assertEqual(model_payload["model_type"], "logistic_feature_baseline")
 
     def test_caching_verifier_reuses_checked_obligations(self) -> None:
         async def run():
@@ -597,6 +612,18 @@ class ProofBankTests(unittest.TestCase):
         self.assertTrue(check.kernel_verified)
         self.assertEqual(check.verifier, "local.lake_env_lean")
         self.assertEqual(check.verification_strength, "local_lean_kernel")
+
+    def test_local_lean_verifier_rejects_sorry_before_compile(self) -> None:
+        async def run():
+            verifier = LocalLeanProofVerifier(project_root="/definitely/not/a/lake/project", timeout_s=1)
+            obligation = get_obligation("prob_measure_univ")
+            return await verifier.verify(obligation, "by\n  sorry", [])
+
+        check = asyncio.run(run())
+        self.assertFalse(check.ok)
+        self.assertFalse(check.kernel_verified)
+        self.assertEqual(check.verification_strength, "local_lean_placeholder_rejected")
+        self.assertIn("candidate still contains sorry", check.errors)
 
     def test_local_lean_proof_audit_batches_mathlib_proofs_when_available(self) -> None:
         lean_project = Path("/Users/yukang/LeanProjects/LeanPractice")
@@ -5243,7 +5270,8 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(statuses["hard verifier / Lean kernel interface"], "READY")
         self.assertIn("PARTIAL", statuses["premise retrieval / Lean RAG / formal-source search"])
         self.assertEqual(statuses["tactic / whole-proof policy model"], "BASELINE_ONLY")
-        self.assertEqual(statuses["model training pipeline"], "MISSING")
+        self.assertEqual(statuses["model training pipeline"], "PARTIAL_BASELINE_TRAINER")
+        self.assertFalse(payload["summary"]["honest_goal_complete"])
         manifest, report = write_prover_component_audit(payload, Path("runs/test_prover_component_audit"))
         self.assertTrue(manifest.exists())
         self.assertTrue(report.exists())

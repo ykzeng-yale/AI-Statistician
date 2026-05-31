@@ -14,6 +14,7 @@ from .proof_policy_baseline import PROOF_POLICY_BASELINE_SCHEMA_VERSION
 from .proof_repair_export import PROOF_REPAIR_EXPORT_SCHEMA_VERSION
 from .proof_search import PROOF_SEARCH_SCHEMA_VERSION
 from .proof_search_training_export import PROOF_SEARCH_TRAINING_EXPORT_SCHEMA_VERSION
+from .proof_search_value_model import PROOF_SEARCH_VALUE_MODEL_SCHEMA_VERSION
 from .proof_training_export import PROOF_TRAINING_EXPORT_SCHEMA_VERSION
 from .research_policy_baseline import RESEARCH_POLICY_BASELINE_SCHEMA_VERSION
 from .research_training_export import RESEARCH_TRAINING_EXPORT_SCHEMA_VERSION
@@ -317,14 +318,16 @@ def build_prover_component_audit(
         ProverComponentRow(
             component="model training pipeline",
             paper_stack_layer="Layer 2 -> Layer 4 learning loop",
-            status="MISSING",
-            trained_or_built="Not built. The system logs proof-level attempts, but does not train model weights.",
+            status="PARTIAL_BASELINE_TRAINER",
+            trained_or_built="Built a deterministic logistic value-model trainer over proof-search process examples; no neural checkpoint or RL loop yet.",
             why_it_matters="Training is required for a real prover policy, retriever, value model, decomposer, and construction model.",
             current_evidence=(
-                "No SFT/RL trainer, value head, PPO/GRPO/DPO loop, or trained checkpoint is registered",
+                f"proof_search_value_model_schema_version={PROOF_SEARCH_VALUE_MODEL_SCHEMA_VERSION}",
+                "proof-search-value-train writes proof_search_value_model.json plus train/validation predictions",
+                "research-system-audit gates the baseline value trainer after proof-search process export",
             ),
             missing_or_next=(
-                "Run verifier-filtered whole-proof SFT/rejection sampling from proof_sft_train.jsonl.",
+                "No neural SFT/RL trainer, PPO/GRPO/DPO loop, or tactic-state value head yet.",
                 "Add tactic-state tracing before process-reward RL.",
             ),
         ),
