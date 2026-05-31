@@ -848,6 +848,12 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   the MoM failure probability is controlled by the sum of those budgets. This
   bridges block-level Chebyshev control toward the MoM theorem skeleton without
   claiming the binomial majority tail or sharp sub-Gaussian deviation theorem.
+- `neyman_variance_conservative_algebra`: a design-based finite-population
+  variance bridge. If exact randomization variance decomposes as an observable
+  Neyman bound minus a nonnegative treatment-effect variance term, then the
+  observable bound is conservative. This verifies the core algebraic
+  conservativeness step while leaving complete randomization and the
+  finite-population randomization variance derivation as formal gaps.
 - `mean2_estimator_chebyshev_indep`: combines unbiasedness, L2 closure,
   independence variance additivity, variance scaling, and Chebyshev to bound
   the absolute-error probability of `(X+Y)/2` by
@@ -1267,11 +1273,11 @@ python3 -m ai_statistician.cli proof-audit \
 Current full-bank local Lean evidence (2026-05-31):
 
 ```text
-verified=64/64
-kernel=64/64
+verified=65/65
+kernel=65/65
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=8d204798c67801ccae8f9ed142365bfe29018858e341da31726087699ac2624d
+proof_bank_fingerprint=28eae3c01ee127f056c59af937c75e8fbc00172587817dd63c62a3ba01b0374a
 ```
 
 Run `doctor` in the same Python runtime first. It reports

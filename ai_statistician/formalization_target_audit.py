@@ -282,6 +282,18 @@ _PRIMITIVE_PROOF_BRIDGE_HINTS: dict[str, tuple[str, ...]] = {
         "finite_null_pvalue_no_false_rejection_probability",
         "finite_null_family_no_false_rejection_probability",
     ),
+    "difference_in_means_unbiasedness": (
+        "difference_estimator_unbiased",
+        "finite_sample_mean_unbiased",
+    ),
+    "randomization_variance_decomposition": (
+        "neyman_variance_conservative_algebra",
+        "difference_estimator_variance_decompose",
+    ),
+    "neyman_bound_nonnegative_treatment_effect_variance": (
+        "neyman_variance_conservative_algebra",
+        "variance_nonneg",
+    ),
     "block_mean_definition": (
         "median_of_means_failure_union_control",
         "block_estimator_chebyshev_bound",
@@ -366,17 +378,24 @@ _COMMON_PRIMITIVE_TOKENS = {
     "event",
     "failure",
     "finite",
+    "for",
     "horizon",
+    "in",
     "inference",
     "inequality",
+    "of",
     "probability",
     "tail",
     "theorem",
     "type1",
+    "under",
+    "with",
 }
 
 
 def _is_direct_bridge_candidate(primitive: str, obligation_id: str) -> bool:
+    if obligation_id in _PRIMITIVE_PROOF_BRIDGE_HINTS.get(primitive, ()):
+        return True
     primitive_tokens = _tokens(primitive)
     specific_tokens = primitive_tokens - _COMMON_PRIMITIVE_TOKENS
     if not specific_tokens:
@@ -411,6 +430,12 @@ def _tokens(text: str) -> set[str]:
             aliases.update({"e", "process"})
         if word == "chebyshev":
             aliases.add("tail")
+        if word.endswith("s") and len(word) > 3:
+            aliases.add(word[:-1])
+        if word.endswith("ness") and len(word) > 6:
+            aliases.add(word[:-4])
+        if word == "decomposition":
+            aliases.add("decompose")
     if "type" in words and "i" in words:
         aliases.add("type1")
     if "e" in words and "process" in words:

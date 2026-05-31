@@ -13,15 +13,15 @@ python3 -m ai_statistician.cli proof-audit \
 Result:
 
 ```text
-verified=64/64
-kernel=64/64
+verified=65/65
+kernel=65/65
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=8d204798c67801ccae8f9ed142365bfe29018858e341da31726087699ac2624d
+proof_bank_fingerprint=28eae3c01ee127f056c59af937c75e8fbc00172587817dd63c62a3ba01b0374a
 ```
 
 This is the current evidence that the registered proof bank is not only
-mock-checked: all 64 registered Mathlib-backed obligations were accepted by a
+mock-checked: all 65 registered Mathlib-backed obligations were accepted by a
 real Lean kernel check through the local Lake/Mathlib runtime. AXLE remains the
 preferred remote verifier for release bundles when its Python package and API
 runtime are available; the local Lean backend is the offline kernel-equivalent
@@ -217,6 +217,14 @@ the sum of the bad-block budgets. This is a real verified bridge from
 block-level Chebyshev control toward MoM theorem skeletons; it still does not
 prove the binomial majority tail or the sharp sub-Gaussian MoM deviation
 theorem.
+
+The design-based variance block now includes
+`neyman_variance_conservative_algebra`. It proves that if exact randomization
+variance is an observable Neyman bound minus a nonnegative treatment-effect
+variance term, then the observable bound is conservative. This is a real
+verified algebra bridge for Neyman-style variance traces; it still does not
+prove complete randomization, finite-population potential-outcome
+identification, or the randomization variance decomposition end to end.
 
 Important boundary:
 

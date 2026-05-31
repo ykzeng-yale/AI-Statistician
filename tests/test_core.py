@@ -654,6 +654,22 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("design_based", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_neyman_variance_conservative_algebra_supports_design_based_gap(self) -> None:
+        obligation = get_obligation("neyman_variance_conservative_algebra")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(
+            obligation.depends_on,
+            ("difference_estimator_variance_decompose", "variance_nonneg"),
+        )
+        self.assertIn("theorem neymanVariance_conservative_of_nonneg_effect_variance", content)
+        self.assertIn("exactVariance = observableBound - treatmentEffectVariance", content)
+        self.assertIn("exactVariance ≤ observableBound", content)
+        self.assertIn("nlinarith", content)
+        self.assertIn("design_based", obligation.tags)
+        self.assertIn("neyman", obligation.tags)
+        self.assertIn("randomization_variance", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_aipw_score_expectation_target_cancels_augmentation_means(self) -> None:
         obligation = get_obligation("aipw_score_expectation_target_of_aug_cancel")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
@@ -3064,6 +3080,95 @@ class SystemTests(unittest.TestCase):
                 rows[primitive]["bridge_candidate_obligations"],
             )
             self.assertEqual(rows[primitive]["priority_band"], "BRIDGE_REUSE_READY")
+
+    def test_formalization_target_audit_maps_design_based_primitives_to_verified_bridge(self) -> None:
+        run_dir = Path("runs/test_formalization_target_design_based_run")
+        out_dir = Path("runs/test_formalization_target_design_based_audit")
+        shutil.rmtree(run_dir, ignore_errors=True)
+        shutil.rmtree(out_dir, ignore_errors=True)
+        gap_dir = run_dir / "formal_gaps"
+        gap_dir.mkdir(parents=True, exist_ok=True)
+        gap_path = gap_dir / "neyman_variance_conservative_validity.lean"
+        primitives = (
+            "finite_population_potential_outcomes",
+            "complete_randomization_distribution",
+            "difference_in_means_unbiasedness",
+            "randomization_variance_decomposition",
+            "neyman_bound_nonnegative_treatment_effect_variance",
+        )
+        gap_path.write_text("FORMAL_GAP " + " ".join(primitives), encoding="utf-8")
+        (run_dir / "research_benchmark_manifest.json").write_text(
+            json.dumps({"questions": [{"question": "q_design", "formal": {"gaps": 1}}]}),
+            encoding="utf-8",
+        )
+        proof_obligations = (
+            "finite_sample_mean_unbiased",
+            "difference_estimator_unbiased",
+            "difference_estimator_variance_decompose",
+            "neyman_variance_conservative_algebra",
+            "mean2_estimator_unbiased",
+            "mean2_estimator_variance_indep",
+            "finite_sample_mean_variance_indep",
+            "finite_sample_mean_chebyshev_indep",
+            "estimator_error_chebyshev",
+            "variance_nonneg",
+        )
+        trace = {
+            "question": {"id": "q_design"},
+            "problem": {"problem_class": "design_based_variance_inference"},
+            "procedures": [],
+            "knowledge": [{"id": "design_based_neyman_variance"}],
+            "theorem_goals": [
+                {
+                    "id": "neyman_variance_conservative_validity",
+                    "title": "Neyman variance estimator is conservative for finite-population ATE",
+                    "proof_strategy": "Bridge difference-in-means expectation and variance algebra to the conservative Neyman bound.",
+                    "required_primitives": list(primitives),
+                    "proof_obligations": list(proof_obligations),
+                },
+            ],
+            "formal_subclaims": [
+                *[
+                    {"status": "PROVED", "proof_obligation_id": obligation_id}
+                    for obligation_id in proof_obligations
+                ],
+                {
+                    "id": "gap:neyman_variance_conservative_validity",
+                    "status": "FORMAL_GAP",
+                    "claim_type": "theory_gap",
+                    "gap_reason": "complete randomization and finite-population variance derivation remain library work",
+                    "artifact_path": str(gap_path),
+                    "lean_statement": gap_path.read_text(encoding="utf-8"),
+                    "formal_source_hits": [{"name": "StatInference.AsymptoticStatistics.experiment_variance"}],
+                    "primitive_formal_source_hits": {
+                        primitive: [{"name": "StatInference.AsymptoticStatistics.experiment_variance"}]
+                        for primitive in primitives
+                    },
+                },
+            ],
+        }
+        (run_dir / "q_design.json").write_text(json.dumps(trace), encoding="utf-8")
+
+        payload = audit_formalization_targets(run_dir, out_dir)
+        rows = {row["primitive"]: row for row in payload["rows"]}
+        self.assertIn(
+            "difference_estimator_unbiased",
+            rows["difference_in_means_unbiasedness"]["bridge_candidate_obligations"],
+        )
+        for primitive in (
+            "randomization_variance_decomposition",
+            "neyman_bound_nonnegative_treatment_effect_variance",
+        ):
+            self.assertIn(
+                "neyman_variance_conservative_algebra",
+                rows[primitive]["bridge_candidate_obligations"],
+            )
+            self.assertEqual(rows[primitive]["priority_band"], "BRIDGE_REUSE_READY")
+        self.assertIn("complete_randomization_distribution", rows)
+        self.assertNotIn(
+            "neyman_variance_conservative_algebra",
+            rows["complete_randomization_distribution"]["bridge_candidate_obligations"],
+        )
 
     def test_formalization_target_audit_maps_robust_mean_primitives_to_verified_bridge(self) -> None:
         run_dir = Path("runs/test_formalization_target_robust_mean_run")

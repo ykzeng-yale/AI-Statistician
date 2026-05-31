@@ -166,9 +166,9 @@ python3 -m ai_statistician.cli proof-audit \
   --out runs/proof_audit_local_lean_current
 ```
 
-Current evidence: `64/64` registered proof-bank obligations pass
+Current evidence: `65/65` registered proof-bank obligations pass
 `local_lean_kernel_batch` with proof-bank fingerprint
-`8d204798c67801ccae8f9ed142365bfe29018858e341da31726087699ac2624d`.
+`28eae3c01ee127f056c59af937c75e8fbc00172587817dd63c62a3ba01b0374a`.
 
 Check `doctor` first. It reports `real_lean_ready` and concrete
 `real_lean_blockers`; an AXLE key alone is not enough if the active Python
@@ -255,6 +255,12 @@ bad block events, and each bad block event has a local error budget, then the
 median failure event is bounded by the sum of those budgets. This improves the
 robust-mean formalization queue while still leaving the binomial majority tail
 and sharp sub-Gaussian MoM theorem as explicit formal gaps.
+It also includes `neyman_variance_conservative_algebra`, a design-based
+finite-population variance bridge. If the exact randomization variance equals
+an observable Neyman bound minus a nonnegative treatment-effect variance term,
+then the observable bound is conservative. This verifies the algebraic
+conservativeness step while still leaving complete randomization and the
+finite-population randomization variance formula as explicit formal gaps.
 Another composed guarantee is `mean2_estimator_chebyshev_indep`, which derives
 an explicit Chebyshev error bound for the average of two independent unbiased L2
 estimators using both the expectation and variance proof ingredients. Composed

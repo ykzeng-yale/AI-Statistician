@@ -197,6 +197,42 @@ theorem differenceEstimator_variance_decompose {Ω : Type*} [MeasurableSpace Ω]
         expected_lemmas=("variance_fun_sub", "variance_sub"),
         depends_on=("difference_estimator_unbiased", "variance_nonneg"),
     ),
+    "neyman_variance_conservative_algebra": FormalObligation(
+        id="neyman_variance_conservative_algebra",
+        title="Neyman conservative variance algebra",
+        english=(
+            "If an exact randomization variance decomposes as an observable "
+            "Neyman bound minus a nonnegative treatment-effect variance term, "
+            "then the observable bound is conservative. This is the finite "
+            "algebraic bridge behind design-based variance traces; it does not "
+            "prove complete randomization, finite-population potential-outcome "
+            "identification, or the randomization variance formula itself."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+
+theorem neymanVariance_conservative_of_nonneg_effect_variance
+    (observableBound exactVariance treatmentEffectVariance : ℝ)
+    (hDecomp : exactVariance = observableBound - treatmentEffectVariance)
+    (hNonneg : 0 ≤ treatmentEffectVariance) :
+    exactVariance ≤ observableBound := by sorry
+"""
+        ),
+        proof_body="by\n  nlinarith [hDecomp, hNonneg]",
+        tags=(
+            "estimator",
+            "variance",
+            "design_based",
+            "neyman",
+            "conservative",
+            "finite_population",
+            "randomization_variance",
+            "treatment_effect",
+        ),
+        expected_lemmas=("nlinarith",),
+        depends_on=("difference_estimator_variance_decompose", "variance_nonneg"),
+    ),
     "mean2_estimator_variance_indep": FormalObligation(
         id="mean2_estimator_variance_indep",
         title="Two-variable mean estimator variance under independence",
