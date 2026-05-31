@@ -90,6 +90,13 @@ async def audit_proof_search_controller(
     solved = sum(1 for row in results if row.solved)
     kernel_verified = sum(1 for row in results if row.kernel_verified)
     nodes_expanded = sum(row.nodes_expanded for row in results)
+    tactic_template_candidates_total = sum(row.tactic_template_candidates_total for row in results)
+    tactic_template_nodes_expanded = sum(
+        1
+        for result in results
+        for node in result.nodes
+        if node.source == "builtin_tactic_template"
+    )
     policy_scored_candidates = sum(
         1
         for result in results
@@ -141,6 +148,8 @@ async def audit_proof_search_controller(
             kernel_verified == solved if "kernel" in getattr(proof_verifier, "name", "").lower() else True
         ),
         "nodes_expanded": nodes_expanded,
+        "tactic_template_candidates_total": tactic_template_candidates_total,
+        "tactic_template_nodes_expanded": tactic_template_nodes_expanded,
         "retrieval_candidates_total": retrieval_candidates_total,
         "formal_source_candidates_total": formal_source_candidates_total,
         "retrieval_candidate_nodes_expanded": retrieval_candidate_nodes_expanded,
@@ -152,6 +161,7 @@ async def audit_proof_search_controller(
         "search_audit_fingerprint": stable_hash([asdict(row) for row in results]),
         "limitations": [
             "whole-proof candidate search only; no tactic-state environment yet",
+            "built-in tactic templates are one-shot whole-proof bodies, not interactive tactic-state expansion",
             "best-first candidate priority can use trained whole-proof policy and value rankers when model JSON files are supplied",
             "formal-source templates are verifier-tested candidates; source-only declarations may fail if imports/types do not line up",
             "registered proof bodies are included as a high-priority gold skill-memory candidate",

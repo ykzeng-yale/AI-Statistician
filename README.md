@@ -182,12 +182,13 @@ claim the full frontier asymptotic theorems are closed.
 `proof-search-audit` is the first bounded proof-search controller layer above
 one-shot proof lookup. It runs a best-first whole-proof candidate frontier,
 expands candidate proof bodies from registered proof memory, expected-lemma
-templates, retrieved proof-bank neighbors, and formal-source declaration
-templates from the local Lean/StatInference/Atlas index. It can load the
-`proof-policy-train` model and the `proof-search-value-train` model to score
-proof bodies, verifies each expanded node, and writes `proof_search_results.jsonl`.
-This is still not tactic-state MCTS or RL, but it gives the prover stack an
-auditable search object with retrieval-candidate, formal-source-candidate,
+templates, built-in whole-proof tactic templates, retrieved proof-bank
+neighbors, and formal-source declaration templates from the local
+Lean/StatInference/Atlas index. It can load the `proof-policy-train` model and
+the `proof-search-value-train` model to score proof bodies, verifies each
+expanded node, and writes `proof_search_results.jsonl`. This is still not
+tactic-state MCTS or RL, but it gives the prover stack an auditable search
+object with tactic-template, retrieval-candidate, formal-source-candidate,
 failed-node, policy-score, value-score, and solved-node evidence.
 Current local-kernel release evidence: `proof_search_solved=12/12` and
 `proof_search_kernel_verified=12/12` inside `research-system-audit --local-lean`.

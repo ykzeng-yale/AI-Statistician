@@ -13,7 +13,7 @@ from .schema import FormalObligation, ProofCheck, RetrievalHit
 from .verifier import ProofVerifier
 
 
-PROOF_SEARCH_SCHEMA_VERSION = 5
+PROOF_SEARCH_SCHEMA_VERSION = 6
 
 
 @dataclass(frozen=True)
@@ -62,6 +62,7 @@ class ProofSearchResult:
     selected_verification_strength: str
     nodes_expanded: int
     candidates_total: int
+    tactic_template_candidates_total: int
     retrieval_candidates_total: int
     formal_source_candidates_total: int
     frontier_exhausted: bool
@@ -182,6 +183,9 @@ class BestFirstWholeProofSearchController:
             selected_verification_strength=selected_strength,
             nodes_expanded=len(nodes),
             candidates_total=len(candidates),
+            tactic_template_candidates_total=sum(
+                1 for row in candidates if row.source == "builtin_tactic_template"
+            ),
             retrieval_candidates_total=sum(1 for row in candidates if row.source.startswith("proof_retrieval:")),
             formal_source_candidates_total=sum(
                 1 for row in candidates if row.source.startswith("formal_source_template:")
@@ -219,6 +223,7 @@ class BestFirstWholeProofSearchController:
                     policy_prompt=query_metadata["prompt"],
                 )
             )
+        candidates.extend(_builtin_tactic_candidates(obligation, query_metadata["prompt"]))
         for idx, lemma in enumerate(obligation.expected_lemmas):
             if not lemma or any(ch.isspace() for ch in lemma):
                 continue
@@ -456,6 +461,50 @@ def _metadata_for_obligation(obligation: FormalObligation) -> dict[str, str]:
             ]
         )
     }
+
+
+def _builtin_tactic_candidates(
+    obligation: FormalObligation,
+    policy_prompt: str,
+) -> list[ProofCandidate]:
+    text = " ".join(
+        [
+            obligation.id,
+            obligation.title,
+            obligation.english,
+            obligation.formal_statement,
+            " ".join(obligation.tags),
+            " ".join(obligation.expected_lemmas),
+        ]
+    ).lower()
+    templates: list[tuple[str, str, float]] = [
+        ("simp_all", "by\n  simp_all", 62.0),
+        ("aesop", "by\n  aesop", 58.0),
+        ("simpa", "by\n  simpa", 56.0),
+    ]
+    if any(term in text for term in ("nonneg", "nonnegative", "0 ≤", "positive", "positivity")):
+        templates.append(("positivity", "by\n  positivity", 54.0))
+    if any(term in text for term in ("variance", "≤", ">=", "bound", "inequality", "chebyshev", "markov")):
+        templates.append(("nlinarith", "by\n  nlinarith", 52.0))
+        templates.append(("linarith", "by\n  linarith", 51.0))
+    if any(term in text for term in ("algebra", "mean", "sum", "difference", "affine", "linear", "ring")):
+        templates.append(("ring", "by\n  ring", 50.0))
+    if any(term in text for term in ("nat", "fin", "count", "card", "uniform", "rank")):
+        templates.append(("omega", "by\n  omega", 49.0))
+    return [
+        ProofCandidate(
+            candidate_id=f"{obligation.id}:builtin_tactic:{name}",
+            proof_body=body,
+            source="builtin_tactic_template",
+            score=score,
+            base_score=score,
+            origin_obligation_id=obligation.id,
+            expected_lemmas=tuple(obligation.expected_lemmas),
+            tags=tuple(obligation.tags),
+            policy_prompt=policy_prompt,
+        )
+        for name, body, score in templates
+    ]
 
 
 def _dedupe_candidates(candidates: Iterable[ProofCandidate]) -> list[ProofCandidate]:
