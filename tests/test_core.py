@@ -1241,6 +1241,21 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("ordered_pvalues", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_bh_threshold_grid_mono_uses_gcongr_threshold_algebra(self) -> None:
+        obligation = get_obligation("bh_threshold_grid_mono")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("finite_null_pvalue_no_false_rejection_probability",))
+        self.assertIn("noncomputable def bhThreshold", content)
+        self.assertIn("q * (k : ℝ) / (m : ℝ)", content)
+        self.assertIn("theorem bhThreshold_grid_mono", content)
+        self.assertIn("bhThreshold q m k ≤ bhThreshold q m l", content)
+        self.assertIn("unfold bhThreshold", content)
+        self.assertIn("gcongr", content)
+        self.assertIn("bh_threshold_fixed_point", obligation.tags)
+        self.assertIn("bh_stepup_self_consistency", obligation.tags)
+        self.assertIn("ordered_pvalues", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_event_probability_mono_obligation_uses_measure_mono(self) -> None:
         obligation = get_obligation("event_probability_mono")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
@@ -3060,6 +3075,7 @@ class SystemTests(unittest.TestCase):
             "valid_null_pvalue_uniformity",
             "ordered_pvalues",
             "bh_stepup_self_consistency",
+            "bh_threshold_fixed_point",
             "leave_one_out_fdr_decomposition",
             "independent_null_pvalues",
         )
@@ -3130,6 +3146,16 @@ class SystemTests(unittest.TestCase):
                 rows[primitive]["bridge_candidate_obligations"],
             )
             self.assertEqual(rows[primitive]["priority_band"], "BRIDGE_REUSE_READY")
+        self.assertIn("bh_threshold_grid_mono", rows["ordered_pvalues"]["bridge_candidate_obligations"])
+        self.assertIn(
+            "bh_threshold_grid_mono",
+            rows["bh_stepup_self_consistency"]["bridge_candidate_obligations"],
+        )
+        self.assertIn(
+            "bh_threshold_grid_mono",
+            rows["bh_threshold_fixed_point"]["bridge_candidate_obligations"],
+        )
+        self.assertEqual(rows["bh_threshold_fixed_point"]["priority_band"], "BRIDGE_REUSE_READY")
 
     def test_formalization_target_audit_maps_design_based_primitives_to_verified_bridge(self) -> None:
         run_dir = Path("runs/test_formalization_target_design_based_run")

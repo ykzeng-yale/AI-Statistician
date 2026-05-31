@@ -2289,6 +2289,49 @@ theorem finiteNullPValue_noFalseRejection_probability {Ω ι : Type*}
             "prob_compl",
         ),
     ),
+    "bh_threshold_grid_mono": FormalObligation(
+        id="bh_threshold_grid_mono",
+        title="BH threshold grid monotonicity",
+        english=(
+            "For a nonnegative nominal FDR level `q`, the deterministic "
+            "Benjamini-Hochberg threshold grid `q * k / m` is monotone in the "
+            "rank index `k`. This is a reusable algebraic bridge for ordered "
+            "p-value and BH step-up fixed-point traces; it does not prove the "
+            "BH self-consistency lemma or the FDR control theorem."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+
+noncomputable def bhThreshold (q : ℝ) (m k : Nat) : ℝ :=
+  q * (k : ℝ) / (m : ℝ)
+
+theorem bhThreshold_grid_mono {q : ℝ} {m k l : Nat}
+    (hq : 0 ≤ q) (hkl : k ≤ l) :
+    bhThreshold q m k ≤ bhThreshold q m l := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  unfold bhThreshold\n"
+            "  gcongr"
+        ),
+        tags=(
+            "multiple_testing",
+            "fdr",
+            "bh",
+            "benjamini_hochberg",
+            "threshold",
+            "threshold_grid",
+            "ordered_pvalues",
+            "bh_stepup_self_consistency",
+            "bh_threshold_fixed_point",
+            "monotonicity",
+            "finite_sample",
+        ),
+        expected_lemmas=("gcongr",),
+        depends_on=("finite_null_pvalue_no_false_rejection_probability",),
+    ),
     "finite_horizon_evalue_markov_type1_control": FormalObligation(
         id="finite_horizon_evalue_markov_type1_control",
         title="Finite-horizon e-value type-I control by Markov and union allocation",

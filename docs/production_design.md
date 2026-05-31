@@ -870,6 +870,11 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   mass `1/n`. This upgrades conformal rank-uniformity traces with a verified PMF
   primitive while leaving the exchangeability-to-uniform-rank and
   order-statistic conformal coverage theorems as formal gaps.
+- `bh_threshold_grid_mono`: a deterministic Benjamini-Hochberg threshold-grid
+  bridge. For nonnegative nominal FDR level `q`, the grid `q*k/m` is monotone in
+  the rank index `k`. This upgrades ordered-p-value and BH step-up fixed-point
+  traces with a verified algebraic primitive while leaving BH self-consistency
+  and FDR control as formal gaps.
 - `mean2_estimator_chebyshev_indep`: combines unbiasedness, L2 closure,
   independence variance additivity, variance scaling, and Chebyshev to bound
   the absolute-error probability of `(X+Y)/2` by
@@ -1289,11 +1294,11 @@ python3 -m ai_statistician.cli proof-audit \
 Current full-bank local Lean evidence (2026-05-31):
 
 ```text
-verified=68/68
-kernel=68/68
+verified=69/69
+kernel=69/69
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=9316f9db2872fc77ee64b7da2cfe74c143d78d6682737c604ebc0b5c84debd40
+proof_bank_fingerprint=65cdec90bd3b5d5b399cf46880db638a9463eff81ed82a82e86e55406a4932b6
 ```
 
 Run `doctor` in the same Python runtime first. It reports

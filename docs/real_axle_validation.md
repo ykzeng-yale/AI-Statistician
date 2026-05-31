@@ -13,15 +13,15 @@ python3 -m ai_statistician.cli proof-audit \
 Result:
 
 ```text
-verified=68/68
-kernel=68/68
+verified=69/69
+kernel=69/69
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=9316f9db2872fc77ee64b7da2cfe74c143d78d6682737c604ebc0b5c84debd40
+proof_bank_fingerprint=65cdec90bd3b5d5b399cf46880db638a9463eff81ed82a82e86e55406a4932b6
 ```
 
 This is the current evidence that the registered proof bank is not only
-mock-checked: all 68 registered Mathlib-backed obligations were accepted by a
+mock-checked: all 69 registered Mathlib-backed obligations were accepted by a
 real Lean kernel check through the local Lake/Mathlib runtime. AXLE remains the
 preferred remote verifier for release bundles when its Python package and API
 runtime are available; the local Lean backend is the offline kernel-equivalent
@@ -245,6 +245,12 @@ Mathlib's uniform PMF on a finite nonempty rank space `Fin n` gives each rank
 mass `1/n`. This is a real verified PMF bridge for rank-uniformity traces; it
 still does not prove that exchangeable nonconformity scores induce a uniform
 rank, nor the full order-statistic conformal coverage theorem.
+
+The BH/FDR block now includes `bh_threshold_grid_mono`. It proves that the
+Benjamini-Hochberg threshold grid `q*k/m` is monotone in the rank index `k`
+whenever the nominal level `q` is nonnegative. This is a real verified algebraic
+bridge for ordered-p-value and step-up fixed-point traces; it still does not
+prove BH self-consistency, p-value independence, or the full FDR control theorem.
 
 Important boundary:
 

@@ -276,12 +276,17 @@ _PRIMITIVE_PROOF_BRIDGE_HINTS: dict[str, tuple[str, ...]] = {
         "finite_union_budget_control",
     ),
     "ordered_pvalues": (
+        "bh_threshold_grid_mono",
         "finite_null_pvalue_no_false_rejection_probability",
         "finite_null_family_no_false_rejection_probability",
     ),
     "bh_stepup_self_consistency": (
+        "bh_threshold_grid_mono",
         "finite_null_pvalue_no_false_rejection_probability",
         "finite_null_family_no_false_rejection_probability",
+    ),
+    "bh_threshold_fixed_point": (
+        "bh_threshold_grid_mono",
     ),
     "leave_one_out_fdr_decomposition": (
         "finite_null_pvalue_no_false_rejection_probability",

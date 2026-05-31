@@ -4931,6 +4931,7 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "finite_union_budget_control",
         "finite_null_family_no_false_rejection_probability",
         "finite_null_pvalue_no_false_rejection_probability",
+        "bh_threshold_grid_mono",
         "markov_inequality",
     ),
     "sequential_anytime_inference": (

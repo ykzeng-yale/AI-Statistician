@@ -166,9 +166,9 @@ python3 -m ai_statistician.cli proof-audit \
   --out runs/proof_audit_local_lean_current
 ```
 
-Current evidence: `68/68` registered proof-bank obligations pass
+Current evidence: `69/69` registered proof-bank obligations pass
 `local_lean_kernel_batch` with proof-bank fingerprint
-`9316f9db2872fc77ee64b7da2cfe74c143d78d6682737c604ebc0b5c84debd40`.
+`65cdec90bd3b5d5b399cf46880db638a9463eff81ed82a82e86e55406a4932b6`.
 
 Check `doctor` first. It reports `real_lean_ready` and concrete
 `real_lean_blockers`; an AXLE key alone is not enough if the active Python
@@ -278,6 +278,11 @@ bridge. For a finite nonempty rank space `Fin n`, Mathlib's uniform PMF assigns
 each rank mass `1 / n`. This gives conformal rank-uniformity traces a verified
 PMF building block while still leaving the exchangeable-scores-to-uniform-rank
 theorem and the full order-statistic conformal coverage theorem as formal gaps.
+It also includes `bh_threshold_grid_mono`, a deterministic BH/FDR algebra
+bridge. For nonnegative nominal level `q`, the Benjamini-Hochberg threshold
+grid `q * k / m` is monotone in the rank index `k`. This gives ordered-p-value
+and BH step-up fixed-point traces a verified algebraic primitive while still
+leaving BH self-consistency and FDR control as formal gaps.
 Another composed guarantee is `mean2_estimator_chebyshev_indep`, which derives
 an explicit Chebyshev error bound for the average of two independent unbiased L2
 estimators using both the expectation and variance proof ingredients. Composed
