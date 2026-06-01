@@ -5279,6 +5279,15 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(first["candidate"]["name"].startswith("AIStatistician.Proposed."))
         self.assertTrue(first["candidate"]["statement"].startswith("theorem "))
         self.assertEqual(first["candidate"]["proof"], "")
+        self.assertIn(
+            first["action_class"],
+            {
+                "compose_existing_bridge_chain",
+                "add_minimal_wrapper",
+                "design_bridge_lemma",
+                "design_from_first_principles",
+            },
+        )
         self.assertTrue(first["candidate"]["motivation_tasks"])
         self.assertTrue(first["source_task_ids"])
         self.assertTrue(first["expected_premises"])
@@ -5288,6 +5297,21 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(queue["queued_count"], payload["n_candidates"])
         self.assertTrue(queue["queue"])
         self.assertTrue(queue["queue"][0]["expected_premises"])
+        self.assertIn("action_class", queue["queue"][0])
+        self.assertIn("next_action", queue["queue"][0])
+        self.assertEqual(
+            payload["n_candidates"],
+            payload["n_compose_existing_bridge_chain"]
+            + payload["n_add_minimal_wrapper"]
+            + payload["n_design_bridge_lemma"]
+            + payload["n_design_from_first_principles"],
+        )
+        compose_rows = [
+            row for row in payload["candidates"] if row["action_class"] == "compose_existing_bridge_chain"
+        ]
+        if compose_rows:
+            self.assertTrue(compose_rows[0]["candidate"]["name"].endswith("_theorem_composition"))
+            self.assertIn("Avoid duplicating bridge wrappers", compose_rows[0]["notes"])
         self.assertTrue(Path("runs/test_proof_bank_expansion/proof_bank_expansion_manifest.json").exists())
         self.assertTrue(Path("runs/test_proof_bank_expansion/lemma_proposals.jsonl").exists())
         self.assertTrue(Path("runs/test_proof_bank_expansion/theorem_hole_promotion_queue_manifest.json").exists())
@@ -5299,6 +5323,7 @@ class SystemTests(unittest.TestCase):
         ]
         self.assertEqual(len(rows), payload["n_candidates"])
         self.assertIn("blocked_reasons", rows[0])
+        self.assertIn("action_class", rows[0])
 
     def test_primitive_source_coverage_audit_classifies_missing_primitives(self) -> None:
         async def run():
@@ -7549,6 +7574,17 @@ class SystemTests(unittest.TestCase):
         self.assertGreater(payload["counts"]["proof_bank_expansion_candidates_total"], 0)
         self.assertGreater(payload["counts"]["proof_bank_expansion_bridge_ready"], 0)
         self.assertGreater(payload["counts"]["proof_bank_expansion_blocked_placeholder"], 0)
+        self.assertIn("proof_bank_expansion_compose_existing_bridge_chain", payload["counts"])
+        self.assertIn("proof_bank_expansion_add_minimal_wrapper", payload["counts"])
+        self.assertIn("proof_bank_expansion_design_bridge_lemma", payload["counts"])
+        self.assertIn("proof_bank_expansion_design_from_first_principles", payload["counts"])
+        self.assertEqual(
+            payload["counts"]["proof_bank_expansion_candidates_total"],
+            payload["counts"]["proof_bank_expansion_compose_existing_bridge_chain"]
+            + payload["counts"]["proof_bank_expansion_add_minimal_wrapper"]
+            + payload["counts"]["proof_bank_expansion_design_bridge_lemma"]
+            + payload["counts"]["proof_bank_expansion_design_from_first_principles"],
+        )
         self.assertEqual(
             payload["counts"]["primitive_source_coverage_primitives"],
             payload["counts"]["missing_formal_primitives"],

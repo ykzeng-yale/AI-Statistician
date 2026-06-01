@@ -932,6 +932,18 @@ async def run_research_system_audit(
                 "n_blocked_placeholder"
             ],
             "proof_bank_expansion_candidate_ready": proof_bank_expansion_manifest["n_candidate_ready"],
+            "proof_bank_expansion_compose_existing_bridge_chain": proof_bank_expansion_manifest[
+                "n_compose_existing_bridge_chain"
+            ],
+            "proof_bank_expansion_add_minimal_wrapper": proof_bank_expansion_manifest[
+                "n_add_minimal_wrapper"
+            ],
+            "proof_bank_expansion_design_bridge_lemma": proof_bank_expansion_manifest[
+                "n_design_bridge_lemma"
+            ],
+            "proof_bank_expansion_design_from_first_principles": proof_bank_expansion_manifest[
+                "n_design_from_first_principles"
+            ],
             "primitive_source_coverage_primitives": primitive_source_coverage_manifest["n_primitives"],
             "primitive_source_coverage_direct_wrapper_possible": primitive_source_coverage_manifest[
                 "n_direct_wrapper_possible"

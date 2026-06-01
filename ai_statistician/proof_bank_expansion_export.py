@@ -38,6 +38,7 @@ class ProofBankExpansionCandidate:
     required_gates: tuple[str, ...]
     blocked_reasons: tuple[str, ...]
     status: str
+    action_class: str
     notes: str
     primitive: str
     priority_score: int
@@ -81,6 +82,14 @@ def export_proof_bank_expansion_candidates(
         "n_candidate_ready": sum(1 for row in rows if row.status == "candidate_ready"),
         "n_blocked_placeholder": sum(1 for row in rows if row.status == "blocked_placeholder"),
         "n_bridge_ready": sum(1 for row in rows if row.bridge_candidate_obligations),
+        "n_compose_existing_bridge_chain": sum(
+            1 for row in rows if row.action_class == "compose_existing_bridge_chain"
+        ),
+        "n_add_minimal_wrapper": sum(1 for row in rows if row.action_class == "add_minimal_wrapper"),
+        "n_design_bridge_lemma": sum(1 for row in rows if row.action_class == "design_bridge_lemma"),
+        "n_design_from_first_principles": sum(
+            1 for row in rows if row.action_class == "design_from_first_principles"
+        ),
         "all_ok": bool(rows) and all(row.ok for row in rows),
         "candidate_fingerprint": stable_hash([asdict(row) for row in rows]),
         "candidates": [asdict(row) for row in rows],
@@ -159,6 +168,7 @@ def _candidate_for_target(
     declaration = _extract_declaration_name(statement) or f"{_safe_identifier(primitive)}_bridge"
     expected_premises = _expected_premises(target, candidate_declarations, bridge_candidates)
     blocked_reasons = _blocked_reasons(statement, target, matching_tasks)
+    action_class = _proposal_action_class(bridge_candidates, candidate_declarations)
     errors: list[str] = []
     if not primitive:
         errors.append("missing primitive")
@@ -169,17 +179,20 @@ def _candidate_for_target(
     if not expected_premises:
         errors.append("no expected premises or local declarations attached")
     status = "blocked_placeholder" if blocked_reasons else "candidate_ready"
-    notes = (
-        f"{target.get('suggested_next_step', '')} "
-        f"Start by replacing placeholder assumptions in `{declaration}` and proving the "
-        "smallest reusable bridge lemma with AXLE verify_proof."
-    ).strip()
+    notes = _proposal_notes(
+        action_class,
+        primitive=primitive,
+        declaration=declaration,
+        bridge_candidates=bridge_candidates,
+        suggested_next_step=str(target.get("suggested_next_step", "")),
+    )
+    candidate_name = _candidate_name(primitive, action_class)
     return ProofBankExpansionCandidate(
         proposal_id=f"lemma_proposal:{_safe_identifier(primitive)}:{stable_hash([primitive, source_task_ids])[:10]}",
         source_kind="formal_gap_task_export",
         proposed_by="proof_bank_expansion_export",
         candidate={
-            "name": f"AIStatistician.Proposed.{_safe_identifier(primitive)}_bridge",
+            "name": candidate_name,
             "statement": statement,
             "proof": "",
             "motivation_tasks": source_task_ids,
@@ -195,6 +208,7 @@ def _candidate_for_target(
                 "proof_bank_expansion",
                 "formal_gap",
                 primitive,
+                action_class,
                 str(target.get("bridge_readiness", "")),
                 *tuple(target.get("problem_classes", []) or ()),
                 *tuple(target.get("theorem_goals", []) or ()),
@@ -205,6 +219,7 @@ def _candidate_for_target(
         required_gates=REQUIRED_PROPOSAL_GATES,
         blocked_reasons=blocked_reasons,
         status=status,
+        action_class=action_class,
         notes=notes,
         primitive=primitive,
         priority_score=int(target.get("priority_score", 0) or 0),
@@ -268,6 +283,8 @@ def _queue_row(
         "task_id": row.source_task_ids[0] if row.source_task_ids else "",
         "candidate_name": str(row.candidate["name"]),
         "status": row.status,
+        "action_class": row.action_class,
+        "next_action": _queue_next_action(row),
         "declaration": declaration,
         "module": str(source_task.get("namespace", "")),
         "file": str(source_task.get("artifact_path", "")),
@@ -284,6 +301,7 @@ def _queue_row(
             "candidate proof intentionally empty",
             "requires AXLE verify_proof before proof-bank admission",
             f"bridge_readiness={row.bridge_readiness}",
+            f"action_class={row.action_class}",
         ],
     }
 
@@ -303,9 +321,71 @@ def _legacy_lemma_proposal(row: ProofBankExpansionCandidate) -> dict[str, object
             "required_gates",
             "blocked_reasons",
             "status",
+            "action_class",
             "notes",
         )
     }
+
+
+def _proposal_action_class(
+    bridge_candidates: tuple[str, ...],
+    candidate_declarations: tuple[str, ...],
+) -> str:
+    if len(bridge_candidates) >= 3:
+        return "compose_existing_bridge_chain"
+    if bridge_candidates and candidate_declarations:
+        return "add_minimal_wrapper"
+    if bridge_candidates or candidate_declarations:
+        return "design_bridge_lemma"
+    return "design_from_first_principles"
+
+
+def _proposal_notes(
+    action_class: str,
+    *,
+    primitive: str,
+    declaration: str,
+    bridge_candidates: tuple[str, ...],
+    suggested_next_step: str,
+) -> str:
+    if action_class == "compose_existing_bridge_chain":
+        lead = (
+            f"Avoid duplicating bridge wrappers for `{primitive}`: "
+            f"{len(bridge_candidates)} verified bridge obligations are already ranked. "
+            f"Compose the next theorem skeleton `{declaration}` from the bridge chain, "
+            "then close only the remaining full-theorem interface with AXLE verify_proof."
+        )
+    elif action_class == "add_minimal_wrapper":
+        lead = (
+            f"Add the smallest reusable wrapper for `{primitive}` before promoting "
+            f"`{declaration}`."
+        )
+    elif action_class == "design_bridge_lemma":
+        lead = (
+            f"Design one missing bridge lemma for `{primitive}` before attempting "
+            f"`{declaration}`."
+        )
+    else:
+        lead = (
+            f"Design the Lean primitive for `{primitive}` from first principles before "
+            f"attempting `{declaration}`."
+        )
+    return f"{lead} {suggested_next_step}".strip()
+
+
+def _candidate_name(primitive: str, action_class: str) -> str:
+    suffix = "theorem_composition" if action_class == "compose_existing_bridge_chain" else "bridge"
+    return f"AIStatistician.Proposed.{_safe_identifier(primitive)}_{suffix}"
+
+
+def _queue_next_action(row: ProofBankExpansionCandidate) -> str:
+    if row.action_class == "compose_existing_bridge_chain":
+        return "compose_verified_bridge_chain_into_theorem_skeleton"
+    if row.action_class == "add_minimal_wrapper":
+        return "add_minimal_axle_verified_wrapper"
+    if row.action_class == "design_bridge_lemma":
+        return "design_missing_bridge_lemma"
+    return "design_lean_primitive_from_first_principles"
 
 
 def _extract_theorem_signature(statement: str) -> str:
@@ -357,6 +437,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Candidates: {payload.get('n_ok')}/{payload.get('n_candidates')} audit-clean",
         f"- Bridge-ready candidates: {payload.get('n_bridge_ready')}",
         f"- Blocked placeholder candidates: {payload.get('n_blocked_placeholder')}",
+        f"- Compose existing bridge chains: {payload.get('n_compose_existing_bridge_chain')}",
+        f"- Add minimal wrappers: {payload.get('n_add_minimal_wrapper')}",
+        f"- Design bridge lemmas: {payload.get('n_design_bridge_lemma')}",
         f"- Lemma proposals JSONL: `{payload.get('lemma_proposals_jsonl', '')}`",
         f"- Theorem-hole queue: `{payload.get('theorem_hole_promotion_queue_path', '')}`",
         f"- Fingerprint: `{payload.get('candidate_fingerprint')}`",
@@ -375,6 +458,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
                 "",
                 f"- Proposal: `{row.get('proposal_id')}`",
                 f"- Priority score: {row.get('priority_score')}",
+                f"- Action class: `{row.get('action_class')}`",
                 f"- Bridge readiness: `{row.get('bridge_readiness')}`",
                 f"- Source tasks: {', '.join(f'`{item}`' for item in row.get('source_task_ids', [])) or 'none'}",
                 f"- Candidate declarations: {', '.join(f'`{item}`' for item in row.get('candidate_declarations', [])[:5]) or 'none'}",
