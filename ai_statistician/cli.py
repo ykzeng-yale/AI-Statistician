@@ -9,6 +9,7 @@ from .algorithms import audit_algorithm_registry
 from .algorithm_repair_promotion import export_algorithm_repair_promotion_queue
 from .algorithm_repair_patch_training_export import export_algorithm_repair_patch_training_dataset
 from .algorithm_repair_patch_policy_model import train_algorithm_repair_patch_policy_model
+from .algorithm_repair_production_patch_plan import export_algorithm_repair_production_patch_plan
 from .algorithm_repair_sandbox import evaluate_algorithm_repair_sandbox
 from .algorithm_repair_sandbox_apply import apply_algorithm_repair_sandbox_results
 from .algorithm_repair_sandbox_patch_eval import evaluate_algorithm_repair_sandbox_patches
@@ -1545,6 +1546,30 @@ def _algorithm_repair_patch_policy_train(args: argparse.Namespace) -> int:
     return 0 if payload["all_ok"] else 1
 
 
+def _algorithm_repair_production_patch_plan(args: argparse.Namespace) -> int:
+    payload = export_algorithm_repair_production_patch_plan(
+        Path(args.policy_model_dir),
+        Path(args.out),
+    )
+    print("\nAI Statistical Theory Lab Algorithm Repair Production Patch Plans")
+    print("=" * 72)
+    print(
+        f"plans={payload['n_ok']}/{payload['n_plans']} "
+        f"review_required={payload['n_review_required']} "
+        f"production_patches={payload['n_production_patches_applied']} "
+        f"promotion_ready={payload['n_promotion_ready']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    for kind, count in payload["by_patch_kind"].items():
+        print(f"  {kind}: {count}")
+    print(
+        f"\nproduction patch plan manifest written to "
+        f"{(Path(args.out) / 'algorithm_repair_production_patch_plan_manifest.json').resolve()}"
+    )
+    print(f"plans JSONL written to {(Path(args.out) / 'algorithm_repair_production_patch_plans.jsonl').resolve()}")
+    return 0 if payload["all_ok"] else 1
+
+
 async def _research_eval(args: argparse.Namespace) -> int:
     _load_dotenv(Path(args.env_file))
     questions = load_open_research_questions(Path(args.question_file))
@@ -2660,6 +2685,22 @@ def build_parser() -> argparse.ArgumentParser:
     algorithm_repair_patch_policy_train.add_argument("--learning-rate", type=float, default=0.15)
     algorithm_repair_patch_policy_train.add_argument("--l2", type=float, default=0.001)
     algorithm_repair_patch_policy_train.set_defaults(func=_algorithm_repair_patch_policy_train)
+
+    algorithm_repair_production_patch_plan = sub.add_parser(
+        "algorithm-repair-production-patch-plan",
+        help="export reviewed production source-change plans from safe patch-policy predictions",
+    )
+    algorithm_repair_production_patch_plan.add_argument(
+        "--policy-model-dir",
+        required=True,
+        help="directory containing algorithm_repair_patch_policy_model_manifest.json",
+    )
+    algorithm_repair_production_patch_plan.add_argument(
+        "--out",
+        default="runs/algorithm_repair_production_patch_plan",
+        help="algorithm repair production patch plan output directory",
+    )
+    algorithm_repair_production_patch_plan.set_defaults(func=_algorithm_repair_production_patch_plan)
 
     research_eval = sub.add_parser(
         "research-eval",
