@@ -18,6 +18,7 @@ from .algorithm_repair_patch_training_export import export_algorithm_repair_patc
 from .algorithm_repair_production_patch_plan import export_algorithm_repair_production_patch_plan
 from .algorithm_repair_reviewed_patch_apply import apply_reviewed_algorithm_repair_source_patches
 from .algorithm_repair_reviewed_patch_validate import validate_reviewed_algorithm_repair_patches
+from .algorithm_simulation_stress_audit import audit_algorithm_simulation_stress
 from .algorithm_repair_sandbox import evaluate_algorithm_repair_sandbox
 from .algorithm_repair_sandbox_apply import apply_algorithm_repair_sandbox_results
 from .algorithm_repair_sandbox_patch_eval import evaluate_algorithm_repair_sandbox_patches
@@ -224,6 +225,12 @@ async def run_research_system_audit(
     autoform_harness_manifest = audit_autoform_harness(out_dir / "autoform_harness")
     retrieval_manifest = audit_proof_bank_retrieval(out_dir / "retrieval_audit", k=5)
     algorithm_manifest = audit_research_algorithm_registry(out_dir / "research_algorithm_audit")
+    algorithm_simulation_stress_manifest = audit_algorithm_simulation_stress(
+        out_dir / "algorithm_simulation_stress_audit",
+        question_file=actual_question_file,
+        seeds=(config.seed + 31, config.seed + 32, config.seed + 33),
+        n_runs=max(10, min(config.n_runs, 25)),
+    )
     stage_start = _record_stage(stage_timings, "small_static_audits", stage_start)
 
     proof_attempt_log = Path(str(proof_manifest["proof_attempt_log"]["attempt_log"]))
@@ -480,6 +487,7 @@ async def run_research_system_audit(
         "formal_source_retrieval_benchmark": bool(formal_source_retrieval_benchmark_manifest["all_ok"]),
         "formal_source_retrieval_ablation": bool(formal_source_retrieval_ablation_manifest["all_ok"]),
         "research_algorithm_audit": bool(algorithm_manifest["all_ok"]),
+        "algorithm_simulation_stress_audit": bool(algorithm_simulation_stress_manifest["all_ok"]),
         "proof_audit": bool(proof_manifest["all_verified"])
         and bool(proof_manifest["dependency_graph"]["all_ok"])
         and (
@@ -722,6 +730,33 @@ async def run_research_system_audit(
             "retrieval_total": retrieval_manifest["n_obligations"],
             "research_algorithms_ok": algorithm_manifest["n_ok"],
             "research_algorithms_total": algorithm_manifest["n_algorithms"],
+            "algorithm_simulation_stress_cases": algorithm_simulation_stress_manifest[
+                "n_seeded_simulations"
+            ],
+            "algorithm_simulation_stress_algorithms": algorithm_simulation_stress_manifest[
+                "n_algorithms"
+            ],
+            "algorithm_simulation_stress_seeds": algorithm_simulation_stress_manifest[
+                "n_seeds"
+            ],
+            "algorithm_simulation_stress_all_passed": algorithm_simulation_stress_manifest[
+                "all_passed"
+            ],
+            "algorithm_simulation_stress_all_finite_metrics": algorithm_simulation_stress_manifest[
+                "all_finite_metrics"
+            ],
+            "algorithm_simulation_stress_all_stress_ledgers_ok": algorithm_simulation_stress_manifest[
+                "all_stress_ledgers_ok"
+            ],
+            "algorithm_simulation_stress_all_diagnoses_ok": algorithm_simulation_stress_manifest[
+                "all_diagnoses_ok"
+            ],
+            "algorithm_simulation_stress_multi_seed_checked": algorithm_simulation_stress_manifest[
+                "multi_seed_stability_checked"
+            ],
+            "algorithm_simulation_stress_flags": algorithm_simulation_stress_manifest[
+                "n_stress_flags"
+            ],
             "proofs_verified": proof_manifest["n_verified"],
             "proofs_kernel_verified": proof_manifest["n_kernel_verified"],
             "proofs_non_kernel_verified": proof_manifest["n_non_kernel_verified"],
@@ -1115,6 +1150,14 @@ async def run_research_system_audit(
             ),
             "research_algorithm_audit": str(
                 out_dir / "research_algorithm_audit" / "research_algorithm_audit_manifest.json"
+            ),
+            "algorithm_simulation_stress_audit": str(
+                out_dir
+                / "algorithm_simulation_stress_audit"
+                / "algorithm_simulation_stress_manifest.json"
+            ),
+            "algorithm_simulation_stress_report": str(
+                out_dir / "algorithm_simulation_stress_audit" / "algorithm_simulation_stress.md"
             ),
             "proof_audit": str(out_dir / "proof_audit" / "proof_audit_manifest.json"),
             "proof_attempt_log": str(out_dir / "proof_audit" / "proof_attempts.jsonl"),

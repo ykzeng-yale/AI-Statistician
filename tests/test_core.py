@@ -22,6 +22,7 @@ from ai_statistician.algorithm_repair_sandbox import evaluate_algorithm_repair_s
 from ai_statistician.algorithm_repair_sandbox_apply import apply_algorithm_repair_sandbox_results
 from ai_statistician.algorithm_repair_sandbox_patch_eval import evaluate_algorithm_repair_sandbox_patches
 from ai_statistician.algorithm_repair_sandbox_rerun import rerun_algorithm_repair_sandbox_applications
+from ai_statistician.algorithm_simulation_stress_audit import audit_algorithm_simulation_stress
 from ai_statistician.adversarial_intake_audit import audit_adversarial_unsupported_intake
 from ai_statistician.architecture_audit import audit_architecture
 from ai_statistician.capability_audit import build_capability_audit, write_capability_audit
@@ -2309,6 +2310,13 @@ class SystemTests(unittest.TestCase):
                 "lean_rag_dependency_graph_enabled": True,
                 "research_algorithms_ok": 33,
                 "research_algorithms_total": 33,
+                "algorithm_simulation_stress_cases": 30,
+                "algorithm_simulation_stress_seeds": 3,
+                "algorithm_simulation_stress_all_passed": True,
+                "algorithm_simulation_stress_all_finite_metrics": True,
+                "algorithm_simulation_stress_all_stress_ledgers_ok": True,
+                "algorithm_simulation_stress_all_diagnoses_ok": True,
+                "algorithm_simulation_stress_multi_seed_checked": True,
                 "research_loop_theory_revisions": 6,
                 "algorithm_repair_sandbox_patch_eval_promotion_ready": 0,
                 "adversarial_intake_cases": 6,
@@ -2326,6 +2334,7 @@ class SystemTests(unittest.TestCase):
                 "proof_search_audit": "runs/example/proof_search_audit_manifest.json",
                 "proof_search_retrieval_ablation": "runs/example/proof_search_retrieval_ablation_manifest.json",
                 "research_algorithm_audit": "runs/example/research_algorithm_audit_manifest.json",
+                "algorithm_simulation_stress_audit": "runs/example/algorithm_simulation_stress_manifest.json",
                 "research_loop": "runs/example/research_loop_manifest.json",
                 "research_loop_repair_audit": "runs/example/research_loop_repair_audit_manifest.json",
                 "algorithm_repair_sandbox_patch_eval": "runs/example/algorithm_repair_sandbox_patch_eval_manifest.json",
@@ -2343,6 +2352,7 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(statuses["S3_frontier_blind_theory_target"], "CAPACITY_GAP")
         self.assertEqual(statuses["S4_formal_primitive_ladder"], "CAPACITY_GAP")
         self.assertEqual(statuses["S5_proof_bank_and_search"], "SATURATED")
+        self.assertEqual(statuses["S6_algorithm_simulation_stress"], "OK")
         self.assertEqual(statuses["S8_adversarial_unsupported_intake"], "OK")
         self.assertGreaterEqual(len(guidance["top_actions"]), 3)
         self.assertTrue(
@@ -2372,6 +2382,24 @@ class SystemTests(unittest.TestCase):
             self.assertEqual(row["registry_status"], "vetted")
             self.assertEqual(len(row["implementation_hash"]), 64)
         self.assertTrue(Path("runs/test_research_algorithm_audit/research_algorithm_audit_manifest.json").exists())
+
+    def test_algorithm_simulation_stress_audit_checks_multiseed_stress_ledgers(self) -> None:
+        payload = audit_algorithm_simulation_stress(
+            Path("runs/test_algorithm_simulation_stress_audit"),
+            seeds=(31, 32),
+            n_runs=10,
+            max_questions=2,
+        )
+        self.assertTrue(payload["all_ok"])
+        self.assertTrue(payload["multi_seed_stability_checked"])
+        self.assertEqual(payload["n_seeds"], 2)
+        self.assertEqual(payload["n_questions"], 2)
+        self.assertGreaterEqual(payload["n_seeded_simulations"], 3)
+        self.assertTrue(payload["all_finite_metrics"])
+        self.assertTrue(payload["all_stress_ledgers_ok"])
+        self.assertTrue(payload["all_diagnoses_ok"])
+        self.assertTrue(Path("runs/test_algorithm_simulation_stress_audit/algorithm_simulation_stress_manifest.json").exists())
+        self.assertTrue(Path("runs/test_algorithm_simulation_stress_audit/algorithm_simulation_stress.md").exists())
 
     def test_research_intake_audit_accepts_supported_and_rejects_unsupported(self) -> None:
         payload = audit_research_question_intake(Path("runs/test_research_intake_audit"))
@@ -6999,6 +7027,7 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(payload["gates"]["formal_source_retrieval_benchmark"])
         self.assertTrue(payload["gates"]["formal_source_retrieval_ablation"])
         self.assertTrue(payload["gates"]["research_algorithm_audit"])
+        self.assertTrue(payload["gates"]["algorithm_simulation_stress_audit"])
         self.assertTrue(payload["gates"]["proof_audit"])
         self.assertTrue(payload["gates"]["proof_training_export"])
         self.assertTrue(payload["gates"]["proof_repair_export"])
@@ -7251,6 +7280,13 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(payload["counts"]["audit_slowest_stage"])
         self.assertGreater(payload["counts"]["audit_slowest_stage_elapsed_ms"], 0)
         self.assertEqual(payload["counts"]["research_algorithms_ok"], payload["counts"]["research_algorithms_total"])
+        self.assertGreater(payload["counts"]["algorithm_simulation_stress_cases"], 0)
+        self.assertGreaterEqual(payload["counts"]["algorithm_simulation_stress_seeds"], 2)
+        self.assertTrue(payload["counts"]["algorithm_simulation_stress_multi_seed_checked"])
+        self.assertTrue(payload["counts"]["algorithm_simulation_stress_all_passed"])
+        self.assertTrue(payload["counts"]["algorithm_simulation_stress_all_finite_metrics"])
+        self.assertTrue(payload["counts"]["algorithm_simulation_stress_all_stress_ledgers_ok"])
+        self.assertTrue(payload["counts"]["algorithm_simulation_stress_all_diagnoses_ok"])
         self.assertGreater(payload["counts"]["verifier_cache_hits"], 0)
         self.assertGreater(payload["counts"]["verifier_cache_misses"], 0)
         self.assertGreater(payload["counts"]["verifier_cache_size"], 0)
@@ -7371,6 +7407,8 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(Path(payload["artifacts"]["formal_source_retrieval_ablation"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_source_retrieval_ablation_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["research_algorithm_audit"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["algorithm_simulation_stress_audit"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["algorithm_simulation_stress_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["proof_attempt_log"]).exists())
         self.assertTrue(Path(payload["artifacts"]["proof_training_export"]).exists())
         self.assertTrue(Path(payload["artifacts"]["proof_training_train"]).exists())

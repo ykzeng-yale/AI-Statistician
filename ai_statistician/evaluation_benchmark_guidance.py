@@ -269,17 +269,43 @@ def _suite_rows(
         ),
         BenchmarkSuiteGuidanceRow(
             suite_id="S6_algorithm_simulation_stress",
-            exercised=bool(artifacts.get("research_algorithm_audit")),
-            status="UNDER_SPECIFIED",
-            evidence_paths=(str(artifacts.get("research_algorithm_audit", "")),),
+            exercised=bool(artifacts.get("algorithm_simulation_stress_audit")),
+            status="OK"
+            if bool(counts.get("algorithm_simulation_stress_multi_seed_checked"))
+            and bool(counts.get("algorithm_simulation_stress_all_passed"))
+            and bool(counts.get("algorithm_simulation_stress_all_finite_metrics"))
+            and bool(counts.get("algorithm_simulation_stress_all_stress_ledgers_ok"))
+            and bool(counts.get("algorithm_simulation_stress_all_diagnoses_ok"))
+            else "UNDER_SPECIFIED",
+            evidence_paths=(
+                str(artifacts.get("algorithm_simulation_stress_audit", "")),
+                str(artifacts.get("research_algorithm_audit", "")),
+            ),
             key_counts={
                 "research_algorithms_ok": counts.get("research_algorithms_ok"),
                 "research_algorithms_total": counts.get("research_algorithms_total"),
+                "algorithm_simulation_stress_cases": counts.get("algorithm_simulation_stress_cases"),
+                "algorithm_simulation_stress_seeds": counts.get("algorithm_simulation_stress_seeds"),
+                "algorithm_simulation_stress_all_passed": counts.get(
+                    "algorithm_simulation_stress_all_passed"
+                ),
+                "algorithm_simulation_stress_all_finite_metrics": counts.get(
+                    "algorithm_simulation_stress_all_finite_metrics"
+                ),
+                "algorithm_simulation_stress_all_stress_ledgers_ok": counts.get(
+                    "algorithm_simulation_stress_all_stress_ledgers_ok"
+                ),
                 "research_report_simulations_passed": counts.get("research_report_simulations_passed"),
                 "research_report_simulations": counts.get("research_report_simulations"),
             },
             honesty_boundary="Simulation diagnostics are empirical checks, not guarantees.",
-            issues=("needs adversarial DGP sweeps and multi-seed stability thresholds",),
+            issues=()
+            if bool(counts.get("algorithm_simulation_stress_multi_seed_checked"))
+            and bool(counts.get("algorithm_simulation_stress_all_passed"))
+            and bool(counts.get("algorithm_simulation_stress_all_finite_metrics"))
+            and bool(counts.get("algorithm_simulation_stress_all_stress_ledgers_ok"))
+            and bool(counts.get("algorithm_simulation_stress_all_diagnoses_ok"))
+            else ("needs passing multi-seed stress ledgers and finite metric checks",),
         ),
         BenchmarkSuiteGuidanceRow(
             suite_id="S7_feedback_loop_repair",
