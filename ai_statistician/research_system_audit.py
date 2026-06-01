@@ -13,6 +13,7 @@ from .frontier_backlog_audit import audit_frontier_backlog
 from .frontier_coverage_audit import audit_frontier_coverage
 from .frontier_precision_audit import audit_frontier_precision
 from .algorithm_repair_promotion import export_algorithm_repair_promotion_queue
+from .algorithm_repair_patch_training_export import export_algorithm_repair_patch_training_dataset
 from .algorithm_repair_sandbox import evaluate_algorithm_repair_sandbox
 from .algorithm_repair_sandbox_apply import apply_algorithm_repair_sandbox_results
 from .algorithm_repair_sandbox_patch_eval import evaluate_algorithm_repair_sandbox_patches
@@ -380,6 +381,11 @@ async def run_research_system_audit(
         n_runs=max(10, min(config.n_runs, 50)),
         seed=config.seed + 19,
     )
+    algorithm_repair_patch_training_manifest = export_algorithm_repair_patch_training_dataset(
+        out_dir / "algorithm_repair_sandbox_patch_eval",
+        out_dir / "algorithm_repair_patch_training_export",
+        validation_fraction=0.2,
+    )
     stage_start = _record_stage(stage_timings, "algorithm_repair_pipeline", stage_start)
 
     benchmark_gate_ok = (
@@ -463,6 +469,7 @@ async def run_research_system_audit(
         "algorithm_repair_sandbox_apply": bool(algorithm_repair_sandbox_apply_manifest["all_ok"]),
         "algorithm_repair_sandbox_rerun": bool(algorithm_repair_sandbox_rerun_manifest["all_ok"]),
         "algorithm_repair_sandbox_patch_eval": bool(algorithm_repair_sandbox_patch_eval_manifest["all_ok"]),
+        "algorithm_repair_patch_training_export": bool(algorithm_repair_patch_training_manifest["all_ok"]),
     }
     benchmark_cache_gate_names = (
         "research_benchmark",
@@ -811,6 +818,19 @@ async def run_research_system_audit(
             "algorithm_repair_sandbox_patch_eval_promotion_ready": algorithm_repair_sandbox_patch_eval_manifest[
                 "n_promotion_ready"
             ],
+            "algorithm_repair_patch_training_examples": algorithm_repair_patch_training_manifest[
+                "n_training_examples"
+            ],
+            "algorithm_repair_patch_training_train": algorithm_repair_patch_training_manifest["n_train"],
+            "algorithm_repair_patch_training_validation": algorithm_repair_patch_training_manifest[
+                "n_validation"
+            ],
+            "algorithm_repair_patch_training_production_patches": algorithm_repair_patch_training_manifest[
+                "n_production_patches_applied"
+            ],
+            "algorithm_repair_patch_training_promotion_ready": algorithm_repair_patch_training_manifest[
+                "n_promotion_ready"
+            ],
         },
         "questions": benchmark_manifest["questions"],
         "provenance": benchmark_manifest["provenance"],
@@ -1056,6 +1076,19 @@ async def run_research_system_audit(
                 out_dir
                 / "algorithm_repair_sandbox_patch_eval"
                 / "algorithm_repair_sandbox_patch_eval_results.jsonl"
+            ),
+            "algorithm_repair_patch_training_export": str(
+                out_dir
+                / "algorithm_repair_patch_training_export"
+                / "algorithm_repair_patch_training_manifest.json"
+            ),
+            "algorithm_repair_patch_training_train": str(
+                out_dir / "algorithm_repair_patch_training_export" / "algorithm_repair_patch_train.jsonl"
+            ),
+            "algorithm_repair_patch_training_validation": str(
+                out_dir
+                / "algorithm_repair_patch_training_export"
+                / "algorithm_repair_patch_validation.jsonl"
             ),
             "formal_gaps": str(out_dir / "research_benchmark" / "formal_gaps"),
         },

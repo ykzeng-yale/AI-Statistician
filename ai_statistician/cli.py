@@ -7,6 +7,7 @@ from pathlib import Path
 
 from .algorithms import audit_algorithm_registry
 from .algorithm_repair_promotion import export_algorithm_repair_promotion_queue
+from .algorithm_repair_patch_training_export import export_algorithm_repair_patch_training_dataset
 from .algorithm_repair_sandbox import evaluate_algorithm_repair_sandbox
 from .algorithm_repair_sandbox_apply import apply_algorithm_repair_sandbox_results
 from .algorithm_repair_sandbox_patch_eval import evaluate_algorithm_repair_sandbox_patches
@@ -1489,6 +1490,35 @@ def _algorithm_repair_sandbox_patch_eval(args: argparse.Namespace) -> int:
     return 0 if payload["all_ok"] else 1
 
 
+def _algorithm_repair_patch_training_export(args: argparse.Namespace) -> int:
+    payload = export_algorithm_repair_patch_training_dataset(
+        Path(args.patch_eval_dir),
+        Path(args.out),
+        validation_fraction=args.validation_fraction,
+    )
+    print("\nAI Statistical Theory Lab Algorithm Repair Patch Training Export")
+    print("=" * 72)
+    print(
+        f"examples={payload['n_training_examples']} "
+        f"train={payload['n_train']} validation={payload['n_validation']} "
+        f"production_patches={payload['n_production_patches_applied']} "
+        f"promotion_ready={payload['n_promotion_ready']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    for status, count in payload["by_comparison_status"].items():
+        print(f"  {status}: {count}")
+    print(
+        f"\nalgorithm repair patch training manifest written to "
+        f"{(Path(args.out) / 'algorithm_repair_patch_training_manifest.json').resolve()}"
+    )
+    print(f"train JSONL written to {(Path(args.out) / 'algorithm_repair_patch_train.jsonl').resolve()}")
+    print(
+        f"validation JSONL written to "
+        f"{(Path(args.out) / 'algorithm_repair_patch_validation.jsonl').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
 async def _research_eval(args: argparse.Namespace) -> int:
     _load_dotenv(Path(args.env_file))
     questions = load_open_research_questions(Path(args.question_file))
@@ -2571,6 +2601,23 @@ def build_parser() -> argparse.ArgumentParser:
         help="algorithm repair sandbox patch-eval output directory",
     )
     algorithm_repair_sandbox_patch_eval.set_defaults(func=_algorithm_repair_sandbox_patch_eval)
+
+    algorithm_repair_patch_training_export = sub.add_parser(
+        "algorithm-repair-patch-training-export",
+        help="export isolated patch-eval evidence as algorithm repair promotion-policy training data",
+    )
+    algorithm_repair_patch_training_export.add_argument(
+        "--patch-eval-dir",
+        required=True,
+        help="directory containing algorithm_repair_sandbox_patch_eval_manifest.json",
+    )
+    algorithm_repair_patch_training_export.add_argument(
+        "--out",
+        default="runs/algorithm_repair_patch_training_export",
+        help="algorithm repair patch training export output directory",
+    )
+    algorithm_repair_patch_training_export.add_argument("--validation-fraction", type=float, default=0.2)
+    algorithm_repair_patch_training_export.set_defaults(func=_algorithm_repair_patch_training_export)
 
     research_eval = sub.add_parser(
         "research-eval",
