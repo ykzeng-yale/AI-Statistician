@@ -26,9 +26,19 @@ class FormalSourceHybridRetriever:
 
     source = "sqlite_fts_shape+symbol_graph"
 
-    def __init__(self, declarations: list[FormalDeclaration], sqlite_index: FormalSourceSqliteIndex) -> None:
+    def __init__(
+        self,
+        declarations: list[FormalDeclaration],
+        sqlite_index: FormalSourceSqliteIndex,
+        *,
+        dependency_retriever: object | None = None,
+    ) -> None:
         self.declarations = declarations
         self.sqlite_index = sqlite_index
+        self.dependency_retriever = dependency_retriever
+        self._declarations_by_name: dict[str, list[FormalDeclaration]] = defaultdict(list)
+        for declaration in declarations:
+            self._declarations_by_name[declaration.name].append(declaration)
         self.graph_retriever = FormalSourceGraphRetriever(
             declarations,
             base_retriever=sqlite_index,
@@ -44,6 +54,11 @@ class FormalSourceHybridRetriever:
         # to top-level gap lookups; primitive-level searches ask for k=3 in the
         # research loop and should stay on the faster FTS/shape path.
         graph_hits = self.graph_retriever.search(query, k=max(k * 2, 10)) if k >= 5 else []
+        dependency_hits = []
+        if self.dependency_retriever is not None:
+            search = getattr(self.dependency_retriever, "search", None)
+            if callable(search):
+                dependency_hits = search(query, k=max(k * 2, 10))
 
         by_key: dict[tuple[str, str, int, str], FormalDeclaration] = {}
         score_by_key: dict[tuple[str, str, int, str], float] = defaultdict(float)
@@ -63,6 +78,25 @@ class FormalSourceHybridRetriever:
             matched_by_key[key].update(hit.matched_terms)
             matched_by_key[key].update(hit.graph_symbols[:8])
             matched_by_key[key].add("symbol_graph")
+
+        for rank, hit in enumerate(dependency_hits, start=1):
+            local_matches = self._declarations_by_name.get(hit.declaration.name, [])
+            target_declarations = local_matches[:2]
+            for declaration in target_declarations:
+                key = _decl_key(declaration)
+                by_key[key] = declaration
+                score_by_key[key] += hit.score + 10.0 / rank
+                matched_by_key[key].update(hit.matched_terms)
+                matched_by_key[key].add("lean_rag_dependency_graph")
+
+        for rank, hit in enumerate(dependency_hits, start=1):
+            if hit.declaration.name in self._declarations_by_name:
+                continue
+            key = _decl_key(hit.declaration)
+            by_key[key] = hit.declaration
+            score_by_key[key] += hit.score + 10.0 / rank
+            matched_by_key[key].update(hit.matched_terms)
+            matched_by_key[key].add("lean_rag_dependency_graph")
 
         rows = [
             _AccumulatedHit(

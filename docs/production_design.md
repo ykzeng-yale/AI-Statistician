@@ -1339,6 +1339,15 @@ The package integrates existing systems where appropriate:
   and merges the two rankings. This keeps runtime local/reproducible while
   moving formal-gap grounding closer to the provider-fusion architecture used
   by Loogle/Lean Finder/ReProver-style premise selection.
+- The backend can now optionally fuse the shared
+  `EmpericalProcessLEAN/lean_rag` dependency graph as a third provider. Pass
+  `--lean-rag-db path/to/stat_inference.sqlite` or set
+  `AI_STATISTICIAN_LEAN_RAG_DB` to a SQLite DB produced by
+  `lean_rag/scripts/shared_proof_retrieval.py refresh`. This adapter reuses
+  the other machine's source-derived declaration graph: statement/proof/mixed
+  references, fan-in/fan-out, `has_sorry`, and FTS over signatures/proofs. It
+  is deliberately optional and still treats every hit as a premise suggestion
+  that must be checked by the local Lean kernel.
 - The source inventory now also tracks the local LeanSearchClient checkout
   (`#leansearch`, `#loogle`, and state-search syntax) and the local LeanDojo-v2
   checkout (repository tracing, proof-state datasets, retrieval-augmented
@@ -1692,8 +1701,11 @@ mention each symbol. The report surfaces high-degree cross-source symbols and
 checks graph-expanded retrieval for variance, Hajek ratio, Wald variance,
 Rademacher, martingale, Borel-Cantelli, and independence queries. This is the
 current lightweight graph-RAG layer for formal statistics: useful for finding
-reusable local declarations, while proof-dependency graphs from traced Lean
-proof states remain a future LeanDojo/ReProver-style integration.
+reusable local declarations. If a `lean_rag` SQLite graph is supplied through
+`--lean-rag-db` or `AI_STATISTICIAN_LEAN_RAG_DB`, the research benchmark and
+system audit also fuse dependency-direction evidence from that graph. Kernel-
+extracted proof-state graphs remain a future LeanDojo/ReProver-style
+integration.
 
 Algorithm registry audit:
 

@@ -405,6 +405,7 @@ def build_formal_source_search_backend(
     include_graph: bool = True,
     cache_path: Path | str | None = None,
     refresh_cache: bool = False,
+    lean_rag_db_path: Path | str | None = None,
 ) -> object:
     """Build the local formal-source retriever used by research traces.
 
@@ -427,14 +428,20 @@ def build_formal_source_search_backend(
                 if not sqlite_index.is_healthy():
                     raise sqlite3.DatabaseError("formal-source SQLite cache is missing required tables")
                 declarations = sqlite_index.load_declarations()
+                dependency_retriever = _optional_lean_rag_dependency_retriever(lean_rag_db_path)
                 if include_graph:
                     from .formal_source_hybrid import FormalSourceHybridRetriever
 
-                    retriever = FormalSourceHybridRetriever(declarations, sqlite_index)
+                    retriever = FormalSourceHybridRetriever(
+                        declarations,
+                        sqlite_index,
+                        dependency_retriever=dependency_retriever,
+                    )
                 else:
                     retriever = sqlite_index
                 setattr(retriever, "cache_status", "hit")
                 setattr(retriever, "cache_path", str(cache_file))
+                _attach_lean_rag_metadata(retriever, dependency_retriever)
                 return retriever
             except Exception:
                 # Stale or incompatible cache. Rebuild below and overwrite it.
@@ -448,19 +455,48 @@ def build_formal_source_search_backend(
             cache_file.parent.mkdir(parents=True, exist_ok=True)
             if Path(db_path).resolve() != cache_file.resolve():
                 shutil.copy2(db_path, cache_file)
+        dependency_retriever = _optional_lean_rag_dependency_retriever(lean_rag_db_path)
         if include_graph:
             from .formal_source_hybrid import FormalSourceHybridRetriever
 
-            retriever = FormalSourceHybridRetriever(declarations, sqlite_index)
+            retriever = FormalSourceHybridRetriever(
+                declarations,
+                sqlite_index,
+                dependency_retriever=dependency_retriever,
+            )
         else:
             retriever = sqlite_index
         setattr(retriever, "cache_status", "miss" if cache_file is not None else "disabled")
         setattr(retriever, "cache_path", str(cache_file) if cache_file is not None else "")
+        _attach_lean_rag_metadata(retriever, dependency_retriever)
         return retriever
     retriever = FormalSourceRetriever(declarations)
     setattr(retriever, "cache_status", "disabled")
     setattr(retriever, "cache_path", "")
+    _attach_lean_rag_metadata(retriever, None)
     return retriever
+
+
+def _optional_lean_rag_dependency_retriever(lean_rag_db_path: Path | str | None) -> object | None:
+    raw_path = lean_rag_db_path or os.environ.get("AI_STATISTICIAN_LEAN_RAG_DB")
+    if not raw_path:
+        return None
+    try:
+        from .lean_rag_dependency import LeanRagDependencyRetriever
+
+        retriever = LeanRagDependencyRetriever(raw_path)
+        return retriever if retriever.is_healthy() else None
+    except Exception:
+        return None
+
+
+def _attach_lean_rag_metadata(retriever: object, dependency_retriever: object | None) -> None:
+    setattr(retriever, "lean_rag_dependency_graph_enabled", dependency_retriever is not None)
+    setattr(
+        retriever,
+        "lean_rag_dependency_graph_path",
+        str(getattr(dependency_retriever, "db_path", "")) if dependency_retriever is not None else "",
+    )
 
 
 def audit_formal_source_index(

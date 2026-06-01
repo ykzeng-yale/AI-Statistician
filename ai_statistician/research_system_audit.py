@@ -76,6 +76,7 @@ class ResearchSystemAuditConfig:
     local_lean_timeout: int = 90
     formal_source_index_cache: str | None = "runs/formal_source_index_cache/formal_source_index.sqlite"
     refresh_formal_source_index_cache: bool = False
+    lean_rag_db: str | None = None
     frontier_smoke_cache: str | None = "runs/frontier_smoke_cache"
     refresh_frontier_smoke_cache: bool = False
     formal_source_graph_cache: str | None = "runs/formal_source_graph_cache"
@@ -118,6 +119,7 @@ async def run_research_system_audit(
             else None
         ),
         refresh_cache=config.refresh_formal_source_index_cache,
+        lean_rag_db_path=Path(config.lean_rag_db) if config.lean_rag_db else None,
     )
     stage_start = _record_stage(stage_timings, "formal_source_index_backend", stage_start)
 
@@ -140,6 +142,12 @@ async def run_research_system_audit(
         "backend": "sqlite_fts_shape_graph_hybrid",
         "sqlite_index_path": str(formal_source_index_path),
         "graph_backend": "declaration_symbol_graph",
+        "dependency_graph_backend": (
+            "lean_rag_dependency_graph"
+            if getattr(formal_source_retriever, "lean_rag_dependency_graph_enabled", False)
+            else ""
+        ),
+        "lean_rag_db_path": getattr(formal_source_retriever, "lean_rag_dependency_graph_path", ""),
         "graph_manifest": str(out_dir / "formal_source_graph" / "formal_source_graph_manifest.json"),
     }
     stage_start = _record_stage(stage_timings, "formal_source_graph", stage_start)
@@ -540,6 +548,7 @@ async def run_research_system_audit(
             "local_lean_timeout": config.local_lean_timeout,
             "formal_source_index_cache": config.formal_source_index_cache or "",
             "refresh_formal_source_index_cache": config.refresh_formal_source_index_cache,
+            "lean_rag_db": config.lean_rag_db or "",
             "frontier_smoke_cache": config.frontier_smoke_cache or "",
             "refresh_frontier_smoke_cache": config.refresh_frontier_smoke_cache,
             "formal_source_graph_cache": config.formal_source_graph_cache or "",
@@ -639,6 +648,16 @@ async def run_research_system_audit(
             ],
             "formal_source_index_cache_status": getattr(formal_source_retriever, "cache_status", "unknown"),
             "formal_source_index_cache_path": getattr(formal_source_retriever, "cache_path", ""),
+            "lean_rag_dependency_graph_enabled": getattr(
+                formal_source_retriever,
+                "lean_rag_dependency_graph_enabled",
+                False,
+            ),
+            "lean_rag_dependency_graph_path": getattr(
+                formal_source_retriever,
+                "lean_rag_dependency_graph_path",
+                "",
+            ),
             "research_ready_with_gaps": benchmark_manifest["n_ready_with_gaps"],
             "research_simulation_flagged": benchmark_manifest["n_simulation_flagged"],
             "research_formal_blocked": benchmark_manifest["n_formal_blocked"],
@@ -1339,7 +1358,7 @@ def _stable_research_provenance_for_cache() -> dict[str, str]:
 
 
 def _normalized_formal_source_search(formal_source_search: dict[str, str]) -> dict[str, str]:
-    stable_keys = ("backend", "graph_backend")
+    stable_keys = ("backend", "graph_backend", "dependency_graph_backend")
     return {
         key: str(formal_source_search[key])
         for key in stable_keys

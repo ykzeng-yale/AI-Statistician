@@ -46,6 +46,7 @@ from ai_statistician.formal_source_retrieval_benchmark import (
     FormalSourceRetrievalBenchmarkCase,
     run_formal_source_retrieval_benchmark,
 )
+from ai_statistician.lean_rag_dependency import LeanRagDependencyRetriever
 from ai_statistician.autoform_harness import audit_autoform_harness
 from ai_statistician.proof_bank import all_obligations, get_obligation
 from ai_statistician.evaluation import EvalConfig, run_seed_eval
@@ -251,6 +252,132 @@ class ProofBankTests(unittest.TestCase):
             hybrid_hits[0].matched_terms,
         )
         self.assertEqual(len(hybrid.load_declarations()), 2)
+        lean_rag_db = Path("runs/test_lean_rag_dependency/stat_inference.sqlite")
+        lean_rag_db.parent.mkdir(parents=True, exist_ok=True)
+        if lean_rag_db.exists():
+            lean_rag_db.unlink()
+        with sqlite3.connect(lean_rag_db) as conn:
+            conn.executescript(
+                """
+                CREATE TABLE declarations (
+                  id INTEGER PRIMARY KEY,
+                  name TEXT NOT NULL,
+                  short_name TEXT NOT NULL,
+                  kind TEXT NOT NULL,
+                  module TEXT NOT NULL,
+                  path TEXT NOT NULL,
+                  line_start INTEGER NOT NULL,
+                  line_end INTEGER NOT NULL,
+                  namespace TEXT NOT NULL,
+                  attributes TEXT NOT NULL,
+                  signature TEXT NOT NULL,
+                  proof TEXT NOT NULL,
+                  has_proof INTEGER NOT NULL,
+                  has_sorry INTEGER NOT NULL,
+                  text_hash TEXT NOT NULL
+                );
+                CREATE TABLE declaration_edges (
+                  id INTEGER PRIMARY KEY,
+                  src_decl_id INTEGER NOT NULL,
+                  dst_decl_id INTEGER NOT NULL,
+                  edge_type TEXT NOT NULL,
+                  match_kind TEXT NOT NULL,
+                  scope TEXT NOT NULL,
+                  weight INTEGER NOT NULL
+                );
+                CREATE VIRTUAL TABLE decl_fts USING fts5(
+                  name, short_name, kind, module, namespace, signature, proof
+                );
+                """
+            )
+            rows = [
+                (
+                    1,
+                    "Demo.variance_sum_indep",
+                    "variance_sum_indep",
+                    "theorem",
+                    "Demo",
+                    "Demo.lean",
+                    5,
+                    7,
+                    "Demo",
+                    "[]",
+                    "theorem variance_sum_indep (h : IndepFun X Y mu) : variance (X + Y) mu = variance X mu + variance Y mu",
+                    "by trivial",
+                    1,
+                    0,
+                    "hash1",
+                ),
+                (
+                    2,
+                    "Demo.consumer_uses_variance_sum_indep",
+                    "consumer_uses_variance_sum_indep",
+                    "lemma",
+                    "Demo",
+                    "Demo.lean",
+                    9,
+                    10,
+                    "Demo",
+                    "[]",
+                    "lemma consumer_uses_variance_sum_indep : True",
+                    "by have h := Demo.variance_sum_indep; trivial",
+                    1,
+                    0,
+                    "hash2",
+                ),
+            ]
+            conn.executemany(
+                """
+                INSERT INTO declarations VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                rows,
+            )
+            conn.executemany(
+                """
+                INSERT INTO decl_fts(rowid, name, short_name, kind, module, namespace, signature, proof)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [(row[0], row[1], row[2], row[3], row[4], row[8], row[10], row[11]) for row in rows],
+            )
+            conn.execute(
+                """
+                INSERT INTO declaration_edges(
+                  src_decl_id, dst_decl_id, edge_type, match_kind, scope, weight
+                ) VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (2, 1, "explicit_source", "qualified", "proof", 1),
+            )
+        lean_rag = LeanRagDependencyRetriever(lean_rag_db)
+        self.assertTrue(lean_rag.is_healthy())
+        lean_rag_hits = lean_rag.search("variance independent sum", k=3)
+        self.assertTrue(lean_rag_hits)
+        self.assertEqual(lean_rag_hits[0].declaration.source_id, "lean_rag_dependency_graph")
+        self.assertIn("lean_rag_dependency_graph", lean_rag_hits[0].matched_terms)
+        context = lean_rag.dependency_context("Demo.variance_sum_indep")
+        self.assertIsNotNone(context)
+        assert context is not None
+        self.assertEqual(context.fan_in, 1)
+        self.assertIn("Demo.consumer_uses_variance_sum_indep", context.used_by)
+        hybrid_with_deps = FormalSourceHybridRetriever(
+            declarations,
+            sqlite_index,
+            dependency_retriever=lean_rag,
+        )
+        fused_hits = hybrid_with_deps.search("variance independent sum", k=5)
+        self.assertTrue(
+            any("lean_rag_dependency_graph" in hit.matched_terms for hit in fused_hits),
+            [(hit.declaration.name, hit.matched_terms) for hit in fused_hits],
+        )
+        backend_with_deps = build_formal_source_search_backend(
+            db_path=Path("runs/test_formal_source_index/with_lean_rag.sqlite"),
+            roots=(root,),
+            lean_rag_db_path=lean_rag_db,
+        )
+        self.assertTrue(getattr(backend_with_deps, "lean_rag_dependency_graph_enabled"))
+        self.assertEqual(
+            Path(getattr(backend_with_deps, "lean_rag_dependency_graph_path")).name,
+            "stat_inference.sqlite",
+        )
         graph_payload = audit_formal_source_graph(
             Path("runs/test_formal_source_graph"),
             declarations=declarations,
@@ -4993,6 +5120,10 @@ class SystemTests(unittest.TestCase):
             route_by_trigger["FORMAL_GAP"]["live_execution_status"],
             "EXECUTABLE_DEFAULT_PROOF_BANK_BRIDGE_OR_RETRIEVAL_REVIEW",
         )
+        self.assertEqual(
+            route_by_trigger["FAILED_PROOF_OBLIGATION"]["live_execution_status"],
+            "EXECUTABLE_DEFAULT_REGISTERED_OBLIGATION_REPAIR_OR_REGISTERED_HANDLER",
+        )
         self.assertTrue(Path("runs/test_architecture_audit/architecture_audit_manifest.json").exists())
         self.assertTrue(Path("runs/test_architecture_audit/architecture_audit.md").exists())
 
@@ -6226,6 +6357,129 @@ class SystemTests(unittest.TestCase):
         bridge_revision = result["theory_revisions"][0]["repair_artifact"]
         self.assertEqual(bridge_revision["revision_kind"], "proof_bridge_integration")
         self.assertFalse(bridge_revision["full_theorem_proved"])
+        self.assertEqual(result["rounds"][1]["actions"][0]["execution_status"], "EXECUTED_MONITOR")
+
+    def test_research_loop_default_proof_engineer_repairs_failed_registered_obligation(self) -> None:
+        question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+        problem = ProblemFormalizer().formalize(question)
+        procedure, theorem_goal = TheoryPlanner().plan(problem)
+        obligation = get_obligation("prob_measure_univ")
+        failed = FormalSubclaim(
+            id=f"{question.id}:{obligation.id}",
+            title=obligation.title,
+            status="FAILED",
+            claim=obligation.english,
+            claim_type="lean_obligation",
+            proof_obligation_id=obligation.id,
+            lean_statement=obligation.formal_statement,
+            formalization_status="verification_failed",
+            verifier="test-verifier",
+            verification_strength="test_failed_first_attempt",
+            kernel_verified=False,
+            errors=["test simulates stale failed proof body"],
+            proof_dependencies=obligation.expected_lemmas,
+        )
+        first = ResearchReport(
+            question=question,
+            problem=problem,
+            procedures=procedure,
+            knowledge=[],
+            paper_sources=[],
+            formal_subclaims=[failed],
+            simulations=[],
+            theorem_goals=theorem_goal,
+            theory_plan={
+                "next_iteration_agenda": {
+                    "items": [
+                        {
+                            "id": f"failed_obligation:{obligation.id}",
+                            "owner_agent": "formal_verifier",
+                            "trigger": "FAILED_PROOF_OBLIGATION",
+                            "priority": "high",
+                            "action": "repair_axiom_verified_proof_or_downgrade_to_gap",
+                            "evidence": "test simulates stale failed proof body",
+                            "required_primitives": list(obligation.expected_lemmas),
+                            "target_theorem_goal": obligation.id,
+                        }
+                    ]
+                }
+            },
+            status="FORMAL_BLOCKED",
+        )
+        second = ResearchReport(
+            question=question,
+            problem=problem,
+            procedures=procedure,
+            knowledge=[],
+            paper_sources=[],
+            formal_subclaims=[],
+            simulations=[],
+            theorem_goals=theorem_goal,
+            theory_plan={
+                "next_iteration_agenda": {
+                    "items": [
+                        {
+                            "id": "monitor:failed-proof-repaired",
+                            "owner_agent": "research_coordinator",
+                            "trigger": "NO_BLOCKING_GAPS_OR_FAILED_SIMULATIONS",
+                            "action": "archive_trace_or_expand_benchmark_stress_tests",
+                            "evidence": "registered proof obligation repair was available for the next round",
+                        }
+                    ]
+                }
+            },
+            status="RESEARCH_TRACE_READY_WITH_FORMAL_GAPS",
+        )
+        reports = [first, second]
+
+        class FakeLab:
+            def __init__(self, report):
+                self.report = report
+
+            async def run(self, question):
+                return self.report
+
+        class KernelVerifiedMockProofVerifier(MockProofVerifier):
+            async def verify(self, obligation, proof_body, retrieval_hits):
+                check = await super().verify(obligation, proof_body, retrieval_hits)
+                return ProofCheck(
+                    obligation_id=check.obligation_id,
+                    ok=check.ok,
+                    proof_body=check.proof_body,
+                    verifier="kernel-verified-mock",
+                    verification_strength="mock_kernel_verified_for_failed_obligation_repair",
+                    kernel_verified=check.ok,
+                    elapsed_ms=check.elapsed_ms,
+                    errors=check.errors,
+                    retrieval_hits=check.retrieval_hits,
+                )
+
+        result = asyncio.run(
+            ResearchLoopCoordinator(
+                proof_verifier=KernelVerifiedMockProofVerifier(),
+                n_runs=10,
+                seed=20260601,
+                lab_factory=lambda _n, _s: FakeLab(reports.pop(0)),
+            ).iterate(
+                question,
+                max_rounds=2,
+            )
+        )
+        self.assertEqual(result["status"], "CONVERGED_MONITOR_READY")
+        action = result["rounds"][0]["actions"][0]
+        self.assertEqual(action["execution_status"], "EXECUTED_FAILED_PROOF_OBLIGATION_REPAIR")
+        self.assertTrue(action["repair_contract_ok"])
+        self.assertTrue(action["rerun_requested"])
+        self.assertEqual(action["live_repair_handler"], "DefaultProofEngineer")
+        self.assertEqual(action["live_repair_task_type"], "lean_proof_repair_from_axle_error")
+        artifact = action["repair_artifact"]
+        self.assertEqual(artifact["proof_obligation_id"], "prob_measure_univ")
+        self.assertEqual(artifact["repaired_proof_body"], obligation.proof_body)
+        self.assertTrue(artifact["kernel_verified"])
+        self.assertIn("repaired_proof_body", artifact)
+        self.assertIn("error_analysis", artifact)
+        self.assertIn("proof_dependencies", artifact)
+        self.assertEqual(action["repair_task"]["task_type"], "lean_proof_repair_from_axle_error")
         self.assertEqual(result["rounds"][1]["actions"][0]["execution_status"], "EXECUTED_MONITOR")
 
     def test_proof_bridge_revision_overlay_updates_existing_theorem_goal(self) -> None:

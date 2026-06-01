@@ -8617,6 +8617,7 @@ async def run_research_benchmark(
     formal_source_retriever: Any | None = None,
     formal_source_search: dict[str, str] | None = None,
     formal_source_index_path: Path | None = None,
+    lean_rag_db_path: Path | None = None,
     n_runs: int = 100,
     seed: int = 20260528,
 ) -> dict[str, Any]:
@@ -8626,11 +8627,20 @@ async def run_research_benchmark(
             "sqlite_index_path": "",
         }
     if formal_source_retriever is None and formal_source_index_path is not None:
-        formal_source_retriever = build_formal_source_search_backend(db_path=formal_source_index_path)
+        formal_source_retriever = build_formal_source_search_backend(
+            db_path=formal_source_index_path,
+            lean_rag_db_path=lean_rag_db_path,
+        )
         formal_source_search = {
             "backend": "sqlite_fts_shape_graph_hybrid",
             "sqlite_index_path": str(formal_source_index_path),
             "graph_backend": "declaration_symbol_graph",
+            "dependency_graph_backend": (
+                "lean_rag_dependency_graph"
+                if getattr(formal_source_retriever, "lean_rag_dependency_graph_enabled", False)
+                else ""
+            ),
+            "lean_rag_db_path": getattr(formal_source_retriever, "lean_rag_dependency_graph_path", ""),
         }
     lab = AIStatisticalTheoryLab(
         proof_verifier=proof_verifier,

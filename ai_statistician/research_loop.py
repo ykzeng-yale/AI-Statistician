@@ -273,6 +273,38 @@ class ResearchLoopCoordinator:
                 ),
             }
         if trigger == "FAILED_PROOF_OBLIGATION":
+            if self.default_proof_engineer is not None:
+                default_result = await self.default_proof_engineer.repair_failed_obligation(item, report)
+                if default_result is not None:
+                    default_action = self._contract_checked_live_result(
+                        default_result,
+                        trigger=trigger,
+                        base=base,
+                        handler_name="DefaultProofEngineer",
+                    )
+                    default_action.setdefault(
+                        "repair_task",
+                        _repair_task(
+                            report=report,
+                            item=item,
+                            task_type="lean_proof_repair_from_axle_error",
+                            prompt=(
+                                "Review the DefaultProofEngineer repaired proof body and promote it into "
+                                "the proof bank only if AXLE/Lean kernel verification remains green."
+                            ),
+                            acceptance_criteria=(
+                                "repaired proof passes AXLE verify_proof",
+                                "no sorry/admit/axiom/unsafe placeholder is introduced",
+                                "proof dependencies are recorded for proof-bank audit",
+                            ),
+                            context={
+                                "proof_obligation_id": item.get("target_theorem_goal", ""),
+                                "required_primitives": item.get("required_primitives", []),
+                                "default_proof_engineer_status": default_action.get("execution_status", ""),
+                            },
+                        ),
+                    )
+                    return default_action
             return {
                 **base,
                 "execution_status": "REQUIRES_PROOF_ENGINEER",
@@ -521,11 +553,15 @@ async def run_research_loop_benchmark(
     proof_verifier: ProofVerifier | None = None,
     formal_source_retriever: Any | None = None,
     formal_source_index_path: Path | None = None,
+    lean_rag_db_path: Path | None = None,
     config: LoopConfig = LoopConfig(),
 ) -> dict[str, Any]:
     out_dir.mkdir(parents=True, exist_ok=True)
     if formal_source_retriever is None and formal_source_index_path is not None:
-        formal_source_retriever = build_formal_source_search_backend(db_path=formal_source_index_path)
+        formal_source_retriever = build_formal_source_search_backend(
+            db_path=formal_source_index_path,
+            lean_rag_db_path=lean_rag_db_path,
+        )
     coordinator = ResearchLoopCoordinator(
         proof_verifier=proof_verifier,
         formal_source_retriever=formal_source_retriever,
@@ -576,6 +612,17 @@ async def run_research_loop_benchmark(
         ],
         "trace_paths": [str(path) for path in trace_paths],
         "repair_tasks_jsonl": str(repair_task_path),
+        "formal_source_search": {
+            "backend": "sqlite_fts_shape_graph_hybrid" if formal_source_index_path else "python_shape",
+            "sqlite_index_path": str(formal_source_index_path) if formal_source_index_path else "",
+            "graph_backend": "declaration_symbol_graph" if formal_source_index_path else "",
+            "dependency_graph_backend": (
+                "lean_rag_dependency_graph"
+                if getattr(formal_source_retriever, "lean_rag_dependency_graph_enabled", False)
+                else ""
+            ),
+            "lean_rag_db_path": getattr(formal_source_retriever, "lean_rag_dependency_graph_path", ""),
+        },
         "n_repair_tasks": len(repair_tasks),
         "repair_tasks_by_agent": _count_by_key(repair_tasks, "owner_agent"),
         "repair_tasks_by_type": _count_by_key(repair_tasks, "task_type"),
