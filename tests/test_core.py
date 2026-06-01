@@ -15,6 +15,7 @@ from ai_statistician.algorithm_repair_patch_policy_model import (
     train_algorithm_repair_patch_policy_model,
 )
 from ai_statistician.algorithm_repair_production_patch_plan import export_algorithm_repair_production_patch_plan
+from ai_statistician.algorithm_repair_reviewed_patch_apply import apply_reviewed_algorithm_repair_source_patches
 from ai_statistician.algorithm_repair_patch_training_export import export_algorithm_repair_patch_training_dataset
 from ai_statistician.algorithm_repair_sandbox import evaluate_algorithm_repair_sandbox
 from ai_statistician.algorithm_repair_sandbox_apply import apply_algorithm_repair_sandbox_results
@@ -5990,6 +5991,62 @@ class SystemTests(unittest.TestCase):
         self.assertFalse(rows[0]["production_patch_applied"])
         self.assertIn("full research-system audit", " ".join(rows[0]["release_gates"]))
 
+    def test_algorithm_repair_reviewed_patch_apply_writes_isolated_source_diff(self) -> None:
+        plan_dir = Path("runs/test_algorithm_repair_reviewed_patch_apply_input")
+        plan_dir.mkdir(parents=True, exist_ok=True)
+        plan = {
+            "plan_id": "algorithm_repair_production_patch_plan:test",
+            "example_id": "algorithm_repair_patch_training:test",
+            "patch_eval_id": "algorithm_repair_sandbox_patch_eval:test",
+            "algorithm_id": "oracle_aipw",
+            "target_procedure": "oracle_aipw_ate",
+            "source_file": "ai_statistician/research_lab.py",
+            "target_symbol": "ResearchSimulator._oracle_aipw",
+            "patch_kind": "finite_metric_guard",
+            "patch_summary": "Port the isolated finite-metric guard.",
+            "predicted_decision": "hold_for_reviewed_production_commit",
+            "comparison_status": "ISOLATED_PATCH_EXECUTED_NO_NUMERICAL_DELTA",
+            "gold_score": 0.9,
+            "unsafe_score": 0.1,
+            "review_required": True,
+            "production_patch_applied": False,
+            "promotion_ready": False,
+            "required_source_edits": ["Add finite-value metric validation."],
+            "release_gates": ["rerun full research-system audit before promotion"],
+            "ok": True,
+            "errors": [],
+        }
+        plans_path = plan_dir / "algorithm_repair_production_patch_plans.jsonl"
+        plans_path.write_text(json.dumps(plan) + "\n", encoding="utf-8")
+        (plan_dir / "algorithm_repair_production_patch_plan_manifest.json").write_text(
+            json.dumps({"plans_jsonl": str(plans_path), "n_plans": 1, "all_ok": True}),
+            encoding="utf-8",
+        )
+        payload = apply_reviewed_algorithm_repair_source_patches(
+            plan_dir,
+            Path("runs/test_algorithm_repair_reviewed_patch_apply"),
+            source_root=Path("."),
+        )
+        self.assertTrue(payload["all_ok"])
+        self.assertEqual(payload["n_plans"], 1)
+        self.assertEqual(payload["n_ok"], 1)
+        self.assertEqual(payload["n_source_changed"], 1)
+        self.assertEqual(payload["n_syntax_valid"], 1)
+        self.assertEqual(payload["n_target_symbol_found"], 1)
+        self.assertEqual(payload["n_production_patches_applied"], 0)
+        rows = [
+            json.loads(line)
+            for line in Path(payload["results_jsonl"]).read_text(encoding="utf-8").splitlines()
+        ]
+        self.assertTrue(rows[0]["source_changed"])
+        self.assertTrue(rows[0]["syntax_valid"])
+        self.assertFalse(rows[0]["production_patch_applied"])
+        patched_text = Path(rows[0]["patched_source_file"]).read_text(encoding="utf-8")
+        diff_text = Path(rows[0]["diff_file"]).read_text(encoding="utf-8")
+        self.assertIn("finite_guard_patch_applied", patched_text)
+        self.assertIn("finite_guard_patch_applied", diff_text)
+        self.assertNotIn("finite_guard_patch_applied", Path("ai_statistician/research_lab.py").read_text(encoding="utf-8"))
+
     def test_research_loop_default_proof_engineer_bridges_formal_gap(self) -> None:
         question = load_open_research_questions(Path("examples/research_questions.json"))[0]
         problem = ProblemFormalizer().formalize(question)
@@ -6391,6 +6448,7 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(payload["gates"]["algorithm_repair_patch_training_export"])
         self.assertTrue(payload["gates"]["algorithm_repair_patch_policy_model"])
         self.assertTrue(payload["gates"]["algorithm_repair_production_patch_plan"])
+        self.assertTrue(payload["gates"]["algorithm_repair_reviewed_patch_apply"])
         self.assertEqual(payload["counts"]["questions"], 10)
         self.assertEqual(payload["counts"]["frontier_questions"], 60)
         self.assertEqual(payload["counts"]["frontier_supported"], 60)
@@ -6510,6 +6568,24 @@ class SystemTests(unittest.TestCase):
         )
         self.assertEqual(payload["counts"]["algorithm_repair_production_patch_applied"], 0)
         self.assertEqual(payload["counts"]["algorithm_repair_production_patch_promotion_ready"], 0)
+        self.assertEqual(
+            payload["counts"]["algorithm_repair_reviewed_patch_apply_candidates_ok"],
+            payload["counts"]["algorithm_repair_reviewed_patch_apply_candidates"],
+        )
+        self.assertEqual(
+            payload["counts"]["algorithm_repair_reviewed_patch_apply_source_changed"],
+            payload["counts"]["algorithm_repair_reviewed_patch_apply_candidates"],
+        )
+        self.assertEqual(
+            payload["counts"]["algorithm_repair_reviewed_patch_apply_syntax_valid"],
+            payload["counts"]["algorithm_repair_reviewed_patch_apply_candidates"],
+        )
+        self.assertEqual(
+            payload["counts"]["algorithm_repair_reviewed_patch_apply_target_found"],
+            payload["counts"]["algorithm_repair_reviewed_patch_apply_candidates"],
+        )
+        self.assertEqual(payload["counts"]["algorithm_repair_reviewed_patch_apply_production_patches"], 0)
+        self.assertEqual(payload["counts"]["algorithm_repair_reviewed_patch_apply_promotion_ready"], 0)
         self.assertEqual(
             payload["counts"]["frontier_theory_targets_scored"],
             payload["counts"]["frontier_theory_targets_total"],
@@ -6712,6 +6788,8 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(Path(payload["artifacts"]["algorithm_repair_patch_policy_validation_predictions"]).exists())
         self.assertTrue(Path(payload["artifacts"]["algorithm_repair_production_patch_plan"]).exists())
         self.assertTrue(Path(payload["artifacts"]["algorithm_repair_production_patch_plans"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["algorithm_repair_reviewed_patch_apply"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["algorithm_repair_reviewed_patch_apply_results"]).exists())
 
 
 if __name__ == "__main__":

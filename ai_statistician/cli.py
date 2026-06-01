@@ -10,6 +10,7 @@ from .algorithm_repair_promotion import export_algorithm_repair_promotion_queue
 from .algorithm_repair_patch_training_export import export_algorithm_repair_patch_training_dataset
 from .algorithm_repair_patch_policy_model import train_algorithm_repair_patch_policy_model
 from .algorithm_repair_production_patch_plan import export_algorithm_repair_production_patch_plan
+from .algorithm_repair_reviewed_patch_apply import apply_reviewed_algorithm_repair_source_patches
 from .algorithm_repair_sandbox import evaluate_algorithm_repair_sandbox
 from .algorithm_repair_sandbox_apply import apply_algorithm_repair_sandbox_results
 from .algorithm_repair_sandbox_patch_eval import evaluate_algorithm_repair_sandbox_patches
@@ -1570,6 +1571,31 @@ def _algorithm_repair_production_patch_plan(args: argparse.Namespace) -> int:
     return 0 if payload["all_ok"] else 1
 
 
+def _algorithm_repair_reviewed_patch_apply(args: argparse.Namespace) -> int:
+    payload = apply_reviewed_algorithm_repair_source_patches(
+        Path(args.plan_dir),
+        Path(args.out),
+        source_root=Path(args.source_root),
+    )
+    print("\nAI Statistical Theory Lab Algorithm Repair Reviewed Patch Apply")
+    print("=" * 72)
+    print(
+        f"patch_candidates={payload['n_ok']}/{payload['n_plans']} "
+        f"source_changed={payload['n_source_changed']} "
+        f"syntax_valid={payload['n_syntax_valid']} "
+        f"production_patches={payload['n_production_patches_applied']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    for kind, count in payload["by_patch_kind"].items():
+        print(f"  {kind}: {count}")
+    print(
+        f"\nreviewed patch apply manifest written to "
+        f"{(Path(args.out) / 'algorithm_repair_reviewed_patch_apply_manifest.json').resolve()}"
+    )
+    print(f"results JSONL written to {(Path(args.out) / 'algorithm_repair_reviewed_patch_apply_results.jsonl').resolve()}")
+    return 0 if payload["all_ok"] else 1
+
+
 async def _research_eval(args: argparse.Namespace) -> int:
     _load_dotenv(Path(args.env_file))
     questions = load_open_research_questions(Path(args.question_file))
@@ -2701,6 +2727,23 @@ def build_parser() -> argparse.ArgumentParser:
         help="algorithm repair production patch plan output directory",
     )
     algorithm_repair_production_patch_plan.set_defaults(func=_algorithm_repair_production_patch_plan)
+
+    algorithm_repair_reviewed_patch_apply = sub.add_parser(
+        "algorithm-repair-reviewed-patch-apply",
+        help="apply reviewed algorithm repair patch plans in an isolated source workspace",
+    )
+    algorithm_repair_reviewed_patch_apply.add_argument(
+        "--plan-dir",
+        required=True,
+        help="directory containing algorithm_repair_production_patch_plan_manifest.json",
+    )
+    algorithm_repair_reviewed_patch_apply.add_argument("--source-root", default=".")
+    algorithm_repair_reviewed_patch_apply.add_argument(
+        "--out",
+        default="runs/algorithm_repair_reviewed_patch_apply",
+        help="algorithm repair reviewed patch apply output directory",
+    )
+    algorithm_repair_reviewed_patch_apply.set_defaults(func=_algorithm_repair_reviewed_patch_apply)
 
     research_eval = sub.add_parser(
         "research-eval",
