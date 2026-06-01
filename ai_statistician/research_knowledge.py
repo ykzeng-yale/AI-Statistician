@@ -666,6 +666,81 @@ KNOWLEDGE_CARDS: tuple[KnowledgeCard, ...] = (
         ),
     ),
     KnowledgeCard(
+        id="formal_slt",
+        title="FormalSLT statistical learning theory corpus",
+        source_type="local_repo",
+        location="/Users/yukang/.codex/external/FormalSLT/FormalSLT",
+        summary=(
+            "Local clone of Robby955/FormalSLT with finite-sample statistical "
+            "learning theory theorem families: Rademacher complexity, PAC/VC "
+            "bridges, ERM generalization, Azuma-style bounded differences, "
+            "algorithmic stability, and Dudley/chaining interfaces."
+        ),
+        tags=("formal_slt", "slt", "rademacher", "pac", "vc", "azuma", "stability", "lean"),
+    ),
+    KnowledgeCard(
+        id="lean_rademacher",
+        title="Lean Rademacher complexity formalization",
+        source_type="local_repo",
+        location="/Users/yukang/.codex/external/lean-rademacher/FoML",
+        summary=(
+            "Local clone of auto-res/lean-rademacher with Rademacher complexity, "
+            "McDiarmid, Massart, Dudley entropy, and linear predictor "
+            "generalization-bound formalizations."
+        ),
+        tags=("rademacher", "mcdiarmid", "massart", "dudley", "generalization", "lean"),
+    ),
+    KnowledgeCard(
+        id="lean_machine_learning_lml",
+        title="Lean Machine Learning Library",
+        source_type="local_repo",
+        location="/Users/yukang/.codex/external/LeanMachineLearning-LML/LeanMachineLearning",
+        summary=(
+            "Local clone of LeanMachineLearning/LML. It is most relevant to "
+            "algorithmic-statistics routes: stochastic bandits, regret, UCB, "
+            "explore-then-commit, and reusable algorithm/proof structures."
+        ),
+        tags=("machine_learning", "bandit", "regret", "ucb", "algorithm", "lean"),
+    ),
+    KnowledgeCard(
+        id="brownian_motion_lean",
+        title="Brownian motion and Gaussian process Lean corpus",
+        source_type="local_repo",
+        location="/Users/yukang/.codex/external/brownian-motion/BrownianMotion",
+        summary=(
+            "Local clone of RemyDegenne/brownian-motion for retrieval-only reuse "
+            "of Brownian motion, Gaussian process, Kolmogorov-Chentsov, "
+            "stochastic-process, and stochastic-integral theorem shapes. Some "
+            "subtrees are WIP, so it is not exported as training data by default."
+        ),
+        tags=("brownian", "gaussian", "kolmogorov_chentsov", "stochastic_process", "retrieval_only", "lean"),
+    ),
+    KnowledgeCard(
+        id="kolmogorov_extension_lean",
+        title="Kolmogorov extension theorem Lean corpus",
+        source_type="local_repo",
+        location="/Users/yukang/.codex/external/kolmogorov_extension4/KolmogorovExtension4",
+        summary=(
+            "Local clone of RemyDegenne/kolmogorov_extension4 with projective "
+            "measure families, compact systems, regular contents, and the "
+            "Kolmogorov extension theorem."
+        ),
+        tags=("kolmogorov_extension", "projective_measure", "measure_theory", "stochastic_process", "lean"),
+    ),
+    KnowledgeCard(
+        id="scilean_calculus",
+        title="SciLean calculus and scientific computing corpus",
+        source_type="local_repo",
+        location="/Users/yukang/.codex/external/SciLean/SciLean",
+        summary=(
+            "Local clone of lecopivo/SciLean. It is useful as retrieval-only "
+            "context for differentiability, gradients, Jacobians, probabilistic "
+            "derivatives, Gaussian examples, and optimization algorithms; WIP "
+            "regions are not exported as training data by default."
+        ),
+        tags=("scilean", "calculus", "autodiff", "gradient", "optimization", "probabilistic_derivative", "lean"),
+    ),
+    KnowledgeCard(
         id="local_statinference_repo",
         title="Local StatInference Lean codebase",
         source_type="local_repo",

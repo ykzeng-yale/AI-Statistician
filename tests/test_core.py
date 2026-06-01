@@ -29,6 +29,7 @@ from ai_statistician.capability_audit import build_capability_audit, write_capab
 from ai_statistician.doctor import build_doctor_report, write_doctor_manifest
 from ai_statistician.evaluation_benchmark_guidance import build_evaluation_benchmark_guidance
 from ai_statistician.frontier_coverage_audit import audit_frontier_coverage, load_frontier_benchmark_questions
+from ai_statistician.fresh_holdout_frontier_audit import audit_fresh_holdout_frontier
 from ai_statistician.frontier_precision_audit import audit_frontier_precision
 from ai_statistician.frontier_smoke_benchmark import FrontierSmokeConfig, run_frontier_smoke_benchmark, select_supported_frontier_questions
 from ai_statistician.formal_gap_task_export import export_formal_gap_lean_tasks
@@ -78,7 +79,16 @@ from ai_statistician.research_evaluation import ResearchEvalConfig, run_research
 from ai_statistician.research_gap_audit import audit_research_gap_backlog
 from ai_statistician.research_intake_audit import audit_research_question_intake
 from ai_statistician.research_knowledge_audit import audit_research_knowledge
-from ai_statistician.research_source_inventory import ATLAS_LEAN_ROOT, source_allows_training_export
+from ai_statistician.research_source_inventory import (
+    ATLAS_LEAN_ROOT,
+    BROWNIAN_MOTION_ROOT,
+    FORMAL_SLT_ROOT,
+    KOLMOGOROV_EXTENSION_ROOT,
+    LEAN_MACHINE_LEARNING_ROOT,
+    LEAN_RADEMACHER_ROOT,
+    SCILEAN_ROOT,
+    source_allows_training_export,
+)
 from ai_statistician.research_capability_audit import (
     build_research_capability_audit,
     write_research_capability_audit,
@@ -701,6 +711,51 @@ class ProofBankTests(unittest.TestCase):
             k=10,
         )
         self.assertTrue(any(hit.declaration.source_id == "atlas_lean_projection_theory" for hit in projection_hits))
+
+    def test_external_statistics_analysis_sources_are_indexed_for_reuse(self) -> None:
+        roots = (
+            FormalSourceRoot("formal_slt", str(FORMAL_SLT_ROOT / "FormalSLT")),
+            FormalSourceRoot("lean_rademacher", str(LEAN_RADEMACHER_ROOT / "FoML")),
+            FormalSourceRoot(
+                "lean_machine_learning_lml",
+                str(LEAN_MACHINE_LEARNING_ROOT / "LeanMachineLearning"),
+            ),
+            FormalSourceRoot("brownian_motion_lean", str(BROWNIAN_MOTION_ROOT / "BrownianMotion")),
+            FormalSourceRoot(
+                "kolmogorov_extension_lean",
+                str(KOLMOGOROV_EXTENSION_ROOT / "KolmogorovExtension4"),
+            ),
+            FormalSourceRoot("scilean_calculus", str(SCILEAN_ROOT / "SciLean")),
+        )
+        if not all(Path(root.location).exists() for root in roots):
+            self.skipTest("external statistics/analysis Lean source checkouts are not available")
+        declarations = build_formal_source_index(roots=roots, max_files_per_root=800)
+        source_ids = {decl.source_id for decl in declarations}
+        for expected in (
+            "formal_slt",
+            "lean_rademacher",
+            "lean_machine_learning_lml",
+            "brownian_motion_lean",
+            "kolmogorov_extension_lean",
+            "scilean_calculus",
+        ):
+            self.assertIn(expected, source_ids)
+
+        retrieval_cases = (
+            ("formal_slt", "Rademacher PAC VC Azuma stability ERM generalization"),
+            ("lean_rademacher", "Rademacher complexity McDiarmid Dudley entropy integral"),
+            ("lean_machine_learning_lml", "stochastic bandit regret UCB algorithm"),
+            ("brownian_motion_lean", "Brownian Gaussian Kolmogorov Chentsov stochastic process"),
+            ("kolmogorov_extension_lean", "Kolmogorov extension projective measure family"),
+            ("scilean_calculus", "SciLean derivative gradient jacobian optimization Gaussian"),
+        )
+        for source_id, query in retrieval_cases:
+            hits = search_formal_sources(query, declarations=declarations, k=10)
+            self.assertTrue(hits, source_id)
+            self.assertTrue(
+                any(hit.declaration.source_id == source_id for hit in hits),
+                f"{source_id} not retrieved for {query!r}; got {[hit.declaration.source_id for hit in hits]}",
+            )
 
     def test_mock_proof_bank_audit_exports_lean(self) -> None:
         async def run():
@@ -2322,6 +2377,16 @@ class SystemTests(unittest.TestCase):
                 "adversarial_intake_cases": 6,
                 "adversarial_intake_ok": 6,
                 "adversarial_intake_rejected": 6,
+                "fresh_holdout_frontier_entries": 6,
+                "fresh_holdout_frontier_supported": 4,
+                "fresh_holdout_frontier_unsupported": 2,
+                "fresh_holdout_frontier_scored_traces": 4,
+                "fresh_holdout_frontier_expected_results": 12,
+                "fresh_holdout_frontier_expected_results_covered": 8,
+                "fresh_holdout_frontier_expected_result_coverage_rate": 0.667,
+                "fresh_holdout_frontier_identity_withheld": True,
+                "fresh_holdout_frontier_source_leakage_detected": False,
+                "fresh_holdout_frontier_all_ok": True,
             },
             "artifacts": {
                 "research_benchmark": "runs/example/research_benchmark_manifest.json",
@@ -2339,6 +2404,7 @@ class SystemTests(unittest.TestCase):
                 "research_loop_repair_audit": "runs/example/research_loop_repair_audit_manifest.json",
                 "algorithm_repair_sandbox_patch_eval": "runs/example/algorithm_repair_sandbox_patch_eval_manifest.json",
                 "adversarial_intake_audit": "runs/example/adversarial_intake_manifest.json",
+                "fresh_holdout_frontier_audit": "runs/example/fresh_holdout_frontier_manifest.json",
             },
         }
         guidance = build_evaluation_benchmark_guidance(
@@ -2354,6 +2420,7 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(statuses["S5_proof_bank_and_search"], "SATURATED")
         self.assertEqual(statuses["S6_algorithm_simulation_stress"], "OK")
         self.assertEqual(statuses["S8_adversarial_unsupported_intake"], "OK")
+        self.assertEqual(statuses["S9_fresh_holdout_frontier"], "OK")
         self.assertGreaterEqual(len(guidance["top_actions"]), 3)
         self.assertTrue(
             Path(
@@ -2400,6 +2467,27 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(payload["all_diagnoses_ok"])
         self.assertTrue(Path("runs/test_algorithm_simulation_stress_audit/algorithm_simulation_stress_manifest.json").exists())
         self.assertTrue(Path("runs/test_algorithm_simulation_stress_audit/algorithm_simulation_stress.md").exists())
+
+    def test_fresh_holdout_frontier_audit_runs_source_withheld_traces(self) -> None:
+        async def run():
+            return await audit_fresh_holdout_frontier(
+                Path("runs/test_fresh_holdout_frontier_audit"),
+                n_runs=10,
+                seed=20260601,
+            )
+
+        payload = asyncio.run(run())
+        self.assertTrue(payload["all_ok"])
+        self.assertEqual(payload["n_entries"], 6)
+        self.assertGreaterEqual(payload["n_supported"], 1)
+        self.assertGreaterEqual(payload["n_scored_traces"], 1)
+        self.assertTrue(payload["all_prompt_identity_withheld"])
+        self.assertFalse(payload["source_identity_leakage_detected"])
+        self.assertFalse(payload["overlap_with_main_frontier_ids"])
+        self.assertEqual(payload["missing_required_fields"], [])
+        self.assertGreater(payload["n_expected_results"], 0)
+        self.assertTrue(Path("runs/test_fresh_holdout_frontier_audit/fresh_holdout_frontier_manifest.json").exists())
+        self.assertTrue(Path("runs/test_fresh_holdout_frontier_audit/fresh_holdout_frontier.md").exists())
 
     def test_research_intake_audit_accepts_supported_and_rejects_unsupported(self) -> None:
         payload = audit_research_question_intake(Path("runs/test_research_intake_audit"))
@@ -2477,10 +2565,22 @@ class SystemTests(unittest.TestCase):
         self.assertIn("atlas_lean_functional_analysis", source_inventory_ids)
         self.assertIn("atlas_lean_differential_analysis", source_inventory_ids)
         self.assertIn("atlas_lean_projection_theory", source_inventory_ids)
+        self.assertIn("formal_slt", source_inventory_ids)
+        self.assertIn("lean_rademacher", source_inventory_ids)
+        self.assertIn("lean_machine_learning_lml", source_inventory_ids)
+        self.assertIn("brownian_motion_lean", source_inventory_ids)
+        self.assertIn("kolmogorov_extension_lean", source_inventory_ids)
+        self.assertIn("scilean_calculus", source_inventory_ids)
         atlas_rows = [row for row in source_inventory["rows"] if str(row["source_id"]).startswith("atlas_lean")]
         self.assertTrue(atlas_rows)
         self.assertTrue(all(row["usage_policy"] == "retrieval_only_no_training_export" for row in atlas_rows))
         self.assertTrue(all(row["git_commit"] for row in atlas_rows))
+        brownian = next(row for row in source_inventory["rows"] if row["source_id"] == "brownian_motion_lean")
+        scilean = next(row for row in source_inventory["rows"] if row["source_id"] == "scilean_calculus")
+        self.assertEqual(brownian["usage_policy"], "retrieval_only_no_training_export")
+        self.assertEqual(scilean["usage_policy"], "retrieval_only_no_training_export")
+        self.assertTrue(brownian["git_commit"])
+        self.assertTrue(scilean["git_commit"])
         self.assertIn("autoform_bot_harness", source_inventory_ids)
         autoform = next(row for row in source_inventory["rows"] if row["source_id"] == "autoform_bot_harness")
         self.assertEqual(autoform["usage_policy"], "integration_reference_no_training_export")
@@ -5247,11 +5347,19 @@ class SystemTests(unittest.TestCase):
 
     def test_source_training_export_policy_has_owner_override(self) -> None:
         self.assertFalse(source_allows_training_export("atlas_lean_high_dimensional_statistics"))
+        self.assertFalse(source_allows_training_export("brownian_motion_lean"))
+        self.assertFalse(source_allows_training_export("scilean_calculus"))
+        self.assertTrue(source_allows_training_export("formal_slt"))
+        self.assertTrue(source_allows_training_export("lean_rademacher"))
+        self.assertTrue(source_allows_training_export("lean_machine_learning_lml"))
+        self.assertTrue(source_allows_training_export("kolmogorov_extension_lean"))
         with patch.dict(
             "os.environ",
             {"AI_STATISTICIAN_INCLUDE_EXTERNAL_TRAINING_SOURCES": "1"},
         ):
             self.assertTrue(source_allows_training_export("atlas_lean_high_dimensional_statistics"))
+            self.assertTrue(source_allows_training_export("brownian_motion_lean"))
+            self.assertTrue(source_allows_training_export("scilean_calculus"))
 
     def test_research_policy_baseline_scores_exported_agent_examples(self) -> None:
         out = Path("runs/test_research_policy_baseline_fixture")
@@ -7026,6 +7134,7 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(payload["gates"]["formal_source_graph"])
         self.assertTrue(payload["gates"]["formal_source_retrieval_benchmark"])
         self.assertTrue(payload["gates"]["formal_source_retrieval_ablation"])
+        self.assertTrue(payload["gates"]["fresh_holdout_frontier_audit"])
         self.assertTrue(payload["gates"]["research_algorithm_audit"])
         self.assertTrue(payload["gates"]["algorithm_simulation_stress_audit"])
         self.assertTrue(payload["gates"]["proof_audit"])
@@ -7224,8 +7333,8 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(payload["counts"]["algorithm_repair_reviewed_patch_validate_production_patches"], 0)
         self.assertEqual(payload["counts"]["algorithm_repair_reviewed_patch_validate_promotion_ready"], 0)
         self.assertEqual(payload["counts"]["evaluation_benchmark_guidance_suites"], 10)
-        self.assertGreaterEqual(payload["counts"]["evaluation_benchmark_guidance_exercised"], 7)
-        self.assertGreaterEqual(payload["counts"]["evaluation_benchmark_guidance_stale_or_missing"], 1)
+        self.assertGreaterEqual(payload["counts"]["evaluation_benchmark_guidance_exercised"], 8)
+        self.assertGreaterEqual(payload["counts"]["evaluation_benchmark_guidance_stale_or_missing"], 0)
         self.assertGreaterEqual(payload["counts"]["evaluation_benchmark_guidance_capacity_gaps"], 1)
         self.assertGreaterEqual(payload["counts"]["evaluation_benchmark_guidance_actions"], 3)
         self.assertEqual(
@@ -7237,6 +7346,14 @@ class SystemTests(unittest.TestCase):
             payload["counts"]["frontier_smoke_questions"],
         )
         self.assertGreater(payload["counts"]["frontier_theory_expected_results"], 0)
+        self.assertGreaterEqual(payload["counts"]["fresh_holdout_frontier_entries"], 1)
+        self.assertGreaterEqual(payload["counts"]["fresh_holdout_frontier_supported"], 1)
+        self.assertGreaterEqual(payload["counts"]["fresh_holdout_frontier_scored_traces"], 1)
+        self.assertGreater(payload["counts"]["fresh_holdout_frontier_expected_results"], 0)
+        self.assertTrue(payload["counts"]["fresh_holdout_frontier_identity_withheld"])
+        self.assertFalse(payload["counts"]["fresh_holdout_frontier_source_leakage_detected"])
+        self.assertTrue(payload["counts"]["fresh_holdout_frontier_traces_ok"])
+        self.assertTrue(payload["counts"]["fresh_holdout_frontier_all_ok"])
         self.assertEqual(payload["counts"]["research_intake_supported_accepted"], payload["counts"]["research_intake_supported"])
         self.assertEqual(payload["counts"]["research_intake_unsupported_rejected"], payload["counts"]["research_intake_unsupported"])
         self.assertEqual(payload["counts"]["adversarial_intake_ok"], payload["counts"]["adversarial_intake_cases"])
@@ -7406,6 +7523,8 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(Path(payload["artifacts"]["formal_source_retrieval_benchmark_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_source_retrieval_ablation"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_source_retrieval_ablation_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["fresh_holdout_frontier_audit"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["fresh_holdout_frontier_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["research_algorithm_audit"]).exists())
         self.assertTrue(Path(payload["artifacts"]["algorithm_simulation_stress_audit"]).exists())
         self.assertTrue(Path(payload["artifacts"]["algorithm_simulation_stress_report"]).exists())

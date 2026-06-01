@@ -46,6 +46,12 @@ LOCAL_FORMAL_SOURCE_KNOWLEDGE = {
     "local_statinference_repo",
     "empirical_process_lean",
     "lean_stat_learning_theory",
+    "formal_slt",
+    "lean_rademacher",
+    "lean_machine_learning_lml",
+    "brownian_motion_lean",
+    "kolmogorov_extension_lean",
+    "scilean_calculus",
     "legacy_ai_statistician_statinference",
 }
 

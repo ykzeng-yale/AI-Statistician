@@ -20,6 +20,12 @@ USER_AUTOFORM_BOT_ROOT = Path("/Users/yukang/.codex/external/ykzeng-autoform-bot
 UPSTREAM_AUTOFORM_BOT_ROOT = Path("/Users/yukang/.codex/external/autoform-bot")
 ATLAS_LEAN_ROOT = USER_ATLAS_LEAN_ROOT if USER_ATLAS_LEAN_ROOT.exists() else UPSTREAM_ATLAS_LEAN_ROOT
 AUTOFORM_BOT_ROOT = USER_AUTOFORM_BOT_ROOT if USER_AUTOFORM_BOT_ROOT.exists() else UPSTREAM_AUTOFORM_BOT_ROOT
+FORMAL_SLT_ROOT = Path("/Users/yukang/.codex/external/FormalSLT")
+LEAN_RADEMACHER_ROOT = Path("/Users/yukang/.codex/external/lean-rademacher")
+LEAN_MACHINE_LEARNING_ROOT = Path("/Users/yukang/.codex/external/LeanMachineLearning-LML")
+BROWNIAN_MOTION_ROOT = Path("/Users/yukang/.codex/external/brownian-motion")
+KOLMOGOROV_EXTENSION_ROOT = Path("/Users/yukang/.codex/external/kolmogorov_extension4")
+SCILEAN_ROOT = Path("/Users/yukang/.codex/external/SciLean")
 
 
 @dataclass(frozen=True)
@@ -101,6 +107,65 @@ SOURCE_INVENTORY_TARGETS: tuple[SourceInventoryTarget, ...] = (
         location="/Users/yukang/.codex/external/lean-stat-learning-theory",
         required_extensions=(".lean",),
         keywords=("Covering", "SubGaussian", "LeastSquares", "Gaussian", "Concentration", "Poincare"),
+    ),
+    SourceInventoryTarget(
+        id="formal_slt",
+        source_type="lean_library",
+        location=str(FORMAL_SLT_ROOT / "FormalSLT"),
+        required_extensions=(".lean",),
+        keywords=(
+            "Rademacher",
+            "ERM",
+            "PAC",
+            "VC",
+            "Azuma",
+            "SubGamma",
+            "AlgorithmicStability",
+            "Dudley",
+        ),
+        license_policy="MIT",
+    ),
+    SourceInventoryTarget(
+        id="lean_rademacher",
+        source_type="lean_library",
+        location=str(LEAN_RADEMACHER_ROOT / "FoML"),
+        required_extensions=(".lean",),
+        keywords=("Rademacher", "McDiarmid", "Dudley", "Massart", "Hoeffding", "LinearPredictor"),
+        license_policy="MIT",
+    ),
+    SourceInventoryTarget(
+        id="lean_machine_learning_lml",
+        source_type="lean_library",
+        location=str(LEAN_MACHINE_LEARNING_ROOT / "LeanMachineLearning"),
+        required_extensions=(".lean",),
+        keywords=("Bandit", "Regret", "UCB", "ExploreThenCommit", "Stochastic", "Algorithm"),
+        license_policy="Apache-2.0",
+    ),
+    SourceInventoryTarget(
+        id="brownian_motion_lean",
+        source_type="lean_library",
+        location=str(BROWNIAN_MOTION_ROOT / "BrownianMotion"),
+        required_extensions=(".lean",),
+        keywords=("Brownian", "Gaussian", "Kolmogorov", "Chentsov", "StochasticIntegral", "Ito"),
+        license_policy="Apache-2.0",
+        usage_policy="retrieval_only_no_training_export",
+    ),
+    SourceInventoryTarget(
+        id="kolmogorov_extension_lean",
+        source_type="lean_library",
+        location=str(KOLMOGOROV_EXTENSION_ROOT / "KolmogorovExtension4"),
+        required_extensions=(".lean",),
+        keywords=("Kolmogorov", "Projective", "Measure", "CompactSystem", "Extension", "RegularContent"),
+        license_policy="Apache-2.0",
+    ),
+    SourceInventoryTarget(
+        id="scilean_calculus",
+        source_type="lean_library",
+        location=str(SCILEAN_ROOT / "SciLean"),
+        required_extensions=(".lean",),
+        keywords=("derivative", "gradient", "jacobian", "Optimization", "Gaussian", "RnDeriv"),
+        license_policy="Apache-2.0",
+        usage_policy="retrieval_only_no_training_export",
     ),
     SourceInventoryTarget(
         id="legacy_ai_statistician_statinference",

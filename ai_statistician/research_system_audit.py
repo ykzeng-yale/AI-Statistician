@@ -12,6 +12,7 @@ from .fingerprint import stable_hash
 from .frontier_backlog_audit import audit_frontier_backlog
 from .frontier_coverage_audit import audit_frontier_coverage
 from .frontier_precision_audit import audit_frontier_precision
+from .fresh_holdout_frontier_audit import audit_fresh_holdout_frontier
 from .algorithm_repair_promotion import export_algorithm_repair_promotion_queue
 from .algorithm_repair_patch_policy_model import train_algorithm_repair_patch_policy_model
 from .algorithm_repair_patch_training_export import export_algorithm_repair_patch_training_dataset
@@ -216,6 +217,16 @@ async def run_research_system_audit(
         formal_source_search=formal_source_search,
     )
     stage_start = _record_stage(stage_timings, "frontier_smoke_benchmark", stage_start)
+
+    fresh_holdout_manifest = await audit_fresh_holdout_frontier(
+        out_dir / "fresh_holdout_frontier_audit",
+        proof_verifier=verifier,
+        formal_source_retriever=formal_source_retriever,
+        formal_source_search=formal_source_search,
+        n_runs=max(10, min(config.frontier_smoke_runs, 20)),
+        seed=config.seed + 707,
+    )
+    stage_start = _record_stage(stage_timings, "fresh_holdout_frontier_audit", stage_start)
 
     intake_manifest = audit_research_question_intake(out_dir / "research_intake_audit")
     adversarial_intake_manifest = audit_adversarial_unsupported_intake(
@@ -486,6 +497,7 @@ async def run_research_system_audit(
         "formal_source_graph": bool(formal_source_graph_manifest["all_queries_ok"]),
         "formal_source_retrieval_benchmark": bool(formal_source_retrieval_benchmark_manifest["all_ok"]),
         "formal_source_retrieval_ablation": bool(formal_source_retrieval_ablation_manifest["all_ok"]),
+        "fresh_holdout_frontier_audit": bool(fresh_holdout_manifest["all_ok"]),
         "research_algorithm_audit": bool(algorithm_manifest["all_ok"]),
         "algorithm_simulation_stress_audit": bool(algorithm_simulation_stress_manifest["all_ok"]),
         "proof_audit": bool(proof_manifest["all_verified"])
@@ -663,6 +675,28 @@ async def run_research_system_audit(
             "frontier_theory_expected_result_coverage_rate": frontier_smoke_manifest["counts"][
                 "theory_expected_result_coverage_rate"
             ],
+            "fresh_holdout_frontier_entries": fresh_holdout_manifest["n_entries"],
+            "fresh_holdout_frontier_supported": fresh_holdout_manifest["n_supported"],
+            "fresh_holdout_frontier_unsupported": fresh_holdout_manifest["n_unsupported"],
+            "fresh_holdout_frontier_scored_traces": fresh_holdout_manifest["n_scored_traces"],
+            "fresh_holdout_frontier_expected_results": fresh_holdout_manifest["n_expected_results"],
+            "fresh_holdout_frontier_expected_results_covered": fresh_holdout_manifest[
+                "n_covered_expected_results"
+            ],
+            "fresh_holdout_frontier_expected_result_coverage_rate": fresh_holdout_manifest[
+                "expected_result_coverage_rate"
+            ],
+            "fresh_holdout_frontier_all_entries_supported": fresh_holdout_manifest[
+                "all_entries_supported"
+            ],
+            "fresh_holdout_frontier_identity_withheld": fresh_holdout_manifest[
+                "all_prompt_identity_withheld"
+            ],
+            "fresh_holdout_frontier_source_leakage_detected": fresh_holdout_manifest[
+                "source_identity_leakage_detected"
+            ],
+            "fresh_holdout_frontier_traces_ok": fresh_holdout_manifest["traces_ok"],
+            "fresh_holdout_frontier_all_ok": fresh_holdout_manifest["all_ok"],
             "research_intake_supported": intake_manifest["n_supported"],
             "research_intake_supported_accepted": intake_manifest["n_supported_accepted"],
             "research_intake_unsupported": intake_manifest["n_unsupported"],
@@ -1147,6 +1181,12 @@ async def run_research_system_audit(
                 out_dir
                 / "formal_source_retrieval_ablation"
                 / "formal_source_retrieval_ablation.md"
+            ),
+            "fresh_holdout_frontier_audit": str(
+                out_dir / "fresh_holdout_frontier_audit" / "fresh_holdout_frontier_manifest.json"
+            ),
+            "fresh_holdout_frontier_report": str(
+                out_dir / "fresh_holdout_frontier_audit" / "fresh_holdout_frontier.md"
             ),
             "research_algorithm_audit": str(
                 out_dir / "research_algorithm_audit" / "research_algorithm_audit_manifest.json"

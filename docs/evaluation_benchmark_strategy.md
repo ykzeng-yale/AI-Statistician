@@ -307,6 +307,16 @@ Protocol:
 - do not use holdout entries in retrieval cards, training exports, or template
   tuning until after evaluation
 
+Current pilot artifacts:
+
+- `benchmarks/fresh_holdout_frontier_benchmark.md`
+- `ai_statistician/fresh_holdout_frontier_audit.py`
+- system-audit output under `runs/<audit>/fresh_holdout_frontier_audit/`
+
+The pilot is deliberately small and should be refreshed periodically. Passing
+this suite means the source-withheld traces were generated and scored; it does
+not mean the system has proved the holdout papers' full theorems in Lean.
+
 This is the benchmark needed before claiming progress toward a general
 statistical theorist.
 

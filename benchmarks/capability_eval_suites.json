@@ -211,7 +211,10 @@
       "id": "S9_fresh_holdout_frontier",
       "name": "Fresh Holdout Frontier Suite",
       "capability": "generalization to papers not used in templates, retrieval cards, or tuning",
-      "primary_artifacts": [],
+      "primary_artifacts": [
+        "benchmarks/fresh_holdout_frontier_benchmark.md",
+        "runs/<audit>/fresh_holdout_frontier_audit/fresh_holdout_frontier_manifest.json"
+      ],
       "recommended_sources": [
         "JASA",
         "AOAS",

@@ -355,12 +355,47 @@ def _suite_rows(
         ),
         BenchmarkSuiteGuidanceRow(
             suite_id="S9_fresh_holdout_frontier",
-            exercised=False,
-            status="STALE_OR_MISSING",
-            evidence_paths=(),
-            key_counts={},
+            exercised=bool(artifacts.get("fresh_holdout_frontier_audit")),
+            status="OK"
+            if bool(counts.get("fresh_holdout_frontier_all_ok"))
+            and _int(counts.get("fresh_holdout_frontier_entries")) > 0
+            and _int(counts.get("fresh_holdout_frontier_scored_traces")) > 0
+            and bool(counts.get("fresh_holdout_frontier_identity_withheld"))
+            and not bool(counts.get("fresh_holdout_frontier_source_leakage_detected"))
+            else "STALE_OR_MISSING",
+            evidence_paths=(
+                str(artifacts.get("fresh_holdout_frontier_audit", "")),
+                "benchmarks/fresh_holdout_frontier_benchmark.md",
+            ),
+            key_counts={
+                "fresh_holdout_frontier_entries": counts.get("fresh_holdout_frontier_entries"),
+                "fresh_holdout_frontier_supported": counts.get("fresh_holdout_frontier_supported"),
+                "fresh_holdout_frontier_unsupported": counts.get("fresh_holdout_frontier_unsupported"),
+                "fresh_holdout_frontier_scored_traces": counts.get("fresh_holdout_frontier_scored_traces"),
+                "fresh_holdout_frontier_expected_results": counts.get(
+                    "fresh_holdout_frontier_expected_results"
+                ),
+                "fresh_holdout_frontier_expected_results_covered": counts.get(
+                    "fresh_holdout_frontier_expected_results_covered"
+                ),
+                "fresh_holdout_frontier_expected_result_coverage_rate": counts.get(
+                    "fresh_holdout_frontier_expected_result_coverage_rate"
+                ),
+                "fresh_holdout_frontier_identity_withheld": counts.get(
+                    "fresh_holdout_frontier_identity_withheld"
+                ),
+                "fresh_holdout_frontier_source_leakage_detected": counts.get(
+                    "fresh_holdout_frontier_source_leakage_detected"
+                ),
+            },
             honesty_boundary="Fresh holdout papers are needed before claiming generalization beyond curated templates.",
-            issues=("no fresh holdout frontier suite is currently present",),
+            issues=()
+            if bool(counts.get("fresh_holdout_frontier_all_ok"))
+            and _int(counts.get("fresh_holdout_frontier_entries")) > 0
+            and _int(counts.get("fresh_holdout_frontier_scored_traces")) > 0
+            and bool(counts.get("fresh_holdout_frontier_identity_withheld"))
+            and not bool(counts.get("fresh_holdout_frontier_source_leakage_detected"))
+            else ("no passing source-withheld fresh holdout frontier suite is currently present",),
         ),
     ]
     return tuple(rows)
