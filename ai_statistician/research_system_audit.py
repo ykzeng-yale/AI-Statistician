@@ -21,6 +21,7 @@ from .formal_gap_task_export import export_formal_gap_lean_tasks
 from .formalization_target_audit import audit_formalization_targets
 from .formal_source_graph import audit_formal_source_graph
 from .formal_source_index import build_formal_source_search_backend
+from .formal_source_retrieval_benchmark import run_formal_source_retrieval_benchmark
 from .autoform_harness import audit_autoform_harness
 from .autoform_target_export import export_autoform_targets
 from .frontier_smoke_benchmark import FrontierSmokeConfig, run_frontier_smoke_benchmark
@@ -136,6 +137,12 @@ async def run_research_system_audit(
         "graph_manifest": str(out_dir / "formal_source_graph" / "formal_source_graph_manifest.json"),
     }
     stage_start = _record_stage(stage_timings, "formal_source_graph", stage_start)
+
+    formal_source_retrieval_benchmark_manifest = run_formal_source_retrieval_benchmark(
+        out_dir / "formal_source_retrieval_benchmark",
+        retriever=formal_source_retriever,
+    )
+    stage_start = _record_stage(stage_timings, "formal_source_retrieval_benchmark", stage_start)
 
     frontier_manifest = audit_frontier_coverage(out_dir / "frontier_coverage_audit")
     frontier_precision_manifest = audit_frontier_precision(out_dir / "frontier_precision_audit")
@@ -389,6 +396,7 @@ async def run_research_system_audit(
         "autoform_harness": bool(autoform_harness_manifest["ready_for_integration"]),
         "retrieval_audit": bool(retrieval_manifest["all_top_k"]),
         "formal_source_graph": bool(formal_source_graph_manifest["all_queries_ok"]),
+        "formal_source_retrieval_benchmark": bool(formal_source_retrieval_benchmark_manifest["all_ok"]),
         "research_algorithm_audit": bool(algorithm_manifest["all_ok"]),
         "proof_audit": bool(proof_manifest["all_verified"])
         and bool(proof_manifest["dependency_graph"]["all_ok"])
@@ -575,6 +583,14 @@ async def run_research_system_audit(
             "formal_source_graph_cache_enabled": formal_source_graph_manifest["cache"]["enabled"],
             "formal_source_graph_cache_status": formal_source_graph_manifest["cache"]["status"],
             "formal_source_graph_cache_key": formal_source_graph_manifest["cache"]["cache_key"],
+            "formal_source_retrieval_benchmark_cases": formal_source_retrieval_benchmark_manifest["n_cases"],
+            "formal_source_retrieval_benchmark_ok": formal_source_retrieval_benchmark_manifest["n_ok"],
+            "formal_source_retrieval_benchmark_recall_at_k": formal_source_retrieval_benchmark_manifest[
+                "recall_at_k"
+            ],
+            "formal_source_retrieval_benchmark_mrr": formal_source_retrieval_benchmark_manifest[
+                "mean_reciprocal_rank"
+            ],
             "formal_source_index_cache_status": getattr(formal_source_retriever, "cache_status", "unknown"),
             "formal_source_index_cache_path": getattr(formal_source_retriever, "cache_path", ""),
             "research_ready_with_gaps": benchmark_manifest["n_ready_with_gaps"],
@@ -830,6 +846,16 @@ async def run_research_system_audit(
             "retrieval_audit": str(out_dir / "retrieval_audit" / "retrieval_audit_manifest.json"),
             "formal_source_graph": str(out_dir / "formal_source_graph" / "formal_source_graph_manifest.json"),
             "formal_source_graph_report": str(out_dir / "formal_source_graph" / "formal_source_graph.md"),
+            "formal_source_retrieval_benchmark": str(
+                out_dir
+                / "formal_source_retrieval_benchmark"
+                / "formal_source_retrieval_benchmark_manifest.json"
+            ),
+            "formal_source_retrieval_benchmark_report": str(
+                out_dir
+                / "formal_source_retrieval_benchmark"
+                / "formal_source_retrieval_benchmark.md"
+            ),
             "research_algorithm_audit": str(
                 out_dir / "research_algorithm_audit" / "research_algorithm_audit_manifest.json"
             ),

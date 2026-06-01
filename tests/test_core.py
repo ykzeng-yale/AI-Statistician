@@ -33,6 +33,10 @@ from ai_statistician.formal_source_index import (
     build_formal_source_index,
     search_formal_sources,
 )
+from ai_statistician.formal_source_retrieval_benchmark import (
+    FormalSourceRetrievalBenchmarkCase,
+    run_formal_source_retrieval_benchmark,
+)
 from ai_statistician.autoform_harness import audit_autoform_harness
 from ai_statistician.proof_bank import all_obligations, get_obligation
 from ai_statistician.evaluation import EvalConfig, run_seed_eval
@@ -277,6 +281,53 @@ class ProofBankTests(unittest.TestCase):
         self.assertTrue(Path(payload["sqlite_index_path"]).exists())
         self.assertEqual(payload["n_declarations"], 2)
         self.assertTrue(Path("runs/test_formal_source_index/formal_source_index_manifest.json").exists())
+
+    def test_formal_source_retrieval_benchmark_measures_gold_family_recall(self) -> None:
+        fixture = Path("runs/test_formal_source_retrieval_benchmark_fixture")
+        fixture.mkdir(parents=True, exist_ok=True)
+        (fixture / "Demo.lean").write_text(
+            "\n".join(
+                [
+                    "import Mathlib",
+                    "namespace Demo",
+                    "theorem variance_sum_indep",
+                    "    (h_indep : IndepFun X Y μ) :",
+                    "    variance (X + Y) μ = variance X μ + variance Y μ := by trivial",
+                    "theorem unrelated_bound : True := by trivial",
+                    "end Demo",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        declarations = build_formal_source_index(roots=(FormalSourceRoot("fixture", str(fixture)),))
+        sqlite_index = FormalSourceSqliteIndex.build(
+            declarations,
+            Path("runs/test_formal_source_retrieval_benchmark/formal_source_index.sqlite"),
+        )
+        hybrid = FormalSourceHybridRetriever(declarations, sqlite_index)
+        payload = run_formal_source_retrieval_benchmark(
+            Path("runs/test_formal_source_retrieval_benchmark"),
+            retriever=hybrid,
+            cases=(
+                FormalSourceRetrievalBenchmarkCase(
+                    query_id="fixture_variance",
+                    query="independent variance estimator sum",
+                    expected_name_fragments=("variance_sum_indep",),
+                    expected_source_ids=("fixture",),
+                ),
+            ),
+            k=3,
+        )
+        self.assertTrue(payload["all_ok"])
+        self.assertEqual(payload["n_ok"], 1)
+        self.assertEqual(payload["recall_at_k"], 1.0)
+        self.assertEqual(payload["rows"][0]["hit_rank"], 1)
+        self.assertTrue(
+            Path(
+                "runs/test_formal_source_retrieval_benchmark/"
+                "formal_source_retrieval_benchmark_manifest.json"
+            ).exists()
+        )
 
     def test_formal_source_search_backend_reuses_sqlite_cache(self) -> None:
         fixture = Path("runs/test_formal_source_cache_fixture")
@@ -6030,6 +6081,7 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(payload["gates"]["research_knowledge_audit"])
         self.assertTrue(payload["gates"]["retrieval_audit"])
         self.assertTrue(payload["gates"]["formal_source_graph"])
+        self.assertTrue(payload["gates"]["formal_source_retrieval_benchmark"])
         self.assertTrue(payload["gates"]["research_algorithm_audit"])
         self.assertTrue(payload["gates"]["proof_audit"])
         self.assertTrue(payload["gates"]["proof_training_export"])
@@ -6151,6 +6203,12 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(payload["counts"]["formal_source_graph_cache_enabled"])
         self.assertIn(payload["counts"]["formal_source_graph_cache_status"], {"hit", "miss"})
         self.assertTrue(payload["counts"]["formal_source_graph_cache_key"])
+        self.assertEqual(
+            payload["counts"]["formal_source_retrieval_benchmark_ok"],
+            payload["counts"]["formal_source_retrieval_benchmark_cases"],
+        )
+        self.assertEqual(payload["counts"]["formal_source_retrieval_benchmark_recall_at_k"], 1.0)
+        self.assertGreater(payload["counts"]["formal_source_retrieval_benchmark_mrr"], 0.0)
         self.assertIn("timings", payload)
         self.assertGreater(payload["timings"]["total_elapsed_ms"], 0)
         self.assertTrue(payload["timings"]["stages"])
@@ -6263,6 +6321,8 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(Path(payload["artifacts"]["research_source_inventory"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_source_graph"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_source_graph_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formal_source_retrieval_benchmark"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formal_source_retrieval_benchmark_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["research_algorithm_audit"]).exists())
         self.assertTrue(Path(payload["artifacts"]["proof_attempt_log"]).exists())
         self.assertTrue(Path(payload["artifacts"]["proof_training_export"]).exists())
