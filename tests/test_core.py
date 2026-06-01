@@ -46,6 +46,7 @@ from ai_statistician.formal_source_retrieval_benchmark import (
     FormalSourceRetrievalBenchmarkCase,
     run_formal_source_retrieval_benchmark,
 )
+from ai_statistician.formal_source_retrieval_ablation import run_formal_source_retrieval_ablation_benchmark
 from ai_statistician.lean_rag_dependency import LeanRagDependencyRetriever
 from ai_statistician.autoform_harness import audit_autoform_harness
 from ai_statistician.proof_bank import all_obligations, get_obligation
@@ -378,6 +379,20 @@ class ProofBankTests(unittest.TestCase):
             Path(getattr(backend_with_deps, "lean_rag_dependency_graph_path")).name,
             "stat_inference.sqlite",
         )
+        with patch(
+            "ai_statistician.formal_source_index.DEFAULT_LEAN_RAG_DB_CANDIDATES",
+            (lean_rag_db,),
+        ):
+            backend_with_auto_deps = build_formal_source_search_backend(
+                db_path=Path("runs/test_formal_source_index/with_auto_lean_rag.sqlite"),
+                roots=(root,),
+            )
+        self.assertTrue(getattr(backend_with_auto_deps, "lean_rag_dependency_graph_enabled"))
+        self.assertTrue(getattr(backend_with_auto_deps, "lean_rag_dependency_graph_auto_discovered"))
+        self.assertEqual(
+            Path(getattr(backend_with_auto_deps, "lean_rag_dependency_graph_path")).name,
+            "stat_inference.sqlite",
+        )
         graph_payload = audit_formal_source_graph(
             Path("runs/test_formal_source_graph"),
             declarations=declarations,
@@ -462,6 +477,121 @@ class ProofBankTests(unittest.TestCase):
             Path(
                 "runs/test_formal_source_retrieval_benchmark/"
                 "formal_source_retrieval_benchmark_manifest.json"
+            ).exists()
+        )
+
+    def test_formal_source_retrieval_ablation_measures_lean_rag_new_hit(self) -> None:
+        fixture = Path("runs/test_formal_source_retrieval_ablation_fixture")
+        shutil.rmtree(fixture, ignore_errors=True)
+        fixture.mkdir(parents=True, exist_ok=True)
+        (fixture / "Demo.lean").write_text(
+            "\n".join(
+                [
+                    "import Mathlib",
+                    "namespace Demo",
+                    "theorem unrelated_local_source : True := by trivial",
+                    "end Demo",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        declarations = build_formal_source_index(roots=(FormalSourceRoot("fixture_ablation", str(fixture)),))
+        sqlite_index = FormalSourceSqliteIndex.build(
+            declarations,
+            Path("runs/test_formal_source_retrieval_ablation/local.sqlite"),
+        )
+        lean_rag_db = Path("runs/test_formal_source_retrieval_ablation/stat_inference.sqlite")
+        lean_rag_db.parent.mkdir(parents=True, exist_ok=True)
+        if lean_rag_db.exists():
+            lean_rag_db.unlink()
+        with sqlite3.connect(lean_rag_db) as conn:
+            conn.executescript(
+                """
+                CREATE TABLE declarations (
+                  id INTEGER PRIMARY KEY,
+                  name TEXT NOT NULL,
+                  short_name TEXT NOT NULL,
+                  kind TEXT NOT NULL,
+                  module TEXT NOT NULL,
+                  path TEXT NOT NULL,
+                  line_start INTEGER NOT NULL,
+                  line_end INTEGER NOT NULL,
+                  namespace TEXT NOT NULL,
+                  attributes TEXT NOT NULL,
+                  signature TEXT NOT NULL,
+                  proof TEXT NOT NULL,
+                  has_proof INTEGER NOT NULL,
+                  has_sorry INTEGER NOT NULL,
+                  text_hash TEXT NOT NULL
+                );
+                CREATE TABLE declaration_edges (
+                  id INTEGER PRIMARY KEY,
+                  src_decl_id INTEGER NOT NULL,
+                  dst_decl_id INTEGER NOT NULL,
+                  edge_type TEXT NOT NULL,
+                  match_kind TEXT NOT NULL,
+                  scope TEXT NOT NULL,
+                  weight INTEGER NOT NULL
+                );
+                CREATE VIRTUAL TABLE decl_fts USING fts5(
+                  name, short_name, kind, module, namespace, signature, proof
+                );
+                """
+            )
+            row = (
+                1,
+                "Demo.lean_rag_only_variance_bridge",
+                "lean_rag_only_variance_bridge",
+                "theorem",
+                "Demo",
+                "Demo.lean",
+                11,
+                12,
+                "Demo",
+                "[]",
+                "theorem lean_rag_only_variance_bridge : variance finite independent sum bridge",
+                "by trivial",
+                1,
+                0,
+                "hash",
+            )
+            conn.execute("INSERT INTO declarations VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", row)
+            conn.execute(
+                """
+                INSERT INTO decl_fts(rowid, name, short_name, kind, module, namespace, signature, proof)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (row[0], row[1], row[2], row[3], row[4], row[8], row[10], row[11]),
+            )
+        baseline = FormalSourceHybridRetriever(declarations, sqlite_index)
+        enhanced = FormalSourceHybridRetriever(
+            declarations,
+            sqlite_index,
+            dependency_retriever=LeanRagDependencyRetriever(lean_rag_db),
+        )
+        payload = run_formal_source_retrieval_ablation_benchmark(
+            Path("runs/test_formal_source_retrieval_ablation"),
+            baseline_retriever=baseline,
+            enhanced_retriever=enhanced,
+            cases=(
+                FormalSourceRetrievalBenchmarkCase(
+                    query_id="lean_rag_only_bridge",
+                    query="variance finite independent sum bridge",
+                    expected_name_fragments=("lean_rag_only_variance_bridge",),
+                    expected_source_ids=("lean_rag_dependency_graph",),
+                ),
+            ),
+            k=5,
+        )
+        self.assertTrue(payload["all_ok"])
+        self.assertEqual(payload["n_new_hits"], 1)
+        self.assertEqual(payload["n_lost_hits"], 0)
+        self.assertEqual(payload["rows"][0]["baseline_hit_rank"], None)
+        self.assertEqual(payload["rows"][0]["enhanced_hit_rank"], 1)
+        self.assertTrue(
+            Path(
+                "runs/test_formal_source_retrieval_ablation/"
+                "formal_source_retrieval_ablation_manifest.json"
             ).exists()
         )
 
@@ -6736,6 +6866,7 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(payload["gates"]["retrieval_audit"])
         self.assertTrue(payload["gates"]["formal_source_graph"])
         self.assertTrue(payload["gates"]["formal_source_retrieval_benchmark"])
+        self.assertTrue(payload["gates"]["formal_source_retrieval_ablation"])
         self.assertTrue(payload["gates"]["research_algorithm_audit"])
         self.assertTrue(payload["gates"]["proof_audit"])
         self.assertTrue(payload["gates"]["proof_training_export"])
@@ -6962,6 +7093,12 @@ class SystemTests(unittest.TestCase):
         )
         self.assertEqual(payload["counts"]["formal_source_retrieval_benchmark_recall_at_k"], 1.0)
         self.assertGreater(payload["counts"]["formal_source_retrieval_benchmark_mrr"], 0.0)
+        self.assertEqual(
+            payload["counts"]["formal_source_retrieval_ablation_lost_hits"],
+            0,
+        )
+        self.assertGreaterEqual(payload["counts"]["formal_source_retrieval_ablation_cases"], 1)
+        self.assertIn("lean_rag_dependency_graph_auto_discovered", payload["counts"])
         self.assertIn("timings", payload)
         self.assertGreater(payload["timings"]["total_elapsed_ms"], 0)
         self.assertTrue(payload["timings"]["stages"])
@@ -7076,6 +7213,8 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(Path(payload["artifacts"]["formal_source_graph_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_source_retrieval_benchmark"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_source_retrieval_benchmark_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formal_source_retrieval_ablation"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formal_source_retrieval_ablation_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["research_algorithm_audit"]).exists())
         self.assertTrue(Path(payload["artifacts"]["proof_attempt_log"]).exists())
         self.assertTrue(Path(payload["artifacts"]["proof_training_export"]).exists())

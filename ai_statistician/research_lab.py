@@ -8641,6 +8641,11 @@ async def run_research_benchmark(
                 else ""
             ),
             "lean_rag_db_path": getattr(formal_source_retriever, "lean_rag_dependency_graph_path", ""),
+            "lean_rag_auto_discovered": getattr(
+                formal_source_retriever,
+                "lean_rag_dependency_graph_auto_discovered",
+                False,
+            ),
         }
     lab = AIStatisticalTheoryLab(
         proof_verifier=proof_verifier,

@@ -26,7 +26,9 @@ from .architecture_audit import audit_architecture
 from .formal_gap_task_export import export_formal_gap_lean_tasks
 from .formalization_target_audit import audit_formalization_targets
 from .formal_source_graph import audit_formal_source_graph
-from .formal_source_index import build_formal_source_search_backend
+from .formal_source_hybrid import FormalSourceHybridRetriever
+from .formal_source_index import FormalSourceSqliteIndex, build_formal_source_search_backend
+from .formal_source_retrieval_ablation import run_formal_source_retrieval_ablation_benchmark
 from .formal_source_retrieval_benchmark import run_formal_source_retrieval_benchmark
 from .autoform_harness import audit_autoform_harness
 from .autoform_target_export import export_autoform_targets
@@ -148,6 +150,11 @@ async def run_research_system_audit(
             else ""
         ),
         "lean_rag_db_path": getattr(formal_source_retriever, "lean_rag_dependency_graph_path", ""),
+        "lean_rag_auto_discovered": getattr(
+            formal_source_retriever,
+            "lean_rag_dependency_graph_auto_discovered",
+            False,
+        ),
         "graph_manifest": str(out_dir / "formal_source_graph" / "formal_source_graph_manifest.json"),
     }
     stage_start = _record_stage(stage_timings, "formal_source_graph", stage_start)
@@ -155,6 +162,16 @@ async def run_research_system_audit(
     formal_source_retrieval_benchmark_manifest = run_formal_source_retrieval_benchmark(
         out_dir / "formal_source_retrieval_benchmark",
         retriever=formal_source_retriever,
+    )
+    baseline_formal_source_retriever = FormalSourceHybridRetriever(
+        formal_source_declarations,
+        FormalSourceSqliteIndex(formal_source_index_path),
+        dependency_retriever=None,
+    )
+    formal_source_retrieval_ablation_manifest = run_formal_source_retrieval_ablation_benchmark(
+        out_dir / "formal_source_retrieval_ablation",
+        baseline_retriever=baseline_formal_source_retriever,
+        enhanced_retriever=formal_source_retriever,
     )
     stage_start = _record_stage(stage_timings, "formal_source_retrieval_benchmark", stage_start)
 
@@ -445,6 +462,7 @@ async def run_research_system_audit(
         "retrieval_audit": bool(retrieval_manifest["all_top_k"]),
         "formal_source_graph": bool(formal_source_graph_manifest["all_queries_ok"]),
         "formal_source_retrieval_benchmark": bool(formal_source_retrieval_benchmark_manifest["all_ok"]),
+        "formal_source_retrieval_ablation": bool(formal_source_retrieval_ablation_manifest["all_ok"]),
         "research_algorithm_audit": bool(algorithm_manifest["all_ok"]),
         "proof_audit": bool(proof_manifest["all_verified"])
         and bool(proof_manifest["dependency_graph"]["all_ok"])
@@ -646,6 +664,15 @@ async def run_research_system_audit(
             "formal_source_retrieval_benchmark_mrr": formal_source_retrieval_benchmark_manifest[
                 "mean_reciprocal_rank"
             ],
+            "formal_source_retrieval_ablation_cases": formal_source_retrieval_ablation_manifest["n_cases"],
+            "formal_source_retrieval_ablation_new_hits": formal_source_retrieval_ablation_manifest["n_new_hits"],
+            "formal_source_retrieval_ablation_lost_hits": formal_source_retrieval_ablation_manifest["n_lost_hits"],
+            "formal_source_retrieval_ablation_rank_improved": formal_source_retrieval_ablation_manifest[
+                "n_rank_improved"
+            ],
+            "formal_source_retrieval_ablation_rank_regressed": formal_source_retrieval_ablation_manifest[
+                "n_rank_regressed"
+            ],
             "formal_source_index_cache_status": getattr(formal_source_retriever, "cache_status", "unknown"),
             "formal_source_index_cache_path": getattr(formal_source_retriever, "cache_path", ""),
             "lean_rag_dependency_graph_enabled": getattr(
@@ -657,6 +684,11 @@ async def run_research_system_audit(
                 formal_source_retriever,
                 "lean_rag_dependency_graph_path",
                 "",
+            ),
+            "lean_rag_dependency_graph_auto_discovered": getattr(
+                formal_source_retriever,
+                "lean_rag_dependency_graph_auto_discovered",
+                False,
             ),
             "research_ready_with_gaps": benchmark_manifest["n_ready_with_gaps"],
             "research_simulation_flagged": benchmark_manifest["n_simulation_flagged"],
@@ -1031,6 +1063,16 @@ async def run_research_system_audit(
                 out_dir
                 / "formal_source_retrieval_benchmark"
                 / "formal_source_retrieval_benchmark.md"
+            ),
+            "formal_source_retrieval_ablation": str(
+                out_dir
+                / "formal_source_retrieval_ablation"
+                / "formal_source_retrieval_ablation_manifest.json"
+            ),
+            "formal_source_retrieval_ablation_report": str(
+                out_dir
+                / "formal_source_retrieval_ablation"
+                / "formal_source_retrieval_ablation.md"
             ),
             "research_algorithm_audit": str(
                 out_dir / "research_algorithm_audit" / "research_algorithm_audit_manifest.json"

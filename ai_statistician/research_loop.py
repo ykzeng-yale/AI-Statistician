@@ -622,6 +622,11 @@ async def run_research_loop_benchmark(
                 else ""
             ),
             "lean_rag_db_path": getattr(formal_source_retriever, "lean_rag_dependency_graph_path", ""),
+            "lean_rag_auto_discovered": getattr(
+                formal_source_retriever,
+                "lean_rag_dependency_graph_auto_discovered",
+                False,
+            ),
         },
         "n_repair_tasks": len(repair_tasks),
         "repair_tasks_by_agent": _count_by_key(repair_tasks, "owner_agent"),

@@ -55,6 +55,12 @@ SKIPPED_PATH_PARTS = {
     "Asymtotic Properties Related Literature",
     "Markdown Trans",
 }
+DEFAULT_LEAN_RAG_DB_RELATIVE_PATH = Path(
+    "runs/current_status_lean_rag_dependency_graph/stat_inference.sqlite"
+)
+# Tests and downstream orchestration can prepend project-specific candidates
+# without changing the global auto-discovery rule.
+DEFAULT_LEAN_RAG_DB_CANDIDATES: tuple[Path, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -478,16 +484,54 @@ def build_formal_source_search_backend(
 
 
 def _optional_lean_rag_dependency_retriever(lean_rag_db_path: Path | str | None) -> object | None:
-    raw_path = lean_rag_db_path or os.environ.get("AI_STATISTICIAN_LEAN_RAG_DB")
-    if not raw_path:
+    explicit_path = lean_rag_db_path or os.environ.get("AI_STATISTICIAN_LEAN_RAG_DB")
+    candidate_paths = (
+        (Path(explicit_path).expanduser(),)
+        if explicit_path
+        else _auto_lean_rag_db_candidates()
+    )
+    if not candidate_paths:
         return None
     try:
         from .lean_rag_dependency import LeanRagDependencyRetriever
 
-        retriever = LeanRagDependencyRetriever(raw_path)
-        return retriever if retriever.is_healthy() else None
+        for candidate in candidate_paths:
+            retriever = LeanRagDependencyRetriever(candidate)
+            if retriever.is_healthy():
+                setattr(retriever, "auto_discovered", not bool(explicit_path))
+                return retriever
+        return None
     except Exception:
         return None
+
+
+def _auto_lean_rag_db_candidates() -> tuple[Path, ...]:
+    if os.environ.get("AI_STATISTICIAN_DISABLE_LEAN_RAG_AUTO", "").lower() in {
+        "1",
+        "true",
+        "yes",
+    }:
+        return ()
+    package_root = Path(__file__).resolve().parents[1]
+    candidates = (
+        *DEFAULT_LEAN_RAG_DB_CANDIDATES,
+        Path.cwd() / DEFAULT_LEAN_RAG_DB_RELATIVE_PATH,
+        package_root / DEFAULT_LEAN_RAG_DB_RELATIVE_PATH,
+    )
+    rows: list[Path] = []
+    seen: set[Path] = set()
+    for candidate in candidates:
+        path = Path(candidate).expanduser()
+        try:
+            key = path.resolve()
+        except OSError:
+            key = path
+        if key in seen:
+            continue
+        seen.add(key)
+        if path.exists():
+            rows.append(path)
+    return tuple(rows)
 
 
 def _attach_lean_rag_metadata(retriever: object, dependency_retriever: object | None) -> None:
@@ -496,6 +540,13 @@ def _attach_lean_rag_metadata(retriever: object, dependency_retriever: object | 
         retriever,
         "lean_rag_dependency_graph_path",
         str(getattr(dependency_retriever, "db_path", "")) if dependency_retriever is not None else "",
+    )
+    setattr(
+        retriever,
+        "lean_rag_dependency_graph_auto_discovered",
+        bool(getattr(dependency_retriever, "auto_discovered", False))
+        if dependency_retriever is not None
+        else False,
     )
 
 
