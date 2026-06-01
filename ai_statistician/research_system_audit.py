@@ -40,6 +40,7 @@ from .proof_policy_baseline import evaluate_retrieval_proof_policy_baseline
 from .proof_policy_model import train_proof_policy_model
 from .proof_repair_export import export_proof_repair_dataset
 from .proof_search_audit import audit_proof_search_controller
+from .proof_search_retrieval_ablation import run_proof_search_retrieval_ablation
 from .proof_search_training_export import export_proof_search_process_dataset
 from .proof_search_value_model import train_proof_search_value_model
 from .proof_training_export import export_proof_training_dataset
@@ -272,6 +273,15 @@ async def run_research_system_audit(
         proof_value_model_json=Path(str(proof_search_value_manifest["model_json"])),
         formal_source_retriever=formal_source_retriever,
     )
+    proof_search_retrieval_ablation_manifest = await run_proof_search_retrieval_ablation(
+        out_dir / "proof_search_retrieval_ablation",
+        baseline_retriever=baseline_formal_source_retriever,
+        enhanced_retriever=formal_source_retriever,
+        verifier=verifier,
+        max_obligations=6,
+        max_nodes=4,
+        formal_source_k=4,
+    )
     proof_search_training_manifest = export_proof_search_process_dataset(
         Path(str(proof_search_manifest["results_jsonl"])),
         out_dir / "proof_search_training_export",
@@ -491,6 +501,7 @@ async def run_research_system_audit(
         and int(proof_search_manifest["formal_source_candidates_total"]) > 0
         and int(proof_search_manifest["policy_scored_expanded_nodes"]) > 0
         and int(proof_search_manifest["value_scored_expanded_nodes"]) > 0,
+        "proof_search_retrieval_ablation": bool(proof_search_retrieval_ablation_manifest["all_ok"]),
         "proof_search_training_export": int(proof_search_training_manifest["n_process_examples"])
         == int(proof_search_manifest["nodes_expanded"]),
         "proof_search_value_model": int(proof_search_value_manifest["n_train"]) > 0
@@ -769,6 +780,18 @@ async def run_research_system_audit(
             "proof_search_value_model_enabled": proof_search_manifest["value_model_enabled"],
             "proof_search_value_scored_expanded_nodes": proof_search_manifest[
                 "value_scored_expanded_nodes"
+            ],
+            "proof_search_retrieval_ablation_solved_delta": proof_search_retrieval_ablation_manifest[
+                "solved_delta"
+            ],
+            "proof_search_retrieval_ablation_candidate_delta": proof_search_retrieval_ablation_manifest[
+                "formal_source_candidate_delta"
+            ],
+            "proof_search_retrieval_ablation_node_delta": proof_search_retrieval_ablation_manifest[
+                "nodes_expanded_delta"
+            ],
+            "proof_search_retrieval_ablation_no_solved_regression": proof_search_retrieval_ablation_manifest[
+                "no_solved_regression"
             ],
             "proof_search_process_examples": proof_search_training_manifest["n_process_examples"],
             "proof_search_process_positive": proof_search_training_manifest["n_positive"],
@@ -1106,6 +1129,14 @@ async def run_research_system_audit(
             ),
             "proof_search_bootstrap_training_export": str(
                 out_dir / "proof_search_bootstrap_training_export" / "proof_search_training_manifest.json"
+            ),
+            "proof_search_retrieval_ablation": str(
+                out_dir
+                / "proof_search_retrieval_ablation"
+                / "proof_search_retrieval_ablation_manifest.json"
+            ),
+            "proof_search_retrieval_ablation_report": str(
+                out_dir / "proof_search_retrieval_ablation" / "proof_search_retrieval_ablation.md"
             ),
             "proof_search_training_export": str(
                 out_dir / "proof_search_training_export" / "proof_search_training_manifest.json"

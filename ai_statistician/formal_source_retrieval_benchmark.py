@@ -108,6 +108,20 @@ def run_formal_source_retrieval_benchmark(
         "schema_version": FORMAL_SOURCE_RETRIEVAL_BENCHMARK_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "retriever_source": str(getattr(active_retriever, "source", active_retriever.__class__.__name__)),
+        "dependency_graph_search": (
+            "lean_rag_dependency_graph"
+            if getattr(active_retriever, "lean_rag_dependency_graph_enabled", False)
+            else ""
+        ),
+        "lean_rag_dependency_graph_enabled": bool(
+            getattr(active_retriever, "lean_rag_dependency_graph_enabled", False)
+        ),
+        "lean_rag_dependency_graph_path": str(
+            getattr(active_retriever, "lean_rag_dependency_graph_path", "")
+        ),
+        "lean_rag_dependency_graph_auto_discovered": bool(
+            getattr(active_retriever, "lean_rag_dependency_graph_auto_discovered", False)
+        ),
         "k": int(k),
         "n_cases": len(rows),
         "n_ok": n_ok,

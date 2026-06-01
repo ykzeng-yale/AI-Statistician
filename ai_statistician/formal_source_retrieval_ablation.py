@@ -133,6 +133,13 @@ def _rank_value(value: Any) -> int | None:
 def _summary_payload(payload: dict[str, object]) -> dict[str, object]:
     return {
         "retriever_source": payload.get("retriever_source", ""),
+        "dependency_graph_search": payload.get("dependency_graph_search", ""),
+        "lean_rag_dependency_graph_enabled": payload.get("lean_rag_dependency_graph_enabled", False),
+        "lean_rag_dependency_graph_path": payload.get("lean_rag_dependency_graph_path", ""),
+        "lean_rag_dependency_graph_auto_discovered": payload.get(
+            "lean_rag_dependency_graph_auto_discovered",
+            False,
+        ),
         "n_cases": payload.get("n_cases", 0),
         "n_ok": payload.get("n_ok", 0),
         "recall_at_k": payload.get("recall_at_k", 0.0),

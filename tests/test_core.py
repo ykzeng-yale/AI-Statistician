@@ -61,6 +61,7 @@ from ai_statistician.proof_policy_model import load_proof_policy_model, train_pr
 from ai_statistician.proof_repair_export import export_proof_repair_dataset
 from ai_statistician.proof_search import BestFirstWholeProofSearchController, ProofCandidate
 from ai_statistician.proof_search_audit import audit_proof_search_controller
+from ai_statistician.proof_search_retrieval_ablation import run_proof_search_retrieval_ablation
 from ai_statistician.proof_search_training_export import export_proof_search_process_dataset
 from ai_statistician.proof_search_value_model import (
     load_proof_search_value_model,
@@ -1003,6 +1004,53 @@ class ProofBankTests(unittest.TestCase):
         self.assertTrue(value_guided.solved)
         self.assertIsNotNone(value_guided.nodes[0].value_score)
         self.assertEqual(value_guided.nodes[0].source, "registered_proof_body")
+
+    def test_proof_search_retrieval_ablation_tracks_candidate_frontier_delta(self) -> None:
+        declaration = FormalDeclaration(
+            source_id="enhanced_fixture",
+            source_type="lean_library",
+            path="Enhanced.lean",
+            line=1,
+            kind="theorem",
+            name="Enhanced.fixture_bridge",
+            namespace="Enhanced",
+            signature="theorem fixture_bridge : True",
+        )
+
+        class EmptyRetriever:
+            def search(self, query: str, *, k: int = 10):
+                return []
+
+        class EnhancedRetriever:
+            def search(self, query: str, *, k: int = 10):
+                return [FormalSourceHit(declaration, 25.0, ("enhanced", "bridge"))][:k]
+
+        payload = asyncio.run(
+            run_proof_search_retrieval_ablation(
+                Path("runs/test_proof_search_retrieval_ablation"),
+                baseline_retriever=EmptyRetriever(),
+                enhanced_retriever=EnhancedRetriever(),
+                verifier=MockProofVerifier(),
+                max_obligations=2,
+                max_nodes=2,
+                formal_source_k=1,
+            )
+        )
+        self.assertTrue(payload["all_ok"])
+        self.assertGreater(payload["formal_source_candidate_delta"], 0)
+        self.assertEqual(payload["solved_delta"], 0)
+        self.assertTrue(payload["no_solved_regression"])
+        self.assertTrue(
+            Path(
+                "runs/test_proof_search_retrieval_ablation/"
+                "proof_search_retrieval_ablation_manifest.json"
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                "runs/test_proof_search_retrieval_ablation/proof_search_retrieval_ablation.md"
+            ).exists()
+        )
 
     def test_caching_verifier_reuses_checked_obligations(self) -> None:
         async def run():
@@ -6872,6 +6920,7 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(payload["gates"]["proof_training_export"])
         self.assertTrue(payload["gates"]["proof_repair_export"])
         self.assertTrue(payload["gates"]["proof_policy_baseline"])
+        self.assertTrue(payload["gates"]["proof_search_retrieval_ablation"])
         self.assertTrue(payload["gates"]["prover_component_audit"])
         self.assertTrue(payload["gates"]["research_benchmark"])
         self.assertTrue(payload["gates"]["formal_gap_skeletons"])
@@ -7099,6 +7148,7 @@ class SystemTests(unittest.TestCase):
         )
         self.assertGreaterEqual(payload["counts"]["formal_source_retrieval_ablation_cases"], 1)
         self.assertIn("lean_rag_dependency_graph_auto_discovered", payload["counts"])
+        self.assertTrue(payload["counts"]["lean_rag_dependency_graph_enabled"])
         self.assertIn("timings", payload)
         self.assertGreater(payload["timings"]["total_elapsed_ms"], 0)
         self.assertTrue(payload["timings"]["stages"])
@@ -7136,6 +7186,17 @@ class SystemTests(unittest.TestCase):
         self.assertGreater(payload["counts"]["proof_search_retrieval_candidates_total"], 0)
         self.assertTrue(payload["counts"]["proof_search_formal_source_retriever_enabled"])
         self.assertGreater(payload["counts"]["proof_search_formal_source_candidates_total"], 0)
+        self.assertTrue(payload["counts"]["proof_search_retrieval_ablation_no_solved_regression"])
+        self.assertGreaterEqual(payload["counts"]["proof_search_retrieval_ablation_candidate_delta"], 0)
+        self.assertGreaterEqual(payload["counts"]["proof_search_retrieval_ablation_node_delta"], 0)
+        proof_search_rag_ablation = json.loads(
+            Path(payload["artifacts"]["proof_search_retrieval_ablation"]).read_text()
+        )
+        self.assertTrue(proof_search_rag_ablation["lean_rag_dependency_graph_enabled"])
+        self.assertEqual(
+            proof_search_rag_ablation["dependency_graph_search"],
+            "lean_rag_dependency_graph",
+        )
         self.assertGreater(payload["counts"]["proof_search_bootstrap_process_examples"], 0)
         self.assertGreater(payload["counts"]["prover_components_total"], 0)
         self.assertFalse(payload["counts"]["prover_component_goal_complete"])
@@ -7225,6 +7286,8 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(Path(payload["artifacts"]["proof_repair_validation"]).exists())
         self.assertTrue(Path(payload["artifacts"]["proof_policy_baseline"]).exists())
         self.assertTrue(Path(payload["artifacts"]["proof_policy_baseline_predictions"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["proof_search_retrieval_ablation"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["proof_search_retrieval_ablation_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["prover_component_audit"]).exists())
         self.assertTrue(Path(payload["artifacts"]["prover_component_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["research_trace_audit"]).exists())
