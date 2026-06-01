@@ -232,12 +232,25 @@ def _suite_rows(
             evidence_paths=(
                 str(artifacts.get("formalization_target_audit", "")),
                 str(artifacts.get("proof_bank_expansion", "")),
+                str(artifacts.get("primitive_source_coverage", "")),
             ),
             key_counts={
                 "formal_gaps": counts.get("formal_gaps"),
                 "formalized_gaps": counts.get("formalized_gaps"),
                 "missing_formal_primitives": missing_primitives,
                 "proof_bank_expansion_bridge_ready": counts.get("proof_bank_expansion_bridge_ready"),
+                "primitive_source_coverage_direct_wrapper_possible": counts.get(
+                    "primitive_source_coverage_direct_wrapper_possible"
+                ),
+                "primitive_source_coverage_bridge_lemma_needed": counts.get(
+                    "primitive_source_coverage_bridge_lemma_needed"
+                ),
+                "primitive_source_coverage_source_only_not_importable": counts.get(
+                    "primitive_source_coverage_source_only_not_importable"
+                ),
+                "primitive_source_coverage_no_source_found": counts.get(
+                    "primitive_source_coverage_no_source_found"
+                ),
             },
             honesty_boundary="Formalization targets and skeletons are backlog evidence until kernel-verified.",
             issues=(f"{missing_primitives} missing formal primitives remain",)

@@ -40,6 +40,7 @@ from .frontier_smoke_benchmark import FrontierSmokeConfig, run_frontier_smoke_be
 from .proof_audit import audit_proof_bank
 from .proof_bank import proof_bank_fingerprint
 from .proof_bank_expansion_export import export_proof_bank_expansion_candidates
+from .primitive_source_coverage_audit import audit_primitive_source_coverage
 from .proof_policy_baseline import evaluate_retrieval_proof_policy_baseline
 from .proof_policy_model import train_proof_policy_model
 from .proof_repair_export import export_proof_repair_dataset
@@ -374,6 +375,13 @@ async def run_research_system_audit(
         out_dir / "research_benchmark",
         out_dir / "proof_bank_expansion",
     )
+    primitive_source_coverage_manifest = audit_primitive_source_coverage(
+        out_dir / "research_benchmark",
+        out_dir / "primitive_source_coverage",
+        formal_source_retriever=formal_source_retriever,
+        formal_source_index_path=formal_source_index_path,
+        lean_rag_db_path=Path(config.lean_rag_db) if config.lean_rag_db else None,
+    )
     stage_start = _record_stage(stage_timings, "research_trace_gap_exports", stage_start)
 
     research_training_manifest = export_research_training_dataset(
@@ -543,6 +551,7 @@ async def run_research_system_audit(
         "autoform_target_export": bool(autoform_target_manifest["all_ok"])
         and int(autoform_target_manifest["n_targets"]) == int(formal_gap_task_manifest["n_tasks"]),
         "proof_bank_expansion_export": bool(proof_bank_expansion_manifest["all_ok"]),
+        "primitive_source_coverage_audit": bool(primitive_source_coverage_manifest["all_ok"]),
         "research_training_export": bool(research_training_manifest["all_ok"]),
         "research_policy_baseline": bool(research_policy_manifest["all_ok"]),
         "next_iteration_queue": bool(next_iteration_manifest["all_ok"]),
@@ -923,6 +932,25 @@ async def run_research_system_audit(
                 "n_blocked_placeholder"
             ],
             "proof_bank_expansion_candidate_ready": proof_bank_expansion_manifest["n_candidate_ready"],
+            "primitive_source_coverage_primitives": primitive_source_coverage_manifest["n_primitives"],
+            "primitive_source_coverage_direct_wrapper_possible": primitive_source_coverage_manifest[
+                "n_direct_wrapper_possible"
+            ],
+            "primitive_source_coverage_bridge_lemma_needed": primitive_source_coverage_manifest[
+                "n_bridge_lemma_needed"
+            ],
+            "primitive_source_coverage_source_only_not_importable": primitive_source_coverage_manifest[
+                "n_source_only_not_importable"
+            ],
+            "primitive_source_coverage_no_source_found": primitive_source_coverage_manifest[
+                "n_no_source_found"
+            ],
+            "primitive_source_coverage_external_supported": primitive_source_coverage_manifest[
+                "n_external_source_supported"
+            ],
+            "primitive_source_coverage_lean_rag_enabled": primitive_source_coverage_manifest[
+                "lean_rag_dependency_graph_enabled"
+            ],
             "research_training_sft_examples": research_training_manifest["n_sft_examples"],
             "research_training_train": research_training_manifest["n_train"],
             "research_training_validation": research_training_manifest["n_validation"],
@@ -1290,6 +1318,12 @@ async def run_research_system_audit(
             ),
             "proof_bank_expansion_theorem_hole_queue": str(
                 out_dir / "proof_bank_expansion" / "theorem_hole_promotion_queue_manifest.json"
+            ),
+            "primitive_source_coverage": str(
+                out_dir / "primitive_source_coverage" / "primitive_source_coverage_manifest.json"
+            ),
+            "primitive_source_coverage_report": str(
+                out_dir / "primitive_source_coverage" / "primitive_source_coverage.md"
             ),
             "research_training_export": str(
                 out_dir / "research_training_export" / "research_training_manifest.json"

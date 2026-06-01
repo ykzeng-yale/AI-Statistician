@@ -60,6 +60,7 @@ from ai_statistician.intake_audit import audit_question_intake
 from ai_statistician.frontier_backlog_audit import audit_frontier_backlog
 from ai_statistician.proof_audit import audit_proof_bank
 from ai_statistician.proof_bank_expansion_export import export_proof_bank_expansion_candidates
+from ai_statistician.primitive_source_coverage_audit import audit_primitive_source_coverage
 from ai_statistician.proof_policy_baseline import evaluate_retrieval_proof_policy_baseline
 from ai_statistician.proof_policy_model import load_proof_policy_model, train_proof_policy_model
 from ai_statistician.proof_repair_export import export_proof_repair_dataset
@@ -2358,6 +2359,10 @@ class SystemTests(unittest.TestCase):
                 "formal_gaps": 20,
                 "formalized_gaps": 20,
                 "missing_formal_primitives": 97,
+                "primitive_source_coverage_direct_wrapper_possible": 32,
+                "primitive_source_coverage_bridge_lemma_needed": 41,
+                "primitive_source_coverage_source_only_not_importable": 18,
+                "primitive_source_coverage_no_source_found": 6,
                 "proofs_kernel_verified": 92,
                 "proof_search_solved": 12,
                 "proof_search_obligations": 12,
@@ -2395,6 +2400,7 @@ class SystemTests(unittest.TestCase):
                 "frontier_smoke_benchmark": "runs/example/frontier_smoke_manifest.json",
                 "formalization_target_audit": "runs/example/formalization_target_manifest.json",
                 "proof_bank_expansion": "runs/example/proof_bank_expansion_manifest.json",
+                "primitive_source_coverage": "runs/example/primitive_source_coverage_manifest.json",
                 "proof_audit": "runs/example/proof_audit_manifest.json",
                 "proof_search_audit": "runs/example/proof_search_audit_manifest.json",
                 "proof_search_retrieval_ablation": "runs/example/proof_search_retrieval_ablation_manifest.json",
@@ -5294,6 +5300,49 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(len(rows), payload["n_candidates"])
         self.assertIn("blocked_reasons", rows[0])
 
+    def test_primitive_source_coverage_audit_classifies_missing_primitives(self) -> None:
+        async def run():
+            questions = load_open_research_questions(Path("examples/research_questions.json"))[:2]
+            await run_research_benchmark(
+                questions,
+                Path("runs/test_primitive_source_coverage_run"),
+                proof_verifier=MockProofVerifier(),
+                n_runs=15,
+                seed=20260602,
+            )
+            return audit_primitive_source_coverage(
+                Path("runs/test_primitive_source_coverage_run"),
+                Path("runs/test_primitive_source_coverage"),
+            )
+
+        payload = asyncio.run(run())
+        self.assertTrue(payload["all_ok"])
+        self.assertGreater(payload["n_primitives"], 0)
+        self.assertEqual(
+            payload["n_primitives"],
+            payload["n_direct_wrapper_possible"]
+            + payload["n_bridge_lemma_needed"]
+            + payload["n_source_only_not_importable"]
+            + payload["n_no_source_found"],
+        )
+        self.assertGreater(
+            payload["n_direct_wrapper_possible"] + payload["n_bridge_lemma_needed"],
+            0,
+        )
+        first = payload["rows"][0]
+        self.assertIn(
+            first["classification"],
+            {
+                "direct_wrapper_possible",
+                "bridge_lemma_needed",
+                "source_only_not_importable",
+                "no_source_found",
+            },
+        )
+        self.assertIn("Retrieval hits are not proof evidence", " ".join(payload["limitations"]))
+        self.assertTrue(Path("runs/test_primitive_source_coverage/primitive_source_coverage_manifest.json").exists())
+        self.assertTrue(Path("runs/test_primitive_source_coverage/primitive_source_coverage.md").exists())
+
     def test_research_training_export_writes_agent_sft_and_grpo_data(self) -> None:
         async def run():
             questions = load_open_research_questions(Path("examples/research_questions.json"))[:2]
@@ -7151,6 +7200,7 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(payload["gates"]["formal_gap_task_export"])
         self.assertTrue(payload["gates"]["autoform_target_export"])
         self.assertTrue(payload["gates"]["proof_bank_expansion_export"])
+        self.assertTrue(payload["gates"]["primitive_source_coverage_audit"])
         self.assertTrue(payload["gates"]["research_training_export"])
         self.assertTrue(payload["gates"]["research_policy_baseline"])
         self.assertTrue(payload["gates"]["next_iteration_queue"])
@@ -7480,6 +7530,17 @@ class SystemTests(unittest.TestCase):
         self.assertGreater(payload["counts"]["proof_bank_expansion_candidates_total"], 0)
         self.assertGreater(payload["counts"]["proof_bank_expansion_bridge_ready"], 0)
         self.assertGreater(payload["counts"]["proof_bank_expansion_blocked_placeholder"], 0)
+        self.assertEqual(
+            payload["counts"]["primitive_source_coverage_primitives"],
+            payload["counts"]["missing_formal_primitives"],
+        )
+        self.assertGreater(
+            payload["counts"]["primitive_source_coverage_direct_wrapper_possible"]
+            + payload["counts"]["primitive_source_coverage_bridge_lemma_needed"],
+            0,
+        )
+        self.assertGreaterEqual(payload["counts"]["primitive_source_coverage_external_supported"], 0)
+        self.assertTrue(payload["counts"]["primitive_source_coverage_lean_rag_enabled"])
         self.assertEqual(payload["counts"]["research_training_traces"], payload["counts"]["questions"])
         self.assertGreaterEqual(payload["counts"]["research_training_sft_examples"], payload["counts"]["questions"] * 4)
         self.assertEqual(
@@ -7555,6 +7616,8 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(Path(payload["artifacts"]["proof_bank_expansion_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["proof_bank_expansion_lemma_proposals"]).exists())
         self.assertTrue(Path(payload["artifacts"]["proof_bank_expansion_theorem_hole_queue"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["primitive_source_coverage"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["primitive_source_coverage_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["research_training_export"]).exists())
         self.assertTrue(Path(payload["artifacts"]["research_training_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["research_training_train"]).exists())
