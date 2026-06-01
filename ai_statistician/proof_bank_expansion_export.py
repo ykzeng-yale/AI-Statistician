@@ -179,6 +179,11 @@ def _candidate_for_target(
     if not expected_premises:
         errors.append("no expected premises or local declarations attached")
     status = "blocked_placeholder" if blocked_reasons else "candidate_ready"
+    composition_plan = _bridge_chain_composition_plan(
+        bridge_candidates,
+        declaration=declaration,
+        blocked_reasons=blocked_reasons,
+    )
     notes = _proposal_notes(
         action_class,
         primitive=primitive,
@@ -200,6 +205,7 @@ def _candidate_for_target(
             "reuse_count": int(target.get("n_gaps", 0) or 0),
             "generality_score": _generality_score(target, bridge_candidates),
             "semantic_notes": notes,
+            "composition_plan": composition_plan,
         },
         source_task_ids=source_task_ids,
         domain_tags=tuple(
@@ -290,6 +296,8 @@ def _queue_row(
         "file": str(source_task.get("artifact_path", "")),
         "domain_tags": list(row.domain_tags),
         "expected_premises": list(row.expected_premises),
+        "bridge_chain_order": list(_composition_plan_order(row)),
+        "remaining_interface": _composition_plan_remaining_interface(row),
         "source_allowed_sorry": bool(source_task.get("allowed_sorry", False)),
         "no_placeholder_proof_block": (
             "BLOCKED_PLACEHOLDER"
@@ -325,6 +333,89 @@ def _legacy_lemma_proposal(row: ProofBankExpansionCandidate) -> dict[str, object
             "notes",
         )
     }
+
+
+def _bridge_chain_composition_plan(
+    bridge_candidates: tuple[str, ...],
+    *,
+    declaration: str,
+    blocked_reasons: tuple[str, ...],
+) -> dict[str, object]:
+    ordered_ids = _topological_bridge_order(bridge_candidates)
+    obligation_rows: list[dict[str, object]] = []
+    candidate_set = set(bridge_candidates)
+    for obligation_id in ordered_ids:
+        try:
+            obligation = get_obligation(obligation_id)
+        except KeyError:
+            continue
+        obligation_rows.append(
+            {
+                "id": obligation.id,
+                "title": obligation.title,
+                "role": "ranked_bridge" if obligation.id in candidate_set else "dependency",
+                "depends_on": list(obligation.depends_on),
+                "expected_lemmas": list(obligation.expected_lemmas),
+                "tags": list(obligation.tags),
+            }
+        )
+    return {
+        "target_declaration": declaration,
+        "strategy": (
+            "compose_verified_bridge_chain_into_theorem_skeleton"
+            if len(bridge_candidates) >= 3
+            else "mine_or_add_missing_bridge_first"
+        ),
+        "ordered_obligations": obligation_rows,
+        "ordered_obligation_ids": ordered_ids,
+        "remaining_interface": list(blocked_reasons),
+        "proof_evidence_boundary": (
+            "Bridge obligations may be verified proof-bank entries, but this composition plan is not "
+            "itself a Lean proof until a non-placeholder proof body passes AXLE verify_proof."
+        ),
+    }
+
+
+def _topological_bridge_order(bridge_candidates: tuple[str, ...]) -> list[str]:
+    seen: set[str] = set()
+    ordered: list[str] = []
+
+    def visit(obligation_id: str) -> None:
+        if obligation_id in seen:
+            return
+        seen.add(obligation_id)
+        try:
+            obligation = get_obligation(obligation_id)
+        except KeyError:
+            return
+        for dependency_id in obligation.depends_on:
+            visit(dependency_id)
+        ordered.append(obligation_id)
+
+    for bridge_id in bridge_candidates:
+        visit(bridge_id)
+    return ordered
+
+
+def _composition_plan(row: ProofBankExpansionCandidate) -> dict[str, object]:
+    plan = row.candidate.get("composition_plan", {})
+    return plan if isinstance(plan, dict) else {}
+
+
+def _composition_plan_order(row: ProofBankExpansionCandidate) -> tuple[str, ...]:
+    plan = _composition_plan(row)
+    order = plan.get("ordered_obligation_ids", [])
+    if not isinstance(order, list):
+        return ()
+    return tuple(str(item) for item in order if str(item))
+
+
+def _composition_plan_remaining_interface(row: ProofBankExpansionCandidate) -> tuple[str, ...]:
+    plan = _composition_plan(row)
+    remaining = plan.get("remaining_interface", [])
+    if not isinstance(remaining, list):
+        return ()
+    return tuple(str(item) for item in remaining if str(item))
 
 
 def _proposal_action_class(

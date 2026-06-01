@@ -5299,6 +5299,8 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(queue["queue"][0]["expected_premises"])
         self.assertIn("action_class", queue["queue"][0])
         self.assertIn("next_action", queue["queue"][0])
+        self.assertIn("bridge_chain_order", queue["queue"][0])
+        self.assertIn("remaining_interface", queue["queue"][0])
         self.assertEqual(
             payload["n_candidates"],
             payload["n_compose_existing_bridge_chain"]
@@ -5312,6 +5314,15 @@ class SystemTests(unittest.TestCase):
         if compose_rows:
             self.assertTrue(compose_rows[0]["candidate"]["name"].endswith("_theorem_composition"))
             self.assertIn("Avoid duplicating bridge wrappers", compose_rows[0]["notes"])
+            plan = compose_rows[0]["candidate"]["composition_plan"]
+            self.assertEqual(
+                plan["strategy"],
+                "compose_verified_bridge_chain_into_theorem_skeleton",
+            )
+            self.assertTrue(plan["ordered_obligation_ids"])
+            self.assertTrue(plan["ordered_obligations"])
+            self.assertTrue(plan["remaining_interface"])
+            self.assertIn("not itself a Lean proof", plan["proof_evidence_boundary"])
         self.assertTrue(Path("runs/test_proof_bank_expansion/proof_bank_expansion_manifest.json").exists())
         self.assertTrue(Path("runs/test_proof_bank_expansion/lemma_proposals.jsonl").exists())
         self.assertTrue(Path("runs/test_proof_bank_expansion/theorem_hole_promotion_queue_manifest.json").exists())
