@@ -3563,6 +3563,20 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(payload["all_ok"])
         self.assertEqual(payload["n_ok"], 10)
         self.assertEqual(payload["n_traces"], 10)
+        self.assertGreater(payload["n_theorem_goal_proof_obligations"], 0)
+        self.assertEqual(
+            payload["n_verified_theorem_goal_proof_obligations"],
+            payload["n_theorem_goal_proof_obligations"],
+        )
+        self.assertGreater(payload["n_unique_theorem_goal_proof_obligations"], 0)
+        self.assertEqual(
+            payload["n_unique_verified_theorem_goal_proof_obligations"],
+            payload["n_unique_theorem_goal_proof_obligations"],
+        )
+        self.assertEqual(payload["theorem_goal_proof_obligation_coverage_rate"], 1.0)
+        self.assertTrue(
+            any(row["n_theorem_goal_proof_obligations"] > 0 for row in payload["rows"])
+        )
         self.assertTrue(Path("runs/test_research_trace_audit/research_trace_audit_manifest.json").exists())
 
     def test_next_iteration_queue_aggregates_trace_agendas(self) -> None:
@@ -6181,6 +6195,17 @@ class SystemTests(unittest.TestCase):
         self.assertGreater(payload["counts"]["prover_components_partial"], 0)
         self.assertGreaterEqual(payload["counts"]["prover_components_missing_or_not_trained"], 0)
         self.assertEqual(payload["counts"]["research_traces_ok"], 10)
+        self.assertGreater(payload["counts"]["theorem_goal_proof_obligations"], 0)
+        self.assertEqual(
+            payload["counts"]["verified_theorem_goal_proof_obligations"],
+            payload["counts"]["theorem_goal_proof_obligations"],
+        )
+        self.assertGreater(payload["counts"]["unique_theorem_goal_proof_obligations"], 0)
+        self.assertEqual(
+            payload["counts"]["unique_verified_theorem_goal_proof_obligations"],
+            payload["counts"]["unique_theorem_goal_proof_obligations"],
+        )
+        self.assertEqual(payload["counts"]["theorem_goal_proof_obligation_coverage_rate"], 1.0)
         self.assertEqual(payload["counts"]["formalized_gaps"], payload["counts"]["formal_gaps"])
         self.assertEqual(payload["counts"]["gap_backlog_ok"], payload["counts"]["gap_backlog_total"])
         self.assertGreater(payload["counts"]["missing_formal_primitives"], 0)

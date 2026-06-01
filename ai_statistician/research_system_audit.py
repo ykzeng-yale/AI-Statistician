@@ -674,6 +674,19 @@ async def run_research_system_audit(
             "prover_component_goal_complete": prover_component_report["summary"]["honest_goal_complete"],
             "research_traces_ok": trace_manifest["n_ok"],
             "research_traces_total": trace_manifest["n_traces"],
+            "theorem_goal_proof_obligations": trace_manifest["n_theorem_goal_proof_obligations"],
+            "verified_theorem_goal_proof_obligations": trace_manifest[
+                "n_verified_theorem_goal_proof_obligations"
+            ],
+            "unique_theorem_goal_proof_obligations": trace_manifest[
+                "n_unique_theorem_goal_proof_obligations"
+            ],
+            "unique_verified_theorem_goal_proof_obligations": trace_manifest[
+                "n_unique_verified_theorem_goal_proof_obligations"
+            ],
+            "theorem_goal_proof_obligation_coverage_rate": trace_manifest[
+                "theorem_goal_proof_obligation_coverage_rate"
+            ],
             "formal_gaps": sum(row["formal"]["gaps"] for row in benchmark_manifest["questions"]),
             "formalized_gaps": sum(row["formal"]["formalized_gaps"] for row in benchmark_manifest["questions"]),
             "gap_backlog_ok": gap_backlog_manifest["n_ok"],

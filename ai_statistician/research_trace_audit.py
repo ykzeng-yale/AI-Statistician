@@ -96,6 +96,10 @@ class ResearchTraceAuditRow:
     question_id: str
     trace_path: str
     ok: bool
+    n_theorem_goal_proof_obligations: int = 0
+    n_verified_theorem_goal_proof_obligations: int = 0
+    n_unique_theorem_goal_proof_obligations: int = 0
+    n_unique_verified_theorem_goal_proof_obligations: int = 0
     errors: tuple[str, ...] = ()
 
 
@@ -121,6 +125,10 @@ def audit_research_traces(run_dir: Path, out_dir: Path | None = None) -> dict[st
     n_ready = 0
     n_simulation_flagged = 0
     n_formal_blocked = 0
+    n_theorem_goal_proof_obligations = 0
+    n_verified_theorem_goal_proof_obligations = 0
+    n_unique_theorem_goal_proof_obligations = 0
+    n_unique_verified_theorem_goal_proof_obligations = 0
     for summary in summaries:
         question_id = str(summary.get("question", "<missing>"))
         trace_path = run_dir / f"{question_id}.json"
@@ -142,11 +150,26 @@ def audit_research_traces(run_dir: Path, out_dir: Path | None = None) -> dict[st
                 n_simulation_flagged += 1
             elif status == FORMAL_BLOCKED_STATUS:
                 n_formal_blocked += 1
+        support_stats = _theorem_goal_proof_obligation_stats(data)
+        n_theorem_goal_proof_obligations += support_stats["n_theorem_goal_proof_obligations"]
+        n_verified_theorem_goal_proof_obligations += support_stats["n_verified_theorem_goal_proof_obligations"]
+        n_unique_theorem_goal_proof_obligations += support_stats["n_unique_theorem_goal_proof_obligations"]
+        n_unique_verified_theorem_goal_proof_obligations += support_stats[
+            "n_unique_verified_theorem_goal_proof_obligations"
+        ]
         rows.append(
             ResearchTraceAuditRow(
                 question_id=question_id,
                 trace_path=str(trace_path),
                 ok=not errors,
+                n_theorem_goal_proof_obligations=support_stats["n_theorem_goal_proof_obligations"],
+                n_verified_theorem_goal_proof_obligations=support_stats[
+                    "n_verified_theorem_goal_proof_obligations"
+                ],
+                n_unique_theorem_goal_proof_obligations=support_stats["n_unique_theorem_goal_proof_obligations"],
+                n_unique_verified_theorem_goal_proof_obligations=support_stats[
+                    "n_unique_verified_theorem_goal_proof_obligations"
+                ],
                 errors=tuple(errors),
             )
         )
@@ -169,6 +192,15 @@ def audit_research_traces(run_dir: Path, out_dir: Path | None = None) -> dict[st
         "manifest": str(manifest_path),
         "n_traces": len(rows),
         "n_ok": sum(1 for row in rows if row.ok),
+        "n_theorem_goal_proof_obligations": n_theorem_goal_proof_obligations,
+        "n_verified_theorem_goal_proof_obligations": n_verified_theorem_goal_proof_obligations,
+        "n_unique_theorem_goal_proof_obligations": n_unique_theorem_goal_proof_obligations,
+        "n_unique_verified_theorem_goal_proof_obligations": n_unique_verified_theorem_goal_proof_obligations,
+        "theorem_goal_proof_obligation_coverage_rate": (
+            n_verified_theorem_goal_proof_obligations / n_theorem_goal_proof_obligations
+            if n_theorem_goal_proof_obligations
+            else 1.0
+        ),
         "all_ok": not manifest_errors and all(row.ok for row in rows),
         "manifest_errors": manifest_errors,
         "rows": [asdict(row) for row in rows],
@@ -499,6 +531,40 @@ def _validate_research_trace(
     if gap_count and not limitations:
         errors.append("formal gaps exist but limitations section is empty")
     return errors
+
+
+def _theorem_goal_proof_obligation_stats(data: dict[str, Any]) -> dict[str, int]:
+    theorem_goals = data.get("theorem_goals")
+    formal_subclaims = data.get("formal_subclaims")
+    support_ids: list[str] = []
+    if isinstance(theorem_goals, list):
+        for goal in theorem_goals:
+            if not isinstance(goal, dict):
+                continue
+            raw_support = goal.get("proof_obligations", [])
+            if not isinstance(raw_support, list):
+                continue
+            support_ids.extend(str(item) for item in raw_support if str(item))
+    proved_ids = set()
+    if isinstance(formal_subclaims, list):
+        proved_ids = {
+            str(subclaim.get("proof_obligation_id"))
+            for subclaim in formal_subclaims
+            if (
+                isinstance(subclaim, dict)
+                and subclaim.get("status") == "PROVED"
+                and subclaim.get("proof_obligation_id")
+            )
+        }
+    unique_support = set(support_ids)
+    return {
+        "n_theorem_goal_proof_obligations": len(support_ids),
+        "n_verified_theorem_goal_proof_obligations": sum(
+            1 for obligation_id in support_ids if obligation_id in proved_ids
+        ),
+        "n_unique_theorem_goal_proof_obligations": len(unique_support),
+        "n_unique_verified_theorem_goal_proof_obligations": len(unique_support & proved_ids),
+    }
 
 
 def _validate_theorem_goal_proof_obligations(
