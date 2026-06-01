@@ -25,6 +25,7 @@ from ai_statistician.algorithm_repair_sandbox_rerun import rerun_algorithm_repai
 from ai_statistician.architecture_audit import audit_architecture
 from ai_statistician.capability_audit import build_capability_audit, write_capability_audit
 from ai_statistician.doctor import build_doctor_report, write_doctor_manifest
+from ai_statistician.evaluation_benchmark_guidance import build_evaluation_benchmark_guidance
 from ai_statistician.frontier_coverage_audit import audit_frontier_coverage, load_frontier_benchmark_questions
 from ai_statistician.frontier_precision_audit import audit_frontier_precision
 from ai_statistician.frontier_smoke_benchmark import FrontierSmokeConfig, run_frontier_smoke_benchmark, select_supported_frontier_questions
@@ -2285,6 +2286,70 @@ class ProofBankTests(unittest.TestCase):
 
 
 class SystemTests(unittest.TestCase):
+    def test_evaluation_benchmark_guidance_flags_capacity_gaps(self) -> None:
+        payload = {
+            "gates": {"release": True},
+            "counts": {
+                "questions": 10,
+                "frontier_questions": 60,
+                "frontier_supported": 60,
+                "frontier_precision_flagged": 0,
+                "frontier_smoke_questions": 23,
+                "frontier_theory_expected_result_coverage_rate": 0.86,
+                "research_ready_with_gaps": 10,
+                "research_simulation_flagged": 0,
+                "formal_gaps": 20,
+                "formalized_gaps": 20,
+                "missing_formal_primitives": 97,
+                "proofs_kernel_verified": 92,
+                "proof_search_solved": 12,
+                "proof_search_obligations": 12,
+                "proof_search_retrieval_ablation_candidate_delta": 0,
+                "lean_rag_dependency_graph_enabled": True,
+                "research_algorithms_ok": 33,
+                "research_algorithms_total": 33,
+                "research_loop_theory_revisions": 6,
+                "algorithm_repair_sandbox_patch_eval_promotion_ready": 0,
+            },
+            "artifacts": {
+                "research_benchmark": "runs/example/research_benchmark_manifest.json",
+                "frontier_coverage_audit": "runs/example/frontier_coverage_manifest.json",
+                "frontier_precision_audit": "runs/example/frontier_precision_manifest.json",
+                "frontier_smoke_benchmark": "runs/example/frontier_smoke_manifest.json",
+                "formalization_target_audit": "runs/example/formalization_target_manifest.json",
+                "proof_bank_expansion": "runs/example/proof_bank_expansion_manifest.json",
+                "proof_audit": "runs/example/proof_audit_manifest.json",
+                "proof_search_audit": "runs/example/proof_search_audit_manifest.json",
+                "proof_search_retrieval_ablation": "runs/example/proof_search_retrieval_ablation_manifest.json",
+                "research_algorithm_audit": "runs/example/research_algorithm_audit_manifest.json",
+                "research_loop": "runs/example/research_loop_manifest.json",
+                "research_loop_repair_audit": "runs/example/research_loop_repair_audit_manifest.json",
+                "algorithm_repair_sandbox_patch_eval": "runs/example/algorithm_repair_sandbox_patch_eval_manifest.json",
+            },
+        }
+        guidance = build_evaluation_benchmark_guidance(
+            Path("runs/test_evaluation_benchmark_guidance"),
+            system_audit_payload=payload,
+        )
+        self.assertTrue(guidance["all_ok"])
+        self.assertEqual(guidance["suites_defined"], 10)
+        self.assertEqual(guidance["frontier_entries"], 60)
+        statuses = {row["suite_id"]: row["status"] for row in guidance["suites"]}
+        self.assertEqual(statuses["S3_frontier_blind_theory_target"], "CAPACITY_GAP")
+        self.assertEqual(statuses["S4_formal_primitive_ladder"], "CAPACITY_GAP")
+        self.assertEqual(statuses["S5_proof_bank_and_search"], "SATURATED")
+        self.assertEqual(statuses["S8_adversarial_unsupported_intake"], "STALE_OR_MISSING")
+        self.assertGreaterEqual(len(guidance["top_actions"]), 3)
+        self.assertTrue(
+            Path(
+                "runs/test_evaluation_benchmark_guidance/"
+                "evaluation_benchmark_guidance_manifest.json"
+            ).exists()
+        )
+        self.assertTrue(
+            Path("runs/test_evaluation_benchmark_guidance/evaluation_benchmark_guidance.md").exists()
+        )
+
     def test_algorithm_registry_audit_passes(self) -> None:
         payload = audit_algorithm_registry(Path("runs/test_algorithm_audit"))
         self.assertTrue(payload["all_ok"])
@@ -6947,6 +7012,7 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(payload["gates"]["algorithm_repair_production_patch_plan"])
         self.assertTrue(payload["gates"]["algorithm_repair_reviewed_patch_apply"])
         self.assertTrue(payload["gates"]["algorithm_repair_reviewed_patch_validate"])
+        self.assertTrue(payload["gates"]["evaluation_benchmark_guidance"])
         self.assertEqual(payload["counts"]["questions"], 10)
         self.assertEqual(payload["counts"]["frontier_questions"], 60)
         self.assertEqual(payload["counts"]["frontier_supported"], 60)
@@ -7110,6 +7176,11 @@ class SystemTests(unittest.TestCase):
         )
         self.assertEqual(payload["counts"]["algorithm_repair_reviewed_patch_validate_production_patches"], 0)
         self.assertEqual(payload["counts"]["algorithm_repair_reviewed_patch_validate_promotion_ready"], 0)
+        self.assertEqual(payload["counts"]["evaluation_benchmark_guidance_suites"], 10)
+        self.assertGreaterEqual(payload["counts"]["evaluation_benchmark_guidance_exercised"], 7)
+        self.assertGreaterEqual(payload["counts"]["evaluation_benchmark_guidance_stale_or_missing"], 1)
+        self.assertGreaterEqual(payload["counts"]["evaluation_benchmark_guidance_capacity_gaps"], 1)
+        self.assertGreaterEqual(payload["counts"]["evaluation_benchmark_guidance_actions"], 3)
         self.assertEqual(
             payload["counts"]["frontier_theory_targets_scored"],
             payload["counts"]["frontier_theory_targets_total"],
@@ -7338,6 +7409,8 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(Path(payload["artifacts"]["algorithm_repair_reviewed_patch_apply_results"]).exists())
         self.assertTrue(Path(payload["artifacts"]["algorithm_repair_reviewed_patch_validate"]).exists())
         self.assertTrue(Path(payload["artifacts"]["algorithm_repair_reviewed_patch_validate_results"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["evaluation_benchmark_guidance"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["evaluation_benchmark_guidance_report"]).exists())
 
 
 if __name__ == "__main__":

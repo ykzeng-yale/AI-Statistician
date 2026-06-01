@@ -1,0 +1,433 @@
+from __future__ import annotations
+
+import json
+from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Mapping
+
+from .fingerprint import stable_hash
+
+
+EVALUATION_BENCHMARK_GUIDANCE_SCHEMA_VERSION = 1
+
+
+@dataclass(frozen=True)
+class BenchmarkSuiteGuidanceRow:
+    suite_id: str
+    exercised: bool
+    status: str
+    evidence_paths: tuple[str, ...]
+    key_counts: dict[str, object]
+    honesty_boundary: str
+    issues: tuple[str, ...]
+
+
+def build_evaluation_benchmark_guidance(
+    out_dir: Path | None = None,
+    *,
+    system_audit_payload: Mapping[str, Any],
+    strategy_doc: Path = Path("docs/evaluation_benchmark_strategy.md"),
+    suites_file: Path = Path("benchmarks/capability_eval_suites.json"),
+    frontier_benchmark_file: Path = Path("benchmarks/frontier_stat_theory_benchmark.json"),
+    research_questions_file: Path = Path("examples/research_questions.json"),
+) -> dict[str, object]:
+    """Summarize whether evaluation artifacts guide capacity improvement.
+
+    This audit is intentionally diagnostic. It does not claim the statistical
+    theory lab is complete; it turns release/audit counts into a ranked agenda
+    for the next capacity improvements and preserves the boundary between
+    routing, retrieval, simulation, and Lean proof evidence.
+    """
+
+    counts = dict(system_audit_payload.get("counts", {}) or {})
+    artifacts = dict(system_audit_payload.get("artifacts", {}) or {})
+    gates = dict(system_audit_payload.get("gates", {}) or {})
+    suite_config = _read_json(suites_file)
+    frontier_config = _read_json(frontier_benchmark_file)
+    research_questions = _read_json(research_questions_file)
+    strategy_exists = strategy_doc.exists()
+    suite_rows = _suite_rows(
+        counts=counts,
+        artifacts=artifacts,
+        gates=gates,
+        suites_file=suites_file,
+        frontier_benchmark_file=frontier_benchmark_file,
+        research_questions_file=research_questions_file,
+    )
+    stale_rows = [row for row in suite_rows if row.status in {"STALE_OR_MISSING", "UNDER_SPECIFIED"}]
+    misaligned_rows = [row for row in suite_rows if row.status in {"SATURATED", "CAPACITY_GAP"}]
+    top_actions = _top_actions(suite_rows, counts)
+    payload: dict[str, object] = {
+        "schema_version": EVALUATION_BENCHMARK_GUIDANCE_SCHEMA_VERSION,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "strategy_doc": str(strategy_doc),
+        "strategy_doc_present": strategy_exists,
+        "suites_file": str(suites_file),
+        "suites_defined": len(suite_config.get("suites", [])) if isinstance(suite_config, dict) else 0,
+        "frontier_benchmark_file": str(frontier_benchmark_file),
+        "frontier_entries": len(frontier_config.get("flat_entries", []))
+        if isinstance(frontier_config, dict)
+        else 0,
+        "research_questions_file": str(research_questions_file),
+        "core_research_questions": len(research_questions) if isinstance(research_questions, list) else 0,
+        "suites": [asdict(row) for row in suite_rows],
+        "n_suites": len(suite_rows),
+        "n_exercised": sum(1 for row in suite_rows if row.exercised),
+        "n_stale_or_missing": len(stale_rows),
+        "n_saturated_or_capacity_gap": len(misaligned_rows),
+        "stale_or_missing_suites": tuple(row.suite_id for row in stale_rows),
+        "saturated_or_capacity_gap_suites": tuple(row.suite_id for row in misaligned_rows),
+        "top_actions": top_actions,
+        "all_ok": strategy_exists
+        and isinstance(suite_config, dict)
+        and len(suite_config.get("suites", [])) >= 9
+        and len(suite_rows) >= 9
+        and len(top_actions) >= 3,
+        "honesty_boundaries": [
+            "frontier_supported is routing/scaffold coverage, not solved frontier papers",
+            "retrieval/RAG hits are premise suggestions, not Lean proof evidence",
+            "simulation diagnostics are empirical evidence, not theorem proofs",
+            "formal gaps remain gaps until AXLE/Lean kernel verifies a proof obligation",
+        ],
+        "guidance_fingerprint": stable_hash(
+            {
+                "counts": {
+                    key: counts.get(key)
+                    for key in sorted(counts)
+                    if key
+                    in {
+                        "frontier_questions",
+                        "frontier_smoke_questions",
+                        "frontier_theory_expected_result_coverage_rate",
+                        "formal_gaps",
+                        "missing_formal_primitives",
+                        "proofs_kernel_verified",
+                        "proof_search_solved",
+                        "proof_search_retrieval_ablation_candidate_delta",
+                        "research_traces_ok",
+                        "research_algorithms_ok",
+                    }
+                },
+                "suite_rows": [asdict(row) for row in suite_rows],
+                "top_actions": top_actions,
+            }
+        ),
+    }
+    if out_dir is not None:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (out_dir / "evaluation_benchmark_guidance_manifest.json").write_text(
+            json.dumps(payload, indent=2, default=str),
+            encoding="utf-8",
+        )
+        (out_dir / "evaluation_benchmark_guidance.md").write_text(
+            _markdown_report(payload),
+            encoding="utf-8",
+        )
+    return payload
+
+
+def _suite_rows(
+    *,
+    counts: Mapping[str, Any],
+    artifacts: Mapping[str, Any],
+    gates: Mapping[str, Any],
+    suites_file: Path,
+    frontier_benchmark_file: Path,
+    research_questions_file: Path,
+) -> tuple[BenchmarkSuiteGuidanceRow, ...]:
+    frontier_questions = _int(counts.get("frontier_questions"))
+    frontier_smoke_questions = _int(counts.get("frontier_smoke_questions"))
+    theory_coverage = _float(counts.get("frontier_theory_expected_result_coverage_rate"))
+    missing_primitives = _int(counts.get("missing_formal_primitives"))
+    proof_search_candidate_delta = _int(counts.get("proof_search_retrieval_ablation_candidate_delta"))
+    algorithm_promotion_ready = _int(counts.get("algorithm_repair_sandbox_patch_eval_promotion_ready"))
+    rows = [
+        BenchmarkSuiteGuidanceRow(
+            suite_id="S0_release_sanity",
+            exercised=bool(gates),
+            status="OK" if bool(system_gate := gates) and all(bool(v) for v in system_gate.values()) else "CAPACITY_GAP",
+            evidence_paths=("research_system_audit_manifest.json",),
+            key_counts={
+                "all_gates_passed": all(bool(v) for v in gates.values()) if gates else False,
+                "proofs_kernel_verified": counts.get("proofs_kernel_verified"),
+            },
+            honesty_boundary="Release sanity checks scaffold coherence, not autonomous frontier theory discovery.",
+            issues=()
+            if gates and all(bool(v) for v in gates.values())
+            else ("one or more release gates did not pass",),
+        ),
+        BenchmarkSuiteGuidanceRow(
+            suite_id="S1_core_method_e2e",
+            exercised=bool(artifacts.get("research_benchmark")),
+            status="OK"
+            if _int(counts.get("research_ready_with_gaps")) == _int(counts.get("questions"))
+            and _int(counts.get("research_simulation_flagged")) == 0
+            else "CAPACITY_GAP",
+            evidence_paths=(str(artifacts.get("research_benchmark", "")), str(research_questions_file)),
+            key_counts={
+                "questions": counts.get("questions"),
+                "ready_with_gaps": counts.get("research_ready_with_gaps"),
+                "simulation_flagged": counts.get("research_simulation_flagged"),
+            },
+            honesty_boundary="Ready-with-gaps means trace completion with explicit gaps, not full theorem closure.",
+            issues=()
+            if _int(counts.get("research_simulation_flagged")) == 0
+            else ("nominal core simulations still have flagged traces",),
+        ),
+        BenchmarkSuiteGuidanceRow(
+            suite_id="S2_frontier_static_coverage",
+            exercised=bool(artifacts.get("frontier_coverage_audit"))
+            and bool(artifacts.get("frontier_precision_audit")),
+            status="OK"
+            if _int(counts.get("frontier_supported")) == frontier_questions
+            and _int(counts.get("frontier_precision_flagged")) == 0
+            else "CAPACITY_GAP",
+            evidence_paths=(
+                str(frontier_benchmark_file),
+                str(artifacts.get("frontier_coverage_audit", "")),
+                str(artifacts.get("frontier_precision_audit", "")),
+            ),
+            key_counts={
+                "frontier_questions": frontier_questions,
+                "frontier_supported": counts.get("frontier_supported"),
+                "frontier_precision_flagged": counts.get("frontier_precision_flagged"),
+            },
+            honesty_boundary="60/60 frontier support is routing and scoped-surrogate coverage only.",
+            issues=("static frontier routing is saturated; do not use it as proof of capability",)
+            if _int(counts.get("frontier_supported")) == frontier_questions
+            else ("frontier routing has unsupported or flagged entries",),
+        ),
+        BenchmarkSuiteGuidanceRow(
+            suite_id="S3_frontier_blind_theory_target",
+            exercised=bool(artifacts.get("frontier_smoke_benchmark")),
+            status="CAPACITY_GAP"
+            if frontier_smoke_questions < frontier_questions or theory_coverage < 0.9
+            else "OK",
+            evidence_paths=(str(artifacts.get("frontier_smoke_benchmark", "")),),
+            key_counts={
+                "frontier_smoke_questions": frontier_smoke_questions,
+                "frontier_questions": frontier_questions,
+                "expected_result_coverage_rate": theory_coverage,
+            },
+            honesty_boundary="Theory-target recovery is semantic planning evidence, not Lean proof evidence.",
+            issues=tuple(
+                issue
+                for issue in (
+                    "release smoke is not all-60 frontier scoring"
+                    if frontier_smoke_questions < frontier_questions
+                    else "",
+                    "expected-result coverage remains below the 90% next milestone"
+                    if theory_coverage < 0.9
+                    else "",
+                )
+                if issue
+            ),
+        ),
+        BenchmarkSuiteGuidanceRow(
+            suite_id="S4_formal_primitive_ladder",
+            exercised=bool(artifacts.get("formalization_target_audit"))
+            and bool(artifacts.get("proof_bank_expansion")),
+            status="CAPACITY_GAP" if missing_primitives > 0 else "OK",
+            evidence_paths=(
+                str(artifacts.get("formalization_target_audit", "")),
+                str(artifacts.get("proof_bank_expansion", "")),
+            ),
+            key_counts={
+                "formal_gaps": counts.get("formal_gaps"),
+                "formalized_gaps": counts.get("formalized_gaps"),
+                "missing_formal_primitives": missing_primitives,
+                "proof_bank_expansion_bridge_ready": counts.get("proof_bank_expansion_bridge_ready"),
+            },
+            honesty_boundary="Formalization targets and skeletons are backlog evidence until kernel-verified.",
+            issues=(f"{missing_primitives} missing formal primitives remain",)
+            if missing_primitives > 0
+            else (),
+        ),
+        BenchmarkSuiteGuidanceRow(
+            suite_id="S5_proof_bank_and_search",
+            exercised=bool(artifacts.get("proof_audit")) and bool(artifacts.get("proof_search_retrieval_ablation")),
+            status="SATURATED"
+            if proof_search_candidate_delta == 0 and _int(counts.get("proof_search_solved")) == _int(counts.get("proof_search_obligations"))
+            else "OK",
+            evidence_paths=(
+                str(artifacts.get("proof_audit", "")),
+                str(artifacts.get("proof_search_audit", "")),
+                str(artifacts.get("proof_search_retrieval_ablation", "")),
+            ),
+            key_counts={
+                "proofs_kernel_verified": counts.get("proofs_kernel_verified"),
+                "proof_search_solved": counts.get("proof_search_solved"),
+                "proof_search_obligations": counts.get("proof_search_obligations"),
+                "proof_search_retrieval_ablation_candidate_delta": proof_search_candidate_delta,
+                "lean_rag_dependency_graph_enabled": counts.get("lean_rag_dependency_graph_enabled"),
+            },
+            honesty_boundary="Kernel-verified registered obligations are proof evidence; retrieval ablation is search evidence only.",
+            issues=("current bounded proof-search suite is saturated; stronger RAG shows no downstream lift",)
+            if proof_search_candidate_delta == 0
+            else (),
+        ),
+        BenchmarkSuiteGuidanceRow(
+            suite_id="S6_algorithm_simulation_stress",
+            exercised=bool(artifacts.get("research_algorithm_audit")),
+            status="UNDER_SPECIFIED",
+            evidence_paths=(str(artifacts.get("research_algorithm_audit", "")),),
+            key_counts={
+                "research_algorithms_ok": counts.get("research_algorithms_ok"),
+                "research_algorithms_total": counts.get("research_algorithms_total"),
+                "research_report_simulations_passed": counts.get("research_report_simulations_passed"),
+                "research_report_simulations": counts.get("research_report_simulations"),
+            },
+            honesty_boundary="Simulation diagnostics are empirical checks, not guarantees.",
+            issues=("needs adversarial DGP sweeps and multi-seed stability thresholds",),
+        ),
+        BenchmarkSuiteGuidanceRow(
+            suite_id="S7_feedback_loop_repair",
+            exercised=bool(artifacts.get("research_loop"))
+            and bool(artifacts.get("algorithm_repair_sandbox_patch_eval")),
+            status="CAPACITY_GAP" if algorithm_promotion_ready == 0 else "OK",
+            evidence_paths=(
+                str(artifacts.get("research_loop", "")),
+                str(artifacts.get("research_loop_repair_audit", "")),
+                str(artifacts.get("algorithm_repair_sandbox_patch_eval", "")),
+            ),
+            key_counts={
+                "research_loop_theory_revisions": counts.get("research_loop_theory_revisions"),
+                "algorithm_repair_patch_eval_promotion_ready": algorithm_promotion_ready,
+                "algorithm_repair_production_patch_applied": counts.get(
+                    "algorithm_repair_production_patch_applied"
+                ),
+            },
+            honesty_boundary="Queued or sandboxed repair is not the same as autonomous corrected theory/procedure convergence.",
+            issues=("algorithm repair has no promotion-ready patch in the current audit",)
+            if algorithm_promotion_ready == 0
+            else (),
+        ),
+        BenchmarkSuiteGuidanceRow(
+            suite_id="S8_adversarial_unsupported_intake",
+            exercised=False,
+            status="STALE_OR_MISSING",
+            evidence_paths=("examples/research_unsupported_paper_abstracts.md",),
+            key_counts={
+                "research_intake_unsupported": counts.get("research_intake_unsupported"),
+                "research_intake_unsupported_rejected": counts.get("research_intake_unsupported_rejected"),
+            },
+            honesty_boundary="Unsupported rejection tests protect against overclaiming autonomous capability.",
+            issues=("no dedicated adversarial/prompt-leakage suite is wired into the release audit",),
+        ),
+        BenchmarkSuiteGuidanceRow(
+            suite_id="S9_fresh_holdout_frontier",
+            exercised=False,
+            status="STALE_OR_MISSING",
+            evidence_paths=(),
+            key_counts={},
+            honesty_boundary="Fresh holdout papers are needed before claiming generalization beyond curated templates.",
+            issues=("no fresh holdout frontier suite is currently present",),
+        ),
+    ]
+    return tuple(rows)
+
+
+def _top_actions(
+    suite_rows: tuple[BenchmarkSuiteGuidanceRow, ...],
+    counts: Mapping[str, Any],
+) -> list[dict[str, object]]:
+    rows_by_id = {row.suite_id: row for row in suite_rows}
+    actions = [
+        {
+            "rank": 1,
+            "owner_suite": "S4_formal_primitive_ladder",
+            "action": "Close or upgrade the top formal primitives into reusable AXLE/Lean proof obligations.",
+            "why": f"{_int(counts.get('missing_formal_primitives'))} missing formal primitives remain; this is the main theorem-capacity bottleneck.",
+            "success_metric": "missing_formal_primitives decreases or proof_bank_expansion_bridge_ready increases with kernel-verified obligations.",
+        },
+        {
+            "rank": 2,
+            "owner_suite": "S3_frontier_blind_theory_target",
+            "action": "Run and gate all-60 frontier theory-target scoring with per-topic triage, not only the release smoke subset.",
+            "why": "Frontier routing is saturated, but target recovery remains below the next 90% milestone and the smoke set is smaller than the full benchmark.",
+            "success_metric": "all-60 expected-result coverage reaches at least 90% while formal gaps remain explicit.",
+        },
+        {
+            "rank": 3,
+            "owner_suite": "S5_proof_bank_and_search/S7_feedback_loop_repair",
+            "action": "Add harder RAG/proof-search and seeded feedback-loop failures where stronger retrieval or repair must change a decision.",
+            "why": "The current proof-search/RAG ablation is saturated and algorithm repair has no promotion-ready patch.",
+            "success_metric": "dependency-graph retrieval improves candidate frontier or solved count on hard obligations, and at least one seeded simulation/proof failure yields a verified changed trace.",
+        },
+    ]
+    if rows_by_id.get("S8_adversarial_unsupported_intake", None) is not None:
+        actions.append(
+            {
+                "rank": 4,
+                "owner_suite": "S8_adversarial_unsupported_intake",
+                "action": "Wire adversarial unsupported-intake and prompt-leakage cases into the release audit.",
+                "why": "The current benchmark stack has no dedicated guardrail suite for vague, contradictory, or gold-leaking frontier prompts.",
+                "success_metric": "unsupported/adversarial cases are rejected or scoped without increasing false support claims.",
+            }
+        )
+    return actions[:4]
+
+
+def _markdown_report(payload: Mapping[str, Any]) -> str:
+    lines = [
+        "# Evaluation Benchmark Guidance",
+        "",
+        f"- Strategy doc present: `{payload.get('strategy_doc_present')}`",
+        f"- Suites defined: {payload.get('suites_defined')}",
+        f"- Frontier entries: {payload.get('frontier_entries')}",
+        f"- Core research questions: {payload.get('core_research_questions')}",
+        f"- Exercised suites: {payload.get('n_exercised')}/{payload.get('n_suites')}",
+        f"- Stale or missing suites: {payload.get('n_stale_or_missing')}",
+        f"- Saturated or capacity-gap suites: {payload.get('n_saturated_or_capacity_gap')}",
+        "",
+        "## Suite Status",
+        "",
+        "| Suite | Exercised | Status | Main issue |",
+        "|---|---:|---|---|",
+    ]
+    for row in payload.get("suites", []):
+        if not isinstance(row, dict):
+            continue
+        issues = row.get("issues") or ()
+        main_issue = issues[0] if issues else ""
+        lines.append(
+            f"| `{row.get('suite_id')}` | `{row.get('exercised')}` | `{row.get('status')}` | {main_issue} |"
+        )
+    lines.extend(["", "## Top Actions", ""])
+    for action in payload.get("top_actions", []):
+        if not isinstance(action, dict):
+            continue
+        lines.append(
+            f"{action.get('rank')}. **{action.get('owner_suite')}**: {action.get('action')}  \n"
+            f"   Why: {action.get('why')}  \n"
+            f"   Metric: {action.get('success_metric')}"
+        )
+    lines.extend(["", "## Honesty Boundaries", ""])
+    for boundary in payload.get("honesty_boundaries", []):
+        lines.append(f"- {boundary}")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _read_json(path: Path) -> Any:
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {}
+
+
+def _int(value: Any) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _float(value: Any) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0

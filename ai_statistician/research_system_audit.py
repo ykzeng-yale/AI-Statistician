@@ -23,6 +23,7 @@ from .algorithm_repair_sandbox_apply import apply_algorithm_repair_sandbox_resul
 from .algorithm_repair_sandbox_patch_eval import evaluate_algorithm_repair_sandbox_patches
 from .algorithm_repair_sandbox_rerun import rerun_algorithm_repair_sandbox_applications
 from .architecture_audit import audit_architecture
+from .evaluation_benchmark_guidance import build_evaluation_benchmark_guidance
 from .formal_gap_task_export import export_formal_gap_lean_tasks
 from .formalization_target_audit import audit_formalization_targets
 from .formal_source_graph import audit_formal_source_graph
@@ -1340,6 +1341,39 @@ async def run_research_system_audit(
             "formal_gaps": str(out_dir / "research_benchmark" / "formal_gaps"),
         },
     }
+    evaluation_benchmark_guidance_manifest = build_evaluation_benchmark_guidance(
+        out_dir / "evaluation_benchmark_guidance",
+        system_audit_payload=payload,
+    )
+    payload["gates"]["evaluation_benchmark_guidance"] = bool(
+        evaluation_benchmark_guidance_manifest["all_ok"]
+    )
+    payload["counts"].update(
+        {
+            "evaluation_benchmark_guidance_suites": evaluation_benchmark_guidance_manifest[
+                "n_suites"
+            ],
+            "evaluation_benchmark_guidance_exercised": evaluation_benchmark_guidance_manifest[
+                "n_exercised"
+            ],
+            "evaluation_benchmark_guidance_stale_or_missing": evaluation_benchmark_guidance_manifest[
+                "n_stale_or_missing"
+            ],
+            "evaluation_benchmark_guidance_capacity_gaps": evaluation_benchmark_guidance_manifest[
+                "n_saturated_or_capacity_gap"
+            ],
+            "evaluation_benchmark_guidance_actions": len(
+                evaluation_benchmark_guidance_manifest["top_actions"]
+            ),
+        }
+    )
+    payload["artifacts"]["evaluation_benchmark_guidance"] = str(
+        out_dir / "evaluation_benchmark_guidance" / "evaluation_benchmark_guidance_manifest.json"
+    )
+    payload["artifacts"]["evaluation_benchmark_guidance_report"] = str(
+        out_dir / "evaluation_benchmark_guidance" / "evaluation_benchmark_guidance.md"
+    )
+    payload["all_gates_passed"] = all(bool(value) for value in payload["gates"].values())
     (out_dir / "research_system_audit_manifest.json").write_text(
         json.dumps(payload, indent=2, default=str),
         encoding="utf-8",
