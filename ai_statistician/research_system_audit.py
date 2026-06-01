@@ -22,6 +22,7 @@ from .algorithm_repair_sandbox import evaluate_algorithm_repair_sandbox
 from .algorithm_repair_sandbox_apply import apply_algorithm_repair_sandbox_results
 from .algorithm_repair_sandbox_patch_eval import evaluate_algorithm_repair_sandbox_patches
 from .algorithm_repair_sandbox_rerun import rerun_algorithm_repair_sandbox_applications
+from .adversarial_intake_audit import audit_adversarial_unsupported_intake
 from .architecture_audit import audit_architecture
 from .evaluation_benchmark_guidance import build_evaluation_benchmark_guidance
 from .formal_gap_task_export import export_formal_gap_lean_tasks
@@ -216,6 +217,9 @@ async def run_research_system_audit(
     stage_start = _record_stage(stage_timings, "frontier_smoke_benchmark", stage_start)
 
     intake_manifest = audit_research_question_intake(out_dir / "research_intake_audit")
+    adversarial_intake_manifest = audit_adversarial_unsupported_intake(
+        out_dir / "adversarial_intake_audit"
+    )
     knowledge_manifest = audit_research_knowledge(out_dir / "research_knowledge_audit")
     autoform_harness_manifest = audit_autoform_harness(out_dir / "autoform_harness")
     retrieval_manifest = audit_proof_bank_retrieval(out_dir / "retrieval_audit", k=5)
@@ -468,6 +472,7 @@ async def run_research_system_audit(
         "research_capability_audit": bool(capability_report["all_current_release_requirements_met"]),
         "frontier_smoke_benchmark": bool(frontier_smoke_manifest["all_gates_passed"]),
         "research_intake_audit": bool(intake_manifest["all_ok"]),
+        "adversarial_intake_audit": bool(adversarial_intake_manifest["all_ok"]),
         "research_knowledge_audit": bool(knowledge_manifest["all_ok"]),
         "autoform_harness": bool(autoform_harness_manifest["ready_for_integration"]),
         "retrieval_audit": bool(retrieval_manifest["all_top_k"]),
@@ -654,6 +659,10 @@ async def run_research_system_audit(
             "research_intake_supported_accepted": intake_manifest["n_supported_accepted"],
             "research_intake_unsupported": intake_manifest["n_unsupported"],
             "research_intake_unsupported_rejected": intake_manifest["n_unsupported_rejected"],
+            "adversarial_intake_cases": adversarial_intake_manifest["n_cases"],
+            "adversarial_intake_ok": adversarial_intake_manifest["n_ok"],
+            "adversarial_intake_rejected": adversarial_intake_manifest["n_rejected"],
+            "adversarial_intake_accepted": adversarial_intake_manifest["n_accepted"],
             "research_knowledge_cards": knowledge_manifest["n_cards"],
             "research_knowledge_sources_ok": knowledge_manifest["n_source_ok"],
             "research_source_inventory_ok": knowledge_manifest["source_inventory"]["n_ok"],
@@ -1057,6 +1066,12 @@ async def run_research_system_audit(
             ),
             "research_intake_audit": str(
                 out_dir / "research_intake_audit" / "research_intake_audit_manifest.json"
+            ),
+            "adversarial_intake_audit": str(
+                out_dir / "adversarial_intake_audit" / "adversarial_intake_manifest.json"
+            ),
+            "adversarial_intake_report": str(
+                out_dir / "adversarial_intake_audit" / "adversarial_intake.md"
             ),
             "research_knowledge_audit": str(
                 out_dir / "research_knowledge_audit" / "research_knowledge_audit_manifest.json"

@@ -305,15 +305,27 @@ def _suite_rows(
         ),
         BenchmarkSuiteGuidanceRow(
             suite_id="S8_adversarial_unsupported_intake",
-            exercised=False,
-            status="STALE_OR_MISSING",
-            evidence_paths=("examples/research_unsupported_paper_abstracts.md",),
+            exercised=bool(artifacts.get("adversarial_intake_audit")),
+            status="OK"
+            if _int(counts.get("adversarial_intake_cases")) > 0
+            and _int(counts.get("adversarial_intake_ok")) == _int(counts.get("adversarial_intake_cases"))
+            else "STALE_OR_MISSING",
+            evidence_paths=(
+                str(artifacts.get("adversarial_intake_audit", "")),
+                "benchmarks/adversarial_unsupported_intake.json",
+            ),
             key_counts={
+                "adversarial_intake_cases": counts.get("adversarial_intake_cases"),
+                "adversarial_intake_ok": counts.get("adversarial_intake_ok"),
+                "adversarial_intake_rejected": counts.get("adversarial_intake_rejected"),
                 "research_intake_unsupported": counts.get("research_intake_unsupported"),
                 "research_intake_unsupported_rejected": counts.get("research_intake_unsupported_rejected"),
             },
             honesty_boundary="Unsupported rejection tests protect against overclaiming autonomous capability.",
-            issues=("no dedicated adversarial/prompt-leakage suite is wired into the release audit",),
+            issues=()
+            if _int(counts.get("adversarial_intake_cases")) > 0
+            and _int(counts.get("adversarial_intake_ok")) == _int(counts.get("adversarial_intake_cases"))
+            else ("no passing dedicated adversarial/prompt-leakage suite is wired into the release audit",),
         ),
         BenchmarkSuiteGuidanceRow(
             suite_id="S9_fresh_holdout_frontier",
@@ -356,7 +368,10 @@ def _top_actions(
             "success_metric": "dependency-graph retrieval improves candidate frontier or solved count on hard obligations, and at least one seeded simulation/proof failure yields a verified changed trace.",
         },
     ]
-    if rows_by_id.get("S8_adversarial_unsupported_intake", None) is not None:
+    if (
+        rows_by_id.get("S8_adversarial_unsupported_intake", None) is not None
+        and rows_by_id["S8_adversarial_unsupported_intake"].status != "OK"
+    ):
         actions.append(
             {
                 "rank": 4,

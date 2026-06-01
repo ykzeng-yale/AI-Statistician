@@ -22,6 +22,7 @@ from ai_statistician.algorithm_repair_sandbox import evaluate_algorithm_repair_s
 from ai_statistician.algorithm_repair_sandbox_apply import apply_algorithm_repair_sandbox_results
 from ai_statistician.algorithm_repair_sandbox_patch_eval import evaluate_algorithm_repair_sandbox_patches
 from ai_statistician.algorithm_repair_sandbox_rerun import rerun_algorithm_repair_sandbox_applications
+from ai_statistician.adversarial_intake_audit import audit_adversarial_unsupported_intake
 from ai_statistician.architecture_audit import audit_architecture
 from ai_statistician.capability_audit import build_capability_audit, write_capability_audit
 from ai_statistician.doctor import build_doctor_report, write_doctor_manifest
@@ -2310,6 +2311,9 @@ class SystemTests(unittest.TestCase):
                 "research_algorithms_total": 33,
                 "research_loop_theory_revisions": 6,
                 "algorithm_repair_sandbox_patch_eval_promotion_ready": 0,
+                "adversarial_intake_cases": 6,
+                "adversarial_intake_ok": 6,
+                "adversarial_intake_rejected": 6,
             },
             "artifacts": {
                 "research_benchmark": "runs/example/research_benchmark_manifest.json",
@@ -2325,6 +2329,7 @@ class SystemTests(unittest.TestCase):
                 "research_loop": "runs/example/research_loop_manifest.json",
                 "research_loop_repair_audit": "runs/example/research_loop_repair_audit_manifest.json",
                 "algorithm_repair_sandbox_patch_eval": "runs/example/algorithm_repair_sandbox_patch_eval_manifest.json",
+                "adversarial_intake_audit": "runs/example/adversarial_intake_manifest.json",
             },
         }
         guidance = build_evaluation_benchmark_guidance(
@@ -2338,7 +2343,7 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(statuses["S3_frontier_blind_theory_target"], "CAPACITY_GAP")
         self.assertEqual(statuses["S4_formal_primitive_ladder"], "CAPACITY_GAP")
         self.assertEqual(statuses["S5_proof_bank_and_search"], "SATURATED")
-        self.assertEqual(statuses["S8_adversarial_unsupported_intake"], "STALE_OR_MISSING")
+        self.assertEqual(statuses["S8_adversarial_unsupported_intake"], "OK")
         self.assertGreaterEqual(len(guidance["top_actions"]), 3)
         self.assertTrue(
             Path(
@@ -2392,6 +2397,18 @@ class SystemTests(unittest.TestCase):
             },
         )
         self.assertTrue(Path("runs/test_research_intake_audit/research_intake_audit_manifest.json").exists())
+
+    def test_adversarial_unsupported_intake_audit_rejects_overclaiming_prompts(self) -> None:
+        payload = audit_adversarial_unsupported_intake(Path("runs/test_adversarial_intake_audit"))
+        self.assertTrue(payload["all_ok"])
+        self.assertEqual(payload["n_cases"], 6)
+        self.assertEqual(payload["n_ok"], payload["n_cases"])
+        self.assertEqual(payload["n_rejected"], payload["n_cases"])
+        risks = set(payload["by_risk"])
+        self.assertIn("gold_answer_leakage", risks)
+        self.assertIn("prompt_injection", risks)
+        self.assertTrue(Path("runs/test_adversarial_intake_audit/adversarial_intake_manifest.json").exists())
+        self.assertTrue(Path("runs/test_adversarial_intake_audit/adversarial_intake.md").exists())
 
     def test_research_knowledge_audit_checks_sources_and_problem_retrieval(self) -> None:
         payload = audit_research_knowledge(Path("runs/test_research_knowledge_audit"))
@@ -6975,6 +6992,7 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(payload["gates"]["research_capability_audit"])
         self.assertTrue(payload["gates"]["frontier_smoke_benchmark"])
         self.assertTrue(payload["gates"]["research_intake_audit"])
+        self.assertTrue(payload["gates"]["adversarial_intake_audit"])
         self.assertTrue(payload["gates"]["research_knowledge_audit"])
         self.assertTrue(payload["gates"]["retrieval_audit"])
         self.assertTrue(payload["gates"]["formal_source_graph"])
@@ -7192,6 +7210,9 @@ class SystemTests(unittest.TestCase):
         self.assertGreater(payload["counts"]["frontier_theory_expected_results"], 0)
         self.assertEqual(payload["counts"]["research_intake_supported_accepted"], payload["counts"]["research_intake_supported"])
         self.assertEqual(payload["counts"]["research_intake_unsupported_rejected"], payload["counts"]["research_intake_unsupported"])
+        self.assertEqual(payload["counts"]["adversarial_intake_ok"], payload["counts"]["adversarial_intake_cases"])
+        self.assertEqual(payload["counts"]["adversarial_intake_rejected"], payload["counts"]["adversarial_intake_cases"])
+        self.assertEqual(payload["counts"]["adversarial_intake_accepted"], 0)
         self.assertEqual(payload["counts"]["research_knowledge_problem_ok"], payload["counts"]["research_knowledge_problem_rows"])
         self.assertEqual(payload["counts"]["research_knowledge_sources_ok"], payload["counts"]["research_knowledge_cards"])
         self.assertEqual(
@@ -7339,6 +7360,8 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(Path(payload["artifacts"]["frontier_theory_target_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["research_benchmark"]).exists())
         self.assertTrue(Path(payload["artifacts"]["research_intake_audit"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["adversarial_intake_audit"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["adversarial_intake_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["research_knowledge_audit"]).exists())
         self.assertTrue(Path(payload["artifacts"]["research_source_inventory"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_source_graph"]).exists())
