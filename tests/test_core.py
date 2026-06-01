@@ -5339,6 +5339,25 @@ class SystemTests(unittest.TestCase):
                 "no_source_found",
             },
         )
+        self.assertIn(
+            first["action_class"],
+            {
+                "compose_existing_bridge_chain",
+                "add_minimal_wrapper",
+                "design_bridge_lemma",
+                "port_external_source",
+                "design_from_first_principles",
+            },
+        )
+        self.assertEqual(
+            payload["n_primitives"],
+            payload["n_compose_existing_bridge_chain"]
+            + payload["n_add_minimal_wrapper"]
+            + payload["n_design_bridge_lemma"]
+            + payload["n_port_external_source"]
+            + payload["n_design_from_first_principles"],
+        )
+        self.assertTrue(payload["by_action_class"])
         self.assertIn("Retrieval hits are not proof evidence", " ".join(payload["limitations"]))
         self.assertTrue(Path("runs/test_primitive_source_coverage/primitive_source_coverage_manifest.json").exists())
         self.assertTrue(Path("runs/test_primitive_source_coverage/primitive_source_coverage.md").exists())
@@ -7540,6 +7559,19 @@ class SystemTests(unittest.TestCase):
             0,
         )
         self.assertGreaterEqual(payload["counts"]["primitive_source_coverage_external_supported"], 0)
+        self.assertIn("primitive_source_coverage_compose_existing_bridge_chain", payload["counts"])
+        self.assertIn("primitive_source_coverage_add_minimal_wrapper", payload["counts"])
+        self.assertIn("primitive_source_coverage_design_bridge_lemma", payload["counts"])
+        self.assertIn("primitive_source_coverage_port_external_source", payload["counts"])
+        self.assertIn("primitive_source_coverage_design_from_first_principles", payload["counts"])
+        self.assertEqual(
+            payload["counts"]["primitive_source_coverage_primitives"],
+            payload["counts"]["primitive_source_coverage_compose_existing_bridge_chain"]
+            + payload["counts"]["primitive_source_coverage_add_minimal_wrapper"]
+            + payload["counts"]["primitive_source_coverage_design_bridge_lemma"]
+            + payload["counts"]["primitive_source_coverage_port_external_source"]
+            + payload["counts"]["primitive_source_coverage_design_from_first_principles"],
+        )
         self.assertTrue(payload["counts"]["primitive_source_coverage_lean_rag_enabled"])
         self.assertEqual(payload["counts"]["research_training_traces"], payload["counts"]["questions"])
         self.assertGreaterEqual(payload["counts"]["research_training_sft_examples"], payload["counts"]["questions"] * 4)

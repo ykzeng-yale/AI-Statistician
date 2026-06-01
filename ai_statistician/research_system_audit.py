@@ -948,6 +948,21 @@ async def run_research_system_audit(
             "primitive_source_coverage_external_supported": primitive_source_coverage_manifest[
                 "n_external_source_supported"
             ],
+            "primitive_source_coverage_compose_existing_bridge_chain": primitive_source_coverage_manifest[
+                "n_compose_existing_bridge_chain"
+            ],
+            "primitive_source_coverage_add_minimal_wrapper": primitive_source_coverage_manifest[
+                "n_add_minimal_wrapper"
+            ],
+            "primitive_source_coverage_design_bridge_lemma": primitive_source_coverage_manifest[
+                "n_design_bridge_lemma"
+            ],
+            "primitive_source_coverage_port_external_source": primitive_source_coverage_manifest[
+                "n_port_external_source"
+            ],
+            "primitive_source_coverage_design_from_first_principles": primitive_source_coverage_manifest[
+                "n_design_from_first_principles"
+            ],
             "primitive_source_coverage_lean_rag_enabled": primitive_source_coverage_manifest[
                 "lean_rag_dependency_graph_enabled"
             ],

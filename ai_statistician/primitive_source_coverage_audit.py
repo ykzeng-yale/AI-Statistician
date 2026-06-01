@@ -37,6 +37,7 @@ class PrimitiveSourceCoverageRow:
     problem_classes: tuple[str, ...]
     theorem_goals: tuple[str, ...]
     classification: str
+    action_class: str
     proof_bank_bridge_obligations: tuple[str, ...]
     local_candidate_declarations: tuple[str, ...]
     external_candidate_declarations: tuple[str, ...]
@@ -77,6 +78,7 @@ def audit_primitive_source_coverage(
         if isinstance(row, dict)
     )
     by_classification = Counter(row.classification for row in rows)
+    by_action_class = Counter(row.action_class for row in rows)
     source_counts = Counter(source_id for row in rows for source_id in row.external_source_ids)
     payload = {
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -96,6 +98,12 @@ def audit_primitive_source_coverage(
         "n_no_source_found": by_classification.get("no_source_found", 0),
         "n_external_source_supported": sum(1 for row in rows if row.external_candidate_declarations),
         "by_classification": dict(sorted(by_classification.items())),
+        "by_action_class": dict(sorted(by_action_class.items())),
+        "n_compose_existing_bridge_chain": by_action_class.get("compose_existing_bridge_chain", 0),
+        "n_add_minimal_wrapper": by_action_class.get("add_minimal_wrapper", 0),
+        "n_design_bridge_lemma": by_action_class.get("design_bridge_lemma", 0),
+        "n_port_external_source": by_action_class.get("port_external_source", 0),
+        "n_design_from_first_principles": by_action_class.get("design_from_first_principles", 0),
         "by_external_source_id": dict(sorted(source_counts.items())),
         "top_direct_wrapper_possible": [
             asdict(row) for row in rows if row.classification == "direct_wrapper_possible"
@@ -149,6 +157,7 @@ def _classify_target(
         classification = "source_only_not_importable"
     else:
         classification = "no_source_found"
+    action_class = _action_class(classification, proof_bank_bridges, local_candidates, external_decls)
     errors: list[str] = []
     if not primitive:
         errors.append("missing primitive")
@@ -162,11 +171,19 @@ def _classify_target(
         problem_classes=tuple(str(item) for item in target.get("problem_classes", []) or [] if str(item)),
         theorem_goals=tuple(str(item) for item in target.get("theorem_goals", []) or [] if str(item)),
         classification=classification,
+        action_class=action_class,
         proof_bank_bridge_obligations=proof_bank_bridges,
         local_candidate_declarations=local_candidates[:8],
         external_candidate_declarations=external_decls[:8],
         external_source_ids=external_source_ids,
-        suggested_next_step=_suggest_next_step(primitive, classification, proof_bank_bridges, local_candidates, external_decls),
+        suggested_next_step=_suggest_next_step(
+            primitive,
+            classification,
+            action_class,
+            proof_bank_bridges,
+            local_candidates,
+            external_decls,
+        ),
         ok=not errors,
         errors=tuple(errors),
     )
@@ -207,10 +224,17 @@ def _external_hits(
 def _suggest_next_step(
     primitive: str,
     classification: str,
+    action_class: str,
     proof_bank_bridges: tuple[str, ...],
     local_candidates: tuple[str, ...],
     external_decls: tuple[str, ...],
 ) -> str:
+    if action_class == "compose_existing_bridge_chain":
+        return (
+            f"Avoid adding duplicate wrappers for `{primitive}`. The proof bank already has "
+            f"{len(proof_bank_bridges)} bridge obligations; compose the next theorem skeleton "
+            f"from `{proof_bank_bridges[0]}` and close the remaining full-theorem interface."
+        )
     if classification == "direct_wrapper_possible":
         return (
             f"Try an AXLE-verified wrapper for `{primitive}` using proof-bank bridge "
@@ -228,6 +252,27 @@ def _suggest_next_step(
     return f"No useful source hit found for `{primitive}`; design the Lean primitive from first principles."
 
 
+def _action_class(
+    classification: str,
+    proof_bank_bridges: tuple[str, ...],
+    local_candidates: tuple[str, ...],
+    external_decls: tuple[str, ...],
+) -> str:
+    if classification == "direct_wrapper_possible":
+        # Several verified bridge obligations already attached to a primitive
+        # usually means the bottleneck is no longer lemma mining. The next
+        # productive step is composing the frontier theorem skeleton without
+        # duplicating local wrappers.
+        if len(proof_bank_bridges) >= 3:
+            return "compose_existing_bridge_chain"
+        return "add_minimal_wrapper"
+    if classification == "bridge_lemma_needed":
+        return "design_bridge_lemma"
+    if classification == "source_only_not_importable" or external_decls:
+        return "port_external_source"
+    return "design_from_first_principles"
+
+
 def _markdown_report(payload: dict[str, object]) -> str:
     lines = [
         "# Primitive Source Coverage Audit",
@@ -238,6 +283,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Bridge lemmas needed: {payload.get('n_bridge_lemma_needed')}",
         f"- External-source only: {payload.get('n_source_only_not_importable')}",
         f"- No source found: {payload.get('n_no_source_found')}",
+        f"- Compose existing bridge chains: {payload.get('n_compose_existing_bridge_chain')}",
+        f"- Add minimal wrappers: {payload.get('n_add_minimal_wrapper')}",
         f"- lean_rag dependency graph active: {payload.get('lean_rag_dependency_graph_enabled')}",
         "",
         "## Classification Counts",
@@ -247,12 +294,19 @@ def _markdown_report(payload: dict[str, object]) -> str:
     if isinstance(by_class, dict):
         for name, count in by_class.items():
             lines.append(f"- `{name}`: {count}")
+    lines.extend(["", "## Action Counts", ""])
+    by_action = payload.get("by_action_class", {})
+    if isinstance(by_action, dict):
+        for name, count in by_action.items():
+            lines.append(f"- `{name}`: {count}")
     lines.extend(["", "## Top Direct Wrapper Candidates", ""])
     for row in payload.get("top_direct_wrapper_possible", []):
         if isinstance(row, dict):
             lines.append(
-                f"- `{row.get('primitive')}`: bridge={row.get('proof_bank_bridge_obligations', [])[:2]}, "
-                f"local={row.get('local_candidate_declarations', [])[:2]}"
+                f"- `{row.get('primitive')}` ({row.get('action_class')}): "
+                f"bridge={row.get('proof_bank_bridge_obligations', [])[:2]}, "
+                f"local={row.get('local_candidate_declarations', [])[:2]}, "
+                f"next={row.get('suggested_next_step')}"
             )
     lines.extend(["", "## Top External-Source-Only Candidates", ""])
     for row in payload.get("top_external_source_only", []):
