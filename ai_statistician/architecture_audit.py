@@ -151,6 +151,7 @@ def audit_architecture(out_dir: Path | None = None) -> dict[str, object]:
                 "DefaultTheoryDeveloper converts simulation theory/procedure failures into scoped revision artifacts",
                 "DefaultAlgorithmEngineer converts numerical/implementation failures into scoped repair artifacts",
                 "algorithm repair artifacts can be promoted, sandbox-readiness checked, converted into non-mutating applied sandbox artifacts, replayed against current vetted simulator reruns, and evaluated as deterministic isolated patch before/after comparisons",
+                "DefaultProofEngineer repairs registered FAILED_PROOF_OBLIGATION items with bounded whole-proof search when a kernel-verified candidate is found",
                 "AIStatisticalTheoryLab accepts theory_revisions overlays and applies them before retrieval/proof/simulation",
             ),
             limitation=(
@@ -174,8 +175,8 @@ def audit_architecture(out_dir: Path | None = None) -> dict[str, object]:
             trigger="FAILED_PROOF_OBLIGATION",
             owner_agent="formal_verifier",
             action="repair_axiom_verified_proof_or_downgrade_to_gap",
-            live_execution_status="EXECUTABLE_WITH_REGISTERED_LIVE_HANDLER",
-            evidence="ResearchLoopCoordinator can call a registered FAILED_PROOF_OBLIGATION/proof handler, otherwise exports proof-engineer repair work",
+            live_execution_status="EXECUTABLE_DEFAULT_REGISTERED_OBLIGATION_REPAIR_OR_REGISTERED_HANDLER",
+            evidence="ResearchLoopCoordinator invokes DefaultProofEngineer for registered failed proof-bank obligations before falling back to registered handlers/exported proof-engineer work",
         ),
         FeedbackRoute(
             trigger="THEORY_OR_PROCEDURE_ISSUE",
@@ -236,8 +237,8 @@ def audit_architecture(out_dir: Path | None = None) -> dict[str, object]:
         {
             "requirement": "Formal proof feedback actively revises assumptions/theorem statements/proof search",
             "status": "PARTIAL",
-            "current_evidence": "ResearchLoopCoordinator reviews formal-source hits for FORMAL_GAP rows, invokes a default verified proof-bank bridge handler, and can invoke contract-checked registered proof-repair handlers.",
-            "missing": "Default automated statement repair, premise search, tactic/proof search, and true new proof-bank theorem promotion within the same loop.",
+            "current_evidence": "ResearchLoopCoordinator reviews formal-source hits for FORMAL_GAP rows, invokes a default verified proof-bank bridge handler, repairs registered FAILED_PROOF_OBLIGATION rows with bounded whole-proof search, and can invoke contract-checked registered proof-repair handlers.",
+            "missing": "Default automated statement repair, tactic-state search, and true new proof-bank theorem promotion within the same loop.",
         },
         {
             "requirement": "End-to-end arbitrary frontier stat theory development",

@@ -4,7 +4,7 @@ import re
 from dataclasses import asdict
 from typing import Any
 
-from .proof_bank import all_obligations
+from .proof_bank import all_obligations, get_obligation
 from .proof_search import BestFirstWholeProofSearchController
 from .research_schema import ResearchReport
 from .schema import FormalObligation
@@ -105,6 +105,86 @@ class DefaultProofEngineer:
             "verified": search.solved,
         }
 
+    async def repair_failed_obligation(
+        self,
+        item: dict[str, Any],
+        report: ResearchReport,
+    ) -> dict[str, Any] | None:
+        """Repair a failed registered proof-bank obligation when possible.
+
+        This intentionally stays narrower than arbitrary Lean proof repair. It
+        only accepts obligations that already live in the proof bank, then runs
+        the bounded whole-proof search controller over registered/lemma/memory
+        candidates. That gives the feedback loop an executable repair path for
+        stale or misranked proof bodies without pretending to invent a new
+        frontier theorem.
+        """
+
+        obligation_id = _obligation_id_from_failed_item(item)
+        if not obligation_id:
+            return None
+        try:
+            obligation = get_obligation(obligation_id)
+        except KeyError:
+            return None
+        search = await BestFirstWholeProofSearchController(self.verifier).solve(
+            obligation,
+            max_nodes=8,
+        )
+        artifact: dict[str, Any] = {
+            "proof_obligation_id": obligation.id,
+            "lean_statement": obligation.formal_statement,
+            "expected_lemmas": list(obligation.expected_lemmas),
+            "proof_dependencies": list(obligation.depends_on or obligation.expected_lemmas),
+            "error_analysis": _failed_obligation_error_analysis(item, search.nodes),
+            "verification_errors": [
+                error
+                for node in search.nodes
+                for error in node.errors
+            ],
+            "proof_search_nodes_expanded": search.nodes_expanded,
+            "proof_search_candidates_total": search.candidates_total,
+            "proof_search_frontier_exhausted": search.frontier_exhausted,
+        }
+        if not search.solved:
+            return {
+                "execution_status": "PROOF_ENGINEER_FAILED_OBLIGATION_REPAIR_FAILED",
+                "task_type": "lean_proof_repair_from_axle_error",
+                "result": (
+                    "Default ProofEngineer found the failed registered obligation, "
+                    "but bounded whole-proof search did not produce a verified repair."
+                ),
+                "rerun_requested": False,
+                "repair_artifact": artifact,
+                "proof_engineer_score": 0,
+            }
+        artifact.update(
+            {
+                "repaired_proof_body": search.selected_proof_body,
+                "kernel_verified": search.kernel_verified,
+                "verified": search.solved,
+                "verifier": search.verifier,
+                "verification_strength": search.selected_verification_strength,
+                "proof_search_strategy": "best_first_whole_proof",
+                "proof_search_selected_candidate_id": search.selected_candidate_id,
+                "proof_search_selected_source": search.selected_source,
+            }
+        )
+        return {
+            "execution_status": "EXECUTED_FAILED_PROOF_OBLIGATION_REPAIR",
+            "task_type": "lean_proof_repair_from_axle_error",
+            "result": (
+                "Default ProofEngineer repaired a registered failed proof obligation "
+                "with a verifier-accepted proof body. This repairs the subclaim; it "
+                "does not prove any larger frontier theorem beyond the registered obligation."
+            ),
+            "rerun_requested": True,
+            "repair_artifact": artifact,
+            "kernel_verified": search.kernel_verified,
+            "verified": search.solved,
+            "proof_engineer_score": 1,
+        }
+
 
 def _rank_bridge_obligations(
     query: str,
@@ -147,6 +227,37 @@ def _rank_bridge_obligations(
         if score > 0:
             ranked.append((obligation, score))
     return sorted(ranked, key=lambda row: (-row[1], row[0].id))
+
+
+def _obligation_id_from_failed_item(item: dict[str, Any]) -> str:
+    for key in ("proof_obligation_id", "target_theorem_goal", "target_obligation_id"):
+        value = str(item.get(key, "") or "")
+        if value:
+            return value.split(":")[-1]
+    source = str(item.get("id", "") or "")
+    if source.startswith("failed_obligation:"):
+        return source.split(":")[-1]
+    return ""
+
+
+def _failed_obligation_error_analysis(
+    item: dict[str, Any],
+    nodes: tuple[Any, ...],
+) -> str:
+    evidence = str(item.get("evidence", "") or "").strip()
+    node_errors = [
+        error
+        for node in nodes
+        for error in getattr(node, "errors", ())
+        if str(error).strip()
+    ]
+    if evidence and node_errors:
+        return "Prior verifier evidence: " + evidence + " | search errors: " + " ; ".join(node_errors[:3])
+    if evidence:
+        return "Prior verifier evidence: " + evidence
+    if node_errors:
+        return "Search errors: " + " ; ".join(node_errors[:3])
+    return "No verifier error text was attached; bounded proof search repaired the registered obligation."
 
 
 def _tokens(text: str) -> set[str]:
