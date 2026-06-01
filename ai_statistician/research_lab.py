@@ -4405,6 +4405,10 @@ class TheoryPlanner:
                         "finite_sample_mean_chebyshev_indep",
                         "finite_union_budget_control",
                         "simultaneous_coverage_of_union_error_bound",
+                        "screening_statistic_concentration",
+                        "signal_margin_implies_active_selection",
+                        "inactive_coordinate_union_bound",
+                        "selection_accuracy_lower_bound_from_support_events",
                     ),
                 ),
                 TheoremGoal(
@@ -5105,7 +5109,20 @@ class FormalSubclaimProver:
 
     async def prove(self, problem: ResearchProblemSpec, theorem_goals: list[TheoremGoal]) -> list[FormalSubclaim]:
         subclaims: list[FormalSubclaim] = []
-        for obligation_id in PROVABLE_SUBCLAIMS.get(problem.problem_class, ()):
+        obligation_ids = tuple(
+            dict.fromkeys(
+                (
+                    *PROVABLE_SUBCLAIMS.get(problem.problem_class, ()),
+                    *(
+                        obligation_id
+                        for goal in theorem_goals
+                        for obligation_id in goal.proof_obligations
+                        if _is_registered_obligation(obligation_id)
+                    ),
+                )
+            )
+        )
+        for obligation_id in obligation_ids:
             obligation = get_obligation(obligation_id)
             hits = self.retriever.retrieve(
                 RetrievalQuery(obligation.english, tags=obligation.tags),
@@ -8243,6 +8260,7 @@ def apply_theory_revisions(
             for row in artifact.get("next_formal_obligations", []) or []
             if _safe_identifier(str(row))
         )
+        registered_proof_obligations = _registered_proof_obligations(next_formal_obligations)
         new_goal_ids: list[str] = []
         for raw_goal in artifact.get("revised_theorem_goals", []) or []:
             goal_id = _safe_identifier(str(raw_goal))
@@ -8267,6 +8285,7 @@ def apply_theory_revisions(
                     status="FORMAL_GAP",
                     required_primitives=next_formal_obligations
                     or ("theory_revision_formalization", "diagnostic_to_theorem_bridge"),
+                    proof_obligations=registered_proof_obligations,
                 )
             )
         combined_goal_ids = tuple(dict.fromkeys((*current.theorem_goals, *new_goal_ids)))
@@ -8322,6 +8341,25 @@ def _safe_identifier(raw: str) -> str:
     if value[0].isdigit():
         value = f"g_{value}"
     return value
+
+
+def _registered_proof_obligations(candidates: tuple[str, ...]) -> tuple[str, ...]:
+    rows: list[str] = []
+    for obligation_id in candidates:
+        try:
+            get_obligation(obligation_id)
+        except KeyError:
+            continue
+        rows.append(obligation_id)
+    return tuple(dict.fromkeys(rows))
+
+
+def _is_registered_obligation(obligation_id: str) -> bool:
+    try:
+        get_obligation(obligation_id)
+    except KeyError:
+        return False
+    return True
 
 
 def build_theory_plan(

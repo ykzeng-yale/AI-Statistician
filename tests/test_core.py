@@ -2780,6 +2780,26 @@ class SystemTests(unittest.TestCase):
                 "selection_accuracy_lower_bound_from_support_events",
             },
         )
+        high_dim_trace = json.loads(
+            (out_dir / "research_benchmark" / "high_dimensional_inference_01.json").read_text()
+        )
+        high_dim_goals = {row["id"]: row for row in high_dim_trace["theorem_goals"]}
+        screening_support = high_dim_goals["sufficient_dimension_association_selection_validity"][
+            "proof_obligations"
+        ]
+        for obligation_id in (
+            "screening_statistic_concentration",
+            "signal_margin_implies_active_selection",
+            "inactive_coordinate_union_bound",
+            "selection_accuracy_lower_bound_from_support_events",
+        ):
+            self.assertIn(obligation_id, screening_support)
+        high_dim_proved = {
+            row["proof_obligation_id"]
+            for row in high_dim_trace["formal_subclaims"]
+            if row["status"] == "PROVED"
+        }
+        self.assertTrue(set(screening_support) <= high_dim_proved)
 
     def test_mock_system_accepts_registered_questions(self) -> None:
         async def run():
@@ -5164,6 +5184,12 @@ class SystemTests(unittest.TestCase):
         self.assertIn("standard_error_or_quantile_calibration", roadmap_ids)
         formal_gap_ids = {row.id.split(":")[-1] for row in report.formal_subclaims if row.status == "FORMAL_GAP"}
         self.assertIn("coverage_lower_bound_under_declared_dgp", formal_gap_ids)
+        proved_ids = {
+            row.proof_obligation_id
+            for row in report.formal_subclaims
+            if row.status == "PROVED"
+        }
+        self.assertIn("coverage_lower_bound_of_complement_error", proved_ids)
 
     def test_research_loop_executes_registered_live_theory_repair_handler(self) -> None:
         question = load_open_research_questions(Path("examples/research_questions.json"))[0]
