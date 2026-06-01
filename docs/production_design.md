@@ -291,6 +291,24 @@ metrics. This is still not patched-code evidence. The artifact explicitly says
 `production_patch_applied=false` and requires a future isolated workspace patch
 with before/after simulation comparison before any production promotion.
 
+The fourth bounded sandbox worker executes the first isolated patch comparison:
+
+```bash
+python3 -m ai_statistician.cli algorithm-repair-sandbox-patch-eval \
+  --apply-dir runs/algorithm_repair_sandbox_apply \
+  --question-file examples/research_questions.json \
+  --runs 50 \
+  --out runs/algorithm_repair_sandbox_patch_eval
+```
+
+It writes a deterministic finite-metric guard patch into
+`isolated_patch_workspace/`, imports that module, and compares baseline
+simulator metrics against the isolated patched simulator. It still does not run
+LLM-provided code and still does not mutate production:
+`production_patch_applied=false`, `promotion_ready=false`. The purpose is to
+turn AlgorithmEngineer repair plans into executable before/after evidence while
+preserving the review gate for any real source commit.
+
 ## Target Closed-Loop Research Lab
 
 The broader target is not only a registered estimator executor. It is an AI

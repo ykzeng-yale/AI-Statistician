@@ -15,6 +15,7 @@ from .frontier_precision_audit import audit_frontier_precision
 from .algorithm_repair_promotion import export_algorithm_repair_promotion_queue
 from .algorithm_repair_sandbox import evaluate_algorithm_repair_sandbox
 from .algorithm_repair_sandbox_apply import apply_algorithm_repair_sandbox_results
+from .algorithm_repair_sandbox_patch_eval import evaluate_algorithm_repair_sandbox_patches
 from .algorithm_repair_sandbox_rerun import rerun_algorithm_repair_sandbox_applications
 from .architecture_audit import audit_architecture
 from .formal_gap_task_export import export_formal_gap_lean_tasks
@@ -372,6 +373,13 @@ async def run_research_system_audit(
         n_runs=max(10, min(config.n_runs, 50)),
         seed=config.seed + 17,
     )
+    algorithm_repair_sandbox_patch_eval_manifest = evaluate_algorithm_repair_sandbox_patches(
+        out_dir / "algorithm_repair_sandbox_apply",
+        out_dir / "algorithm_repair_sandbox_patch_eval",
+        question_file=actual_question_file,
+        n_runs=max(10, min(config.n_runs, 50)),
+        seed=config.seed + 19,
+    )
     stage_start = _record_stage(stage_timings, "algorithm_repair_pipeline", stage_start)
 
     benchmark_gate_ok = (
@@ -454,6 +462,7 @@ async def run_research_system_audit(
         "algorithm_repair_sandbox": bool(algorithm_repair_sandbox_manifest["all_ok"]),
         "algorithm_repair_sandbox_apply": bool(algorithm_repair_sandbox_apply_manifest["all_ok"]),
         "algorithm_repair_sandbox_rerun": bool(algorithm_repair_sandbox_rerun_manifest["all_ok"]),
+        "algorithm_repair_sandbox_patch_eval": bool(algorithm_repair_sandbox_patch_eval_manifest["all_ok"]),
     }
     benchmark_cache_gate_names = (
         "research_benchmark",
@@ -784,6 +793,24 @@ async def run_research_system_audit(
             "algorithm_repair_sandbox_apply_candidates_ok": algorithm_repair_sandbox_apply_manifest["n_ok"],
             "algorithm_repair_sandbox_rerun_candidates": algorithm_repair_sandbox_rerun_manifest["n_candidates"],
             "algorithm_repair_sandbox_rerun_candidates_ok": algorithm_repair_sandbox_rerun_manifest["n_ok"],
+            "algorithm_repair_sandbox_patch_eval_candidates": algorithm_repair_sandbox_patch_eval_manifest[
+                "n_candidates"
+            ],
+            "algorithm_repair_sandbox_patch_eval_candidates_ok": algorithm_repair_sandbox_patch_eval_manifest[
+                "n_ok"
+            ],
+            "algorithm_repair_sandbox_patch_eval_executed": algorithm_repair_sandbox_patch_eval_manifest[
+                "n_isolated_patches_executed"
+            ],
+            "algorithm_repair_sandbox_patch_eval_before_after": algorithm_repair_sandbox_patch_eval_manifest[
+                "n_before_after_comparisons"
+            ],
+            "algorithm_repair_sandbox_patch_eval_production_patches": algorithm_repair_sandbox_patch_eval_manifest[
+                "n_production_patches_applied"
+            ],
+            "algorithm_repair_sandbox_patch_eval_promotion_ready": algorithm_repair_sandbox_patch_eval_manifest[
+                "n_promotion_ready"
+            ],
         },
         "questions": benchmark_manifest["questions"],
         "provenance": benchmark_manifest["provenance"],
@@ -1019,6 +1046,16 @@ async def run_research_system_audit(
             ),
             "algorithm_repair_sandbox_rerun_results": str(
                 out_dir / "algorithm_repair_sandbox_rerun" / "algorithm_repair_sandbox_rerun_results.jsonl"
+            ),
+            "algorithm_repair_sandbox_patch_eval": str(
+                out_dir
+                / "algorithm_repair_sandbox_patch_eval"
+                / "algorithm_repair_sandbox_patch_eval_manifest.json"
+            ),
+            "algorithm_repair_sandbox_patch_eval_results": str(
+                out_dir
+                / "algorithm_repair_sandbox_patch_eval"
+                / "algorithm_repair_sandbox_patch_eval_results.jsonl"
             ),
             "formal_gaps": str(out_dir / "research_benchmark" / "formal_gaps"),
         },
