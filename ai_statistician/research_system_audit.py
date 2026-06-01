@@ -17,6 +17,7 @@ from .algorithm_repair_patch_policy_model import train_algorithm_repair_patch_po
 from .algorithm_repair_patch_training_export import export_algorithm_repair_patch_training_dataset
 from .algorithm_repair_production_patch_plan import export_algorithm_repair_production_patch_plan
 from .algorithm_repair_reviewed_patch_apply import apply_reviewed_algorithm_repair_source_patches
+from .algorithm_repair_reviewed_patch_validate import validate_reviewed_algorithm_repair_patches
 from .algorithm_repair_sandbox import evaluate_algorithm_repair_sandbox
 from .algorithm_repair_sandbox_apply import apply_algorithm_repair_sandbox_results
 from .algorithm_repair_sandbox_patch_eval import evaluate_algorithm_repair_sandbox_patches
@@ -403,6 +404,14 @@ async def run_research_system_audit(
         out_dir / "algorithm_repair_reviewed_patch_apply",
         source_root=Path("."),
     )
+    algorithm_repair_reviewed_patch_validate_manifest = validate_reviewed_algorithm_repair_patches(
+        out_dir / "algorithm_repair_reviewed_patch_apply",
+        out_dir / "algorithm_repair_reviewed_patch_validate",
+        source_root=Path("."),
+        question_file=actual_question_file,
+        n_runs=max(5, min(config.n_runs, 10)),
+        seed=config.seed + 23,
+    )
     stage_start = _record_stage(stage_timings, "algorithm_repair_pipeline", stage_start)
 
     benchmark_gate_ok = (
@@ -490,6 +499,7 @@ async def run_research_system_audit(
         "algorithm_repair_patch_policy_model": bool(algorithm_repair_patch_policy_manifest["all_ok"]),
         "algorithm_repair_production_patch_plan": bool(algorithm_repair_production_patch_plan_manifest["all_ok"]),
         "algorithm_repair_reviewed_patch_apply": bool(algorithm_repair_reviewed_patch_apply_manifest["all_ok"]),
+        "algorithm_repair_reviewed_patch_validate": bool(algorithm_repair_reviewed_patch_validate_manifest["all_ok"]),
     }
     benchmark_cache_gate_names = (
         "research_benchmark",
@@ -904,6 +914,33 @@ async def run_research_system_audit(
             "algorithm_repair_reviewed_patch_apply_promotion_ready": algorithm_repair_reviewed_patch_apply_manifest[
                 "n_promotion_ready"
             ],
+            "algorithm_repair_reviewed_patch_validate_candidates": algorithm_repair_reviewed_patch_validate_manifest[
+                "n_candidates"
+            ],
+            "algorithm_repair_reviewed_patch_validate_candidates_ok": algorithm_repair_reviewed_patch_validate_manifest[
+                "n_ok"
+            ],
+            "algorithm_repair_reviewed_patch_validate_import_ok": algorithm_repair_reviewed_patch_validate_manifest[
+                "n_import_ok"
+            ],
+            "algorithm_repair_reviewed_patch_validate_algorithm_audit_ok": algorithm_repair_reviewed_patch_validate_manifest[
+                "n_algorithm_audit_ok"
+            ],
+            "algorithm_repair_reviewed_patch_validate_simulation_completed": algorithm_repair_reviewed_patch_validate_manifest[
+                "n_simulation_completed"
+            ],
+            "algorithm_repair_reviewed_patch_validate_patched_metric_present": algorithm_repair_reviewed_patch_validate_manifest[
+                "n_patched_metric_present"
+            ],
+            "algorithm_repair_reviewed_patch_validate_finite_metrics_ok": algorithm_repair_reviewed_patch_validate_manifest[
+                "n_finite_metrics_ok"
+            ],
+            "algorithm_repair_reviewed_patch_validate_production_patches": algorithm_repair_reviewed_patch_validate_manifest[
+                "n_production_patches_applied"
+            ],
+            "algorithm_repair_reviewed_patch_validate_promotion_ready": algorithm_repair_reviewed_patch_validate_manifest[
+                "n_promotion_ready"
+            ],
         },
         "questions": benchmark_manifest["questions"],
         "provenance": benchmark_manifest["provenance"],
@@ -1197,6 +1234,16 @@ async def run_research_system_audit(
                 out_dir
                 / "algorithm_repair_reviewed_patch_apply"
                 / "algorithm_repair_reviewed_patch_apply_results.jsonl"
+            ),
+            "algorithm_repair_reviewed_patch_validate": str(
+                out_dir
+                / "algorithm_repair_reviewed_patch_validate"
+                / "algorithm_repair_reviewed_patch_validate_manifest.json"
+            ),
+            "algorithm_repair_reviewed_patch_validate_results": str(
+                out_dir
+                / "algorithm_repair_reviewed_patch_validate"
+                / "algorithm_repair_reviewed_patch_validate_results.jsonl"
             ),
             "formal_gaps": str(out_dir / "research_benchmark" / "formal_gaps"),
         },

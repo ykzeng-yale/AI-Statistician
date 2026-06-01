@@ -11,6 +11,7 @@ from .algorithm_repair_patch_training_export import export_algorithm_repair_patc
 from .algorithm_repair_patch_policy_model import train_algorithm_repair_patch_policy_model
 from .algorithm_repair_production_patch_plan import export_algorithm_repair_production_patch_plan
 from .algorithm_repair_reviewed_patch_apply import apply_reviewed_algorithm_repair_source_patches
+from .algorithm_repair_reviewed_patch_validate import validate_reviewed_algorithm_repair_patches
 from .algorithm_repair_sandbox import evaluate_algorithm_repair_sandbox
 from .algorithm_repair_sandbox_apply import apply_algorithm_repair_sandbox_results
 from .algorithm_repair_sandbox_patch_eval import evaluate_algorithm_repair_sandbox_patches
@@ -1596,6 +1597,34 @@ def _algorithm_repair_reviewed_patch_apply(args: argparse.Namespace) -> int:
     return 0 if payload["all_ok"] else 1
 
 
+def _algorithm_repair_reviewed_patch_validate(args: argparse.Namespace) -> int:
+    payload = validate_reviewed_algorithm_repair_patches(
+        Path(args.apply_dir),
+        Path(args.out),
+        source_root=Path(args.source_root),
+        question_file=Path(args.question_file),
+        n_runs=args.runs,
+        seed=args.seed,
+    )
+    print("\nAI Statistical Theory Lab Algorithm Repair Reviewed Patch Validation")
+    print("=" * 72)
+    print(
+        f"validated={payload['n_ok']}/{payload['n_candidates']} "
+        f"imports={payload['n_import_ok']} "
+        f"simulations={payload['n_simulation_completed']} "
+        f"patched_metric={payload['n_patched_metric_present']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    for kind, count in payload["by_patch_kind"].items():
+        print(f"  {kind}: {count}")
+    print(
+        f"\nreviewed patch validation manifest written to "
+        f"{(Path(args.out) / 'algorithm_repair_reviewed_patch_validate_manifest.json').resolve()}"
+    )
+    print(f"results JSONL written to {(Path(args.out) / 'algorithm_repair_reviewed_patch_validate_results.jsonl').resolve()}")
+    return 0 if payload["all_ok"] else 1
+
+
 async def _research_eval(args: argparse.Namespace) -> int:
     _load_dotenv(Path(args.env_file))
     questions = load_open_research_questions(Path(args.question_file))
@@ -2744,6 +2773,26 @@ def build_parser() -> argparse.ArgumentParser:
         help="algorithm repair reviewed patch apply output directory",
     )
     algorithm_repair_reviewed_patch_apply.set_defaults(func=_algorithm_repair_reviewed_patch_apply)
+
+    algorithm_repair_reviewed_patch_validate = sub.add_parser(
+        "algorithm-repair-reviewed-patch-validate",
+        help="import copied package with reviewed patches and rerun affected-procedure simulation",
+    )
+    algorithm_repair_reviewed_patch_validate.add_argument(
+        "--apply-dir",
+        required=True,
+        help="directory containing algorithm_repair_reviewed_patch_apply_manifest.json",
+    )
+    algorithm_repair_reviewed_patch_validate.add_argument("--source-root", default=".")
+    algorithm_repair_reviewed_patch_validate.add_argument("--question-file", default="examples/research_questions.json")
+    algorithm_repair_reviewed_patch_validate.add_argument("--runs", type=int, default=10)
+    algorithm_repair_reviewed_patch_validate.add_argument("--seed", type=int, default=20260601)
+    algorithm_repair_reviewed_patch_validate.add_argument(
+        "--out",
+        default="runs/algorithm_repair_reviewed_patch_validate",
+        help="algorithm repair reviewed patch validation output directory",
+    )
+    algorithm_repair_reviewed_patch_validate.set_defaults(func=_algorithm_repair_reviewed_patch_validate)
 
     research_eval = sub.add_parser(
         "research-eval",
