@@ -13,6 +13,7 @@ from .frontier_backlog_audit import audit_frontier_backlog
 from .frontier_coverage_audit import audit_frontier_coverage
 from .frontier_precision_audit import audit_frontier_precision
 from .algorithm_repair_promotion import export_algorithm_repair_promotion_queue
+from .algorithm_repair_patch_policy_model import train_algorithm_repair_patch_policy_model
 from .algorithm_repair_patch_training_export import export_algorithm_repair_patch_training_dataset
 from .algorithm_repair_sandbox import evaluate_algorithm_repair_sandbox
 from .algorithm_repair_sandbox_apply import apply_algorithm_repair_sandbox_results
@@ -386,6 +387,11 @@ async def run_research_system_audit(
         out_dir / "algorithm_repair_patch_training_export",
         validation_fraction=0.2,
     )
+    algorithm_repair_patch_policy_manifest = train_algorithm_repair_patch_policy_model(
+        Path(str(algorithm_repair_patch_training_manifest["train_jsonl"])),
+        out_dir / "algorithm_repair_patch_policy_model",
+        validation_jsonl=Path(str(algorithm_repair_patch_training_manifest["validation_jsonl"])),
+    )
     stage_start = _record_stage(stage_timings, "algorithm_repair_pipeline", stage_start)
 
     benchmark_gate_ok = (
@@ -470,6 +476,7 @@ async def run_research_system_audit(
         "algorithm_repair_sandbox_rerun": bool(algorithm_repair_sandbox_rerun_manifest["all_ok"]),
         "algorithm_repair_sandbox_patch_eval": bool(algorithm_repair_sandbox_patch_eval_manifest["all_ok"]),
         "algorithm_repair_patch_training_export": bool(algorithm_repair_patch_training_manifest["all_ok"]),
+        "algorithm_repair_patch_policy_model": bool(algorithm_repair_patch_policy_manifest["all_ok"]),
     }
     benchmark_cache_gate_names = (
         "research_benchmark",
@@ -831,6 +838,23 @@ async def run_research_system_audit(
             "algorithm_repair_patch_training_promotion_ready": algorithm_repair_patch_training_manifest[
                 "n_promotion_ready"
             ],
+            "algorithm_repair_patch_policy_train": algorithm_repair_patch_policy_manifest["n_train"],
+            "algorithm_repair_patch_policy_validation": algorithm_repair_patch_policy_manifest[
+                "n_validation"
+            ],
+            "algorithm_repair_patch_policy_training_pairs": algorithm_repair_patch_policy_manifest[
+                "n_training_pairs"
+            ],
+            "algorithm_repair_patch_policy_features": algorithm_repair_patch_policy_manifest["n_features"],
+            "algorithm_repair_patch_policy_validation_safe_decision_accuracy": algorithm_repair_patch_policy_manifest[
+                "validation_safe_decision_accuracy"
+            ],
+            "algorithm_repair_patch_policy_validation_chose_gold": algorithm_repair_patch_policy_manifest[
+                "validation_chose_gold"
+            ],
+            "algorithm_repair_patch_policy_validation_rejected_unsafe": algorithm_repair_patch_policy_manifest[
+                "validation_rejected_unsafe"
+            ],
         },
         "questions": benchmark_manifest["questions"],
         "provenance": benchmark_manifest["provenance"],
@@ -1089,6 +1113,21 @@ async def run_research_system_audit(
                 out_dir
                 / "algorithm_repair_patch_training_export"
                 / "algorithm_repair_patch_validation.jsonl"
+            ),
+            "algorithm_repair_patch_policy_model": str(
+                out_dir
+                / "algorithm_repair_patch_policy_model"
+                / "algorithm_repair_patch_policy_model_manifest.json"
+            ),
+            "algorithm_repair_patch_policy_model_json": str(
+                out_dir
+                / "algorithm_repair_patch_policy_model"
+                / "algorithm_repair_patch_policy_model.json"
+            ),
+            "algorithm_repair_patch_policy_validation_predictions": str(
+                out_dir
+                / "algorithm_repair_patch_policy_model"
+                / "algorithm_repair_patch_policy_validation_predictions.jsonl"
             ),
             "formal_gaps": str(out_dir / "research_benchmark" / "formal_gaps"),
         },

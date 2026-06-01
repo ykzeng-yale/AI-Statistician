@@ -8,6 +8,7 @@ from pathlib import Path
 from .algorithms import audit_algorithm_registry
 from .algorithm_repair_promotion import export_algorithm_repair_promotion_queue
 from .algorithm_repair_patch_training_export import export_algorithm_repair_patch_training_dataset
+from .algorithm_repair_patch_policy_model import train_algorithm_repair_patch_policy_model
 from .algorithm_repair_sandbox import evaluate_algorithm_repair_sandbox
 from .algorithm_repair_sandbox_apply import apply_algorithm_repair_sandbox_results
 from .algorithm_repair_sandbox_patch_eval import evaluate_algorithm_repair_sandbox_patches
@@ -1519,6 +1520,31 @@ def _algorithm_repair_patch_training_export(args: argparse.Namespace) -> int:
     return 0 if payload["all_ok"] else 1
 
 
+def _algorithm_repair_patch_policy_train(args: argparse.Namespace) -> int:
+    payload = train_algorithm_repair_patch_policy_model(
+        Path(args.train_jsonl),
+        Path(args.out),
+        validation_jsonl=Path(args.validation_jsonl) if args.validation_jsonl else None,
+        epochs=args.epochs,
+        learning_rate=args.learning_rate,
+        l2=args.l2,
+    )
+    print("\nAI Statistical Theory Lab Algorithm Repair Patch Policy Model")
+    print("=" * 72)
+    print(
+        f"train={payload['n_train']} validation={payload['n_validation']} "
+        f"pairs={payload['n_training_pairs']} features={payload['n_features']} "
+        f"val_safe_acc={payload['validation_safe_decision_accuracy']:.3f} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(f"model={Path(str(payload['model_json'])).resolve()}")
+    print(
+        f"manifest written to "
+        f"{(Path(args.out) / 'algorithm_repair_patch_policy_model_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
 async def _research_eval(args: argparse.Namespace) -> int:
     _load_dotenv(Path(args.env_file))
     questions = load_open_research_questions(Path(args.question_file))
@@ -2618,6 +2644,22 @@ def build_parser() -> argparse.ArgumentParser:
     )
     algorithm_repair_patch_training_export.add_argument("--validation-fraction", type=float, default=0.2)
     algorithm_repair_patch_training_export.set_defaults(func=_algorithm_repair_patch_training_export)
+
+    algorithm_repair_patch_policy_train = sub.add_parser(
+        "algorithm-repair-patch-policy-train",
+        help="train a deterministic promotion-safety policy baseline from patch-eval examples",
+    )
+    algorithm_repair_patch_policy_train.add_argument("--train-jsonl", required=True)
+    algorithm_repair_patch_policy_train.add_argument("--validation-jsonl")
+    algorithm_repair_patch_policy_train.add_argument(
+        "--out",
+        default="runs/algorithm_repair_patch_policy_model",
+        help="algorithm repair patch policy model output directory",
+    )
+    algorithm_repair_patch_policy_train.add_argument("--epochs", type=int, default=100)
+    algorithm_repair_patch_policy_train.add_argument("--learning-rate", type=float, default=0.15)
+    algorithm_repair_patch_policy_train.add_argument("--l2", type=float, default=0.001)
+    algorithm_repair_patch_policy_train.set_defaults(func=_algorithm_repair_patch_policy_train)
 
     research_eval = sub.add_parser(
         "research-eval",

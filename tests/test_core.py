@@ -10,6 +10,10 @@ from unittest.mock import patch
 
 from ai_statistician.algorithms import audit_algorithm_registry
 from ai_statistician.algorithm_repair_promotion import export_algorithm_repair_promotion_queue
+from ai_statistician.algorithm_repair_patch_policy_model import (
+    load_algorithm_repair_patch_policy_model,
+    train_algorithm_repair_patch_policy_model,
+)
 from ai_statistician.algorithm_repair_patch_training_export import export_algorithm_repair_patch_training_dataset
 from ai_statistician.algorithm_repair_sandbox import evaluate_algorithm_repair_sandbox
 from ai_statistician.algorithm_repair_sandbox_apply import apply_algorithm_repair_sandbox_results
@@ -5833,6 +5837,79 @@ class SystemTests(unittest.TestCase):
         self.assertFalse(completion["promotion_ready"])
         self.assertIn("reviewed source commit", completion["required_next_gate"])
 
+    def test_algorithm_repair_patch_policy_model_rejects_unsafe_promotion(self) -> None:
+        training_dir = Path("runs/test_algorithm_repair_patch_policy_training_input")
+        training_dir.mkdir(parents=True, exist_ok=True)
+        example = {
+            "schema_version": 1,
+            "example_id": "algorithm_repair_patch_training:test",
+            "split": "train",
+            "task": "algorithm_repair_patch_promotion_policy",
+            "prompt": "\n".join(
+                [
+                    "Patch evaluation context:",
+                    json.dumps(
+                        {
+                            "algorithm_id": "oracle_aipw",
+                            "target_procedure": "oracle_aipw_ate",
+                            "comparison_status": "ISOLATED_PATCH_EXECUTED_NO_NUMERICAL_DELTA",
+                            "production_patch_applied": False,
+                            "promotion_ready": False,
+                            "required_next_gate": "reviewed source commit plus full release audit",
+                        },
+                        sort_keys=True,
+                    ),
+                ]
+            ),
+            "completion": json.dumps(
+                {
+                    "decision": "hold_for_reviewed_production_commit",
+                    "production_patch_applied": False,
+                    "promotion_ready": False,
+                    "required_next_gate": "reviewed source commit plus full release audit",
+                },
+                sort_keys=True,
+            ),
+            "patch_eval_id": "algorithm_repair_sandbox_patch_eval:test",
+            "application_id": "algorithm_repair_sandbox_apply:test",
+            "candidate_id": "algorithm_repair_candidate:test",
+            "algorithm_id": "oracle_aipw",
+            "target_procedure": "oracle_aipw_ate",
+            "question_id": "q",
+            "problem_class": "semiparametric_causal_ate",
+            "comparison_status": "ISOLATED_PATCH_EXECUTED_NO_NUMERICAL_DELTA",
+            "required_next_gate": "reviewed source commit plus full release audit",
+            "production_patch_applied": False,
+            "promotion_ready": False,
+            "tags": ["algorithm_repair", "patch_eval", "oracle_aipw"],
+        }
+        train_path = training_dir / "algorithm_repair_patch_train.jsonl"
+        validation_path = training_dir / "algorithm_repair_patch_validation.jsonl"
+        train_path.write_text(json.dumps(example) + "\n", encoding="utf-8")
+        validation_path.write_text(json.dumps({**example, "split": "validation"}) + "\n", encoding="utf-8")
+        payload = train_algorithm_repair_patch_policy_model(
+            train_path,
+            Path("runs/test_algorithm_repair_patch_policy_model"),
+            validation_jsonl=validation_path,
+            epochs=40,
+        )
+        self.assertTrue(payload["all_ok"])
+        self.assertEqual(payload["n_train"], 1)
+        self.assertEqual(payload["n_validation"], 1)
+        self.assertEqual(payload["n_training_pairs"], 2)
+        self.assertEqual(payload["validation_chose_gold"], 1)
+        self.assertEqual(payload["validation_rejected_unsafe"], 1)
+        self.assertGreater(payload["n_features"], 0)
+        model = load_algorithm_repair_patch_policy_model(Path(payload["model_json"]))
+        self.assertTrue(model.feature_names)
+        rows = [
+            json.loads(line)
+            for line in Path(payload["validation_predictions_jsonl"]).read_text(encoding="utf-8").splitlines()
+        ]
+        self.assertEqual(rows[0]["predicted_decision"], "hold_for_reviewed_production_commit")
+        self.assertFalse(rows[0]["predicted_production_patch_applied"])
+        self.assertFalse(rows[0]["predicted_promotion_ready"])
+
     def test_research_loop_default_proof_engineer_bridges_formal_gap(self) -> None:
         question = load_open_research_questions(Path("examples/research_questions.json"))[0]
         problem = ProblemFormalizer().formalize(question)
@@ -6232,6 +6309,7 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(payload["gates"]["algorithm_repair_sandbox_rerun"])
         self.assertTrue(payload["gates"]["algorithm_repair_sandbox_patch_eval"])
         self.assertTrue(payload["gates"]["algorithm_repair_patch_training_export"])
+        self.assertTrue(payload["gates"]["algorithm_repair_patch_policy_model"])
         self.assertEqual(payload["counts"]["questions"], 10)
         self.assertEqual(payload["counts"]["frontier_questions"], 60)
         self.assertEqual(payload["counts"]["frontier_supported"], 60)
@@ -6327,6 +6405,20 @@ class SystemTests(unittest.TestCase):
         )
         self.assertEqual(payload["counts"]["algorithm_repair_patch_training_production_patches"], 0)
         self.assertEqual(payload["counts"]["algorithm_repair_patch_training_promotion_ready"], 0)
+        self.assertEqual(
+            payload["counts"]["algorithm_repair_patch_policy_train"],
+            payload["counts"]["algorithm_repair_patch_training_train"],
+        )
+        self.assertEqual(
+            payload["counts"]["algorithm_repair_patch_policy_validation"],
+            payload["counts"]["algorithm_repair_patch_training_validation"],
+        )
+        self.assertGreater(payload["counts"]["algorithm_repair_patch_policy_features"], 0)
+        self.assertGreaterEqual(payload["counts"]["algorithm_repair_patch_policy_training_pairs"], 0)
+        self.assertGreaterEqual(
+            payload["counts"]["algorithm_repair_patch_policy_validation_safe_decision_accuracy"],
+            0.0,
+        )
         self.assertEqual(
             payload["counts"]["frontier_theory_targets_scored"],
             payload["counts"]["frontier_theory_targets_total"],
@@ -6524,6 +6616,9 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(Path(payload["artifacts"]["algorithm_repair_patch_training_export"]).exists())
         self.assertTrue(Path(payload["artifacts"]["algorithm_repair_patch_training_train"]).exists())
         self.assertTrue(Path(payload["artifacts"]["algorithm_repair_patch_training_validation"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["algorithm_repair_patch_policy_model"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["algorithm_repair_patch_policy_model_json"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["algorithm_repair_patch_policy_validation_predictions"]).exists())
 
 
 if __name__ == "__main__":
