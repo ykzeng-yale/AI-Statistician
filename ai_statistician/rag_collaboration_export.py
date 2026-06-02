@@ -44,6 +44,8 @@ def export_rag_collaboration_manifest(
     )
     primitive_payload = _read_json(_artifact_path(artifacts, "primitive_source_coverage", run_dir))
     expansion_payload = _read_json(_artifact_path(artifacts, "proof_bank_expansion", run_dir))
+    theorem_composition_path = _artifact_path(artifacts, "theorem_composition", run_dir)
+    theorem_composition_payload = _read_json(theorem_composition_path)
     guidance_payload = _read_json(_artifact_path(artifacts, "evaluation_benchmark_guidance", run_dir))
 
     target_rows = _handoff_targets(
@@ -51,6 +53,43 @@ def export_rag_collaboration_manifest(
         expansion_payload.get("candidates", []),
         max_targets=max_targets,
     )
+    theorem_composition_handoff = {
+        "theorem_composition_packets": counts.get(
+            "theorem_composition_packets",
+            theorem_composition_payload.get("n_packets"),
+        ),
+        "theorem_composition_packets_ok": counts.get(
+            "theorem_composition_packets_ok",
+            theorem_composition_payload.get("n_ok"),
+        ),
+        "theorem_composition_exact_proof_bank_links": counts.get(
+            "theorem_composition_exact_proof_bank_links",
+            theorem_composition_payload.get("n_exact_proof_bank_links"),
+        ),
+        "theorem_composition_unresolved_primitives": counts.get(
+            "theorem_composition_unresolved_primitives",
+            theorem_composition_payload.get("n_unresolved_primitives"),
+        ),
+        "theorem_composition_packets_with_unresolved_primitives": counts.get(
+            "theorem_composition_packets_with_unresolved_primitives",
+            theorem_composition_payload.get("n_packets_with_unresolved_primitives"),
+        ),
+        "theorem_composition_ready_for_exact_reuse": counts.get(
+            "theorem_composition_ready_for_exact_reuse",
+            theorem_composition_payload.get("n_ready_for_exact_reuse_composition"),
+        ),
+        "theorem_composition_manifest": str(theorem_composition_path),
+        "packet_preview": _theorem_composition_packet_preview(
+            theorem_composition_payload,
+            max_packets=min(max_targets, 10),
+        ),
+        "proof_evidence_boundary": (
+            "Theorem-composition packets are coordination plans. Exact proof-bank obligations "
+            "are Lean proof evidence only for their registered subclaims; the enclosing "
+            "frontier theorem remains a FORMAL_GAP until a non-placeholder composed proof "
+            "passes AXLE/local Lean verify_proof."
+        ),
+    }
     payload: dict[str, object] = {
         "schema_version": RAG_COLLABORATION_EXPORT_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -167,6 +206,7 @@ def export_rag_collaboration_manifest(
                 _artifact_path(artifacts, "primitive_source_coverage", run_dir)
             ),
         },
+        "theorem_composition_handoff": theorem_composition_handoff,
         "evaluation_guidance": {
             "top_actions": guidance_payload.get("top_actions", []),
             "saturated_or_capacity_gap_suites": guidance_payload.get(
@@ -202,6 +242,7 @@ def export_rag_collaboration_manifest(
             "proof_evidence": payload["proof_evidence"],
             "rag_provider_evidence": payload["rag_provider_evidence"],
             "formal_capacity_queue": payload["formal_capacity_queue"],
+            "theorem_composition_handoff": payload["theorem_composition_handoff"],
         }
     )
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -282,6 +323,36 @@ def _lean_rag_seed_lanes(payload: dict[str, Any]) -> list[str]:
     return []
 
 
+def _theorem_composition_packet_preview(
+    payload: dict[str, Any],
+    *,
+    max_packets: int,
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    packets = payload.get("packets", [])
+    if not isinstance(packets, list):
+        return rows
+    for packet in packets[:max_packets]:
+        if not isinstance(packet, dict):
+            continue
+        rows.append(
+            {
+                "packet_id": packet.get("packet_id"),
+                "source_claim_id": packet.get("source_claim_id"),
+                "question_id": packet.get("question_id"),
+                "problem_class": packet.get("problem_class"),
+                "status": packet.get("status"),
+                "exact_proof_bank_obligations": packet.get("exact_proof_bank_obligations", []),
+                "unresolved_primitives": packet.get("unresolved_primitives", []),
+                "formal_source_hits": packet.get("formal_source_hits", [])[:5],
+                "required_gate": packet.get("required_gate", ""),
+                "proof_evidence_boundary": packet.get("proof_evidence_boundary", ""),
+                "evidence_paths": packet.get("evidence_paths", []),
+            }
+        )
+    return rows
+
+
 def _action_priority(action_class: str) -> int:
     return {
         "add_minimal_wrapper": 0,
@@ -308,6 +379,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
     proof = dict(payload.get("proof_evidence", {}) or {})
     rag = dict(payload.get("rag_provider_evidence", {}) or {})
     queue = dict(payload.get("formal_capacity_queue", {}) or {})
+    composition = dict(payload.get("theorem_composition_handoff", {}) or {})
     lines = [
         "# RAG Collaboration Handoff",
         "",
@@ -323,6 +395,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Combined retrieval recall/MRR: `{rag.get('formal_source_retrieval_all_recall_at_k')}` / `{rag.get('formal_source_retrieval_all_mrr')}`",
         f"- Missing primitives: `{queue.get('missing_formal_primitives')}`",
         f"- Queue: exact_reuse=`{queue.get('reuse_exact_proof_bank_obligation')}`, compose=`{queue.get('compose_existing_bridge_chain')}`, minimal_wrapper=`{queue.get('add_minimal_wrapper')}`, design_bridge=`{queue.get('design_bridge_lemma')}`",
+        f"- Theorem composition packets: `{composition.get('theorem_composition_packets')}` "
+        f"(exact links `{composition.get('theorem_composition_exact_proof_bank_links')}`, "
+        f"unresolved primitives `{composition.get('theorem_composition_unresolved_primitives')}`)",
         "",
         "## Handoff Targets",
         "",
@@ -335,6 +410,20 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{target.get('suggested_next_step')}"
         )
         lines.append(f"  query: `{target.get('query_hint')}`")
+    lines.extend(["", "## Theorem Composition Handoff", ""])
+    lines.append(str(composition.get("proof_evidence_boundary", "")))
+    lines.append("")
+    for packet in composition.get("packet_preview", []):
+        if not isinstance(packet, dict):
+            continue
+        obligations = ", ".join(
+            f"`{item}`" for item in packet.get("exact_proof_bank_obligations", [])
+        ) or "none"
+        unresolved = ", ".join(f"`{item}`" for item in packet.get("unresolved_primitives", [])) or "none"
+        lines.append(f"- `{packet.get('packet_id')}` from `{packet.get('source_claim_id')}`")
+        lines.append(f"  exact obligations: {obligations}")
+        lines.append(f"  unresolved primitives: {unresolved}")
+        lines.append(f"  gate: {packet.get('required_gate')}")
     lines.extend(["", "## Honesty Boundary", ""])
     for item in payload.get("honesty_boundaries", []):
         lines.append(f"- {item}")

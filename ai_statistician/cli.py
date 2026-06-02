@@ -1188,6 +1188,7 @@ def _rag_collaboration_export(args: argparse.Namespace) -> int:
     proof = payload["proof_evidence"]
     rag = payload["rag_provider_evidence"]
     queue = payload["formal_capacity_queue"]
+    composition = payload.get("theorem_composition_handoff", {})
     print("\nAI Statistical Theory Lab RAG Collaboration Handoff")
     print("=" * 72)
     print(
@@ -1200,6 +1201,11 @@ def _rag_collaboration_export(args: argparse.Namespace) -> int:
         f"compose={queue['compose_existing_bridge_chain']} "
         f"minimal_wrapper={queue['add_minimal_wrapper']} "
         f"design_bridge={queue['design_bridge_lemma']}"
+    )
+    print(
+        f"theorem composition packets={composition.get('theorem_composition_packets')} "
+        f"exact_links={composition.get('theorem_composition_exact_proof_bank_links')} "
+        f"unresolved={composition.get('theorem_composition_unresolved_primitives')}"
     )
     print(f"handoff targets={len(queue['handoff_targets'])}")
     print(

@@ -6427,6 +6427,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "proof_search_retrieval_ablation",
             "primitive_source_coverage",
             "proof_bank_expansion",
+            "theorem_composition",
             "evaluation_benchmark_guidance",
         ):
             (root / subdir).mkdir(parents=True, exist_ok=True)
@@ -6525,6 +6526,47 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             ),
             encoding="utf-8",
         )
+        (root / "theorem_composition" / "theorem_composition_manifest.json").write_text(
+            json.dumps(
+                {
+                    "n_packets": 1,
+                    "n_ok": 1,
+                    "n_exact_proof_bank_links": 2,
+                    "n_unresolved_primitives": 3,
+                    "n_packets_with_unresolved_primitives": 1,
+                    "n_ready_for_exact_reuse_composition": 0,
+                    "packets": [
+                        {
+                            "packet_id": "theorem_composition:test",
+                            "source_claim_id": "formal:causal:identification",
+                            "question_id": "causal_ate_aipw",
+                            "problem_class": "semiparametric_causal_ate",
+                            "status": "PARTIAL_EXACT_REUSE_READY",
+                            "exact_proof_bank_obligations": [
+                                "potential_outcome_consistency",
+                                "integrability_of_score_terms",
+                            ],
+                            "unresolved_primitives": [
+                                "conditional_expectation",
+                                "positivity",
+                                "iterated_expectation",
+                            ],
+                            "formal_source_hits": ["StatInference.Causal.bridge"],
+                            "required_gate": (
+                                "non-placeholder theorem composition passes AXLE/local Lean "
+                                "verify_proof"
+                            ),
+                            "proof_evidence_boundary": (
+                                "This packet is a composition plan, not proof evidence for the "
+                                "full theorem."
+                            ),
+                            "evidence_paths": ["runs/test/formal_gap.lean"],
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
         (root / "evaluation_benchmark_guidance" / "evaluation_benchmark_guidance_manifest.json").write_text(
             json.dumps({"top_actions": [{"rank": 1, "action": "improve RAG"}]}),
             encoding="utf-8",
@@ -6566,6 +6608,12 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                         "proof_bank_expansion_design_bridge_lemma": 44,
                         "proof_bank_expansion_design_from_first_principles": 0,
                         "primitive_source_coverage_external_supported": 53,
+                        "theorem_composition_packets": 1,
+                        "theorem_composition_packets_ok": 1,
+                        "theorem_composition_exact_proof_bank_links": 2,
+                        "theorem_composition_unresolved_primitives": 3,
+                        "theorem_composition_packets_with_unresolved_primitives": 1,
+                        "theorem_composition_ready_for_exact_reuse": 0,
                     },
                     "artifacts": {
                         "proof_audit": str(root / "proof_audit" / "proof_audit_manifest.json"),
@@ -6605,6 +6653,9 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                         "proof_bank_expansion": str(
                             root / "proof_bank_expansion" / "proof_bank_expansion_manifest.json"
                         ),
+                        "theorem_composition": str(
+                            root / "theorem_composition" / "theorem_composition_manifest.json"
+                        ),
                         "evaluation_benchmark_guidance": str(
                             root
                             / "evaluation_benchmark_guidance"
@@ -6639,9 +6690,20 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertEqual(len(targets), 1)
         self.assertEqual(targets[0]["primitive"], "hard_primitive")
         self.assertIn("product_limit_delta_method_bridge", targets[0]["query_hint"])
+        composition = payload["theorem_composition_handoff"]
+        self.assertEqual(composition["theorem_composition_packets"], 1)
+        self.assertEqual(composition["theorem_composition_exact_proof_bank_links"], 2)
+        self.assertEqual(composition["theorem_composition_unresolved_primitives"], 3)
+        self.assertEqual(len(composition["packet_preview"]), 1)
+        self.assertEqual(
+            composition["packet_preview"][0]["exact_proof_bank_obligations"][0],
+            "potential_outcome_consistency",
+        )
+        self.assertIn("coordination plans", composition["proof_evidence_boundary"])
         self.assertIn("RAG hits are retrieval evidence only", " ".join(payload["honesty_boundaries"]))
         self.assertTrue((out / "rag_collaboration_manifest.json").exists())
         self.assertTrue((out / "rag_collaboration.md").exists())
+        self.assertIn("Theorem Composition Handoff", (out / "rag_collaboration.md").read_text())
 
     def test_research_training_export_writes_agent_sft_and_grpo_data(self) -> None:
         async def run():
