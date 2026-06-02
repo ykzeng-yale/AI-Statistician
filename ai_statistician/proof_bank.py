@@ -3136,6 +3136,67 @@ theorem aipwScore_expectation_eq_target_of_aug_cancel {Ω : Type*} [MeasurableSp
         expected_lemmas=("integral_add", "integral_sub", "ring"),
         depends_on=("aipw_score_expectation_decompose",),
     ),
+    "conditional_mean_residual_zero": FormalObligation(
+        id="conditional_mean_residual_zero",
+        title="Conditional-mean residual zero primitive wrapper",
+        english=(
+            "If the conditional expectation of an integrable outcome given a "
+            "score sigma-field is almost everywhere equal to a supplied "
+            "score-space version, then the centered residual outcome minus "
+            "that version has population integral zero. This names the "
+            "`conditional_mean_residual_zero` frontier primitive directly for "
+            "AIPW and exogeneity theorem skeletons; it does not prove nuisance "
+            "correctness, conditional exchangeability, or double robustness."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+open scoped MeasureTheory
+
+theorem conditionalMeanResidualZero_of_condExp_ae_eq
+    {Ω : Type*} [mΩ : MeasurableSpace Ω]
+    (scoreSigma : MeasurableSpace Ω)
+    (μ : Measure[mΩ] Ω)
+    (hsub : scoreSigma ≤ mΩ) [SigmaFinite (μ.trim hsub)]
+    (outcome scoreVersion : Ω → ℝ)
+    (houtcome : Integrable outcome μ)
+    (hscore : Integrable scoreVersion μ)
+    (hcond : μ[outcome | scoreSigma] =ᵐ[μ] scoreVersion) :
+    ∫ ω, (outcome ω - scoreVersion ω) ∂μ = 0 := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  have hmean : ∫ ω, outcome ω ∂μ = ∫ ω, scoreVersion ω ∂μ := by\n"
+            "    rw [← integral_condExp\n"
+            "      (m := scoreSigma) (m₀ := mΩ) (μ := μ) (f := outcome)\n"
+            "      hsub]\n"
+            "    exact integral_congr_ae hcond\n"
+            "  rw [integral_sub houtcome hscore]\n"
+            "  rw [hmean]\n"
+            "  simp"
+        ),
+        tags=(
+            "estimator",
+            "expectation",
+            "conditional_expectation",
+            "linearity",
+            "residual",
+            "zero_residual",
+            "aipw",
+            "causal",
+            "semiparametric",
+            "double_robustness",
+            "conditional_mean_residual_zero",
+            "exogeneity_moment_condition",
+            "nuisance_correctness_cases",
+            "orthogonal_score",
+            "direct_primitive_wrapper",
+        ),
+        expected_lemmas=("integral_condExp", "integral_congr_ae", "integral_sub"),
+        depends_on=("conditional_mean_residual_zero_of_condExp_ae_eq",),
+    ),
     "conditional_mean_residual_zero_of_mean_eq": FormalObligation(
         id="conditional_mean_residual_zero_of_mean_eq",
         title="Residual mean is zero when centered at its expectation",

@@ -1649,6 +1649,20 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("conditional_mean_residual_zero", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_conditional_mean_residual_zero_direct_wrapper_closes_named_primitive(self) -> None:
+        obligation = get_obligation("conditional_mean_residual_zero")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("conditional_mean_residual_zero_of_condExp_ae_eq",))
+        self.assertIn("theorem conditionalMeanResidualZero_of_condExp_ae_eq", content)
+        self.assertIn("hcond : μ[outcome | scoreSigma] =ᵐ[μ] scoreVersion", content)
+        self.assertIn("∫ ω, (outcome ω - scoreVersion ω) ∂μ = 0", content)
+        self.assertIn("integral_condExp", content)
+        self.assertIn("integral_congr_ae", content)
+        self.assertIn("integral_sub", content)
+        self.assertIn("conditional_mean_residual_zero", obligation.tags)
+        self.assertIn("direct_primitive_wrapper", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_conditional_mean_residual_zero_bridge_centers_mean(self) -> None:
         obligation = get_obligation("conditional_mean_residual_zero_of_mean_eq")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
@@ -4399,6 +4413,7 @@ class SystemTests(unittest.TestCase):
                 "integrable_l1_tendsto_condexp_filtration",
                 "integrable_ae_tendsto_condexp_filtration",
                 "condexp_integral_eq_integral_real",
+                "conditional_mean_residual_zero",
                 "conditional_mean_residual_zero_of_condExp_ae_eq",
                 "conditional_mean_residual_zero_of_mean_eq",
                 "aipw_score_expectation_target_of_zero_aug",
@@ -5545,7 +5560,11 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "potential_outcome_observed_consistency",
             rows["potential_outcome_consistency"]["bridge_candidate_obligations"],
         )
-        self.assertEqual(rows["potential_outcome_consistency"]["priority_band"], "BRIDGE_REUSE_READY")
+        self.assertEqual(rows["potential_outcome_consistency"]["priority_band"], "EXACT_PROOF_BANK_REUSE")
+        self.assertEqual(
+            rows["potential_outcome_consistency"]["exact_proof_bank_obligation"],
+            "potential_outcome_consistency",
+        )
         self.assertIn(
             "propensity_score_ne_zero_of_lower_bound",
             rows["positivity"]["bridge_candidate_obligations"],
@@ -5560,6 +5579,71 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             rows["propensity_weight_identity"]["bridge_candidate_obligations"],
         )
         self.assertEqual(rows["propensity_weight_identity"]["priority_band"], "BRIDGE_REUSE_READY")
+
+    def test_formalization_target_audit_reuses_conditional_mean_residual_zero_exact_wrapper(self) -> None:
+        run_dir = Path("runs/test_formalization_target_conditional_residual_run")
+        out_dir = Path("runs/test_formalization_target_conditional_residual_audit")
+        shutil.rmtree(run_dir, ignore_errors=True)
+        shutil.rmtree(out_dir, ignore_errors=True)
+        gap_dir = run_dir / "formal_gaps"
+        gap_dir.mkdir(parents=True, exist_ok=True)
+        gap_path = gap_dir / "aipw_double_robustness.lean"
+        gap_path.write_text("FORMAL_GAP conditional_mean_residual_zero", encoding="utf-8")
+        (run_dir / "research_benchmark_manifest.json").write_text(
+            json.dumps({"questions": [{"question": "q_aipw", "formal": {"gaps": 1}}]}),
+            encoding="utf-8",
+        )
+        trace = {
+            "question": {"id": "q_aipw"},
+            "problem": {"problem_class": "semiparametric_causal_ate"},
+            "procedures": [],
+            "knowledge": [{"id": "aipw_double_robustness"}],
+            "theorem_goals": [
+                {
+                    "id": "aipw_double_robustness",
+                    "title": "AIPW double robustness",
+                    "proof_strategy": "Cancel conditional mean residuals.",
+                    "required_primitives": ["conditional_mean_residual_zero"],
+                    "proof_obligations": [
+                        "conditional_mean_residual_zero",
+                        "conditional_mean_residual_zero_of_condExp_ae_eq",
+                    ],
+                },
+            ],
+            "formal_subclaims": [
+                {"status": "PROVED", "proof_obligation_id": "conditional_mean_residual_zero"},
+                {
+                    "status": "PROVED",
+                    "proof_obligation_id": "conditional_mean_residual_zero_of_condExp_ae_eq",
+                },
+                {
+                    "id": "gap:aipw_double_robustness",
+                    "status": "FORMAL_GAP",
+                    "claim_type": "theory_gap",
+                    "gap_reason": "full double-robustness interface still missing",
+                    "artifact_path": str(gap_path),
+                    "lean_statement": gap_path.read_text(encoding="utf-8"),
+                    "formal_source_hits": [{"name": "StatInference.Matching.WDSM.residual"}],
+                    "primitive_formal_source_hits": {
+                        "conditional_mean_residual_zero": [
+                            {"name": "StatInference.Matching.WDSM.residual"}
+                        ]
+                    },
+                },
+            ],
+        }
+        (run_dir / "q_aipw.json").write_text(json.dumps(trace), encoding="utf-8")
+
+        payload = audit_formalization_targets(run_dir, out_dir)
+        rows = {row["primitive"]: row for row in payload["rows"]}
+        row = rows["conditional_mean_residual_zero"]
+        self.assertEqual(row["priority_band"], "EXACT_PROOF_BANK_REUSE")
+        self.assertEqual(row["exact_proof_bank_obligation"], "conditional_mean_residual_zero")
+        self.assertTrue(row["proof_bank_exact_match_available"])
+        self.assertIn(
+            "conditional_mean_residual_zero_of_condExp_ae_eq",
+            row["bridge_candidate_obligations"],
+        )
 
     def test_formalization_target_audit_maps_design_based_primitives_to_verified_bridge(self) -> None:
         run_dir = Path("runs/test_formalization_target_design_based_run")
@@ -8156,7 +8240,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(action["repair_contract_ok"])
         self.assertEqual(
             action["repair_artifact"]["proof_obligation_id"],
-            "conditional_mean_residual_zero_of_condExp_ae_eq",
+            "conditional_mean_residual_zero",
         )
         self.assertIn("lean_statement", action["repair_artifact"])
         self.assertEqual(
