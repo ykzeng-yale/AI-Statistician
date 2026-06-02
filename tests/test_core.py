@@ -1402,6 +1402,19 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("design_based", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_finite_population_potential_outcomes_direct_wrapper_reuses_mean_difference(self) -> None:
+        obligation = get_obligation("finite_population_potential_outcomes")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("finite_population_ate_mean_difference",))
+        self.assertIn("def finitePopulationMean", content)
+        self.assertIn("theorem finitePopulationPotentialOutcomes_mean_difference", content)
+        self.assertIn("finitePopulationMean (fun i => Y1 i - Y0 i)", content)
+        self.assertIn("finitePopulationMean Y1 - finitePopulationMean Y0", content)
+        self.assertIn("Finset.sum_sub_distrib", content)
+        self.assertIn("finite_population_potential_outcomes", obligation.tags)
+        self.assertIn("direct_primitive_wrapper", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_potential_outcome_observed_consistency_uses_if_simp(self) -> None:
         obligation = get_obligation("potential_outcome_observed_consistency")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
@@ -1480,6 +1493,19 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("PMF.uniformOfFintype_apply", content)
         self.assertIn("complete_randomization_distribution", obligation.tags)
         self.assertIn("design_based", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
+    def test_complete_randomization_distribution_direct_wrapper_uses_uniform_pmf(self) -> None:
+        obligation = get_obligation("complete_randomization_distribution")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("complete_randomization_uniform_assignment_mass",))
+        self.assertIn("def completeRandomizationDistribution", content)
+        self.assertIn("theorem completeRandomizationDistribution_uniform_mass", content)
+        self.assertIn("completeRandomizationDistribution Assignment a", content)
+        self.assertIn("(Fintype.card Assignment : ENNReal)⁻¹", content)
+        self.assertIn("PMF.uniformOfFintype_apply", content)
+        self.assertIn("complete_randomization_distribution", obligation.tags)
+        self.assertIn("direct_primitive_wrapper", obligation.tags)
         self.assertNotIn("by sorry", content)
 
     def test_uniform_rank_pmf_mass_uses_mathlib_uniform_rank_distribution(self) -> None:
@@ -3766,7 +3792,7 @@ class SystemTests(unittest.TestCase):
         self.assertIn("S7_feedback_loop_repair_with_seeded_failures", payload["recommended_next_gate_stack"])
 
         doc = Path("docs/evaluation_benchmark_strategy.md").read_text(encoding="utf-8")
-        self.assertIn("`proofs_kernel_verified=95/95`", doc)
+        self.assertIn("`proofs_kernel_verified=97/97`", doc)
         self.assertIn("expected-result coverage about 82.8%", doc)
         self.assertIn("46 frontier-evaluation triage items", doc)
         self.assertIn("resolves 13/16 simulation flags", doc)
@@ -4796,7 +4822,9 @@ class SystemTests(unittest.TestCase):
             encoding="utf-8",
         )
         proof_obligations = (
+            "finite_population_potential_outcomes",
             "finite_population_ate_mean_difference",
+            "complete_randomization_distribution",
             "complete_randomization_uniform_assignment_mass",
             "finite_sample_mean_unbiased",
             "difference_estimator_unbiased",
@@ -4848,8 +4876,16 @@ class SystemTests(unittest.TestCase):
         payload = audit_formalization_targets(run_dir, out_dir)
         rows = {row["primitive"]: row for row in payload["rows"]}
         self.assertIn(
+            "finite_population_potential_outcomes",
+            rows["finite_population_potential_outcomes"]["bridge_candidate_obligations"],
+        )
+        self.assertIn(
             "finite_population_ate_mean_difference",
             rows["finite_population_potential_outcomes"]["bridge_candidate_obligations"],
+        )
+        self.assertIn(
+            "complete_randomization_distribution",
+            rows["complete_randomization_distribution"]["bridge_candidate_obligations"],
         )
         self.assertIn(
             "complete_randomization_uniform_assignment_mass",

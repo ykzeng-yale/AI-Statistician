@@ -3676,7 +3676,9 @@ class TheoryPlanner:
                         "neyman_bound_nonnegative_treatment_effect_variance",
                     ),
                     proof_obligations=(
+                        "finite_population_potential_outcomes",
                         "finite_population_ate_mean_difference",
+                        "complete_randomization_distribution",
                         "complete_randomization_uniform_assignment_mass",
                         "finite_sample_mean_unbiased",
                         "difference_estimator_unbiased",
@@ -4941,7 +4943,9 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "prob_compl",
     ),
     "design_based_variance_inference": (
+        "finite_population_potential_outcomes",
         "finite_population_ate_mean_difference",
+        "complete_randomization_distribution",
         "complete_randomization_uniform_assignment_mass",
         "mean2_estimator_expectation",
         "mean2_estimator_unbiased",

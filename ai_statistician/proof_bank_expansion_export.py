@@ -168,7 +168,7 @@ def _candidate_for_target(
     declaration = _extract_declaration_name(statement) or f"{_safe_identifier(primitive)}_bridge"
     expected_premises = _expected_premises(target, candidate_declarations, bridge_candidates)
     blocked_reasons = _blocked_reasons(statement, target, matching_tasks)
-    action_class = _proposal_action_class(bridge_candidates, candidate_declarations)
+    action_class = _proposal_action_class(primitive, bridge_candidates, candidate_declarations)
     errors: list[str] = []
     if not primitive:
         errors.append("missing primitive")
@@ -419,9 +419,12 @@ def _composition_plan_remaining_interface(row: ProofBankExpansionCandidate) -> t
 
 
 def _proposal_action_class(
+    primitive: str,
     bridge_candidates: tuple[str, ...],
     candidate_declarations: tuple[str, ...],
 ) -> str:
+    if primitive and primitive in bridge_candidates:
+        return "compose_existing_bridge_chain"
     if len(bridge_candidates) >= 3:
         return "compose_existing_bridge_chain"
     if bridge_candidates and candidate_declarations:

@@ -293,6 +293,7 @@ _PRIMITIVE_PROOF_BRIDGE_HINTS: dict[str, tuple[str, ...]] = {
         "finite_null_family_no_false_rejection_probability",
     ),
     "finite_population_potential_outcomes": (
+        "finite_population_potential_outcomes",
         "finite_population_ate_mean_difference",
     ),
     "potential_outcome_consistency": (
@@ -311,6 +312,7 @@ _PRIMITIVE_PROOF_BRIDGE_HINTS: dict[str, tuple[str, ...]] = {
         "propensity_score_ne_zero_of_lower_bound",
     ),
     "complete_randomization_distribution": (
+        "complete_randomization_distribution",
         "complete_randomization_uniform_assignment_mass",
     ),
     "difference_in_means_unbiasedness": (

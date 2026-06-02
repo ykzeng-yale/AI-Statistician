@@ -13,15 +13,15 @@ python3 -m ai_statistician.cli proof-audit \
 Result:
 
 ```text
-verified=95/95
-kernel=95/95
+verified=97/97
+kernel=97/97
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=2275ebc1e22928f9310764559b3083e6988195bae35c0dca78322caf015f95a7
+proof_bank_fingerprint=3ed10b5ba741e3d5a125c0d03c50f9da895d0f0d2ef4c20106e8d160c8e0f178
 ```
 
 This is the current evidence that the registered proof bank is not only
-mock-checked: all 95 registered Mathlib-backed obligations were accepted by a
+mock-checked: all 97 registered Mathlib-backed obligations were accepted by a
 real Lean kernel check through the local Lake/Mathlib runtime. AXLE remains the
 preferred remote verifier for release bundles when its Python package and API
 runtime are available; the local Lean backend is the offline kernel-equivalent
@@ -294,12 +294,24 @@ mean minus the control potential-outcome mean. This is a real verified target
 algebra bridge; it still does not prove complete-randomization assignment or
 randomization-unbiasedness of the observed difference-in-means estimator.
 
+It also includes the direct primitive wrapper
+`finite_population_potential_outcomes`, which proves the same finite-population
+potential-outcome contrast under a frontier-primitive name. This lets
+design-based theorem traces cite the primitive directly while still leaving the
+assignment mechanism and randomization variance argument as formal gaps.
+
 The design-based block also includes
 `complete_randomization_uniform_assignment_mass`. It proves that Mathlib's
 uniform PMF on a finite nonempty assignment space gives each assignment mass
 `1/card`. This is a real verified distribution bridge for complete-randomization
 traces; it still does not prove fixed-treated-count combinatorics,
 randomization-unbiasedness, or the design-based covariance formula.
+
+It also includes `complete_randomization_distribution`, a direct wrapper that
+defines the complete-randomization distribution as Mathlib's uniform finite PMF
+and proves the same point-mass formula. This closes the finite uniform-assignment
+primitive; it does not formalize balance constraints, fixed treated counts, or
+finite-population covariance formulas.
 
 The conformal-rank block now includes `uniform_rank_pmf_mass`. It proves that
 Mathlib's uniform PMF on a finite nonempty rank space `Fin n` gives each rank
@@ -344,7 +356,7 @@ The causal bridge block now also includes
 `propensity_weight_cancel_left_of_lower_bound`, the left-oriented companion
 identity `p * p⁻¹ = 1` under the same strict lower-bound assumption. This gives
 IPW/AIPW algebra both cancellation orientations without relying on ad hoc
-commutativity rewrites; it is kernel-verified as part of the current `95/95`
+commutativity rewrites; it is kernel-verified as part of the current `97/97`
 local Lean proof-bank audit and still does not prove positivity as a model
 assumption or close causal identification.
 

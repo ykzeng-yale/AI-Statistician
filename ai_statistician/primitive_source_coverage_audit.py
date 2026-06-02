@@ -157,7 +157,7 @@ def _classify_target(
         classification = "source_only_not_importable"
     else:
         classification = "no_source_found"
-    action_class = _action_class(classification, proof_bank_bridges, local_candidates, external_decls)
+    action_class = _action_class(primitive, classification, proof_bank_bridges, local_candidates, external_decls)
     errors: list[str] = []
     if not primitive:
         errors.append("missing primitive")
@@ -253,12 +253,15 @@ def _suggest_next_step(
 
 
 def _action_class(
+    primitive: str,
     classification: str,
     proof_bank_bridges: tuple[str, ...],
     local_candidates: tuple[str, ...],
     external_decls: tuple[str, ...],
 ) -> str:
     if classification == "direct_wrapper_possible":
+        if primitive and primitive in proof_bank_bridges:
+            return "compose_existing_bridge_chain"
         # Several verified bridge obligations already attached to a primitive
         # usually means the bottleneck is no longer lemma mining. The next
         # productive step is composing the frontier theorem skeleton without

@@ -276,6 +276,51 @@ theorem finitePopulationATE_mean_difference {n : Nat}
         expected_lemmas=("Finset.sum_sub_distrib", "ring"),
         depends_on=("difference_estimator_unbiased",),
     ),
+    "finite_population_potential_outcomes": FormalObligation(
+        id="finite_population_potential_outcomes",
+        title="Finite-population potential-outcome contrast wrapper",
+        english=(
+            "For finite-population potential outcomes Y(1) and Y(0), the "
+            "finite-population mean of unit-level treatment effects equals "
+            "the difference between the finite-population means of `Y(1)` and "
+            "`Y(0)`. This names the `finite_population_potential_outcomes` "
+            "frontier primitive directly for design-based traces; it does not "
+            "prove randomization, sampling-design validity, or Neyman variance "
+            "conservativeness."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+
+noncomputable def finitePopulationMean {n : Nat} (Y : Fin n → ℝ) : ℝ :=
+  (∑ i, Y i) / (n : ℝ)
+
+theorem finitePopulationPotentialOutcomes_mean_difference {n : Nat}
+    (Y1 Y0 : Fin n → ℝ) :
+    finitePopulationMean (fun i => Y1 i - Y0 i) =
+      finitePopulationMean Y1 - finitePopulationMean Y0 := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  simp [finitePopulationMean, Finset.sum_sub_distrib]\n"
+            "  ring"
+        ),
+        tags=(
+            "estimator",
+            "finite_population",
+            "potential_outcomes",
+            "finite_population_potential_outcomes",
+            "ate",
+            "difference_in_means",
+            "design_based",
+            "finite_sample",
+            "algebra",
+            "direct_primitive_wrapper",
+        ),
+        expected_lemmas=("Finset.sum_sub_distrib", "ring"),
+        depends_on=("finite_population_ate_mean_difference",),
+    ),
     "potential_outcome_observed_consistency": FormalObligation(
         id="potential_outcome_observed_consistency",
         title="Potential-outcome observed-outcome consistency",
@@ -523,6 +568,53 @@ theorem completeRandomization_uniform_assignment_mass
         ),
         expected_lemmas=("PMF.uniformOfFintype_apply",),
         depends_on=("finite_population_ate_mean_difference",),
+    ),
+    "complete_randomization_distribution": FormalObligation(
+        id="complete_randomization_distribution",
+        title="Complete-randomization distribution primitive wrapper",
+        english=(
+            "A complete-randomization assignment mechanism over a finite "
+            "nonempty assignment space is represented by Mathlib's uniform "
+            "finite PMF, so each assignment has mass equal to the inverse "
+            "cardinality of the assignment space. This gives the "
+            "`complete_randomization_distribution` primitive a direct "
+            "kernel-verified wrapper; it does not yet formalize fixed treated "
+            "counts, treatment-balance constraints, or covariance formulas."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+
+noncomputable def completeRandomizationDistribution
+    (Assignment : Type*) [Fintype Assignment] [Nonempty Assignment] :
+    PMF Assignment :=
+  PMF.uniformOfFintype Assignment
+
+theorem completeRandomizationDistribution_uniform_mass
+    (Assignment : Type*) [Fintype Assignment] [Nonempty Assignment]
+    (a : Assignment) :
+    completeRandomizationDistribution Assignment a =
+      (Fintype.card Assignment : ENNReal)⁻¹ := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  simpa [completeRandomizationDistribution] using\n"
+            "    (PMF.uniformOfFintype_apply a)"
+        ),
+        tags=(
+            "probability",
+            "pmf",
+            "uniform",
+            "complete_randomization",
+            "complete_randomization_distribution",
+            "assignment",
+            "design_based",
+            "finite_population",
+            "direct_primitive_wrapper",
+        ),
+        expected_lemmas=("PMF.uniformOfFintype_apply",),
+        depends_on=("complete_randomization_uniform_assignment_mass",),
     ),
     "uniform_rank_pmf_mass": FormalObligation(
         id="uniform_rank_pmf_mass",
