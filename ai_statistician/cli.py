@@ -85,6 +85,7 @@ from .questions import QUESTIONS, load_question_file
 from .retrieval import audit_proof_bank_retrieval
 from .system import AIStatisticianSystem, compact_summary, write_run_manifest, write_trace
 from .system_audit import SystemAuditConfig, load_audit_questions, run_system_audit
+from .theorem_composition_export import export_theorem_composition_packets
 from .theory_proposal import AnthropicTheoryProposer
 from .trace_audit import audit_run_traces
 from .verifier import AxleProofVerifier, LocalLeanProofVerifier, MockProofVerifier
@@ -1303,6 +1304,25 @@ def _claim_ledger_action_export(args: argparse.Namespace) -> int:
     )
     print(f"jsonl written to {(Path(args.out) / 'claim_ledger_actions.jsonl').resolve()}")
     print(f"markdown report written to {(Path(args.out) / 'claim_ledger_actions.md').resolve()}")
+    return 0 if payload["all_ok"] else 1
+
+
+def _theorem_composition_export(args: argparse.Namespace) -> int:
+    payload = export_theorem_composition_packets(Path(args.claim_ledger_dir), Path(args.out))
+    print("\nAI Statistical Theory Lab Theorem Composition Packets")
+    print("=" * 72)
+    print(
+        f"packets={payload['n_ok']}/{payload['n_packets']} "
+        f"exact_links={payload['n_exact_proof_bank_links']} "
+        f"unresolved_primitives={payload['n_unresolved_primitives']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\ntheorem-composition manifest written to "
+        f"{(Path(args.out) / 'theorem_composition_manifest.json').resolve()}"
+    )
+    print(f"jsonl written to {(Path(args.out) / 'theorem_composition_packets.jsonl').resolve()}")
+    print(f"markdown report written to {(Path(args.out) / 'theorem_composition.md').resolve()}")
     return 0 if payload["all_ok"] else 1
 
 
@@ -2942,6 +2962,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="claim-ledger action output directory",
     )
     claim_ledger_actions.set_defaults(func=_claim_ledger_action_export)
+
+    theorem_composition = sub.add_parser(
+        "theorem-composition-export",
+        help="export theorem-composition packets from claim-ledger exact proof-bank reuse rows",
+    )
+    theorem_composition.add_argument(
+        "--claim-ledger-dir",
+        required=True,
+        help="directory containing claim_ledger_manifest.json and claim_ledger.jsonl",
+    )
+    theorem_composition.add_argument(
+        "--out",
+        default="runs/theorem_composition",
+        help="theorem-composition packet output directory",
+    )
+    theorem_composition.set_defaults(func=_theorem_composition_export)
 
     doctor = sub.add_parser("doctor", help="inspect local readiness for proof, LLM, retrieval, and audit runs")
     doctor.add_argument("--root", default=".", help="project root to inspect")

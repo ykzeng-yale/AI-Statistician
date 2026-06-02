@@ -78,6 +78,7 @@ from .research_schema import OpenResearchQuestion
 from .research_trace_audit import audit_research_traces
 from .research_training_export import export_research_training_dataset
 from .retrieval import audit_proof_bank_retrieval
+from .theorem_composition_export import export_theorem_composition_packets
 from .verifier import AxleProofVerifier, CachingProofVerifier, LocalLeanProofVerifier, MockProofVerifier, ProofVerifier
 
 
@@ -462,6 +463,11 @@ async def run_research_system_audit(
         out_dir / "claim_ledger_actions",
     )
     stage_start = _record_stage(stage_timings, "claim_ledger_actions", stage_start)
+    theorem_composition_manifest = export_theorem_composition_packets(
+        out_dir / "claim_ledger",
+        out_dir / "theorem_composition",
+    )
+    stage_start = _record_stage(stage_timings, "theorem_composition_export", stage_start)
 
     research_loop_manifest = await run_research_loop_benchmark(
         questions[:1],
@@ -618,6 +624,7 @@ async def run_research_system_audit(
         "research_report": bool(research_report_manifest["all_ok"]),
         "claim_ledger": bool(claim_ledger_manifest["all_ok"]),
         "claim_ledger_actions": bool(claim_ledger_action_manifest["all_ok"]),
+        "theorem_composition_export": bool(theorem_composition_manifest["all_ok"]),
         "research_loop": bool(research_loop_manifest["all_loop_traces_written"])
         and bool(research_loop_manifest["all_repair_tasks_exported"])
         and bool(research_loop_manifest["all_live_repair_artifacts_exported"])
@@ -651,6 +658,7 @@ async def run_research_system_audit(
         "research_report",
         "claim_ledger",
         "claim_ledger_actions",
+        "theorem_composition_export",
     )
     if (
         benchmark_cache_info["enabled"]
@@ -1248,6 +1256,20 @@ async def run_research_system_audit(
                 "research_coordinator",
                 0,
             ),
+            "theorem_composition_packets": theorem_composition_manifest["n_packets"],
+            "theorem_composition_packets_ok": theorem_composition_manifest["n_ok"],
+            "theorem_composition_exact_proof_bank_links": theorem_composition_manifest[
+                "n_exact_proof_bank_links"
+            ],
+            "theorem_composition_unresolved_primitives": theorem_composition_manifest[
+                "n_unresolved_primitives"
+            ],
+            "theorem_composition_packets_with_unresolved_primitives": theorem_composition_manifest[
+                "n_packets_with_unresolved_primitives"
+            ],
+            "theorem_composition_ready_for_exact_reuse": theorem_composition_manifest[
+                "n_ready_for_exact_reuse_composition"
+            ],
             "research_loop_questions": research_loop_manifest["n_questions"],
             "research_loop_traces_written": research_loop_manifest["all_loop_traces_written"],
             "research_loop_repair_tasks_exported": research_loop_manifest["all_repair_tasks_exported"],
@@ -1662,6 +1684,13 @@ async def run_research_system_audit(
             ),
             "claim_ledger_actions_jsonl": str(out_dir / "claim_ledger_actions" / "claim_ledger_actions.jsonl"),
             "claim_ledger_actions_report": str(out_dir / "claim_ledger_actions" / "claim_ledger_actions.md"),
+            "theorem_composition": str(
+                out_dir / "theorem_composition" / "theorem_composition_manifest.json"
+            ),
+            "theorem_composition_jsonl": str(
+                out_dir / "theorem_composition" / "theorem_composition_packets.jsonl"
+            ),
+            "theorem_composition_report": str(out_dir / "theorem_composition" / "theorem_composition.md"),
             "research_loop": str(out_dir / "research_loop" / "research_loop_manifest.json"),
             "research_loop_repair_tasks": str(out_dir / "research_loop" / "research_loop_repair_tasks.jsonl"),
             "research_loop_live_repair_artifacts": str(

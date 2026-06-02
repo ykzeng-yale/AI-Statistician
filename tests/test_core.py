@@ -128,6 +128,7 @@ from ai_statistician.schema import FormalObligation, ProofCheck, RetrievalHit
 from ai_statistician.system import AIStatisticianSystem
 from ai_statistician.system import write_run_manifest, write_trace
 from ai_statistician.system_audit import SystemAuditConfig, load_audit_questions, run_system_audit
+from ai_statistician.theorem_composition_export import export_theorem_composition_packets
 from ai_statistician.theory_developer import DefaultTheoryDeveloper
 from ai_statistician.theory_proposal import MockTheoryProposer, TheoryProposal
 from ai_statistician.trace_audit import audit_run_traces
@@ -4858,6 +4859,74 @@ theorem exact_reuse_gap (h_frontier_missing : False) : True := by
             ("finite_population_potential_outcomes", "complete_randomization_distribution"),
         )
 
+    def test_theorem_composition_export_writes_exact_reuse_packets(self) -> None:
+        run_dir = Path("runs/test_theorem_composition_run")
+        ledger_dir = Path("runs/test_theorem_composition_ledger")
+        out_dir = Path("runs/test_theorem_composition")
+        shutil.rmtree(run_dir, ignore_errors=True)
+        shutil.rmtree(ledger_dir, ignore_errors=True)
+        shutil.rmtree(out_dir, ignore_errors=True)
+        run_dir.mkdir(parents=True, exist_ok=True)
+        (run_dir / "research_benchmark_manifest.json").write_text(
+            json.dumps({"questions": [{"question": "q_composition"}]}),
+            encoding="utf-8",
+        )
+        trace = {
+            "question": {"id": "q_composition", "title": "Composition packet"},
+            "problem": {"problem_class": "design_based_variance_inference", "dgp": "", "estimand": ""},
+            "procedures": [],
+            "theorem_goals": [],
+            "formal_subclaims": [
+                {
+                    "id": "q_composition:gap",
+                    "status": "FORMAL_GAP",
+                    "claim": "compose exact reuse with remaining primitive",
+                    "lean_statement": """
+import Mathlib
+
+/-!
+Missing formal primitives:
+- finite_population_potential_outcomes
+- complete_randomization_distribution
+- unresolved_randomization_variance
+
+Proof-bank support already linked:
+- finite_population_potential_outcomes
+- complete_randomization_distribution
+-/
+
+theorem composition_gap (h_frontier_missing : False) : True := by
+  trivial
+""",
+                    "formal_source_hits": [{"name": "StatInference.randomization"}],
+                    "artifact_path": "formal_gaps/composition_gap.lean",
+                }
+            ],
+            "simulations": [],
+            "theory_plan": {"next_iteration_agenda": {"items": []}},
+        }
+        (run_dir / "q_composition.json").write_text(json.dumps(trace), encoding="utf-8")
+        build_claim_ledger(run_dir, ledger_dir)
+
+        payload = export_theorem_composition_packets(ledger_dir, out_dir)
+
+        self.assertTrue(payload["all_ok"])
+        self.assertEqual(payload["n_packets"], 1)
+        self.assertEqual(payload["n_exact_proof_bank_links"], 2)
+        self.assertEqual(payload["n_unresolved_primitives"], 1)
+        packet = payload["packets"][0]
+        self.assertEqual(packet["status"], "PARTIAL_EXACT_REUSE_READY")
+        self.assertEqual(
+            tuple(packet["exact_proof_bank_obligations"]),
+            ("finite_population_potential_outcomes", "complete_randomization_distribution"),
+        )
+        self.assertEqual(tuple(packet["unresolved_primitives"]), ("unresolved_randomization_variance",))
+        self.assertIn("not proof evidence", packet["proof_evidence_boundary"])
+        self.assertIn("verify_proof", packet["required_gate"])
+        self.assertTrue(Path("runs/test_theorem_composition/theorem_composition_manifest.json").exists())
+        self.assertTrue(Path("runs/test_theorem_composition/theorem_composition_packets.jsonl").exists())
+        self.assertTrue(Path("runs/test_theorem_composition/theorem_composition.md").exists())
+
     def test_claim_ledger_action_export_turns_revision_rows_into_owner_tasks(self) -> None:
         async def run():
             questions = load_open_research_questions(Path("examples/research_questions.json"))[:2]
@@ -8448,6 +8517,7 @@ theorem exact_reuse_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["gates"]["research_report"])
         self.assertTrue(payload["gates"]["claim_ledger"])
         self.assertTrue(payload["gates"]["claim_ledger_actions"])
+        self.assertTrue(payload["gates"]["theorem_composition_export"])
         self.assertTrue(payload["gates"]["research_loop"])
         self.assertTrue(payload["gates"]["research_loop_repair_audit"])
         self.assertTrue(payload["gates"]["research_loop_live_repair_audit"])
@@ -8721,6 +8791,7 @@ theorem exact_reuse_gap (h_frontier_missing : False) : True := by
             "research_report",
             "claim_ledger",
             "claim_ledger_actions",
+            "theorem_composition_export",
         }:
             self.assertIn(expected_stage, timing_stages)
         self.assertEqual(payload["counts"]["audit_total_elapsed_ms"], payload["timings"]["total_elapsed_ms"])
@@ -8917,6 +8988,16 @@ theorem exact_reuse_gap (h_frontier_missing : False) : True := by
             payload["counts"]["claim_ledger_actions_research_coordinator"],
             payload["counts"]["claim_ledger_actions_exact_proof_bank_reuse"],
         )
+        self.assertEqual(payload["counts"]["theorem_composition_packets_ok"], payload["counts"]["theorem_composition_packets"])
+        self.assertEqual(
+            payload["counts"]["theorem_composition_packets"],
+            payload["counts"]["claim_ledger_actions_exact_proof_bank_reuse"],
+        )
+        self.assertEqual(
+            payload["counts"]["theorem_composition_exact_proof_bank_links"],
+            payload["counts"]["claim_ledger_exact_proof_bank_reuse_links"],
+        )
+        self.assertGreater(payload["counts"]["theorem_composition_unresolved_primitives"], 0)
         self.assertTrue(Path("runs/test_research_system_audit/research_system_audit_manifest.json").exists())
         self.assertTrue(Path(payload["artifacts"]["frontier_coverage_audit"]).exists())
         self.assertTrue(Path(payload["artifacts"]["frontier_precision_audit"]).exists())
@@ -8999,6 +9080,9 @@ theorem exact_reuse_gap (h_frontier_missing : False) : True := by
         self.assertTrue(Path(payload["artifacts"]["claim_ledger_actions"]).exists())
         self.assertTrue(Path(payload["artifacts"]["claim_ledger_actions_jsonl"]).exists())
         self.assertTrue(Path(payload["artifacts"]["claim_ledger_actions_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["theorem_composition"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["theorem_composition_jsonl"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["theorem_composition_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["algorithm_repair_promotion"]).exists())
         self.assertTrue(Path(payload["artifacts"]["algorithm_repair_promotion_queue"]).exists())
         self.assertTrue(Path(payload["artifacts"]["algorithm_repair_sandbox"]).exists())
