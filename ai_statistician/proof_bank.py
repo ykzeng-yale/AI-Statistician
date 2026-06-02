@@ -244,6 +244,53 @@ theorem randomizationVariance_decomposition_bridge {Ω : Type*}
         expected_lemmas=("variance_fun_sub", "variance_sub"),
         depends_on=("difference_estimator_variance_decompose",),
     ),
+    "randomization_variance_decomposition": FormalObligation(
+        id="randomization_variance_decomposition",
+        title="Randomization variance decomposition primitive wrapper",
+        english=(
+            "For two L2 potential-outcome or estimator functions Y1 and Y0 on "
+            "a probability space, the variance of the contrast Y1-Y0 decomposes "
+            "as Var(Y1)-2*Cov(Y1,Y0)+Var(Y0). This names the "
+            "`randomization_variance_decomposition` frontier primitive directly "
+            "for design-based theorem skeletons; it proves only the reusable "
+            "second-moment algebra, not complete-randomization assignment "
+            "uniformity or finite-population variance identification."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+noncomputable def randomizationContrastEstimator {Ω : Type*}
+    (Y1 Y0 : Ω → ℝ) : Ω → ℝ :=
+  Y1 - Y0
+
+theorem randomizationVarianceDecomposition_of_contrast {Ω : Type*}
+    [MeasurableSpace Ω]
+    (μ : Measure Ω) [IsProbabilityMeasure μ]
+    (Y1 Y0 : Ω → ℝ) (hY1 : MemLp Y1 2 μ) (hY0 : MemLp Y0 2 μ) :
+    variance (randomizationContrastEstimator Y1 Y0) μ =
+      variance Y1 μ - 2 * cov[Y1, Y0; μ] + variance Y0 μ := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  simpa [randomizationContrastEstimator] using variance_fun_sub (μ := μ) hY1 hY0"
+        ),
+        tags=(
+            "estimator",
+            "variance",
+            "covariance",
+            "contrast",
+            "design_based",
+            "finite_population",
+            "randomization_variance",
+            "randomization_variance_decomposition",
+            "direct_primitive_wrapper",
+        ),
+        expected_lemmas=("variance_fun_sub", "variance_sub"),
+        depends_on=("randomization_variance_decomposition_bridge",),
+    ),
     "neyman_variance_conservative_algebra": FormalObligation(
         id="neyman_variance_conservative_algebra",
         title="Neyman conservative variance algebra",
@@ -322,6 +369,50 @@ theorem neymanBound_conservative_of_variance_decomposition {Ω : Type*}
         ),
         expected_lemmas=("variance_nonneg", "nlinarith"),
         depends_on=("neyman_variance_conservative_algebra", "variance_nonneg"),
+    ),
+    "neyman_bound_nonnegative_treatment_effect_variance": FormalObligation(
+        id="neyman_bound_nonnegative_treatment_effect_variance",
+        title="Neyman bound primitive wrapper from nonnegative treatment-effect variance",
+        english=(
+            "If an exact design variance is an observable Neyman bound minus "
+            "the variance of a treatment-effect function, then the observable "
+            "bound is conservative. This names the "
+            "`neyman_bound_nonnegative_treatment_effect_variance` primitive "
+            "directly and uses Mathlib's variance nonnegativity; it does not "
+            "prove the complete-randomization variance decomposition or "
+            "finite-population treatment-effect model."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+theorem neymanBoundNonnegativeTreatmentEffectVariance {Ω : Type*}
+    [MeasurableSpace Ω]
+    (μ : Measure Ω) (observableBound exactVariance : ℝ)
+    (tau : Ω → ℝ)
+    (hDecomp : exactVariance = observableBound - variance tau μ) :
+    exactVariance ≤ observableBound := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  have hNonneg : 0 ≤ variance tau μ := variance_nonneg tau μ\n"
+            "  nlinarith [hDecomp, hNonneg]"
+        ),
+        tags=(
+            "estimator",
+            "variance",
+            "design_based",
+            "neyman",
+            "conservative",
+            "finite_population",
+            "treatment_effect",
+            "neyman_bound_nonnegative_treatment_effect_variance",
+            "direct_primitive_wrapper",
+        ),
+        expected_lemmas=("variance_nonneg", "nlinarith"),
+        depends_on=("neyman_bound_conservative_of_variance_decomposition",),
     ),
     "finite_population_ate_mean_difference": FormalObligation(
         id="finite_population_ate_mean_difference",

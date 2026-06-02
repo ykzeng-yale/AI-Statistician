@@ -1469,6 +1469,18 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("minimal_wrapper", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_randomization_variance_decomposition_direct_wrapper_reuses_bridge(self) -> None:
+        obligation = get_obligation("randomization_variance_decomposition")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("randomization_variance_decomposition_bridge",))
+        self.assertIn("def randomizationContrastEstimator", content)
+        self.assertIn("theorem randomizationVarianceDecomposition_of_contrast", content)
+        self.assertIn("variance (randomizationContrastEstimator Y1 Y0) μ", content)
+        self.assertIn("variance_fun_sub", content)
+        self.assertIn("randomization_variance_decomposition", obligation.tags)
+        self.assertIn("direct_primitive_wrapper", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_neyman_bound_variance_decomposition_wrapper_closes_nonnegative_effect_variance_bridge(self) -> None:
         obligation = get_obligation("neyman_bound_conservative_of_variance_decomposition")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
@@ -1483,6 +1495,18 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("design_based", obligation.tags)
         self.assertIn("neyman_bound_nonnegative_treatment_effect_variance", obligation.tags)
         self.assertIn("minimal_wrapper", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
+    def test_neyman_bound_nonnegative_treatment_effect_variance_direct_wrapper_reuses_bridge(self) -> None:
+        obligation = get_obligation("neyman_bound_nonnegative_treatment_effect_variance")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("neyman_bound_conservative_of_variance_decomposition",))
+        self.assertIn("theorem neymanBoundNonnegativeTreatmentEffectVariance", content)
+        self.assertIn("observableBound - variance tau μ", content)
+        self.assertIn("variance_nonneg tau μ", content)
+        self.assertIn("nlinarith", content)
+        self.assertIn("neyman_bound_nonnegative_treatment_effect_variance", obligation.tags)
+        self.assertIn("direct_primitive_wrapper", obligation.tags)
         self.assertNotIn("by sorry", content)
 
     def test_finite_population_ate_mean_difference_formalizes_potential_outcome_target(self) -> None:
@@ -5749,14 +5773,24 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                 "neyman_variance_conservative_algebra",
                 rows[primitive]["bridge_candidate_obligations"],
             )
-            self.assertEqual(rows[primitive]["priority_band"], "BRIDGE_REUSE_READY")
+            self.assertEqual(rows[primitive]["priority_band"], "EXACT_PROOF_BANK_REUSE")
+            self.assertEqual(rows[primitive]["exact_proof_bank_obligation"], primitive)
+            self.assertTrue(rows[primitive]["proof_bank_exact_match_available"])
         self.assertEqual(
             rows["randomization_variance_decomposition"]["bridge_candidate_obligations"][0],
+            "randomization_variance_decomposition",
+        )
+        self.assertIn(
             "randomization_variance_decomposition_bridge",
+            rows["randomization_variance_decomposition"]["bridge_candidate_obligations"],
         )
         self.assertEqual(
             rows["neyman_bound_nonnegative_treatment_effect_variance"]["bridge_candidate_obligations"][0],
+            "neyman_bound_nonnegative_treatment_effect_variance",
+        )
+        self.assertIn(
             "neyman_bound_conservative_of_variance_decomposition",
+            rows["neyman_bound_nonnegative_treatment_effect_variance"]["bridge_candidate_obligations"],
         )
         self.assertNotIn(
             "neyman_variance_conservative_algebra",
