@@ -57,9 +57,13 @@ SQLite/Lean-RAG provider stack retrieved both benchmark tiers:
 - Combined suite: `14/14`, Recall@8 = 1.000, MRR = 0.863.
 
 The benchmark still measures retrieval only; Lean/AXLE kernel proof remains the
-proof boundary. The next-capacity target is not "make these eight retrievable";
-it is to keep this recall stable while adding source-aware reranking,
-proof-state feedback, and harder semantic/paraphrase queries.
+proof boundary. The immediate `0/8` failure mode found during integration was a
+stale SQLite cache that predated the newly registered external Lean roots, not a
+semantic-ranking failure. The cache path now checks that every existing
+configured Lean root is represented by source id and rebuilds when the cache is
+stale. The next-capacity target is therefore not "make these eight
+retrievable"; it is to keep this recall stable while adding source-aware
+reranking, proof-state feedback, and harder semantic/paraphrase queries.
 
 ## Next Build Targets
 

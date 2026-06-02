@@ -440,6 +440,10 @@ def build_formal_source_search_backend(
                 if not sqlite_index.is_healthy():
                     raise sqlite3.DatabaseError("formal-source SQLite cache is missing required tables")
                 declarations = sqlite_index.load_declarations()
+                if not _cache_covers_configured_roots(declarations, roots):
+                    raise sqlite3.DatabaseError(
+                        "formal-source SQLite cache is stale for the configured Lean source roots"
+                    )
                 dependency_retriever = _optional_lean_rag_dependency_retriever(lean_rag_db_path)
                 if include_graph:
                     from .formal_source_hybrid import FormalSourceHybridRetriever
@@ -563,6 +567,43 @@ def _attach_lean_rag_metadata(retriever: object, dependency_retriever: object | 
         if dependency_retriever is not None
         else False,
     )
+
+
+def _cache_covers_configured_roots(
+    declarations: list[FormalDeclaration],
+    roots: tuple[FormalSourceRoot, ...],
+) -> bool:
+    """Return whether a cached index still represents existing configured roots.
+
+    The source inventory can grow as new Lean libraries are mirrored locally.
+    A syntactically healthy SQLite cache can still be stale if it predates those
+    sources. Treat existing roots with at least one Lean file as required source
+    ids, so release-style retrieval does not silently ignore newly available
+    formal libraries.
+    """
+
+    present_source_ids = {declaration.source_id for declaration in declarations}
+    required_source_ids = {
+        root.id
+        for root in roots
+        if _root_has_indexable_lean_file(Path(root.location).expanduser())
+    }
+    return required_source_ids.issubset(present_source_ids)
+
+
+def _root_has_indexable_lean_file(root: Path) -> bool:
+    if not root.exists():
+        return False
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = sorted(dirname for dirname in dirnames if dirname not in SKIPPED_PATH_PARTS)
+        for filename in filenames:
+            if not filename.endswith(".lean"):
+                continue
+            path = Path(dirpath) / filename
+            if _skip_path(path, base=root) or not _file_size_ok(path, 2_000_000):
+                continue
+            return True
+    return False
 
 
 def audit_formal_source_index(

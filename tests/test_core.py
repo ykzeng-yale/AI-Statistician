@@ -516,6 +516,44 @@ class ProofBankTests(unittest.TestCase):
             ).exists()
         )
 
+    def test_formal_source_cache_rebuilds_when_configured_root_is_missing(self) -> None:
+        root = Path("runs/test_formal_source_cache_rebuild")
+        shutil.rmtree(root, ignore_errors=True)
+        source_a = root / "SourceA"
+        source_b = root / "SourceB"
+        source_a.mkdir(parents=True)
+        source_b.mkdir(parents=True)
+        (source_a / "A.lean").write_text(
+            "namespace A\ntheorem first_source_result : True := by trivial\nend A\n",
+            encoding="utf-8",
+        )
+        (source_b / "B.lean").write_text(
+            "namespace B\ntheorem second_source_result : True := by trivial\nend B\n",
+            encoding="utf-8",
+        )
+        stale_declarations = build_formal_source_index(
+            roots=(FormalSourceRoot("source_a", str(source_a)),),
+        )
+        stale_cache = root / "cache.sqlite"
+        FormalSourceSqliteIndex.build(stale_declarations, stale_cache)
+
+        retriever = build_formal_source_search_backend(
+            db_path=root / "target.sqlite",
+            roots=(
+                FormalSourceRoot("source_a", str(source_a)),
+                FormalSourceRoot("source_b", str(source_b)),
+            ),
+            cache_path=stale_cache,
+            include_graph=False,
+        )
+
+        declarations = retriever.load_declarations()
+        source_ids = {declaration.source_id for declaration in declarations}
+        self.assertEqual(getattr(retriever, "cache_status"), "miss")
+        self.assertIn("source_a", source_ids)
+        self.assertIn("source_b", source_ids)
+        self.assertTrue(any(declaration.name == "B.second_source_result" for declaration in declarations))
+
     def test_external_user_intent_retrieval_benchmark_is_optional(self) -> None:
         default_query_ids = {case.query_id for case in DEFAULT_FORMAL_SOURCE_RETRIEVAL_BENCHMARK}
         optional_query_ids = {
