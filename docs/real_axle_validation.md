@@ -13,15 +13,15 @@ python3 -m ai_statistician.cli proof-audit \
 Result:
 
 ```text
-verified=101/101
-kernel=101/101
+verified=102/102
+kernel=102/102
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=fe0e6859ea9a9fa3555fbac949d22c6e4fd533abaf8347e879395b422e66d487
+proof_bank_fingerprint=f5f84dca9f4595cb3c1eed62a82a66fc38a8e659d6c545191a7b47208dff9417
 ```
 
 This is the current evidence that the registered proof bank is not only
-mock-checked: all 101 registered Mathlib-backed obligations were accepted by a
+mock-checked: all 102 registered Mathlib-backed obligations were accepted by a
 real Lean kernel check through the local Lake/Mathlib runtime. AXLE remains the
 preferred remote verifier for release bundles when its Python package and API
 runtime are available; the local Lean backend is the offline kernel-equivalent
@@ -44,9 +44,9 @@ strength=axle_lean_kernel
 ```
 
 That remote AXLE run predates the newest proof-bank additions. The current
-101-obligation proof bank has full local Lean kernel evidence above; run the
+102-obligation proof bank has full local Lean kernel evidence above; run the
 same `proof-audit --real-lean` command again from an AXLE-ready runtime to
-refresh remote AXLE evidence for all 101 obligations.
+refresh remote AXLE evidence for all 102 obligations.
 
 Latest current proof-bank validation: 2026-06-02.
 
@@ -62,10 +62,10 @@ Runtime used:
 Result:
 
 ```text
-proof_bank_kernel=101/101
+proof_bank_kernel=102/102
 proof_verifier=local.lake_env_lean
 proof_strength=local_lean_kernel_batch
-proof_bank_fingerprint=fe0e6859ea9a9fa3555fbac949d22c6e4fd533abaf8347e879395b422e66d487
+proof_bank_fingerprint=f5f84dca9f4595cb3c1eed62a82a66fc38a8e659d6c545191a7b47208dff9417
 dependency_graph_edges=116
 dependency_graph_all_known=True
 selected_dependencies_verified=True
@@ -76,10 +76,10 @@ EmpericalProcessLEAN `lean_rag` dependency graph, and bounded adaptive Monte
 Carlo reruns for simulations diagnosed as `INSUFFICIENT_MC_PRECISION`:
 
 ```text
-run=runs/current_leave_one_out_fdr_bridge_system_audit
+run=runs/current_bh_threshold_fixed_point_bridge_system_audit
 all_gates_passed=True
-proofs_verified=101/101
-proofs_kernel_verified=101/101
+proofs_verified=102/102
+proofs_kernel_verified=102/102
 proof_verification_strength=local_lean_kernel_batch
 lean_rag_dependency_graph_enabled=True
 frontier_smoke=23/23
@@ -359,6 +359,12 @@ whenever the nominal level `q` is nonnegative. This is a real verified algebraic
 bridge for ordered-p-value and step-up fixed-point traces; it still does not
 prove BH self-consistency, p-value independence, or the full FDR control theorem.
 
+It also includes `bh_threshold_fixed_point_bridge`, a primitive-named wrapper
+for the same threshold-grid monotonicity. This lets sparse-mixture and BH
+fixed-point theorem traces cite `bh_threshold_fixed_point` directly, while still
+leaving adaptive fixed-point existence, ordered p-value self-consistency, power,
+and FDR control as formal gaps.
+
 The causal ATE block now includes `potential_outcome_observed_consistency`. It
 proves the deterministic consistency identity for a binary observed outcome:
 treated units reveal `Y(1)` and control units reveal `Y(0)` by construction.
@@ -390,7 +396,7 @@ The causal bridge block now also includes
 `propensity_weight_cancel_left_of_lower_bound`, the left-oriented companion
 identity `p * p⁻¹ = 1` under the same strict lower-bound assumption. This gives
 IPW/AIPW algebra both cancellation orientations without relying on ad hoc
-commutativity rewrites; it is kernel-verified as part of the current `101/101`
+commutativity rewrites; it is kernel-verified as part of the current `102/102`
 local Lean proof-bank audit and still does not prove positivity as a model
 assumption or close causal identification.
 

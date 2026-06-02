@@ -82,7 +82,7 @@ sandboxed code patching, or simulator construction still stop honestly with
 repair proposal, unless a stronger handler is registered.
 
 Current release-style evidence for this bounded loop is split intentionally:
-`proof-audit --local-lean` verifies the registered proof bank at `101/101`, while
+`proof-audit --local-lean` verifies the registered proof bank at `102/102`, while
 `research-system-audit` exercises the loop, Lean-RAG dependency retrieval, proof
 bridge routing, and simulation/audit gates. When the system audit is not run
 with `--local-lean`, its proof rows are scaffold evidence rather than fresh
@@ -986,6 +986,11 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   the rank index `k`. This upgrades ordered-p-value and BH step-up fixed-point
   traces with a verified algebraic primitive while leaving BH self-consistency
   and FDR control as formal gaps.
+- `bh_threshold_fixed_point_bridge`: the same deterministic threshold-grid
+  monotonicity exposed under the `bh_threshold_fixed_point` primitive name. It
+  verifies the algebraic ingredient used by BH fixed-point traces, while still
+  leaving existence of a data-adaptive fixed point, ordered p-value
+  self-consistency, power, and FDR control as formal gaps.
 - `potential_outcome_observed_consistency`: a deterministic causal-inference
   bridge. For binary treatment assignment, the observed outcome equals `Y(1)`
   on treated units and `Y(0)` on control units by definition. This upgrades the
@@ -1553,11 +1558,11 @@ python3 -m ai_statistician.cli proof-audit \
 Current full-bank local Lean evidence (2026-06-02):
 
 ```text
-verified=101/101
-kernel=101/101
+verified=102/102
+kernel=102/102
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=fe0e6859ea9a9fa3555fbac949d22c6e4fd533abaf8347e879395b422e66d487
+proof_bank_fingerprint=f5f84dca9f4595cb3c1eed62a82a66fc38a8e659d6c545191a7b47208dff9417
 ```
 
 Run `doctor` in the same Python runtime first. It reports

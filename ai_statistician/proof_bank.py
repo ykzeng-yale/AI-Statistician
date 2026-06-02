@@ -3629,6 +3629,52 @@ theorem bhThreshold_grid_mono {q : ℝ} {m k l : Nat}
         expected_lemmas=("gcongr",),
         depends_on=("finite_null_pvalue_no_false_rejection_probability",),
     ),
+    "bh_threshold_fixed_point_bridge": FormalObligation(
+        id="bh_threshold_fixed_point_bridge",
+        title="BH threshold fixed-point grid monotonicity bridge",
+        english=(
+            "For a nonnegative nominal FDR level `q`, the deterministic BH "
+            "candidate fixed-point threshold grid `q*k/m` is monotone in the "
+            "rank index. This is a domain-named minimal wrapper for the missing "
+            "primitive `bh_threshold_fixed_point`; it verifies the algebraic "
+            "monotonicity ingredient used by fixed-point and step-up traces, "
+            "but it does not prove existence of a data-adaptive fixed point, "
+            "ordered p-value self-consistency, power, or FDR control."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+
+noncomputable def bhFixedPointThreshold (q : ℝ) (m k : Nat) : ℝ :=
+  q * (k : ℝ) / (m : ℝ)
+
+theorem bhThreshold_fixedPoint_grid_mono {q : ℝ} {m k l : Nat}
+    (hq : 0 ≤ q) (hkl : k ≤ l) :
+    bhFixedPointThreshold q m k ≤ bhFixedPointThreshold q m l := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  unfold bhFixedPointThreshold\n"
+            "  gcongr"
+        ),
+        tags=(
+            "multiple_testing",
+            "fdr",
+            "bh",
+            "benjamini_hochberg",
+            "threshold",
+            "threshold_grid",
+            "ordered_pvalues",
+            "bh_stepup_self_consistency",
+            "bh_threshold_fixed_point",
+            "monotonicity",
+            "finite_sample",
+            "minimal_wrapper",
+        ),
+        expected_lemmas=("gcongr",),
+        depends_on=("bh_threshold_grid_mono",),
+    ),
     "finite_horizon_evalue_markov_type1_control": FormalObligation(
         id="finite_horizon_evalue_markov_type1_control",
         title="Finite-horizon e-value type-I control by Markov and union allocation",

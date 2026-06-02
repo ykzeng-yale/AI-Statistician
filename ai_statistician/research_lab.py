@@ -5005,6 +5005,7 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "finite_null_pvalue_no_false_rejection_probability",
         "leave_one_out_fdr_decomposition_bridge",
         "bh_threshold_grid_mono",
+        "bh_threshold_fixed_point_bridge",
         "markov_inequality",
     ),
     "sequential_anytime_inference": (

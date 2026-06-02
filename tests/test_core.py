@@ -2252,6 +2252,19 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("ordered_pvalues", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_bh_threshold_fixed_point_bridge_closes_named_primitive(self) -> None:
+        obligation = get_obligation("bh_threshold_fixed_point_bridge")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("bh_threshold_grid_mono",))
+        self.assertIn("noncomputable def bhFixedPointThreshold", content)
+        self.assertIn("theorem bhThreshold_fixedPoint_grid_mono", content)
+        self.assertIn("bhFixedPointThreshold q m k ≤ bhFixedPointThreshold q m l", content)
+        self.assertIn("unfold bhFixedPointThreshold", content)
+        self.assertIn("gcongr", content)
+        self.assertIn("bh_threshold_fixed_point", obligation.tags)
+        self.assertIn("minimal_wrapper", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_event_probability_mono_obligation_uses_measure_mono(self) -> None:
         obligation = get_obligation("event_probability_mono")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
@@ -3884,7 +3897,7 @@ class SystemTests(unittest.TestCase):
         self.assertIn("S7_feedback_loop_repair_with_seeded_failures", payload["recommended_next_gate_stack"])
 
         doc = Path("docs/evaluation_benchmark_strategy.md").read_text(encoding="utf-8")
-        self.assertIn("`proofs_kernel_verified=101/101`", doc)
+        self.assertIn("`proofs_kernel_verified=102/102`", doc)
         self.assertIn("expected-result coverage about 83.3%", doc)
         self.assertIn("35 frontier-evaluation triage items", doc)
         self.assertIn("bounded adaptive MC inside the benchmark", doc)
@@ -4795,6 +4808,10 @@ class SystemTests(unittest.TestCase):
             rows["bh_threshold_fixed_point"]["bridge_candidate_obligations"],
         )
         self.assertEqual(rows["bh_threshold_fixed_point"]["priority_band"], "BRIDGE_REUSE_READY")
+        self.assertEqual(
+            rows["bh_threshold_fixed_point"]["bridge_candidate_obligations"][0],
+            "bh_threshold_fixed_point_bridge",
+        )
         self.assertEqual(
             rows["independent_null_pvalues"]["bridge_candidate_obligations"][0],
             "independent_null_pvalues_bridge",

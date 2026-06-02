@@ -173,7 +173,7 @@ python3 -m ai_statistician.cli research-system-audit \
 Result:
 
 ```text
-proof_bank_kernel=101/101
+proof_bank_kernel=102/102
 proof_verifier=local.lake_env_lean
 proof_strength=local_lean_kernel_batch
 system_all_gates_passed=True
@@ -209,7 +209,7 @@ source_inventory: 29/29 all_ok=True
 
 Earlier proof-bank expansion experiments temporarily reported a higher
 bridge-ready count; the current adaptive release audit reports `53/97` after
-stricter primitive routing, with `101/101` registered proof-bank obligations
+stricter primitive routing, with `102/102` registered proof-bank obligations
 kernel verified.
 `independent_null_pvalues` is backed by the verified
 `independent_null_event_family_inter_probability` and

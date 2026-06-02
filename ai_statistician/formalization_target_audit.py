@@ -286,6 +286,7 @@ _PRIMITIVE_PROOF_BRIDGE_HINTS: dict[str, tuple[str, ...]] = {
         "finite_null_family_no_false_rejection_probability",
     ),
     "bh_threshold_fixed_point": (
+        "bh_threshold_fixed_point_bridge",
         "bh_threshold_grid_mono",
     ),
     "leave_one_out_fdr_decomposition": (
