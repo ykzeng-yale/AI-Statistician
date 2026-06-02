@@ -48,6 +48,7 @@ from ai_statistician.formal_source_index import (
 )
 from ai_statistician.formal_source_retrieval_benchmark import (
     DEFAULT_FORMAL_SOURCE_RETRIEVAL_BENCHMARK,
+    EXTERNAL_USER_INTENT_FORMAL_SOURCE_RETRIEVAL_BENCHMARK,
     FormalSourceRetrievalBenchmarkCase,
     run_formal_source_retrieval_benchmark,
 )
@@ -75,6 +76,7 @@ from ai_statistician.proof_search_value_model import (
 )
 from ai_statistician.proof_training_export import export_proof_training_dataset
 from ai_statistician.prover_component_audit import build_prover_component_audit, write_prover_component_audit
+from ai_statistician.rag_collaboration_export import export_rag_collaboration_manifest
 from ai_statistician.questions import load_question_file, question_from_json
 from ai_statistician.release import ReleaseBundleConfig, build_release_bundle
 from ai_statistician.research_evaluation import ResearchEvalConfig, run_research_seed_eval
@@ -514,17 +516,21 @@ class ProofBankTests(unittest.TestCase):
             ).exists()
         )
 
-    def test_default_formal_source_retrieval_benchmark_covers_external_user_intent_cases(self) -> None:
-        query_ids = {case.query_id for case in DEFAULT_FORMAL_SOURCE_RETRIEVAL_BENCHMARK}
-        self.assertIn("formal_slt_stability_generalization", query_ids)
-        self.assertIn("lean_rademacher_dudley_entropy", query_ids)
-        self.assertIn("lean_machine_learning_ucb_regret", query_ids)
-        self.assertIn("brownian_kolmogorov_chentsov", query_ids)
-        self.assertIn("kolmogorov_extension_projective_family", query_ids)
-        self.assertIn("scilean_gaussian_calculus", query_ids)
+    def test_external_user_intent_retrieval_benchmark_is_optional(self) -> None:
+        default_query_ids = {case.query_id for case in DEFAULT_FORMAL_SOURCE_RETRIEVAL_BENCHMARK}
+        optional_query_ids = {
+            case.query_id for case in EXTERNAL_USER_INTENT_FORMAL_SOURCE_RETRIEVAL_BENCHMARK
+        }
+        self.assertNotIn("formal_slt_stability_generalization", default_query_ids)
+        self.assertIn("formal_slt_stability_generalization", optional_query_ids)
+        self.assertIn("lean_rademacher_dudley_entropy", optional_query_ids)
+        self.assertIn("lean_machine_learning_ucb_regret", optional_query_ids)
+        self.assertIn("brownian_kolmogorov_chentsov", optional_query_ids)
+        self.assertIn("kolmogorov_extension_projective_family", optional_query_ids)
+        self.assertIn("scilean_gaussian_calculus", optional_query_ids)
         source_ids = {
             source_id
-            for case in DEFAULT_FORMAL_SOURCE_RETRIEVAL_BENCHMARK
+            for case in EXTERNAL_USER_INTENT_FORMAL_SOURCE_RETRIEVAL_BENCHMARK
             for source_id in case.expected_source_ids
         }
         self.assertIn("formal_slt", source_ids)
@@ -5863,6 +5869,171 @@ class SystemTests(unittest.TestCase):
         self.assertIn("Retrieval hits are not proof evidence", " ".join(payload["limitations"]))
         self.assertTrue(Path("runs/test_primitive_source_coverage/primitive_source_coverage_manifest.json").exists())
         self.assertTrue(Path("runs/test_primitive_source_coverage/primitive_source_coverage.md").exists())
+
+    def test_rag_collaboration_export_packages_retrieval_and_gap_handoff(self) -> None:
+        root = Path("runs/test_rag_collaboration_run")
+        out = Path("runs/test_rag_collaboration_export")
+        shutil.rmtree(root, ignore_errors=True)
+        shutil.rmtree(out, ignore_errors=True)
+        for subdir in (
+            "proof_audit",
+            "formal_source_retrieval_benchmark",
+            "formal_source_retrieval_ablation",
+            "proof_search_retrieval_ablation",
+            "primitive_source_coverage",
+            "proof_bank_expansion",
+            "evaluation_benchmark_guidance",
+        ):
+            (root / subdir).mkdir(parents=True, exist_ok=True)
+        (root / "proof_audit" / "proof_audit_manifest.json").write_text(
+            json.dumps({"proof_bank_fingerprint": "a" * 64}),
+            encoding="utf-8",
+        )
+        (root / "formal_source_retrieval_benchmark" / "formal_source_retrieval_benchmark_manifest.json").write_text(
+            json.dumps({"dependency_graph_search": "lean_rag_dependency_graph"}),
+            encoding="utf-8",
+        )
+        (root / "formal_source_retrieval_ablation" / "formal_source_retrieval_ablation_manifest.json").write_text(
+            json.dumps(
+                {
+                    "n_cases": 2,
+                    "n_new_hits": 1,
+                    "n_lost_hits": 0,
+                    "n_dependency_sensitive_new_hits": 1,
+                }
+            ),
+            encoding="utf-8",
+        )
+        (root / "proof_search_retrieval_ablation" / "proof_search_retrieval_ablation_manifest.json").write_text(
+            json.dumps(
+                {
+                    "solved_delta": 0,
+                    "formal_source_candidate_delta": 3,
+                    "nodes_expanded_delta": 0,
+                    "dependency_graph_search": "lean_rag_dependency_graph",
+                }
+            ),
+            encoding="utf-8",
+        )
+        (root / "primitive_source_coverage" / "primitive_source_coverage_manifest.json").write_text(
+            json.dumps(
+                {
+                    "rows": [
+                        {
+                            "primitive": "hard_primitive",
+                            "action_class": "add_minimal_wrapper",
+                            "classification": "direct_wrapper_possible",
+                            "n_gaps": 1,
+                            "problem_classes": ["survival"],
+                            "theorem_goals": ["kaplan_meier"],
+                            "proof_bank_bridge_obligations": ["product_limit_delta_method_bridge"],
+                            "local_candidate_declarations": ["StatInference.KM.bridge"],
+                            "external_candidate_declarations": ["Atlas.KM.shape"],
+                            "external_source_ids": ["atlas_lean_theory_of_probability"],
+                            "suggested_next_step": "add the missing domain wrapper",
+                        },
+                        {
+                            "primitive": "already_composable",
+                            "action_class": "compose_existing_bridge_chain",
+                            "classification": "direct_wrapper_possible",
+                            "n_gaps": 1,
+                        },
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        (root / "proof_bank_expansion" / "proof_bank_expansion_manifest.json").write_text(
+            json.dumps(
+                {
+                    "candidates": [
+                        {
+                            "primitive": "hard_primitive",
+                            "proposal_id": "lemma_proposal:hard_primitive:abc",
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        (root / "evaluation_benchmark_guidance" / "evaluation_benchmark_guidance_manifest.json").write_text(
+            json.dumps({"top_actions": [{"rank": 1, "action": "improve RAG"}]}),
+            encoding="utf-8",
+        )
+        system_manifest = root / "research_system_audit_manifest.json"
+        system_manifest.write_text(
+            json.dumps(
+                {
+                    "counts": {
+                        "proofs_kernel_verified": 109,
+                        "proofs_total": 109,
+                        "proof_verification_strength": "local_lean_kernel_batch",
+                        "proof_dependency_edges": 133,
+                        "lean_rag_dependency_graph_enabled": True,
+                        "lean_rag_dependency_graph_path": "/tmp/stat_inference.sqlite",
+                        "lean_rag_dependency_graph_auto_discovered": False,
+                        "formal_source_graph_symbols": 75074,
+                        "formal_source_graph_edges": 1477458,
+                        "formal_source_retrieval_benchmark_recall_at_k": 1.0,
+                        "formal_source_retrieval_benchmark_mrr": 0.888,
+                        "missing_formal_primitives": 97,
+                        "formalization_targets_with_proof_bank_bridge": 78,
+                        "proof_bank_expansion_compose_existing_bridge_chain": 51,
+                        "proof_bank_expansion_add_minimal_wrapper": 2,
+                        "proof_bank_expansion_design_bridge_lemma": 44,
+                        "proof_bank_expansion_design_from_first_principles": 0,
+                        "primitive_source_coverage_external_supported": 53,
+                    },
+                    "artifacts": {
+                        "proof_audit": str(root / "proof_audit" / "proof_audit_manifest.json"),
+                        "formal_source_retrieval_benchmark": str(
+                            root
+                            / "formal_source_retrieval_benchmark"
+                            / "formal_source_retrieval_benchmark_manifest.json"
+                        ),
+                        "formal_source_retrieval_ablation": str(
+                            root
+                            / "formal_source_retrieval_ablation"
+                            / "formal_source_retrieval_ablation_manifest.json"
+                        ),
+                        "proof_search_retrieval_ablation": str(
+                            root
+                            / "proof_search_retrieval_ablation"
+                            / "proof_search_retrieval_ablation_manifest.json"
+                        ),
+                        "primitive_source_coverage": str(
+                            root / "primitive_source_coverage" / "primitive_source_coverage_manifest.json"
+                        ),
+                        "proof_bank_expansion": str(
+                            root / "proof_bank_expansion" / "proof_bank_expansion_manifest.json"
+                        ),
+                        "evaluation_benchmark_guidance": str(
+                            root
+                            / "evaluation_benchmark_guidance"
+                            / "evaluation_benchmark_guidance_manifest.json"
+                        ),
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        payload = export_rag_collaboration_manifest(system_manifest, out)
+
+        self.assertEqual(payload["proof_evidence"]["proofs_kernel_verified"], 109)
+        self.assertEqual(payload["proof_evidence"]["proof_bank_fingerprint"], "a" * 64)
+        self.assertTrue(payload["rag_provider_evidence"]["lean_rag_dependency_graph_enabled"])
+        self.assertEqual(
+            payload["retrieval_ablation_evidence"]["formal_source_dependency_sensitive_new_hits"],
+            1,
+        )
+        targets = payload["formal_capacity_queue"]["handoff_targets"]
+        self.assertEqual(len(targets), 1)
+        self.assertEqual(targets[0]["primitive"], "hard_primitive")
+        self.assertIn("product_limit_delta_method_bridge", targets[0]["query_hint"])
+        self.assertIn("RAG hits are retrieval evidence only", " ".join(payload["honesty_boundaries"]))
+        self.assertTrue((out / "rag_collaboration_manifest.json").exists())
+        self.assertTrue((out / "rag_collaboration.md").exists())
 
     def test_research_training_export_writes_agent_sft_and_grpo_data(self) -> None:
         async def run():

@@ -568,7 +568,26 @@ The JSONL rows expose proof-search routing fields at top level: `primitive`,
 `bridge_candidate_obligations`, `source_gap_ids`, and explicit promotion
 blockers such as `candidate_statement_has_placeholder_assumption`. These fields
 are retrieval/planning evidence only; the row still remains blocked until a
-non-placeholder proof body is kernel verified.
+non-placeholder proof body passes AXLE/Lean verification.
+
+RAG collaboration handoff:
+
+```bash
+python3 -m ai_statistician.cli rag-collaboration-export \
+  --system-audit-manifest runs/current_continuous_mapping_wrappers_queuefix_system_audit/research_system_audit_manifest.json \
+  --out runs/current_rag_collaboration_handoff
+```
+
+This is the compact interface between this AI Statistician thread and the
+separate RAG/prover-search infrastructure work. It packages the active
+proof-bank fingerprint, kernel-verified proof count, `lean_rag` dependency-graph
+path, retrieval benchmark/ablation evidence, remaining formal primitive queue,
+and the top non-composition handoff targets with query hints. It is deliberately
+not another search index and not proof evidence. The intended collaboration loop
+is: RAG infrastructure improves or replaces the provider, exports its DB path,
+schema summary, and retrieval-eval manifest, then AI Statistician reruns
+`research-system-audit --lean-rag-db ...` and checks whether retrieval and proof
+capacity actually improve.
 
 Research trace training export:
 

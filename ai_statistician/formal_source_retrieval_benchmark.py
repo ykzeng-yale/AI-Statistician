@@ -81,6 +81,12 @@ DEFAULT_FORMAL_SOURCE_RETRIEVAL_BENCHMARK: tuple[FormalSourceRetrievalBenchmarkC
         ),
         rationale="survey/IPW theory revision should recover existing StatInference ratio identities",
     ),
+)
+
+
+EXTERNAL_USER_INTENT_FORMAL_SOURCE_RETRIEVAL_BENCHMARK: tuple[
+    FormalSourceRetrievalBenchmarkCase, ...
+] = (
     FormalSourceRetrievalBenchmarkCase(
         query_id="formal_slt_stability_generalization",
         query="turn uniform stability into expected generalization gap for a finite product sample ERM learner",
@@ -146,6 +152,12 @@ DEFAULT_FORMAL_SOURCE_RETRIEVAL_BENCHMARK: tuple[FormalSourceRetrievalBenchmarkC
             "without exporting WIP code as proof evidence"
         ),
     ),
+)
+
+
+ALL_FORMAL_SOURCE_RETRIEVAL_BENCHMARKS: tuple[FormalSourceRetrievalBenchmarkCase, ...] = (
+    DEFAULT_FORMAL_SOURCE_RETRIEVAL_BENCHMARK
+    + EXTERNAL_USER_INTENT_FORMAL_SOURCE_RETRIEVAL_BENCHMARK
 )
 
 

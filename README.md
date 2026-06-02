@@ -51,6 +51,7 @@ python3 -m ai_statistician.cli formalization-target-audit --run-dir runs/researc
 python3 -m ai_statistician.cli autoform-harness-audit --out runs/autoform_harness
 python3 -m ai_statistician.cli autoform-target-export --run-dir runs/research_benchmark --out runs/autoform_targets
 python3 -m ai_statistician.cli research-system-audit --runs 100 --out runs/research_system_audit
+python3 -m ai_statistician.cli rag-collaboration-export --system-audit-manifest runs/research_system_audit/research_system_audit_manifest.json --out runs/rag_collaboration_handoff
 ```
 
 `research-knowledge-audit` also writes a source inventory under

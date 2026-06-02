@@ -29,9 +29,17 @@ Kolmogorov extension, SciLean, and the `lean_rag` dependency graph.
 
 ## Implemented Now
 
-The formal-source retrieval benchmark was expanded from a small exact-family
-smoke test into a broader theorem-family benchmark with user-intent phrasing.
-New gold cases cover:
+The formal-source retrieval benchmark now has two tiers:
+
+- `DEFAULT_FORMAL_SOURCE_RETRIEVAL_BENCHMARK`: the stable release gate used by
+  normal audits. It covers the current local/Lean-RAG source families that the
+  system is expected to retrieve reliably.
+- `EXTERNAL_USER_INTENT_FORMAL_SOURCE_RETRIEVAL_BENCHMARK`: an optional
+  capacity-improvement suite with broader theorem-family prompts and
+  user-intent phrasing. It guides RAG work but is not a release gate until the
+  provider stack demonstrates stable recall.
+
+The optional external gold cases cover:
 
 - FormalSLT stability-to-generalization and VC/PAC sample complexity.
 - lean-rademacher Dudley entropy and McDiarmid uniform-deviation bounds.
@@ -40,8 +48,13 @@ New gold cases cover:
 - Kolmogorov extension/projective-family theorem shapes.
 - SciLean Gaussian calculus/optimization theorem shapes.
 
-This turns the new external sources into measured RAG assets. The benchmark
-still measures retrieval only; Lean/AXLE kernel proof remains the proof boundary.
+This turns the new external sources into measured RAG targets without
+overclaiming current support. A focused check on 2026-06-02 with the active
+SQLite/Lean-RAG provider stack retrieved the default benchmark reliably, but
+missed all eight optional external-intent cases (`0/8`, Recall@8 = 0.000). That
+is a concrete next-capacity target for provider fusion, query expansion, and
+semantic search. The benchmark still measures retrieval only; Lean/AXLE kernel
+proof remains the proof boundary.
 
 ## Next Build Targets
 

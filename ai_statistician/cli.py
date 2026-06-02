@@ -45,6 +45,7 @@ from .proof_repair_export import export_proof_repair_dataset
 from .proof_search_audit import audit_proof_search_controller
 from .proof_search_training_export import export_proof_search_process_dataset
 from .proof_search_value_model import train_proof_search_value_model
+from .rag_collaboration_export import export_rag_collaboration_manifest
 from .proof_training_export import export_proof_training_dataset
 from .prover_component_audit import build_prover_component_audit, write_prover_component_audit
 from .release import ReleaseBundleConfig, build_release_bundle
@@ -974,6 +975,36 @@ def _research_training_export(args: argparse.Namespace) -> int:
     print(f"train JSONL written to {(Path(args.out) / 'research_sft_train.jsonl').resolve()}")
     print(f"validation JSONL written to {(Path(args.out) / 'research_sft_validation.jsonl').resolve()}")
     return 0 if payload["all_ok"] else 1
+
+
+def _rag_collaboration_export(args: argparse.Namespace) -> int:
+    payload = export_rag_collaboration_manifest(
+        Path(args.system_audit_manifest),
+        Path(args.out),
+        max_targets=args.max_targets,
+    )
+    proof = payload["proof_evidence"]
+    rag = payload["rag_provider_evidence"]
+    queue = payload["formal_capacity_queue"]
+    print("\nAI Statistical Theory Lab RAG Collaboration Handoff")
+    print("=" * 72)
+    print(
+        f"proofs={proof['proofs_kernel_verified']}/{proof['proofs_total']} "
+        f"lean_rag={rag['lean_rag_dependency_graph_enabled']} "
+        f"missing_primitives={queue['missing_formal_primitives']}"
+    )
+    print(
+        f"queue compose={queue['compose_existing_bridge_chain']} "
+        f"minimal_wrapper={queue['add_minimal_wrapper']} "
+        f"design_bridge={queue['design_bridge_lemma']}"
+    )
+    print(f"handoff targets={len(queue['handoff_targets'])}")
+    print(
+        f"\nRAG collaboration manifest written to "
+        f"{(Path(args.out) / 'rag_collaboration_manifest.json').resolve()}"
+    )
+    print(f"markdown report written to {(Path(args.out) / 'rag_collaboration.md').resolve()}")
+    return 0
 
 
 def _research_policy_baseline(args: argparse.Namespace) -> int:
@@ -2384,6 +2415,28 @@ def build_parser() -> argparse.ArgumentParser:
         help="proof-bank expansion candidate output directory",
     )
     proof_bank_expansion_export.set_defaults(func=_proof_bank_expansion_export)
+
+    rag_collaboration_export = sub.add_parser(
+        "rag-collaboration-export",
+        help="export a compact handoff manifest for the shared RAG/prover-search thread",
+    )
+    rag_collaboration_export.add_argument(
+        "--system-audit-manifest",
+        required=True,
+        help="path to a research_system_audit_manifest.json with retrieval/proof artifacts",
+    )
+    rag_collaboration_export.add_argument(
+        "--out",
+        default="runs/rag_collaboration",
+        help="RAG collaboration handoff output directory",
+    )
+    rag_collaboration_export.add_argument(
+        "--max-targets",
+        type=int,
+        default=20,
+        help="maximum non-composition formal primitives to include as RAG handoff targets",
+    )
+    rag_collaboration_export.set_defaults(func=_rag_collaboration_export)
 
     research_training_export = sub.add_parser(
         "research-training-export",
