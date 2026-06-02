@@ -4415,6 +4415,56 @@ theorem independentFiniteEventComplInter_probability {Ω ι : Type*} [Measurable
         expected_lemmas=("iIndepSet_iff", "MeasurableSpace.measurableSet_generateFrom"),
         depends_on=("independent_null_event_family_inter_probability", "prob_compl"),
     ),
+    "independent_null_pvalues_bridge": FormalObligation(
+        id="independent_null_pvalues_bridge",
+        title="Independent null p-value rejection-event complement product bridge",
+        english=(
+            "For a finite family of independent true-null rejection events, "
+            "the probability that no such event occurs factors as the product "
+            "of complement probabilities. This is a domain-named minimal "
+            "wrapper for the missing primitive `independent_null_pvalues`; it "
+            "formalizes the independence algebra used by BH/FDR leave-one-out "
+            "arguments, but it does not prove p-value superuniformity, ordered "
+            "p-value behavior, self-consistency, or the full BH FDR theorem."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+theorem independentNullPValues_complementProduct {Ω ι : Type*}
+    [MeasurableSpace Ω]
+    (μ : Measure Ω) (reject : ι → Set Ω) (I : Finset ι)
+    (h_indep : iIndepSet reject μ) :
+    μ (⋂ i ∈ I, (reject i)ᶜ) = ∏ i ∈ I, μ (reject i)ᶜ := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  exact (iIndepSet_iff reject μ).1 h_indep I (f := fun i => (reject i)ᶜ) (by\n"
+            "    intro i hi\n"
+            "    exact (MeasurableSpace.measurableSet_generateFrom\n"
+            "      (by simp : reject i ∈ ({reject i} : Set (Set Ω)))).compl)"
+        ),
+        tags=(
+            "probability",
+            "event",
+            "independence",
+            "complement",
+            "intersection",
+            "finite_family",
+            "multiple_testing",
+            "familywise_error",
+            "fdr",
+            "bh",
+            "null_pvalues",
+            "pvalue",
+            "independent_null_pvalues",
+            "minimal_wrapper",
+        ),
+        expected_lemmas=("iIndepSet_iff", "MeasurableSpace.measurableSet_generateFrom"),
+        depends_on=("independent_null_event_family_compl_inter_probability",),
+    ),
     "first_borel_cantelli_limsup_zero": FormalObligation(
         id="first_borel_cantelli_limsup_zero",
         title="First Borel-Cantelli limsup event bound",

@@ -13,15 +13,15 @@ python3 -m ai_statistician.cli proof-audit \
 Result:
 
 ```text
-verified=99/99
-kernel=99/99
+verified=100/100
+kernel=100/100
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=fbf7fd2dc34c982f446fff7d2cdb82001aeb3349b6fbc28fdc19298d1b8df803
+proof_bank_fingerprint=54378261ae306f0ae37ad81d427de983355aac7a5b42b06efac4209793ae62ce
 ```
 
 This is the current evidence that the registered proof bank is not only
-mock-checked: all 99 registered Mathlib-backed obligations were accepted by a
+mock-checked: all 100 registered Mathlib-backed obligations were accepted by a
 real Lean kernel check through the local Lake/Mathlib runtime. AXLE remains the
 preferred remote verifier for release bundles when its Python package and API
 runtime are available; the local Lean backend is the offline kernel-equivalent
@@ -44,9 +44,9 @@ strength=axle_lean_kernel
 ```
 
 That remote AXLE run predates the newest proof-bank additions. The current
-99-obligation proof bank has full local Lean kernel evidence above; run the
+100-obligation proof bank has full local Lean kernel evidence above; run the
 same `proof-audit --real-lean` command again from an AXLE-ready runtime to
-refresh remote AXLE evidence for all 99 obligations.
+refresh remote AXLE evidence for all 100 obligations.
 
 Latest current proof-bank validation: 2026-06-02.
 
@@ -62,10 +62,10 @@ Runtime used:
 Result:
 
 ```text
-proof_bank_kernel=99/99
+proof_bank_kernel=100/100
 proof_verifier=local.lake_env_lean
 proof_strength=local_lean_kernel_batch
-proof_bank_fingerprint=fbf7fd2dc34c982f446fff7d2cdb82001aeb3349b6fbc28fdc19298d1b8df803
+proof_bank_fingerprint=54378261ae306f0ae37ad81d427de983355aac7a5b42b06efac4209793ae62ce
 dependency_graph_edges=116
 dependency_graph_all_known=True
 selected_dependencies_verified=True
@@ -76,10 +76,10 @@ EmpericalProcessLEAN `lean_rag` dependency graph, and bounded adaptive Monte
 Carlo reruns for simulations diagnosed as `INSUFFICIENT_MC_PRECISION`:
 
 ```text
-run=runs/current_randomization_variance_bridge_system_audit
+run=runs/current_independent_null_pvalues_bridge_system_audit
 all_gates_passed=True
-proofs_verified=99/99
-proofs_kernel_verified=99/99
+proofs_verified=100/100
+proofs_kernel_verified=100/100
 proof_verification_strength=local_lean_kernel_batch
 lean_rag_dependency_graph_enabled=True
 frontier_smoke=23/23
@@ -119,10 +119,15 @@ BH step-up FDR theorem as an explicit formal gap.
 The 43rd obligation is
 `independent_null_event_family_compl_inter_probability`, proving
 `μ (⋂ i ∈ I, (A i)ᶜ) = ∏ i ∈ I, μ (A i)ᶜ` from `iIndepSet_iff` and generated
-singleton sigma-algebra measurability. The formalization-target audit now ranks
-this complement bridge first for `independent_null_pvalues`, with both
-intersection and complement-intersection product obligations available as
-bridge candidates.
+singleton sigma-algebra measurability.
+
+The BH/FDR block now also includes `independent_null_pvalues_bridge`, a
+domain-named wrapper for the same complement-product independence algebra. The
+formalization-target audit ranks this wrapper first for
+`independent_null_pvalues`, with both intersection and complement-intersection
+product obligations still available as bridge candidates. This verifies the
+independence ingredient only; p-value validity, ordering, self-consistency, and
+full BH FDR control remain formal gaps.
 
 The 44th obligation is `finite_horizon_evalue_markov_type1_control`, proving a
 finite-horizon e-value exceedance control theorem by combining Mathlib Markov
@@ -378,7 +383,7 @@ The causal bridge block now also includes
 `propensity_weight_cancel_left_of_lower_bound`, the left-oriented companion
 identity `p * p⁻¹ = 1` under the same strict lower-bound assumption. This gives
 IPW/AIPW algebra both cancellation orientations without relying on ad hoc
-commutativity rewrites; it is kernel-verified as part of the current `99/99`
+commutativity rewrites; it is kernel-verified as part of the current `100/100`
 local Lean proof-bank audit and still does not prove positivity as a model
 assumption or close causal identification.
 

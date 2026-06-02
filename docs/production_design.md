@@ -82,7 +82,7 @@ sandboxed code patching, or simulator construction still stop honestly with
 repair proposal, unless a stronger handler is registered.
 
 Current release-style evidence for this bounded loop is split intentionally:
-`proof-audit --local-lean` verifies the registered proof bank at `99/99`, while
+`proof-audit --local-lean` verifies the registered proof bank at `100/100`, while
 `research-system-audit` exercises the loop, Lean-RAG dependency retrieval, proof
 bridge routing, and simulation/audit gates. When the system audit is not run
 with `--local-lean`, its proof rows are scaffold evidence rather than fresh
@@ -1196,6 +1196,11 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   singleton sigma-algebras, giving BH/FDR and familywise-error traces a
   verified "no false null event" product bridge while preserving the full BH
   theorem as a formal gap.
+- `independent_null_pvalues_bridge`: the same complement-product independence
+  algebra exposed under the `independent_null_pvalues` primitive name for
+  finite true-null rejection events. It verifies the independence ingredient
+  used by FDR leave-one-out arguments, while still leaving p-value validity,
+  ordering, self-consistency, and BH FDR control as formal gaps.
 - `finite_null_family_no_false_rejection_probability`: a finite null-family
   familywise-error bridge. If every true-null rejection event has local budget
   `α_i` and the budgets sum to `α_total`, then the probability of no false
@@ -1542,11 +1547,11 @@ python3 -m ai_statistician.cli proof-audit \
 Current full-bank local Lean evidence (2026-06-02):
 
 ```text
-verified=99/99
-kernel=99/99
+verified=100/100
+kernel=100/100
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=fbf7fd2dc34c982f446fff7d2cdb82001aeb3349b6fbc28fdc19298d1b8df803
+proof_bank_fingerprint=54378261ae306f0ae37ad81d427de983355aac7a5b42b06efac4209793ae62ce
 ```
 
 Run `doctor` in the same Python runtime first. It reports

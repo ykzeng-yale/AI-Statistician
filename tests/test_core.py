@@ -2283,6 +2283,19 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("null_pvalues", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_independent_null_pvalues_bridge_closes_named_fdr_primitive(self) -> None:
+        obligation = get_obligation("independent_null_pvalues_bridge")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("independent_null_event_family_compl_inter_probability",))
+        self.assertIn("theorem independentNullPValues_complementProduct", content)
+        self.assertIn("iIndepSet reject μ", content)
+        self.assertIn("μ (⋂ i ∈ I, (reject i)ᶜ) = ∏ i ∈ I, μ (reject i)ᶜ", content)
+        self.assertIn("iIndepSet_iff", content)
+        self.assertIn("MeasurableSpace.measurableSet_generateFrom", content)
+        self.assertIn("independent_null_pvalues", obligation.tags)
+        self.assertIn("minimal_wrapper", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_first_borel_cantelli_obligation_uses_mathlib_limsup_lemma(self) -> None:
         obligation = get_obligation("first_borel_cantelli_limsup_zero")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
@@ -3856,7 +3869,7 @@ class SystemTests(unittest.TestCase):
         self.assertIn("S7_feedback_loop_repair_with_seeded_failures", payload["recommended_next_gate_stack"])
 
         doc = Path("docs/evaluation_benchmark_strategy.md").read_text(encoding="utf-8")
-        self.assertIn("`proofs_kernel_verified=99/99`", doc)
+        self.assertIn("`proofs_kernel_verified=100/100`", doc)
         self.assertIn("expected-result coverage about 83.3%", doc)
         self.assertIn("35 frontier-evaluation triage items", doc)
         self.assertIn("bounded adaptive MC inside the benchmark", doc)
@@ -4700,6 +4713,7 @@ class SystemTests(unittest.TestCase):
             "independent_event_inter_probability",
             "independent_null_event_family_inter_probability",
             "independent_null_event_family_compl_inter_probability",
+            "independent_null_pvalues_bridge",
             "finite_union_bound",
             "finite_union_budget_control",
             "finite_null_family_no_false_rejection_probability",
@@ -4765,6 +4779,11 @@ class SystemTests(unittest.TestCase):
             rows["bh_threshold_fixed_point"]["bridge_candidate_obligations"],
         )
         self.assertEqual(rows["bh_threshold_fixed_point"]["priority_band"], "BRIDGE_REUSE_READY")
+        self.assertEqual(
+            rows["independent_null_pvalues"]["bridge_candidate_obligations"][0],
+            "independent_null_pvalues_bridge",
+        )
+        self.assertEqual(rows["independent_null_pvalues"]["priority_band"], "BRIDGE_REUSE_READY")
 
     def test_formalization_target_audit_maps_causal_consistency_primitive_to_verified_bridge(self) -> None:
         run_dir = Path("runs/test_formalization_target_causal_run")

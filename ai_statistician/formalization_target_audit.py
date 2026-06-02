@@ -292,6 +292,11 @@ _PRIMITIVE_PROOF_BRIDGE_HINTS: dict[str, tuple[str, ...]] = {
         "finite_null_pvalue_no_false_rejection_probability",
         "finite_null_family_no_false_rejection_probability",
     ),
+    "independent_null_pvalues": (
+        "independent_null_pvalues_bridge",
+        "independent_null_event_family_compl_inter_probability",
+        "independent_null_event_family_inter_probability",
+    ),
     "finite_population_potential_outcomes": (
         "finite_population_potential_outcomes",
         "finite_population_ate_mean_difference",
