@@ -317,21 +317,34 @@ def _queue_row(
 def _legacy_lemma_proposal(row: ProofBankExpansionCandidate) -> dict[str, object]:
     payload = asdict(row)
     return {
-        key: payload[key]
-        for key in (
-            "proposal_id",
-            "source_kind",
-            "proposed_by",
-            "candidate",
-            "source_task_ids",
-            "domain_tags",
-            "expected_premises",
-            "required_gates",
-            "blocked_reasons",
-            "status",
-            "action_class",
-            "notes",
-        )
+        "proposal_id": payload["proposal_id"],
+        "source_kind": payload["source_kind"],
+        "proposed_by": payload["proposed_by"],
+        "candidate": payload["candidate"],
+        "source_task_ids": payload["source_task_ids"],
+        "domain_tags": payload["domain_tags"],
+        "expected_premises": payload["expected_premises"],
+        "required_gates": payload["required_gates"],
+        "blocked_reasons": payload["blocked_reasons"],
+        "status": payload["status"],
+        "action_class": payload["action_class"],
+        "notes": payload["notes"],
+        "primitive": payload["primitive"],
+        "priority_score": payload["priority_score"],
+        "bridge_readiness": payload["bridge_readiness"],
+        "candidate_declarations": payload["candidate_declarations"],
+        "bridge_candidate_obligations": payload["bridge_candidate_obligations"],
+        "source_gap_ids": payload["source_gap_ids"],
+        "promotion_blocked": payload["status"] == "blocked_placeholder",
+        "candidate_proof_is_empty": not str(payload["candidate"].get("proof", "")).strip(),
+        "candidate_statement_has_placeholder_assumption": "h_frontier_missing"
+        in str(payload["candidate"].get("statement", "")),
+        "proof_evidence_boundary": (
+            "Proposal metadata and retrieved bridge chains are not Lean proof evidence. "
+            "Promote only after a non-placeholder proof body passes AXLE/Lean verify_proof."
+        ),
+        "ok": payload["ok"],
+        "errors": payload["errors"],
     }
 
 

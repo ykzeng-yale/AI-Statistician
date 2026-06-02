@@ -5502,6 +5502,21 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(len(rows), payload["n_candidates"])
         self.assertIn("blocked_reasons", rows[0])
         self.assertIn("action_class", rows[0])
+        self.assertIn("primitive", rows[0])
+        self.assertIn("priority_score", rows[0])
+        self.assertIn("bridge_readiness", rows[0])
+        self.assertIn("candidate_declarations", rows[0])
+        self.assertIn("bridge_candidate_obligations", rows[0])
+        self.assertIn("source_gap_ids", rows[0])
+        self.assertIn("promotion_blocked", rows[0])
+        self.assertIn("candidate_proof_is_empty", rows[0])
+        self.assertIn("candidate_statement_has_placeholder_assumption", rows[0])
+        self.assertIn("proof_evidence_boundary", rows[0])
+        self.assertIn("not Lean proof evidence", rows[0]["proof_evidence_boundary"])
+        if rows[0]["status"] == "blocked_placeholder":
+            self.assertTrue(rows[0]["promotion_blocked"])
+            self.assertTrue(rows[0]["candidate_proof_is_empty"])
+            self.assertTrue(rows[0]["candidate_statement_has_placeholder_assumption"])
 
     def test_primitive_source_coverage_audit_classifies_missing_primitives(self) -> None:
         async def run():

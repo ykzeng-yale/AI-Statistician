@@ -563,6 +563,13 @@ by `h_frontier_missing_*` placeholders. This gives the formal verifier a
 concrete next proof-bank expansion queue while preserving the invariant that
 only AXLE `verify_proof` results enter the proof bank.
 
+The JSONL rows expose proof-search routing fields at top level: `primitive`,
+`action_class`, `bridge_readiness`, `candidate_declarations`,
+`bridge_candidate_obligations`, `source_gap_ids`, and explicit promotion
+blockers such as `candidate_statement_has_placeholder_assumption`. These fields
+are retrieval/planning evidence only; the row still remains blocked until a
+non-placeholder proof body is kernel verified.
+
 Research trace training export:
 
 ```bash

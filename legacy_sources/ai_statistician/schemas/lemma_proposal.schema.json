@@ -13,6 +13,18 @@
     "required_gates",
     "blocked_reasons",
     "status",
+    "action_class",
+    "primitive",
+    "priority_score",
+    "bridge_readiness",
+    "candidate_declarations",
+    "bridge_candidate_obligations",
+    "source_gap_ids",
+    "promotion_blocked",
+    "candidate_proof_is_empty",
+    "candidate_statement_has_placeholder_assumption",
+    "proof_evidence_boundary",
+    "ok",
     "notes"
   ],
   "properties": {
@@ -39,7 +51,19 @@
         "imports_added": {"type": "array", "items": {"type": "string"}},
         "reuse_count": {"type": "integer", "minimum": 0},
         "generality_score": {"type": "number"},
-        "semantic_notes": {"type": "string"}
+        "semantic_notes": {"type": "string"},
+        "composition_plan": {
+          "type": "object",
+          "properties": {
+            "target_declaration": {"type": "string"},
+            "strategy": {"type": "string"},
+            "ordered_obligations": {"type": "array"},
+            "ordered_obligation_ids": {"type": "array", "items": {"type": "string"}},
+            "remaining_interface": {"type": "array", "items": {"type": "string"}},
+            "proof_evidence_boundary": {"type": "string"}
+          },
+          "additionalProperties": true
+        }
       },
       "additionalProperties": false
     },
@@ -65,6 +89,27 @@
     },
     "blocked_reasons": {"type": "array", "items": {"type": "string"}},
     "status": {"type": "string"},
+    "action_class": {
+      "type": "string",
+      "enum": [
+        "compose_existing_bridge_chain",
+        "add_minimal_wrapper",
+        "design_bridge_lemma",
+        "design_from_first_principles"
+      ]
+    },
+    "primitive": {"type": "string"},
+    "priority_score": {"type": "integer"},
+    "bridge_readiness": {"type": "string"},
+    "candidate_declarations": {"type": "array", "items": {"type": "string"}},
+    "bridge_candidate_obligations": {"type": "array", "items": {"type": "string"}},
+    "source_gap_ids": {"type": "array", "items": {"type": "string"}},
+    "promotion_blocked": {"type": "boolean"},
+    "candidate_proof_is_empty": {"type": "boolean"},
+    "candidate_statement_has_placeholder_assumption": {"type": "boolean"},
+    "proof_evidence_boundary": {"type": "string"},
+    "ok": {"type": "boolean"},
+    "errors": {"type": "array", "items": {"type": "string"}},
     "notes": {"type": "string"}
   },
   "additionalProperties": false
