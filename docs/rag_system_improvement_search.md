@@ -49,12 +49,17 @@ The optional external gold cases cover:
 - SciLean Gaussian calculus/optimization theorem shapes.
 
 This turns the new external sources into measured RAG targets without
-overclaiming current support. A focused check on 2026-06-02 with the active
-SQLite/Lean-RAG provider stack retrieved the default benchmark reliably, but
-missed all eight optional external-intent cases (`0/8`, Recall@8 = 0.000). That
-is a concrete next-capacity target for provider fusion, query expansion, and
-semantic search. The benchmark still measures retrieval only; Lean/AXLE kernel
-proof remains the proof boundary.
+overclaiming proof support. A focused check on 2026-06-02 with the active
+SQLite/Lean-RAG provider stack retrieved both benchmark tiers:
+
+- Default release suite: `6/6`, Recall@8 = 1.000, MRR = 0.889.
+- Optional external-intent suite: `8/8`, Recall@8 = 1.000, MRR = 0.844.
+- Combined suite: `14/14`, Recall@8 = 1.000, MRR = 0.863.
+
+The benchmark still measures retrieval only; Lean/AXLE kernel proof remains the
+proof boundary. The next-capacity target is not "make these eight retrievable";
+it is to keep this recall stable while adding source-aware reranking,
+proof-state feedback, and harder semantic/paraphrase queries.
 
 ## Next Build Targets
 
