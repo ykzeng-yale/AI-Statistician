@@ -170,13 +170,13 @@ python3 -m ai_statistician.cli proof-audit \
   --out runs/proof_audit_local_lean_current
 ```
 
-Current evidence: `104/104` registered proof-bank obligations pass
+Current evidence: `106/106` registered proof-bank obligations pass
 `local_lean_kernel_batch` with proof-bank fingerprint
-`b951c6b2356af994644b616127e6ccbb3e40febe592741153403bd154c8fe848`.
+`3663172f8494dafd07a10417a1a54478662ffbbc7edcfa80198f3bb73856f632`.
 The latest release-style research-system audit also passes all gates with
 Lean-RAG dependency retrieval enabled and `research_loop_theory_revisions=6`.
 That audit is scaffold evidence unless it is run with `--local-lean`; the real
-kernel evidence for the registered proof obligations is the `104/104`
+kernel evidence for the registered proof obligations is the `106/106`
 `proof-audit` result above. These revisions attach verified proof obligations
 to theorem roadmaps; they do not claim the full frontier asymptotic theorems are
 closed.
@@ -344,6 +344,14 @@ bridge. For a finite nonempty rank space `Fin n`, Mathlib's uniform PMF assigns
 each rank mass `1 / n`. This gives conformal rank-uniformity traces a verified
 PMF building block while still leaving the exchangeable-scores-to-uniform-rank
 theorem and the full order-statistic conformal coverage theorem as formal gaps.
+It also includes `exchangeable_scores_uniform_rank_bridge`, a domain-named
+wrapper for the missing primitive `exchangeable_scores`. It verifies the finite
+uniform-rank PMF ingredient after the exchangeability argument has reduced
+scores to a uniform rank; it does not prove that exchangeability reduction.
+It also includes `order_statistic_quantile_rule_bridge`, a domain-named finite
+bad-rank coverage wrapper for split-conformal order-statistic rules. It proves
+the finite rank/union/complement algebra while still leaving score
+exchangeability and the quantile construction theorem as formal gaps.
 It also includes `bh_threshold_grid_mono`, a deterministic BH/FDR algebra
 bridge. For nonnegative nominal level `q`, the Benjamini-Hochberg threshold
 grid `q * k / m` is monotone in the rank index `k`. This gives ordered-p-value

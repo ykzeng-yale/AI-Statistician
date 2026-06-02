@@ -13,15 +13,15 @@ python3 -m ai_statistician.cli proof-audit \
 Result:
 
 ```text
-verified=104/104
-kernel=104/104
+verified=106/106
+kernel=106/106
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=b951c6b2356af994644b616127e6ccbb3e40febe592741153403bd154c8fe848
+proof_bank_fingerprint=3663172f8494dafd07a10417a1a54478662ffbbc7edcfa80198f3bb73856f632
 ```
 
 This is the current evidence that the registered proof bank is not only
-mock-checked: all 104 registered Mathlib-backed obligations were accepted by a
+mock-checked: all 106 registered Mathlib-backed obligations were accepted by a
 real Lean kernel check through the local Lake/Mathlib runtime. AXLE remains the
 preferred remote verifier for release bundles when its Python package and API
 runtime are available; the local Lean backend is the offline kernel-equivalent
@@ -44,9 +44,9 @@ strength=axle_lean_kernel
 ```
 
 That remote AXLE run predates the newest proof-bank additions. The current
-104-obligation proof bank has full local Lean kernel evidence above; run the
+106-obligation proof bank has full local Lean kernel evidence above; run the
 same `proof-audit --real-lean` command again from an AXLE-ready runtime to
-refresh remote AXLE evidence for all 104 obligations.
+refresh remote AXLE evidence for all 106 obligations.
 
 Latest current proof-bank validation: 2026-06-02.
 
@@ -62,11 +62,11 @@ Runtime used:
 Result:
 
 ```text
-proof_bank_kernel=104/104
+proof_bank_kernel=106/106
 proof_verifier=local.lake_env_lean
 proof_strength=local_lean_kernel_batch
-proof_bank_fingerprint=b951c6b2356af994644b616127e6ccbb3e40febe592741153403bd154c8fe848
-dependency_graph_edges=126
+proof_bank_fingerprint=3663172f8494dafd07a10417a1a54478662ffbbc7edcfa80198f3bb73856f632
+dependency_graph_edges=130
 dependency_graph_all_known=True
 selected_dependencies_verified=True
 ```
@@ -76,10 +76,10 @@ EmpericalProcessLEAN `lean_rag` dependency graph, and bounded adaptive Monte
 Carlo reruns for simulations diagnosed as `INSUFFICIENT_MC_PRECISION`:
 
 ```text
-run=runs/current_robust_mean_bridges_system_audit
+run=runs/current_conformal_wrappers_system_audit
 all_gates_passed=True
-proofs_verified=104/104
-proofs_kernel_verified=104/104
+proofs_verified=106/106
+proofs_kernel_verified=106/106
 proof_verification_strength=local_lean_kernel_batch
 lean_rag_dependency_graph_enabled=True
 frontier_smoke=23/23
@@ -362,6 +362,15 @@ mass `1/n`. This is a real verified PMF bridge for rank-uniformity traces; it
 still does not prove that exchangeable nonconformity scores induce a uniform
 rank, nor the full order-statistic conformal coverage theorem.
 
+The same conformal block now also includes
+`exchangeable_scores_uniform_rank_bridge` and
+`order_statistic_quantile_rule_bridge`. The first is a domain-named wrapper for
+the finite uniform-rank PMF ingredient behind exchangeable-score traces; the
+second is a domain-named finite bad-rank union/complement wrapper for
+order-statistic quantile rules. They reduce minimal-wrapper queue debt from 8
+to 6, while still leaving exchangeability-to-rank-uniformity and the full
+split-conformal order-statistic coverage theorem as explicit formal gaps.
+
 The BH/FDR block now includes `bh_threshold_grid_mono`. It proves that the
 Benjamini-Hochberg threshold grid `q*k/m` is monotone in the rank index `k`
 whenever the nominal level `q` is nonnegative. This is a real verified algebraic
@@ -405,7 +414,7 @@ The causal bridge block now also includes
 `propensity_weight_cancel_left_of_lower_bound`, the left-oriented companion
 identity `p * p⁻¹ = 1` under the same strict lower-bound assumption. This gives
 IPW/AIPW algebra both cancellation orientations without relying on ad hoc
-commutativity rewrites; it is kernel-verified as part of the current `104/104`
+commutativity rewrites; it is kernel-verified as part of the current `106/106`
 local Lean proof-bank audit and still does not prove positivity as a model
 assumption or close causal identification.
 

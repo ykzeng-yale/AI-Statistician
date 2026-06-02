@@ -2323,7 +2323,9 @@ class TheoryPlanner:
                         "finite_union_bound",
                         "finite_union_budget_control",
                         "simultaneous_coverage_of_union_error_bound",
+                        "exchangeable_scores_uniform_rank_bridge",
                         "finite_conformal_rank_coverage_counting",
+                        "order_statistic_quantile_rule_bridge",
                     ),
                 )
             ]
@@ -4797,7 +4799,9 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "finite_union_budget_control",
         "simultaneous_coverage_of_union_error_bound",
         "uniform_rank_pmf_mass",
+        "exchangeable_scores_uniform_rank_bridge",
         "finite_conformal_rank_coverage_counting",
+        "order_statistic_quantile_rule_bridge",
     ),
     "right_censored_survival_inference": (
         "event_indicator_expectation",

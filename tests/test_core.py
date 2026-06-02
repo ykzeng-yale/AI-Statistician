@@ -1550,6 +1550,20 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("conformal", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_exchangeable_scores_uniform_rank_bridge_closes_named_primitive(self) -> None:
+        obligation = get_obligation("exchangeable_scores_uniform_rank_bridge")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("uniform_rank_pmf_mass",))
+        self.assertIn("theorem exchangeableScores_uniformRank_mass", content)
+        self.assertIn("PMF.uniformOfFintype (Fin n) r", content)
+        self.assertIn("(n : ENNReal)⁻¹", content)
+        self.assertIn("PMF.uniformOfFintype_apply", content)
+        self.assertIn("Fintype.card_fin", content)
+        self.assertIn("exchangeable_scores", obligation.tags)
+        self.assertIn("rank_uniformity", obligation.tags)
+        self.assertIn("minimal_wrapper", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_aipw_score_expectation_target_cancels_augmentation_means(self) -> None:
         obligation = get_obligation("aipw_score_expectation_target_of_aug_cancel")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
@@ -2067,6 +2081,28 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("finite_sample_coverage_counting", obligation.tags)
         self.assertIn("rank_uniformity", obligation.tags)
         self.assertIn("order_statistic_quantile_rule", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
+    def test_order_statistic_quantile_rule_bridge_closes_named_primitive(self) -> None:
+        obligation = get_obligation("order_statistic_quantile_rule_bridge")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(
+            obligation.depends_on,
+            (
+                "finite_conformal_rank_coverage_counting",
+                "coverage_lower_bound_of_complement_error",
+                "finite_union_budget_control",
+            ),
+        )
+        self.assertIn("theorem orderStatisticQuantileRule_coverage", content)
+        self.assertIn("BadRanks : Finset ρ", content)
+        self.assertIn("rank : Ω → ρ", content)
+        self.assertIn("μ {ω | rank ω = r} ≤ α r", content)
+        self.assertIn("1 - α_total ≤ μ ({ω | rank ω ∈ BadRanks}ᶜ)", content)
+        self.assertIn("measure_biUnion_finset_le", content)
+        self.assertIn("prob_compl_eq_one_sub", content)
+        self.assertIn("order_statistic_quantile_rule", obligation.tags)
+        self.assertIn("minimal_wrapper", obligation.tags)
         self.assertNotIn("by sorry", content)
 
     def test_finite_family_error_union_control_supports_simultaneous_bands(self) -> None:
@@ -3923,12 +3959,12 @@ class SystemTests(unittest.TestCase):
         self.assertIn("S7_feedback_loop_repair_with_seeded_failures", payload["recommended_next_gate_stack"])
 
         doc = Path("docs/evaluation_benchmark_strategy.md").read_text(encoding="utf-8")
-        self.assertIn("`proofs_kernel_verified=104/104`", doc)
+        self.assertIn("`proofs_kernel_verified=106/106`", doc)
         self.assertIn("expected-result coverage about 83.9%", doc)
         self.assertIn("34 frontier-evaluation triage items", doc)
         self.assertIn("bounded adaptive MC inside the benchmark", doc)
         self.assertIn("53 have ranked proof-bank bridge candidates", doc)
-        self.assertIn("minimal-wrapper debt is now 8", doc)
+        self.assertIn("minimal-wrapper debt is now 6", doc)
         self.assertNotIn("79/79", doc)
         self.assertNotIn("82/82", doc)
 
@@ -4134,6 +4170,14 @@ class SystemTests(unittest.TestCase):
         )
         self.assertIn(
             "simultaneous_coverage_of_union_error_bound",
+            conformal_goals["split_conformal_finite_sample_coverage"]["proof_obligations"],
+        )
+        self.assertIn(
+            "exchangeable_scores_uniform_rank_bridge",
+            conformal_goals["split_conformal_finite_sample_coverage"]["proof_obligations"],
+        )
+        self.assertIn(
+            "order_statistic_quantile_rule_bridge",
             conformal_goals["split_conformal_finite_sample_coverage"]["proof_obligations"],
         )
         hetero_trace = json.loads(Path("runs/test_research_benchmark/heteroskedastic_regression_hc.json").read_text())
@@ -4680,7 +4724,9 @@ class SystemTests(unittest.TestCase):
             "finite_union_bound",
             "finite_union_budget_control",
             "simultaneous_coverage_of_union_error_bound",
+            "exchangeable_scores_uniform_rank_bridge",
             "finite_conformal_rank_coverage_counting",
+            "order_statistic_quantile_rule_bridge",
         )
         trace = {
             "question": {"id": "q_conformal"},
@@ -4724,10 +4770,18 @@ class SystemTests(unittest.TestCase):
             "uniform_rank_pmf_mass",
             rows["exchangeable_scores"]["bridge_candidate_obligations"],
         )
+        self.assertEqual(
+            rows["exchangeable_scores"]["bridge_candidate_obligations"][0],
+            "exchangeable_scores_uniform_rank_bridge",
+        )
         self.assertEqual(rows["exchangeable_scores"]["priority_band"], "BRIDGE_REUSE_READY")
         self.assertIn(
             "uniform_rank_pmf_mass",
             rows["rank_uniformity"]["bridge_candidate_obligations"],
+        )
+        self.assertEqual(
+            rows["rank_uniformity"]["bridge_candidate_obligations"][0],
+            "exchangeable_scores_uniform_rank_bridge",
         )
         for primitive in (
             "finite_sample_coverage_counting",
@@ -4739,6 +4793,10 @@ class SystemTests(unittest.TestCase):
                 rows[primitive]["bridge_candidate_obligations"],
             )
             self.assertEqual(rows[primitive]["priority_band"], "BRIDGE_REUSE_READY")
+        self.assertEqual(
+            rows["order_statistic_quantile_rule"]["bridge_candidate_obligations"][0],
+            "order_statistic_quantile_rule_bridge",
+        )
 
     def test_formalization_target_audit_maps_multiple_testing_pvalue_primitives_to_verified_bridge(self) -> None:
         run_dir = Path("runs/test_formalization_target_pvalue_run")

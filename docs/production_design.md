@@ -82,7 +82,7 @@ sandboxed code patching, or simulator construction still stop honestly with
 repair proposal, unless a stronger handler is registered.
 
 Current release-style evidence for this bounded loop is split intentionally:
-`proof-audit --local-lean` verifies the registered proof bank at `104/104`, while
+`proof-audit --local-lean` verifies the registered proof bank at `106/106`, while
 `research-system-audit` exercises the loop, Lean-RAG dependency retrieval, proof
 bridge routing, and simulation/audit gates. When the system audit is not run
 with `--local-lean`, its proof rows are scaffold evidence rather than fresh
@@ -989,6 +989,10 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   mass `1/n`. This upgrades conformal rank-uniformity traces with a verified PMF
   primitive while leaving the exchangeability-to-uniform-rank and
   order-statistic conformal coverage theorems as formal gaps.
+- `exchangeable_scores_uniform_rank_bridge`: a domain-named split-conformal
+  wrapper for the missing `exchangeable_scores` primitive. It verifies the
+  finite uniform-rank PMF ingredient after score exchangeability has been
+  reduced to a uniform rank; it does not prove that exchangeability reduction.
 - `bh_threshold_grid_mono`: a deterministic Benjamini-Hochberg threshold-grid
   bridge. For nonnegative nominal FDR level `q`, the grid `q*k/m` is monotone in
   the rank index `k`. This upgrades ordered-p-value and BH step-up fixed-point
@@ -1061,6 +1065,11 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   ingredient for conformal coverage traces, while exchangeability, rank
   uniformity, and the order-statistic quantile theorem remain explicit formal
   gaps.
+- `order_statistic_quantile_rule_bridge`: a domain-named split-conformal
+  wrapper for the missing `order_statistic_quantile_rule` primitive. It reuses
+  the finite bad-rank union/complement algebra to verify the coverage ingredient
+  associated with an order-statistic bad-rank set, without proving the score
+  exchangeability or quantile construction theorem.
 - `finite_family_absolute_error_union_control`: a finite-family estimator
   bridge: if each absolute-error event
   `{ω | radius i ≤ |X_i ω-theta_i|}` has local error budget `α_i`, then the
@@ -1566,11 +1575,11 @@ python3 -m ai_statistician.cli proof-audit \
 Current full-bank local Lean evidence (2026-06-02):
 
 ```text
-verified=104/104
-kernel=104/104
+verified=106/106
+kernel=106/106
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=b951c6b2356af994644b616127e6ccbb3e40febe592741153403bd154c8fe848
+proof_bank_fingerprint=3663172f8494dafd07a10417a1a54478662ffbbc7edcfa80198f3bb73856f632
 ```
 
 Run `doctor` in the same Python runtime first. It reports

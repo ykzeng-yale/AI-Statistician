@@ -13,8 +13,8 @@
     "core_research_simulation_flagged": "0/10",
     "adaptive_mc_rerun_rows_resolved": "4/4",
     "research_system_all_gates_passed": true,
-    "proof_bank_kernel_verified_release": "104/104",
-    "proof_bank_fingerprint": "b951c6b2356af994644b616127e6ccbb3e40febe592741153403bd154c8fe848",
+    "proof_bank_kernel_verified_release": "106/106",
+    "proof_bank_fingerprint": "3663172f8494dafd07a10417a1a54478662ffbbc7edcfa80198f3bb73856f632",
     "proof_search_kernel_verified_release": "12/12",
     "vetted_research_algorithms": "33/33",
     "formal_gaps": 20,
@@ -139,7 +139,7 @@
         "runs/release_local_kernel_audit/proof_search_audit/proof_search_audit_manifest.json",
         "runs/release_local_kernel_audit/proof_training_export/proof_training_manifest.json"
       ],
-      "current_proof_bank_size": 104,
+      "current_proof_bank_size": 106,
       "current_search_size": 12,
       "release_floor": [
         "proof-bank obligations verified",

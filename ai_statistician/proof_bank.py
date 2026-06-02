@@ -744,6 +744,46 @@ theorem uniformRank_pmf_mass {n : Nat} [Nonempty (Fin n)] (r : Fin n) :
         expected_lemmas=("PMF.uniformOfFintype_apply", "Fintype.card_fin"),
         depends_on=("complete_randomization_uniform_assignment_mass",),
     ),
+    "exchangeable_scores_uniform_rank_bridge": FormalObligation(
+        id="exchangeable_scores_uniform_rank_bridge",
+        title="Exchangeable-score uniform-rank bridge",
+        english=(
+            "After a split-conformal exchangeability argument has reduced the "
+            "nonconformity-score rank to a uniform rank on `Fin n`, the rank "
+            "PMF assigns mass `1/n` to every rank. This is a domain-named "
+            "minimal wrapper for the missing primitive `exchangeable_scores`; "
+            "it verifies the finite uniform-rank distribution ingredient, but "
+            "it does not prove the exchangeability-to-uniform-rank theorem."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+
+theorem exchangeableScores_uniformRank_mass {n : Nat} [Nonempty (Fin n)]
+    (r : Fin n) :
+    PMF.uniformOfFintype (Fin n) r = (n : ENNReal)⁻¹ := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  simpa [Fintype.card_fin] using (PMF.uniformOfFintype_apply r)"
+        ),
+        tags=(
+            "probability",
+            "pmf",
+            "uniform",
+            "rank",
+            "uniform_rank",
+            "rank_uniformity",
+            "exchangeable_scores",
+            "finite_sample",
+            "conformal",
+            "distribution_free_conformal_prediction",
+            "minimal_wrapper",
+        ),
+        expected_lemmas=("PMF.uniformOfFintype_apply", "Fintype.card_fin"),
+        depends_on=("uniform_rank_pmf_mass",),
+    ),
     "mean2_estimator_variance_indep": FormalObligation(
         id="mean2_estimator_variance_indep",
         title="Two-variable mean estimator variance under independence",
@@ -1048,6 +1088,82 @@ theorem finiteConformalRank_coverage_counting {Ω ρ : Type*}
         ),
         depends_on=(
             "simultaneous_coverage_of_union_error_bound",
+            "coverage_lower_bound_of_complement_error",
+            "finite_union_budget_control",
+        ),
+    ),
+    "order_statistic_quantile_rule_bridge": FormalObligation(
+        id="order_statistic_quantile_rule_bridge",
+        title="Order-statistic quantile rule finite-rank coverage bridge",
+        english=(
+            "For a split-conformal bad-rank set induced by an order-statistic "
+            "quantile rule, if each bad rank has a local probability budget "
+            "and the budgets sum to `alpha_total`, then the complement event "
+            "has coverage at least `1-alpha_total`. This is a domain-named "
+            "minimal wrapper for the missing primitive "
+            "`order_statistic_quantile_rule`; it proves the finite bad-rank "
+            "coverage algebra, but it does not prove exchangeability or the "
+            "score-rank quantile construction itself."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+theorem orderStatisticQuantileRule_coverage {Ω ρ : Type*}
+    [MeasurableSpace Ω]
+    (μ : Measure Ω) [IsProbabilityMeasure μ]
+    (BadRanks : Finset ρ) (rank : Ω → ρ)
+    (α : ρ → ENNReal) (α_total : ENNReal)
+    (hBadEvent : MeasurableSet {ω | rank ω ∈ BadRanks})
+    (hRank : ∀ r ∈ BadRanks, μ {ω | rank ω = r} ≤ α r)
+    (h_total : (∑ r ∈ BadRanks, α r) ≤ α_total) :
+    1 - α_total ≤ μ ({ω | rank ω ∈ BadRanks}ᶜ) := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  have hbad : μ {ω | rank ω ∈ BadRanks} ≤ α_total := by\n"
+            "    calc\n"
+            "      μ {ω | rank ω ∈ BadRanks} ≤ μ (⋃ r ∈ BadRanks, {ω | rank ω = r}) := by\n"
+            "        apply measure_mono\n"
+            "        intro ω hω\n"
+            "        exact Set.mem_iUnion.mpr ⟨rank ω, Set.mem_iUnion.mpr ⟨hω, rfl⟩⟩\n"
+            "      _ ≤ ∑ r ∈ BadRanks, μ {ω | rank ω = r} := by\n"
+            "        exact measure_biUnion_finset_le (μ := μ) BadRanks (fun r => {ω | rank ω = r})\n"
+            "      _ ≤ ∑ r ∈ BadRanks, α r := by\n"
+            "        exact Finset.sum_le_sum (fun r hr => hRank r hr)\n"
+            "      _ ≤ α_total := h_total\n"
+            "  have hcoverage : μ ({ω | rank ω ∈ BadRanks}ᶜ) =\n"
+            "      1 - μ {ω | rank ω ∈ BadRanks} := by\n"
+            "    exact prob_compl_eq_one_sub hBadEvent\n"
+            "  rw [hcoverage]\n"
+            "  exact tsub_le_tsub_left hbad 1"
+        ),
+        tags=(
+            "probability",
+            "event",
+            "coverage",
+            "finite_sample",
+            "conformal",
+            "rank",
+            "rank_uniformity",
+            "coverage_counting",
+            "finite_sample_coverage_counting",
+            "order_statistic_quantile_rule",
+            "union_bound",
+            "minimal_wrapper",
+        ),
+        expected_lemmas=(
+            "measure_mono",
+            "Set.mem_iUnion",
+            "measure_biUnion_finset_le",
+            "Finset.sum_le_sum",
+            "prob_compl_eq_one_sub",
+            "tsub_le_tsub_left",
+        ),
+        depends_on=(
+            "finite_conformal_rank_coverage_counting",
             "coverage_lower_bound_of_complement_error",
             "finite_union_budget_control",
         ),

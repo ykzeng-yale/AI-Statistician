@@ -173,7 +173,7 @@ python3 -m ai_statistician.cli research-system-audit \
 Result:
 
 ```text
-proof_bank_kernel=104/104
+proof_bank_kernel=106/106
 proof_verifier=local.lake_env_lean
 proof_strength=local_lean_kernel_batch
 system_all_gates_passed=True
@@ -183,8 +183,8 @@ frontier_supported=60/60
 frontier_smoke=23/23
 formalized_gaps=20/20
 proof_bank_expansion_bridge_ready=53/97
-proof_bank_expansion_compose_existing_bridge_chain=45
-proof_bank_expansion_add_minimal_wrapper=8
+proof_bank_expansion_compose_existing_bridge_chain=47
+proof_bank_expansion_add_minimal_wrapper=6
 formalization_targets_with_proof_bank_bridge=74
 missing_primitives=97
 lean_rag_dependency_graph_enabled=True
@@ -209,7 +209,7 @@ source_inventory: 29/29 all_ok=True
 
 Earlier proof-bank expansion experiments temporarily reported a higher
 bridge-ready count; the current adaptive release audit reports `53/97` after
-stricter primitive routing, with `104/104` registered proof-bank obligations
+stricter primitive routing, with `106/106` registered proof-bank obligations
 kernel verified.
 `independent_null_pvalues` is backed by the verified
 `independent_null_event_family_inter_probability` and
@@ -348,11 +348,19 @@ longer relies on the old unresolved simulator-rerun path.
 The robust median-of-means bridge pair
 `chebyshev_block_failure_bound_bridge` and `median_of_means_deviation_bridge`
 then converts two previously minimal-wrapper targets into direct proof-bank
-routes. The latest proof-bank expansion audit keeps
-`proof_bank_expansion_bridge_ready=53/97`, raises compose-existing bridge-chain
-opportunities to `45`, and lowers add-minimal-wrapper debt to `8`, while still
+routes. That proof-bank expansion audit kept
+`proof_bank_expansion_bridge_ready=53/97`, raised compose-existing bridge-chain
+opportunities to `45`, and lowered add-minimal-wrapper debt to `8`, while still
 leaving the binomial median tail and sharp sub-Gaussian MoM theorem as formal
 gaps.
+The conformal bridge pair `exchangeable_scores_uniform_rank_bridge` and
+`order_statistic_quantile_rule_bridge` then converts two split-conformal
+minimal-wrapper targets into direct proof-bank routes. The latest expansion
+audit keeps `proof_bank_expansion_bridge_ready=53/97`, raises
+compose-existing bridge-chain opportunities to `47`, and lowers
+add-minimal-wrapper debt to `6`, while still leaving the
+exchangeability-to-rank-uniformity theorem and full order-statistic conformal
+coverage theorem as explicit formal gaps.
 The upward conditional-expectation bridges
 `integrable_ae_tendsto_condexp_filtration` and
 `integrable_l1_tendsto_condexp_filtration` wrap Mathlib's
