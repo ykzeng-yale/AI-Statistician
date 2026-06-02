@@ -553,31 +553,54 @@ class ProofBankTests(unittest.TestCase):
                 );
                 """
             )
-            row = (
-                1,
-                "Demo.lean_rag_only_variance_bridge",
-                "lean_rag_only_variance_bridge",
-                "theorem",
-                "Demo",
-                "Demo.lean",
-                11,
-                12,
-                "Demo",
-                "[]",
-                "theorem lean_rag_only_variance_bridge : variance finite independent sum bridge",
-                "by trivial",
-                1,
-                0,
-                "hash",
+            rows = (
+                (
+                    1,
+                    "Demo.lean_rag_only_variance_bridge",
+                    "lean_rag_only_variance_bridge",
+                    "theorem",
+                    "Demo",
+                    "Demo.lean",
+                    11,
+                    12,
+                    "Demo",
+                    "[]",
+                    "theorem lean_rag_only_variance_bridge : variance finite independent sum bridge",
+                    "by trivial",
+                    1,
+                    0,
+                    "hash",
+                ),
+                (
+                    2,
+                    "StatInference.vdVWOrderDualFiniteHorizon_mul_integral_upcrossingsBefore_le_integral_pos_part",
+                    "vdVWOrderDualFiniteHorizon_mul_integral_upcrossingsBefore_le_integral_pos_part",
+                    "theorem",
+                    "StatInference.EmpiricalProcess.Theorem243",
+                    "StatInference/EmpiricalProcess/Theorem243.lean",
+                    6891,
+                    6900,
+                    "StatInference",
+                    "[]",
+                    (
+                        "theorem vdVWOrderDualFiniteHorizon_mul_integral_upcrossingsBefore_le_integral_pos_part "
+                        ": order dual submartingale finite horizon reverse comparison downcrossings"
+                    ),
+                    "by trivial",
+                    1,
+                    0,
+                    "hash2",
+                ),
             )
-            conn.execute("INSERT INTO declarations VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", row)
-            conn.execute(
-                """
-                INSERT INTO decl_fts(rowid, name, short_name, kind, module, namespace, signature, proof)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (row[0], row[1], row[2], row[3], row[4], row[8], row[10], row[11]),
-            )
+            for row in rows:
+                conn.execute("INSERT INTO declarations VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", row)
+                conn.execute(
+                    """
+                    INSERT INTO decl_fts(rowid, name, short_name, kind, module, namespace, signature, proof)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (row[0], row[1], row[2], row[3], row[4], row[8], row[10], row[11]),
+                )
         baseline = FormalSourceHybridRetriever(declarations, sqlite_index)
         enhanced = FormalSourceHybridRetriever(
             declarations,
@@ -599,8 +622,14 @@ class ProofBankTests(unittest.TestCase):
             k=5,
         )
         self.assertTrue(payload["all_ok"])
-        self.assertEqual(payload["n_new_hits"], 1)
+        self.assertEqual(payload["n_new_hits"], 2)
         self.assertEqual(payload["n_lost_hits"], 0)
+        self.assertEqual(payload["n_dependency_sensitive_cases"], 1)
+        self.assertEqual(payload["n_dependency_sensitive_new_hits"], 1)
+        self.assertIn(
+            "lean_rag_vdvw_order_dual_submartingale",
+            payload["dependency_sensitive_query_ids"],
+        )
         self.assertEqual(payload["rows"][0]["baseline_hit_rank"], None)
         self.assertEqual(payload["rows"][0]["enhanced_hit_rank"], 1)
         self.assertTrue(
@@ -7499,6 +7528,14 @@ class SystemTests(unittest.TestCase):
             0,
         )
         self.assertGreaterEqual(payload["counts"]["formal_source_retrieval_ablation_cases"], 1)
+        self.assertGreaterEqual(
+            payload["counts"]["formal_source_retrieval_ablation_dependency_sensitive_cases"],
+            0,
+        )
+        self.assertGreaterEqual(
+            payload["counts"]["formal_source_retrieval_ablation_dependency_sensitive_new_hits"],
+            0,
+        )
         self.assertIn("lean_rag_dependency_graph_auto_discovered", payload["counts"])
         self.assertTrue(payload["counts"]["lean_rag_dependency_graph_enabled"])
         self.assertIn("timings", payload)

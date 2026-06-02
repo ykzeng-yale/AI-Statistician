@@ -745,6 +745,12 @@ async def run_research_system_audit(
             "formal_source_retrieval_ablation_rank_regressed": formal_source_retrieval_ablation_manifest[
                 "n_rank_regressed"
             ],
+            "formal_source_retrieval_ablation_dependency_sensitive_cases": formal_source_retrieval_ablation_manifest[
+                "n_dependency_sensitive_cases"
+            ],
+            "formal_source_retrieval_ablation_dependency_sensitive_new_hits": formal_source_retrieval_ablation_manifest[
+                "n_dependency_sensitive_new_hits"
+            ],
             "formal_source_index_cache_status": getattr(formal_source_retriever, "cache_status", "unknown"),
             "formal_source_index_cache_path": getattr(formal_source_retriever, "cache_path", ""),
             "lean_rag_dependency_graph_enabled": getattr(

@@ -15,6 +15,35 @@ from .formal_source_retrieval_benchmark import (
 
 FORMAL_SOURCE_RETRIEVAL_ABLATION_SCHEMA_VERSION = 1
 
+LEAN_RAG_DEPENDENCY_SENSITIVE_CASES: tuple[FormalSourceRetrievalBenchmarkCase, ...] = (
+    FormalSourceRetrievalBenchmarkCase(
+        query_id="lean_rag_vdvw_order_dual_submartingale",
+        query=(
+            "order dual submartingale finite horizon reverse comparison downcrossings"
+        ),
+        expected_name_fragments=(
+            "vdVWOrderDualFiniteHorizon_mul_integral_upcrossingsBefore_le_integral_pos_part",
+        ),
+        expected_source_ids=("lean_rag_dependency_graph",),
+        rationale=(
+            "dependency-graph integration should expose deep VdVW bridge declarations "
+            "that are not in the local FTS source index"
+        ),
+    ),
+    FormalSourceRetrievalBenchmarkCase(
+        query_id="lean_rag_vdvw_theorem243_finite_net",
+        query=(
+            "vdVW theorem243 finite net Hoeffding log cardinality subgaussian"
+        ),
+        expected_name_fragments=("vdVWTheorem243",),
+        expected_source_ids=("lean_rag_dependency_graph",),
+        rationale=(
+            "dependency-graph integration should retrieve theorem-facing empirical-process "
+            "bridges from the shared StatInference graph"
+        ),
+    ),
+)
+
 
 def run_formal_source_retrieval_ablation_benchmark(
     out_dir: Path | None = None,
@@ -38,24 +67,30 @@ def run_formal_source_retrieval_ablation_benchmark(
     boundary.
     """
 
+    dependency_sensitive_cases = _available_dependency_sensitive_cases(
+        enhanced_retriever,
+        k=k,
+    )
+    active_cases = tuple(cases) + dependency_sensitive_cases
     baseline_dir = out_dir / "baseline" if out_dir is not None else None
     enhanced_dir = out_dir / "enhanced" if out_dir is not None else None
     baseline = run_formal_source_retrieval_benchmark(
         baseline_dir,
         retriever=baseline_retriever,
-        cases=cases,
+        cases=active_cases,
         k=k,
     )
     enhanced = run_formal_source_retrieval_benchmark(
         enhanced_dir,
         retriever=enhanced_retriever,
-        cases=cases,
+        cases=active_cases,
         k=k,
     )
     baseline_rows = {str(row["query_id"]): row for row in baseline["rows"] if isinstance(row, dict)}
     enhanced_rows = {str(row["query_id"]): row for row in enhanced["rows"] if isinstance(row, dict)}
     rows = []
-    for case in cases:
+    dependency_query_ids = {case.query_id for case in dependency_sensitive_cases}
+    for case in active_cases:
         b = baseline_rows.get(case.query_id, {})
         e = enhanced_rows.get(case.query_id, {})
         b_rank = _rank_value(b.get("hit_rank"))
@@ -76,8 +111,10 @@ def run_formal_source_retrieval_ablation_benchmark(
                 "lost_hit": bool(b.get("ok", False)) and not bool(e.get("ok", False)),
                 "rank_improved": bool(b.get("ok", False)) and bool(e.get("ok", False)) and e_rank < b_rank,
                 "rank_regressed": bool(b.get("ok", False)) and bool(e.get("ok", False)) and e_rank > b_rank,
+                "dependency_sensitive": case.query_id in dependency_query_ids,
             }
         )
+    dependency_rows = [row for row in rows if row["dependency_sensitive"]]
     payload: dict[str, object] = {
         "schema_version": FORMAL_SOURCE_RETRIEVAL_ABLATION_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -91,6 +128,9 @@ def run_formal_source_retrieval_ablation_benchmark(
         "n_lost_hits": sum(1 for row in rows if row["lost_hit"]),
         "n_rank_improved": sum(1 for row in rows if row["rank_improved"]),
         "n_rank_regressed": sum(1 for row in rows if row["rank_regressed"]),
+        "n_dependency_sensitive_cases": len(dependency_rows),
+        "n_dependency_sensitive_new_hits": sum(1 for row in dependency_rows if row["new_hit"]),
+        "dependency_sensitive_query_ids": [row["query_id"] for row in dependency_rows],
         "enhanced_all_ok": bool(enhanced["all_ok"]),
         "no_lost_hits": not any(row["lost_hit"] for row in rows),
         "all_ok": bool(enhanced["all_ok"]) and not any(row["lost_hit"] for row in rows),
@@ -119,6 +159,52 @@ def run_formal_source_retrieval_ablation_benchmark(
             encoding="utf-8",
         )
     return payload
+
+
+def _available_dependency_sensitive_cases(
+    enhanced_retriever: object,
+    *,
+    k: int,
+) -> tuple[FormalSourceRetrievalBenchmarkCase, ...]:
+    if not getattr(enhanced_retriever, "lean_rag_dependency_graph_enabled", False):
+        return ()
+    rows: list[FormalSourceRetrievalBenchmarkCase] = []
+    for case in LEAN_RAG_DEPENDENCY_SENSITIVE_CASES:
+        if _case_ok(enhanced_retriever, case, k=k):
+            rows.append(case)
+    return tuple(rows)
+
+
+def _case_ok(
+    retriever: object,
+    case: FormalSourceRetrievalBenchmarkCase,
+    *,
+    k: int,
+) -> bool:
+    search = getattr(retriever, "search", None)
+    if not callable(search):
+        return False
+    try:
+        hits = list(search(case.query, k=k))
+    except Exception:
+        return False
+    return _expected_hit_rank(hits, case) is not None
+
+
+def _expected_hit_rank(
+    hits: list[object],
+    case: FormalSourceRetrievalBenchmarkCase,
+) -> int | None:
+    for rank, hit in enumerate(hits, start=1):
+        decl = getattr(hit, "declaration", None)
+        if decl is None:
+            continue
+        if case.expected_source_ids and getattr(decl, "source_id", "") not in case.expected_source_ids:
+            continue
+        name = str(getattr(decl, "name", "")).lower()
+        if all(fragment.lower() in name for fragment in case.expected_name_fragments):
+            return rank
+    return None
 
 
 def _rank_value(value: Any) -> int | None:
@@ -159,11 +245,13 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Lost hits: {payload.get('n_lost_hits')}",
         f"- Rank improved: {payload.get('n_rank_improved')}",
         f"- Rank regressed: {payload.get('n_rank_regressed')}",
+        f"- Dependency-sensitive cases: {payload.get('n_dependency_sensitive_cases')}",
+        f"- Dependency-sensitive new hits: {payload.get('n_dependency_sensitive_new_hits')}",
         "",
         "## Query Deltas",
         "",
-        "| Query | Baseline rank | Enhanced rank | New | Lost | Improved | Regressed |",
-        "|---|---:|---:|---:|---:|---:|---:|",
+        "| Query | Baseline rank | Enhanced rank | New | Lost | Improved | Regressed | Dependency-sensitive |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for row in payload.get("rows", []):
         if not isinstance(row, dict):
@@ -171,6 +259,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         lines.append(
             f"| `{row.get('query_id')}` | {row.get('baseline_hit_rank')} | "
             f"{row.get('enhanced_hit_rank')} | {row.get('new_hit')} | "
-            f"{row.get('lost_hit')} | {row.get('rank_improved')} | {row.get('rank_regressed')} |"
+            f"{row.get('lost_hit')} | {row.get('rank_improved')} | {row.get('rank_regressed')} | "
+            f"{row.get('dependency_sensitive')} |"
         )
     return "\n".join(lines) + "\n"

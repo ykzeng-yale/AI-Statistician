@@ -251,6 +251,13 @@ def _suite_rows(
                 "primitive_source_coverage_no_source_found": counts.get(
                     "primitive_source_coverage_no_source_found"
                 ),
+                "lean_rag_dependency_graph_enabled": counts.get("lean_rag_dependency_graph_enabled"),
+                "formal_source_retrieval_ablation_dependency_sensitive_cases": counts.get(
+                    "formal_source_retrieval_ablation_dependency_sensitive_cases"
+                ),
+                "formal_source_retrieval_ablation_dependency_sensitive_new_hits": counts.get(
+                    "formal_source_retrieval_ablation_dependency_sensitive_new_hits"
+                ),
             },
             honesty_boundary="Formalization targets and skeletons are backlog evidence until kernel-verified.",
             issues=(f"{missing_primitives} missing formal primitives remain",)

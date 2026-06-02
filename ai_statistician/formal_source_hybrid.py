@@ -36,6 +36,19 @@ class FormalSourceHybridRetriever:
         self.declarations = declarations
         self.sqlite_index = sqlite_index
         self.dependency_retriever = dependency_retriever
+        setattr(self, "lean_rag_dependency_graph_enabled", dependency_retriever is not None)
+        setattr(
+            self,
+            "lean_rag_dependency_graph_path",
+            str(getattr(dependency_retriever, "db_path", "")) if dependency_retriever is not None else "",
+        )
+        setattr(
+            self,
+            "lean_rag_dependency_graph_auto_discovered",
+            bool(getattr(dependency_retriever, "auto_discovered", False))
+            if dependency_retriever is not None
+            else False,
+        )
         self._declarations_by_name: dict[str, list[FormalDeclaration]] = defaultdict(list)
         for declaration in declarations:
             self._declarations_by_name[declaration.name].append(declaration)
