@@ -434,7 +434,8 @@ simulation row, and next-iteration agenda item becomes a typed claim row with a
 separate evidence level.  This is the artifact future theory/proof/simulation
 agents should update when closing the loop.  It deliberately distinguishes
 retrieval/gap evidence from Lean-kernel proof evidence and simulation support
-from formal proof.
+from formal proof. `research-system-audit` writes this ledger as
+`claim_ledger/claim_ledger_manifest.json` and includes it as a release gate.
 
 Research trace audit:
 

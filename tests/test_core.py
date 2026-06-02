@@ -8190,6 +8190,7 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(payload["gates"]["research_policy_baseline"])
         self.assertTrue(payload["gates"]["next_iteration_queue"])
         self.assertTrue(payload["gates"]["research_report"])
+        self.assertTrue(payload["gates"]["claim_ledger"])
         self.assertTrue(payload["gates"]["research_loop"])
         self.assertTrue(payload["gates"]["research_loop_repair_audit"])
         self.assertTrue(payload["gates"]["research_loop_live_repair_audit"])
@@ -8590,6 +8591,18 @@ class SystemTests(unittest.TestCase):
             payload["counts"]["research_report_simulations_passed"],
             payload["counts"]["research_report_simulations"],
         )
+        self.assertEqual(payload["counts"]["claim_ledger_questions"], payload["counts"]["questions"])
+        self.assertEqual(payload["counts"]["claim_ledger_ok"], payload["counts"]["claim_ledger_claims"])
+        self.assertEqual(payload["counts"]["claim_ledger_formal_gaps"], payload["counts"]["formal_gaps"])
+        self.assertEqual(
+            payload["counts"]["claim_ledger_simulation_supported"],
+            payload["counts"]["research_report_simulations"],
+        )
+        self.assertEqual(payload["counts"]["claim_ledger_simulation_flagged"], 0)
+        self.assertEqual(
+            payload["counts"]["claim_ledger_revision_queued"],
+            payload["counts"]["next_iteration_items"],
+        )
         self.assertTrue(Path("runs/test_research_system_audit/research_system_audit_manifest.json").exists())
         self.assertTrue(Path(payload["artifacts"]["frontier_coverage_audit"]).exists())
         self.assertTrue(Path(payload["artifacts"]["frontier_precision_audit"]).exists())
@@ -8663,6 +8676,9 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(Path(payload["artifacts"]["next_iteration_queue_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["research_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["research_report_manifest"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["claim_ledger"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["claim_ledger_jsonl"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["claim_ledger_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["algorithm_repair_promotion"]).exists())
         self.assertTrue(Path(payload["artifacts"]["algorithm_repair_promotion_queue"]).exists())
         self.assertTrue(Path(payload["artifacts"]["algorithm_repair_sandbox"]).exists())
