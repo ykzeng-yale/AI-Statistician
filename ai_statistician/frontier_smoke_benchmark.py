@@ -36,6 +36,8 @@ class FrontierSmokeConfig:
     cache_dir: str | None = None
     refresh_cache: bool = False
     simulation_rerun_runs: int = 60
+    adaptive_mc_rerun: bool = True
+    adaptive_mc_multiplier: int = 5
 
 
 @dataclass(frozen=True)
@@ -133,6 +135,8 @@ async def run_frontier_smoke_benchmark(
             ),
             n_runs=config.n_runs,
             seed=config.seed,
+            adaptive_mc_rerun=config.adaptive_mc_rerun,
+            adaptive_mc_multiplier=config.adaptive_mc_multiplier,
         )
         cache_status = "disabled" if not cache_info["enabled"] else "miss"
         cache_stored = False
@@ -223,6 +227,8 @@ async def run_frontier_smoke_benchmark(
             "cache_dir": str(cache_info["root"]) if cache_info["enabled"] else "",
             "refresh_cache": config.refresh_cache,
             "simulation_rerun_runs": config.simulation_rerun_runs,
+            "adaptive_mc_rerun": config.adaptive_mc_rerun,
+            "adaptive_mc_multiplier": config.adaptive_mc_multiplier,
         },
         "provenance": build_research_provenance(),
         "cache": {
@@ -421,6 +427,8 @@ def _frontier_smoke_cache_key(
             "seed": config.seed,
             "max_per_class": config.max_per_class,
             "use_axle": config.use_axle,
+            "adaptive_mc_rerun": config.adaptive_mc_rerun,
+            "adaptive_mc_multiplier": config.adaptive_mc_multiplier,
         },
         "verifier": verifier.name,
         "selected_questions": [asdict(row) for row in selections],

@@ -6,9 +6,13 @@
     "frontier_supported": "60/60",
     "frontier_smoke_questions": 23,
     "frontier_theory_expected_results": 69,
-    "frontier_theory_expected_results_covered": 59,
-    "frontier_theory_expected_result_coverage_rate": 0.855072463768116,
+    "frontier_theory_expected_results_covered": 60,
+    "frontier_theory_expected_result_coverage_rate": 0.8695652173913043,
     "core_research_questions": 10,
+    "core_research_ready_with_gaps": "10/10",
+    "core_research_simulation_flagged": "0/10",
+    "adaptive_mc_rerun_rows_resolved": "4/4",
+    "research_system_all_gates_passed": true,
     "proof_bank_kernel_verified_release": "97/97",
     "proof_bank_fingerprint": "3ed10b5ba741e3d5a125c0d03c50f9da895d0f0d2ef4c20106e8d160c8e0f178",
     "proof_search_kernel_verified_release": "12/12",
@@ -17,7 +21,7 @@
     "missing_formal_primitives": 97,
     "formalization_targets_with_proof_bank_bridge": 74,
     "formalization_targets_local_source_only": 23,
-    "proof_bank_expansion_bridge_ready": 60
+    "proof_bank_expansion_bridge_ready": 53
   },
   "suites": [
     {
@@ -77,23 +81,23 @@
         "runs/release_local_kernel_audit/frontier_smoke_benchmark/frontier_theory_target_audit/frontier_theory_target_manifest.json"
       ],
       "recommended_commands": [
-        "python3 -m ai_statistician.cli frontier-smoke-benchmark --max-per-class 0 --runs 25 --out runs/frontier_theory_target_all60"
+        "python3 -m ai_statistician.cli frontier-smoke-benchmark --max-per-class 0 --runs 25 --simulation-rerun-runs 125 --out runs/frontier_theory_target_all60"
       ],
       "current_smoke_size": 23,
-      "current_expected_result_coverage_rate": 0.855072463768116,
+      "current_expected_result_coverage_rate": 0.8695652173913043,
       "current_all_supported_size": 60,
       "current_all_supported_expected_results": 180,
-      "current_all_supported_expected_results_covered": 149,
-      "current_all_supported_expected_result_coverage_rate": 0.8277777777777777,
-      "current_all_supported_ready_with_gaps": 44,
-      "current_all_supported_simulation_flagged": 16,
+      "current_all_supported_expected_results_covered": 150,
+      "current_all_supported_expected_result_coverage_rate": 0.8333333333333334,
+      "current_all_supported_ready_with_gaps": 55,
+      "current_all_supported_simulation_flagged": 5,
       "current_all_supported_traces_ok": 42,
-      "current_all_supported_triage_items": 46,
+      "current_all_supported_triage_items": 35,
       "current_all_supported_triage_theory_target_misses": 30,
-      "current_all_supported_triage_simulation_flags": 16,
-      "current_all_supported_simulation_rerun_resolved": 13,
-      "current_all_supported_simulation_rerun_still_flagged": 3,
-      "current_all_supported_theory_revision_tasks": 3,
+      "current_all_supported_triage_simulation_flags": 5,
+      "current_all_supported_simulation_rerun_resolved": 0,
+      "current_all_supported_simulation_rerun_still_flagged": 0,
+      "current_all_supported_theory_revision_tasks": 0,
       "release_floor": [
         "at least 85% expected-result coverage on current smoke set",
         "per-topic coverage reported",
@@ -114,7 +118,7 @@
         "runs/release_local_kernel_audit/proof_bank_expansion/proof_bank_expansion_manifest.json"
       ],
       "current_size": 97,
-      "current_bridge_ready": 60,
+      "current_bridge_ready": 53,
       "current_local_source_only": 23,
       "release_floor": [
         "each primitive has an owning theorem goal",

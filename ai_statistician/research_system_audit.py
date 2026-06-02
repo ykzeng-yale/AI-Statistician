@@ -91,6 +91,8 @@ class ResearchSystemAuditConfig:
     refresh_formal_source_graph_cache: bool = False
     research_benchmark_cache: str | None = "runs/research_benchmark_cache"
     refresh_research_benchmark_cache: bool = False
+    adaptive_mc_rerun: bool = True
+    adaptive_mc_multiplier: int = 5
 
 
 async def run_research_system_audit(
@@ -212,6 +214,8 @@ async def run_research_system_audit(
             use_axle=config.use_axle,
             cache_dir=config.frontier_smoke_cache,
             refresh_cache=config.refresh_frontier_smoke_cache,
+            adaptive_mc_rerun=config.adaptive_mc_rerun,
+            adaptive_mc_multiplier=config.adaptive_mc_multiplier,
         ),
         proof_verifier=verifier,
         formal_source_retriever=formal_source_retriever,
@@ -241,7 +245,9 @@ async def run_research_system_audit(
         out_dir / "algorithm_simulation_stress_audit",
         question_file=actual_question_file,
         seeds=(config.seed + 31, config.seed + 32, config.seed + 33),
-        n_runs=max(10, min(config.n_runs, 25)),
+        n_runs=max(25, min(config.n_runs, 50)),
+        adaptive_mc_rerun=config.adaptive_mc_rerun,
+        adaptive_mc_multiplier=config.adaptive_mc_multiplier,
     )
     stage_start = _record_stage(stage_timings, "small_static_audits", stage_start)
 
@@ -346,6 +352,8 @@ async def run_research_system_audit(
             formal_source_search=formal_source_search,
             n_runs=config.n_runs,
             seed=config.seed,
+            adaptive_mc_rerun=config.adaptive_mc_rerun,
+            adaptive_mc_multiplier=config.adaptive_mc_multiplier,
         )
         benchmark_cache_status = "disabled" if not benchmark_cache_info["enabled"] else "miss"
         benchmark_cache_stored = False
@@ -619,6 +627,8 @@ async def run_research_system_audit(
             "refresh_formal_source_graph_cache": config.refresh_formal_source_graph_cache,
             "research_benchmark_cache": config.research_benchmark_cache or "",
             "refresh_research_benchmark_cache": config.refresh_research_benchmark_cache,
+            "adaptive_mc_rerun": config.adaptive_mc_rerun,
+            "adaptive_mc_multiplier": config.adaptive_mc_multiplier,
             "question_file": str(question_file or Path("examples/research_questions.json")),
         },
         "all_gates_passed": all(gates.values()),
@@ -771,6 +781,18 @@ async def run_research_system_audit(
             "research_ready_with_gaps": benchmark_manifest["n_ready_with_gaps"],
             "research_simulation_flagged": benchmark_manifest["n_simulation_flagged"],
             "research_formal_blocked": benchmark_manifest["n_formal_blocked"],
+            "research_adaptive_mc_rerun_enabled": benchmark_manifest.get("simulation_policy", {}).get(
+                "adaptive_mc_rerun",
+                False,
+            ),
+            "research_adaptive_mc_rows": benchmark_manifest.get("simulation_policy", {}).get(
+                "adaptive_mc_rows",
+                0,
+            ),
+            "research_adaptive_mc_resolved": benchmark_manifest.get("simulation_policy", {}).get(
+                "adaptive_mc_resolved",
+                0,
+            ),
             "research_benchmark_cache_enabled": benchmark_cache_info["enabled"],
             "research_benchmark_cache_status": benchmark_cache_status,
             "research_benchmark_cache_key": benchmark_cache_info["key"],
@@ -787,6 +809,15 @@ async def run_research_system_audit(
             ],
             "algorithm_simulation_stress_seeds": algorithm_simulation_stress_manifest[
                 "n_seeds"
+            ],
+            "algorithm_simulation_stress_adaptive_mc_rerun_enabled": algorithm_simulation_stress_manifest[
+                "adaptive_mc_rerun"
+            ],
+            "algorithm_simulation_stress_adaptive_mc_rows": algorithm_simulation_stress_manifest[
+                "adaptive_mc_rows"
+            ],
+            "algorithm_simulation_stress_adaptive_mc_resolved": algorithm_simulation_stress_manifest[
+                "adaptive_mc_resolved"
             ],
             "algorithm_simulation_stress_all_passed": algorithm_simulation_stress_manifest[
                 "all_passed"
@@ -1606,6 +1637,8 @@ def _research_benchmark_cache_key(
             "use_axle": config.use_axle,
             "use_local_lean": config.use_local_lean,
             "local_lean_timeout": config.local_lean_timeout,
+            "adaptive_mc_rerun": config.adaptive_mc_rerun,
+            "adaptive_mc_multiplier": config.adaptive_mc_multiplier,
         },
         "verifier": verifier.name,
         "proof_bank_fingerprint": proof_bank_fingerprint(),

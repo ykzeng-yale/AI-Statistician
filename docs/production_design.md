@@ -1764,13 +1764,14 @@ counterexample generation, simulation, provenance, and model training. This is
 the honest check for whether we have actually trained/built each component. It
 is now part of `research-system-audit`, so the single release manifest records
 both production-readiness gates and the remaining prover-stack training gaps.
-Current expected result: proof-bank verifier evidence and provenance are
-release-ready; benchmark data and simulation are audited but still partial
-because the latest release-style audit flags frontier smoke and algorithm stress
-cases under the current Monte Carlo budget.  Retrieval, subgoal planning, skill
+Current expected result: proof-bank verifier evidence, benchmark data,
+simulation gates, and provenance are release-ready under the audited scaffold.
+The latest release-style audit passes after bounded adaptive Monte Carlo reruns
+resolve precision-limited simulator rows.  Retrieval, subgoal planning, skill
 memory, construction, counterexample loops, and proof-attempt logging are
 partial; tactic policy, proof search, value/RL, and model training are not yet
-production-strength.
+production-strength.  Passing these gates still does not mean arbitrary
+frontier asymptotic theorems are fully proved in Lean.
 
 Unified system audit:
 

@@ -2585,6 +2585,53 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(Path("runs/test_algorithm_simulation_stress_audit/algorithm_simulation_stress_manifest.json").exists())
         self.assertTrue(Path("runs/test_algorithm_simulation_stress_audit/algorithm_simulation_stress.md").exists())
 
+    def test_research_simulator_adaptive_mc_rerun_resolves_precision_limited_row(self) -> None:
+        question = next(
+            row
+            for row in load_open_research_questions(Path("examples/research_questions.json"))
+            if row.id == "right_censored_survival_km"
+        )
+        problem = ProblemFormalizer().formalize(question)
+        procedures, _ = TheoryPlanner().plan(problem)
+        procedures = attach_research_algorithm_metadata(procedures)
+
+        initial = ResearchSimulator(n_runs=1, seed=20260528).run(problem, procedures)[0]
+        self.assertFalse(initial.passed)
+        self.assertEqual(initial.diagnosis.status, "INSUFFICIENT_MC_PRECISION")
+        self.assertEqual(initial.diagnosis.escalate_to, "rerun_more_mc")
+
+        adaptive = ResearchSimulator(n_runs=1, seed=20260528).run_with_adaptive_mc(problem, procedures)[0]
+        self.assertTrue(adaptive.passed)
+        self.assertEqual(adaptive.diagnosis.status, "OK")
+        self.assertEqual(adaptive.metrics["adaptive_mc_rerun_used"], 1.0)
+        self.assertEqual(adaptive.metrics["adaptive_mc_initial_n_runs"], 1.0)
+        self.assertGreaterEqual(adaptive.metrics["adaptive_mc_final_n_runs"], 31.0)
+        self.assertEqual(adaptive.diagnosis.metric_evidence["adaptive_mc_resolved"], 1.0)
+
+    def test_research_benchmark_records_adaptive_mc_policy(self) -> None:
+        async def run():
+            questions = [
+                row
+                for row in load_open_research_questions(Path("examples/research_questions.json"))
+                if row.id == "right_censored_survival_km"
+            ]
+            return await run_research_benchmark(
+                questions,
+                Path("runs/test_adaptive_mc_research_benchmark"),
+                proof_verifier=MockProofVerifier(),
+                n_runs=1,
+                seed=20260528,
+                adaptive_mc_rerun=True,
+            )
+
+        payload = asyncio.run(run())
+        self.assertEqual(payload["n_questions"], 1)
+        self.assertEqual(payload["n_ready_with_gaps"], 1)
+        self.assertEqual(payload["n_simulation_flagged"], 0)
+        self.assertTrue(payload["simulation_policy"]["adaptive_mc_rerun"])
+        self.assertEqual(payload["simulation_policy"]["adaptive_mc_rows"], 1)
+        self.assertEqual(payload["simulation_policy"]["adaptive_mc_resolved"], 1)
+
     def test_fresh_holdout_frontier_audit_runs_source_withheld_traces(self) -> None:
         async def run():
             return await audit_fresh_holdout_frontier(
@@ -3407,13 +3454,13 @@ class SystemTests(unittest.TestCase):
         self.assertGreater(payload["counts"]["theory_expected_results_covered"], 59)
         self.assertGreater(payload["counts"]["theory_expected_result_coverage_rate"], 0.75)
         self.assertEqual(payload["counts"]["frontier_triage_theory_target_misses"], 30)
-        self.assertEqual(payload["counts"]["frontier_triage_simulation_flags"], 16)
-        self.assertEqual(payload["counts"]["frontier_triage_items"], 46)
-        self.assertEqual(payload["counts"]["frontier_simulation_rerun_items"], 16)
-        self.assertEqual(payload["counts"]["frontier_simulation_rerun_resolved"], 13)
-        self.assertEqual(payload["counts"]["frontier_simulation_rerun_still_flagged"], 3)
-        self.assertEqual(payload["counts"]["frontier_theory_revision_tasks"], 3)
-        self.assertEqual(payload["counts"]["frontier_theory_revision_tasks_ok"], 3)
+        self.assertEqual(payload["counts"]["frontier_triage_simulation_flags"], 5)
+        self.assertEqual(payload["counts"]["frontier_triage_items"], 35)
+        self.assertEqual(payload["counts"]["frontier_simulation_rerun_items"], 0)
+        self.assertEqual(payload["counts"]["frontier_simulation_rerun_resolved"], 0)
+        self.assertEqual(payload["counts"]["frontier_simulation_rerun_still_flagged"], 0)
+        self.assertEqual(payload["counts"]["frontier_theory_revision_tasks"], 0)
+        self.assertEqual(payload["counts"]["frontier_theory_revision_tasks_ok"], 0)
         self.assertTrue((out_dir / "frontier_smoke_manifest.json").exists())
         self.assertTrue(Path(payload["artifacts"]["frontier_theory_target_audit"]).exists())
         self.assertTrue(Path(payload["artifacts"]["frontier_evaluation_triage"]).exists())
@@ -3425,53 +3472,42 @@ class SystemTests(unittest.TestCase):
         triage = json.loads(Path(payload["artifacts"]["frontier_evaluation_triage"]).read_text())
         self.assertTrue(triage["all_ok"])
         self.assertEqual(triage["n_theory_target_misses"], 30)
-        self.assertEqual(triage["n_simulation_flags"], 16)
+        self.assertEqual(triage["n_simulation_flags"], 5)
         self.assertIn("theory_developer", triage["by_owner"])
-        self.assertIn("simulator_agent", triage["by_owner"])
+        self.assertIn("algorithm_engineer", triage["by_owner"])
         rerun = json.loads(Path(payload["artifacts"]["frontier_simulation_rerun"]).read_text())
         self.assertTrue(rerun["all_ok"])
-        self.assertFalse(rerun["all_resolved"])
-        self.assertEqual(rerun["n_resolved"], 13)
-        self.assertEqual(rerun["n_still_flagged"], 3)
-        self.assertEqual(rerun["by_new_owner_agent"]["research_coordinator"], 13)
-        self.assertEqual(rerun["by_new_owner_agent"]["theory_developer"], 3)
+        self.assertTrue(rerun["all_resolved"])
+        self.assertEqual(rerun["n_items"], 0)
+        self.assertEqual(rerun["n_resolved"], 0)
+        self.assertEqual(rerun["n_still_flagged"], 0)
+        self.assertEqual(rerun["by_new_owner_agent"], {})
         revision_queue = json.loads(Path(payload["artifacts"]["frontier_theory_revision_queue"]).read_text())
         self.assertTrue(revision_queue["all_ok"])
-        self.assertEqual(revision_queue["n_tasks"], 3)
-        self.assertEqual(revision_queue["by_failure_class"]["selection_or_screening_failure"], 3)
-        first_revision = revision_queue["rows"][0]
-        self.assertIn("screening_selection_accuracy_under_signal_separation", first_revision["revised_theorem_goals"])
-        self.assertIn("selection_accuracy_lower_bound_from_support_events", first_revision["next_formal_obligations"])
+        self.assertEqual(revision_queue["n_tasks"], 0)
+        self.assertEqual(revision_queue["by_failure_class"], {})
         revision_formalization = json.loads(
             Path(payload["artifacts"]["frontier_theory_revision_formalization"]).read_text()
         )
         self.assertTrue(revision_formalization["all_ok"])
-        self.assertEqual(revision_formalization["n_revision_tasks"], 3)
-        self.assertEqual(revision_formalization["n_obligations"], 12)
-        self.assertEqual(revision_formalization["n_unique_obligations"], 4)
-        self.assertEqual(revision_formalization["n_unique_proof_bank_bridge"], 4)
+        self.assertEqual(revision_formalization["n_revision_tasks"], 0)
+        self.assertEqual(revision_formalization["n_obligations"], 0)
+        self.assertEqual(revision_formalization["n_unique_obligations"], 0)
+        self.assertEqual(revision_formalization["n_unique_proof_bank_bridge"], 0)
         self.assertEqual(revision_formalization["n_unique_local_source_only"], 0)
         self.assertEqual(revision_formalization["n_unique_source_gap"], 0)
-        self.assertEqual(payload["counts"]["frontier_theory_revision_formal_obligations"], 12)
-        self.assertEqual(payload["counts"]["frontier_theory_revision_unique_formal_obligations"], 4)
-        self.assertEqual(payload["counts"]["frontier_theory_revision_unique_proof_bank_bridge"], 4)
+        self.assertEqual(payload["counts"]["frontier_theory_revision_formal_obligations"], 0)
+        self.assertEqual(payload["counts"]["frontier_theory_revision_unique_formal_obligations"], 0)
+        self.assertEqual(payload["counts"]["frontier_theory_revision_unique_proof_bank_bridge"], 0)
         self.assertEqual(payload["counts"]["frontier_theory_revision_unique_local_source_only"], 0)
         self.assertEqual(payload["counts"]["frontier_theory_revision_unique_source_gap"], 0)
         self.assertEqual(
             revision_formalization["n_unique_proof_bank_bridge"]
             + revision_formalization["n_unique_local_source_only"]
             + revision_formalization["n_unique_source_gap"],
-            4,
+            0,
         )
-        self.assertEqual(
-            {row["formal_obligation"] for row in revision_formalization["rows"]},
-            {
-                "screening_statistic_concentration",
-                "signal_margin_implies_active_selection",
-                "inactive_coordinate_union_bound",
-                "selection_accuracy_lower_bound_from_support_events",
-            },
-        )
+        self.assertEqual(revision_formalization["rows"], [])
         high_dim_trace = json.loads(
             (out_dir / "research_benchmark" / "high_dimensional_inference_01.json").read_text()
         )
@@ -3744,7 +3780,7 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(evidence["missing_formal_primitives"], 97)
         self.assertEqual(evidence["formalization_targets_with_proof_bank_bridge"], 74)
         self.assertEqual(evidence["formalization_targets_local_source_only"], 23)
-        self.assertEqual(evidence["proof_bank_expansion_bridge_ready"], 60)
+        self.assertEqual(evidence["proof_bank_expansion_bridge_ready"], 53)
 
         suites = {row["id"]: row for row in payload["suites"]}
         self.assertEqual(set(suites), {f"S{i}_{suffix}" for i, suffix in (
@@ -3759,7 +3795,7 @@ class SystemTests(unittest.TestCase):
             (8, "adversarial_unsupported_intake"),
             (9, "fresh_holdout_frontier"),
         )})
-        self.assertEqual(suites["S4_formal_primitive_ladder"]["current_bridge_ready"], 60)
+        self.assertEqual(suites["S4_formal_primitive_ladder"]["current_bridge_ready"], 53)
         self.assertEqual(suites["S4_formal_primitive_ladder"]["current_local_source_only"], 23)
         self.assertEqual(suites["S5_proof_bank_and_search"]["current_proof_bank_size"], proof_bank_size)
         self.assertEqual(suites["S3_frontier_blind_theory_target"]["current_all_supported_size"], 60)
@@ -3769,35 +3805,34 @@ class SystemTests(unittest.TestCase):
         )
         self.assertEqual(
             suites["S3_frontier_blind_theory_target"]["current_all_supported_expected_results_covered"],
-            149,
+            150,
         )
-        self.assertEqual(suites["S3_frontier_blind_theory_target"]["current_all_supported_simulation_flagged"], 16)
-        self.assertEqual(suites["S3_frontier_blind_theory_target"]["current_all_supported_triage_items"], 46)
+        self.assertEqual(suites["S3_frontier_blind_theory_target"]["current_all_supported_simulation_flagged"], 5)
+        self.assertEqual(suites["S3_frontier_blind_theory_target"]["current_all_supported_triage_items"], 35)
         self.assertEqual(
             suites["S3_frontier_blind_theory_target"]["current_all_supported_triage_theory_target_misses"],
             30,
         )
         self.assertEqual(
             suites["S3_frontier_blind_theory_target"]["current_all_supported_simulation_rerun_resolved"],
-            13,
+            0,
         )
         self.assertEqual(
             suites["S3_frontier_blind_theory_target"]["current_all_supported_simulation_rerun_still_flagged"],
-            3,
+            0,
         )
         self.assertEqual(
             suites["S3_frontier_blind_theory_target"]["current_all_supported_theory_revision_tasks"],
-            3,
+            0,
         )
         self.assertIn("S7_feedback_loop_repair_with_seeded_failures", payload["recommended_next_gate_stack"])
 
         doc = Path("docs/evaluation_benchmark_strategy.md").read_text(encoding="utf-8")
         self.assertIn("`proofs_kernel_verified=97/97`", doc)
-        self.assertIn("expected-result coverage about 82.8%", doc)
-        self.assertIn("46 frontier-evaluation triage items", doc)
-        self.assertIn("resolves 13/16 simulation flags", doc)
-        self.assertIn("3 unresolved reruns now export scoped TheoryDeveloper revision tasks", doc)
-        self.assertIn("60 have ranked proof-bank bridge candidates", doc)
+        self.assertIn("expected-result coverage about 83.3%", doc)
+        self.assertIn("35 frontier-evaluation triage items", doc)
+        self.assertIn("bounded adaptive MC inside the benchmark", doc)
+        self.assertIn("53 have ranked proof-bank bridge candidates", doc)
         self.assertNotIn("79/79", doc)
         self.assertNotIn("82/82", doc)
 

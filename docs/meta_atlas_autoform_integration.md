@@ -176,11 +176,11 @@ Result:
 proof_bank_kernel=97/97
 proof_verifier=local.lake_env_lean
 proof_strength=local_lean_kernel_batch
-system_all_gates_passed=False
-system_elapsed_latest=352.3s
+system_all_gates_passed=True
+system_elapsed_latest=250.7s
 sources=23/23
 frontier_supported=60/60
-frontier_smoke=13/23
+frontier_smoke=23/23
 formalized_gaps=20/20
 proof_bank_expansion_bridge_ready=53/97
 proof_bank_expansion_compose_existing_bridge_chain=39
@@ -188,12 +188,15 @@ proof_bank_expansion_add_minimal_wrapper=14
 formalization_targets_with_proof_bank_bridge=74
 missing_primitives=97
 lean_rag_dependency_graph_enabled=True
-failed_system_gates=frontier_smoke_benchmark, algorithm_simulation_stress_audit, research_benchmark
+adaptive_mc_rerun_enabled=True
+adaptive_mc_rows_resolved=4/4
+failed_system_gates=none
 ```
 
-The failed system gates are simulation/frontier-readiness gates, not Lean proof
-failures.  The proof bank is kernel-verified; Atlas/Autoform/RAG integration
-claims should still be reported separately from simulation evidence.
+The proof bank is kernel-verified; Atlas/Autoform/RAG integration claims should
+still be reported separately from simulation evidence.  Adaptive MC reruns only
+resolve precision-limited simulator rows and do not prove the full frontier
+theorems.
 
 Focused Atlas/Autoform source audit:
 

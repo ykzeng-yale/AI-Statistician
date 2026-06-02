@@ -36,6 +36,8 @@ class AlgorithmSimulationStressRow:
     n_metrics: int
     n_stress_tests: int
     n_stress_flags: int
+    adaptive_mc_rerun_used: bool
+    adaptive_mc_resolved: bool
     failed_diagnostics: tuple[str, ...]
     failed_stress_tests: tuple[str, ...]
 
@@ -47,6 +49,8 @@ def audit_algorithm_simulation_stress(
     seeds: tuple[int, ...] = (101, 102, 103),
     n_runs: int = 25,
     max_questions: int | None = None,
+    adaptive_mc_rerun: bool = True,
+    adaptive_mc_multiplier: int = 5,
 ) -> dict[str, object]:
     """Run a targeted multi-seed simulation stress audit.
 
@@ -69,7 +73,11 @@ def audit_algorithm_simulation_stress(
             problem = formalizer.formalize(question)
             procedures, _ = planner.plan(problem)
             procedures = attach_research_algorithm_metadata(procedures)
-            simulations = simulator.run(problem, procedures)
+            simulations = (
+                simulator.run_with_adaptive_mc(problem, procedures, multiplier=adaptive_mc_multiplier)
+                if adaptive_mc_rerun
+                else simulator.run(problem, procedures)
+            )
             for simulation in simulations:
                 procedure = next((row for row in procedures if row.id == simulation.procedure_id), None)
                 rows.append(
@@ -105,6 +113,10 @@ def audit_algorithm_simulation_stress(
         "seeds": list(seeds),
         "n_seeds": len(seeds),
         "n_runs": n_runs,
+        "adaptive_mc_rerun": bool(adaptive_mc_rerun),
+        "adaptive_mc_multiplier": int(adaptive_mc_multiplier),
+        "adaptive_mc_rows": sum(1 for row in rows if row.adaptive_mc_rerun_used),
+        "adaptive_mc_resolved": sum(1 for row in rows if row.adaptive_mc_resolved),
         "n_questions": len(questions),
         "n_seeded_simulations": len(rows),
         "n_algorithms": len(by_algorithm),
@@ -195,6 +207,8 @@ def _row_from_simulation(
             for metrics in simulation.stress_test_metrics.values()
             if float(metrics.get("stress_flag", 0.0)) > 0.0
         ),
+        adaptive_mc_rerun_used=float(simulation.metrics.get("adaptive_mc_rerun_used", 0.0)) > 0.5,
+        adaptive_mc_resolved=float(simulation.metrics.get("adaptive_mc_resolved", 0.0)) > 0.5,
         failed_diagnostics=tuple(diagnosis.failed_diagnostics if diagnosis is not None else ()),
         failed_stress_tests=tuple(diagnosis.failed_stress_tests if diagnosis is not None else ()),
     )
@@ -217,6 +231,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Seeds: {payload.get('n_seeds')} `{payload.get('seeds')}`",
         f"- Seeded simulations: {payload.get('n_seeded_simulations')}",
         f"- Algorithms: {payload.get('n_algorithms')}",
+        f"- Adaptive MC rerun: `{payload.get('adaptive_mc_rerun')}`",
+        f"- Adaptive MC rows/resolved: {payload.get('adaptive_mc_resolved')}/{payload.get('adaptive_mc_rows')}",
         f"- All passed: `{payload.get('all_passed')}`",
         f"- All finite metrics: `{payload.get('all_finite_metrics')}`",
         f"- All stress ledgers OK: `{payload.get('all_stress_ledgers_ok')}`",

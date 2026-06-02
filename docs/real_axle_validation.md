@@ -71,28 +71,32 @@ dependency_graph_all_known=True
 selected_dependencies_verified=True
 ```
 
-The latest full research-system audit using the same proof bank and the
-EmpericalProcessLEAN `lean_rag` dependency graph is intentionally not recorded
-as all-green.  It passed the proof/RAG/formalization gates, but failed the
-simulation/frontier smoke gates under the current low Monte Carlo budget:
+The latest full research-system audit uses the same proof bank, the
+EmpericalProcessLEAN `lean_rag` dependency graph, and bounded adaptive Monte
+Carlo reruns for simulations diagnosed as `INSUFFICIENT_MC_PRECISION`:
 
 ```text
-run=runs/current_design_wrapper_system_audit
-all_gates_passed=False
-failed_gates=frontier_smoke_benchmark, algorithm_simulation_stress_audit, research_benchmark
+run=runs/current_adaptive_mc_system_audit_v2
+all_gates_passed=True
 proofs_verified=97/97
 proofs_kernel_verified=97/97
 proof_verification_strength=local_lean_kernel_batch
 lean_rag_dependency_graph_enabled=True
-frontier_smoke=13/23
-research_ready_with_gaps=6/10
-research_simulation_flagged=4/10
-algorithm_simulation_stress_flags=3
+frontier_smoke=23/23
+research_ready_with_gaps=10/10
+research_simulation_flagged=0/10
+research_adaptive_mc_rows=4
+research_adaptive_mc_resolved=4
+algorithm_simulation_stress_all_passed=True
+algorithm_simulation_stress_all_diagnoses_ok=True
+algorithm_simulation_stress_flags=4
 ```
 
 This distinction matters: proof-bank rows above are Lean-kernel evidence;
-frontier routing, simulation stress, and research traces are separate empirical
-or scaffold evidence.
+frontier routing, adaptive simulation stress, and research traces are separate
+empirical or scaffold evidence.  The all-green system audit means the current
+audited scaffold gates pass; it does not mean the full frontier asymptotic
+theorems have been proved.
 
 The research-system run proves that `--real-lean` now flows through the actual
 open-question workflow, not only the standalone proof-bank audit. It verifies

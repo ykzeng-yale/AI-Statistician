@@ -134,16 +134,14 @@ Current all-supported local signal:
 
 - `--max-per-class 0` selects and scores all 60 frontier entries
 - 180 expected results
-- 149 covered
-- expected-result coverage about 82.8%
-- 44 traces ready with formal gaps
-- 16 traces simulation-flagged
-- 46 frontier-evaluation triage items: 30 theory-target misses and 16
+- 150 covered
+- expected-result coverage about 83.3%
+- 55 traces ready with formal gaps
+- 5 traces simulation-flagged
+- 35 frontier-evaluation triage items: 30 theory-target misses and 5
   simulation flags
-- higher-budget simulator rerun resolves 13/16 simulation flags and leaves 3
-  high-dimensional screening traces routed to theory/procedure revision
-- those 3 unresolved reruns now export scoped TheoryDeveloper revision tasks
-  with screening-specific theorem goals and formal obligations
+- bounded adaptive MC inside the benchmark removes the old precision-limited
+  simulator-rerun queue for this smoke path
 
 The all-supported run is intentionally stricter than the release smoke. It is a
 scoring gate and limitation surfacer, not a claim that all 60 frontier problems
@@ -172,7 +170,7 @@ Current release signal:
 - 97 missing formal primitives
 - 74 have proof-bank plus local-source bridges
 - 23 are local-source-only
-- 60 have ranked proof-bank bridge candidates ready for direct reuse
+- 53 have ranked proof-bank bridge candidates ready for direct reuse
 
 Pass criteria:
 
@@ -183,6 +181,19 @@ Pass criteria:
   bridge readiness
 
 This should become the main progress benchmark for the next phase.
+
+Latest release-style scaffold signal:
+
+- `runs/current_adaptive_mc_system_audit_v2/research_system_audit_manifest.json`
+- all gates passed under local Lean kernel verification and active
+  `lean_rag_dependency_graph`
+- core research benchmark: 10/10 ready with gaps, 0/10 simulation flagged
+- frontier smoke: 23/23 ready with gaps
+- adaptive MC rerun policy resolved 4/4 precision-limited core simulations
+
+Honesty boundary: adaptive MC reruns resolve simulator precision limitations;
+they are empirical reruns, not proof evidence and not full frontier theorem
+formalizations.
 
 ### S5. Proof Bank and Proof Search Suite
 

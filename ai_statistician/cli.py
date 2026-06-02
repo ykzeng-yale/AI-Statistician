@@ -1262,6 +1262,8 @@ async def _research_benchmark(args: argparse.Namespace) -> int:
         lean_rag_db_path=Path(args.lean_rag_db) if args.lean_rag_db else None,
         n_runs=args.runs,
         seed=args.seed,
+        adaptive_mc_rerun=args.adaptive_mc_rerun,
+        adaptive_mc_multiplier=args.adaptive_mc_multiplier,
     )
     print("\nAI Statistical Theory Lab Benchmark")
     print("=" * 72)
@@ -1271,6 +1273,14 @@ async def _research_benchmark(args: argparse.Namespace) -> int:
         f"simulation_flagged={payload['n_simulation_flagged']} "
         f"formal_blocked={payload['n_formal_blocked']}"
     )
+    if payload.get("simulation_policy"):
+        policy = payload["simulation_policy"]
+        print(
+            "simulation_policy="
+            f"adaptive_mc_rerun={policy.get('adaptive_mc_rerun')} "
+            f"adaptive_mc_rows={policy.get('adaptive_mc_rows')} "
+            f"adaptive_mc_resolved={policy.get('adaptive_mc_resolved')}"
+        )
     if payload.get("formal_source_search"):
         search = payload["formal_source_search"]
         print(f"formal_source_search={search['backend']}")
@@ -1707,6 +1717,8 @@ async def _research_system_audit(args: argparse.Namespace) -> int:
             refresh_formal_source_graph_cache=args.refresh_formal_source_graph_cache,
             research_benchmark_cache=args.research_benchmark_cache,
             refresh_research_benchmark_cache=args.refresh_research_benchmark_cache,
+            adaptive_mc_rerun=not args.no_adaptive_mc_rerun,
+            adaptive_mc_multiplier=args.adaptive_mc_multiplier,
         ),
     )
     print("\nAI Statistical Theory Lab System Audit")
@@ -2562,6 +2574,17 @@ def build_parser() -> argparse.ArgumentParser:
     research_benchmark.add_argument("--runs", type=int, default=100, help="Monte Carlo research-simulation replicates")
     research_benchmark.add_argument("--seed", type=int, default=20260528)
     research_benchmark.add_argument(
+        "--adaptive-mc-rerun",
+        action="store_true",
+        help="rerun only simulations diagnosed as INSUFFICIENT_MC_PRECISION with a larger MC budget",
+    )
+    research_benchmark.add_argument(
+        "--adaptive-mc-multiplier",
+        type=int,
+        default=5,
+        help="multiplier for adaptive MC reruns of precision-limited simulation rows",
+    )
+    research_benchmark.add_argument(
         "--formal-source-backend",
         choices=("sqlite", "memory"),
         default="sqlite",
@@ -2895,6 +2918,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="rebuild and overwrite the matching main research benchmark trace cache entry",
     )
     research_system_audit.add_argument("--seed", type=int, default=20260528)
+    research_system_audit.add_argument(
+        "--no-adaptive-mc-rerun",
+        action="store_true",
+        help="disable bounded adaptive reruns for simulations diagnosed as INSUFFICIENT_MC_PRECISION",
+    )
+    research_system_audit.add_argument(
+        "--adaptive-mc-multiplier",
+        type=int,
+        default=5,
+        help="multiplier for adaptive MC reruns in research benchmark and frontier smoke gates",
+    )
     research_system_audit.add_argument("--out", default="runs/research_system_audit", help="research system audit output directory")
     research_system_audit.add_argument("--env-file", default=".env")
     research_system_audit.set_defaults(func=lambda args: asyncio.run(_research_system_audit(args)))

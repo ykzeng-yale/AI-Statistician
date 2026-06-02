@@ -5282,6 +5282,97 @@ class ResearchSimulator:
                 )
         return [self._with_stress_test_ledger(problem, row) for row in rows]
 
+    def run_with_adaptive_mc(
+        self,
+        problem: ResearchProblemSpec,
+        procedures: list[CandidateProcedure],
+        *,
+        multiplier: int = 5,
+        min_additional_runs: int = 30,
+        max_n_runs: int | None = None,
+    ) -> list[ResearchSimulation]:
+        """Run simulations and rerun only MC-precision failures.
+
+        This is deliberately narrow.  It does not repair estimators, change
+        algorithms, or relabel theory failures.  It only asks whether a row
+        classified as `INSUFFICIENT_MC_PRECISION` remains non-OK after a larger
+        Monte Carlo budget.  The final row records the initial diagnosis and
+        both run counts in numeric metrics so traces remain auditable.
+        """
+
+        initial_rows = self.run(problem, procedures)
+        rows: list[ResearchSimulation] = []
+        target_n_runs = max(self.n_runs + min_additional_runs, self.n_runs * multiplier)
+        if max_n_runs is not None:
+            target_n_runs = min(target_n_runs, max_n_runs)
+        target_n_runs = max(target_n_runs, self.n_runs)
+        for idx, row in enumerate(initial_rows):
+            diagnosis = row.diagnosis
+            if (
+                diagnosis is None
+                or diagnosis.status != "INSUFFICIENT_MC_PRECISION"
+                or target_n_runs <= self.n_runs
+            ):
+                rows.append(row)
+                continue
+            rerun_seed = self.seed + 1009 * idx
+            rerun = ResearchSimulator(n_runs=target_n_runs, seed=rerun_seed).run(problem, [procedures[idx]])[0]
+            rows.append(self._annotate_adaptive_mc_rerun(initial=row, rerun=rerun))
+        return rows
+
+    def _annotate_adaptive_mc_rerun(
+        self,
+        *,
+        initial: ResearchSimulation,
+        rerun: ResearchSimulation,
+    ) -> ResearchSimulation:
+        initial_diagnosis = initial.diagnosis
+        rerun_diagnosis = rerun.diagnosis
+        metrics = dict(rerun.metrics)
+        metrics.update(
+            {
+                "adaptive_mc_rerun_used": 1.0,
+                "adaptive_mc_initial_n_runs": float(initial.metrics.get("n_runs", self.n_runs)),
+                "adaptive_mc_final_n_runs": float(rerun.metrics.get("n_runs", metrics.get("n_runs", self.n_runs))),
+                "adaptive_mc_initial_passed": 1.0 if initial.passed else 0.0,
+                "adaptive_mc_final_passed": 1.0 if rerun.passed else 0.0,
+                "adaptive_mc_resolved": 1.0 if rerun.passed else 0.0,
+            }
+        )
+        feedback = (
+            rerun.feedback
+            + " Adaptive MC rerun executed after initial INSUFFICIENT_MC_PRECISION diagnosis."
+        )
+        if rerun_diagnosis is not None:
+            rationale = (
+                rerun_diagnosis.rationale
+                + " Adaptive MC rerun evidence: initial status="
+                + (initial_diagnosis.status if initial_diagnosis is not None else "UNKNOWN")
+                + f", initial_n_runs={metrics['adaptive_mc_initial_n_runs']:.0f}, "
+                + f"final_n_runs={metrics['adaptive_mc_final_n_runs']:.0f}."
+            )
+            metric_evidence = dict(rerun_diagnosis.metric_evidence)
+            for key in (
+                "adaptive_mc_rerun_used",
+                "adaptive_mc_initial_n_runs",
+                "adaptive_mc_final_n_runs",
+                "adaptive_mc_initial_passed",
+                "adaptive_mc_final_passed",
+                "adaptive_mc_resolved",
+            ):
+                metric_evidence[key] = metrics[key]
+            rerun_diagnosis = replace(
+                rerun_diagnosis,
+                rationale=rationale,
+                metric_evidence=metric_evidence,
+            )
+        return replace(
+            rerun,
+            metrics=metrics,
+            feedback=feedback,
+            diagnosis=rerun_diagnosis,
+        )
+
     def _with_stress_test_ledger(
         self,
         problem: ResearchProblemSpec,
@@ -8090,6 +8181,8 @@ class AIStatisticalTheoryLab:
         n_runs: int = 100,
         seed: int = 20260528,
         theory_revisions: list[dict[str, Any]] | None = None,
+        adaptive_mc_rerun: bool = False,
+        adaptive_mc_multiplier: int = 5,
     ) -> None:
         self.formalizer = ProblemFormalizer()
         self.planner = TheoryPlanner()
@@ -8099,6 +8192,8 @@ class AIStatisticalTheoryLab:
         )
         self.simulator = ResearchSimulator(n_runs=n_runs, seed=seed)
         self.theory_revisions = list(theory_revisions or [])
+        self.adaptive_mc_rerun = adaptive_mc_rerun
+        self.adaptive_mc_multiplier = adaptive_mc_multiplier
 
     async def run(self, question: OpenResearchQuestion) -> ResearchReport:
         problem = self.formalizer.formalize(question)
@@ -8112,7 +8207,11 @@ class AIStatisticalTheoryLab:
         knowledge = retrieve_problem_knowledge(question, problem, theorem_goals, k=8)
         paper_sources = retrieve_paper_sources(question, problem, theorem_goals, k=5)
         subclaims = await self.prover.prove(problem, theorem_goals)
-        simulations = self.simulator.run(problem, procedures)
+        simulations = (
+            self.simulator.run_with_adaptive_mc(problem, procedures, multiplier=self.adaptive_mc_multiplier)
+            if self.adaptive_mc_rerun
+            else self.simulator.run(problem, procedures)
+        )
         proof_failed = any(row.status == "FAILED" for row in subclaims if row.claim_type == "lean_obligation")
         sim_passed = bool(simulations) and all(row.passed for row in simulations)
         if proof_failed:
@@ -8625,6 +8724,8 @@ async def run_research_benchmark(
     lean_rag_db_path: Path | None = None,
     n_runs: int = 100,
     seed: int = 20260528,
+    adaptive_mc_rerun: bool = False,
+    adaptive_mc_multiplier: int = 5,
 ) -> dict[str, Any]:
     if formal_source_search is None:
         formal_source_search = {
@@ -8657,11 +8758,19 @@ async def run_research_benchmark(
         formal_source_retriever=formal_source_retriever,
         n_runs=n_runs,
         seed=seed,
+        adaptive_mc_rerun=adaptive_mc_rerun,
+        adaptive_mc_multiplier=adaptive_mc_multiplier,
     )
     reports = [await lab.run(question) for question in questions]
     for report in reports:
         write_research_trace(report, out_dir)
-    manifest = write_research_manifest(reports, out_dir, formal_source_search=formal_source_search)
+    manifest = write_research_manifest(
+        reports,
+        out_dir,
+        formal_source_search=formal_source_search,
+        adaptive_mc_rerun=adaptive_mc_rerun,
+        adaptive_mc_multiplier=adaptive_mc_multiplier,
+    )
     return json.loads(manifest.read_text(encoding="utf-8"))
 
 
@@ -8685,6 +8794,8 @@ def write_research_manifest(
     out_dir: Path,
     *,
     formal_source_search: dict[str, str] | None = None,
+    adaptive_mc_rerun: bool = False,
+    adaptive_mc_multiplier: int = 5,
 ) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
     payload = {
@@ -8695,6 +8806,22 @@ def write_research_manifest(
         or {
             "backend": "python_shape",
             "sqlite_index_path": "",
+        },
+        "simulation_policy": {
+            "adaptive_mc_rerun": bool(adaptive_mc_rerun),
+            "adaptive_mc_multiplier": int(adaptive_mc_multiplier),
+            "adaptive_mc_rows": sum(
+                1
+                for report in reports
+                for simulation in report.simulations
+                if float(simulation.metrics.get("adaptive_mc_rerun_used", 0.0)) > 0.5
+            ),
+            "adaptive_mc_resolved": sum(
+                1
+                for report in reports
+                for simulation in report.simulations
+                if float(simulation.metrics.get("adaptive_mc_resolved", 0.0)) > 0.5
+            ),
         },
         "n_questions": len(reports),
         "n_ready_with_gaps": sum(1 for row in reports if row.status == "RESEARCH_TRACE_READY_WITH_FORMAL_GAPS"),
