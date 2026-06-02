@@ -47,6 +47,7 @@ from ai_statistician.formal_source_index import (
     search_formal_sources,
 )
 from ai_statistician.formal_source_retrieval_benchmark import (
+    DEFAULT_FORMAL_SOURCE_RETRIEVAL_BENCHMARK,
     FormalSourceRetrievalBenchmarkCase,
     run_formal_source_retrieval_benchmark,
 )
@@ -512,6 +513,26 @@ class ProofBankTests(unittest.TestCase):
                 "formal_source_retrieval_benchmark_manifest.json"
             ).exists()
         )
+
+    def test_default_formal_source_retrieval_benchmark_covers_external_user_intent_cases(self) -> None:
+        query_ids = {case.query_id for case in DEFAULT_FORMAL_SOURCE_RETRIEVAL_BENCHMARK}
+        self.assertIn("formal_slt_stability_generalization", query_ids)
+        self.assertIn("lean_rademacher_dudley_entropy", query_ids)
+        self.assertIn("lean_machine_learning_ucb_regret", query_ids)
+        self.assertIn("brownian_kolmogorov_chentsov", query_ids)
+        self.assertIn("kolmogorov_extension_projective_family", query_ids)
+        self.assertIn("scilean_gaussian_calculus", query_ids)
+        source_ids = {
+            source_id
+            for case in DEFAULT_FORMAL_SOURCE_RETRIEVAL_BENCHMARK
+            for source_id in case.expected_source_ids
+        }
+        self.assertIn("formal_slt", source_ids)
+        self.assertIn("lean_rademacher", source_ids)
+        self.assertIn("lean_machine_learning_lml", source_ids)
+        self.assertIn("brownian_motion_lean", source_ids)
+        self.assertIn("kolmogorov_extension_lean", source_ids)
+        self.assertIn("scilean_calculus", source_ids)
 
     def test_formal_source_retrieval_ablation_measures_lean_rag_new_hit(self) -> None:
         fixture = Path("runs/test_formal_source_retrieval_ablation_fixture")

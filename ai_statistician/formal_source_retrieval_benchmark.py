@@ -81,6 +81,71 @@ DEFAULT_FORMAL_SOURCE_RETRIEVAL_BENCHMARK: tuple[FormalSourceRetrievalBenchmarkC
         ),
         rationale="survey/IPW theory revision should recover existing StatInference ratio identities",
     ),
+    FormalSourceRetrievalBenchmarkCase(
+        query_id="formal_slt_stability_generalization",
+        query="turn uniform stability into expected generalization gap for a finite product sample ERM learner",
+        expected_name_fragments=("expectedFiniteGeneralizationGap", "uniformStability", "finiteProduct"),
+        expected_source_ids=("formal_slt",),
+        rationale=(
+            "user-intent retrieval should recover FormalSLT stability-to-generalization "
+            "bridges without requiring the exact theorem name"
+        ),
+    ),
+    FormalSourceRetrievalBenchmarkCase(
+        query_id="formal_slt_vc_sample_complexity",
+        query="PAC VC sample complexity binary classifier Sauer Shelah finite class high probability",
+        expected_name_fragments=("genGap_highProb_vcClass",),
+        expected_source_ids=("formal_slt",),
+        rationale="VC/PAC theorem mining should reuse FormalSLT before inventing new sample-complexity primitives",
+    ),
+    FormalSourceRetrievalBenchmarkCase(
+        query_id="lean_rademacher_dudley_entropy",
+        query="Dudley entropy integral upper bound empirical Rademacher complexity covering numbers",
+        expected_name_fragments=("dudley_entropy_integral_bound",),
+        expected_source_ids=("lean_rademacher",),
+        rationale="empirical-process generalization routes should find Dudley/Rademacher source lemmas",
+    ),
+    FormalSourceRetrievalBenchmarkCase(
+        query_id="lean_rademacher_mcdiarmid_uniform_deviation",
+        query="bounded differences McDiarmid inequality tail bound empirical uniform deviation",
+        expected_name_fragments=("uniform_deviation_tail_bound",),
+        expected_source_ids=("lean_rademacher",),
+        rationale="finite-sample concentration search should recover McDiarmid-style uniform-deviation bridges",
+    ),
+    FormalSourceRetrievalBenchmarkCase(
+        query_id="lean_machine_learning_ucb_regret",
+        query="stochastic bandit UCB algorithm regret pull count upper confidence bound",
+        expected_name_fragments=("regret", "pullCount"),
+        expected_source_ids=("lean_machine_learning_lml",),
+        rationale="algorithmic-statistics routes should mine LML bandit/regret proofs before creating new interfaces",
+    ),
+    FormalSourceRetrievalBenchmarkCase(
+        query_id="brownian_kolmogorov_chentsov",
+        query="Brownian motion Gaussian process Kolmogorov Chentsov Holder continuous modification",
+        expected_name_fragments=("holderModification",),
+        expected_source_ids=("brownian_motion_lean",),
+        rationale=(
+            "stochastic-process/asymptotic theory planning should find Brownian/Kolmogorov-Chentsov "
+            "retrieval-only theorem shapes"
+        ),
+    ),
+    FormalSourceRetrievalBenchmarkCase(
+        query_id="kolmogorov_extension_projective_family",
+        query="Kolmogorov extension theorem projective family finite dimensional distributions measure",
+        expected_name_fragments=("projectiveFamilyContent",),
+        expected_source_ids=("kolmogorov_extension_lean",),
+        rationale="process-law construction gaps should discover Kolmogorov extension source lemmas",
+    ),
+    FormalSourceRetrievalBenchmarkCase(
+        query_id="scilean_gaussian_calculus",
+        query="Gaussian gradient derivative jacobian optimization calculus SciLean",
+        expected_name_fragments=("mul_gaussian_gaussian",),
+        expected_source_ids=("scilean_calculus",),
+        rationale=(
+            "calculus/optimization theorem mining should recover SciLean retrieval-only source context "
+            "without exporting WIP code as proof evidence"
+        ),
+    ),
 )
 
 
