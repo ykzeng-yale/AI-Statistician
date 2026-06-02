@@ -1426,6 +1426,20 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("denominator_safety", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_propensity_weight_left_cancel_complements_weight_identity_bridge(self) -> None:
+        obligation = get_obligation("propensity_weight_cancel_left_of_lower_bound")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("propensity_weight_mul_cancel_of_lower_bound",))
+        self.assertIn("theorem propensityWeight_cancel_left_of_lower_bound", content)
+        self.assertIn("(hδ : 0 < δ) (hp : δ ≤ p)", content)
+        self.assertIn("p * p⁻¹ = 1", content)
+        self.assertIn("lt_of_lt_of_le hδ hp", content)
+        self.assertIn("mul_inv_cancel₀", content)
+        self.assertIn("propensity_weight_identity", obligation.tags)
+        self.assertIn("left_cancellation", obligation.tags)
+        self.assertIn("aipw", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_complete_randomization_uniform_assignment_mass_uses_mathlib_pmf_uniform(self) -> None:
         obligation = get_obligation("complete_randomization_uniform_assignment_mass")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
@@ -3324,9 +3338,9 @@ class SystemTests(unittest.TestCase):
         self.assertGreater(payload["counts"]["theory_expected_results"], 69)
         self.assertGreater(payload["counts"]["theory_expected_results_covered"], 59)
         self.assertGreater(payload["counts"]["theory_expected_result_coverage_rate"], 0.75)
-        self.assertEqual(payload["counts"]["frontier_triage_theory_target_misses"], 31)
+        self.assertEqual(payload["counts"]["frontier_triage_theory_target_misses"], 30)
         self.assertEqual(payload["counts"]["frontier_triage_simulation_flags"], 16)
-        self.assertEqual(payload["counts"]["frontier_triage_items"], 47)
+        self.assertEqual(payload["counts"]["frontier_triage_items"], 46)
         self.assertEqual(payload["counts"]["frontier_simulation_rerun_items"], 16)
         self.assertEqual(payload["counts"]["frontier_simulation_rerun_resolved"], 13)
         self.assertEqual(payload["counts"]["frontier_simulation_rerun_still_flagged"], 3)
@@ -3342,7 +3356,7 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(target_audit["all_scored"])
         triage = json.loads(Path(payload["artifacts"]["frontier_evaluation_triage"]).read_text())
         self.assertTrue(triage["all_ok"])
-        self.assertEqual(triage["n_theory_target_misses"], 31)
+        self.assertEqual(triage["n_theory_target_misses"], 30)
         self.assertEqual(triage["n_simulation_flags"], 16)
         self.assertIn("theory_developer", triage["by_owner"])
         self.assertIn("simulator_agent", triage["by_owner"])
@@ -3690,10 +3704,10 @@ class SystemTests(unittest.TestCase):
             149,
         )
         self.assertEqual(suites["S3_frontier_blind_theory_target"]["current_all_supported_simulation_flagged"], 16)
-        self.assertEqual(suites["S3_frontier_blind_theory_target"]["current_all_supported_triage_items"], 47)
+        self.assertEqual(suites["S3_frontier_blind_theory_target"]["current_all_supported_triage_items"], 46)
         self.assertEqual(
             suites["S3_frontier_blind_theory_target"]["current_all_supported_triage_theory_target_misses"],
-            31,
+            30,
         )
         self.assertEqual(
             suites["S3_frontier_blind_theory_target"]["current_all_supported_simulation_rerun_resolved"],
@@ -3710,9 +3724,9 @@ class SystemTests(unittest.TestCase):
         self.assertIn("S7_feedback_loop_repair_with_seeded_failures", payload["recommended_next_gate_stack"])
 
         doc = Path("docs/evaluation_benchmark_strategy.md").read_text(encoding="utf-8")
-        self.assertIn("`proofs_kernel_verified=92/92`", doc)
+        self.assertIn("`proofs_kernel_verified=93/93`", doc)
         self.assertIn("expected-result coverage about 82.8%", doc)
-        self.assertIn("47 frontier-evaluation triage items", doc)
+        self.assertIn("46 frontier-evaluation triage items", doc)
         self.assertIn("resolves 13/16 simulation flags", doc)
         self.assertIn("3 unresolved reruns now export scoped TheoryDeveloper revision tasks", doc)
         self.assertIn("60 have ranked proof-bank bridge candidates", doc)
@@ -3900,6 +3914,8 @@ class SystemTests(unittest.TestCase):
             [
                 "difference_estimator_unbiased",
                 "aipw_score_expectation_decompose",
+                "propensity_weight_mul_cancel_of_lower_bound",
+                "propensity_weight_cancel_left_of_lower_bound",
                 "aipw_score_expectation_target_of_aug_cancel",
                 "integrable_l1_tendsto_condexp_filtration",
                 "integrable_ae_tendsto_condexp_filtration",
@@ -4644,6 +4660,8 @@ class SystemTests(unittest.TestCase):
             "potential_outcome_observed_consistency",
             "condexp_integral_eq_integral_real",
             "aipw_score_expectation_decompose",
+            "propensity_weight_mul_cancel_of_lower_bound",
+            "propensity_weight_cancel_left_of_lower_bound",
             "aipw_score_expectation_target_of_aug_cancel",
             "conditional_mean_residual_zero_of_condExp_ae_eq",
             "conditional_mean_residual_zero_of_mean_eq",

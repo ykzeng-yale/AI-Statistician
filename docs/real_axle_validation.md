@@ -1,6 +1,6 @@
 # Real Lean Kernel Validation
 
-Latest current proof-bank validation: 2026-05-31.
+Latest current proof-bank validation: 2026-06-02.
 
 Runtime used:
 
@@ -13,15 +13,15 @@ python3 -m ai_statistician.cli proof-audit \
 Result:
 
 ```text
-verified=92/92
-kernel=92/92
+verified=93/93
+kernel=93/93
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=d3163e108d374e2cd15a3d56c894299055c678e2295490758cbd108cf9631de8
+proof_bank_fingerprint=9830e53761b353f12d2529aba0b4015f08fe1063bc9464c91045e4cf8bef18cb
 ```
 
 This is the current evidence that the registered proof bank is not only
-mock-checked: all 92 registered Mathlib-backed obligations were accepted by a
+mock-checked: all 93 registered Mathlib-backed obligations were accepted by a
 real Lean kernel check through the local Lake/Mathlib runtime. AXLE remains the
 preferred remote verifier for release bundles when its Python package and API
 runtime are available; the local Lean backend is the offline kernel-equivalent
@@ -332,6 +332,14 @@ identity `p⁻¹ * p = 1` via Mathlib's `inv_mul_cancel₀`. This gives
 `propensity_weight_identity` and AIPW/IPW score algebra a kernel-checked bridge,
 while still leaving conditional exchangeability, nuisance correctness,
 identification, and double robustness as explicit formal gaps.
+
+The causal bridge block now also includes
+`propensity_weight_cancel_left_of_lower_bound`, the left-oriented companion
+identity `p * p⁻¹ = 1` under the same strict lower-bound assumption. This gives
+IPW/AIPW algebra both cancellation orientations without relying on ad hoc
+commutativity rewrites; it is kernel-verified as part of the current `93/93`
+local Lean proof-bank audit and still does not prove positivity as a model
+assumption or close causal identification.
 
 The latest sequential/product-process bridge is
 `event_indicator_product_integral_eq_inter`. It proves that the integral of the

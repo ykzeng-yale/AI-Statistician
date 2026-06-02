@@ -170,14 +170,16 @@ python3 -m ai_statistician.cli proof-audit \
   --out runs/proof_audit_local_lean_current
 ```
 
-Current evidence: `88/88` registered proof-bank obligations pass
+Current evidence: `93/93` registered proof-bank obligations pass
 `local_lean_kernel_batch` with proof-bank fingerprint
-`31fa33a3e4fba52691611de455275463706699e9d9c15c02e6c6bea17cfbcd34`.
-The latest release-style local-kernel research-system audit also passes all
-gates with `research_loop_theory_revisions=6`, all coming from
-kernel-verified `DefaultProofEngineer` proof-bridge integrations. These
-revisions attach verified proof obligations to theorem roadmaps; they do not
-claim the full frontier asymptotic theorems are closed.
+`9830e53761b353f12d2529aba0b4015f08fe1063bc9464c91045e4cf8bef18cb`.
+The latest release-style research-system audit also passes all gates with
+Lean-RAG dependency retrieval enabled and `research_loop_theory_revisions=6`.
+That audit is scaffold evidence unless it is run with `--local-lean`; the real
+kernel evidence for the registered proof obligations is the `93/93`
+`proof-audit` result above. These revisions attach verified proof obligations
+to theorem roadmaps; they do not claim the full frontier asymptotic theorems are
+closed.
 
 `proof-search-audit` is the first bounded proof-search controller layer above
 one-shot proof lookup. It runs a best-first whole-proof candidate frontier,

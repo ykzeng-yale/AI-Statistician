@@ -20,7 +20,7 @@ The release audit already makes this boundary visible:
   means theory-target recovery is useful but incomplete.
 - `formal_gaps=20`, `missing_formal_primitives=97` means frontier theorem
   closure is still a formal-library development problem.
-- `proofs_kernel_verified=92/92` is strong for the registered proof bank, but
+- `proofs_kernel_verified=93/93` is strong for the registered proof bank, but
   those are reusable subclaims, not complete JASA/AOAS-level asymptotic proofs.
 - `proof_search_kernel_verified=12/12` is useful controller evidence, but the
   current search space is whole-proof candidate search, not tactic-state MCTS
@@ -138,7 +138,7 @@ Current all-supported local signal:
 - expected-result coverage about 82.8%
 - 44 traces ready with formal gaps
 - 16 traces simulation-flagged
-- 47 frontier-evaluation triage items: 31 theory-target misses and 16
+- 46 frontier-evaluation triage items: 30 theory-target misses and 16
   simulation flags
 - higher-budget simulator rerun resolves 13/16 simulation flags and leaves 3
   high-dimensional screening traces routed to theory/procedure revision
@@ -199,7 +199,7 @@ Sources:
 
 Current release signal:
 
-- 92/92 proof-bank obligations kernel verified in the local-kernel release
+- 93/93 proof-bank obligations kernel verified in the local-kernel release
 - 12/12 bounded whole-proof search obligations kernel verified in the local
   release
 - proof attempts exported as SFT data

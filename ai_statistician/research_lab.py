@@ -2222,6 +2222,7 @@ class TheoryPlanner:
                         "condexp_integral_eq_integral_real",
                         "propensity_score_ne_zero_of_lower_bound",
                         "propensity_weight_mul_cancel_of_lower_bound",
+                        "propensity_weight_cancel_left_of_lower_bound",
                     ),
                 ),
                 TheoremGoal(
@@ -2240,6 +2241,8 @@ class TheoryPlanner:
                     proof_obligations=(
                         "difference_estimator_unbiased",
                         "aipw_score_expectation_decompose",
+                        "propensity_weight_mul_cancel_of_lower_bound",
+                        "propensity_weight_cancel_left_of_lower_bound",
                         "aipw_score_expectation_target_of_aug_cancel",
                         "integrable_l1_tendsto_condexp_filtration",
                         "integrable_ae_tendsto_condexp_filtration",
@@ -4757,6 +4760,7 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "potential_outcome_observed_consistency",
         "propensity_score_ne_zero_of_lower_bound",
         "propensity_weight_mul_cancel_of_lower_bound",
+        "propensity_weight_cancel_left_of_lower_bound",
         "difference_estimator_unbiased",
         "difference_estimator_variance_decompose",
         "integrable_l1_tendsto_condexp_filtration",

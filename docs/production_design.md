@@ -81,13 +81,14 @@ sandboxed code patching, or simulator construction still stop honestly with
 `REQUIRES_PROOF_ENGINEER` or `REQUIRES_SIMULATOR_EXTENSION`, or with a scoped
 repair proposal, unless a stronger handler is registered.
 
-Current release-style local-kernel evidence for this bounded loop:
-`research-system-audit --local-lean --runs 100` passes all gates with `92/92`
-kernel-verified proof obligations, `6` kernel-verified live proof-bridge repair
-artifacts, `6` resulting theory revisions, and a `12/12` kernel-verified
-proof-search audit sample. The status remains `FORMAL_GAPS_BRIDGED`, which is
-intentional: proof bridges are integrated into the theory roadmap while the
-remaining asymptotic/frontier primitives stay explicitly open.
+Current release-style evidence for this bounded loop is split intentionally:
+`proof-audit --local-lean` verifies the registered proof bank at `93/93`, while
+`research-system-audit` exercises the loop, Lean-RAG dependency retrieval, proof
+bridge routing, and simulation/audit gates. When the system audit is not run
+with `--local-lean`, its proof rows are scaffold evidence rather than fresh
+kernel evidence. The status remains `FORMAL_GAPS_BRIDGED`, which is intentional:
+proof bridges are integrated into the theory roadmap while the remaining
+asymptotic/frontier primitives stay explicitly open.
 
 `StatisticalQuestion` can come from the built-in registry or from JSON. External
 questions may name a supported `dgp_family` and `estimator_family` explicitly,
@@ -1525,14 +1526,14 @@ python3 -m ai_statistician.cli proof-audit \
   --out runs/proof_audit_local_lean
 ```
 
-Current full-bank local Lean evidence (2026-05-31):
+Current full-bank local Lean evidence (2026-06-02):
 
 ```text
-verified=92/92
-kernel=92/92
+verified=93/93
+kernel=93/93
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=d3163e108d374e2cd15a3d56c894299055c678e2295490758cbd108cf9631de8
+proof_bank_fingerprint=9830e53761b353f12d2529aba0b4015f08fe1063bc9464c91045e4cf8bef18cb
 ```
 
 Run `doctor` in the same Python runtime first. It reports
