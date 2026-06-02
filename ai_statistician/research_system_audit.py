@@ -1074,6 +1074,10 @@ async def run_research_system_audit(
             "formalization_targets_with_proof_bank_bridge": formalization_target_manifest[
                 "n_with_proof_bank_bridge"
             ],
+            "formalization_targets_exact_proof_bank_resolved": formalization_target_manifest[
+                "n_exact_proof_bank_resolved"
+            ],
+            "formalization_targets_unresolved": formalization_target_manifest["n_unresolved_targets"],
             "formal_gap_lean_tasks_ok": formal_gap_task_manifest["n_ok"],
             "formal_gap_lean_tasks_total": formal_gap_task_manifest["n_tasks"],
             "autoform_targets_ok": autoform_target_manifest["n_ok"],
@@ -1085,6 +1089,9 @@ async def run_research_system_audit(
                 "n_blocked_placeholder"
             ],
             "proof_bank_expansion_candidate_ready": proof_bank_expansion_manifest["n_candidate_ready"],
+            "proof_bank_expansion_reuse_exact_proof_bank_obligation": proof_bank_expansion_manifest[
+                "n_reuse_exact_proof_bank_obligation"
+            ],
             "proof_bank_expansion_compose_existing_bridge_chain": proof_bank_expansion_manifest[
                 "n_compose_existing_bridge_chain"
             ],
@@ -1099,6 +1106,9 @@ async def run_research_system_audit(
             ],
             "proof_bank_actions": proof_bank_action_manifest["n_actions"],
             "proof_bank_actions_ok": proof_bank_action_manifest["n_ok"],
+            "proof_bank_actions_reuse_exact_proof_bank_obligation": proof_bank_action_manifest[
+                "n_reuse_exact_proof_bank_obligation"
+            ],
             "proof_bank_actions_compose_existing_bridge_chain": proof_bank_action_manifest[
                 "n_compose_existing_bridge_chain"
             ],
@@ -1115,6 +1125,9 @@ async def run_research_system_audit(
             "proof_bank_actions_medium_priority": proof_bank_action_manifest["by_priority"].get("medium", 0),
             "proof_bank_actions_low_priority": proof_bank_action_manifest["by_priority"].get("low", 0),
             "primitive_source_coverage_primitives": primitive_source_coverage_manifest["n_primitives"],
+            "primitive_source_coverage_exact_proof_bank_obligation_available": primitive_source_coverage_manifest[
+                "n_exact_proof_bank_obligation_available"
+            ],
             "primitive_source_coverage_direct_wrapper_possible": primitive_source_coverage_manifest[
                 "n_direct_wrapper_possible"
             ],
@@ -1141,6 +1154,9 @@ async def run_research_system_audit(
             ],
             "primitive_source_coverage_compose_existing_bridge_chain": primitive_source_coverage_manifest[
                 "n_compose_existing_bridge_chain"
+            ],
+            "primitive_source_coverage_reuse_exact_proof_bank_obligation": primitive_source_coverage_manifest[
+                "n_reuse_exact_proof_bank_obligation"
             ],
             "primitive_source_coverage_add_minimal_wrapper": primitive_source_coverage_manifest[
                 "n_add_minimal_wrapper"

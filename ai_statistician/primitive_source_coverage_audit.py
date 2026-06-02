@@ -39,6 +39,8 @@ class PrimitiveSourceCoverageRow:
     classification: str
     action_class: str
     proof_bank_bridge_obligations: tuple[str, ...]
+    exact_proof_bank_obligation: str
+    proof_bank_exact_match_available: bool
     local_candidate_declarations: tuple[str, ...]
     external_candidate_declarations: tuple[str, ...]
     external_source_ids: tuple[str, ...]
@@ -102,6 +104,9 @@ def audit_primitive_source_coverage(
             getattr(formal_source_retriever, "lean_rag_dependency_graph_path", "")
         ),
         "n_primitives": len(rows),
+        "n_exact_proof_bank_obligation_available": by_classification.get(
+            "exact_proof_bank_obligation_available", 0
+        ),
         "n_direct_wrapper_possible": by_classification.get("direct_wrapper_possible", 0),
         "n_bridge_lemma_needed": by_classification.get("bridge_lemma_needed", 0),
         "n_source_only_not_importable": by_classification.get("source_only_not_importable", 0),
@@ -117,6 +122,9 @@ def audit_primitive_source_coverage(
         "by_classification": dict(sorted(by_classification.items())),
         "by_action_class": dict(sorted(by_action_class.items())),
         "n_compose_existing_bridge_chain": by_action_class.get("compose_existing_bridge_chain", 0),
+        "n_reuse_exact_proof_bank_obligation": by_action_class.get(
+            "reuse_exact_proof_bank_obligation", 0
+        ),
         "n_add_minimal_wrapper": by_action_class.get("add_minimal_wrapper", 0),
         "n_design_bridge_lemma": by_action_class.get("design_bridge_lemma", 0),
         "n_port_external_source": by_action_class.get("port_external_source", 0),
@@ -161,6 +169,7 @@ def _classify_target(
     proof_bank_bridges = tuple(
         str(item) for item in target.get("bridge_candidate_obligations", []) or [] if str(item)
     )
+    exact_proof_obligation = str(target.get("exact_proof_bank_obligation", "") or "")
     local_candidates = tuple(
         str(item) for item in target.get("candidate_declarations", []) or [] if str(item)
     )
@@ -172,7 +181,9 @@ def _classify_target(
     )
     external_decls = tuple(hit["name"] for hit in external_hits)
     external_source_ids = tuple(sorted({hit["source_id"] for hit in external_hits}))
-    if proof_bank_bridges and local_candidates:
+    if exact_proof_obligation:
+        classification = "exact_proof_bank_obligation_available"
+    elif proof_bank_bridges and local_candidates:
         classification = "direct_wrapper_possible"
     elif proof_bank_bridges or local_candidates:
         classification = "bridge_lemma_needed"
@@ -196,6 +207,8 @@ def _classify_target(
         classification=classification,
         action_class=action_class,
         proof_bank_bridge_obligations=proof_bank_bridges,
+        exact_proof_bank_obligation=exact_proof_obligation,
+        proof_bank_exact_match_available=bool(exact_proof_obligation),
         local_candidate_declarations=local_candidates[:8],
         external_candidate_declarations=external_decls[:8],
         external_source_ids=external_source_ids,
@@ -253,6 +266,12 @@ def _suggest_next_step(
     local_candidates: tuple[str, ...],
     external_decls: tuple[str, ...],
 ) -> str:
+    if action_class == "reuse_exact_proof_bank_obligation":
+        bridge = proof_bank_bridges[0] if proof_bank_bridges else primitive
+        return (
+            f"Reuse exact verified proof-bank obligation `{bridge}` for `{primitive}`; "
+            "skip new primitive proof search and focus on the enclosing theorem composition."
+        )
     if action_class == "compose_existing_bridge_chain":
         return (
             f"Avoid adding duplicate wrappers for `{primitive}`. The proof bank already has "
@@ -283,6 +302,8 @@ def _action_class(
     local_candidates: tuple[str, ...],
     external_decls: tuple[str, ...],
 ) -> str:
+    if classification == "exact_proof_bank_obligation_available":
+        return "reuse_exact_proof_bank_obligation"
     if classification == "direct_wrapper_possible":
         if _has_named_bridge_for_primitive(primitive, proof_bank_bridges):
             return "compose_existing_bridge_chain"
@@ -325,10 +346,12 @@ def _markdown_report(payload: dict[str, object]) -> str:
         "",
         f"- Run directory: `{payload.get('run_dir')}`",
         f"- Missing primitives classified: {payload.get('n_primitives')}",
+        f"- Exact proof-bank obligations available: {payload.get('n_exact_proof_bank_obligation_available')}",
         f"- Direct wrappers possible: {payload.get('n_direct_wrapper_possible')}",
         f"- Bridge lemmas needed: {payload.get('n_bridge_lemma_needed')}",
         f"- External-source only: {payload.get('n_source_only_not_importable')}",
         f"- No source found: {payload.get('n_no_source_found')}",
+        f"- Reuse exact proof-bank obligations: {payload.get('n_reuse_exact_proof_bank_obligation')}",
         f"- Compose existing bridge chains: {payload.get('n_compose_existing_bridge_chain')}",
         f"- Add minimal wrappers: {payload.get('n_add_minimal_wrapper')}",
         f"- External search policy: `{payload.get('external_search_policy')}`",

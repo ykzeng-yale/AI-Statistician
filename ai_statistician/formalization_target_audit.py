@@ -26,6 +26,9 @@ class FormalizationTargetRow:
     bridge_candidate_obligations: tuple[str, ...]
     bridge_candidate_score: int
     proof_bank_bridge_available: bool
+    exact_proof_bank_obligation: str
+    proof_bank_exact_match_available: bool
+    target_resolution: str
     bridge_readiness: str
     suggested_next_step: str
     ok: bool
@@ -50,6 +53,9 @@ def audit_formalization_targets(run_dir: Path, out_dir: Path | None = None) -> d
         "n_ok": sum(1 for row in rows if row.ok),
         "n_with_proof_bank_bridge": sum(1 for row in rows if row.proof_bank_bridge_available),
         "n_with_ranked_bridge_candidate": sum(1 for row in rows if row.bridge_candidate_obligations),
+        "n_exact_proof_bank_resolved": sum(1 for row in rows if row.proof_bank_exact_match_available),
+        "n_unresolved_targets": sum(1 for row in rows if not row.proof_bank_exact_match_available),
+        "by_target_resolution": _count_by_target_resolution(rows),
         "by_bridge_readiness": _count_by_bridge_readiness(rows),
         "all_ok": bool(backlog.get("all_ok")) and bool(rows) and all(row.ok for row in rows),
         "top_targets": [asdict(row) for row in rows[:10]],
@@ -102,10 +108,17 @@ def _target_rows(backlog: dict[str, object]) -> list[FormalizationTargetRow]:
     rows: list[FormalizationTargetRow] = []
     for primitive, bucket in grouped.items():
         candidate_declarations = tuple(bucket["candidate_declarations"][:8])
+        exact_proof_obligation = _exact_proof_bank_obligation(primitive)
         semantic_bridge_candidates = _semantic_bridge_candidates(primitive)
         supporting_proofs = _rank_supporting_proofs(
             primitive,
-            tuple(sorted(set(bucket["supporting_proof_obligations"]) | set(semantic_bridge_candidates))),
+            tuple(
+                sorted(
+                    set(bucket["supporting_proof_obligations"])
+                    | set(semantic_bridge_candidates)
+                    | ({exact_proof_obligation} if exact_proof_obligation else set())
+                )
+            ),
         )
         bridge_candidates = tuple(
             obligation_id
@@ -116,7 +129,16 @@ def _target_rows(backlog: dict[str, object]) -> list[FormalizationTargetRow]:
             _proof_bridge_score(primitive, obligation_id)
             for obligation_id in bridge_candidates
         )
-        bridge_readiness = _bridge_readiness(candidate_declarations, supporting_proofs)
+        bridge_readiness = _bridge_readiness(
+            candidate_declarations,
+            supporting_proofs,
+            exact_proof_obligation,
+        )
+        target_resolution = (
+            "EXACT_PROOF_BANK_OBLIGATION"
+            if exact_proof_obligation
+            else "NEEDS_THEOREM_DEVELOPMENT"
+        )
         n_gaps = len(bucket["gap_ids"])
         score = (
             100 * n_gaps
@@ -136,7 +158,13 @@ def _target_rows(backlog: dict[str, object]) -> list[FormalizationTargetRow]:
             FormalizationTargetRow(
                 primitive=primitive,
                 priority_score=score,
-                priority_band=_priority_band(score, n_gaps, candidate_declarations, bridge_candidates),
+                priority_band=_priority_band(
+                    score,
+                    n_gaps,
+                    candidate_declarations,
+                    bridge_candidates,
+                    exact_proof_obligation,
+                ),
                 n_gaps=n_gaps,
                 problem_classes=tuple(sorted(bucket["problem_classes"])),
                 theorem_goals=tuple(sorted(bucket["theorem_goals"])),
@@ -146,12 +174,16 @@ def _target_rows(backlog: dict[str, object]) -> list[FormalizationTargetRow]:
                 bridge_candidate_obligations=bridge_candidates,
                 bridge_candidate_score=bridge_candidate_score,
                 proof_bank_bridge_available=bool(supporting_proofs),
+                exact_proof_bank_obligation=exact_proof_obligation,
+                proof_bank_exact_match_available=bool(exact_proof_obligation),
+                target_resolution=target_resolution,
                 bridge_readiness=bridge_readiness,
                 suggested_next_step=_suggest_next_step(
                     primitive,
                     candidate_declarations,
                     supporting_proofs,
                     bridge_candidates,
+                    exact_proof_obligation,
                 ),
                 ok=not errors,
                 errors=tuple(errors),
@@ -165,7 +197,10 @@ def _priority_band(
     n_gaps: int,
     candidates: tuple[str, ...],
     bridge_candidates: tuple[str, ...] = (),
+    exact_proof_obligation: str = "",
 ) -> str:
+    if exact_proof_obligation:
+        return "EXACT_PROOF_BANK_REUSE"
     if n_gaps >= 2 and candidates and bridge_candidates:
         return "HIGH_REUSE_BRIDGE_READY"
     if candidates and bridge_candidates:
@@ -182,7 +217,12 @@ def _priority_band(
 def _bridge_readiness(
     candidate_declarations: tuple[str, ...],
     supporting_proofs: tuple[str, ...],
+    exact_proof_obligation: str = "",
 ) -> str:
+    if exact_proof_obligation and candidate_declarations:
+        return "EXACT_PROOF_BANK_AND_LOCAL_SOURCE"
+    if exact_proof_obligation:
+        return "EXACT_PROOF_BANK_ONLY"
     if candidate_declarations and supporting_proofs:
         return "PROOF_BANK_AND_LOCAL_SOURCE"
     if supporting_proofs:
@@ -199,12 +239,26 @@ def _count_by_bridge_readiness(rows: list[FormalizationTargetRow]) -> dict[str, 
     return dict(sorted(counts.items()))
 
 
+def _count_by_target_resolution(rows: list[FormalizationTargetRow]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in rows:
+        counts[row.target_resolution] = counts.get(row.target_resolution, 0) + 1
+    return dict(sorted(counts.items()))
+
+
 def _suggest_next_step(
     primitive: str,
     candidate_declarations: tuple[str, ...],
     supporting_proofs: tuple[str, ...],
     bridge_candidates: tuple[str, ...] = (),
+    exact_proof_obligation: str = "",
 ) -> str:
+    if exact_proof_obligation:
+        return (
+            f"Reuse exact verified proof-bank obligation `{exact_proof_obligation}` for "
+            f"`{primitive}`; no new primitive proof is needed, only the enclosing "
+            "frontier theorem interface remains."
+        )
     if candidate_declarations and bridge_candidates:
         return (
             f"Use ranked verified bridge {bridge_candidates[0]} with local declaration "
@@ -559,6 +613,16 @@ def _semantic_bridge_candidates(primitive: str) -> tuple[str, ...]:
     return tuple(candidates)
 
 
+def _exact_proof_bank_obligation(primitive: str) -> str:
+    if not primitive:
+        return ""
+    try:
+        obligation = get_obligation(primitive)
+    except KeyError:
+        return ""
+    return obligation.id
+
+
 def _proof_bridge_score(primitive: str, obligation_id: str) -> int:
     primitive_tokens = _tokens(primitive)
     if not primitive_tokens:
@@ -677,6 +741,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Run directory: `{payload.get('run_dir')}`",
         f"- Targets: {payload.get('n_ok')}/{payload.get('n_targets')} audit-clean",
         f"- Proof-bank bridges available: {payload.get('n_with_proof_bank_bridge')}/{payload.get('n_targets')}",
+        f"- Exact proof-bank obligations already available: {payload.get('n_exact_proof_bank_resolved')}",
+        f"- Targets still needing theorem-development work: {payload.get('n_unresolved_targets')}",
         f"- Source gaps: {payload.get('source_gap_backlog', {}).get('n_ok')}/{payload.get('source_gap_backlog', {}).get('n_gaps')}",
         "",
         "## Top Targets",
@@ -693,7 +759,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
                 f"### `{row.get('primitive')}` [{row.get('priority_band')}]",
                 "",
                 f"- Priority score: {row.get('priority_score')}",
+                f"- Target resolution: `{row.get('target_resolution')}`",
                 f"- Bridge readiness: `{row.get('bridge_readiness')}`",
+                f"- Exact proof-bank obligation: `{row.get('exact_proof_bank_obligation') or 'none'}`",
                 f"- Gaps unlocked: {row.get('n_gaps')}",
                 f"- Problem classes: {', '.join(f'`{item}`' for item in row.get('problem_classes', [])) or 'none'}",
                 f"- Theorem goals: {', '.join(f'`{item}`' for item in row.get('theorem_goals', [])) or 'none'}",

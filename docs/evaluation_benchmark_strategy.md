@@ -19,7 +19,9 @@ The release audit already makes this boundary visible:
 - `frontier_theory_expected_result_coverage_rate=0.884...` on the smoke set
   means theory-target recovery is useful but incomplete.
 - `formal_gaps=20`, `missing_formal_primitives=97` means frontier theorem
-  closure is still a formal-library development problem.
+  closure is still a formal-library development problem. The target/action
+  audits additionally separate exact proof-bank reuse from unresolved primitive
+  work; exact reuse is not new proof evidence for the full frontier theorem.
 - `proofs_kernel_verified=112/112` is strong for the registered proof bank, but
   those are reusable subclaims, not complete JASA/AOAS-level asymptotic proofs.
 - `proof_search_kernel_verified=12/12` is useful controller evidence, but the
@@ -176,6 +178,9 @@ Source:
 Current release signal:
 
 - 97 missing formal primitives
+- exact proof-bank reuse is now reported separately from unresolved primitive
+  work, so agents do not spend proof-search budget on primitives that already
+  have matching verified proof-bank obligations
 - 78 have proof-bank plus local-source bridges
 - 19 are local-source-only
 - 53 have ranked proof-bank bridge candidates ready for direct reuse

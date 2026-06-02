@@ -142,6 +142,12 @@ def export_rag_collaboration_manifest(
             "formalization_targets_with_proof_bank_bridge": counts.get(
                 "formalization_targets_with_proof_bank_bridge"
             ),
+            "formalization_targets_exact_proof_bank_resolved": counts.get(
+                "formalization_targets_exact_proof_bank_resolved"
+            ),
+            "reuse_exact_proof_bank_obligation": counts.get(
+                "proof_bank_expansion_reuse_exact_proof_bank_obligation"
+            ),
             "compose_existing_bridge_chain": counts.get(
                 "proof_bank_expansion_compose_existing_bridge_chain"
             ),
@@ -316,7 +322,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- External retrieval recall/MRR: `{rag.get('formal_source_retrieval_external_recall_at_k')}` / `{rag.get('formal_source_retrieval_external_mrr')}`",
         f"- Combined retrieval recall/MRR: `{rag.get('formal_source_retrieval_all_recall_at_k')}` / `{rag.get('formal_source_retrieval_all_mrr')}`",
         f"- Missing primitives: `{queue.get('missing_formal_primitives')}`",
-        f"- Queue: compose=`{queue.get('compose_existing_bridge_chain')}`, minimal_wrapper=`{queue.get('add_minimal_wrapper')}`, design_bridge=`{queue.get('design_bridge_lemma')}`",
+        f"- Queue: exact_reuse=`{queue.get('reuse_exact_proof_bank_obligation')}`, compose=`{queue.get('compose_existing_bridge_chain')}`, minimal_wrapper=`{queue.get('add_minimal_wrapper')}`, design_bridge=`{queue.get('design_bridge_lemma')}`",
         "",
         "## Handoff Targets",
         "",

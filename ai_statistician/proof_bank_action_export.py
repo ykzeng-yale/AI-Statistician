@@ -75,6 +75,9 @@ def export_proof_bank_actions(
         "by_action_class": dict(sorted(by_action_class.items())),
         "by_priority": dict(sorted(by_priority.items())),
         "by_owner": dict(sorted(by_owner.items())),
+        "n_reuse_exact_proof_bank_obligation": by_action_class.get(
+            "reuse_exact_proof_bank_obligation", 0
+        ),
         "n_compose_existing_bridge_chain": by_action_class.get("compose_existing_bridge_chain", 0),
         "n_add_minimal_wrapper": by_action_class.get("add_minimal_wrapper", 0),
         "n_design_bridge_lemma": by_action_class.get("design_bridge_lemma", 0),
@@ -118,6 +121,7 @@ def _action_from_proposal(row: dict[str, Any]) -> ProofBankActionRow:
     if not primitive:
         errors.append("missing primitive")
     if action_class not in {
+        "reuse_exact_proof_bank_obligation",
         "compose_existing_bridge_chain",
         "add_minimal_wrapper",
         "design_bridge_lemma",
@@ -163,6 +167,13 @@ def _action_from_proposal(row: dict[str, Any]) -> ProofBankActionRow:
 
 
 def _contract_for_action_class(action_class: str) -> tuple[str, str, str, tuple[str, ...]]:
+    if action_class == "reuse_exact_proof_bank_obligation":
+        return (
+            "reuse_verified_proof_bank_obligation",
+            "link the exact verified proof-bank obligation to the frontier theorem skeleton without opening a duplicate proof task",
+            "claim ledger or theorem composition references the existing verified obligation; no new proof-bank admission required",
+            ("existing_obligation_id", "frontier_theorem_statement", "reuse_context", "verifier", "kernel_verified"),
+        )
     if action_class == "compose_existing_bridge_chain":
         return (
             "compose_verified_bridge_chain_into_frontier_skeleton",
@@ -193,6 +204,8 @@ def _contract_for_action_class(action_class: str) -> tuple[str, str, str, tuple[
 
 
 def _priority_label(action_class: str, priority_score: int) -> str:
+    if action_class == "reuse_exact_proof_bank_obligation":
+        return "low"
     if action_class == "compose_existing_bridge_chain" and priority_score >= 180:
         return "high"
     if action_class in {"compose_existing_bridge_chain", "add_minimal_wrapper"}:

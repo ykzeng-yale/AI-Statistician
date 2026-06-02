@@ -1116,6 +1116,7 @@ def _proof_bank_expansion_export(args: argparse.Namespace) -> int:
     print(
         f"candidates={payload['n_ok']}/{payload['n_candidates']} "
         f"bridge_ready={payload['n_bridge_ready']} "
+        f"exact_reuse={payload['n_reuse_exact_proof_bank_obligation']} "
         f"blocked_placeholder={payload['n_blocked_placeholder']} "
         f"all_ok={payload['all_ok']}"
     )
@@ -1194,7 +1195,8 @@ def _rag_collaboration_export(args: argparse.Namespace) -> int:
         f"missing_primitives={queue['missing_formal_primitives']}"
     )
     print(
-        f"queue compose={queue['compose_existing_bridge_chain']} "
+        f"queue exact_reuse={queue.get('reuse_exact_proof_bank_obligation')} "
+        f"compose={queue['compose_existing_bridge_chain']} "
         f"minimal_wrapper={queue['add_minimal_wrapper']} "
         f"design_bridge={queue['design_bridge_lemma']}"
     )

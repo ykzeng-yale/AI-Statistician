@@ -4938,6 +4938,12 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(first["suggested_next_step"])
         self.assertGreater(payload["n_with_proof_bank_bridge"], 0)
         self.assertGreater(payload["n_with_ranked_bridge_candidate"], 0)
+        self.assertIn("n_exact_proof_bank_resolved", payload)
+        self.assertIn("n_unresolved_targets", payload)
+        self.assertEqual(
+            payload["n_targets"],
+            payload["n_exact_proof_bank_resolved"] + payload["n_unresolved_targets"],
+        )
         self.assertTrue(Path("runs/test_formalization_target_audit/formalization_target_manifest.json").exists())
         self.assertTrue(Path("runs/test_formalization_target_audit/formalization_targets.md").exists())
 
@@ -6058,6 +6064,7 @@ class SystemTests(unittest.TestCase):
         self.assertIn(
             first["action_class"],
             {
+                "reuse_exact_proof_bank_obligation",
                 "compose_existing_bridge_chain",
                 "add_minimal_wrapper",
                 "design_bridge_lemma",
@@ -6079,7 +6086,8 @@ class SystemTests(unittest.TestCase):
         self.assertIn("remaining_interface", queue["queue"][0])
         self.assertEqual(
             payload["n_candidates"],
-            payload["n_compose_existing_bridge_chain"]
+            payload["n_reuse_exact_proof_bank_obligation"]
+            + payload["n_compose_existing_bridge_chain"]
             + payload["n_add_minimal_wrapper"]
             + payload["n_design_bridge_lemma"]
             + payload["n_design_from_first_principles"],
@@ -6154,7 +6162,8 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(payload["by_owner"], {"formal_verifier": payload["n_actions"]})
         self.assertEqual(
             payload["n_actions"],
-            payload["n_compose_existing_bridge_chain"]
+            payload["n_reuse_exact_proof_bank_obligation"]
+            + payload["n_compose_existing_bridge_chain"]
             + payload["n_add_minimal_wrapper"]
             + payload["n_design_bridge_lemma"]
             + payload["n_design_from_first_principles"],
@@ -6166,6 +6175,7 @@ class SystemTests(unittest.TestCase):
         self.assertIn(
             first["action_class"],
             {
+                "reuse_exact_proof_bank_obligation",
                 "compose_existing_bridge_chain",
                 "add_minimal_wrapper",
                 "design_bridge_lemma",
@@ -6201,7 +6211,8 @@ class SystemTests(unittest.TestCase):
         self.assertGreater(payload["n_primitives"], 0)
         self.assertEqual(
             payload["n_primitives"],
-            payload["n_direct_wrapper_possible"]
+            payload["n_exact_proof_bank_obligation_available"]
+            + payload["n_direct_wrapper_possible"]
             + payload["n_bridge_lemma_needed"]
             + payload["n_source_only_not_importable"]
             + payload["n_no_source_found"],
@@ -6214,6 +6225,7 @@ class SystemTests(unittest.TestCase):
         self.assertIn(
             first["classification"],
             {
+                "exact_proof_bank_obligation_available",
                 "direct_wrapper_possible",
                 "bridge_lemma_needed",
                 "source_only_not_importable",
@@ -6223,6 +6235,7 @@ class SystemTests(unittest.TestCase):
         self.assertIn(
             first["action_class"],
             {
+                "reuse_exact_proof_bank_obligation",
                 "compose_existing_bridge_chain",
                 "add_minimal_wrapper",
                 "design_bridge_lemma",
@@ -6232,7 +6245,8 @@ class SystemTests(unittest.TestCase):
         )
         self.assertEqual(
             payload["n_primitives"],
-            payload["n_compose_existing_bridge_chain"]
+            payload["n_reuse_exact_proof_bank_obligation"]
+            + payload["n_compose_existing_bridge_chain"]
             + payload["n_add_minimal_wrapper"]
             + payload["n_design_bridge_lemma"]
             + payload["n_port_external_source"]
@@ -8715,12 +8729,14 @@ class SystemTests(unittest.TestCase):
         self.assertGreater(payload["counts"]["proof_bank_expansion_bridge_ready"], 0)
         self.assertGreater(payload["counts"]["proof_bank_expansion_blocked_placeholder"], 0)
         self.assertIn("proof_bank_expansion_compose_existing_bridge_chain", payload["counts"])
+        self.assertIn("proof_bank_expansion_reuse_exact_proof_bank_obligation", payload["counts"])
         self.assertIn("proof_bank_expansion_add_minimal_wrapper", payload["counts"])
         self.assertIn("proof_bank_expansion_design_bridge_lemma", payload["counts"])
         self.assertIn("proof_bank_expansion_design_from_first_principles", payload["counts"])
         self.assertEqual(
             payload["counts"]["proof_bank_expansion_candidates_total"],
-            payload["counts"]["proof_bank_expansion_compose_existing_bridge_chain"]
+            payload["counts"]["proof_bank_expansion_reuse_exact_proof_bank_obligation"]
+            + payload["counts"]["proof_bank_expansion_compose_existing_bridge_chain"]
             + payload["counts"]["proof_bank_expansion_add_minimal_wrapper"]
             + payload["counts"]["proof_bank_expansion_design_bridge_lemma"]
             + payload["counts"]["proof_bank_expansion_design_from_first_principles"],
@@ -8730,7 +8746,8 @@ class SystemTests(unittest.TestCase):
         self.assertGreater(payload["counts"]["proof_bank_actions_high_priority"], 0)
         self.assertEqual(
             payload["counts"]["proof_bank_actions"],
-            payload["counts"]["proof_bank_actions_compose_existing_bridge_chain"]
+            payload["counts"]["proof_bank_actions_reuse_exact_proof_bank_obligation"]
+            + payload["counts"]["proof_bank_actions_compose_existing_bridge_chain"]
             + payload["counts"]["proof_bank_actions_add_minimal_wrapper"]
             + payload["counts"]["proof_bank_actions_design_bridge_lemma"]
             + payload["counts"]["proof_bank_actions_design_from_first_principles"],
@@ -8753,13 +8770,15 @@ class SystemTests(unittest.TestCase):
             payload["counts"]["primitive_source_coverage_primitives"],
         )
         self.assertIn("primitive_source_coverage_compose_existing_bridge_chain", payload["counts"])
+        self.assertIn("primitive_source_coverage_reuse_exact_proof_bank_obligation", payload["counts"])
         self.assertIn("primitive_source_coverage_add_minimal_wrapper", payload["counts"])
         self.assertIn("primitive_source_coverage_design_bridge_lemma", payload["counts"])
         self.assertIn("primitive_source_coverage_port_external_source", payload["counts"])
         self.assertIn("primitive_source_coverage_design_from_first_principles", payload["counts"])
         self.assertEqual(
             payload["counts"]["primitive_source_coverage_primitives"],
-            payload["counts"]["primitive_source_coverage_compose_existing_bridge_chain"]
+            payload["counts"]["primitive_source_coverage_reuse_exact_proof_bank_obligation"]
+            + payload["counts"]["primitive_source_coverage_compose_existing_bridge_chain"]
             + payload["counts"]["primitive_source_coverage_add_minimal_wrapper"]
             + payload["counts"]["primitive_source_coverage_design_bridge_lemma"]
             + payload["counts"]["primitive_source_coverage_port_external_source"]

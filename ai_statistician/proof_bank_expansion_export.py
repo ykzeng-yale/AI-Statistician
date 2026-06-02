@@ -45,6 +45,8 @@ class ProofBankExpansionCandidate:
     bridge_readiness: str
     candidate_declarations: tuple[str, ...]
     bridge_candidate_obligations: tuple[str, ...]
+    exact_proof_bank_obligation: str
+    proof_bank_exact_match_available: bool
     source_gap_ids: tuple[str, ...]
     ok: bool
     errors: tuple[str, ...] = ()
@@ -82,6 +84,9 @@ def export_proof_bank_expansion_candidates(
         "n_candidate_ready": sum(1 for row in rows if row.status == "candidate_ready"),
         "n_blocked_placeholder": sum(1 for row in rows if row.status == "blocked_placeholder"),
         "n_bridge_ready": sum(1 for row in rows if row.bridge_candidate_obligations),
+        "n_reuse_exact_proof_bank_obligation": sum(
+            1 for row in rows if row.action_class == "reuse_exact_proof_bank_obligation"
+        ),
         "n_compose_existing_bridge_chain": sum(
             1 for row in rows if row.action_class == "compose_existing_bridge_chain"
         ),
@@ -164,11 +169,17 @@ def _candidate_for_target(
     bridge_candidates = tuple(
         str(item) for item in target.get("bridge_candidate_obligations", []) or [] if str(item)
     )
+    exact_proof_obligation = str(target.get("exact_proof_bank_obligation", "") or "")
     statement = _extract_theorem_signature(str(first_task.get("statement", "")))
     declaration = _extract_declaration_name(statement) or f"{_safe_identifier(primitive)}_bridge"
     expected_premises = _expected_premises(target, candidate_declarations, bridge_candidates)
     blocked_reasons = _blocked_reasons(statement, target, matching_tasks)
-    action_class = _proposal_action_class(primitive, bridge_candidates, candidate_declarations)
+    action_class = _proposal_action_class(
+        primitive,
+        bridge_candidates,
+        candidate_declarations,
+        exact_proof_obligation,
+    )
     errors: list[str] = []
     if not primitive:
         errors.append("missing primitive")
@@ -181,6 +192,7 @@ def _candidate_for_target(
     status = "blocked_placeholder" if blocked_reasons else "candidate_ready"
     composition_plan = _bridge_chain_composition_plan(
         bridge_candidates,
+        exact_proof_obligation=exact_proof_obligation,
         declaration=declaration,
         blocked_reasons=blocked_reasons,
     )
@@ -232,6 +244,8 @@ def _candidate_for_target(
         bridge_readiness=str(target.get("bridge_readiness", "")),
         candidate_declarations=candidate_declarations,
         bridge_candidate_obligations=bridge_candidates,
+        exact_proof_bank_obligation=exact_proof_obligation,
+        proof_bank_exact_match_available=bool(exact_proof_obligation),
         source_gap_ids=source_gap_ids,
         ok=not errors,
         errors=tuple(errors),
@@ -297,6 +311,7 @@ def _queue_row(
         "domain_tags": list(row.domain_tags),
         "expected_premises": list(row.expected_premises),
         "bridge_chain_order": list(_composition_plan_order(row)),
+        "exact_proof_bank_obligation": row.exact_proof_bank_obligation,
         "remaining_interface": _composition_plan_remaining_interface(row),
         "source_allowed_sorry": bool(source_task.get("allowed_sorry", False)),
         "no_placeholder_proof_block": (
@@ -334,6 +349,8 @@ def _legacy_lemma_proposal(row: ProofBankExpansionCandidate) -> dict[str, object
         "bridge_readiness": payload["bridge_readiness"],
         "candidate_declarations": payload["candidate_declarations"],
         "bridge_candidate_obligations": payload["bridge_candidate_obligations"],
+        "exact_proof_bank_obligation": payload["exact_proof_bank_obligation"],
+        "proof_bank_exact_match_available": payload["proof_bank_exact_match_available"],
         "source_gap_ids": payload["source_gap_ids"],
         "promotion_blocked": payload["status"] == "blocked_placeholder",
         "candidate_proof_is_empty": not str(payload["candidate"].get("proof", "")).strip(),
@@ -351,6 +368,7 @@ def _legacy_lemma_proposal(row: ProofBankExpansionCandidate) -> dict[str, object
 def _bridge_chain_composition_plan(
     bridge_candidates: tuple[str, ...],
     *,
+    exact_proof_obligation: str = "",
     declaration: str,
     blocked_reasons: tuple[str, ...],
 ) -> dict[str, object]:
@@ -375,7 +393,9 @@ def _bridge_chain_composition_plan(
     return {
         "target_declaration": declaration,
         "strategy": (
-            "compose_verified_bridge_chain_into_theorem_skeleton"
+            "reuse_exact_verified_proof_bank_obligation"
+            if exact_proof_obligation
+            else "compose_verified_bridge_chain_into_theorem_skeleton"
             if len(bridge_candidates) >= 3
             else "mine_or_add_missing_bridge_first"
         ),
@@ -435,7 +455,10 @@ def _proposal_action_class(
     primitive: str,
     bridge_candidates: tuple[str, ...],
     candidate_declarations: tuple[str, ...],
+    exact_proof_obligation: str = "",
 ) -> str:
+    if exact_proof_obligation and exact_proof_obligation == primitive:
+        return "reuse_exact_proof_bank_obligation"
     if _has_named_bridge_for_primitive(primitive, bridge_candidates):
         return "compose_existing_bridge_chain"
     if len(bridge_candidates) >= 3:
@@ -475,6 +498,13 @@ def _proposal_notes(
             f"Compose the next theorem skeleton `{declaration}` from the bridge chain, "
             "then close only the remaining full-theorem interface with AXLE verify_proof."
         )
+    elif action_class == "reuse_exact_proof_bank_obligation":
+        lead = (
+            f"Reuse the exact verified proof-bank obligation for `{primitive}`. "
+            f"The primitive proof already exists; route `{declaration}` to theorem "
+            "composition or claim-ledger linkage instead of opening a duplicate "
+            "proof-bank expansion task."
+        )
     elif action_class == "add_minimal_wrapper":
         lead = (
             f"Add the smallest reusable wrapper for `{primitive}` before promoting "
@@ -494,11 +524,18 @@ def _proposal_notes(
 
 
 def _candidate_name(primitive: str, action_class: str) -> str:
-    suffix = "theorem_composition" if action_class == "compose_existing_bridge_chain" else "bridge"
+    if action_class == "reuse_exact_proof_bank_obligation":
+        suffix = "proof_bank_reuse"
+    elif action_class == "compose_existing_bridge_chain":
+        suffix = "theorem_composition"
+    else:
+        suffix = "bridge"
     return f"AIStatistician.Proposed.{_safe_identifier(primitive)}_{suffix}"
 
 
 def _queue_next_action(row: ProofBankExpansionCandidate) -> str:
+    if row.action_class == "reuse_exact_proof_bank_obligation":
+        return "reuse_exact_verified_obligation_in_frontier_theorem"
     if row.action_class == "compose_existing_bridge_chain":
         return "compose_verified_bridge_chain_into_theorem_skeleton"
     if row.action_class == "add_minimal_wrapper":
@@ -557,6 +594,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Candidates: {payload.get('n_ok')}/{payload.get('n_candidates')} audit-clean",
         f"- Bridge-ready candidates: {payload.get('n_bridge_ready')}",
         f"- Blocked placeholder candidates: {payload.get('n_blocked_placeholder')}",
+        f"- Reuse exact proof-bank obligations: {payload.get('n_reuse_exact_proof_bank_obligation')}",
         f"- Compose existing bridge chains: {payload.get('n_compose_existing_bridge_chain')}",
         f"- Add minimal wrappers: {payload.get('n_add_minimal_wrapper')}",
         f"- Design bridge lemmas: {payload.get('n_design_bridge_lemma')}",
@@ -580,6 +618,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
                 f"- Priority score: {row.get('priority_score')}",
                 f"- Action class: `{row.get('action_class')}`",
                 f"- Bridge readiness: `{row.get('bridge_readiness')}`",
+                f"- Exact proof-bank obligation: `{row.get('exact_proof_bank_obligation') or 'none'}`",
                 f"- Source tasks: {', '.join(f'`{item}`' for item in row.get('source_task_ids', [])) or 'none'}",
                 f"- Candidate declarations: {', '.join(f'`{item}`' for item in row.get('candidate_declarations', [])[:5]) or 'none'}",
                 f"- Bridge obligations: {', '.join(f'`{item}`' for item in row.get('bridge_candidate_obligations', [])) or 'none'}",
