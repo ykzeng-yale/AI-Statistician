@@ -2241,6 +2241,7 @@ class TheoryPlanner:
                     ),
                     proof_obligations=(
                         "difference_estimator_unbiased",
+                        "aipw_score_definition",
                         "aipw_score_expectation_decompose",
                         "propensity_weight_mul_cancel_of_lower_bound",
                         "propensity_weight_cancel_left_of_lower_bound",
@@ -4790,6 +4791,7 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "integrable_ae_tendsto_condexp_filtration",
         "condexp_tower_of_sub_sigma_real",
         "condexp_integral_eq_integral_real",
+        "aipw_score_definition",
         "aipw_score_expectation_decompose",
         "aipw_score_expectation_target_of_aug_cancel",
         "conditional_mean_residual_zero",

@@ -1727,6 +1727,17 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("conditional_mean_residual_zero", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_aipw_score_definition_direct_wrapper_closes_named_primitive(self) -> None:
+        obligation = get_obligation("aipw_score_definition")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertIn("def aipwScore", content)
+        self.assertIn("theorem aipwScore_definition", content)
+        self.assertIn("contrast + treatAug - controlAug", content)
+        self.assertIn("by\n  rfl", content)
+        self.assertIn("aipw_score_definition", obligation.tags)
+        self.assertIn("direct_primitive_wrapper", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_conditional_mean_residual_zero_direct_wrapper_closes_named_primitive(self) -> None:
         obligation = get_obligation("conditional_mean_residual_zero")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
@@ -4484,6 +4495,7 @@ class SystemTests(unittest.TestCase):
             causal_goals["aipw_double_robustness"]["proof_obligations"],
             [
                 "difference_estimator_unbiased",
+                "aipw_score_definition",
                 "aipw_score_expectation_decompose",
                 "propensity_weight_mul_cancel_of_lower_bound",
                 "propensity_weight_cancel_left_of_lower_bound",
@@ -5722,6 +5734,65 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "conditional_mean_residual_zero_of_condExp_ae_eq",
             row["bridge_candidate_obligations"],
         )
+
+    def test_formalization_target_audit_reuses_aipw_score_definition_exact_wrapper(self) -> None:
+        run_dir = Path("runs/test_formalization_target_aipw_score_definition_run")
+        out_dir = Path("runs/test_formalization_target_aipw_score_definition_audit")
+        shutil.rmtree(run_dir, ignore_errors=True)
+        shutil.rmtree(out_dir, ignore_errors=True)
+        gap_dir = run_dir / "formal_gaps"
+        gap_dir.mkdir(parents=True, exist_ok=True)
+        gap_path = gap_dir / "aipw_double_robustness.lean"
+        gap_path.write_text("FORMAL_GAP aipw_score_definition", encoding="utf-8")
+        (run_dir / "research_benchmark_manifest.json").write_text(
+            json.dumps({"questions": [{"question": "q_aipw", "formal": {"gaps": 1}}]}),
+            encoding="utf-8",
+        )
+        trace = {
+            "question": {"id": "q_aipw"},
+            "problem": {"problem_class": "semiparametric_causal_ate"},
+            "procedures": [],
+            "knowledge": [{"id": "aipw_double_robustness"}],
+            "theorem_goals": [
+                {
+                    "id": "aipw_double_robustness",
+                    "title": "AIPW double robustness",
+                    "proof_strategy": "Expand the AIPW score definition before canceling residuals.",
+                    "required_primitives": ["aipw_score_definition"],
+                    "proof_obligations": [
+                        "aipw_score_definition",
+                        "aipw_score_expectation_decompose",
+                    ],
+                },
+            ],
+            "formal_subclaims": [
+                {"status": "PROVED", "proof_obligation_id": "aipw_score_definition"},
+                {"status": "PROVED", "proof_obligation_id": "aipw_score_expectation_decompose"},
+                {
+                    "id": "gap:aipw_double_robustness",
+                    "status": "FORMAL_GAP",
+                    "claim_type": "theory_gap",
+                    "gap_reason": "full double-robustness interface still missing",
+                    "artifact_path": str(gap_path),
+                    "lean_statement": gap_path.read_text(encoding="utf-8"),
+                    "formal_source_hits": [{"name": "StatInference.Matching.WDSM.score"}],
+                    "primitive_formal_source_hits": {
+                        "aipw_score_definition": [
+                            {"name": "StatInference.Matching.WDSM.score"}
+                        ]
+                    },
+                },
+            ],
+        }
+        (run_dir / "q_aipw.json").write_text(json.dumps(trace), encoding="utf-8")
+
+        payload = audit_formalization_targets(run_dir, out_dir)
+        rows = {row["primitive"]: row for row in payload["rows"]}
+        row = rows["aipw_score_definition"]
+        self.assertEqual(row["priority_band"], "EXACT_PROOF_BANK_REUSE")
+        self.assertEqual(row["exact_proof_bank_obligation"], "aipw_score_definition")
+        self.assertTrue(row["proof_bank_exact_match_available"])
+        self.assertIn("aipw_score_definition", row["bridge_candidate_obligations"])
 
     def test_formalization_target_audit_maps_design_based_primitives_to_verified_bridge(self) -> None:
         run_dir = Path("runs/test_formalization_target_design_based_run")

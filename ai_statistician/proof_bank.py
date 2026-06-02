@@ -3117,6 +3117,46 @@ theorem noisedEstimator_chebyshev_indep {Ω : Type*} [MeasurableSpace Ω]
             "estimator_error_chebyshev",
         ),
     ),
+    "aipw_score_definition": FormalObligation(
+        id="aipw_score_definition",
+        title="AIPW score definition primitive wrapper",
+        english=(
+            "The AIPW-style score is the pointwise function contrast plus "
+            "treated augmentation minus control augmentation. This names the "
+            "`aipw_score_definition` frontier primitive directly; it is a "
+            "definitional bridge only and does not prove conditional residual "
+            "cancellation, nuisance correctness, double robustness, or "
+            "asymptotic normality."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+noncomputable def aipwScore {Ω : Type*}
+    (contrast treatAug controlAug : Ω → ℝ) : Ω → ℝ :=
+  contrast + treatAug - controlAug
+
+theorem aipwScore_definition {Ω : Type*}
+    (contrast treatAug controlAug : Ω → ℝ) :
+    aipwScore contrast treatAug controlAug =
+      ((contrast + treatAug - controlAug) : Ω → ℝ) := by sorry
+"""
+        ),
+        proof_body="by\n  rfl",
+        tags=(
+            "estimator",
+            "definition",
+            "aipw",
+            "causal",
+            "semiparametric",
+            "double_robustness",
+            "aipw_score_definition",
+            "orthogonal_score",
+            "direct_primitive_wrapper",
+        ),
+        expected_lemmas=("rfl",),
+    ),
     "aipw_score_expectation_decompose": FormalObligation(
         id="aipw_score_expectation_decompose",
         title="AIPW score expectation decomposes by linearity",
