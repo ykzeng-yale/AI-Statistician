@@ -6852,6 +6852,15 @@ class SystemTests(unittest.TestCase):
             "conditional_mean_residual_zero_of_condExp_ae_eq",
         )
         self.assertIn("lean_statement", action["repair_artifact"])
+        self.assertEqual(
+            action["repair_artifact"]["selected_bridge_obligation_id"],
+            action["repair_artifact"]["proof_obligation_id"],
+        )
+        self.assertTrue(action["repair_artifact"]["ranked_bridge_obligations"])
+        self.assertTrue(action["repair_artifact"]["bridge_chain_order"])
+        self.assertTrue(action["repair_artifact"]["bridge_chain"])
+        self.assertTrue(action["repair_artifact"]["remaining_frontier_interface"])
+        self.assertIn("not a proof of the full frontier theorem", action["repair_artifact"]["proof_evidence_boundary"])
         self.assertTrue(action["rerun_requested"])
         self.assertEqual(action["repair_task"]["task_type"], "proof_bank_expansion_from_formal_gap")
         bridge_revision = result["theory_revisions"][0]["repair_artifact"]

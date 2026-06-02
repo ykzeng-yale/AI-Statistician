@@ -46,6 +46,11 @@ class DefaultProofEngineer:
         if not ranked:
             return None
         obligation, score = ranked[0]
+        bridge_context = _bridge_chain_context(
+            ranked,
+            selected_obligation_id=obligation.id,
+            item=item,
+        )
         search = await BestFirstWholeProofSearchController(self.verifier).solve(
             obligation,
             max_nodes=4,
@@ -70,6 +75,7 @@ class DefaultProofEngineer:
                     ],
                     "proof_search_nodes_expanded": search.nodes_expanded,
                     "proof_search_frontier_exhausted": search.frontier_exhausted,
+                    **bridge_context,
                 },
                 "proof_engineer_score": score,
             }
@@ -99,6 +105,7 @@ class DefaultProofEngineer:
                 "proof_search_selected_source": search.selected_source,
                 "proof_search_nodes_expanded": search.nodes_expanded,
                 "proof_search_candidates_total": search.candidates_total,
+                **bridge_context,
             },
             "proof_engineer_score": score,
             "kernel_verified": search.kernel_verified,
@@ -227,6 +234,104 @@ def _rank_bridge_obligations(
         if score > 0:
             ranked.append((obligation, score))
     return sorted(ranked, key=lambda row: (-row[1], row[0].id))
+
+
+def _bridge_chain_context(
+    ranked: list[tuple[FormalObligation, int]],
+    *,
+    selected_obligation_id: str,
+    item: dict[str, Any],
+    limit: int = 8,
+) -> dict[str, Any]:
+    ranked_rows = [
+        {
+            "id": obligation.id,
+            "title": obligation.title,
+            "score": score,
+            "depends_on": list(obligation.depends_on),
+            "expected_lemmas": list(obligation.expected_lemmas),
+        }
+        for obligation, score in ranked[:limit]
+    ]
+    bridge_ids = tuple(row["id"] for row in ranked_rows)
+    ordered_ids = _topological_bridge_order(bridge_ids)
+    return {
+        "selected_bridge_obligation_id": selected_obligation_id,
+        "ranked_bridge_obligations": ranked_rows,
+        "bridge_chain_order": ordered_ids,
+        "bridge_chain": _bridge_chain_rows(ordered_ids, selected_obligation_id, set(bridge_ids)),
+        "remaining_frontier_interface": _remaining_frontier_interface(item),
+        "proof_evidence_boundary": (
+            "The selected bridge obligation may be verifier-accepted, but this bridge-chain "
+            "context is not a proof of the full frontier theorem until the remaining interface "
+            "is formalized and AXLE verify_proof accepts the composed theorem."
+        ),
+    }
+
+
+def _topological_bridge_order(bridge_ids: tuple[str, ...]) -> list[str]:
+    seen: set[str] = set()
+    ordered: list[str] = []
+
+    def visit(obligation_id: str) -> None:
+        if obligation_id in seen:
+            return
+        seen.add(obligation_id)
+        try:
+            obligation = get_obligation(obligation_id)
+        except KeyError:
+            return
+        for dependency_id in obligation.depends_on:
+            visit(dependency_id)
+        ordered.append(obligation_id)
+
+    for bridge_id in bridge_ids:
+        visit(bridge_id)
+    return ordered
+
+
+def _bridge_chain_rows(
+    ordered_ids: list[str],
+    selected_obligation_id: str,
+    ranked_bridge_ids: set[str],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for obligation_id in ordered_ids:
+        try:
+            obligation = get_obligation(obligation_id)
+        except KeyError:
+            continue
+        role = "selected_bridge" if obligation.id == selected_obligation_id else (
+            "ranked_bridge" if obligation.id in ranked_bridge_ids else "dependency"
+        )
+        rows.append(
+            {
+                "id": obligation.id,
+                "title": obligation.title,
+                "role": role,
+                "depends_on": list(obligation.depends_on),
+                "expected_lemmas": list(obligation.expected_lemmas),
+                "tags": list(obligation.tags),
+            }
+        )
+    return rows
+
+
+def _remaining_frontier_interface(item: dict[str, Any]) -> list[str]:
+    target = str(item.get("target_theorem_goal", "") or "").strip()
+    primitives = [str(row) for row in item.get("required_primitives", []) or [] if str(row)]
+    evidence = str(item.get("evidence", "") or "").strip()
+    remaining = [
+        "full frontier theorem is still a FORMAL_GAP after this bridge repair",
+        "compose verified bridge obligations into a non-placeholder Lean theorem statement",
+    ]
+    if target:
+        remaining.append(f"target theorem goal: {target}")
+    if primitives:
+        remaining.append("required primitives: " + ", ".join(primitives))
+    if evidence:
+        remaining.append("gap evidence: " + evidence)
+    return remaining
 
 
 def _obligation_id_from_failed_item(item: dict[str, Any]) -> str:
