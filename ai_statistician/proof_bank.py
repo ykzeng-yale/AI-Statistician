@@ -2059,6 +2059,62 @@ theorem medianOfMeans_deviation_bridge {Ω ι : Type*}
         expected_lemmas=("measure_mono", "measure_biUnion_finset_le", "Finset.sum_le_sum"),
         depends_on=("median_of_means_failure_union_control", "chebyshev_block_failure_bound_bridge"),
     ),
+    "binomial_median_tail_bound_bridge": FormalObligation(
+        id="binomial_median_tail_bound_bridge",
+        title="Median-of-means majority-pattern union bridge",
+        english=(
+            "If the median-of-means bad event is contained in a finite union of "
+            "majority/failure-pattern events, and each pattern event has a "
+            "probability budget, then the bad-median probability is bounded by "
+            "the sum of those pattern budgets. This is the reusable finite "
+            "pattern-union ingredient for the `binomial_median_tail_bound` "
+            "primitive. It does not prove independence of blocks, product "
+            "probabilities for a binomial tail, or a sharp sub-Gaussian MoM "
+            "deviation theorem."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+theorem binomialMedianTail_patternUnion_bound {Ω ι : Type*}
+    [MeasurableSpace Ω]
+    (μ : Measure Ω) (Patterns : Finset (Finset ι))
+    (BadPattern : Finset ι → Set Ω)
+    (MedianBad : Set Ω) (α : Finset ι → ENNReal) (α_total : ENNReal)
+    (hSubset : MedianBad ⊆ ⋃ pattern ∈ Patterns, BadPattern pattern)
+    (hPattern : ∀ pattern ∈ Patterns, μ (BadPattern pattern) ≤ α pattern)
+    (h_total : (∑ pattern ∈ Patterns, α pattern) ≤ α_total) :
+    μ MedianBad ≤ α_total := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  calc\n"
+            "    μ MedianBad ≤ μ (⋃ pattern ∈ Patterns, BadPattern pattern) := by\n"
+            "      exact measure_mono hSubset\n"
+            "    _ ≤ ∑ pattern ∈ Patterns, μ (BadPattern pattern) := by\n"
+            "      exact measure_biUnion_finset_le (μ := μ) Patterns BadPattern\n"
+            "    _ ≤ ∑ pattern ∈ Patterns, α pattern := by\n"
+            "      exact Finset.sum_le_sum (fun pattern hpattern => hPattern pattern hpattern)\n"
+            "    _ ≤ α_total := h_total"
+        ),
+        tags=(
+            "probability",
+            "event",
+            "union_bound",
+            "finite_sample",
+            "robust",
+            "median_of_means",
+            "median_of_means_deviation",
+            "binomial_median_tail_bound",
+            "majority_pattern",
+            "concentration",
+            "minimal_wrapper",
+        ),
+        expected_lemmas=("measure_mono", "measure_biUnion_finset_le", "Finset.sum_le_sum"),
+        depends_on=("median_of_means_deviation_bridge",),
+    ),
     "affine_estimator_expectation": FormalObligation(
         id="affine_estimator_expectation",
         title="Affine estimator expectation",

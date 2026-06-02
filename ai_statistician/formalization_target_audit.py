@@ -268,6 +268,11 @@ _PRIMITIVE_PROOF_BRIDGE_HINTS: dict[str, tuple[str, ...]] = {
         "finite_conformal_rank_coverage_counting",
         "simultaneous_coverage_of_union_error_bound",
     ),
+    "binomial_median_tail_bound": (
+        "binomial_median_tail_bound_bridge",
+        "median_of_means_deviation_bridge",
+        "median_of_means_failure_union_control",
+    ),
     "order_statistic_quantile_rule": (
         "order_statistic_quantile_rule_bridge",
         "finite_conformal_rank_coverage_counting",

@@ -5466,10 +5466,11 @@ class SystemTests(unittest.TestCase):
             "median_of_means_deviation_bridge",
         )
         self.assertIn("binomial_median_tail_bound", rows)
-        self.assertNotIn(
-            "median_of_means_failure_union_control",
-            rows["binomial_median_tail_bound"]["bridge_candidate_obligations"],
+        self.assertEqual(
+            rows["binomial_median_tail_bound"]["bridge_candidate_obligations"][0],
+            "binomial_median_tail_bound_bridge",
         )
+        self.assertEqual(rows["binomial_median_tail_bound"]["priority_band"], "BRIDGE_REUSE_READY")
 
     def test_formalization_target_audit_maps_product_process_primitives_to_indicator_product_bridge(self) -> None:
         run_dir = Path("runs/test_formalization_target_product_process_run")

@@ -8,27 +8,27 @@ Runtime used:
 .venv/bin/python -m ai_statistician.cli proof-audit \
   --local-lean \
   --lean-project /Users/yukang/LeanProjects/LeanPractice \
-  --out runs/current_minimal_wrapper_full_local_lean_proof_audit
+  --out runs/current_binomial_median_tail_full_local_lean_proof_audit
 ```
 
 Result:
 
 ```text
-verified=111/111
-kernel=111/111
+verified=112/112
+kernel=112/112
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=a22b250ace81b8492c807ebfdcd446c4005917d7cd5470a5a4aa393033d249c9
+proof_bank_fingerprint=dcbb1825151a6779ab2726a7c998a0723c05debe98d6fbb034f5bd2a3d2d644f
 ```
 
 This is the current evidence that the registered proof bank is not only
-mock-checked: all 111 registered Mathlib-backed obligations were accepted by a
+mock-checked: all 112 registered Mathlib-backed obligations were accepted by a
 real Lean kernel check through the local Lake/Mathlib runtime. AXLE remains the
 preferred remote verifier for release bundles when its Python package and API
 runtime are available; the local Lean backend is the offline kernel-equivalent
 fallback used for this latest full-bank proof audit.
 
-The newest two obligations are:
+The newest three obligations are:
 
 - `kaplan_meier_product_limit_bridge`: a Kaplan-Meier/product-limit
   continuous-mapping wrapper. It assumes process convergence and continuity of
@@ -38,8 +38,13 @@ The newest two obligations are:
   empirical-process remainder that is already controlled as `o_p(1)`. It does
   not prove Donsker, stochastic equicontinuity, or a problem-specific
   empirical-process bound.
+- `binomial_median_tail_bound_bridge`: a finite majority-pattern union bridge
+  for median-of-means tail proofs. It does not prove block independence,
+  product-probability binomial tails, or a sharp sub-Gaussian MoM deviation
+  theorem.
 
-Both were additionally checked in a focused local Lean audit:
+The survival and empirical-process wrappers were additionally checked in a
+focused local Lean audit:
 
 ```bash
 .venv/bin/python -m ai_statistician.cli proof-audit \
@@ -74,14 +79,15 @@ strength=axle_lean_kernel
 ```
 
 That remote AXLE run predates the newest proof-bank additions. The current
-111-obligation proof bank has full local Lean kernel evidence above; run the
+112-obligation proof bank has full local Lean kernel evidence above; run the
 same `proof-audit --real-lean` command again from an AXLE-ready runtime to
-refresh remote AXLE evidence for all 111 obligations.
+refresh remote AXLE evidence for all 112 obligations.
 
-The latest small research-system audit after these additions used the same
-proof bank and the EmpericalProcessLEAN `lean_rag` dependency graph, but it
-used the default mock/static proof verifier for the full system gate. The
-separate proof-bank audit above is the Lean-kernel proof evidence.
+The most recent small research-system audit before the robust-mean bridge used
+the same proof-bank family and the EmpericalProcessLEAN `lean_rag` dependency
+graph, but it used the default mock/static proof verifier for the full system
+gate. The separate proof-bank audit above is the current Lean-kernel proof
+evidence.
 
 ```text
 run=runs/current_minimal_wrapper_system_audit
@@ -414,7 +420,7 @@ The causal bridge block now also includes
 `propensity_weight_cancel_left_of_lower_bound`, the left-oriented companion
 identity `p * p⁻¹ = 1` under the same strict lower-bound assumption. This gives
 IPW/AIPW algebra both cancellation orientations without relying on ad hoc
-commutativity rewrites; it is kernel-verified as part of the current `111/111`
+commutativity rewrites; it is kernel-verified as part of the current `112/112`
 local Lean proof-bank audit and still does not prove positivity as a model
 assumption or close causal identification.
 
@@ -498,10 +504,18 @@ kernel-checked continuous-mapping bridge, and
 `empirical_process_remainder_bound` an exact kernel-checked Slutsky bridge once
 the remainder has already been controlled as `o_p(1)`. The proof-bank expansion
 export now reports `n_add_minimal_wrapper=0` and
-`n_compose_existing_bridge_chain=53`, so these lanes are ready for theorem
+`n_compose_existing_bridge_chain=54`, so these lanes are ready for theorem
 skeleton composition rather than another minimal wrapper. The full
 Kaplan-Meier asymptotic normality theorem and the actual empirical-process
 remainder bound remain formal gaps.
+
+The robust-mean lane now also has `binomial_median_tail_bound_bridge`, a
+kernel-checked finite pattern-union theorem for median-of-means majority-tail
+reductions. It moves `binomial_median_tail_bound` from a missing bridge-lemma
+candidate into the compose-existing-bridge-chain queue. The current expansion
+export reports `n_bridge_ready=54`, `n_compose_existing_bridge_chain=54`, and
+`n_design_bridge_lemma=43`; the sharp binomial/product tail and full
+sub-Gaussian MoM theorem remain formal gaps.
 
 Important boundary:
 

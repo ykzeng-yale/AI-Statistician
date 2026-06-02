@@ -82,7 +82,7 @@ sandboxed code patching, or simulator construction still stop honestly with
 repair proposal, unless a stronger handler is registered.
 
 Current release-style evidence for this bounded loop is split intentionally:
-`proof-audit --local-lean` verifies the registered proof bank at `111/111`, while
+`proof-audit --local-lean` verifies the registered proof bank at `112/112`, while
 `research-system-audit` exercises the loop, Lean-RAG dependency retrieval, proof
 bridge routing, and simulation/audit gates. When the system audit is not run
 with `--local-lean`, its proof rows are scaffold evidence rather than fresh
@@ -1618,11 +1618,11 @@ python3 -m ai_statistician.cli proof-audit \
 Current full-bank local Lean evidence (2026-06-02):
 
 ```text
-verified=111/111
-kernel=111/111
+verified=112/112
+kernel=112/112
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=a22b250ace81b8492c807ebfdcd446c4005917d7cd5470a5a4aa393033d249c9
+proof_bank_fingerprint=dcbb1825151a6779ab2726a7c998a0723c05debe98d6fbb034f5bd2a3d2d644f
 ```
 
 Run `doctor` in the same Python runtime first. It reports

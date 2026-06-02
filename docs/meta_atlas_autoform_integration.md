@@ -158,7 +158,7 @@ owner-authorized training export, set
 
 ## Latest Validation
 
-Current local Lean kernel proof-bank audit plus latest cached system audit:
+Current local Lean kernel proof-bank audit plus latest proof-bank expansion rerun:
 
 ```bash
 python3 -m ai_statistician.cli proof-audit \
@@ -173,24 +173,17 @@ python3 -m ai_statistician.cli research-system-audit \
 Result:
 
 ```text
-proof_bank_kernel=111/111
+proof_bank_kernel=112/112
 proof_verifier=local.lake_env_lean
 proof_strength=local_lean_kernel_batch
-system_all_gates_passed=True
-system_elapsed_latest=326.7s
-sources=29/29
-frontier_supported=60/60
-frontier_smoke=23/23
-formalized_gaps=20/20
-proof_bank_expansion_bridge_ready=53/97
-proof_bank_expansion_compose_existing_bridge_chain=51
-proof_bank_expansion_add_minimal_wrapper=2
-formalization_targets_with_proof_bank_bridge=78
+proof_bank_expansion_bridge_ready=54/97
+proof_bank_expansion_compose_existing_bridge_chain=54
+proof_bank_expansion_add_minimal_wrapper=0
+proof_bank_expansion_design_bridge_lemma=43
 missing_primitives=97
 lean_rag_dependency_graph_enabled=True
 adaptive_mc_rerun_enabled=True
 adaptive_mc_rows_resolved=4/4
-failed_system_gates=none
 ```
 
 The proof bank is kernel-verified; Atlas/Autoform/RAG integration claims should
@@ -207,9 +200,9 @@ autoform_harness_audit: ready_for_integration=True
 source_inventory: 29/29 all_ok=True
 ```
 
-Earlier proof-bank expansion experiments temporarily reported a higher
-bridge-ready count; the current adaptive release audit reports `53/97` after
-stricter primitive routing, with `111/111` registered proof-bank obligations
+Earlier proof-bank expansion experiments temporarily reported a different
+bridge-ready count. The current robust-mean bridge rerun reports `54/97` after
+stricter primitive routing, with `112/112` registered proof-bank obligations
 kernel verified.
 `independent_null_pvalues` is backed by the verified
 `independent_null_event_family_inter_probability` and
@@ -341,7 +334,7 @@ The screening/selection bridge family then adds
 event-algebra and margin bridges, not high-dimensional asymptotic selection
 theorems, but they convert the frontier theory-revision queue's four unique
 screening obligations from local-source-only support into proof-bank bridge
-targets. The current adaptive proof-bank expansion audit reports
+targets. At that point, the adaptive proof-bank expansion audit reported
 `proof_bank_expansion_bridge_ready=53/97`; these four screening bridges remain
 verified proof-bank entries, but the all-supported theory-revision queue no
 longer relies on the old unresolved simulator-rerun path.
@@ -372,6 +365,16 @@ These wrappers do not prove matrix inverse continuity, tail regular variation,
 Weissman consistency, Kaplan-Meier product-limit differentiability, or survival
 martingale CLTs; they make the next proof-bank queue target the remaining
 domain interfaces instead of duplicate generic wrappers.
+The Kaplan-Meier/product-limit and empirical-process remainder wrappers then
+raise the queue to `53/97` bridge-ready candidates and remove the remaining
+minimal-wrapper debt.
+The robust median-tail bridge
+`binomial_median_tail_bound_bridge` raises the current expansion queue to
+`54/97` bridge-ready and `54` compose-existing bridge-chain candidates, leaving
+`43` primitives in design-bridge-lemma status. It proves a finite
+majority-pattern union-control bridge for median-of-means routing; it still does
+not prove block independence, product probabilities for binomial tails, or the
+sharp sub-Gaussian median-of-means theorem.
 The upward conditional-expectation bridges
 `integrable_ae_tendsto_condexp_filtration` and
 `integrable_l1_tendsto_condexp_filtration` wrap Mathlib's
