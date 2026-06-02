@@ -48,41 +48,51 @@ That remote AXLE run predates the newest proof-bank additions. The current
 same `proof-audit --real-lean` command again from an AXLE-ready runtime to
 refresh remote AXLE evidence for all 88 obligations.
 
-Latest real research-system validation: 2026-05-30.
+Latest current proof-bank validation: 2026-06-02.
 
 Runtime used:
 
 ```bash
-PYTHONPATH=/Users/yukang/AI\ Statistician \
-/Users/yukang/LeanProjects/LeanPractice/.venv/bin/python \
-  -m ai_statistician.cli research-system-audit --real-lean \
-  --runs 20 --out runs/research_system_real_lean_55_supermartingale_optional_stopping
+.venv/bin/python -m ai_statistician.cli proof-audit \
+  --local-lean \
+  --lean-project /Users/yukang/LeanProjects/LeanPractice \
+  --out runs/current_design_wrapper_full_proof_audit
 ```
 
 Result:
 
 ```text
-all_gates_passed=True
-autoform_harness=True
-autoform_target_export=True
-sources=23/23
-frontier_supported=60/60
-frontier_precision=60/60
-frontier_backlog=0/0
-frontier_smoke=23/23
-proofs_verified=54/54
-proofs_kernel_verified=54/54
-proof_verification_strength=axle_lean_kernel
-research_traces_ok=10/10
-formal_gaps=20
-formalized_gaps=20
-autoform_targets=20/20
-formal_source_graph_symbols=74972
-formal_source_graph_edges=1475530
-verifier_cache_hits=312
-verifier_cache_misses=54
-verifier_cache_size=54
+proof_bank_kernel=97/97
+proof_verifier=local.lake_env_lean
+proof_strength=local_lean_kernel_batch
+proof_bank_fingerprint=3ed10b5ba741e3d5a125c0d03c50f9da895d0f0d2ef4c20106e8d160c8e0f178
+dependency_graph_edges=116
+dependency_graph_all_known=True
+selected_dependencies_verified=True
 ```
+
+The latest full research-system audit using the same proof bank and the
+EmpericalProcessLEAN `lean_rag` dependency graph is intentionally not recorded
+as all-green.  It passed the proof/RAG/formalization gates, but failed the
+simulation/frontier smoke gates under the current low Monte Carlo budget:
+
+```text
+run=runs/current_design_wrapper_system_audit
+all_gates_passed=False
+failed_gates=frontier_smoke_benchmark, algorithm_simulation_stress_audit, research_benchmark
+proofs_verified=97/97
+proofs_kernel_verified=97/97
+proof_verification_strength=local_lean_kernel_batch
+lean_rag_dependency_graph_enabled=True
+frontier_smoke=13/23
+research_ready_with_gaps=6/10
+research_simulation_flagged=4/10
+algorithm_simulation_stress_flags=3
+```
+
+This distinction matters: proof-bank rows above are Lean-kernel evidence;
+frontier routing, simulation stress, and research traces are separate empirical
+or scaffold evidence.
 
 The research-system run proves that `--real-lean` now flows through the actual
 open-question workflow, not only the standalone proof-bank audit. It verifies
