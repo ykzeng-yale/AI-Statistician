@@ -1659,6 +1659,26 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("aipw", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_propensity_weight_identity_direct_wrapper_closes_named_primitive(self) -> None:
+        obligation = get_obligation("propensity_weight_identity")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(
+            obligation.depends_on,
+            (
+                "propensity_weight_mul_cancel_of_lower_bound",
+                "propensity_weight_cancel_left_of_lower_bound",
+            ),
+        )
+        self.assertIn("theorem propensityWeightIdentity_of_lower_bound", content)
+        self.assertIn("(hδ : 0 < δ) (hp : δ ≤ p)", content)
+        self.assertIn("p⁻¹ * p = 1 ∧ p * p⁻¹ = 1", content)
+        self.assertIn("inv_mul_cancel₀", content)
+        self.assertIn("mul_inv_cancel₀", content)
+        self.assertIn("propensity_weight_identity", obligation.tags)
+        self.assertIn("direct_primitive_wrapper", obligation.tags)
+        self.assertIn("aipw", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_complete_randomization_uniform_assignment_mass_uses_mathlib_pmf_uniform(self) -> None:
         obligation = get_obligation("complete_randomization_uniform_assignment_mass")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
@@ -4497,6 +4517,7 @@ class SystemTests(unittest.TestCase):
                 "difference_estimator_unbiased",
                 "aipw_score_definition",
                 "aipw_score_expectation_decompose",
+                "propensity_weight_identity",
                 "propensity_weight_mul_cancel_of_lower_bound",
                 "propensity_weight_cancel_left_of_lower_bound",
                 "aipw_score_expectation_target_of_aug_cancel",
@@ -5595,6 +5616,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "potential_outcome_observed_consistency",
             "condexp_integral_eq_integral_real",
             "aipw_score_expectation_decompose",
+            "propensity_weight_identity",
             "propensity_weight_mul_cancel_of_lower_bound",
             "propensity_weight_cancel_left_of_lower_bound",
             "aipw_score_expectation_target_of_aug_cancel",
@@ -5668,7 +5690,11 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "propensity_weight_mul_cancel_of_lower_bound",
             rows["propensity_weight_identity"]["bridge_candidate_obligations"],
         )
-        self.assertEqual(rows["propensity_weight_identity"]["priority_band"], "BRIDGE_REUSE_READY")
+        self.assertEqual(rows["propensity_weight_identity"]["priority_band"], "EXACT_PROOF_BANK_REUSE")
+        self.assertEqual(
+            rows["propensity_weight_identity"]["exact_proof_bank_obligation"],
+            "propensity_weight_identity",
+        )
 
     def test_formalization_target_audit_reuses_conditional_mean_residual_zero_exact_wrapper(self) -> None:
         run_dir = Path("runs/test_formalization_target_conditional_residual_run")

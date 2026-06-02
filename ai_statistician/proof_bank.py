@@ -715,6 +715,54 @@ theorem propensityWeight_cancel_left_of_lower_bound {δ p : ℝ}
         expected_lemmas=("lt_of_lt_of_le", "ne_of_gt", "mul_inv_cancel₀"),
         depends_on=("propensity_weight_mul_cancel_of_lower_bound",),
     ),
+    "propensity_weight_identity": FormalObligation(
+        id="propensity_weight_identity",
+        title="Propensity weight identity primitive wrapper",
+        english=(
+            "If a propensity score `p` is bounded below by a strictly positive "
+            "constant `δ`, then inverse-propensity weights cancel in both "
+            "algebraic orientations: `p⁻¹ * p = 1` and `p * p⁻¹ = 1`. This "
+            "names the `propensity_weight_identity` frontier primitive "
+            "directly; it is an algebraic positivity bridge only and does not "
+            "prove overlap, conditional exchangeability, identification, or "
+            "double robustness."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+
+theorem propensityWeightIdentity_of_lower_bound {δ p : ℝ}
+    (hδ : 0 < δ) (hp : δ ≤ p) :
+    p⁻¹ * p = 1 ∧ p * p⁻¹ = 1 := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  have hp_pos : 0 < p := lt_of_lt_of_le hδ hp\n"
+            "  exact ⟨inv_mul_cancel₀ (ne_of_gt hp_pos), mul_inv_cancel₀ (ne_of_gt hp_pos)⟩"
+        ),
+        tags=(
+            "causal",
+            "ate",
+            "positivity",
+            "overlap",
+            "propensity",
+            "propensity_score",
+            "propensity_weight",
+            "propensity_weight_identity",
+            "inverse_probability_weight",
+            "aipw",
+            "semiparametric",
+            "denominator_safety",
+            "algebra",
+            "direct_primitive_wrapper",
+        ),
+        expected_lemmas=("lt_of_lt_of_le", "ne_of_gt", "inv_mul_cancel₀", "mul_inv_cancel₀"),
+        depends_on=(
+            "propensity_weight_mul_cancel_of_lower_bound",
+            "propensity_weight_cancel_left_of_lower_bound",
+        ),
+    ),
     "complete_randomization_uniform_assignment_mass": FormalObligation(
         id="complete_randomization_uniform_assignment_mass",
         title="Complete-randomization uniform assignment mass",
