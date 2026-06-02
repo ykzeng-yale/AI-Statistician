@@ -82,7 +82,7 @@ sandboxed code patching, or simulator construction still stop honestly with
 repair proposal, unless a stronger handler is registered.
 
 Current release-style evidence for this bounded loop is split intentionally:
-`proof-audit --local-lean` verifies the registered proof bank at `98/98`, while
+`proof-audit --local-lean` verifies the registered proof bank at `99/99`, while
 `research-system-audit` exercises the loop, Lean-RAG dependency retrieval, proof
 bridge routing, and simulation/audit gates. When the system audit is not run
 with `--local-lean`, its proof rows are scaffold evidence rather than fresh
@@ -932,6 +932,12 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   reusable second-moment bridge for ATE contrasts and design-based variance
   decompositions. It does not prove randomization, covariance estimation, or
   asymptotic normality.
+- `randomization_variance_decomposition_bridge`: the same `variance_fun_sub`
+  second-moment identity exposed under the missing design-based primitive name
+  for L2 potential-outcome or estimator functions `Y1` and `Y0`. This improves
+  primitive routing for `randomization_variance_decomposition`, but still does
+  not prove assignment uniformity or the full finite-population randomization
+  variance theorem.
 - `affine_estimator_expectation`: for an integrable estimator `X`, the affine
   shrinkage estimator `a*X+b` has expectation `a*E[X]+b`, supporting posterior
   mean and prior-shrinkage traces.
@@ -1536,11 +1542,11 @@ python3 -m ai_statistician.cli proof-audit \
 Current full-bank local Lean evidence (2026-06-02):
 
 ```text
-verified=98/98
-kernel=98/98
+verified=99/99
+kernel=99/99
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=1e428de5483c2d0c38620bcef5aced64f9faeac1a5da930d93658fd114934c24
+proof_bank_fingerprint=fbf7fd2dc34c982f446fff7d2cdb82001aeb3349b6fbc28fdc19298d1b8df803
 ```
 
 Run `doctor` in the same Python runtime first. It reports

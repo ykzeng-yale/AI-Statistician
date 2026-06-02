@@ -13,15 +13,15 @@ python3 -m ai_statistician.cli proof-audit \
 Result:
 
 ```text
-verified=98/98
-kernel=98/98
+verified=99/99
+kernel=99/99
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=1e428de5483c2d0c38620bcef5aced64f9faeac1a5da930d93658fd114934c24
+proof_bank_fingerprint=fbf7fd2dc34c982f446fff7d2cdb82001aeb3349b6fbc28fdc19298d1b8df803
 ```
 
 This is the current evidence that the registered proof bank is not only
-mock-checked: all 98 registered Mathlib-backed obligations were accepted by a
+mock-checked: all 99 registered Mathlib-backed obligations were accepted by a
 real Lean kernel check through the local Lake/Mathlib runtime. AXLE remains the
 preferred remote verifier for release bundles when its Python package and API
 runtime are available; the local Lean backend is the offline kernel-equivalent
@@ -44,9 +44,9 @@ strength=axle_lean_kernel
 ```
 
 That remote AXLE run predates the newest proof-bank additions. The current
-98-obligation proof bank has full local Lean kernel evidence above; run the
+99-obligation proof bank has full local Lean kernel evidence above; run the
 same `proof-audit --real-lean` command again from an AXLE-ready runtime to
-refresh remote AXLE evidence for all 98 obligations.
+refresh remote AXLE evidence for all 99 obligations.
 
 Latest current proof-bank validation: 2026-06-02.
 
@@ -62,10 +62,10 @@ Runtime used:
 Result:
 
 ```text
-proof_bank_kernel=98/98
+proof_bank_kernel=99/99
 proof_verifier=local.lake_env_lean
 proof_strength=local_lean_kernel_batch
-proof_bank_fingerprint=1e428de5483c2d0c38620bcef5aced64f9faeac1a5da930d93658fd114934c24
+proof_bank_fingerprint=fbf7fd2dc34c982f446fff7d2cdb82001aeb3349b6fbc28fdc19298d1b8df803
 dependency_graph_edges=116
 dependency_graph_all_known=True
 selected_dependencies_verified=True
@@ -76,10 +76,10 @@ EmpericalProcessLEAN `lean_rag` dependency graph, and bounded adaptive Monte
 Carlo reruns for simulations diagnosed as `INSUFFICIENT_MC_PRECISION`:
 
 ```text
-run=runs/current_neyman_bound_wrapper_system_audit
+run=runs/current_randomization_variance_bridge_system_audit
 all_gates_passed=True
-proofs_verified=98/98
-proofs_kernel_verified=98/98
+proofs_verified=99/99
+proofs_kernel_verified=99/99
 proof_verification_strength=local_lean_kernel_batch
 lean_rag_dependency_graph_enabled=True
 frontier_smoke=23/23
@@ -301,6 +301,14 @@ verified algebra bridge for Neyman-style variance traces; it still does not
 prove complete randomization, finite-population potential-outcome
 identification, or the randomization variance decomposition end to end.
 
+It also includes `randomization_variance_decomposition_bridge`, a domain-named
+minimal wrapper around Mathlib's `variance_fun_sub`. For L2 potential-outcome or
+estimator functions `Y1` and `Y0`, it proves the contrast second-moment identity
+`Var(Y1-Y0)=Var(Y1)-2Cov(Y1,Y0)+Var(Y0)`. This closes the named
+`randomization_variance_decomposition` primitive edge for bridge routing, while
+still leaving the assignment distribution and full finite-population
+randomization variance theorem as explicit formal gaps.
+
 The same design-based block now includes `finite_population_ate_mean_difference`.
 It proves the deterministic finite-population potential-outcome identity that
 the mean of unit-level effects `Y(1)-Y(0)` equals the treated potential-outcome
@@ -370,7 +378,7 @@ The causal bridge block now also includes
 `propensity_weight_cancel_left_of_lower_bound`, the left-oriented companion
 identity `p * p⁻¹ = 1` under the same strict lower-bound assumption. This gives
 IPW/AIPW algebra both cancellation orientations without relying on ad hoc
-commutativity rewrites; it is kernel-verified as part of the current `98/98`
+commutativity rewrites; it is kernel-verified as part of the current `99/99`
 local Lean proof-bank audit and still does not prove positivity as a model
 assumption or close causal identification.
 

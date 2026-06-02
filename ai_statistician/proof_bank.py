@@ -197,6 +197,53 @@ theorem differenceEstimator_variance_decompose {Ω : Type*} [MeasurableSpace Ω]
         expected_lemmas=("variance_fun_sub", "variance_sub"),
         depends_on=("difference_estimator_unbiased", "variance_nonneg"),
     ),
+    "randomization_variance_decomposition_bridge": FormalObligation(
+        id="randomization_variance_decomposition_bridge",
+        title="Randomization contrast variance decomposition bridge",
+        english=(
+            "For two L2 potential-outcome or estimator functions Y1 and Y0 on "
+            "a probability space, the variance of the contrast Y1-Y0 decomposes "
+            "as Var(Y1)-2*Cov(Y1,Y0)+Var(Y0). This is a domain-named minimal "
+            "wrapper for the missing primitive `randomization_variance_decomposition`; "
+            "it proves the second-moment algebra used by design-based traces, "
+            "but it does not prove complete randomization, treatment assignment "
+            "uniformity, or the finite-population randomization variance formula."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+noncomputable def randomizationContrastEstimator {Ω : Type*}
+    (Y1 Y0 : Ω → ℝ) : Ω → ℝ :=
+  Y1 - Y0
+
+theorem randomizationVariance_decomposition_bridge {Ω : Type*}
+    [MeasurableSpace Ω]
+    (μ : Measure Ω) [IsProbabilityMeasure μ]
+    (Y1 Y0 : Ω → ℝ) (hY1 : MemLp Y1 2 μ) (hY0 : MemLp Y0 2 μ) :
+    variance (randomizationContrastEstimator Y1 Y0) μ =
+      variance Y1 μ - 2 * cov[Y1, Y0; μ] + variance Y0 μ := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  simpa [randomizationContrastEstimator] using variance_fun_sub (μ := μ) hY1 hY0"
+        ),
+        tags=(
+            "estimator",
+            "variance",
+            "covariance",
+            "contrast",
+            "design_based",
+            "finite_population",
+            "randomization_variance",
+            "randomization_variance_decomposition",
+            "minimal_wrapper",
+        ),
+        expected_lemmas=("variance_fun_sub", "variance_sub"),
+        depends_on=("difference_estimator_variance_decompose",),
+    ),
     "neyman_variance_conservative_algebra": FormalObligation(
         id="neyman_variance_conservative_algebra",
         title="Neyman conservative variance algebra",

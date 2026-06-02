@@ -321,6 +321,7 @@ _PRIMITIVE_PROOF_BRIDGE_HINTS: dict[str, tuple[str, ...]] = {
         "finite_sample_mean_unbiased",
     ),
     "randomization_variance_decomposition": (
+        "randomization_variance_decomposition_bridge",
         "neyman_variance_conservative_algebra",
         "difference_estimator_variance_decompose",
     ),

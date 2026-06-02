@@ -170,13 +170,13 @@ python3 -m ai_statistician.cli proof-audit \
   --out runs/proof_audit_local_lean_current
 ```
 
-Current evidence: `98/98` registered proof-bank obligations pass
+Current evidence: `99/99` registered proof-bank obligations pass
 `local_lean_kernel_batch` with proof-bank fingerprint
-`1e428de5483c2d0c38620bcef5aced64f9faeac1a5da930d93658fd114934c24`.
+`fbf7fd2dc34c982f446fff7d2cdb82001aeb3349b6fbc28fdc19298d1b8df803`.
 The latest release-style research-system audit also passes all gates with
 Lean-RAG dependency retrieval enabled and `research_loop_theory_revisions=6`.
 That audit is scaffold evidence unless it is run with `--local-lean`; the real
-kernel evidence for the registered proof obligations is the `98/98`
+kernel evidence for the registered proof obligations is the `99/99`
 `proof-audit` result above. These revisions attach verified proof obligations
 to theorem roadmaps; they do not claim the full frontier asymptotic theorems are
 closed.
@@ -315,6 +315,11 @@ an observable Neyman bound minus a nonnegative treatment-effect variance term,
 then the observable bound is conservative. This verifies the algebraic
 conservativeness step while still leaving complete randomization and the
 finite-population randomization variance formula as explicit formal gaps.
+It also includes `randomization_variance_decomposition_bridge`, a domain-named
+wrapper around Mathlib's contrast variance identity. This gives the
+`randomization_variance_decomposition` primitive a real kernel-verified bridge,
+while still leaving assignment uniformity and the full finite-population
+randomization variance theorem as formal gaps.
 It also includes `finite_population_ate_mean_difference`, a deterministic
 finite-population potential-outcome target bridge. It proves that the mean of
 unit-level effects `Y(1)-Y(0)` equals the treated potential-outcome mean minus

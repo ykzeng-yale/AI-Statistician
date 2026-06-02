@@ -4951,6 +4951,7 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "mean2_estimator_unbiased",
         "difference_estimator_unbiased",
         "difference_estimator_variance_decompose",
+        "randomization_variance_decomposition_bridge",
         "neyman_variance_conservative_algebra",
         "neyman_bound_conservative_of_variance_decomposition",
         "mean2_estimator_variance_indep",

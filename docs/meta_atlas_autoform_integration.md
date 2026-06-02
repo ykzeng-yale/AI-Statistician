@@ -173,18 +173,18 @@ python3 -m ai_statistician.cli research-system-audit \
 Result:
 
 ```text
-proof_bank_kernel=98/98
+proof_bank_kernel=99/99
 proof_verifier=local.lake_env_lean
 proof_strength=local_lean_kernel_batch
 system_all_gates_passed=True
 system_elapsed_latest=250.7s
-sources=23/23
+sources=29/29
 frontier_supported=60/60
 frontier_smoke=23/23
 formalized_gaps=20/20
 proof_bank_expansion_bridge_ready=53/97
-proof_bank_expansion_compose_existing_bridge_chain=40
-proof_bank_expansion_add_minimal_wrapper=13
+proof_bank_expansion_compose_existing_bridge_chain=41
+proof_bank_expansion_add_minimal_wrapper=12
 formalization_targets_with_proof_bank_bridge=74
 missing_primitives=97
 lean_rag_dependency_graph_enabled=True
@@ -201,15 +201,15 @@ theorems.
 Focused Atlas/Autoform source audit:
 
 ```text
-formal_source_audit: sources=15 declarations=44000 queries=27/27 backend=sqlite_fts_hybrid
-formal_source_graph_audit: declarations=44000 symbols=74968 edges=1475474 queries=11/11
+formal_source_audit: sources=15 declarations=44041 queries=27/27 backend=sqlite_fts_hybrid
+formal_source_graph_audit: declarations=44041 symbols=75074 edges=1477458 queries=11/11
 autoform_harness_audit: ready_for_integration=True
-source_inventory: 23/23 all_ok=True
+source_inventory: 29/29 all_ok=True
 ```
 
 Earlier proof-bank expansion experiments temporarily reported a higher
 bridge-ready count; the current adaptive release audit reports `53/97` after
-stricter primitive routing, with `98/98` registered proof-bank obligations
+stricter primitive routing, with `99/99` registered proof-bank obligations
 kernel verified.
 `independent_null_pvalues` is backed by the verified
 `independent_null_event_family_inter_probability` and
