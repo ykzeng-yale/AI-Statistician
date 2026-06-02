@@ -64,7 +64,12 @@ class ClaimLedgerRow:
     errors: tuple[str, ...] = ()
 
 
-def build_claim_ledger(run_dir: Path, out_dir: Path | None = None) -> dict[str, object]:
+def build_claim_ledger(
+    run_dir: Path,
+    out_dir: Path | None = None,
+    *,
+    proof_audit_manifest: Path | None = None,
+) -> dict[str, object]:
     """Export a typed claim ledger from persisted research benchmark traces.
 
     The ledger is a coordination artifact, not new proof evidence. It keeps
@@ -87,6 +92,8 @@ def build_claim_ledger(run_dir: Path, out_dir: Path | None = None) -> dict[str, 
             manifest = {}
         summaries = list(manifest.get("questions", [])) if isinstance(manifest.get("questions"), list) else []
 
+    proof_overlay, overlay_errors = _load_proof_audit_overlay(proof_audit_manifest)
+    errors.extend(overlay_errors)
     rows: list[ClaimLedgerRow] = []
     for summary in summaries:
         if not isinstance(summary, dict):
@@ -101,16 +108,22 @@ def build_claim_ledger(run_dir: Path, out_dir: Path | None = None) -> dict[str, 
         except Exception as exc:
             errors.append(f"failed to parse trace JSON {trace_path}: {type(exc).__name__}: {exc}")
             continue
-        rows.extend(_ledger_rows_for_trace(trace, summary, trace_path))
+        rows.extend(_ledger_rows_for_trace(trace, summary, trace_path, proof_overlay))
 
     by_kind = Counter(row.kind for row in rows)
     by_status = Counter(row.status for row in rows)
     by_problem_class = Counter(row.problem_class for row in rows)
+    n_kernel_overlay_upgrades = sum(
+        1 for row in rows if row.evidence_level == "lean_kernel_verified_via_proof_audit_overlay"
+    )
     payload: dict[str, object] = {
         "created_at": datetime.now(timezone.utc).isoformat(),
         "ledger_version": 1,
         "run_dir": str(run_dir),
         "manifest": str(manifest_path),
+        "proof_audit_manifest": str(proof_audit_manifest) if proof_audit_manifest else "",
+        "proof_audit_overlay_enabled": proof_audit_manifest is not None,
+        "n_kernel_overlay_upgrades": n_kernel_overlay_upgrades,
         "all_ok": not errors and bool(rows) and all(row.ok for row in rows),
         "errors": errors,
         "n_questions": len(summaries),
@@ -140,6 +153,7 @@ def _ledger_rows_for_trace(
     trace: dict[str, Any],
     summary: dict[str, Any],
     trace_path: Path,
+    proof_overlay: dict[str, dict[str, Any]] | None = None,
 ) -> list[ClaimLedgerRow]:
     question = trace.get("question") if isinstance(trace.get("question"), dict) else {}
     problem = trace.get("problem") if isinstance(trace.get("problem"), dict) else {}
@@ -220,7 +234,7 @@ def _ledger_rows_for_trace(
         )
     for subclaim in formal_subclaims:
         if isinstance(subclaim, dict):
-            rows.append(_formal_subclaim_row(subclaim, question_id, problem_class, trace_path_str))
+            rows.append(_formal_subclaim_row(subclaim, question_id, problem_class, trace_path_str, proof_overlay))
     for simulation in simulations:
         if isinstance(simulation, dict):
             rows.append(_simulation_row(simulation, question_id, problem_class, trace_path_str))
@@ -236,14 +250,29 @@ def _formal_subclaim_row(
     question_id: str,
     problem_class: str,
     trace_path: str,
+    proof_overlay: dict[str, dict[str, Any]] | None = None,
 ) -> ClaimLedgerRow:
     errors: list[str] = []
     raw_status = str(subclaim.get("status", ""))
-    kernel_verified = bool(subclaim.get("kernel_verified"))
-    verification_strength = str(subclaim.get("verification_strength", ""))
+    proof_obligation_id = str(subclaim.get("proof_obligation_id") or "")
+    overlay_check = (proof_overlay or {}).get(proof_obligation_id) if proof_obligation_id else None
+    overlay_kernel_verified = bool(overlay_check and overlay_check.get("kernel_verified") and overlay_check.get("ok"))
+    kernel_verified = bool(subclaim.get("kernel_verified")) or overlay_kernel_verified
+    if overlay_kernel_verified:
+        verification_strength = str(overlay_check.get("verification_strength", ""))
+        verifier = str(overlay_check.get("verifier", ""))
+        formalization_status = "kernel_verified_proof"
+    else:
+        verification_strength = str(subclaim.get("verification_strength", ""))
+        verifier = str(subclaim.get("verifier") or "")
+        formalization_status = str(subclaim.get("formalization_status") or "")
     if raw_status == "PROVED" and kernel_verified:
         status: ClaimStatus = "KERNEL_PROVED_SUBCLAIM"
-        evidence_level = "lean_kernel_verified"
+        evidence_level = (
+            "lean_kernel_verified_via_proof_audit_overlay"
+            if overlay_kernel_verified and not bool(subclaim.get("kernel_verified"))
+            else "lean_kernel_verified"
+        )
     elif raw_status == "PROVED":
         status = "MOCK_PROVED_SUBCLAIM"
         evidence_level = "mock_or_non_kernel_verified"
@@ -270,6 +299,8 @@ def _formal_subclaim_row(
     artifact_path = str(subclaim.get("artifact_path") or "")
     if artifact_path:
         evidence_paths.append(artifact_path)
+    if overlay_kernel_verified and overlay_check and overlay_check.get("proof_audit_manifest"):
+        evidence_paths.append(str(overlay_check["proof_audit_manifest"]))
     return ClaimLedgerRow(
         ledger_version=1,
         claim_id=f"formal:{question_id}:{subclaim.get('id') or subclaim.get('proof_obligation_id') or raw_status}",
@@ -280,16 +311,45 @@ def _formal_subclaim_row(
         statement=str(subclaim.get("claim") or subclaim.get("title") or subclaim.get("lean_statement") or ""),
         evidence_level=evidence_level,
         trace_path=trace_path,
-        proof_obligation_id=str(subclaim.get("proof_obligation_id") or ""),
-        verifier=str(subclaim.get("verifier") or ""),
+        proof_obligation_id=proof_obligation_id,
+        verifier=verifier,
         verification_strength=verification_strength,
         kernel_verified=kernel_verified,
-        formalization_status=str(subclaim.get("formalization_status") or ""),
+        formalization_status=formalization_status,
         formal_source_hits=formal_source_hits,
         evidence_paths=tuple(evidence_paths),
         ok=not errors,
         errors=tuple(errors),
     )
+
+
+def _load_proof_audit_overlay(proof_audit_manifest: Path | None) -> tuple[dict[str, dict[str, Any]], list[str]]:
+    if proof_audit_manifest is None:
+        return {}, []
+    errors: list[str] = []
+    if not proof_audit_manifest.exists():
+        return {}, [f"missing proof audit manifest: {proof_audit_manifest}"]
+    try:
+        payload = json.loads(proof_audit_manifest.read_text(encoding="utf-8"))
+    except Exception as exc:
+        return {}, [f"failed to parse proof audit manifest {proof_audit_manifest}: {type(exc).__name__}: {exc}"]
+    checks = payload.get("checks", [])
+    if not isinstance(checks, list):
+        return {}, [f"proof audit manifest checks is not a list: {proof_audit_manifest}"]
+    overlay: dict[str, dict[str, Any]] = {}
+    for idx, check in enumerate(checks):
+        if not isinstance(check, dict):
+            errors.append(f"proof audit check {idx} is not an object")
+            continue
+        obligation_id = str(check.get("obligation_id", ""))
+        if not obligation_id:
+            errors.append(f"proof audit check {idx} missing obligation_id")
+            continue
+        if check.get("ok") and check.get("kernel_verified"):
+            enriched = dict(check)
+            enriched["proof_audit_manifest"] = str(proof_audit_manifest)
+            overlay[obligation_id] = enriched
+    return overlay, errors
 
 
 def _simulation_row(

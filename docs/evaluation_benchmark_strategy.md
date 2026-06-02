@@ -51,6 +51,8 @@ Pass criteria:
 - `research-system-audit` gates the `claim-ledger` export so typed
   problem/procedure/theorem/proof/simulation/revision rows exist without
   collapsing simulation or retrieval support into proof evidence
+- claim-ledger proof statuses report whether kernel evidence came from the trace
+  verifier or from a matching `proof_audit_manifest.json` overlay
 - `research-system-audit` gates `claim-ledger-action-export` so ledger evidence
   is converted into owner-agent task contracts with explicit acceptance gates
 

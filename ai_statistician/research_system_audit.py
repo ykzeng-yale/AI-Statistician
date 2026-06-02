@@ -438,6 +438,7 @@ async def run_research_system_audit(
     claim_ledger_manifest = build_claim_ledger(
         out_dir / "research_benchmark",
         out_dir / "claim_ledger",
+        proof_audit_manifest=out_dir / "proof_audit" / "proof_audit_manifest.json",
     )
     claim_ledger_action_manifest = export_claim_ledger_actions(
         out_dir / "claim_ledger",
@@ -1153,6 +1154,8 @@ async def run_research_system_audit(
                 0,
             ),
             "claim_ledger_revision_queued": claim_ledger_manifest["by_status"].get("REVISION_QUEUED", 0),
+            "claim_ledger_kernel_overlay_upgrades": claim_ledger_manifest["n_kernel_overlay_upgrades"],
+            "claim_ledger_proof_audit_overlay_enabled": claim_ledger_manifest["proof_audit_overlay_enabled"],
             "claim_ledger_actions": claim_ledger_action_manifest["n_actions"],
             "claim_ledger_actions_ok": claim_ledger_action_manifest["n_ok"],
             "claim_ledger_actions_formal_verifier": claim_ledger_action_manifest["by_owner"].get(

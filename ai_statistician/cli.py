@@ -1244,12 +1244,18 @@ def _research_report(args: argparse.Namespace) -> int:
 
 
 def _claim_ledger(args: argparse.Namespace) -> int:
-    payload = build_claim_ledger(Path(args.run_dir), Path(args.out))
+    payload = build_claim_ledger(
+        Path(args.run_dir),
+        Path(args.out),
+        proof_audit_manifest=Path(args.proof_audit_manifest) if args.proof_audit_manifest else None,
+    )
     print("\nAI Statistical Theory Lab Claim Ledger")
     print("=" * 72)
     print(
         f"claims={payload['n_ok']}/{payload['n_claims']} "
-        f"questions={payload['n_questions']} all_ok={payload['all_ok']}"
+        f"questions={payload['n_questions']} "
+        f"kernel_overlay_upgrades={payload['n_kernel_overlay_upgrades']} "
+        f"all_ok={payload['all_ok']}"
     )
     for status, count in payload["by_status"].items():
         print(f"  {status}: {count}")
@@ -2876,6 +2882,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--out",
         default="runs/claim_ledger",
         help="claim ledger output directory",
+    )
+    claim_ledger.add_argument(
+        "--proof-audit-manifest",
+        help="optional proof_audit_manifest.json used to overlay real kernel proof evidence",
     )
     claim_ledger.set_defaults(func=_claim_ledger)
 

@@ -434,8 +434,12 @@ simulation row, and next-iteration agenda item becomes a typed claim row with a
 separate evidence level.  This is the artifact future theory/proof/simulation
 agents should update when closing the loop.  It deliberately distinguishes
 retrieval/gap evidence from Lean-kernel proof evidence and simulation support
-from formal proof. `research-system-audit` writes this ledger as
-`claim_ledger/claim_ledger_manifest.json` and includes it as a release gate.
+from formal proof.  The optional `--proof-audit-manifest` overlay can upgrade a
+mock trace subclaim to `KERNEL_PROVED_SUBCLAIM` only when a matching
+`proof_audit_manifest.json` check has `ok=true` and `kernel_verified=true`.
+`research-system-audit` passes its own proof-audit manifest into the ledger,
+writes the result as `claim_ledger/claim_ledger_manifest.json`, and includes it
+as a release gate.
 
 Claim-ledger action export:
 

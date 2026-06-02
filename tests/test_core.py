@@ -4713,6 +4713,69 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(Path("runs/test_claim_ledger/claim_ledger.jsonl").exists())
         self.assertTrue(Path("runs/test_claim_ledger/claim_ledger.md").exists())
 
+    def test_claim_ledger_overlay_upgrades_matching_kernel_verified_proof_audit_rows(self) -> None:
+        run_dir = Path("runs/test_claim_ledger_kernel_overlay_run")
+        out_dir = Path("runs/test_claim_ledger_kernel_overlay")
+        proof_dir = Path("runs/test_claim_ledger_kernel_overlay_proof_audit")
+        shutil.rmtree(run_dir, ignore_errors=True)
+        shutil.rmtree(out_dir, ignore_errors=True)
+        shutil.rmtree(proof_dir, ignore_errors=True)
+        run_dir.mkdir(parents=True, exist_ok=True)
+        proof_dir.mkdir(parents=True, exist_ok=True)
+        (run_dir / "research_benchmark_manifest.json").write_text(
+            json.dumps({"questions": [{"question": "q_overlay"}]}),
+            encoding="utf-8",
+        )
+        trace = {
+            "question": {"id": "q_overlay", "title": "Overlay proof evidence"},
+            "problem": {"problem_class": "unit_test", "dgp": "X constant", "estimand": "E[X]"},
+            "procedures": [],
+            "theorem_goals": [],
+            "formal_subclaims": [
+                {
+                    "id": "formal:q_overlay:constant_estimator_unbiased",
+                    "status": "PROVED",
+                    "claim": "constant estimator is unbiased",
+                    "proof_obligation_id": "constant_estimator_unbiased",
+                    "verifier": "mock",
+                    "verification_strength": "mock_static_check",
+                    "kernel_verified": False,
+                    "formalization_status": "mock_verified_proof",
+                }
+            ],
+            "simulations": [],
+            "theory_plan": {"next_iteration_agenda": {"items": []}},
+        }
+        (run_dir / "q_overlay.json").write_text(json.dumps(trace), encoding="utf-8")
+        proof_manifest = {
+            "checks": [
+                {
+                    "obligation_id": "constant_estimator_unbiased",
+                    "ok": True,
+                    "verifier": "local.lake_env_lean",
+                    "verification_strength": "local_lean_kernel_batch",
+                    "kernel_verified": True,
+                    "errors": [],
+                }
+            ]
+        }
+        proof_manifest_path = proof_dir / "proof_audit_manifest.json"
+        proof_manifest_path.write_text(json.dumps(proof_manifest), encoding="utf-8")
+
+        payload = build_claim_ledger(run_dir, out_dir, proof_audit_manifest=proof_manifest_path)
+        self.assertTrue(payload["all_ok"])
+        self.assertTrue(payload["proof_audit_overlay_enabled"])
+        self.assertEqual(payload["n_kernel_overlay_upgrades"], 1)
+        self.assertEqual(payload["by_status"]["KERNEL_PROVED_SUBCLAIM"], 1)
+        formal_rows = [row for row in payload["rows"] if row["kind"] == "formal_subclaim"]
+        self.assertEqual(len(formal_rows), 1)
+        row = formal_rows[0]
+        self.assertEqual(row["status"], "KERNEL_PROVED_SUBCLAIM")
+        self.assertEqual(row["evidence_level"], "lean_kernel_verified_via_proof_audit_overlay")
+        self.assertTrue(row["kernel_verified"])
+        self.assertEqual(row["verifier"], "local.lake_env_lean")
+        self.assertIn(str(proof_manifest_path), row["evidence_paths"])
+
     def test_claim_ledger_action_export_turns_revision_rows_into_owner_tasks(self) -> None:
         async def run():
             questions = load_open_research_questions(Path("examples/research_questions.json"))[:2]
@@ -8632,6 +8695,8 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(payload["counts"]["claim_ledger_questions"], payload["counts"]["questions"])
         self.assertEqual(payload["counts"]["claim_ledger_ok"], payload["counts"]["claim_ledger_claims"])
         self.assertEqual(payload["counts"]["claim_ledger_formal_gaps"], payload["counts"]["formal_gaps"])
+        self.assertTrue(payload["counts"]["claim_ledger_proof_audit_overlay_enabled"])
+        self.assertEqual(payload["counts"]["claim_ledger_kernel_overlay_upgrades"], 0)
         self.assertEqual(
             payload["counts"]["claim_ledger_simulation_supported"],
             payload["counts"]["research_report_simulations"],
