@@ -1845,6 +1845,104 @@ theorem medianOfMeans_failure_union_control {Ω ι : Type*}
         expected_lemmas=("measure_mono", "measure_biUnion_finset_le", "Finset.sum_le_sum"),
         depends_on=("block_estimator_chebyshev_bound", "finite_union_budget_control"),
     ),
+    "chebyshev_block_failure_bound_bridge": FormalObligation(
+        id="chebyshev_block_failure_bound_bridge",
+        title="Chebyshev block failure bound bridge",
+        english=(
+            "For any L2 block estimator B with expectation theta, the probability "
+            "that the block estimate is farther than c from theta is bounded by "
+            "Var(B)/c^2. This is a domain-named minimal wrapper for the missing "
+            "primitive `chebyshev_block_failure_bound`; it verifies the block "
+            "failure ingredient used by median-of-means traces, but it does not "
+            "prove independent block construction, median amplification, or the "
+            "sharp sub-Gaussian MoM theorem."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+theorem chebyshevBlockFailure_bound {Ω : Type*} [MeasurableSpace Ω]
+    (μ : Measure Ω) [IsProbabilityMeasure μ]
+    (B : Ω → ℝ) (theta : ℝ) (hB : MemLp B 2 μ)
+    (hMean : μ[B] = theta) {c : ℝ} (hc : 0 < c) :
+    μ {ω | c ≤ |B ω - theta|} ≤ ENNReal.ofReal (variance B μ / c ^ 2) := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  simpa [hMean] using\n"
+            "    (meas_ge_le_variance_div_sq (μ := μ) (X := B) hB hc)"
+        ),
+        tags=(
+            "estimator",
+            "block",
+            "robust",
+            "median_of_means",
+            "variance",
+            "tail_bound",
+            "chebyshev",
+            "finite_sample",
+            "concentration",
+            "chebyshev_block_failure_bound",
+            "minimal_wrapper",
+        ),
+        expected_lemmas=("meas_ge_le_variance_div_sq",),
+        depends_on=("block_estimator_chebyshev_bound",),
+    ),
+    "median_of_means_deviation_bridge": FormalObligation(
+        id="median_of_means_deviation_bridge",
+        title="Median-of-means finite bad-block deviation bridge",
+        english=(
+            "If a median-of-means failure event is contained in the finite union "
+            "of bad block events, and each block failure has a local probability "
+            "budget, then the median failure probability is bounded by the total "
+            "budget. This is a domain-named minimal wrapper for the missing "
+            "primitive `median_of_means_deviation`; it verifies the finite "
+            "bad-block union ingredient, but it does not prove the binomial "
+            "majority tail or sharp sub-Gaussian MoM deviation theorem."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+theorem medianOfMeans_deviation_bridge {Ω ι : Type*}
+    [MeasurableSpace Ω]
+    (μ : Measure Ω) (Blocks : Finset ι) (BadBlock : ι → Set Ω)
+    (MedianBad : Set Ω) (α : ι → ENNReal) (α_total : ENNReal)
+    (hSubset : MedianBad ⊆ ⋃ i ∈ Blocks, BadBlock i)
+    (hBlock : ∀ i ∈ Blocks, μ (BadBlock i) ≤ α i)
+    (h_total : (∑ i ∈ Blocks, α i) ≤ α_total) :
+    μ MedianBad ≤ α_total := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  calc\n"
+            "    μ MedianBad ≤ μ (⋃ i ∈ Blocks, BadBlock i) := by\n"
+            "      exact measure_mono hSubset\n"
+            "    _ ≤ ∑ i ∈ Blocks, μ (BadBlock i) := by\n"
+            "      exact measure_biUnion_finset_le (μ := μ) Blocks BadBlock\n"
+            "    _ ≤ ∑ i ∈ Blocks, α i := by\n"
+            "      exact Finset.sum_le_sum (fun i hi => hBlock i hi)\n"
+            "    _ ≤ α_total := h_total"
+        ),
+        tags=(
+            "probability",
+            "event",
+            "union_bound",
+            "finite_sample",
+            "robust",
+            "median_of_means",
+            "median_of_means_deviation",
+            "block",
+            "concentration",
+            "minimal_wrapper",
+        ),
+        expected_lemmas=("measure_mono", "measure_biUnion_finset_le", "Finset.sum_le_sum"),
+        depends_on=("median_of_means_failure_union_control", "chebyshev_block_failure_bound_bridge"),
+    ),
     "affine_estimator_expectation": FormalObligation(
         id="affine_estimator_expectation",
         title="Affine estimator expectation",

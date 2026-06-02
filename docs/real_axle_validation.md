@@ -13,15 +13,15 @@ python3 -m ai_statistician.cli proof-audit \
 Result:
 
 ```text
-verified=102/102
-kernel=102/102
+verified=104/104
+kernel=104/104
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=f5f84dca9f4595cb3c1eed62a82a66fc38a8e659d6c545191a7b47208dff9417
+proof_bank_fingerprint=b951c6b2356af994644b616127e6ccbb3e40febe592741153403bd154c8fe848
 ```
 
 This is the current evidence that the registered proof bank is not only
-mock-checked: all 102 registered Mathlib-backed obligations were accepted by a
+mock-checked: all 104 registered Mathlib-backed obligations were accepted by a
 real Lean kernel check through the local Lake/Mathlib runtime. AXLE remains the
 preferred remote verifier for release bundles when its Python package and API
 runtime are available; the local Lean backend is the offline kernel-equivalent
@@ -44,9 +44,9 @@ strength=axle_lean_kernel
 ```
 
 That remote AXLE run predates the newest proof-bank additions. The current
-102-obligation proof bank has full local Lean kernel evidence above; run the
+104-obligation proof bank has full local Lean kernel evidence above; run the
 same `proof-audit --real-lean` command again from an AXLE-ready runtime to
-refresh remote AXLE evidence for all 102 obligations.
+refresh remote AXLE evidence for all 104 obligations.
 
 Latest current proof-bank validation: 2026-06-02.
 
@@ -56,17 +56,17 @@ Runtime used:
 .venv/bin/python -m ai_statistician.cli proof-audit \
   --local-lean \
   --lean-project /Users/yukang/LeanProjects/LeanPractice \
-  --out runs/current_neyman_bound_wrapper_full_proof_audit
+  --out runs/current_robust_mean_bridges_full_proof_audit
 ```
 
 Result:
 
 ```text
-proof_bank_kernel=102/102
+proof_bank_kernel=104/104
 proof_verifier=local.lake_env_lean
 proof_strength=local_lean_kernel_batch
-proof_bank_fingerprint=f5f84dca9f4595cb3c1eed62a82a66fc38a8e659d6c545191a7b47208dff9417
-dependency_graph_edges=116
+proof_bank_fingerprint=b951c6b2356af994644b616127e6ccbb3e40febe592741153403bd154c8fe848
+dependency_graph_edges=126
 dependency_graph_all_known=True
 selected_dependencies_verified=True
 ```
@@ -76,10 +76,10 @@ EmpericalProcessLEAN `lean_rag` dependency graph, and bounded adaptive Monte
 Carlo reruns for simulations diagnosed as `INSUFFICIENT_MC_PRECISION`:
 
 ```text
-run=runs/current_bh_threshold_fixed_point_bridge_system_audit
+run=runs/current_robust_mean_bridges_system_audit
 all_gates_passed=True
-proofs_verified=102/102
-proofs_kernel_verified=102/102
+proofs_verified=104/104
+proofs_kernel_verified=104/104
 proof_verification_strength=local_lean_kernel_batch
 lean_rag_dependency_graph_enabled=True
 frontier_smoke=23/23
@@ -305,6 +305,15 @@ block-level Chebyshev control toward MoM theorem skeletons; it still does not
 prove the binomial majority tail or the sharp sub-Gaussian MoM deviation
 theorem.
 
+The same robust-mean block now also includes
+`chebyshev_block_failure_bound_bridge` and `median_of_means_deviation_bridge`.
+The first is a domain-named Chebyshev wrapper for the missing
+`chebyshev_block_failure_bound` primitive; the second is a domain-named finite
+bad-block union wrapper for `median_of_means_deviation`. They reduce
+minimal-wrapper queue debt from 10 to 8 in the latest proof-bank expansion
+audit, while still leaving independent block construction, binomial majority
+amplification, and the sharp sub-Gaussian MoM theorem as explicit formal gaps.
+
 The design-based variance block now includes
 `neyman_variance_conservative_algebra`. It proves that if exact randomization
 variance is an observable Neyman bound minus a nonnegative treatment-effect
@@ -396,7 +405,7 @@ The causal bridge block now also includes
 `propensity_weight_cancel_left_of_lower_bound`, the left-oriented companion
 identity `p * p⁻¹ = 1` under the same strict lower-bound assumption. This gives
 IPW/AIPW algebra both cancellation orientations without relying on ad hoc
-commutativity rewrites; it is kernel-verified as part of the current `102/102`
+commutativity rewrites; it is kernel-verified as part of the current `104/104`
 local Lean proof-bank audit and still does not prove positivity as a model
 assumption or close causal identification.
 

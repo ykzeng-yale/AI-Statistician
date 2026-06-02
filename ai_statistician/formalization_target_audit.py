@@ -348,10 +348,12 @@ _PRIMITIVE_PROOF_BRIDGE_HINTS: dict[str, tuple[str, ...]] = {
         "finite_sample_mean_variance_indep",
     ),
     "median_of_means_deviation": (
+        "median_of_means_deviation_bridge",
         "median_of_means_failure_union_control",
         "block_estimator_chebyshev_bound",
     ),
     "chebyshev_block_failure_bound": (
+        "chebyshev_block_failure_bound_bridge",
         "median_of_means_failure_union_control",
         "block_estimator_chebyshev_bound",
     ),

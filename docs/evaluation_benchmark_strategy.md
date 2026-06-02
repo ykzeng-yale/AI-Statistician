@@ -16,11 +16,11 @@ formal primitive development, or safe algorithm repair.
 The release audit already makes this boundary visible:
 
 - `frontier_supported=60/60` means routing/scaffold coverage, not solved papers.
-- `frontier_theory_expected_result_coverage_rate=0.855...` on the smoke set
+- `frontier_theory_expected_result_coverage_rate=0.884...` on the smoke set
   means theory-target recovery is useful but incomplete.
 - `formal_gaps=20`, `missing_formal_primitives=97` means frontier theorem
   closure is still a formal-library development problem.
-- `proofs_kernel_verified=102/102` is strong for the registered proof bank, but
+- `proofs_kernel_verified=104/104` is strong for the registered proof bank, but
   those are reusable subclaims, not complete JASA/AOAS-level asymptotic proofs.
 - `proof_search_kernel_verified=12/12` is useful controller evidence, but the
   current search space is whole-proof candidate search, not tactic-state MCTS
@@ -127,18 +127,18 @@ Current release signal:
 
 - smoke selected 23 questions
 - 69 expected results
-- 59 covered
-- expected-result coverage about 85.5%
+- 61 covered
+- expected-result coverage about 88.4%
 
 Current all-supported local signal:
 
 - `--max-per-class 0` selects and scores all 60 frontier entries
 - 180 expected results
-- 150 covered
-- expected-result coverage about 83.3%
+- 151 covered
+- expected-result coverage about 83.9%
 - 55 traces ready with formal gaps
 - 5 traces simulation-flagged
-- 35 frontier-evaluation triage items: 30 theory-target misses and 5
+- 34 frontier-evaluation triage items: 29 theory-target misses and 5
   simulation flags
 - bounded adaptive MC inside the benchmark removes the old precision-limited
   simulator-rerun queue for this smoke path
@@ -171,6 +171,8 @@ Current release signal:
 - 74 have proof-bank plus local-source bridges
 - 23 are local-source-only
 - 53 have ranked proof-bank bridge candidates ready for direct reuse
+- minimal-wrapper debt is now 8, down from 10 after adding the robust
+  median-of-means Chebyshev/deviation wrappers
 
 Pass criteria:
 
@@ -210,7 +212,7 @@ Sources:
 
 Current release signal:
 
-- 102/102 proof-bank obligations kernel verified in the local-kernel release
+- 104/104 proof-bank obligations kernel verified in the local-kernel release
 - 12/12 bounded whole-proof search obligations kernel verified in the local
   release
 - proof attempts exported as SFT data

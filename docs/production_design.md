@@ -82,7 +82,7 @@ sandboxed code patching, or simulator construction still stop honestly with
 repair proposal, unless a stronger handler is registered.
 
 Current release-style evidence for this bounded loop is split intentionally:
-`proof-audit --local-lean` verifies the registered proof bank at `102/102`, while
+`proof-audit --local-lean` verifies the registered proof bank at `104/104`, while
 `research-system-audit` exercises the loop, Lean-RAG dependency retrieval, proof
 bridge routing, and simulation/audit gates. When the system audit is not run
 with `--local-lean`, its proof rows are scaffold evidence rather than fresh
@@ -953,12 +953,20 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   exposed as a block-estimator bridge for robust median-of-means traces. This
   verifies the block failure probability ingredient and deliberately leaves the
   binomial median amplification theorem as a separate formalization target.
+- `chebyshev_block_failure_bound_bridge`: a domain-named robust-mean wrapper
+  around the same Chebyshev block-estimator inequality. It closes the named
+  primitive `chebyshev_block_failure_bound` for queue/routing purposes, without
+  proving independent block construction or a sharp MoM concentration theorem.
 - `median_of_means_failure_union_control`: a finite block-event union bridge
   for robust mean traces. If the MoM failure event is contained in the finite
   union of bad block events, and each bad block has a local error budget, then
   the MoM failure probability is controlled by the sum of those budgets. This
   bridges block-level Chebyshev control toward the MoM theorem skeleton without
   claiming the binomial majority tail or sharp sub-Gaussian deviation theorem.
+- `median_of_means_deviation_bridge`: a domain-named wrapper for the missing
+  primitive `median_of_means_deviation`, reusing the finite bad-block union
+  skeleton. It improves formalization-target routing while preserving the
+  binomial median tail as an explicit formal gap.
 - `neyman_variance_conservative_algebra`: a design-based finite-population
   variance bridge. If exact randomization variance decomposes as an observable
   Neyman bound minus a nonnegative treatment-effect variance term, then the
@@ -1558,11 +1566,11 @@ python3 -m ai_statistician.cli proof-audit \
 Current full-bank local Lean evidence (2026-06-02):
 
 ```text
-verified=102/102
-kernel=102/102
+verified=104/104
+kernel=104/104
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=f5f84dca9f4595cb3c1eed62a82a66fc38a8e659d6c545191a7b47208dff9417
+proof_bank_fingerprint=b951c6b2356af994644b616127e6ccbb3e40febe592741153403bd154c8fe848
 ```
 
 Run `doctor` in the same Python runtime first. It reports

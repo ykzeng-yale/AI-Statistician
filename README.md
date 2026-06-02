@@ -170,13 +170,13 @@ python3 -m ai_statistician.cli proof-audit \
   --out runs/proof_audit_local_lean_current
 ```
 
-Current evidence: `102/102` registered proof-bank obligations pass
+Current evidence: `104/104` registered proof-bank obligations pass
 `local_lean_kernel_batch` with proof-bank fingerprint
-`f5f84dca9f4595cb3c1eed62a82a66fc38a8e659d6c545191a7b47208dff9417`.
+`b951c6b2356af994644b616127e6ccbb3e40febe592741153403bd154c8fe848`.
 The latest release-style research-system audit also passes all gates with
 Lean-RAG dependency retrieval enabled and `research_loop_theory_revisions=6`.
 That audit is scaffold evidence unless it is run with `--local-lean`; the real
-kernel evidence for the registered proof obligations is the `102/102`
+kernel evidence for the registered proof obligations is the `104/104`
 `proof-audit` result above. These revisions attach verified proof obligations
 to theorem roadmaps; they do not claim the full frontier asymptotic theorems are
 closed.
@@ -303,12 +303,19 @@ Chebyshev ingredient exposed as a block-estimator bridge for robust
 median-of-means traces. This proves the block failure probability ingredient
 only; the binomial median amplification and full robust sub-Gaussian deviation
 theorem remain explicit formal gaps.
+It also includes `chebyshev_block_failure_bound_bridge`, a domain-named wrapper
+that maps the missing robust-mean primitive `chebyshev_block_failure_bound`
+directly to the verified Chebyshev block-estimator inequality. This is a queue
+classification improvement, not a new sharp concentration theorem.
 It also includes `median_of_means_failure_union_control`, a finite block-event
 union bridge. If the median-of-means failure event is contained in the union of
 bad block events, and each bad block event has a local error budget, then the
 median failure event is bounded by the sum of those budgets. This improves the
 robust-mean formalization queue while still leaving the binomial majority tail
 and sharp sub-Gaussian MoM theorem as explicit formal gaps.
+It also includes `median_of_means_deviation_bridge`, a domain-named finite
+bad-block union wrapper that maps the missing primitive
+`median_of_means_deviation` to the verified finite-union MoM skeleton.
 It also includes `neyman_variance_conservative_algebra`, a design-based
 finite-population variance bridge. If the exact randomization variance equals
 an observable Neyman bound minus a nonnegative treatment-effect variance term,

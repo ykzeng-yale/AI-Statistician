@@ -1739,6 +1739,32 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("median_of_means_deviation", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_chebyshev_block_failure_bound_bridge_closes_named_primitive(self) -> None:
+        obligation = get_obligation("chebyshev_block_failure_bound_bridge")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("block_estimator_chebyshev_bound",))
+        self.assertIn("theorem chebyshevBlockFailure_bound", content)
+        self.assertIn("μ {ω | c ≤ |B ω - theta|}", content)
+        self.assertIn("meas_ge_le_variance_div_sq", content)
+        self.assertIn("chebyshev_block_failure_bound", obligation.tags)
+        self.assertIn("minimal_wrapper", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
+    def test_median_of_means_deviation_bridge_closes_named_primitive(self) -> None:
+        obligation = get_obligation("median_of_means_deviation_bridge")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(
+            obligation.depends_on,
+            ("median_of_means_failure_union_control", "chebyshev_block_failure_bound_bridge"),
+        )
+        self.assertIn("theorem medianOfMeans_deviation_bridge", content)
+        self.assertIn("MedianBad ⊆ ⋃ i ∈ Blocks, BadBlock i", content)
+        self.assertIn("μ MedianBad ≤ α_total", content)
+        self.assertIn("measure_biUnion_finset_le", content)
+        self.assertIn("median_of_means_deviation", obligation.tags)
+        self.assertIn("minimal_wrapper", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_finite_horizon_type1_union_control_supports_sequential_gap(self) -> None:
         obligation = get_obligation("finite_horizon_type1_union_control")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
@@ -3522,9 +3548,9 @@ class SystemTests(unittest.TestCase):
         self.assertGreater(payload["counts"]["theory_expected_results"], 69)
         self.assertGreater(payload["counts"]["theory_expected_results_covered"], 59)
         self.assertGreater(payload["counts"]["theory_expected_result_coverage_rate"], 0.75)
-        self.assertEqual(payload["counts"]["frontier_triage_theory_target_misses"], 30)
+        self.assertEqual(payload["counts"]["frontier_triage_theory_target_misses"], 29)
         self.assertEqual(payload["counts"]["frontier_triage_simulation_flags"], 5)
-        self.assertEqual(payload["counts"]["frontier_triage_items"], 35)
+        self.assertEqual(payload["counts"]["frontier_triage_items"], 34)
         self.assertEqual(payload["counts"]["frontier_simulation_rerun_items"], 0)
         self.assertEqual(payload["counts"]["frontier_simulation_rerun_resolved"], 0)
         self.assertEqual(payload["counts"]["frontier_simulation_rerun_still_flagged"], 0)
@@ -3540,7 +3566,7 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(target_audit["all_scored"])
         triage = json.loads(Path(payload["artifacts"]["frontier_evaluation_triage"]).read_text())
         self.assertTrue(triage["all_ok"])
-        self.assertEqual(triage["n_theory_target_misses"], 30)
+        self.assertEqual(triage["n_theory_target_misses"], 29)
         self.assertEqual(triage["n_simulation_flags"], 5)
         self.assertIn("theory_developer", triage["by_owner"])
         self.assertIn("algorithm_engineer", triage["by_owner"])
@@ -3874,13 +3900,13 @@ class SystemTests(unittest.TestCase):
         )
         self.assertEqual(
             suites["S3_frontier_blind_theory_target"]["current_all_supported_expected_results_covered"],
-            150,
+            151,
         )
         self.assertEqual(suites["S3_frontier_blind_theory_target"]["current_all_supported_simulation_flagged"], 5)
-        self.assertEqual(suites["S3_frontier_blind_theory_target"]["current_all_supported_triage_items"], 35)
+        self.assertEqual(suites["S3_frontier_blind_theory_target"]["current_all_supported_triage_items"], 34)
         self.assertEqual(
             suites["S3_frontier_blind_theory_target"]["current_all_supported_triage_theory_target_misses"],
-            30,
+            29,
         )
         self.assertEqual(
             suites["S3_frontier_blind_theory_target"]["current_all_supported_simulation_rerun_resolved"],
@@ -3897,11 +3923,12 @@ class SystemTests(unittest.TestCase):
         self.assertIn("S7_feedback_loop_repair_with_seeded_failures", payload["recommended_next_gate_stack"])
 
         doc = Path("docs/evaluation_benchmark_strategy.md").read_text(encoding="utf-8")
-        self.assertIn("`proofs_kernel_verified=102/102`", doc)
-        self.assertIn("expected-result coverage about 83.3%", doc)
-        self.assertIn("35 frontier-evaluation triage items", doc)
+        self.assertIn("`proofs_kernel_verified=104/104`", doc)
+        self.assertIn("expected-result coverage about 83.9%", doc)
+        self.assertIn("34 frontier-evaluation triage items", doc)
         self.assertIn("bounded adaptive MC inside the benchmark", doc)
         self.assertIn("53 have ranked proof-bank bridge candidates", doc)
+        self.assertIn("minimal-wrapper debt is now 8", doc)
         self.assertNotIn("79/79", doc)
         self.assertNotIn("82/82", doc)
 
@@ -5063,7 +5090,9 @@ class SystemTests(unittest.TestCase):
             "finite_sample_mean_variance_indep",
             "finite_sample_mean_chebyshev_indep",
             "block_estimator_chebyshev_bound",
+            "chebyshev_block_failure_bound_bridge",
             "median_of_means_failure_union_control",
+            "median_of_means_deviation_bridge",
             "estimator_error_chebyshev",
             "markov_inequality",
         )
@@ -5116,6 +5145,14 @@ class SystemTests(unittest.TestCase):
                 rows[primitive]["bridge_candidate_obligations"],
             )
             self.assertEqual(rows[primitive]["priority_band"], "BRIDGE_REUSE_READY")
+        self.assertEqual(
+            rows["chebyshev_block_failure_bound"]["bridge_candidate_obligations"][0],
+            "chebyshev_block_failure_bound_bridge",
+        )
+        self.assertEqual(
+            rows["median_of_means_deviation"]["bridge_candidate_obligations"][0],
+            "median_of_means_deviation_bridge",
+        )
         self.assertIn("binomial_median_tail_bound", rows)
         self.assertNotIn(
             "median_of_means_failure_union_control",
