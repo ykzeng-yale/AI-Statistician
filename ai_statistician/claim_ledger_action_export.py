@@ -37,6 +37,7 @@ class ClaimLedgerActionRow:
     action: str
     required_gate: str
     required_fields: tuple[str, ...]
+    proof_obligation_ids: tuple[str, ...]
     evidence_paths: tuple[str, ...]
     ok: bool
     errors: tuple[str, ...] = ()
@@ -77,6 +78,9 @@ def export_claim_ledger_actions(
         "by_owner": dict(sorted(by_owner.items())),
         "by_type": dict(sorted(by_type.items())),
         "by_priority": dict(sorted(by_priority.items())),
+        "n_exact_proof_bank_reuse_actions": by_type.get(
+            "reuse_exact_proof_bank_obligation_in_theorem_gap", 0
+        ),
         "actions": [asdict(row) for row in actions],
         "action_fingerprint": stable_hash([asdict(row) for row in actions]),
         "limitations": [
@@ -112,6 +116,8 @@ def _actions_from_ledger(rows: list[dict[str, Any]]) -> list[ClaimLedgerActionRo
         if not isinstance(row, dict):
             continue
         status = str(row.get("status", ""))
+        if status == "FORMAL_GAP" and row.get("exact_proof_bank_reuse_obligations"):
+            actions.append(_exact_proof_bank_reuse_action(row))
         if status == "REVISION_QUEUED":
             actions.append(_action_from_agenda(row))
         elif status in {"FORMAL_GAP", "PROOF_FAILED", "SIMULATION_FLAGGED"}:
@@ -125,6 +131,36 @@ def _actions_from_ledger(rows: list[dict[str, Any]]) -> list[ClaimLedgerActionRo
         if key not in deduped or deduped[key].source != "agenda":
             deduped[key] = action
     return list(deduped.values())
+
+
+def _exact_proof_bank_reuse_action(row: dict[str, Any]) -> ClaimLedgerActionRow:
+    obligations = tuple(
+        str(item) for item in row.get("exact_proof_bank_reuse_obligations", []) or [] if str(item)
+    )
+    return _action_row(
+        row,
+        source="exact_proof_bank_reuse",
+        owner_agent="research_coordinator",
+        action_type="reuse_exact_proof_bank_obligation_in_theorem_gap",
+        priority="low",
+        action=(
+            "link exact verified proof-bank obligations into the formal-gap theorem skeleton "
+            f"without opening duplicate primitive proof tasks: {', '.join(obligations)}"
+        ),
+        required_gate=(
+            "claim ledger or theorem-composition record references the existing kernel-verified "
+            "obligation ids; the full frontier theorem remains FORMAL_GAP until unresolved "
+            "primitives and composition proof are verified"
+        ),
+        required_fields=(
+            "existing_obligation_ids",
+            "formal_gap_claim_id",
+            "remaining_primitives",
+            "claim_ledger_linkage",
+            "full_theorem_status",
+        ),
+        proof_obligation_ids=obligations,
+    )
 
 
 def _agenda_source_claim_id(row: dict[str, Any]) -> str:
@@ -239,6 +275,7 @@ def _action_row(
     action: str,
     required_gate: str,
     required_fields: tuple[str, ...],
+    proof_obligation_ids: tuple[str, ...] | None = None,
 ) -> ClaimLedgerActionRow:
     errors: list[str] = []
     if owner_agent not in ALLOWED_OWNERS:
@@ -256,6 +293,13 @@ def _action_row(
         errors.append("evidence_paths missing")
     claim_id = str(row.get("claim_id", ""))
     action_id = f"claim_action:{source}:{claim_id}"
+    obligation_ids = proof_obligation_ids
+    if obligation_ids is None:
+        obligation_ids = tuple(
+            item.strip()
+            for item in str(row.get("proof_obligation_id", "")).split(",")
+            if item.strip()
+        )
     return ClaimLedgerActionRow(
         schema_version=CLAIM_LEDGER_ACTION_SCHEMA_VERSION,
         action_id=action_id,
@@ -271,6 +315,7 @@ def _action_row(
         action=action,
         required_gate=required_gate,
         required_fields=required_fields,
+        proof_obligation_ids=obligation_ids,
         evidence_paths=evidence_paths,
         ok=not errors,
         errors=tuple(errors),
@@ -346,4 +391,10 @@ def _markdown_report(payload: dict[str, object]) -> str:
                     "",
                 ]
             )
+            if row.get("proof_obligation_ids"):
+                lines.insert(
+                    -1,
+                    "- Proof obligations: "
+                    + ", ".join(f"`{item}`" for item in row.get("proof_obligation_ids", [])),
+                )
     return "\n".join(lines) + "\n"

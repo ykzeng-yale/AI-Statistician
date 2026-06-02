@@ -1217,8 +1217,17 @@ async def run_research_system_audit(
             "claim_ledger_revision_queued": claim_ledger_manifest["by_status"].get("REVISION_QUEUED", 0),
             "claim_ledger_kernel_overlay_upgrades": claim_ledger_manifest["n_kernel_overlay_upgrades"],
             "claim_ledger_proof_audit_overlay_enabled": claim_ledger_manifest["proof_audit_overlay_enabled"],
+            "claim_ledger_formal_gap_exact_proof_bank_reuse_rows": claim_ledger_manifest[
+                "n_formal_gap_rows_with_exact_proof_bank_reuse"
+            ],
+            "claim_ledger_exact_proof_bank_reuse_links": claim_ledger_manifest[
+                "n_exact_proof_bank_reuse_links"
+            ],
             "claim_ledger_actions": claim_ledger_action_manifest["n_actions"],
             "claim_ledger_actions_ok": claim_ledger_action_manifest["n_ok"],
+            "claim_ledger_actions_exact_proof_bank_reuse": claim_ledger_action_manifest[
+                "n_exact_proof_bank_reuse_actions"
+            ],
             "claim_ledger_actions_formal_verifier": claim_ledger_action_manifest["by_owner"].get(
                 "formal_verifier",
                 0,
@@ -1233,6 +1242,10 @@ async def run_research_system_audit(
             ),
             "claim_ledger_actions_simulator_agent": claim_ledger_action_manifest["by_owner"].get(
                 "simulator_agent",
+                0,
+            ),
+            "claim_ledger_actions_research_coordinator": claim_ledger_action_manifest["by_owner"].get(
+                "research_coordinator",
                 0,
             ),
             "research_loop_questions": research_loop_manifest["n_questions"],

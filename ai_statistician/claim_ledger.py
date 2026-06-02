@@ -7,6 +7,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal
 
+from .proof_bank import get_obligation
+
 
 ClaimKind = Literal[
     "problem_card",
@@ -50,6 +52,7 @@ class ClaimLedgerRow:
     kernel_verified: bool = False
     formalization_status: str = ""
     required_primitives: tuple[str, ...] = ()
+    exact_proof_bank_reuse_obligations: tuple[str, ...] = ()
     formal_source_hits: tuple[str, ...] = ()
     paper_source_ids: tuple[str, ...] = ()
     knowledge_ids: tuple[str, ...] = ()
@@ -116,6 +119,18 @@ def build_claim_ledger(
     n_kernel_overlay_upgrades = sum(
         1 for row in rows if row.evidence_level == "lean_kernel_verified_via_proof_audit_overlay"
     )
+    exact_reuse_rows = [
+        row for row in rows if row.status == "FORMAL_GAP" and row.exact_proof_bank_reuse_obligations
+    ]
+    exact_reuse_links = tuple(
+        sorted(
+            {
+                obligation_id
+                for row in exact_reuse_rows
+                for obligation_id in row.exact_proof_bank_reuse_obligations
+            }
+        )
+    )
     payload: dict[str, object] = {
         "created_at": datetime.now(timezone.utc).isoformat(),
         "ledger_version": 1,
@@ -124,6 +139,11 @@ def build_claim_ledger(
         "proof_audit_manifest": str(proof_audit_manifest) if proof_audit_manifest else "",
         "proof_audit_overlay_enabled": proof_audit_manifest is not None,
         "n_kernel_overlay_upgrades": n_kernel_overlay_upgrades,
+        "n_formal_gap_rows_with_exact_proof_bank_reuse": len(exact_reuse_rows),
+        "n_exact_proof_bank_reuse_links": sum(
+            len(row.exact_proof_bank_reuse_obligations) for row in exact_reuse_rows
+        ),
+        "exact_proof_bank_reuse_obligations": exact_reuse_links,
         "all_ok": not errors and bool(rows) and all(row.ok for row in rows),
         "errors": errors,
         "n_questions": len(summaries),
@@ -295,6 +315,10 @@ def _formal_subclaim_row(
         for hit in (subclaim.get("formal_source_hits", []) if isinstance(subclaim.get("formal_source_hits"), list) else [])
         if isinstance(hit, dict) and hit.get("name")
     )
+    required_primitives = _required_primitives_from_subclaim(subclaim)
+    exact_reuse_obligations = _exact_proof_bank_reuse_obligations(required_primitives)
+    if status == "FORMAL_GAP" and exact_reuse_obligations:
+        evidence_level = "formal_gap_with_retrieval_and_exact_proof_bank_reuse"
     evidence_paths = [trace_path]
     artifact_path = str(subclaim.get("artifact_path") or "")
     if artifact_path:
@@ -316,11 +340,60 @@ def _formal_subclaim_row(
         verification_strength=verification_strength,
         kernel_verified=kernel_verified,
         formalization_status=formalization_status,
+        required_primitives=required_primitives,
+        exact_proof_bank_reuse_obligations=exact_reuse_obligations,
         formal_source_hits=formal_source_hits,
         evidence_paths=tuple(evidence_paths),
         ok=not errors,
         errors=tuple(errors),
     )
+
+
+def _required_primitives_from_subclaim(subclaim: dict[str, Any]) -> tuple[str, ...]:
+    explicit = subclaim.get("required_primitives")
+    if isinstance(explicit, (list, tuple)):
+        return tuple(dict.fromkeys(str(item) for item in explicit if str(item)))
+    statement = str(subclaim.get("lean_statement") or "")
+    primitives: list[str] = []
+    in_block = False
+    for line in statement.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("Missing formal primitives:"):
+            in_block = True
+            continue
+        if in_block and not stripped:
+            break
+        if in_block and stripped.startswith("Proof-bank support already linked:"):
+            break
+        if in_block and stripped.startswith("-"):
+            primitive = stripped.lstrip("-").strip()
+            if primitive:
+                primitives.append(primitive)
+    if primitives:
+        return tuple(dict.fromkeys(primitives))
+    for line in statement.splitlines():
+        if "FORMAL_GAP" not in line:
+            continue
+        _, _, after = line.partition("FORMAL_GAP")
+        tokens = [
+            token.strip("` ,;")
+            for token in after.split()
+            if token.strip("` ,;") and token.strip("` ,;").replace("_", "").isalnum()
+        ]
+        return tuple(dict.fromkeys(tokens))
+    return ()
+
+
+def _exact_proof_bank_reuse_obligations(required_primitives: tuple[str, ...]) -> tuple[str, ...]:
+    obligations: list[str] = []
+    for primitive in required_primitives:
+        try:
+            obligation = get_obligation(primitive)
+        except KeyError:
+            continue
+        if obligation.id not in obligations:
+            obligations.append(obligation.id)
+    return tuple(obligations)
 
 
 def _load_proof_audit_overlay(proof_audit_manifest: Path | None) -> tuple[dict[str, dict[str, Any]], list[str]]:
@@ -451,6 +524,16 @@ def _markdown_report(payload: dict[str, object]) -> str:
         )
         if row.get("proof_obligation_id"):
             lines.append(f"- Proof obligation: `{row.get('proof_obligation_id')}`")
+        if row.get("required_primitives"):
+            lines.append(
+                "- Required primitives: "
+                + ", ".join(f"`{item}`" for item in row.get("required_primitives", [])[:8])
+            )
+        if row.get("exact_proof_bank_reuse_obligations"):
+            lines.append(
+                "- Exact proof-bank reuse: "
+                + ", ".join(f"`{item}`" for item in row.get("exact_proof_bank_reuse_obligations", []))
+            )
         if row.get("kernel_verified"):
             lines.append("- Kernel verified: `true`")
         if row.get("simulation_diagnosis"):

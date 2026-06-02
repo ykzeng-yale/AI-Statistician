@@ -4777,6 +4777,87 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(row["verifier"], "local.lake_env_lean")
         self.assertIn(str(proof_manifest_path), row["evidence_paths"])
 
+    def test_claim_ledger_links_exact_proof_bank_reuse_without_closing_gap(self) -> None:
+        run_dir = Path("runs/test_claim_ledger_exact_reuse_run")
+        ledger_dir = Path("runs/test_claim_ledger_exact_reuse")
+        action_dir = Path("runs/test_claim_ledger_exact_reuse_actions")
+        shutil.rmtree(run_dir, ignore_errors=True)
+        shutil.rmtree(ledger_dir, ignore_errors=True)
+        shutil.rmtree(action_dir, ignore_errors=True)
+        run_dir.mkdir(parents=True, exist_ok=True)
+        (run_dir / "research_benchmark_manifest.json").write_text(
+            json.dumps({"questions": [{"question": "q_exact_reuse"}]}),
+            encoding="utf-8",
+        )
+        lean_gap = """
+import Mathlib
+
+/-!
+AI Statistician frontier theorem skeleton.
+
+Missing formal primitives:
+- finite_population_potential_outcomes
+- complete_randomization_distribution
+- genuinely_missing_frontier_primitive
+
+Proof-bank support already linked:
+- finite_population_potential_outcomes
+- complete_randomization_distribution
+- finite_population_ate_mean_difference
+-/
+
+theorem exact_reuse_gap (h_frontier_missing : False) : True := by
+  trivial
+""".strip()
+        trace = {
+            "question": {"id": "q_exact_reuse", "title": "Exact reuse gap"},
+            "problem": {"problem_class": "design_based_variance_inference", "dgp": "", "estimand": ""},
+            "procedures": [],
+            "theorem_goals": [],
+            "formal_subclaims": [
+                {
+                    "id": "q_exact_reuse:gap",
+                    "status": "FORMAL_GAP",
+                    "claim": "frontier theorem still needs composition",
+                    "proof_obligation_id": None,
+                    "lean_statement": lean_gap,
+                    "formal_source_hits": [{"name": "StatInference.example"}],
+                    "artifact_path": "formal_gaps/exact_reuse_gap.lean",
+                }
+            ],
+            "simulations": [],
+            "theory_plan": {"next_iteration_agenda": {"items": []}},
+        }
+        (run_dir / "q_exact_reuse.json").write_text(json.dumps(trace), encoding="utf-8")
+
+        ledger = build_claim_ledger(run_dir, ledger_dir)
+        actions = export_claim_ledger_actions(ledger_dir, action_dir)
+
+        self.assertTrue(ledger["all_ok"])
+        self.assertEqual(ledger["by_status"]["FORMAL_GAP"], 1)
+        self.assertEqual(ledger["n_formal_gap_rows_with_exact_proof_bank_reuse"], 1)
+        self.assertEqual(ledger["n_exact_proof_bank_reuse_links"], 2)
+        gap_row = next(row for row in ledger["rows"] if row["status"] == "FORMAL_GAP")
+        self.assertFalse(gap_row["kernel_verified"])
+        self.assertEqual(
+            tuple(gap_row["exact_proof_bank_reuse_obligations"]),
+            ("finite_population_potential_outcomes", "complete_randomization_distribution"),
+        )
+        self.assertIn("genuinely_missing_frontier_primitive", gap_row["required_primitives"])
+        self.assertEqual(actions["n_exact_proof_bank_reuse_actions"], 1)
+        reuse_action = next(
+            row
+            for row in actions["actions"]
+            if row["action_type"] == "reuse_exact_proof_bank_obligation_in_theorem_gap"
+        )
+        self.assertEqual(reuse_action["owner_agent"], "research_coordinator")
+        self.assertEqual(reuse_action["priority"], "low")
+        self.assertIn("full frontier theorem remains FORMAL_GAP", reuse_action["required_gate"])
+        self.assertEqual(
+            tuple(reuse_action["proof_obligation_ids"]),
+            ("finite_population_potential_outcomes", "complete_randomization_distribution"),
+        )
+
     def test_claim_ledger_action_export_turns_revision_rows_into_owner_tasks(self) -> None:
         async def run():
             questions = load_open_research_questions(Path("examples/research_questions.json"))[:2]
@@ -4800,11 +4881,12 @@ class SystemTests(unittest.TestCase):
         ledger, payload = asyncio.run(run())
         self.assertTrue(payload["all_ok"])
         self.assertEqual(payload["n_ok"], payload["n_actions"])
-        self.assertEqual(payload["n_actions"], ledger["by_status"]["REVISION_QUEUED"])
+        self.assertGreaterEqual(payload["n_actions"], ledger["by_status"]["REVISION_QUEUED"])
         self.assertIn("formal_verifier", payload["by_owner"])
-        self.assertEqual(payload["by_owner"]["formal_verifier"], payload["n_actions"])
+        self.assertEqual(payload["by_owner"]["formal_verifier"], ledger["by_status"]["REVISION_QUEUED"])
         self.assertIn("proof_bank_expansion_from_formal_gap", payload["by_type"])
-        first = payload["actions"][0]
+        self.assertIn("n_exact_proof_bank_reuse_actions", payload)
+        first = next(row for row in payload["actions"] if row["source"] == "agenda")
         self.assertEqual(first["source"], "agenda")
         self.assertIn("verify_proof", first["required_gate"])
         self.assertIn("proof_obligation_id", first["required_fields"])
@@ -8810,6 +8892,8 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(payload["counts"]["claim_ledger_formal_gaps"], payload["counts"]["formal_gaps"])
         self.assertTrue(payload["counts"]["claim_ledger_proof_audit_overlay_enabled"])
         self.assertEqual(payload["counts"]["claim_ledger_kernel_overlay_upgrades"], 0)
+        self.assertGreater(payload["counts"]["claim_ledger_formal_gap_exact_proof_bank_reuse_rows"], 0)
+        self.assertGreater(payload["counts"]["claim_ledger_exact_proof_bank_reuse_links"], 0)
         self.assertEqual(
             payload["counts"]["claim_ledger_simulation_supported"],
             payload["counts"]["research_report_simulations"],
@@ -8820,14 +8904,19 @@ class SystemTests(unittest.TestCase):
             payload["counts"]["next_iteration_items"],
         )
         self.assertEqual(payload["counts"]["claim_ledger_actions_ok"], payload["counts"]["claim_ledger_actions"])
-        self.assertEqual(payload["counts"]["claim_ledger_actions"], payload["counts"]["claim_ledger_revision_queued"])
+        self.assertGreaterEqual(payload["counts"]["claim_ledger_actions"], payload["counts"]["claim_ledger_revision_queued"])
+        self.assertGreater(payload["counts"]["claim_ledger_actions_exact_proof_bank_reuse"], 0)
         self.assertEqual(
             payload["counts"]["claim_ledger_actions_formal_verifier"],
-            payload["counts"]["claim_ledger_actions"],
+            payload["counts"]["claim_ledger_revision_queued"],
         )
         self.assertEqual(payload["counts"]["claim_ledger_actions_theory_developer"], 0)
         self.assertEqual(payload["counts"]["claim_ledger_actions_algorithm_engineer"], 0)
         self.assertEqual(payload["counts"]["claim_ledger_actions_simulator_agent"], 0)
+        self.assertEqual(
+            payload["counts"]["claim_ledger_actions_research_coordinator"],
+            payload["counts"]["claim_ledger_actions_exact_proof_bank_reuse"],
+        )
         self.assertTrue(Path("runs/test_research_system_audit/research_system_audit_manifest.json").exists())
         self.assertTrue(Path(payload["artifacts"]["frontier_coverage_audit"]).exists())
         self.assertTrue(Path(payload["artifacts"]["frontier_precision_audit"]).exists())
