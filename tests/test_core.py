@@ -1105,6 +1105,7 @@ class ProofBankTests(unittest.TestCase):
 
         payload = asyncio.run(run())
         self.assertTrue(payload["all_solved"])
+        self.assertTrue(payload["include_registered_proof"])
         self.assertEqual(payload["n_obligations"], 2)
         self.assertEqual(payload["nodes_expanded"], 4)
         self.assertGreater(payload["tactic_template_candidates_total"], 0)
@@ -1181,6 +1182,28 @@ class ProofBankTests(unittest.TestCase):
         self.assertIsNotNone(value_guided.nodes[0].value_score)
         self.assertEqual(value_guided.nodes[0].source, "registered_proof_body")
 
+    def test_proof_search_audit_can_disable_registered_proof_bodies_for_hard_mode(self) -> None:
+        async def run():
+            return await audit_proof_search_controller(
+                Path("runs/test_proof_search_audit_no_registered"),
+                verifier=MockProofVerifier(),
+                max_obligations=1,
+                max_nodes=2,
+                include_registered_proof=False,
+            )
+
+        payload = asyncio.run(run())
+        self.assertFalse(payload["include_registered_proof"])
+        self.assertTrue(payload["all_solved"])
+        rows = [
+            json.loads(line)
+            for line in Path(payload["results_jsonl"]).read_text(encoding="utf-8").splitlines()
+        ]
+        self.assertNotEqual(rows[0]["selected_source"], "registered_proof_body")
+        self.assertFalse(
+            any(node["source"] == "registered_proof_body" for node in rows[0]["nodes"])
+        )
+
     def test_proof_search_retrieval_ablation_tracks_candidate_frontier_delta(self) -> None:
         declaration = FormalDeclaration(
             source_id="enhanced_fixture",
@@ -1213,6 +1236,8 @@ class ProofBankTests(unittest.TestCase):
             )
         )
         self.assertTrue(payload["all_ok"])
+        self.assertTrue(payload["include_registered_proof"])
+        self.assertFalse(payload["saturation_warning"])
         self.assertGreater(payload["formal_source_candidate_delta"], 0)
         self.assertEqual(payload["solved_delta"], 0)
         self.assertTrue(payload["no_solved_regression"])
@@ -1227,6 +1252,35 @@ class ProofBankTests(unittest.TestCase):
                 "runs/test_proof_search_retrieval_ablation/proof_search_retrieval_ablation.md"
             ).exists()
         )
+
+    def test_proof_search_retrieval_ablation_hard_mode_records_no_registered_proofs(self) -> None:
+        class EmptyRetriever:
+            def search(self, query: str, *, k: int = 10):
+                return []
+
+        payload = asyncio.run(
+            run_proof_search_retrieval_ablation(
+                Path("runs/test_proof_search_retrieval_ablation_hard_mode"),
+                baseline_retriever=EmptyRetriever(),
+                enhanced_retriever=EmptyRetriever(),
+                verifier=MockProofVerifier(),
+                max_obligations=1,
+                max_nodes=2,
+                formal_source_k=1,
+                include_registered_proof=False,
+            )
+        )
+        self.assertTrue(payload["all_ok"])
+        self.assertFalse(payload["include_registered_proof"])
+        self.assertFalse(payload["saturation_warning"])
+        baseline_rows = [
+            json.loads(line)
+            for line in Path(
+                "runs/test_proof_search_retrieval_ablation_hard_mode/"
+                "baseline/proof_search_results.jsonl"
+            ).read_text(encoding="utf-8").splitlines()
+        ]
+        self.assertNotEqual(baseline_rows[0]["selected_source"], "registered_proof_body")
 
     def test_caching_verifier_reuses_checked_obligations(self) -> None:
         async def run():

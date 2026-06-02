@@ -11,7 +11,7 @@ from .proof_search_audit import audit_proof_search_controller
 from .verifier import ProofVerifier
 
 
-PROOF_SEARCH_RETRIEVAL_ABLATION_SCHEMA_VERSION = 1
+PROOF_SEARCH_RETRIEVAL_ABLATION_SCHEMA_VERSION = 2
 
 
 async def run_proof_search_retrieval_ablation(
@@ -23,6 +23,7 @@ async def run_proof_search_retrieval_ablation(
     max_obligations: int = 6,
     max_nodes: int = 4,
     formal_source_k: int = 4,
+    include_registered_proof: bool = True,
     baseline_name: str = "proof_search_without_dependency_graph",
     enhanced_name: str = "proof_search_with_dependency_graph",
 ) -> dict[str, object]:
@@ -45,6 +46,7 @@ async def run_proof_search_retrieval_ablation(
                 max_obligations=max_obligations,
                 max_nodes=max_nodes,
                 formal_source_k=formal_source_k,
+                include_registered_proof=include_registered_proof,
                 baseline_name=baseline_name,
                 enhanced_name=enhanced_name,
             )
@@ -57,6 +59,7 @@ async def run_proof_search_retrieval_ablation(
         max_nodes=max_nodes,
         formal_source_retriever=baseline_retriever,
         formal_source_k=formal_source_k,
+        include_registered_proof=include_registered_proof,
     )
     enhanced = await audit_proof_search_controller(
         enhanced_dir,
@@ -65,6 +68,7 @@ async def run_proof_search_retrieval_ablation(
         max_nodes=max_nodes,
         formal_source_retriever=enhanced_retriever,
         formal_source_k=formal_source_k,
+        include_registered_proof=include_registered_proof,
     )
     candidate_delta = int(enhanced["formal_source_candidates_total"]) - int(
         baseline["formal_source_candidates_total"]
@@ -95,6 +99,7 @@ async def run_proof_search_retrieval_ablation(
         "max_obligations": max_obligations,
         "max_nodes": max_nodes,
         "formal_source_k": formal_source_k,
+        "include_registered_proof": include_registered_proof,
         "baseline": _summary(baseline),
         "enhanced": _summary(enhanced),
         "formal_source_candidate_delta": candidate_delta,
@@ -105,7 +110,22 @@ async def run_proof_search_retrieval_ablation(
         "no_solved_regression": solved_delta >= 0,
         "no_node_expansion_regression": expanded_node_delta <= max_obligations,
         "enhanced_all_solved": bool(enhanced["all_solved"]),
-        "all_ok": bool(enhanced["all_solved"]) and solved_delta >= 0,
+        "saturation_warning": bool(
+            include_registered_proof
+            and baseline["all_solved"]
+            and enhanced["all_solved"]
+            and solved_delta == 0
+            and candidate_delta == 0
+        ),
+        "hard_mode_recommendation": (
+            "rerun with --no-registered-proof to measure RAG/search lift without the gold proof-bank shortcut"
+            if include_registered_proof
+            else ""
+        ),
+        "all_ok": (
+            (bool(enhanced["all_solved"]) if include_registered_proof else True)
+            and solved_delta >= 0
+        ),
         "dataset_fingerprint": stable_hash(
             {
                 "baseline": baseline.get("search_audit_fingerprint", ""),
@@ -116,7 +136,12 @@ async def run_proof_search_retrieval_ablation(
         ),
         "limitations": [
             "whole-proof best-first search only; not tactic-state proof search",
-            "registered proof bodies remain available as skill-memory candidates in this audit",
+            (
+                "registered proof bodies remain available as skill-memory candidates in this audit"
+                if include_registered_proof
+                else "registered proof bodies are excluded in this hard diagnostic run"
+            ),
+            "use include_registered_proof=false for a harder diagnostic that removes the gold proof-bank shortcut",
             "candidate frontier lift is retrieval evidence; only verifier-accepted nodes are proof evidence",
         ],
     }
@@ -183,7 +208,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"- Enhanced: `{payload.get('enhanced_name')}`",
             f"- Dependency graph search: `{payload.get('dependency_graph_search') or 'disabled'}`",
             f"- Lean RAG enabled: `{payload.get('lean_rag_dependency_graph_enabled')}`",
+            f"- Registered proof bodies enabled: `{payload.get('include_registered_proof')}`",
             f"- Enhanced all solved: `{payload.get('enhanced_all_solved')}`",
+            f"- Saturation warning: `{payload.get('saturation_warning')}`",
             f"- Solved delta: {payload.get('solved_delta')}",
             f"- Formal-source candidate delta: {payload.get('formal_source_candidate_delta')}",
             f"- Expanded node delta: {payload.get('nodes_expanded_delta')}",

@@ -230,6 +230,7 @@ Sources:
 
 - `proof-audit`
 - `proof-search-audit`
+- `proof-search-retrieval-ablation`
 - `proof-training-export`
 - `proof-repair-export`
 - `proof-policy-baseline`
@@ -249,6 +250,14 @@ Required future upgrades:
 - tactic-state traces once a Lean step environment exists
 
 This suite is the bridge from proof-bank regression to trained prover work.
+The release-safe proof-search path intentionally keeps registered proof-bank
+bodies as high-priority skill-memory candidates. That is good for regression
+checking, but it can saturate RAG/search ablations. For retrieval-efficiency
+diagnostics, run `proof-search-audit --no-registered-proof` or
+`proof-search-retrieval-ablation --no-registered-proof`, preferably with
+`--local-lean`/AXLE when claiming verifier evidence. Mock/static solved counts
+are not proof evidence and should not be used to claim that a new retrieval
+provider proves more theorems.
 
 ### S6. Algorithm and Simulation Stress Suite
 

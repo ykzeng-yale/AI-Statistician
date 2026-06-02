@@ -359,6 +359,7 @@ async def _proof_search_audit(args: argparse.Namespace) -> int:
         max_obligations=args.max_obligations,
         max_nodes=args.max_nodes,
         include_invalid_probe=args.include_invalid_probe,
+        include_registered_proof=not args.no_registered_proof,
         proof_policy_model_json=Path(args.policy_model_json) if args.policy_model_json else None,
         proof_value_model_json=Path(args.value_model_json) if args.value_model_json else None,
     )
@@ -369,7 +370,8 @@ async def _proof_search_audit(args: argparse.Namespace) -> int:
         f"kernel_verified={payload['n_kernel_verified']} "
         f"mean_nodes={payload['mean_nodes_expanded']:.2f} "
         f"policy_model={'on' if payload['policy_model_enabled'] else 'off'} "
-        f"value_model={'on' if payload['value_model_enabled'] else 'off'}"
+        f"value_model={'on' if payload['value_model_enabled'] else 'off'} "
+        f"registered={payload['include_registered_proof']}"
     )
     print(f"results={Path(str(payload['results_jsonl'])).resolve()}")
     print(f"manifest written to {(Path(args.out) / 'proof_search_audit_manifest.json').resolve()}")
@@ -907,6 +909,7 @@ def _proof_search_retrieval_ablation(args: argparse.Namespace) -> int:
             max_obligations=args.max_obligations,
             max_nodes=args.max_nodes,
             formal_source_k=args.formal_source_k,
+            include_registered_proof=not args.no_registered_proof,
         )
     )
     print("\nAI Statistical Theory Lab Proof Search Retrieval Ablation")
@@ -916,7 +919,9 @@ def _proof_search_retrieval_ablation(args: argparse.Namespace) -> int:
         f"candidate_delta={payload['formal_source_candidate_delta']} "
         f"node_delta={payload['nodes_expanded_delta']} "
         f"lean_rag={payload['lean_rag_dependency_graph_enabled']} "
-        f"dependency_graph_search={payload['dependency_graph_search'] or 'disabled'}"
+        f"dependency_graph_search={payload['dependency_graph_search'] or 'disabled'} "
+        f"registered={payload['include_registered_proof']} "
+        f"saturated={payload['saturation_warning']}"
     )
     print(
         f"baseline_solved={payload['baseline']['n_solved']}/{payload['baseline']['n_obligations']} "
@@ -2219,6 +2224,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="put one invalid high-priority candidate before the registered proof to test branch/error logging",
     )
     proof_search_audit.add_argument(
+        "--no-registered-proof",
+        action="store_true",
+        help="exclude gold registered proof bodies for a harder retrieval/search diagnostic",
+    )
+    proof_search_audit.add_argument(
         "--policy-model-json",
         default=None,
         help="optional proof_policy_model.json used to score and rerank candidate proof bodies",
@@ -2677,6 +2687,11 @@ def build_parser() -> argparse.ArgumentParser:
     proof_search_retrieval_ablation.add_argument("--max-obligations", type=int, default=6)
     proof_search_retrieval_ablation.add_argument("--max-nodes", type=int, default=4)
     proof_search_retrieval_ablation.add_argument("--formal-source-k", type=int, default=4)
+    proof_search_retrieval_ablation.add_argument(
+        "--no-registered-proof",
+        action="store_true",
+        help="exclude gold registered proof bodies to measure RAG/search lift under a harder diagnostic",
+    )
     proof_search_retrieval_ablation.add_argument(
         "--formal-source-index",
         default="runs/proof_search_retrieval_ablation/formal_source_index.sqlite",

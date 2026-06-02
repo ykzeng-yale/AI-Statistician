@@ -26,6 +26,7 @@ async def audit_proof_search_controller(
     max_obligations: int = 12,
     max_nodes: int = 8,
     include_invalid_probe: bool = False,
+    include_registered_proof: bool = True,
     proof_policy_model_json: Path | None = None,
     proof_value_model_json: Path | None = None,
     formal_source_retriever: Any | None = None,
@@ -80,6 +81,7 @@ async def audit_proof_search_controller(
                 max_nodes=max_nodes,
                 extra_candidates=probes,
                 retrieval_hits=retrieval_hits,
+                include_registered_proof=include_registered_proof,
             )
         )
     results_jsonl = out_dir / "proof_search_results.jsonl"
@@ -131,6 +133,7 @@ async def audit_proof_search_controller(
         "max_obligations": max_obligations,
         "max_nodes": max_nodes,
         "include_invalid_probe": include_invalid_probe,
+        "include_registered_proof": include_registered_proof,
         "policy_model_enabled": proof_policy_model is not None,
         "policy_model_json": str(proof_policy_model_json) if proof_policy_model_json else "",
         "policy_model_fingerprint": proof_policy_model.model_fingerprint if proof_policy_model else "",
@@ -164,7 +167,11 @@ async def audit_proof_search_controller(
             "built-in tactic templates are one-shot whole-proof bodies, not interactive tactic-state expansion",
             "best-first candidate priority can use trained whole-proof policy and value rankers when model JSON files are supplied",
             "formal-source templates are verifier-tested candidates; source-only declarations may fail if imports/types do not line up",
-            "registered proof bodies are included as a high-priority gold skill-memory candidate",
+            (
+                "registered proof bodies are included as a high-priority gold skill-memory candidate"
+                if include_registered_proof
+                else "registered proof bodies are excluded for hard retrieval/search diagnostics"
+            ),
             "invalid_probe is for branch/error-path testing and is disabled in release-style audits",
         ],
     }
