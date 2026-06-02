@@ -6184,6 +6184,10 @@ class SystemTests(unittest.TestCase):
             + payload["n_design_from_first_principles"],
         )
         self.assertTrue(payload["by_action_class"])
+        self.assertEqual(payload["external_search_policy"], "unsupported_only")
+        self.assertGreaterEqual(payload["n_external_source_queries"], 0)
+        self.assertGreaterEqual(payload["n_external_source_search_skipped_supported"], 0)
+        self.assertLessEqual(payload["n_external_source_queries"], payload["n_primitives"])
         self.assertIn("Retrieval hits are not proof evidence", " ".join(payload["limitations"]))
         self.assertTrue(Path("runs/test_primitive_source_coverage/primitive_source_coverage_manifest.json").exists())
         self.assertTrue(Path("runs/test_primitive_source_coverage/primitive_source_coverage.md").exists())
@@ -8550,6 +8554,22 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(payload["timings"]["slowest_stages"])
         timing_stages = {row["stage"] for row in payload["timings"]["stages"]}
         self.assertTrue({"research_benchmark", "research_benchmark_cache_hit"} & timing_stages)
+        for expected_stage in {
+            "research_trace_audit",
+            "research_gap_backlog",
+            "formalization_target_audit",
+            "formal_gap_task_export",
+            "autoform_target_export",
+            "proof_bank_expansion_export",
+            "primitive_source_coverage_audit",
+            "research_training_export",
+            "research_policy_baseline",
+            "next_iteration_queue",
+            "research_report",
+            "claim_ledger",
+            "claim_ledger_actions",
+        }:
+            self.assertIn(expected_stage, timing_stages)
         self.assertEqual(payload["counts"]["audit_total_elapsed_ms"], payload["timings"]["total_elapsed_ms"])
         self.assertTrue(payload["counts"]["audit_slowest_stage"])
         self.assertGreater(payload["counts"]["audit_slowest_stage_elapsed_ms"], 0)
@@ -8658,6 +8678,13 @@ class SystemTests(unittest.TestCase):
             0,
         )
         self.assertGreaterEqual(payload["counts"]["primitive_source_coverage_external_supported"], 0)
+        self.assertEqual(payload["counts"]["primitive_source_coverage_external_search_policy"], "unsupported_only")
+        self.assertGreaterEqual(payload["counts"]["primitive_source_coverage_external_queries"], 0)
+        self.assertGreaterEqual(payload["counts"]["primitive_source_coverage_external_skipped_supported"], 0)
+        self.assertLessEqual(
+            payload["counts"]["primitive_source_coverage_external_queries"],
+            payload["counts"]["primitive_source_coverage_primitives"],
+        )
         self.assertIn("primitive_source_coverage_compose_existing_bridge_chain", payload["counts"])
         self.assertIn("primitive_source_coverage_add_minimal_wrapper", payload["counts"])
         self.assertIn("primitive_source_coverage_design_bridge_lemma", payload["counts"])

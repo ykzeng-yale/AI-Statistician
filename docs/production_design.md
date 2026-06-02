@@ -1839,6 +1839,14 @@ This auto-discovery applies to both SQLite-backed retrieval and the lighter
 in-memory fallback. Kernel-extracted proof-state graphs remain a future
 LeanDojo/ReProver-style integration.
 
+Primitive-source coverage is optimized as a prioritization audit by default:
+it searches external Lean sources only for primitives that do not already have
+proof-bank or local declaration support. The manifest records
+`external_search_policy`, `n_external_source_queries`, and
+`n_external_source_search_skipped_supported` so monitors can distinguish this
+fast pass from exhaustive source mining. Use the formal-source retrieval
+benchmarks/ablations for full external-source recall checks.
+
 Shared `lean_rag` package audit:
 
 ```bash

@@ -387,26 +387,32 @@ async def run_research_system_audit(
         out_dir / "research_benchmark",
         out_dir / "research_trace_audit",
     )
+    stage_start = _record_stage(stage_timings, "research_trace_audit", stage_start)
     gap_backlog_manifest = audit_research_gap_backlog(
         out_dir / "research_benchmark",
         out_dir / "research_gap_backlog",
     )
+    stage_start = _record_stage(stage_timings, "research_gap_backlog", stage_start)
     formalization_target_manifest = audit_formalization_targets(
         out_dir / "research_benchmark",
         out_dir / "formalization_target_audit",
     )
+    stage_start = _record_stage(stage_timings, "formalization_target_audit", stage_start)
     formal_gap_task_manifest = export_formal_gap_lean_tasks(
         out_dir / "research_benchmark",
         out_dir / "formal_gap_lean_tasks",
     )
+    stage_start = _record_stage(stage_timings, "formal_gap_task_export", stage_start)
     autoform_target_manifest = export_autoform_targets(
         out_dir / "research_benchmark",
         out_dir / "autoform_targets",
     )
+    stage_start = _record_stage(stage_timings, "autoform_target_export", stage_start)
     proof_bank_expansion_manifest = export_proof_bank_expansion_candidates(
         out_dir / "research_benchmark",
         out_dir / "proof_bank_expansion",
     )
+    stage_start = _record_stage(stage_timings, "proof_bank_expansion_export", stage_start)
     primitive_source_coverage_manifest = audit_primitive_source_coverage(
         out_dir / "research_benchmark",
         out_dir / "primitive_source_coverage",
@@ -414,37 +420,42 @@ async def run_research_system_audit(
         formal_source_index_path=formal_source_index_path,
         lean_rag_db_path=Path(config.lean_rag_db) if config.lean_rag_db else None,
     )
-    stage_start = _record_stage(stage_timings, "research_trace_gap_exports", stage_start)
+    stage_start = _record_stage(stage_timings, "primitive_source_coverage_audit", stage_start)
 
     research_training_manifest = export_research_training_dataset(
         out_dir / "research_benchmark",
         out_dir / "research_training_export",
         validation_fraction=0.2,
     )
+    stage_start = _record_stage(stage_timings, "research_training_export", stage_start)
     research_policy_manifest = evaluate_research_policy_baseline(
         Path(str(research_training_manifest["train_jsonl"])),
         Path(str(research_training_manifest["validation_jsonl"])),
         out_dir / "research_policy_baseline",
         k=5,
     )
+    stage_start = _record_stage(stage_timings, "research_policy_baseline", stage_start)
     next_iteration_manifest = audit_next_iteration_queue(
         out_dir / "research_benchmark",
         out_dir / "next_iteration_queue",
     )
+    stage_start = _record_stage(stage_timings, "next_iteration_queue", stage_start)
     research_report_manifest = build_research_markdown_report(
         out_dir / "research_benchmark",
         out_dir / "research_report",
     )
+    stage_start = _record_stage(stage_timings, "research_report", stage_start)
     claim_ledger_manifest = build_claim_ledger(
         out_dir / "research_benchmark",
         out_dir / "claim_ledger",
         proof_audit_manifest=out_dir / "proof_audit" / "proof_audit_manifest.json",
     )
+    stage_start = _record_stage(stage_timings, "claim_ledger", stage_start)
     claim_ledger_action_manifest = export_claim_ledger_actions(
         out_dir / "claim_ledger",
         out_dir / "claim_ledger_actions",
     )
-    stage_start = _record_stage(stage_timings, "research_training_policy_report_exports", stage_start)
+    stage_start = _record_stage(stage_timings, "claim_ledger_actions", stage_start)
 
     research_loop_manifest = await run_research_loop_benchmark(
         questions[:1],
@@ -1093,6 +1104,15 @@ async def run_research_system_audit(
             ],
             "primitive_source_coverage_external_supported": primitive_source_coverage_manifest[
                 "n_external_source_supported"
+            ],
+            "primitive_source_coverage_external_search_policy": primitive_source_coverage_manifest[
+                "external_search_policy"
+            ],
+            "primitive_source_coverage_external_queries": primitive_source_coverage_manifest[
+                "n_external_source_queries"
+            ],
+            "primitive_source_coverage_external_skipped_supported": primitive_source_coverage_manifest[
+                "n_external_source_search_skipped_supported"
             ],
             "primitive_source_coverage_compose_existing_bridge_chain": primitive_source_coverage_manifest[
                 "n_compose_existing_bridge_chain"

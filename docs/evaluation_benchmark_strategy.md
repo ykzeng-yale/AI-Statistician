@@ -192,6 +192,13 @@ Pass criteria:
 
 This should become the main progress benchmark for the next phase.
 
+Runtime note: primitive-source coverage now defaults to
+`external_search_policy=unsupported_only`. It skips external Lean/RAG searches
+for primitives already backed by proof-bank bridges or local declarations, and
+records both query and skip counts in the manifest. Exhaustive external-source
+reuse should be evaluated with the formal-source retrieval benchmark and
+retrieval ablation suites instead of inferred from primitive coverage alone.
+
 Latest release-style scaffold signal:
 
 - `runs/current_adaptive_mc_system_audit_v2/research_system_audit_manifest.json`

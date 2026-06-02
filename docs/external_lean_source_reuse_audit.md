@@ -62,12 +62,18 @@ Representative retrieval hits:
 ## Next Reuse Step
 
 Run primitive-source coverage against the current missing formal primitives and
-classify each new-source hit as:
+classify each unsupported primitive as:
 
 - `direct_wrapper_possible`
 - `bridge_lemma_needed`
 - `source_only_not_importable`
 - `no_source_found`
+
+By default this is a fast prioritization pass: it skips external searches for
+primitives that already have proof-bank or local declaration support, and
+records how many external queries were performed or skipped. For exhaustive
+external-source discovery, run the formal-source retrieval benchmark/ablation
+suites with the active `lean_rag` dependency graph DB.
 
 The best first proof-bank mining targets are:
 

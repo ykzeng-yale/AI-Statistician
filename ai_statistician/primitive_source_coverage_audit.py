@@ -42,6 +42,7 @@ class PrimitiveSourceCoverageRow:
     local_candidate_declarations: tuple[str, ...]
     external_candidate_declarations: tuple[str, ...]
     external_source_ids: tuple[str, ...]
+    external_search_performed: bool
     suggested_next_step: str
     ok: bool
     errors: tuple[str, ...] = ()
@@ -55,6 +56,7 @@ def audit_primitive_source_coverage(
     formal_source_index_path: Path | None = None,
     lean_rag_db_path: Path | None = None,
     k: int = 8,
+    external_search_policy: str = "unsupported_only",
 ) -> dict[str, object]:
     """Classify missing formal primitives by reusable proof/source support.
 
@@ -72,8 +74,15 @@ def audit_primitive_source_coverage(
             lean_rag_db_path=lean_rag_db_path,
         )
     retriever_enabled = formal_source_retriever is not None
+    if external_search_policy not in {"unsupported_only", "all"}:
+        raise ValueError("external_search_policy must be 'unsupported_only' or 'all'")
     rows = tuple(
-        _classify_target(row, formal_source_retriever, k=k)
+        _classify_target(
+            row,
+            formal_source_retriever,
+            k=k,
+            external_search_policy=external_search_policy,
+        )
         for row in target_payload.get("rows", [])
         if isinstance(row, dict)
     )
@@ -85,6 +94,7 @@ def audit_primitive_source_coverage(
         "run_dir": str(run_dir),
         "formal_source_retriever_enabled": retriever_enabled,
         "formal_source_index_path": str(formal_source_index_path or ""),
+        "external_search_policy": external_search_policy,
         "lean_rag_dependency_graph_enabled": bool(
             getattr(formal_source_retriever, "lean_rag_dependency_graph_enabled", False)
         ),
@@ -97,6 +107,13 @@ def audit_primitive_source_coverage(
         "n_source_only_not_importable": by_classification.get("source_only_not_importable", 0),
         "n_no_source_found": by_classification.get("no_source_found", 0),
         "n_external_source_supported": sum(1 for row in rows if row.external_candidate_declarations),
+        "n_external_source_queries": sum(1 for row in rows if row.external_search_performed),
+        "n_external_source_search_skipped_supported": sum(
+            1
+            for row in rows
+            if not row.external_search_performed
+            and (row.proof_bank_bridge_obligations or row.local_candidate_declarations)
+        ),
         "by_classification": dict(sorted(by_classification.items())),
         "by_action_class": dict(sorted(by_action_class.items())),
         "n_compose_existing_bridge_chain": by_action_class.get("compose_existing_bridge_chain", 0),
@@ -138,6 +155,7 @@ def _classify_target(
     formal_source_retriever: Any | None,
     *,
     k: int,
+    external_search_policy: str,
 ) -> PrimitiveSourceCoverageRow:
     primitive = str(target.get("primitive", ""))
     proof_bank_bridges = tuple(
@@ -146,7 +164,12 @@ def _classify_target(
     local_candidates = tuple(
         str(item) for item in target.get("candidate_declarations", []) or [] if str(item)
     )
-    external_hits = _external_hits(primitive, formal_source_retriever, k=k) if primitive else ()
+    should_search_external = bool(primitive) and (
+        external_search_policy == "all" or not (proof_bank_bridges or local_candidates)
+    )
+    external_hits = (
+        _external_hits(primitive, formal_source_retriever, k=k) if should_search_external else ()
+    )
     external_decls = tuple(hit["name"] for hit in external_hits)
     external_source_ids = tuple(sorted({hit["source_id"] for hit in external_hits}))
     if proof_bank_bridges and local_candidates:
@@ -176,6 +199,7 @@ def _classify_target(
         local_candidate_declarations=local_candidates[:8],
         external_candidate_declarations=external_decls[:8],
         external_source_ids=external_source_ids,
+        external_search_performed=should_search_external,
         suggested_next_step=_suggest_next_step(
             primitive,
             classification,
@@ -307,6 +331,10 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- No source found: {payload.get('n_no_source_found')}",
         f"- Compose existing bridge chains: {payload.get('n_compose_existing_bridge_chain')}",
         f"- Add minimal wrappers: {payload.get('n_add_minimal_wrapper')}",
+        f"- External search policy: `{payload.get('external_search_policy')}`",
+        f"- External source queries: {payload.get('n_external_source_queries')}",
+        f"- External searches skipped for already-supported primitives: "
+        f"{payload.get('n_external_source_search_skipped_supported')}",
         f"- lean_rag dependency graph active: {payload.get('lean_rag_dependency_graph_enabled')}",
         "",
         "## Classification Counts",
