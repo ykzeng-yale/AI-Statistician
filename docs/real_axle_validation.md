@@ -13,15 +13,15 @@ python3 -m ai_statistician.cli proof-audit \
 Result:
 
 ```text
-verified=93/93
-kernel=93/93
+verified=95/95
+kernel=95/95
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=9830e53761b353f12d2529aba0b4015f08fe1063bc9464c91045e4cf8bef18cb
+proof_bank_fingerprint=2275ebc1e22928f9310764559b3083e6988195bae35c0dca78322caf015f95a7
 ```
 
 This is the current evidence that the registered proof bank is not only
-mock-checked: all 93 registered Mathlib-backed obligations were accepted by a
+mock-checked: all 95 registered Mathlib-backed obligations were accepted by a
 real Lean kernel check through the local Lake/Mathlib runtime. AXLE remains the
 preferred remote verifier for release bundles when its Python package and API
 runtime are available; the local Lean backend is the offline kernel-equivalent
@@ -320,6 +320,13 @@ This is a real verified bridge for the potential-outcome consistency primitive;
 it still does not prove conditional exchangeability, positivity, identification,
 or AIPW double robustness.
 
+The same block now includes the direct primitive wrapper
+`potential_outcome_consistency`. It proves that the observed-outcome map is
+definitionally equal to the selected potential outcome, giving the frontier
+primitive a named proof-bank obligation instead of only an indirect tag on the
+older consistency bridge. It still does not prove conditional exchangeability,
+positivity, identification, or AIPW double robustness.
+
 The same causal block now includes `propensity_score_ne_zero_of_lower_bound`. It
 proves that a propensity score bounded below by a strictly positive constant is
 nonzero, providing the denominator-safety step needed by inverse-propensity and
@@ -337,9 +344,16 @@ The causal bridge block now also includes
 `propensity_weight_cancel_left_of_lower_bound`, the left-oriented companion
 identity `p * p⁻¹ = 1` under the same strict lower-bound assumption. This gives
 IPW/AIPW algebra both cancellation orientations without relying on ad hoc
-commutativity rewrites; it is kernel-verified as part of the current `93/93`
+commutativity rewrites; it is kernel-verified as part of the current `95/95`
 local Lean proof-bank audit and still does not prove positivity as a model
 assumption or close causal identification.
+
+The AIPW block also includes `integrability_of_score_terms`, a direct primitive
+wrapper around the component-integrability closure already used by
+`aipw_score_integrable_of_components`. It proves that an AIPW score assembled
+from three integrable terms is integrable. This closes a finite side-condition
+bridge for AIPW traces; it does not prove nuisance correctness, residual
+cancellation, double robustness, or asymptotic normality.
 
 The latest sequential/product-process bridge is
 `event_indicator_product_integral_eq_inter`. It proves that the integral of the

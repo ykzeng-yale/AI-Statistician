@@ -322,6 +322,46 @@ theorem observedPotentialOutcome_consistency {Unit : Type*}
         expected_lemmas=("simp",),
         depends_on=("finite_population_ate_mean_difference",),
     ),
+    "potential_outcome_consistency": FormalObligation(
+        id="potential_outcome_consistency",
+        title="Potential-outcome selected-outcome consistency wrapper",
+        english=(
+            "The observed-outcome map in a binary potential-outcome setup is "
+            "definitionally the selected potential outcome: `Y(1)` when "
+            "treated and `Y(0)` when untreated. This direct wrapper gives the "
+            "`potential_outcome_consistency` frontier primitive a named "
+            "kernel-verified proof-bank obligation while still leaving "
+            "exchangeability, positivity, and identification as separate "
+            "assumptions/gaps."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+
+def observedPotentialOutcome {Unit : Type*}
+    (Y1 Y0 : Unit → ℝ) (W : Unit → Bool) : Unit → ℝ :=
+  fun i => if W i then Y1 i else Y0 i
+
+theorem potentialOutcomeConsistency_selected {Unit : Type*}
+    (Y1 Y0 : Unit → ℝ) (W : Unit → Bool) (i : Unit) :
+    observedPotentialOutcome Y1 Y0 W i = if W i then Y1 i else Y0 i := by sorry
+"""
+        ),
+        proof_body="by\n  rfl",
+        tags=(
+            "causal",
+            "ate",
+            "potential_outcomes",
+            "potential_outcome_consistency",
+            "observed_outcome",
+            "binary_treatment",
+            "semiparametric",
+            "identification",
+            "direct_primitive_wrapper",
+        ),
+        expected_lemmas=("rfl",),
+        depends_on=("potential_outcome_observed_consistency",),
+    ),
     "propensity_score_ne_zero_of_lower_bound": FormalObligation(
         id="propensity_score_ne_zero_of_lower_bound",
         title="Propensity lower bound gives nonzero denominator",
@@ -2695,6 +2735,52 @@ theorem aipwScore_integrable_of_components {Ω : Type*} [MeasurableSpace Ω]
         ),
         expected_lemmas=("Integrable.add", "Integrable.sub"),
         depends_on=("aipw_score_expectation_decompose",),
+    ),
+    "integrability_of_score_terms": FormalObligation(
+        id="integrability_of_score_terms",
+        title="AIPW score-term integrability primitive wrapper",
+        english=(
+            "If the contrast, treated augmentation, and control augmentation "
+            "terms are integrable, then the AIPW score assembled from those "
+            "terms is integrable. This names the `integrability_of_score_terms` "
+            "frontier primitive directly, reusing the same finite integrability "
+            "closure as the AIPW component bridge; it does not prove nuisance "
+            "correctness, conditional residual cancellation, or asymptotic "
+            "normality."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+noncomputable def aipwScore {Ω : Type*}
+    (contrast treatAug controlAug : Ω → ℝ) : Ω → ℝ :=
+  contrast + treatAug - controlAug
+
+theorem integrabilityOfScoreTerms_of_components {Ω : Type*} [MeasurableSpace Ω]
+    (μ : Measure Ω) (contrast treatAug controlAug : Ω → ℝ)
+    (hContrast : Integrable contrast μ)
+    (hTreat : Integrable treatAug μ)
+    (hControl : Integrable controlAug μ) :
+    Integrable (aipwScore contrast treatAug controlAug) μ := by sorry
+"""
+        ),
+        proof_body="by\n  simpa [aipwScore] using (hContrast.add hTreat).sub hControl",
+        tags=(
+            "estimator",
+            "integrability",
+            "aipw",
+            "causal",
+            "semiparametric",
+            "double_robustness",
+            "asymptotic_normality",
+            "integrability_of_score_terms",
+            "conditional_mean_residual_zero",
+            "nuisance_correctness_cases",
+            "direct_primitive_wrapper",
+        ),
+        expected_lemmas=("Integrable.add", "Integrable.sub"),
+        depends_on=("aipw_score_integrable_of_components",),
     ),
     "prob_measure_univ": FormalObligation(
         id="prob_measure_univ",

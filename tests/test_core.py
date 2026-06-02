@@ -1416,6 +1416,18 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("binary_treatment", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_potential_outcome_consistency_direct_wrapper_is_definitional(self) -> None:
+        obligation = get_obligation("potential_outcome_consistency")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("potential_outcome_observed_consistency",))
+        self.assertIn("def observedPotentialOutcome", content)
+        self.assertIn("theorem potentialOutcomeConsistency_selected", content)
+        self.assertIn("observedPotentialOutcome Y1 Y0 W i = if W i then Y1 i else Y0 i", content)
+        self.assertIn("rfl", content)
+        self.assertIn("potential_outcome_consistency", obligation.tags)
+        self.assertIn("direct_primitive_wrapper", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_propensity_score_lower_bound_gives_nonzero_denominator(self) -> None:
         obligation = get_obligation("propensity_score_ne_zero_of_lower_bound")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
@@ -1612,6 +1624,18 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("(hContrast.add hTreat).sub hControl", content)
         self.assertIn("integrability_of_score_terms", obligation.tags)
         self.assertIn("asymptotic_normality", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
+    def test_integrability_of_score_terms_direct_wrapper_reuses_component_closure(self) -> None:
+        obligation = get_obligation("integrability_of_score_terms")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("aipw_score_integrable_of_components",))
+        self.assertIn("def aipwScore", content)
+        self.assertIn("theorem integrabilityOfScoreTerms_of_components", content)
+        self.assertIn("Integrable (aipwScore contrast treatAug controlAug) μ", content)
+        self.assertIn("(hContrast.add hTreat).sub hControl", content)
+        self.assertIn("integrability_of_score_terms", obligation.tags)
+        self.assertIn("direct_primitive_wrapper", obligation.tags)
         self.assertNotIn("by sorry", content)
 
     def test_finite_sample_mean_chebyshev_composes_mean_variance_and_tail_bound(self) -> None:
@@ -3742,7 +3766,7 @@ class SystemTests(unittest.TestCase):
         self.assertIn("S7_feedback_loop_repair_with_seeded_failures", payload["recommended_next_gate_stack"])
 
         doc = Path("docs/evaluation_benchmark_strategy.md").read_text(encoding="utf-8")
-        self.assertIn("`proofs_kernel_verified=93/93`", doc)
+        self.assertIn("`proofs_kernel_verified=95/95`", doc)
         self.assertIn("expected-result coverage about 82.8%", doc)
         self.assertIn("46 frontier-evaluation triage items", doc)
         self.assertIn("resolves 13/16 simulation flags", doc)
@@ -3941,6 +3965,7 @@ class SystemTests(unittest.TestCase):
                 "conditional_mean_residual_zero_of_condExp_ae_eq",
                 "conditional_mean_residual_zero_of_mean_eq",
                 "aipw_score_expectation_target_of_zero_aug",
+                "integrability_of_score_terms",
                 "aipw_score_integrable_of_components",
             ],
         )
@@ -4675,6 +4700,7 @@ class SystemTests(unittest.TestCase):
             "event_indicator_expectation",
             "prob_measure_univ",
             "integral_of_constant",
+            "potential_outcome_consistency",
             "potential_outcome_observed_consistency",
             "condexp_integral_eq_integral_real",
             "aipw_score_expectation_decompose",
@@ -4684,6 +4710,7 @@ class SystemTests(unittest.TestCase):
             "conditional_mean_residual_zero_of_condExp_ae_eq",
             "conditional_mean_residual_zero_of_mean_eq",
             "aipw_score_expectation_target_of_zero_aug",
+            "integrability_of_score_terms",
             "aipw_score_integrable_of_components",
         )
         trace = {
@@ -4724,6 +4751,10 @@ class SystemTests(unittest.TestCase):
 
         payload = audit_formalization_targets(run_dir, out_dir)
         rows = {row["primitive"]: row for row in payload["rows"]}
+        self.assertIn(
+            "potential_outcome_consistency",
+            rows["potential_outcome_consistency"]["bridge_candidate_obligations"],
+        )
         self.assertIn(
             "potential_outcome_observed_consistency",
             rows["potential_outcome_consistency"]["bridge_candidate_obligations"],

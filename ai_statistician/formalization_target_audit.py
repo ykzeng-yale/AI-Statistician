@@ -296,6 +296,7 @@ _PRIMITIVE_PROOF_BRIDGE_HINTS: dict[str, tuple[str, ...]] = {
         "finite_population_ate_mean_difference",
     ),
     "potential_outcome_consistency": (
+        "potential_outcome_consistency",
         "potential_outcome_observed_consistency",
         "finite_population_ate_mean_difference",
     ),
@@ -433,6 +434,10 @@ _PRIMITIVE_PROOF_BRIDGE_HINTS: dict[str, tuple[str, ...]] = {
         "aipw_score_expectation_target_of_zero_aug",
         "aipw_score_expectation_target_of_aug_cancel",
         "independent_real_condExp_natural_eq_mean",
+    ),
+    "integrability_of_score_terms": (
+        "integrability_of_score_terms",
+        "aipw_score_integrable_of_components",
     ),
     "exogeneity_moment_condition": (
         "integrable_l1_tendsto_condexp_filtration",
