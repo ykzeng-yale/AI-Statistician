@@ -65,6 +65,28 @@ stale. The next-capacity target is therefore not "make these eight
 retrievable"; it is to keep this recall stable while adding source-aware
 reranking, proof-state feedback, and harder semantic/paraphrase queries.
 
+The shared `EmpericalProcessLEAN/lean_rag` package was rechecked against branch
+`codex/rag-infra-package` at commit `9f0e0ad1277a`. Its useful new surface is
+package-level refresh discipline, not a generated index to vendor:
+
+- `shared_proof_retrieval.py status` records saved checkout state and live drift
+  signals, including dirty checkouts and upstream ahead/behind state.
+- `refresh_lean_reuse_sources.py --rebuild-index` refuses to rebuild
+  `statinference-local` records from dirty `StatInference` paths unless the
+  explicit dirty override is used.
+- `knowledgebase/source_registry.json` carries the trust policy:
+  external sources are candidate/documentation search only, candidates must be
+  verified with Lean, and dirty proof checkouts should not be refreshed.
+- `knowledgebase/seed_queries.jsonl` packages reusable retrieval recipes for the
+  active Durrett, Chewi, and Vaart proof lanes.
+
+AI-Statistician now has `ai-statistician lean-rag-package-audit`, and the
+release-style `research-system-audit` records the same package contract through
+`lean_rag_package_*` counts and artifacts. This lets the four-hour monitor and
+other proof chats see whether the strongest shared RAG package is present,
+fresh enough to trust as retrieval infrastructure, and still respecting the
+Lean proof boundary.
+
 ## Next Build Targets
 
 1. Add query-intent expansion for missing primitives:

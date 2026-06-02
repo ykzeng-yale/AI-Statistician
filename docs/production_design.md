@@ -1414,6 +1414,14 @@ The package integrates existing systems where appropriate:
   statement/proof/mixed references, fan-in/fan-out, `has_sorry`, and FTS over
   signatures/proofs. It treats every hit as a premise suggestion that must be
   checked by the local Lean kernel.
+- The system audit also records the shared `lean_rag` package contract through
+  `ai-statistician lean-rag-package-audit` and the
+  `--lean-rag-package-root` option. This reads the package knowledgebase rather
+  than vendoring generated DBs: `source_registry.json` supplies trust policy,
+  `seed_queries.jsonl` supplies reusable Durrett/Chewi/Vaart retrieval recipes,
+  and the shared graph manifest reports indexed/dirty/failed checkouts when it
+  exists. This gives monitors and side proof chats a cheap way to confirm that
+  they are using the current shared RAG infrastructure.
 - The source inventory now also tracks the local LeanSearchClient checkout
   (`#leansearch`, `#loogle`, and state-search syntax) and the local LeanDojo-v2
   checkout (repository tracing, proof-state datasets, retrieval-augmented
@@ -1774,6 +1782,19 @@ coverage, and system audit fuse dependency-direction evidence from that graph.
 This auto-discovery applies to both SQLite-backed retrieval and the lighter
 in-memory fallback. Kernel-extracted proof-state graphs remain a future
 LeanDojo/ReProver-style integration.
+
+Shared `lean_rag` package audit:
+
+```bash
+python3 -m ai_statistician.cli lean-rag-package-audit \
+  --package-root /path/to/EmpericalProcessLEAN/lean_rag \
+  --out runs/lean_rag_package_audit
+```
+
+This checks required scripts/docs, source-registry trust policy, seed query
+lanes, and any available `build/lean_graph/shared_manifest.json`. It is the
+fast monitor for whether the external RAG package is usable; it does not treat
+generated external indexes as proof evidence.
 
 Algorithm registry audit:
 

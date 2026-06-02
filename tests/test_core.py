@@ -54,6 +54,7 @@ from ai_statistician.formal_source_retrieval_benchmark import (
 )
 from ai_statistician.formal_source_retrieval_ablation import run_formal_source_retrieval_ablation_benchmark
 from ai_statistician.lean_rag_dependency import LeanRagDependencyRetriever
+from ai_statistician.lean_rag_package_audit import audit_lean_rag_package
 from ai_statistician.autoform_harness import audit_autoform_harness
 from ai_statistician.proof_bank import all_obligations, get_obligation
 from ai_statistician.evaluation import EvalConfig, run_seed_eval
@@ -2690,6 +2691,140 @@ class ProofBankTests(unittest.TestCase):
 
 
 class SystemTests(unittest.TestCase):
+    def test_lean_rag_package_audit_loads_registry_seed_queries_and_manifest(self) -> None:
+        root = Path("runs/test_lean_rag_package_fixture")
+        package = root / "lean_rag"
+        out = root / "out"
+        if root.exists():
+            shutil.rmtree(root)
+        for subdir in ("docs", "knowledgebase", "scripts", "build/lean_graph"):
+            (package / subdir).mkdir(parents=True, exist_ok=True)
+        for rel_path in (
+            "README.md",
+            "docs/OPERATING_GUIDE.md",
+            "docs/SCHEMA.md",
+            "scripts/lean_graph_index.py",
+        ):
+            (package / rel_path).write_text("placeholder\n", encoding="utf-8")
+        (package / "scripts" / "shared_proof_retrieval.py").write_text(
+            "\n".join(
+                [
+                    "def status_command(args): print('live=main@abc:dirty')",
+                    "def search_command(args): pass",
+                    "def deps_command(args): pass",
+                    "def hotspots_command(args): pass",
+                    "--with-graph-context --no-sorry --min-free-mib --force-low-disk",
+                    "git_ahead_behind dirty_count not indexed",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        (package / "scripts" / "refresh_lean_reuse_sources.py").write_text(
+            "def ensure_clean_statinference_for_index(): pass\n"
+            "Dirty StatInference paths\n"
+            "--allow-dirty-statinference-index\n",
+            encoding="utf-8",
+        )
+        (package / "scripts" / "external_lean_corpus_index.py").write_text(
+            "git_meta = {'dirty': True}\n",
+            encoding="utf-8",
+        )
+        (package / "scripts" / "lean_reuse_corpus_search.py").write_text(
+            "--include-stale-local\n",
+            encoding="utf-8",
+        )
+        (package / "knowledgebase" / "source_registry.json").write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "purpose": "test source registry",
+                    "local_sources": [
+                        {"name": "statinference-local", "path": "StatInference", "role": "authoritative"}
+                    ],
+                    "external_sources": [
+                        {"name": "atlas-lean", "trust": "candidate search only"},
+                        {"name": "mathlib-docs-distribution", "trust": "documentation search only"},
+                    ],
+                    "generated_outputs": {
+                        "shared_graph": "build/lean_graph",
+                        "external_index": "build/lean_reuse/combined_external_index.jsonl",
+                    },
+                    "policy": {
+                        "do_not_vendor_generated_indexes": True,
+                        "verify_candidates_with_lean": True,
+                        "refresh_dirty_checkouts": False,
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        (package / "knowledgebase" / "seed_queries.jsonl").write_text(
+            "\n".join(
+                [
+                    json.dumps(
+                        {
+                            "lane": "durrett",
+                            "goal": "indexed product ordinary integral",
+                            "commands": [
+                                'python3 lean_rag/scripts/shared_proof_retrieval.py search "indexed product" --with-graph-context --limit 8'
+                            ],
+                        }
+                    ),
+                    json.dumps(
+                        {
+                            "lane": "vaart",
+                            "goal": "U-statistic Hajek projection",
+                            "commands": [
+                                'python3 lean_rag/scripts/lean_reuse_corpus_search.py "U-statistic" --root external_index'
+                            ],
+                        }
+                    ),
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        (package / "build" / "lean_graph" / "shared_manifest.json").write_text(
+            json.dumps(
+                {
+                    "schema": 1,
+                    "project_root": "/tmp/StatInference",
+                    "db_dir": "build/lean_graph",
+                    "checkouts": [
+                        {
+                            "name": "main",
+                            "indexed": True,
+                            "dirty": False,
+                            "declarations": 100,
+                            "declaration_edges": 200,
+                        },
+                        {
+                            "name": "proof-branch",
+                            "indexed": True,
+                            "dirty": True,
+                            "declarations": 50,
+                            "declaration_edges": 60,
+                        },
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        payload = audit_lean_rag_package(out, package_root=package)
+
+        self.assertTrue(payload["available"])
+        self.assertTrue(payload["contract_ok"])
+        self.assertTrue(payload["all_ok"])
+        self.assertEqual(payload["source_registry"]["n_external_sources"], 2)
+        self.assertEqual(payload["seed_queries"]["n_lanes"], 2)
+        self.assertIn("durrett", payload["seed_queries"]["lanes"])
+        self.assertTrue(payload["script_capabilities"]["shared_status_reports_live_drift"])
+        self.assertEqual(payload["shared_graph_manifest"]["n_dirty_checkouts"], 1)
+        self.assertEqual(payload["shared_graph_manifest"]["total_declarations"], 150)
+        self.assertTrue((out / "lean_rag_package_audit_manifest.json").exists())
+        self.assertTrue((out / "lean_rag_package_audit.md").exists())
+
     def test_evaluation_benchmark_guidance_flags_capacity_gaps(self) -> None:
         payload = {
             "gates": {"release": True},
@@ -5917,6 +6052,7 @@ class SystemTests(unittest.TestCase):
             "proof_audit",
             "formal_source_retrieval_benchmark",
             "formal_source_retrieval_ablation",
+            "lean_rag_package_audit",
             "proof_search_retrieval_ablation",
             "primitive_source_coverage",
             "proof_bank_expansion",
@@ -5938,6 +6074,20 @@ class SystemTests(unittest.TestCase):
                     "n_new_hits": 1,
                     "n_lost_hits": 0,
                     "n_dependency_sensitive_new_hits": 1,
+                }
+            ),
+            encoding="utf-8",
+        )
+        (root / "lean_rag_package_audit" / "lean_rag_package_audit_manifest.json").write_text(
+            json.dumps(
+                {
+                    "source_registry": {
+                        "policy": {
+                            "verify_candidates_with_lean": True,
+                            "refresh_dirty_checkouts": False,
+                        }
+                    },
+                    "seed_queries": {"lanes": ["chewi", "durrett", "vaart"]},
                 }
             ),
             encoding="utf-8",
@@ -6010,6 +6160,16 @@ class SystemTests(unittest.TestCase):
                         "lean_rag_dependency_graph_enabled": True,
                         "lean_rag_dependency_graph_path": "/tmp/stat_inference.sqlite",
                         "lean_rag_dependency_graph_auto_discovered": False,
+                        "lean_rag_package_available": True,
+                        "lean_rag_package_contract_ok": True,
+                        "lean_rag_package_root": "/tmp/lean_rag",
+                        "lean_rag_package_branch": "codex/rag-infra-package",
+                        "lean_rag_package_commit": "9f0e0ad1277a6b302caa306d688ce3a98520ec1a",
+                        "lean_rag_package_dirty": False,
+                        "lean_rag_package_local_sources": 3,
+                        "lean_rag_package_external_sources": 5,
+                        "lean_rag_package_seed_queries": 3,
+                        "lean_rag_package_seed_query_lanes": 3,
                         "formal_source_graph_symbols": 75074,
                         "formal_source_graph_edges": 1477458,
                         "formal_source_retrieval_benchmark_recall_at_k": 1.0,
@@ -6033,6 +6193,11 @@ class SystemTests(unittest.TestCase):
                             root
                             / "formal_source_retrieval_ablation"
                             / "formal_source_retrieval_ablation_manifest.json"
+                        ),
+                        "lean_rag_package_audit": str(
+                            root
+                            / "lean_rag_package_audit"
+                            / "lean_rag_package_audit_manifest.json"
                         ),
                         "proof_search_retrieval_ablation": str(
                             root
@@ -6061,6 +6226,14 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(payload["proof_evidence"]["proofs_kernel_verified"], 109)
         self.assertEqual(payload["proof_evidence"]["proof_bank_fingerprint"], "a" * 64)
         self.assertTrue(payload["rag_provider_evidence"]["lean_rag_dependency_graph_enabled"])
+        self.assertTrue(payload["rag_provider_evidence"]["lean_rag_package_contract_ok"])
+        self.assertEqual(
+            payload["rag_provider_evidence"]["lean_rag_package_seed_lanes"],
+            ["chewi", "durrett", "vaart"],
+        )
+        self.assertFalse(
+            payload["rag_provider_evidence"]["lean_rag_package_policy"]["refresh_dirty_checkouts"]
+        )
         self.assertEqual(
             payload["retrieval_ablation_evidence"]["formal_source_dependency_sensitive_new_hits"],
             1,

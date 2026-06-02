@@ -38,6 +38,7 @@ def export_rag_collaboration_manifest(
     retrieval_ablation_payload = _read_json(
         _artifact_path(artifacts, "formal_source_retrieval_ablation", run_dir)
     )
+    lean_rag_package_payload = _read_json(_artifact_path(artifacts, "lean_rag_package_audit", run_dir))
     proof_search_ablation_payload = _read_json(
         _artifact_path(artifacts, "proof_search_retrieval_ablation", run_dir)
     )
@@ -68,6 +69,24 @@ def export_rag_collaboration_manifest(
             "lean_rag_dependency_graph_path": counts.get("lean_rag_dependency_graph_path"),
             "lean_rag_dependency_graph_auto_discovered": counts.get(
                 "lean_rag_dependency_graph_auto_discovered"
+            ),
+            "lean_rag_package_available": counts.get("lean_rag_package_available"),
+            "lean_rag_package_contract_ok": counts.get("lean_rag_package_contract_ok"),
+            "lean_rag_package_root": counts.get("lean_rag_package_root"),
+            "lean_rag_package_branch": counts.get("lean_rag_package_branch"),
+            "lean_rag_package_commit": counts.get("lean_rag_package_commit"),
+            "lean_rag_package_dirty": counts.get("lean_rag_package_dirty"),
+            "lean_rag_package_local_sources": counts.get("lean_rag_package_local_sources"),
+            "lean_rag_package_external_sources": counts.get("lean_rag_package_external_sources"),
+            "lean_rag_package_seed_queries": counts.get("lean_rag_package_seed_queries"),
+            "lean_rag_package_seed_query_lanes": counts.get("lean_rag_package_seed_query_lanes"),
+            "lean_rag_package_seed_lanes": _lean_rag_seed_lanes(lean_rag_package_payload),
+            "lean_rag_package_policy": dict(
+                dict(lean_rag_package_payload.get("source_registry", {}) or {}).get("policy", {})
+                or {}
+            ),
+            "lean_rag_package_manifest": str(
+                _artifact_path(artifacts, "lean_rag_package_audit", run_dir)
             ),
             "formal_source_graph_symbols": counts.get("formal_source_graph_symbols"),
             "formal_source_graph_edges": counts.get("formal_source_graph_edges"),
@@ -143,6 +162,7 @@ def export_rag_collaboration_manifest(
             ),
             "expected_export_back": {
                 "db_path": "SQLite/graph DB path",
+                "lean_rag_package_root": "EmpericalProcessLEAN/lean_rag package root or commit-pinned checkout",
                 "schema_summary": "table names and key columns",
                 "retrieval_eval_manifest": "Recall/MRR/ablation manifest path",
                 "provider_name": "provider identifier to report in AI-Statistician audits",
@@ -230,6 +250,16 @@ def _handoff_targets(
     return rows[:max_targets]
 
 
+def _lean_rag_seed_lanes(payload: dict[str, Any]) -> list[str]:
+    seed_queries = dict(payload.get("seed_queries", {}) or {})
+    lanes = seed_queries.get("lanes", [])
+    if isinstance(lanes, list):
+        return [str(lane) for lane in lanes]
+    if isinstance(lanes, tuple):
+        return [str(lane) for lane in lanes]
+    return []
+
+
 def _action_priority(action_class: str) -> int:
     return {
         "add_minimal_wrapper": 0,
@@ -264,6 +294,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Proof fingerprint: `{proof.get('proof_bank_fingerprint')}`",
         f"- Lean RAG active: `{rag.get('lean_rag_dependency_graph_enabled')}`",
         f"- Lean RAG DB: `{rag.get('lean_rag_dependency_graph_path')}`",
+        f"- Lean RAG package: `{rag.get('lean_rag_package_contract_ok')}` at `{rag.get('lean_rag_package_branch')}` / `{str(rag.get('lean_rag_package_commit') or '')[:12]}`",
+        f"- Lean RAG seed lanes: `{', '.join(rag.get('lean_rag_package_seed_lanes', []))}`",
         f"- Retrieval recall/MRR: `{rag.get('formal_source_retrieval_recall_at_k')}` / `{rag.get('formal_source_retrieval_mrr')}`",
         f"- Missing primitives: `{queue.get('missing_formal_primitives')}`",
         f"- Queue: compose=`{queue.get('compose_existing_bridge_chain')}`, minimal_wrapper=`{queue.get('add_minimal_wrapper')}`, design_bridge=`{queue.get('design_bridge_lemma')}`",

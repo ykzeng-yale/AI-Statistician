@@ -34,6 +34,7 @@ from .formal_source_hybrid import FormalSourceHybridRetriever
 from .formal_source_index import FormalSourceSqliteIndex, build_formal_source_search_backend
 from .formal_source_retrieval_ablation import run_formal_source_retrieval_ablation_benchmark
 from .formal_source_retrieval_benchmark import run_formal_source_retrieval_benchmark
+from .lean_rag_package_audit import audit_lean_rag_package
 from .autoform_harness import audit_autoform_harness
 from .autoform_target_export import export_autoform_targets
 from .frontier_smoke_benchmark import FrontierSmokeConfig, run_frontier_smoke_benchmark
@@ -85,6 +86,7 @@ class ResearchSystemAuditConfig:
     formal_source_index_cache: str | None = "runs/formal_source_index_cache/formal_source_index.sqlite"
     refresh_formal_source_index_cache: bool = False
     lean_rag_db: str | None = None
+    lean_rag_package_root: str | None = None
     frontier_smoke_cache: str | None = "runs/frontier_smoke_cache"
     refresh_frontier_smoke_cache: bool = False
     formal_source_graph_cache: str | None = "runs/formal_source_graph_cache"
@@ -166,6 +168,12 @@ async def run_research_system_audit(
         "graph_manifest": str(out_dir / "formal_source_graph" / "formal_source_graph_manifest.json"),
     }
     stage_start = _record_stage(stage_timings, "formal_source_graph", stage_start)
+
+    lean_rag_package_manifest = audit_lean_rag_package(
+        out_dir / "lean_rag_package_audit",
+        package_root=Path(config.lean_rag_package_root) if config.lean_rag_package_root else None,
+    )
+    stage_start = _record_stage(stage_timings, "lean_rag_package_audit", stage_start)
 
     formal_source_retrieval_benchmark_manifest = run_formal_source_retrieval_benchmark(
         out_dir / "formal_source_retrieval_benchmark",
@@ -513,6 +521,7 @@ async def run_research_system_audit(
         "formal_source_graph": bool(formal_source_graph_manifest["all_queries_ok"]),
         "formal_source_retrieval_benchmark": bool(formal_source_retrieval_benchmark_manifest["all_ok"]),
         "formal_source_retrieval_ablation": bool(formal_source_retrieval_ablation_manifest["all_ok"]),
+        "lean_rag_package_contract": bool(lean_rag_package_manifest["all_ok"]),
         "fresh_holdout_frontier_audit": bool(fresh_holdout_manifest["all_ok"]),
         "research_algorithm_audit": bool(algorithm_manifest["all_ok"]),
         "algorithm_simulation_stress_audit": bool(algorithm_simulation_stress_manifest["all_ok"]),
@@ -621,6 +630,7 @@ async def run_research_system_audit(
             "formal_source_index_cache": config.formal_source_index_cache or "",
             "refresh_formal_source_index_cache": config.refresh_formal_source_index_cache,
             "lean_rag_db": config.lean_rag_db or "",
+            "lean_rag_package_root": config.lean_rag_package_root or "",
             "frontier_smoke_cache": config.frontier_smoke_cache or "",
             "refresh_frontier_smoke_cache": config.refresh_frontier_smoke_cache,
             "formal_source_graph_cache": config.formal_source_graph_cache or "",
@@ -778,6 +788,46 @@ async def run_research_system_audit(
                 "lean_rag_dependency_graph_auto_discovered",
                 False,
             ),
+            "lean_rag_package_available": lean_rag_package_manifest["available"],
+            "lean_rag_package_contract_ok": lean_rag_package_manifest["contract_ok"],
+            "lean_rag_package_root": lean_rag_package_manifest["package_root"],
+            "lean_rag_package_branch": lean_rag_package_manifest["git"].get("branch", ""),
+            "lean_rag_package_commit": lean_rag_package_manifest["git"].get("commit", ""),
+            "lean_rag_package_dirty": lean_rag_package_manifest["git"].get("dirty", False),
+            "lean_rag_package_local_sources": lean_rag_package_manifest["source_registry"].get(
+                "n_local_sources",
+                0,
+            ),
+            "lean_rag_package_external_sources": lean_rag_package_manifest["source_registry"].get(
+                "n_external_sources",
+                0,
+            ),
+            "lean_rag_package_seed_queries": lean_rag_package_manifest["seed_queries"].get(
+                "n_queries",
+                0,
+            ),
+            "lean_rag_package_seed_query_lanes": lean_rag_package_manifest["seed_queries"].get(
+                "n_lanes",
+                0,
+            ),
+            "lean_rag_package_verify_candidates_with_lean": lean_rag_package_manifest[
+                "source_registry"
+            ].get("policy", {}).get("verify_candidates_with_lean", False),
+            "lean_rag_package_refresh_dirty_checkouts": lean_rag_package_manifest[
+                "source_registry"
+            ].get("policy", {}).get("refresh_dirty_checkouts", None),
+            "lean_rag_package_graph_manifest_available": lean_rag_package_manifest[
+                "shared_graph_manifest"
+            ].get("available", False),
+            "lean_rag_package_indexed_checkouts": lean_rag_package_manifest[
+                "shared_graph_manifest"
+            ].get("n_indexed_checkouts", 0),
+            "lean_rag_package_dirty_indexed_checkouts": lean_rag_package_manifest[
+                "shared_graph_manifest"
+            ].get("n_dirty_checkouts", 0),
+            "lean_rag_package_status_drift_supported": lean_rag_package_manifest[
+                "script_capabilities"
+            ].get("shared_status_reports_live_drift", False),
             "research_ready_with_gaps": benchmark_manifest["n_ready_with_gaps"],
             "research_simulation_flagged": benchmark_manifest["n_simulation_flagged"],
             "research_formal_blocked": benchmark_manifest["n_formal_blocked"],
@@ -1273,6 +1323,12 @@ async def run_research_system_audit(
                 out_dir
                 / "formal_source_retrieval_ablation"
                 / "formal_source_retrieval_ablation.md"
+            ),
+            "lean_rag_package_audit": str(
+                out_dir / "lean_rag_package_audit" / "lean_rag_package_audit_manifest.json"
+            ),
+            "lean_rag_package_report": str(
+                out_dir / "lean_rag_package_audit" / "lean_rag_package_audit.md"
             ),
             "fresh_holdout_frontier_audit": str(
                 out_dir / "fresh_holdout_frontier_audit" / "fresh_holdout_frontier_manifest.json"
