@@ -34,7 +34,13 @@ from .frontier_theory_target_audit import audit_frontier_theory_targets
 from .formal_gap_task_export import export_formal_gap_lean_tasks
 from .formalization_target_audit import audit_formalization_targets
 from .formal_source_graph import audit_formal_source_graph
-from .formal_source_index import audit_formal_source_index, build_formal_source_search_backend
+from .formal_source_index import (
+    FormalSourceSqliteIndex,
+    audit_formal_source_index,
+    build_formal_source_search_backend,
+)
+from .formal_source_hybrid import FormalSourceHybridRetriever
+from .formal_source_retrieval_ablation import run_formal_source_retrieval_ablation_benchmark
 from .formal_source_retrieval_benchmark import (
     ALL_FORMAL_SOURCE_RETRIEVAL_BENCHMARKS,
     DEFAULT_FORMAL_SOURCE_RETRIEVAL_BENCHMARK,
@@ -50,6 +56,7 @@ from .proof_policy_baseline import evaluate_retrieval_proof_policy_baseline
 from .proof_policy_model import train_proof_policy_model
 from .proof_repair_export import export_proof_repair_dataset
 from .proof_search_audit import audit_proof_search_controller
+from .proof_search_retrieval_ablation import run_proof_search_retrieval_ablation
 from .proof_search_training_export import export_proof_search_process_dataset
 from .proof_search_value_model import train_proof_search_value_model
 from .rag_collaboration_export import export_rag_collaboration_manifest
@@ -848,6 +855,96 @@ def _formal_source_retrieval_benchmark(args: argparse.Namespace) -> int:
     )
     print(f"markdown report written to {(Path(args.out) / 'formal_source_retrieval_benchmark.md').resolve()}")
     return 0 if payload["all_ok"] else 1
+
+
+def _formal_source_retrieval_ablation(args: argparse.Namespace) -> int:
+    suites = {
+        "default": DEFAULT_FORMAL_SOURCE_RETRIEVAL_BENCHMARK,
+        "external": EXTERNAL_USER_INTENT_FORMAL_SOURCE_RETRIEVAL_BENCHMARK,
+        "all": ALL_FORMAL_SOURCE_RETRIEVAL_BENCHMARKS,
+    }
+    baseline_retriever, enhanced_retriever = _formal_source_ablation_retrievers(args)
+    payload = run_formal_source_retrieval_ablation_benchmark(
+        Path(args.out),
+        baseline_retriever=baseline_retriever,
+        enhanced_retriever=enhanced_retriever,
+        cases=suites[args.suite],
+        k=args.k,
+    )
+    print("\nAI Statistical Theory Lab Formal Source Retrieval Ablation")
+    print("=" * 72)
+    print(
+        f"suite={args.suite} cases={payload['n_cases']} "
+        f"new_hits={payload['n_new_hits']} lost_hits={payload['n_lost_hits']} "
+        f"rank_improved={payload['n_rank_improved']} rank_regressed={payload['n_rank_regressed']} "
+        f"dependency_sensitive={payload['n_dependency_sensitive_cases']} "
+        f"lean_rag={payload['enhanced']['lean_rag_dependency_graph_enabled']}"
+    )
+    print(
+        f"baseline_recall={payload['baseline']['recall_at_k']:.3f} "
+        f"enhanced_recall={payload['enhanced']['recall_at_k']:.3f}"
+    )
+    print(
+        f"\nretrieval ablation manifest written to "
+        f"{(Path(args.out) / 'formal_source_retrieval_ablation_manifest.json').resolve()}"
+    )
+    print(f"markdown report written to {(Path(args.out) / 'formal_source_retrieval_ablation.md').resolve()}")
+    return 0 if payload["all_ok"] else 1
+
+
+def _proof_search_retrieval_ablation(args: argparse.Namespace) -> int:
+    baseline_retriever, enhanced_retriever = _formal_source_ablation_retrievers(args)
+    payload = asyncio.run(
+        run_proof_search_retrieval_ablation(
+            Path(args.out),
+            baseline_retriever=baseline_retriever,
+            enhanced_retriever=enhanced_retriever,
+            verifier=_proof_verifier_from_args(args),
+            max_obligations=args.max_obligations,
+            max_nodes=args.max_nodes,
+            formal_source_k=args.formal_source_k,
+        )
+    )
+    print("\nAI Statistical Theory Lab Proof Search Retrieval Ablation")
+    print("=" * 72)
+    print(
+        f"solved_delta={payload['solved_delta']} "
+        f"candidate_delta={payload['formal_source_candidate_delta']} "
+        f"node_delta={payload['nodes_expanded_delta']} "
+        f"lean_rag={payload['lean_rag_dependency_graph_enabled']} "
+        f"dependency_graph_search={payload['dependency_graph_search'] or 'disabled'}"
+    )
+    print(
+        f"baseline_solved={payload['baseline']['n_solved']}/{payload['baseline']['n_obligations']} "
+        f"enhanced_solved={payload['enhanced']['n_solved']}/{payload['enhanced']['n_obligations']}"
+    )
+    print(
+        f"\nproof-search ablation manifest written to "
+        f"{(Path(args.out) / 'proof_search_retrieval_ablation_manifest.json').resolve()}"
+    )
+    print(f"markdown report written to {(Path(args.out) / 'proof_search_retrieval_ablation.md').resolve()}")
+    return 0 if payload["no_solved_regression"] else 1
+
+
+def _formal_source_ablation_retrievers(args: argparse.Namespace) -> tuple[object, object]:
+    index_path = Path(args.formal_source_index)
+    enhanced_retriever = build_formal_source_search_backend(
+        db_path=index_path,
+        cache_path=Path(args.formal_source_index_cache) if args.formal_source_index_cache else None,
+        refresh_cache=args.refresh_formal_source_index_cache,
+        lean_rag_db_path=Path(args.lean_rag_db) if args.lean_rag_db else None,
+    )
+    declarations = (
+        enhanced_retriever.load_declarations()
+        if hasattr(enhanced_retriever, "load_declarations")
+        else []
+    )
+    baseline_retriever = FormalSourceHybridRetriever(
+        declarations,
+        FormalSourceSqliteIndex(index_path),
+        dependency_retriever=None,
+    )
+    return baseline_retriever, enhanced_retriever
 
 
 def _intake_audit(args: argparse.Namespace) -> int:
@@ -2439,6 +2536,82 @@ def build_parser() -> argparse.ArgumentParser:
         help="formal-source retrieval benchmark output directory",
     )
     formal_source_retrieval_benchmark.set_defaults(func=_formal_source_retrieval_benchmark)
+
+    formal_source_retrieval_ablation = sub.add_parser(
+        "formal-source-retrieval-ablation",
+        help="compare formal-source retrieval with and without the Lean RAG dependency graph provider",
+    )
+    formal_source_retrieval_ablation.add_argument(
+        "--suite",
+        choices=("default", "external", "all"),
+        default="default",
+        help="benchmark suite to include before dependency-sensitive Lean RAG probes",
+    )
+    formal_source_retrieval_ablation.add_argument("--k", type=int, default=8)
+    formal_source_retrieval_ablation.add_argument(
+        "--formal-source-index",
+        default="runs/formal_source_retrieval_ablation/formal_source_index.sqlite",
+        help="SQLite index path for this ablation run",
+    )
+    formal_source_retrieval_ablation.add_argument(
+        "--formal-source-index-cache",
+        default="runs/formal_source_index_cache/formal_source_index.sqlite",
+        help="persistent SQLite cache; pass empty string to disable",
+    )
+    formal_source_retrieval_ablation.add_argument(
+        "--refresh-formal-source-index-cache",
+        action="store_true",
+        help="rebuild and overwrite the persistent formal-source index cache",
+    )
+    formal_source_retrieval_ablation.add_argument(
+        "--lean-rag-db",
+        default=None,
+        help="optional EmpericalProcessLEAN lean_rag dependency graph SQLite DB",
+    )
+    formal_source_retrieval_ablation.add_argument(
+        "--out",
+        default="runs/formal_source_retrieval_ablation",
+        help="formal-source retrieval ablation output directory",
+    )
+    formal_source_retrieval_ablation.set_defaults(func=_formal_source_retrieval_ablation)
+
+    proof_search_retrieval_ablation = sub.add_parser(
+        "proof-search-retrieval-ablation",
+        help="compare bounded proof-search behavior with and without the Lean RAG dependency graph provider",
+    )
+    proof_search_retrieval_ablation.add_argument("--real-lean", action="store_true", help="use AXLE verify_proof")
+    proof_search_retrieval_ablation.add_argument("--local-lean", action="store_true", help="use local Lean kernel verifier")
+    proof_search_retrieval_ablation.add_argument("--lean-project", default=None)
+    proof_search_retrieval_ablation.add_argument("--lean-timeout", type=int, default=90)
+    proof_search_retrieval_ablation.add_argument("--max-obligations", type=int, default=6)
+    proof_search_retrieval_ablation.add_argument("--max-nodes", type=int, default=4)
+    proof_search_retrieval_ablation.add_argument("--formal-source-k", type=int, default=4)
+    proof_search_retrieval_ablation.add_argument(
+        "--formal-source-index",
+        default="runs/proof_search_retrieval_ablation/formal_source_index.sqlite",
+        help="SQLite index path for this ablation run",
+    )
+    proof_search_retrieval_ablation.add_argument(
+        "--formal-source-index-cache",
+        default="runs/formal_source_index_cache/formal_source_index.sqlite",
+        help="persistent SQLite cache; pass empty string to disable",
+    )
+    proof_search_retrieval_ablation.add_argument(
+        "--refresh-formal-source-index-cache",
+        action="store_true",
+        help="rebuild and overwrite the persistent formal-source index cache",
+    )
+    proof_search_retrieval_ablation.add_argument(
+        "--lean-rag-db",
+        default=None,
+        help="optional EmpericalProcessLEAN lean_rag dependency graph SQLite DB",
+    )
+    proof_search_retrieval_ablation.add_argument(
+        "--out",
+        default="runs/proof_search_retrieval_ablation",
+        help="proof-search retrieval ablation output directory",
+    )
+    proof_search_retrieval_ablation.set_defaults(func=_proof_search_retrieval_ablation)
 
     intake_audit = sub.add_parser("intake-audit", help="audit supported question intake and unsupported question rejection")
     intake_audit.add_argument("--supported-file", action="append", help="supported question JSON file; repeatable")
