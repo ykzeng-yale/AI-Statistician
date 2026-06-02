@@ -507,9 +507,11 @@ _PRIMITIVE_PROOF_BRIDGE_HINTS: dict[str, tuple[str, ...]] = {
         "iid_real_clt_tendsto_distribution",
     ),
     "matrix_inverse_continuous_mapping": (
+        "matrix_inverse_continuous_mapping_bridge",
         "tendsto_in_distribution_continuous_mapping",
     ),
     "tail_quantile_continuous_mapping": (
+        "tail_quantile_continuous_mapping_bridge",
         "tendsto_in_distribution_continuous_mapping",
     ),
     "graph_functional_delta_method": (
@@ -521,6 +523,7 @@ _PRIMITIVE_PROOF_BRIDGE_HINTS: dict[str, tuple[str, ...]] = {
         "slutsky_add_negligible_zero_real",
     ),
     "product_limit_delta_method": (
+        "product_limit_delta_method_bridge",
         "tendsto_in_distribution_continuous_mapping",
         "slutsky_add_negligible_zero_real",
     ),

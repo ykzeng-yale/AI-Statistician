@@ -2446,6 +2446,153 @@ theorem tendstoInDistribution_continuousMapping_bridge
         expected_lemmas=("TendstoInDistribution.continuous_comp",),
         depends_on=("iid_real_clt_tendsto_distribution",),
     ),
+    "matrix_inverse_continuous_mapping_bridge": FormalObligation(
+        id="matrix_inverse_continuous_mapping_bridge",
+        title="Matrix-inverse continuous-mapping bridge",
+        english=(
+            "If an estimator converges in distribution and a transform `g` "
+            "(standing in for a locally valid matrix-inverse map) is continuous, "
+            "then the transformed estimator converges in distribution to the "
+            "transformed limit. This is a domain-named minimal wrapper for the "
+            "missing primitive `matrix_inverse_continuous_mapping`; it does not "
+            "prove matrix invertibility, openness of the nonsingular set, or "
+            "continuity of a specific inverse map."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory Filter
+open scoped Topology
+
+theorem matrixInverse_continuousMapping_bridge
+    {ι : Type*} {E F : Type*} {Ω : ι → Type*} {Ω' : Type*}
+    {mΩ : (i : ι) → MeasurableSpace (Ω i)}
+    {μ : (i : ι) → @Measure (Ω i) (mΩ i)}
+    [∀ i, IsProbabilityMeasure (μ i)]
+    {mΩ' : MeasurableSpace Ω'} {μ' : @Measure Ω' mΩ'}
+    [IsProbabilityMeasure μ']
+    [TopologicalSpace E] [MeasurableSpace E] [OpensMeasurableSpace E]
+    [TopologicalSpace F] [MeasurableSpace F] [BorelSpace F]
+    {X : (i : ι) → Ω i → E} {Z : Ω' → E} {l : Filter ι} {g : E → F}
+    (h : TendstoInDistribution X l Z μ μ') (hg : Continuous g) :
+    TendstoInDistribution (fun i => g ∘ X i) l (g ∘ Z) μ μ' := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  exact h.continuous_comp hg"
+        ),
+        tags=(
+            "probability",
+            "continuous_mapping",
+            "convergence_in_distribution",
+            "matrix_inverse_continuous_mapping",
+            "delta_method",
+            "heteroskedastic_regression",
+            "minimal_wrapper",
+        ),
+        expected_lemmas=("TendstoInDistribution.continuous_comp",),
+        depends_on=("tendsto_in_distribution_continuous_mapping",),
+    ),
+    "tail_quantile_continuous_mapping_bridge": FormalObligation(
+        id="tail_quantile_continuous_mapping_bridge",
+        title="Tail-quantile continuous-mapping bridge",
+        english=(
+            "If a tail-index or tail-process statistic converges in distribution "
+            "and a tail-quantile transform `g` is continuous on the relevant "
+            "limit support, then the transformed statistic converges in "
+            "distribution. This is a domain-named minimal wrapper for the "
+            "missing primitive `tail_quantile_continuous_mapping`; it does not "
+            "prove regular variation, Weissman extrapolation consistency, or "
+            "continuity of a specific tail-quantile functional."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory Filter
+open scoped Topology
+
+theorem tailQuantile_continuousMapping_bridge
+    {ι : Type*} {E F : Type*} {Ω : ι → Type*} {Ω' : Type*}
+    {mΩ : (i : ι) → MeasurableSpace (Ω i)}
+    {μ : (i : ι) → @Measure (Ω i) (mΩ i)}
+    [∀ i, IsProbabilityMeasure (μ i)]
+    {mΩ' : MeasurableSpace Ω'} {μ' : @Measure Ω' mΩ'}
+    [IsProbabilityMeasure μ']
+    [TopologicalSpace E] [MeasurableSpace E] [OpensMeasurableSpace E]
+    [TopologicalSpace F] [MeasurableSpace F] [BorelSpace F]
+    {X : (i : ι) → Ω i → E} {Z : Ω' → E} {l : Filter ι} {g : E → F}
+    (h : TendstoInDistribution X l Z μ μ') (hg : Continuous g) :
+    TendstoInDistribution (fun i => g ∘ X i) l (g ∘ Z) μ μ' := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  exact h.continuous_comp hg"
+        ),
+        tags=(
+            "probability",
+            "continuous_mapping",
+            "convergence_in_distribution",
+            "tail_quantile_continuous_mapping",
+            "extreme_value",
+            "weissman",
+            "delta_method",
+            "minimal_wrapper",
+        ),
+        expected_lemmas=("TendstoInDistribution.continuous_comp",),
+        depends_on=("tendsto_in_distribution_continuous_mapping",),
+    ),
+    "product_limit_delta_method_bridge": FormalObligation(
+        id="product_limit_delta_method_bridge",
+        title="Product-limit delta-method continuous-mapping bridge",
+        english=(
+            "If a product-limit or cumulative-hazard process statistic "
+            "converges in distribution and a product-limit transform `g` is "
+            "continuous, then the transformed statistic converges in "
+            "distribution. This is a domain-named minimal wrapper for the "
+            "missing primitive `product_limit_delta_method`; it does not prove "
+            "Kaplan-Meier/Nelson-Aalen product-integral differentiability, "
+            "Greenwood variance consistency, or survival martingale CLTs."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory Filter
+open scoped Topology
+
+theorem productLimit_deltaMethod_continuousMapping_bridge
+    {ι : Type*} {E F : Type*} {Ω : ι → Type*} {Ω' : Type*}
+    {mΩ : (i : ι) → MeasurableSpace (Ω i)}
+    {μ : (i : ι) → @Measure (Ω i) (mΩ i)}
+    [∀ i, IsProbabilityMeasure (μ i)]
+    {mΩ' : MeasurableSpace Ω'} {μ' : @Measure Ω' mΩ'}
+    [IsProbabilityMeasure μ']
+    [TopologicalSpace E] [MeasurableSpace E] [OpensMeasurableSpace E]
+    [TopologicalSpace F] [MeasurableSpace F] [BorelSpace F]
+    {X : (i : ι) → Ω i → E} {Z : Ω' → E} {l : Filter ι} {g : E → F}
+    (h : TendstoInDistribution X l Z μ μ') (hg : Continuous g) :
+    TendstoInDistribution (fun i => g ∘ X i) l (g ∘ Z) μ μ' := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  exact h.continuous_comp hg"
+        ),
+        tags=(
+            "probability",
+            "continuous_mapping",
+            "convergence_in_distribution",
+            "product_limit_delta_method",
+            "survival",
+            "kaplan_meier",
+            "nelson_aalen",
+            "delta_method",
+            "minimal_wrapper",
+        ),
+        expected_lemmas=("TendstoInDistribution.continuous_comp",),
+        depends_on=("tendsto_in_distribution_continuous_mapping",),
+    ),
     "slutsky_add_negligible_zero_real": FormalObligation(
         id="slutsky_add_negligible_zero_real",
         title="Real Slutsky addition bridge for a negligible remainder",

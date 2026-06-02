@@ -436,7 +436,7 @@ def _proposal_action_class(
     bridge_candidates: tuple[str, ...],
     candidate_declarations: tuple[str, ...],
 ) -> str:
-    if primitive and primitive in bridge_candidates:
+    if _has_named_bridge_for_primitive(primitive, bridge_candidates):
         return "compose_existing_bridge_chain"
     if len(bridge_candidates) >= 3:
         return "compose_existing_bridge_chain"
@@ -445,6 +445,19 @@ def _proposal_action_class(
     if bridge_candidates or candidate_declarations:
         return "design_bridge_lemma"
     return "design_from_first_principles"
+
+
+def _has_named_bridge_for_primitive(primitive: str, bridge_candidates: tuple[str, ...]) -> bool:
+    """Return whether an existing bridge obligation is already primitive-named."""
+
+    if not primitive:
+        return False
+    prefix = f"{primitive}_"
+    exact_bridge = f"{primitive}_bridge"
+    return any(
+        bridge == primitive or bridge == exact_bridge or bridge.startswith(prefix)
+        for bridge in bridge_candidates
+    )
 
 
 def _proposal_notes(

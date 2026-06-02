@@ -13,15 +13,15 @@ python3 -m ai_statistician.cli proof-audit \
 Result:
 
 ```text
-verified=106/106
-kernel=106/106
+verified=109/109
+kernel=109/109
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=3663172f8494dafd07a10417a1a54478662ffbbc7edcfa80198f3bb73856f632
+proof_bank_fingerprint=1919daaf89e36790b793317b6f31e54df190a7762ed13d33b38b1340fc512f24
 ```
 
 This is the current evidence that the registered proof bank is not only
-mock-checked: all 106 registered Mathlib-backed obligations were accepted by a
+mock-checked: all 109 registered Mathlib-backed obligations were accepted by a
 real Lean kernel check through the local Lake/Mathlib runtime. AXLE remains the
 preferred remote verifier for release bundles when its Python package and API
 runtime are available; the local Lean backend is the offline kernel-equivalent
@@ -44,7 +44,7 @@ strength=axle_lean_kernel
 ```
 
 That remote AXLE run predates the newest proof-bank additions. The current
-106-obligation proof bank has full local Lean kernel evidence above; run the
+109-obligation proof bank has full local Lean kernel evidence above; run the
 same `proof-audit --real-lean` command again from an AXLE-ready runtime to
 refresh remote AXLE evidence for all 106 obligations.
 
@@ -62,11 +62,11 @@ Runtime used:
 Result:
 
 ```text
-proof_bank_kernel=106/106
+proof_bank_kernel=109/109
 proof_verifier=local.lake_env_lean
 proof_strength=local_lean_kernel_batch
-proof_bank_fingerprint=3663172f8494dafd07a10417a1a54478662ffbbc7edcfa80198f3bb73856f632
-dependency_graph_edges=130
+proof_bank_fingerprint=1919daaf89e36790b793317b6f31e54df190a7762ed13d33b38b1340fc512f24
+dependency_graph_edges=133
 dependency_graph_all_known=True
 selected_dependencies_verified=True
 ```
@@ -76,10 +76,10 @@ EmpericalProcessLEAN `lean_rag` dependency graph, and bounded adaptive Monte
 Carlo reruns for simulations diagnosed as `INSUFFICIENT_MC_PRECISION`:
 
 ```text
-run=runs/current_conformal_wrappers_system_audit
+run=runs/current_continuous_mapping_wrappers_queuefix_system_audit
 all_gates_passed=True
-proofs_verified=106/106
-proofs_kernel_verified=106/106
+proofs_verified=109/109
+proofs_kernel_verified=109/109
 proof_verification_strength=local_lean_kernel_batch
 lean_rag_dependency_graph_enabled=True
 frontier_smoke=23/23
@@ -414,7 +414,7 @@ The causal bridge block now also includes
 `propensity_weight_cancel_left_of_lower_bound`, the left-oriented companion
 identity `p * p⁻¹ = 1` under the same strict lower-bound assumption. This gives
 IPW/AIPW algebra both cancellation orientations without relying on ad hoc
-commutativity rewrites; it is kernel-verified as part of the current `106/106`
+commutativity rewrites; it is kernel-verified as part of the current `109/109`
 local Lean proof-bank audit and still does not prove positivity as a model
 assumption or close causal identification.
 

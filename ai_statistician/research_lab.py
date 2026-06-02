@@ -2397,6 +2397,7 @@ class TheoryPlanner:
                         "submartingale_ae_tendsto_limit_process",
                         "submartingale_expected_stopped_value_mono",
                         "submartingale_stopped_process",
+                        "product_limit_delta_method_bridge",
                     ),
                 ),
             ]
@@ -3862,7 +3863,10 @@ class TheoryPlanner:
                         "gram_matrix_full_rank",
                         "matrix_inverse_continuous_mapping",
                     ),
-                    proof_obligations=("independent_real_condExp_natural_eq_mean",),
+                    proof_obligations=(
+                        "independent_real_condExp_natural_eq_mean",
+                        "matrix_inverse_continuous_mapping_bridge",
+                    ),
                 ),
                 TheoremGoal(
                     id="hc1_asymptotic_normality",
@@ -4552,6 +4556,13 @@ class TheoryPlanner:
                         "extreme_probability_sequence",
                         "tail_quantile_continuous_mapping",
                     ),
+                    proof_obligations=(
+                        "prob_compl",
+                        "markov_inequality",
+                        "first_borel_cantelli_limsup_zero",
+                        "second_borel_cantelli_limsup_one",
+                        "tail_quantile_continuous_mapping_bridge",
+                    ),
                 ),
             ]
             procedures = [
@@ -4812,6 +4823,7 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "submartingale_ae_tendsto_limit_process",
         "submartingale_expected_stopped_value_mono",
         "submartingale_stopped_process",
+        "product_limit_delta_method_bridge",
     ),
     "robust_mean_inference": (
         "mean2_estimator_expectation",
@@ -4995,6 +5007,7 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "coverage_lower_bound_of_complement_error",
         "iid_real_clt_tendsto_distribution",
         "tendsto_in_distribution_continuous_mapping",
+        "matrix_inverse_continuous_mapping_bridge",
         "slutsky_add_negligible_zero_real",
         "mean2_estimator_chebyshev_indep",
         "variance_nonneg",
@@ -5085,6 +5098,7 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "markov_inequality",
         "first_borel_cantelli_limsup_zero",
         "second_borel_cantelli_limsup_one",
+        "tail_quantile_continuous_mapping_bridge",
         "variance_nonneg",
     ),
     "heavy_tail_time_series_extremal_dependence": (

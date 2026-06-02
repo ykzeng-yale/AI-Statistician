@@ -260,7 +260,7 @@ def _action_class(
     external_decls: tuple[str, ...],
 ) -> str:
     if classification == "direct_wrapper_possible":
-        if primitive and primitive in proof_bank_bridges:
+        if _has_named_bridge_for_primitive(primitive, proof_bank_bridges):
             return "compose_existing_bridge_chain"
         # Several verified bridge obligations already attached to a primitive
         # usually means the bottleneck is no longer lemma mining. The next
@@ -274,6 +274,25 @@ def _action_class(
     if classification == "source_only_not_importable" or external_decls:
         return "port_external_source"
     return "design_from_first_principles"
+
+
+def _has_named_bridge_for_primitive(primitive: str, proof_bank_bridges: tuple[str, ...]) -> bool:
+    """Return whether a verified bridge already names this missing primitive.
+
+    This keeps expansion queues focused on remaining theorem composition work.
+    A primitive like `bh_threshold_fixed_point` with a verified
+    `bh_threshold_fixed_point_bridge` should not be reclassified as needing yet
+    another minimal wrapper.
+    """
+
+    if not primitive:
+        return False
+    prefix = f"{primitive}_"
+    exact_bridge = f"{primitive}_bridge"
+    return any(
+        bridge == primitive or bridge == exact_bridge or bridge.startswith(prefix)
+        for bridge in proof_bank_bridges
+    )
 
 
 def _markdown_report(payload: dict[str, object]) -> str:

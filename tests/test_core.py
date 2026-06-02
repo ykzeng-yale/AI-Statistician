@@ -2546,6 +2546,45 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("delta_method", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_matrix_inverse_continuous_mapping_bridge_closes_named_primitive(self) -> None:
+        obligation = get_obligation("matrix_inverse_continuous_mapping_bridge")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("tendsto_in_distribution_continuous_mapping",))
+        self.assertIn("theorem matrixInverse_continuousMapping_bridge", content)
+        self.assertIn("TendstoInDistribution X l Z μ μ'", content)
+        self.assertIn("Continuous g", content)
+        self.assertIn("TendstoInDistribution (fun i => g ∘ X i)", content)
+        self.assertIn("h.continuous_comp hg", content)
+        self.assertIn("matrix_inverse_continuous_mapping", obligation.tags)
+        self.assertIn("minimal_wrapper", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
+    def test_tail_quantile_continuous_mapping_bridge_closes_named_primitive(self) -> None:
+        obligation = get_obligation("tail_quantile_continuous_mapping_bridge")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("tendsto_in_distribution_continuous_mapping",))
+        self.assertIn("theorem tailQuantile_continuousMapping_bridge", content)
+        self.assertIn("TendstoInDistribution X l Z μ μ'", content)
+        self.assertIn("Continuous g", content)
+        self.assertIn("TendstoInDistribution (fun i => g ∘ X i)", content)
+        self.assertIn("h.continuous_comp hg", content)
+        self.assertIn("tail_quantile_continuous_mapping", obligation.tags)
+        self.assertIn("minimal_wrapper", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
+    def test_product_limit_delta_method_bridge_closes_named_primitive(self) -> None:
+        obligation = get_obligation("product_limit_delta_method_bridge")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("tendsto_in_distribution_continuous_mapping",))
+        self.assertIn("theorem productLimit_deltaMethod_continuousMapping_bridge", content)
+        self.assertIn("TendstoInDistribution X l Z μ μ'", content)
+        self.assertIn("Continuous g", content)
+        self.assertIn("TendstoInDistribution (fun i => g ∘ X i)", content)
+        self.assertIn("h.continuous_comp hg", content)
+        self.assertIn("product_limit_delta_method", obligation.tags)
+        self.assertIn("minimal_wrapper", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_slutsky_add_negligible_zero_bridge_uses_mathlib_tendsto_in_measure(self) -> None:
         obligation = get_obligation("slutsky_add_negligible_zero_real")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
@@ -3909,8 +3948,8 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(len(evidence["proof_bank_fingerprint"]), 64)
         self.assertEqual(evidence["frontier_supported"], "60/60")
         self.assertEqual(evidence["missing_formal_primitives"], 97)
-        self.assertEqual(evidence["formalization_targets_with_proof_bank_bridge"], 74)
-        self.assertEqual(evidence["formalization_targets_local_source_only"], 23)
+        self.assertEqual(evidence["formalization_targets_with_proof_bank_bridge"], 78)
+        self.assertEqual(evidence["formalization_targets_local_source_only"], 19)
         self.assertEqual(evidence["proof_bank_expansion_bridge_ready"], 53)
 
         suites = {row["id"]: row for row in payload["suites"]}
@@ -3959,12 +3998,13 @@ class SystemTests(unittest.TestCase):
         self.assertIn("S7_feedback_loop_repair_with_seeded_failures", payload["recommended_next_gate_stack"])
 
         doc = Path("docs/evaluation_benchmark_strategy.md").read_text(encoding="utf-8")
-        self.assertIn("`proofs_kernel_verified=106/106`", doc)
+        self.assertIn("`proofs_kernel_verified=109/109`", doc)
         self.assertIn("expected-result coverage about 83.9%", doc)
         self.assertIn("34 frontier-evaluation triage items", doc)
         self.assertIn("bounded adaptive MC inside the benchmark", doc)
         self.assertIn("53 have ranked proof-bank bridge candidates", doc)
-        self.assertIn("minimal-wrapper debt is now 6", doc)
+        self.assertIn("minimal-wrapper debt is now 2", doc)
+        self.assertIn("compose-existing bridge-chain opportunities are now 51", doc)
         self.assertNotIn("79/79", doc)
         self.assertNotIn("82/82", doc)
 
@@ -4187,6 +4227,10 @@ class SystemTests(unittest.TestCase):
             hetero_goals["ols_consistency"]["proof_obligations"],
         )
         self.assertIn(
+            "matrix_inverse_continuous_mapping_bridge",
+            hetero_goals["ols_consistency"]["proof_obligations"],
+        )
+        self.assertIn(
             "coverage_lower_bound_of_complement_error",
             hetero_goals["hc1_asymptotic_normality"]["proof_obligations"],
         )
@@ -4223,6 +4267,16 @@ class SystemTests(unittest.TestCase):
         self.assertIn(
             "submartingale_expected_stopped_value_mono",
             survival_goals["kaplan_meier_fixed_time_asymptotic_normality"]["proof_obligations"],
+        )
+        self.assertIn(
+            "product_limit_delta_method_bridge",
+            survival_goals["kaplan_meier_fixed_time_asymptotic_normality"]["proof_obligations"],
+        )
+        extreme_trace = json.loads(Path("runs/test_research_benchmark/extreme_tail_quantile_hill.json").read_text())
+        extreme_goals = {row["id"]: row for row in extreme_trace["theorem_goals"]}
+        self.assertIn(
+            "tail_quantile_continuous_mapping_bridge",
+            extreme_goals["weissman_high_quantile_consistency"]["proof_obligations"],
         )
         sequential_trace = json.loads(Path("runs/test_research_benchmark/sequential_anytime_bernoulli.json").read_text())
         sequential_goals = {row["id"]: row for row in sequential_trace["theorem_goals"]}
@@ -5354,6 +5408,8 @@ class SystemTests(unittest.TestCase):
             "condexp_integral_eq_integral_real",
             "finite_sample_mean_unbiased",
             "finite_sample_mean_variance_indep",
+            "matrix_inverse_continuous_mapping_bridge",
+            "tail_quantile_continuous_mapping_bridge",
         )
         trace = {
             "question": {"id": "q_lln"},
@@ -5443,6 +5499,14 @@ class SystemTests(unittest.TestCase):
                 "tendsto_in_distribution_continuous_mapping",
                 rows[primitive]["bridge_candidate_obligations"],
             )
+        self.assertEqual(
+            rows["matrix_inverse_continuous_mapping"]["bridge_candidate_obligations"][0],
+            "matrix_inverse_continuous_mapping_bridge",
+        )
+        self.assertEqual(
+            rows["tail_quantile_continuous_mapping"]["bridge_candidate_obligations"][0],
+            "tail_quantile_continuous_mapping_bridge",
+        )
 
     def test_formalization_target_audit_maps_survival_martingale_primitives_to_convergence_bridge(self) -> None:
         run_dir = Path("runs/test_formalization_target_survival_martingale_run")
@@ -5455,6 +5519,7 @@ class SystemTests(unittest.TestCase):
         primitives = (
             "nelson_aalen_martingale_decomposition",
             "survival_martingale_clt",
+            "product_limit_delta_method",
             "greenwood_variance_consistency",
         )
         gap_path.write_text("FORMAL_GAP " + " ".join(primitives), encoding="utf-8")
@@ -5468,6 +5533,7 @@ class SystemTests(unittest.TestCase):
             "submartingale_l1_tendsto_limit_process",
             "submartingale_ae_tendsto_limit_process",
             "submartingale_expected_stopped_value_mono",
+            "product_limit_delta_method_bridge",
         )
         trace = {
             "question": {"id": "q_survival"},
@@ -5532,6 +5598,14 @@ class SystemTests(unittest.TestCase):
         self.assertIn(
             "submartingale_ae_tendsto_limit_process",
             rows["greenwood_variance_consistency"]["bridge_candidate_obligations"],
+        )
+        self.assertEqual(
+            rows["product_limit_delta_method"]["bridge_candidate_obligations"][0],
+            "product_limit_delta_method_bridge",
+        )
+        self.assertIn(
+            "tendsto_in_distribution_continuous_mapping",
+            rows["product_limit_delta_method"]["bridge_candidate_obligations"],
         )
 
     def test_formal_gap_task_export_writes_lean_task_jsonl(self) -> None:

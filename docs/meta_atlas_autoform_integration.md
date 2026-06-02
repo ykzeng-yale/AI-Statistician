@@ -173,7 +173,7 @@ python3 -m ai_statistician.cli research-system-audit \
 Result:
 
 ```text
-proof_bank_kernel=106/106
+proof_bank_kernel=109/109
 proof_verifier=local.lake_env_lean
 proof_strength=local_lean_kernel_batch
 system_all_gates_passed=True
@@ -183,9 +183,9 @@ frontier_supported=60/60
 frontier_smoke=23/23
 formalized_gaps=20/20
 proof_bank_expansion_bridge_ready=53/97
-proof_bank_expansion_compose_existing_bridge_chain=47
-proof_bank_expansion_add_minimal_wrapper=6
-formalization_targets_with_proof_bank_bridge=74
+proof_bank_expansion_compose_existing_bridge_chain=51
+proof_bank_expansion_add_minimal_wrapper=2
+formalization_targets_with_proof_bank_bridge=78
 missing_primitives=97
 lean_rag_dependency_graph_enabled=True
 adaptive_mc_rerun_enabled=True
@@ -209,7 +209,7 @@ source_inventory: 29/29 all_ok=True
 
 Earlier proof-bank expansion experiments temporarily reported a higher
 bridge-ready count; the current adaptive release audit reports `53/97` after
-stricter primitive routing, with `106/106` registered proof-bank obligations
+stricter primitive routing, with `109/109` registered proof-bank obligations
 kernel verified.
 `independent_null_pvalues` is backed by the verified
 `independent_null_event_family_inter_probability` and
@@ -355,12 +355,23 @@ leaving the binomial median tail and sharp sub-Gaussian MoM theorem as formal
 gaps.
 The conformal bridge pair `exchangeable_scores_uniform_rank_bridge` and
 `order_statistic_quantile_rule_bridge` then converts two split-conformal
-minimal-wrapper targets into direct proof-bank routes. The latest expansion
-audit keeps `proof_bank_expansion_bridge_ready=53/97`, raises
-compose-existing bridge-chain opportunities to `47`, and lowers
-add-minimal-wrapper debt to `6`, while still leaving the
+minimal-wrapper targets into direct proof-bank routes. That expansion audit
+kept `proof_bank_expansion_bridge_ready=53/97`, raised compose-existing
+bridge-chain opportunities to `47`, and lowered add-minimal-wrapper debt to
+`6`, while still leaving the
 exchangeability-to-rank-uniformity theorem and full order-statistic conformal
 coverage theorem as explicit formal gaps.
+The continuous-mapping wrapper family
+`matrix_inverse_continuous_mapping_bridge`,
+`tail_quantile_continuous_mapping_bridge`, and
+`product_limit_delta_method_bridge` then attaches domain-named proof-bank
+bridges to generic `Continuous g` composition. The post-fix expansion audit
+keeps `proof_bank_expansion_bridge_ready=53/97`, raises compose-existing
+bridge-chain opportunities to `51`, and lowers add-minimal-wrapper debt to `2`.
+These wrappers do not prove matrix inverse continuity, tail regular variation,
+Weissman consistency, Kaplan-Meier product-limit differentiability, or survival
+martingale CLTs; they make the next proof-bank queue target the remaining
+domain interfaces instead of duplicate generic wrappers.
 The upward conditional-expectation bridges
 `integrable_ae_tendsto_condexp_filtration` and
 `integrable_l1_tendsto_condexp_filtration` wrap Mathlib's
