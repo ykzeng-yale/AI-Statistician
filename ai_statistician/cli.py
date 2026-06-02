@@ -19,6 +19,7 @@ from .algorithm_repair_sandbox_rerun import rerun_algorithm_repair_sandbox_appli
 from .architecture_audit import audit_architecture
 from .autoform_harness import audit_autoform_harness
 from .capability_audit import build_capability_audit, write_capability_audit
+from .claim_ledger_action_export import export_claim_ledger_actions
 from .claim_ledger import build_claim_ledger
 from .doctor import build_doctor_report, write_doctor_manifest
 from .evaluation import EvalConfig, run_seed_eval
@@ -1255,6 +1256,25 @@ def _claim_ledger(args: argparse.Namespace) -> int:
     print(f"\nclaim ledger manifest written to {(Path(args.out) / 'claim_ledger_manifest.json').resolve()}")
     print(f"jsonl written to {(Path(args.out) / 'claim_ledger.jsonl').resolve()}")
     print(f"markdown report written to {(Path(args.out) / 'claim_ledger.md').resolve()}")
+    return 0 if payload["all_ok"] else 1
+
+
+def _claim_ledger_action_export(args: argparse.Namespace) -> int:
+    payload = export_claim_ledger_actions(Path(args.claim_ledger_dir), Path(args.out))
+    print("\nAI Statistical Theory Lab Claim Ledger Actions")
+    print("=" * 72)
+    print(
+        f"actions={payload['n_ok']}/{payload['n_actions']} "
+        f"ledger_claims={payload['ledger_claims']} all_ok={payload['all_ok']}"
+    )
+    for owner, count in payload["by_owner"].items():
+        print(f"  {owner}: {count}")
+    print(
+        f"\nclaim-ledger action manifest written to "
+        f"{(Path(args.out) / 'claim_ledger_action_manifest.json').resolve()}"
+    )
+    print(f"jsonl written to {(Path(args.out) / 'claim_ledger_actions.jsonl').resolve()}")
+    print(f"markdown report written to {(Path(args.out) / 'claim_ledger_actions.md').resolve()}")
     return 0 if payload["all_ok"] else 1
 
 
@@ -2858,6 +2878,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="claim ledger output directory",
     )
     claim_ledger.set_defaults(func=_claim_ledger)
+
+    claim_ledger_actions = sub.add_parser(
+        "claim-ledger-action-export",
+        help="export owner-agent work items from a typed claim ledger",
+    )
+    claim_ledger_actions.add_argument(
+        "--claim-ledger-dir",
+        required=True,
+        help="directory containing claim_ledger_manifest.json and claim_ledger.jsonl",
+    )
+    claim_ledger_actions.add_argument(
+        "--out",
+        default="runs/claim_ledger_actions",
+        help="claim-ledger action output directory",
+    )
+    claim_ledger_actions.set_defaults(func=_claim_ledger_action_export)
 
     doctor = sub.add_parser("doctor", help="inspect local readiness for proof, LLM, retrieval, and audit runs")
     doctor.add_argument("--root", default=".", help="project root to inspect")

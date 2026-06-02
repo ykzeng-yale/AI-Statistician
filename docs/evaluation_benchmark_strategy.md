@@ -51,6 +51,8 @@ Pass criteria:
 - `research-system-audit` gates the `claim-ledger` export so typed
   problem/procedure/theorem/proof/simulation/revision rows exist without
   collapsing simulation or retrieval support into proof evidence
+- `research-system-audit` gates `claim-ledger-action-export` so ledger evidence
+  is converted into owner-agent task contracts with explicit acceptance gates
 
 This is a release gate, not a research benchmark.
 

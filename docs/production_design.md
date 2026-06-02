@@ -437,6 +437,23 @@ retrieval/gap evidence from Lean-kernel proof evidence and simulation support
 from formal proof. `research-system-audit` writes this ledger as
 `claim_ledger/claim_ledger_manifest.json` and includes it as a release gate.
 
+Claim-ledger action export:
+
+```bash
+python3 -m ai_statistician.cli claim-ledger-action-export \
+  --claim-ledger-dir runs/claim_ledger \
+  --out runs/claim_ledger_actions
+```
+
+This turns typed ledger statuses into owner-agent task contracts. For example,
+`REVISION_QUEUED` formal-gap rows become `formal_verifier` work items whose
+required gate is AXLE/local Lean `verify_proof`; simulation-flagged rows route
+to the theory, algorithm, or simulator owner specified by the diagnosis. The
+export still does not solve the tasks. It makes the next autonomous iteration
+machine-readable and auditable. `research-system-audit` writes this export as
+`claim_ledger_actions/claim_ledger_action_manifest.json` and includes it as a
+release gate.
+
 Research trace audit:
 
 ```bash

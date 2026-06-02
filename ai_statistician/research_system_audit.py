@@ -26,6 +26,7 @@ from .algorithm_repair_sandbox_patch_eval import evaluate_algorithm_repair_sandb
 from .algorithm_repair_sandbox_rerun import rerun_algorithm_repair_sandbox_applications
 from .adversarial_intake_audit import audit_adversarial_unsupported_intake
 from .architecture_audit import audit_architecture
+from .claim_ledger_action_export import export_claim_ledger_actions
 from .claim_ledger import build_claim_ledger
 from .evaluation_benchmark_guidance import build_evaluation_benchmark_guidance
 from .formal_gap_task_export import export_formal_gap_lean_tasks
@@ -438,6 +439,10 @@ async def run_research_system_audit(
         out_dir / "research_benchmark",
         out_dir / "claim_ledger",
     )
+    claim_ledger_action_manifest = export_claim_ledger_actions(
+        out_dir / "claim_ledger",
+        out_dir / "claim_ledger_actions",
+    )
     stage_start = _record_stage(stage_timings, "research_training_policy_report_exports", stage_start)
 
     research_loop_manifest = await run_research_loop_benchmark(
@@ -593,6 +598,7 @@ async def run_research_system_audit(
         "next_iteration_queue": bool(next_iteration_manifest["all_ok"]),
         "research_report": bool(research_report_manifest["all_ok"]),
         "claim_ledger": bool(claim_ledger_manifest["all_ok"]),
+        "claim_ledger_actions": bool(claim_ledger_action_manifest["all_ok"]),
         "research_loop": bool(research_loop_manifest["all_loop_traces_written"])
         and bool(research_loop_manifest["all_repair_tasks_exported"])
         and bool(research_loop_manifest["all_live_repair_artifacts_exported"])
@@ -624,6 +630,7 @@ async def run_research_system_audit(
         "next_iteration_queue",
         "research_report",
         "claim_ledger",
+        "claim_ledger_actions",
     )
     if (
         benchmark_cache_info["enabled"]
@@ -1146,6 +1153,24 @@ async def run_research_system_audit(
                 0,
             ),
             "claim_ledger_revision_queued": claim_ledger_manifest["by_status"].get("REVISION_QUEUED", 0),
+            "claim_ledger_actions": claim_ledger_action_manifest["n_actions"],
+            "claim_ledger_actions_ok": claim_ledger_action_manifest["n_ok"],
+            "claim_ledger_actions_formal_verifier": claim_ledger_action_manifest["by_owner"].get(
+                "formal_verifier",
+                0,
+            ),
+            "claim_ledger_actions_theory_developer": claim_ledger_action_manifest["by_owner"].get(
+                "theory_developer",
+                0,
+            ),
+            "claim_ledger_actions_algorithm_engineer": claim_ledger_action_manifest["by_owner"].get(
+                "algorithm_engineer",
+                0,
+            ),
+            "claim_ledger_actions_simulator_agent": claim_ledger_action_manifest["by_owner"].get(
+                "simulator_agent",
+                0,
+            ),
             "research_loop_questions": research_loop_manifest["n_questions"],
             "research_loop_traces_written": research_loop_manifest["all_loop_traces_written"],
             "research_loop_repair_tasks_exported": research_loop_manifest["all_repair_tasks_exported"],
@@ -1552,6 +1577,11 @@ async def run_research_system_audit(
             "claim_ledger": str(out_dir / "claim_ledger" / "claim_ledger_manifest.json"),
             "claim_ledger_jsonl": str(out_dir / "claim_ledger" / "claim_ledger.jsonl"),
             "claim_ledger_report": str(out_dir / "claim_ledger" / "claim_ledger.md"),
+            "claim_ledger_actions": str(
+                out_dir / "claim_ledger_actions" / "claim_ledger_action_manifest.json"
+            ),
+            "claim_ledger_actions_jsonl": str(out_dir / "claim_ledger_actions" / "claim_ledger_actions.jsonl"),
+            "claim_ledger_actions_report": str(out_dir / "claim_ledger_actions" / "claim_ledger_actions.md"),
             "research_loop": str(out_dir / "research_loop" / "research_loop_manifest.json"),
             "research_loop_repair_tasks": str(out_dir / "research_loop" / "research_loop_repair_tasks.jsonl"),
             "research_loop_live_repair_artifacts": str(
@@ -1786,6 +1816,9 @@ def _research_benchmark_cache_key(
         "engine_fingerprints": {
             "research_system_audit": _source_file_hash(Path(__file__)),
             "claim_ledger": _source_file_hash(Path(__file__).with_name("claim_ledger.py")),
+            "claim_ledger_action_export": _source_file_hash(
+                Path(__file__).with_name("claim_ledger_action_export.py")
+            ),
             "research_lab": _source_file_hash(Path(__file__).with_name("research_lab.py")),
             "research_schema": _source_file_hash(Path(__file__).with_name("research_schema.py")),
         },

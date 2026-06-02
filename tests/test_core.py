@@ -26,6 +26,7 @@ from ai_statistician.algorithm_simulation_stress_audit import audit_algorithm_si
 from ai_statistician.adversarial_intake_audit import audit_adversarial_unsupported_intake
 from ai_statistician.architecture_audit import audit_architecture
 from ai_statistician.capability_audit import build_capability_audit, write_capability_audit
+from ai_statistician.claim_ledger_action_export import export_claim_ledger_actions
 from ai_statistician.claim_ledger import build_claim_ledger
 from ai_statistician.doctor import build_doctor_report, write_doctor_manifest
 from ai_statistician.evaluation_benchmark_guidance import build_evaluation_benchmark_guidance
@@ -4712,6 +4713,42 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(Path("runs/test_claim_ledger/claim_ledger.jsonl").exists())
         self.assertTrue(Path("runs/test_claim_ledger/claim_ledger.md").exists())
 
+    def test_claim_ledger_action_export_turns_revision_rows_into_owner_tasks(self) -> None:
+        async def run():
+            questions = load_open_research_questions(Path("examples/research_questions.json"))[:2]
+            await run_research_benchmark(
+                questions,
+                Path("runs/test_claim_ledger_actions_run"),
+                proof_verifier=MockProofVerifier(),
+                n_runs=25,
+                seed=20260528,
+            )
+            ledger = build_claim_ledger(
+                Path("runs/test_claim_ledger_actions_run"),
+                Path("runs/test_claim_ledger_actions_ledger"),
+            )
+            actions = export_claim_ledger_actions(
+                Path("runs/test_claim_ledger_actions_ledger"),
+                Path("runs/test_claim_ledger_actions"),
+            )
+            return ledger, actions
+
+        ledger, payload = asyncio.run(run())
+        self.assertTrue(payload["all_ok"])
+        self.assertEqual(payload["n_ok"], payload["n_actions"])
+        self.assertEqual(payload["n_actions"], ledger["by_status"]["REVISION_QUEUED"])
+        self.assertIn("formal_verifier", payload["by_owner"])
+        self.assertEqual(payload["by_owner"]["formal_verifier"], payload["n_actions"])
+        self.assertIn("proof_bank_expansion_from_formal_gap", payload["by_type"])
+        first = payload["actions"][0]
+        self.assertEqual(first["source"], "agenda")
+        self.assertIn("verify_proof", first["required_gate"])
+        self.assertIn("proof_obligation_id", first["required_fields"])
+        self.assertTrue(first["evidence_paths"])
+        self.assertTrue(Path("runs/test_claim_ledger_actions/claim_ledger_action_manifest.json").exists())
+        self.assertTrue(Path("runs/test_claim_ledger_actions/claim_ledger_actions.jsonl").exists())
+        self.assertTrue(Path("runs/test_claim_ledger_actions/claim_ledger_actions.md").exists())
+
     def test_research_trace_audit_validates_frontier_traces(self) -> None:
         async def run():
             questions = load_open_research_questions(Path("examples/research_questions.json"))
@@ -8191,6 +8228,7 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(payload["gates"]["next_iteration_queue"])
         self.assertTrue(payload["gates"]["research_report"])
         self.assertTrue(payload["gates"]["claim_ledger"])
+        self.assertTrue(payload["gates"]["claim_ledger_actions"])
         self.assertTrue(payload["gates"]["research_loop"])
         self.assertTrue(payload["gates"]["research_loop_repair_audit"])
         self.assertTrue(payload["gates"]["research_loop_live_repair_audit"])
@@ -8603,6 +8641,15 @@ class SystemTests(unittest.TestCase):
             payload["counts"]["claim_ledger_revision_queued"],
             payload["counts"]["next_iteration_items"],
         )
+        self.assertEqual(payload["counts"]["claim_ledger_actions_ok"], payload["counts"]["claim_ledger_actions"])
+        self.assertEqual(payload["counts"]["claim_ledger_actions"], payload["counts"]["claim_ledger_revision_queued"])
+        self.assertEqual(
+            payload["counts"]["claim_ledger_actions_formal_verifier"],
+            payload["counts"]["claim_ledger_actions"],
+        )
+        self.assertEqual(payload["counts"]["claim_ledger_actions_theory_developer"], 0)
+        self.assertEqual(payload["counts"]["claim_ledger_actions_algorithm_engineer"], 0)
+        self.assertEqual(payload["counts"]["claim_ledger_actions_simulator_agent"], 0)
         self.assertTrue(Path("runs/test_research_system_audit/research_system_audit_manifest.json").exists())
         self.assertTrue(Path(payload["artifacts"]["frontier_coverage_audit"]).exists())
         self.assertTrue(Path(payload["artifacts"]["frontier_precision_audit"]).exists())
@@ -8679,6 +8726,9 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(Path(payload["artifacts"]["claim_ledger"]).exists())
         self.assertTrue(Path(payload["artifacts"]["claim_ledger_jsonl"]).exists())
         self.assertTrue(Path(payload["artifacts"]["claim_ledger_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["claim_ledger_actions"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["claim_ledger_actions_jsonl"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["claim_ledger_actions_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["algorithm_repair_promotion"]).exists())
         self.assertTrue(Path(payload["artifacts"]["algorithm_repair_promotion_queue"]).exists())
         self.assertTrue(Path(payload["artifacts"]["algorithm_repair_sandbox"]).exists())
