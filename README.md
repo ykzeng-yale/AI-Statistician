@@ -170,13 +170,13 @@ python3 -m ai_statistician.cli proof-audit \
   --out runs/proof_audit_local_lean_current
 ```
 
-Current evidence: `100/100` registered proof-bank obligations pass
+Current evidence: `101/101` registered proof-bank obligations pass
 `local_lean_kernel_batch` with proof-bank fingerprint
-`54378261ae306f0ae37ad81d427de983355aac7a5b42b06efac4209793ae62ce`.
+`fe0e6859ea9a9fa3555fbac949d22c6e4fd533abaf8347e879395b422e66d487`.
 The latest release-style research-system audit also passes all gates with
 Lean-RAG dependency retrieval enabled and `research_loop_theory_revisions=6`.
 That audit is scaffold evidence unless it is run with `--local-lean`; the real
-kernel evidence for the registered proof obligations is the `100/100`
+kernel evidence for the registered proof obligations is the `101/101`
 `proof-audit` result above. These revisions attach verified proof obligations
 to theorem roadmaps; they do not claim the full frontier asymptotic theorems are
 closed.

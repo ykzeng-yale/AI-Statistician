@@ -82,7 +82,7 @@ sandboxed code patching, or simulator construction still stop honestly with
 repair proposal, unless a stronger handler is registered.
 
 Current release-style evidence for this bounded loop is split intentionally:
-`proof-audit --local-lean` verifies the registered proof bank at `100/100`, while
+`proof-audit --local-lean` verifies the registered proof bank at `101/101`, while
 `research-system-audit` exercises the loop, Lean-RAG dependency retrieval, proof
 bridge routing, and simulation/audit gates. When the system audit is not run
 with `--local-lean`, its proof rows are scaffold evidence rather than fresh
@@ -1035,6 +1035,12 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   `α_total`, then the no-false-rejection event has probability at least
   `1-α_total`. This supports p-value validity and BH/FDR skeleton traces while
   leaving step-up self-consistency and FDR decomposition as formal gaps.
+- `leave_one_out_fdr_decomposition_bridge`: the same finite p-value
+  no-false-rejection bound exposed under the `leave_one_out_fdr_decomposition`
+  primitive name. It verifies the finite union/decomposition ingredient used by
+  BH leave-one-out arguments, while still leaving ordered p-values, BH
+  self-consistency, independence conditioning, and full FDR control as formal
+  gaps.
 - `finite_conformal_rank_coverage_counting`: a split-conformal finite-rank
   counting bridge. If each bad-rank event has a local probability budget and
   those budgets sum to `α_total`, then the complement of the bad-rank event has
@@ -1547,11 +1553,11 @@ python3 -m ai_statistician.cli proof-audit \
 Current full-bank local Lean evidence (2026-06-02):
 
 ```text
-verified=100/100
-kernel=100/100
+verified=101/101
+kernel=101/101
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=54378261ae306f0ae37ad81d427de983355aac7a5b42b06efac4209793ae62ce
+proof_bank_fingerprint=fe0e6859ea9a9fa3555fbac949d22c6e4fd533abaf8347e879395b422e66d487
 ```
 
 Run `doctor` in the same Python runtime first. It reports

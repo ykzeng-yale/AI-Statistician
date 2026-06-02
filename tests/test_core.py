@@ -2222,6 +2222,21 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("ordered_pvalues", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_leave_one_out_fdr_decomposition_bridge_closes_named_primitive(self) -> None:
+        obligation = get_obligation("leave_one_out_fdr_decomposition_bridge")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(
+            obligation.depends_on,
+            ("finite_null_pvalue_no_false_rejection_probability", "independent_null_pvalues_bridge"),
+        )
+        self.assertIn("theorem leaveOneOutFDR_noFalseRejection_decomposition", content)
+        self.assertIn("1 - α_total ≤ μ (⋃ i ∈ I, {ω | p i ω ≤ τ i})ᶜ", content)
+        self.assertIn("measure_biUnion_finset_le", content)
+        self.assertIn("prob_compl_eq_one_sub", content)
+        self.assertIn("leave_one_out_fdr_decomposition", obligation.tags)
+        self.assertIn("minimal_wrapper", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_bh_threshold_grid_mono_uses_gcongr_threshold_algebra(self) -> None:
         obligation = get_obligation("bh_threshold_grid_mono")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
@@ -3869,7 +3884,7 @@ class SystemTests(unittest.TestCase):
         self.assertIn("S7_feedback_loop_repair_with_seeded_failures", payload["recommended_next_gate_stack"])
 
         doc = Path("docs/evaluation_benchmark_strategy.md").read_text(encoding="utf-8")
-        self.assertIn("`proofs_kernel_verified=100/100`", doc)
+        self.assertIn("`proofs_kernel_verified=101/101`", doc)
         self.assertIn("expected-result coverage about 83.3%", doc)
         self.assertIn("35 frontier-evaluation triage items", doc)
         self.assertIn("bounded adaptive MC inside the benchmark", doc)
@@ -4718,6 +4733,7 @@ class SystemTests(unittest.TestCase):
             "finite_union_budget_control",
             "finite_null_family_no_false_rejection_probability",
             "finite_null_pvalue_no_false_rejection_probability",
+            "leave_one_out_fdr_decomposition_bridge",
             "markov_inequality",
         )
         trace = {
@@ -4784,6 +4800,10 @@ class SystemTests(unittest.TestCase):
             "independent_null_pvalues_bridge",
         )
         self.assertEqual(rows["independent_null_pvalues"]["priority_band"], "BRIDGE_REUSE_READY")
+        self.assertEqual(
+            rows["leave_one_out_fdr_decomposition"]["bridge_candidate_obligations"][0],
+            "leave_one_out_fdr_decomposition_bridge",
+        )
 
     def test_formalization_target_audit_maps_causal_consistency_primitive_to_verified_bridge(self) -> None:
         run_dir = Path("runs/test_formalization_target_causal_run")

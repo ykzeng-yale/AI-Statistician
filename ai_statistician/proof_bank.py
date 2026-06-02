@@ -3515,6 +3515,77 @@ theorem finiteNullPValue_noFalseRejection_probability {Ω ι : Type*}
             "prob_compl",
         ),
     ),
+    "leave_one_out_fdr_decomposition_bridge": FormalObligation(
+        id="leave_one_out_fdr_decomposition_bridge",
+        title="Finite leave-one-out FDR decomposition no-false-rejection bridge",
+        english=(
+            "For a finite family of true-null p-value rejection events, if each "
+            "event has a local threshold-validity budget and the budgets sum to "
+            "a total bound, then the probability of no false rejection is at "
+            "least one minus that total bound. This is a domain-named minimal "
+            "wrapper for the missing primitive `leave_one_out_fdr_decomposition`; "
+            "it verifies the finite union/decomposition ingredient used in BH "
+            "leave-one-out arguments, but it does not prove ordered p-values, "
+            "BH self-consistency, independence conditioning, or full FDR control."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+theorem leaveOneOutFDR_noFalseRejection_decomposition {Ω ι : Type*}
+    [MeasurableSpace Ω]
+    (μ : Measure Ω) [IsProbabilityMeasure μ]
+    (I : Finset ι) (p : ι → Ω → ENNReal)
+    (τ : ι → ENNReal) (α_total : ENNReal)
+    (hUnion : MeasurableSet (⋃ i ∈ I, {ω | p i ω ≤ τ i}))
+    (hValid : ∀ i ∈ I, μ {ω | p i ω ≤ τ i} ≤ τ i)
+    (h_total : (∑ i ∈ I, τ i) ≤ α_total) :
+    1 - α_total ≤ μ (⋃ i ∈ I, {ω | p i ω ≤ τ i})ᶜ := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  have hbad : μ (⋃ i ∈ I, {ω | p i ω ≤ τ i}) ≤ α_total := by\n"
+            "    calc\n"
+            "      μ (⋃ i ∈ I, {ω | p i ω ≤ τ i}) ≤ ∑ i ∈ I, μ {ω | p i ω ≤ τ i} := by\n"
+            "        exact measure_biUnion_finset_le (μ := μ) I (fun i => {ω | p i ω ≤ τ i})\n"
+            "      _ ≤ ∑ i ∈ I, τ i := by\n"
+            "        exact Finset.sum_le_sum (fun i hi => hValid i hi)\n"
+            "      _ ≤ α_total := h_total\n"
+            "  have hnone : μ (⋃ i ∈ I, {ω | p i ω ≤ τ i})ᶜ =\n"
+            "      1 - μ (⋃ i ∈ I, {ω | p i ω ≤ τ i}) := by\n"
+            "    exact prob_compl_eq_one_sub hUnion\n"
+            "  rw [hnone]\n"
+            "  exact tsub_le_tsub_left hbad 1"
+        ),
+        tags=(
+            "probability",
+            "event",
+            "union_bound",
+            "bonferroni",
+            "finite_sample",
+            "multiple_testing",
+            "familywise_error",
+            "false_rejection",
+            "no_false_discovery",
+            "fdr",
+            "pvalue",
+            "p_value",
+            "leave_one_out_fdr_decomposition",
+            "minimal_wrapper",
+        ),
+        expected_lemmas=(
+            "measure_biUnion_finset_le",
+            "Finset.sum_le_sum",
+            "prob_compl_eq_one_sub",
+            "tsub_le_tsub_left",
+        ),
+        depends_on=(
+            "finite_null_pvalue_no_false_rejection_probability",
+            "independent_null_pvalues_bridge",
+        ),
+    ),
     "bh_threshold_grid_mono": FormalObligation(
         id="bh_threshold_grid_mono",
         title="BH threshold grid monotonicity",
