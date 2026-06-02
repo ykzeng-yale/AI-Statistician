@@ -325,6 +325,7 @@ _PRIMITIVE_PROOF_BRIDGE_HINTS: dict[str, tuple[str, ...]] = {
         "difference_estimator_variance_decompose",
     ),
     "neyman_bound_nonnegative_treatment_effect_variance": (
+        "neyman_bound_conservative_of_variance_decomposition",
         "neyman_variance_conservative_algebra",
         "variance_nonneg",
     ),

@@ -233,6 +233,49 @@ theorem neymanVariance_conservative_of_nonneg_effect_variance
         expected_lemmas=("nlinarith",),
         depends_on=("difference_estimator_variance_decompose", "variance_nonneg"),
     ),
+    "neyman_bound_conservative_of_variance_decomposition": FormalObligation(
+        id="neyman_bound_conservative_of_variance_decomposition",
+        title="Neyman bound conservative from a nonnegative variance decomposition",
+        english=(
+            "If an exact design variance is an observable Neyman bound minus "
+            "the variance of a treatment-effect function, then the observable "
+            "bound is conservative. This is a minimal AXLE-checkable wrapper "
+            "for the missing primitive `neyman_bound_nonnegative_treatment_effect_variance`; "
+            "it uses Mathlib's variance nonnegativity and does not prove the "
+            "randomization variance decomposition itself."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+theorem neymanBound_conservative_of_variance_decomposition {Ω : Type*}
+    [MeasurableSpace Ω]
+    (μ : Measure Ω) (observableBound exactVariance : ℝ)
+    (tau : Ω → ℝ)
+    (hDecomp : exactVariance = observableBound - variance tau μ) :
+    exactVariance ≤ observableBound := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  have hNonneg : 0 ≤ variance tau μ := variance_nonneg tau μ\n"
+            "  nlinarith [hDecomp, hNonneg]"
+        ),
+        tags=(
+            "estimator",
+            "variance",
+            "design_based",
+            "neyman",
+            "conservative",
+            "finite_population",
+            "treatment_effect",
+            "neyman_bound_nonnegative_treatment_effect_variance",
+            "minimal_wrapper",
+        ),
+        expected_lemmas=("variance_nonneg", "nlinarith"),
+        depends_on=("neyman_variance_conservative_algebra", "variance_nonneg"),
+    ),
     "finite_population_ate_mean_difference": FormalObligation(
         id="finite_population_ate_mean_difference",
         title="Finite-population ATE mean-difference algebra",

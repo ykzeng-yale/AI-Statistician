@@ -13,15 +13,15 @@ python3 -m ai_statistician.cli proof-audit \
 Result:
 
 ```text
-verified=97/97
-kernel=97/97
+verified=98/98
+kernel=98/98
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=3ed10b5ba741e3d5a125c0d03c50f9da895d0f0d2ef4c20106e8d160c8e0f178
+proof_bank_fingerprint=1e428de5483c2d0c38620bcef5aced64f9faeac1a5da930d93658fd114934c24
 ```
 
 This is the current evidence that the registered proof bank is not only
-mock-checked: all 97 registered Mathlib-backed obligations were accepted by a
+mock-checked: all 98 registered Mathlib-backed obligations were accepted by a
 real Lean kernel check through the local Lake/Mathlib runtime. AXLE remains the
 preferred remote verifier for release bundles when its Python package and API
 runtime are available; the local Lean backend is the offline kernel-equivalent
@@ -44,9 +44,9 @@ strength=axle_lean_kernel
 ```
 
 That remote AXLE run predates the newest proof-bank additions. The current
-88-obligation proof bank has full local Lean kernel evidence above; run the
+98-obligation proof bank has full local Lean kernel evidence above; run the
 same `proof-audit --real-lean` command again from an AXLE-ready runtime to
-refresh remote AXLE evidence for all 88 obligations.
+refresh remote AXLE evidence for all 98 obligations.
 
 Latest current proof-bank validation: 2026-06-02.
 
@@ -56,16 +56,16 @@ Runtime used:
 .venv/bin/python -m ai_statistician.cli proof-audit \
   --local-lean \
   --lean-project /Users/yukang/LeanProjects/LeanPractice \
-  --out runs/current_design_wrapper_full_proof_audit
+  --out runs/current_neyman_bound_wrapper_full_proof_audit
 ```
 
 Result:
 
 ```text
-proof_bank_kernel=97/97
+proof_bank_kernel=98/98
 proof_verifier=local.lake_env_lean
 proof_strength=local_lean_kernel_batch
-proof_bank_fingerprint=3ed10b5ba741e3d5a125c0d03c50f9da895d0f0d2ef4c20106e8d160c8e0f178
+proof_bank_fingerprint=1e428de5483c2d0c38620bcef5aced64f9faeac1a5da930d93658fd114934c24
 dependency_graph_edges=116
 dependency_graph_all_known=True
 selected_dependencies_verified=True
@@ -76,10 +76,10 @@ EmpericalProcessLEAN `lean_rag` dependency graph, and bounded adaptive Monte
 Carlo reruns for simulations diagnosed as `INSUFFICIENT_MC_PRECISION`:
 
 ```text
-run=runs/current_adaptive_mc_system_audit_v2
+run=runs/current_neyman_bound_wrapper_system_audit
 all_gates_passed=True
-proofs_verified=97/97
-proofs_kernel_verified=97/97
+proofs_verified=98/98
+proofs_kernel_verified=98/98
 proof_verification_strength=local_lean_kernel_batch
 lean_rag_dependency_graph_enabled=True
 frontier_smoke=23/23
@@ -370,7 +370,7 @@ The causal bridge block now also includes
 `propensity_weight_cancel_left_of_lower_bound`, the left-oriented companion
 identity `p * p⁻¹ = 1` under the same strict lower-bound assumption. This gives
 IPW/AIPW algebra both cancellation orientations without relying on ad hoc
-commutativity rewrites; it is kernel-verified as part of the current `97/97`
+commutativity rewrites; it is kernel-verified as part of the current `98/98`
 local Lean proof-bank audit and still does not prove positivity as a model
 assumption or close causal identification.
 

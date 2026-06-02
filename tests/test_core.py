@@ -1387,6 +1387,22 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("randomization_variance", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_neyman_bound_variance_decomposition_wrapper_closes_nonnegative_effect_variance_bridge(self) -> None:
+        obligation = get_obligation("neyman_bound_conservative_of_variance_decomposition")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(
+            obligation.depends_on,
+            ("neyman_variance_conservative_algebra", "variance_nonneg"),
+        )
+        self.assertIn("theorem neymanBound_conservative_of_variance_decomposition", content)
+        self.assertIn("observableBound - variance tau μ", content)
+        self.assertIn("variance_nonneg tau μ", content)
+        self.assertIn("nlinarith", content)
+        self.assertIn("design_based", obligation.tags)
+        self.assertIn("neyman_bound_nonnegative_treatment_effect_variance", obligation.tags)
+        self.assertIn("minimal_wrapper", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_finite_population_ate_mean_difference_formalizes_potential_outcome_target(self) -> None:
         obligation = get_obligation("finite_population_ate_mean_difference")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
@@ -3828,7 +3844,7 @@ class SystemTests(unittest.TestCase):
         self.assertIn("S7_feedback_loop_repair_with_seeded_failures", payload["recommended_next_gate_stack"])
 
         doc = Path("docs/evaluation_benchmark_strategy.md").read_text(encoding="utf-8")
-        self.assertIn("`proofs_kernel_verified=97/97`", doc)
+        self.assertIn("`proofs_kernel_verified=98/98`", doc)
         self.assertIn("expected-result coverage about 83.3%", doc)
         self.assertIn("35 frontier-evaluation triage items", doc)
         self.assertIn("bounded adaptive MC inside the benchmark", doc)
@@ -4865,6 +4881,7 @@ class SystemTests(unittest.TestCase):
             "difference_estimator_unbiased",
             "difference_estimator_variance_decompose",
             "neyman_variance_conservative_algebra",
+            "neyman_bound_conservative_of_variance_decomposition",
             "mean2_estimator_unbiased",
             "mean2_estimator_variance_indep",
             "finite_sample_mean_variance_indep",
@@ -4939,6 +4956,10 @@ class SystemTests(unittest.TestCase):
                 rows[primitive]["bridge_candidate_obligations"],
             )
             self.assertEqual(rows[primitive]["priority_band"], "BRIDGE_REUSE_READY")
+        self.assertEqual(
+            rows["neyman_bound_nonnegative_treatment_effect_variance"]["bridge_candidate_obligations"][0],
+            "neyman_bound_conservative_of_variance_decomposition",
+        )
         self.assertNotIn(
             "neyman_variance_conservative_algebra",
             rows["complete_randomization_distribution"]["bridge_candidate_obligations"],

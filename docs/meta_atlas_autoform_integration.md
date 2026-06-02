@@ -173,7 +173,7 @@ python3 -m ai_statistician.cli research-system-audit \
 Result:
 
 ```text
-proof_bank_kernel=97/97
+proof_bank_kernel=98/98
 proof_verifier=local.lake_env_lean
 proof_strength=local_lean_kernel_batch
 system_all_gates_passed=True
@@ -183,8 +183,8 @@ frontier_supported=60/60
 frontier_smoke=23/23
 formalized_gaps=20/20
 proof_bank_expansion_bridge_ready=53/97
-proof_bank_expansion_compose_existing_bridge_chain=39
-proof_bank_expansion_add_minimal_wrapper=14
+proof_bank_expansion_compose_existing_bridge_chain=40
+proof_bank_expansion_add_minimal_wrapper=13
 formalization_targets_with_proof_bank_bridge=74
 missing_primitives=97
 lean_rag_dependency_graph_enabled=True
@@ -207,7 +207,10 @@ autoform_harness_audit: ready_for_integration=True
 source_inventory: 23/23 all_ok=True
 ```
 
-The same audit now reports `proof_bank_expansion_bridge_ready=60/97`.
+Earlier proof-bank expansion experiments temporarily reported a higher
+bridge-ready count; the current adaptive release audit reports `53/97` after
+stricter primitive routing, with `98/98` registered proof-bank obligations
+kernel verified.
 `independent_null_pvalues` is backed by the verified
 `independent_null_event_family_inter_probability` and
 `independent_null_event_family_compl_inter_probability` obligations. The
@@ -338,8 +341,10 @@ The screening/selection bridge family then adds
 event-algebra and margin bridges, not high-dimensional asymptotic selection
 theorems, but they convert the frontier theory-revision queue's four unique
 screening obligations from local-source-only support into proof-bank bridge
-targets. The proof-bank expansion audit now reports
-`proof_bank_expansion_bridge_ready=60/97`.
+targets. The current adaptive proof-bank expansion audit reports
+`proof_bank_expansion_bridge_ready=53/97`; these four screening bridges remain
+verified proof-bank entries, but the all-supported theory-revision queue no
+longer relies on the old unresolved simulator-rerun path.
 The upward conditional-expectation bridges
 `integrable_ae_tendsto_condexp_filtration` and
 `integrable_l1_tendsto_condexp_filtration` wrap Mathlib's
