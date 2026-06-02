@@ -408,6 +408,24 @@ class ProofBankTests(unittest.TestCase):
             Path(getattr(backend_with_auto_deps, "lean_rag_dependency_graph_path")).name,
             "stat_inference.sqlite",
         )
+        with patch(
+            "ai_statistician.formal_source_index.DEFAULT_LEAN_RAG_DB_CANDIDATES",
+            (lean_rag_db,),
+        ):
+            memory_backend_with_auto_deps = build_formal_source_search_backend(
+                roots=(root,),
+            )
+        self.assertTrue(getattr(memory_backend_with_auto_deps, "lean_rag_dependency_graph_enabled"))
+        self.assertTrue(getattr(memory_backend_with_auto_deps, "lean_rag_dependency_graph_auto_discovered"))
+        self.assertEqual(
+            Path(getattr(memory_backend_with_auto_deps, "lean_rag_dependency_graph_path")).name,
+            "stat_inference.sqlite",
+        )
+        memory_fused_hits = memory_backend_with_auto_deps.search("variance independent sum", k=5)
+        self.assertTrue(
+            any("lean_rag_dependency_graph" in hit.matched_terms for hit in memory_fused_hits),
+            [(hit.declaration.name, hit.matched_terms) for hit in memory_fused_hits],
+        )
         graph_payload = audit_formal_source_graph(
             Path("runs/test_formal_source_graph"),
             declarations=declarations,

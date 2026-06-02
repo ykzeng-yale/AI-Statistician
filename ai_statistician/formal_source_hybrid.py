@@ -126,5 +126,92 @@ class FormalSourceHybridRetriever:
         ]
 
 
+class FormalSourceDependencyHybridRetriever:
+    """Fuse any local declaration retriever with the lean_rag dependency graph.
+
+    The production retriever uses SQLite FTS plus symbol-graph expansion. Some
+    smoke tests and fallback paths intentionally use the lighter in-memory
+    shape retriever. This adapter keeps the dependency-graph provider active in
+    those paths too, so an available lean_rag DB is not silently ignored just
+    because the local declaration candidate generator is not SQLite-backed.
+    """
+
+    source = "python_shape+lean_rag_dependency"
+
+    def __init__(
+        self,
+        declarations: list[FormalDeclaration],
+        base_retriever: object,
+        dependency_retriever: object,
+    ) -> None:
+        self.declarations = declarations
+        self.base_retriever = base_retriever
+        self.dependency_retriever = dependency_retriever
+        setattr(self, "lean_rag_dependency_graph_enabled", True)
+        setattr(
+            self,
+            "lean_rag_dependency_graph_path",
+            str(getattr(dependency_retriever, "db_path", "")),
+        )
+        setattr(
+            self,
+            "lean_rag_dependency_graph_auto_discovered",
+            bool(getattr(dependency_retriever, "auto_discovered", False)),
+        )
+        self._declarations_by_name: dict[str, list[FormalDeclaration]] = defaultdict(list)
+        for declaration in declarations:
+            self._declarations_by_name[declaration.name].append(declaration)
+
+    def load_declarations(self) -> list[FormalDeclaration]:
+        return list(self.declarations)
+
+    def search(self, query: str, *, k: int = 10) -> list[FormalSourceHit]:
+        base_search = getattr(self.base_retriever, "search", None)
+        base_hits = base_search(query, k=max(k * 3, 10)) if callable(base_search) else []
+        dependency_search = getattr(self.dependency_retriever, "search", None)
+        dependency_hits = dependency_search(query, k=max(k * 2, 10)) if callable(dependency_search) else []
+
+        by_key: dict[tuple[str, str, int, str], FormalDeclaration] = {}
+        score_by_key: dict[tuple[str, str, int, str], float] = defaultdict(float)
+        matched_by_key: dict[tuple[str, str, int, str], set[str]] = defaultdict(set)
+
+        for rank, hit in enumerate(base_hits, start=1):
+            key = _decl_key(hit.declaration)
+            by_key[key] = hit.declaration
+            score_by_key[key] += hit.score + 8.0 / rank
+            matched_by_key[key].update(hit.matched_terms)
+            matched_by_key[key].add("python_shape")
+
+        for rank, hit in enumerate(dependency_hits, start=1):
+            local_matches = self._declarations_by_name.get(hit.declaration.name, ())
+            if local_matches:
+                for declaration in local_matches[:2]:
+                    key = _decl_key(declaration)
+                    by_key[key] = declaration
+                    score_by_key[key] += hit.score + 10.0 / rank
+                    matched_by_key[key].update(hit.matched_terms)
+                    matched_by_key[key].add("lean_rag_dependency_graph")
+                continue
+            key = _decl_key(hit.declaration)
+            by_key[key] = hit.declaration
+            score_by_key[key] += hit.score + 10.0 / rank
+            matched_by_key[key].update(hit.matched_terms)
+            matched_by_key[key].add("lean_rag_dependency_graph")
+
+        rows = [
+            _AccumulatedHit(
+                declaration=decl,
+                score=score_by_key[key],
+                matched_terms=tuple(sorted(matched_by_key[key])[:20]),
+            )
+            for key, decl in by_key.items()
+        ]
+        rows.sort(key=lambda row: (-row.score, row.declaration.source_id, row.declaration.name))
+        return [
+            FormalSourceHit(row.declaration, row.score, row.matched_terms)
+            for row in rows[:k]
+        ]
+
+
 def _decl_key(decl: FormalDeclaration) -> tuple[str, str, int, str]:
     return (decl.source_id, decl.path, decl.line, decl.name)

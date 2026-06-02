@@ -482,10 +482,19 @@ def build_formal_source_search_backend(
         setattr(retriever, "cache_path", str(cache_file) if cache_file is not None else "")
         _attach_lean_rag_metadata(retriever, dependency_retriever)
         return retriever
-    retriever = FormalSourceRetriever(declarations)
+    dependency_retriever = _optional_lean_rag_dependency_retriever(lean_rag_db_path)
+    retriever: object = FormalSourceRetriever(declarations)
+    if dependency_retriever is not None:
+        from .formal_source_hybrid import FormalSourceDependencyHybridRetriever
+
+        retriever = FormalSourceDependencyHybridRetriever(
+            declarations,
+            retriever,
+            dependency_retriever,
+        )
     setattr(retriever, "cache_status", "disabled")
     setattr(retriever, "cache_path", "")
-    _attach_lean_rag_metadata(retriever, None)
+    _attach_lean_rag_metadata(retriever, dependency_retriever)
     return retriever
 
 
