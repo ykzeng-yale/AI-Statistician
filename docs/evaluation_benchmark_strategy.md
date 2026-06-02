@@ -48,6 +48,9 @@ Pass criteria:
 - all release gates pass
 - proof-bank obligations are kernel verified when local Lean is requested
 - trace, provenance, fingerprint, and gap manifests are internally consistent
+- `claim-ledger` can export typed problem/procedure/theorem/proof/simulation/
+  revision rows without collapsing simulation or retrieval support into proof
+  evidence
 
 This is a release gate, not a research benchmark.
 

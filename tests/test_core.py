@@ -26,6 +26,7 @@ from ai_statistician.algorithm_simulation_stress_audit import audit_algorithm_si
 from ai_statistician.adversarial_intake_audit import audit_adversarial_unsupported_intake
 from ai_statistician.architecture_audit import audit_architecture
 from ai_statistician.capability_audit import build_capability_audit, write_capability_audit
+from ai_statistician.claim_ledger import build_claim_ledger
 from ai_statistician.doctor import build_doctor_report, write_doctor_manifest
 from ai_statistician.evaluation_benchmark_guidance import build_evaluation_benchmark_guidance
 from ai_statistician.frontier_coverage_audit import audit_frontier_coverage, load_frontier_benchmark_questions
@@ -4667,6 +4668,49 @@ class SystemTests(unittest.TestCase):
         self.assertIn("Next Iteration Agenda", text)
         self.assertIn("Source Grounding", text)
         self.assertIn("FORMAL_GAP", text)
+
+    def test_claim_ledger_separates_proof_gap_simulation_and_revision_evidence(self) -> None:
+        async def run():
+            questions = load_open_research_questions(Path("examples/research_questions.json"))[:2]
+            await run_research_benchmark(
+                questions,
+                Path("runs/test_claim_ledger_run"),
+                proof_verifier=MockProofVerifier(),
+                n_runs=25,
+                seed=20260528,
+            )
+            return build_claim_ledger(
+                Path("runs/test_claim_ledger_run"),
+                Path("runs/test_claim_ledger"),
+            )
+
+        payload = asyncio.run(run())
+        self.assertTrue(payload["all_ok"])
+        self.assertEqual(payload["n_questions"], 2)
+        self.assertGreater(payload["n_claims"], 0)
+        self.assertIn("problem_card", payload["by_kind"])
+        self.assertIn("procedure_derivation", payload["by_kind"])
+        self.assertIn("formal_subclaim", payload["by_kind"])
+        self.assertIn("simulation_evidence", payload["by_kind"])
+        self.assertIn("next_iteration_item", payload["by_kind"])
+        self.assertIn("MOCK_PROVED_SUBCLAIM", payload["by_status"])
+        self.assertIn("FORMAL_GAP", payload["by_status"])
+        self.assertIn("SIMULATION_SUPPORTED", payload["by_status"])
+        self.assertIn("REVISION_QUEUED", payload["by_status"])
+        rows = payload["rows"]
+        mock_rows = [row for row in rows if row["status"] == "MOCK_PROVED_SUBCLAIM"]
+        self.assertTrue(mock_rows)
+        self.assertTrue(all(not row["kernel_verified"] for row in mock_rows))
+        self.assertTrue(all(row["evidence_level"] != "lean_kernel_verified" for row in mock_rows))
+        gap_rows = [row for row in rows if row["status"] == "FORMAL_GAP"]
+        self.assertTrue(gap_rows)
+        self.assertTrue(any(row["formal_source_hits"] for row in gap_rows))
+        sim_rows = [row for row in rows if row["kind"] == "simulation_evidence"]
+        self.assertTrue(sim_rows)
+        self.assertTrue(all(row["simulation_metrics"] for row in sim_rows))
+        self.assertTrue(Path("runs/test_claim_ledger/claim_ledger_manifest.json").exists())
+        self.assertTrue(Path("runs/test_claim_ledger/claim_ledger.jsonl").exists())
+        self.assertTrue(Path("runs/test_claim_ledger/claim_ledger.md").exists())
 
     def test_research_trace_audit_validates_frontier_traces(self) -> None:
         async def run():

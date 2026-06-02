@@ -19,6 +19,7 @@ from .algorithm_repair_sandbox_rerun import rerun_algorithm_repair_sandbox_appli
 from .architecture_audit import audit_architecture
 from .autoform_harness import audit_autoform_harness
 from .capability_audit import build_capability_audit, write_capability_audit
+from .claim_ledger import build_claim_ledger
 from .doctor import build_doctor_report, write_doctor_manifest
 from .evaluation import EvalConfig, run_seed_eval
 from .autoform_target_export import export_autoform_targets
@@ -1238,6 +1239,22 @@ def _research_report(args: argparse.Namespace) -> int:
         print(f"  report error: {error[:180]}")
     print(f"\nmarkdown report written to {(Path(args.out) / 'research_report.md').resolve()}")
     print(f"report manifest written to {(Path(args.out) / 'research_report_manifest.json').resolve()}")
+    return 0 if payload["all_ok"] else 1
+
+
+def _claim_ledger(args: argparse.Namespace) -> int:
+    payload = build_claim_ledger(Path(args.run_dir), Path(args.out))
+    print("\nAI Statistical Theory Lab Claim Ledger")
+    print("=" * 72)
+    print(
+        f"claims={payload['n_ok']}/{payload['n_claims']} "
+        f"questions={payload['n_questions']} all_ok={payload['all_ok']}"
+    )
+    for status, count in payload["by_status"].items():
+        print(f"  {status}: {count}")
+    print(f"\nclaim ledger manifest written to {(Path(args.out) / 'claim_ledger_manifest.json').resolve()}")
+    print(f"jsonl written to {(Path(args.out) / 'claim_ledger.jsonl').resolve()}")
+    print(f"markdown report written to {(Path(args.out) / 'claim_ledger.md').resolve()}")
     return 0 if payload["all_ok"] else 1
 
 
@@ -2825,6 +2842,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="research report output directory",
     )
     research_report.set_defaults(func=_research_report)
+
+    claim_ledger = sub.add_parser(
+        "claim-ledger",
+        help="write a typed claim/evidence ledger from persisted AI Statistical Theory Lab traces",
+    )
+    claim_ledger.add_argument(
+        "--run-dir",
+        required=True,
+        help="directory containing research_benchmark_manifest.json and research trace JSON files",
+    )
+    claim_ledger.add_argument(
+        "--out",
+        default="runs/claim_ledger",
+        help="claim ledger output directory",
+    )
+    claim_ledger.set_defaults(func=_claim_ledger)
 
     doctor = sub.add_parser("doctor", help="inspect local readiness for proof, LLM, retrieval, and audit runs")
     doctor.add_argument("--root", default=".", help="project root to inspect")

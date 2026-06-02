@@ -418,6 +418,24 @@ procedure derivations, theorem goals, proved subclaims, formal gaps, simulation
 diagnostics, stress tests, paper/source grounding, and local Lean/StatInference
 candidates into one document.
 
+Typed claim ledger:
+
+```bash
+python3 -m ai_statistician.cli claim-ledger \
+  --run-dir runs/research_benchmark \
+  --out runs/claim_ledger
+```
+
+This consumes the same persisted research traces and writes
+`claim_ledger_manifest.json`, `claim_ledger.jsonl`, and `claim_ledger.md`.
+Unlike the human report, it is a machine-facing coordination substrate: every
+problem card, informal procedure derivation, theorem goal, formal subclaim,
+simulation row, and next-iteration agenda item becomes a typed claim row with a
+separate evidence level.  This is the artifact future theory/proof/simulation
+agents should update when closing the loop.  It deliberately distinguishes
+retrieval/gap evidence from Lean-kernel proof evidence and simulation support
+from formal proof.
+
 Research trace audit:
 
 ```bash
