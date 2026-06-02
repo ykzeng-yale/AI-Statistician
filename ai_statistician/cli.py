@@ -52,6 +52,7 @@ from .formal_source_retrieval_benchmark import (
 from .intake_audit import audit_question_intake
 from .lean_rag_package_audit import audit_lean_rag_package
 from .proof_audit import audit_proof_bank
+from .proof_bank_action_export import export_proof_bank_actions
 from .proof_bank import all_obligations, obligations_by_tags
 from .proof_bank_expansion_export import export_proof_bank_expansion_candidates
 from .proof_policy_baseline import evaluate_retrieval_proof_policy_baseline
@@ -1132,6 +1133,25 @@ def _proof_bank_expansion_export(args: argparse.Namespace) -> int:
         f"theorem-hole queue written to "
         f"{(Path(args.out) / 'theorem_hole_promotion_queue_manifest.json').resolve()}"
     )
+    return 0 if payload["all_ok"] else 1
+
+
+def _proof_bank_action_export(args: argparse.Namespace) -> int:
+    payload = export_proof_bank_actions(Path(args.proof_bank_expansion_dir), Path(args.out))
+    print("\nAI Statistical Theory Lab Proof-Bank Actions")
+    print("=" * 72)
+    print(
+        f"actions={payload['n_ok']}/{payload['n_actions']} "
+        f"expansion_candidates={payload['expansion_candidates']} all_ok={payload['all_ok']}"
+    )
+    for action_class, count in payload["by_action_class"].items():
+        print(f"  {action_class}: {count}")
+    print(
+        f"\nproof-bank action manifest written to "
+        f"{(Path(args.out) / 'proof_bank_action_manifest.json').resolve()}"
+    )
+    print(f"jsonl written to {(Path(args.out) / 'proof_bank_actions.jsonl').resolve()}")
+    print(f"markdown report written to {(Path(args.out) / 'proof_bank_actions.md').resolve()}")
     return 0 if payload["all_ok"] else 1
 
 
@@ -2773,6 +2793,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="proof-bank expansion candidate output directory",
     )
     proof_bank_expansion_export.set_defaults(func=_proof_bank_expansion_export)
+
+    proof_bank_action_export = sub.add_parser(
+        "proof-bank-action-export",
+        help="export ranked FormalVerifier action rows from proof-bank expansion candidates",
+    )
+    proof_bank_action_export.add_argument(
+        "--proof-bank-expansion-dir",
+        required=True,
+        help="directory containing proof_bank_expansion_manifest.json and lemma_proposals.jsonl",
+    )
+    proof_bank_action_export.add_argument(
+        "--out",
+        default="runs/proof_bank_actions",
+        help="proof-bank action output directory",
+    )
+    proof_bank_action_export.set_defaults(func=_proof_bank_action_export)
 
     rag_collaboration_export = sub.add_parser(
         "rag-collaboration-export",

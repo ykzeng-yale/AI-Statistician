@@ -610,6 +610,23 @@ blockers such as `candidate_statement_has_placeholder_assumption`. These fields
 are retrieval/planning evidence only; the row still remains blocked until a
 non-placeholder proof body passes AXLE/Lean verification.
 
+Proof-bank action export:
+
+```bash
+python3 -m ai_statistician.cli proof-bank-action-export \
+  --proof-bank-expansion-dir runs/proof_bank_expansion \
+  --out runs/proof_bank_actions
+```
+
+This converts raw proof-bank expansion proposals into a compact FormalVerifier
+queue. Each row records owner, priority, action class, required verification
+gate, required output fields, expected premises, bridge obligations, local
+declarations, and the proof-evidence boundary. It is the agent-action layer for
+turning `FORMAL_GAP` primitives into new proof-bank obligations; it is not proof
+evidence until the requested non-placeholder proof body passes AXLE/local Lean
+verification. `research-system-audit` writes this as
+`proof_bank_actions/proof_bank_action_manifest.json` and includes it as a gate.
+
 RAG collaboration handoff:
 
 ```bash

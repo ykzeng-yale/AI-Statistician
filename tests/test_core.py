@@ -64,6 +64,7 @@ from ai_statistician.autoform_target_export import export_autoform_targets
 from ai_statistician.intake_audit import audit_question_intake
 from ai_statistician.frontier_backlog_audit import audit_frontier_backlog
 from ai_statistician.proof_audit import audit_proof_bank
+from ai_statistician.proof_bank_action_export import export_proof_bank_actions
 from ai_statistician.proof_bank_expansion_export import export_proof_bank_expansion_candidates
 from ai_statistician.primitive_source_coverage_audit import audit_primitive_source_coverage
 from ai_statistician.proof_policy_baseline import evaluate_retrieval_proof_policy_baseline
@@ -6126,6 +6127,60 @@ class SystemTests(unittest.TestCase):
             self.assertTrue(rows[0]["candidate_proof_is_empty"])
             self.assertTrue(rows[0]["candidate_statement_has_placeholder_assumption"])
 
+    def test_proof_bank_action_export_writes_ranked_formal_verifier_queue(self) -> None:
+        async def run():
+            questions = load_open_research_questions(Path("examples/research_questions.json"))[:2]
+            await run_research_benchmark(
+                questions,
+                Path("runs/test_proof_bank_action_run"),
+                proof_verifier=MockProofVerifier(),
+                n_runs=25,
+                seed=20260528,
+            )
+            expansion = export_proof_bank_expansion_candidates(
+                Path("runs/test_proof_bank_action_run"),
+                Path("runs/test_proof_bank_action_expansion"),
+            )
+            actions = export_proof_bank_actions(
+                Path("runs/test_proof_bank_action_expansion"),
+                Path("runs/test_proof_bank_actions"),
+            )
+            return expansion, actions
+
+        expansion, payload = asyncio.run(run())
+        self.assertTrue(payload["all_ok"])
+        self.assertEqual(payload["n_actions"], expansion["n_candidates"])
+        self.assertEqual(payload["n_ok"], payload["n_actions"])
+        self.assertEqual(payload["by_owner"], {"formal_verifier": payload["n_actions"]})
+        self.assertEqual(
+            payload["n_actions"],
+            payload["n_compose_existing_bridge_chain"]
+            + payload["n_add_minimal_wrapper"]
+            + payload["n_design_bridge_lemma"]
+            + payload["n_design_from_first_principles"],
+        )
+        self.assertTrue(payload["actions"])
+        first = payload["actions"][0]
+        self.assertTrue(first["action_id"].startswith("proof_bank_action:lemma_proposal:"))
+        self.assertEqual(first["owner_agent"], "formal_verifier")
+        self.assertIn(
+            first["action_class"],
+            {
+                "compose_existing_bridge_chain",
+                "add_minimal_wrapper",
+                "design_bridge_lemma",
+                "design_from_first_principles",
+            },
+        )
+        self.assertTrue(first["required_gate"])
+        self.assertTrue(first["required_fields"])
+        self.assertIn("kernel_verified", first["required_fields"])
+        self.assertTrue(first["expected_premises"])
+        self.assertIn("not Lean proof evidence", " ".join(payload["limitations"]))
+        self.assertTrue(Path("runs/test_proof_bank_actions/proof_bank_action_manifest.json").exists())
+        self.assertTrue(Path("runs/test_proof_bank_actions/proof_bank_actions.jsonl").exists())
+        self.assertTrue(Path("runs/test_proof_bank_actions/proof_bank_actions.md").exists())
+
     def test_primitive_source_coverage_audit_classifies_missing_primitives(self) -> None:
         async def run():
             questions = load_open_research_questions(Path("examples/research_questions.json"))[:2]
@@ -8289,6 +8344,7 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(payload["gates"]["formal_gap_task_export"])
         self.assertTrue(payload["gates"]["autoform_target_export"])
         self.assertTrue(payload["gates"]["proof_bank_expansion_export"])
+        self.assertTrue(payload["gates"]["proof_bank_action_export"])
         self.assertTrue(payload["gates"]["primitive_source_coverage_audit"])
         self.assertTrue(payload["gates"]["research_training_export"])
         self.assertTrue(payload["gates"]["research_policy_baseline"])
@@ -8561,6 +8617,7 @@ class SystemTests(unittest.TestCase):
             "formal_gap_task_export",
             "autoform_target_export",
             "proof_bank_expansion_export",
+            "proof_bank_action_export",
             "primitive_source_coverage_audit",
             "research_training_export",
             "research_policy_baseline",
@@ -8667,6 +8724,16 @@ class SystemTests(unittest.TestCase):
             + payload["counts"]["proof_bank_expansion_add_minimal_wrapper"]
             + payload["counts"]["proof_bank_expansion_design_bridge_lemma"]
             + payload["counts"]["proof_bank_expansion_design_from_first_principles"],
+        )
+        self.assertEqual(payload["counts"]["proof_bank_actions_ok"], payload["counts"]["proof_bank_actions"])
+        self.assertEqual(payload["counts"]["proof_bank_actions"], payload["counts"]["proof_bank_expansion_candidates_total"])
+        self.assertGreater(payload["counts"]["proof_bank_actions_high_priority"], 0)
+        self.assertEqual(
+            payload["counts"]["proof_bank_actions"],
+            payload["counts"]["proof_bank_actions_compose_existing_bridge_chain"]
+            + payload["counts"]["proof_bank_actions_add_minimal_wrapper"]
+            + payload["counts"]["proof_bank_actions_design_bridge_lemma"]
+            + payload["counts"]["proof_bank_actions_design_from_first_principles"],
         )
         self.assertEqual(
             payload["counts"]["primitive_source_coverage_primitives"],
@@ -8801,6 +8868,9 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(Path(payload["artifacts"]["proof_bank_expansion_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["proof_bank_expansion_lemma_proposals"]).exists())
         self.assertTrue(Path(payload["artifacts"]["proof_bank_expansion_theorem_hole_queue"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["proof_bank_actions"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["proof_bank_actions_jsonl"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["proof_bank_actions_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["primitive_source_coverage"]).exists())
         self.assertTrue(Path(payload["artifacts"]["primitive_source_coverage_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["research_training_export"]).exists())

@@ -171,6 +171,7 @@ Source:
 - `formalization-target-audit`
 - `research_gap_backlog`
 - `proof_bank_expansion_export`
+- `proof_bank_action_export`
 
 Current release signal:
 
@@ -178,6 +179,9 @@ Current release signal:
 - 78 have proof-bank plus local-source bridges
 - 19 are local-source-only
 - 53 have ranked proof-bank bridge candidates ready for direct reuse
+- proof-bank action export turns the candidate set into owner/priority/gate
+  rows for the FormalVerifier, but those rows remain task contracts rather than
+  proof evidence until AXLE/local Lean accepts the proposed proof body
 - compose-existing bridge-chain opportunities are now 51
 - minimal-wrapper debt is now 2, down from 10 after adding the robust
   median-of-means, conformal rank/quantile, and continuous-mapping wrappers

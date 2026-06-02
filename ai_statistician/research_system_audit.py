@@ -45,6 +45,7 @@ from .autoform_harness import audit_autoform_harness
 from .autoform_target_export import export_autoform_targets
 from .frontier_smoke_benchmark import FrontierSmokeConfig, run_frontier_smoke_benchmark
 from .proof_audit import audit_proof_bank
+from .proof_bank_action_export import export_proof_bank_actions
 from .proof_bank import proof_bank_fingerprint
 from .proof_bank_expansion_export import export_proof_bank_expansion_candidates
 from .primitive_source_coverage_audit import audit_primitive_source_coverage
@@ -413,6 +414,11 @@ async def run_research_system_audit(
         out_dir / "proof_bank_expansion",
     )
     stage_start = _record_stage(stage_timings, "proof_bank_expansion_export", stage_start)
+    proof_bank_action_manifest = export_proof_bank_actions(
+        out_dir / "proof_bank_expansion",
+        out_dir / "proof_bank_actions",
+    )
+    stage_start = _record_stage(stage_timings, "proof_bank_action_export", stage_start)
     primitive_source_coverage_manifest = audit_primitive_source_coverage(
         out_dir / "research_benchmark",
         out_dir / "primitive_source_coverage",
@@ -604,6 +610,7 @@ async def run_research_system_audit(
         "autoform_target_export": bool(autoform_target_manifest["all_ok"])
         and int(autoform_target_manifest["n_targets"]) == int(formal_gap_task_manifest["n_tasks"]),
         "proof_bank_expansion_export": bool(proof_bank_expansion_manifest["all_ok"]),
+        "proof_bank_action_export": bool(proof_bank_action_manifest["all_ok"]),
         "primitive_source_coverage_audit": bool(primitive_source_coverage_manifest["all_ok"]),
         "research_training_export": bool(research_training_manifest["all_ok"]),
         "research_policy_baseline": bool(research_policy_manifest["all_ok"]),
@@ -637,6 +644,7 @@ async def run_research_system_audit(
         "formal_gap_task_export",
         "autoform_target_export",
         "proof_bank_expansion_export",
+        "proof_bank_action_export",
         "research_training_export",
         "research_policy_baseline",
         "next_iteration_queue",
@@ -1089,6 +1097,23 @@ async def run_research_system_audit(
             "proof_bank_expansion_design_from_first_principles": proof_bank_expansion_manifest[
                 "n_design_from_first_principles"
             ],
+            "proof_bank_actions": proof_bank_action_manifest["n_actions"],
+            "proof_bank_actions_ok": proof_bank_action_manifest["n_ok"],
+            "proof_bank_actions_compose_existing_bridge_chain": proof_bank_action_manifest[
+                "n_compose_existing_bridge_chain"
+            ],
+            "proof_bank_actions_add_minimal_wrapper": proof_bank_action_manifest[
+                "n_add_minimal_wrapper"
+            ],
+            "proof_bank_actions_design_bridge_lemma": proof_bank_action_manifest[
+                "n_design_bridge_lemma"
+            ],
+            "proof_bank_actions_design_from_first_principles": proof_bank_action_manifest[
+                "n_design_from_first_principles"
+            ],
+            "proof_bank_actions_high_priority": proof_bank_action_manifest["by_priority"].get("high", 0),
+            "proof_bank_actions_medium_priority": proof_bank_action_manifest["by_priority"].get("medium", 0),
+            "proof_bank_actions_low_priority": proof_bank_action_manifest["by_priority"].get("low", 0),
             "primitive_source_coverage_primitives": primitive_source_coverage_manifest["n_primitives"],
             "primitive_source_coverage_direct_wrapper_possible": primitive_source_coverage_manifest[
                 "n_direct_wrapper_possible"
@@ -1567,6 +1592,9 @@ async def run_research_system_audit(
             "proof_bank_expansion_theorem_hole_queue": str(
                 out_dir / "proof_bank_expansion" / "theorem_hole_promotion_queue_manifest.json"
             ),
+            "proof_bank_actions": str(out_dir / "proof_bank_actions" / "proof_bank_action_manifest.json"),
+            "proof_bank_actions_jsonl": str(out_dir / "proof_bank_actions" / "proof_bank_actions.jsonl"),
+            "proof_bank_actions_report": str(out_dir / "proof_bank_actions" / "proof_bank_actions.md"),
             "primitive_source_coverage": str(
                 out_dir / "primitive_source_coverage" / "primitive_source_coverage_manifest.json"
             ),
