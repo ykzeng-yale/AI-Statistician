@@ -503,6 +503,7 @@ _PRIMITIVE_PROOF_BRIDGE_HINTS: dict[str, tuple[str, ...]] = {
         "iid_real_clt_tendsto_distribution",
     ),
     "empirical_process_remainder_bound": (
+        "empirical_process_remainder_bound_bridge",
         "slutsky_add_negligible_zero_real",
         "iid_real_clt_tendsto_distribution",
     ),
@@ -526,6 +527,11 @@ _PRIMITIVE_PROOF_BRIDGE_HINTS: dict[str, tuple[str, ...]] = {
         "product_limit_delta_method_bridge",
         "tendsto_in_distribution_continuous_mapping",
         "slutsky_add_negligible_zero_real",
+    ),
+    "kaplan_meier_product_limit": (
+        "kaplan_meier_product_limit_bridge",
+        "product_limit_delta_method_bridge",
+        "martingale_ae_eq_condexp_limit_process",
     ),
     "influence_function_variance": (
         "iid_real_clt_tendsto_distribution",

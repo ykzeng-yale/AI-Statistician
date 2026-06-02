@@ -2593,6 +2593,56 @@ theorem productLimit_deltaMethod_continuousMapping_bridge
         expected_lemmas=("TendstoInDistribution.continuous_comp",),
         depends_on=("tendsto_in_distribution_continuous_mapping",),
     ),
+    "kaplan_meier_product_limit_bridge": FormalObligation(
+        id="kaplan_meier_product_limit_bridge",
+        title="Kaplan-Meier product-limit continuous-mapping bridge",
+        english=(
+            "If a Kaplan-Meier product-limit statistic is already represented "
+            "as a continuous transform of a process statistic, and that process "
+            "statistic converges in distribution, then the product-limit "
+            "statistic converges in distribution. This is an exact "
+            "primitive-named wrapper for `kaplan_meier_product_limit`; it does "
+            "not prove the Kaplan-Meier finite-product identity, survival "
+            "martingale CLT, or Greenwood variance consistency."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory Filter
+open scoped Topology
+
+theorem kaplanMeierProductLimit_continuousMapping_bridge
+    {ι : Type*} {E F : Type*} {Ω : ι → Type*} {Ω' : Type*}
+    {mΩ : (i : ι) → MeasurableSpace (Ω i)}
+    {μ : (i : ι) → @Measure (Ω i) (mΩ i)}
+    [∀ i, IsProbabilityMeasure (μ i)]
+    {mΩ' : MeasurableSpace Ω'} {μ' : @Measure Ω' mΩ'}
+    [IsProbabilityMeasure μ']
+    [TopologicalSpace E] [MeasurableSpace E] [OpensMeasurableSpace E]
+    [TopologicalSpace F] [MeasurableSpace F] [BorelSpace F]
+    {X : (i : ι) → Ω i → E} {Z : Ω' → E} {l : Filter ι} {g : E → F}
+    (h : TendstoInDistribution X l Z μ μ') (hg : Continuous g) :
+    TendstoInDistribution (fun i => g ∘ X i) l (g ∘ Z) μ μ' := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  exact h.continuous_comp hg"
+        ),
+        tags=(
+            "probability",
+            "continuous_mapping",
+            "convergence_in_distribution",
+            "kaplan_meier_product_limit",
+            "product_limit_delta_method",
+            "survival",
+            "kaplan_meier",
+            "nelson_aalen",
+            "minimal_wrapper",
+        ),
+        expected_lemmas=("TendstoInDistribution.continuous_comp",),
+        depends_on=("product_limit_delta_method_bridge",),
+    ),
     "slutsky_add_negligible_zero_real": FormalObligation(
         id="slutsky_add_negligible_zero_real",
         title="Real Slutsky addition bridge for a negligible remainder",
@@ -2658,6 +2708,67 @@ theorem real_slutsky_add_negligible_zero
             "iid_real_clt_tendsto_distribution",
             "tendsto_in_distribution_continuous_mapping",
         ),
+    ),
+    "empirical_process_remainder_bound_bridge": FormalObligation(
+        id="empirical_process_remainder_bound_bridge",
+        title="Empirical-process negligible-remainder Slutsky bridge",
+        english=(
+            "If a main real-valued statistic converges in distribution and the "
+            "empirical-process remainder term is already controlled as "
+            "`o_p(1)` via `TendstoInMeasure` to zero, then adding that "
+            "remainder preserves the distributional limit. This is an exact "
+            "primitive-named wrapper for `empirical_process_remainder_bound`; "
+            "it proves the reusable Slutsky transfer after a remainder bound "
+            "has been established, but it does not prove Donsker, stochastic "
+            "equicontinuity, or problem-specific empirical-process control."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory Filter
+open scoped Topology
+
+theorem empiricalProcessRemainder_slutsky_bridge
+    {ι Sample LimitSample : Type*}
+    [MeasurableSpace Sample] [MeasurableSpace LimitSample]
+    {sampleLaw : Measure Sample} {limitLaw : Measure LimitSample}
+    [IsProbabilityMeasure sampleLaw] [IsProbabilityMeasure limitLaw]
+    {l : Filter ι} [l.IsCountablyGenerated]
+    (main empiricalRemainder : ι → Sample → ℝ)
+    (limit : LimitSample → ℝ)
+    (hmain :
+      TendstoInDistribution main l limit (fun _ => sampleLaw) limitLaw)
+    (hremainder :
+      TendstoInMeasure sampleLaw empiricalRemainder l (fun _ => (0 : ℝ)))
+    (hremainder_meas :
+      ∀ index, AEMeasurable (empiricalRemainder index) sampleLaw) :
+    TendstoInDistribution
+      (fun index sample => main index sample + empiricalRemainder index sample)
+      l limit (fun _ => sampleLaw) limitLaw := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  simpa using\n"
+            "    hmain.add_of_tendstoInMeasure_const\n"
+            "      (Y := empiricalRemainder)\n"
+            "      (c := (0 : ℝ))\n"
+            "      hremainder hremainder_meas"
+        ),
+        tags=(
+            "probability",
+            "slutsky",
+            "convergence_in_distribution",
+            "convergence_in_probability",
+            "negligible_remainder",
+            "empirical_process_remainder_bound",
+            "semiparametric_causal_ate",
+            "asymptotic_linearity",
+            "asymptotic_normality",
+            "minimal_wrapper",
+        ),
+        expected_lemmas=("TendstoInDistribution.add_of_tendstoInMeasure_const",),
+        depends_on=("slutsky_add_negligible_zero_real",),
     ),
     "finite_event_indicator_mean_unbiased": FormalObligation(
         id="finite_event_indicator_mean_unbiased",

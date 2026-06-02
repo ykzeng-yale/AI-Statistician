@@ -5,27 +5,57 @@ Latest current proof-bank validation: 2026-06-02.
 Runtime used:
 
 ```bash
-python3 -m ai_statistician.cli proof-audit \
+.venv/bin/python -m ai_statistician.cli proof-audit \
   --local-lean \
-  --out runs/proof_audit_local_lean_current
+  --lean-project /Users/yukang/LeanProjects/LeanPractice \
+  --out runs/current_minimal_wrapper_full_local_lean_proof_audit
 ```
 
 Result:
 
 ```text
-verified=109/109
-kernel=109/109
+verified=111/111
+kernel=111/111
 verifier=local.lake_env_lean
 strength=local_lean_kernel_batch
-proof_bank_fingerprint=1919daaf89e36790b793317b6f31e54df190a7762ed13d33b38b1340fc512f24
+proof_bank_fingerprint=a22b250ace81b8492c807ebfdcd446c4005917d7cd5470a5a4aa393033d249c9
 ```
 
 This is the current evidence that the registered proof bank is not only
-mock-checked: all 109 registered Mathlib-backed obligations were accepted by a
+mock-checked: all 111 registered Mathlib-backed obligations were accepted by a
 real Lean kernel check through the local Lake/Mathlib runtime. AXLE remains the
 preferred remote verifier for release bundles when its Python package and API
 runtime are available; the local Lean backend is the offline kernel-equivalent
 fallback used for this latest full-bank proof audit.
+
+The newest two obligations are:
+
+- `kaplan_meier_product_limit_bridge`: a Kaplan-Meier/product-limit
+  continuous-mapping wrapper. It assumes process convergence and continuity of
+  the product-limit transform; it does not prove Kaplan-Meier construction,
+  Greenwood consistency, or the survival martingale CLT.
+- `empirical_process_remainder_bound_bridge`: a Slutsky wrapper for an
+  empirical-process remainder that is already controlled as `o_p(1)`. It does
+  not prove Donsker, stochastic equicontinuity, or a problem-specific
+  empirical-process bound.
+
+Both were additionally checked in a focused local Lean audit:
+
+```bash
+.venv/bin/python -m ai_statistician.cli proof-audit \
+  --local-lean \
+  --lean-project /Users/yukang/LeanProjects/LeanPractice \
+  --id kaplan_meier_product_limit_bridge \
+  --id empirical_process_remainder_bound_bridge \
+  --out runs/current_minimal_wrapper_proof_audit_local_lean
+```
+
+```text
+verified=2/2
+kernel=2/2
+verifier=local.lake_env_lean
+strength=local_lean_kernel_batch
+```
 
 Latest remote AXLE proof-bank validation: 2026-05-30.
 
@@ -44,52 +74,25 @@ strength=axle_lean_kernel
 ```
 
 That remote AXLE run predates the newest proof-bank additions. The current
-109-obligation proof bank has full local Lean kernel evidence above; run the
+111-obligation proof bank has full local Lean kernel evidence above; run the
 same `proof-audit --real-lean` command again from an AXLE-ready runtime to
-refresh remote AXLE evidence for all 106 obligations.
+refresh remote AXLE evidence for all 111 obligations.
 
-Latest current proof-bank validation: 2026-06-02.
-
-Runtime used:
-
-```bash
-.venv/bin/python -m ai_statistician.cli proof-audit \
-  --local-lean \
-  --lean-project /Users/yukang/LeanProjects/LeanPractice \
-  --out runs/current_robust_mean_bridges_full_proof_audit
-```
-
-Result:
+The latest small research-system audit after these additions used the same
+proof bank and the EmpericalProcessLEAN `lean_rag` dependency graph, but it
+used the default mock/static proof verifier for the full system gate. The
+separate proof-bank audit above is the Lean-kernel proof evidence.
 
 ```text
-proof_bank_kernel=109/109
-proof_verifier=local.lake_env_lean
-proof_strength=local_lean_kernel_batch
-proof_bank_fingerprint=1919daaf89e36790b793317b6f31e54df190a7762ed13d33b38b1340fc512f24
-dependency_graph_edges=133
-dependency_graph_all_known=True
-selected_dependencies_verified=True
-```
-
-The latest full research-system audit uses the same proof bank, the
-EmpericalProcessLEAN `lean_rag` dependency graph, and bounded adaptive Monte
-Carlo reruns for simulations diagnosed as `INSUFFICIENT_MC_PRECISION`:
-
-```text
-run=runs/current_continuous_mapping_wrappers_queuefix_system_audit
+run=runs/current_minimal_wrapper_system_audit
 all_gates_passed=True
-proofs_verified=109/109
-proofs_kernel_verified=109/109
-proof_verification_strength=local_lean_kernel_batch
+proofs_verified=111/111
+proofs_kernel_verified=0/111
+proof_verification_strength=mock_static_check
 lean_rag_dependency_graph_enabled=True
 frontier_smoke=23/23
-research_ready_with_gaps=10/10
-research_simulation_flagged=0/10
-research_adaptive_mc_rows=4
-research_adaptive_mc_resolved=4
-algorithm_simulation_stress_all_passed=True
-algorithm_simulation_stress_all_diagnoses_ok=True
-algorithm_simulation_stress_flags=4
+proof_bank_expansion_bridge_ready=53
+proof_bank_expansion_add_minimal_wrapper=0
 ```
 
 This distinction matters: proof-bank rows above are Lean-kernel evidence;
@@ -98,15 +101,12 @@ empirical or scaffold evidence.  The all-green system audit means the current
 audited scaffold gates pass; it does not mean the full frontier asymptotic
 theorems have been proved.
 
-The research-system run proves that `--real-lean` now flows through the actual
-open-question workflow, not only the standalone proof-bank audit. It verifies
-all currently registered Mathlib-backed proof obligations with AXLE, runs the
-frontier smoke benchmark with one selected question per supported class, indexes
-the Meta Atlas Lean mirror through the formal-source graph, detects reusable
-Autoform-Bot harness entrypoints, exports all current formal-gap skeletons as
-Autoform-compatible target YAML/book artifacts, writes research traces whose
-proved subclaims are marked `kernel_verified=true`, and still leaves frontier
-theorem claims as explicit formal gaps.
+A prior `--real-lean` research-system run demonstrated that real proof
+verification can flow through the open-question workflow, not only the
+standalone proof-bank audit. The latest small system audit summarized above did
+not use that verifier; it is scaffold/retrieval/simulation evidence. To make a
+current full-system kernel claim, rerun `research-system-audit --local-lean` or
+`research-system-audit --real-lean` after the newest proof-bank additions.
 
 The additional 42nd obligation is
 `independent_null_event_family_inter_probability`, a finite-family event
@@ -414,7 +414,7 @@ The causal bridge block now also includes
 `propensity_weight_cancel_left_of_lower_bound`, the left-oriented companion
 identity `p * p⁻¹ = 1` under the same strict lower-bound assumption. This gives
 IPW/AIPW algebra both cancellation orientations without relying on ad hoc
-commutativity rewrites; it is kernel-verified as part of the current `109/109`
+commutativity rewrites; it is kernel-verified as part of the current `111/111`
 local Lean proof-bank audit and still does not prove positivity as a model
 assumption or close causal identification.
 
@@ -489,6 +489,19 @@ statistics plus a remainder converging to zero in probability. These make
 `wald_interval_slutsky` bridge-ready. They still assume the continuity or
 negligible-remainder premises rather than proving problem-specific
 linearization, variance consistency, or empirical-process remainder bounds.
+
+Two more primitive-named transport wrappers now close the previous
+`add_minimal_wrapper` queue for the current survival and semiparametric lanes.
+`kaplan_meier_product_limit_bridge` gives `kaplan_meier_product_limit` an exact
+kernel-checked continuous-mapping bridge, and
+`empirical_process_remainder_bound_bridge` gives
+`empirical_process_remainder_bound` an exact kernel-checked Slutsky bridge once
+the remainder has already been controlled as `o_p(1)`. The proof-bank expansion
+export now reports `n_add_minimal_wrapper=0` and
+`n_compose_existing_bridge_chain=53`, so these lanes are ready for theorem
+skeleton composition rather than another minimal wrapper. The full
+Kaplan-Meier asymptotic normality theorem and the actual empirical-process
+remainder bound remain formal gaps.
 
 Important boundary:
 
