@@ -6051,6 +6051,8 @@ class SystemTests(unittest.TestCase):
         for subdir in (
             "proof_audit",
             "formal_source_retrieval_benchmark",
+            "formal_source_retrieval_external_benchmark",
+            "formal_source_retrieval_all_benchmark",
             "formal_source_retrieval_ablation",
             "lean_rag_package_audit",
             "proof_search_retrieval_ablation",
@@ -6067,6 +6069,16 @@ class SystemTests(unittest.TestCase):
             json.dumps({"dependency_graph_search": "lean_rag_dependency_graph"}),
             encoding="utf-8",
         )
+        (
+            root
+            / "formal_source_retrieval_external_benchmark"
+            / "formal_source_retrieval_benchmark_manifest.json"
+        ).write_text(json.dumps({"n_ok": 8, "n_cases": 8}), encoding="utf-8")
+        (
+            root
+            / "formal_source_retrieval_all_benchmark"
+            / "formal_source_retrieval_benchmark_manifest.json"
+        ).write_text(json.dumps({"n_ok": 14, "n_cases": 14}), encoding="utf-8")
         (root / "formal_source_retrieval_ablation" / "formal_source_retrieval_ablation_manifest.json").write_text(
             json.dumps(
                 {
@@ -6174,6 +6186,10 @@ class SystemTests(unittest.TestCase):
                         "formal_source_graph_edges": 1477458,
                         "formal_source_retrieval_benchmark_recall_at_k": 1.0,
                         "formal_source_retrieval_benchmark_mrr": 0.888,
+                        "formal_source_retrieval_external_benchmark_recall_at_k": 1.0,
+                        "formal_source_retrieval_external_benchmark_mrr": 0.844,
+                        "formal_source_retrieval_all_benchmark_recall_at_k": 1.0,
+                        "formal_source_retrieval_all_benchmark_mrr": 0.863,
                         "missing_formal_primitives": 97,
                         "formalization_targets_with_proof_bank_bridge": 78,
                         "proof_bank_expansion_compose_existing_bridge_chain": 51,
@@ -6187,6 +6203,16 @@ class SystemTests(unittest.TestCase):
                         "formal_source_retrieval_benchmark": str(
                             root
                             / "formal_source_retrieval_benchmark"
+                            / "formal_source_retrieval_benchmark_manifest.json"
+                        ),
+                        "formal_source_retrieval_external_benchmark": str(
+                            root
+                            / "formal_source_retrieval_external_benchmark"
+                            / "formal_source_retrieval_benchmark_manifest.json"
+                        ),
+                        "formal_source_retrieval_all_benchmark": str(
+                            root
+                            / "formal_source_retrieval_all_benchmark"
                             / "formal_source_retrieval_benchmark_manifest.json"
                         ),
                         "formal_source_retrieval_ablation": str(
@@ -6234,6 +6260,8 @@ class SystemTests(unittest.TestCase):
         self.assertFalse(
             payload["rag_provider_evidence"]["lean_rag_package_policy"]["refresh_dirty_checkouts"]
         )
+        self.assertEqual(payload["rag_provider_evidence"]["formal_source_retrieval_external_recall_at_k"], 1.0)
+        self.assertEqual(payload["rag_provider_evidence"]["formal_source_retrieval_all_mrr"], 0.863)
         self.assertEqual(
             payload["retrieval_ablation_evidence"]["formal_source_dependency_sensitive_new_hits"],
             1,
@@ -8343,6 +8371,18 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(payload["counts"]["formal_source_retrieval_benchmark_recall_at_k"], 1.0)
         self.assertGreater(payload["counts"]["formal_source_retrieval_benchmark_mrr"], 0.0)
         self.assertEqual(
+            payload["counts"]["formal_source_retrieval_external_benchmark_ok"],
+            payload["counts"]["formal_source_retrieval_external_benchmark_cases"],
+        )
+        self.assertEqual(payload["counts"]["formal_source_retrieval_external_benchmark_recall_at_k"], 1.0)
+        self.assertGreater(payload["counts"]["formal_source_retrieval_external_benchmark_mrr"], 0.0)
+        self.assertEqual(
+            payload["counts"]["formal_source_retrieval_all_benchmark_ok"],
+            payload["counts"]["formal_source_retrieval_all_benchmark_cases"],
+        )
+        self.assertEqual(payload["counts"]["formal_source_retrieval_all_benchmark_recall_at_k"], 1.0)
+        self.assertGreater(payload["counts"]["formal_source_retrieval_all_benchmark_mrr"], 0.0)
+        self.assertEqual(
             payload["counts"]["formal_source_retrieval_ablation_lost_hits"],
             0,
         )
@@ -8526,6 +8566,10 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(Path(payload["artifacts"]["formal_source_graph_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_source_retrieval_benchmark"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_source_retrieval_benchmark_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formal_source_retrieval_external_benchmark"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formal_source_retrieval_external_benchmark_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formal_source_retrieval_all_benchmark"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formal_source_retrieval_all_benchmark_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_source_retrieval_ablation"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_source_retrieval_ablation_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["fresh_holdout_frontier_audit"]).exists())

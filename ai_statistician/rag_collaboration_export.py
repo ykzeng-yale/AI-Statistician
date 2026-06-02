@@ -94,8 +94,24 @@ def export_rag_collaboration_manifest(
                 "formal_source_retrieval_benchmark_recall_at_k"
             ),
             "formal_source_retrieval_mrr": counts.get("formal_source_retrieval_benchmark_mrr"),
+            "formal_source_retrieval_external_recall_at_k": counts.get(
+                "formal_source_retrieval_external_benchmark_recall_at_k"
+            ),
+            "formal_source_retrieval_external_mrr": counts.get(
+                "formal_source_retrieval_external_benchmark_mrr"
+            ),
+            "formal_source_retrieval_all_recall_at_k": counts.get(
+                "formal_source_retrieval_all_benchmark_recall_at_k"
+            ),
+            "formal_source_retrieval_all_mrr": counts.get("formal_source_retrieval_all_benchmark_mrr"),
             "retrieval_benchmark_manifest": str(
                 _artifact_path(artifacts, "formal_source_retrieval_benchmark", run_dir)
+            ),
+            "retrieval_external_benchmark_manifest": str(
+                _artifact_path(artifacts, "formal_source_retrieval_external_benchmark", run_dir)
+            ),
+            "retrieval_all_benchmark_manifest": str(
+                _artifact_path(artifacts, "formal_source_retrieval_all_benchmark", run_dir)
             ),
             "dependency_graph_search": retrieval_payload.get("dependency_graph_search", ""),
         },
@@ -297,6 +313,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Lean RAG package: `{rag.get('lean_rag_package_contract_ok')}` at `{rag.get('lean_rag_package_branch')}` / `{str(rag.get('lean_rag_package_commit') or '')[:12]}`",
         f"- Lean RAG seed lanes: `{', '.join(rag.get('lean_rag_package_seed_lanes', []))}`",
         f"- Retrieval recall/MRR: `{rag.get('formal_source_retrieval_recall_at_k')}` / `{rag.get('formal_source_retrieval_mrr')}`",
+        f"- External retrieval recall/MRR: `{rag.get('formal_source_retrieval_external_recall_at_k')}` / `{rag.get('formal_source_retrieval_external_mrr')}`",
+        f"- Combined retrieval recall/MRR: `{rag.get('formal_source_retrieval_all_recall_at_k')}` / `{rag.get('formal_source_retrieval_all_mrr')}`",
         f"- Missing primitives: `{queue.get('missing_formal_primitives')}`",
         f"- Queue: compose=`{queue.get('compose_existing_bridge_chain')}`, minimal_wrapper=`{queue.get('add_minimal_wrapper')}`, design_bridge=`{queue.get('design_bridge_lemma')}`",
         "",

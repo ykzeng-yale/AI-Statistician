@@ -33,7 +33,11 @@ from .formal_source_graph import audit_formal_source_graph
 from .formal_source_hybrid import FormalSourceHybridRetriever
 from .formal_source_index import FormalSourceSqliteIndex, build_formal_source_search_backend
 from .formal_source_retrieval_ablation import run_formal_source_retrieval_ablation_benchmark
-from .formal_source_retrieval_benchmark import run_formal_source_retrieval_benchmark
+from .formal_source_retrieval_benchmark import (
+    ALL_FORMAL_SOURCE_RETRIEVAL_BENCHMARKS,
+    EXTERNAL_USER_INTENT_FORMAL_SOURCE_RETRIEVAL_BENCHMARK,
+    run_formal_source_retrieval_benchmark,
+)
 from .lean_rag_package_audit import audit_lean_rag_package
 from .autoform_harness import audit_autoform_harness
 from .autoform_target_export import export_autoform_targets
@@ -178,6 +182,16 @@ async def run_research_system_audit(
     formal_source_retrieval_benchmark_manifest = run_formal_source_retrieval_benchmark(
         out_dir / "formal_source_retrieval_benchmark",
         retriever=formal_source_retriever,
+    )
+    formal_source_retrieval_external_manifest = run_formal_source_retrieval_benchmark(
+        out_dir / "formal_source_retrieval_external_benchmark",
+        retriever=formal_source_retriever,
+        cases=EXTERNAL_USER_INTENT_FORMAL_SOURCE_RETRIEVAL_BENCHMARK,
+    )
+    formal_source_retrieval_all_manifest = run_formal_source_retrieval_benchmark(
+        out_dir / "formal_source_retrieval_all_benchmark",
+        retriever=formal_source_retriever,
+        cases=ALL_FORMAL_SOURCE_RETRIEVAL_BENCHMARKS,
     )
     baseline_formal_source_retriever = FormalSourceHybridRetriever(
         formal_source_declarations,
@@ -756,6 +770,24 @@ async def run_research_system_audit(
             "formal_source_retrieval_benchmark_mrr": formal_source_retrieval_benchmark_manifest[
                 "mean_reciprocal_rank"
             ],
+            "formal_source_retrieval_external_benchmark_cases": formal_source_retrieval_external_manifest[
+                "n_cases"
+            ],
+            "formal_source_retrieval_external_benchmark_ok": formal_source_retrieval_external_manifest["n_ok"],
+            "formal_source_retrieval_external_benchmark_recall_at_k": formal_source_retrieval_external_manifest[
+                "recall_at_k"
+            ],
+            "formal_source_retrieval_external_benchmark_mrr": formal_source_retrieval_external_manifest[
+                "mean_reciprocal_rank"
+            ],
+            "formal_source_retrieval_all_benchmark_cases": formal_source_retrieval_all_manifest["n_cases"],
+            "formal_source_retrieval_all_benchmark_ok": formal_source_retrieval_all_manifest["n_ok"],
+            "formal_source_retrieval_all_benchmark_recall_at_k": formal_source_retrieval_all_manifest[
+                "recall_at_k"
+            ],
+            "formal_source_retrieval_all_benchmark_mrr": formal_source_retrieval_all_manifest[
+                "mean_reciprocal_rank"
+            ],
             "formal_source_retrieval_ablation_cases": formal_source_retrieval_ablation_manifest["n_cases"],
             "formal_source_retrieval_ablation_new_hits": formal_source_retrieval_ablation_manifest["n_new_hits"],
             "formal_source_retrieval_ablation_lost_hits": formal_source_retrieval_ablation_manifest["n_lost_hits"],
@@ -1312,6 +1344,26 @@ async def run_research_system_audit(
             "formal_source_retrieval_benchmark_report": str(
                 out_dir
                 / "formal_source_retrieval_benchmark"
+                / "formal_source_retrieval_benchmark.md"
+            ),
+            "formal_source_retrieval_external_benchmark": str(
+                out_dir
+                / "formal_source_retrieval_external_benchmark"
+                / "formal_source_retrieval_benchmark_manifest.json"
+            ),
+            "formal_source_retrieval_external_benchmark_report": str(
+                out_dir
+                / "formal_source_retrieval_external_benchmark"
+                / "formal_source_retrieval_benchmark.md"
+            ),
+            "formal_source_retrieval_all_benchmark": str(
+                out_dir
+                / "formal_source_retrieval_all_benchmark"
+                / "formal_source_retrieval_benchmark_manifest.json"
+            ),
+            "formal_source_retrieval_all_benchmark_report": str(
+                out_dir
+                / "formal_source_retrieval_all_benchmark"
                 / "formal_source_retrieval_benchmark.md"
             ),
             "formal_source_retrieval_ablation": str(

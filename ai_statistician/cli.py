@@ -34,7 +34,13 @@ from .frontier_theory_target_audit import audit_frontier_theory_targets
 from .formal_gap_task_export import export_formal_gap_lean_tasks
 from .formalization_target_audit import audit_formalization_targets
 from .formal_source_graph import audit_formal_source_graph
-from .formal_source_index import audit_formal_source_index
+from .formal_source_index import audit_formal_source_index, build_formal_source_search_backend
+from .formal_source_retrieval_benchmark import (
+    ALL_FORMAL_SOURCE_RETRIEVAL_BENCHMARKS,
+    DEFAULT_FORMAL_SOURCE_RETRIEVAL_BENCHMARK,
+    EXTERNAL_USER_INTENT_FORMAL_SOURCE_RETRIEVAL_BENCHMARK,
+    run_formal_source_retrieval_benchmark,
+)
 from .intake_audit import audit_question_intake
 from .lean_rag_package_audit import audit_lean_rag_package
 from .proof_audit import audit_proof_bank
@@ -801,6 +807,46 @@ def _lean_rag_package_audit(args: argparse.Namespace) -> int:
         f"{(Path(args.out) / 'lean_rag_package_audit_manifest.json').resolve()}"
     )
     print(f"markdown report written to {(Path(args.out) / 'lean_rag_package_audit.md').resolve()}")
+    return 0 if payload["all_ok"] else 1
+
+
+def _formal_source_retrieval_benchmark(args: argparse.Namespace) -> int:
+    suites = {
+        "default": DEFAULT_FORMAL_SOURCE_RETRIEVAL_BENCHMARK,
+        "external": EXTERNAL_USER_INTENT_FORMAL_SOURCE_RETRIEVAL_BENCHMARK,
+        "all": ALL_FORMAL_SOURCE_RETRIEVAL_BENCHMARKS,
+    }
+    retriever = build_formal_source_search_backend(
+        db_path=Path(args.formal_source_index),
+        cache_path=Path(args.formal_source_index_cache) if args.formal_source_index_cache else None,
+        refresh_cache=args.refresh_formal_source_index_cache,
+        lean_rag_db_path=Path(args.lean_rag_db) if args.lean_rag_db else None,
+    )
+    payload = run_formal_source_retrieval_benchmark(
+        Path(args.out),
+        retriever=retriever,
+        cases=suites[args.suite],
+        k=args.k,
+    )
+    print("\nAI Statistical Theory Lab Formal Source Retrieval Benchmark")
+    print("=" * 72)
+    print(
+        f"suite={args.suite} hits={payload['n_ok']}/{payload['n_cases']} "
+        f"recall@{payload['k']}={payload['recall_at_k']:.3f} "
+        f"mrr={payload['mean_reciprocal_rank']:.3f} "
+        f"lean_rag={payload['lean_rag_dependency_graph_enabled']} "
+        f"cache={getattr(retriever, 'cache_status', 'unknown')}"
+    )
+    for row in payload["rows"]:
+        print(
+            f"  {row['query_id']}: ok={row['ok']} rank={row['hit_rank'] or 'miss'} "
+            f"top={row['top1_name']} source={row['top1_source_id']}"
+        )
+    print(
+        f"\nretrieval benchmark manifest written to "
+        f"{(Path(args.out) / 'formal_source_retrieval_benchmark_manifest.json').resolve()}"
+    )
+    print(f"markdown report written to {(Path(args.out) / 'formal_source_retrieval_benchmark.md').resolve()}")
     return 0 if payload["all_ok"] else 1
 
 
@@ -2355,6 +2401,44 @@ def build_parser() -> argparse.ArgumentParser:
         help="lean RAG package audit output directory",
     )
     lean_rag_package_audit.set_defaults(func=_lean_rag_package_audit)
+
+    formal_source_retrieval_benchmark = sub.add_parser(
+        "formal-source-retrieval-benchmark",
+        help="measure gold-family retrieval recall over default, external, or combined Lean source suites",
+    )
+    formal_source_retrieval_benchmark.add_argument(
+        "--suite",
+        choices=("default", "external", "all"),
+        default="default",
+        help="benchmark suite to run",
+    )
+    formal_source_retrieval_benchmark.add_argument("--k", type=int, default=8)
+    formal_source_retrieval_benchmark.add_argument(
+        "--formal-source-index",
+        default="runs/formal_source_retrieval_benchmark/formal_source_index.sqlite",
+        help="SQLite index path for this benchmark run",
+    )
+    formal_source_retrieval_benchmark.add_argument(
+        "--formal-source-index-cache",
+        default="runs/formal_source_index_cache/formal_source_index.sqlite",
+        help="persistent SQLite cache; pass empty string to disable",
+    )
+    formal_source_retrieval_benchmark.add_argument(
+        "--refresh-formal-source-index-cache",
+        action="store_true",
+        help="rebuild and overwrite the persistent formal-source index cache",
+    )
+    formal_source_retrieval_benchmark.add_argument(
+        "--lean-rag-db",
+        default=None,
+        help="optional EmpericalProcessLEAN lean_rag dependency graph SQLite DB",
+    )
+    formal_source_retrieval_benchmark.add_argument(
+        "--out",
+        default="runs/formal_source_retrieval_benchmark",
+        help="formal-source retrieval benchmark output directory",
+    )
+    formal_source_retrieval_benchmark.set_defaults(func=_formal_source_retrieval_benchmark)
 
     intake_audit = sub.add_parser("intake-audit", help="audit supported question intake and unsupported question rejection")
     intake_audit.add_argument("--supported-file", action="append", help="supported question JSON file; repeatable")

@@ -589,6 +589,22 @@ schema summary, and retrieval-eval manifest, then AI Statistician reruns
 `research-system-audit --lean-rag-db ...` and checks whether retrieval and proof
 capacity actually improve.
 
+Standalone retrieval benchmark command:
+
+```bash
+python3 -m ai_statistician.cli formal-source-retrieval-benchmark \
+  --suite all \
+  --lean-rag-db runs/current_status_lean_rag_dependency_graph/stat_inference.sqlite \
+  --out runs/formal_source_retrieval_all_benchmark
+```
+
+The suite choices are `default`, `external`, and `all`. `default` is the stable
+release retrieval gate. `external` covers broader user-intent theorem-family
+queries over FormalSLT, lean-rademacher, Lean Machine Learning, BrownianMotion,
+KolmogorovExtension, and SciLean. `research-system-audit` now writes all three
+manifests so RAG capacity can be tracked without treating retrieval hits as Lean
+proof evidence.
+
 Research trace training export:
 
 ```bash
