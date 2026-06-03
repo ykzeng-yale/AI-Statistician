@@ -34,6 +34,7 @@ from .formal_gap_task_export import export_formal_gap_lean_tasks
 from .formalization_delta_plan import build_formalization_delta_plan
 from .formalization_target_audit import audit_formalization_targets
 from .formal_verifier_queue import export_formal_verifier_queue
+from .formal_verifier_replay_calibration import export_formal_verifier_replay_calibration
 from .formal_verifier_replay_export import export_formal_verifier_replay
 from .formal_source_graph import audit_formal_source_graph
 from .formal_source_hybrid import FormalSourceHybridRetriever
@@ -107,6 +108,7 @@ class ResearchSystemAuditConfig:
     refresh_formal_source_graph_cache: bool = False
     research_benchmark_cache: str | None = "runs/research_benchmark_cache"
     refresh_research_benchmark_cache: bool = False
+    formal_verifier_replay_attempt_log: str | None = None
     adaptive_mc_rerun: bool = True
     adaptive_mc_multiplier: int = 5
 
@@ -508,6 +510,14 @@ async def run_research_system_audit(
         out_dir / "formal_verifier_replay",
     )
     stage_start = _record_stage(stage_timings, "formal_verifier_replay", stage_start)
+    formal_verifier_replay_calibration_manifest = export_formal_verifier_replay_calibration(
+        out_dir / "formal_verifier_replay",
+        out_dir / "formal_verifier_replay_calibration",
+        attempt_log_path=Path(config.formal_verifier_replay_attempt_log)
+        if config.formal_verifier_replay_attempt_log
+        else None,
+    )
+    stage_start = _record_stage(stage_timings, "formal_verifier_replay_calibration", stage_start)
 
     research_training_manifest = export_research_training_dataset(
         out_dir / "research_benchmark",
@@ -712,6 +722,9 @@ async def run_research_system_audit(
         "formalization_delta_plan": bool(formalization_delta_manifest["all_ok"]),
         "formal_verifier_queue": bool(formal_verifier_queue_manifest["all_ok"]),
         "formal_verifier_replay": bool(formal_verifier_replay_manifest["all_ok"]),
+        "formal_verifier_replay_calibration": bool(
+            formal_verifier_replay_calibration_manifest["all_ok"]
+        ),
         "research_training_export": bool(research_training_manifest["all_ok"]),
         "research_policy_baseline": bool(research_policy_manifest["all_ok"]),
         "next_iteration_queue": bool(next_iteration_manifest["all_ok"]),
@@ -748,6 +761,7 @@ async def run_research_system_audit(
         "proof_bank_action_export",
         "formal_verifier_queue",
         "formal_verifier_replay",
+        "formal_verifier_replay_calibration",
         "research_training_export",
         "research_policy_baseline",
         "next_iteration_queue",
@@ -791,6 +805,7 @@ async def run_research_system_audit(
             "refresh_formal_source_graph_cache": config.refresh_formal_source_graph_cache,
             "research_benchmark_cache": config.research_benchmark_cache or "",
             "refresh_research_benchmark_cache": config.refresh_research_benchmark_cache,
+            "formal_verifier_replay_attempt_log": config.formal_verifier_replay_attempt_log or "",
             "adaptive_mc_rerun": config.adaptive_mc_rerun,
             "adaptive_mc_multiplier": config.adaptive_mc_multiplier,
             "question_file": str(question_file or Path("examples/research_questions.json")),
@@ -1471,6 +1486,30 @@ async def run_research_system_audit(
             "formal_verifier_replay_kernel_smoke_related_verified": formal_verifier_replay_manifest[
                 "n_kernel_smoke_related_verified"
             ],
+            "formal_verifier_replay_calibration_rows": formal_verifier_replay_calibration_manifest[
+                "n_calibration_rows"
+            ],
+            "formal_verifier_replay_calibration_ok": formal_verifier_replay_calibration_manifest[
+                "n_ok"
+            ],
+            "formal_verifier_replay_attempted": formal_verifier_replay_calibration_manifest[
+                "n_attempted_replay_tasks"
+            ],
+            "formal_verifier_replay_awaiting_full_route_attempt": formal_verifier_replay_calibration_manifest[
+                "n_awaiting_full_route_attempt"
+            ],
+            "formal_verifier_replay_failed_full_route_attempt": formal_verifier_replay_calibration_manifest[
+                "n_failed_full_route_attempt"
+            ],
+            "formal_verifier_replay_non_kernel_positive": formal_verifier_replay_calibration_manifest[
+                "n_non_kernel_positive"
+            ],
+            "formal_verifier_replay_full_route_kernel_verified": formal_verifier_replay_calibration_manifest[
+                "n_kernel_verified"
+            ],
+            "formal_verifier_replay_repair_training_examples": formal_verifier_replay_calibration_manifest[
+                "n_repair_training_examples"
+            ],
             "proof_bank_actions_high_priority": proof_bank_action_manifest["by_priority"].get("high", 0),
             "proof_bank_actions_medium_priority": proof_bank_action_manifest["by_priority"].get("medium", 0),
             "proof_bank_actions_low_priority": proof_bank_action_manifest["by_priority"].get("low", 0),
@@ -2045,6 +2084,26 @@ async def run_research_system_audit(
             ),
             "formal_verifier_replay_report": str(
                 out_dir / "formal_verifier_replay" / "formal_verifier_replay.md"
+            ),
+            "formal_verifier_replay_calibration": str(
+                out_dir
+                / "formal_verifier_replay_calibration"
+                / "formal_verifier_replay_calibration_manifest.json"
+            ),
+            "formal_verifier_replay_calibration_jsonl": str(
+                out_dir
+                / "formal_verifier_replay_calibration"
+                / "formal_verifier_replay_calibration.jsonl"
+            ),
+            "formal_verifier_replay_repair_training_jsonl": str(
+                out_dir
+                / "formal_verifier_replay_calibration"
+                / "formal_verifier_replay_repair_training.jsonl"
+            ),
+            "formal_verifier_replay_calibration_report": str(
+                out_dir
+                / "formal_verifier_replay_calibration"
+                / "formal_verifier_replay_calibration.md"
             ),
             "primitive_source_coverage": str(
                 out_dir / "primitive_source_coverage" / "primitive_source_coverage_manifest.json"

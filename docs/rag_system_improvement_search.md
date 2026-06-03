@@ -114,6 +114,14 @@ history, source-trust calibration, and semantic review fields. These rows are
 still executable task contracts only; they do not prove the target theorem
 unless AXLE or local Lean verifies the replayed theorem/bridge proof.
 
+The audit also exports `formal_verifier_replay_calibration`. In a default run
+with no full-route attempt log, it marks each replay target as awaiting the
+first theorem/bridge replay attempt. When a full-route attempt JSONL is
+available, the same artifact separates failed replay attempts, non-kernel
+positive attempts that need AXLE/local Lean replay, and kernel-verified
+theorem/bridge targets. That gives the RAG/prover loop a concrete error ledger
+for replay repair without treating failed or missing attempts as proof.
+
 ## Next Build Targets
 
 1. Expand library-aware minimal formalization planning:
@@ -132,8 +140,9 @@ unless AXLE or local Lean verifies the replayed theorem/bridge proof.
    level, semantic-faithfulness review, and kernel-smoke source-trust
    calibration. `formal-verifier-replay-export` now turns those rows into
    route-level replay tasks and replay-policy examples. The next version should
-   run those replay tasks against full theorem/bridge proof attempts and
-   calibrate the queue/replay policy against the resulting Lean errors.
+   run those replay tasks against full theorem/bridge proof attempts, write the
+   resulting attempt JSONL, and use `formal-verifier-replay-calibration` to
+   repair the highest-priority Lean errors.
 2. Add query-intent expansion for missing primitives:
    primitive name, theorem goal, problem class, local gap reason, and candidate
    proof-bank bridge names should all become retriever queries.
@@ -178,6 +187,17 @@ python3 -m ai_statistician.cli formal-verifier-replay-export \
 This converts the ranked queue into replay tasks and replay-policy examples.
 It is the handoff to a full theorem/bridge proof attempt, not evidence that the
 attempt has succeeded.
+
+```bash
+python3 -m ai_statistician.cli formal-verifier-replay-calibration \
+  --formal-verifier-replay-dir runs/current/formal_verifier_replay \
+  --attempt-log runs/current/formal_verifier_replay_attempts.jsonl \
+  --out runs/current/formal_verifier_replay_calibration
+```
+
+Omit `--attempt-log` to audit the honest missing-attempt state. Include it once
+the FormalVerifier has attempted the replay targets, so failed Lean errors and
+kernel-verified route closures are separated in the handoff.
 
 ## Honesty Boundary
 

@@ -37,6 +37,7 @@ from ai_statistician.frontier_precision_audit import audit_frontier_precision
 from ai_statistician.frontier_smoke_benchmark import FrontierSmokeConfig, run_frontier_smoke_benchmark, select_supported_frontier_questions
 from ai_statistician.formal_gap_task_export import export_formal_gap_lean_tasks
 from ai_statistician.formal_verifier_queue import export_formal_verifier_queue
+from ai_statistician.formal_verifier_replay_calibration import export_formal_verifier_replay_calibration
 from ai_statistician.formal_verifier_replay_export import export_formal_verifier_replay
 from ai_statistician.formalization_delta_plan import build_formalization_delta_plan
 from ai_statistician.formalization_target_audit import audit_formalization_targets
@@ -7217,6 +7218,51 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(Path("runs/test_formal_verifier_replay/formal_verifier_replay_tasks.jsonl").exists())
         self.assertTrue(Path("runs/test_formal_verifier_replay/formal_verifier_replay_training.jsonl").exists())
         self.assertTrue(Path("runs/test_formal_verifier_replay/formal_verifier_replay.md").exists())
+        replay_attempt_log = Path("runs/test_formal_verifier_replay_attempts.jsonl")
+        replay_attempt_log.write_text(
+            json.dumps(
+                {
+                    "attempt_id": "full-route-attempt:1",
+                    "replay_id": replay_task["replay_id"],
+                    "route_id": replay_task["route_id"],
+                    "ok": False,
+                    "kernel_verified": False,
+                    "verifier": "local_lean",
+                    "verification_strength": "local_lean_kernel_batch",
+                    "errors": ["unknown identifier StatInference.Causal.aipw_bridge"],
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        calibration = export_formal_verifier_replay_calibration(
+            Path("runs/test_formal_verifier_replay"),
+            Path("runs/test_formal_verifier_replay_calibration"),
+            attempt_log_path=replay_attempt_log,
+        )
+        self.assertTrue(calibration["all_ok"])
+        self.assertEqual(calibration["n_calibration_rows"], replay["n_replay_tasks"])
+        self.assertEqual(calibration["n_attempted_replay_tasks"], 1)
+        self.assertEqual(calibration["n_failed_full_route_attempt"], 1)
+        self.assertEqual(calibration["n_kernel_verified"], 0)
+        self.assertEqual(calibration["n_repair_training_examples"], 1)
+        attempted = [row for row in calibration["rows"] if row["attempted"]][0]
+        self.assertEqual(attempted["replay_calibration_status"], "failed_full_route_attempt_repair_needed")
+        self.assertEqual(attempted["first_error_category"], "missing_identifier")
+        self.assertEqual(attempted["full_route_proof_status"], "UNPROVED_REPLAY_TARGET")
+        self.assertIn("only when", attempted["proof_evidence_boundary"])
+        self.assertTrue(
+            Path("runs/test_formal_verifier_replay_calibration/formal_verifier_replay_calibration_manifest.json").exists()
+        )
+        self.assertTrue(
+            Path("runs/test_formal_verifier_replay_calibration/formal_verifier_replay_calibration.jsonl").exists()
+        )
+        self.assertTrue(
+            Path("runs/test_formal_verifier_replay_calibration/formal_verifier_replay_repair_training.jsonl").exists()
+        )
+        self.assertTrue(
+            Path("runs/test_formal_verifier_replay_calibration/formal_verifier_replay_calibration.md").exists()
+        )
 
     def test_primitive_source_coverage_audit_classifies_missing_primitives(self) -> None:
         async def run():
@@ -7307,6 +7353,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "theorem_composition",
             "formal_verifier_queue",
             "formal_verifier_replay",
+            "formal_verifier_replay_calibration",
             "evaluation_benchmark_guidance",
         ):
             (root / subdir).mkdir(parents=True, exist_ok=True)
@@ -7545,6 +7592,44 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             ),
             encoding="utf-8",
         )
+        (
+            root
+            / "formal_verifier_replay_calibration"
+            / "formal_verifier_replay_calibration_manifest.json"
+        ).write_text(
+            json.dumps(
+                {
+                    "n_calibration_rows": 1,
+                    "n_attempted_replay_tasks": 1,
+                    "n_awaiting_full_route_attempt": 0,
+                    "n_failed_full_route_attempt": 1,
+                    "n_non_kernel_positive": 0,
+                    "n_kernel_verified": 0,
+                    "rows": [
+                        {
+                            "calibration_id": "formal_verifier_replay_calibration:test",
+                            "replay_id": "formal_verifier_replay:test",
+                            "route_id": "theorem_route:test",
+                            "display_name": "causal_ate_aipw:aipw_double_robustness:skeleton",
+                            "replay_mode": "kernel_calibrated_subclaim_replay_then_theorem_composition",
+                            "attempted": True,
+                            "n_attempts": 1,
+                            "replay_calibration_status": "failed_full_route_attempt_repair_needed",
+                            "full_route_proof_status": "UNPROVED_REPLAY_TARGET",
+                            "first_error_category": "missing_identifier",
+                            "replay_policy_update": (
+                                "repair imports or source declarations, then replay the same route"
+                            ),
+                            "proof_evidence_boundary": (
+                                "This calibration row is proof evidence for the replay target "
+                                "only when replay_calibration_status is full_route_kernel_verified."
+                            ),
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
         (root / "evaluation_benchmark_guidance" / "evaluation_benchmark_guidance_manifest.json").write_text(
             json.dumps({"top_actions": [{"rank": 1, "action": "improve RAG"}]}),
             encoding="utf-8",
@@ -7612,6 +7697,11 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                         "formal_verifier_replay_bridge_lemma": 0,
                         "formal_verifier_replay_semantic_review": 0,
                         "formal_verifier_replay_training_examples": 1,
+                        "formal_verifier_replay_attempted": 1,
+                        "formal_verifier_replay_awaiting_full_route_attempt": 0,
+                        "formal_verifier_replay_failed_full_route_attempt": 1,
+                        "formal_verifier_replay_non_kernel_positive": 0,
+                        "formal_verifier_replay_full_route_kernel_verified": 0,
                     },
                     "artifacts": {
                         "proof_audit": str(root / "proof_audit" / "proof_audit_manifest.json"),
@@ -7664,6 +7754,11 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                         ),
                         "formal_verifier_replay": str(
                             root / "formal_verifier_replay" / "formal_verifier_replay_manifest.json"
+                        ),
+                        "formal_verifier_replay_calibration": str(
+                            root
+                            / "formal_verifier_replay_calibration"
+                            / "formal_verifier_replay_calibration_manifest.json"
                         ),
                         "evaluation_benchmark_guidance": str(
                             root
@@ -7760,8 +7855,31 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "not proof evidence",
             payload["formal_capacity_queue"]["formal_verifier_replay_preview"][0]["proof_evidence_boundary"],
         )
+        self.assertEqual(payload["formal_capacity_queue"]["formal_verifier_replay_attempted"], 1)
+        self.assertEqual(payload["formal_capacity_queue"]["formal_verifier_replay_awaiting_full_route_attempt"], 0)
+        self.assertEqual(payload["formal_capacity_queue"]["formal_verifier_replay_failed_full_route_attempt"], 1)
+        self.assertEqual(payload["formal_capacity_queue"]["formal_verifier_replay_full_route_kernel_verified"], 0)
+        self.assertEqual(
+            payload["formal_capacity_queue"]["formal_verifier_replay_calibration_preview"][0][
+                "replay_calibration_status"
+            ],
+            "failed_full_route_attempt_repair_needed",
+        )
+        self.assertEqual(
+            payload["formal_capacity_queue"]["formal_verifier_replay_calibration_preview"][0][
+                "first_error_category"
+            ],
+            "missing_identifier",
+        )
+        self.assertIn(
+            "proof evidence",
+            payload["formal_capacity_queue"]["formal_verifier_replay_calibration_preview"][0][
+                "proof_evidence_boundary"
+            ],
+        )
         self.assertIn("RAG hits are retrieval evidence only", " ".join(payload["honesty_boundaries"]))
         self.assertIn("replay rows are executable", " ".join(payload["honesty_boundaries"]))
+        self.assertIn("replay calibration rows are proof evidence only", " ".join(payload["honesty_boundaries"]))
         self.assertTrue((out / "rag_collaboration_manifest.json").exists())
         self.assertTrue((out / "rag_collaboration.md").exists())
         self.assertIn("Formal Verifier Queue", (out / "rag_collaboration.md").read_text())
@@ -9643,6 +9761,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["gates"]["formalization_delta_plan"])
         self.assertTrue(payload["gates"]["formal_verifier_queue"])
         self.assertTrue(payload["gates"]["formal_verifier_replay"])
+        self.assertTrue(payload["gates"]["formal_verifier_replay_calibration"])
         self.assertTrue(payload["gates"]["research_training_export"])
         self.assertTrue(payload["gates"]["research_policy_baseline"])
         self.assertTrue(payload["gates"]["next_iteration_queue"])
@@ -9919,6 +10038,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "primitive_source_coverage_audit",
             "formal_verifier_queue",
             "formal_verifier_replay",
+            "formal_verifier_replay_calibration",
             "research_training_export",
             "research_policy_baseline",
             "next_iteration_queue",
@@ -10156,6 +10276,23 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertGreaterEqual(payload["counts"]["formal_verifier_replay_bridge_lemma"], 0)
         self.assertGreaterEqual(payload["counts"]["formal_verifier_replay_semantic_review"], 0)
         self.assertGreater(payload["counts"]["formal_verifier_replay_subclaim_obligations"], 0)
+        self.assertEqual(
+            payload["counts"]["formal_verifier_replay_calibration_ok"],
+            payload["counts"]["formal_verifier_replay_calibration_rows"],
+        )
+        self.assertEqual(
+            payload["counts"]["formal_verifier_replay_calibration_rows"],
+            payload["counts"]["formal_verifier_replay_tasks"],
+        )
+        self.assertEqual(payload["counts"]["formal_verifier_replay_attempted"], 0)
+        self.assertEqual(
+            payload["counts"]["formal_verifier_replay_awaiting_full_route_attempt"],
+            payload["counts"]["formal_verifier_replay_tasks"],
+        )
+        self.assertEqual(payload["counts"]["formal_verifier_replay_failed_full_route_attempt"], 0)
+        self.assertEqual(payload["counts"]["formal_verifier_replay_non_kernel_positive"], 0)
+        self.assertEqual(payload["counts"]["formal_verifier_replay_full_route_kernel_verified"], 0)
+        self.assertEqual(payload["counts"]["formal_verifier_replay_repair_training_examples"], 0)
         self.assertTrue(Path(payload["artifacts"]["formalization_delta_plan"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formalization_delta_graph"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_verifier_queue"]).exists())
@@ -10165,6 +10302,10 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(Path(payload["artifacts"]["formal_verifier_replay_jsonl"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_verifier_replay_training_jsonl"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_verifier_replay_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formal_verifier_replay_calibration"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formal_verifier_replay_calibration_jsonl"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formal_verifier_replay_repair_training_jsonl"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formal_verifier_replay_calibration_report"]).exists())
         self.assertEqual(
             payload["counts"]["primitive_source_coverage_primitives"],
             payload["counts"]["missing_formal_primitives"],

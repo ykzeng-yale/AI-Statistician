@@ -38,6 +38,7 @@ from .formal_gap_task_export import export_formal_gap_lean_tasks
 from .formalization_delta_plan import build_formalization_delta_plan
 from .formalization_target_audit import audit_formalization_targets
 from .formal_verifier_queue import export_formal_verifier_queue
+from .formal_verifier_replay_calibration import export_formal_verifier_replay_calibration
 from .formal_verifier_replay_export import export_formal_verifier_replay
 from .formal_source_graph import audit_formal_source_graph
 from .formal_source_index import (
@@ -1289,6 +1290,41 @@ def _formal_verifier_replay_export(args: argparse.Namespace) -> int:
     return 0 if payload["all_ok"] else 1
 
 
+def _formal_verifier_replay_calibration(args: argparse.Namespace) -> int:
+    payload = export_formal_verifier_replay_calibration(
+        Path(args.formal_verifier_replay_dir),
+        Path(args.out),
+        attempt_log_path=Path(args.attempt_log) if args.attempt_log else None,
+    )
+    print("\nAI Statistical Theory Lab Formal Verifier Replay Calibration")
+    print("=" * 72)
+    print(
+        f"rows={payload['n_ok']}/{payload['n_calibration_rows']} "
+        f"attempted={payload['n_attempted_replay_tasks']} "
+        f"awaiting={payload['n_awaiting_full_route_attempt']} "
+        f"failed={payload['n_failed_full_route_attempt']} "
+        f"kernel={payload['n_kernel_verified']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nformal verifier replay calibration manifest written to "
+        f"{(Path(args.out) / 'formal_verifier_replay_calibration_manifest.json').resolve()}"
+    )
+    print(
+        f"calibration jsonl written to "
+        f"{(Path(args.out) / 'formal_verifier_replay_calibration.jsonl').resolve()}"
+    )
+    print(
+        f"repair training jsonl written to "
+        f"{(Path(args.out) / 'formal_verifier_replay_repair_training.jsonl').resolve()}"
+    )
+    print(
+        f"markdown report written to "
+        f"{(Path(args.out) / 'formal_verifier_replay_calibration.md').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
 def _research_training_export(args: argparse.Namespace) -> int:
     payload = export_research_training_dataset(
         Path(args.run_dir),
@@ -2152,6 +2188,7 @@ async def _research_system_audit(args: argparse.Namespace) -> int:
             refresh_formal_source_graph_cache=args.refresh_formal_source_graph_cache,
             research_benchmark_cache=args.research_benchmark_cache,
             refresh_research_benchmark_cache=args.refresh_research_benchmark_cache,
+            formal_verifier_replay_attempt_log=args.formal_verifier_replay_attempt_log,
             adaptive_mc_rerun=not args.no_adaptive_mc_rerun,
             adaptive_mc_multiplier=args.adaptive_mc_multiplier,
         ),
@@ -3074,6 +3111,26 @@ def build_parser() -> argparse.ArgumentParser:
     )
     formal_verifier_replay.set_defaults(func=_formal_verifier_replay_export)
 
+    formal_verifier_replay_calibration = sub.add_parser(
+        "formal-verifier-replay-calibration",
+        help="calibrate FormalVerifier replay tasks against full-route proof attempt feedback",
+    )
+    formal_verifier_replay_calibration.add_argument(
+        "--formal-verifier-replay-dir",
+        required=True,
+        help="directory containing formal_verifier_replay_manifest.json",
+    )
+    formal_verifier_replay_calibration.add_argument(
+        "--attempt-log",
+        help="optional JSONL of full theorem/bridge replay proof attempts",
+    )
+    formal_verifier_replay_calibration.add_argument(
+        "--out",
+        default="runs/formal_verifier_replay_calibration",
+        help="formal-verifier replay calibration output directory",
+    )
+    formal_verifier_replay_calibration.set_defaults(func=_formal_verifier_replay_calibration)
+
     rag_collaboration_export = sub.add_parser(
         "rag-collaboration-export",
         help="export a compact handoff manifest for the shared RAG/prover-search thread",
@@ -3643,6 +3700,11 @@ def build_parser() -> argparse.ArgumentParser:
             "proof-bank action queue for a local Lean smoke overlay. Exact proof-bank "
             "reuse rows are prioritized before broader bridge-chain rows."
         ),
+    )
+    research_system_audit.add_argument(
+        "--formal-verifier-replay-attempt-log",
+        default="",
+        help="optional JSONL of full theorem/bridge replay attempts used to calibrate replay tasks",
     )
     research_system_audit.add_argument(
         "--formal-source-index-cache",

@@ -56,6 +56,14 @@ def export_rag_collaboration_manifest(
     formal_verifier_queue_payload = _read_json(formal_verifier_queue_path)
     formal_verifier_replay_path = _artifact_path(artifacts, "formal_verifier_replay", run_dir)
     formal_verifier_replay_payload = _read_json(formal_verifier_replay_path)
+    formal_verifier_replay_calibration_path = _artifact_path(
+        artifacts,
+        "formal_verifier_replay_calibration",
+        run_dir,
+    )
+    formal_verifier_replay_calibration_payload = _read_json(
+        formal_verifier_replay_calibration_path
+    )
     guidance_payload = _read_json(_artifact_path(artifacts, "evaluation_benchmark_guidance", run_dir))
 
     target_rows = _handoff_targets(
@@ -317,6 +325,33 @@ def export_rag_collaboration_manifest(
                 formal_verifier_replay_payload,
                 max_rows=min(max_targets, 10),
             ),
+            "formal_verifier_replay_attempted": counts.get(
+                "formal_verifier_replay_attempted",
+                formal_verifier_replay_calibration_payload.get("n_attempted_replay_tasks"),
+            ),
+            "formal_verifier_replay_awaiting_full_route_attempt": counts.get(
+                "formal_verifier_replay_awaiting_full_route_attempt",
+                formal_verifier_replay_calibration_payload.get("n_awaiting_full_route_attempt"),
+            ),
+            "formal_verifier_replay_failed_full_route_attempt": counts.get(
+                "formal_verifier_replay_failed_full_route_attempt",
+                formal_verifier_replay_calibration_payload.get("n_failed_full_route_attempt"),
+            ),
+            "formal_verifier_replay_non_kernel_positive": counts.get(
+                "formal_verifier_replay_non_kernel_positive",
+                formal_verifier_replay_calibration_payload.get("n_non_kernel_positive"),
+            ),
+            "formal_verifier_replay_full_route_kernel_verified": counts.get(
+                "formal_verifier_replay_full_route_kernel_verified",
+                formal_verifier_replay_calibration_payload.get("n_kernel_verified"),
+            ),
+            "formal_verifier_replay_calibration_manifest": str(
+                formal_verifier_replay_calibration_path
+            ),
+            "formal_verifier_replay_calibration_preview": _formal_verifier_replay_calibration_preview(
+                formal_verifier_replay_calibration_payload,
+                max_rows=min(max_targets, 10),
+            ),
             "handoff_targets": target_rows,
             "proof_bank_expansion_manifest": str(
                 _artifact_path(artifacts, "proof_bank_expansion", run_dir)
@@ -354,6 +389,7 @@ def export_rag_collaboration_manifest(
             "Only proof-audit rows with kernel_verified=true are proof evidence.",
             "Simulation diagnostics are empirical evidence, not theorem proofs.",
             "FormalVerifier replay rows are executable task/training artifacts, not theorem proof evidence.",
+            "FormalVerifier replay calibration rows are proof evidence only for full-route kernel-verified targets.",
             "FORMAL_GAP and theorem-hole queues remain open until a non-placeholder Lean proof is verified.",
         ],
     }
@@ -524,6 +560,39 @@ def _formal_verifier_replay_preview(
     return rows
 
 
+def _formal_verifier_replay_calibration_preview(
+    payload: dict[str, Any],
+    *,
+    max_rows: int,
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    payload_rows = payload.get("rows", [])
+    if not isinstance(payload_rows, list):
+        return rows
+    for row in payload_rows:
+        if not isinstance(row, dict):
+            continue
+        rows.append(
+            {
+                "calibration_id": row.get("calibration_id"),
+                "replay_id": row.get("replay_id"),
+                "route_id": row.get("route_id"),
+                "display_name": row.get("display_name"),
+                "replay_mode": row.get("replay_mode"),
+                "attempted": row.get("attempted", False),
+                "n_attempts": row.get("n_attempts", 0),
+                "replay_calibration_status": row.get("replay_calibration_status", ""),
+                "full_route_proof_status": row.get("full_route_proof_status", ""),
+                "first_error_category": row.get("first_error_category", ""),
+                "replay_policy_update": row.get("replay_policy_update", ""),
+                "proof_evidence_boundary": row.get("proof_evidence_boundary", ""),
+            }
+        )
+        if len(rows) >= max_rows:
+            break
+    return rows
+
+
 def _theorem_composition_packet_preview(
     payload: dict[str, Any],
     *,
@@ -610,6 +679,10 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Formal verifier replay: `{queue.get('formal_verifier_replay_tasks')}` tasks "
         f"(`{queue.get('formal_verifier_replay_kernel_calibrated')}` kernel-calibrated, "
         f"`{queue.get('formal_verifier_replay_proof_search_subclaim')}` proof-search subclaim replay)",
+        f"- Formal verifier replay calibration: attempted `{queue.get('formal_verifier_replay_attempted')}`, "
+        f"awaiting `{queue.get('formal_verifier_replay_awaiting_full_route_attempt')}`, "
+        f"failed `{queue.get('formal_verifier_replay_failed_full_route_attempt')}`, "
+        f"kernel `{queue.get('formal_verifier_replay_full_route_kernel_verified')}`",
         f"- Queue: exact_reuse=`{queue.get('reuse_exact_proof_bank_obligation')}`, compose=`{queue.get('compose_existing_bridge_chain')}`, minimal_wrapper=`{queue.get('add_minimal_wrapper')}`, design_bridge=`{queue.get('design_bridge_lemma')}`",
         f"- Theorem composition packets: `{composition.get('theorem_composition_packets')}` "
         f"(exact links `{composition.get('theorem_composition_exact_proof_bank_links')}`, "
@@ -656,6 +729,15 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{row.get('kernel_smoke_related_total')}, "
             f"proof_search_solved={row.get('proof_search_solved')}]"
         )
+    lines.extend(["", "## Formal Verifier Replay Calibration", ""])
+    for row in queue.get("formal_verifier_replay_calibration_preview", []):
+        if not isinstance(row, dict):
+            continue
+        lines.append(
+            f"- `{row.get('display_name')}`: {row.get('replay_calibration_status')} "
+            f"(attempts={row.get('n_attempts')}, error={row.get('first_error_category')})"
+        )
+        lines.append(f"  update: {row.get('replay_policy_update')}")
     lines.extend(["", "## Theorem Composition Handoff", ""])
     lines.append(str(composition.get("proof_evidence_boundary", "")))
     lines.append("")
