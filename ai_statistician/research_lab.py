@@ -2255,6 +2255,7 @@ class TheoryPlanner:
                         "conditional_mean_residual_zero_of_condExp_ae_eq",
                         "conditional_mean_residual_zero_of_mean_eq",
                         "aipw_score_expectation_target_of_zero_aug",
+                        "nuisance_correctness_cases",
                         "integrability_of_score_terms",
                         "aipw_score_integrable_of_components",
                     ),

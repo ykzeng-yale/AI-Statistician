@@ -517,6 +517,16 @@ export reports `n_bridge_ready=54`, `n_compose_existing_bridge_chain=54`, and
 `n_design_bridge_lemma=43`; the sharp binomial/product tail and full
 sub-Gaussian MoM theorem remain formal gaps.
 
+The AIPW double-robustness lane now has a direct
+`nuisance_correctness_cases` obligation. The Lean theorem
+`nuisanceCorrectnessCases_aipw_target` proves the finite expectation algebra
+case split: if either the augmentation means cancel, or both augmentation
+residual means are zero, then the AIPW score expectation equals the target.
+This closes the named primitive as exact proof-bank reuse for theorem
+composition and formalization-target audits. It does **not** prove that a
+propensity model or outcome nuisance model is statistically correct; those
+model-identification facts still have to supply the case certificates.
+
 Important boundary:
 
 - These are finite, reusable Mathlib-backed estimator/probability/statistical

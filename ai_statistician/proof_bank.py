@@ -3641,6 +3641,102 @@ theorem aipwScore_expectation_eq_target_of_zero_aug {Ω : Type*} [MeasurableSpac
             "conditional_mean_residual_zero_of_mean_eq",
         ),
     ),
+    "nuisance_correctness_cases": FormalObligation(
+        id="nuisance_correctness_cases",
+        title="AIPW nuisance-correctness cases imply target score expectation",
+        english=(
+            "If the finite expectation certificates for either AIPW "
+            "nuisance-correctness case are already available, then the AIPW "
+            "score has target expectation psi. The first case assumes the "
+            "treated and control augmentation expectations cancel; the second "
+            "case assumes both augmentation residual expectations are zero. "
+            "This closes the named `nuisance_correctness_cases` primitive as "
+            "an algebraic case split only. It does not prove that a propensity "
+            "or outcome nuisance model is correct, nor does it prove double "
+            "robustness or asymptotic normality."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+noncomputable def aipwScore {Ω : Type*}
+    (contrast treatAug controlAug : Ω → ℝ) : Ω → ℝ :=
+  contrast + treatAug - controlAug
+
+theorem nuisanceCorrectnessCases_aipw_target {Ω : Type*} [MeasurableSpace Ω]
+    (μ : Measure Ω) (contrast treatAug controlAug : Ω → ℝ) (psi : ℝ)
+    (hContrast : Integrable contrast μ)
+    (hTreat : Integrable treatAug μ)
+    (hControl : Integrable controlAug μ)
+    (hCases :
+      ((∫ ω, contrast ω ∂μ) = psi ∧
+        (∫ ω, treatAug ω ∂μ) = (∫ ω, controlAug ω ∂μ)) ∨
+      ((∫ ω, contrast ω ∂μ) = psi ∧
+        (∫ ω, treatAug ω ∂μ) = 0 ∧
+        (∫ ω, controlAug ω ∂μ) = 0)) :
+    ∫ ω, aipwScore contrast treatAug controlAug ω ∂μ = psi := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  rcases hCases with hCancel | hZero\n"
+            "  · rcases hCancel with ⟨hContrastMean, hAugCancel⟩\n"
+            "    calc\n"
+            "      ∫ ω, aipwScore contrast treatAug controlAug ω ∂μ =\n"
+            "          ∫ ω, ((contrast + treatAug - controlAug) : Ω → ℝ) ω ∂μ := by\n"
+            "            rfl\n"
+            "      _ = ∫ ω, ((contrast + treatAug) : Ω → ℝ) ω ∂μ - ∫ ω, controlAug ω ∂μ := by\n"
+            "            exact integral_sub (hContrast.add hTreat) hControl\n"
+            "      _ = (∫ ω, contrast ω ∂μ) + (∫ ω, treatAug ω ∂μ) -\n"
+            "            ∫ ω, controlAug ω ∂μ := by\n"
+            "            have hAdd : ∫ ω, ((contrast + treatAug) : Ω → ℝ) ω ∂μ =\n"
+            "                (∫ ω, contrast ω ∂μ) + (∫ ω, treatAug ω ∂μ) := by\n"
+            "              simpa using integral_add hContrast hTreat\n"
+            "            rw [hAdd]\n"
+            "      _ = psi := by\n"
+            "            rw [hContrastMean, hAugCancel]\n"
+            "            ring\n"
+            "  · rcases hZero with ⟨hContrastMean, hTreatZero, hControlZero⟩\n"
+            "    calc\n"
+            "      ∫ ω, aipwScore contrast treatAug controlAug ω ∂μ =\n"
+            "          ∫ ω, ((contrast + treatAug - controlAug) : Ω → ℝ) ω ∂μ := by\n"
+            "            rfl\n"
+            "      _ = ∫ ω, ((contrast + treatAug) : Ω → ℝ) ω ∂μ - ∫ ω, controlAug ω ∂μ := by\n"
+            "            exact integral_sub (hContrast.add hTreat) hControl\n"
+            "      _ = (∫ ω, contrast ω ∂μ) + (∫ ω, treatAug ω ∂μ) -\n"
+            "            ∫ ω, controlAug ω ∂μ := by\n"
+            "            have hAdd : ∫ ω, ((contrast + treatAug) : Ω → ℝ) ω ∂μ =\n"
+            "                (∫ ω, contrast ω ∂μ) + (∫ ω, treatAug ω ∂μ) := by\n"
+            "              simpa using integral_add hContrast hTreat\n"
+            "            rw [hAdd]\n"
+            "      _ = psi := by\n"
+            "            rw [hContrastMean, hTreatZero, hControlZero]\n"
+            "            ring"
+        ),
+        tags=(
+            "estimator",
+            "expectation",
+            "linearity",
+            "aipw",
+            "causal",
+            "semiparametric",
+            "double_robustness",
+            "conditional_mean_residual_zero",
+            "nuisance_correctness_cases",
+            "augmentation_cancel",
+            "zero_residual",
+            "case_split",
+            "direct_primitive_wrapper",
+        ),
+        expected_lemmas=("integral_add", "integral_sub", "rcases", "ring"),
+        depends_on=(
+            "aipw_score_expectation_target_of_aug_cancel",
+            "aipw_score_expectation_target_of_zero_aug",
+            "conditional_mean_residual_zero",
+            "integrability_of_score_terms",
+        ),
+    ),
     "aipw_score_integrable_of_components": FormalObligation(
         id="aipw_score_integrable_of_components",
         title="AIPW score integrability from component integrability",

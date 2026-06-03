@@ -1875,6 +1875,29 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("zero_residual", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_nuisance_correctness_cases_direct_wrapper_is_case_split_algebra(self) -> None:
+        obligation = get_obligation("nuisance_correctness_cases")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(
+            obligation.depends_on,
+            (
+                "aipw_score_expectation_target_of_aug_cancel",
+                "aipw_score_expectation_target_of_zero_aug",
+                "conditional_mean_residual_zero",
+                "integrability_of_score_terms",
+            ),
+        )
+        self.assertIn("def aipwScore", content)
+        self.assertIn("theorem nuisanceCorrectnessCases_aipw_target", content)
+        self.assertIn("hCases", content)
+        self.assertIn("hAugCancel", content)
+        self.assertIn("hTreatZero", content)
+        self.assertIn("hControlZero", content)
+        self.assertIn("rcases hCases", content)
+        self.assertIn("nuisance_correctness_cases", obligation.tags)
+        self.assertIn("direct_primitive_wrapper", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_aipw_score_integrability_follows_from_components(self) -> None:
         obligation = get_obligation("aipw_score_integrable_of_components")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
@@ -4528,6 +4551,7 @@ class SystemTests(unittest.TestCase):
                 "conditional_mean_residual_zero_of_condExp_ae_eq",
                 "conditional_mean_residual_zero_of_mean_eq",
                 "aipw_score_expectation_target_of_zero_aug",
+                "nuisance_correctness_cases",
                 "integrability_of_score_terms",
                 "aipw_score_integrable_of_components",
             ],
@@ -5819,6 +5843,65 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertEqual(row["exact_proof_bank_obligation"], "aipw_score_definition")
         self.assertTrue(row["proof_bank_exact_match_available"])
         self.assertIn("aipw_score_definition", row["bridge_candidate_obligations"])
+
+    def test_formalization_target_audit_reuses_nuisance_correctness_cases_exact_wrapper(self) -> None:
+        run_dir = Path("runs/test_formalization_target_nuisance_cases_run")
+        out_dir = Path("runs/test_formalization_target_nuisance_cases_audit")
+        shutil.rmtree(run_dir, ignore_errors=True)
+        shutil.rmtree(out_dir, ignore_errors=True)
+        gap_dir = run_dir / "formal_gaps"
+        gap_dir.mkdir(parents=True, exist_ok=True)
+        gap_path = gap_dir / "aipw_double_robustness.lean"
+        gap_path.write_text("FORMAL_GAP nuisance_correctness_cases", encoding="utf-8")
+        (run_dir / "research_benchmark_manifest.json").write_text(
+            json.dumps({"questions": [{"question": "q_aipw", "formal": {"gaps": 1}}]}),
+            encoding="utf-8",
+        )
+        trace = {
+            "question": {"id": "q_aipw"},
+            "problem": {"problem_class": "semiparametric_causal_ate"},
+            "procedures": [],
+            "knowledge": [{"id": "aipw_double_robustness"}],
+            "theorem_goals": [
+                {
+                    "id": "aipw_double_robustness",
+                    "title": "AIPW double robustness",
+                    "proof_strategy": "Case-split the finite expectation algebra after nuisance case certificates are available.",
+                    "required_primitives": ["nuisance_correctness_cases"],
+                    "proof_obligations": [
+                        "aipw_score_expectation_target_of_aug_cancel",
+                        "aipw_score_expectation_target_of_zero_aug",
+                        "nuisance_correctness_cases",
+                    ],
+                },
+            ],
+            "formal_subclaims": [
+                {"status": "PROVED", "proof_obligation_id": "nuisance_correctness_cases"},
+                {
+                    "id": "gap:aipw_double_robustness",
+                    "status": "FORMAL_GAP",
+                    "claim_type": "theory_gap",
+                    "gap_reason": "full double-robustness interface still missing",
+                    "artifact_path": str(gap_path),
+                    "lean_statement": gap_path.read_text(encoding="utf-8"),
+                    "formal_source_hits": [{"name": "StatInference.Matching.WDSM.residual"}],
+                    "primitive_formal_source_hits": {
+                        "nuisance_correctness_cases": [
+                            {"name": "StatInference.Matching.WDSM.residual"}
+                        ]
+                    },
+                },
+            ],
+        }
+        (run_dir / "q_aipw.json").write_text(json.dumps(trace), encoding="utf-8")
+
+        payload = audit_formalization_targets(run_dir, out_dir)
+        rows = {row["primitive"]: row for row in payload["rows"]}
+        row = rows["nuisance_correctness_cases"]
+        self.assertEqual(row["priority_band"], "EXACT_PROOF_BANK_REUSE")
+        self.assertEqual(row["exact_proof_bank_obligation"], "nuisance_correctness_cases")
+        self.assertTrue(row["proof_bank_exact_match_available"])
+        self.assertIn("nuisance_correctness_cases", row["bridge_candidate_obligations"])
 
     def test_formalization_target_audit_maps_design_based_primitives_to_verified_bridge(self) -> None:
         run_dir = Path("runs/test_formalization_target_design_based_run")
