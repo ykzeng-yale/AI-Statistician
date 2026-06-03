@@ -590,3 +590,9 @@ Do not treat `60/60 frontier_supported` as enough. It is a routing milestone.
 The next real milestone is reducing the 97 missing primitives and raising
 frontier theory-target coverage while keeping all unsupported/adversarial
 rejections honest.
+
+Recent formal-verifier improvement: patch-rerun residual obligations now export
+worker-ready prompt packets with patched artifact context, rerun commands, and
+output contracts. This makes exact proof-bank reuse, bridge-chain composition,
+and source-discovery blockers actionable without weakening the proof-evidence
+boundary.

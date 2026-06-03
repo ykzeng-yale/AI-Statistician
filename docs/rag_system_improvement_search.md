@@ -268,6 +268,19 @@ python3 -m ai_statistician.cli formal-verifier-replay-repair-patch-rerun-residua
   --out runs/current_formal_verifier_replay_repair_patch_rerun_residual_obligations
 ```
 
+`formal_verifier_replay_repair_patch_rerun_residual_prompt_packets` packages
+those residual proof/library work items as self-contained prover/RAG worker
+prompts. Each packet includes the patched artifact excerpt, proof-bank/source
+hints, action-class-specific output contract, rerun commands, and an explicit
+non-evidence boundary.
+
+```bash
+python3 -m ai_statistician.cli formal-verifier-replay-repair-patch-rerun-residual-prompt-packets \
+  --formal-verifier-replay-repair-patch-rerun-residual-obligations-dir runs/current_formal_verifier_replay_repair_patch_rerun_residual_obligations \
+  --max-packets 40 \
+  --out runs/current_formal_verifier_replay_repair_patch_rerun_residual_prompt_packets
+```
+
 The claim ledger can now consume that promotion manifest as an overlay. Only
 rows already marked `READY_FOR_PROOF_LEDGER_PROMOTION` with kernel evidence can
 upgrade the matching formal-gap row; awaiting responses and patch proposals
