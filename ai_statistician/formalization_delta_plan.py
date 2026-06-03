@@ -43,6 +43,9 @@ class FormalizationDeltaPlanRow:
     bridge_candidate_obligations: tuple[str, ...]
     candidate_declarations: tuple[str, ...]
     blocked_reasons: tuple[str, ...]
+    problem_classes: tuple[str, ...]
+    theorem_goals: tuple[str, ...]
+    n_gaps: int
     source_gap_ids: tuple[str, ...]
     source_task_ids: tuple[str, ...]
     next_step: str
@@ -133,6 +136,9 @@ def build_formalization_delta_plan(
         "dependency_graph_edges": graph["n_edges"],
         "dependency_graph_by_node_kind": graph["by_node_kind"],
         "dependency_graph_by_edge_kind": graph["by_edge_kind"],
+        "dependency_graph_problem_class_nodes": graph["by_node_kind"].get("problem_class", 0),
+        "dependency_graph_theorem_goal_nodes": graph["by_node_kind"].get("theorem_goal", 0),
+        "dependency_graph_goal_to_primitive_edges": graph["by_edge_kind"].get("needs_primitive", 0),
         "top_low_cost_rows": [asdict(row) for row in rows[:10]],
         "top_high_cost_rows": [asdict(row) for row in sorted(rows, key=lambda row: -row.total_cost)[:10]],
         "rows": [asdict(row) for row in rows],
@@ -179,6 +185,8 @@ def _row_from_action(
         str(item) for item in action.get("candidate_declarations", []) or [] if str(item)
     )
     blocked_reasons = tuple(str(item) for item in action.get("blocked_reasons", []) or [] if str(item))
+    problem_classes = tuple(str(item) for item in coverage.get("problem_classes", []) or [] if str(item))
+    theorem_goals = tuple(str(item) for item in coverage.get("theorem_goals", []) or [] if str(item))
     base_cost = ACTION_COSTS.get(action_class, 9)
     risk_penalty = _risk_penalty(action_class, blocked_reasons, coverage)
     reuse_credit = _reuse_credit(action_class, bridge_candidates, candidate_declarations, coverage)
@@ -208,6 +216,9 @@ def _row_from_action(
         bridge_candidate_obligations=bridge_candidates,
         candidate_declarations=candidate_declarations,
         blocked_reasons=blocked_reasons,
+        problem_classes=problem_classes,
+        theorem_goals=theorem_goals,
+        n_gaps=int(coverage.get("n_gaps", 0) or 0),
         source_gap_ids=tuple(str(item) for item in action.get("source_gap_ids", []) or [] if str(item)),
         source_task_ids=tuple(str(item) for item in action.get("source_task_ids", []) or [] if str(item)),
         next_step=_next_step(action_class, primitive, total_cost),
@@ -269,6 +280,23 @@ def _build_dependency_graph(rows: list[FormalizationDeltaPlanRow]) -> dict[str, 
         add_edge(primitive_id, action_id, "planned_by", total_cost=row.total_cost)
         add_edge(action_id, stage_id, "assigned_stage")
         add_edge(action_id, delta_kind_id, "produces_delta_kind")
+
+        for problem_class in row.problem_classes:
+            node_id = f"problem_class:{problem_class}"
+            add_node(node_id, "problem_class", problem_class)
+            add_edge(node_id, primitive_id, "has_missing_primitive", n_gaps=row.n_gaps)
+            for theorem_goal in row.theorem_goals:
+                goal_id = f"theorem_goal:{problem_class}:{theorem_goal}"
+                add_node(goal_id, "theorem_goal", theorem_goal, problem_class=problem_class)
+                add_edge(node_id, goal_id, "targets_goal")
+                add_edge(goal_id, primitive_id, "needs_primitive", n_gaps=row.n_gaps)
+                add_edge(goal_id, action_id, "handled_by_delta_action", total_cost=row.total_cost)
+        if not row.problem_classes:
+            for theorem_goal in row.theorem_goals:
+                goal_id = f"theorem_goal:{theorem_goal}"
+                add_node(goal_id, "theorem_goal", theorem_goal)
+                add_edge(goal_id, primitive_id, "needs_primitive", n_gaps=row.n_gaps)
+                add_edge(goal_id, action_id, "handled_by_delta_action", total_cost=row.total_cost)
 
         for gap_id in row.source_gap_ids:
             node_id = f"gap:{gap_id}"
