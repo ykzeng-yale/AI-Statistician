@@ -194,6 +194,14 @@ def export_rag_collaboration_manifest(
     formal_verifier_replay_repair_patch_rerun_residual_response_validation_payload = _read_json(
         formal_verifier_replay_repair_patch_rerun_residual_response_validation_path
     )
+    formal_verifier_replay_repair_patch_rerun_residual_followup_queue_path = _artifact_path(
+        artifacts,
+        "formal_verifier_replay_repair_patch_rerun_residual_followup_queue",
+        run_dir,
+    )
+    formal_verifier_replay_repair_patch_rerun_residual_followup_queue_payload = _read_json(
+        formal_verifier_replay_repair_patch_rerun_residual_followup_queue_path
+    )
     guidance_payload = _read_json(_artifact_path(artifacts, "evaluation_benchmark_guidance", run_dir))
 
     target_rows = _handoff_targets(
@@ -993,6 +1001,55 @@ def export_rag_collaboration_manifest(
                 formal_verifier_replay_repair_patch_rerun_residual_response_validation_payload,
                 max_rows=min(max_targets, 10),
             ),
+            "formal_verifier_replay_repair_patch_rerun_residual_followup_queue_items": counts.get(
+                "formal_verifier_replay_repair_patch_rerun_residual_followup_queue_items",
+                formal_verifier_replay_repair_patch_rerun_residual_followup_queue_payload.get(
+                    "n_followup_items"
+                ),
+            ),
+            "formal_verifier_replay_repair_patch_rerun_residual_followup_queue_ready": counts.get(
+                "formal_verifier_replay_repair_patch_rerun_residual_followup_queue_ready",
+                formal_verifier_replay_repair_patch_rerun_residual_followup_queue_payload.get(
+                    "n_ready"
+                ),
+            ),
+            "formal_verifier_replay_repair_patch_rerun_residual_followup_queue_blocked": counts.get(
+                "formal_verifier_replay_repair_patch_rerun_residual_followup_queue_blocked",
+                formal_verifier_replay_repair_patch_rerun_residual_followup_queue_payload.get(
+                    "n_blocked"
+                ),
+            ),
+            "formal_verifier_replay_repair_patch_rerun_residual_followup_queue_patch_rerun": counts.get(
+                "formal_verifier_replay_repair_patch_rerun_residual_followup_queue_patch_rerun",
+                formal_verifier_replay_repair_patch_rerun_residual_followup_queue_payload.get(
+                    "n_patch_rerun_items"
+                ),
+            ),
+            "formal_verifier_replay_repair_patch_rerun_residual_followup_queue_source_discovery": counts.get(
+                "formal_verifier_replay_repair_patch_rerun_residual_followup_queue_source_discovery",
+                formal_verifier_replay_repair_patch_rerun_residual_followup_queue_payload.get(
+                    "n_source_discovery_items"
+                ),
+            ),
+            "formal_verifier_replay_repair_patch_rerun_residual_followup_queue_with_artifact": counts.get(
+                "formal_verifier_replay_repair_patch_rerun_residual_followup_queue_with_artifact",
+                formal_verifier_replay_repair_patch_rerun_residual_followup_queue_payload.get(
+                    "n_with_artifact"
+                ),
+            ),
+            "formal_verifier_replay_repair_patch_rerun_residual_followup_queue_with_source_queries": counts.get(
+                "formal_verifier_replay_repair_patch_rerun_residual_followup_queue_with_source_queries",
+                formal_verifier_replay_repair_patch_rerun_residual_followup_queue_payload.get(
+                    "n_with_source_queries"
+                ),
+            ),
+            "formal_verifier_replay_repair_patch_rerun_residual_followup_queue_manifest": str(
+                formal_verifier_replay_repair_patch_rerun_residual_followup_queue_path
+            ),
+            "formal_verifier_replay_repair_patch_rerun_residual_followup_queue_preview": _formal_verifier_replay_repair_patch_rerun_residual_followup_queue_preview(
+                formal_verifier_replay_repair_patch_rerun_residual_followup_queue_payload,
+                max_rows=min(max_targets, 10),
+            ),
             "claim_ledger_repair_response_promotion_overlay_enabled": counts.get(
                 "claim_ledger_repair_response_promotion_overlay_enabled"
             ),
@@ -1056,6 +1113,7 @@ def export_rag_collaboration_manifest(
             "FormalVerifier repair patch rerun residual prompt packets are worker instructions, not theorem proof evidence.",
             "FormalVerifier repair patch rerun residual autoworker responses are deterministic proposals, not theorem proof evidence.",
             "FormalVerifier repair patch rerun residual response validation accepts proof claims only with full_route_kernel_verified evidence.",
+            "FormalVerifier repair patch rerun residual follow-up queue rows are operational work items, not theorem proof evidence.",
             "Claim-ledger repair-response promotion overlays close formal gaps only for matching ready kernel-verified promotion rows.",
             "FORMAL_GAP and theorem-hole queues remain open until a non-placeholder Lean proof is verified.",
         ],
@@ -1778,6 +1836,53 @@ def _formal_verifier_replay_repair_patch_rerun_residual_response_validation_prev
     return rows
 
 
+def _formal_verifier_replay_repair_patch_rerun_residual_followup_queue_preview(
+    payload: dict[str, Any],
+    *,
+    max_rows: int,
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    followup_rows = payload.get("rows", [])
+    if not isinstance(followup_rows, list):
+        return rows
+    for row in followup_rows:
+        if not isinstance(row, dict):
+            continue
+        rows.append(
+            {
+                "followup_id": row.get("followup_id"),
+                "residual_response_validation_id": row.get(
+                    "residual_response_validation_id"
+                ),
+                "prompt_packet_id": row.get("prompt_packet_id"),
+                "residual_obligation_id": row.get("residual_obligation_id"),
+                "rerun_calibration_id": row.get("rerun_calibration_id"),
+                "display_name": row.get("display_name"),
+                "residual_gap": row.get("residual_gap"),
+                "action_class": row.get("action_class", ""),
+                "followup_kind": row.get("followup_kind", ""),
+                "followup_status": row.get("followup_status", ""),
+                "owner_agent": row.get("owner_agent", ""),
+                "priority": row.get("priority", ""),
+                "proposed_lean_artifact_path": row.get(
+                    "proposed_lean_artifact_path",
+                    "",
+                ),
+                "proposed_artifact_exists": row.get(
+                    "proposed_artifact_exists",
+                    False,
+                ),
+                "source_discovery_queries": row.get("source_discovery_queries", [])[:3],
+                "execution_commands": row.get("execution_commands", [])[:2],
+                "proof_evidence_status": row.get("proof_evidence_status", ""),
+                "proof_evidence_boundary": row.get("proof_evidence_boundary", ""),
+            }
+        )
+        if len(rows) >= max_rows:
+            break
+    return rows
+
+
 def _theorem_composition_packet_preview(
     payload: dict[str, Any],
     *,
@@ -1923,6 +2028,10 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"(`{queue.get('formal_verifier_replay_repair_patch_rerun_residual_response_validation_awaiting')}` awaiting, "
         f"`{queue.get('formal_verifier_replay_repair_patch_rerun_residual_response_validation_rejected')}` rejected, "
         f"`{queue.get('formal_verifier_replay_repair_patch_rerun_residual_response_validation_accepted_full_route_kernel_verified')}` accepted)",
+        f"- Formal verifier repair patch rerun residual follow-up queue: `{queue.get('formal_verifier_replay_repair_patch_rerun_residual_followup_queue_items')}` items "
+        f"(`{queue.get('formal_verifier_replay_repair_patch_rerun_residual_followup_queue_ready')}` ready, "
+        f"`{queue.get('formal_verifier_replay_repair_patch_rerun_residual_followup_queue_blocked')}` blocked, "
+        f"`{queue.get('formal_verifier_replay_repair_patch_rerun_residual_followup_queue_source_discovery')}` source-discovery)",
         "- Claim-ledger repair-response promotion overlay: "
         f"`{queue.get('claim_ledger_repair_response_promotion_upgrades')}` upgrades from "
         f"`{queue.get('claim_ledger_repair_response_promotion_overlay_rows')}` ready rows",
@@ -2121,6 +2230,25 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"  calibration={row.get('patch_rerun_calibration_status')} "
             f"kernel={row.get('kernel_verified')}"
         )
+        lines.append(f"  proof status: {row.get('proof_evidence_status')}")
+        lines.append(f"  boundary: {row.get('proof_evidence_boundary')}")
+    lines.extend(["", "## Formal Verifier Residual Follow-up Queue", ""])
+    for row in queue.get(
+        "formal_verifier_replay_repair_patch_rerun_residual_followup_queue_preview",
+        [],
+    ):
+        if not isinstance(row, dict):
+            continue
+        lines.append(
+            f"- `{row.get('display_name')}` -> `{row.get('residual_gap')}` "
+            f"({row.get('followup_status')}): {row.get('followup_kind')} "
+            f"for `{row.get('owner_agent')}`"
+        )
+        lines.append(f"  artifact: `{row.get('proposed_lean_artifact_path')}`")
+        queries = ", ".join(f"`{item}`" for item in row.get("source_discovery_queries", [])) or "none"
+        commands = ", ".join(f"`{item}`" for item in row.get("execution_commands", [])) or "none"
+        lines.append(f"  source queries: {queries}")
+        lines.append(f"  commands: {commands}")
         lines.append(f"  proof status: {row.get('proof_evidence_status')}")
         lines.append(f"  boundary: {row.get('proof_evidence_boundary')}")
     lines.extend(["", "## Theorem Composition Handoff", ""])

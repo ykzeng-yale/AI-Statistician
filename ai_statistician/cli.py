@@ -83,6 +83,9 @@ from .formal_verifier_replay_repair_patch_rerun_residual_autoworker import (
 from .formal_verifier_replay_repair_patch_rerun_residual_response_validation import (
     export_formal_verifier_replay_repair_patch_rerun_residual_response_validation,
 )
+from .formal_verifier_replay_repair_patch_rerun_residual_followup_queue import (
+    export_formal_verifier_replay_repair_patch_rerun_residual_followup_queue,
+)
 from .formal_verifier_replay_repair import export_formal_verifier_replay_repair_packets
 from .formal_source_graph import audit_formal_source_graph
 from .formal_source_index import (
@@ -1900,6 +1903,40 @@ def _formal_verifier_replay_repair_patch_rerun_residual_response_validation(
     print(
         f"markdown report written to "
         f"{(Path(args.out) / 'formal_verifier_replay_repair_patch_rerun_residual_response_validation.md').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formal_verifier_replay_repair_patch_rerun_residual_followup_queue(
+    args: argparse.Namespace,
+) -> int:
+    payload = export_formal_verifier_replay_repair_patch_rerun_residual_followup_queue(
+        Path(
+            args.formal_verifier_replay_repair_patch_rerun_residual_response_validation_dir
+        ),
+        Path(args.out),
+    )
+    print("\nAI Statistical Theory Lab Formal Verifier Patch Rerun Residual Follow-up Queue")
+    print("=" * 72)
+    print(
+        f"items={payload['n_ok']}/{payload['n_followup_items']} "
+        f"ready={payload['n_ready']} "
+        f"blocked={payload['n_blocked']} "
+        f"patch_rerun={payload['n_patch_rerun_items']} "
+        f"source_discovery={payload['n_source_discovery_items']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nresidual follow-up queue manifest written to "
+        f"{(Path(args.out) / 'formal_verifier_replay_repair_patch_rerun_residual_followup_queue_manifest.json').resolve()}"
+    )
+    print(
+        f"residual follow-up queue jsonl written to "
+        f"{(Path(args.out) / 'formal_verifier_replay_repair_patch_rerun_residual_followup_queue.jsonl').resolve()}"
+    )
+    print(
+        f"markdown report written to "
+        f"{(Path(args.out) / 'formal_verifier_replay_repair_patch_rerun_residual_followup_queue.md').resolve()}"
     )
     return 0 if payload["all_ok"] else 1
 
@@ -4145,6 +4182,26 @@ def build_parser() -> argparse.ArgumentParser:
     )
     formal_verifier_replay_repair_patch_rerun_residual_response_validation.set_defaults(
         func=_formal_verifier_replay_repair_patch_rerun_residual_response_validation
+    )
+
+    formal_verifier_replay_repair_patch_rerun_residual_followup_queue = (
+        sub.add_parser(
+            "formal-verifier-replay-repair-patch-rerun-residual-followup-queue",
+            help="queue follow-up work from validated patch-rerun residual responses",
+        )
+    )
+    formal_verifier_replay_repair_patch_rerun_residual_followup_queue.add_argument(
+        "--formal-verifier-replay-repair-patch-rerun-residual-response-validation-dir",
+        required=True,
+        help="directory containing formal_verifier_replay_repair_patch_rerun_residual_response_validation_manifest.json",
+    )
+    formal_verifier_replay_repair_patch_rerun_residual_followup_queue.add_argument(
+        "--out",
+        default="runs/formal_verifier_replay_repair_patch_rerun_residual_followup_queue",
+        help="formal-verifier repair patch rerun residual follow-up queue output directory",
+    )
+    formal_verifier_replay_repair_patch_rerun_residual_followup_queue.set_defaults(
+        func=_formal_verifier_replay_repair_patch_rerun_residual_followup_queue
     )
 
     rag_collaboration_export = sub.add_parser(

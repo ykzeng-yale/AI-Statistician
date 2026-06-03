@@ -601,3 +601,6 @@ proof claim that lacks full patch-rerun kernel calibration.
 The deterministic residual autoworker now fills that response channel with
 non-proof patch proposals or retrieval queries so the system can validate
 response contracts before asking for stronger Lean evidence.
+A residual follow-up queue now routes those validated non-proof responses into
+ready patch-rerun or source-discovery work items, preserving the same
+full-route kernel-calibration boundary.

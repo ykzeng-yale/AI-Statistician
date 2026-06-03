@@ -306,6 +306,18 @@ python3 -m ai_statistician.cli formal-verifier-replay-repair-patch-rerun-residua
   --out runs/current_formal_verifier_replay_repair_patch_rerun_residual_response_validation
 ```
 
+`formal_verifier_replay_repair_patch_rerun_residual_followup_queue` turns
+validated non-proof residual responses into explicit work items: patch proposals
+become residual patch-rerun contracts, while source-discovery responses become
+retrieval/source-coverage follow-ups. These queue rows are operational
+contracts, not theorem proof evidence.
+
+```bash
+python3 -m ai_statistician.cli formal-verifier-replay-repair-patch-rerun-residual-followup-queue \
+  --formal-verifier-replay-repair-patch-rerun-residual-response-validation-dir runs/current_formal_verifier_replay_repair_patch_rerun_residual_response_validation \
+  --out runs/current_formal_verifier_replay_repair_patch_rerun_residual_followup_queue
+```
+
 The claim ledger can now consume that promotion manifest as an overlay. Only
 rows already marked `READY_FOR_PROOF_LEDGER_PROMOTION` with kernel evidence can
 upgrade the matching formal-gap row; awaiting responses and patch proposals
