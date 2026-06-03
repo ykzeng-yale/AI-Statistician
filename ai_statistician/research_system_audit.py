@@ -32,6 +32,9 @@ from .claim_ledger import build_claim_ledger
 from .evaluation_benchmark_guidance import build_evaluation_benchmark_guidance
 from .formal_gap_task_export import export_formal_gap_lean_tasks
 from .formalization_delta_plan import build_formalization_delta_plan
+from .formalization_gap_planner_refinement_queue import (
+    export_formalization_gap_planner_refinement_queue,
+)
 from .formalization_target_audit import audit_formalization_targets
 from .formal_verifier_queue import export_formal_verifier_queue
 from .goal_conditioned_minimal_formalization_plan import (
@@ -625,6 +628,19 @@ async def run_research_system_audit(
         attempt_log_path=replay_attempt_log_path,
     )
     stage_start = _record_stage(stage_timings, "formal_verifier_replay_calibration", stage_start)
+    formalization_gap_planner_refinement_queue_manifest = (
+        export_formalization_gap_planner_refinement_queue(
+            out_dir / "goal_conditioned_minimal_formalization_plan",
+            out_dir / "formalization_gap_planner_refinement_queue",
+            formal_verifier_replay_calibration_dir=out_dir
+            / "formal_verifier_replay_calibration",
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "formalization_gap_planner_refinement_queue",
+        stage_start,
+    )
     formal_verifier_replay_repair_manifest = export_formal_verifier_replay_repair_packets(
         out_dir / "formal_verifier_replay",
         out_dir / "formal_verifier_replay_attempts",
@@ -1086,6 +1102,9 @@ async def run_research_system_audit(
         "formal_verifier_replay_calibration": bool(
             formal_verifier_replay_calibration_manifest["all_ok"]
         ),
+        "formalization_gap_planner_refinement_queue": bool(
+            formalization_gap_planner_refinement_queue_manifest["all_ok"]
+        ),
         "formal_verifier_replay_repair": bool(formal_verifier_replay_repair_manifest["all_ok"]),
         "formal_verifier_replay_repair_application": bool(
             formal_verifier_replay_repair_application_manifest["all_ok"]
@@ -1193,6 +1212,7 @@ async def run_research_system_audit(
         "formal_verifier_replay",
         "formal_verifier_replay_attempts",
         "formal_verifier_replay_calibration",
+        "formalization_gap_planner_refinement_queue",
         "formal_verifier_replay_repair",
         "formal_verifier_replay_repair_application",
         "formal_verifier_replay_repair_application_validation",
@@ -1998,6 +2018,30 @@ async def run_research_system_audit(
             "goal_conditioned_minimal_formalization_do_not_formalize_hints": goal_conditioned_minimal_formalization_plan_manifest[
                 "n_do_not_formalize_hints"
             ],
+            "goal_conditioned_minimal_formalization_and_or_nodes": goal_conditioned_minimal_formalization_plan_manifest[
+                "n_and_or_plan_nodes"
+            ],
+            "goal_conditioned_minimal_formalization_and_or_edges": goal_conditioned_minimal_formalization_plan_manifest[
+                "n_and_or_plan_edges"
+            ],
+            "goal_conditioned_minimal_formalization_informal_dag_nodes": goal_conditioned_minimal_formalization_plan_manifest[
+                "n_informal_knowledge_dag_nodes"
+            ],
+            "goal_conditioned_minimal_formalization_informal_dag_edges": goal_conditioned_minimal_formalization_plan_manifest[
+                "n_informal_knowledge_dag_edges"
+            ],
+            "goal_conditioned_minimal_formalization_lean_realization_dag_nodes": goal_conditioned_minimal_formalization_plan_manifest[
+                "n_lean_realization_dag_nodes"
+            ],
+            "goal_conditioned_minimal_formalization_lean_realization_dag_edges": goal_conditioned_minimal_formalization_plan_manifest[
+                "n_lean_realization_dag_edges"
+            ],
+            "goal_conditioned_minimal_formalization_route_revision_triggers": goal_conditioned_minimal_formalization_plan_manifest[
+                "n_route_revision_triggers"
+            ],
+            "goal_conditioned_minimal_formalization_portable_work_packets": goal_conditioned_minimal_formalization_plan_manifest[
+                "n_portable_work_packets"
+            ],
             "goal_conditioned_minimal_formalization_ok": goal_conditioned_minimal_formalization_plan_manifest[
                 "n_ok"
             ],
@@ -2071,6 +2115,39 @@ async def run_research_system_audit(
             ],
             "formal_verifier_replay_calibration_repair_training_examples": formal_verifier_replay_calibration_manifest[
                 "n_repair_training_examples"
+            ],
+            "formalization_gap_planner_refinement_queue_items": formalization_gap_planner_refinement_queue_manifest[
+                "n_refinement_items"
+            ],
+            "formalization_gap_planner_refinement_queue_ready": formalization_gap_planner_refinement_queue_manifest[
+                "n_ready"
+            ],
+            "formalization_gap_planner_refinement_queue_blocked": formalization_gap_planner_refinement_queue_manifest[
+                "n_blocked"
+            ],
+            "formalization_gap_planner_refinement_queue_literature": formalization_gap_planner_refinement_queue_manifest[
+                "n_literature_discovery_items"
+            ],
+            "formalization_gap_planner_refinement_queue_lean_grounding": formalization_gap_planner_refinement_queue_manifest[
+                "n_lean_library_grounding_items"
+            ],
+            "formalization_gap_planner_refinement_queue_proof_feedback": formalization_gap_planner_refinement_queue_manifest[
+                "n_proof_state_feedback_items"
+            ],
+            "formalization_gap_planner_refinement_queue_route_revision": formalization_gap_planner_refinement_queue_manifest[
+                "n_route_revision_items"
+            ],
+            "formalization_gap_planner_refinement_queue_with_evaluation_signal": formalization_gap_planner_refinement_queue_manifest[
+                "n_with_evaluation_signal"
+            ],
+            "formalization_gap_planner_refinement_queue_with_prover_feedback": formalization_gap_planner_refinement_queue_manifest[
+                "n_with_prover_feedback"
+            ],
+            "formalization_gap_planner_refinement_queue_with_failed_prover_feedback": formalization_gap_planner_refinement_queue_manifest[
+                "n_with_failed_prover_feedback"
+            ],
+            "formalization_gap_planner_refinement_queue_ok": formalization_gap_planner_refinement_queue_manifest[
+                "n_ok"
             ],
             "formal_verifier_replay_repair_packets": formal_verifier_replay_repair_manifest[
                 "n_repair_packets"
@@ -3150,6 +3227,21 @@ async def run_research_system_audit(
                 out_dir
                 / "formal_verifier_replay_calibration"
                 / "formal_verifier_replay_calibration.md"
+            ),
+            "formalization_gap_planner_refinement_queue": str(
+                out_dir
+                / "formalization_gap_planner_refinement_queue"
+                / "formalization_gap_planner_refinement_queue_manifest.json"
+            ),
+            "formalization_gap_planner_refinement_queue_jsonl": str(
+                out_dir
+                / "formalization_gap_planner_refinement_queue"
+                / "formalization_gap_planner_refinement_queue.jsonl"
+            ),
+            "formalization_gap_planner_refinement_queue_report": str(
+                out_dir
+                / "formalization_gap_planner_refinement_queue"
+                / "formalization_gap_planner_refinement_queue.md"
             ),
             "formal_verifier_replay_repair": str(
                 out_dir

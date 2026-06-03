@@ -514,6 +514,61 @@ improve the route generator while preserving this artifact contract. The output
 is planning evidence only; Lean proof status still comes from replay attempts
 and kernel verification.
 
+The refinement layer turns those route plans into a tool-facing loop:
+
+```bash
+python3 -m ai_statistician.cli formalization-gap-planner-adapter-registry \
+  --lean-rag-db runs/current_status_lean_rag_dependency_graph/stat_inference.sqlite \
+  --out runs/current/formalization_gap_planner_adapter_registry
+
+python3 -m ai_statistician.cli formalization-gap-planner-refinement-queue \
+  --goal-conditioned-minimal-formalization-plan-dir runs/current/goal_conditioned_minimal_formalization_plan \
+  --formalization-gap-planner-evaluation-dir runs/current/formalization_gap_planner_evaluation \
+  --formal-verifier-replay-calibration-dir runs/current/formal_verifier_replay_calibration \
+  --out runs/current/formalization_gap_planner_refinement_queue
+
+python3 -m ai_statistician.cli formalization-gap-planner-refinement-adapter-responses \
+  --formalization-gap-planner-refinement-queue-dir runs/current/formalization_gap_planner_refinement_queue \
+  --out runs/current/formalization_gap_planner_refinement_adapter
+
+python3 -m ai_statistician.cli formalization-gap-planner-local-formal-source-adapter \
+  --formalization-gap-planner-refinement-queue-dir runs/current/formalization_gap_planner_refinement_queue \
+  --base-response-jsonl runs/current/formalization_gap_planner_refinement_adapter/formalization_gap_planner_refinement_evidence_responses.jsonl \
+  --lean-rag-db runs/current_status_lean_rag_dependency_graph/stat_inference.sqlite \
+  --out runs/current/formalization_gap_planner_local_formal_source_adapter
+
+python3 -m ai_statistician.cli formalization-gap-planner-local-proof-state-adapter \
+  --formalization-gap-planner-refinement-queue-dir runs/current/formalization_gap_planner_refinement_queue \
+  --base-response-jsonl runs/current/formalization_gap_planner_local_formal_source_adapter/formalization_gap_planner_refinement_evidence_responses.jsonl \
+  --lean-project /Users/yukang/LeanProjects/LeanPractice \
+  --out runs/current/formalization_gap_planner_local_proof_state_adapter
+
+python3 -m ai_statistician.cli formalization-gap-planner-refinement-evidence \
+  --formalization-gap-planner-refinement-queue-dir runs/current/formalization_gap_planner_refinement_queue \
+  --response-jsonl runs/current/formalization_gap_planner_local_proof_state_adapter/formalization_gap_planner_refinement_evidence_responses.jsonl \
+  --out runs/current/formalization_gap_planner_refinement_evidence
+
+python3 -m ai_statistician.cli formalization-gap-planner-route-revision-overlay \
+  --goal-conditioned-minimal-formalization-plan-dir runs/current/goal_conditioned_minimal_formalization_plan \
+  --formalization-gap-planner-refinement-evidence-dir runs/current/formalization_gap_planner_refinement_evidence \
+  --out runs/current/formalization_gap_planner_route_revision_overlay
+```
+
+The adapter registry is the stable inventory for Paperclip/PaperQA/OpenScholar
+literature search, LeanSearch/Loogle/LeanExplore/local Lean RAG grounding, and
+Lean/LSP or LeanDojo proof-state feedback. The queue is the work-order contract
+for those adapters. The adapter command is the offline regression producer: it
+emits the same response JSONL using packaged route-truth labels so the evidence
+validator and route-revision proposal path can be exercised without live MCP
+credentials. The local formal-source adapter is the first live-local
+replacement stage: it searches indexed declarations for Lean-grounding rows and
+merges those results into the same evidence JSONL. The local proof-state
+adapter is the next live-local replacement stage: it runs or records local Lean
+proof-state checks for queued skeletons, blocks `sorry`/`admit` probes, and
+merges prover diagnostics and residual goals into that JSONL. The overlay
+command writes accepted proposals back against the route plan as an inspectable
+revised-route artifact. These rows are route evidence only.
+
 ```bash
 python3 -m ai_statistician.cli formal-verifier-replay-export \
   --formal-verifier-queue-dir runs/current/formal_verifier_queue \

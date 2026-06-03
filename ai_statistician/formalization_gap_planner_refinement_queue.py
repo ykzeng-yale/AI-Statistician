@@ -1,0 +1,903 @@
+from __future__ import annotations
+
+import json
+from collections import Counter
+from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+from .fingerprint import stable_hash
+from .formalization_gap_planner_contract import (
+    LIBRARY_AWARE_FORMALIZATION_GAP_PLANNER_NAME,
+    PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_ID,
+    PROOF_EVIDENCE_BOUNDARY as PLANNER_PROOF_EVIDENCE_BOUNDARY,
+)
+
+
+FORMALIZATION_GAP_PLANNER_REFINEMENT_QUEUE_SCHEMA_VERSION = 1
+PROOF_EVIDENCE_STATUS = "FORMALIZATION_GAP_PLANNER_REFINEMENT_QUEUE_NOT_PROOF_EVIDENCE"
+PROOF_EVIDENCE_BOUNDARY = (
+    "Formalization gap planner refinement rows are interactive search, "
+    "library-grounding, and prover-feedback work orders. They revise route "
+    "evidence and the planned Lean delta, but they are not theorem proof "
+    "evidence. Only target-prover kernel verification can prove a theorem or "
+    "bridge lemma."
+)
+
+
+@dataclass(frozen=True)
+class FormalizationGapPlannerRefinementQueueRow:
+    schema_version: int
+    refinement_item_id: str
+    goal_plan_id: str
+    route_id: str
+    display_name: str
+    theorem_skeleton: str
+    route_class: str
+    pareto_profile: str
+    hook_kind: str
+    refinement_stage: str
+    owner_agent: str
+    target_primitives: tuple[str, ...]
+    trigger_kinds: tuple[str, ...]
+    trigger_conditions: tuple[str, ...]
+    trigger_next_actions: tuple[str, ...]
+    queries: tuple[str, ...]
+    recommended_tools: tuple[str, ...]
+    frontier_resource_adapters: tuple[str, ...]
+    evaluation_signal: str
+    evaluation_route_missing_primitives: tuple[str, ...]
+    evaluation_delta_missing_primitives: tuple[str, ...]
+    evaluation_coverage_confusions: tuple[dict[str, object], ...]
+    prover_feedback_status: str
+    prover_feedback_error_category: str
+    prover_feedback_first_error: str
+    acceptance_record: str
+    expected_artifacts: tuple[str, ...]
+    execution_commands: tuple[str, ...]
+    required_gate: str
+    status: str
+    priority_score: int
+    rank: int
+    proof_evidence_status: str
+    proof_evidence_boundary: str
+    ok: bool
+    errors: tuple[str, ...] = ()
+
+
+def export_formalization_gap_planner_refinement_queue(
+    goal_conditioned_minimal_formalization_plan_dir: Path,
+    out_dir: Path | None = None,
+    *,
+    formalization_gap_planner_evaluation_dir: Path | None = None,
+    formal_verifier_replay_calibration_dir: Path | None = None,
+    max_items: int = 0,
+) -> dict[str, object]:
+    """Export interactive route-refinement work items from gap-plan rows.
+
+    This queue turns the planner's `interactive_refinement_hooks` and
+    `route_revision_triggers` into concrete, auditable work orders for
+    literature discovery, Lean-library grounding, proof-state feedback, and
+    route revision. Optional evaluator and replay-calibration manifests add
+    held-out truth errors and prover residuals as prioritization signals.
+    """
+
+    errors: list[str] = []
+    plan_manifest_path = (
+        goal_conditioned_minimal_formalization_plan_dir
+        / "goal_conditioned_minimal_formalization_plan_manifest.json"
+    )
+    plan_payload = _read_json(plan_manifest_path, errors)
+    if plan_payload.get("component_name") != LIBRARY_AWARE_FORMALIZATION_GAP_PLANNER_NAME:
+        errors.append("input manifest is not the library-aware formalization gap planner")
+    if plan_payload.get("portable_schema_id") != PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_ID:
+        errors.append("input manifest portable schema id mismatch")
+
+    evaluation_manifest_path = (
+        formalization_gap_planner_evaluation_dir
+        / "formalization_gap_planner_evaluation_manifest.json"
+        if formalization_gap_planner_evaluation_dir is not None
+        else None
+    )
+    evaluation_payload = (
+        _read_json(evaluation_manifest_path, errors)
+        if evaluation_manifest_path is not None
+        else {}
+    )
+    calibration_manifest_path = (
+        formal_verifier_replay_calibration_dir
+        / "formal_verifier_replay_calibration_manifest.json"
+        if formal_verifier_replay_calibration_dir is not None
+        else None
+    )
+    calibration_payload = (
+        _read_json(calibration_manifest_path, errors)
+        if calibration_manifest_path is not None
+        else {}
+    )
+
+    plan_rows = [row for row in plan_payload.get("rows", []) if isinstance(row, dict)]
+    evaluation_index = _diagnostic_index(evaluation_payload.get("rows", []))
+    calibration_index = _diagnostic_index(calibration_payload.get("rows", []))
+    raw_rows: list[FormalizationGapPlannerRefinementQueueRow] = []
+    for plan_row in plan_rows:
+        evaluation_row = _match_diagnostic(plan_row, evaluation_index)
+        calibration_row = _match_diagnostic(plan_row, calibration_index)
+        for hook in _hooks_for_plan_row(plan_row, evaluation_row, calibration_row):
+            raw_rows.append(
+                _refinement_row(
+                    plan_row,
+                    hook,
+                    evaluation_row=evaluation_row,
+                    calibration_row=calibration_row,
+                )
+            )
+
+    ranked_rows = _rank_rows(raw_rows)
+    if max_items > 0:
+        rows = ranked_rows[:max_items]
+    else:
+        rows = ranked_rows
+    by_hook_kind = Counter(row.hook_kind for row in rows)
+    by_stage = Counter(row.refinement_stage for row in rows)
+    by_owner = Counter(row.owner_agent for row in rows)
+    by_status = Counter(row.status for row in rows)
+    payload: dict[str, object] = {
+        "schema_version": FORMALIZATION_GAP_PLANNER_REFINEMENT_QUEUE_SCHEMA_VERSION,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "component_name": "formalization_gap_planner_refinement_queue",
+        "source_component": plan_payload.get("component_name", ""),
+        "portable_schema_id": plan_payload.get("portable_schema_id", ""),
+        "goal_conditioned_minimal_formalization_plan_dir": str(
+            goal_conditioned_minimal_formalization_plan_dir
+        ),
+        "goal_conditioned_minimal_formalization_plan_manifest": str(plan_manifest_path),
+        "formalization_gap_planner_evaluation_dir": str(
+            formalization_gap_planner_evaluation_dir or ""
+        ),
+        "formalization_gap_planner_evaluation_manifest": str(
+            evaluation_manifest_path or ""
+        ),
+        "formal_verifier_replay_calibration_dir": str(
+            formal_verifier_replay_calibration_dir or ""
+        ),
+        "formal_verifier_replay_calibration_manifest": str(
+            calibration_manifest_path or ""
+        ),
+        "n_plan_rows": len(plan_rows),
+        "n_evaluation_rows": len(evaluation_payload.get("rows", []))
+        if isinstance(evaluation_payload.get("rows", []), list)
+        else 0,
+        "n_calibration_rows": len(calibration_payload.get("rows", []))
+        if isinstance(calibration_payload.get("rows", []), list)
+        else 0,
+        "max_items": max_items,
+        "n_refinement_items": len(rows),
+        "n_ready": by_status.get("READY_FOR_INTERACTIVE_REFINEMENT", 0),
+        "n_blocked": sum(
+            count for status, count in by_status.items() if status.startswith("BLOCKED_")
+        ),
+        "n_literature_discovery_items": by_hook_kind.get("literature_discovery", 0),
+        "n_lean_library_grounding_items": by_hook_kind.get("lean_library_grounding", 0),
+        "n_proof_state_feedback_items": by_hook_kind.get("proof_state_feedback", 0),
+        "n_route_revision_items": by_hook_kind.get("route_revision", 0),
+        "n_with_evaluation_signal": sum(
+            1 for row in rows if row.evaluation_signal != "no_evaluation_signal"
+        ),
+        "n_with_prover_feedback": sum(
+            1
+            for row in rows
+            if row.prover_feedback_status
+            not in {"", "no_calibration_signal", "awaiting_full_route_attempt"}
+        ),
+        "n_with_failed_prover_feedback": sum(
+            1
+            for row in rows
+            if _is_failed_prover_feedback(row.prover_feedback_status)
+        ),
+        "n_ok": sum(1 for row in rows if row.ok),
+        "all_ok": not errors and bool(rows) and all(row.ok for row in rows),
+        "errors": errors,
+        "by_hook_kind": dict(sorted(by_hook_kind.items())),
+        "by_refinement_stage": dict(sorted(by_stage.items())),
+        "by_owner_agent": dict(sorted(by_owner.items())),
+        "by_status": dict(sorted(by_status.items())),
+        "rows": [asdict(row) for row in rows],
+        "refinement_queue_fingerprint": stable_hash([asdict(row) for row in rows]),
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+        "planner_proof_evidence_boundary": PLANNER_PROOF_EVIDENCE_BOUNDARY,
+        "limitations": [
+            "refinement queue rows are operational work items, not theorem proof evidence",
+            "literature and Lean-search outputs must be recorded as route evidence until a prover verifies a theorem",
+            "prover failures are diagnostic feedback for route revision, not disproofs of the informal theorem",
+            "route revisions should be written back into the informal knowledge DAG and Lean realization DAG before replay",
+        ],
+    }
+    if out_dir is not None:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (
+            out_dir / "formalization_gap_planner_refinement_queue_manifest.json"
+        ).write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
+        (out_dir / "formalization_gap_planner_refinement_queue.jsonl").write_text(
+            "\n".join(json.dumps(asdict(row), sort_keys=True) for row in rows)
+            + ("\n" if rows else ""),
+            encoding="utf-8",
+        )
+        (out_dir / "formalization_gap_planner_refinement_queue.md").write_text(
+            _markdown_report(payload),
+            encoding="utf-8",
+        )
+    return payload
+
+
+def _refinement_row(
+    plan_row: dict[str, Any],
+    hook: dict[str, Any],
+    *,
+    evaluation_row: dict[str, Any],
+    calibration_row: dict[str, Any],
+) -> FormalizationGapPlannerRefinementQueueRow:
+    errors: list[str] = []
+    goal_plan_id = str(plan_row.get("goal_plan_id", ""))
+    route_id = str(plan_row.get("route_id", ""))
+    display_name = str(plan_row.get("display_name", ""))
+    hook_kind = str(hook.get("hook_kind", ""))
+    stage = _refinement_stage(hook_kind)
+    target_primitives = _target_primitives(plan_row, hook_kind, evaluation_row)
+    triggers = _triggers_for_hook(plan_row, hook_kind, evaluation_row, calibration_row)
+    queries = _queries_for_hook(plan_row, hook, hook_kind, evaluation_row, calibration_row)
+    recommended_tools = _recommended_tools(hook, hook_kind)
+    adapters = _frontier_resource_adapters(hook_kind)
+    evaluation_signal = _evaluation_signal(evaluation_row)
+    prover_status = _prover_feedback_status(calibration_row)
+    acceptance_record = str(hook.get("acceptance_record", "")) or _acceptance_record(
+        hook_kind
+    )
+
+    for field_name, value in (
+        ("goal_plan_id", goal_plan_id),
+        ("route_id", route_id),
+        ("display_name", display_name),
+        ("hook_kind", hook_kind),
+        ("refinement_stage", stage),
+    ):
+        if not value:
+            errors.append(f"{field_name} missing")
+    if hook_kind not in {
+        "literature_discovery",
+        "lean_library_grounding",
+        "proof_state_feedback",
+        "route_revision",
+    }:
+        errors.append(f"unsupported hook_kind: {hook_kind}")
+    if not recommended_tools:
+        errors.append("recommended_tools missing")
+    if not queries:
+        errors.append("queries missing")
+    if not target_primitives and hook_kind != "route_revision":
+        errors.append("target_primitives missing")
+    if hook_kind == "proof_state_feedback" and not str(plan_row.get("theorem_skeleton", "")):
+        errors.append("theorem_skeleton missing for proof-state feedback")
+
+    status = (
+        "READY_FOR_INTERACTIVE_REFINEMENT"
+        if not errors
+        else "BLOCKED_INTERACTIVE_REFINEMENT_INPUT"
+    )
+    return FormalizationGapPlannerRefinementQueueRow(
+        schema_version=FORMALIZATION_GAP_PLANNER_REFINEMENT_QUEUE_SCHEMA_VERSION,
+        refinement_item_id=(
+            "formalization_gap_planner_refinement:"
+            + stable_hash([goal_plan_id, route_id, hook_kind, queries, triggers])[:16]
+        ),
+        goal_plan_id=goal_plan_id,
+        route_id=route_id,
+        display_name=display_name,
+        theorem_skeleton=str(plan_row.get("theorem_skeleton", "")),
+        route_class=str(plan_row.get("route_class", "")),
+        pareto_profile=str(plan_row.get("pareto_profile", "")),
+        hook_kind=hook_kind,
+        refinement_stage=stage,
+        owner_agent=_owner_agent(hook_kind),
+        target_primitives=target_primitives,
+        trigger_kinds=_str_tuple(item.get("trigger_kind", "") for item in triggers),
+        trigger_conditions=_str_tuple(item.get("condition", "") for item in triggers),
+        trigger_next_actions=_str_tuple(item.get("next_action", "") for item in triggers),
+        queries=queries,
+        recommended_tools=recommended_tools,
+        frontier_resource_adapters=adapters,
+        evaluation_signal=evaluation_signal,
+        evaluation_route_missing_primitives=_str_tuple(
+            evaluation_row.get("route_missing_primitives", [])
+        ),
+        evaluation_delta_missing_primitives=_str_tuple(
+            evaluation_row.get("delta_missing_primitives", [])
+        ),
+        evaluation_coverage_confusions=_coverage_confusions(evaluation_row),
+        prover_feedback_status=prover_status,
+        prover_feedback_error_category=str(calibration_row.get("first_error_category", "")),
+        prover_feedback_first_error=str(calibration_row.get("first_error", "")),
+        acceptance_record=acceptance_record,
+        expected_artifacts=_expected_artifacts(hook_kind),
+        execution_commands=_execution_commands(hook_kind),
+        required_gate=_required_gate(hook_kind),
+        status=status,
+        priority_score=_priority_score(
+            hook_kind,
+            plan_row,
+            evaluation_signal=evaluation_signal,
+            prover_feedback_status=prover_status,
+        ),
+        rank=0,
+        proof_evidence_status=PROOF_EVIDENCE_STATUS,
+        proof_evidence_boundary=PROOF_EVIDENCE_BOUNDARY,
+        ok=not errors,
+        errors=tuple(errors),
+    )
+
+
+def _hooks_for_plan_row(
+    plan_row: dict[str, Any],
+    evaluation_row: dict[str, Any],
+    calibration_row: dict[str, Any],
+) -> tuple[dict[str, Any], ...]:
+    hooks = [
+        hook
+        for hook in plan_row.get("interactive_refinement_hooks", [])
+        if isinstance(hook, dict)
+    ]
+    hook_kinds = {str(hook.get("hook_kind", "")) for hook in hooks}
+    if _needs_route_revision(plan_row, evaluation_row, calibration_row) and (
+        "route_revision" not in hook_kinds
+    ):
+        hooks.append(
+            {
+                "hook_kind": "route_revision",
+                "recommended_tools": [
+                    "literature_discovery",
+                    "lean_library_grounding",
+                    "proof_state_feedback",
+                ],
+                "queries": list(_str_tuple(plan_row.get("selected_primitives", [])))[:8],
+                "acceptance_record": (
+                    "revise the informal knowledge DAG, Lean realization DAG, and "
+                    "selected delta before the next replay attempt"
+                ),
+            }
+        )
+    return tuple(hooks)
+
+
+def _needs_route_revision(
+    plan_row: dict[str, Any],
+    evaluation_row: dict[str, Any],
+    calibration_row: dict[str, Any],
+) -> bool:
+    if _evaluation_signal(evaluation_row) != "no_evaluation_signal":
+        return True
+    prover_status = _prover_feedback_status(calibration_row)
+    if _is_failed_prover_feedback(prover_status):
+        return True
+    return bool(plan_row.get("first_principles_nodes")) or bool(
+        plan_row.get("source_discovery_nodes")
+    )
+
+
+def _triggers_for_hook(
+    plan_row: dict[str, Any],
+    hook_kind: str,
+    evaluation_row: dict[str, Any],
+    calibration_row: dict[str, Any],
+) -> tuple[dict[str, object], ...]:
+    triggers = [
+        trigger
+        for trigger in plan_row.get("route_revision_triggers", [])
+        if isinstance(trigger, dict)
+    ]
+    selected: list[dict[str, object]] = []
+    for trigger in triggers:
+        trigger_kind = str(trigger.get("trigger_kind", ""))
+        if _trigger_matches_hook(trigger_kind, hook_kind):
+            selected.append(trigger)
+    eval_signal = _evaluation_signal(evaluation_row)
+    if eval_signal != "no_evaluation_signal":
+        selected.append(
+            {
+                "trigger_kind": "evaluation_route_truth_mismatch",
+                "condition": eval_signal,
+                "next_action": (
+                    "compare predicted route nodes with held-out route truth and "
+                    "revise missing or extra primitives"
+                ),
+            }
+        )
+    prover_status = _prover_feedback_status(calibration_row)
+    if _is_failed_prover_feedback(prover_status):
+        selected.append(
+            {
+                "trigger_kind": "prover_feedback_residual",
+                "condition": (
+                    f"{prover_status}: "
+                    f"{calibration_row.get('first_error_category', '')}"
+                ),
+                "next_action": (
+                    "feed residual goals or verifier diagnostics back into the "
+                    "route plan before expanding the Lean delta"
+                ),
+            }
+        )
+    if not selected:
+        selected.append(
+            {
+                "trigger_kind": f"{hook_kind}_scheduled",
+                "condition": "planner hook requested this refinement stage",
+                "next_action": _required_gate(hook_kind),
+            }
+        )
+    return tuple(selected)
+
+
+def _trigger_matches_hook(trigger_kind: str, hook_kind: str) -> bool:
+    if hook_kind == "literature_discovery":
+        return trigger_kind in {
+            "literature_route_evidence_needed",
+            "source_port_or_external_declaration_needed",
+            "new_theory_risk_review",
+        }
+    if hook_kind == "lean_library_grounding":
+        return trigger_kind in {
+            "lean_leaf_attempt_required",
+            "source_port_or_external_declaration_needed",
+            "blocked_by_formal_side_condition",
+            "new_theory_risk_review",
+        }
+    if hook_kind == "proof_state_feedback":
+        return trigger_kind in {
+            "lean_leaf_attempt_required",
+            "blocked_by_formal_side_condition",
+        }
+    if hook_kind == "route_revision":
+        return True
+    return False
+
+
+def _queries_for_hook(
+    plan_row: dict[str, Any],
+    hook: dict[str, Any],
+    hook_kind: str,
+    evaluation_row: dict[str, Any],
+    calibration_row: dict[str, Any],
+) -> tuple[str, ...]:
+    queries: list[str] = [str(item) for item in hook.get("queries", []) if str(item)]
+    display_name = str(plan_row.get("display_name", ""))
+    theorem_skeleton = str(plan_row.get("theorem_skeleton", ""))
+    selected_primitives = _str_tuple(plan_row.get("selected_primitives", []))
+    missing = _str_tuple(
+        [
+            *evaluation_row.get("route_missing_primitives", []),
+            *evaluation_row.get("delta_missing_primitives", []),
+        ]
+    )
+    confused = tuple(
+        str(item.get("primitive", ""))
+        for item in _coverage_confusions(evaluation_row)
+        if str(item.get("primitive", ""))
+    )
+    if hook_kind == "literature_discovery":
+        queries.extend(
+            item
+            for item in (
+                f"{display_name} theorem assumptions proof route",
+                " ".join((*selected_primitives[:6], *missing[:4])),
+                f"{display_name} measurability integrability side conditions",
+            )
+            if item.strip()
+        )
+    elif hook_kind == "lean_library_grounding":
+        queries.extend((*selected_primitives[:8], *missing, *confused))
+    elif hook_kind == "proof_state_feedback":
+        queries.extend(
+            item
+            for item in (
+                theorem_skeleton,
+                " ".join(selected_primitives[:8]),
+                str(calibration_row.get("first_error", "")),
+                str(calibration_row.get("repair_prompt", "")),
+            )
+            if item.strip()
+        )
+    elif hook_kind == "route_revision":
+        queries.extend(
+            item
+            for item in (
+                display_name,
+                " ".join((*selected_primitives[:8], *missing, *confused)),
+                str(calibration_row.get("repair_prompt", "")),
+            )
+            if item.strip()
+        )
+    return _str_tuple(queries)
+
+
+def _target_primitives(
+    plan_row: dict[str, Any],
+    hook_kind: str,
+    evaluation_row: dict[str, Any],
+) -> tuple[str, ...]:
+    selected = _str_tuple(plan_row.get("selected_primitives", []))
+    missing = _str_tuple(
+        [
+            *evaluation_row.get("route_missing_primitives", []),
+            *evaluation_row.get("delta_missing_primitives", []),
+        ]
+    )
+    if hook_kind == "literature_discovery":
+        source = _node_primitives(plan_row.get("source_discovery_nodes", []))
+        first = _node_primitives(plan_row.get("first_principles_nodes", []))
+        return _str_tuple([*source, *first, *missing, *selected[:6]])
+    if hook_kind == "lean_library_grounding":
+        return _str_tuple([*missing, *selected])
+    if hook_kind == "proof_state_feedback":
+        minimal = _node_primitives(plan_row.get("minimal_additional_formalization_nodes", []))
+        return _str_tuple([*minimal, *selected])
+    if hook_kind == "route_revision":
+        return _str_tuple([*missing, *selected])
+    return selected
+
+
+def _recommended_tools(hook: dict[str, Any], hook_kind: str) -> tuple[str, ...]:
+    tools = _str_tuple(hook.get("recommended_tools", []))
+    if tools:
+        return tools
+    return _frontier_resource_adapters(hook_kind)
+
+
+def _frontier_resource_adapters(hook_kind: str) -> tuple[str, ...]:
+    return {
+        "literature_discovery": (
+            "Paperclip MCP/CLI",
+            "PaperQA2",
+            "OpenScholar",
+            "Semantic Scholar API",
+            "OpenAlex Works API",
+            "arXiv",
+            "GROBID",
+            "Nougat",
+            "olmOCR",
+            "Marker",
+        ),
+        "lean_library_grounding": (
+            "local Lean RAG DB",
+            "LeanSearch",
+            "LeanExplore",
+            "Loogle",
+            "lake env lean",
+        ),
+        "proof_state_feedback": (
+            "lean-lsp-mcp",
+            "Lean LSP",
+            "lake build",
+            "LeanDojo/ReProver",
+            "LeanHammer",
+            "aesop",
+            "simp",
+            "exact?",
+            "apply?",
+        ),
+        "route_revision": (
+            "Paperclip MCP/CLI",
+            "PaperQA2",
+            "OpenScholar",
+            "local Lean RAG DB",
+            "LeanSearch",
+            "LeanExplore",
+            "Loogle",
+            "lean-lsp-mcp",
+            "lake build",
+        ),
+    }.get(hook_kind, tuple())
+
+
+def _refinement_stage(hook_kind: str) -> str:
+    return {
+        "literature_discovery": "literature_evidence_search",
+        "lean_library_grounding": "lean_coverage_mapping",
+        "proof_state_feedback": "leaf_prover_attempts",
+        "route_revision": "residual_feedback_revision",
+    }.get(hook_kind, "")
+
+
+def _owner_agent(hook_kind: str) -> str:
+    return {
+        "literature_discovery": "rag_retrieval",
+        "lean_library_grounding": "formal_retrieval",
+        "proof_state_feedback": "formal_verifier",
+        "route_revision": "planner",
+    }.get(hook_kind, "planner")
+
+
+def _acceptance_record(hook_kind: str) -> str:
+    return {
+        "literature_discovery": (
+            "record theorem variants, assumptions, proof-step citations, and "
+            "source passages as route evidence only"
+        ),
+        "lean_library_grounding": (
+            "classify each informal node as exact_exists, near_exists, "
+            "wrapper_needed, bridge_needed, definition_missing, or theory_missing"
+        ),
+        "proof_state_feedback": (
+            "record residual goals, missing side conditions, typeclass failures, "
+            "and diagnostics as route-revision evidence"
+        ),
+        "route_revision": (
+            "update the informal knowledge DAG, Lean realization DAG, selected "
+            "delta, and do-not-formalize hints"
+        ),
+    }.get(hook_kind, "")
+
+
+def _expected_artifacts(hook_kind: str) -> tuple[str, ...]:
+    return {
+        "literature_discovery": (
+            "source-backed route evidence JSONL",
+            "paper/source identifiers and cited theorem variants",
+            "updated informal knowledge DAG nodes",
+        ),
+        "lean_library_grounding": (
+            "Lean declaration search hits",
+            "coverage classification updates",
+            "updated Lean realization DAG nodes",
+        ),
+        "proof_state_feedback": (
+            "leaf proof-attempt log or LSP diagnostic transcript",
+            "residual goals and side-condition diagnostics",
+            "route revision trigger updates",
+        ),
+        "route_revision": (
+            "revised route plan manifest",
+            "revised informal knowledge DAG",
+            "revised Lean realization DAG",
+            "rerun-ready formal verifier queue or replay task",
+        ),
+    }.get(hook_kind, tuple())
+
+
+def _execution_commands(hook_kind: str) -> tuple[str, ...]:
+    return {
+        "literature_discovery": (
+            "run bounded literature search for the listed queries and attach source passages to route nodes",
+            "rerun primitive-source coverage after accepting source evidence",
+        ),
+        "lean_library_grounding": (
+            "query local Lean RAG DB, LeanSearch, LeanExplore, and Loogle for each target primitive",
+            "update coverage labels before proposing new definitions or bridge lemmas",
+        ),
+        "proof_state_feedback": (
+            "attempt selected theorem skeleton or bridge leaves with Lean/LSP/prover tools",
+            "record residual goals, diagnostics, and missing side conditions as route feedback",
+        ),
+        "route_revision": (
+            "revise the route DAG alignment using source, Lean-search, and prover-feedback evidence",
+            "rerun goal-conditioned minimal formalization planning before replay",
+        ),
+    }.get(hook_kind, tuple())
+
+
+def _required_gate(hook_kind: str) -> str:
+    return {
+        "literature_discovery": (
+            "accepted only as source evidence after citations are attached to "
+            "informal route DAG nodes"
+        ),
+        "lean_library_grounding": (
+            "accepted only after every searched primitive receives a coverage "
+            "classification and candidate declaration reference"
+        ),
+        "proof_state_feedback": (
+            "accepted only as diagnostic feedback unless the target prover kernel "
+            "verifies the theorem or bridge lemma"
+        ),
+        "route_revision": (
+            "accepted only after the informal knowledge DAG, Lean realization DAG, "
+            "selected delta, and next work packets are regenerated"
+        ),
+    }.get(hook_kind, "")
+
+
+def _priority_score(
+    hook_kind: str,
+    plan_row: dict[str, Any],
+    *,
+    evaluation_signal: str,
+    prover_feedback_status: str,
+) -> int:
+    base = {
+        "proof_state_feedback": 75,
+        "lean_library_grounding": 70,
+        "literature_discovery": 65,
+        "route_revision": 60,
+    }.get(hook_kind, 40)
+    if evaluation_signal != "no_evaluation_signal":
+        base += 15
+    if _is_failed_prover_feedback(prover_feedback_status):
+        base += 20
+    if plan_row.get("source_discovery_nodes"):
+        base += 8
+    if plan_row.get("first_principles_nodes"):
+        base += 12
+    base += min(10, int(plan_row.get("goal_conditioned_cost", 0) or 0) // 4)
+    return base
+
+
+def _evaluation_signal(row: dict[str, Any]) -> str:
+    if not row:
+        return "no_evaluation_signal"
+    signals: list[str] = []
+    if not bool(row.get("ok", True)):
+        signals.append("evaluation_row_not_ok")
+    if row.get("route_missing_primitives"):
+        signals.append("route_missing_primitives")
+    if row.get("route_extra_primitives"):
+        signals.append("route_extra_primitives")
+    if row.get("delta_missing_primitives"):
+        signals.append("delta_missing_primitives")
+    if row.get("delta_unnecessary_primitives"):
+        signals.append("delta_unnecessary_primitives")
+    if row.get("coverage_classification_confusions"):
+        signals.append("coverage_classification_confusions")
+    return ",".join(signals) if signals else "no_evaluation_signal"
+
+
+def _prover_feedback_status(row: dict[str, Any]) -> str:
+    if not row:
+        return "no_calibration_signal"
+    return str(row.get("replay_calibration_status", "")) or "no_calibration_signal"
+
+
+def _is_failed_prover_feedback(status: str) -> bool:
+    return status not in {
+        "",
+        "no_calibration_signal",
+        "awaiting_full_route_attempt",
+        "full_route_kernel_verified",
+    }
+
+
+def _coverage_confusions(row: dict[str, Any]) -> tuple[dict[str, object], ...]:
+    confusions = row.get("coverage_classification_confusions", [])
+    if not isinstance(confusions, list):
+        return tuple()
+    return tuple(item for item in confusions if isinstance(item, dict))
+
+
+def _rank_rows(
+    rows: list[FormalizationGapPlannerRefinementQueueRow],
+) -> list[FormalizationGapPlannerRefinementQueueRow]:
+    ranked = sorted(
+        rows,
+        key=lambda row: (
+            -row.priority_score,
+            row.display_name,
+            row.hook_kind,
+            row.refinement_item_id,
+        ),
+    )
+    return [
+        FormalizationGapPlannerRefinementQueueRow(**{**asdict(row), "rank": index})
+        for index, row in enumerate(ranked, start=1)
+    ]
+
+
+def _diagnostic_index(rows: Any) -> dict[str, dict[str, Any]]:
+    index: dict[str, dict[str, Any]] = {}
+    if not isinstance(rows, list):
+        return index
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        for field_name in ("route_id", "goal_plan_id", "display_name"):
+            value = str(row.get(field_name, ""))
+            if value:
+                index[f"{field_name}:{value}"] = row
+    return index
+
+
+def _match_diagnostic(
+    plan_row: dict[str, Any],
+    index: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    for field_name in ("route_id", "goal_plan_id", "display_name"):
+        value = str(plan_row.get(field_name, ""))
+        if value and f"{field_name}:{value}" in index:
+            return index[f"{field_name}:{value}"]
+    return {}
+
+
+def _node_primitives(nodes: Any) -> tuple[str, ...]:
+    primitives: list[str] = []
+    if not isinstance(nodes, (list, tuple)):
+        return tuple()
+    for node in nodes:
+        if not isinstance(node, dict):
+            continue
+        primitive = str(node.get("primitive", "") or node.get("label", ""))
+        if primitive:
+            primitives.append(primitive)
+    return _str_tuple(primitives)
+
+
+def _str_tuple(values: Any) -> tuple[str, ...]:
+    if isinstance(values, str):
+        return (values,) if values else tuple()
+    try:
+        iterator = iter(values)
+    except TypeError:
+        return tuple()
+    items: list[str] = []
+    for item in iterator:
+        value = str(item)
+        if value:
+            items.append(value)
+    return tuple(sorted(dict.fromkeys(items)))
+
+
+def _read_json(path: Path | None, errors: list[str]) -> dict[str, Any]:
+    if path is None:
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        errors.append(f"missing JSON file: {path}")
+        return {}
+    except Exception as exc:
+        errors.append(f"failed to parse {path}: {type(exc).__name__}: {exc}")
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _markdown_report(payload: dict[str, object]) -> str:
+    lines = [
+        "# Formalization Gap Planner Refinement Queue",
+        "",
+        f"- Source plan rows: {payload.get('n_plan_rows')}",
+        f"- Refinement items: {payload.get('n_refinement_items')}",
+        f"- Ready: {payload.get('n_ready')}",
+        f"- Literature discovery: {payload.get('n_literature_discovery_items')}",
+        f"- Lean library grounding: {payload.get('n_lean_library_grounding_items')}",
+        f"- Proof-state feedback: {payload.get('n_proof_state_feedback_items')}",
+        f"- Route revision: {payload.get('n_route_revision_items')}",
+        f"- Evaluation signals: {payload.get('n_with_evaluation_signal')}",
+        f"- Prover feedback signals: {payload.get('n_with_prover_feedback')}",
+        f"- All OK: {payload.get('all_ok')}",
+        "",
+        "## Boundary",
+        "",
+        "These rows are interactive refinement work orders, not theorem proof evidence.",
+        "",
+        "## Rows",
+        "",
+    ]
+    for row in payload.get("rows", []):
+        if not isinstance(row, dict):
+            continue
+        lines.append(
+            f"- #{row.get('rank')} `{row.get('display_name')}` "
+            f"{row.get('hook_kind')} priority={row.get('priority_score')} "
+            f"status={row.get('status')}"
+        )
+        if row.get("target_primitives"):
+            lines.append(
+                "  target primitives: "
+                + ", ".join(str(item) for item in row.get("target_primitives", [])[:8])
+            )
+        if row.get("evaluation_signal") != "no_evaluation_signal":
+            lines.append(f"  evaluation signal: {row.get('evaluation_signal')}")
+        if row.get("prover_feedback_status") not in {
+            "",
+            "no_calibration_signal",
+        }:
+            lines.append(f"  prover feedback: {row.get('prover_feedback_status')}")
+    return "\n".join(lines) + "\n"

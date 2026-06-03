@@ -476,6 +476,44 @@ verifier queue into theorem-specific minimal cuts, including selected
 primitives, exact-reuse/wrapper/bridge/source nodes, next worker packets, and
 `do_not_formalize_now` hints. It should reduce wasted formalization breadth,
 but it is still route-selection metadata rather than theorem proof evidence.
+The `formalization-gap-planner-evaluation` gate scores those route selections
+against held-out or curated route truth with route recall/precision,
+Lean-delta precision/recall, existing-reuse precision/recall, coverage-label
+accuracy, two-DAG readiness, and feedback-loop readiness. These are planner
+benchmark scores; they do not replace kernel verification.
+The `formalization-gap-planner-adapter-registry` gate records the intended
+frontier adapters for each refinement hook and their local readiness:
+Paperclip/PaperQA/OpenScholar-style literature search, LeanSearch/Loogle/
+LeanExplore/local Lean RAG grounding, Lean/LSP and LeanDojo-style proof-state
+feedback, and the built-in route-revision overlay. Missing commands,
+credentials, or configured paths are capacity gaps, not proof failures.
+The `formalization-gap-planner-local-formal-source-adapter` gate is the first
+live-local grounding adapter behind that registry: it replaces offline
+`lean_library_grounding` rows with declaration hits and coverage updates from
+the current formal-source retriever, optionally fused with the Lean RAG
+dependency graph. These hits are library-grounding evidence only.
+The `formalization-gap-planner-local-proof-state-adapter` gate is the
+corresponding local prover-feedback adapter: it consumes queued
+`proof_state_feedback` skeletons, runs local Lean when available, blocks
+`sorry`/`admit` probes before invocation, and records diagnostics plus residual
+goals for route revision. These rows are proof-state diagnostics only, not
+theorem proof evidence.
+The `formalization-gap-planner-refinement-queue` gate then turns route
+revision triggers, interactive hooks, evaluator mismatches, and replay
+calibration residuals into bounded work items for literature discovery,
+Lean-library grounding, proof-state feedback, and route-DAG revision. This is
+the executable interface to frontier tools such as Paperclip/PaperQA/OpenScholar,
+LeanSearch/Loogle/local Lean RAG, and Lean/LSP/prover feedback.
+The `formalization-gap-planner-refinement-adapter-responses` gate provides a
+deterministic local adapter over the route-truth benchmark labels so this
+interface can be regression-tested without live MCP credentials. Its JSONL
+responses are then validated by `formalization-gap-planner-refinement-evidence`;
+they remain route-revision evidence, not theorem proof evidence.
+The `formalization-gap-planner-route-revision-overlay` gate then applies those
+accepted proposals back to the current route plan as a non-mutating overlay,
+making the reflect-and-revise step inspectable before rerunning planning and
+replay. The overlay records changed primitives and DAG nodes, but it still does
+not close any proof obligation.
 
 `formal-verifier-queue` is the handoff from that diagnostic to theorem work:
 it records whether hard-mode dependency-graph RAG increased the candidate

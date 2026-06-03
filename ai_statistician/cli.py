@@ -36,6 +36,29 @@ from .frontier_theory_revision_queue import export_frontier_theory_revision_queu
 from .frontier_theory_target_audit import audit_frontier_theory_targets
 from .formal_gap_task_export import export_formal_gap_lean_tasks
 from .formalization_delta_plan import build_formalization_delta_plan
+from .formalization_gap_planner_benchmark import export_formalization_gap_planner_benchmark
+from .formalization_gap_planner_evaluation import evaluate_formalization_gap_planner
+from .formalization_gap_planner_adapter_registry import (
+    export_formalization_gap_planner_adapter_registry,
+)
+from .formalization_gap_planner_local_formal_source_adapter import (
+    export_formalization_gap_planner_local_formal_source_adapter_responses,
+)
+from .formalization_gap_planner_local_proof_state_adapter import (
+    export_formalization_gap_planner_local_proof_state_adapter_responses,
+)
+from .formalization_gap_planner_refinement_adapters import (
+    export_formalization_gap_planner_refinement_adapter_responses,
+)
+from .formalization_gap_planner_refinement_evidence import (
+    export_formalization_gap_planner_refinement_evidence,
+)
+from .formalization_gap_planner_refinement_queue import (
+    export_formalization_gap_planner_refinement_queue,
+)
+from .formalization_gap_planner_route_revision_overlay import (
+    export_formalization_gap_planner_route_revision_overlay,
+)
 from .formalization_target_audit import audit_formalization_targets
 from .formal_verifier_queue import export_formal_verifier_queue
 from .goal_conditioned_minimal_formalization_plan import (
@@ -104,6 +127,7 @@ from .formal_verifier_agentic_proof_attempt_population import (
 from .formal_verifier_replay_repair import export_formal_verifier_replay_repair_packets
 from .formal_source_graph import audit_formal_source_graph
 from .formal_source_index import (
+    FormalSourceRoot,
     FormalSourceSqliteIndex,
     audit_formal_source_index,
     build_formal_source_search_backend,
@@ -1372,6 +1396,20 @@ def _formalization_delta_plan(args: argparse.Namespace) -> int:
     return 0 if payload["all_ok"] else 1
 
 
+def _formal_source_roots_from_specs(specs: list[str] | None) -> tuple[FormalSourceRoot, ...] | None:
+    if not specs:
+        return None
+    roots: list[FormalSourceRoot] = []
+    for idx, spec in enumerate(specs, start=1):
+        if "=" in spec:
+            root_id, location = spec.split("=", 1)
+        else:
+            location = spec
+            root_id = f"formal_source_root_{idx}"
+        roots.append(FormalSourceRoot(root_id.strip(), location.strip()))
+    return tuple(roots)
+
+
 def _formal_verifier_queue(args: argparse.Namespace) -> int:
     payload = export_formal_verifier_queue(
         Path(args.formalization_delta_dir),
@@ -1444,6 +1482,252 @@ def _goal_conditioned_minimal_formalization_plan(args: argparse.Namespace) -> in
     print(
         f"markdown report written to "
         f"{(Path(args.out) / 'goal_conditioned_minimal_formalization_plan.md').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formalization_gap_planner_benchmark(args: argparse.Namespace) -> int:
+    payload = export_formalization_gap_planner_benchmark(
+        Path(args.out),
+        ground_truth_path=Path(args.ground_truth) if args.ground_truth else None,
+    )
+    print("\nAI Statistical Theory Lab Formalization Gap Planner Benchmark")
+    print("=" * 72)
+    print(
+        f"routes={payload['n_ok']}/{payload['n_routes']} "
+        f"required={payload['n_required_primitives']} "
+        f"delta={payload['n_actual_delta_primitives']} "
+        f"reuse={payload['n_existing_reuse_primitives']} "
+        f"kernel_truth={payload['n_kernel_verified_routes']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nbenchmark manifest written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_benchmark_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formalization_gap_planner_adapter_registry(args: argparse.Namespace) -> int:
+    payload = export_formalization_gap_planner_adapter_registry(
+        Path(args.out),
+        lean_rag_db_path=Path(args.lean_rag_db) if args.lean_rag_db else None,
+        paper_library_dir=Path(args.paper_library_dir) if args.paper_library_dir else None,
+    )
+    print("\nAI Statistical Theory Lab Formalization Gap Planner Adapter Registry")
+    print("=" * 72)
+    print(
+        f"adapters={payload['n_ok']}/{payload['n_adapters']} "
+        f"ready={payload['n_ready_local_or_configured']} "
+        f"contract_only={payload['n_contract_only']} "
+        f"needs_install={payload['n_needs_install']} "
+        f"needs_credentials={payload['n_needs_credentials']} "
+        f"needs_config={payload['n_needs_configuration']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nadapter registry manifest written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_adapter_registry_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formalization_gap_planner_evaluation(args: argparse.Namespace) -> int:
+    payload = evaluate_formalization_gap_planner(
+        Path(args.goal_conditioned_minimal_formalization_plan_dir),
+        Path(args.ground_truth),
+        Path(args.out),
+    )
+    print("\nAI Statistical Theory Lab Formalization Gap Planner Evaluation")
+    print("=" * 72)
+    print(
+        f"rows={payload['n_ok']}/{payload['n_evaluation_rows']} "
+        f"matched={payload['n_matched_ground_truth']} "
+        f"route_recall={payload['mean_route_recall']:.3f} "
+        f"delta_recall={payload['mean_delta_recall']:.3f} "
+        f"coverage_acc={payload['mean_coverage_classification_accuracy']:.3f} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nevaluation manifest written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_evaluation_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formalization_gap_planner_refinement_queue(args: argparse.Namespace) -> int:
+    payload = export_formalization_gap_planner_refinement_queue(
+        Path(args.goal_conditioned_minimal_formalization_plan_dir),
+        Path(args.out),
+        formalization_gap_planner_evaluation_dir=(
+            Path(args.formalization_gap_planner_evaluation_dir)
+            if args.formalization_gap_planner_evaluation_dir
+            else None
+        ),
+        formal_verifier_replay_calibration_dir=(
+            Path(args.formal_verifier_replay_calibration_dir)
+            if args.formal_verifier_replay_calibration_dir
+            else None
+        ),
+        max_items=args.max_items,
+    )
+    print("\nAI Statistical Theory Lab Formalization Gap Planner Refinement Queue")
+    print("=" * 72)
+    print(
+        f"items={payload['n_ok']}/{payload['n_refinement_items']} "
+        f"literature={payload['n_literature_discovery_items']} "
+        f"lean={payload['n_lean_library_grounding_items']} "
+        f"prover={payload['n_proof_state_feedback_items']} "
+        f"revision={payload['n_route_revision_items']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nrefinement queue manifest written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_refinement_queue_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formalization_gap_planner_refinement_adapter_responses(
+    args: argparse.Namespace,
+) -> int:
+    payload = export_formalization_gap_planner_refinement_adapter_responses(
+        Path(args.formalization_gap_planner_refinement_queue_dir),
+        Path(args.out),
+        ground_truth_path=Path(args.ground_truth) if args.ground_truth else None,
+        max_items=args.max_items,
+    )
+    print("\nAI Statistical Theory Lab Formalization Gap Planner Refinement Adapter")
+    print("=" * 72)
+    print(
+        f"responses={payload['n_responses']}/{payload['n_queue_rows']} "
+        f"matched={payload['n_ground_truth_matched']} "
+        f"literature={payload['n_literature_responses']} "
+        f"lean={payload['n_lean_grounding_responses']} "
+        f"prover={payload['n_prover_feedback_responses']} "
+        f"revision={payload['n_route_revision_responses']} "
+        f"revision_recommended={payload['n_route_revision_recommended']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nadapter manifest written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_refinement_adapter_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formalization_gap_planner_local_formal_source_adapter(args: argparse.Namespace) -> int:
+    payload = export_formalization_gap_planner_local_formal_source_adapter_responses(
+        Path(args.formalization_gap_planner_refinement_queue_dir),
+        Path(args.out),
+        formal_source_roots=_formal_source_roots_from_specs(args.formal_source_root),
+        formal_source_index_db=Path(args.formal_source_index_db)
+        if args.formal_source_index_db
+        else None,
+        formal_source_index_cache=Path(args.formal_source_index_cache)
+        if args.formal_source_index_cache
+        else None,
+        refresh_formal_source_index_cache=args.refresh_formal_source_index_cache,
+        lean_rag_db_path=Path(args.lean_rag_db) if args.lean_rag_db else None,
+        base_response_jsonl=Path(args.base_response_jsonl)
+        if args.base_response_jsonl
+        else None,
+        max_items=args.max_items,
+        k=args.k,
+    )
+    print("\nAI Statistical Theory Lab Formalization Gap Planner Local Formal Source Adapter")
+    print("=" * 72)
+    print(
+        f"responses={payload['n_local_formal_source_responses']}/"
+        f"{payload['n_lean_library_grounding_rows']} "
+        f"merged={payload['n_merged_responses']} "
+        f"hits={payload['n_hits']} "
+        f"exact={payload['n_exact_exists']} "
+        f"wrapper={payload['n_wrapper_needed']} "
+        f"source={payload['n_source_discovery_needed']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nlocal formal-source adapter manifest written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_local_formal_source_adapter_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formalization_gap_planner_local_proof_state_adapter(args: argparse.Namespace) -> int:
+    payload = export_formalization_gap_planner_local_proof_state_adapter_responses(
+        Path(args.formalization_gap_planner_refinement_queue_dir),
+        Path(args.out),
+        lean_project=Path(args.lean_project) if args.lean_project else None,
+        lean_timeout=args.lean_timeout,
+        base_response_jsonl=Path(args.base_response_jsonl)
+        if args.base_response_jsonl
+        else None,
+        max_items=args.max_items,
+    )
+    print("\nAI Statistical Theory Lab Formalization Gap Planner Local Proof-State Adapter")
+    print("=" * 72)
+    print(
+        f"responses={payload['n_local_proof_state_responses']}/"
+        f"{payload['n_proof_state_feedback_rows']} "
+        f"merged={payload['n_merged_responses']} "
+        f"accepted={payload['n_kernel_scaffold_accepted']} "
+        f"failed={payload['n_local_lean_failed']} "
+        f"unavailable={payload['n_local_lean_unavailable']} "
+        f"placeholder={payload['n_placeholder_blocked']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nlocal proof-state adapter manifest written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_local_proof_state_adapter_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formalization_gap_planner_refinement_evidence(args: argparse.Namespace) -> int:
+    payload = export_formalization_gap_planner_refinement_evidence(
+        Path(args.formalization_gap_planner_refinement_queue_dir),
+        Path(args.out),
+        response_jsonl=Path(args.response_jsonl) if args.response_jsonl else None,
+    )
+    print("\nAI Statistical Theory Lab Formalization Gap Planner Refinement Evidence")
+    print("=" * 72)
+    print(
+        f"rows={payload['n_ok']}/{payload['n_evidence_rows']} "
+        f"responses={payload['n_responses']} "
+        f"awaiting={payload['n_awaiting_tool_response']} "
+        f"contract={payload['n_contract_ok']} "
+        f"revision={payload['n_route_revision_recommended']} "
+        f"proposals={payload['n_route_revision_proposals']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nrefinement evidence manifest written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_refinement_evidence_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formalization_gap_planner_route_revision_overlay(args: argparse.Namespace) -> int:
+    payload = export_formalization_gap_planner_route_revision_overlay(
+        Path(args.goal_conditioned_minimal_formalization_plan_dir),
+        Path(args.formalization_gap_planner_refinement_evidence_dir),
+        Path(args.out),
+    )
+    print("\nAI Statistical Theory Lab Formalization Gap Planner Route Revision Overlay")
+    print("=" * 72)
+    print(
+        f"rows={payload['n_ok']}/{payload['n_overlay_rows']} "
+        f"revised={payload['n_routes_with_revision']} "
+        f"unrevised={payload['n_routes_without_revision']} "
+        f"orphan={payload['n_orphan_route_revision_proposals']} "
+        f"added={payload['n_added_primitives']} "
+        f"delta_added={payload['n_added_delta_primitives']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nroute revision overlay manifest written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_route_revision_overlay_manifest.json').resolve()}"
     )
     return 0 if payload["all_ok"] else 1
 
@@ -4054,6 +4338,266 @@ def build_parser() -> argparse.ArgumentParser:
     )
     goal_conditioned_minimal_formalization_plan.set_defaults(
         func=_goal_conditioned_minimal_formalization_plan
+    )
+
+    formalization_gap_planner_benchmark = sub.add_parser(
+        "formalization-gap-planner-benchmark",
+        help="export reusable route-truth labels for formalization-gap planner evaluation",
+    )
+    formalization_gap_planner_benchmark.add_argument(
+        "--ground-truth",
+        help="optional route-truth JSON file; defaults to the packaged benchmark file",
+    )
+    formalization_gap_planner_benchmark.add_argument(
+        "--out",
+        default="runs/formalization_gap_planner_benchmark",
+        help="formalization-gap planner benchmark output directory",
+    )
+    formalization_gap_planner_benchmark.set_defaults(
+        func=_formalization_gap_planner_benchmark
+    )
+
+    formalization_gap_planner_adapter_registry = sub.add_parser(
+        "formalization-gap-planner-adapter-registry",
+        help="export readiness and response contracts for formalization-gap planner adapters",
+    )
+    formalization_gap_planner_adapter_registry.add_argument(
+        "--lean-rag-db",
+        help="optional Lean RAG dependency graph SQLite DB for library-grounding readiness",
+    )
+    formalization_gap_planner_adapter_registry.add_argument(
+        "--paper-library-dir",
+        help="optional local paper/PDF/text corpus directory for PaperQA2 readiness",
+    )
+    formalization_gap_planner_adapter_registry.add_argument(
+        "--out",
+        default="runs/formalization_gap_planner_adapter_registry",
+        help="formalization-gap planner adapter registry output directory",
+    )
+    formalization_gap_planner_adapter_registry.set_defaults(
+        func=_formalization_gap_planner_adapter_registry
+    )
+
+    formalization_gap_planner_evaluation = sub.add_parser(
+        "formalization-gap-planner-evaluation",
+        help="score a goal-conditioned formalization-gap plan against route truth",
+    )
+    formalization_gap_planner_evaluation.add_argument(
+        "--goal-conditioned-minimal-formalization-plan-dir",
+        required=True,
+        help="directory containing goal_conditioned_minimal_formalization_plan_manifest.json",
+    )
+    formalization_gap_planner_evaluation.add_argument(
+        "--ground-truth",
+        required=True,
+        help="route-truth JSON file, usually from formalization-gap-planner-benchmark",
+    )
+    formalization_gap_planner_evaluation.add_argument(
+        "--out",
+        default="runs/formalization_gap_planner_evaluation",
+        help="formalization-gap planner evaluation output directory",
+    )
+    formalization_gap_planner_evaluation.set_defaults(
+        func=_formalization_gap_planner_evaluation
+    )
+
+    formalization_gap_planner_refinement_queue = sub.add_parser(
+        "formalization-gap-planner-refinement-queue",
+        help="materialize interactive refinement work items from a gap-planner manifest",
+    )
+    formalization_gap_planner_refinement_queue.add_argument(
+        "--goal-conditioned-minimal-formalization-plan-dir",
+        required=True,
+        help="directory containing goal_conditioned_minimal_formalization_plan_manifest.json",
+    )
+    formalization_gap_planner_refinement_queue.add_argument(
+        "--formalization-gap-planner-evaluation-dir",
+        help="optional directory containing formalization_gap_planner_evaluation_manifest.json",
+    )
+    formalization_gap_planner_refinement_queue.add_argument(
+        "--formal-verifier-replay-calibration-dir",
+        help="optional directory containing formal_verifier_replay_calibration_manifest.json",
+    )
+    formalization_gap_planner_refinement_queue.add_argument(
+        "--max-items",
+        type=int,
+        default=0,
+        help="limit exported refinement items; 0 keeps all",
+    )
+    formalization_gap_planner_refinement_queue.add_argument(
+        "--out",
+        default="runs/formalization_gap_planner_refinement_queue",
+        help="formalization-gap planner refinement queue output directory",
+    )
+    formalization_gap_planner_refinement_queue.set_defaults(
+        func=_formalization_gap_planner_refinement_queue
+    )
+
+    formalization_gap_planner_refinement_adapter_responses = sub.add_parser(
+        "formalization-gap-planner-refinement-adapter-responses",
+        help="produce deterministic local evidence responses for refinement queue rows",
+    )
+    formalization_gap_planner_refinement_adapter_responses.add_argument(
+        "--formalization-gap-planner-refinement-queue-dir",
+        required=True,
+        help="directory containing formalization_gap_planner_refinement_queue_manifest.json",
+    )
+    formalization_gap_planner_refinement_adapter_responses.add_argument(
+        "--ground-truth",
+        help="optional route-truth JSON file; defaults to the packaged benchmark file",
+    )
+    formalization_gap_planner_refinement_adapter_responses.add_argument(
+        "--max-items",
+        type=int,
+        default=0,
+        help="limit emitted responses; 0 keeps all queue rows",
+    )
+    formalization_gap_planner_refinement_adapter_responses.add_argument(
+        "--out",
+        default="runs/formalization_gap_planner_refinement_adapter",
+        help="formalization-gap planner refinement adapter output directory",
+    )
+    formalization_gap_planner_refinement_adapter_responses.set_defaults(
+        func=_formalization_gap_planner_refinement_adapter_responses
+    )
+
+    formalization_gap_planner_local_formal_source_adapter = sub.add_parser(
+        "formalization-gap-planner-local-formal-source-adapter",
+        help="emit Lean-library-grounding responses from the local formal-source retriever",
+    )
+    formalization_gap_planner_local_formal_source_adapter.add_argument(
+        "--formalization-gap-planner-refinement-queue-dir",
+        required=True,
+        help="directory containing formalization_gap_planner_refinement_queue_manifest.json",
+    )
+    formalization_gap_planner_local_formal_source_adapter.add_argument(
+        "--formal-source-root",
+        action="append",
+        help="optional formal source root as id=/path or /path; repeatable",
+    )
+    formalization_gap_planner_local_formal_source_adapter.add_argument(
+        "--formal-source-index-db",
+        help="optional SQLite index path; defaults inside --out",
+    )
+    formalization_gap_planner_local_formal_source_adapter.add_argument(
+        "--formal-source-index-cache",
+        help="optional persistent formal-source SQLite cache",
+    )
+    formalization_gap_planner_local_formal_source_adapter.add_argument(
+        "--refresh-formal-source-index-cache",
+        action="store_true",
+        help="rebuild the formal-source cache before searching",
+    )
+    formalization_gap_planner_local_formal_source_adapter.add_argument(
+        "--lean-rag-db",
+        help="optional Lean RAG dependency graph SQLite DB",
+    )
+    formalization_gap_planner_local_formal_source_adapter.add_argument(
+        "--base-response-jsonl",
+        help="optional existing response JSONL to merge with local Lean-grounding responses",
+    )
+    formalization_gap_planner_local_formal_source_adapter.add_argument(
+        "--max-items",
+        type=int,
+        default=0,
+        help="limit queue rows scanned before filtering Lean-grounding hooks; 0 keeps all",
+    )
+    formalization_gap_planner_local_formal_source_adapter.add_argument(
+        "-k",
+        type=int,
+        default=5,
+        help="declaration hits per primitive",
+    )
+    formalization_gap_planner_local_formal_source_adapter.add_argument(
+        "--out",
+        default="runs/formalization_gap_planner_local_formal_source_adapter",
+        help="local formal-source adapter output directory",
+    )
+    formalization_gap_planner_local_formal_source_adapter.set_defaults(
+        func=_formalization_gap_planner_local_formal_source_adapter
+    )
+
+    formalization_gap_planner_local_proof_state_adapter = sub.add_parser(
+        "formalization-gap-planner-local-proof-state-adapter",
+        help="emit prover-feedback responses from local Lean proof-state checks",
+    )
+    formalization_gap_planner_local_proof_state_adapter.add_argument(
+        "--formalization-gap-planner-refinement-queue-dir",
+        required=True,
+        help="directory containing formalization_gap_planner_refinement_queue_manifest.json",
+    )
+    formalization_gap_planner_local_proof_state_adapter.add_argument(
+        "--lean-project",
+        help="optional Lake project; when set the adapter runs lake env lean",
+    )
+    formalization_gap_planner_local_proof_state_adapter.add_argument(
+        "--lean-timeout",
+        type=int,
+        default=90,
+        help="timeout seconds for each local Lean proof-state probe",
+    )
+    formalization_gap_planner_local_proof_state_adapter.add_argument(
+        "--base-response-jsonl",
+        help="optional existing response JSONL to merge with local proof-state responses",
+    )
+    formalization_gap_planner_local_proof_state_adapter.add_argument(
+        "--max-items",
+        type=int,
+        default=0,
+        help="limit queue rows scanned before filtering proof-state hooks; 0 keeps all",
+    )
+    formalization_gap_planner_local_proof_state_adapter.add_argument(
+        "--out",
+        default="runs/formalization_gap_planner_local_proof_state_adapter",
+        help="local proof-state adapter output directory",
+    )
+    formalization_gap_planner_local_proof_state_adapter.set_defaults(
+        func=_formalization_gap_planner_local_proof_state_adapter
+    )
+
+    formalization_gap_planner_refinement_evidence = sub.add_parser(
+        "formalization-gap-planner-refinement-evidence",
+        help="validate refinement tool responses and emit route-revision proposals",
+    )
+    formalization_gap_planner_refinement_evidence.add_argument(
+        "--formalization-gap-planner-refinement-queue-dir",
+        required=True,
+        help="directory containing formalization_gap_planner_refinement_queue_manifest.json",
+    )
+    formalization_gap_planner_refinement_evidence.add_argument(
+        "--response-jsonl",
+        help="optional response JSONL; defaults to the queue directory response filename",
+    )
+    formalization_gap_planner_refinement_evidence.add_argument(
+        "--out",
+        default="runs/formalization_gap_planner_refinement_evidence",
+        help="formalization-gap planner refinement evidence output directory",
+    )
+    formalization_gap_planner_refinement_evidence.set_defaults(
+        func=_formalization_gap_planner_refinement_evidence
+    )
+
+    formalization_gap_planner_route_revision_overlay = sub.add_parser(
+        "formalization-gap-planner-route-revision-overlay",
+        help="apply refinement evidence proposals back onto goal-conditioned route plans",
+    )
+    formalization_gap_planner_route_revision_overlay.add_argument(
+        "--goal-conditioned-minimal-formalization-plan-dir",
+        required=True,
+        help="directory containing goal_conditioned_minimal_formalization_plan_manifest.json",
+    )
+    formalization_gap_planner_route_revision_overlay.add_argument(
+        "--formalization-gap-planner-refinement-evidence-dir",
+        required=True,
+        help="directory containing formalization_gap_planner_refinement_evidence_manifest.json",
+    )
+    formalization_gap_planner_route_revision_overlay.add_argument(
+        "--out",
+        default="runs/formalization_gap_planner_route_revision_overlay",
+        help="formalization-gap planner route revision overlay output directory",
+    )
+    formalization_gap_planner_route_revision_overlay.set_defaults(
+        func=_formalization_gap_planner_route_revision_overlay
     )
 
     formal_verifier_replay = sub.add_parser(
