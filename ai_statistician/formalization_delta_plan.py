@@ -159,8 +159,14 @@ def build_formalization_delta_plan(
         "dependency_graph_theorem_goal_nodes": graph["by_node_kind"].get("theorem_goal", 0),
         "dependency_graph_theorem_skeleton_nodes": graph["by_node_kind"].get("lean_theorem_skeleton", 0),
         "dependency_graph_import_nodes": graph["by_node_kind"].get("lean_import", 0),
+        "dependency_graph_informal_proof_step_nodes": graph["by_node_kind"].get(
+            "informal_proof_step", 0
+        ),
         "dependency_graph_goal_to_primitive_edges": graph["by_edge_kind"].get("needs_primitive", 0),
         "dependency_graph_goal_to_skeleton_edges": graph["by_edge_kind"].get("has_lean_skeleton", 0),
+        "dependency_graph_skeleton_to_proof_step_edges": graph["by_edge_kind"].get(
+            "has_informal_proof_step", 0
+        ),
         "top_low_cost_rows": [asdict(row) for row in rows[:10]],
         "top_high_cost_rows": [asdict(row) for row in sorted(rows, key=lambda row: -row.total_cost)[:10]],
         "rows": [asdict(row) for row in rows],
@@ -365,6 +371,24 @@ def _build_dependency_graph(
                 add_edge(skeleton_id, action_id, "handled_by_delta_action", total_cost=row.total_cost)
                 for goal_id in goal_node_ids:
                     add_edge(goal_id, skeleton_id, "has_lean_skeleton")
+                for index, proof_step in enumerate(
+                    _proof_strategy_steps(str(task.get("proof_strategy", ""))),
+                    start=1,
+                ):
+                    step_id = f"proof_step:{task_id}:{index}:{stable_hash(proof_step)[:8]}"
+                    add_node(
+                        step_id,
+                        "informal_proof_step",
+                        proof_step,
+                        task_id=task_id,
+                        step_index=index,
+                        theorem_skeleton=declaration,
+                    )
+                    add_edge(skeleton_id, step_id, "has_informal_proof_step", step_index=index)
+                    add_edge(step_id, primitive_id, "motivates_primitive")
+                    add_edge(step_id, action_id, "handled_by_delta_action", total_cost=row.total_cost)
+                    for goal_id in goal_node_ids:
+                        add_edge(goal_id, step_id, "has_informal_proof_step", step_index=index)
                 for import_name in task.get("imports", []) or []:
                     import_text = str(import_name)
                     if not import_text:
@@ -482,6 +506,11 @@ def _next_step(action_class: str, primitive: str, total_cost: int) -> str:
 def _task_declaration(statement: str) -> str:
     match = re.search(r"\btheorem\s+([A-Za-z_][A-Za-z0-9_'.]*)\b", statement)
     return match.group(1) if match else ""
+
+
+def _proof_strategy_steps(proof_strategy: str) -> tuple[str, ...]:
+    pieces = re.split(r"[.;]\s+|\n+", proof_strategy.strip())
+    return tuple(piece.strip() for piece in pieces if piece.strip())
 
 
 def _read_json(path: Path | None, errors: list[str], *, missing_ok: bool = False) -> dict[str, Any]:

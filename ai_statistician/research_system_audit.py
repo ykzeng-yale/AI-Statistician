@@ -1251,11 +1251,17 @@ async def run_research_system_audit(
             "formalization_delta_graph_import_nodes": formalization_delta_manifest[
                 "dependency_graph_import_nodes"
             ],
+            "formalization_delta_graph_informal_proof_step_nodes": formalization_delta_manifest[
+                "dependency_graph_informal_proof_step_nodes"
+            ],
             "formalization_delta_graph_goal_to_primitive_edges": formalization_delta_manifest[
                 "dependency_graph_goal_to_primitive_edges"
             ],
             "formalization_delta_graph_goal_to_skeleton_edges": formalization_delta_manifest[
                 "dependency_graph_goal_to_skeleton_edges"
+            ],
+            "formalization_delta_graph_skeleton_to_proof_step_edges": formalization_delta_manifest[
+                "dependency_graph_skeleton_to_proof_step_edges"
             ],
             "formalization_delta_plan_low_cost_existing_reuse": formalization_delta_manifest[
                 "n_low_cost_existing_reuse"

@@ -209,8 +209,9 @@ Current release signal:
   composition, assumption interfaces, minimal wrappers, bridge lemmas, and
   first-principles primitive work before a FormalVerifier spends proof-search
   budget. It also writes a dependency graph linking problem classes, theorem
-  goals, Lean theorem skeletons, imports, gaps, primitives, actions, stages,
-  expected premises, proof-bank obligations, and candidate Lean declarations.
+  goals, Lean theorem skeletons, informal proof steps, imports, gaps,
+  primitives, actions, stages, expected premises, proof-bank obligations, and
+  candidate Lean declarations.
   Its cost and graph are heuristic planning evidence, not a proof of true
   minimality and not Lean proof evidence.
 - compose-existing bridge-chain opportunities are now 51
