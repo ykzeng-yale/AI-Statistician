@@ -527,6 +527,15 @@ composition and formalization-target audits. It does **not** prove that a
 propensity model or outcome nuisance model is statistically correct; those
 model-identification facts still have to supply the case certificates.
 
+The design-based Neyman variance lane now has a direct
+`difference_in_means_unbiasedness` obligation. The Lean theorem
+`differenceInMeans_unbiased` proves that if treated and control sample-mean
+estimators are integrable and unbiased for their respective finite-population
+means, then their difference is unbiased for the mean contrast. This closes the
+named primitive as exact proof-bank reuse, while still leaving complete
+randomization validity, randomization-variance decomposition, and Neyman
+conservativeness as separate theorem-family work.
+
 Important boundary:
 
 - These are finite, reusable Mathlib-backed estimator/probability/statistical

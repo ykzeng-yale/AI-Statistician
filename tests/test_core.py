@@ -1495,6 +1495,22 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("design_based", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_difference_in_means_unbiasedness_direct_wrapper_reuses_contrast_bridge(self) -> None:
+        obligation = get_obligation("difference_in_means_unbiasedness")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(
+            obligation.depends_on,
+            ("difference_estimator_unbiased", "finite_population_ate_mean_difference"),
+        )
+        self.assertIn("def differenceInMeansEstimator", content)
+        self.assertIn("theorem differenceInMeans_unbiased", content)
+        self.assertIn("thetaTreat - thetaControl", content)
+        self.assertIn("integral_sub", content)
+        self.assertIn("difference_in_means_unbiasedness", obligation.tags)
+        self.assertIn("direct_primitive_wrapper", obligation.tags)
+        self.assertIn("design_based", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_neyman_variance_conservative_algebra_supports_design_based_gap(self) -> None:
         obligation = get_obligation("neyman_variance_conservative_algebra")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
@@ -5929,6 +5945,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "complete_randomization_distribution",
             "complete_randomization_uniform_assignment_mass",
             "finite_sample_mean_unbiased",
+            "difference_in_means_unbiasedness",
             "difference_estimator_unbiased",
             "difference_estimator_variance_decompose",
             "randomization_variance_decomposition_bridge",
@@ -5999,6 +6016,12 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "difference_estimator_unbiased",
             rows["difference_in_means_unbiasedness"]["bridge_candidate_obligations"],
         )
+        self.assertEqual(rows["difference_in_means_unbiasedness"]["priority_band"], "EXACT_PROOF_BANK_REUSE")
+        self.assertEqual(
+            rows["difference_in_means_unbiasedness"]["exact_proof_bank_obligation"],
+            "difference_in_means_unbiasedness",
+        )
+        self.assertTrue(rows["difference_in_means_unbiasedness"]["proof_bank_exact_match_available"])
         for primitive in (
             "randomization_variance_decomposition",
             "neyman_bound_nonnegative_treatment_effect_variance",

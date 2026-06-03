@@ -158,6 +158,64 @@ theorem differenceEstimator_unbiased {Ω : Type*} [MeasurableSpace Ω]
         ),
         expected_lemmas=("integral_sub",),
     ),
+    "difference_in_means_unbiasedness": FormalObligation(
+        id="difference_in_means_unbiasedness",
+        title="Difference-in-means unbiasedness primitive wrapper",
+        english=(
+            "If treated and control sample-mean estimators are integrable and "
+            "unbiased for their respective finite-population means, then their "
+            "difference is unbiased for the mean contrast. This names the "
+            "`difference_in_means_unbiasedness` frontier primitive directly "
+            "for design-based traces. It is the finite expectation-algebra "
+            "step only; it does not prove complete randomization, assignment "
+            "ignorability, randomization variance formulas, or Neyman "
+            "conservativeness."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+noncomputable def differenceInMeansEstimator {Ω : Type*}
+    (treatedMean controlMean : Ω → ℝ) : Ω → ℝ :=
+  treatedMean - controlMean
+
+theorem differenceInMeans_unbiased {Ω : Type*} [MeasurableSpace Ω]
+    (μ : Measure Ω) (treatedMean controlMean : Ω → ℝ)
+    (thetaTreat thetaControl : ℝ)
+    (hTreat : Integrable treatedMean μ)
+    (hControl : Integrable controlMean μ)
+    (hETreat : ∫ ω, treatedMean ω ∂μ = thetaTreat)
+    (hEControl : ∫ ω, controlMean ω ∂μ = thetaControl) :
+    ∫ ω, differenceInMeansEstimator treatedMean controlMean ω ∂μ =
+      thetaTreat - thetaControl := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  calc\n"
+            "    ∫ ω, differenceInMeansEstimator treatedMean controlMean ω ∂μ =\n"
+            "        (∫ ω, treatedMean ω ∂μ) - (∫ ω, controlMean ω ∂μ) := by\n"
+            "          simpa [differenceInMeansEstimator] using integral_sub hTreat hControl\n"
+            "    _ = thetaTreat - thetaControl := by\n"
+            "          rw [hETreat, hEControl]"
+        ),
+        tags=(
+            "estimator",
+            "expectation",
+            "linearity",
+            "contrast",
+            "difference_in_means",
+            "difference_in_means_unbiasedness",
+            "unbiased",
+            "causal",
+            "design_based",
+            "finite_sample",
+            "direct_primitive_wrapper",
+        ),
+        expected_lemmas=("integral_sub",),
+        depends_on=("difference_estimator_unbiased", "finite_population_ate_mean_difference"),
+    ),
     "difference_estimator_variance_decompose": FormalObligation(
         id="difference_estimator_variance_decompose",
         title="Difference estimator variance decomposition",
