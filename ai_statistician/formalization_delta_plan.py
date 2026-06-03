@@ -11,7 +11,7 @@ from typing import Any
 from .fingerprint import stable_hash
 
 
-FORMALIZATION_DELTA_PLAN_SCHEMA_VERSION = 2
+FORMALIZATION_DELTA_PLAN_SCHEMA_VERSION = 3
 
 
 ACTION_COSTS = {
@@ -295,7 +295,8 @@ def _build_theorem_routes(
         task = task_by_id.get(task_id, {})
         if not task:
             continue
-        declaration = _task_declaration(str(task.get("statement", "")))
+        theorem_statement = str(task.get("statement", ""))
+        declaration = _task_declaration(theorem_statement)
         if not declaration:
             continue
         ordered_rows = sorted(
@@ -339,6 +340,7 @@ def _build_theorem_routes(
                 "problem_class": str(task.get("problem_class", "")),
                 "theorem_goal_id": str(task.get("theorem_goal_id", "")),
                 "theorem_skeleton": declaration,
+                "theorem_statement": theorem_statement,
                 "display_name": _task_display_name(task_id, task, declaration),
                 "namespace": str(task.get("namespace", "")),
                 "statement_hash": stable_hash(str(task.get("statement", "")))[:16],

@@ -11,7 +11,7 @@ from typing import Any
 from .fingerprint import stable_hash
 
 
-FORMAL_VERIFIER_QUEUE_SCHEMA_VERSION = 4
+FORMAL_VERIFIER_QUEUE_SCHEMA_VERSION = 5
 
 
 @dataclass(frozen=True)
@@ -25,6 +25,7 @@ class FormalVerifierQueueRow:
     theorem_goal_id: str
     display_name: str
     theorem_skeleton: str
+    theorem_statement: str
     route_class: str
     verification_stage: str
     owner_agent: str
@@ -329,6 +330,7 @@ def _row_from_route(
         theorem_goal_id=str(route.get("theorem_goal_id", "")),
         display_name=str(route.get("display_name", "")),
         theorem_skeleton=str(route.get("theorem_skeleton", "")),
+        theorem_statement=str(route.get("theorem_statement", "")),
         route_class=route_class,
         verification_stage=verification_stage,
         owner_agent="formal_verifier",

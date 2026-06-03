@@ -10,7 +10,7 @@ from typing import Any
 from .fingerprint import stable_hash
 
 
-GOAL_CONDITIONED_MINIMAL_FORMALIZATION_PLAN_SCHEMA_VERSION = 2
+GOAL_CONDITIONED_MINIMAL_FORMALIZATION_PLAN_SCHEMA_VERSION = 3
 PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_VERSION = 1
 PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_ID = (
     "urn:ai-statistician:schemas:library-aware-formalization-gap-plan:1"
@@ -52,6 +52,7 @@ class GoalConditionedMinimalFormalizationPlanRow:
     theorem_goal_id: str
     display_name: str
     theorem_skeleton: str
+    theorem_statement: str
     planner_component: str
     target_prover_family: str
     library_snapshot_ref: str
@@ -410,6 +411,7 @@ def _plan_row(
     interactive_refinement_hooks = _interactive_refinement_hooks(
         display_name=str(route.get("display_name", "")),
         theorem_skeleton=str(route.get("theorem_skeleton", "")),
+        theorem_statement=str(route.get("theorem_statement", "")),
         selected_primitives=selected_primitives,
         source_discovery=source_discovery,
         first_principles=first_principles,
@@ -444,6 +446,7 @@ def _plan_row(
         theorem_goal_id=str(route.get("theorem_goal_id", "")),
         display_name=str(route.get("display_name", "")),
         theorem_skeleton=str(route.get("theorem_skeleton", "")),
+        theorem_statement=str(route.get("theorem_statement", "")),
         planner_component=LIBRARY_AWARE_FORMALIZATION_GAP_PLANNER_NAME,
         target_prover_family=TARGET_PROVER_FAMILY,
         library_snapshot_ref=library_snapshot_ref,
@@ -1012,6 +1015,7 @@ def _interactive_refinement_hooks(
     *,
     display_name: str,
     theorem_skeleton: str,
+    theorem_statement: str,
     selected_primitives: tuple[str, ...],
     source_discovery: tuple[dict[str, object], ...],
     first_principles: tuple[dict[str, object], ...],
@@ -1039,7 +1043,12 @@ def _interactive_refinement_hooks(
             "recommended_tools": ["lean-lsp-mcp", "Lean LSP", "lake build"],
             "queries": [
                 item
-                for item in (theorem_skeleton, primitive_query, display_name)
+                for item in (
+                    theorem_statement,
+                    theorem_skeleton,
+                    primitive_query,
+                    display_name,
+                )
                 if item
             ],
             "acceptance_record": (

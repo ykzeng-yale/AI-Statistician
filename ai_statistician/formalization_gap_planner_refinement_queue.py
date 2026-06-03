@@ -15,7 +15,7 @@ from .formalization_gap_planner_contract import (
 )
 
 
-FORMALIZATION_GAP_PLANNER_REFINEMENT_QUEUE_SCHEMA_VERSION = 1
+FORMALIZATION_GAP_PLANNER_REFINEMENT_QUEUE_SCHEMA_VERSION = 2
 PROOF_EVIDENCE_STATUS = "FORMALIZATION_GAP_PLANNER_REFINEMENT_QUEUE_NOT_PROOF_EVIDENCE"
 PROOF_EVIDENCE_BOUNDARY = (
     "Formalization gap planner refinement rows are interactive search, "
@@ -34,6 +34,7 @@ class FormalizationGapPlannerRefinementQueueRow:
     route_id: str
     display_name: str
     theorem_skeleton: str
+    theorem_statement: str
     route_class: str
     pareto_profile: str
     hook_kind: str
@@ -255,6 +256,8 @@ def _refinement_row(
     acceptance_record = str(hook.get("acceptance_record", "")) or _acceptance_record(
         hook_kind
     )
+    theorem_statement = str(plan_row.get("theorem_statement", "")).strip()
+    theorem_skeleton = theorem_statement or str(plan_row.get("theorem_skeleton", ""))
 
     for field_name, value in (
         ("goal_plan_id", goal_plan_id),
@@ -278,7 +281,7 @@ def _refinement_row(
         errors.append("queries missing")
     if not target_primitives and hook_kind != "route_revision":
         errors.append("target_primitives missing")
-    if hook_kind == "proof_state_feedback" and not str(plan_row.get("theorem_skeleton", "")):
+    if hook_kind == "proof_state_feedback" and not theorem_skeleton:
         errors.append("theorem_skeleton missing for proof-state feedback")
 
     status = (
@@ -295,7 +298,8 @@ def _refinement_row(
         goal_plan_id=goal_plan_id,
         route_id=route_id,
         display_name=display_name,
-        theorem_skeleton=str(plan_row.get("theorem_skeleton", "")),
+        theorem_skeleton=theorem_skeleton,
+        theorem_statement=theorem_statement,
         route_class=str(plan_row.get("route_class", "")),
         pareto_profile=str(plan_row.get("pareto_profile", "")),
         hook_kind=hook_kind,
@@ -473,6 +477,7 @@ def _queries_for_hook(
     queries: list[str] = [str(item) for item in hook.get("queries", []) if str(item)]
     display_name = str(plan_row.get("display_name", ""))
     theorem_skeleton = str(plan_row.get("theorem_skeleton", ""))
+    theorem_statement = str(plan_row.get("theorem_statement", ""))
     selected_primitives = _str_tuple(plan_row.get("selected_primitives", []))
     missing = _str_tuple(
         [
@@ -501,6 +506,7 @@ def _queries_for_hook(
         queries.extend(
             item
             for item in (
+                theorem_statement,
                 theorem_skeleton,
                 " ".join(selected_primitives[:8]),
                 str(calibration_row.get("first_error", "")),
