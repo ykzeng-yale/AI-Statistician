@@ -73,6 +73,9 @@ from .formal_verifier_replay_repair_patch_rerun_residual_obligations import (
 from .formal_verifier_replay_repair_patch_rerun_residual_prompt_packets import (
     export_formal_verifier_replay_repair_patch_rerun_residual_prompt_packets,
 )
+from .formal_verifier_replay_repair_patch_rerun_residual_autoworker import (
+    export_formal_verifier_replay_repair_patch_rerun_residual_autoworker,
+)
 from .formal_verifier_replay_repair_patch_rerun_residual_response_validation import (
     export_formal_verifier_replay_repair_patch_rerun_residual_response_validation,
 )
@@ -749,11 +752,28 @@ async def run_research_system_audit(
         "formal_verifier_replay_repair_patch_rerun_residual_prompt_packets",
         stage_start,
     )
+    formal_verifier_replay_repair_patch_rerun_residual_autoworker_manifest = (
+        export_formal_verifier_replay_repair_patch_rerun_residual_autoworker(
+            out_dir / "formal_verifier_replay_repair_patch_rerun_residual_prompt_packets",
+            out_dir / "formal_verifier_replay_repair_patch_rerun_residual_autoworker",
+            max_responses=40,
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "formal_verifier_replay_repair_patch_rerun_residual_autoworker",
+        stage_start,
+    )
     formal_verifier_replay_repair_patch_rerun_residual_response_validation_manifest = (
         export_formal_verifier_replay_repair_patch_rerun_residual_response_validation(
             out_dir / "formal_verifier_replay_repair_patch_rerun_residual_prompt_packets",
             out_dir
             / "formal_verifier_replay_repair_patch_rerun_residual_response_validation",
+            response_jsonl=(
+                out_dir
+                / "formal_verifier_replay_repair_patch_rerun_residual_autoworker"
+                / "formal_verifier_replay_repair_patch_rerun_residual_responses.jsonl"
+            ),
         )
     )
     stage_start = _record_stage(
@@ -1016,6 +1036,11 @@ async def run_research_system_audit(
                 "all_ok"
             ]
         ),
+        "formal_verifier_replay_repair_patch_rerun_residual_autoworker": bool(
+            formal_verifier_replay_repair_patch_rerun_residual_autoworker_manifest[
+                "all_ok"
+            ]
+        ),
         "formal_verifier_replay_repair_patch_rerun_residual_response_validation": bool(
             formal_verifier_replay_repair_patch_rerun_residual_response_validation_manifest[
                 "all_ok"
@@ -1072,6 +1097,7 @@ async def run_research_system_audit(
         "formal_verifier_replay_repair_patch_rerun_calibration",
         "formal_verifier_replay_repair_patch_rerun_residual_obligations",
         "formal_verifier_replay_repair_patch_rerun_residual_prompt_packets",
+        "formal_verifier_replay_repair_patch_rerun_residual_autoworker",
         "formal_verifier_replay_repair_patch_rerun_residual_response_validation",
         "research_training_export",
         "research_policy_baseline",
@@ -2136,6 +2162,24 @@ async def run_research_system_audit(
             "formal_verifier_replay_repair_patch_rerun_residual_prompt_packets_source_discovery": formal_verifier_replay_repair_patch_rerun_residual_prompt_packets_manifest[
                 "n_source_discovery_packets"
             ],
+            "formal_verifier_replay_repair_patch_rerun_residual_autoworker_responses": formal_verifier_replay_repair_patch_rerun_residual_autoworker_manifest[
+                "n_responses"
+            ],
+            "formal_verifier_replay_repair_patch_rerun_residual_autoworker_ok": formal_verifier_replay_repair_patch_rerun_residual_autoworker_manifest[
+                "n_ok"
+            ],
+            "formal_verifier_replay_repair_patch_rerun_residual_autoworker_patch_proposals": formal_verifier_replay_repair_patch_rerun_residual_autoworker_manifest[
+                "n_residual_patch_proposals"
+            ],
+            "formal_verifier_replay_repair_patch_rerun_residual_autoworker_source_discovery": formal_verifier_replay_repair_patch_rerun_residual_autoworker_manifest[
+                "n_source_discovery_responses"
+            ],
+            "formal_verifier_replay_repair_patch_rerun_residual_autoworker_kernel_verified": formal_verifier_replay_repair_patch_rerun_residual_autoworker_manifest[
+                "n_kernel_verified"
+            ],
+            "formal_verifier_replay_repair_patch_rerun_residual_autoworker_artifacts": formal_verifier_replay_repair_patch_rerun_residual_autoworker_manifest[
+                "n_patch_artifacts"
+            ],
             "formal_verifier_replay_repair_patch_rerun_residual_response_validation_rows": formal_verifier_replay_repair_patch_rerun_residual_response_validation_manifest[
                 "n_response_validation_rows"
             ],
@@ -2992,6 +3036,21 @@ async def run_research_system_audit(
                 out_dir
                 / "formal_verifier_replay_repair_patch_rerun_residual_prompt_packets"
                 / "formal_verifier_replay_repair_patch_rerun_residual_prompt_packets.md"
+            ),
+            "formal_verifier_replay_repair_patch_rerun_residual_autoworker": str(
+                out_dir
+                / "formal_verifier_replay_repair_patch_rerun_residual_autoworker"
+                / "formal_verifier_replay_repair_patch_rerun_residual_autoworker_manifest.json"
+            ),
+            "formal_verifier_replay_repair_patch_rerun_residual_autoworker_responses": str(
+                out_dir
+                / "formal_verifier_replay_repair_patch_rerun_residual_autoworker"
+                / "formal_verifier_replay_repair_patch_rerun_residual_responses.jsonl"
+            ),
+            "formal_verifier_replay_repair_patch_rerun_residual_autoworker_report": str(
+                out_dir
+                / "formal_verifier_replay_repair_patch_rerun_residual_autoworker"
+                / "formal_verifier_replay_repair_patch_rerun_residual_autoworker.md"
             ),
             "formal_verifier_replay_repair_patch_rerun_residual_response_validation": str(
                 out_dir

@@ -77,6 +77,9 @@ from .formal_verifier_replay_repair_patch_rerun_residual_obligations import (
 from .formal_verifier_replay_repair_patch_rerun_residual_prompt_packets import (
     export_formal_verifier_replay_repair_patch_rerun_residual_prompt_packets,
 )
+from .formal_verifier_replay_repair_patch_rerun_residual_autoworker import (
+    export_formal_verifier_replay_repair_patch_rerun_residual_autoworker,
+)
 from .formal_verifier_replay_repair_patch_rerun_residual_response_validation import (
     export_formal_verifier_replay_repair_patch_rerun_residual_response_validation,
 )
@@ -1829,6 +1832,38 @@ def _formal_verifier_replay_repair_patch_rerun_residual_prompt_packets(
     print(
         f"markdown report written to "
         f"{(Path(args.out) / 'formal_verifier_replay_repair_patch_rerun_residual_prompt_packets.md').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formal_verifier_replay_repair_patch_rerun_residual_autoworker(
+    args: argparse.Namespace,
+) -> int:
+    payload = export_formal_verifier_replay_repair_patch_rerun_residual_autoworker(
+        Path(args.formal_verifier_replay_repair_patch_rerun_residual_prompt_packets_dir),
+        Path(args.out),
+        max_responses=args.max_responses,
+    )
+    print("\nAI Statistical Theory Lab Formal Verifier Patch Rerun Residual Autoworker")
+    print("=" * 72)
+    print(
+        f"responses={payload['n_ok']}/{payload['n_responses']} "
+        f"patch_proposals={payload['n_residual_patch_proposals']} "
+        f"source_discovery={payload['n_source_discovery_responses']} "
+        f"kernel_verified={payload['n_kernel_verified']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nresidual autoworker manifest written to "
+        f"{(Path(args.out) / 'formal_verifier_replay_repair_patch_rerun_residual_autoworker_manifest.json').resolve()}"
+    )
+    print(
+        f"residual response jsonl written to "
+        f"{(Path(args.out) / 'formal_verifier_replay_repair_patch_rerun_residual_responses.jsonl').resolve()}"
+    )
+    print(
+        f"markdown report written to "
+        f"{(Path(args.out) / 'formal_verifier_replay_repair_patch_rerun_residual_autoworker.md').resolve()}"
     )
     return 0 if payload["all_ok"] else 1
 
@@ -4062,6 +4097,29 @@ def build_parser() -> argparse.ArgumentParser:
     )
     formal_verifier_replay_repair_patch_rerun_residual_prompt_packets.set_defaults(
         func=_formal_verifier_replay_repair_patch_rerun_residual_prompt_packets
+    )
+
+    formal_verifier_replay_repair_patch_rerun_residual_autoworker = sub.add_parser(
+        "formal-verifier-replay-repair-patch-rerun-residual-autoworker",
+        help="generate conservative local responses for patch-rerun residual prompt packets",
+    )
+    formal_verifier_replay_repair_patch_rerun_residual_autoworker.add_argument(
+        "--formal-verifier-replay-repair-patch-rerun-residual-prompt-packets-dir",
+        required=True,
+        help="directory containing formal_verifier_replay_repair_patch_rerun_residual_prompt_packets_manifest.json",
+    )
+    formal_verifier_replay_repair_patch_rerun_residual_autoworker.add_argument(
+        "--max-responses",
+        type=int,
+        default=40,
+    )
+    formal_verifier_replay_repair_patch_rerun_residual_autoworker.add_argument(
+        "--out",
+        default="runs/formal_verifier_replay_repair_patch_rerun_residual_autoworker",
+        help="formal-verifier repair patch rerun residual autoworker output directory",
+    )
+    formal_verifier_replay_repair_patch_rerun_residual_autoworker.set_defaults(
+        func=_formal_verifier_replay_repair_patch_rerun_residual_autoworker
     )
 
     formal_verifier_replay_repair_patch_rerun_residual_response_validation = (

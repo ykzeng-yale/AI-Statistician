@@ -281,6 +281,18 @@ python3 -m ai_statistician.cli formal-verifier-replay-repair-patch-rerun-residua
   --out runs/current_formal_verifier_replay_repair_patch_rerun_residual_prompt_packets
 ```
 
+`formal_verifier_replay_repair_patch_rerun_residual_autoworker` produces
+conservative local responses for those packets. It records exact-reuse and
+bridge-chain work as residual patch proposals and source-discovery blockers as
+retrieval queries, always with `kernel_verified=false`.
+
+```bash
+python3 -m ai_statistician.cli formal-verifier-replay-repair-patch-rerun-residual-autoworker \
+  --formal-verifier-replay-repair-patch-rerun-residual-prompt-packets-dir runs/current_formal_verifier_replay_repair_patch_rerun_residual_prompt_packets \
+  --max-responses 40 \
+  --out runs/current_formal_verifier_replay_repair_patch_rerun_residual_autoworker
+```
+
 `formal_verifier_replay_repair_patch_rerun_residual_response_validation`
 validates worker responses to those packets. Missing response JSONL is an
 awaiting state, not a failed gate; present responses must match the packet
@@ -290,6 +302,7 @@ patch-rerun calibration and no remaining residual formal gaps.
 ```bash
 python3 -m ai_statistician.cli formal-verifier-replay-repair-patch-rerun-residual-response-validation \
   --formal-verifier-replay-repair-patch-rerun-residual-prompt-packets-dir runs/current_formal_verifier_replay_repair_patch_rerun_residual_prompt_packets \
+  --response-jsonl runs/current_formal_verifier_replay_repair_patch_rerun_residual_autoworker/formal_verifier_replay_repair_patch_rerun_residual_responses.jsonl \
   --out runs/current_formal_verifier_replay_repair_patch_rerun_residual_response_validation
 ```
 

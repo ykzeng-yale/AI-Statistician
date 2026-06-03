@@ -598,3 +598,6 @@ and source-discovery blockers actionable without weakening the proof-evidence
 boundary. A residual-response validation gate now audits worker outputs from
 those packets, treating missing responses as awaiting work and rejecting any
 proof claim that lacks full patch-rerun kernel calibration.
+The deterministic residual autoworker now fills that response channel with
+non-proof patch proposals or retrieval queries so the system can validate
+response contracts before asking for stronger Lean evidence.

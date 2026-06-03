@@ -178,6 +178,14 @@ def export_rag_collaboration_manifest(
     formal_verifier_replay_repair_patch_rerun_residual_prompt_packets_payload = _read_json(
         formal_verifier_replay_repair_patch_rerun_residual_prompt_packets_path
     )
+    formal_verifier_replay_repair_patch_rerun_residual_autoworker_path = _artifact_path(
+        artifacts,
+        "formal_verifier_replay_repair_patch_rerun_residual_autoworker",
+        run_dir,
+    )
+    formal_verifier_replay_repair_patch_rerun_residual_autoworker_payload = _read_json(
+        formal_verifier_replay_repair_patch_rerun_residual_autoworker_path
+    )
     formal_verifier_replay_repair_patch_rerun_residual_response_validation_path = _artifact_path(
         artifacts,
         "formal_verifier_replay_repair_patch_rerun_residual_response_validation",
@@ -893,6 +901,43 @@ def export_rag_collaboration_manifest(
                 formal_verifier_replay_repair_patch_rerun_residual_prompt_packets_payload,
                 max_rows=min(max_targets, 10),
             ),
+            "formal_verifier_replay_repair_patch_rerun_residual_autoworker_responses": counts.get(
+                "formal_verifier_replay_repair_patch_rerun_residual_autoworker_responses",
+                formal_verifier_replay_repair_patch_rerun_residual_autoworker_payload.get(
+                    "n_responses"
+                ),
+            ),
+            "formal_verifier_replay_repair_patch_rerun_residual_autoworker_patch_proposals": counts.get(
+                "formal_verifier_replay_repair_patch_rerun_residual_autoworker_patch_proposals",
+                formal_verifier_replay_repair_patch_rerun_residual_autoworker_payload.get(
+                    "n_residual_patch_proposals"
+                ),
+            ),
+            "formal_verifier_replay_repair_patch_rerun_residual_autoworker_source_discovery": counts.get(
+                "formal_verifier_replay_repair_patch_rerun_residual_autoworker_source_discovery",
+                formal_verifier_replay_repair_patch_rerun_residual_autoworker_payload.get(
+                    "n_source_discovery_responses"
+                ),
+            ),
+            "formal_verifier_replay_repair_patch_rerun_residual_autoworker_kernel_verified": counts.get(
+                "formal_verifier_replay_repair_patch_rerun_residual_autoworker_kernel_verified",
+                formal_verifier_replay_repair_patch_rerun_residual_autoworker_payload.get(
+                    "n_kernel_verified"
+                ),
+            ),
+            "formal_verifier_replay_repair_patch_rerun_residual_autoworker_artifacts": counts.get(
+                "formal_verifier_replay_repair_patch_rerun_residual_autoworker_artifacts",
+                formal_verifier_replay_repair_patch_rerun_residual_autoworker_payload.get(
+                    "n_patch_artifacts"
+                ),
+            ),
+            "formal_verifier_replay_repair_patch_rerun_residual_autoworker_manifest": str(
+                formal_verifier_replay_repair_patch_rerun_residual_autoworker_path
+            ),
+            "formal_verifier_replay_repair_patch_rerun_residual_autoworker_preview": _formal_verifier_replay_repair_patch_rerun_residual_autoworker_preview(
+                formal_verifier_replay_repair_patch_rerun_residual_autoworker_payload,
+                max_rows=min(max_targets, 10),
+            ),
             "formal_verifier_replay_repair_patch_rerun_residual_response_validation_rows": counts.get(
                 "formal_verifier_replay_repair_patch_rerun_residual_response_validation_rows",
                 formal_verifier_replay_repair_patch_rerun_residual_response_validation_payload.get(
@@ -1009,6 +1054,7 @@ def export_rag_collaboration_manifest(
             "FormalVerifier repair patch rerun calibration rows are proof evidence only at full_route_kernel_verified.",
             "FormalVerifier repair patch rerun residual obligations are proof/library work contracts, not theorem proof evidence.",
             "FormalVerifier repair patch rerun residual prompt packets are worker instructions, not theorem proof evidence.",
+            "FormalVerifier repair patch rerun residual autoworker responses are deterministic proposals, not theorem proof evidence.",
             "FormalVerifier repair patch rerun residual response validation accepts proof claims only with full_route_kernel_verified evidence.",
             "Claim-ledger repair-response promotion overlays close formal gaps only for matching ready kernel-verified promotion rows.",
             "FORMAL_GAP and theorem-hole queues remain open until a non-placeholder Lean proof is verified.",
@@ -1650,6 +1696,44 @@ def _formal_verifier_replay_repair_patch_rerun_residual_prompt_packets_preview(
     return rows
 
 
+def _formal_verifier_replay_repair_patch_rerun_residual_autoworker_preview(
+    payload: dict[str, Any],
+    *,
+    max_rows: int,
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    worker_rows = payload.get("rows", [])
+    if not isinstance(worker_rows, list):
+        return rows
+    for row in worker_rows:
+        if not isinstance(row, dict):
+            continue
+        rows.append(
+            {
+                "response_id": row.get("response_id"),
+                "prompt_packet_id": row.get("prompt_packet_id"),
+                "residual_obligation_id": row.get("residual_obligation_id"),
+                "rerun_calibration_id": row.get("rerun_calibration_id"),
+                "display_name": row.get("display_name"),
+                "residual_gap": row.get("residual_gap"),
+                "action_class": row.get("action_class", ""),
+                "worker_status": row.get("worker_status", ""),
+                "proposed_lean_artifact_path": row.get("proposed_lean_artifact_path", ""),
+                "source_discovery_queries": row.get("source_discovery_queries", [])[:3],
+                "remaining_residual_formal_gaps": row.get(
+                    "remaining_residual_formal_gaps",
+                    [],
+                )[:5],
+                "kernel_verified": row.get("kernel_verified", False),
+                "proof_evidence_status": row.get("proof_evidence_status", ""),
+                "proof_evidence_boundary": row.get("proof_evidence_boundary", ""),
+            }
+        )
+        if len(rows) >= max_rows:
+            break
+    return rows
+
+
 def _formal_verifier_replay_repair_patch_rerun_residual_response_validation_preview(
     payload: dict[str, Any],
     *,
@@ -1832,6 +1916,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Formal verifier repair patch rerun residual prompt packets: `{queue.get('formal_verifier_replay_repair_patch_rerun_residual_prompt_packets')}` packets "
         f"(`{queue.get('formal_verifier_replay_repair_patch_rerun_residual_prompt_packets_with_artifact_context')}` with artifact context, "
         f"`{queue.get('formal_verifier_replay_repair_patch_rerun_residual_prompt_packets_with_output_contract')}` with output contract)",
+        f"- Formal verifier repair patch rerun residual autoworker: `{queue.get('formal_verifier_replay_repair_patch_rerun_residual_autoworker_responses')}` responses "
+        f"(`{queue.get('formal_verifier_replay_repair_patch_rerun_residual_autoworker_patch_proposals')}` patch proposals, "
+        f"`{queue.get('formal_verifier_replay_repair_patch_rerun_residual_autoworker_source_discovery')}` source-discovery)",
         f"- Formal verifier repair patch rerun residual response validation: `{queue.get('formal_verifier_replay_repair_patch_rerun_residual_response_validation_rows')}` rows "
         f"(`{queue.get('formal_verifier_replay_repair_patch_rerun_residual_response_validation_awaiting')}` awaiting, "
         f"`{queue.get('formal_verifier_replay_repair_patch_rerun_residual_response_validation_rejected')}` rejected, "
@@ -2002,6 +2089,22 @@ def _markdown_report(payload: dict[str, object]) -> str:
         lines.append(f"  mode: {packet.get('contract_required_output_mode')}")
         lines.append(f"  gate: {packet.get('contract_promotion_gate')}")
         lines.append(f"  boundary: {packet.get('proof_evidence_boundary')}")
+    lines.extend(["", "## Formal Verifier Residual Autoworker", ""])
+    for row in queue.get(
+        "formal_verifier_replay_repair_patch_rerun_residual_autoworker_preview",
+        [],
+    ):
+        if not isinstance(row, dict):
+            continue
+        lines.append(
+            f"- `{row.get('display_name')}` -> `{row.get('residual_gap')}` "
+            f"({row.get('worker_status')}): {row.get('action_class')}"
+        )
+        lines.append(f"  artifact: `{row.get('proposed_lean_artifact_path')}`")
+        queries = ", ".join(f"`{item}`" for item in row.get("source_discovery_queries", [])) or "none"
+        lines.append(f"  source queries: {queries}")
+        lines.append(f"  proof status: {row.get('proof_evidence_status')}")
+        lines.append(f"  boundary: {row.get('proof_evidence_boundary')}")
     lines.extend(["", "## Formal Verifier Residual Response Validation", ""])
     for row in queue.get(
         "formal_verifier_replay_repair_patch_rerun_residual_response_validation_preview",
