@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import json
-from collections import Counter
+import re
+from collections import Counter, defaultdict
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -10,7 +11,7 @@ from typing import Any
 from .fingerprint import stable_hash
 
 
-FORMAL_VERIFIER_QUEUE_SCHEMA_VERSION = 2
+FORMAL_VERIFIER_QUEUE_SCHEMA_VERSION = 3
 
 
 @dataclass(frozen=True)
@@ -36,6 +37,16 @@ class FormalVerifierQueueRow:
     total_estimated_cost: int
     max_primitive_cost: int
     source_support_count: int
+    dependency_graph_depth: int
+    dependency_graph_neighborhood_nodes: int
+    import_cone_size: int
+    candidate_declaration_count: int
+    verified_bridge_candidate_count: int
+    blocker_count: int
+    source_trust_level: str
+    semantic_faithfulness_score: int
+    semantic_faithfulness_status: str
+    semantic_review_notes: tuple[str, ...]
     required_primitives: tuple[str, ...]
     related_proof_obligations: tuple[str, ...]
     first_next_actions: tuple[str, ...]
@@ -80,6 +91,9 @@ def export_formal_verifier_queue(
     errors: list[str] = []
     delta_manifest_path = formalization_delta_dir / "formalization_delta_plan_manifest.json"
     delta_manifest = _read_json(delta_manifest_path, errors)
+    delta_graph_path = formalization_delta_dir / "formalization_delta_graph.json"
+    delta_graph = _read_json(delta_graph_path, errors) if delta_graph_path.exists() else {}
+    graph_context = _graph_context_by_skeleton(delta_graph)
     no_registered_manifest_path = (
         proof_search_no_registered_ablation_dir / "proof_search_retrieval_ablation_manifest.json"
         if proof_search_no_registered_ablation_dir is not None
@@ -117,6 +131,7 @@ def export_formal_verifier_queue(
             kernel_manifest=kernel_manifest,
             proof_attempt_history=proof_attempt_history,
             proof_search_history=proof_search_history,
+            graph_context=graph_context,
         )
         for route in routes
     ]
@@ -126,11 +141,14 @@ def export_formal_verifier_queue(
     by_priority = Counter(row.priority for row in rows)
     by_route_class = Counter(row.route_class for row in rows)
     by_stage = Counter(row.verification_stage for row in rows)
+    by_source_trust = Counter(row.source_trust_level for row in rows)
+    by_semantic_status = Counter(row.semantic_faithfulness_status for row in rows)
     payload: dict[str, object] = {
         "schema_version": FORMAL_VERIFIER_QUEUE_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "formalization_delta_dir": str(formalization_delta_dir),
         "formalization_delta_manifest": str(delta_manifest_path),
+        "formalization_delta_graph": str(delta_graph_path) if delta_graph_path.exists() else "",
         "proof_search_no_registered_ablation_dir": str(proof_search_no_registered_ablation_dir or ""),
         "proof_search_no_registered_ablation_manifest": str(no_registered_manifest_path)
         if proof_search_no_registered_ablation_dir is not None
@@ -151,6 +169,8 @@ def export_formal_verifier_queue(
         "by_priority": dict(sorted(by_priority.items())),
         "by_route_class": dict(sorted(by_route_class.items())),
         "by_verification_stage": dict(sorted(by_stage.items())),
+        "by_source_trust_level": dict(sorted(by_source_trust.items())),
+        "by_semantic_faithfulness_status": dict(sorted(by_semantic_status.items())),
         "n_high_priority": by_priority.get("high", 0),
         "n_reuse_or_composition": by_route_class.get("reuse_or_composition", 0),
         "n_bridge_or_wrapper": by_route_class.get("bridge_or_wrapper", 0),
@@ -173,6 +193,22 @@ def export_formal_verifier_queue(
         "n_proof_search_solved": sum(row.proof_search_solved for row in rows),
         "n_proof_search_unsolved": sum(row.proof_search_unsolved for row in rows),
         "n_proof_search_kernel_verified": sum(row.proof_search_kernel_verified for row in rows),
+        "max_dependency_graph_depth": max((row.dependency_graph_depth for row in rows), default=0),
+        "max_import_cone_size": max((row.import_cone_size for row in rows), default=0),
+        "n_rows_with_local_or_proof_bank_source_trust": sum(
+            1
+            for row in rows
+            if row.source_trust_level
+            in {"proof_bank_and_local_candidates", "proof_bank_bridge_candidates", "local_candidate_declarations"}
+        ),
+        "n_rows_semantic_strong": by_semantic_status.get("strong_overlap", 0),
+        "n_rows_semantic_supported": by_semantic_status.get("supported_overlap", 0),
+        "n_rows_semantic_needs_review": by_semantic_status.get("needs_review", 0),
+        "mean_semantic_faithfulness_score": (
+            sum(row.semantic_faithfulness_score for row in rows) / len(rows)
+            if rows
+            else 0.0
+        ),
         "no_registered_rag_candidate_delta": int(
             no_registered_manifest.get("formal_source_candidate_delta", 0) or 0
         ),
@@ -193,6 +229,7 @@ def export_formal_verifier_queue(
             "formal verifier queue rows are task contracts, not Lean proof evidence",
             "no-registered proof-search deltas are search/frontier evidence only",
             "proof-attempt history is subclaim feedback, not a proof of the queued theorem route",
+            "dependency depth, source trust, and semantic-faithfulness scores are heuristic planning signals",
             "kernel smoke proves only the selected registered subclaims, not the queued theorem routes",
             "queued theorem routes remain formal gaps until AXLE/local Lean verifies a non-placeholder proof",
         ],
@@ -219,6 +256,7 @@ def _row_from_route(
     kernel_manifest: dict[str, Any],
     proof_attempt_history: dict[str, dict[str, Any]],
     proof_search_history: dict[str, dict[str, Any]],
+    graph_context: dict[str, dict[str, Any]],
 ) -> FormalVerifierQueueRow:
     errors: list[str] = []
     route_id = str(route.get("route_id", ""))
@@ -239,12 +277,14 @@ def _row_from_route(
     attempt_summary = _summarize_attempt_history(related_obligations, proof_attempt_history)
     search_summary = _summarize_proof_search_history(related_obligations, proof_search_history)
     proof_history_status = _proof_history_status(attempt_summary, search_summary)
+    route_metrics = _route_planning_metrics(route, graph_context)
     priority_score = _priority_score(
         route,
         verification_stage,
         no_registered_manifest,
         attempt_summary=attempt_summary,
         search_summary=search_summary,
+        route_metrics=route_metrics,
     )
     priority = _priority_label(priority_score, verification_stage)
     if not route_id:
@@ -277,6 +317,16 @@ def _row_from_route(
         total_estimated_cost=int(route.get("total_estimated_cost", 0) or 0),
         max_primitive_cost=int(route.get("max_primitive_cost", 0) or 0),
         source_support_count=int(route.get("source_support_count", 0) or 0),
+        dependency_graph_depth=int(route_metrics["dependency_graph_depth"]),
+        dependency_graph_neighborhood_nodes=int(route_metrics["dependency_graph_neighborhood_nodes"]),
+        import_cone_size=int(route_metrics["import_cone_size"]),
+        candidate_declaration_count=int(route_metrics["candidate_declaration_count"]),
+        verified_bridge_candidate_count=int(route_metrics["verified_bridge_candidate_count"]),
+        blocker_count=int(route_metrics["blocker_count"]),
+        source_trust_level=str(route_metrics["source_trust_level"]),
+        semantic_faithfulness_score=int(route_metrics["semantic_faithfulness_score"]),
+        semantic_faithfulness_status=str(route_metrics["semantic_faithfulness_status"]),
+        semantic_review_notes=tuple(str(item) for item in route_metrics["semantic_review_notes"]),
         required_primitives=required_primitives,
         related_proof_obligations=related_obligations,
         first_next_actions=first_next_actions,
@@ -332,6 +382,7 @@ def _priority_score(
     *,
     attempt_summary: dict[str, object],
     search_summary: dict[str, object],
+    route_metrics: dict[str, object],
 ) -> int:
     base = {
         "compose_exact_reuse_skeleton": 300,
@@ -350,7 +401,28 @@ def _priority_score(
         + 3 * int(attempt_summary.get("kernel_verified", 0) or 0),
     )
     negative_penalty = min(12, int(attempt_summary.get("negative", 0) or 0) // 2)
-    return base + support_bonus + rag_bonus + proof_step_bonus + history_bonus - negative_penalty - cost
+    source_bonus = {
+        "proof_bank_and_local_candidates": 8,
+        "proof_bank_bridge_candidates": 6,
+        "local_candidate_declarations": 4,
+        "external_candidate_declarations": 1,
+        "source_gap": -6,
+    }.get(str(route_metrics.get("source_trust_level", "")), 0)
+    semantic_score = int(route_metrics.get("semantic_faithfulness_score", 0) or 0)
+    semantic_penalty = 0 if semantic_score >= 40 else 10
+    depth_penalty = min(8, max(0, int(route_metrics.get("dependency_graph_depth", 0) or 0) - 4))
+    return (
+        base
+        + support_bonus
+        + rag_bonus
+        + proof_step_bonus
+        + history_bonus
+        + source_bonus
+        - negative_penalty
+        - semantic_penalty
+        - depth_penalty
+        - cost
+    )
 
 
 def _priority_label(priority_score: int, verification_stage: str) -> str:
@@ -392,6 +464,225 @@ def _proof_attempt_mode(verification_stage: str) -> str:
     if verification_stage == "verify_bridge_or_wrapper":
         return "bridge_or_wrapper_first"
     return "primitive_bridge_first"
+
+
+def _graph_context_by_skeleton(graph: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    nodes = {
+        str(row.get("node_id", "")): row
+        for row in graph.get("nodes", []) or []
+        if isinstance(row, dict) and str(row.get("node_id", ""))
+    }
+    outgoing: dict[str, list[str]] = defaultdict(list)
+    for edge in graph.get("edges", []) or []:
+        if not isinstance(edge, dict):
+            continue
+        source = str(edge.get("source", ""))
+        target = str(edge.get("target", ""))
+        if source and target:
+            outgoing[source].append(target)
+    context: dict[str, dict[str, Any]] = {}
+    for node_id, node in nodes.items():
+        if node.get("kind") != "lean_theorem_skeleton":
+            continue
+        label = str(node.get("label", ""))
+        if not label:
+            continue
+        visited = {node_id}
+        frontier = [(node_id, 0)]
+        max_depth = 0
+        while frontier:
+            current, depth = frontier.pop(0)
+            max_depth = max(max_depth, depth)
+            if depth >= 5:
+                continue
+            for target in outgoing.get(current, []):
+                if target in visited:
+                    continue
+                visited.add(target)
+                frontier.append((target, depth + 1))
+        visited_kinds = Counter(str(nodes.get(item, {}).get("kind", "")) for item in visited)
+        context[label] = {
+            "dependency_graph_depth": max_depth,
+            "dependency_graph_neighborhood_nodes": len(visited),
+            "graph_import_cone_size": sum(
+                visited_kinds.get(kind, 0)
+                for kind in ("lean_import", "lean_declaration", "proof_bank_obligation", "expected_premise")
+            ),
+        }
+    return context
+
+
+def _route_planning_metrics(
+    route: dict[str, Any],
+    graph_context: dict[str, dict[str, Any]],
+) -> dict[str, object]:
+    actions = [row for row in route.get("actions", []) or [] if isinstance(row, dict)]
+    candidate_declarations = _unique_action_values(actions, "candidate_declarations")
+    bridge_candidates = _unique_action_values(actions, "bridge_candidate_obligations")
+    expected_premises = _unique_action_values(actions, "expected_premises")
+    blockers = _unique_action_values(actions, "blocked_reasons")
+    imports = tuple(str(item) for item in route.get("imports", []) or [] if str(item))
+    graph_metrics = graph_context.get(str(route.get("display_name", "")), {})
+    dependency_graph_depth = int(
+        graph_metrics.get(
+            "dependency_graph_depth",
+            _heuristic_dependency_depth(route, actions, expected_premises, bridge_candidates, blockers),
+        )
+        or 0
+    )
+    dependency_graph_neighborhood_nodes = int(
+        graph_metrics.get(
+            "dependency_graph_neighborhood_nodes",
+            len(set(route.get("required_primitives", []) or []))
+            + len(actions)
+            + len(candidate_declarations)
+            + len(bridge_candidates)
+            + len(expected_premises),
+        )
+        or 0
+    )
+    import_cone_size = int(
+        graph_metrics.get(
+            "graph_import_cone_size",
+            len(imports) + len(candidate_declarations) + len(bridge_candidates) + len(expected_premises),
+        )
+        or 0
+    )
+    source_trust_level = _source_trust_level(candidate_declarations, bridge_candidates)
+    semantic_score, semantic_status, semantic_notes = _semantic_faithfulness(route, actions, blockers)
+    if any("placeholder" in blocker.lower() for blocker in blockers):
+        semantic_notes = tuple(dict.fromkeys((*semantic_notes, "placeholder_blocker_present")))
+    if route.get("allowed_sorry"):
+        semantic_notes = tuple(dict.fromkeys((*semantic_notes, "allowed_sorry_route")))
+    return {
+        "dependency_graph_depth": dependency_graph_depth,
+        "dependency_graph_neighborhood_nodes": dependency_graph_neighborhood_nodes,
+        "import_cone_size": import_cone_size,
+        "candidate_declaration_count": len(candidate_declarations),
+        "verified_bridge_candidate_count": len(bridge_candidates),
+        "blocker_count": len(blockers),
+        "source_trust_level": source_trust_level,
+        "semantic_faithfulness_score": semantic_score,
+        "semantic_faithfulness_status": semantic_status,
+        "semantic_review_notes": semantic_notes,
+    }
+
+
+def _unique_action_values(actions: list[dict[str, Any]], key: str) -> tuple[str, ...]:
+    values: list[str] = []
+    for action in actions:
+        raw = action.get(key, []) or []
+        if isinstance(raw, list):
+            values.extend(str(item) for item in raw if str(item))
+        elif str(raw):
+            values.append(str(raw))
+    return tuple(dict.fromkeys(values))
+
+
+def _heuristic_dependency_depth(
+    route: dict[str, Any],
+    actions: list[dict[str, Any]],
+    expected_premises: tuple[str, ...],
+    bridge_candidates: tuple[str, ...],
+    blockers: tuple[str, ...],
+) -> int:
+    depth = 1
+    if route.get("required_primitives"):
+        depth += 1
+    if actions:
+        depth += 1
+    if bridge_candidates or expected_premises:
+        depth += 1
+    if blockers:
+        depth += 1
+    return depth
+
+
+def _source_trust_level(
+    candidate_declarations: tuple[str, ...],
+    bridge_candidates: tuple[str, ...],
+) -> str:
+    local_candidates = [
+        declaration
+        for declaration in candidate_declarations
+        if declaration.startswith(("StatInference.", "Mathlib.", "ProbabilityTheory.", "MeasureTheory."))
+    ]
+    if bridge_candidates and local_candidates:
+        return "proof_bank_and_local_candidates"
+    if bridge_candidates:
+        return "proof_bank_bridge_candidates"
+    if local_candidates:
+        return "local_candidate_declarations"
+    if candidate_declarations:
+        return "external_candidate_declarations"
+    return "source_gap"
+
+
+def _semantic_faithfulness(
+    route: dict[str, Any],
+    actions: list[dict[str, Any]],
+    blockers: tuple[str, ...],
+) -> tuple[int, str, tuple[str, ...]]:
+    route_text = " ".join(
+        [
+            str(route.get("display_name", "")),
+            str(route.get("problem_class", "")),
+            str(route.get("theorem_goal_id", "")),
+            str(route.get("theorem_skeleton", "")),
+            " ".join(str(item) for item in route.get("informal_proof_steps", []) or []),
+        ]
+    )
+    support_text = " ".join(
+        [
+            " ".join(str(item) for item in route.get("required_primitives", []) or []),
+            " ".join(str(action.get("primitive", "")) for action in actions),
+            " ".join(_unique_action_values(actions, "expected_premises")),
+            " ".join(_unique_action_values(actions, "candidate_declarations")),
+        ]
+    )
+    route_tokens = _semantic_tokens(route_text)
+    support_tokens = _semantic_tokens(support_text)
+    overlap = route_tokens & support_tokens
+    denominator = max(1, min(len(route_tokens), len(support_tokens)))
+    score = min(100, int(100 * len(overlap) / denominator))
+    notes: list[str] = []
+    if not route.get("informal_proof_steps"):
+        notes.append("missing_informal_proof_steps")
+    if not route.get("required_primitives"):
+        notes.append("missing_required_primitives")
+    if not _unique_action_values(actions, "candidate_declarations"):
+        notes.append("missing_candidate_declarations")
+    if blockers:
+        notes.append("route_has_blockers")
+    if score >= 60:
+        status = "strong_overlap"
+    elif score >= 25:
+        status = "supported_overlap"
+    else:
+        status = "needs_review"
+        notes.append("low_route_support_token_overlap")
+    return score, status, tuple(dict.fromkeys(notes))
+
+
+def _semantic_tokens(text: str) -> set[str]:
+    raw_tokens = re.split(r"[^A-Za-z0-9]+", text.replace("_", " "))
+    stop = {
+        "the",
+        "and",
+        "for",
+        "with",
+        "from",
+        "into",
+        "route",
+        "proof",
+        "theorem",
+        "skeleton",
+        "formal",
+        "gap",
+        "mathlib",
+        "statinference",
+    }
+    return {token.lower() for token in raw_tokens if len(token) > 2 and token.lower() not in stop}
 
 
 def _related_proof_obligations(
@@ -575,6 +866,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Kernel smoke: `{payload.get('kernel_smoke_kernel_verified')}/{payload.get('kernel_smoke_total')}`",
         f"- Rows with proof-attempt history: `{payload.get('n_rows_with_attempt_history')}`",
         f"- Proof-search solved subclaim hits: `{payload.get('n_proof_search_solved')}`",
+        f"- Max dependency depth/import cone: `{payload.get('max_dependency_graph_depth')}` / `{payload.get('max_import_cone_size')}`",
+        f"- Semantic review rows: `{payload.get('n_rows_semantic_needs_review')}`",
         "",
         "## Stage Counts",
         "",
@@ -596,6 +889,12 @@ def _markdown_report(payload: dict[str, object]) -> str:
                 f"- Stage: `{row.get('verification_stage')}`",
                 f"- Route class: `{row.get('route_class')}`",
                 f"- Cost: `{row.get('total_estimated_cost')}`",
+                f"- Dependency/source: depth `{row.get('dependency_graph_depth')}`, "
+                f"import cone `{row.get('import_cone_size')}`, "
+                f"source trust `{row.get('source_trust_level')}`",
+                f"- Semantic faithfulness: `{row.get('semantic_faithfulness_score')}` "
+                f"({row.get('semantic_faithfulness_status')}); "
+                f"notes: {', '.join(str(item) for item in row.get('semantic_review_notes', [])) or 'none'}",
                 f"- Proof history: `{row.get('proof_history_status')}` "
                 f"({row.get('proof_attempt_positive')}/"
                 f"{row.get('proof_attempt_negative')} attempts, "

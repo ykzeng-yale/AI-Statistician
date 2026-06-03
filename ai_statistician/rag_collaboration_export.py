@@ -257,6 +257,22 @@ def export_rag_collaboration_manifest(
                 "formal_verifier_queue_proof_search_solved",
                 formal_verifier_queue_payload.get("n_proof_search_solved"),
             ),
+            "formal_verifier_queue_max_dependency_graph_depth": counts.get(
+                "formal_verifier_queue_max_dependency_graph_depth",
+                formal_verifier_queue_payload.get("max_dependency_graph_depth"),
+            ),
+            "formal_verifier_queue_max_import_cone_size": counts.get(
+                "formal_verifier_queue_max_import_cone_size",
+                formal_verifier_queue_payload.get("max_import_cone_size"),
+            ),
+            "formal_verifier_queue_semantic_needs_review": counts.get(
+                "formal_verifier_queue_semantic_needs_review",
+                formal_verifier_queue_payload.get("n_rows_semantic_needs_review"),
+            ),
+            "formal_verifier_queue_mean_semantic_faithfulness_score": counts.get(
+                "formal_verifier_queue_mean_semantic_faithfulness_score",
+                formal_verifier_queue_payload.get("mean_semantic_faithfulness_score"),
+            ),
             "formal_verifier_queue_manifest": str(formal_verifier_queue_path),
             "formal_verifier_queue_preview": _formal_verifier_queue_preview(
                 formal_verifier_queue_payload,
@@ -416,6 +432,11 @@ def _formal_verifier_queue_preview(
                 "proof_attempt_positive": row.get("proof_attempt_positive", 0),
                 "proof_attempt_negative": row.get("proof_attempt_negative", 0),
                 "proof_search_solved": row.get("proof_search_solved", 0),
+                "dependency_graph_depth": row.get("dependency_graph_depth", 0),
+                "import_cone_size": row.get("import_cone_size", 0),
+                "source_trust_level": row.get("source_trust_level", ""),
+                "semantic_faithfulness_score": row.get("semantic_faithfulness_score", 0),
+                "semantic_faithfulness_status": row.get("semantic_faithfulness_status", ""),
                 "proof_evidence_boundary": row.get("proof_evidence_boundary", ""),
             }
         )
@@ -502,6 +523,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"`{queue.get('formal_verifier_queue_requires_new_theory')}` new-theory routes)",
         f"- Formal verifier proof history: `{queue.get('formal_verifier_queue_rows_with_attempt_history')}` rows "
         f"with attempt history, `{queue.get('formal_verifier_queue_proof_search_solved')}` solved subclaim searches",
+        f"- Formal verifier source/semantic checks: max depth `{queue.get('formal_verifier_queue_max_dependency_graph_depth')}`, "
+        f"max import cone `{queue.get('formal_verifier_queue_max_import_cone_size')}`, "
+        f"semantic review rows `{queue.get('formal_verifier_queue_semantic_needs_review')}`",
         f"- Queue: exact_reuse=`{queue.get('reuse_exact_proof_bank_obligation')}`, compose=`{queue.get('compose_existing_bridge_chain')}`, minimal_wrapper=`{queue.get('add_minimal_wrapper')}`, design_bridge=`{queue.get('design_bridge_lemma')}`",
         f"- Theorem composition packets: `{composition.get('theorem_composition_packets')}` "
         f"(exact links `{composition.get('theorem_composition_exact_proof_bank_links')}`, "
@@ -527,7 +551,10 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{row.get('required_gate')} "
             f"[history={row.get('proof_history_status')}, "
             f"attempts={row.get('proof_attempt_positive')}/{row.get('proof_attempt_negative')}, "
-            f"search_solved={row.get('proof_search_solved')}]"
+            f"search_solved={row.get('proof_search_solved')}, "
+            f"source={row.get('source_trust_level')}, "
+            f"semantic={row.get('semantic_faithfulness_score')}/"
+            f"{row.get('semantic_faithfulness_status')}]"
         )
     lines.extend(["", "## Theorem Composition Handoff", ""])
     lines.append(str(composition.get("proof_evidence_boundary", "")))

@@ -223,7 +223,9 @@ Current release signal:
   It also attaches related proof-bank obligations, prior proof-attempt
   positives/negatives, and proof-search solved subclaim history so the next
   verifier pass can learn from earlier feedback instead of retrying routes
-  blindly.
+  blindly. The queue records graph-neighborhood dependency depth, import/source
+  cone size, proof-bank/local source trust, and a lightweight semantic
+  faithfulness review for each theorem route.
   Queue rows are task contracts only; they do not become proof evidence until
   the named theorem or bridge proof passes AXLE/local Lean with a
   non-placeholder proof body.
@@ -243,7 +245,8 @@ Pass criteria:
   missing primitives, existing Lean declarations, and verified bridge candidates
 - every formal-verifier queue row carries an owner, required gate, proof-attempt
   mode, RAG-lift context, related proof-bank obligations, prior verifier/search
-  feedback, and explicit proof-evidence boundary
+  feedback, dependency/source-trust metrics, semantic review status, and
+  explicit proof-evidence boundary
 - new proof-bank additions reduce the missing primitive count or increase
   bridge readiness
 
@@ -349,9 +352,10 @@ expected-lemma templates.
 
 `formal-verifier-queue` is the handoff from that diagnostic to theorem work:
 it records whether hard-mode dependency-graph RAG increased the candidate
-frontier and whether related subclaims have verifier/search history, but keeps
-those signals separate from proof status. A queue row is still unproved until
-AXLE/local Lean accepts the referenced theorem or bridge proof.
+frontier, whether related subclaims have verifier/search history, and whether
+the route has plausible source and semantic support, but keeps those signals
+separate from proof status. A queue row is still unproved until AXLE/local Lean
+accepts the referenced theorem or bridge proof.
 
 ### S6. Algorithm and Simulation Stress Suite
 

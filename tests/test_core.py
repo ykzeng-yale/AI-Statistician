@@ -7138,11 +7138,31 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertGreater(queue["n_proof_attempt_positive"], 0)
         self.assertGreater(queue["n_proof_attempt_negative"], 0)
         self.assertGreater(queue["n_proof_search_solved"], 0)
+        self.assertGreater(queue["max_dependency_graph_depth"], 0)
+        self.assertGreater(queue["max_import_cone_size"], 0)
+        self.assertEqual(
+            queue["n_rows_semantic_strong"] + queue["n_rows_semantic_supported"] + queue["n_rows_semantic_needs_review"],
+            queue["n_items"],
+        )
+        self.assertGreater(queue["n_rows_with_local_or_proof_bank_source_trust"], 0)
         queue_row = queue["rows"][0]
         self.assertEqual(queue_row["owner_agent"], "formal_verifier")
         self.assertIn(queue_row["priority"], {"high", "medium", "low"})
         self.assertIn("related_proof_obligations", queue_row)
         self.assertIn("proof_history_status", queue_row)
+        self.assertGreater(queue_row["dependency_graph_depth"], 0)
+        self.assertGreater(queue_row["import_cone_size"], 0)
+        self.assertIn(
+            queue_row["source_trust_level"],
+            {
+                "proof_bank_and_local_candidates",
+                "proof_bank_bridge_candidates",
+                "local_candidate_declarations",
+                "external_candidate_declarations",
+                "source_gap",
+            },
+        )
+        self.assertIn(queue_row["semantic_faithfulness_status"], {"strong_overlap", "supported_overlap", "needs_review"})
         self.assertIn("subclaim feedback", queue_row["proof_history_boundary"])
         self.assertIn("not proof evidence", queue_row["proof_evidence_boundary"])
         self.assertTrue(Path("runs/test_formal_verifier_queue/formal_verifier_queue_manifest.json").exists())
@@ -7403,6 +7423,10 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                     "n_proof_attempt_positive": 2,
                     "n_proof_attempt_negative": 1,
                     "n_proof_search_solved": 1,
+                    "max_dependency_graph_depth": 2,
+                    "max_import_cone_size": 7,
+                    "n_rows_semantic_needs_review": 0,
+                    "mean_semantic_faithfulness_score": 72.0,
                     "rows": [
                         {
                             "item_id": "formal_verifier_queue:test",
@@ -7420,6 +7444,11 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                             "proof_attempt_positive": 2,
                             "proof_attempt_negative": 1,
                             "proof_search_solved": 1,
+                            "dependency_graph_depth": 2,
+                            "import_cone_size": 7,
+                            "source_trust_level": "proof_bank_and_local_candidates",
+                            "semantic_faithfulness_score": 72,
+                            "semantic_faithfulness_status": "strong_overlap",
                             "proof_evidence_boundary": "This queue row is not proof evidence.",
                         }
                     ],
@@ -7482,6 +7511,10 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                         "formal_verifier_queue_proof_attempt_positive": 2,
                         "formal_verifier_queue_proof_attempt_negative": 1,
                         "formal_verifier_queue_proof_search_solved": 1,
+                        "formal_verifier_queue_max_dependency_graph_depth": 2,
+                        "formal_verifier_queue_max_import_cone_size": 7,
+                        "formal_verifier_queue_semantic_needs_review": 0,
+                        "formal_verifier_queue_mean_semantic_faithfulness_score": 72.0,
                     },
                     "artifacts": {
                         "proof_audit": str(root / "proof_audit" / "proof_audit_manifest.json"),
@@ -7584,6 +7617,8 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertEqual(payload["formal_capacity_queue"]["formal_verifier_queue_high_priority"], 1)
         self.assertEqual(payload["formal_capacity_queue"]["formal_verifier_queue_rows_with_attempt_history"], 1)
         self.assertEqual(payload["formal_capacity_queue"]["formal_verifier_queue_proof_search_solved"], 1)
+        self.assertEqual(payload["formal_capacity_queue"]["formal_verifier_queue_max_dependency_graph_depth"], 2)
+        self.assertEqual(payload["formal_capacity_queue"]["formal_verifier_queue_semantic_needs_review"], 0)
         self.assertEqual(
             payload["formal_capacity_queue"]["formal_verifier_queue_preview"][0]["display_name"],
             "causal_ate_aipw:aipw_double_robustness:skeleton",
@@ -7591,6 +7626,14 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertEqual(
             payload["formal_capacity_queue"]["formal_verifier_queue_preview"][0]["proof_history_status"],
             "proof_search_solved_subclaim_history",
+        )
+        self.assertEqual(
+            payload["formal_capacity_queue"]["formal_verifier_queue_preview"][0]["source_trust_level"],
+            "proof_bank_and_local_candidates",
+        )
+        self.assertEqual(
+            payload["formal_capacity_queue"]["formal_verifier_queue_preview"][0]["semantic_faithfulness_status"],
+            "strong_overlap",
         )
         self.assertIn(
             "not proof evidence",
@@ -9948,6 +9991,16 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertGreater(payload["counts"]["formal_verifier_queue_proof_attempt_negative"], 0)
         self.assertGreater(payload["counts"]["formal_verifier_queue_proof_search_solved"], 0)
         self.assertEqual(payload["counts"]["formal_verifier_queue_proof_attempt_kernel_verified"], 0)
+        self.assertGreater(payload["counts"]["formal_verifier_queue_max_dependency_graph_depth"], 0)
+        self.assertGreater(payload["counts"]["formal_verifier_queue_max_import_cone_size"], 0)
+        self.assertGreater(payload["counts"]["formal_verifier_queue_rows_with_local_or_proof_bank_source_trust"], 0)
+        self.assertEqual(
+            payload["counts"]["formal_verifier_queue_semantic_strong"]
+            + payload["counts"]["formal_verifier_queue_semantic_supported"]
+            + payload["counts"]["formal_verifier_queue_semantic_needs_review"],
+            payload["counts"]["formal_verifier_queue_items"],
+        )
+        self.assertGreaterEqual(payload["counts"]["formal_verifier_queue_mean_semantic_faithfulness_score"], 0)
         self.assertEqual(
             payload["counts"]["formal_verifier_queue_no_registered_rag_candidate_delta"],
             payload["counts"]["proof_search_retrieval_no_registered_ablation_candidate_delta"],

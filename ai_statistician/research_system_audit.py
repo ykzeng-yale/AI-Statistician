@@ -1395,6 +1395,27 @@ async def run_research_system_audit(
             "formal_verifier_queue_proof_search_kernel_verified": formal_verifier_queue_manifest[
                 "n_proof_search_kernel_verified"
             ],
+            "formal_verifier_queue_max_dependency_graph_depth": formal_verifier_queue_manifest[
+                "max_dependency_graph_depth"
+            ],
+            "formal_verifier_queue_max_import_cone_size": formal_verifier_queue_manifest[
+                "max_import_cone_size"
+            ],
+            "formal_verifier_queue_rows_with_local_or_proof_bank_source_trust": formal_verifier_queue_manifest[
+                "n_rows_with_local_or_proof_bank_source_trust"
+            ],
+            "formal_verifier_queue_semantic_strong": formal_verifier_queue_manifest[
+                "n_rows_semantic_strong"
+            ],
+            "formal_verifier_queue_semantic_supported": formal_verifier_queue_manifest[
+                "n_rows_semantic_supported"
+            ],
+            "formal_verifier_queue_semantic_needs_review": formal_verifier_queue_manifest[
+                "n_rows_semantic_needs_review"
+            ],
+            "formal_verifier_queue_mean_semantic_faithfulness_score": formal_verifier_queue_manifest[
+                "mean_semantic_faithfulness_score"
+            ],
             "formal_verifier_queue_no_registered_rag_candidate_delta": formal_verifier_queue_manifest[
                 "no_registered_rag_candidate_delta"
             ],
