@@ -109,6 +109,18 @@ python3 -m ai_statistician.cli lean-rag-source-registry-expansion \
 This writes `staged_source_registry.json`, `source_registry_delta.json`, clone
 commands for missing Git-backed sources, and a manifest with before/after target
 coverage. Review and apply the staged registry only in a clean package checkout.
+Before applying or refreshing, run the read-only preflight:
+
+```bash
+python3 -m ai_statistician.cli lean-rag-source-registry-expansion-preflight \
+  --expansion-manifest runs/lean_rag_source_registry_expansion/source_registry_expansion_manifest.json \
+  --out runs/lean_rag_source_registry_expansion_preflight
+```
+
+The preflight separates `source_registry_apply_ready` from
+`external_refresh_ready`: missing clone destinations can still permit a reviewed
+registry update, while dirty checkouts, remote mismatches, and non-git
+destination collisions block refresh.
 
 The audit now also records `lean_rag_dependency_health`. Before the optional
 dependency-graph SQLite DB is attached to hybrid retrieval, the backend checks

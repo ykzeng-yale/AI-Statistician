@@ -127,6 +127,7 @@ from ai_statistician.lean_rag_dependency import LeanRagDependencyRetriever
 from ai_statistician.lean_rag_dependency_health import audit_lean_rag_dependency_health
 from ai_statistician.lean_rag_package_audit import (
     audit_lean_rag_package,
+    preflight_lean_rag_source_registry_expansion,
     stage_lean_rag_source_registry_expansion,
 )
 from ai_statistician.autoform_harness import audit_autoform_harness
@@ -3354,6 +3355,44 @@ class SystemTests(unittest.TestCase):
         self.assertGreaterEqual(len(expansion["clone_commands"]), 5)
         self.assertTrue(
             (root / "registry_expansion" / "source_registry_expansion_manifest.json").exists()
+        )
+        expansion_manifest = root / "registry_expansion" / "source_registry_expansion_manifest.json"
+        preflight_payload = json.loads(expansion_manifest.read_text(encoding="utf-8"))
+        legacy_path = root / "legacy" / "StatInference"
+        legacy_path.mkdir(parents=True, exist_ok=True)
+        clone_commands = []
+        for row in preflight_payload["rows"]:
+            entry = row["entry"]
+            name = entry["name"]
+            if name == "legacy-ai-statistician-statinference":
+                entry["local_path"] = str(legacy_path)
+            else:
+                entry["local_path"] = str(root / "missing_clone_destinations" / name)
+                clone_commands.append(
+                    {
+                        "name": name,
+                        "command": f"git clone {entry['url']} {entry['local_path']}",
+                    }
+                )
+        preflight_payload["clone_commands"] = clone_commands
+        expansion_manifest.write_text(json.dumps(preflight_payload), encoding="utf-8")
+
+        preflight = preflight_lean_rag_source_registry_expansion(
+            root / "registry_expansion_preflight",
+            expansion_manifest=expansion_manifest,
+        )
+        self.assertTrue(preflight["source_registry_apply_ready"])
+        self.assertFalse(preflight["external_refresh_ready"])
+        self.assertEqual(preflight["n_clone_required"], 5)
+        self.assertEqual(preflight["n_present_local_path"], 1)
+        self.assertEqual(preflight["n_hard_blockers"], 0)
+        self.assertIn("local Lean/AXLE", preflight["proof_evidence_boundary"])
+        self.assertTrue(
+            (
+                root
+                / "registry_expansion_preflight"
+                / "source_registry_expansion_preflight_manifest.json"
+            ).exists()
         )
 
     def test_evaluation_benchmark_guidance_flags_capacity_gaps(self) -> None:

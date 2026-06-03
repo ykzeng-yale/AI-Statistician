@@ -12,6 +12,7 @@ from .fingerprint import stable_hash
 
 LEAN_RAG_PACKAGE_AUDIT_SCHEMA_VERSION = 1
 LEAN_RAG_SOURCE_REGISTRY_EXPANSION_SCHEMA_VERSION = 1
+LEAN_RAG_SOURCE_EXPANSION_PREFLIGHT_SCHEMA_VERSION = 1
 VALID_SOURCE_REGISTRY_SECTIONS = ("local_sources", "external_sources")
 
 REQUIRED_PACKAGE_FILES: tuple[str, ...] = (
@@ -423,6 +424,87 @@ def stage_lean_rag_source_registry_expansion(
     return payload
 
 
+def preflight_lean_rag_source_registry_expansion(
+    out_dir: Path,
+    *,
+    expansion_manifest: Path | str,
+) -> dict[str, object]:
+    """Validate local readiness for a staged Lean RAG source expansion.
+
+    This is read-only. Missing Git-backed source checkouts are not errors for
+    registry application, but they prevent external index refresh readiness.
+    Dirty or remote-mismatched existing checkouts are hard blockers.
+    """
+
+    manifest_path = Path(expansion_manifest).expanduser()
+    try:
+        expansion_payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        expansion_payload = {}
+    package_root = Path(str(expansion_payload.get("package_root", ""))).expanduser()
+    package_git = _package_git_metadata_for_preflight(package_root) if package_root.exists() else {}
+    rows = [
+        _preflight_registry_row(row)
+        for row in expansion_payload.get("rows", []) or []
+        if isinstance(row, dict)
+    ]
+    counts = _preflight_counts(rows)
+    source_registry_apply_ready = bool(
+        expansion_payload.get("stage_ready")
+        and package_root.exists()
+        and not bool(package_git.get("dirty", True))
+        and counts["n_hard_blockers"] == 0
+    )
+    external_refresh_ready = bool(
+        source_registry_apply_ready
+        and counts["n_clone_required"] == 0
+        and counts["n_present_or_local"] == counts["n_rows"]
+    )
+    clone_commands = [
+        dict(row)
+        for row in expansion_payload.get("clone_commands", []) or []
+        if isinstance(row, dict)
+    ]
+    payload: dict[str, object] = {
+        "schema_version": LEAN_RAG_SOURCE_EXPANSION_PREFLIGHT_SCHEMA_VERSION,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "expansion_manifest": str(manifest_path),
+        "package_root": str(package_root if package_root.exists() else ""),
+        "package_git": package_git,
+        "package_clean": bool(package_root.exists()) and not bool(package_git.get("dirty", True)),
+        "source_registry_apply_ready": source_registry_apply_ready,
+        "external_refresh_ready": external_refresh_ready,
+        "n_rows": counts["n_rows"],
+        "n_present_clean_git": counts["n_present_clean_git"],
+        "n_present_local_path": counts["n_present_local_path"],
+        "n_clone_required": counts["n_clone_required"],
+        "n_dirty_git": counts["n_dirty_git"],
+        "n_remote_mismatch": counts["n_remote_mismatch"],
+        "n_missing_local_path": counts["n_missing_local_path"],
+        "n_non_git_destination_exists": counts["n_non_git_destination_exists"],
+        "n_hard_blockers": counts["n_hard_blockers"],
+        "rows": rows,
+        "clone_commands": clone_commands,
+        "recommended_actions": _preflight_recommended_actions(
+            source_registry_apply_ready=source_registry_apply_ready,
+            external_refresh_ready=external_refresh_ready,
+            rows=rows,
+            clone_commands=clone_commands,
+        ),
+        "proof_evidence_boundary": SOURCE_COVERAGE_BOUNDARY,
+    }
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "source_registry_expansion_preflight_manifest.json").write_text(
+        json.dumps(payload, indent=2, default=str) + "\n",
+        encoding="utf-8",
+    )
+    (out_dir / "source_registry_expansion_preflight.md").write_text(
+        _source_registry_expansion_preflight_markdown(payload),
+        encoding="utf-8",
+    )
+    return payload
+
+
 def _env_package_root() -> Path | None:
     raw = os.environ.get("AI_STATISTICIAN_LEAN_RAG_PACKAGE_ROOT", "").strip()
     return Path(raw).expanduser() if raw else None
@@ -761,6 +843,129 @@ def _registry_clone_commands(rows: list[dict[str, object]]) -> tuple[dict[str, s
     return tuple(commands)
 
 
+def _preflight_registry_row(row: dict[str, object]) -> dict[str, object]:
+    entry = dict(row.get("entry", {}) or {})
+    name = str(entry.get("name", ""))
+    url = str(entry.get("url", ""))
+    local_path = str(entry.get("local_path", ""))
+    path = Path(local_path).expanduser() if local_path else None
+    exists = bool(path and path.exists())
+    is_git = bool(path and (path / ".git").exists())
+    git_dirty = False
+    git_remote = ""
+    git_commit = ""
+    git_branch = ""
+    status = "missing_local_path"
+    hard_blocker = True
+    reason = "candidate entry has no local_path"
+    if path is not None and exists and is_git:
+        git_remote = _git(path, "remote", "get-url", "origin")
+        git_commit = _git(path, "rev-parse", "HEAD")
+        git_branch = _git(path, "rev-parse", "--abbrev-ref", "HEAD")
+        git_dirty = bool(_git(path, "status", "--short"))
+        remote_ok = (not url) or _same_git_remote(git_remote, url)
+        if git_dirty:
+            status = "dirty_git"
+            reason = "existing git checkout has local changes"
+            hard_blocker = True
+        elif not remote_ok:
+            status = "remote_mismatch"
+            reason = f"expected origin {url}, found {git_remote}"
+            hard_blocker = True
+        else:
+            status = "present_clean_git"
+            reason = ""
+            hard_blocker = False
+    elif path is not None and exists and url:
+        status = "non_git_destination_exists"
+        reason = "destination exists for a Git-backed candidate but is not a git checkout"
+        hard_blocker = True
+    elif path is not None and exists:
+        status = "present_local_path"
+        reason = ""
+        hard_blocker = False
+    elif path is not None and url:
+        status = "clone_required"
+        reason = "destination is absent and should be cloned before refreshing the external reuse index"
+        hard_blocker = False
+    return {
+        "candidate_id": str(row.get("candidate_id", "")),
+        "target_ids": tuple(str(item) for item in row.get("target_ids", []) or []),
+        "name": name,
+        "url": url,
+        "local_path": local_path,
+        "exists": exists,
+        "is_git_checkout": is_git,
+        "git_dirty": git_dirty,
+        "git_remote": git_remote,
+        "git_commit": git_commit,
+        "git_branch": git_branch,
+        "status": status,
+        "hard_blocker": hard_blocker,
+        "reason": reason,
+        "proof_evidence_boundary": SOURCE_COVERAGE_BOUNDARY,
+    }
+
+
+def _same_git_remote(actual: str, expected: str) -> bool:
+    def normalize(value: str) -> str:
+        return value.strip().removesuffix(".git")
+
+    return normalize(actual) == normalize(expected)
+
+
+def _preflight_counts(rows: list[dict[str, object]]) -> dict[str, int]:
+    statuses = [str(row.get("status", "")) for row in rows]
+    return {
+        "n_rows": len(rows),
+        "n_present_clean_git": statuses.count("present_clean_git"),
+        "n_present_local_path": statuses.count("present_local_path"),
+        "n_clone_required": statuses.count("clone_required"),
+        "n_dirty_git": statuses.count("dirty_git"),
+        "n_remote_mismatch": statuses.count("remote_mismatch"),
+        "n_missing_local_path": statuses.count("missing_local_path"),
+        "n_non_git_destination_exists": statuses.count("non_git_destination_exists"),
+        "n_present_or_local": statuses.count("present_clean_git")
+        + statuses.count("present_local_path"),
+        "n_hard_blockers": sum(1 for row in rows if row.get("hard_blocker")),
+    }
+
+
+def _preflight_recommended_actions(
+    *,
+    source_registry_apply_ready: bool,
+    external_refresh_ready: bool,
+    rows: list[dict[str, object]],
+    clone_commands: list[dict[str, object]],
+) -> list[str]:
+    actions: list[str] = []
+    if not source_registry_apply_ready:
+        actions.append(
+            "Do not apply the staged source registry until the package checkout is clean and all hard blockers are resolved."
+        )
+    if clone_commands and not external_refresh_ready:
+        actions.append(
+            "Clone missing Git-backed candidate sources before rebuilding the external reuse index: "
+            + "; ".join(str(row.get("command", "")) for row in clone_commands)
+        )
+    dirty = [str(row.get("name", "")) for row in rows if row.get("status") == "dirty_git"]
+    if dirty:
+        actions.append("Commit, stash, or discard local changes in candidate checkouts: " + ", ".join(dirty))
+    mismatched = [
+        str(row.get("name", "")) for row in rows if row.get("status") == "remote_mismatch"
+    ]
+    if mismatched:
+        actions.append("Resolve candidate remote mismatches before refresh: " + ", ".join(mismatched))
+    if external_refresh_ready:
+        actions.append(
+            "All staged candidate source paths are present and clean; the external reuse index can be refreshed after applying the reviewed registry."
+        )
+    actions.append(
+        "Treat the refreshed index as premise-search evidence only until local Lean or AXLE verifies concrete proof uses."
+    )
+    return actions
+
+
 def _source_name_rows(rows: list[object]) -> tuple[dict[str, str], ...]:
     names: list[dict[str, str]] = []
     for row in rows:
@@ -882,6 +1087,29 @@ def _git_metadata(root: Path) -> dict[str, object]:
         "short_commit": _git(root, "rev-parse", "--short=12", "HEAD"),
         "remote": _git(root, "remote", "get-url", "origin"),
         "dirty": bool(_git(root, "status", "--short")),
+    }
+
+
+def _package_git_metadata_for_preflight(root: Path) -> dict[str, object]:
+    metadata = _git_metadata(root)
+    repo_root = str(metadata.get("repo_root", ""))
+    if not repo_root:
+        return {
+            "repo_root": "",
+            "branch": "",
+            "commit": "",
+            "short_commit": "",
+            "remote": "",
+            "dirty": False,
+            "scope": "not_git_checkout",
+        }
+    if (root / ".git").exists() or Path(repo_root).resolve() == root.resolve():
+        return {**metadata, "scope": "package_git_checkout"}
+    return {
+        **metadata,
+        "dirty": False,
+        "scope": "nested_non_package_git_checkout",
+        "parent_dirty_ignored": bool(metadata.get("dirty", False)),
     }
 
 
@@ -1058,6 +1286,35 @@ def _source_registry_expansion_markdown(payload: dict[str, object]) -> str:
         if not isinstance(row, dict):
             continue
         lines.append(f"- `{row.get('name', '')}`: `{row.get('command', '')}`")
+    return "\n".join(lines) + "\n"
+
+
+def _source_registry_expansion_preflight_markdown(payload: dict[str, object]) -> str:
+    lines = [
+        "# Lean RAG Source Registry Expansion Preflight",
+        "",
+        f"- Expansion manifest: `{payload.get('expansion_manifest', '')}`",
+        f"- Package root: `{payload.get('package_root', '')}`",
+        f"- Package clean: `{payload.get('package_clean')}`",
+        f"- Source registry apply ready: `{payload.get('source_registry_apply_ready')}`",
+        f"- External refresh ready: `{payload.get('external_refresh_ready')}`",
+        f"- Rows: `{payload.get('n_rows')}` clone_required=`{payload.get('n_clone_required')}` hard_blockers=`{payload.get('n_hard_blockers')}`",
+        "",
+        str(payload.get("proof_evidence_boundary", SOURCE_COVERAGE_BOUNDARY)),
+        "",
+        "## Candidate Paths",
+        "",
+    ]
+    for row in payload.get("rows", []):
+        if not isinstance(row, dict):
+            continue
+        lines.append(
+            f"- `{row.get('name', '')}` status=`{row.get('status')}` "
+            f"path=`{row.get('local_path', '')}` reason=`{row.get('reason', '')}`"
+        )
+    lines.extend(["", "## Recommended Actions", ""])
+    for action in payload.get("recommended_actions", []):
+        lines.append(f"- {action}")
     return "\n".join(lines) + "\n"
 
 

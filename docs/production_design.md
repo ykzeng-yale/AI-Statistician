@@ -1924,6 +1924,10 @@ Use `lean-rag-source-registry-expansion` to write a reviewable
 `staged_source_registry.json` and source-registry delta without mutating the
 package checkout. The staged file is an infrastructure proposal, not proof
 evidence.
+Use `lean-rag-source-registry-expansion-preflight` against that manifest before
+applying it. The preflight reports package cleanliness, missing clone
+destinations, dirty or remote-mismatched candidate checkouts, and whether the
+external reuse index is actually refresh-ready.
 
 Algorithm registry audit:
 

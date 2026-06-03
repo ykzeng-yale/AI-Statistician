@@ -117,7 +117,11 @@ from .formal_source_retrieval_benchmark import (
     run_formal_source_retrieval_benchmark,
 )
 from .intake_audit import audit_question_intake
-from .lean_rag_package_audit import audit_lean_rag_package, stage_lean_rag_source_registry_expansion
+from .lean_rag_package_audit import (
+    audit_lean_rag_package,
+    preflight_lean_rag_source_registry_expansion,
+    stage_lean_rag_source_registry_expansion,
+)
 from .lean_rag_dependency_health import audit_lean_rag_dependency_health
 from .proof_audit import audit_proof_bank
 from .proof_bank_action_export import export_proof_bank_actions
@@ -926,6 +930,31 @@ def _lean_rag_source_registry_expansion(args: argparse.Namespace) -> int:
     )
     print(f"staged source registry written to {(Path(args.out) / 'staged_source_registry.json').resolve()}")
     return 0 if payload["all_ok"] else 1
+
+
+def _lean_rag_source_registry_expansion_preflight(args: argparse.Namespace) -> int:
+    payload = preflight_lean_rag_source_registry_expansion(
+        Path(args.out),
+        expansion_manifest=Path(args.expansion_manifest),
+    )
+    print("\nAI Statistical Theory Lab Lean RAG Source Registry Expansion Preflight")
+    print("=" * 72)
+    print(
+        f"package_clean={payload['package_clean']} "
+        f"apply_ready={payload['source_registry_apply_ready']} "
+        f"external_refresh_ready={payload['external_refresh_ready']}"
+    )
+    print(
+        f"rows={payload['n_rows']} clone_required={payload['n_clone_required']} "
+        f"present_clean_git={payload['n_present_clean_git']} "
+        f"present_local_path={payload['n_present_local_path']} "
+        f"hard_blockers={payload['n_hard_blockers']}"
+    )
+    print(
+        f"\nsource registry expansion preflight manifest written to "
+        f"{(Path(args.out) / 'source_registry_expansion_preflight_manifest.json').resolve()}"
+    )
+    return 0 if payload["source_registry_apply_ready"] else 1
 
 
 def _lean_rag_dependency_health(args: argparse.Namespace) -> int:
@@ -3628,6 +3657,24 @@ def build_parser() -> argparse.ArgumentParser:
         help="source registry expansion output directory",
     )
     lean_rag_source_registry_expansion.set_defaults(func=_lean_rag_source_registry_expansion)
+
+    lean_rag_source_registry_expansion_preflight = sub.add_parser(
+        "lean-rag-source-registry-expansion-preflight",
+        help="check local readiness for a staged Lean RAG source registry expansion",
+    )
+    lean_rag_source_registry_expansion_preflight.add_argument(
+        "--expansion-manifest",
+        required=True,
+        help="path to source_registry_expansion_manifest.json",
+    )
+    lean_rag_source_registry_expansion_preflight.add_argument(
+        "--out",
+        default="runs/lean_rag_source_registry_expansion_preflight",
+        help="source registry expansion preflight output directory",
+    )
+    lean_rag_source_registry_expansion_preflight.set_defaults(
+        func=_lean_rag_source_registry_expansion_preflight
+    )
 
     lean_rag_dependency_health = sub.add_parser(
         "lean-rag-dependency-health",
