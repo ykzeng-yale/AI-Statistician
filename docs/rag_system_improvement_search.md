@@ -142,6 +142,14 @@ per-packet Lean repair scaffolds and rerun-command tasks, so a RAG/prover worker
 can open a concrete bridge/import/type repair file, patch it, rerun the replay
 attempt, and feed the result back into calibration.
 
+`formal_verifier_replay_repair_application_validation` validates those generated
+scaffold files as non-evidence source artifacts. It checks that the artifact is
+present, the scaffold/non-evidence boundary is intact, the target and candidate
+bridge are visible, no `h_frontier_missing` placeholder remains, and, when a
+Lean project is supplied, the scaffold file compiles under `lake env lean`. This
+is still not theorem proof evidence; it is only a handoff-integrity check before
+the repaired route is attempted again.
+
 ## Next Build Targets
 
 1. Expand library-aware minimal formalization planning:
@@ -259,6 +267,18 @@ python3 -m ai_statistician.cli formal-verifier-replay-repair-application-export 
 This writes the per-route Lean repair scaffolds under
 `lean_repair_tasks/`. They are not checked proof artifacts; they are the patch
 surface for the next replay attempt.
+
+```bash
+python3 -m ai_statistician.cli formal-verifier-replay-repair-application-validation \
+  --formal-verifier-replay-repair-application-dir runs/current/formal_verifier_replay_repair_application \
+  --lean-project /Users/yukang/LeanProjects/LeanPractice \
+  --out runs/current/formal_verifier_replay_repair_application_validation
+```
+
+The validation output confirms scaffold source integrity and optional Lean
+syntax/import compatibility. Promotion still requires rerunning
+`formal-verifier-replay-attempts` and accepting only routes whose calibration is
+`full_route_kernel_verified`.
 
 ## Honesty Boundary
 

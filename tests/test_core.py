@@ -43,6 +43,9 @@ from ai_statistician.formal_verifier_replay_export import export_formal_verifier
 from ai_statistician.formal_verifier_replay_repair_application import (
     export_formal_verifier_replay_repair_application_tasks,
 )
+from ai_statistician.formal_verifier_replay_repair_application_validation import (
+    export_formal_verifier_replay_repair_application_validation,
+)
 from ai_statistician.formal_verifier_replay_repair import export_formal_verifier_replay_repair_packets
 from ai_statistician.formalization_delta_plan import build_formalization_delta_plan
 from ai_statistician.formalization_target_audit import audit_formalization_targets
@@ -7352,6 +7355,44 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(
             Path("runs/test_formal_verifier_replay_repair_application/formal_verifier_replay_repair_application.md").exists()
         )
+        validation = export_formal_verifier_replay_repair_application_validation(
+            Path("runs/test_formal_verifier_replay_repair_application"),
+            Path("runs/test_formal_verifier_replay_repair_application_validation"),
+        )
+        self.assertTrue(validation["all_ok"])
+        self.assertFalse(validation["local_lean_enabled"])
+        self.assertEqual(validation["n_validation_rows"], 1)
+        self.assertEqual(validation["n_ok"], 1)
+        self.assertEqual(validation["n_static_ok"], 1)
+        self.assertEqual(validation["n_local_lean_checked"], 0)
+        self.assertEqual(validation["n_local_lean_compiled"], 0)
+        validation_row = validation["rows"][0]
+        self.assertTrue(validation_row["placeholder_free"])
+        self.assertTrue(validation_row["contains_scaffold_boundary"])
+        self.assertTrue(validation_row["contains_non_evidence_boundary"])
+        self.assertTrue(validation_row["contains_target_statement"])
+        self.assertTrue(validation_row["contains_candidate_bridge_name"])
+        self.assertEqual(
+            validation_row["proof_evidence_status"],
+            "SCAFFOLD_ONLY_NOT_PROOF_EVIDENCE",
+        )
+        self.assertEqual(validation_row["validation_status"], "scaffold_static_ok_not_checked")
+        self.assertIn("not proof evidence", validation_row["proof_evidence_boundary"])
+        self.assertTrue(
+            Path(
+                "runs/test_formal_verifier_replay_repair_application_validation/formal_verifier_replay_repair_application_validation_manifest.json"
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                "runs/test_formal_verifier_replay_repair_application_validation/formal_verifier_replay_repair_application_validation.jsonl"
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                "runs/test_formal_verifier_replay_repair_application_validation/formal_verifier_replay_repair_application_validation.md"
+            ).exists()
+        )
 
     def test_primitive_source_coverage_audit_classifies_missing_primitives(self) -> None:
         async def run():
@@ -7446,6 +7487,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "formal_verifier_replay_calibration",
             "formal_verifier_replay_repair",
             "formal_verifier_replay_repair_application",
+            "formal_verifier_replay_repair_application_validation",
             "evaluation_benchmark_guidance",
         ):
             (root / subdir).mkdir(parents=True, exist_ok=True)
@@ -7821,6 +7863,42 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             ),
             encoding="utf-8",
         )
+        (
+            root
+            / "formal_verifier_replay_repair_application_validation"
+            / "formal_verifier_replay_repair_application_validation_manifest.json"
+        ).write_text(
+            json.dumps(
+                {
+                    "n_validation_rows": 1,
+                    "n_ok": 1,
+                    "n_static_ok": 1,
+                    "n_local_lean_checked": 1,
+                    "n_local_lean_compiled": 1,
+                    "rows": [
+                        {
+                            "validation_id": "formal_verifier_replay_repair_application_validation:test",
+                            "application_id": "formal_verifier_replay_repair_application:test",
+                            "packet_id": "formal_verifier_replay_repair:test",
+                            "replay_id": "formal_verifier_replay:test",
+                            "route_id": "theorem_route:test",
+                            "display_name": "causal_ate_aipw:aipw_double_robustness:skeleton",
+                            "validation_status": "scaffold_compiles_not_proof",
+                            "local_lean_checked": True,
+                            "local_lean_compiled": True,
+                            "placeholder_free": True,
+                            "static_checks_ok": True,
+                            "proof_evidence_status": "SCAFFOLD_ONLY_NOT_PROOF_EVIDENCE",
+                            "proof_evidence_boundary": (
+                                "This validation checks repair scaffold source integrity only. "
+                                "It is not proof evidence."
+                            ),
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
         (root / "evaluation_benchmark_guidance" / "evaluation_benchmark_guidance_manifest.json").write_text(
             json.dumps({"top_actions": [{"rank": 1, "action": "improve RAG"}]}),
             encoding="utf-8",
@@ -7908,6 +7986,11 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                         "formal_verifier_replay_repair_application_bridge_lemma": 0,
                         "formal_verifier_replay_repair_application_import_or_declaration": 1,
                         "formal_verifier_replay_repair_application_training_examples": 1,
+                        "formal_verifier_replay_repair_application_validation_rows": 1,
+                        "formal_verifier_replay_repair_application_validation_ok": 1,
+                        "formal_verifier_replay_repair_application_validation_static_ok": 1,
+                        "formal_verifier_replay_repair_application_validation_local_lean_checked": 1,
+                        "formal_verifier_replay_repair_application_validation_local_lean_compiled": 1,
                     },
                     "artifacts": {
                         "proof_audit": str(root / "proof_audit" / "proof_audit_manifest.json"),
@@ -7980,6 +8063,11 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                             root
                             / "formal_verifier_replay_repair_application"
                             / "formal_verifier_replay_repair_application_manifest.json"
+                        ),
+                        "formal_verifier_replay_repair_application_validation": str(
+                            root
+                            / "formal_verifier_replay_repair_application_validation"
+                            / "formal_verifier_replay_repair_application_validation_manifest.json"
                         ),
                         "evaluation_benchmark_guidance": str(
                             root
@@ -8142,17 +8230,52 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                 "proof_evidence_boundary"
             ],
         )
+        self.assertEqual(
+            payload["formal_capacity_queue"][
+                "formal_verifier_replay_repair_application_validation_rows"
+            ],
+            1,
+        )
+        self.assertEqual(
+            payload["formal_capacity_queue"][
+                "formal_verifier_replay_repair_application_validation_local_lean_compiled"
+            ],
+            1,
+        )
+        self.assertEqual(
+            payload["formal_capacity_queue"][
+                "formal_verifier_replay_repair_application_validation_preview"
+            ][0]["validation_status"],
+            "scaffold_compiles_not_proof",
+        )
+        self.assertEqual(
+            payload["formal_capacity_queue"][
+                "formal_verifier_replay_repair_application_validation_preview"
+            ][0]["proof_evidence_status"],
+            "SCAFFOLD_ONLY_NOT_PROOF_EVIDENCE",
+        )
+        self.assertIn(
+            "not proof evidence",
+            payload["formal_capacity_queue"][
+                "formal_verifier_replay_repair_application_validation_preview"
+            ][0]["proof_evidence_boundary"],
+        )
         self.assertIn("RAG hits are retrieval evidence only", " ".join(payload["honesty_boundaries"]))
         self.assertIn("replay rows are executable", " ".join(payload["honesty_boundaries"]))
         self.assertIn("replay attempts are proof evidence only", " ".join(payload["honesty_boundaries"]))
         self.assertIn("replay calibration rows are proof evidence only", " ".join(payload["honesty_boundaries"]))
         self.assertIn("replay repair packets", " ".join(payload["honesty_boundaries"]))
         self.assertIn("repair application scaffolds", " ".join(payload["honesty_boundaries"]))
+        self.assertIn("scaffold validation", " ".join(payload["honesty_boundaries"]))
         self.assertTrue((out / "rag_collaboration_manifest.json").exists())
         self.assertTrue((out / "rag_collaboration.md").exists())
         self.assertIn("Formal Verifier Queue", (out / "rag_collaboration.md").read_text())
         self.assertIn("Formal Verifier Replay Repair", (out / "rag_collaboration.md").read_text())
         self.assertIn("Formal Verifier Repair Application", (out / "rag_collaboration.md").read_text())
+        self.assertIn(
+            "Formal Verifier Repair Application Validation",
+            (out / "rag_collaboration.md").read_text(),
+        )
         self.assertIn("Theorem Composition Handoff", (out / "rag_collaboration.md").read_text())
 
     def test_research_training_export_writes_agent_sft_and_grpo_data(self) -> None:
@@ -10035,6 +10158,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["gates"]["formal_verifier_replay_calibration"])
         self.assertTrue(payload["gates"]["formal_verifier_replay_repair"])
         self.assertTrue(payload["gates"]["formal_verifier_replay_repair_application"])
+        self.assertTrue(payload["gates"]["formal_verifier_replay_repair_application_validation"])
         self.assertTrue(payload["gates"]["research_training_export"])
         self.assertTrue(payload["gates"]["research_policy_baseline"])
         self.assertTrue(payload["gates"]["next_iteration_queue"])
@@ -10315,6 +10439,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "formal_verifier_replay_calibration",
             "formal_verifier_replay_repair",
             "formal_verifier_replay_repair_application",
+            "formal_verifier_replay_repair_application_validation",
             "research_training_export",
             "research_policy_baseline",
             "next_iteration_queue",
@@ -10585,6 +10710,32 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertEqual(payload["counts"]["formal_verifier_replay_repair_application_bridge_lemma"], 0)
         self.assertEqual(payload["counts"]["formal_verifier_replay_repair_application_import_or_declaration"], 0)
         self.assertEqual(payload["counts"]["formal_verifier_replay_repair_application_training_examples"], 0)
+        self.assertEqual(payload["counts"]["formal_verifier_replay_repair_application_validation_rows"], 0)
+        self.assertEqual(payload["counts"]["formal_verifier_replay_repair_application_validation_ok"], 0)
+        self.assertEqual(payload["counts"]["formal_verifier_replay_repair_application_validation_static_ok"], 0)
+        self.assertEqual(
+            payload["counts"]["formal_verifier_replay_repair_application_validation_placeholder_free"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_replay_repair_application_validation_non_evidence_boundary"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formal_verifier_replay_repair_application_validation_local_lean_checked"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formal_verifier_replay_repair_application_validation_local_lean_compiled"],
+            0,
+        )
+        self.assertFalse(
+            payload["counts"][
+                "formal_verifier_replay_repair_application_validation_all_local_lean_compiled"
+            ]
+        )
         self.assertTrue(Path(payload["artifacts"]["formalization_delta_plan"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formalization_delta_graph"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_verifier_queue"]).exists())
@@ -10608,6 +10759,13 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(Path(payload["artifacts"]["formal_verifier_replay_repair_application_jsonl"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_verifier_replay_repair_application_training_jsonl"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_verifier_replay_repair_application_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formal_verifier_replay_repair_application_validation"]).exists())
+        self.assertTrue(
+            Path(payload["artifacts"]["formal_verifier_replay_repair_application_validation_jsonl"]).exists()
+        )
+        self.assertTrue(
+            Path(payload["artifacts"]["formal_verifier_replay_repair_application_validation_report"]).exists()
+        )
         self.assertTrue(Path(payload["artifacts"]["formal_verifier_replay_calibration_report"]).exists())
         self.assertEqual(
             payload["counts"]["primitive_source_coverage_primitives"],

@@ -341,6 +341,10 @@ Current release signal:
 - the registered proof bank is tracked by `proof-audit`; proof evidence is
   kernel-level only for runs whose `verification_strength` is AXLE or
   `local_lean_kernel_batch`
+- `formal-verifier-replay-repair-application-validation` checks generated
+  repair scaffold files for source-artifact integrity and optional local Lean
+  compilation, but this remains non-evidence until a repaired full-route replay
+  attempt calibrates as `full_route_kernel_verified`
 - release-speed `research-system-audit` runs can add a targeted local-kernel
   smoke overlay, for example:
 
