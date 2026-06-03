@@ -361,6 +361,10 @@ Current release signal:
 - `formal-verifier-replay-repair-prompt-packets` packages ready repair work
   orders into self-contained prover/RAG prompts with scaffold source, output
   contracts, forbidden proof claims, and replay-calibration gates
+- `formal-verifier-replay-repair-patch-autoworker` answers those prompt packets
+  with conservative local patch proposals and patched scaffold artifacts; these
+  responses keep `kernel_verified=false` until replay attempts and calibration
+  produce full-route kernel evidence
 - `formal-verifier-replay-repair-patch-response-validation` validates worker
   patch responses against those contracts. Absent responses are awaiting work,
   patch proposals remain non-evidence, and proof evidence is accepted only for

@@ -49,6 +49,9 @@ from .formal_verifier_replay_repair_execution_queue import (
 from .formal_verifier_replay_repair_prompt_packets import (
     export_formal_verifier_replay_repair_prompt_packets,
 )
+from .formal_verifier_replay_repair_patch_autoworker import (
+    export_formal_verifier_replay_repair_patch_autoworker,
+)
 from .formal_verifier_replay_repair_patch_response_validation import (
     export_formal_verifier_replay_repair_patch_response_validation,
 )
@@ -627,10 +630,26 @@ async def run_research_system_audit(
         "formal_verifier_replay_repair_prompt_packets",
         stage_start,
     )
+    formal_verifier_replay_repair_patch_autoworker_manifest = (
+        export_formal_verifier_replay_repair_patch_autoworker(
+            out_dir / "formal_verifier_replay_repair_prompt_packets",
+            out_dir / "formal_verifier_replay_repair_patch_autoworker",
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "formal_verifier_replay_repair_patch_autoworker",
+        stage_start,
+    )
     formal_verifier_replay_repair_patch_response_validation_manifest = (
         export_formal_verifier_replay_repair_patch_response_validation(
             out_dir / "formal_verifier_replay_repair_prompt_packets",
             out_dir / "formal_verifier_replay_repair_patch_response_validation",
+            response_jsonl=(
+                out_dir
+                / "formal_verifier_replay_repair_patch_autoworker"
+                / "formal_verifier_replay_repair_patch_responses.jsonl"
+            ),
         )
     )
     stage_start = _record_stage(
@@ -876,6 +895,9 @@ async def run_research_system_audit(
         "formal_verifier_replay_repair_prompt_packets": bool(
             formal_verifier_replay_repair_prompt_packets_manifest["all_ok"]
         ),
+        "formal_verifier_replay_repair_patch_autoworker": bool(
+            formal_verifier_replay_repair_patch_autoworker_manifest["all_ok"]
+        ),
         "formal_verifier_replay_repair_patch_response_validation": bool(
             formal_verifier_replay_repair_patch_response_validation_manifest["all_ok"]
         ),
@@ -925,6 +947,7 @@ async def run_research_system_audit(
         "formal_verifier_replay_repair_application_validation",
         "formal_verifier_replay_repair_execution_queue",
         "formal_verifier_replay_repair_prompt_packets",
+        "formal_verifier_replay_repair_patch_autoworker",
         "formal_verifier_replay_repair_patch_response_validation",
         "formal_verifier_replay_repair_patch_response_promotion",
         "research_training_export",
@@ -1828,6 +1851,21 @@ async def run_research_system_audit(
             "formal_verifier_replay_repair_prompt_packets_local_lean_compiled_scaffold": formal_verifier_replay_repair_prompt_packets_manifest[
                 "n_local_lean_compiled_scaffold"
             ],
+            "formal_verifier_replay_repair_patch_autoworker_responses": formal_verifier_replay_repair_patch_autoworker_manifest[
+                "n_responses"
+            ],
+            "formal_verifier_replay_repair_patch_autoworker_ok": formal_verifier_replay_repair_patch_autoworker_manifest[
+                "n_ok"
+            ],
+            "formal_verifier_replay_repair_patch_autoworker_patch_proposals": formal_verifier_replay_repair_patch_autoworker_manifest[
+                "n_patch_proposals"
+            ],
+            "formal_verifier_replay_repair_patch_autoworker_kernel_verified": formal_verifier_replay_repair_patch_autoworker_manifest[
+                "n_kernel_verified"
+            ],
+            "formal_verifier_replay_repair_patch_autoworker_artifacts": formal_verifier_replay_repair_patch_autoworker_manifest[
+                "n_patch_artifacts"
+            ],
             "formal_verifier_replay_repair_patch_response_validation_rows": formal_verifier_replay_repair_patch_response_validation_manifest[
                 "n_response_validation_rows"
             ],
@@ -2579,6 +2617,21 @@ async def run_research_system_audit(
                 out_dir
                 / "formal_verifier_replay_repair_prompt_packets"
                 / "formal_verifier_replay_repair_prompt_packets.md"
+            ),
+            "formal_verifier_replay_repair_patch_autoworker": str(
+                out_dir
+                / "formal_verifier_replay_repair_patch_autoworker"
+                / "formal_verifier_replay_repair_patch_autoworker_manifest.json"
+            ),
+            "formal_verifier_replay_repair_patch_autoworker_responses": str(
+                out_dir
+                / "formal_verifier_replay_repair_patch_autoworker"
+                / "formal_verifier_replay_repair_patch_responses.jsonl"
+            ),
+            "formal_verifier_replay_repair_patch_autoworker_report": str(
+                out_dir
+                / "formal_verifier_replay_repair_patch_autoworker"
+                / "formal_verifier_replay_repair_patch_autoworker.md"
             ),
             "formal_verifier_replay_repair_patch_response_validation": str(
                 out_dir

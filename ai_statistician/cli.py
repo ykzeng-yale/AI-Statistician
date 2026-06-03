@@ -53,6 +53,9 @@ from .formal_verifier_replay_repair_execution_queue import (
 from .formal_verifier_replay_repair_prompt_packets import (
     export_formal_verifier_replay_repair_prompt_packets,
 )
+from .formal_verifier_replay_repair_patch_autoworker import (
+    export_formal_verifier_replay_repair_patch_autoworker,
+)
 from .formal_verifier_replay_repair_patch_response_validation import (
     export_formal_verifier_replay_repair_patch_response_validation,
 )
@@ -1589,6 +1592,35 @@ def _formal_verifier_replay_repair_patch_response_validation(args: argparse.Name
     print(
         f"markdown report written to "
         f"{(Path(args.out) / 'formal_verifier_replay_repair_patch_response_validation.md').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formal_verifier_replay_repair_patch_autoworker(args: argparse.Namespace) -> int:
+    payload = export_formal_verifier_replay_repair_patch_autoworker(
+        Path(args.formal_verifier_replay_repair_prompt_packets_dir),
+        Path(args.out),
+        max_responses=args.max_responses,
+    )
+    print("\nAI Statistical Theory Lab Formal Verifier Repair Patch Autoworker")
+    print("=" * 72)
+    print(
+        f"responses={payload['n_ok']}/{payload['n_responses']} "
+        f"patch_proposals={payload['n_patch_proposals']} "
+        f"kernel_verified={payload['n_kernel_verified']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nautoworker manifest written to "
+        f"{(Path(args.out) / 'formal_verifier_replay_repair_patch_autoworker_manifest.json').resolve()}"
+    )
+    print(
+        f"response jsonl written to "
+        f"{(Path(args.out) / 'formal_verifier_replay_repair_patch_responses.jsonl').resolve()}"
+    )
+    print(
+        f"markdown report written to "
+        f"{(Path(args.out) / 'formal_verifier_replay_repair_patch_autoworker.md').resolve()}"
     )
     return 0 if payload["all_ok"] else 1
 
@@ -3620,6 +3652,30 @@ def build_parser() -> argparse.ArgumentParser:
     )
     formal_verifier_replay_repair_prompt_packets.set_defaults(
         func=_formal_verifier_replay_repair_prompt_packets
+    )
+
+    formal_verifier_replay_repair_patch_autoworker = sub.add_parser(
+        "formal-verifier-replay-repair-patch-autoworker",
+        help="generate conservative local repair patch responses from prompt packets",
+    )
+    formal_verifier_replay_repair_patch_autoworker.add_argument(
+        "--formal-verifier-replay-repair-prompt-packets-dir",
+        required=True,
+        help="directory containing formal_verifier_replay_repair_prompt_packets_manifest.json",
+    )
+    formal_verifier_replay_repair_patch_autoworker.add_argument(
+        "--max-responses",
+        type=int,
+        default=20,
+        help="maximum prompt packets to answer with patch proposals",
+    )
+    formal_verifier_replay_repair_patch_autoworker.add_argument(
+        "--out",
+        default="runs/formal_verifier_replay_repair_patch_autoworker",
+        help="formal-verifier repair patch autoworker output directory",
+    )
+    formal_verifier_replay_repair_patch_autoworker.set_defaults(
+        func=_formal_verifier_replay_repair_patch_autoworker
     )
 
     formal_verifier_replay_repair_patch_response_validation = sub.add_parser(

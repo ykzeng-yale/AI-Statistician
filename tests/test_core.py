@@ -52,6 +52,9 @@ from ai_statistician.formal_verifier_replay_repair_execution_queue import (
 from ai_statistician.formal_verifier_replay_repair_prompt_packets import (
     export_formal_verifier_replay_repair_prompt_packets,
 )
+from ai_statistician.formal_verifier_replay_repair_patch_autoworker import (
+    export_formal_verifier_replay_repair_patch_autoworker,
+)
 from ai_statistician.formal_verifier_replay_repair_patch_response_validation import (
     export_formal_verifier_replay_repair_patch_response_validation,
 )
@@ -7632,6 +7635,57 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             promotion_awaiting["rows"][0]["promotion_status"],
             "AWAITING_WORKER_RESPONSE_NO_PROMOTION",
         )
+        autoworker = export_formal_verifier_replay_repair_patch_autoworker(
+            Path("runs/test_formal_verifier_replay_repair_prompt_packets"),
+            Path("runs/test_formal_verifier_replay_repair_patch_autoworker"),
+        )
+        self.assertTrue(autoworker["all_ok"])
+        self.assertEqual(autoworker["n_responses"], 1)
+        self.assertEqual(autoworker["n_patch_proposals"], 1)
+        self.assertEqual(autoworker["n_kernel_verified"], 0)
+        self.assertEqual(autoworker["n_patch_artifacts"], 1)
+        autoworker_row = autoworker["rows"][0]
+        self.assertEqual(autoworker_row["claim_status"], "PATCH_PROPOSAL_NOT_PROOF_EVIDENCE")
+        self.assertFalse(autoworker_row["kernel_verified"])
+        self.assertIn("not theorem proof evidence", autoworker_row["proof_evidence_boundary"])
+        self.assertTrue(Path(autoworker_row["patched_artifact_path"]).exists())
+        self.assertIn(
+            "PATCH_PROPOSAL_NOT_PROOF_EVIDENCE",
+            Path(autoworker_row["patched_artifact_path"]).read_text(encoding="utf-8"),
+        )
+        autoworker_validation = export_formal_verifier_replay_repair_patch_response_validation(
+            Path("runs/test_formal_verifier_replay_repair_prompt_packets"),
+            Path("runs/test_formal_verifier_replay_repair_patch_response_validation_autoworker"),
+            response_jsonl=Path(
+                "runs/test_formal_verifier_replay_repair_patch_autoworker/formal_verifier_replay_repair_patch_responses.jsonl"
+            ),
+        )
+        self.assertTrue(autoworker_validation["all_ok"])
+        self.assertEqual(autoworker_validation["n_responses"], 1)
+        self.assertEqual(autoworker_validation["n_awaiting_worker_response"], 0)
+        self.assertEqual(autoworker_validation["n_patch_proposal_not_proof"], 1)
+        autoworker_promotion = export_formal_verifier_replay_repair_patch_response_promotion(
+            Path("runs/test_formal_verifier_replay_repair_patch_response_validation_autoworker"),
+            Path("runs/test_formal_verifier_replay_repair_patch_response_promotion_autoworker"),
+        )
+        self.assertTrue(autoworker_promotion["all_ok"])
+        self.assertEqual(autoworker_promotion["n_patch_proposal_needs_replay_calibration"], 1)
+        self.assertEqual(autoworker_promotion["n_ready_for_proof_promotion"], 0)
+        self.assertTrue(
+            Path(
+                "runs/test_formal_verifier_replay_repair_patch_autoworker/formal_verifier_replay_repair_patch_autoworker_manifest.json"
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                "runs/test_formal_verifier_replay_repair_patch_autoworker/formal_verifier_replay_repair_patch_responses.jsonl"
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                "runs/test_formal_verifier_replay_repair_patch_autoworker/formal_verifier_replay_repair_patch_autoworker.md"
+            ).exists()
+        )
         response_jsonl = Path(
             "runs/test_formal_verifier_replay_repair_prompt_packets/formal_verifier_replay_repair_patch_responses.jsonl"
         )
@@ -7920,6 +7974,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "formal_verifier_replay_repair_application_validation",
             "formal_verifier_replay_repair_execution_queue",
             "formal_verifier_replay_repair_prompt_packets",
+            "formal_verifier_replay_repair_patch_autoworker",
             "formal_verifier_replay_repair_patch_response_validation",
             "formal_verifier_replay_repair_patch_response_promotion",
             "evaluation_benchmark_guidance",
@@ -8440,17 +8495,49 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         )
         (
             root
+            / "formal_verifier_replay_repair_patch_autoworker"
+            / "formal_verifier_replay_repair_patch_autoworker_manifest.json"
+        ).write_text(
+            json.dumps(
+                {
+                    "n_responses": 1,
+                    "n_ok": 1,
+                    "n_patch_proposals": 1,
+                    "n_kernel_verified": 0,
+                    "n_patch_artifacts": 1,
+                    "rows": [
+                        {
+                            "response_id": "formal_verifier_replay_repair_patch_autoworker:test",
+                            "prompt_packet_id": "formal_verifier_replay_repair_prompt_packet:test",
+                            "display_name": "causal_ate_aipw:aipw_double_robustness:skeleton",
+                            "candidate_bridge_lemma_name": (
+                                "aipw_double_robustness_replay_bridge"
+                            ),
+                            "claim_status": "PATCH_PROPOSAL_NOT_PROOF_EVIDENCE",
+                            "kernel_verified": False,
+                            "worker_status": "PATCH_PROPOSAL_READY_FOR_REPLAY",
+                            "proof_evidence_boundary": (
+                                "This autoworker response is a patch proposal only."
+                            ),
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        (
+            root
             / "formal_verifier_replay_repair_patch_response_validation"
             / "formal_verifier_replay_repair_patch_response_validation_manifest.json"
         ).write_text(
             json.dumps(
                 {
                     "n_response_validation_rows": 1,
-                    "n_responses": 0,
-                    "n_response_present": 0,
-                    "n_awaiting_worker_response": 1,
-                    "n_contract_ok": 0,
-                    "n_patch_proposal_not_proof": 0,
+                    "n_responses": 1,
+                    "n_response_present": 1,
+                    "n_awaiting_worker_response": 0,
+                    "n_contract_ok": 1,
+                    "n_patch_proposal_not_proof": 1,
                     "n_accepted_full_route_kernel_verified": 0,
                     "n_rejected": 0,
                     "n_ok": 1,
@@ -8467,18 +8554,17 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                             "candidate_bridge_lemma_name": (
                                 "aipw_double_robustness_replay_bridge"
                             ),
-                            "response_present": False,
-                            "response_contract_ok": False,
-                            "acceptance_status": "AWAITING_WORKER_RESPONSE",
-                            "claim_status": "",
-                            "replay_calibration_status": "",
+                            "response_present": True,
+                            "response_contract_ok": True,
+                            "acceptance_status": "PATCH_PROPOSAL_RECORDED_NOT_PROOF_EVIDENCE",
+                            "claim_status": "PATCH_PROPOSAL_NOT_PROOF_EVIDENCE",
+                            "replay_calibration_status": "UNRUN_AFTER_PATCH",
                             "kernel_verified": False,
                             "proof_evidence_status": (
-                                "AWAITING_RESPONSE_NOT_PROOF_EVIDENCE"
+                                "PATCH_PROPOSAL_NOT_PROOF_EVIDENCE"
                             ),
                             "proof_evidence_boundary": (
-                                "No worker response has been recorded. This awaiting state "
-                                "is not proof evidence."
+                                "This response is not theorem proof evidence."
                             ),
                         }
                     ],
@@ -8496,8 +8582,8 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                     "n_response_validation_rows": 1,
                     "n_promotion_rows": 1,
                     "n_ready_for_proof_promotion": 0,
-                    "n_awaiting_worker_response": 1,
-                    "n_patch_proposal_needs_replay_calibration": 0,
+                    "n_awaiting_worker_response": 0,
+                    "n_patch_proposal_needs_replay_calibration": 1,
                     "n_blocked": 0,
                     "n_ok": 1,
                     "rows": [
@@ -8516,8 +8602,10 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                             "candidate_bridge_lemma_name": (
                                 "aipw_double_robustness_replay_bridge"
                             ),
-                            "source_acceptance_status": "AWAITING_WORKER_RESPONSE",
-                            "promotion_status": "AWAITING_WORKER_RESPONSE_NO_PROMOTION",
+                            "source_acceptance_status": (
+                                "PATCH_PROPOSAL_RECORDED_NOT_PROOF_EVIDENCE"
+                            ),
+                            "promotion_status": "PATCH_PROPOSAL_NEEDS_REPLAY_CALIBRATION",
                             "promotion_ready": False,
                             "action_type": "await_repair_worker_response",
                             "required_gate": (
@@ -8639,18 +8727,22 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                         "formal_verifier_replay_repair_prompt_packets_ok": 1,
                         "formal_verifier_replay_repair_prompt_packets_with_scaffold_source": 1,
                         "formal_verifier_replay_repair_prompt_packets_with_command_plan": 1,
+                        "formal_verifier_replay_repair_patch_autoworker_responses": 1,
+                        "formal_verifier_replay_repair_patch_autoworker_patch_proposals": 1,
+                        "formal_verifier_replay_repair_patch_autoworker_kernel_verified": 0,
+                        "formal_verifier_replay_repair_patch_autoworker_artifacts": 1,
                         "formal_verifier_replay_repair_patch_response_validation_rows": 1,
-                        "formal_verifier_replay_repair_patch_response_validation_responses": 0,
-                        "formal_verifier_replay_repair_patch_response_validation_awaiting": 1,
-                        "formal_verifier_replay_repair_patch_response_validation_contract_ok": 0,
-                        "formal_verifier_replay_repair_patch_response_validation_patch_proposal_not_proof": 0,
+                        "formal_verifier_replay_repair_patch_response_validation_responses": 1,
+                        "formal_verifier_replay_repair_patch_response_validation_awaiting": 0,
+                        "formal_verifier_replay_repair_patch_response_validation_contract_ok": 1,
+                        "formal_verifier_replay_repair_patch_response_validation_patch_proposal_not_proof": 1,
                         "formal_verifier_replay_repair_patch_response_validation_accepted_full_route_kernel_verified": 0,
                         "formal_verifier_replay_repair_patch_response_validation_rejected": 0,
                         "formal_verifier_replay_repair_patch_response_validation_ok": 1,
                         "formal_verifier_replay_repair_patch_response_promotion_rows": 1,
                         "formal_verifier_replay_repair_patch_response_promotion_ready": 0,
-                        "formal_verifier_replay_repair_patch_response_promotion_awaiting": 1,
-                        "formal_verifier_replay_repair_patch_response_promotion_patch_needs_replay": 0,
+                        "formal_verifier_replay_repair_patch_response_promotion_awaiting": 0,
+                        "formal_verifier_replay_repair_patch_response_promotion_patch_needs_replay": 1,
                         "formal_verifier_replay_repair_patch_response_promotion_blocked": 0,
                         "formal_verifier_replay_repair_patch_response_promotion_ok": 1,
                         "claim_ledger_repair_response_promotion_overlay_enabled": True,
@@ -8748,6 +8840,11 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                             root
                             / "formal_verifier_replay_repair_prompt_packets"
                             / "formal_verifier_replay_repair_prompt_packets_manifest.json"
+                        ),
+                        "formal_verifier_replay_repair_patch_autoworker": str(
+                            root
+                            / "formal_verifier_replay_repair_patch_autoworker"
+                            / "formal_verifier_replay_repair_patch_autoworker_manifest.json"
                         ),
                         "formal_verifier_replay_repair_patch_response_validation": str(
                             root
@@ -9011,6 +9108,24 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         )
         self.assertEqual(
             payload["formal_capacity_queue"][
+                "formal_verifier_replay_repair_patch_autoworker_responses"
+            ],
+            1,
+        )
+        self.assertEqual(
+            payload["formal_capacity_queue"][
+                "formal_verifier_replay_repair_patch_autoworker_patch_proposals"
+            ],
+            1,
+        )
+        self.assertEqual(
+            payload["formal_capacity_queue"][
+                "formal_verifier_replay_repair_patch_autoworker_kernel_verified"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["formal_capacity_queue"][
                 "formal_verifier_replay_repair_patch_response_validation_rows"
             ],
             1,
@@ -9018,6 +9133,12 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertEqual(
             payload["formal_capacity_queue"][
                 "formal_verifier_replay_repair_patch_response_validation_awaiting"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["formal_capacity_queue"][
+                "formal_verifier_replay_repair_patch_response_validation_patch_proposal_not_proof"
             ],
             1,
         )
@@ -9031,10 +9152,10 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             payload["formal_capacity_queue"][
                 "formal_verifier_replay_repair_patch_response_validation_preview"
             ][0]["acceptance_status"],
-            "AWAITING_WORKER_RESPONSE",
+            "PATCH_PROPOSAL_RECORDED_NOT_PROOF_EVIDENCE",
         )
         self.assertIn(
-            "not proof evidence",
+            "not theorem proof evidence",
             payload["formal_capacity_queue"][
                 "formal_verifier_replay_repair_patch_response_validation_preview"
             ][0]["proof_evidence_boundary"],
@@ -9055,13 +9176,19 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             payload["formal_capacity_queue"][
                 "formal_verifier_replay_repair_patch_response_promotion_awaiting"
             ],
+            0,
+        )
+        self.assertEqual(
+            payload["formal_capacity_queue"][
+                "formal_verifier_replay_repair_patch_response_promotion_patch_needs_replay"
+            ],
             1,
         )
         self.assertEqual(
             payload["formal_capacity_queue"][
                 "formal_verifier_replay_repair_patch_response_promotion_preview"
             ][0]["promotion_status"],
-            "AWAITING_WORKER_RESPONSE_NO_PROMOTION",
+            "PATCH_PROPOSAL_NEEDS_REPLAY_CALIBRATION",
         )
         self.assertIn(
             "not proof-ledger promotion evidence",
@@ -9089,6 +9216,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertIn("scaffold validation", " ".join(payload["honesty_boundaries"]))
         self.assertIn("execution queue items", " ".join(payload["honesty_boundaries"]))
         self.assertIn("prompt packets", " ".join(payload["honesty_boundaries"]))
+        self.assertIn("autoworker responses", " ".join(payload["honesty_boundaries"]))
         self.assertIn("patch responses", " ".join(payload["honesty_boundaries"]))
         self.assertIn("promotion rows", " ".join(payload["honesty_boundaries"]))
         self.assertIn("promotion overlays close formal gaps", " ".join(payload["honesty_boundaries"]))
@@ -10995,6 +11123,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["gates"]["formal_verifier_replay_repair_application_validation"])
         self.assertTrue(payload["gates"]["formal_verifier_replay_repair_execution_queue"])
         self.assertTrue(payload["gates"]["formal_verifier_replay_repair_prompt_packets"])
+        self.assertTrue(payload["gates"]["formal_verifier_replay_repair_patch_autoworker"])
         self.assertTrue(payload["gates"]["formal_verifier_replay_repair_patch_response_validation"])
         self.assertTrue(payload["gates"]["formal_verifier_replay_repair_patch_response_promotion"])
         self.assertTrue(payload["gates"]["research_training_export"])
@@ -11287,6 +11416,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "formal_verifier_replay_repair_application_validation",
             "formal_verifier_replay_repair_execution_queue",
             "formal_verifier_replay_repair_prompt_packets",
+            "formal_verifier_replay_repair_patch_autoworker",
             "formal_verifier_replay_repair_patch_response_validation",
             "formal_verifier_replay_repair_patch_response_promotion",
             "research_training_export",
@@ -11614,6 +11744,17 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             ],
             0,
         )
+        self.assertEqual(payload["counts"]["formal_verifier_replay_repair_patch_autoworker_responses"], 0)
+        self.assertEqual(payload["counts"]["formal_verifier_replay_repair_patch_autoworker_ok"], 0)
+        self.assertEqual(
+            payload["counts"]["formal_verifier_replay_repair_patch_autoworker_patch_proposals"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formal_verifier_replay_repair_patch_autoworker_kernel_verified"],
+            0,
+        )
+        self.assertEqual(payload["counts"]["formal_verifier_replay_repair_patch_autoworker_artifacts"], 0)
         self.assertEqual(
             payload["counts"]["formal_verifier_replay_repair_patch_response_validation_rows"],
             0,
@@ -11727,6 +11868,23 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         )
         self.assertTrue(
             Path(payload["artifacts"]["formal_verifier_replay_repair_prompt_packets_report"]).exists()
+        )
+        self.assertTrue(
+            Path(payload["artifacts"]["formal_verifier_replay_repair_patch_autoworker"]).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formal_verifier_replay_repair_patch_autoworker_responses"
+                ]
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formal_verifier_replay_repair_patch_autoworker_report"
+                ]
+            ).exists()
         )
         self.assertTrue(
             Path(

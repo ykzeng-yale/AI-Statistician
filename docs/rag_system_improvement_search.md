@@ -175,6 +175,19 @@ source, candidate bridge, replay subclaims, rerun commands, forbidden proof
 claims, and an expected JSON output contract. Prompt packets are worker
 instructions only; they are not proof evidence.
 
+`formal_verifier_replay_repair_patch_autoworker` is the deterministic local
+worker for those prompt packets. It writes patch-proposal response JSONL and
+patched scaffold artifacts so the release pipeline no longer has to stop at an
+awaiting-worker state. The generated responses deliberately keep
+`kernel_verified=false` and `claim_status=PATCH_PROPOSAL_NOT_PROOF_EVIDENCE`;
+they only become useful evidence after replay attempts and calibration rerun.
+
+```bash
+python3 -m ai_statistician.cli formal-verifier-replay-repair-patch-autoworker \
+  --formal-verifier-replay-repair-prompt-packets-dir runs/current_formal_verifier_replay_repair_prompt_packets \
+  --out runs/current_formal_verifier_replay_repair_patch_autoworker
+```
+
 `formal_verifier_replay_repair_patch_response_validation` validates worker
 responses to those prompt packets. Missing response JSONL files are recorded as
 awaiting worker output, while malformed contracts and unsupported proof claims
@@ -185,6 +198,7 @@ formal gaps, and replay attempt/calibration manifests exist.
 ```bash
 python3 -m ai_statistician.cli formal-verifier-replay-repair-patch-response-validation \
   --formal-verifier-replay-repair-prompt-packets-dir runs/current_formal_verifier_replay_repair_prompt_packets \
+  --response-jsonl runs/current_formal_verifier_replay_repair_patch_autoworker/formal_verifier_replay_repair_patch_responses.jsonl \
   --out runs/current_formal_verifier_replay_repair_patch_response_validation
 ```
 
@@ -236,9 +250,11 @@ python3 -m ai_statistician.cli claim-ledger \
    `formal-verifier-replay-repair-export` to turn the resulting Lean errors
    into route-specific bridge/composition work packets, followed by
    `formal-verifier-replay-repair-application-export` to produce the concrete
-   Lean scaffold queue for patching and rerun, and finally
-   `formal-verifier-replay-repair-patch-response-validation` to reject malformed
-   or overclaiming worker responses before
+   Lean scaffold queue for patching and rerun. The new
+   `formal-verifier-replay-repair-patch-autoworker` can produce conservative
+   local patch-proposal responses for those prompt packets, and
+   `formal-verifier-replay-repair-patch-response-validation` rejects malformed
+   or overclaiming responses before
    `formal-verifier-replay-repair-patch-response-promotion` exposes only
    corroborated full-route kernel repairs as proof-ledger promotion candidates.
 2. Add query-intent expansion for missing primitives:

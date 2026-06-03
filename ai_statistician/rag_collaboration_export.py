@@ -114,6 +114,14 @@ def export_rag_collaboration_manifest(
     formal_verifier_replay_repair_prompt_packets_payload = _read_json(
         formal_verifier_replay_repair_prompt_packets_path
     )
+    formal_verifier_replay_repair_patch_autoworker_path = _artifact_path(
+        artifacts,
+        "formal_verifier_replay_repair_patch_autoworker",
+        run_dir,
+    )
+    formal_verifier_replay_repair_patch_autoworker_payload = _read_json(
+        formal_verifier_replay_repair_patch_autoworker_path
+    )
     formal_verifier_replay_repair_patch_response_validation_path = _artifact_path(
         artifacts,
         "formal_verifier_replay_repair_patch_response_validation",
@@ -585,6 +593,25 @@ def export_rag_collaboration_manifest(
                 formal_verifier_replay_repair_prompt_packets_payload,
                 max_rows=min(max_targets, 10),
             ),
+            "formal_verifier_replay_repair_patch_autoworker_responses": counts.get(
+                "formal_verifier_replay_repair_patch_autoworker_responses",
+                formal_verifier_replay_repair_patch_autoworker_payload.get("n_responses"),
+            ),
+            "formal_verifier_replay_repair_patch_autoworker_patch_proposals": counts.get(
+                "formal_verifier_replay_repair_patch_autoworker_patch_proposals",
+                formal_verifier_replay_repair_patch_autoworker_payload.get("n_patch_proposals"),
+            ),
+            "formal_verifier_replay_repair_patch_autoworker_kernel_verified": counts.get(
+                "formal_verifier_replay_repair_patch_autoworker_kernel_verified",
+                formal_verifier_replay_repair_patch_autoworker_payload.get("n_kernel_verified"),
+            ),
+            "formal_verifier_replay_repair_patch_autoworker_artifacts": counts.get(
+                "formal_verifier_replay_repair_patch_autoworker_artifacts",
+                formal_verifier_replay_repair_patch_autoworker_payload.get("n_patch_artifacts"),
+            ),
+            "formal_verifier_replay_repair_patch_autoworker_manifest": str(
+                formal_verifier_replay_repair_patch_autoworker_path
+            ),
             "formal_verifier_replay_repair_patch_response_validation_rows": counts.get(
                 "formal_verifier_replay_repair_patch_response_validation_rows",
                 formal_verifier_replay_repair_patch_response_validation_payload.get(
@@ -718,6 +745,7 @@ def export_rag_collaboration_manifest(
             "FormalVerifier repair scaffold validation is source-artifact integrity evidence, not theorem proof evidence.",
             "FormalVerifier repair execution queue items are patch work orders, not theorem proof evidence.",
             "FormalVerifier repair prompt packets are worker instructions, not theorem proof evidence.",
+            "FormalVerifier repair patch autoworker responses are local patch proposals, not theorem proof evidence.",
             "FormalVerifier repair patch responses are proof evidence only when response validation accepts full-route kernel-verified calibration.",
             "FormalVerifier repair patch response promotion rows are ledger-update contracts; they do not mutate the proof ledger by themselves.",
             "Claim-ledger repair-response promotion overlays close formal gaps only for matching ready kernel-verified promotion rows.",
@@ -1279,6 +1307,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Formal verifier repair prompt packets: `{queue.get('formal_verifier_replay_repair_prompt_packets')}` packets "
         f"(`{queue.get('formal_verifier_replay_repair_prompt_packets_with_scaffold_source')}` with scaffold source, "
         f"`{queue.get('formal_verifier_replay_repair_prompt_packets_with_command_plan')}` with commands)",
+        f"- Formal verifier repair patch autoworker: `{queue.get('formal_verifier_replay_repair_patch_autoworker_responses')}` responses "
+        f"(`{queue.get('formal_verifier_replay_repair_patch_autoworker_patch_proposals')}` patch proposals, "
+        f"`{queue.get('formal_verifier_replay_repair_patch_autoworker_kernel_verified')}` kernel verified)",
         f"- Formal verifier repair response validation: `{queue.get('formal_verifier_replay_repair_patch_response_validation_rows')}` rows "
         f"(`{queue.get('formal_verifier_replay_repair_patch_response_validation_accepted_full_route_kernel_verified')}` accepted, "
         f"`{queue.get('formal_verifier_replay_repair_patch_response_validation_awaiting')}` awaiting, "
