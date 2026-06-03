@@ -175,6 +175,19 @@ source, candidate bridge, replay subclaims, rerun commands, forbidden proof
 claims, and an expected JSON output contract. Prompt packets are worker
 instructions only; they are not proof evidence.
 
+`formal_verifier_replay_repair_patch_response_validation` validates worker
+responses to those prompt packets. Missing response JSONL files are recorded as
+awaiting worker output, while malformed contracts and unsupported proof claims
+fail the gate. A response is accepted as proof evidence only when the repaired
+route reports `full_route_kernel_verified`, `kernel_verified=true`, no residual
+formal gaps, and replay attempt/calibration manifests exist.
+
+```bash
+python3 -m ai_statistician.cli formal-verifier-replay-repair-patch-response-validation \
+  --formal-verifier-replay-repair-prompt-packets-dir runs/current_formal_verifier_replay_repair_prompt_packets \
+  --out runs/current_formal_verifier_replay_repair_patch_response_validation
+```
+
 ## Next Build Targets
 
 1. Expand library-aware minimal formalization planning:
@@ -198,7 +211,9 @@ instructions only; they are not proof evidence.
    `formal-verifier-replay-repair-export` to turn the resulting Lean errors
    into route-specific bridge/composition work packets, followed by
    `formal-verifier-replay-repair-application-export` to produce the concrete
-   Lean scaffold queue for patching and rerun.
+   Lean scaffold queue for patching and rerun, and finally
+   `formal-verifier-replay-repair-patch-response-validation` to reject malformed
+   or overclaiming worker responses before any proof claim is promoted.
 2. Add query-intent expansion for missing primitives:
    primitive name, theorem goal, problem class, local gap reason, and candidate
    proof-bank bridge names should all become retriever queries.

@@ -49,6 +49,9 @@ from .formal_verifier_replay_repair_execution_queue import (
 from .formal_verifier_replay_repair_prompt_packets import (
     export_formal_verifier_replay_repair_prompt_packets,
 )
+from .formal_verifier_replay_repair_patch_response_validation import (
+    export_formal_verifier_replay_repair_patch_response_validation,
+)
 from .formal_verifier_replay_repair import export_formal_verifier_replay_repair_packets
 from .formal_source_graph import audit_formal_source_graph
 from .formal_source_hybrid import FormalSourceHybridRetriever
@@ -621,6 +624,17 @@ async def run_research_system_audit(
         "formal_verifier_replay_repair_prompt_packets",
         stage_start,
     )
+    formal_verifier_replay_repair_patch_response_validation_manifest = (
+        export_formal_verifier_replay_repair_patch_response_validation(
+            out_dir / "formal_verifier_replay_repair_prompt_packets",
+            out_dir / "formal_verifier_replay_repair_patch_response_validation",
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "formal_verifier_replay_repair_patch_response_validation",
+        stage_start,
+    )
 
     research_training_manifest = export_research_training_dataset(
         out_dir / "research_benchmark",
@@ -843,6 +857,9 @@ async def run_research_system_audit(
         "formal_verifier_replay_repair_prompt_packets": bool(
             formal_verifier_replay_repair_prompt_packets_manifest["all_ok"]
         ),
+        "formal_verifier_replay_repair_patch_response_validation": bool(
+            formal_verifier_replay_repair_patch_response_validation_manifest["all_ok"]
+        ),
         "research_training_export": bool(research_training_manifest["all_ok"]),
         "research_policy_baseline": bool(research_policy_manifest["all_ok"]),
         "next_iteration_queue": bool(next_iteration_manifest["all_ok"]),
@@ -886,6 +903,7 @@ async def run_research_system_audit(
         "formal_verifier_replay_repair_application_validation",
         "formal_verifier_replay_repair_execution_queue",
         "formal_verifier_replay_repair_prompt_packets",
+        "formal_verifier_replay_repair_patch_response_validation",
         "research_training_export",
         "research_policy_baseline",
         "next_iteration_queue",
@@ -1787,6 +1805,30 @@ async def run_research_system_audit(
             "formal_verifier_replay_repair_prompt_packets_local_lean_compiled_scaffold": formal_verifier_replay_repair_prompt_packets_manifest[
                 "n_local_lean_compiled_scaffold"
             ],
+            "formal_verifier_replay_repair_patch_response_validation_rows": formal_verifier_replay_repair_patch_response_validation_manifest[
+                "n_response_validation_rows"
+            ],
+            "formal_verifier_replay_repair_patch_response_validation_responses": formal_verifier_replay_repair_patch_response_validation_manifest[
+                "n_response_present"
+            ],
+            "formal_verifier_replay_repair_patch_response_validation_awaiting": formal_verifier_replay_repair_patch_response_validation_manifest[
+                "n_awaiting_worker_response"
+            ],
+            "formal_verifier_replay_repair_patch_response_validation_contract_ok": formal_verifier_replay_repair_patch_response_validation_manifest[
+                "n_contract_ok"
+            ],
+            "formal_verifier_replay_repair_patch_response_validation_patch_proposal_not_proof": formal_verifier_replay_repair_patch_response_validation_manifest[
+                "n_patch_proposal_not_proof"
+            ],
+            "formal_verifier_replay_repair_patch_response_validation_accepted_full_route_kernel_verified": formal_verifier_replay_repair_patch_response_validation_manifest[
+                "n_accepted_full_route_kernel_verified"
+            ],
+            "formal_verifier_replay_repair_patch_response_validation_rejected": formal_verifier_replay_repair_patch_response_validation_manifest[
+                "n_rejected"
+            ],
+            "formal_verifier_replay_repair_patch_response_validation_ok": formal_verifier_replay_repair_patch_response_validation_manifest[
+                "n_ok"
+            ],
             "proof_bank_actions_high_priority": proof_bank_action_manifest["by_priority"].get("high", 0),
             "proof_bank_actions_medium_priority": proof_bank_action_manifest["by_priority"].get("medium", 0),
             "proof_bank_actions_low_priority": proof_bank_action_manifest["by_priority"].get("low", 0),
@@ -2487,6 +2529,21 @@ async def run_research_system_audit(
                 out_dir
                 / "formal_verifier_replay_repair_prompt_packets"
                 / "formal_verifier_replay_repair_prompt_packets.md"
+            ),
+            "formal_verifier_replay_repair_patch_response_validation": str(
+                out_dir
+                / "formal_verifier_replay_repair_patch_response_validation"
+                / "formal_verifier_replay_repair_patch_response_validation_manifest.json"
+            ),
+            "formal_verifier_replay_repair_patch_response_validation_jsonl": str(
+                out_dir
+                / "formal_verifier_replay_repair_patch_response_validation"
+                / "formal_verifier_replay_repair_patch_response_validation.jsonl"
+            ),
+            "formal_verifier_replay_repair_patch_response_validation_report": str(
+                out_dir
+                / "formal_verifier_replay_repair_patch_response_validation"
+                / "formal_verifier_replay_repair_patch_response_validation.md"
             ),
             "primitive_source_coverage": str(
                 out_dir / "primitive_source_coverage" / "primitive_source_coverage_manifest.json"

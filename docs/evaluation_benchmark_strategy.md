@@ -293,6 +293,9 @@ Pass criteria:
 - every formal-verifier replay calibration row carries attempted/awaiting
   status, first-error category when available, repair-policy update, and a
   proof-evidence boundary that accepts only full-route kernel verification
+- every formal-verifier repair response validation row records whether a worker
+  response is awaiting, a non-evidence patch proposal, an accepted
+  full-route-kernel proof artifact, or a rejected unsupported proof claim
 - kernel-smoke overlap can calibrate source trust for related subclaims, but
   cannot close the theorem route without a non-placeholder theorem/bridge proof
 - new proof-bank additions reduce the missing primitive count or increase
@@ -351,6 +354,10 @@ Current release signal:
 - `formal-verifier-replay-repair-prompt-packets` packages ready repair work
   orders into self-contained prover/RAG prompts with scaffold source, output
   contracts, forbidden proof claims, and replay-calibration gates
+- `formal-verifier-replay-repair-patch-response-validation` validates worker
+  patch responses against those contracts. Absent responses are awaiting work,
+  patch proposals remain non-evidence, and proof evidence is accepted only for
+  full-route kernel-verified calibration with no residual formal gaps.
 - `lean-rag-dependency-health` records schema, integrity, and FTS-probe status
   for the optional dependency-graph DB; malformed DBs are disabled with a
   fallback reason instead of crashing the audit

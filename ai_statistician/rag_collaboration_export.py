@@ -114,6 +114,14 @@ def export_rag_collaboration_manifest(
     formal_verifier_replay_repair_prompt_packets_payload = _read_json(
         formal_verifier_replay_repair_prompt_packets_path
     )
+    formal_verifier_replay_repair_patch_response_validation_path = _artifact_path(
+        artifacts,
+        "formal_verifier_replay_repair_patch_response_validation",
+        run_dir,
+    )
+    formal_verifier_replay_repair_patch_response_validation_payload = _read_json(
+        formal_verifier_replay_repair_patch_response_validation_path
+    )
     guidance_payload = _read_json(_artifact_path(artifacts, "evaluation_benchmark_guidance", run_dir))
 
     target_rows = _handoff_targets(
@@ -569,6 +577,51 @@ def export_rag_collaboration_manifest(
                 formal_verifier_replay_repair_prompt_packets_payload,
                 max_rows=min(max_targets, 10),
             ),
+            "formal_verifier_replay_repair_patch_response_validation_rows": counts.get(
+                "formal_verifier_replay_repair_patch_response_validation_rows",
+                formal_verifier_replay_repair_patch_response_validation_payload.get(
+                    "n_response_validation_rows"
+                ),
+            ),
+            "formal_verifier_replay_repair_patch_response_validation_responses": counts.get(
+                "formal_verifier_replay_repair_patch_response_validation_responses",
+                formal_verifier_replay_repair_patch_response_validation_payload.get(
+                    "n_response_present"
+                ),
+            ),
+            "formal_verifier_replay_repair_patch_response_validation_awaiting": counts.get(
+                "formal_verifier_replay_repair_patch_response_validation_awaiting",
+                formal_verifier_replay_repair_patch_response_validation_payload.get(
+                    "n_awaiting_worker_response"
+                ),
+            ),
+            "formal_verifier_replay_repair_patch_response_validation_contract_ok": counts.get(
+                "formal_verifier_replay_repair_patch_response_validation_contract_ok",
+                formal_verifier_replay_repair_patch_response_validation_payload.get("n_contract_ok"),
+            ),
+            "formal_verifier_replay_repair_patch_response_validation_patch_proposal_not_proof": counts.get(
+                "formal_verifier_replay_repair_patch_response_validation_patch_proposal_not_proof",
+                formal_verifier_replay_repair_patch_response_validation_payload.get(
+                    "n_patch_proposal_not_proof"
+                ),
+            ),
+            "formal_verifier_replay_repair_patch_response_validation_accepted_full_route_kernel_verified": counts.get(
+                "formal_verifier_replay_repair_patch_response_validation_accepted_full_route_kernel_verified",
+                formal_verifier_replay_repair_patch_response_validation_payload.get(
+                    "n_accepted_full_route_kernel_verified"
+                ),
+            ),
+            "formal_verifier_replay_repair_patch_response_validation_rejected": counts.get(
+                "formal_verifier_replay_repair_patch_response_validation_rejected",
+                formal_verifier_replay_repair_patch_response_validation_payload.get("n_rejected"),
+            ),
+            "formal_verifier_replay_repair_patch_response_validation_manifest": str(
+                formal_verifier_replay_repair_patch_response_validation_path
+            ),
+            "formal_verifier_replay_repair_patch_response_validation_preview": _formal_verifier_replay_repair_patch_response_validation_preview(
+                formal_verifier_replay_repair_patch_response_validation_payload,
+                max_rows=min(max_targets, 10),
+            ),
             "handoff_targets": target_rows,
             "proof_bank_expansion_manifest": str(
                 _artifact_path(artifacts, "proof_bank_expansion", run_dir)
@@ -613,6 +666,7 @@ def export_rag_collaboration_manifest(
             "FormalVerifier repair scaffold validation is source-artifact integrity evidence, not theorem proof evidence.",
             "FormalVerifier repair execution queue items are patch work orders, not theorem proof evidence.",
             "FormalVerifier repair prompt packets are worker instructions, not theorem proof evidence.",
+            "FormalVerifier repair patch responses are proof evidence only when response validation accepts full-route kernel-verified calibration.",
             "FORMAL_GAP and theorem-hole queues remain open until a non-placeholder Lean proof is verified.",
         ],
     }
@@ -992,6 +1046,40 @@ def _formal_verifier_replay_repair_prompt_packets_preview(
     return rows
 
 
+def _formal_verifier_replay_repair_patch_response_validation_preview(
+    payload: dict[str, Any],
+    *,
+    max_rows: int,
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    validation_rows = payload.get("rows", [])
+    if not isinstance(validation_rows, list):
+        return rows
+    for row in validation_rows:
+        if not isinstance(row, dict):
+            continue
+        rows.append(
+            {
+                "response_validation_id": row.get("response_validation_id"),
+                "prompt_packet_id": row.get("prompt_packet_id"),
+                "execution_id": row.get("execution_id"),
+                "display_name": row.get("display_name"),
+                "candidate_bridge_lemma_name": row.get("candidate_bridge_lemma_name"),
+                "response_present": row.get("response_present", False),
+                "response_contract_ok": row.get("response_contract_ok", False),
+                "acceptance_status": row.get("acceptance_status", ""),
+                "claim_status": row.get("claim_status", ""),
+                "replay_calibration_status": row.get("replay_calibration_status", ""),
+                "kernel_verified": row.get("kernel_verified", False),
+                "proof_evidence_status": row.get("proof_evidence_status", ""),
+                "proof_evidence_boundary": row.get("proof_evidence_boundary", ""),
+            }
+        )
+        if len(rows) >= max_rows:
+            break
+    return rows
+
+
 def _theorem_composition_packet_preview(
     payload: dict[str, Any],
     *,
@@ -1103,6 +1191,10 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Formal verifier repair prompt packets: `{queue.get('formal_verifier_replay_repair_prompt_packets')}` packets "
         f"(`{queue.get('formal_verifier_replay_repair_prompt_packets_with_scaffold_source')}` with scaffold source, "
         f"`{queue.get('formal_verifier_replay_repair_prompt_packets_with_command_plan')}` with commands)",
+        f"- Formal verifier repair response validation: `{queue.get('formal_verifier_replay_repair_patch_response_validation_rows')}` rows "
+        f"(`{queue.get('formal_verifier_replay_repair_patch_response_validation_accepted_full_route_kernel_verified')}` accepted, "
+        f"`{queue.get('formal_verifier_replay_repair_patch_response_validation_awaiting')}` awaiting, "
+        f"`{queue.get('formal_verifier_replay_repair_patch_response_validation_rejected')}` rejected)",
         f"- Queue: exact_reuse=`{queue.get('reuse_exact_proof_bank_obligation')}`, compose=`{queue.get('compose_existing_bridge_chain')}`, minimal_wrapper=`{queue.get('add_minimal_wrapper')}`, design_bridge=`{queue.get('design_bridge_lemma')}`",
         f"- Theorem composition packets: `{composition.get('theorem_composition_packets')}` "
         f"(exact links `{composition.get('theorem_composition_exact_proof_bank_links')}`, "
@@ -1222,6 +1314,20 @@ def _markdown_report(payload: dict[str, object]) -> str:
         lines.append(f"  bridge: `{packet.get('candidate_bridge_lemma_name')}`")
         lines.append(f"  gate: {packet.get('contract_promotion_gate')}")
         lines.append(f"  boundary: {packet.get('proof_evidence_boundary')}")
+    lines.extend(["", "## Formal Verifier Repair Response Validation", ""])
+    for row in queue.get("formal_verifier_replay_repair_patch_response_validation_preview", []):
+        if not isinstance(row, dict):
+            continue
+        lines.append(
+            f"- `{row.get('display_name')}` ({row.get('acceptance_status')}): "
+            f"{row.get('candidate_bridge_lemma_name')}"
+        )
+        lines.append(
+            f"  response={row.get('response_present')} contract={row.get('response_contract_ok')} "
+            f"kernel={row.get('kernel_verified')} calibration={row.get('replay_calibration_status')}"
+        )
+        lines.append(f"  proof status: {row.get('proof_evidence_status')}")
+        lines.append(f"  boundary: {row.get('proof_evidence_boundary')}")
     lines.extend(["", "## Theorem Composition Handoff", ""])
     lines.append(str(composition.get("proof_evidence_boundary", "")))
     lines.append("")
