@@ -218,6 +218,14 @@ def export_rag_collaboration_manifest(
     formal_verifier_agentic_proof_candidate_evaluation_queue_payload = _read_json(
         formal_verifier_agentic_proof_candidate_evaluation_queue_path
     )
+    formal_verifier_agentic_proof_safety_policy_path = _artifact_path(
+        artifacts,
+        "formal_verifier_agentic_proof_safety_policy",
+        run_dir,
+    )
+    formal_verifier_agentic_proof_safety_policy_payload = _read_json(
+        formal_verifier_agentic_proof_safety_policy_path
+    )
     guidance_payload = _read_json(_artifact_path(artifacts, "evaluation_benchmark_guidance", run_dir))
 
     target_rows = _handoff_targets(
@@ -1132,6 +1140,39 @@ def export_rag_collaboration_manifest(
                 formal_verifier_agentic_proof_candidate_evaluation_queue_payload,
                 max_rows=min(max_targets, 10),
             ),
+            "formal_verifier_agentic_proof_safety_policy_rows": counts.get(
+                "formal_verifier_agentic_proof_safety_policy_rows",
+                formal_verifier_agentic_proof_safety_policy_payload.get(
+                    "n_safety_policy_rows"
+                ),
+            ),
+            "formal_verifier_agentic_proof_safety_policy_ready": counts.get(
+                "formal_verifier_agentic_proof_safety_policy_ready",
+                formal_verifier_agentic_proof_safety_policy_payload.get("n_ready"),
+            ),
+            "formal_verifier_agentic_proof_safety_policy_blocked": counts.get(
+                "formal_verifier_agentic_proof_safety_policy_blocked",
+                formal_verifier_agentic_proof_safety_policy_payload.get("n_blocked"),
+            ),
+            "formal_verifier_agentic_proof_safety_policy_patch_bounded_edit": counts.get(
+                "formal_verifier_agentic_proof_safety_policy_patch_bounded_edit",
+                formal_verifier_agentic_proof_safety_policy_payload.get(
+                    "n_patch_bounded_edit_policies"
+                ),
+            ),
+            "formal_verifier_agentic_proof_safety_policy_source_validation": counts.get(
+                "formal_verifier_agentic_proof_safety_policy_source_validation",
+                formal_verifier_agentic_proof_safety_policy_payload.get(
+                    "n_source_validation_policies"
+                ),
+            ),
+            "formal_verifier_agentic_proof_safety_policy_manifest": str(
+                formal_verifier_agentic_proof_safety_policy_path
+            ),
+            "formal_verifier_agentic_proof_safety_policy_preview": _formal_verifier_agentic_proof_safety_policy_preview(
+                formal_verifier_agentic_proof_safety_policy_payload,
+                max_rows=min(max_targets, 10),
+            ),
             "claim_ledger_repair_response_promotion_overlay_enabled": counts.get(
                 "claim_ledger_repair_response_promotion_overlay_enabled"
             ),
@@ -1198,6 +1239,7 @@ def export_rag_collaboration_manifest(
             "FormalVerifier repair patch rerun residual follow-up queue rows are operational work items, not theorem proof evidence.",
             "FormalVerifier agentic proof strategy plan rows are search/evaluator plans, not theorem proof evidence.",
             "FormalVerifier agentic proof candidate evaluation queue rows are candidate-generation work orders, not theorem proof evidence.",
+            "FormalVerifier agentic proof safety policy rows are preflight guardrails, not theorem proof evidence.",
             "Claim-ledger repair-response promotion overlays close formal gaps only for matching ready kernel-verified promotion rows.",
             "FORMAL_GAP and theorem-hole queues remain open until a non-placeholder Lean proof is verified.",
         ],
@@ -2040,6 +2082,53 @@ def _formal_verifier_agentic_proof_candidate_evaluation_queue_preview(
     return rows
 
 
+def _formal_verifier_agentic_proof_safety_policy_preview(
+    payload: dict[str, Any],
+    *,
+    max_rows: int,
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    policy_rows = payload.get("rows", [])
+    if not isinstance(policy_rows, list):
+        return rows
+    for row in policy_rows:
+        if not isinstance(row, dict):
+            continue
+        bounded_edit_policy = row.get("bounded_edit_policy", {})
+        if not isinstance(bounded_edit_policy, dict):
+            bounded_edit_policy = {}
+        rows.append(
+            {
+                "safety_policy_id": row.get("safety_policy_id"),
+                "rank": row.get("rank"),
+                "candidate_evaluation_id": row.get("candidate_evaluation_id"),
+                "display_name": row.get("display_name"),
+                "residual_gap": row.get("residual_gap"),
+                "generation_mode": row.get("generation_mode", ""),
+                "policy_status": row.get("policy_status", ""),
+                "goal_cache_key": row.get("goal_cache_key", ""),
+                "bounded_edit_required": bounded_edit_policy.get(
+                    "bounded_edit_required",
+                    False,
+                ),
+                "bounded_edit_start_marker": bounded_edit_policy.get(
+                    "start_marker",
+                    "",
+                ),
+                "bounded_edit_end_marker": bounded_edit_policy.get("end_marker", ""),
+                "anti_cheat_checks": row.get("anti_cheat_checks", [])[:8],
+                "forbidden_tokens": row.get("forbidden_tokens", [])[:8],
+                "required_static_checks": row.get("required_static_checks", [])[:8],
+                "safeverify_gate": row.get("safeverify_gate", ""),
+                "proof_evidence_status": row.get("proof_evidence_status", ""),
+                "proof_evidence_boundary": row.get("proof_evidence_boundary", ""),
+            }
+        )
+        if len(rows) >= max_rows:
+            break
+    return rows
+
+
 def _theorem_composition_packet_preview(
     payload: dict[str, Any],
     *,
@@ -2195,6 +2284,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Formal verifier agentic proof candidate evaluation queue: `{queue.get('formal_verifier_agentic_proof_candidate_evaluation_queue_items')}` items "
         f"(`{queue.get('formal_verifier_agentic_proof_candidate_evaluation_queue_patch_candidates')}` patch candidates, "
         f"`{queue.get('formal_verifier_agentic_proof_candidate_evaluation_queue_source_discovery_candidates')}` source-discovery candidates)",
+        f"- Formal verifier agentic proof safety policy: `{queue.get('formal_verifier_agentic_proof_safety_policy_rows')}` rows "
+        f"(`{queue.get('formal_verifier_agentic_proof_safety_policy_patch_bounded_edit')}` bounded-edit, "
+        f"`{queue.get('formal_verifier_agentic_proof_safety_policy_source_validation')}` source-validation)",
         "- Claim-ledger repair-response promotion overlay: "
         f"`{queue.get('claim_ledger_repair_response_promotion_upgrades')}` upgrades from "
         f"`{queue.get('claim_ledger_repair_response_promotion_overlay_rows')}` ready rows",
@@ -2453,6 +2545,27 @@ def _markdown_report(payload: dict[str, object]) -> str:
         lines.append(f"  evaluator pool: {evaluators}")
         lines.append(f"  live tool sequence: {sequence}")
         lines.append(f"  promotion gate: {row.get('promotion_gate')}")
+        lines.append(f"  proof status: {row.get('proof_evidence_status')}")
+        lines.append(f"  boundary: {row.get('proof_evidence_boundary')}")
+    lines.extend(["", "## Agentic Proof Safety Policy", ""])
+    for row in queue.get("formal_verifier_agentic_proof_safety_policy_preview", []):
+        if not isinstance(row, dict):
+            continue
+        lines.append(
+            f"- #{row.get('rank')} `{row.get('display_name')}` -> `{row.get('residual_gap')}` "
+            f"({row.get('policy_status')}): {row.get('generation_mode')}"
+        )
+        anti_cheat = ", ".join(f"`{item}`" for item in row.get("anti_cheat_checks", [])) or "none"
+        forbidden = ", ".join(f"`{item}`" for item in row.get("forbidden_tokens", [])) or "none"
+        lines.append(f"  goal cache key: `{row.get('goal_cache_key')}`")
+        lines.append(f"  bounded edit required: `{row.get('bounded_edit_required')}`")
+        if row.get("bounded_edit_start_marker"):
+            lines.append(
+                f"  markers: `{row.get('bounded_edit_start_marker')}` / `{row.get('bounded_edit_end_marker')}`"
+            )
+        lines.append(f"  anti-cheat checks: {anti_cheat}")
+        lines.append(f"  forbidden tokens: {forbidden}")
+        lines.append(f"  SafeVerify gate: {row.get('safeverify_gate')}")
         lines.append(f"  proof status: {row.get('proof_evidence_status')}")
         lines.append(f"  boundary: {row.get('proof_evidence_boundary')}")
     lines.extend(["", "## Theorem Composition Handoff", ""])

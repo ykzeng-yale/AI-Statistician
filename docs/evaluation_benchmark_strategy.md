@@ -459,6 +459,11 @@ The follow-on `formal_verifier_agentic_proof_candidate_evaluation_queue` gate
 adds candidate database lineage, attempt budgets, evaluator pools, live-tool
 sequences, and promotion gates, turning those plans into auditable work orders
 for proof-candidate generation without upgrading them to proof evidence.
+The `formal_verifier_agentic_proof_safety_policy` gate adds bounded edit
+markers, declaration/header guards, forbidden-token checks, helper-lemma
+anti-restatement checks, source-claim checks, goal-cache keys, and SafeVerify
+promotion requirements before candidate generation can be treated as a valid
+work order.
 
 `formal-verifier-queue` is the handoff from that diagnostic to theorem work:
 it records whether hard-mode dependency-graph RAG increased the candidate

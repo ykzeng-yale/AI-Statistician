@@ -92,6 +92,9 @@ from .formal_verifier_agentic_proof_strategy_plan import (
 from .formal_verifier_agentic_proof_candidate_evaluation_queue import (
     export_formal_verifier_agentic_proof_candidate_evaluation_queue,
 )
+from .formal_verifier_agentic_proof_safety_policy import (
+    export_formal_verifier_agentic_proof_safety_policy,
+)
 from .formal_verifier_replay_repair import export_formal_verifier_replay_repair_packets
 from .formal_source_graph import audit_formal_source_graph
 from .formal_source_index import (
@@ -2010,6 +2013,39 @@ def _formal_verifier_agentic_proof_candidate_evaluation_queue(
     print(
         f"markdown report written to "
         f"{(Path(args.out) / 'formal_verifier_agentic_proof_candidate_evaluation_queue.md').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formal_verifier_agentic_proof_safety_policy(
+    args: argparse.Namespace,
+) -> int:
+    payload = export_formal_verifier_agentic_proof_safety_policy(
+        Path(args.formal_verifier_agentic_proof_candidate_evaluation_queue_dir),
+        Path(args.out),
+    )
+    print("\nAI Statistical Theory Lab Formal Verifier Agentic Proof Safety Policy")
+    print("=" * 72)
+    print(
+        f"rows={payload['n_ok']}/{payload['n_safety_policy_rows']} "
+        f"ready={payload['n_ready']} "
+        f"blocked={payload['n_blocked']} "
+        f"bounded_edit={payload['n_patch_bounded_edit_policies']} "
+        f"source_validation={payload['n_source_validation_policies']} "
+        f"anti_cheat={payload['n_with_anti_cheat_checks']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nagentic proof safety policy manifest written to "
+        f"{(Path(args.out) / 'formal_verifier_agentic_proof_safety_policy_manifest.json').resolve()}"
+    )
+    print(
+        f"agentic proof safety policy jsonl written to "
+        f"{(Path(args.out) / 'formal_verifier_agentic_proof_safety_policy.jsonl').resolve()}"
+    )
+    print(
+        f"markdown report written to "
+        f"{(Path(args.out) / 'formal_verifier_agentic_proof_safety_policy.md').resolve()}"
     )
     return 0 if payload["all_ok"] else 1
 
@@ -4311,6 +4347,24 @@ def build_parser() -> argparse.ArgumentParser:
     )
     formal_verifier_agentic_proof_candidate_evaluation_queue.set_defaults(
         func=_formal_verifier_agentic_proof_candidate_evaluation_queue
+    )
+
+    formal_verifier_agentic_proof_safety_policy = sub.add_parser(
+        "formal-verifier-agentic-proof-safety-policy",
+        help="export bounded-edit and anti-cheat safety policies for proof candidate work",
+    )
+    formal_verifier_agentic_proof_safety_policy.add_argument(
+        "--formal-verifier-agentic-proof-candidate-evaluation-queue-dir",
+        required=True,
+        help="directory containing formal_verifier_agentic_proof_candidate_evaluation_queue_manifest.json",
+    )
+    formal_verifier_agentic_proof_safety_policy.add_argument(
+        "--out",
+        default="runs/formal_verifier_agentic_proof_safety_policy",
+        help="formal-verifier agentic proof safety policy output directory",
+    )
+    formal_verifier_agentic_proof_safety_policy.set_defaults(
+        func=_formal_verifier_agentic_proof_safety_policy
     )
 
     rag_collaboration_export = sub.add_parser(

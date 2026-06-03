@@ -344,6 +344,18 @@ python3 -m ai_statistician.cli formal-verifier-agentic-proof-candidate-evaluatio
   --out runs/current_formal_verifier_agentic_proof_candidate_evaluation_queue
 ```
 
+`formal_verifier_agentic_proof_safety_policy` adds the preflight safety layer
+for those work orders. It records bounded edit markers, statement/header
+guards, forbidden Lean tokens, helper-lemma anti-restatement checks,
+source-claim checks, goal-cache keys, and SafeVerify-style promotion gates.
+These rows are guardrails only; they do not prove any theorem.
+
+```bash
+python3 -m ai_statistician.cli formal-verifier-agentic-proof-safety-policy \
+  --formal-verifier-agentic-proof-candidate-evaluation-queue-dir runs/current_formal_verifier_agentic_proof_candidate_evaluation_queue \
+  --out runs/current_formal_verifier_agentic_proof_safety_policy
+```
+
 The claim ledger can now consume that promotion manifest as an overlay. Only
 rows already marked `READY_FOR_PROOF_LEDGER_PROMOTION` with kernel evidence can
 upgrade the matching formal-gap row; awaiting responses and patch proposals
