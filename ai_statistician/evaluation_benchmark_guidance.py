@@ -105,6 +105,8 @@ def build_evaluation_benchmark_guidance(
                         "proofs_kernel_verified",
                         "proof_search_solved",
                         "proof_search_retrieval_ablation_candidate_delta",
+                        "proof_search_retrieval_no_registered_ablation_candidate_delta",
+                        "proof_search_retrieval_no_registered_ablation_solved_delta",
                         "research_traces_ok",
                         "research_algorithms_ok",
                     }
@@ -141,6 +143,12 @@ def _suite_rows(
     theory_coverage = _float(counts.get("frontier_theory_expected_result_coverage_rate"))
     missing_primitives = _int(counts.get("missing_formal_primitives"))
     proof_search_candidate_delta = _int(counts.get("proof_search_retrieval_ablation_candidate_delta"))
+    proof_search_hard_candidate_delta = _int(
+        counts.get("proof_search_retrieval_no_registered_ablation_candidate_delta")
+    )
+    proof_search_hard_solved_delta = _int(
+        counts.get("proof_search_retrieval_no_registered_ablation_solved_delta")
+    )
     algorithm_promotion_ready = _int(counts.get("algorithm_repair_sandbox_patch_eval_promotion_ready"))
     rows = [
         BenchmarkSuiteGuidanceRow(
@@ -266,25 +274,38 @@ def _suite_rows(
         ),
         BenchmarkSuiteGuidanceRow(
             suite_id="S5_proof_bank_and_search",
-            exercised=bool(artifacts.get("proof_audit")) and bool(artifacts.get("proof_search_retrieval_ablation")),
+            exercised=bool(artifacts.get("proof_audit"))
+            and bool(artifacts.get("proof_search_retrieval_ablation"))
+            and bool(artifacts.get("proof_search_retrieval_no_registered_ablation")),
             status="SATURATED"
-            if proof_search_candidate_delta == 0 and _int(counts.get("proof_search_solved")) == _int(counts.get("proof_search_obligations"))
+            if proof_search_candidate_delta == 0
+            and proof_search_hard_candidate_delta == 0
+            and _int(counts.get("proof_search_solved")) == _int(counts.get("proof_search_obligations"))
             else "OK",
             evidence_paths=(
                 str(artifacts.get("proof_audit", "")),
                 str(artifacts.get("proof_search_audit", "")),
                 str(artifacts.get("proof_search_retrieval_ablation", "")),
+                str(artifacts.get("proof_search_retrieval_no_registered_ablation", "")),
             ),
             key_counts={
                 "proofs_kernel_verified": counts.get("proofs_kernel_verified"),
                 "proof_search_solved": counts.get("proof_search_solved"),
                 "proof_search_obligations": counts.get("proof_search_obligations"),
                 "proof_search_retrieval_ablation_candidate_delta": proof_search_candidate_delta,
+                "proof_search_retrieval_no_registered_ablation_candidate_delta": proof_search_hard_candidate_delta,
+                "proof_search_retrieval_no_registered_ablation_solved_delta": proof_search_hard_solved_delta,
+                "proof_search_retrieval_no_registered_ablation_include_registered_proof": counts.get(
+                    "proof_search_retrieval_no_registered_ablation_include_registered_proof"
+                ),
                 "lean_rag_dependency_graph_enabled": counts.get("lean_rag_dependency_graph_enabled"),
             },
-            honesty_boundary="Kernel-verified registered obligations are proof evidence; retrieval ablation is search evidence only.",
+            honesty_boundary=(
+                "Kernel-verified registered obligations are proof evidence; ordinary and no-registered "
+                "retrieval ablations are search evidence unless run with AXLE/local Lean verification."
+            ),
             issues=("current bounded proof-search suite is saturated; stronger RAG shows no downstream lift",)
-            if proof_search_candidate_delta == 0
+            if proof_search_candidate_delta == 0 and proof_search_hard_candidate_delta == 0
             else (),
         ),
         BenchmarkSuiteGuidanceRow(
@@ -426,6 +447,9 @@ def _top_actions(
     counts: Mapping[str, Any],
 ) -> list[dict[str, object]]:
     rows_by_id = {row.suite_id: row for row in suite_rows}
+    proof_search_frontier_delta = _int(counts.get("proof_search_retrieval_ablation_candidate_delta")) + _int(
+        counts.get("proof_search_retrieval_no_registered_ablation_candidate_delta")
+    )
     actions = [
         {
             "rank": 1,
@@ -445,7 +469,16 @@ def _top_actions(
             "rank": 3,
             "owner_suite": "S5_proof_bank_and_search/S7_feedback_loop_repair",
             "action": "Add harder RAG/proof-search and seeded feedback-loop failures where stronger retrieval or repair must change a decision.",
-            "why": "The current proof-search/RAG ablation is saturated and algorithm repair has no promotion-ready patch.",
+            "why": (
+                "The current proof-search/RAG ablations still show no candidate-frontier lift and "
+                "algorithm repair has no promotion-ready patch."
+                if proof_search_frontier_delta == 0
+                else (
+                    f"Proof-search/RAG hard-mode candidate-frontier lift is {proof_search_frontier_delta}; "
+                    "the next bottleneck is turning that search signal into verifier-checked harder obligations, "
+                    "while algorithm repair still has no promotion-ready patch."
+                )
+            ),
             "success_metric": "dependency-graph retrieval improves candidate frontier or solved count on hard obligations, and at least one seeded simulation/proof failure yields a verified changed trace.",
         },
     ]

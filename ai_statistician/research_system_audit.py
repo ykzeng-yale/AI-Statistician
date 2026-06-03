@@ -346,6 +346,18 @@ async def run_research_system_audit(
         max_nodes=4,
         formal_source_k=4,
     )
+    proof_search_retrieval_no_registered_ablation_manifest = await run_proof_search_retrieval_ablation(
+        out_dir / "proof_search_retrieval_no_registered_ablation",
+        baseline_retriever=baseline_formal_source_retriever,
+        enhanced_retriever=formal_source_retriever,
+        verifier=verifier,
+        max_obligations=6,
+        max_nodes=4,
+        formal_source_k=4,
+        include_registered_proof=False,
+        baseline_name="proof_search_without_dependency_graph_no_registered_proof",
+        enhanced_name="proof_search_with_dependency_graph_no_registered_proof",
+    )
     proof_search_training_manifest = export_proof_search_process_dataset(
         Path(str(proof_search_manifest["results_jsonl"])),
         out_dir / "proof_search_training_export",
@@ -657,6 +669,10 @@ async def run_research_system_audit(
         and int(proof_search_manifest["policy_scored_expanded_nodes"]) > 0
         and int(proof_search_manifest["value_scored_expanded_nodes"]) > 0,
         "proof_search_retrieval_ablation": bool(proof_search_retrieval_ablation_manifest["all_ok"]),
+        "proof_search_retrieval_no_registered_ablation": bool(
+            proof_search_retrieval_no_registered_ablation_manifest["all_ok"]
+        )
+        and not bool(proof_search_retrieval_no_registered_ablation_manifest["include_registered_proof"]),
         "proof_search_training_export": int(proof_search_training_manifest["n_process_examples"])
         == int(proof_search_manifest["nodes_expanded"]),
         "proof_search_value_model": int(proof_search_value_manifest["n_train"]) > 0
@@ -1124,6 +1140,39 @@ async def run_research_system_audit(
             ],
             "proof_search_retrieval_ablation_no_solved_regression": proof_search_retrieval_ablation_manifest[
                 "no_solved_regression"
+            ],
+            "proof_search_retrieval_no_registered_ablation_solved_delta": proof_search_retrieval_no_registered_ablation_manifest[
+                "solved_delta"
+            ],
+            "proof_search_retrieval_no_registered_ablation_candidate_delta": proof_search_retrieval_no_registered_ablation_manifest[
+                "formal_source_candidate_delta"
+            ],
+            "proof_search_retrieval_no_registered_ablation_node_delta": proof_search_retrieval_no_registered_ablation_manifest[
+                "nodes_expanded_delta"
+            ],
+            "proof_search_retrieval_no_registered_ablation_no_solved_regression": proof_search_retrieval_no_registered_ablation_manifest[
+                "no_solved_regression"
+            ],
+            "proof_search_retrieval_no_registered_ablation_enhanced_all_solved": proof_search_retrieval_no_registered_ablation_manifest[
+                "enhanced_all_solved"
+            ],
+            "proof_search_retrieval_no_registered_ablation_include_registered_proof": proof_search_retrieval_no_registered_ablation_manifest[
+                "include_registered_proof"
+            ],
+            "proof_search_retrieval_no_registered_ablation_baseline_solved": proof_search_retrieval_no_registered_ablation_manifest[
+                "baseline"
+            ]["n_solved"],
+            "proof_search_retrieval_no_registered_ablation_enhanced_solved": proof_search_retrieval_no_registered_ablation_manifest[
+                "enhanced"
+            ]["n_solved"],
+            "proof_search_retrieval_no_registered_ablation_baseline_candidates": proof_search_retrieval_no_registered_ablation_manifest[
+                "baseline"
+            ]["formal_source_candidates_total"],
+            "proof_search_retrieval_no_registered_ablation_enhanced_candidates": proof_search_retrieval_no_registered_ablation_manifest[
+                "enhanced"
+            ]["formal_source_candidates_total"],
+            "proof_search_retrieval_no_registered_ablation_lean_rag_dependency_graph_enabled": proof_search_retrieval_no_registered_ablation_manifest[
+                "lean_rag_dependency_graph_enabled"
             ],
             "proof_search_process_examples": proof_search_training_manifest["n_process_examples"],
             "proof_search_process_positive": proof_search_training_manifest["n_positive"],
@@ -1749,6 +1798,16 @@ async def run_research_system_audit(
             ),
             "proof_search_retrieval_ablation_report": str(
                 out_dir / "proof_search_retrieval_ablation" / "proof_search_retrieval_ablation.md"
+            ),
+            "proof_search_retrieval_no_registered_ablation": str(
+                out_dir
+                / "proof_search_retrieval_no_registered_ablation"
+                / "proof_search_retrieval_ablation_manifest.json"
+            ),
+            "proof_search_retrieval_no_registered_ablation_report": str(
+                out_dir
+                / "proof_search_retrieval_no_registered_ablation"
+                / "proof_search_retrieval_ablation.md"
             ),
             "proof_search_training_export": str(
                 out_dir / "proof_search_training_export" / "proof_search_training_manifest.json"

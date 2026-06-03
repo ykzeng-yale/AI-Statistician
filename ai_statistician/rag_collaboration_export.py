@@ -42,6 +42,12 @@ def export_rag_collaboration_manifest(
     proof_search_ablation_payload = _read_json(
         _artifact_path(artifacts, "proof_search_retrieval_ablation", run_dir)
     )
+    proof_search_no_registered_ablation_path = _artifact_path(
+        artifacts,
+        "proof_search_retrieval_no_registered_ablation",
+        run_dir,
+    )
+    proof_search_no_registered_ablation_payload = _read_json(proof_search_no_registered_ablation_path)
     primitive_payload = _read_json(_artifact_path(artifacts, "primitive_source_coverage", run_dir))
     expansion_payload = _read_json(_artifact_path(artifacts, "proof_bank_expansion", run_dir))
     theorem_composition_path = _artifact_path(artifacts, "theorem_composition", run_dir)
@@ -169,11 +175,30 @@ def export_rag_collaboration_manifest(
             "proof_search_dependency_graph_search": proof_search_ablation_payload.get(
                 "dependency_graph_search", ""
             ),
+            "proof_search_no_registered_solved_delta": proof_search_no_registered_ablation_payload.get(
+                "solved_delta"
+            ),
+            "proof_search_no_registered_candidate_delta": proof_search_no_registered_ablation_payload.get(
+                "formal_source_candidate_delta"
+            ),
+            "proof_search_no_registered_node_delta": proof_search_no_registered_ablation_payload.get(
+                "nodes_expanded_delta"
+            ),
+            "proof_search_no_registered_include_registered_proof": proof_search_no_registered_ablation_payload.get(
+                "include_registered_proof"
+            ),
+            "proof_search_no_registered_dependency_graph_search": proof_search_no_registered_ablation_payload.get(
+                "dependency_graph_search",
+                "",
+            ),
             "formal_source_retrieval_ablation_manifest": str(
                 _artifact_path(artifacts, "formal_source_retrieval_ablation", run_dir)
             ),
             "proof_search_retrieval_ablation_manifest": str(
                 _artifact_path(artifacts, "proof_search_retrieval_ablation", run_dir)
+            ),
+            "proof_search_retrieval_no_registered_ablation_manifest": str(
+                proof_search_no_registered_ablation_path
             ),
         },
         "formal_capacity_queue": {
@@ -378,6 +403,7 @@ def _query_hint(row: dict[str, Any]) -> str:
 def _markdown_report(payload: dict[str, object]) -> str:
     proof = dict(payload.get("proof_evidence", {}) or {})
     rag = dict(payload.get("rag_provider_evidence", {}) or {})
+    retrieval = dict(payload.get("retrieval_ablation_evidence", {}) or {})
     queue = dict(payload.get("formal_capacity_queue", {}) or {})
     composition = dict(payload.get("theorem_composition_handoff", {}) or {})
     lines = [
@@ -393,6 +419,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Retrieval recall/MRR: `{rag.get('formal_source_retrieval_recall_at_k')}` / `{rag.get('formal_source_retrieval_mrr')}`",
         f"- External retrieval recall/MRR: `{rag.get('formal_source_retrieval_external_recall_at_k')}` / `{rag.get('formal_source_retrieval_external_mrr')}`",
         f"- Combined retrieval recall/MRR: `{rag.get('formal_source_retrieval_all_recall_at_k')}` / `{rag.get('formal_source_retrieval_all_mrr')}`",
+        f"- Proof-search retrieval delta: ordinary candidates `{retrieval.get('proof_search_candidate_delta')}`, no-registered candidates `{retrieval.get('proof_search_no_registered_candidate_delta')}`",
         f"- Missing primitives: `{queue.get('missing_formal_primitives')}`",
         f"- Queue: exact_reuse=`{queue.get('reuse_exact_proof_bank_obligation')}`, compose=`{queue.get('compose_existing_bridge_chain')}`, minimal_wrapper=`{queue.get('add_minimal_wrapper')}`, design_bridge=`{queue.get('design_bridge_lemma')}`",
         f"- Theorem composition packets: `{composition.get('theorem_composition_packets')}` "

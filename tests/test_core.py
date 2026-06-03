@@ -3188,6 +3188,9 @@ class SystemTests(unittest.TestCase):
                 "proof_search_solved": 12,
                 "proof_search_obligations": 12,
                 "proof_search_retrieval_ablation_candidate_delta": 0,
+                "proof_search_retrieval_no_registered_ablation_candidate_delta": 0,
+                "proof_search_retrieval_no_registered_ablation_solved_delta": 0,
+                "proof_search_retrieval_no_registered_ablation_include_registered_proof": False,
                 "lean_rag_dependency_graph_enabled": True,
                 "research_algorithms_ok": 33,
                 "research_algorithms_total": 33,
@@ -3225,6 +3228,9 @@ class SystemTests(unittest.TestCase):
                 "proof_audit": "runs/example/proof_audit_manifest.json",
                 "proof_search_audit": "runs/example/proof_search_audit_manifest.json",
                 "proof_search_retrieval_ablation": "runs/example/proof_search_retrieval_ablation_manifest.json",
+                "proof_search_retrieval_no_registered_ablation": (
+                    "runs/example/proof_search_retrieval_no_registered_ablation_manifest.json"
+                ),
                 "research_algorithm_audit": "runs/example/research_algorithm_audit_manifest.json",
                 "algorithm_simulation_stress_audit": "runs/example/algorithm_simulation_stress_manifest.json",
                 "research_loop": "runs/example/research_loop_manifest.json",
@@ -7139,6 +7145,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "formal_source_retrieval_ablation",
             "lean_rag_package_audit",
             "proof_search_retrieval_ablation",
+            "proof_search_retrieval_no_registered_ablation",
             "primitive_source_coverage",
             "proof_bank_expansion",
             "theorem_composition",
@@ -7194,6 +7201,22 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                     "solved_delta": 0,
                     "formal_source_candidate_delta": 3,
                     "nodes_expanded_delta": 0,
+                    "dependency_graph_search": "lean_rag_dependency_graph",
+                }
+            ),
+            encoding="utf-8",
+        )
+        (
+            root
+            / "proof_search_retrieval_no_registered_ablation"
+            / "proof_search_retrieval_ablation_manifest.json"
+        ).write_text(
+            json.dumps(
+                {
+                    "solved_delta": 0,
+                    "formal_source_candidate_delta": 5,
+                    "nodes_expanded_delta": 1,
+                    "include_registered_proof": False,
                     "dependency_graph_search": "lean_rag_dependency_graph",
                 }
             ),
@@ -7361,6 +7384,11 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                             / "proof_search_retrieval_ablation"
                             / "proof_search_retrieval_ablation_manifest.json"
                         ),
+                        "proof_search_retrieval_no_registered_ablation": str(
+                            root
+                            / "proof_search_retrieval_no_registered_ablation"
+                            / "proof_search_retrieval_ablation_manifest.json"
+                        ),
                         "primitive_source_coverage": str(
                             root / "primitive_source_coverage" / "primitive_source_coverage_manifest.json"
                         ),
@@ -7399,6 +7427,10 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertEqual(
             payload["retrieval_ablation_evidence"]["formal_source_dependency_sensitive_new_hits"],
             1,
+        )
+        self.assertEqual(payload["retrieval_ablation_evidence"]["proof_search_no_registered_candidate_delta"], 5)
+        self.assertFalse(
+            payload["retrieval_ablation_evidence"]["proof_search_no_registered_include_registered_proof"]
         )
         targets = payload["formal_capacity_queue"]["handoff_targets"]
         self.assertEqual(len(targets), 1)
@@ -9280,6 +9312,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["gates"]["proof_repair_export"])
         self.assertTrue(payload["gates"]["proof_policy_baseline"])
         self.assertTrue(payload["gates"]["proof_search_retrieval_ablation"])
+        self.assertTrue(payload["gates"]["proof_search_retrieval_no_registered_ablation"])
         self.assertTrue(payload["gates"]["prover_component_audit"])
         self.assertTrue(payload["gates"]["research_benchmark"])
         self.assertTrue(payload["gates"]["formal_gap_skeletons"])
@@ -9621,12 +9654,31 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["counts"]["proof_search_retrieval_ablation_no_solved_regression"])
         self.assertGreaterEqual(payload["counts"]["proof_search_retrieval_ablation_candidate_delta"], 0)
         self.assertGreaterEqual(payload["counts"]["proof_search_retrieval_ablation_node_delta"], 0)
+        self.assertTrue(payload["counts"]["proof_search_retrieval_no_registered_ablation_no_solved_regression"])
+        self.assertFalse(payload["counts"]["proof_search_retrieval_no_registered_ablation_include_registered_proof"])
+        self.assertGreaterEqual(
+            payload["counts"]["proof_search_retrieval_no_registered_ablation_candidate_delta"],
+            0,
+        )
+        self.assertGreaterEqual(payload["counts"]["proof_search_retrieval_no_registered_ablation_node_delta"], 0)
+        self.assertTrue(
+            payload["counts"]["proof_search_retrieval_no_registered_ablation_lean_rag_dependency_graph_enabled"]
+        )
         proof_search_rag_ablation = json.loads(
             Path(payload["artifacts"]["proof_search_retrieval_ablation"]).read_text()
         )
         self.assertTrue(proof_search_rag_ablation["lean_rag_dependency_graph_enabled"])
         self.assertEqual(
             proof_search_rag_ablation["dependency_graph_search"],
+            "lean_rag_dependency_graph",
+        )
+        proof_search_no_registered_ablation = json.loads(
+            Path(payload["artifacts"]["proof_search_retrieval_no_registered_ablation"]).read_text()
+        )
+        self.assertFalse(proof_search_no_registered_ablation["include_registered_proof"])
+        self.assertTrue(proof_search_no_registered_ablation["lean_rag_dependency_graph_enabled"])
+        self.assertEqual(
+            proof_search_no_registered_ablation["dependency_graph_search"],
             "lean_rag_dependency_graph",
         )
         self.assertGreater(payload["counts"]["proof_search_bootstrap_process_examples"], 0)
@@ -9865,6 +9917,8 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(Path(payload["artifacts"]["proof_policy_baseline_predictions"]).exists())
         self.assertTrue(Path(payload["artifacts"]["proof_search_retrieval_ablation"]).exists())
         self.assertTrue(Path(payload["artifacts"]["proof_search_retrieval_ablation_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["proof_search_retrieval_no_registered_ablation"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["proof_search_retrieval_no_registered_ablation_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["prover_component_audit"]).exists())
         self.assertTrue(Path(payload["artifacts"]["prover_component_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["research_trace_audit"]).exists())

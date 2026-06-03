@@ -87,6 +87,13 @@ other proof chats see whether the strongest shared RAG package is present,
 fresh enough to trust as retrieval infrastructure, and still respecting the
 Lean proof boundary.
 
+The release-style `research-system-audit` also records a
+`proof_search_retrieval_no_registered_ablation` diagnostic. It disables
+registered proof-bank bodies so dependency-graph RAG lift is visible as
+candidate-frontier/search evidence instead of being hidden by gold proof-bank
+shortcuts. Those rows remain retrieval/search evidence unless AXLE or local
+Lean kernel verification is enabled for the proof-search run.
+
 ## Next Build Targets
 
 1. Add library-aware minimal formalization planning:
