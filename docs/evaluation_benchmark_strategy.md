@@ -240,6 +240,13 @@ Current release signal:
   evidence. Subclaim replay and kernel-smoke overlap calibrate only related
   obligations; the theorem route closes only after the replay target passes
   AXLE/local Lean with a non-placeholder proof.
+- `formal-verifier-replay-attempts` is the execution layer for those tasks. It
+  can consume formal-gap Lean task skeletons, strip the `h_frontier_missing_*`
+  placeholder assumption from the theorem target, run a non-placeholder replay
+  proof body through the selected verifier, and write full-route attempt JSONL.
+  Failed attempts are useful Lean/AXLE repair feedback. Positive mock/static
+  attempts are not proof evidence; only kernel-verified attempts with the
+  placeholder removed can close a replay target.
 - `formal-verifier-replay-calibration` records what happened after those replay
   tasks were attempted. With no full-route attempt log, it marks every replay
   target as `awaiting_full_route_attempt`. With an attempt log, it separates
@@ -268,6 +275,9 @@ Pass criteria:
 - every formal-verifier replay task carries a replay mode, replay steps,
   subclaim replay obligations, training prompt/completion, acceptance gate, and
   proof-evidence boundary
+- every formal-verifier replay attempt strips placeholder assumptions from
+  matched formal-gap skeletons before verification and records verifier
+  outcome, first error, placeholder-removal status, and kernel evidence status
 - every formal-verifier replay calibration row carries attempted/awaiting
   status, first-error category when available, repair-policy update, and a
   proof-evidence boundary that accepts only full-route kernel verification
@@ -386,11 +396,13 @@ is the next handoff: it converts those planning signals into route-level replay
 tasks and replay-policy examples, including kernel-calibrated and
 proof-search-solved subclaim replay where available. Those replay tasks are not
 theorem proof evidence; they are the contract for the next full theorem or
-bridge proof attempt. `formal-verifier-replay-calibration` then records whether
-those attempts are still missing, failed with repair feedback, accepted only by
-a non-kernel verifier, or accepted by AXLE/local Lean. The next prover milestone
-is to run actual replay attempts, feed Lean errors into this calibration
-ledger, and repair the highest-priority failed theorem/bridge routes.
+bridge proof attempt. `formal-verifier-replay-attempts` now performs those
+attempts when requested, using placeholder-stripped formal-gap skeletons.
+`formal-verifier-replay-calibration` then records whether those attempts are
+still missing, failed with repair feedback, accepted only by a non-kernel
+verifier, or accepted by AXLE/local Lean. The next prover milestone is to repair
+the highest-priority failed theorem/bridge routes and increase the
+`full_route_kernel_verified` count.
 
 ### S6. Algorithm and Simulation Stress Suite
 

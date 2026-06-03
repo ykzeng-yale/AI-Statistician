@@ -38,6 +38,7 @@ from .formal_gap_task_export import export_formal_gap_lean_tasks
 from .formalization_delta_plan import build_formalization_delta_plan
 from .formalization_target_audit import audit_formalization_targets
 from .formal_verifier_queue import export_formal_verifier_queue
+from .formal_verifier_replay_attempt import export_formal_verifier_replay_attempts
 from .formal_verifier_replay_calibration import export_formal_verifier_replay_calibration
 from .formal_verifier_replay_export import export_formal_verifier_replay
 from .formal_source_graph import audit_formal_source_graph
@@ -1290,6 +1291,40 @@ def _formal_verifier_replay_export(args: argparse.Namespace) -> int:
     return 0 if payload["all_ok"] else 1
 
 
+async def _formal_verifier_replay_attempts(args: argparse.Namespace) -> int:
+    _load_dotenv(Path(args.env_file))
+    verifier = _proof_verifier_from_args(args)
+    payload = await export_formal_verifier_replay_attempts(
+        Path(args.formal_verifier_replay_dir),
+        Path(args.out),
+        verifier=verifier,
+        formal_gap_tasks_dir=Path(args.formal_gap_tasks_dir) if args.formal_gap_tasks_dir else None,
+        max_tasks=args.max_tasks,
+    )
+    print("\nAI Statistical Theory Lab Formal Verifier Replay Attempts")
+    print("=" * 72)
+    print(
+        f"attempted={payload['n_attempted']}/{payload['n_source_replay_tasks']} "
+        f"positive={payload['n_positive']} "
+        f"kernel={payload['n_kernel_verified']} "
+        f"failed={payload['n_negative']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nformal verifier replay attempt manifest written to "
+        f"{(Path(args.out) / 'formal_verifier_replay_attempt_manifest.json').resolve()}"
+    )
+    print(
+        f"attempt jsonl written to "
+        f"{(Path(args.out) / 'formal_verifier_replay_attempts.jsonl').resolve()}"
+    )
+    print(
+        f"markdown report written to "
+        f"{(Path(args.out) / 'formal_verifier_replay_attempts.md').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
 def _formal_verifier_replay_calibration(args: argparse.Namespace) -> int:
     payload = export_formal_verifier_replay_calibration(
         Path(args.formal_verifier_replay_dir),
@@ -2188,6 +2223,7 @@ async def _research_system_audit(args: argparse.Namespace) -> int:
             refresh_formal_source_graph_cache=args.refresh_formal_source_graph_cache,
             research_benchmark_cache=args.research_benchmark_cache,
             refresh_research_benchmark_cache=args.refresh_research_benchmark_cache,
+            formal_verifier_replay_attempts=args.formal_verifier_replay_attempts,
             formal_verifier_replay_attempt_log=args.formal_verifier_replay_attempt_log,
             adaptive_mc_rerun=not args.no_adaptive_mc_rerun,
             adaptive_mc_multiplier=args.adaptive_mc_multiplier,
@@ -3111,6 +3147,39 @@ def build_parser() -> argparse.ArgumentParser:
     )
     formal_verifier_replay.set_defaults(func=_formal_verifier_replay_export)
 
+    formal_verifier_replay_attempts = sub.add_parser(
+        "formal-verifier-replay-attempts",
+        help="run full theorem/bridge replay attempts and write verifier feedback JSONL",
+    )
+    formal_verifier_replay_attempts.add_argument(
+        "--formal-verifier-replay-dir",
+        required=True,
+        help="directory containing formal_verifier_replay_manifest.json",
+    )
+    formal_verifier_replay_attempts.add_argument(
+        "--formal-gap-tasks-dir",
+        help="optional directory containing formal_gap_lean_task_manifest.json for real skeleton statements",
+    )
+    formal_verifier_replay_attempts.add_argument("--max-tasks", type=int, default=3)
+    formal_verifier_replay_attempts.add_argument("--real-lean", action="store_true", help="use AXLE verify_proof")
+    formal_verifier_replay_attempts.add_argument("--local-lean", action="store_true", help="use local lake env lean")
+    formal_verifier_replay_attempts.add_argument("--lean-project", help="local Lake project used by --local-lean")
+    formal_verifier_replay_attempts.add_argument(
+        "--lean-timeout",
+        type=int,
+        default=90,
+        help="timeout seconds for each local Lean check",
+    )
+    formal_verifier_replay_attempts.add_argument(
+        "--out",
+        default="runs/formal_verifier_replay_attempts",
+        help="formal-verifier replay attempt output directory",
+    )
+    formal_verifier_replay_attempts.add_argument("--env-file", default=".env")
+    formal_verifier_replay_attempts.set_defaults(
+        func=lambda args: asyncio.run(_formal_verifier_replay_attempts(args))
+    )
+
     formal_verifier_replay_calibration = sub.add_parser(
         "formal-verifier-replay-calibration",
         help="calibrate FormalVerifier replay tasks against full-route proof attempt feedback",
@@ -3705,6 +3774,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--formal-verifier-replay-attempt-log",
         default="",
         help="optional JSONL of full theorem/bridge replay attempts used to calibrate replay tasks",
+    )
+    research_system_audit.add_argument(
+        "--formal-verifier-replay-attempts",
+        type=int,
+        default=0,
+        help=(
+            "attempt the first N FormalVerifier replay targets during the audit; "
+            "when --lean-project is set these attempts use local Lean"
+        ),
     )
     research_system_audit.add_argument(
         "--formal-source-index-cache",

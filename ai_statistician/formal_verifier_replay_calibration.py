@@ -308,6 +308,8 @@ def _policy_update(calibration_status: str, error_category: str, task: dict[str,
             return "repair imports or source declarations, then replay the same route"
         if error_category == "type_mismatch":
             return "repair theorem skeleton types and subclaim composition before retrying"
+        if error_category == "tactic_no_progress":
+            return "replace the generic replay probe with route-specific bridge lemmas or exact subclaim composition"
         return "preserve earliest error as a hard negative and schedule replay repair"
     if str(task.get("replay_mode", "")) == "semantic_route_review_before_replay":
         return "complete semantic route review before first full-route attempt"
@@ -342,6 +344,8 @@ def _error_category(error: str) -> str:
         return "type_mismatch"
     if "unsolved goals" in lowered or "unsolved goal" in lowered:
         return "unsolved_goals"
+    if "made no progress" in lowered:
+        return "tactic_no_progress"
     if "kernel" in lowered:
         return "kernel_error"
     return "other"

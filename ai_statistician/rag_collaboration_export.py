@@ -56,6 +56,12 @@ def export_rag_collaboration_manifest(
     formal_verifier_queue_payload = _read_json(formal_verifier_queue_path)
     formal_verifier_replay_path = _artifact_path(artifacts, "formal_verifier_replay", run_dir)
     formal_verifier_replay_payload = _read_json(formal_verifier_replay_path)
+    formal_verifier_replay_attempt_path = _artifact_path(
+        artifacts,
+        "formal_verifier_replay_attempts",
+        run_dir,
+    )
+    formal_verifier_replay_attempt_payload = _read_json(formal_verifier_replay_attempt_path)
     formal_verifier_replay_calibration_path = _artifact_path(
         artifacts,
         "formal_verifier_replay_calibration",
@@ -325,6 +331,23 @@ def export_rag_collaboration_manifest(
                 formal_verifier_replay_payload,
                 max_rows=min(max_targets, 10),
             ),
+            "formal_verifier_replay_attempts": counts.get(
+                "formal_verifier_replay_attempts",
+                formal_verifier_replay_attempt_payload.get("n_attempted"),
+            ),
+            "formal_verifier_replay_attempt_positive": counts.get(
+                "formal_verifier_replay_attempt_positive",
+                formal_verifier_replay_attempt_payload.get("n_positive"),
+            ),
+            "formal_verifier_replay_attempt_negative": counts.get(
+                "formal_verifier_replay_attempt_negative",
+                formal_verifier_replay_attempt_payload.get("n_negative"),
+            ),
+            "formal_verifier_replay_attempt_kernel_verified": counts.get(
+                "formal_verifier_replay_attempt_kernel_verified",
+                formal_verifier_replay_attempt_payload.get("n_kernel_verified"),
+            ),
+            "formal_verifier_replay_attempts_manifest": str(formal_verifier_replay_attempt_path),
             "formal_verifier_replay_attempted": counts.get(
                 "formal_verifier_replay_attempted",
                 formal_verifier_replay_calibration_payload.get("n_attempted_replay_tasks"),
@@ -389,6 +412,7 @@ def export_rag_collaboration_manifest(
             "Only proof-audit rows with kernel_verified=true are proof evidence.",
             "Simulation diagnostics are empirical evidence, not theorem proofs.",
             "FormalVerifier replay rows are executable task/training artifacts, not theorem proof evidence.",
+            "FormalVerifier replay attempts are proof evidence only when kernel_verified=true and placeholders were removed.",
             "FormalVerifier replay calibration rows are proof evidence only for full-route kernel-verified targets.",
             "FORMAL_GAP and theorem-hole queues remain open until a non-placeholder Lean proof is verified.",
         ],
@@ -679,6 +703,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Formal verifier replay: `{queue.get('formal_verifier_replay_tasks')}` tasks "
         f"(`{queue.get('formal_verifier_replay_kernel_calibrated')}` kernel-calibrated, "
         f"`{queue.get('formal_verifier_replay_proof_search_subclaim')}` proof-search subclaim replay)",
+        f"- Formal verifier replay attempts: `{queue.get('formal_verifier_replay_attempts')}` attempted "
+        f"(`{queue.get('formal_verifier_replay_attempt_negative')}` failed, "
+        f"`{queue.get('formal_verifier_replay_attempt_kernel_verified')}` kernel)",
         f"- Formal verifier replay calibration: attempted `{queue.get('formal_verifier_replay_attempted')}`, "
         f"awaiting `{queue.get('formal_verifier_replay_awaiting_full_route_attempt')}`, "
         f"failed `{queue.get('formal_verifier_replay_failed_full_route_attempt')}`, "

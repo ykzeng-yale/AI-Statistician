@@ -122,6 +122,14 @@ positive attempts that need AXLE/local Lean replay, and kernel-verified
 theorem/bridge targets. That gives the RAG/prover loop a concrete error ledger
 for replay repair without treating failed or missing attempts as proof.
 
+The execution layer is `formal-verifier-replay-attempts`. It matches replay
+tasks to exported formal-gap Lean skeletons, strips `h_frontier_missing_*`
+placeholder assumptions, runs a non-placeholder proof probe under the selected
+verifier, and writes `formal_verifier_replay_attempts.jsonl`. Those rows become
+the calibration input. A failed Lean attempt is useful repair feedback; only a
+kernel-verified placeholder-free attempt can be promoted to replay-target proof
+evidence.
+
 ## Next Build Targets
 
 1. Expand library-aware minimal formalization planning:
@@ -140,9 +148,9 @@ for replay repair without treating failed or missing attempts as proof.
    level, semantic-faithfulness review, and kernel-smoke source-trust
    calibration. `formal-verifier-replay-export` now turns those rows into
    route-level replay tasks and replay-policy examples. The next version should
-   run those replay tasks against full theorem/bridge proof attempts, write the
-   resulting attempt JSONL, and use `formal-verifier-replay-calibration` to
-   repair the highest-priority Lean errors.
+   use `formal-verifier-replay-attempts --local-lean` on the highest-priority
+   tasks, then use `formal-verifier-replay-calibration` to repair the resulting
+   Lean errors.
 2. Add query-intent expansion for missing primitives:
    primitive name, theorem goal, problem class, local gap reason, and candidate
    proof-bank bridge names should all become retriever queries.
@@ -189,9 +197,24 @@ It is the handoff to a full theorem/bridge proof attempt, not evidence that the
 attempt has succeeded.
 
 ```bash
+python3 -m ai_statistician.cli formal-verifier-replay-attempts \
+  --formal-verifier-replay-dir runs/current/formal_verifier_replay \
+  --formal-gap-tasks-dir runs/current/formal_gap_lean_tasks \
+  --local-lean \
+  --lean-project /Users/yukang/LeanProjects/LeanPractice \
+  --max-tasks 3 \
+  --out runs/current/formal_verifier_replay_attempts
+```
+
+This runs the first full-route replay probes after removing the formal-gap
+placeholder assumption from matched skeletons. The expected near-term result is
+often a failed Lean error, which is exactly the repair signal the calibration
+ledger needs.
+
+```bash
 python3 -m ai_statistician.cli formal-verifier-replay-calibration \
   --formal-verifier-replay-dir runs/current/formal_verifier_replay \
-  --attempt-log runs/current/formal_verifier_replay_attempts.jsonl \
+  --attempt-log runs/current/formal_verifier_replay_attempts/formal_verifier_replay_attempts.jsonl \
   --out runs/current/formal_verifier_replay_calibration
 ```
 
