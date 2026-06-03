@@ -67,6 +67,9 @@ from .formal_verifier_replay_repair_patch_rerun_attempt import (
 from .formal_verifier_replay_repair_patch_rerun_calibration import (
     export_formal_verifier_replay_repair_patch_rerun_calibration,
 )
+from .formal_verifier_replay_repair_patch_rerun_residual_obligations import (
+    export_formal_verifier_replay_repair_patch_rerun_residual_obligations,
+)
 from .formal_verifier_replay_repair import export_formal_verifier_replay_repair_packets
 from .formal_source_graph import audit_formal_source_graph
 from .formal_source_hybrid import FormalSourceHybridRetriever
@@ -715,6 +718,19 @@ async def run_research_system_audit(
         "formal_verifier_replay_repair_patch_rerun_calibration",
         stage_start,
     )
+    formal_verifier_replay_repair_patch_rerun_residual_obligation_manifest = (
+        export_formal_verifier_replay_repair_patch_rerun_residual_obligations(
+            out_dir / "formal_verifier_replay_repair_patch_rerun_calibration",
+            out_dir / "primitive_source_coverage",
+            out_dir / "proof_bank_actions",
+            out_dir / "formal_verifier_replay_repair_patch_rerun_residual_obligations",
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "formal_verifier_replay_repair_patch_rerun_residual_obligations",
+        stage_start,
+    )
 
     research_training_manifest = export_research_training_dataset(
         out_dir / "research_benchmark",
@@ -960,6 +976,11 @@ async def run_research_system_audit(
         "formal_verifier_replay_repair_patch_rerun_calibration": bool(
             formal_verifier_replay_repair_patch_rerun_calibration_manifest["all_ok"]
         ),
+        "formal_verifier_replay_repair_patch_rerun_residual_obligations": bool(
+            formal_verifier_replay_repair_patch_rerun_residual_obligation_manifest[
+                "all_ok"
+            ]
+        ),
         "research_training_export": bool(research_training_manifest["all_ok"]),
         "research_policy_baseline": bool(research_policy_manifest["all_ok"]),
         "next_iteration_queue": bool(next_iteration_manifest["all_ok"]),
@@ -1009,6 +1030,7 @@ async def run_research_system_audit(
         "formal_verifier_replay_repair_patch_rerun_queue",
         "formal_verifier_replay_repair_patch_rerun_attempts",
         "formal_verifier_replay_repair_patch_rerun_calibration",
+        "formal_verifier_replay_repair_patch_rerun_residual_obligations",
         "research_training_export",
         "research_policy_baseline",
         "next_iteration_queue",
@@ -2024,6 +2046,33 @@ async def run_research_system_audit(
             "formal_verifier_replay_repair_patch_rerun_calibration_ok": formal_verifier_replay_repair_patch_rerun_calibration_manifest[
                 "n_ok"
             ],
+            "formal_verifier_replay_repair_patch_rerun_residual_obligations": formal_verifier_replay_repair_patch_rerun_residual_obligation_manifest[
+                "n_residual_obligation_rows"
+            ],
+            "formal_verifier_replay_repair_patch_rerun_residual_obligations_routes": formal_verifier_replay_repair_patch_rerun_residual_obligation_manifest[
+                "n_routes_with_residual_obligations"
+            ],
+            "formal_verifier_replay_repair_patch_rerun_residual_obligations_unique_gaps": formal_verifier_replay_repair_patch_rerun_residual_obligation_manifest[
+                "n_unique_residual_gaps"
+            ],
+            "formal_verifier_replay_repair_patch_rerun_residual_obligations_exact_reuse": formal_verifier_replay_repair_patch_rerun_residual_obligation_manifest[
+                "n_exact_proof_bank_reuse"
+            ],
+            "formal_verifier_replay_repair_patch_rerun_residual_obligations_bridge_chain": formal_verifier_replay_repair_patch_rerun_residual_obligation_manifest[
+                "n_compose_existing_bridge_chain"
+            ],
+            "formal_verifier_replay_repair_patch_rerun_residual_obligations_minimal_wrapper": formal_verifier_replay_repair_patch_rerun_residual_obligation_manifest[
+                "n_add_minimal_wrapper"
+            ],
+            "formal_verifier_replay_repair_patch_rerun_residual_obligations_design_bridge": formal_verifier_replay_repair_patch_rerun_residual_obligation_manifest[
+                "n_design_bridge_lemma"
+            ],
+            "formal_verifier_replay_repair_patch_rerun_residual_obligations_source_discovery": formal_verifier_replay_repair_patch_rerun_residual_obligation_manifest[
+                "n_source_discovery_needed"
+            ],
+            "formal_verifier_replay_repair_patch_rerun_residual_obligations_ok": formal_verifier_replay_repair_patch_rerun_residual_obligation_manifest[
+                "n_ok"
+            ],
             "proof_bank_actions_high_priority": proof_bank_action_manifest["by_priority"].get("high", 0),
             "proof_bank_actions_medium_priority": proof_bank_action_manifest["by_priority"].get("medium", 0),
             "proof_bank_actions_low_priority": proof_bank_action_manifest["by_priority"].get("low", 0),
@@ -2823,6 +2872,21 @@ async def run_research_system_audit(
                 out_dir
                 / "formal_verifier_replay_repair_patch_rerun_calibration"
                 / "formal_verifier_replay_repair_patch_rerun_calibration.md"
+            ),
+            "formal_verifier_replay_repair_patch_rerun_residual_obligations": str(
+                out_dir
+                / "formal_verifier_replay_repair_patch_rerun_residual_obligations"
+                / "formal_verifier_replay_repair_patch_rerun_residual_obligations_manifest.json"
+            ),
+            "formal_verifier_replay_repair_patch_rerun_residual_obligations_jsonl": str(
+                out_dir
+                / "formal_verifier_replay_repair_patch_rerun_residual_obligations"
+                / "formal_verifier_replay_repair_patch_rerun_residual_obligations.jsonl"
+            ),
+            "formal_verifier_replay_repair_patch_rerun_residual_obligations_report": str(
+                out_dir
+                / "formal_verifier_replay_repair_patch_rerun_residual_obligations"
+                / "formal_verifier_replay_repair_patch_rerun_residual_obligations.md"
             ),
             "primitive_source_coverage": str(
                 out_dir / "primitive_source_coverage" / "primitive_source_coverage_manifest.json"

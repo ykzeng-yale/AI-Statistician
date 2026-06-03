@@ -382,6 +382,9 @@ Current release signal:
 - `formal-verifier-replay-repair-patch-rerun-calibration` separates compiling
   patch proposals from `full_route_kernel_verified` reruns before any
   proof-ledger promotion path can consume them
+- `formal-verifier-replay-repair-patch-rerun-residual-obligations` decomposes
+  unverified calibrated patch reruns into primitive-level proof/library work
+  items, joined with primitive-source coverage and proof-bank action metadata
 - `claim-ledger --repair-response-promotion-manifest` applies those ready rows
   as a question-scoped overlay to the matching formal gap; non-ready rows remain
   task/queue state and do not close ledger proof gaps

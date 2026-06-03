@@ -71,6 +71,9 @@ from .formal_verifier_replay_repair_patch_rerun_attempt import (
 from .formal_verifier_replay_repair_patch_rerun_calibration import (
     export_formal_verifier_replay_repair_patch_rerun_calibration,
 )
+from .formal_verifier_replay_repair_patch_rerun_residual_obligations import (
+    export_formal_verifier_replay_repair_patch_rerun_residual_obligations,
+)
 from .formal_verifier_replay_repair import export_formal_verifier_replay_repair_packets
 from .formal_source_graph import audit_formal_source_graph
 from .formal_source_index import (
@@ -1751,6 +1754,41 @@ def _formal_verifier_replay_repair_patch_rerun_calibration(args: argparse.Namesp
     print(
         f"markdown report written to "
         f"{(Path(args.out) / 'formal_verifier_replay_repair_patch_rerun_calibration.md').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formal_verifier_replay_repair_patch_rerun_residual_obligations(
+    args: argparse.Namespace,
+) -> int:
+    payload = export_formal_verifier_replay_repair_patch_rerun_residual_obligations(
+        Path(args.formal_verifier_replay_repair_patch_rerun_calibration_dir),
+        Path(args.primitive_source_coverage_dir),
+        Path(args.proof_bank_actions_dir),
+        Path(args.out),
+    )
+    print("\nAI Statistical Theory Lab Formal Verifier Patch Rerun Residual Obligations")
+    print("=" * 72)
+    print(
+        f"rows={payload['n_ok']}/{payload['n_residual_obligation_rows']} "
+        f"routes={payload['n_routes_with_residual_obligations']} "
+        f"unique_gaps={payload['n_unique_residual_gaps']} "
+        f"exact_reuse={payload['n_exact_proof_bank_reuse']} "
+        f"bridge_chain={payload['n_compose_existing_bridge_chain']} "
+        f"source_discovery={payload['n_source_discovery_needed']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nresidual obligation manifest written to "
+        f"{(Path(args.out) / 'formal_verifier_replay_repair_patch_rerun_residual_obligations_manifest.json').resolve()}"
+    )
+    print(
+        f"residual obligation jsonl written to "
+        f"{(Path(args.out) / 'formal_verifier_replay_repair_patch_rerun_residual_obligations.jsonl').resolve()}"
+    )
+    print(
+        f"markdown report written to "
+        f"{(Path(args.out) / 'formal_verifier_replay_repair_patch_rerun_residual_obligations.md').resolve()}"
     )
     return 0 if payload["all_ok"] else 1
 
@@ -3897,6 +3935,34 @@ def build_parser() -> argparse.ArgumentParser:
     )
     formal_verifier_replay_repair_patch_rerun_calibration.set_defaults(
         func=_formal_verifier_replay_repair_patch_rerun_calibration
+    )
+
+    formal_verifier_replay_repair_patch_rerun_residual_obligations = sub.add_parser(
+        "formal-verifier-replay-repair-patch-rerun-residual-obligations",
+        help="export residual proof/library obligations from unverified patch-rerun calibration rows",
+    )
+    formal_verifier_replay_repair_patch_rerun_residual_obligations.add_argument(
+        "--formal-verifier-replay-repair-patch-rerun-calibration-dir",
+        required=True,
+        help="directory containing formal_verifier_replay_repair_patch_rerun_calibration_manifest.json",
+    )
+    formal_verifier_replay_repair_patch_rerun_residual_obligations.add_argument(
+        "--primitive-source-coverage-dir",
+        required=True,
+        help="directory containing primitive_source_coverage_manifest.json",
+    )
+    formal_verifier_replay_repair_patch_rerun_residual_obligations.add_argument(
+        "--proof-bank-actions-dir",
+        required=True,
+        help="directory containing proof_bank_action_manifest.json",
+    )
+    formal_verifier_replay_repair_patch_rerun_residual_obligations.add_argument(
+        "--out",
+        default="runs/formal_verifier_replay_repair_patch_rerun_residual_obligations",
+        help="formal-verifier repair patch rerun residual-obligation output directory",
+    )
+    formal_verifier_replay_repair_patch_rerun_residual_obligations.set_defaults(
+        func=_formal_verifier_replay_repair_patch_rerun_residual_obligations
     )
 
     rag_collaboration_export = sub.add_parser(

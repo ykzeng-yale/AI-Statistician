@@ -254,6 +254,20 @@ python3 -m ai_statistician.cli formal-verifier-replay-repair-patch-rerun-calibra
   --out runs/current_formal_verifier_replay_repair_patch_rerun_calibration
 ```
 
+`formal_verifier_replay_repair_patch_rerun_residual_obligations` translates
+unverified patch-rerun calibration rows into primitive-level prover/library work
+items. It joins residual gaps to primitive-source coverage and proof-bank action
+metadata, distinguishing exact proof-bank reuse from bridge-chain composition,
+wrappers, new bridge lemmas, and source-discovery gaps.
+
+```bash
+python3 -m ai_statistician.cli formal-verifier-replay-repair-patch-rerun-residual-obligations \
+  --formal-verifier-replay-repair-patch-rerun-calibration-dir runs/current_formal_verifier_replay_repair_patch_rerun_calibration \
+  --primitive-source-coverage-dir runs/current/primitive_source_coverage \
+  --proof-bank-actions-dir runs/current/proof_bank_actions \
+  --out runs/current_formal_verifier_replay_repair_patch_rerun_residual_obligations
+```
+
 The claim ledger can now consume that promotion manifest as an overlay. Only
 rows already marked `READY_FOR_PROOF_LEDGER_PROMOTION` with kernel evidence can
 upgrade the matching formal-gap row; awaiting responses and patch proposals
@@ -299,7 +313,9 @@ python3 -m ai_statistician.cli claim-ledger \
    Patch proposals that still need replay calibration are now carried forward by
    `formal-verifier-replay-repair-patch-rerun-queue` as typed work items, checked
    by `formal-verifier-replay-repair-patch-rerun-attempts`, and calibrated by
-   `formal-verifier-replay-repair-patch-rerun-calibration`.
+   `formal-verifier-replay-repair-patch-rerun-calibration`. Remaining route
+   blockers are decomposed by
+   `formal-verifier-replay-repair-patch-rerun-residual-obligations`.
 2. Add query-intent expansion for missing primitives:
    primitive name, theorem goal, problem class, local gap reason, and candidate
    proof-bank bridge names should all become retriever queries.

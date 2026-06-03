@@ -162,6 +162,14 @@ def export_rag_collaboration_manifest(
     formal_verifier_replay_repair_patch_rerun_calibration_payload = _read_json(
         formal_verifier_replay_repair_patch_rerun_calibration_path
     )
+    formal_verifier_replay_repair_patch_rerun_residual_obligation_path = _artifact_path(
+        artifacts,
+        "formal_verifier_replay_repair_patch_rerun_residual_obligations",
+        run_dir,
+    )
+    formal_verifier_replay_repair_patch_rerun_residual_obligation_payload = _read_json(
+        formal_verifier_replay_repair_patch_rerun_residual_obligation_path
+    )
     guidance_payload = _read_json(_artifact_path(artifacts, "evaluation_benchmark_guidance", run_dir))
 
     target_rows = _handoff_targets(
@@ -789,6 +797,37 @@ def export_rag_collaboration_manifest(
                 formal_verifier_replay_repair_patch_rerun_calibration_payload,
                 max_rows=min(max_targets, 10),
             ),
+            "formal_verifier_replay_repair_patch_rerun_residual_obligations": counts.get(
+                "formal_verifier_replay_repair_patch_rerun_residual_obligations",
+                formal_verifier_replay_repair_patch_rerun_residual_obligation_payload.get(
+                    "n_residual_obligation_rows"
+                ),
+            ),
+            "formal_verifier_replay_repair_patch_rerun_residual_obligations_exact_reuse": counts.get(
+                "formal_verifier_replay_repair_patch_rerun_residual_obligations_exact_reuse",
+                formal_verifier_replay_repair_patch_rerun_residual_obligation_payload.get(
+                    "n_exact_proof_bank_reuse"
+                ),
+            ),
+            "formal_verifier_replay_repair_patch_rerun_residual_obligations_bridge_chain": counts.get(
+                "formal_verifier_replay_repair_patch_rerun_residual_obligations_bridge_chain",
+                formal_verifier_replay_repair_patch_rerun_residual_obligation_payload.get(
+                    "n_compose_existing_bridge_chain"
+                ),
+            ),
+            "formal_verifier_replay_repair_patch_rerun_residual_obligations_source_discovery": counts.get(
+                "formal_verifier_replay_repair_patch_rerun_residual_obligations_source_discovery",
+                formal_verifier_replay_repair_patch_rerun_residual_obligation_payload.get(
+                    "n_source_discovery_needed"
+                ),
+            ),
+            "formal_verifier_replay_repair_patch_rerun_residual_obligations_manifest": str(
+                formal_verifier_replay_repair_patch_rerun_residual_obligation_path
+            ),
+            "formal_verifier_replay_repair_patch_rerun_residual_obligations_preview": _formal_verifier_replay_repair_patch_rerun_residual_obligation_preview(
+                formal_verifier_replay_repair_patch_rerun_residual_obligation_payload,
+                max_rows=min(max_targets, 10),
+            ),
             "claim_ledger_repair_response_promotion_overlay_enabled": counts.get(
                 "claim_ledger_repair_response_promotion_overlay_enabled"
             ),
@@ -848,6 +887,7 @@ def export_rag_collaboration_manifest(
             "FormalVerifier repair patch rerun queue rows are replay-calibration work items, not theorem proof evidence.",
             "FormalVerifier repair patch rerun attempts are patched-artifact source checks, not theorem proof evidence.",
             "FormalVerifier repair patch rerun calibration rows are proof evidence only at full_route_kernel_verified.",
+            "FormalVerifier repair patch rerun residual obligations are proof/library work contracts, not theorem proof evidence.",
             "Claim-ledger repair-response promotion overlays close formal gaps only for matching ready kernel-verified promotion rows.",
             "FORMAL_GAP and theorem-hole queues remain open until a non-placeholder Lean proof is verified.",
         ],
@@ -1399,6 +1439,49 @@ def _formal_verifier_replay_repair_patch_rerun_calibration_preview(
     return rows
 
 
+def _formal_verifier_replay_repair_patch_rerun_residual_obligation_preview(
+    payload: dict[str, Any],
+    *,
+    max_rows: int,
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    residual_rows = payload.get("rows", [])
+    if not isinstance(residual_rows, list):
+        return rows
+    for row in residual_rows:
+        if not isinstance(row, dict):
+            continue
+        rows.append(
+            {
+                "residual_obligation_id": row.get("residual_obligation_id"),
+                "rerun_calibration_id": row.get("rerun_calibration_id"),
+                "replay_id": row.get("replay_id"),
+                "display_name": row.get("display_name"),
+                "residual_gap": row.get("residual_gap"),
+                "residual_kind": row.get("residual_kind"),
+                "source_support_classification": row.get(
+                    "source_support_classification",
+                    "",
+                ),
+                "action_class": row.get("action_class", ""),
+                "exact_proof_bank_obligation": row.get("exact_proof_bank_obligation", ""),
+                "proof_bank_bridge_obligations": row.get(
+                    "proof_bank_bridge_obligations",
+                    [],
+                )[:5],
+                "local_candidate_declarations": row.get(
+                    "local_candidate_declarations",
+                    [],
+                )[:3],
+                "next_action": row.get("next_action", ""),
+                "proof_evidence_boundary": row.get("proof_evidence_boundary", ""),
+            }
+        )
+        if len(rows) >= max_rows:
+            break
+    return rows
+
+
 def _theorem_composition_packet_preview(
     payload: dict[str, Any],
     *,
@@ -1530,6 +1613,10 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Formal verifier repair patch rerun calibration: `{queue.get('formal_verifier_replay_repair_patch_rerun_calibration_rows')}` rows "
         f"(`{queue.get('formal_verifier_replay_repair_patch_rerun_calibration_full_route_kernel_verified')}` full-route kernel, "
         f"`{queue.get('formal_verifier_replay_repair_patch_rerun_calibration_compiled_patch_proposal_not_proof')}` compiled patch proposals)",
+        f"- Formal verifier repair patch rerun residual obligations: `{queue.get('formal_verifier_replay_repair_patch_rerun_residual_obligations')}` rows "
+        f"(`{queue.get('formal_verifier_replay_repair_patch_rerun_residual_obligations_exact_reuse')}` exact reuse, "
+        f"`{queue.get('formal_verifier_replay_repair_patch_rerun_residual_obligations_bridge_chain')}` bridge-chain, "
+        f"`{queue.get('formal_verifier_replay_repair_patch_rerun_residual_obligations_source_discovery')}` source discovery)",
         "- Claim-ledger repair-response promotion overlay: "
         f"`{queue.get('claim_ledger_repair_response_promotion_upgrades')}` upgrades from "
         f"`{queue.get('claim_ledger_repair_response_promotion_overlay_rows')}` ready rows",

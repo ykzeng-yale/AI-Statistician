@@ -70,6 +70,9 @@ from ai_statistician.formal_verifier_replay_repair_patch_rerun_attempt import (
 from ai_statistician.formal_verifier_replay_repair_patch_rerun_calibration import (
     export_formal_verifier_replay_repair_patch_rerun_calibration,
 )
+from ai_statistician.formal_verifier_replay_repair_patch_rerun_residual_obligations import (
+    export_formal_verifier_replay_repair_patch_rerun_residual_obligations,
+)
 from ai_statistician.formal_verifier_replay_repair import export_formal_verifier_replay_repair_packets
 from ai_statistician.formalization_delta_plan import build_formalization_delta_plan
 from ai_statistician.formalization_target_audit import audit_formalization_targets
@@ -7753,6 +7756,70 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                 "runs/test_formal_verifier_replay_repair_patch_rerun_calibration/formal_verifier_replay_repair_patch_rerun_calibration_manifest.json"
             ).exists()
         )
+        residual_gap = calibration_row["residual_formal_gaps"][0]
+        coverage_dir = Path("runs/test_formal_verifier_replay_repair_patch_residual_coverage")
+        action_dir = Path("runs/test_formal_verifier_replay_repair_patch_residual_actions")
+        coverage_dir.mkdir(parents=True, exist_ok=True)
+        action_dir.mkdir(parents=True, exist_ok=True)
+        (coverage_dir / "primitive_source_coverage_manifest.json").write_text(
+            json.dumps(
+                {
+                    "rows": [
+                        {
+                            "primitive": residual_gap,
+                            "classification": "exact_proof_bank_obligation_available",
+                            "action_class": "reuse_exact_proof_bank_obligation",
+                            "exact_proof_bank_obligation": residual_gap,
+                            "proof_bank_bridge_obligations": [residual_gap],
+                            "local_candidate_declarations": ["Demo.residual_gap_candidate"],
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        (action_dir / "proof_bank_action_manifest.json").write_text(
+            json.dumps(
+                {
+                    "actions": [
+                        {
+                            "action_id": "proof_bank_action:test_residual",
+                            "primitive": residual_gap,
+                            "action_class": "reuse_exact_proof_bank_obligation",
+                            "action_type": "reuse_verified_proof_bank_obligation",
+                            "priority": "low",
+                            "expected_premises": [residual_gap],
+                            "required_gate": "compose verified obligation into route",
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        residual_obligations = (
+            export_formal_verifier_replay_repair_patch_rerun_residual_obligations(
+                Path("runs/test_formal_verifier_replay_repair_patch_rerun_calibration"),
+                coverage_dir,
+                action_dir,
+                Path("runs/test_formal_verifier_replay_repair_patch_rerun_residual_obligations"),
+            )
+        )
+        self.assertTrue(residual_obligations["all_ok"])
+        self.assertEqual(
+            residual_obligations["n_residual_obligation_rows"],
+            len(calibration_row["residual_formal_gaps"]),
+        )
+        self.assertEqual(residual_obligations["n_routes_with_residual_obligations"], 1)
+        self.assertEqual(residual_obligations["n_exact_proof_bank_reuse"], 1)
+        residual_row = residual_obligations["rows"][0]
+        self.assertEqual(residual_row["residual_kind"], "residual_formal_gap")
+        self.assertIn(residual_row["action_class"], {"reuse_exact_proof_bank_obligation", "source_discovery_needed"})
+        self.assertIn("not proof evidence", residual_row["proof_evidence_boundary"])
+        self.assertTrue(
+            Path(
+                "runs/test_formal_verifier_replay_repair_patch_rerun_residual_obligations/formal_verifier_replay_repair_patch_rerun_residual_obligations_manifest.json"
+            ).exists()
+        )
         self.assertTrue(
             Path(
                 "runs/test_formal_verifier_replay_repair_patch_autoworker/formal_verifier_replay_repair_patch_autoworker_manifest.json"
@@ -8062,6 +8129,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "formal_verifier_replay_repair_patch_rerun_queue",
             "formal_verifier_replay_repair_patch_rerun_attempts",
             "formal_verifier_replay_repair_patch_rerun_calibration",
+            "formal_verifier_replay_repair_patch_rerun_residual_obligations",
             "evaluation_benchmark_guidance",
         ):
             (root / subdir).mkdir(parents=True, exist_ok=True)
@@ -8828,6 +8896,52 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             ),
             encoding="utf-8",
         )
+        (
+            root
+            / "formal_verifier_replay_repair_patch_rerun_residual_obligations"
+            / "formal_verifier_replay_repair_patch_rerun_residual_obligations_manifest.json"
+        ).write_text(
+            json.dumps(
+                {
+                    "n_residual_obligation_rows": 1,
+                    "n_routes_with_residual_obligations": 1,
+                    "n_unique_residual_gaps": 1,
+                    "n_exact_proof_bank_reuse": 1,
+                    "n_compose_existing_bridge_chain": 0,
+                    "n_source_discovery_needed": 0,
+                    "rows": [
+                        {
+                            "residual_obligation_id": (
+                                "formal_verifier_replay_repair_patch_rerun_residual_obligation:test"
+                            ),
+                            "rerun_calibration_id": (
+                                "formal_verifier_replay_repair_patch_rerun_calibration:test"
+                            ),
+                            "replay_id": "formal_verifier_replay:test",
+                            "display_name": (
+                                "causal_ate_aipw:aipw_double_robustness:skeleton"
+                            ),
+                            "residual_gap": "aipw_score_definition",
+                            "residual_kind": "residual_formal_gap",
+                            "source_support_classification": (
+                                "exact_proof_bank_obligation_available"
+                            ),
+                            "action_class": "reuse_exact_proof_bank_obligation",
+                            "exact_proof_bank_obligation": "aipw_score_definition",
+                            "proof_bank_bridge_obligations": ["aipw_score_definition"],
+                            "local_candidate_declarations": ["Demo.aipw_score_definition"],
+                            "next_action": (
+                                "compose verified proof-bank obligation into the patched route"
+                            ),
+                            "proof_evidence_boundary": (
+                                "This residual obligation is a proof/library work contract, not proof evidence."
+                            ),
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
         (root / "evaluation_benchmark_guidance" / "evaluation_benchmark_guidance_manifest.json").write_text(
             json.dumps({"top_actions": [{"rank": 1, "action": "improve RAG"}]}),
             encoding="utf-8",
@@ -8961,6 +9075,10 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                         "formal_verifier_replay_repair_patch_rerun_calibration_rows": 1,
                         "formal_verifier_replay_repair_patch_rerun_calibration_full_route_kernel_verified": 0,
                         "formal_verifier_replay_repair_patch_rerun_calibration_compiled_patch_proposal_not_proof": 1,
+                        "formal_verifier_replay_repair_patch_rerun_residual_obligations": 1,
+                        "formal_verifier_replay_repair_patch_rerun_residual_obligations_exact_reuse": 1,
+                        "formal_verifier_replay_repair_patch_rerun_residual_obligations_bridge_chain": 0,
+                        "formal_verifier_replay_repair_patch_rerun_residual_obligations_source_discovery": 0,
                         "claim_ledger_repair_response_promotion_overlay_enabled": True,
                         "claim_ledger_repair_response_promotion_overlay_rows": 0,
                         "claim_ledger_repair_response_promotion_upgrades": 0,
@@ -9086,6 +9204,11 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                             root
                             / "formal_verifier_replay_repair_patch_rerun_calibration"
                             / "formal_verifier_replay_repair_patch_rerun_calibration_manifest.json"
+                        ),
+                        "formal_verifier_replay_repair_patch_rerun_residual_obligations": str(
+                            root
+                            / "formal_verifier_replay_repair_patch_rerun_residual_obligations"
+                            / "formal_verifier_replay_repair_patch_rerun_residual_obligations_manifest.json"
                         ),
                         "evaluation_benchmark_guidance": str(
                             root
@@ -9505,6 +9628,42 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             ][0]["patch_rerun_calibration_status"],
             "patch_artifact_compiles_patch_proposal_not_proof",
         )
+        self.assertEqual(
+            payload["formal_capacity_queue"][
+                "formal_verifier_replay_repair_patch_rerun_residual_obligations"
+            ],
+            1,
+        )
+        self.assertEqual(
+            payload["formal_capacity_queue"][
+                "formal_verifier_replay_repair_patch_rerun_residual_obligations_exact_reuse"
+            ],
+            1,
+        )
+        self.assertEqual(
+            payload["formal_capacity_queue"][
+                "formal_verifier_replay_repair_patch_rerun_residual_obligations_bridge_chain"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["formal_capacity_queue"][
+                "formal_verifier_replay_repair_patch_rerun_residual_obligations_source_discovery"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["formal_capacity_queue"][
+                "formal_verifier_replay_repair_patch_rerun_residual_obligations_preview"
+            ][0]["action_class"],
+            "reuse_exact_proof_bank_obligation",
+        )
+        self.assertIn(
+            "not proof evidence",
+            payload["formal_capacity_queue"][
+                "formal_verifier_replay_repair_patch_rerun_residual_obligations_preview"
+            ][0]["proof_evidence_boundary"],
+        )
         self.assertTrue(
             payload["formal_capacity_queue"]["claim_ledger_repair_response_promotion_overlay_enabled"]
         )
@@ -9531,6 +9690,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertIn("rerun queue rows", " ".join(payload["honesty_boundaries"]))
         self.assertIn("rerun attempts are patched-artifact", " ".join(payload["honesty_boundaries"]))
         self.assertIn("rerun calibration rows are proof evidence only", " ".join(payload["honesty_boundaries"]))
+        self.assertIn("residual obligations are proof/library work contracts", " ".join(payload["honesty_boundaries"]))
         self.assertIn("promotion overlays close formal gaps", " ".join(payload["honesty_boundaries"]))
         self.assertTrue((out / "rag_collaboration_manifest.json").exists())
         self.assertTrue((out / "rag_collaboration.md").exists())
@@ -11441,6 +11601,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["gates"]["formal_verifier_replay_repair_patch_rerun_queue"])
         self.assertTrue(payload["gates"]["formal_verifier_replay_repair_patch_rerun_attempts"])
         self.assertTrue(payload["gates"]["formal_verifier_replay_repair_patch_rerun_calibration"])
+        self.assertTrue(payload["gates"]["formal_verifier_replay_repair_patch_rerun_residual_obligations"])
         self.assertTrue(payload["gates"]["research_training_export"])
         self.assertTrue(payload["gates"]["research_policy_baseline"])
         self.assertTrue(payload["gates"]["next_iteration_queue"])
@@ -11737,6 +11898,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "formal_verifier_replay_repair_patch_rerun_queue",
             "formal_verifier_replay_repair_patch_rerun_attempts",
             "formal_verifier_replay_repair_patch_rerun_calibration",
+            "formal_verifier_replay_repair_patch_rerun_residual_obligations",
             "research_training_export",
             "research_policy_baseline",
             "next_iteration_queue",
@@ -12208,6 +12370,56 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             0,
         )
         self.assertEqual(payload["counts"]["formal_verifier_replay_repair_patch_rerun_calibration_ok"], 0)
+        self.assertEqual(
+            payload["counts"]["formal_verifier_replay_repair_patch_rerun_residual_obligations"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_replay_repair_patch_rerun_residual_obligations_routes"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_replay_repair_patch_rerun_residual_obligations_unique_gaps"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_replay_repair_patch_rerun_residual_obligations_exact_reuse"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_replay_repair_patch_rerun_residual_obligations_bridge_chain"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_replay_repair_patch_rerun_residual_obligations_minimal_wrapper"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_replay_repair_patch_rerun_residual_obligations_design_bridge"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_replay_repair_patch_rerun_residual_obligations_source_discovery"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formal_verifier_replay_repair_patch_rerun_residual_obligations_ok"],
+            0,
+        )
         self.assertTrue(Path(payload["artifacts"]["formalization_delta_plan"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formalization_delta_graph"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_verifier_queue"]).exists())
@@ -12367,6 +12579,27 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             Path(
                 payload["artifacts"][
                     "formal_verifier_replay_repair_patch_rerun_calibration_report"
+                ]
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formal_verifier_replay_repair_patch_rerun_residual_obligations"
+                ]
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formal_verifier_replay_repair_patch_rerun_residual_obligations_jsonl"
+                ]
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formal_verifier_replay_repair_patch_rerun_residual_obligations_report"
                 ]
             ).exists()
         )
