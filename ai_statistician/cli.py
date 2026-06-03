@@ -70,6 +70,7 @@ from .formal_source_retrieval_benchmark import (
 )
 from .intake_audit import audit_question_intake
 from .lean_rag_package_audit import audit_lean_rag_package
+from .lean_rag_dependency_health import audit_lean_rag_dependency_health
 from .proof_audit import audit_proof_bank
 from .proof_bank_action_export import export_proof_bank_actions
 from .proof_bank import all_obligations, obligations_by_tags
@@ -839,6 +840,27 @@ def _lean_rag_package_audit(args: argparse.Namespace) -> int:
         f"{(Path(args.out) / 'lean_rag_package_audit_manifest.json').resolve()}"
     )
     print(f"markdown report written to {(Path(args.out) / 'lean_rag_package_audit.md').resolve()}")
+    return 0 if payload["all_ok"] else 1
+
+
+def _lean_rag_dependency_health(args: argparse.Namespace) -> int:
+    payload = audit_lean_rag_dependency_health(
+        Path(args.out),
+        requested_db_path=Path(args.db) if args.db else None,
+        active_db_path=Path(args.active_db) if args.active_db else Path(args.db) if args.db else None,
+        auto_discovered=args.auto_discovered,
+    )
+    print("\nAI Statistical Theory Lab Lean RAG Dependency Health")
+    print("=" * 72)
+    print(
+        f"status={payload['health_status']} active={payload['active_enabled']} "
+        f"fallback={payload['fallback_used']} reason={payload['fallback_reason']}"
+    )
+    print(
+        f"\nlean RAG dependency health manifest written to "
+        f"{(Path(args.out) / 'lean_rag_dependency_health_manifest.json').resolve()}"
+    )
+    print(f"markdown report written to {(Path(args.out) / 'lean_rag_dependency_health.md').resolve()}")
     return 0 if payload["all_ok"] else 1
 
 
@@ -2975,6 +2997,32 @@ def build_parser() -> argparse.ArgumentParser:
         help="lean RAG package audit output directory",
     )
     lean_rag_package_audit.set_defaults(func=_lean_rag_package_audit)
+
+    lean_rag_dependency_health = sub.add_parser(
+        "lean-rag-dependency-health",
+        help="validate an optional EmpericalProcessLEAN lean_rag dependency graph SQLite DB",
+    )
+    lean_rag_dependency_health.add_argument(
+        "--db",
+        default="",
+        help="requested lean_rag dependency graph SQLite DB path",
+    )
+    lean_rag_dependency_health.add_argument(
+        "--active-db",
+        default="",
+        help="active DB path actually attached by the search backend, if any",
+    )
+    lean_rag_dependency_health.add_argument(
+        "--auto-discovered",
+        action="store_true",
+        help="mark the active DB as auto-discovered rather than explicitly requested",
+    )
+    lean_rag_dependency_health.add_argument(
+        "--out",
+        default="runs/lean_rag_dependency_health",
+        help="lean RAG dependency health output directory",
+    )
+    lean_rag_dependency_health.set_defaults(func=_lean_rag_dependency_health)
 
     formal_source_retrieval_benchmark = sub.add_parser(
         "formal-source-retrieval-benchmark",

@@ -75,6 +75,7 @@ from ai_statistician.formal_source_retrieval_benchmark import (
 )
 from ai_statistician.formal_source_retrieval_ablation import run_formal_source_retrieval_ablation_benchmark
 from ai_statistician.lean_rag_dependency import LeanRagDependencyRetriever
+from ai_statistician.lean_rag_dependency_health import audit_lean_rag_dependency_health
 from ai_statistician.lean_rag_package_audit import audit_lean_rag_package
 from ai_statistician.autoform_harness import audit_autoform_harness
 from ai_statistician.proof_bank import all_obligations, get_obligation
@@ -528,10 +529,20 @@ class ProofBankTests(unittest.TestCase):
             )
         lean_rag = LeanRagDependencyRetriever(lean_rag_db)
         self.assertTrue(lean_rag.is_healthy())
+        health = lean_rag.health_report()
+        self.assertTrue(health["all_ok"])
+        self.assertTrue(health["integrity_check_ok"])
+        self.assertTrue(health["fts_probe_ok"])
         lean_rag_hits = lean_rag.search("variance independent sum", k=3)
         self.assertTrue(lean_rag_hits)
         self.assertEqual(lean_rag_hits[0].declaration.source_id, "lean_rag_dependency_graph")
         self.assertIn("lean_rag_dependency_graph", lean_rag_hits[0].matched_terms)
+        with patch.object(
+            lean_rag,
+            "_search_fts",
+            side_effect=sqlite3.DatabaseError("database disk image is malformed"),
+        ):
+            self.assertTrue(lean_rag.search("variance independent sum", k=3))
         context = lean_rag.dependency_context("Demo.variance_sum_indep")
         self.assertIsNotNone(context)
         assert context is not None
@@ -557,6 +568,33 @@ class ProofBankTests(unittest.TestCase):
             Path(getattr(backend_with_deps, "lean_rag_dependency_graph_path")).name,
             "stat_inference.sqlite",
         )
+        health_payload = audit_lean_rag_dependency_health(
+            Path("runs/test_lean_rag_dependency_health"),
+            requested_db_path=lean_rag_db,
+            active_db_path=Path(getattr(backend_with_deps, "lean_rag_dependency_graph_path")),
+        )
+        self.assertEqual(health_payload["health_status"], "active_healthy")
+        self.assertTrue(health_payload["active_enabled"])
+        self.assertFalse(health_payload["fallback_used"])
+        self.assertTrue(
+            Path("runs/test_lean_rag_dependency_health/lean_rag_dependency_health_manifest.json").exists()
+        )
+        self.assertTrue(Path("runs/test_lean_rag_dependency_health/lean_rag_dependency_health.md").exists())
+        malformed_db = Path("runs/test_lean_rag_dependency/malformed.sqlite")
+        malformed_db.write_text("not a sqlite database", encoding="utf-8")
+        backend_with_bad_deps = build_formal_source_search_backend(
+            db_path=Path("runs/test_formal_source_index/with_bad_lean_rag.sqlite"),
+            roots=(root,),
+            lean_rag_db_path=malformed_db,
+        )
+        self.assertFalse(getattr(backend_with_bad_deps, "lean_rag_dependency_graph_enabled"))
+        bad_health_payload = audit_lean_rag_dependency_health(
+            Path("runs/test_bad_lean_rag_dependency_health"),
+            requested_db_path=malformed_db,
+        )
+        self.assertEqual(bad_health_payload["health_status"], "fallback_requested_db_unhealthy")
+        self.assertTrue(bad_health_payload["fallback_used"])
+        self.assertIn("file is not a database", bad_health_payload["fallback_reason"])
         with patch(
             "ai_statistician.formal_source_index.DEFAULT_LEAN_RAG_DB_CANDIDATES",
             (lean_rag_db,),
@@ -7553,6 +7591,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "formal_source_retrieval_external_benchmark",
             "formal_source_retrieval_all_benchmark",
             "formal_source_retrieval_ablation",
+            "lean_rag_dependency_health",
             "lean_rag_package_audit",
             "proof_search_retrieval_ablation",
             "proof_search_retrieval_no_registered_ablation",
@@ -7596,6 +7635,18 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                     "n_new_hits": 1,
                     "n_lost_hits": 0,
                     "n_dependency_sensitive_new_hits": 1,
+                }
+            ),
+            encoding="utf-8",
+        )
+        (root / "lean_rag_dependency_health" / "lean_rag_dependency_health_manifest.json").write_text(
+            json.dumps(
+                {
+                    "health_status": "active_healthy",
+                    "active_enabled": True,
+                    "fallback_used": False,
+                    "fallback_reason": "",
+                    "all_ok": True,
                 }
             ),
             encoding="utf-8",
@@ -8088,6 +8139,11 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                         "lean_rag_dependency_graph_enabled": True,
                         "lean_rag_dependency_graph_path": "/tmp/stat_inference.sqlite",
                         "lean_rag_dependency_graph_auto_discovered": False,
+                        "lean_rag_dependency_health_status": "active_healthy",
+                        "lean_rag_dependency_health_ok": True,
+                        "lean_rag_dependency_active_enabled": True,
+                        "lean_rag_dependency_fallback_used": False,
+                        "lean_rag_dependency_fallback_reason": "",
                         "lean_rag_package_available": True,
                         "lean_rag_package_contract_ok": True,
                         "lean_rag_package_root": "/tmp/lean_rag",
@@ -8211,6 +8267,11 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                             / "proof_search_retrieval_no_registered_ablation"
                             / "proof_search_retrieval_ablation_manifest.json"
                         ),
+                        "lean_rag_dependency_health": str(
+                            root
+                            / "lean_rag_dependency_health"
+                            / "lean_rag_dependency_health_manifest.json"
+                        ),
                         "primitive_source_coverage": str(
                             root / "primitive_source_coverage" / "primitive_source_coverage_manifest.json"
                         ),
@@ -8277,6 +8338,11 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertEqual(payload["proof_evidence"]["proofs_kernel_verified"], 109)
         self.assertEqual(payload["proof_evidence"]["proof_bank_fingerprint"], "a" * 64)
         self.assertTrue(payload["rag_provider_evidence"]["lean_rag_dependency_graph_enabled"])
+        self.assertEqual(
+            payload["rag_provider_evidence"]["lean_rag_dependency_health_status"],
+            "active_healthy",
+        )
+        self.assertFalse(payload["rag_provider_evidence"]["lean_rag_dependency_fallback_used"])
         self.assertTrue(payload["rag_provider_evidence"]["lean_rag_package_contract_ok"])
         self.assertEqual(
             payload["rag_provider_evidence"]["lean_rag_package_seed_lanes"],
@@ -10386,6 +10452,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["gates"]["formal_source_graph"])
         self.assertTrue(payload["gates"]["formal_source_retrieval_benchmark"])
         self.assertTrue(payload["gates"]["formal_source_retrieval_ablation"])
+        self.assertTrue(payload["gates"]["lean_rag_dependency_health"])
         self.assertTrue(payload["gates"]["fresh_holdout_frontier_audit"])
         self.assertTrue(payload["gates"]["research_algorithm_audit"])
         self.assertTrue(payload["gates"]["algorithm_simulation_stress_audit"])
@@ -10676,6 +10743,12 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         )
         self.assertIn("lean_rag_dependency_graph_auto_discovered", payload["counts"])
         self.assertTrue(payload["counts"]["lean_rag_dependency_graph_enabled"])
+        self.assertEqual(payload["counts"]["lean_rag_dependency_health_status"], "active_healthy")
+        self.assertTrue(payload["counts"]["lean_rag_dependency_health_ok"])
+        self.assertTrue(payload["counts"]["lean_rag_dependency_active_enabled"])
+        self.assertFalse(payload["counts"]["lean_rag_dependency_fallback_used"])
+        self.assertTrue(payload["counts"]["lean_rag_dependency_requested_integrity_ok"])
+        self.assertTrue(payload["counts"]["lean_rag_dependency_requested_fts_probe_ok"])
         self.assertIn("timings", payload)
         self.assertGreater(payload["timings"]["total_elapsed_ms"], 0)
         self.assertTrue(payload["timings"]["stages"])
@@ -10690,6 +10763,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "autoform_target_export",
             "proof_bank_expansion_export",
             "proof_bank_action_export",
+            "lean_rag_dependency_health",
             "primitive_source_coverage_audit",
             "formal_verifier_queue",
             "formal_verifier_replay",
@@ -11190,6 +11264,8 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(Path(payload["artifacts"]["formal_source_retrieval_all_benchmark_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_source_retrieval_ablation"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_source_retrieval_ablation_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["lean_rag_dependency_health"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["lean_rag_dependency_health_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["fresh_holdout_frontier_audit"]).exists())
         self.assertTrue(Path(payload["artifacts"]["fresh_holdout_frontier_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["research_algorithm_audit"]).exists())

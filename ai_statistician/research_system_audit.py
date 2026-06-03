@@ -60,6 +60,7 @@ from .formal_source_retrieval_benchmark import (
     run_formal_source_retrieval_benchmark,
 )
 from .lean_rag_package_audit import audit_lean_rag_package
+from .lean_rag_dependency_health import audit_lean_rag_dependency_health
 from .autoform_harness import audit_autoform_harness
 from .autoform_target_export import export_autoform_targets
 from .frontier_smoke_benchmark import FrontierSmokeConfig, run_frontier_smoke_benchmark
@@ -199,6 +200,20 @@ async def run_research_system_audit(
         "graph_manifest": str(out_dir / "formal_source_graph" / "formal_source_graph_manifest.json"),
     }
     stage_start = _record_stage(stage_timings, "formal_source_graph", stage_start)
+
+    lean_rag_dependency_health_manifest = audit_lean_rag_dependency_health(
+        out_dir / "lean_rag_dependency_health",
+        requested_db_path=Path(config.lean_rag_db) if config.lean_rag_db else None,
+        active_db_path=(
+            Path(str(getattr(formal_source_retriever, "lean_rag_dependency_graph_path", "")))
+            if getattr(formal_source_retriever, "lean_rag_dependency_graph_path", "")
+            else None
+        ),
+        auto_discovered=bool(
+            getattr(formal_source_retriever, "lean_rag_dependency_graph_auto_discovered", False)
+        ),
+    )
+    stage_start = _record_stage(stage_timings, "lean_rag_dependency_health", stage_start)
 
     lean_rag_package_manifest = audit_lean_rag_package(
         out_dir / "lean_rag_package_audit",
@@ -747,6 +762,7 @@ async def run_research_system_audit(
         "formal_source_graph": bool(formal_source_graph_manifest["all_queries_ok"]),
         "formal_source_retrieval_benchmark": bool(formal_source_retrieval_benchmark_manifest["all_ok"]),
         "formal_source_retrieval_ablation": bool(formal_source_retrieval_ablation_manifest["all_ok"]),
+        "lean_rag_dependency_health": bool(lean_rag_dependency_health_manifest["all_ok"]),
         "lean_rag_package_contract": bool(lean_rag_package_manifest["all_ok"]),
         "fresh_holdout_frontier_audit": bool(fresh_holdout_manifest["all_ok"]),
         "research_algorithm_audit": bool(algorithm_manifest["all_ok"]),
@@ -1084,6 +1100,25 @@ async def run_research_system_audit(
                 "lean_rag_dependency_graph_auto_discovered",
                 False,
             ),
+            "lean_rag_dependency_health_status": lean_rag_dependency_health_manifest[
+                "health_status"
+            ],
+            "lean_rag_dependency_health_ok": lean_rag_dependency_health_manifest["all_ok"],
+            "lean_rag_dependency_active_enabled": lean_rag_dependency_health_manifest[
+                "active_enabled"
+            ],
+            "lean_rag_dependency_fallback_used": lean_rag_dependency_health_manifest[
+                "fallback_used"
+            ],
+            "lean_rag_dependency_fallback_reason": lean_rag_dependency_health_manifest[
+                "fallback_reason"
+            ],
+            "lean_rag_dependency_requested_integrity_ok": lean_rag_dependency_health_manifest[
+                "requested_health"
+            ].get("integrity_check_ok", False),
+            "lean_rag_dependency_requested_fts_probe_ok": lean_rag_dependency_health_manifest[
+                "requested_health"
+            ].get("fts_probe_ok", False),
             "lean_rag_package_available": lean_rag_package_manifest["available"],
             "lean_rag_package_contract_ok": lean_rag_package_manifest["contract_ok"],
             "lean_rag_package_root": lean_rag_package_manifest["package_root"],
@@ -2150,6 +2185,12 @@ async def run_research_system_audit(
                 out_dir
                 / "formal_source_retrieval_ablation"
                 / "formal_source_retrieval_ablation.md"
+            ),
+            "lean_rag_dependency_health": str(
+                out_dir / "lean_rag_dependency_health" / "lean_rag_dependency_health_manifest.json"
+            ),
+            "lean_rag_dependency_health_report": str(
+                out_dir / "lean_rag_dependency_health" / "lean_rag_dependency_health.md"
             ),
             "lean_rag_package_audit": str(
                 out_dir / "lean_rag_package_audit" / "lean_rag_package_audit_manifest.json"

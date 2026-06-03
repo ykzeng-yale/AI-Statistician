@@ -351,6 +351,9 @@ Current release signal:
 - `formal-verifier-replay-repair-prompt-packets` packages ready repair work
   orders into self-contained prover/RAG prompts with scaffold source, output
   contracts, forbidden proof claims, and replay-calibration gates
+- `lean-rag-dependency-health` records schema, integrity, and FTS-probe status
+  for the optional dependency-graph DB; malformed DBs are disabled with a
+  fallback reason instead of crashing the audit
 - release-speed `research-system-audit` runs can add a targeted local-kernel
   smoke overlay, for example:
 

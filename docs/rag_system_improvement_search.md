@@ -87,6 +87,19 @@ other proof chats see whether the strongest shared RAG package is present,
 fresh enough to trust as retrieval infrastructure, and still respecting the
 Lean proof boundary.
 
+The audit now also records `lean_rag_dependency_health`. Before the optional
+dependency-graph SQLite DB is attached to hybrid retrieval, the backend checks
+schema presence, SQLite integrity, and an actual FTS probe query. A malformed
+or stale requested DB is disabled with an explicit fallback reason instead of
+crashing retrieval benchmarks; the audit then continues on the local
+formal-source fallback.
+
+```bash
+python3 -m ai_statistician.cli lean-rag-dependency-health \
+  --db runs/current_status_lean_rag_dependency_graph/stat_inference.sqlite \
+  --out runs/current/lean_rag_dependency_health
+```
+
 The release-style `research-system-audit` also records a
 `proof_search_retrieval_no_registered_ablation` diagnostic. It disables
 registered proof-bank bodies so dependency-graph RAG lift is visible as

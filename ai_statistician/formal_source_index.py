@@ -516,8 +516,10 @@ def _optional_lean_rag_dependency_retriever(lean_rag_db_path: Path | str | None)
 
         for candidate in candidate_paths:
             retriever = LeanRagDependencyRetriever(candidate)
-            if retriever.is_healthy():
+            health = retriever.health_report()
+            if health.get("all_ok"):
                 setattr(retriever, "auto_discovered", not bool(explicit_path))
+                setattr(retriever, "health_payload", health)
                 return retriever
         return None
     except Exception:
@@ -566,6 +568,16 @@ def _attach_lean_rag_metadata(retriever: object, dependency_retriever: object | 
         bool(getattr(dependency_retriever, "auto_discovered", False))
         if dependency_retriever is not None
         else False,
+    )
+    setattr(
+        retriever,
+        "lean_rag_dependency_graph_health_status",
+        "active_healthy" if dependency_retriever is not None else "disabled",
+    )
+    setattr(
+        retriever,
+        "lean_rag_dependency_graph_health",
+        getattr(dependency_retriever, "health_payload", {}) if dependency_retriever is not None else {},
     )
 
 

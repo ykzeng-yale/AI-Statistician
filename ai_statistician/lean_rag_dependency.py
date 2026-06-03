@@ -50,10 +50,37 @@ class LeanRagDependencyRetriever:
     def __init__(self, db_path: Path | str, *, source_id: str = "lean_rag_dependency_graph") -> None:
         self.db_path = Path(db_path).expanduser()
         self.source_id = source_id
+        self._health_cache: dict[str, object] | None = None
 
     def is_healthy(self) -> bool:
+        return bool(self.health_report().get("all_ok", False))
+
+    def health_report(
+        self,
+        *,
+        probe_query: str = "variance independent sum",
+        refresh: bool = False,
+    ) -> dict[str, object]:
+        if self._health_cache is not None and not refresh:
+            return dict(self._health_cache)
+        report: dict[str, object] = {
+            "db_path": str(self.db_path),
+            "exists": self.db_path.exists(),
+            "schema_has_declarations": False,
+            "schema_has_decl_fts": False,
+            "schema_has_decl_fts_plain": False,
+            "n_declarations": 0,
+            "n_decl_fts": 0,
+            "integrity_check_ok": False,
+            "integrity_check_result": "",
+            "fts_probe_ok": False,
+            "fts_probe_error": "",
+            "like_probe_ok": False,
+            "like_probe_error": "",
+            "all_ok": False,
+        }
         if not self.db_path.exists():
-            return False
+            return report
         try:
             with closing(sqlite3.connect(self.db_path)) as conn:
                 tables = {
@@ -62,18 +89,74 @@ class LeanRagDependencyRetriever:
                         "SELECT name FROM sqlite_master WHERE type IN ('table', 'virtual table')"
                     ).fetchall()
                 }
-                return "declarations" in tables and (
-                    "decl_fts" in tables or "decl_fts_plain" in tables
-                )
-        except sqlite3.DatabaseError:
-            return False
+                report["schema_has_declarations"] = "declarations" in tables
+                report["schema_has_decl_fts"] = "decl_fts" in tables
+                report["schema_has_decl_fts_plain"] = "decl_fts_plain" in tables
+                if report["schema_has_declarations"]:
+                    report["n_declarations"] = int(
+                        conn.execute("SELECT COUNT(*) FROM declarations").fetchone()[0] or 0
+                    )
+                if report["schema_has_decl_fts"]:
+                    report["n_decl_fts"] = int(
+                        conn.execute("SELECT COUNT(*) FROM decl_fts").fetchone()[0] or 0
+                    )
+                integrity = str(conn.execute("PRAGMA integrity_check").fetchone()[0] or "")
+                report["integrity_check_result"] = integrity
+                report["integrity_check_ok"] = integrity.lower() == "ok"
+        except sqlite3.DatabaseError as exc:
+            report["integrity_check_result"] = f"{type(exc).__name__}: {exc}"
+            return report
+
+        if report["schema_has_decl_fts"]:
+            try:
+                fts_query = _fts_query(probe_query)
+                if fts_query:
+                    with closing(sqlite3.connect(self.db_path)) as conn:
+                        conn.execute(
+                            """
+                            SELECT d.id
+                            FROM decl_fts f
+                            JOIN declarations d ON d.id = f.rowid
+                            WHERE decl_fts MATCH ?
+                            LIMIT 1
+                            """,
+                            (fts_query,),
+                        ).fetchall()
+                    report["fts_probe_ok"] = True
+            except sqlite3.DatabaseError as exc:
+                report["fts_probe_error"] = f"{type(exc).__name__}: {exc}"
+        try:
+            self._search_like(probe_query, limit=1)
+            report["like_probe_ok"] = True
+        except sqlite3.DatabaseError as exc:
+            report["like_probe_error"] = f"{type(exc).__name__}: {exc}"
+        search_probe_ok = (
+            bool(report["fts_probe_ok"])
+            if report["schema_has_decl_fts"]
+            else bool(report["like_probe_ok"])
+        )
+        report["all_ok"] = bool(
+            report["exists"]
+            and report["schema_has_declarations"]
+            and (report["schema_has_decl_fts"] or report["schema_has_decl_fts_plain"])
+            and report["integrity_check_ok"]
+            and search_probe_ok
+        )
+        self._health_cache = dict(report)
+        return report
 
     def search(self, query: str, *, k: int = 10) -> list[FormalSourceHit]:
         if k <= 0 or not self.is_healthy():
             return []
-        candidate_rows = self._search_fts(query, limit=max(k * 8, 40))
+        try:
+            candidate_rows = self._search_fts(query, limit=max(k * 8, 40))
+        except sqlite3.DatabaseError:
+            candidate_rows = []
         if not candidate_rows:
-            candidate_rows = self._search_like(query, limit=max(k * 8, 40))
+            try:
+                candidate_rows = self._search_like(query, limit=max(k * 8, 40))
+            except sqlite3.DatabaseError:
+                candidate_rows = []
         q_tokens = _tokens(query)
         hits = []
         for rank, row in enumerate(candidate_rows, start=1):
@@ -85,24 +168,27 @@ class LeanRagDependencyRetriever:
     def dependency_context(self, declaration_name: str, *, limit: int = 8) -> LeanRagDependencyContext | None:
         if not self.is_healthy():
             return None
-        with closing(sqlite3.connect(self.db_path)) as conn:
-            conn.row_factory = sqlite3.Row
-            row = conn.execute(
-                """
-                SELECT id
-                FROM declarations
-                WHERE name = ? OR short_name = ?
-                ORDER BY CASE WHEN name = ? THEN 0 ELSE 1 END, length(name), name
-                LIMIT 1
-                """,
-                (declaration_name, declaration_name, declaration_name),
-            ).fetchone()
-            if row is None:
-                return None
-            decl_id = int(row["id"])
-            fan_in, fan_out = _fan_counts(conn, decl_id)
-            uses = _neighbor_names(conn, decl_id, direction="out", limit=limit)
-            used_by = _neighbor_names(conn, decl_id, direction="in", limit=limit)
+        try:
+            with closing(sqlite3.connect(self.db_path)) as conn:
+                conn.row_factory = sqlite3.Row
+                row = conn.execute(
+                    """
+                    SELECT id
+                    FROM declarations
+                    WHERE name = ? OR short_name = ?
+                    ORDER BY CASE WHEN name = ? THEN 0 ELSE 1 END, length(name), name
+                    LIMIT 1
+                    """,
+                    (declaration_name, declaration_name, declaration_name),
+                ).fetchone()
+                if row is None:
+                    return None
+                decl_id = int(row["id"])
+                fan_in, fan_out = _fan_counts(conn, decl_id)
+                uses = _neighbor_names(conn, decl_id, direction="out", limit=limit)
+                used_by = _neighbor_names(conn, decl_id, direction="in", limit=limit)
+        except sqlite3.DatabaseError:
+            return None
         return LeanRagDependencyContext(fan_in=fan_in, fan_out=fan_out, uses=uses, used_by=used_by)
 
     def _search_fts(self, query: str, *, limit: int) -> list[sqlite3.Row]:
@@ -137,7 +223,7 @@ class LeanRagDependencyRetriever:
                     """,
                     (fts_query, limit),
                 ).fetchall()
-            except sqlite3.OperationalError:
+            except sqlite3.DatabaseError:
                 return []
 
     def _search_like(self, query: str, *, limit: int) -> list[sqlite3.Row]:
@@ -151,30 +237,33 @@ class LeanRagDependencyRetriever:
             pattern = f"%{token}%"
             params.extend([pattern, pattern, pattern, pattern])
         params.append(limit)
-        with closing(sqlite3.connect(self.db_path)) as conn:
-            conn.row_factory = sqlite3.Row
-            return conn.execute(
-                f"""
-                SELECT id, name, short_name, kind, module, path, line_start,
-                       line_end, namespace, signature, proof, has_proof,
-                       has_sorry,
-                       COALESCE((
-                         SELECT sum(e.weight)
-                         FROM declaration_edges e
-                         WHERE e.dst_decl_id = declarations.id
-                       ), 0) AS fan_in,
-                       COALESCE((
-                         SELECT sum(e.weight)
-                         FROM declaration_edges e
-                         WHERE e.src_decl_id = declarations.id
-                       ), 0) AS fan_out
-                FROM declarations
-                WHERE {' OR '.join(clauses)}
-                ORDER BY has_sorry, length(name), name
-                LIMIT ?
-                """,
-                params,
-            ).fetchall()
+        try:
+            with closing(sqlite3.connect(self.db_path)) as conn:
+                conn.row_factory = sqlite3.Row
+                return conn.execute(
+                    f"""
+                    SELECT id, name, short_name, kind, module, path, line_start,
+                           line_end, namespace, signature, proof, has_proof,
+                           has_sorry,
+                           COALESCE((
+                             SELECT sum(e.weight)
+                             FROM declaration_edges e
+                             WHERE e.dst_decl_id = declarations.id
+                           ), 0) AS fan_in,
+                           COALESCE((
+                             SELECT sum(e.weight)
+                             FROM declaration_edges e
+                             WHERE e.src_decl_id = declarations.id
+                           ), 0) AS fan_out
+                    FROM declarations
+                    WHERE {' OR '.join(clauses)}
+                    ORDER BY has_sorry, length(name), name
+                    LIMIT ?
+                    """,
+                    params,
+                ).fetchall()
+        except sqlite3.DatabaseError:
+            return []
 
     def _hit_for_row(self, row: sqlite3.Row, *, q_tokens: set[str], rank: int) -> FormalSourceHit | None:
         signature = str(row["signature"] or "")

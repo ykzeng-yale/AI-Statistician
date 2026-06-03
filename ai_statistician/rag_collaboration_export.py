@@ -39,6 +39,12 @@ def export_rag_collaboration_manifest(
         _artifact_path(artifacts, "formal_source_retrieval_ablation", run_dir)
     )
     lean_rag_package_payload = _read_json(_artifact_path(artifacts, "lean_rag_package_audit", run_dir))
+    lean_rag_dependency_health_path = _artifact_path(
+        artifacts,
+        "lean_rag_dependency_health",
+        run_dir,
+    )
+    lean_rag_dependency_health_payload = _read_json(lean_rag_dependency_health_path)
     proof_search_ablation_payload = _read_json(
         _artifact_path(artifacts, "proof_search_retrieval_ablation", run_dir)
     )
@@ -171,6 +177,27 @@ def export_rag_collaboration_manifest(
             "lean_rag_dependency_graph_auto_discovered": counts.get(
                 "lean_rag_dependency_graph_auto_discovered"
             ),
+            "lean_rag_dependency_health_status": counts.get(
+                "lean_rag_dependency_health_status",
+                lean_rag_dependency_health_payload.get("health_status"),
+            ),
+            "lean_rag_dependency_health_ok": counts.get(
+                "lean_rag_dependency_health_ok",
+                lean_rag_dependency_health_payload.get("all_ok"),
+            ),
+            "lean_rag_dependency_active_enabled": counts.get(
+                "lean_rag_dependency_active_enabled",
+                lean_rag_dependency_health_payload.get("active_enabled"),
+            ),
+            "lean_rag_dependency_fallback_used": counts.get(
+                "lean_rag_dependency_fallback_used",
+                lean_rag_dependency_health_payload.get("fallback_used"),
+            ),
+            "lean_rag_dependency_fallback_reason": counts.get(
+                "lean_rag_dependency_fallback_reason",
+                lean_rag_dependency_health_payload.get("fallback_reason"),
+            ),
+            "lean_rag_dependency_health_manifest": str(lean_rag_dependency_health_path),
             "lean_rag_package_available": counts.get("lean_rag_package_available"),
             "lean_rag_package_contract_ok": counts.get("lean_rag_package_contract_ok"),
             "lean_rag_package_root": counts.get("lean_rag_package_root"),
@@ -1031,6 +1058,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Proof fingerprint: `{proof.get('proof_bank_fingerprint')}`",
         f"- Lean RAG active: `{rag.get('lean_rag_dependency_graph_enabled')}`",
         f"- Lean RAG DB: `{rag.get('lean_rag_dependency_graph_path')}`",
+        f"- Lean RAG DB health: `{rag.get('lean_rag_dependency_health_status')}` "
+        f"(fallback `{rag.get('lean_rag_dependency_fallback_used')}`: "
+        f"`{rag.get('lean_rag_dependency_fallback_reason')}`)",
         f"- Lean RAG package: `{rag.get('lean_rag_package_contract_ok')}` at `{rag.get('lean_rag_package_branch')}` / `{str(rag.get('lean_rag_package_commit') or '')[:12]}`",
         f"- Lean RAG seed lanes: `{', '.join(rag.get('lean_rag_package_seed_lanes', []))}`",
         f"- Retrieval recall/MRR: `{rag.get('formal_source_retrieval_recall_at_k')}` / `{rag.get('formal_source_retrieval_mrr')}`",
