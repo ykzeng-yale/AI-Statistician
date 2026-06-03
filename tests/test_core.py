@@ -110,6 +110,7 @@ from ai_statistician.formal_source_index import (
     FormalSourceHit,
     FormalSourceRoot,
     FormalSourceSqliteIndex,
+    _auto_lean_rag_db_candidates,
     audit_formal_source_index,
     build_formal_source_search_backend,
     build_formal_source_index,
@@ -657,6 +658,24 @@ class ProofBankTests(unittest.TestCase):
             Path(getattr(backend_with_auto_deps, "lean_rag_dependency_graph_path")).name,
             "stat_inference.sqlite",
         )
+        ancestor_workspace = Path("runs/test_lean_rag_ancestor_workspace")
+        ancestor_db = (
+            ancestor_workspace
+            / "runs"
+            / "current_status_lean_rag_dependency_graph"
+            / "stat_inference.sqlite"
+        )
+        ancestor_db.parent.mkdir(parents=True, exist_ok=True)
+        ancestor_db.write_text("candidate marker", encoding="utf-8")
+        nested_checkout = (
+            ancestor_workspace
+            / ".tmp_publish"
+            / "AI-Statistician-publish"
+        )
+        nested_checkout.mkdir(parents=True, exist_ok=True)
+        with patch("ai_statistician.formal_source_index.Path.cwd", return_value=nested_checkout):
+            ancestor_candidates = _auto_lean_rag_db_candidates()
+        self.assertIn(ancestor_db, ancestor_candidates)
         with patch(
             "ai_statistician.formal_source_index.DEFAULT_LEAN_RAG_DB_CANDIDATES",
             (lean_rag_db,),

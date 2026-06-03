@@ -534,10 +534,14 @@ def _auto_lean_rag_db_candidates() -> tuple[Path, ...]:
     }:
         return ()
     package_root = Path(__file__).resolve().parents[1]
+    search_roots: list[Path] = []
+    for root in (Path.cwd(), package_root):
+        for candidate_root in (root, *root.parents[:4]):
+            if candidate_root not in search_roots:
+                search_roots.append(candidate_root)
     candidates = (
         *DEFAULT_LEAN_RAG_DB_CANDIDATES,
-        Path.cwd() / DEFAULT_LEAN_RAG_DB_RELATIVE_PATH,
-        package_root / DEFAULT_LEAN_RAG_DB_RELATIVE_PATH,
+        *(root / DEFAULT_LEAN_RAG_DB_RELATIVE_PATH for root in search_roots),
     )
     rows: list[Path] = []
     seen: set[Path] = set()
