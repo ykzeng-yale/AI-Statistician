@@ -1743,6 +1743,11 @@ def _claim_ledger(args: argparse.Namespace) -> int:
         Path(args.run_dir),
         Path(args.out),
         proof_audit_manifest=Path(args.proof_audit_manifest) if args.proof_audit_manifest else None,
+        repair_response_promotion_manifest=(
+            Path(args.repair_response_promotion_manifest)
+            if args.repair_response_promotion_manifest
+            else None
+        ),
     )
     print("\nAI Statistical Theory Lab Claim Ledger")
     print("=" * 72)
@@ -1750,6 +1755,7 @@ def _claim_ledger(args: argparse.Namespace) -> int:
         f"claims={payload['n_ok']}/{payload['n_claims']} "
         f"questions={payload['n_questions']} "
         f"kernel_overlay_upgrades={payload['n_kernel_overlay_upgrades']} "
+        f"repair_response_promotion_upgrades={payload['n_repair_response_promotion_upgrades']} "
         f"all_ok={payload['all_ok']}"
     )
     for status, count in payload["by_status"].items():
@@ -3769,6 +3775,13 @@ def build_parser() -> argparse.ArgumentParser:
     claim_ledger.add_argument(
         "--proof-audit-manifest",
         help="optional proof_audit_manifest.json used to overlay real kernel proof evidence",
+    )
+    claim_ledger.add_argument(
+        "--repair-response-promotion-manifest",
+        help=(
+            "optional formal_verifier_replay_repair_patch_response_promotion_manifest.json "
+            "used to overlay accepted full-route repair evidence"
+        ),
     )
     claim_ledger.set_defaults(func=_claim_ledger)
 

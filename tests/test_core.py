@@ -5185,6 +5185,91 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(row["verifier"], "local.lake_env_lean")
         self.assertIn(str(proof_manifest_path), row["evidence_paths"])
 
+    def test_claim_ledger_overlay_promotes_ready_repair_response_formal_gap(self) -> None:
+        run_dir = Path("runs/test_claim_ledger_repair_response_promotion_run")
+        out_dir = Path("runs/test_claim_ledger_repair_response_promotion")
+        promotion_dir = Path("runs/test_claim_ledger_repair_response_promotion_evidence")
+        shutil.rmtree(run_dir, ignore_errors=True)
+        shutil.rmtree(out_dir, ignore_errors=True)
+        shutil.rmtree(promotion_dir, ignore_errors=True)
+        run_dir.mkdir(parents=True, exist_ok=True)
+        promotion_dir.mkdir(parents=True, exist_ok=True)
+        (run_dir / "research_benchmark_manifest.json").write_text(
+            json.dumps({"questions": [{"question": "q_promotion"}]}),
+            encoding="utf-8",
+        )
+        trace = {
+            "question": {"id": "q_promotion", "title": "Promotion proof evidence"},
+            "problem": {"problem_class": "unit_test", "dgp": "X constant", "estimand": "E[X]"},
+            "procedures": [],
+            "theorem_goals": [],
+            "formal_subclaims": [
+                {
+                    "id": "q_promotion:gap_goal",
+                    "status": "FORMAL_GAP",
+                    "claim": "frontier formal gap now has a full-route repair proof",
+                    "lean_statement": "theorem gap_goal : True := by\n  trivial\n",
+                    "required_primitives": ["gap_goal_bridge"],
+                }
+            ],
+            "simulations": [],
+            "theory_plan": {"next_iteration_agenda": {"items": []}},
+        }
+        (run_dir / "q_promotion.json").write_text(json.dumps(trace), encoding="utf-8")
+        patched_artifact = promotion_dir / "gap_goal_patch.lean"
+        replay_attempt_manifest = promotion_dir / "formal_verifier_replay_attempt_manifest.json"
+        replay_calibration_manifest = promotion_dir / "formal_verifier_replay_calibration_manifest.json"
+        patched_artifact.write_text("theorem gap_goal : True := by\n  trivial\n", encoding="utf-8")
+        replay_attempt_manifest.write_text(json.dumps({"rows": []}), encoding="utf-8")
+        replay_calibration_manifest.write_text(json.dumps({"rows": []}), encoding="utf-8")
+        promotion_manifest_path = promotion_dir / (
+            "formal_verifier_replay_repair_patch_response_promotion_manifest.json"
+        )
+        promotion_manifest_path.write_text(
+            json.dumps(
+                {
+                    "rows": [
+                        {
+                            "promotion_id": "promotion:gap_goal",
+                            "route_id": "theorem_route:formal_gap:q_promotion:gap_goal:abc123",
+                            "target_theorem_name": "gap_goal_skeleton",
+                            "candidate_bridge_lemma_name": "gap_goal_replay_bridge",
+                            "promotion_status": "READY_FOR_PROOF_LEDGER_PROMOTION",
+                            "promotion_ready": True,
+                            "kernel_verified": True,
+                            "ok": True,
+                            "evidence_paths": [
+                                str(patched_artifact),
+                                str(replay_attempt_manifest),
+                                str(replay_calibration_manifest),
+                            ],
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        payload = build_claim_ledger(
+            run_dir,
+            out_dir,
+            repair_response_promotion_manifest=promotion_manifest_path,
+        )
+        self.assertTrue(payload["all_ok"])
+        self.assertTrue(payload["repair_response_promotion_overlay_enabled"])
+        self.assertEqual(payload["n_repair_response_promotion_overlay_rows"], 1)
+        self.assertEqual(payload["n_repair_response_promotion_upgrades"], 1)
+        self.assertEqual(payload["by_status"]["KERNEL_PROVED_SUBCLAIM"], 1)
+        self.assertNotIn("FORMAL_GAP", payload["by_status"])
+        row = [item for item in payload["rows"] if item["kind"] == "formal_subclaim"][0]
+        self.assertEqual(row["status"], "KERNEL_PROVED_SUBCLAIM")
+        self.assertEqual(row["evidence_level"], "lean_kernel_verified_via_repair_response_promotion")
+        self.assertTrue(row["kernel_verified"])
+        self.assertEqual(row["verifier"], "formal_verifier_replay_repair_patch_response_promotion")
+        self.assertEqual(row["verification_strength"], "full_route_kernel_verified_repair_response")
+        self.assertIn(str(promotion_manifest_path), row["evidence_paths"])
+        self.assertIn(str(patched_artifact), row["evidence_paths"])
+
     def test_claim_ledger_links_exact_proof_bank_reuse_without_closing_gap(self) -> None:
         run_dir = Path("runs/test_claim_ledger_exact_reuse_run")
         ledger_dir = Path("runs/test_claim_ledger_exact_reuse")
@@ -8568,6 +8653,9 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                         "formal_verifier_replay_repair_patch_response_promotion_patch_needs_replay": 0,
                         "formal_verifier_replay_repair_patch_response_promotion_blocked": 0,
                         "formal_verifier_replay_repair_patch_response_promotion_ok": 1,
+                        "claim_ledger_repair_response_promotion_overlay_enabled": True,
+                        "claim_ledger_repair_response_promotion_overlay_rows": 0,
+                        "claim_ledger_repair_response_promotion_upgrades": 0,
                     },
                     "artifacts": {
                         "proof_audit": str(root / "proof_audit" / "proof_audit_manifest.json"),
@@ -8981,6 +9069,17 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                 "formal_verifier_replay_repair_patch_response_promotion_preview"
             ][0]["proof_evidence_boundary"],
         )
+        self.assertTrue(
+            payload["formal_capacity_queue"]["claim_ledger_repair_response_promotion_overlay_enabled"]
+        )
+        self.assertEqual(
+            payload["formal_capacity_queue"]["claim_ledger_repair_response_promotion_overlay_rows"],
+            0,
+        )
+        self.assertEqual(
+            payload["formal_capacity_queue"]["claim_ledger_repair_response_promotion_upgrades"],
+            0,
+        )
         self.assertIn("RAG hits are retrieval evidence only", " ".join(payload["honesty_boundaries"]))
         self.assertIn("replay rows are executable", " ".join(payload["honesty_boundaries"]))
         self.assertIn("replay attempts are proof evidence only", " ".join(payload["honesty_boundaries"]))
@@ -8992,6 +9091,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertIn("prompt packets", " ".join(payload["honesty_boundaries"]))
         self.assertIn("patch responses", " ".join(payload["honesty_boundaries"]))
         self.assertIn("promotion rows", " ".join(payload["honesty_boundaries"]))
+        self.assertIn("promotion overlays close formal gaps", " ".join(payload["honesty_boundaries"]))
         self.assertTrue((out / "rag_collaboration_manifest.json").exists())
         self.assertTrue((out / "rag_collaboration.md").exists())
         self.assertIn("Formal Verifier Queue", (out / "rag_collaboration.md").read_text())
@@ -11729,6 +11829,9 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertEqual(payload["counts"]["claim_ledger_formal_gaps"], payload["counts"]["formal_gaps"])
         self.assertTrue(payload["counts"]["claim_ledger_proof_audit_overlay_enabled"])
         self.assertEqual(payload["counts"]["claim_ledger_kernel_overlay_upgrades"], 0)
+        self.assertTrue(payload["counts"]["claim_ledger_repair_response_promotion_overlay_enabled"])
+        self.assertEqual(payload["counts"]["claim_ledger_repair_response_promotion_overlay_rows"], 0)
+        self.assertEqual(payload["counts"]["claim_ledger_repair_response_promotion_upgrades"], 0)
         self.assertGreater(payload["counts"]["claim_ledger_formal_gap_exact_proof_bank_reuse_rows"], 0)
         self.assertGreater(payload["counts"]["claim_ledger_exact_proof_bank_reuse_links"], 0)
         self.assertEqual(

@@ -665,6 +665,15 @@ def export_rag_collaboration_manifest(
                 formal_verifier_replay_repair_patch_response_promotion_payload,
                 max_rows=min(max_targets, 10),
             ),
+            "claim_ledger_repair_response_promotion_overlay_enabled": counts.get(
+                "claim_ledger_repair_response_promotion_overlay_enabled"
+            ),
+            "claim_ledger_repair_response_promotion_overlay_rows": counts.get(
+                "claim_ledger_repair_response_promotion_overlay_rows"
+            ),
+            "claim_ledger_repair_response_promotion_upgrades": counts.get(
+                "claim_ledger_repair_response_promotion_upgrades"
+            ),
             "handoff_targets": target_rows,
             "proof_bank_expansion_manifest": str(
                 _artifact_path(artifacts, "proof_bank_expansion", run_dir)
@@ -711,6 +720,7 @@ def export_rag_collaboration_manifest(
             "FormalVerifier repair prompt packets are worker instructions, not theorem proof evidence.",
             "FormalVerifier repair patch responses are proof evidence only when response validation accepts full-route kernel-verified calibration.",
             "FormalVerifier repair patch response promotion rows are ledger-update contracts; they do not mutate the proof ledger by themselves.",
+            "Claim-ledger repair-response promotion overlays close formal gaps only for matching ready kernel-verified promotion rows.",
             "FORMAL_GAP and theorem-hole queues remain open until a non-placeholder Lean proof is verified.",
         ],
     }
@@ -1277,6 +1287,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"(`{queue.get('formal_verifier_replay_repair_patch_response_promotion_ready')}` ready, "
         f"`{queue.get('formal_verifier_replay_repair_patch_response_promotion_awaiting')}` awaiting, "
         f"`{queue.get('formal_verifier_replay_repair_patch_response_promotion_blocked')}` blocked)",
+        "- Claim-ledger repair-response promotion overlay: "
+        f"`{queue.get('claim_ledger_repair_response_promotion_upgrades')}` upgrades from "
+        f"`{queue.get('claim_ledger_repair_response_promotion_overlay_rows')}` ready rows",
         f"- Queue: exact_reuse=`{queue.get('reuse_exact_proof_bank_obligation')}`, compose=`{queue.get('compose_existing_bridge_chain')}`, minimal_wrapper=`{queue.get('add_minimal_wrapper')}`, design_bridge=`{queue.get('design_bridge_lemma')}`",
         f"- Theorem composition packets: `{composition.get('theorem_composition_packets')}` "
         f"(exact links `{composition.get('theorem_composition_exact_proof_bank_links')}`, "

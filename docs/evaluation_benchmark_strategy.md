@@ -62,6 +62,10 @@ Pass criteria:
   collapsing simulation or retrieval support into proof evidence
 - claim-ledger proof statuses report whether kernel evidence came from the trace
   verifier or from a matching `proof_audit_manifest.json` overlay
+- claim-ledger formal gaps can also be upgraded by a matching
+  `formal_verifier_replay_repair_patch_response_promotion_manifest.json`, but
+  only when the promotion row is already ready, kernel verified, and backed by
+  replay attempt/calibration evidence
 - `research-system-audit` gates `claim-ledger-action-export` so ledger evidence
   is converted into owner-agent task contracts with explicit acceptance gates
 
@@ -365,6 +369,9 @@ Current release signal:
   proof-ledger promotion rows from validated responses, but only accepted
   full-route kernel responses with corroborating replay attempt and calibration
   manifests become promotion-ready
+- `claim-ledger --repair-response-promotion-manifest` applies those ready rows
+  as a question-scoped overlay to the matching formal gap; non-ready rows remain
+  task/queue state and do not close ledger proof gaps
 - `lean-rag-dependency-health` records schema, integrity, and FTS-probe status
   for the optional dependency-graph DB; malformed DBs are disabled with a
   fallback reason instead of crashing the audit

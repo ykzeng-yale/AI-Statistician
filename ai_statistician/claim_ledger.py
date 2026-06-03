@@ -72,6 +72,7 @@ def build_claim_ledger(
     out_dir: Path | None = None,
     *,
     proof_audit_manifest: Path | None = None,
+    repair_response_promotion_manifest: Path | None = None,
 ) -> dict[str, object]:
     """Export a typed claim ledger from persisted research benchmark traces.
 
@@ -96,7 +97,11 @@ def build_claim_ledger(
         summaries = list(manifest.get("questions", [])) if isinstance(manifest.get("questions"), list) else []
 
     proof_overlay, overlay_errors = _load_proof_audit_overlay(proof_audit_manifest)
+    promotion_overlay, promotion_errors = _load_repair_response_promotion_overlay(
+        repair_response_promotion_manifest
+    )
     errors.extend(overlay_errors)
+    errors.extend(promotion_errors)
     rows: list[ClaimLedgerRow] = []
     for summary in summaries:
         if not isinstance(summary, dict):
@@ -111,13 +116,21 @@ def build_claim_ledger(
         except Exception as exc:
             errors.append(f"failed to parse trace JSON {trace_path}: {type(exc).__name__}: {exc}")
             continue
-        rows.extend(_ledger_rows_for_trace(trace, summary, trace_path, proof_overlay))
+        rows.extend(_ledger_rows_for_trace(trace, summary, trace_path, proof_overlay, promotion_overlay))
 
     by_kind = Counter(row.kind for row in rows)
     by_status = Counter(row.status for row in rows)
     by_problem_class = Counter(row.problem_class for row in rows)
     n_kernel_overlay_upgrades = sum(
         1 for row in rows if row.evidence_level == "lean_kernel_verified_via_proof_audit_overlay"
+    )
+    repair_response_promotion_ids = {
+        str(row.get("promotion_id", ""))
+        for row in promotion_overlay.values()
+        if str(row.get("promotion_id", ""))
+    }
+    n_repair_response_promotion_upgrades = sum(
+        1 for row in rows if row.evidence_level == "lean_kernel_verified_via_repair_response_promotion"
     )
     exact_reuse_rows = [
         row for row in rows if row.status == "FORMAL_GAP" and row.exact_proof_bank_reuse_obligations
@@ -137,8 +150,14 @@ def build_claim_ledger(
         "run_dir": str(run_dir),
         "manifest": str(manifest_path),
         "proof_audit_manifest": str(proof_audit_manifest) if proof_audit_manifest else "",
+        "repair_response_promotion_manifest": (
+            str(repair_response_promotion_manifest) if repair_response_promotion_manifest else ""
+        ),
         "proof_audit_overlay_enabled": proof_audit_manifest is not None,
+        "repair_response_promotion_overlay_enabled": repair_response_promotion_manifest is not None,
         "n_kernel_overlay_upgrades": n_kernel_overlay_upgrades,
+        "n_repair_response_promotion_overlay_rows": len(repair_response_promotion_ids),
+        "n_repair_response_promotion_upgrades": n_repair_response_promotion_upgrades,
         "n_formal_gap_rows_with_exact_proof_bank_reuse": len(exact_reuse_rows),
         "n_exact_proof_bank_reuse_links": sum(
             len(row.exact_proof_bank_reuse_obligations) for row in exact_reuse_rows
@@ -174,6 +193,7 @@ def _ledger_rows_for_trace(
     summary: dict[str, Any],
     trace_path: Path,
     proof_overlay: dict[str, dict[str, Any]] | None = None,
+    repair_response_promotion_overlay: dict[str, dict[str, Any]] | None = None,
 ) -> list[ClaimLedgerRow]:
     question = trace.get("question") if isinstance(trace.get("question"), dict) else {}
     problem = trace.get("problem") if isinstance(trace.get("problem"), dict) else {}
@@ -254,7 +274,16 @@ def _ledger_rows_for_trace(
         )
     for subclaim in formal_subclaims:
         if isinstance(subclaim, dict):
-            rows.append(_formal_subclaim_row(subclaim, question_id, problem_class, trace_path_str, proof_overlay))
+            rows.append(
+                _formal_subclaim_row(
+                    subclaim,
+                    question_id,
+                    problem_class,
+                    trace_path_str,
+                    proof_overlay,
+                    repair_response_promotion_overlay,
+                )
+            )
     for simulation in simulations:
         if isinstance(simulation, dict):
             rows.append(_simulation_row(simulation, question_id, problem_class, trace_path_str))
@@ -271,14 +300,35 @@ def _formal_subclaim_row(
     problem_class: str,
     trace_path: str,
     proof_overlay: dict[str, dict[str, Any]] | None = None,
+    repair_response_promotion_overlay: dict[str, dict[str, Any]] | None = None,
 ) -> ClaimLedgerRow:
     errors: list[str] = []
     raw_status = str(subclaim.get("status", ""))
     proof_obligation_id = str(subclaim.get("proof_obligation_id") or "")
     overlay_check = (proof_overlay or {}).get(proof_obligation_id) if proof_obligation_id else None
     overlay_kernel_verified = bool(overlay_check and overlay_check.get("kernel_verified") and overlay_check.get("ok"))
-    kernel_verified = bool(subclaim.get("kernel_verified")) or overlay_kernel_verified
-    if overlay_kernel_verified:
+    promotion_check = (
+        _repair_response_promotion_for_subclaim(
+            repair_response_promotion_overlay or {},
+            question_id=question_id,
+            subclaim=subclaim,
+        )
+        if raw_status == "FORMAL_GAP"
+        else None
+    )
+    promotion_kernel_verified = bool(
+        promotion_check
+        and promotion_check.get("kernel_verified")
+        and promotion_check.get("ok")
+        and promotion_check.get("promotion_ready")
+        and promotion_check.get("promotion_status") == "READY_FOR_PROOF_LEDGER_PROMOTION"
+    )
+    kernel_verified = bool(subclaim.get("kernel_verified")) or overlay_kernel_verified or promotion_kernel_verified
+    if promotion_kernel_verified:
+        verification_strength = "full_route_kernel_verified_repair_response"
+        verifier = "formal_verifier_replay_repair_patch_response_promotion"
+        formalization_status = "kernel_verified_repair_response_promoted"
+    elif overlay_kernel_verified:
         verification_strength = str(overlay_check.get("verification_strength", ""))
         verifier = str(overlay_check.get("verifier", ""))
         formalization_status = "kernel_verified_proof"
@@ -296,6 +346,9 @@ def _formal_subclaim_row(
     elif raw_status == "PROVED":
         status = "MOCK_PROVED_SUBCLAIM"
         evidence_level = "mock_or_non_kernel_verified"
+    elif raw_status == "FORMAL_GAP" and promotion_kernel_verified:
+        status = "KERNEL_PROVED_SUBCLAIM"
+        evidence_level = "lean_kernel_verified_via_repair_response_promotion"
     elif raw_status == "FORMAL_GAP":
         status = "FORMAL_GAP"
         evidence_level = "formal_gap_with_retrieval"
@@ -325,6 +378,13 @@ def _formal_subclaim_row(
         evidence_paths.append(artifact_path)
     if overlay_kernel_verified and overlay_check and overlay_check.get("proof_audit_manifest"):
         evidence_paths.append(str(overlay_check["proof_audit_manifest"]))
+    if promotion_kernel_verified and promotion_check:
+        for path in promotion_check.get("evidence_paths", []) or []:
+            if str(path) and str(path) not in evidence_paths:
+                evidence_paths.append(str(path))
+        promotion_manifest = str(promotion_check.get("repair_response_promotion_manifest", ""))
+        if promotion_manifest and promotion_manifest not in evidence_paths:
+            evidence_paths.append(promotion_manifest)
     return ClaimLedgerRow(
         ledger_version=1,
         claim_id=f"formal:{question_id}:{subclaim.get('id') or subclaim.get('proof_obligation_id') or raw_status}",
@@ -425,6 +485,94 @@ def _load_proof_audit_overlay(proof_audit_manifest: Path | None) -> tuple[dict[s
     return overlay, errors
 
 
+def _load_repair_response_promotion_overlay(
+    repair_response_promotion_manifest: Path | None,
+) -> tuple[dict[str, dict[str, Any]], list[str]]:
+    if repair_response_promotion_manifest is None:
+        return {}, []
+    errors: list[str] = []
+    if not repair_response_promotion_manifest.exists():
+        return {}, [f"missing repair response promotion manifest: {repair_response_promotion_manifest}"]
+    try:
+        payload = json.loads(repair_response_promotion_manifest.read_text(encoding="utf-8"))
+    except Exception as exc:
+        return {}, [
+            "failed to parse repair response promotion manifest "
+            f"{repair_response_promotion_manifest}: {type(exc).__name__}: {exc}"
+        ]
+    rows = payload.get("rows", [])
+    if not isinstance(rows, list):
+        return {}, [f"repair response promotion manifest rows is not a list: {repair_response_promotion_manifest}"]
+    overlay: dict[str, dict[str, Any]] = {}
+    for idx, row in enumerate(rows):
+        if not isinstance(row, dict):
+            errors.append(f"repair response promotion row {idx} is not an object")
+            continue
+        if row.get("promotion_status") != "READY_FOR_PROOF_LEDGER_PROMOTION":
+            continue
+        if not (row.get("promotion_ready") and row.get("kernel_verified") and row.get("ok")):
+            errors.append(f"repair response promotion row {idx} is ready-status but lacks kernel-ready evidence")
+            continue
+        question_id, theorem_goal_id = _formal_gap_route_key(str(row.get("route_id", "")))
+        if not question_id or not theorem_goal_id:
+            errors.append(f"repair response promotion row {idx} has unparseable formal-gap route_id")
+            continue
+        evidence_paths = tuple(str(path) for path in row.get("evidence_paths", []) or [] if str(path))
+        if not evidence_paths:
+            errors.append(f"repair response promotion row {idx} missing evidence_paths")
+            continue
+        enriched = dict(row)
+        enriched["repair_response_promotion_manifest"] = str(repair_response_promotion_manifest)
+        for key in _repair_response_promotion_keys(question_id, theorem_goal_id):
+            overlay[key] = enriched
+    return overlay, errors
+
+
+def _formal_gap_route_key(route_id: str) -> tuple[str, str]:
+    parts = route_id.split(":")
+    if len(parts) < 5 or parts[0] != "theorem_route" or parts[1] != "formal_gap":
+        return "", ""
+    return parts[2], parts[3]
+
+
+def _repair_response_promotion_keys(question_id: str, theorem_goal_id: str) -> tuple[str, ...]:
+    return (
+        f"formal:{question_id}:{question_id}:{theorem_goal_id}",
+        f"formal:{question_id}:{theorem_goal_id}",
+        f"{question_id}:{theorem_goal_id}",
+    )
+
+
+def _repair_response_promotion_for_subclaim(
+    overlay: dict[str, dict[str, Any]],
+    *,
+    question_id: str,
+    subclaim: dict[str, Any],
+) -> dict[str, Any] | None:
+    subclaim_id = str(subclaim.get("id") or "")
+    proof_obligation_id = str(subclaim.get("proof_obligation_id") or "")
+    candidates = [
+        f"formal:{question_id}:{subclaim_id}" if subclaim_id else "",
+        subclaim_id,
+        f"formal:{question_id}:{question_id}:{proof_obligation_id}" if proof_obligation_id else "",
+        f"formal:{question_id}:{proof_obligation_id}" if proof_obligation_id else "",
+        f"{question_id}:{proof_obligation_id}" if proof_obligation_id else "",
+    ]
+    if subclaim_id:
+        theorem_goal_id = subclaim_id.rsplit(":", 1)[-1]
+        candidates.extend(
+            [
+                f"formal:{question_id}:{question_id}:{theorem_goal_id}",
+                f"formal:{question_id}:{theorem_goal_id}",
+                f"{question_id}:{theorem_goal_id}",
+            ]
+        )
+    for candidate in candidates:
+        if candidate and candidate in overlay:
+            return overlay[candidate]
+    return None
+
+
 def _simulation_row(
     simulation: dict[str, Any],
     question_id: str,
@@ -491,6 +639,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Run directory: `{payload.get('run_dir')}`",
         f"- Claims: {payload.get('n_ok')}/{payload.get('n_claims')} audit-clean",
         f"- Questions: {payload.get('n_questions')}",
+        f"- Proof-audit overlay upgrades: {payload.get('n_kernel_overlay_upgrades')}",
+        "- Repair-response promotion overlay upgrades: "
+        f"{payload.get('n_repair_response_promotion_upgrades')}",
         "",
         "This ledger is a typed coordination artifact. It separates formal proof",
         "evidence from retrieval hits and simulation evidence.",

@@ -201,6 +201,18 @@ python3 -m ai_statistician.cli formal-verifier-replay-repair-patch-response-prom
   --out runs/current_formal_verifier_replay_repair_patch_response_promotion
 ```
 
+The claim ledger can now consume that promotion manifest as an overlay. Only
+rows already marked `READY_FOR_PROOF_LEDGER_PROMOTION` with kernel evidence can
+upgrade the matching formal-gap row; awaiting responses and patch proposals
+leave the ledger unchanged.
+
+```bash
+python3 -m ai_statistician.cli claim-ledger \
+  --run-dir runs/current/research_benchmark \
+  --repair-response-promotion-manifest runs/current/formal_verifier_replay_repair_patch_response_promotion/formal_verifier_replay_repair_patch_response_promotion_manifest.json \
+  --out runs/current/claim_ledger
+```
+
 ## Next Build Targets
 
 1. Expand library-aware minimal formalization planning:

@@ -677,6 +677,11 @@ async def run_research_system_audit(
         out_dir / "research_benchmark",
         out_dir / "claim_ledger",
         proof_audit_manifest=claim_ledger_proof_manifest_path,
+        repair_response_promotion_manifest=(
+            out_dir
+            / "formal_verifier_replay_repair_patch_response_promotion"
+            / "formal_verifier_replay_repair_patch_response_promotion_manifest.json"
+        ),
     )
     stage_start = _record_stage(stage_timings, "claim_ledger", stage_start)
     claim_ledger_action_manifest = export_claim_ledger_actions(
@@ -1961,6 +1966,15 @@ async def run_research_system_audit(
             "claim_ledger_revision_queued": claim_ledger_manifest["by_status"].get("REVISION_QUEUED", 0),
             "claim_ledger_kernel_overlay_upgrades": claim_ledger_manifest["n_kernel_overlay_upgrades"],
             "claim_ledger_proof_audit_overlay_enabled": claim_ledger_manifest["proof_audit_overlay_enabled"],
+            "claim_ledger_repair_response_promotion_overlay_enabled": claim_ledger_manifest[
+                "repair_response_promotion_overlay_enabled"
+            ],
+            "claim_ledger_repair_response_promotion_overlay_rows": claim_ledger_manifest[
+                "n_repair_response_promotion_overlay_rows"
+            ],
+            "claim_ledger_repair_response_promotion_upgrades": claim_ledger_manifest[
+                "n_repair_response_promotion_upgrades"
+            ],
             "claim_ledger_formal_gap_exact_proof_bank_reuse_rows": claim_ledger_manifest[
                 "n_formal_gap_rows_with_exact_proof_bank_reuse"
             ],
