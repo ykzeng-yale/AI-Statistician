@@ -215,6 +215,19 @@ python3 -m ai_statistician.cli formal-verifier-replay-repair-patch-response-prom
   --out runs/current_formal_verifier_replay_repair_patch_response_promotion
 ```
 
+`formal_verifier_replay_repair_patch_rerun_queue` then turns validated patch
+proposals into replay-calibration work items. These rows keep the patch artifact,
+changed declarations, rerun commands, and required promotion gate together, but
+they are still not theorem proof evidence until the patched route is rerun and
+calibrates as `full_route_kernel_verified`.
+
+```bash
+python3 -m ai_statistician.cli formal-verifier-replay-repair-patch-rerun-queue \
+  --formal-verifier-replay-repair-patch-response-validation-dir runs/current_formal_verifier_replay_repair_patch_response_validation \
+  --formal-verifier-replay-repair-patch-response-promotion-dir runs/current_formal_verifier_replay_repair_patch_response_promotion \
+  --out runs/current_formal_verifier_replay_repair_patch_rerun_queue
+```
+
 The claim ledger can now consume that promotion manifest as an overlay. Only
 rows already marked `READY_FOR_PROOF_LEDGER_PROMOTION` with kernel evidence can
 upgrade the matching formal-gap row; awaiting responses and patch proposals
@@ -257,6 +270,8 @@ python3 -m ai_statistician.cli claim-ledger \
    or overclaiming responses before
    `formal-verifier-replay-repair-patch-response-promotion` exposes only
    corroborated full-route kernel repairs as proof-ledger promotion candidates.
+   Patch proposals that still need replay calibration are now carried forward by
+   `formal-verifier-replay-repair-patch-rerun-queue` as typed work items.
 2. Add query-intent expansion for missing primitives:
    primitive name, theorem goal, problem class, local gap reason, and candidate
    proof-bank bridge names should all become retriever queries.

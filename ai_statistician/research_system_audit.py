@@ -58,6 +58,9 @@ from .formal_verifier_replay_repair_patch_response_validation import (
 from .formal_verifier_replay_repair_patch_response_promotion import (
     export_formal_verifier_replay_repair_patch_response_promotion,
 )
+from .formal_verifier_replay_repair_patch_rerun_queue import (
+    export_formal_verifier_replay_repair_patch_rerun_queue,
+)
 from .formal_verifier_replay_repair import export_formal_verifier_replay_repair_packets
 from .formal_source_graph import audit_formal_source_graph
 from .formal_source_hybrid import FormalSourceHybridRetriever
@@ -668,6 +671,18 @@ async def run_research_system_audit(
         "formal_verifier_replay_repair_patch_response_promotion",
         stage_start,
     )
+    formal_verifier_replay_repair_patch_rerun_queue_manifest = (
+        export_formal_verifier_replay_repair_patch_rerun_queue(
+            out_dir / "formal_verifier_replay_repair_patch_response_validation",
+            out_dir / "formal_verifier_replay_repair_patch_response_promotion",
+            out_dir / "formal_verifier_replay_repair_patch_rerun_queue",
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "formal_verifier_replay_repair_patch_rerun_queue",
+        stage_start,
+    )
 
     research_training_manifest = export_research_training_dataset(
         out_dir / "research_benchmark",
@@ -904,6 +919,9 @@ async def run_research_system_audit(
         "formal_verifier_replay_repair_patch_response_promotion": bool(
             formal_verifier_replay_repair_patch_response_promotion_manifest["all_ok"]
         ),
+        "formal_verifier_replay_repair_patch_rerun_queue": bool(
+            formal_verifier_replay_repair_patch_rerun_queue_manifest["all_ok"]
+        ),
         "research_training_export": bool(research_training_manifest["all_ok"]),
         "research_policy_baseline": bool(research_policy_manifest["all_ok"]),
         "next_iteration_queue": bool(next_iteration_manifest["all_ok"]),
@@ -950,6 +968,7 @@ async def run_research_system_audit(
         "formal_verifier_replay_repair_patch_autoworker",
         "formal_verifier_replay_repair_patch_response_validation",
         "formal_verifier_replay_repair_patch_response_promotion",
+        "formal_verifier_replay_repair_patch_rerun_queue",
         "research_training_export",
         "research_policy_baseline",
         "next_iteration_queue",
@@ -1908,6 +1927,24 @@ async def run_research_system_audit(
             "formal_verifier_replay_repair_patch_response_promotion_ok": formal_verifier_replay_repair_patch_response_promotion_manifest[
                 "n_ok"
             ],
+            "formal_verifier_replay_repair_patch_rerun_queue_items": formal_verifier_replay_repair_patch_rerun_queue_manifest[
+                "n_rerun_queue_items"
+            ],
+            "formal_verifier_replay_repair_patch_rerun_queue_ready": formal_verifier_replay_repair_patch_rerun_queue_manifest[
+                "n_ready_for_patch_replay"
+            ],
+            "formal_verifier_replay_repair_patch_rerun_queue_blocked": formal_verifier_replay_repair_patch_rerun_queue_manifest[
+                "n_blocked"
+            ],
+            "formal_verifier_replay_repair_patch_rerun_queue_with_artifact": formal_verifier_replay_repair_patch_rerun_queue_manifest[
+                "n_with_patched_artifact"
+            ],
+            "formal_verifier_replay_repair_patch_rerun_queue_with_commands": formal_verifier_replay_repair_patch_rerun_queue_manifest[
+                "n_with_rerun_commands"
+            ],
+            "formal_verifier_replay_repair_patch_rerun_queue_ok": formal_verifier_replay_repair_patch_rerun_queue_manifest[
+                "n_ok"
+            ],
             "proof_bank_actions_high_priority": proof_bank_action_manifest["by_priority"].get("high", 0),
             "proof_bank_actions_medium_priority": proof_bank_action_manifest["by_priority"].get("medium", 0),
             "proof_bank_actions_low_priority": proof_bank_action_manifest["by_priority"].get("low", 0),
@@ -2662,6 +2699,21 @@ async def run_research_system_audit(
                 out_dir
                 / "formal_verifier_replay_repair_patch_response_promotion"
                 / "formal_verifier_replay_repair_patch_response_promotion.md"
+            ),
+            "formal_verifier_replay_repair_patch_rerun_queue": str(
+                out_dir
+                / "formal_verifier_replay_repair_patch_rerun_queue"
+                / "formal_verifier_replay_repair_patch_rerun_queue_manifest.json"
+            ),
+            "formal_verifier_replay_repair_patch_rerun_queue_jsonl": str(
+                out_dir
+                / "formal_verifier_replay_repair_patch_rerun_queue"
+                / "formal_verifier_replay_repair_patch_rerun_queue.jsonl"
+            ),
+            "formal_verifier_replay_repair_patch_rerun_queue_report": str(
+                out_dir
+                / "formal_verifier_replay_repair_patch_rerun_queue"
+                / "formal_verifier_replay_repair_patch_rerun_queue.md"
             ),
             "primitive_source_coverage": str(
                 out_dir / "primitive_source_coverage" / "primitive_source_coverage_manifest.json"

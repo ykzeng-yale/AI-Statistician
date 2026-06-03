@@ -62,6 +62,9 @@ from .formal_verifier_replay_repair_patch_response_validation import (
 from .formal_verifier_replay_repair_patch_response_promotion import (
     export_formal_verifier_replay_repair_patch_response_promotion,
 )
+from .formal_verifier_replay_repair_patch_rerun_queue import (
+    export_formal_verifier_replay_repair_patch_rerun_queue,
+)
 from .formal_verifier_replay_repair import export_formal_verifier_replay_repair_packets
 from .formal_source_graph import audit_formal_source_graph
 from .formal_source_index import (
@@ -1651,6 +1654,35 @@ def _formal_verifier_replay_repair_patch_response_promotion(args: argparse.Names
     print(
         f"markdown report written to "
         f"{(Path(args.out) / 'formal_verifier_replay_repair_patch_response_promotion.md').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formal_verifier_replay_repair_patch_rerun_queue(args: argparse.Namespace) -> int:
+    payload = export_formal_verifier_replay_repair_patch_rerun_queue(
+        Path(args.formal_verifier_replay_repair_patch_response_validation_dir),
+        Path(args.formal_verifier_replay_repair_patch_response_promotion_dir),
+        Path(args.out),
+    )
+    print("\nAI Statistical Theory Lab Formal Verifier Repair Patch Rerun Queue")
+    print("=" * 72)
+    print(
+        f"items={payload['n_ok']}/{payload['n_rerun_queue_items']} "
+        f"ready={payload['n_ready_for_patch_replay']} "
+        f"blocked={payload['n_blocked']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\npatch rerun manifest written to "
+        f"{(Path(args.out) / 'formal_verifier_replay_repair_patch_rerun_queue_manifest.json').resolve()}"
+    )
+    print(
+        f"patch rerun jsonl written to "
+        f"{(Path(args.out) / 'formal_verifier_replay_repair_patch_rerun_queue.jsonl').resolve()}"
+    )
+    print(
+        f"markdown report written to "
+        f"{(Path(args.out) / 'formal_verifier_replay_repair_patch_rerun_queue.md').resolve()}"
     )
     return 0 if payload["all_ok"] else 1
 
@@ -3717,6 +3749,29 @@ def build_parser() -> argparse.ArgumentParser:
     )
     formal_verifier_replay_repair_patch_response_promotion.set_defaults(
         func=_formal_verifier_replay_repair_patch_response_promotion
+    )
+
+    formal_verifier_replay_repair_patch_rerun_queue = sub.add_parser(
+        "formal-verifier-replay-repair-patch-rerun-queue",
+        help="export replay-calibration queue rows from validated repair patch proposals",
+    )
+    formal_verifier_replay_repair_patch_rerun_queue.add_argument(
+        "--formal-verifier-replay-repair-patch-response-validation-dir",
+        required=True,
+        help="directory containing formal_verifier_replay_repair_patch_response_validation_manifest.json",
+    )
+    formal_verifier_replay_repair_patch_rerun_queue.add_argument(
+        "--formal-verifier-replay-repair-patch-response-promotion-dir",
+        required=True,
+        help="directory containing formal_verifier_replay_repair_patch_response_promotion_manifest.json",
+    )
+    formal_verifier_replay_repair_patch_rerun_queue.add_argument(
+        "--out",
+        default="runs/formal_verifier_replay_repair_patch_rerun_queue",
+        help="formal-verifier repair patch rerun queue output directory",
+    )
+    formal_verifier_replay_repair_patch_rerun_queue.set_defaults(
+        func=_formal_verifier_replay_repair_patch_rerun_queue
     )
 
     rag_collaboration_export = sub.add_parser(

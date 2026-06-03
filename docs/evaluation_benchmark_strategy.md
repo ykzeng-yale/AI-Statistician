@@ -373,6 +373,9 @@ Current release signal:
   proof-ledger promotion rows from validated responses, but only accepted
   full-route kernel responses with corroborating replay attempt and calibration
   manifests become promotion-ready
+- `formal-verifier-replay-repair-patch-rerun-queue` carries patch proposals that
+  still need replay calibration into typed rerun work items with artifact,
+  command, and promotion-gate context; these rows are not proof evidence
 - `claim-ledger --repair-response-promotion-manifest` applies those ready rows
   as a question-scoped overlay to the matching formal gap; non-ready rows remain
   task/queue state and do not close ledger proof gaps
