@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections import Counter
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -75,6 +76,7 @@ def build_formalization_delta_plan(
     out_dir: Path | None = None,
     *,
     primitive_source_coverage_dir: Path | None = None,
+    formal_gap_tasks_dir: Path | None = None,
 ) -> dict[str, object]:
     """Plan the smallest useful Lean-formalization delta from action rows.
 
@@ -98,10 +100,25 @@ def build_formalization_delta_plan(
         if coverage_manifest_path is not None
         else {}
     )
+    task_manifest_path = (
+        formal_gap_tasks_dir / "formal_gap_lean_task_manifest.json"
+        if formal_gap_tasks_dir is not None
+        else None
+    )
+    task_manifest = (
+        _read_json(task_manifest_path, errors, missing_ok=True)
+        if task_manifest_path is not None
+        else {}
+    )
     coverage_by_primitive = {
         str(row.get("primitive", "")): row
         for row in coverage_manifest.get("rows", [])
         if isinstance(row, dict) and row.get("primitive")
+    }
+    task_by_id = {
+        str(row.get("task_id", "")): row
+        for row in task_manifest.get("tasks", [])
+        if isinstance(row, dict) and row.get("task_id")
     }
     rows = [
         _row_from_action(row, coverage_by_primitive)
@@ -112,7 +129,7 @@ def build_formalization_delta_plan(
     by_stage = Counter(row.plan_stage for row in rows)
     by_delta_kind = Counter(row.delta_kind for row in rows)
     by_action_class = Counter(row.action_class for row in rows)
-    graph = _build_dependency_graph(rows)
+    graph = _build_dependency_graph(rows, task_by_id)
     payload: dict[str, object] = {
         "schema_version": FORMALIZATION_DELTA_PLAN_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -120,6 +137,8 @@ def build_formalization_delta_plan(
         "proof_bank_action_manifest": str(action_manifest_path),
         "primitive_source_coverage_dir": str(primitive_source_coverage_dir or ""),
         "primitive_source_coverage_manifest": str(coverage_manifest_path or ""),
+        "formal_gap_tasks_dir": str(formal_gap_tasks_dir or ""),
+        "formal_gap_task_manifest": str(task_manifest_path or ""),
         "n_plan_rows": len(rows),
         "n_ok": sum(1 for row in rows if row.ok),
         "all_ok": not errors and bool(action_manifest.get("all_ok", False)) and all(row.ok for row in rows),
@@ -138,7 +157,10 @@ def build_formalization_delta_plan(
         "dependency_graph_by_edge_kind": graph["by_edge_kind"],
         "dependency_graph_problem_class_nodes": graph["by_node_kind"].get("problem_class", 0),
         "dependency_graph_theorem_goal_nodes": graph["by_node_kind"].get("theorem_goal", 0),
+        "dependency_graph_theorem_skeleton_nodes": graph["by_node_kind"].get("lean_theorem_skeleton", 0),
+        "dependency_graph_import_nodes": graph["by_node_kind"].get("lean_import", 0),
         "dependency_graph_goal_to_primitive_edges": graph["by_edge_kind"].get("needs_primitive", 0),
+        "dependency_graph_goal_to_skeleton_edges": graph["by_edge_kind"].get("has_lean_skeleton", 0),
         "top_low_cost_rows": [asdict(row) for row in rows[:10]],
         "top_high_cost_rows": [asdict(row) for row in sorted(rows, key=lambda row: -row.total_cost)[:10]],
         "rows": [asdict(row) for row in rows],
@@ -231,7 +253,10 @@ def _row_from_action(
     )
 
 
-def _build_dependency_graph(rows: list[FormalizationDeltaPlanRow]) -> dict[str, object]:
+def _build_dependency_graph(
+    rows: list[FormalizationDeltaPlanRow],
+    task_by_id: dict[str, dict[str, Any]],
+) -> dict[str, object]:
     nodes: dict[str, FormalizationDeltaGraphNode] = {}
     edges: dict[tuple[str, str, str], FormalizationDeltaGraphEdge] = {}
 
@@ -281,12 +306,14 @@ def _build_dependency_graph(rows: list[FormalizationDeltaPlanRow]) -> dict[str, 
         add_edge(action_id, stage_id, "assigned_stage")
         add_edge(action_id, delta_kind_id, "produces_delta_kind")
 
+        goal_node_ids: list[str] = []
         for problem_class in row.problem_classes:
             node_id = f"problem_class:{problem_class}"
             add_node(node_id, "problem_class", problem_class)
             add_edge(node_id, primitive_id, "has_missing_primitive", n_gaps=row.n_gaps)
             for theorem_goal in row.theorem_goals:
                 goal_id = f"theorem_goal:{problem_class}:{theorem_goal}"
+                goal_node_ids.append(goal_id)
                 add_node(goal_id, "theorem_goal", theorem_goal, problem_class=problem_class)
                 add_edge(node_id, goal_id, "targets_goal")
                 add_edge(goal_id, primitive_id, "needs_primitive", n_gaps=row.n_gaps)
@@ -294,6 +321,7 @@ def _build_dependency_graph(rows: list[FormalizationDeltaPlanRow]) -> dict[str, 
         if not row.problem_classes:
             for theorem_goal in row.theorem_goals:
                 goal_id = f"theorem_goal:{theorem_goal}"
+                goal_node_ids.append(goal_id)
                 add_node(goal_id, "theorem_goal", theorem_goal)
                 add_edge(goal_id, primitive_id, "needs_primitive", n_gaps=row.n_gaps)
                 add_edge(goal_id, action_id, "handled_by_delta_action", total_cost=row.total_cost)
@@ -304,8 +332,46 @@ def _build_dependency_graph(rows: list[FormalizationDeltaPlanRow]) -> dict[str, 
             add_edge(node_id, primitive_id, "requires_primitive")
         for task_id in row.source_task_ids:
             node_id = f"task:{task_id}"
-            add_node(node_id, "formal_gap_task", task_id)
+            task = task_by_id.get(task_id, {})
+            declaration = _task_declaration(str(task.get("statement", "")))
+            statement_hash = stable_hash(str(task.get("statement", "")))[:16] if task else ""
+            add_node(
+                node_id,
+                "formal_gap_task",
+                task_id,
+                question_id=str(task.get("question_id", "")),
+                problem_class=str(task.get("problem_class", "")),
+                theorem_goal_id=str(task.get("theorem_goal_id", "")),
+                priority_hint=str(task.get("priority_hint", "")),
+                allowed_sorry=task.get("allowed_sorry", None) if task else None,
+                declaration=declaration,
+                statement_hash=statement_hash,
+            )
             add_edge(node_id, primitive_id, "mentions_primitive")
+            if declaration:
+                skeleton_id = f"theorem_skeleton:{declaration}"
+                add_node(
+                    skeleton_id,
+                    "lean_theorem_skeleton",
+                    declaration,
+                    namespace=str(task.get("namespace", "")),
+                    statement_hash=statement_hash,
+                    allowed_sorry=task.get("allowed_sorry", None),
+                    problem_class=str(task.get("problem_class", "")),
+                    theorem_goal_id=str(task.get("theorem_goal_id", "")),
+                )
+                add_edge(node_id, skeleton_id, "exports_skeleton")
+                add_edge(skeleton_id, primitive_id, "requires_primitive")
+                add_edge(skeleton_id, action_id, "handled_by_delta_action", total_cost=row.total_cost)
+                for goal_id in goal_node_ids:
+                    add_edge(goal_id, skeleton_id, "has_lean_skeleton")
+                for import_name in task.get("imports", []) or []:
+                    import_text = str(import_name)
+                    if not import_text:
+                        continue
+                    import_id = f"import:{import_text}"
+                    add_node(import_id, "lean_import", import_text)
+                    add_edge(skeleton_id, import_id, "imports")
         for obligation in row.bridge_candidate_obligations:
             node_id = f"proof_bank_obligation:{obligation}"
             add_node(node_id, "proof_bank_obligation", obligation)
@@ -411,6 +477,11 @@ def _next_step(action_class: str, primitive: str, total_cost: int) -> str:
     if action_class == "design_bridge_lemma":
         return f"Design one reusable bridge lemma for `{primitive}`; target cost class {total_cost} before full theorem work."
     return f"Start a new primitive-definition plan for `{primitive}`; expect source search plus semantic review before proving."
+
+
+def _task_declaration(statement: str) -> str:
+    match = re.search(r"\btheorem\s+([A-Za-z_][A-Za-z0-9_'.]*)\b", statement)
+    return match.group(1) if match else ""
 
 
 def _read_json(path: Path | None, errors: list[str], *, missing_ok: bool = False) -> dict[str, Any]:

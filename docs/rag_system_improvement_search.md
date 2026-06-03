@@ -92,12 +92,12 @@ Lean proof boundary.
 1. Add library-aware minimal formalization planning:
    the current `formalization-delta-plan` ranks proof-bank actions by reuse,
    blocker, source-coverage, and bridge/wrapper cost, and exports a dependency
-   graph linking problem classes, theorem goals, gaps, primitives, actions,
-   stages, expected premises, verified bridge candidates, and candidate Lean
-   declarations. The next version should add informal-proof-step nodes so the
-   route becomes:
-   target theorem -> definitions -> assumptions -> existing Lean declarations
-   -> bridge lemmas -> first-principles primitives.
+   graph linking problem classes, theorem goals, concrete Lean theorem
+   skeletons, imports, gaps, primitives, actions, stages, expected premises,
+   verified bridge candidates, and candidate Lean declarations. The next
+   version should add informal-proof-step nodes so the route becomes:
+   target theorem -> Lean skeleton -> definitions -> assumptions -> existing
+   Lean declarations -> bridge lemmas -> first-principles primitives.
 2. Add query-intent expansion for missing primitives:
    primitive name, theorem goal, problem class, local gap reason, and candidate
    proof-bank bridge names should all become retriever queries.

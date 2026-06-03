@@ -6980,10 +6980,15 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                 Path("runs/test_formalization_delta_run"),
                 Path("runs/test_formalization_delta_primitive_source_coverage"),
             )
+            export_formal_gap_lean_tasks(
+                Path("runs/test_formalization_delta_run"),
+                Path("runs/test_formalization_delta_tasks"),
+            )
             return build_formalization_delta_plan(
                 Path("runs/test_formalization_delta_actions"),
                 Path("runs/test_formalization_delta_plan"),
                 primitive_source_coverage_dir=Path("runs/test_formalization_delta_primitive_source_coverage"),
+                formal_gap_tasks_dir=Path("runs/test_formalization_delta_tasks"),
             )
 
         payload = asyncio.run(run())
@@ -7005,13 +7010,20 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertIn("primitive", payload["dependency_graph_by_node_kind"])
         self.assertIn("problem_class", payload["dependency_graph_by_node_kind"])
         self.assertIn("theorem_goal", payload["dependency_graph_by_node_kind"])
+        self.assertIn("lean_theorem_skeleton", payload["dependency_graph_by_node_kind"])
+        self.assertIn("lean_import", payload["dependency_graph_by_node_kind"])
         self.assertIn("planned_by", payload["dependency_graph_by_edge_kind"])
         self.assertIn("assigned_stage", payload["dependency_graph_by_edge_kind"])
         self.assertIn("targets_goal", payload["dependency_graph_by_edge_kind"])
         self.assertIn("needs_primitive", payload["dependency_graph_by_edge_kind"])
+        self.assertIn("has_lean_skeleton", payload["dependency_graph_by_edge_kind"])
+        self.assertIn("exports_skeleton", payload["dependency_graph_by_edge_kind"])
         self.assertGreater(payload["dependency_graph_problem_class_nodes"], 0)
         self.assertGreater(payload["dependency_graph_theorem_goal_nodes"], 0)
+        self.assertGreater(payload["dependency_graph_theorem_skeleton_nodes"], 0)
+        self.assertGreater(payload["dependency_graph_import_nodes"], 0)
         self.assertGreater(payload["dependency_graph_goal_to_primitive_edges"], 0)
+        self.assertGreater(payload["dependency_graph_goal_to_skeleton_edges"], 0)
         graph = payload["dependency_graph"]
         self.assertEqual(graph["n_nodes"], payload["dependency_graph_nodes"])
         self.assertEqual(graph["n_edges"], payload["dependency_graph_edges"])
@@ -9677,7 +9689,10 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertGreater(payload["counts"]["formalization_delta_graph_edges"], payload["counts"]["formalization_delta_plan_rows"])
         self.assertGreater(payload["counts"]["formalization_delta_graph_problem_class_nodes"], 0)
         self.assertGreater(payload["counts"]["formalization_delta_graph_theorem_goal_nodes"], 0)
+        self.assertGreater(payload["counts"]["formalization_delta_graph_theorem_skeleton_nodes"], 0)
+        self.assertGreater(payload["counts"]["formalization_delta_graph_import_nodes"], 0)
         self.assertGreater(payload["counts"]["formalization_delta_graph_goal_to_primitive_edges"], 0)
+        self.assertGreater(payload["counts"]["formalization_delta_graph_goal_to_skeleton_edges"], 0)
         self.assertGreaterEqual(payload["counts"]["formalization_delta_plan_low_cost_existing_reuse"], 0)
         self.assertGreaterEqual(payload["counts"]["formalization_delta_plan_medium_cost_bridge_or_wrapper"], 0)
         self.assertGreaterEqual(payload["counts"]["formalization_delta_plan_high_cost_new_theory"], 0)

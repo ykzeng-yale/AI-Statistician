@@ -475,6 +475,7 @@ async def run_research_system_audit(
         out_dir / "proof_bank_actions",
         out_dir / "formalization_delta_plan",
         primitive_source_coverage_dir=out_dir / "primitive_source_coverage",
+        formal_gap_tasks_dir=out_dir / "formal_gap_lean_tasks",
     )
     stage_start = _record_stage(stage_timings, "formalization_delta_plan", stage_start)
 
@@ -1244,8 +1245,17 @@ async def run_research_system_audit(
             "formalization_delta_graph_theorem_goal_nodes": formalization_delta_manifest[
                 "dependency_graph_theorem_goal_nodes"
             ],
+            "formalization_delta_graph_theorem_skeleton_nodes": formalization_delta_manifest[
+                "dependency_graph_theorem_skeleton_nodes"
+            ],
+            "formalization_delta_graph_import_nodes": formalization_delta_manifest[
+                "dependency_graph_import_nodes"
+            ],
             "formalization_delta_graph_goal_to_primitive_edges": formalization_delta_manifest[
                 "dependency_graph_goal_to_primitive_edges"
+            ],
+            "formalization_delta_graph_goal_to_skeleton_edges": formalization_delta_manifest[
+                "dependency_graph_goal_to_skeleton_edges"
             ],
             "formalization_delta_plan_low_cost_existing_reuse": formalization_delta_manifest[
                 "n_low_cost_existing_reuse"

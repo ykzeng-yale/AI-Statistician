@@ -209,10 +209,10 @@ Current release signal:
   composition, assumption interfaces, minimal wrappers, bridge lemmas, and
   first-principles primitive work before a FormalVerifier spends proof-search
   budget. It also writes a dependency graph linking problem classes, theorem
-  goals, gaps, primitives, actions, stages, expected premises, proof-bank
-  obligations, and candidate Lean declarations. Its cost and graph are
-  heuristic planning evidence, not a proof of true minimality and not Lean proof
-  evidence.
+  goals, Lean theorem skeletons, imports, gaps, primitives, actions, stages,
+  expected premises, proof-bank obligations, and candidate Lean declarations.
+  Its cost and graph are heuristic planning evidence, not a proof of true
+  minimality and not Lean proof evidence.
 - compose-existing bridge-chain opportunities are now 51
 - minimal-wrapper debt is now 2, down from 10 after adding the robust
   median-of-means, conformal rank/quantile, and continuous-mapping wrappers
@@ -225,8 +225,8 @@ Pass criteria:
 - every proof-bank action has a formalization-delta stage and estimated cost
 - every formalization-delta plan exposes a graph with more nodes/edges than the
   flat action count, so downstream agents can traverse the route from
-  problem-class theorem goals to missing primitives, existing Lean declarations,
-  and verified bridge candidates
+  problem-class theorem goals through concrete Lean skeleton declarations to
+  missing primitives, existing Lean declarations, and verified bridge candidates
 - new proof-bank additions reduce the missing primitive count or increase
   bridge readiness
 

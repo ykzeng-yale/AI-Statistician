@@ -1196,6 +1196,7 @@ def _formalization_delta_plan(args: argparse.Namespace) -> int:
             if args.primitive_source_coverage_dir
             else None
         ),
+        formal_gap_tasks_dir=Path(args.formal_gap_tasks_dir) if args.formal_gap_tasks_dir else None,
     )
     print("\nAI Statistical Theory Lab Formalization Delta Plan")
     print("=" * 72)
@@ -2940,6 +2941,10 @@ def build_parser() -> argparse.ArgumentParser:
     formalization_delta_plan.add_argument(
         "--primitive-source-coverage-dir",
         help="optional directory containing primitive_source_coverage_manifest.json",
+    )
+    formalization_delta_plan.add_argument(
+        "--formal-gap-tasks-dir",
+        help="optional directory containing formal_gap_lean_task_manifest.json",
     )
     formalization_delta_plan.add_argument(
         "--out",
