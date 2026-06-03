@@ -1202,6 +1202,7 @@ def _formalization_delta_plan(args: argparse.Namespace) -> int:
     print(
         f"rows={payload['n_ok']}/{payload['n_plan_rows']} "
         f"cost={payload['total_estimated_cost']} "
+        f"graph={payload['dependency_graph_nodes']}n/{payload['dependency_graph_edges']}e "
         f"low={payload['n_low_cost_existing_reuse']} "
         f"medium={payload['n_medium_cost_bridge_or_wrapper']} "
         f"high={payload['n_high_cost_new_theory']} "

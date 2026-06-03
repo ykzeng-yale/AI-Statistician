@@ -51,6 +51,22 @@ class FormalizationDeltaPlanRow:
     errors: tuple[str, ...] = ()
 
 
+@dataclass(frozen=True)
+class FormalizationDeltaGraphNode:
+    node_id: str
+    kind: str
+    label: str
+    metadata: dict[str, object]
+
+
+@dataclass(frozen=True)
+class FormalizationDeltaGraphEdge:
+    source: str
+    target: str
+    kind: str
+    metadata: dict[str, object]
+
+
 def build_formalization_delta_plan(
     proof_bank_actions_dir: Path,
     out_dir: Path | None = None,
@@ -93,6 +109,7 @@ def build_formalization_delta_plan(
     by_stage = Counter(row.plan_stage for row in rows)
     by_delta_kind = Counter(row.delta_kind for row in rows)
     by_action_class = Counter(row.action_class for row in rows)
+    graph = _build_dependency_graph(rows)
     payload: dict[str, object] = {
         "schema_version": FORMALIZATION_DELTA_PLAN_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -111,10 +128,16 @@ def build_formalization_delta_plan(
         "by_plan_stage": dict(sorted(by_stage.items())),
         "by_delta_kind": dict(sorted(by_delta_kind.items())),
         "by_action_class": dict(sorted(by_action_class.items())),
+        "dependency_graph": graph,
+        "dependency_graph_nodes": graph["n_nodes"],
+        "dependency_graph_edges": graph["n_edges"],
+        "dependency_graph_by_node_kind": graph["by_node_kind"],
+        "dependency_graph_by_edge_kind": graph["by_edge_kind"],
         "top_low_cost_rows": [asdict(row) for row in rows[:10]],
         "top_high_cost_rows": [asdict(row) for row in sorted(rows, key=lambda row: -row.total_cost)[:10]],
         "rows": [asdict(row) for row in rows],
         "plan_fingerprint": stable_hash([asdict(row) for row in rows]),
+        "graph_fingerprint": graph["graph_fingerprint"],
         "errors": errors,
         "limitations": [
             "formalization delta rows are planning evidence, not proof evidence",
@@ -131,6 +154,10 @@ def build_formalization_delta_plan(
         (out_dir / "formalization_delta_plan.jsonl").write_text(
             "\n".join(json.dumps(asdict(row), sort_keys=True) for row in rows)
             + ("\n" if rows else ""),
+            encoding="utf-8",
+        )
+        (out_dir / "formalization_delta_graph.json").write_text(
+            json.dumps(graph, indent=2, default=str),
             encoding="utf-8",
         )
         (out_dir / "formalization_delta_plan.md").write_text(_markdown_report(payload), encoding="utf-8")
@@ -191,6 +218,102 @@ def _row_from_action(
         ok=not errors and bool(action.get("ok", False)),
         errors=tuple(errors),
     )
+
+
+def _build_dependency_graph(rows: list[FormalizationDeltaPlanRow]) -> dict[str, object]:
+    nodes: dict[str, FormalizationDeltaGraphNode] = {}
+    edges: dict[tuple[str, str, str], FormalizationDeltaGraphEdge] = {}
+
+    def add_node(node_id: str, kind: str, label: str, **metadata: object) -> None:
+        if node_id not in nodes:
+            nodes[node_id] = FormalizationDeltaGraphNode(
+                node_id=node_id,
+                kind=kind,
+                label=label,
+                metadata={key: value for key, value in metadata.items() if value not in (None, "", (), [])},
+            )
+
+    def add_edge(source: str, target: str, kind: str, **metadata: object) -> None:
+        key = (source, target, kind)
+        if key not in edges:
+            edges[key] = FormalizationDeltaGraphEdge(
+                source=source,
+                target=target,
+                kind=kind,
+                metadata={key: value for key, value in metadata.items() if value not in (None, "", (), [])},
+            )
+
+    for row in rows:
+        primitive_id = f"primitive:{row.primitive}"
+        action_id = f"action:{row.action_id}"
+        stage_id = f"stage:{row.plan_stage}"
+        delta_kind_id = f"delta_kind:{row.delta_kind}"
+        add_node(
+            primitive_id,
+            "primitive",
+            row.primitive,
+            coverage_classification=row.coverage_classification,
+            total_cost=row.total_cost,
+        )
+        add_node(
+            action_id,
+            "action",
+            row.action_id,
+            action_class=row.action_class,
+            priority=row.priority,
+            total_cost=row.total_cost,
+            owner_agent=row.owner_agent,
+        )
+        add_node(stage_id, "plan_stage", row.plan_stage)
+        add_node(delta_kind_id, "delta_kind", row.delta_kind)
+        add_edge(primitive_id, action_id, "planned_by", total_cost=row.total_cost)
+        add_edge(action_id, stage_id, "assigned_stage")
+        add_edge(action_id, delta_kind_id, "produces_delta_kind")
+
+        for gap_id in row.source_gap_ids:
+            node_id = f"gap:{gap_id}"
+            add_node(node_id, "formal_gap", gap_id)
+            add_edge(node_id, primitive_id, "requires_primitive")
+        for task_id in row.source_task_ids:
+            node_id = f"task:{task_id}"
+            add_node(node_id, "formal_gap_task", task_id)
+            add_edge(node_id, primitive_id, "mentions_primitive")
+        for obligation in row.bridge_candidate_obligations:
+            node_id = f"proof_bank_obligation:{obligation}"
+            add_node(node_id, "proof_bank_obligation", obligation)
+            add_edge(action_id, node_id, "uses_verified_bridge_candidate")
+        for premise in row.expected_premises:
+            node_id = f"expected_premise:{premise}"
+            add_node(node_id, "expected_premise", premise)
+            add_edge(action_id, node_id, "expects_premise")
+        for declaration in row.candidate_declarations:
+            node_id = f"lean_declaration:{declaration}"
+            add_node(node_id, "lean_declaration", declaration)
+            add_edge(action_id, node_id, "uses_candidate_declaration")
+        for blocker in row.blocked_reasons:
+            node_id = f"blocker:{stable_hash([row.primitive, blocker])[:12]}"
+            add_node(node_id, "blocker", blocker)
+            add_edge(action_id, node_id, "blocked_by")
+
+    node_rows = sorted((asdict(node) for node in nodes.values()), key=lambda row: (row["kind"], row["node_id"]))
+    edge_rows = sorted((asdict(edge) for edge in edges.values()), key=lambda row: (row["kind"], row["source"], row["target"]))
+    by_node_kind = Counter(str(row["kind"]) for row in node_rows)
+    by_edge_kind = Counter(str(row["kind"]) for row in edge_rows)
+    return {
+        "schema_version": FORMALIZATION_DELTA_PLAN_SCHEMA_VERSION,
+        "n_nodes": len(node_rows),
+        "n_edges": len(edge_rows),
+        "by_node_kind": dict(sorted(by_node_kind.items())),
+        "by_edge_kind": dict(sorted(by_edge_kind.items())),
+        "nodes": node_rows,
+        "edges": edge_rows,
+        "graph_fingerprint": stable_hash([node_rows, edge_rows]),
+        "limitations": [
+            "graph edges are formalization-planning dependencies, not Lean proof dependencies",
+            "proof-bank obligation nodes are proof evidence only if separately kernel verified",
+            "Lean declaration nodes are retrieval/source evidence only until imported and verified in a proof",
+        ],
+    }
 
 
 def _risk_penalty(action_class: str, blocked_reasons: tuple[str, ...], coverage: dict[str, Any]) -> int:

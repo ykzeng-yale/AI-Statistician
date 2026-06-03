@@ -90,11 +90,13 @@ Lean proof boundary.
 ## Next Build Targets
 
 1. Add library-aware minimal formalization planning:
-   the current `formalization-delta-plan` is a first heuristic pass that ranks
-   proof-bank actions by reuse, blocker, source-coverage, and bridge/wrapper
-   cost. The next version should promote this from a flat queue to a dependency
-   DAG: target theorem -> definitions -> assumptions -> existing Lean
-   declarations -> bridge lemmas -> first-principles primitives.
+   the current `formalization-delta-plan` ranks proof-bank actions by reuse,
+   blocker, source-coverage, and bridge/wrapper cost, and exports a dependency
+   graph linking gaps, primitives, actions, stages, expected premises, verified
+   bridge candidates, and candidate Lean declarations. The next version should
+   add theorem-goal and informal-proof-step nodes so the route becomes:
+   target theorem -> definitions -> assumptions -> existing Lean declarations
+   -> bridge lemmas -> first-principles primitives.
 2. Add query-intent expansion for missing primitives:
    primitive name, theorem goal, problem class, local gap reason, and candidate
    proof-bank bridge names should all become retriever queries.
@@ -125,9 +127,10 @@ python3 -m ai_statistician.cli formalization-delta-plan \
 
 This outputs exact-reuse rows, bridge-chain composition rows, assumption
 interfaces, minimal wrappers, bridge lemmas, and first-principles primitive rows
-with heuristic costs. This is planning evidence only. It should eventually be
-upgraded with dependency depth, import-cone size, source trust level, proof
-attempt history, and semantic-faithfulness review.
+with heuristic costs, plus `formalization_delta_graph.json`. The graph is
+planning evidence only. It should eventually be upgraded with dependency depth,
+import-cone size, source trust level, proof attempt history, theorem-goal nodes,
+informal-proof-step nodes, and semantic-faithfulness review.
 
 ## Honesty Boundary
 

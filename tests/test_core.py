@@ -7000,9 +7000,19 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         first = payload["rows"][0]
         self.assertIn("delta_kind", first)
         self.assertIn("total_cost", first)
+        self.assertGreater(payload["dependency_graph_nodes"], payload["n_plan_rows"])
+        self.assertGreater(payload["dependency_graph_edges"], payload["n_plan_rows"])
+        self.assertIn("primitive", payload["dependency_graph_by_node_kind"])
+        self.assertIn("planned_by", payload["dependency_graph_by_edge_kind"])
+        self.assertIn("assigned_stage", payload["dependency_graph_by_edge_kind"])
+        graph = payload["dependency_graph"]
+        self.assertEqual(graph["n_nodes"], payload["dependency_graph_nodes"])
+        self.assertEqual(graph["n_edges"], payload["dependency_graph_edges"])
+        self.assertIn("not Lean proof dependencies", " ".join(graph["limitations"]))
         self.assertIn("not proof evidence", " ".join(payload["limitations"]))
         self.assertTrue(Path("runs/test_formalization_delta_plan/formalization_delta_plan_manifest.json").exists())
         self.assertTrue(Path("runs/test_formalization_delta_plan/formalization_delta_plan.jsonl").exists())
+        self.assertTrue(Path("runs/test_formalization_delta_plan/formalization_delta_graph.json").exists())
         self.assertTrue(Path("runs/test_formalization_delta_plan/formalization_delta_plan.md").exists())
 
     def test_primitive_source_coverage_audit_classifies_missing_primitives(self) -> None:
@@ -9656,10 +9666,13 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(Path(payload["artifacts"]["assumption_interfaces"]).exists())
         self.assertEqual(payload["counts"]["formalization_delta_plan_ok"], payload["counts"]["formalization_delta_plan_rows"])
         self.assertGreater(payload["counts"]["formalization_delta_plan_total_estimated_cost"], 0)
+        self.assertGreater(payload["counts"]["formalization_delta_graph_nodes"], payload["counts"]["formalization_delta_plan_rows"])
+        self.assertGreater(payload["counts"]["formalization_delta_graph_edges"], payload["counts"]["formalization_delta_plan_rows"])
         self.assertGreaterEqual(payload["counts"]["formalization_delta_plan_low_cost_existing_reuse"], 0)
         self.assertGreaterEqual(payload["counts"]["formalization_delta_plan_medium_cost_bridge_or_wrapper"], 0)
         self.assertGreaterEqual(payload["counts"]["formalization_delta_plan_high_cost_new_theory"], 0)
         self.assertTrue(Path(payload["artifacts"]["formalization_delta_plan"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_delta_graph"]).exists())
         self.assertEqual(
             payload["counts"]["primitive_source_coverage_primitives"],
             payload["counts"]["missing_formal_primitives"],
