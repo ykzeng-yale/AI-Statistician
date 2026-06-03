@@ -47,6 +47,9 @@ from .formal_verifier_replay_repair_application import (
 from .formal_verifier_replay_repair_application_validation import (
     export_formal_verifier_replay_repair_application_validation,
 )
+from .formal_verifier_replay_repair_execution_queue import (
+    export_formal_verifier_replay_repair_execution_queue,
+)
 from .formal_verifier_replay_repair import export_formal_verifier_replay_repair_packets
 from .formal_source_graph import audit_formal_source_graph
 from .formal_source_index import (
@@ -1464,6 +1467,36 @@ def _formal_verifier_replay_repair_application_validation(args: argparse.Namespa
     print(
         f"markdown report written to "
         f"{(Path(args.out) / 'formal_verifier_replay_repair_application_validation.md').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formal_verifier_replay_repair_execution_queue(args: argparse.Namespace) -> int:
+    payload = export_formal_verifier_replay_repair_execution_queue(
+        Path(args.formal_verifier_replay_repair_application_dir),
+        Path(args.formal_verifier_replay_repair_application_validation_dir),
+        Path(args.out),
+    )
+    print("\nAI Statistical Theory Lab Formal Verifier Replay Repair Execution Queue")
+    print("=" * 72)
+    print(
+        f"queue={payload['n_ok']}/{payload['n_queue_items']} "
+        f"ready={payload['n_ready_for_patch']} "
+        f"local_lean_ready={payload['n_ready_local_lean_compiled']} "
+        f"blocked={payload['n_blocked']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nexecution queue manifest written to "
+        f"{(Path(args.out) / 'formal_verifier_replay_repair_execution_queue_manifest.json').resolve()}"
+    )
+    print(
+        f"execution queue jsonl written to "
+        f"{(Path(args.out) / 'formal_verifier_replay_repair_execution_queue.jsonl').resolve()}"
+    )
+    print(
+        f"markdown report written to "
+        f"{(Path(args.out) / 'formal_verifier_replay_repair_execution_queue.md').resolve()}"
     )
     return 0 if payload["all_ok"] else 1
 
@@ -3386,6 +3419,29 @@ def build_parser() -> argparse.ArgumentParser:
     )
     formal_verifier_replay_repair_application_validation.set_defaults(
         func=_formal_verifier_replay_repair_application_validation
+    )
+
+    formal_verifier_replay_repair_execution_queue = sub.add_parser(
+        "formal-verifier-replay-repair-execution-queue",
+        help="export ranked repair-patch work orders from validated replay scaffolds",
+    )
+    formal_verifier_replay_repair_execution_queue.add_argument(
+        "--formal-verifier-replay-repair-application-dir",
+        required=True,
+        help="directory containing formal_verifier_replay_repair_application_manifest.json",
+    )
+    formal_verifier_replay_repair_execution_queue.add_argument(
+        "--formal-verifier-replay-repair-application-validation-dir",
+        required=True,
+        help="directory containing formal_verifier_replay_repair_application_validation_manifest.json",
+    )
+    formal_verifier_replay_repair_execution_queue.add_argument(
+        "--out",
+        default="runs/formal_verifier_replay_repair_execution_queue",
+        help="formal-verifier replay repair execution queue output directory",
+    )
+    formal_verifier_replay_repair_execution_queue.set_defaults(
+        func=_formal_verifier_replay_repair_execution_queue
     )
 
     rag_collaboration_export = sub.add_parser(

@@ -150,6 +150,12 @@ Lean project is supplied, the scaffold file compiles under `lake env lean`. This
 is still not theorem proof evidence; it is only a handoff-integrity check before
 the repaired route is attempted again.
 
+`formal_verifier_replay_repair_execution_queue` is the ranked patch work-order
+queue after scaffold validation. It joins the application task, validation
+status, artifact path, candidate bridge lemma, replay subclaims, and rerun
+commands into the next concrete RAG/prover action. Queue rows are not proof
+evidence; they only make the next repair attempt explicit and auditable.
+
 ## Next Build Targets
 
 1. Expand library-aware minimal formalization planning:
@@ -278,6 +284,18 @@ python3 -m ai_statistician.cli formal-verifier-replay-repair-application-validat
 The validation output confirms scaffold source integrity and optional Lean
 syntax/import compatibility. Promotion still requires rerunning
 `formal-verifier-replay-attempts` and accepting only routes whose calibration is
+`full_route_kernel_verified`.
+
+```bash
+python3 -m ai_statistician.cli formal-verifier-replay-repair-execution-queue \
+  --formal-verifier-replay-repair-application-dir runs/current/formal_verifier_replay_repair_application \
+  --formal-verifier-replay-repair-application-validation-dir runs/current/formal_verifier_replay_repair_application_validation \
+  --out runs/current/formal_verifier_replay_repair_execution_queue
+```
+
+This writes the ranked repair-patch work orders. Patch the highest-ranked
+validated scaffold first, rerun the replay-attempt and calibration commands in
+the row, and keep the theorem as a formal gap unless calibration returns
 `full_route_kernel_verified`.
 
 ## Honesty Boundary

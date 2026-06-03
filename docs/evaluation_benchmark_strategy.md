@@ -345,6 +345,9 @@ Current release signal:
   repair scaffold files for source-artifact integrity and optional local Lean
   compilation, but this remains non-evidence until a repaired full-route replay
   attempt calibrates as `full_route_kernel_verified`
+- `formal-verifier-replay-repair-execution-queue` ranks validated repair
+  scaffolds into prover/RAG patch work orders with rerun commands and explicit
+  promotion gates; queue rows are still not proof evidence
 - release-speed `research-system-audit` runs can add a targeted local-kernel
   smoke overlay, for example:
 

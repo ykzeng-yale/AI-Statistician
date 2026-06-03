@@ -92,6 +92,14 @@ def export_rag_collaboration_manifest(
     formal_verifier_replay_repair_application_validation_payload = _read_json(
         formal_verifier_replay_repair_application_validation_path
     )
+    formal_verifier_replay_repair_execution_queue_path = _artifact_path(
+        artifacts,
+        "formal_verifier_replay_repair_execution_queue",
+        run_dir,
+    )
+    formal_verifier_replay_repair_execution_queue_payload = _read_json(
+        formal_verifier_replay_repair_execution_queue_path
+    )
     guidance_payload = _read_json(_artifact_path(artifacts, "evaluation_benchmark_guidance", run_dir))
 
     target_rows = _handoff_targets(
@@ -478,6 +486,31 @@ def export_rag_collaboration_manifest(
                 formal_verifier_replay_repair_application_validation_payload,
                 max_rows=min(max_targets, 10),
             ),
+            "formal_verifier_replay_repair_execution_queue_items": counts.get(
+                "formal_verifier_replay_repair_execution_queue_items",
+                formal_verifier_replay_repair_execution_queue_payload.get("n_queue_items"),
+            ),
+            "formal_verifier_replay_repair_execution_queue_ready": counts.get(
+                "formal_verifier_replay_repair_execution_queue_ready",
+                formal_verifier_replay_repair_execution_queue_payload.get("n_ready_for_patch"),
+            ),
+            "formal_verifier_replay_repair_execution_queue_ready_local_lean": counts.get(
+                "formal_verifier_replay_repair_execution_queue_ready_local_lean",
+                formal_verifier_replay_repair_execution_queue_payload.get(
+                    "n_ready_local_lean_compiled"
+                ),
+            ),
+            "formal_verifier_replay_repair_execution_queue_blocked": counts.get(
+                "formal_verifier_replay_repair_execution_queue_blocked",
+                formal_verifier_replay_repair_execution_queue_payload.get("n_blocked"),
+            ),
+            "formal_verifier_replay_repair_execution_queue_manifest": str(
+                formal_verifier_replay_repair_execution_queue_path
+            ),
+            "formal_verifier_replay_repair_execution_queue_preview": _formal_verifier_replay_repair_execution_queue_preview(
+                formal_verifier_replay_repair_execution_queue_payload,
+                max_rows=min(max_targets, 10),
+            ),
             "handoff_targets": target_rows,
             "proof_bank_expansion_manifest": str(
                 _artifact_path(artifacts, "proof_bank_expansion", run_dir)
@@ -520,6 +553,7 @@ def export_rag_collaboration_manifest(
             "FormalVerifier replay repair packets and proof templates are not proof evidence until a repaired attempt passes AXLE/local Lean.",
             "FormalVerifier replay repair application scaffolds are work artifacts, not proof evidence.",
             "FormalVerifier repair scaffold validation is source-artifact integrity evidence, not theorem proof evidence.",
+            "FormalVerifier repair execution queue items are patch work orders, not theorem proof evidence.",
             "FORMAL_GAP and theorem-hole queues remain open until a non-placeholder Lean proof is verified.",
         ],
     }
@@ -823,6 +857,45 @@ def _formal_verifier_replay_repair_application_validation_preview(
     return rows
 
 
+def _formal_verifier_replay_repair_execution_queue_preview(
+    payload: dict[str, Any],
+    *,
+    max_rows: int,
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    queue = payload.get("queue", [])
+    if not isinstance(queue, list):
+        return rows
+    for row in queue:
+        if not isinstance(row, dict):
+            continue
+        rows.append(
+            {
+                "execution_id": row.get("execution_id"),
+                "execution_priority_rank": row.get("execution_priority_rank"),
+                "application_id": row.get("application_id"),
+                "validation_id": row.get("validation_id"),
+                "packet_id": row.get("packet_id"),
+                "replay_id": row.get("replay_id"),
+                "route_id": row.get("route_id"),
+                "display_name": row.get("display_name"),
+                "execution_status": row.get("execution_status"),
+                "priority_score": row.get("priority_score"),
+                "application_mode": row.get("application_mode"),
+                "candidate_bridge_lemma_name": row.get("candidate_bridge_lemma_name"),
+                "artifact_path": row.get("artifact_path"),
+                "local_lean_compiled": row.get("local_lean_compiled", False),
+                "subclaim_replay_obligations": row.get("subclaim_replay_obligations", [])[:8],
+                "command_plan": row.get("command_plan", [])[:3],
+                "proof_evidence_status": row.get("proof_evidence_status", ""),
+                "proof_evidence_boundary": row.get("proof_evidence_boundary", ""),
+            }
+        )
+        if len(rows) >= max_rows:
+            break
+    return rows
+
+
 def _theorem_composition_packet_preview(
     payload: dict[str, Any],
     *,
@@ -925,6 +998,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Formal verifier repair scaffold validation: `{queue.get('formal_verifier_replay_repair_application_validation_rows')}` rows "
         f"(`{queue.get('formal_verifier_replay_repair_application_validation_static_ok')}` static OK, "
         f"`{queue.get('formal_verifier_replay_repair_application_validation_local_lean_compiled')}` local Lean compiled)",
+        f"- Formal verifier repair execution queue: `{queue.get('formal_verifier_replay_repair_execution_queue_items')}` items "
+        f"(`{queue.get('formal_verifier_replay_repair_execution_queue_ready')}` ready, "
+        f"`{queue.get('formal_verifier_replay_repair_execution_queue_blocked')}` blocked)",
         f"- Queue: exact_reuse=`{queue.get('reuse_exact_proof_bank_obligation')}`, compose=`{queue.get('compose_existing_bridge_chain')}`, minimal_wrapper=`{queue.get('add_minimal_wrapper')}`, design_bridge=`{queue.get('design_bridge_lemma')}`",
         f"- Theorem composition packets: `{composition.get('theorem_composition_packets')}` "
         f"(exact links `{composition.get('theorem_composition_exact_proof_bank_links')}`, "
@@ -1019,6 +1095,18 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"local_lean={row.get('local_lean_compiled')})"
         )
         lines.append(f"  proof status: {row.get('proof_evidence_status')}")
+        lines.append(f"  boundary: {row.get('proof_evidence_boundary')}")
+    lines.extend(["", "## Formal Verifier Repair Execution Queue", ""])
+    for row in queue.get("formal_verifier_replay_repair_execution_queue_preview", []):
+        if not isinstance(row, dict):
+            continue
+        commands = ", ".join(f"`{item}`" for item in row.get("command_plan", [])[:2]) or "none"
+        lines.append(
+            f"- #{row.get('execution_priority_rank')} `{row.get('display_name')}` "
+            f"({row.get('execution_status')}): {row.get('candidate_bridge_lemma_name')}"
+        )
+        lines.append(f"  artifact: `{row.get('artifact_path')}`")
+        lines.append(f"  commands: {commands}")
         lines.append(f"  boundary: {row.get('proof_evidence_boundary')}")
     lines.extend(["", "## Theorem Composition Handoff", ""])
     lines.append(str(composition.get("proof_evidence_boundary", "")))
