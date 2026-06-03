@@ -117,7 +117,7 @@ from .formal_source_retrieval_benchmark import (
     run_formal_source_retrieval_benchmark,
 )
 from .intake_audit import audit_question_intake
-from .lean_rag_package_audit import audit_lean_rag_package
+from .lean_rag_package_audit import audit_lean_rag_package, stage_lean_rag_source_registry_expansion
 from .lean_rag_dependency_health import audit_lean_rag_dependency_health
 from .proof_audit import audit_proof_bank
 from .proof_bank_action_export import export_proof_bank_actions
@@ -896,6 +896,35 @@ def _lean_rag_package_audit(args: argparse.Namespace) -> int:
         f"{(Path(args.out) / 'lean_rag_package_audit_manifest.json').resolve()}"
     )
     print(f"markdown report written to {(Path(args.out) / 'lean_rag_package_audit.md').resolve()}")
+    return 0 if payload["all_ok"] else 1
+
+
+def _lean_rag_source_registry_expansion(args: argparse.Namespace) -> int:
+    payload = stage_lean_rag_source_registry_expansion(
+        Path(args.out),
+        package_root=Path(args.package_root) if args.package_root else None,
+        db_dir=Path(args.db_dir) if args.db_dir else None,
+    )
+    before = payload["target_source_coverage_before"]
+    after = payload["target_source_coverage_after"]
+    print("\nAI Statistical Theory Lab Lean RAG Source Registry Expansion")
+    print("=" * 72)
+    print(
+        f"package_contract_ok={payload['package_contract_ok']} "
+        f"stage_ready={payload['stage_ready']} package_root={payload['package_root']}"
+    )
+    print(
+        f"coverage={before.get('n_present', 0)}/{before.get('n_targets', 0)} -> "
+        f"{after.get('n_present', 0)}/{after.get('n_targets', 0)} "
+        f"candidates={payload['n_candidates']} staged={payload['n_staged']} "
+        f"already_present={payload['n_already_present']} invalid={payload['n_invalid']}"
+    )
+    print(f"clone_commands={len(payload.get('clone_commands', []))}")
+    print(
+        f"\nsource registry expansion manifest written to "
+        f"{(Path(args.out) / 'source_registry_expansion_manifest.json').resolve()}"
+    )
+    print(f"staged source registry written to {(Path(args.out) / 'staged_source_registry.json').resolve()}")
     return 0 if payload["all_ok"] else 1
 
 
@@ -3578,6 +3607,27 @@ def build_parser() -> argparse.ArgumentParser:
         help="lean RAG package audit output directory",
     )
     lean_rag_package_audit.set_defaults(func=_lean_rag_package_audit)
+
+    lean_rag_source_registry_expansion = sub.add_parser(
+        "lean-rag-source-registry-expansion",
+        help="stage source_registry.json additions from Lean RAG target-source candidates",
+    )
+    lean_rag_source_registry_expansion.add_argument(
+        "--package-root",
+        default="",
+        help="optional path to the lean_rag package root; auto-discovered when omitted",
+    )
+    lean_rag_source_registry_expansion.add_argument(
+        "--db-dir",
+        default="",
+        help="optional shared_proof_retrieval build/lean_graph directory to inspect",
+    )
+    lean_rag_source_registry_expansion.add_argument(
+        "--out",
+        default="runs/lean_rag_source_registry_expansion",
+        help="source registry expansion output directory",
+    )
+    lean_rag_source_registry_expansion.set_defaults(func=_lean_rag_source_registry_expansion)
 
     lean_rag_dependency_health = sub.add_parser(
         "lean-rag-dependency-health",

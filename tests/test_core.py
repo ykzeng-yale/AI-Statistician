@@ -125,7 +125,10 @@ from ai_statistician.formal_source_retrieval_benchmark import (
 from ai_statistician.formal_source_retrieval_ablation import run_formal_source_retrieval_ablation_benchmark
 from ai_statistician.lean_rag_dependency import LeanRagDependencyRetriever
 from ai_statistician.lean_rag_dependency_health import audit_lean_rag_dependency_health
-from ai_statistician.lean_rag_package_audit import audit_lean_rag_package
+from ai_statistician.lean_rag_package_audit import (
+    audit_lean_rag_package,
+    stage_lean_rag_source_registry_expansion,
+)
 from ai_statistician.autoform_harness import audit_autoform_harness
 from ai_statistician.proof_bank import all_obligations, get_obligation
 from ai_statistician.evaluation import EvalConfig, run_seed_eval
@@ -3320,6 +3323,38 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(payload["shared_graph_manifest"]["total_declarations"], 150)
         self.assertTrue((out / "lean_rag_package_audit_manifest.json").exists())
         self.assertTrue((out / "lean_rag_package_audit.md").exists())
+
+        expansion = stage_lean_rag_source_registry_expansion(
+            root / "registry_expansion",
+            package_root=package,
+        )
+        self.assertTrue(expansion["all_ok"])
+        self.assertTrue(expansion["stage_ready"])
+        self.assertEqual(expansion["n_candidates"], 6)
+        self.assertEqual(expansion["n_staged"], 6)
+        self.assertEqual(expansion["n_invalid"], 0)
+        self.assertGreater(
+            expansion["target_source_coverage_after"]["n_present"],
+            expansion["target_source_coverage_before"]["n_present"],
+        )
+        staged_registry = json.loads(
+            (root / "registry_expansion" / "staged_source_registry.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        external_names = [
+            row["name"] for row in staged_registry["external_sources"] if "name" in row
+        ]
+        self.assertEqual(external_names.count("lean-rademacher"), 1)
+        self.assertIn("brownian-motion-lean", external_names)
+        self.assertIn(
+            "local Lean or AXLE",
+            expansion["acceptance_gate"],
+        )
+        self.assertGreaterEqual(len(expansion["clone_commands"]), 5)
+        self.assertTrue(
+            (root / "registry_expansion" / "source_registry_expansion_manifest.json").exists()
+        )
 
     def test_evaluation_benchmark_guidance_flags_capacity_gaps(self) -> None:
         payload = {

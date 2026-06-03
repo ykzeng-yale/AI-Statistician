@@ -1920,6 +1920,10 @@ deduplicated `registry_expansion_candidates` list with the proposed
 `source_registry.json` entry and evidence notes. These are staging candidates
 for the external reuse index only; they still require clean checkout refresh
 and local Lean/AXLE verification before any proof claim can be promoted.
+Use `lean-rag-source-registry-expansion` to write a reviewable
+`staged_source_registry.json` and source-registry delta without mutating the
+package checkout. The staged file is an infrastructure proposal, not proof
+evidence.
 
 Algorithm registry audit:
 

@@ -11,6 +11,8 @@ from .fingerprint import stable_hash
 
 
 LEAN_RAG_PACKAGE_AUDIT_SCHEMA_VERSION = 1
+LEAN_RAG_SOURCE_REGISTRY_EXPANSION_SCHEMA_VERSION = 1
+VALID_SOURCE_REGISTRY_SECTIONS = ("local_sources", "external_sources")
 
 REQUIRED_PACKAGE_FILES: tuple[str, ...] = (
     "README.md",
@@ -323,6 +325,104 @@ def audit_lean_rag_package(
     return payload
 
 
+def stage_lean_rag_source_registry_expansion(
+    out_dir: Path,
+    *,
+    package_root: Path | str | None = None,
+    db_dir: Path | str | None = None,
+) -> dict[str, object]:
+    """Write a staged source-registry expansion plan from package-audit candidates.
+
+    This does not mutate the `lean_rag` package. It writes a proposed
+    `source_registry.json` and a manifest that can be reviewed before a clean
+    checkout refresh. Staged entries are retrieval candidates only; theorem
+    status still changes only after local Lean/AXLE verification.
+    """
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    audit_dir = out_dir / "lean_rag_package_audit"
+    audit_payload = audit_lean_rag_package(
+        audit_dir,
+        package_root=package_root,
+        db_dir=db_dir,
+    )
+    root = Path(str(audit_payload.get("package_root", ""))).expanduser()
+    source_registry = _load_source_registry(root) if root.exists() else {}
+    staged_registry = json.loads(json.dumps(source_registry, default=str)) if source_registry else {}
+    coverage_before = dict(audit_payload.get("target_source_coverage", {}) or {})
+    candidates = list(coverage_before.get("registry_expansion_candidates", []) or [])
+    rows = _stage_registry_candidates(staged_registry, candidates)
+    local_sources = list(staged_registry.get("local_sources", []) or [])
+    external_sources = list(staged_registry.get("external_sources", []) or [])
+    coverage_after = _target_source_coverage(
+        local_sources=local_sources,
+        external_sources=external_sources,
+        git_payload=dict(audit_payload.get("git", {}) or {}),
+    )
+    staged_rows = [row for row in rows if row.get("status") == "staged"]
+    invalid_rows = [row for row in rows if row.get("status") == "invalid"]
+    already_present_rows = [row for row in rows if row.get("status") == "already_present"]
+    clone_commands = _registry_clone_commands(staged_rows)
+    payload: dict[str, object] = {
+        "schema_version": LEAN_RAG_SOURCE_REGISTRY_EXPANSION_SCHEMA_VERSION,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "package_root": str(root if root.exists() else audit_payload.get("package_root", "")),
+        "source_registry_path": str(root / "knowledgebase" / "source_registry.json")
+        if root.exists()
+        else "",
+        "lean_rag_package_audit_manifest": str(
+            audit_dir / "lean_rag_package_audit_manifest.json"
+        ),
+        "package_contract_ok": bool(audit_payload.get("contract_ok")),
+        "all_ok": bool(audit_payload.get("all_ok")) and not invalid_rows and bool(source_registry),
+        "stage_ready": bool(source_registry) and not invalid_rows and bool(staged_rows),
+        "n_candidates": len(candidates),
+        "n_staged": len(staged_rows),
+        "n_already_present": len(already_present_rows),
+        "n_invalid": len(invalid_rows),
+        "target_source_coverage_before": {
+            "n_targets": coverage_before.get("n_targets", 0),
+            "n_present": coverage_before.get("n_present", 0),
+            "n_missing": coverage_before.get("n_missing", 0),
+            "missing_target_ids": coverage_before.get("missing_target_ids", []),
+        },
+        "target_source_coverage_after": {
+            "n_targets": coverage_after.get("n_targets", 0),
+            "n_present": coverage_after.get("n_present", 0),
+            "n_missing": coverage_after.get("n_missing", 0),
+            "missing_target_ids": coverage_after.get("missing_target_ids", []),
+        },
+        "rows": rows,
+        "clone_commands": clone_commands,
+        "acceptance_gate": (
+            "Review staged_source_registry.json, clone or refresh only clean checkouts, "
+            "rebuild the external reuse index, and verify concrete reused declarations "
+            "with local Lean or AXLE before promoting proof status."
+        ),
+        "proof_evidence_boundary": SOURCE_COVERAGE_BOUNDARY,
+        "staged_source_registry": str(out_dir / "staged_source_registry.json"),
+        "source_registry_delta": str(out_dir / "source_registry_delta.json"),
+    }
+    (out_dir / "staged_source_registry.json").write_text(
+        json.dumps(staged_registry, indent=2, default=str) + "\n",
+        encoding="utf-8",
+    )
+    (out_dir / "source_registry_delta.json").write_text(
+        json.dumps({"rows": rows, "clone_commands": clone_commands}, indent=2, default=str)
+        + "\n",
+        encoding="utf-8",
+    )
+    (out_dir / "source_registry_expansion_manifest.json").write_text(
+        json.dumps(payload, indent=2, default=str) + "\n",
+        encoding="utf-8",
+    )
+    (out_dir / "source_registry_expansion.md").write_text(
+        _source_registry_expansion_markdown(payload),
+        encoding="utf-8",
+    )
+    return payload
+
+
 def _env_package_root() -> Path | None:
     raw = os.environ.get("AI_STATISTICIAN_LEAN_RAG_PACKAGE_ROOT", "").strip()
     return Path(raw).expanduser() if raw else None
@@ -572,6 +672,93 @@ def _registry_expansion_candidates(rows: list[dict[str, object]]) -> tuple[dict[
             }
         )
     return tuple(sorted(result, key=lambda item: str(dict(item["entry"]).get("name", ""))))
+
+
+def _stage_registry_candidates(
+    staged_registry: dict[str, object],
+    candidates: list[object],
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    existing_names = _registry_existing_source_names(staged_registry)
+    for candidate in candidates:
+        if not isinstance(candidate, dict):
+            rows.append(
+                {
+                    "status": "invalid",
+                    "reason": "candidate is not an object",
+                    "proof_evidence_boundary": SOURCE_COVERAGE_BOUNDARY,
+                }
+            )
+            continue
+        section = str(candidate.get("section", ""))
+        entry = dict(candidate.get("entry", {}) or {})
+        name = str(entry.get("name", ""))
+        normalized_name = _normalize_source_name(name)
+        if section not in VALID_SOURCE_REGISTRY_SECTIONS:
+            status = "invalid"
+            reason = f"unsupported source_registry section: {section}"
+        elif not normalized_name:
+            status = "invalid"
+            reason = "candidate entry is missing name"
+        elif normalized_name in existing_names:
+            status = "already_present"
+            reason = "source name already appears in the registry"
+        else:
+            staged_registry.setdefault(section, [])
+            if not isinstance(staged_registry[section], list):
+                staged_registry[section] = []
+            staged_registry[section].append(entry)
+            existing_names.add(normalized_name)
+            status = "staged"
+            reason = ""
+        rows.append(
+            {
+                "candidate_id": str(candidate.get("candidate_id", "")),
+                "target_ids": tuple(str(item) for item in candidate.get("target_ids", []) or []),
+                "section": section,
+                "entry": entry,
+                "status": status,
+                "reason": reason,
+                "source_evidence_urls": tuple(
+                    str(url) for url in candidate.get("source_evidence_urls", []) or []
+                ),
+                "source_evidence_statuses": tuple(
+                    str(status) for status in candidate.get("source_evidence_statuses", []) or []
+                ),
+                "acceptance_gate": str(candidate.get("acceptance_gate", "")),
+                "proof_evidence_boundary": SOURCE_COVERAGE_BOUNDARY,
+            }
+        )
+    return rows
+
+
+def _registry_existing_source_names(source_registry: dict[str, object]) -> set[str]:
+    names: set[str] = set()
+    for section in VALID_SOURCE_REGISTRY_SECTIONS:
+        for row in source_registry.get(section, []) or []:
+            if isinstance(row, dict):
+                name = _normalize_source_name(str(row.get("name", "")))
+                if name:
+                    names.add(name)
+    return names
+
+
+def _registry_clone_commands(rows: list[dict[str, object]]) -> tuple[dict[str, str], ...]:
+    commands: list[dict[str, str]] = []
+    for row in rows:
+        entry = dict(row.get("entry", {}) or {})
+        url = str(entry.get("url", ""))
+        local_path = str(entry.get("local_path", ""))
+        if not url or not local_path:
+            continue
+        commands.append(
+            {
+                "name": str(entry.get("name", "")),
+                "command": f"git clone {url} {local_path}",
+                "note": "Run only when the destination is absent or intentionally refreshed in a clean checkout.",
+            }
+        )
+    return tuple(commands)
 
 
 def _source_name_rows(rows: list[object]) -> tuple[dict[str, str], ...]:
@@ -836,6 +1023,41 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"targets=`{target_ids}` local_path=`{entry.get('local_path', '')}` "
             f"url=`{entry.get('url', '')}`"
         )
+    return "\n".join(lines) + "\n"
+
+
+def _source_registry_expansion_markdown(payload: dict[str, object]) -> str:
+    before = dict(payload.get("target_source_coverage_before", {}) or {})
+    after = dict(payload.get("target_source_coverage_after", {}) or {})
+    lines = [
+        "# Lean RAG Source Registry Expansion",
+        "",
+        f"- Package root: `{payload.get('package_root', '')}`",
+        f"- Package contract ok: `{payload.get('package_contract_ok')}`",
+        f"- Stage ready: `{payload.get('stage_ready')}`",
+        f"- Candidates: `{payload.get('n_candidates')}` staged=`{payload.get('n_staged')}` already_present=`{payload.get('n_already_present')}` invalid=`{payload.get('n_invalid')}`",
+        f"- Target coverage before: `{before.get('n_present')}/{before.get('n_targets')}` missing=`{', '.join(before.get('missing_target_ids', []))}`",
+        f"- Target coverage after: `{after.get('n_present')}/{after.get('n_targets')}` missing=`{', '.join(after.get('missing_target_ids', []))}`",
+        "",
+        str(payload.get("proof_evidence_boundary", SOURCE_COVERAGE_BOUNDARY)),
+        "",
+        "## Staged Entries",
+        "",
+    ]
+    for row in payload.get("rows", []):
+        if not isinstance(row, dict):
+            continue
+        entry = dict(row.get("entry", {}) or {})
+        targets = ", ".join(str(item) for item in row.get("target_ids", []))
+        lines.append(
+            f"- `{entry.get('name', '')}` status=`{row.get('status')}` "
+            f"section=`{row.get('section')}` targets=`{targets}`"
+        )
+    lines.extend(["", "## Clone Commands", ""])
+    for row in payload.get("clone_commands", []):
+        if not isinstance(row, dict):
+            continue
+        lines.append(f"- `{row.get('name', '')}`: `{row.get('command', '')}`")
     return "\n".join(lines) + "\n"
 
 

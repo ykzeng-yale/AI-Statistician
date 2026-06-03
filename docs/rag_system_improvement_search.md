@@ -98,6 +98,17 @@ emits deduplicated `registry_expansion_candidates` containing the proposed
 acceptance gate. The gate is intentionally retrieval-only: the source can enter
 the external reuse index, but no theorem status changes until local Lean or
 AXLE verifies a concrete imported use.
+To materialize those proposals without mutating the `lean_rag` package, run:
+
+```bash
+python3 -m ai_statistician.cli lean-rag-source-registry-expansion \
+  --package-root /tmp/empirical_process_lean_rag_latest/lean_rag \
+  --out runs/lean_rag_source_registry_expansion
+```
+
+This writes `staged_source_registry.json`, `source_registry_delta.json`, clone
+commands for missing Git-backed sources, and a manifest with before/after target
+coverage. Review and apply the staged registry only in a clean package checkout.
 
 The audit now also records `lean_rag_dependency_health`. Before the optional
 dependency-graph SQLite DB is attached to hybrid retrieval, the backend checks
