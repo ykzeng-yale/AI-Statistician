@@ -357,6 +357,26 @@ def export_rag_collaboration_manifest(
             "lean_rag_package_target_source_boundary": dict(
                 lean_rag_package_payload.get("target_source_coverage", {}) or {}
             ).get("proof_evidence_boundary", ""),
+            "lean_rag_package_registry_expansion_candidates": counts.get(
+                "lean_rag_package_registry_expansion_candidates",
+                dict(lean_rag_package_payload.get("target_source_coverage", {}) or {}).get(
+                    "n_registry_expansion_candidates",
+                    0,
+                ),
+            ),
+            "lean_rag_package_registry_expansion_candidate_names": counts.get(
+                "lean_rag_package_registry_expansion_candidate_names",
+                [
+                    str(dict(candidate.get("entry", {}) or {}).get("name", ""))
+                    for candidate in dict(
+                        lean_rag_package_payload.get("target_source_coverage", {}) or {}
+                    ).get("registry_expansion_candidates", [])
+                    if isinstance(candidate, dict)
+                ],
+            ),
+            "lean_rag_package_registry_expansion_candidate_entries": dict(
+                lean_rag_package_payload.get("target_source_coverage", {}) or {}
+            ).get("registry_expansion_candidates", []),
             "lean_rag_package_policy": dict(
                 dict(lean_rag_package_payload.get("source_registry", {}) or {}).get("policy", {})
                 or {}
@@ -2402,6 +2422,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Lean RAG seed lanes: `{', '.join(rag.get('lean_rag_package_seed_lanes', []))}`",
         f"- Lean RAG target sources: `{rag.get('lean_rag_package_target_sources_present')}/{rag.get('lean_rag_package_target_sources')}` present "
         f"(missing `{', '.join(rag.get('lean_rag_package_missing_target_sources', []) or [])}`)",
+        f"- Lean RAG registry candidates: `{rag.get('lean_rag_package_registry_expansion_candidates')}` "
+        f"(`{', '.join(rag.get('lean_rag_package_registry_expansion_candidate_names', []) or [])}`)",
         f"- Retrieval recall/MRR: `{rag.get('formal_source_retrieval_recall_at_k')}` / `{rag.get('formal_source_retrieval_mrr')}`",
         f"- External retrieval recall/MRR: `{rag.get('formal_source_retrieval_external_recall_at_k')}` / `{rag.get('formal_source_retrieval_external_mrr')}`",
         f"- Combined retrieval recall/MRR: `{rag.get('formal_source_retrieval_all_recall_at_k')}` / `{rag.get('formal_source_retrieval_all_mrr')}`",

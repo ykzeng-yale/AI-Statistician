@@ -1486,6 +1486,16 @@ async def run_research_system_audit(
                     (),
                 )
             ),
+            "lean_rag_package_registry_expansion_candidates": lean_rag_package_manifest[
+                "target_source_coverage"
+            ].get("n_registry_expansion_candidates", 0),
+            "lean_rag_package_registry_expansion_candidate_names": [
+                str(dict(candidate.get("entry", {}) or {}).get("name", ""))
+                for candidate in lean_rag_package_manifest[
+                    "target_source_coverage"
+                ].get("registry_expansion_candidates", ())
+                if isinstance(candidate, dict)
+            ],
             "lean_rag_package_verify_candidates_with_lean": lean_rag_package_manifest[
                 "source_registry"
             ].get("policy", {}).get("verify_candidates_with_lean", False),

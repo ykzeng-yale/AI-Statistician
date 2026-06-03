@@ -1915,6 +1915,11 @@ autoform-bot exports, formal_slt, lean_rademacher,
 lean_machine_learning_lml, brownian_motion_lean,
 kolmogorov_extension_lean, and scilean_calculus. Coverage gaps guide source
 registry expansion; they do not change theorem proof status.
+When a missing source has a known repository or local path, the audit writes a
+deduplicated `registry_expansion_candidates` list with the proposed
+`source_registry.json` entry and evidence notes. These are staging candidates
+for the external reuse index only; they still require clean checkout refresh
+and local Lean/AXLE verification before any proof claim can be promoted.
 
 Algorithm registry audit:
 

@@ -92,6 +92,12 @@ lean-stat-learning-theory, atlas-lean, autoform-bot exports, formal_slt,
 lean_rademacher, lean_machine_learning_lml, brownian_motion_lean,
 kolmogorov_extension_lean, and scilean_calculus. Missing entries are source
 expansion work items only; they are not theorem failures or proof evidence.
+For missing targets with known repositories or local paths, the manifest also
+emits deduplicated `registry_expansion_candidates` containing the proposed
+`source_registry.json` entry, source-evidence URLs or local-path notes, and an
+acceptance gate. The gate is intentionally retrieval-only: the source can enter
+the external reuse index, but no theorem status changes until local Lean or
+AXLE verifies a concrete imported use.
 
 The audit now also records `lean_rag_dependency_health`. Before the optional
 dependency-graph SQLite DB is attached to hybrid retrieval, the backend checks

@@ -53,6 +53,14 @@ TARGET_LEAN_SOURCE_COVERAGE: tuple[dict[str, object], ...] = (
             "legacy-statinference",
             "ai-statistician-legacy",
         ),
+        "registry_candidate_section": "external_sources",
+        "registry_candidate": {
+            "name": "legacy-ai-statistician-statinference",
+            "local_path": "/Users/yukang/AI Statistician/legacy_sources/ai_statistician/StatInference",
+            "trust": "candidate search only; local Lean must verify imported uses",
+        },
+        "source_evidence_urls": (),
+        "source_evidence_status": "local path observed in /Users/yukang/AI Statistician/legacy_sources",
     },
     {
         "target_id": "lean_stat_learning_theory",
@@ -76,37 +84,106 @@ TARGET_LEAN_SOURCE_COVERAGE: tuple[dict[str, object], ...] = (
         "target_id": "formal_slt",
         "display_name": "formal_slt",
         "role": "statistical learning theorem candidate source",
-        "aliases": ("formal_slt", "formal-slt"),
+        "aliases": ("formal_slt", "formal-slt", "foml", "lean-rademacher"),
+        "registry_candidate_section": "external_sources",
+        "registry_candidate": {
+            "name": "lean-rademacher",
+            "url": "https://github.com/auto-res/lean-rademacher",
+            "local_path": "/private/tmp/lean-reuse-corpus/lean-rademacher",
+            "trust": "candidate search only; local Lean must verify imported uses",
+        },
+        "source_evidence_urls": (
+            "https://github.com/auto-res/lean-rademacher",
+            "https://reservoir.lean-lang.org/@auto-res/FoML",
+        ),
+        "source_evidence_status": "git ls-remote verified https://github.com/auto-res/lean-rademacher",
     },
     {
         "target_id": "lean_rademacher",
         "display_name": "lean_rademacher",
         "role": "Rademacher-complexity candidate source",
         "aliases": ("lean_rademacher", "lean-rademacher"),
+        "registry_candidate_section": "external_sources",
+        "registry_candidate": {
+            "name": "lean-rademacher",
+            "url": "https://github.com/auto-res/lean-rademacher",
+            "local_path": "/private/tmp/lean-reuse-corpus/lean-rademacher",
+            "trust": "candidate search only; local Lean must verify imported uses",
+        },
+        "source_evidence_urls": (
+            "https://github.com/auto-res/lean-rademacher",
+            "https://reservoir.lean-lang.org/@auto-res/FoML",
+        ),
+        "source_evidence_status": "git ls-remote verified https://github.com/auto-res/lean-rademacher",
     },
     {
         "target_id": "lean_machine_learning_lml",
         "display_name": "lean_machine_learning_lml",
         "role": "machine-learning Lean candidate source",
         "aliases": ("lean_machine_learning_lml", "lean-machine-learning-lml", "lml"),
+        "registry_candidate_section": "external_sources",
+        "registry_candidate": {
+            "name": "lean-machine-learning-lml",
+            "url": "https://github.com/LeanMachineLearning/LML",
+            "local_path": "/private/tmp/lean-reuse-corpus/LML",
+            "trust": "candidate search only; local Lean must verify imported uses",
+        },
+        "source_evidence_urls": ("https://github.com/LeanMachineLearning/LML",),
+        "source_evidence_status": "git ls-remote verified https://github.com/LeanMachineLearning/LML",
     },
     {
         "target_id": "brownian_motion_lean",
         "display_name": "brownian_motion_lean",
         "role": "stochastic-process candidate source",
         "aliases": ("brownian_motion_lean", "brownian-motion-lean"),
+        "registry_candidate_section": "external_sources",
+        "registry_candidate": {
+            "name": "brownian-motion-lean",
+            "url": "https://github.com/RemyDegenne/brownian-motion",
+            "local_path": "/private/tmp/lean-reuse-corpus/brownian-motion",
+            "trust": "candidate search only; local Lean must verify imported uses",
+        },
+        "source_evidence_urls": (
+            "https://github.com/RemyDegenne/brownian-motion",
+            "https://reservoir.lean-lang.org/@RemyDegenne/BrownianMotion",
+        ),
+        "source_evidence_status": "git ls-remote verified https://github.com/RemyDegenne/brownian-motion",
     },
     {
         "target_id": "kolmogorov_extension_lean",
         "display_name": "kolmogorov_extension_lean",
         "role": "measure/probability extension candidate source",
         "aliases": ("kolmogorov_extension_lean", "kolmogorov-extension-lean"),
+        "registry_candidate_section": "external_sources",
+        "registry_candidate": {
+            "name": "kolmogorov-extension-lean",
+            "url": "https://github.com/RemyDegenne/kolmogorov_extension4",
+            "local_path": "/private/tmp/lean-reuse-corpus/kolmogorov_extension4",
+            "trust": "candidate search only; local Lean must verify imported uses",
+        },
+        "source_evidence_urls": (
+            "https://github.com/RemyDegenne/kolmogorov_extension4",
+            "https://reservoir.lean-lang.org/@RemyDegenne/KolmogorovExtension",
+        ),
+        "source_evidence_status": "git ls-remote verified https://github.com/RemyDegenne/kolmogorov_extension4",
     },
     {
         "target_id": "scilean_calculus",
         "display_name": "SciLean calculus",
         "role": "calculus/analysis automation candidate source",
         "aliases": ("scilean_calculus", "scilean-calculus", "scilean"),
+        "registry_candidate_section": "external_sources",
+        "registry_candidate": {
+            "name": "scilean-calculus",
+            "url": "https://github.com/lecopivo/SciLean",
+            "local_path": "/private/tmp/lean-reuse-corpus/SciLean",
+            "trust": "candidate search only; local Lean must verify imported uses",
+        },
+        "source_evidence_urls": (
+            "https://github.com/lecopivo/SciLean",
+            "https://reservoir.lean-lang.org/@CSPaulson/Scilean",
+        ),
+        "source_evidence_status": "git ls-remote verified https://github.com/lecopivo/SciLean",
     },
 )
 
@@ -403,6 +480,7 @@ def _target_source_coverage(
             evidence_scope = "package_git_remote"
         elif repository_match:
             evidence_scope = "registry_and_package_git_remote"
+        registry_candidate = dict(target.get("registry_candidate", {}) or {})
         rows.append(
             {
                 "target_id": str(target.get("target_id", "")),
@@ -412,6 +490,12 @@ def _target_source_coverage(
                 "present": present,
                 "evidence_scope": evidence_scope if present else "missing",
                 "matched_source_names": evidence_names,
+                "registry_candidate_section": str(target.get("registry_candidate_section", "")),
+                "registry_candidate": registry_candidate,
+                "source_evidence_urls": tuple(
+                    str(url) for url in target.get("source_evidence_urls", ()) or ()
+                ),
+                "source_evidence_status": str(target.get("source_evidence_status", "")),
                 "recommended_action": ""
                 if present
                 else (
@@ -424,6 +508,7 @@ def _target_source_coverage(
         )
     missing = tuple(row["target_id"] for row in rows if not row["present"])
     present = tuple(row["target_id"] for row in rows if row["present"])
+    registry_expansion_candidates = _registry_expansion_candidates(rows)
     return {
         "n_targets": len(rows),
         "n_present": len(present),
@@ -431,9 +516,62 @@ def _target_source_coverage(
         "coverage_ok": not missing,
         "present_target_ids": present,
         "missing_target_ids": missing,
+        "n_registry_expansion_candidates": len(registry_expansion_candidates),
+        "registry_expansion_candidates": registry_expansion_candidates,
         "rows": rows,
         "proof_evidence_boundary": SOURCE_COVERAGE_BOUNDARY,
     }
+
+
+def _registry_expansion_candidates(rows: list[dict[str, object]]) -> tuple[dict[str, object], ...]:
+    grouped: dict[str, dict[str, object]] = {}
+    for row in rows:
+        if row.get("present"):
+            continue
+        candidate = dict(row.get("registry_candidate", {}) or {})
+        section = str(row.get("registry_candidate_section", "") or "")
+        if not candidate or not section:
+            continue
+        key = stable_hash({"section": section, "candidate": candidate})
+        item = grouped.setdefault(
+            key,
+            {
+                "candidate_id": key,
+                "target_ids": [],
+                "section": section,
+                "entry": candidate,
+                "source_evidence_urls": [],
+                "source_evidence_statuses": [],
+                "proof_evidence_boundary": SOURCE_COVERAGE_BOUNDARY,
+                "acceptance_gate": (
+                    "Stage in source_registry.json, clone or refresh only clean checkouts, "
+                    "rebuild the external reuse index, then verify any reused theorem with "
+                    "local Lean or AXLE before upgrading proof status."
+                ),
+            },
+        )
+        item["target_ids"].append(str(row.get("target_id", "")))
+        item["source_evidence_urls"].extend(
+            str(url) for url in row.get("source_evidence_urls", []) or []
+        )
+        status = str(row.get("source_evidence_status", "") or "")
+        if status:
+            item["source_evidence_statuses"].append(status)
+    result: list[dict[str, object]] = []
+    for item in grouped.values():
+        result.append(
+            {
+                **item,
+                "target_ids": tuple(sorted(set(str(target) for target in item["target_ids"]))),
+                "source_evidence_urls": tuple(
+                    sorted(set(str(url) for url in item["source_evidence_urls"]))
+                ),
+                "source_evidence_statuses": tuple(
+                    sorted(set(str(status) for status in item["source_evidence_statuses"]))
+                ),
+            }
+        )
+    return tuple(sorted(result, key=lambda item: str(dict(item["entry"]).get("name", ""))))
 
 
 def _source_name_rows(rows: list[object]) -> tuple[dict[str, str], ...]:
@@ -614,6 +752,19 @@ def _recommended_actions(
             + ", ".join(str(item) for item in missing_sources)
             + ". Treat these additions as candidate retrieval sources until local Lean verifies imported uses."
         )
+    registry_candidates = tuple(
+        target_source_coverage.get("registry_expansion_candidates", ()) or ()
+    )
+    if registry_candidates:
+        names = [
+            str(dict(candidate.get("entry", {}) or {}).get("name", ""))
+            for candidate in registry_candidates
+        ]
+        actions.append(
+            "Stage candidate source_registry entries for: "
+            + ", ".join(name for name in names if name)
+            + ". These entries improve retrieval coverage only; promotion still requires local Lean/AXLE evidence."
+        )
     if not graph_manifest.get("available"):
         actions.append(
             "Run `python3 lean_rag/scripts/shared_proof_retrieval.py refresh --checkout main --no-export-main-csv` on a clean Lean tree when a fresh graph cache is needed."
@@ -642,6 +793,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Git: `{git_payload.get('branch', '')}@{git_payload.get('short_commit', '')}` dirty=`{git_payload.get('dirty', '')}`",
         f"- Sources: local=`{registry.get('n_local_sources')}` external=`{registry.get('n_external_sources')}`",
         f"- Target source coverage: `{coverage.get('n_present')}/{coverage.get('n_targets')}` present; missing=`{', '.join(coverage.get('missing_target_ids', []))}`",
+        f"- Registry expansion candidates: `{coverage.get('n_registry_expansion_candidates', 0)}`",
         f"- Policy: verify_candidates_with_lean=`{dict(registry.get('policy', {}) or {}).get('verify_candidates_with_lean')}` refresh_dirty_checkouts=`{dict(registry.get('policy', {}) or {}).get('refresh_dirty_checkouts')}`",
         f"- Seed lanes: `{', '.join(seeds.get('lanes', []))}`",
         f"- Shared graph manifest: available=`{graph.get('available')}` indexed=`{graph.get('n_indexed_checkouts')}` dirty=`{graph.get('n_dirty_checkouts')}`",
@@ -667,9 +819,22 @@ def _markdown_report(payload: dict[str, object]) -> str:
             continue
         status = "present" if row.get("present") else "missing"
         matched = ", ".join(str(item) for item in row.get("matched_source_names", [])) or "none"
+        candidate = dict(row.get("registry_candidate", {}) or {})
+        candidate_name = str(candidate.get("name", "")) or "none"
         lines.append(
             f"- `{row.get('target_id')}` ({status}): {row.get('display_name')} "
-            f"matched={matched}"
+            f"matched={matched} candidate=`{candidate_name}`"
+        )
+    lines.extend(["", "## Registry Expansion Candidates", ""])
+    for candidate in coverage.get("registry_expansion_candidates", []):
+        if not isinstance(candidate, dict):
+            continue
+        entry = dict(candidate.get("entry", {}) or {})
+        target_ids = ", ".join(str(item) for item in candidate.get("target_ids", []))
+        lines.append(
+            f"- `{entry.get('name')}` -> `{candidate.get('section')}` "
+            f"targets=`{target_ids}` local_path=`{entry.get('local_path', '')}` "
+            f"url=`{entry.get('url', '')}`"
         )
     return "\n".join(lines) + "\n"
 

@@ -881,7 +881,9 @@ def _lean_rag_package_audit(args: argparse.Namespace) -> int:
     missing_targets = ",".join(coverage.get("missing_target_ids", [])) or "none"
     print(
         f"target_sources={coverage.get('n_present', 0)}/{coverage.get('n_targets', 0)} "
-        f"coverage_ok={coverage.get('coverage_ok', False)} missing={missing_targets}"
+        f"coverage_ok={coverage.get('coverage_ok', False)} "
+        f"registry_candidates={coverage.get('n_registry_expansion_candidates', 0)} "
+        f"missing={missing_targets}"
     )
     print(
         f"shared_graph_manifest={graph.get('available')} "

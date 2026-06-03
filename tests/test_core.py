@@ -3286,6 +3286,23 @@ class SystemTests(unittest.TestCase):
             payload["target_source_coverage"]["missing_target_ids"],
         )
         self.assertFalse(payload["target_source_coverage"]["coverage_ok"])
+        self.assertGreaterEqual(
+            payload["target_source_coverage"]["n_registry_expansion_candidates"],
+            5,
+        )
+        candidate_by_name = {
+            candidate["entry"]["name"]: candidate
+            for candidate in payload["target_source_coverage"]["registry_expansion_candidates"]
+        }
+        self.assertIn("lean-rademacher", candidate_by_name)
+        self.assertEqual(
+            sorted(candidate_by_name["lean-rademacher"]["target_ids"]),
+            ["formal_slt", "lean_rademacher"],
+        )
+        self.assertIn(
+            "local Lean or AXLE",
+            candidate_by_name["lean-rademacher"]["acceptance_gate"],
+        )
         self.assertIn(
             "not Lean proof evidence",
             payload["target_source_coverage"]["proof_evidence_boundary"],
@@ -8781,6 +8798,21 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                             "kolmogorov_extension_lean",
                             "scilean_calculus",
                         ],
+                        "n_registry_expansion_candidates": 5,
+                        "registry_expansion_candidates": [
+                            {
+                                "target_ids": ["formal_slt", "lean_rademacher"],
+                                "section": "external_sources",
+                                "entry": {"name": "lean-rademacher"},
+                                "acceptance_gate": "verify with local Lean or AXLE",
+                            },
+                            {
+                                "target_ids": ["lean_machine_learning_lml"],
+                                "section": "external_sources",
+                                "entry": {"name": "lean-machine-learning-lml"},
+                                "acceptance_gate": "verify with local Lean or AXLE",
+                            },
+                        ],
                         "proof_evidence_boundary": (
                             "Target Lean source coverage is retrieval-planning evidence only, not Lean proof evidence."
                         ),
@@ -10197,6 +10229,11 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                             "kolmogorov_extension_lean",
                             "scilean_calculus",
                         ],
+                        "lean_rag_package_registry_expansion_candidates": 5,
+                        "lean_rag_package_registry_expansion_candidate_names": [
+                            "lean-rademacher",
+                            "lean-machine-learning-lml",
+                        ],
                         "formal_source_graph_symbols": 75074,
                         "formal_source_graph_edges": 1477458,
                         "formal_source_retrieval_benchmark_recall_at_k": 1.0,
@@ -10591,6 +10628,16 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertIn(
             "not Lean proof evidence",
             payload["rag_provider_evidence"]["lean_rag_package_target_source_boundary"],
+        )
+        self.assertEqual(
+            payload["rag_provider_evidence"]["lean_rag_package_registry_expansion_candidates"],
+            5,
+        )
+        self.assertIn(
+            "lean-rademacher",
+            payload["rag_provider_evidence"][
+                "lean_rag_package_registry_expansion_candidate_names"
+            ],
         )
         self.assertFalse(
             payload["rag_provider_evidence"]["lean_rag_package_policy"]["refresh_dirty_checkouts"]
@@ -13619,6 +13666,8 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertGreaterEqual(payload["counts"]["lean_rag_package_target_sources_present"], 1)
         self.assertGreaterEqual(payload["counts"]["lean_rag_package_target_sources_missing"], 0)
         self.assertIn("lean_rag_package_missing_target_sources", payload["counts"])
+        self.assertIn("lean_rag_package_registry_expansion_candidates", payload["counts"])
+        self.assertIn("lean_rag_package_registry_expansion_candidate_names", payload["counts"])
         self.assertIn("timings", payload)
         self.assertGreater(payload["timings"]["total_elapsed_ms"], 0)
         self.assertTrue(payload["timings"]["stages"])
