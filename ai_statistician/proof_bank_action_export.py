@@ -81,6 +81,9 @@ def export_proof_bank_actions(
         "n_compose_existing_bridge_chain": by_action_class.get("compose_existing_bridge_chain", 0),
         "n_add_minimal_wrapper": by_action_class.get("add_minimal_wrapper", 0),
         "n_design_bridge_lemma": by_action_class.get("design_bridge_lemma", 0),
+        "n_formalize_assumption_interface": by_action_class.get(
+            "formalize_assumption_interface", 0
+        ),
         "n_design_from_first_principles": by_action_class.get("design_from_first_principles", 0),
         "actions": [asdict(row) for row in actions],
         "action_fingerprint": stable_hash([asdict(row) for row in actions]),
@@ -125,6 +128,7 @@ def _action_from_proposal(row: dict[str, Any]) -> ProofBankActionRow:
         "compose_existing_bridge_chain",
         "add_minimal_wrapper",
         "design_bridge_lemma",
+        "formalize_assumption_interface",
         "design_from_first_principles",
     }:
         errors.append(f"unknown action_class={action_class}")
@@ -195,6 +199,13 @@ def _contract_for_action_class(action_class: str) -> tuple[str, str, str, tuple[
             "bridge lemma passes AXLE/local Lean verify_proof and downstream retrieval can find it",
             ("bridge_statement", "proof_plan", "proof_body", "verifier", "kernel_verified"),
         )
+    if action_class == "formalize_assumption_interface":
+        return (
+            "formalize_assumption_interface",
+            "formalize the statistical assumption as a reusable Lean predicate/interface",
+            "assumption predicate compiles, is non-vacuous, and is used by a downstream theorem skeleton; do not admit a tautological proof-bank theorem for the assumption itself",
+            ("definition_or_predicate", "non_vacuity_example", "downstream_theorem_use", "verifier"),
+        )
     return (
         "design_lean_primitive_from_first_principles",
         "define the missing Lean primitive and prove a minimal sanity theorem",
@@ -212,6 +223,8 @@ def _priority_label(action_class: str, priority_score: int) -> str:
         return "medium"
     if action_class == "design_bridge_lemma" and priority_score >= 180:
         return "medium"
+    if action_class == "formalize_assumption_interface":
+        return "medium" if priority_score >= 120 else "low"
     return "low"
 
 

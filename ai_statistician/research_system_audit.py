@@ -1150,6 +1150,9 @@ async def run_research_system_audit(
             "formalization_targets_exact_proof_bank_resolved": formalization_target_manifest[
                 "n_exact_proof_bank_resolved"
             ],
+            "formalization_targets_assumption_interface": formalization_target_manifest[
+                "n_assumption_interface_targets"
+            ],
             "formalization_targets_unresolved": formalization_target_manifest["n_unresolved_targets"],
             "formal_gap_lean_tasks_ok": formal_gap_task_manifest["n_ok"],
             "formal_gap_lean_tasks_total": formal_gap_task_manifest["n_tasks"],
@@ -1174,6 +1177,9 @@ async def run_research_system_audit(
             "proof_bank_expansion_design_bridge_lemma": proof_bank_expansion_manifest[
                 "n_design_bridge_lemma"
             ],
+            "proof_bank_expansion_formalize_assumption_interface": proof_bank_expansion_manifest[
+                "n_formalize_assumption_interface"
+            ],
             "proof_bank_expansion_design_from_first_principles": proof_bank_expansion_manifest[
                 "n_design_from_first_principles"
             ],
@@ -1190,6 +1196,9 @@ async def run_research_system_audit(
             ],
             "proof_bank_actions_design_bridge_lemma": proof_bank_action_manifest[
                 "n_design_bridge_lemma"
+            ],
+            "proof_bank_actions_formalize_assumption_interface": proof_bank_action_manifest[
+                "n_formalize_assumption_interface"
             ],
             "proof_bank_actions_design_from_first_principles": proof_bank_action_manifest[
                 "n_design_from_first_principles"

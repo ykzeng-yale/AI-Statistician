@@ -6683,6 +6683,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                 "compose_existing_bridge_chain",
                 "add_minimal_wrapper",
                 "design_bridge_lemma",
+                "formalize_assumption_interface",
                 "design_from_first_principles",
             },
         )
@@ -6705,6 +6706,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             + payload["n_compose_existing_bridge_chain"]
             + payload["n_add_minimal_wrapper"]
             + payload["n_design_bridge_lemma"]
+            + payload["n_formalize_assumption_interface"]
             + payload["n_design_from_first_principles"],
         )
         compose_rows = [
@@ -6781,8 +6783,18 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             + payload["n_compose_existing_bridge_chain"]
             + payload["n_add_minimal_wrapper"]
             + payload["n_design_bridge_lemma"]
+            + payload["n_formalize_assumption_interface"]
             + payload["n_design_from_first_principles"],
         )
+        assumption_rows = [
+            row
+            for row in payload["actions"]
+            if row["action_class"] == "formalize_assumption_interface"
+        ]
+        self.assertTrue(assumption_rows)
+        self.assertEqual(assumption_rows[0]["primitive"], "conditional_exchangeability")
+        self.assertNotIn("kernel_verified", assumption_rows[0]["required_fields"])
+        self.assertIn("do not admit a tautological proof-bank theorem", assumption_rows[0]["required_gate"])
         self.assertTrue(payload["actions"])
         first = payload["actions"][0]
         self.assertTrue(first["action_id"].startswith("proof_bank_action:lemma_proposal:"))
@@ -6794,12 +6806,14 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                 "compose_existing_bridge_chain",
                 "add_minimal_wrapper",
                 "design_bridge_lemma",
+                "formalize_assumption_interface",
                 "design_from_first_principles",
             },
         )
         self.assertTrue(first["required_gate"])
         self.assertTrue(first["required_fields"])
-        self.assertIn("kernel_verified", first["required_fields"])
+        if first["action_class"] != "formalize_assumption_interface":
+            self.assertIn("kernel_verified", first["required_fields"])
         self.assertTrue(first["expected_premises"])
         self.assertIn("not Lean proof evidence", " ".join(payload["limitations"]))
         self.assertTrue(Path("runs/test_proof_bank_actions/proof_bank_action_manifest.json").exists())
@@ -9417,6 +9431,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertIn("proof_bank_expansion_reuse_exact_proof_bank_obligation", payload["counts"])
         self.assertIn("proof_bank_expansion_add_minimal_wrapper", payload["counts"])
         self.assertIn("proof_bank_expansion_design_bridge_lemma", payload["counts"])
+        self.assertIn("proof_bank_expansion_formalize_assumption_interface", payload["counts"])
         self.assertIn("proof_bank_expansion_design_from_first_principles", payload["counts"])
         self.assertEqual(
             payload["counts"]["proof_bank_expansion_candidates_total"],
@@ -9424,6 +9439,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             + payload["counts"]["proof_bank_expansion_compose_existing_bridge_chain"]
             + payload["counts"]["proof_bank_expansion_add_minimal_wrapper"]
             + payload["counts"]["proof_bank_expansion_design_bridge_lemma"]
+            + payload["counts"]["proof_bank_expansion_formalize_assumption_interface"]
             + payload["counts"]["proof_bank_expansion_design_from_first_principles"],
         )
         self.assertEqual(payload["counts"]["proof_bank_actions_ok"], payload["counts"]["proof_bank_actions"])
@@ -9435,6 +9451,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             + payload["counts"]["proof_bank_actions_compose_existing_bridge_chain"]
             + payload["counts"]["proof_bank_actions_add_minimal_wrapper"]
             + payload["counts"]["proof_bank_actions_design_bridge_lemma"]
+            + payload["counts"]["proof_bank_actions_formalize_assumption_interface"]
             + payload["counts"]["proof_bank_actions_design_from_first_principles"],
         )
         self.assertEqual(

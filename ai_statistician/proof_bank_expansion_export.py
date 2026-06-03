@@ -10,6 +10,7 @@ from typing import Any
 from .fingerprint import stable_hash
 from .formal_gap_task_export import export_formal_gap_lean_tasks
 from .formalization_target_audit import audit_formalization_targets
+from .primitive_taxonomy import is_assumption_interface_primitive
 from .proof_bank import get_obligation
 
 
@@ -47,6 +48,7 @@ class ProofBankExpansionCandidate:
     bridge_candidate_obligations: tuple[str, ...]
     exact_proof_bank_obligation: str
     proof_bank_exact_match_available: bool
+    assumption_interface_required: bool
     source_gap_ids: tuple[str, ...]
     ok: bool
     errors: tuple[str, ...] = ()
@@ -92,6 +94,9 @@ def export_proof_bank_expansion_candidates(
         ),
         "n_add_minimal_wrapper": sum(1 for row in rows if row.action_class == "add_minimal_wrapper"),
         "n_design_bridge_lemma": sum(1 for row in rows if row.action_class == "design_bridge_lemma"),
+        "n_formalize_assumption_interface": sum(
+            1 for row in rows if row.action_class == "formalize_assumption_interface"
+        ),
         "n_design_from_first_principles": sum(
             1 for row in rows if row.action_class == "design_from_first_principles"
         ),
@@ -170,6 +175,9 @@ def _candidate_for_target(
         str(item) for item in target.get("bridge_candidate_obligations", []) or [] if str(item)
     )
     exact_proof_obligation = str(target.get("exact_proof_bank_obligation", "") or "")
+    assumption_interface_required = bool(
+        target.get("assumption_interface_required", False)
+    ) or is_assumption_interface_primitive(primitive)
     statement = _extract_theorem_signature(str(first_task.get("statement", "")))
     declaration = _extract_declaration_name(statement) or f"{_safe_identifier(primitive)}_bridge"
     expected_premises = _expected_premises(target, candidate_declarations, bridge_candidates)
@@ -179,6 +187,7 @@ def _candidate_for_target(
         bridge_candidates,
         candidate_declarations,
         exact_proof_obligation,
+        assumption_interface_required=assumption_interface_required,
     )
     errors: list[str] = []
     if not primitive:
@@ -246,6 +255,7 @@ def _candidate_for_target(
         bridge_candidate_obligations=bridge_candidates,
         exact_proof_bank_obligation=exact_proof_obligation,
         proof_bank_exact_match_available=bool(exact_proof_obligation),
+        assumption_interface_required=assumption_interface_required,
         source_gap_ids=source_gap_ids,
         ok=not errors,
         errors=tuple(errors),
@@ -288,6 +298,10 @@ def _blocked_reasons(
         reasons.append("no direct verified proof-bank bridge candidate ranked yet")
     if not target.get("candidate_declarations"):
         reasons.append("no local Mathlib/StatInference declaration candidate attached")
+    if bool(target.get("assumption_interface_required", False)):
+        reasons.append(
+            "primitive is an assumption interface; formalize the predicate, do not prove the assumption itself"
+        )
     return tuple(dict.fromkeys(reasons))
 
 
@@ -312,6 +326,7 @@ def _queue_row(
         "expected_premises": list(row.expected_premises),
         "bridge_chain_order": list(_composition_plan_order(row)),
         "exact_proof_bank_obligation": row.exact_proof_bank_obligation,
+        "assumption_interface_required": row.assumption_interface_required,
         "remaining_interface": _composition_plan_remaining_interface(row),
         "source_allowed_sorry": bool(source_task.get("allowed_sorry", False)),
         "no_placeholder_proof_block": (
@@ -351,6 +366,7 @@ def _legacy_lemma_proposal(row: ProofBankExpansionCandidate) -> dict[str, object
         "bridge_candidate_obligations": payload["bridge_candidate_obligations"],
         "exact_proof_bank_obligation": payload["exact_proof_bank_obligation"],
         "proof_bank_exact_match_available": payload["proof_bank_exact_match_available"],
+        "assumption_interface_required": payload["assumption_interface_required"],
         "source_gap_ids": payload["source_gap_ids"],
         "promotion_blocked": payload["status"] == "blocked_placeholder",
         "candidate_proof_is_empty": not str(payload["candidate"].get("proof", "")).strip(),
@@ -456,7 +472,11 @@ def _proposal_action_class(
     bridge_candidates: tuple[str, ...],
     candidate_declarations: tuple[str, ...],
     exact_proof_obligation: str = "",
+    *,
+    assumption_interface_required: bool = False,
 ) -> str:
+    if assumption_interface_required:
+        return "formalize_assumption_interface"
     if exact_proof_obligation and exact_proof_obligation == primitive:
         return "reuse_exact_proof_bank_obligation"
     if _has_named_bridge_for_primitive(primitive, bridge_candidates):
@@ -515,6 +535,11 @@ def _proposal_notes(
             f"Design one missing bridge lemma for `{primitive}` before attempting "
             f"`{declaration}`."
         )
+    elif action_class == "formalize_assumption_interface":
+        lead = (
+            f"Formalize `{primitive}` as a reusable Lean assumption predicate/interface "
+            "instead of adding a tautological proof-bank theorem for the assumption."
+        )
     else:
         lead = (
             f"Design the Lean primitive for `{primitive}` from first principles before "
@@ -528,6 +553,8 @@ def _candidate_name(primitive: str, action_class: str) -> str:
         suffix = "proof_bank_reuse"
     elif action_class == "compose_existing_bridge_chain":
         suffix = "theorem_composition"
+    elif action_class == "formalize_assumption_interface":
+        suffix = "assumption_interface"
     else:
         suffix = "bridge"
     return f"AIStatistician.Proposed.{_safe_identifier(primitive)}_{suffix}"
@@ -542,6 +569,8 @@ def _queue_next_action(row: ProofBankExpansionCandidate) -> str:
         return "add_minimal_axle_verified_wrapper"
     if row.action_class == "design_bridge_lemma":
         return "design_missing_bridge_lemma"
+    if row.action_class == "formalize_assumption_interface":
+        return "formalize_assumption_interface"
     return "design_lean_primitive_from_first_principles"
 
 
@@ -598,6 +627,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Compose existing bridge chains: {payload.get('n_compose_existing_bridge_chain')}",
         f"- Add minimal wrappers: {payload.get('n_add_minimal_wrapper')}",
         f"- Design bridge lemmas: {payload.get('n_design_bridge_lemma')}",
+        f"- Formalize assumption interfaces: {payload.get('n_formalize_assumption_interface')}",
         f"- Lemma proposals JSONL: `{payload.get('lemma_proposals_jsonl', '')}`",
         f"- Theorem-hole queue: `{payload.get('theorem_hole_promotion_queue_path', '')}`",
         f"- Fingerprint: `{payload.get('candidate_fingerprint')}`",

@@ -194,6 +194,11 @@ Current release signal:
 - proof-bank action export turns the candidate set into owner/priority/gate
   rows for the FormalVerifier, but those rows remain task contracts rather than
   proof evidence until AXLE/local Lean accepts the proposed proof body
+- assumption primitives such as `conditional_exchangeability` are routed as
+  `formalize_assumption_interface`, not as proof-bank theorem tasks. Their gate
+  is a compiling, non-vacuous Lean predicate/interface plus downstream theorem
+  use; the system must not close them with tautological "proofs" of the
+  assumption itself.
 - compose-existing bridge-chain opportunities are now 51
 - minimal-wrapper debt is now 2, down from 10 after adding the robust
   median-of-means, conformal rank/quantile, and continuous-mapping wrappers

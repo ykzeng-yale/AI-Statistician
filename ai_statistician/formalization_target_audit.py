@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .primitive_taxonomy import is_assumption_interface_primitive, primitive_kind
 from .proof_bank import get_obligation
 from .research_gap_audit import audit_research_gap_backlog
 
@@ -25,6 +26,8 @@ class FormalizationTargetRow:
     supporting_proof_obligations: tuple[str, ...]
     bridge_candidate_obligations: tuple[str, ...]
     bridge_candidate_score: int
+    primitive_kind: str
+    assumption_interface_required: bool
     proof_bank_bridge_available: bool
     exact_proof_bank_obligation: str
     proof_bank_exact_match_available: bool
@@ -54,6 +57,7 @@ def audit_formalization_targets(run_dir: Path, out_dir: Path | None = None) -> d
         "n_with_proof_bank_bridge": sum(1 for row in rows if row.proof_bank_bridge_available),
         "n_with_ranked_bridge_candidate": sum(1 for row in rows if row.bridge_candidate_obligations),
         "n_exact_proof_bank_resolved": sum(1 for row in rows if row.proof_bank_exact_match_available),
+        "n_assumption_interface_targets": sum(1 for row in rows if row.assumption_interface_required),
         "n_unresolved_targets": sum(1 for row in rows if not row.proof_bank_exact_match_available),
         "by_target_resolution": _count_by_target_resolution(rows),
         "by_bridge_readiness": _count_by_bridge_readiness(rows),
@@ -129,16 +133,19 @@ def _target_rows(backlog: dict[str, object]) -> list[FormalizationTargetRow]:
             _proof_bridge_score(primitive, obligation_id)
             for obligation_id in bridge_candidates
         )
+        assumption_interface_required = is_assumption_interface_primitive(primitive)
         bridge_readiness = _bridge_readiness(
             candidate_declarations,
             supporting_proofs,
             exact_proof_obligation,
+            assumption_interface_required=assumption_interface_required,
         )
-        target_resolution = (
-            "EXACT_PROOF_BANK_OBLIGATION"
-            if exact_proof_obligation
-            else "NEEDS_THEOREM_DEVELOPMENT"
-        )
+        if exact_proof_obligation:
+            target_resolution = "EXACT_PROOF_BANK_OBLIGATION"
+        elif assumption_interface_required:
+            target_resolution = "ASSUMPTION_INTERFACE_REQUIRED"
+        else:
+            target_resolution = "NEEDS_THEOREM_DEVELOPMENT"
         n_gaps = len(bucket["gap_ids"])
         score = (
             100 * n_gaps
@@ -164,6 +171,7 @@ def _target_rows(backlog: dict[str, object]) -> list[FormalizationTargetRow]:
                     candidate_declarations,
                     bridge_candidates,
                     exact_proof_obligation,
+                    assumption_interface_required=assumption_interface_required,
                 ),
                 n_gaps=n_gaps,
                 problem_classes=tuple(sorted(bucket["problem_classes"])),
@@ -173,6 +181,8 @@ def _target_rows(backlog: dict[str, object]) -> list[FormalizationTargetRow]:
                 supporting_proof_obligations=supporting_proofs,
                 bridge_candidate_obligations=bridge_candidates,
                 bridge_candidate_score=bridge_candidate_score,
+                primitive_kind=primitive_kind(primitive),
+                assumption_interface_required=assumption_interface_required,
                 proof_bank_bridge_available=bool(supporting_proofs),
                 exact_proof_bank_obligation=exact_proof_obligation,
                 proof_bank_exact_match_available=bool(exact_proof_obligation),
@@ -184,6 +194,7 @@ def _target_rows(backlog: dict[str, object]) -> list[FormalizationTargetRow]:
                     supporting_proofs,
                     bridge_candidates,
                     exact_proof_obligation,
+                    assumption_interface_required=assumption_interface_required,
                 ),
                 ok=not errors,
                 errors=tuple(errors),
@@ -198,9 +209,15 @@ def _priority_band(
     candidates: tuple[str, ...],
     bridge_candidates: tuple[str, ...] = (),
     exact_proof_obligation: str = "",
+    *,
+    assumption_interface_required: bool = False,
 ) -> str:
     if exact_proof_obligation:
         return "EXACT_PROOF_BANK_REUSE"
+    if assumption_interface_required and candidates:
+        return "ASSUMPTION_INTERFACE_GROUNDED"
+    if assumption_interface_required:
+        return "ASSUMPTION_INTERFACE_DESIGN"
     if n_gaps >= 2 and candidates and bridge_candidates:
         return "HIGH_REUSE_BRIDGE_READY"
     if candidates and bridge_candidates:
@@ -218,7 +235,13 @@ def _bridge_readiness(
     candidate_declarations: tuple[str, ...],
     supporting_proofs: tuple[str, ...],
     exact_proof_obligation: str = "",
+    *,
+    assumption_interface_required: bool = False,
 ) -> str:
+    if assumption_interface_required and candidate_declarations:
+        return "ASSUMPTION_INTERFACE_AND_LOCAL_SOURCE"
+    if assumption_interface_required:
+        return "ASSUMPTION_INTERFACE_REQUIRED"
     if exact_proof_obligation and candidate_declarations:
         return "EXACT_PROOF_BANK_AND_LOCAL_SOURCE"
     if exact_proof_obligation:
@@ -252,12 +275,25 @@ def _suggest_next_step(
     supporting_proofs: tuple[str, ...],
     bridge_candidates: tuple[str, ...] = (),
     exact_proof_obligation: str = "",
+    assumption_interface_required: bool = False,
 ) -> str:
     if exact_proof_obligation:
         return (
             f"Reuse exact verified proof-bank obligation `{exact_proof_obligation}` for "
             f"`{primitive}`; no new primitive proof is needed, only the enclosing "
             "frontier theorem interface remains."
+        )
+    if assumption_interface_required:
+        if candidate_declarations:
+            return (
+                f"Formalize `{primitive}` as a reusable Lean assumption predicate using "
+                f"local declaration {candidate_declarations[0]}; do not add a tautological "
+                "proof-bank wrapper for the assumption itself."
+            )
+        return (
+            f"Design a Lean assumption predicate/interface for `{primitive}` before "
+            "attempting an identification theorem; do not treat the assumption as a "
+            "theorem to prove from no premises."
         )
     if candidate_declarations and bridge_candidates:
         return (
