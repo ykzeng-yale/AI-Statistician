@@ -98,8 +98,10 @@ The audit now also exports `formal_verifier_queue` after the
 `formalization_delta_plan`. This queue joins theorem-level formalization
 routes, the no-registered proof-search RAG candidate delta, and selected
 kernel-smoke context into owner-agent work items for the FormalVerifier. The
-queue is useful for choosing the next theorem/bridge proof attempt, but it is
-still a task contract rather than proof evidence.
+queue now also attaches related proof-bank obligations, prior proof-attempt
+positives/negatives, and proof-search solved subclaim history. It is useful for
+choosing the next theorem/bridge proof attempt, but it is still a task contract
+rather than proof evidence.
 
 ## Next Build Targets
 
@@ -114,9 +116,9 @@ still a task contract rather than proof evidence.
    emits theorem-level route summaries with required primitives, reuse
    candidates, route class, and first next actions. `formal-verifier-queue`
    already turns those route summaries into ranked verifier work items with
-   RAG-lift context and explicit proof gates. The next version should add
-   dependency depth, import-cone size, source trust level, proof attempt
-   history, and semantic-faithfulness review.
+   RAG-lift context, proof-attempt history, proof-search subclaim history, and
+   explicit proof gates. The next version should add dependency depth,
+   import-cone size, source trust level, and semantic-faithfulness review.
 2. Add query-intent expansion for missing primitives:
    primitive name, theorem goal, problem class, local gap reason, and candidate
    proof-bank bridge names should all become retriever queries.

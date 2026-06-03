@@ -220,6 +220,10 @@ Current release signal:
   no-registered proof-search RAG diagnostic and any selected kernel-smoke
   overlay. It ranks FormalVerifier work items by reuse/composition opportunity,
   bridge/wrapper debt, new-theory need, and observed no-registered RAG lift.
+  It also attaches related proof-bank obligations, prior proof-attempt
+  positives/negatives, and proof-search solved subclaim history so the next
+  verifier pass can learn from earlier feedback instead of retrying routes
+  blindly.
   Queue rows are task contracts only; they do not become proof evidence until
   the named theorem or bridge proof passes AXLE/local Lean with a
   non-placeholder proof body.
@@ -238,7 +242,8 @@ Pass criteria:
   problem-class theorem goals through concrete Lean skeleton declarations to
   missing primitives, existing Lean declarations, and verified bridge candidates
 - every formal-verifier queue row carries an owner, required gate, proof-attempt
-  mode, RAG-lift context, and explicit proof-evidence boundary
+  mode, RAG-lift context, related proof-bank obligations, prior verifier/search
+  feedback, and explicit proof-evidence boundary
 - new proof-bank additions reduce the missing primitive count or increase
   bridge readiness
 
@@ -344,8 +349,9 @@ expected-lemma templates.
 
 `formal-verifier-queue` is the handoff from that diagnostic to theorem work:
 it records whether hard-mode dependency-graph RAG increased the candidate
-frontier, but keeps that signal separate from proof status. A queue row is still
-unproved until AXLE/local Lean accepts the referenced theorem or bridge proof.
+frontier and whether related subclaims have verifier/search history, but keeps
+those signals separate from proof status. A queue row is still unproved until
+AXLE/local Lean accepts the referenced theorem or bridge proof.
 
 ### S6. Algorithm and Simulation Stress Suite
 

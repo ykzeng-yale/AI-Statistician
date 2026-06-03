@@ -241,6 +241,22 @@ def export_rag_collaboration_manifest(
                 "formal_verifier_queue_routes_with_no_registered_rag_lift",
                 formal_verifier_queue_payload.get("n_routes_with_no_registered_rag_lift"),
             ),
+            "formal_verifier_queue_rows_with_attempt_history": counts.get(
+                "formal_verifier_queue_rows_with_attempt_history",
+                formal_verifier_queue_payload.get("n_rows_with_attempt_history"),
+            ),
+            "formal_verifier_queue_proof_attempt_positive": counts.get(
+                "formal_verifier_queue_proof_attempt_positive",
+                formal_verifier_queue_payload.get("n_proof_attempt_positive"),
+            ),
+            "formal_verifier_queue_proof_attempt_negative": counts.get(
+                "formal_verifier_queue_proof_attempt_negative",
+                formal_verifier_queue_payload.get("n_proof_attempt_negative"),
+            ),
+            "formal_verifier_queue_proof_search_solved": counts.get(
+                "formal_verifier_queue_proof_search_solved",
+                formal_verifier_queue_payload.get("n_proof_search_solved"),
+            ),
             "formal_verifier_queue_manifest": str(formal_verifier_queue_path),
             "formal_verifier_queue_preview": _formal_verifier_queue_preview(
                 formal_verifier_queue_payload,
@@ -395,6 +411,11 @@ def _formal_verifier_queue_preview(
                 "required_gate": row.get("required_gate"),
                 "proof_attempt_mode": row.get("proof_attempt_mode"),
                 "required_primitives": row.get("required_primitives", [])[:8],
+                "related_proof_obligations": row.get("related_proof_obligations", [])[:8],
+                "proof_history_status": row.get("proof_history_status", ""),
+                "proof_attempt_positive": row.get("proof_attempt_positive", 0),
+                "proof_attempt_negative": row.get("proof_attempt_negative", 0),
+                "proof_search_solved": row.get("proof_search_solved", 0),
                 "proof_evidence_boundary": row.get("proof_evidence_boundary", ""),
             }
         )
@@ -479,6 +500,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Formal verifier queue: `{queue.get('formal_verifier_queue_items')}` items "
         f"(`{queue.get('formal_verifier_queue_high_priority')}` high priority, "
         f"`{queue.get('formal_verifier_queue_requires_new_theory')}` new-theory routes)",
+        f"- Formal verifier proof history: `{queue.get('formal_verifier_queue_rows_with_attempt_history')}` rows "
+        f"with attempt history, `{queue.get('formal_verifier_queue_proof_search_solved')}` solved subclaim searches",
         f"- Queue: exact_reuse=`{queue.get('reuse_exact_proof_bank_obligation')}`, compose=`{queue.get('compose_existing_bridge_chain')}`, minimal_wrapper=`{queue.get('add_minimal_wrapper')}`, design_bridge=`{queue.get('design_bridge_lemma')}`",
         f"- Theorem composition packets: `{composition.get('theorem_composition_packets')}` "
         f"(exact links `{composition.get('theorem_composition_exact_proof_bank_links')}`, "
@@ -501,7 +524,10 @@ def _markdown_report(payload: dict[str, object]) -> str:
             continue
         lines.append(
             f"- `{row.get('display_name')}` ({row.get('priority')}, {row.get('verification_stage')}): "
-            f"{row.get('required_gate')}"
+            f"{row.get('required_gate')} "
+            f"[history={row.get('proof_history_status')}, "
+            f"attempts={row.get('proof_attempt_positive')}/{row.get('proof_attempt_negative')}, "
+            f"search_solved={row.get('proof_search_solved')}]"
         )
     lines.extend(["", "## Theorem Composition Handoff", ""])
     lines.append(str(composition.get("proof_evidence_boundary", "")))

@@ -7081,11 +7081,46 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             json.dumps({"n_obligations": 3, "n_kernel_verified": 3}),
             encoding="utf-8",
         )
+        history_obligations = payload["theorem_formalization_routes"][0]["required_primitives"][:2]
+        proof_attempt_log = Path("runs/test_formal_verifier_proof_attempts.jsonl")
+        proof_attempt_rows = [
+            {
+                "obligation_id": history_obligations[0],
+                "ok": True,
+                "kernel_verified": False,
+                "verification_strength": "mock_static_check",
+            },
+            {
+                "obligation_id": history_obligations[-1],
+                "ok": False,
+                "kernel_verified": False,
+                "verification_strength": "mock_static_check",
+            },
+        ]
+        proof_attempt_log.write_text(
+            "\n".join(json.dumps(row) for row in proof_attempt_rows) + "\n",
+            encoding="utf-8",
+        )
+        proof_search_results = Path("runs/test_formal_verifier_proof_search_results.jsonl")
+        proof_search_results.write_text(
+            json.dumps(
+                {
+                    "obligation_id": history_obligations[0],
+                    "solved": True,
+                    "kernel_verified": False,
+                    "selected_source": "expected_lemma_template",
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
         queue = export_formal_verifier_queue(
             Path("runs/test_formalization_delta_plan"),
             Path("runs/test_formal_verifier_queue"),
             proof_search_no_registered_ablation_dir=no_registered_dir,
             kernel_smoke_proof_audit_dir=kernel_smoke_dir,
+            proof_attempt_log_path=proof_attempt_log,
+            proof_search_results_path=proof_search_results,
         )
         self.assertTrue(queue["all_ok"])
         self.assertGreater(queue["n_items"], 0)
@@ -7098,9 +7133,17 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(queue["lean_rag_dependency_graph_enabled"])
         self.assertEqual(queue["kernel_smoke_kernel_verified"], 3)
         self.assertEqual(queue["kernel_smoke_total"], 3)
+        self.assertGreater(queue["n_related_proof_obligations"], 0)
+        self.assertGreater(queue["n_rows_with_attempt_history"], 0)
+        self.assertGreater(queue["n_proof_attempt_positive"], 0)
+        self.assertGreater(queue["n_proof_attempt_negative"], 0)
+        self.assertGreater(queue["n_proof_search_solved"], 0)
         queue_row = queue["rows"][0]
         self.assertEqual(queue_row["owner_agent"], "formal_verifier")
         self.assertIn(queue_row["priority"], {"high", "medium", "low"})
+        self.assertIn("related_proof_obligations", queue_row)
+        self.assertIn("proof_history_status", queue_row)
+        self.assertIn("subclaim feedback", queue_row["proof_history_boundary"])
         self.assertIn("not proof evidence", queue_row["proof_evidence_boundary"])
         self.assertTrue(Path("runs/test_formal_verifier_queue/formal_verifier_queue_manifest.json").exists())
         self.assertTrue(Path("runs/test_formal_verifier_queue/formal_verifier_queue.jsonl").exists())
@@ -7356,6 +7399,10 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                     "n_high_priority": 1,
                     "n_requires_new_theory": 0,
                     "n_routes_with_no_registered_rag_lift": 1,
+                    "n_rows_with_attempt_history": 1,
+                    "n_proof_attempt_positive": 2,
+                    "n_proof_attempt_negative": 1,
+                    "n_proof_search_solved": 1,
                     "rows": [
                         {
                             "item_id": "formal_verifier_queue:test",
@@ -7368,6 +7415,11 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                             "required_gate": "non-placeholder theorem passes AXLE/local Lean verify_proof",
                             "proof_attempt_mode": "theorem_composition_first",
                             "required_primitives": ["aipw_score_definition"],
+                            "related_proof_obligations": ["aipw_score_definition"],
+                            "proof_history_status": "proof_search_solved_subclaim_history",
+                            "proof_attempt_positive": 2,
+                            "proof_attempt_negative": 1,
+                            "proof_search_solved": 1,
                             "proof_evidence_boundary": "This queue row is not proof evidence.",
                         }
                     ],
@@ -7426,6 +7478,10 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                         "formal_verifier_queue_high_priority": 1,
                         "formal_verifier_queue_requires_new_theory": 0,
                         "formal_verifier_queue_routes_with_no_registered_rag_lift": 1,
+                        "formal_verifier_queue_rows_with_attempt_history": 1,
+                        "formal_verifier_queue_proof_attempt_positive": 2,
+                        "formal_verifier_queue_proof_attempt_negative": 1,
+                        "formal_verifier_queue_proof_search_solved": 1,
                     },
                     "artifacts": {
                         "proof_audit": str(root / "proof_audit" / "proof_audit_manifest.json"),
@@ -7526,9 +7582,15 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertIn("coordination plans", composition["proof_evidence_boundary"])
         self.assertEqual(payload["formal_capacity_queue"]["formal_verifier_queue_items"], 1)
         self.assertEqual(payload["formal_capacity_queue"]["formal_verifier_queue_high_priority"], 1)
+        self.assertEqual(payload["formal_capacity_queue"]["formal_verifier_queue_rows_with_attempt_history"], 1)
+        self.assertEqual(payload["formal_capacity_queue"]["formal_verifier_queue_proof_search_solved"], 1)
         self.assertEqual(
             payload["formal_capacity_queue"]["formal_verifier_queue_preview"][0]["display_name"],
             "causal_ate_aipw:aipw_double_robustness:skeleton",
+        )
+        self.assertEqual(
+            payload["formal_capacity_queue"]["formal_verifier_queue_preview"][0]["proof_history_status"],
+            "proof_search_solved_subclaim_history",
         )
         self.assertIn(
             "not proof evidence",
@@ -9880,6 +9942,12 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             + payload["counts"]["formal_verifier_queue_requires_new_theory"],
             payload["counts"]["formal_verifier_queue_items"],
         )
+        self.assertGreater(payload["counts"]["formal_verifier_queue_related_proof_obligations"], 0)
+        self.assertGreater(payload["counts"]["formal_verifier_queue_rows_with_attempt_history"], 0)
+        self.assertGreater(payload["counts"]["formal_verifier_queue_proof_attempt_positive"], 0)
+        self.assertGreater(payload["counts"]["formal_verifier_queue_proof_attempt_negative"], 0)
+        self.assertGreater(payload["counts"]["formal_verifier_queue_proof_search_solved"], 0)
+        self.assertEqual(payload["counts"]["formal_verifier_queue_proof_attempt_kernel_verified"], 0)
         self.assertEqual(
             payload["counts"]["formal_verifier_queue_no_registered_rag_candidate_delta"],
             payload["counts"]["proof_search_retrieval_no_registered_ablation_candidate_delta"],

@@ -498,6 +498,8 @@ async def run_research_system_audit(
         kernel_smoke_proof_audit_dir=(out_dir / "kernel_smoke_proof_audit")
         if kernel_smoke_manifest is not None
         else None,
+        proof_attempt_log_path=out_dir / "proof_audit" / "proof_attempts.jsonl",
+        proof_search_results_path=out_dir / "proof_search_audit" / "proof_search_results.jsonl",
     )
     stage_start = _record_stage(stage_timings, "formal_verifier_queue", stage_start)
 
@@ -1359,6 +1361,39 @@ async def run_research_system_audit(
             ],
             "formal_verifier_queue_routes_with_no_registered_rag_lift": formal_verifier_queue_manifest[
                 "n_routes_with_no_registered_rag_lift"
+            ],
+            "formal_verifier_queue_related_proof_obligations": formal_verifier_queue_manifest[
+                "n_related_proof_obligations"
+            ],
+            "formal_verifier_queue_rows_with_attempt_history": formal_verifier_queue_manifest[
+                "n_rows_with_attempt_history"
+            ],
+            "formal_verifier_queue_rows_with_negative_attempt_history": formal_verifier_queue_manifest[
+                "n_rows_with_negative_attempt_history"
+            ],
+            "formal_verifier_queue_rows_with_kernel_attempt_history": formal_verifier_queue_manifest[
+                "n_rows_with_kernel_attempt_history"
+            ],
+            "formal_verifier_queue_rows_with_proof_search_solution": formal_verifier_queue_manifest[
+                "n_rows_with_proof_search_solution"
+            ],
+            "formal_verifier_queue_proof_attempt_positive": formal_verifier_queue_manifest[
+                "n_proof_attempt_positive"
+            ],
+            "formal_verifier_queue_proof_attempt_negative": formal_verifier_queue_manifest[
+                "n_proof_attempt_negative"
+            ],
+            "formal_verifier_queue_proof_attempt_kernel_verified": formal_verifier_queue_manifest[
+                "n_proof_attempt_kernel_verified"
+            ],
+            "formal_verifier_queue_proof_search_solved": formal_verifier_queue_manifest[
+                "n_proof_search_solved"
+            ],
+            "formal_verifier_queue_proof_search_unsolved": formal_verifier_queue_manifest[
+                "n_proof_search_unsolved"
+            ],
+            "formal_verifier_queue_proof_search_kernel_verified": formal_verifier_queue_manifest[
+                "n_proof_search_kernel_verified"
             ],
             "formal_verifier_queue_no_registered_rag_candidate_delta": formal_verifier_queue_manifest[
                 "no_registered_rag_candidate_delta"

@@ -1233,6 +1233,12 @@ def _formal_verifier_queue(args: argparse.Namespace) -> int:
             if args.kernel_smoke_proof_audit_dir
             else None
         ),
+        proof_attempt_log_path=Path(args.proof_attempt_log)
+        if args.proof_attempt_log
+        else None,
+        proof_search_results_path=Path(args.proof_search_results)
+        if args.proof_search_results
+        else None,
         max_routes=args.max_routes,
     )
     print("\nAI Statistical Theory Lab Formal Verifier Queue")
@@ -3005,6 +3011,14 @@ def build_parser() -> argparse.ArgumentParser:
     formal_verifier_queue.add_argument(
         "--kernel-smoke-proof-audit-dir",
         help="optional directory containing the focused kernel-smoke proof audit manifest",
+    )
+    formal_verifier_queue.add_argument(
+        "--proof-attempt-log",
+        help="optional proof_attempts.jsonl used to attach prior verifier positives/negatives",
+    )
+    formal_verifier_queue.add_argument(
+        "--proof-search-results",
+        help="optional proof_search_results.jsonl used to attach prior proof-search outcomes",
     )
     formal_verifier_queue.add_argument("--max-routes", type=int, default=20)
     formal_verifier_queue.add_argument(
