@@ -37,6 +37,7 @@ from .frontier_theory_target_audit import audit_frontier_theory_targets
 from .formal_gap_task_export import export_formal_gap_lean_tasks
 from .formalization_delta_plan import build_formalization_delta_plan
 from .formalization_target_audit import audit_formalization_targets
+from .formal_verifier_queue import export_formal_verifier_queue
 from .formal_source_graph import audit_formal_source_graph
 from .formal_source_index import (
     FormalSourceSqliteIndex,
@@ -1215,6 +1216,41 @@ def _formalization_delta_plan(args: argparse.Namespace) -> int:
     )
     print(f"jsonl written to {(Path(args.out) / 'formalization_delta_plan.jsonl').resolve()}")
     print(f"markdown report written to {(Path(args.out) / 'formalization_delta_plan.md').resolve()}")
+    return 0 if payload["all_ok"] else 1
+
+
+def _formal_verifier_queue(args: argparse.Namespace) -> int:
+    payload = export_formal_verifier_queue(
+        Path(args.formalization_delta_dir),
+        Path(args.out),
+        proof_search_no_registered_ablation_dir=(
+            Path(args.proof_search_no_registered_ablation_dir)
+            if args.proof_search_no_registered_ablation_dir
+            else None
+        ),
+        kernel_smoke_proof_audit_dir=(
+            Path(args.kernel_smoke_proof_audit_dir)
+            if args.kernel_smoke_proof_audit_dir
+            else None
+        ),
+        max_routes=args.max_routes,
+    )
+    print("\nAI Statistical Theory Lab Formal Verifier Queue")
+    print("=" * 72)
+    print(
+        f"items={payload['n_ok']}/{payload['n_items']} "
+        f"high={payload['n_high_priority']} "
+        f"new_theory={payload['n_requires_new_theory']} "
+        f"rag_delta={payload['no_registered_rag_candidate_delta']} "
+        f"kernel_smoke={payload['kernel_smoke_kernel_verified']}/{payload['kernel_smoke_total']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nformal verifier queue manifest written to "
+        f"{(Path(args.out) / 'formal_verifier_queue_manifest.json').resolve()}"
+    )
+    print(f"jsonl written to {(Path(args.out) / 'formal_verifier_queue.jsonl').resolve()}")
+    print(f"markdown report written to {(Path(args.out) / 'formal_verifier_queue.md').resolve()}")
     return 0 if payload["all_ok"] else 1
 
 
@@ -2952,6 +2988,31 @@ def build_parser() -> argparse.ArgumentParser:
         help="formalization-delta output directory",
     )
     formalization_delta_plan.set_defaults(func=_formalization_delta_plan)
+
+    formal_verifier_queue = sub.add_parser(
+        "formal-verifier-queue",
+        help="export verifier-facing theorem-route work items from the formalization delta plan",
+    )
+    formal_verifier_queue.add_argument(
+        "--formalization-delta-dir",
+        required=True,
+        help="directory containing formalization_delta_plan_manifest.json",
+    )
+    formal_verifier_queue.add_argument(
+        "--proof-search-no-registered-ablation-dir",
+        help="optional directory containing the no-registered proof-search retrieval ablation manifest",
+    )
+    formal_verifier_queue.add_argument(
+        "--kernel-smoke-proof-audit-dir",
+        help="optional directory containing the focused kernel-smoke proof audit manifest",
+    )
+    formal_verifier_queue.add_argument("--max-routes", type=int, default=20)
+    formal_verifier_queue.add_argument(
+        "--out",
+        default="runs/formal_verifier_queue",
+        help="formal-verifier queue output directory",
+    )
+    formal_verifier_queue.set_defaults(func=_formal_verifier_queue)
 
     rag_collaboration_export = sub.add_parser(
         "rag-collaboration-export",

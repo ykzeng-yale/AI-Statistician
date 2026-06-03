@@ -216,6 +216,13 @@ Current release signal:
   primitives, reuse candidates, cost class, and first next actions.
   Its cost and graph are heuristic planning evidence, not a proof of true
   minimality and not Lean proof evidence.
+- `formal-verifier-queue` joins those theorem-level routes with the hard-mode
+  no-registered proof-search RAG diagnostic and any selected kernel-smoke
+  overlay. It ranks FormalVerifier work items by reuse/composition opportunity,
+  bridge/wrapper debt, new-theory need, and observed no-registered RAG lift.
+  Queue rows are task contracts only; they do not become proof evidence until
+  the named theorem or bridge proof passes AXLE/local Lean with a
+  non-placeholder proof body.
 - compose-existing bridge-chain opportunities are now 51
 - minimal-wrapper debt is now 2, down from 10 after adding the robust
   median-of-means, conformal rank/quantile, and continuous-mapping wrappers
@@ -230,6 +237,8 @@ Pass criteria:
   flat action count, so downstream agents can traverse the route from
   problem-class theorem goals through concrete Lean skeleton declarations to
   missing primitives, existing Lean declarations, and verified bridge candidates
+- every formal-verifier queue row carries an owner, required gate, proof-attempt
+  mode, RAG-lift context, and explicit proof-evidence boundary
 - new proof-bank additions reduce the missing primitive count or increase
   bridge readiness
 
@@ -332,6 +341,11 @@ retrievers, so solved-rate lift is saturated. In that regime, report
 dependency-graph activation and candidate lift as search evidence only, then
 move capacity tracking to harder obligations that cannot close by static
 expected-lemma templates.
+
+`formal-verifier-queue` is the handoff from that diagnostic to theorem work:
+it records whether hard-mode dependency-graph RAG increased the candidate
+frontier, but keeps that signal separate from proof status. A queue row is still
+unproved until AXLE/local Lean accepts the referenced theorem or bridge proof.
 
 ### S6. Algorithm and Simulation Stress Suite
 

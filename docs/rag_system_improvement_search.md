@@ -94,9 +94,16 @@ candidate-frontier/search evidence instead of being hidden by gold proof-bank
 shortcuts. Those rows remain retrieval/search evidence unless AXLE or local
 Lean kernel verification is enabled for the proof-search run.
 
+The audit now also exports `formal_verifier_queue` after the
+`formalization_delta_plan`. This queue joins theorem-level formalization
+routes, the no-registered proof-search RAG candidate delta, and selected
+kernel-smoke context into owner-agent work items for the FormalVerifier. The
+queue is useful for choosing the next theorem/bridge proof attempt, but it is
+still a task contract rather than proof evidence.
+
 ## Next Build Targets
 
-1. Add library-aware minimal formalization planning:
+1. Expand library-aware minimal formalization planning:
    the current `formalization-delta-plan` ranks proof-bank actions by reuse,
    blocker, source-coverage, and bridge/wrapper cost, and exports a dependency
    graph linking problem classes, theorem goals, concrete Lean theorem
@@ -105,7 +112,9 @@ Lean kernel verification is enabled for the proof-search run.
    declarations. The graph now exposes a route from target theorem to Lean
    skeleton to informal proof steps to primitives/actions, and the planner
    emits theorem-level route summaries with required primitives, reuse
-   candidates, route class, and first next actions. The next version should add
+   candidates, route class, and first next actions. `formal-verifier-queue`
+   already turns those route summaries into ranked verifier work items with
+   RAG-lift context and explicit proof gates. The next version should add
    dependency depth, import-cone size, source trust level, proof attempt
    history, and semantic-faithfulness review.
 2. Add query-intent expansion for missing primitives:

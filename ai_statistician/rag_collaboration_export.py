@@ -52,6 +52,8 @@ def export_rag_collaboration_manifest(
     expansion_payload = _read_json(_artifact_path(artifacts, "proof_bank_expansion", run_dir))
     theorem_composition_path = _artifact_path(artifacts, "theorem_composition", run_dir)
     theorem_composition_payload = _read_json(theorem_composition_path)
+    formal_verifier_queue_path = _artifact_path(artifacts, "formal_verifier_queue", run_dir)
+    formal_verifier_queue_payload = _read_json(formal_verifier_queue_path)
     guidance_payload = _read_json(_artifact_path(artifacts, "evaluation_benchmark_guidance", run_dir))
 
     target_rows = _handoff_targets(
@@ -223,6 +225,27 @@ def export_rag_collaboration_manifest(
             "primitive_source_external_supported": counts.get(
                 "primitive_source_coverage_external_supported"
             ),
+            "formal_verifier_queue_items": counts.get(
+                "formal_verifier_queue_items",
+                formal_verifier_queue_payload.get("n_items"),
+            ),
+            "formal_verifier_queue_high_priority": counts.get(
+                "formal_verifier_queue_high_priority",
+                formal_verifier_queue_payload.get("n_high_priority"),
+            ),
+            "formal_verifier_queue_requires_new_theory": counts.get(
+                "formal_verifier_queue_requires_new_theory",
+                formal_verifier_queue_payload.get("n_requires_new_theory"),
+            ),
+            "formal_verifier_queue_routes_with_no_registered_rag_lift": counts.get(
+                "formal_verifier_queue_routes_with_no_registered_rag_lift",
+                formal_verifier_queue_payload.get("n_routes_with_no_registered_rag_lift"),
+            ),
+            "formal_verifier_queue_manifest": str(formal_verifier_queue_path),
+            "formal_verifier_queue_preview": _formal_verifier_queue_preview(
+                formal_verifier_queue_payload,
+                max_rows=min(max_targets, 10),
+            ),
             "handoff_targets": target_rows,
             "proof_bank_expansion_manifest": str(
                 _artifact_path(artifacts, "proof_bank_expansion", run_dir)
@@ -348,6 +371,38 @@ def _lean_rag_seed_lanes(payload: dict[str, Any]) -> list[str]:
     return []
 
 
+def _formal_verifier_queue_preview(
+    payload: dict[str, Any],
+    *,
+    max_rows: int,
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    payload_rows = payload.get("rows", [])
+    if not isinstance(payload_rows, list):
+        return rows
+    for row in payload_rows:
+        if not isinstance(row, dict):
+            continue
+        rows.append(
+            {
+                "item_id": row.get("item_id"),
+                "route_id": row.get("route_id"),
+                "display_name": row.get("display_name"),
+                "route_class": row.get("route_class"),
+                "verification_stage": row.get("verification_stage"),
+                "priority": row.get("priority"),
+                "priority_score": row.get("priority_score"),
+                "required_gate": row.get("required_gate"),
+                "proof_attempt_mode": row.get("proof_attempt_mode"),
+                "required_primitives": row.get("required_primitives", [])[:8],
+                "proof_evidence_boundary": row.get("proof_evidence_boundary", ""),
+            }
+        )
+        if len(rows) >= max_rows:
+            break
+    return rows
+
+
 def _theorem_composition_packet_preview(
     payload: dict[str, Any],
     *,
@@ -421,6 +476,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Combined retrieval recall/MRR: `{rag.get('formal_source_retrieval_all_recall_at_k')}` / `{rag.get('formal_source_retrieval_all_mrr')}`",
         f"- Proof-search retrieval delta: ordinary candidates `{retrieval.get('proof_search_candidate_delta')}`, no-registered candidates `{retrieval.get('proof_search_no_registered_candidate_delta')}`",
         f"- Missing primitives: `{queue.get('missing_formal_primitives')}`",
+        f"- Formal verifier queue: `{queue.get('formal_verifier_queue_items')}` items "
+        f"(`{queue.get('formal_verifier_queue_high_priority')}` high priority, "
+        f"`{queue.get('formal_verifier_queue_requires_new_theory')}` new-theory routes)",
         f"- Queue: exact_reuse=`{queue.get('reuse_exact_proof_bank_obligation')}`, compose=`{queue.get('compose_existing_bridge_chain')}`, minimal_wrapper=`{queue.get('add_minimal_wrapper')}`, design_bridge=`{queue.get('design_bridge_lemma')}`",
         f"- Theorem composition packets: `{composition.get('theorem_composition_packets')}` "
         f"(exact links `{composition.get('theorem_composition_exact_proof_bank_links')}`, "
@@ -437,6 +495,14 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{target.get('suggested_next_step')}"
         )
         lines.append(f"  query: `{target.get('query_hint')}`")
+    lines.extend(["", "## Formal Verifier Queue", ""])
+    for row in queue.get("formal_verifier_queue_preview", []):
+        if not isinstance(row, dict):
+            continue
+        lines.append(
+            f"- `{row.get('display_name')}` ({row.get('priority')}, {row.get('verification_stage')}): "
+            f"{row.get('required_gate')}"
+        )
     lines.extend(["", "## Theorem Composition Handoff", ""])
     lines.append(str(composition.get("proof_evidence_boundary", "")))
     lines.append("")

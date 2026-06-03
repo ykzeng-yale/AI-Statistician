@@ -36,6 +36,7 @@ from ai_statistician.fresh_holdout_frontier_audit import audit_fresh_holdout_fro
 from ai_statistician.frontier_precision_audit import audit_frontier_precision
 from ai_statistician.frontier_smoke_benchmark import FrontierSmokeConfig, run_frontier_smoke_benchmark, select_supported_frontier_questions
 from ai_statistician.formal_gap_task_export import export_formal_gap_lean_tasks
+from ai_statistician.formal_verifier_queue import export_formal_verifier_queue
 from ai_statistician.formalization_delta_plan import build_formalization_delta_plan
 from ai_statistician.formalization_target_audit import audit_formalization_targets
 from ai_statistician.formal_source_graph import FormalSourceGraphRetriever, audit_formal_source_graph
@@ -7061,6 +7062,49 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(Path("runs/test_formalization_delta_plan/formalization_delta_plan.jsonl").exists())
         self.assertTrue(Path("runs/test_formalization_delta_plan/formalization_delta_graph.json").exists())
         self.assertTrue(Path("runs/test_formalization_delta_plan/formalization_delta_plan.md").exists())
+        no_registered_dir = Path("runs/test_formal_verifier_no_registered")
+        kernel_smoke_dir = Path("runs/test_formal_verifier_kernel_smoke")
+        no_registered_dir.mkdir(parents=True, exist_ok=True)
+        kernel_smoke_dir.mkdir(parents=True, exist_ok=True)
+        (no_registered_dir / "proof_search_retrieval_ablation_manifest.json").write_text(
+            json.dumps(
+                {
+                    "formal_source_candidate_delta": 4,
+                    "solved_delta": 0,
+                    "include_registered_proof": False,
+                    "lean_rag_dependency_graph_enabled": True,
+                }
+            ),
+            encoding="utf-8",
+        )
+        (kernel_smoke_dir / "proof_audit_manifest.json").write_text(
+            json.dumps({"n_obligations": 3, "n_kernel_verified": 3}),
+            encoding="utf-8",
+        )
+        queue = export_formal_verifier_queue(
+            Path("runs/test_formalization_delta_plan"),
+            Path("runs/test_formal_verifier_queue"),
+            proof_search_no_registered_ablation_dir=no_registered_dir,
+            kernel_smoke_proof_audit_dir=kernel_smoke_dir,
+        )
+        self.assertTrue(queue["all_ok"])
+        self.assertGreater(queue["n_items"], 0)
+        self.assertEqual(queue["n_ok"], queue["n_items"])
+        self.assertGreater(queue["n_high_priority"], 0)
+        self.assertGreaterEqual(queue["n_requires_new_theory"], 0)
+        self.assertEqual(queue["no_registered_rag_candidate_delta"], 4)
+        self.assertEqual(queue["no_registered_rag_solved_delta"], 0)
+        self.assertFalse(queue["no_registered_rag_include_registered_proof"])
+        self.assertTrue(queue["lean_rag_dependency_graph_enabled"])
+        self.assertEqual(queue["kernel_smoke_kernel_verified"], 3)
+        self.assertEqual(queue["kernel_smoke_total"], 3)
+        queue_row = queue["rows"][0]
+        self.assertEqual(queue_row["owner_agent"], "formal_verifier")
+        self.assertIn(queue_row["priority"], {"high", "medium", "low"})
+        self.assertIn("not proof evidence", queue_row["proof_evidence_boundary"])
+        self.assertTrue(Path("runs/test_formal_verifier_queue/formal_verifier_queue_manifest.json").exists())
+        self.assertTrue(Path("runs/test_formal_verifier_queue/formal_verifier_queue.jsonl").exists())
+        self.assertTrue(Path("runs/test_formal_verifier_queue/formal_verifier_queue.md").exists())
 
     def test_primitive_source_coverage_audit_classifies_missing_primitives(self) -> None:
         async def run():
@@ -7149,6 +7193,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "primitive_source_coverage",
             "proof_bank_expansion",
             "theorem_composition",
+            "formal_verifier_queue",
             "evaluation_benchmark_guidance",
         ):
             (root / subdir).mkdir(parents=True, exist_ok=True)
@@ -7304,6 +7349,32 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             ),
             encoding="utf-8",
         )
+        (root / "formal_verifier_queue" / "formal_verifier_queue_manifest.json").write_text(
+            json.dumps(
+                {
+                    "n_items": 1,
+                    "n_high_priority": 1,
+                    "n_requires_new_theory": 0,
+                    "n_routes_with_no_registered_rag_lift": 1,
+                    "rows": [
+                        {
+                            "item_id": "formal_verifier_queue:test",
+                            "route_id": "theorem_route:test",
+                            "display_name": "causal_ate_aipw:aipw_double_robustness:skeleton",
+                            "route_class": "reuse_or_composition",
+                            "verification_stage": "compose_exact_reuse_skeleton",
+                            "priority": "high",
+                            "priority_score": 300,
+                            "required_gate": "non-placeholder theorem passes AXLE/local Lean verify_proof",
+                            "proof_attempt_mode": "theorem_composition_first",
+                            "required_primitives": ["aipw_score_definition"],
+                            "proof_evidence_boundary": "This queue row is not proof evidence.",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
         (root / "evaluation_benchmark_guidance" / "evaluation_benchmark_guidance_manifest.json").write_text(
             json.dumps({"top_actions": [{"rank": 1, "action": "improve RAG"}]}),
             encoding="utf-8",
@@ -7351,6 +7422,10 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                         "theorem_composition_unresolved_primitives": 3,
                         "theorem_composition_packets_with_unresolved_primitives": 1,
                         "theorem_composition_ready_for_exact_reuse": 0,
+                        "formal_verifier_queue_items": 1,
+                        "formal_verifier_queue_high_priority": 1,
+                        "formal_verifier_queue_requires_new_theory": 0,
+                        "formal_verifier_queue_routes_with_no_registered_rag_lift": 1,
                     },
                     "artifacts": {
                         "proof_audit": str(root / "proof_audit" / "proof_audit_manifest.json"),
@@ -7397,6 +7472,9 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                         ),
                         "theorem_composition": str(
                             root / "theorem_composition" / "theorem_composition_manifest.json"
+                        ),
+                        "formal_verifier_queue": str(
+                            root / "formal_verifier_queue" / "formal_verifier_queue_manifest.json"
                         ),
                         "evaluation_benchmark_guidance": str(
                             root
@@ -7446,9 +7524,20 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "potential_outcome_consistency",
         )
         self.assertIn("coordination plans", composition["proof_evidence_boundary"])
+        self.assertEqual(payload["formal_capacity_queue"]["formal_verifier_queue_items"], 1)
+        self.assertEqual(payload["formal_capacity_queue"]["formal_verifier_queue_high_priority"], 1)
+        self.assertEqual(
+            payload["formal_capacity_queue"]["formal_verifier_queue_preview"][0]["display_name"],
+            "causal_ate_aipw:aipw_double_robustness:skeleton",
+        )
+        self.assertIn(
+            "not proof evidence",
+            payload["formal_capacity_queue"]["formal_verifier_queue_preview"][0]["proof_evidence_boundary"],
+        )
         self.assertIn("RAG hits are retrieval evidence only", " ".join(payload["honesty_boundaries"]))
         self.assertTrue((out / "rag_collaboration_manifest.json").exists())
         self.assertTrue((out / "rag_collaboration.md").exists())
+        self.assertIn("Formal Verifier Queue", (out / "rag_collaboration.md").read_text())
         self.assertIn("Theorem Composition Handoff", (out / "rag_collaboration.md").read_text())
 
     def test_research_training_export_writes_agent_sft_and_grpo_data(self) -> None:
@@ -9325,6 +9414,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["gates"]["proof_bank_action_export"])
         self.assertTrue(payload["gates"]["primitive_source_coverage_audit"])
         self.assertTrue(payload["gates"]["formalization_delta_plan"])
+        self.assertTrue(payload["gates"]["formal_verifier_queue"])
         self.assertTrue(payload["gates"]["research_training_export"])
         self.assertTrue(payload["gates"]["research_policy_baseline"])
         self.assertTrue(payload["gates"]["next_iteration_queue"])
@@ -9599,6 +9689,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "proof_bank_expansion_export",
             "proof_bank_action_export",
             "primitive_source_coverage_audit",
+            "formal_verifier_queue",
             "research_training_export",
             "research_policy_baseline",
             "next_iteration_queue",
@@ -9779,8 +9870,33 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertGreaterEqual(payload["counts"]["formalization_delta_plan_low_cost_existing_reuse"], 0)
         self.assertGreaterEqual(payload["counts"]["formalization_delta_plan_medium_cost_bridge_or_wrapper"], 0)
         self.assertGreaterEqual(payload["counts"]["formalization_delta_plan_high_cost_new_theory"], 0)
+        self.assertEqual(payload["counts"]["formal_verifier_queue_ok"], payload["counts"]["formal_verifier_queue_items"])
+        self.assertGreater(payload["counts"]["formal_verifier_queue_items"], 0)
+        self.assertGreater(payload["counts"]["formal_verifier_queue_high_priority"], 0)
+        self.assertGreaterEqual(payload["counts"]["formal_verifier_queue_requires_new_theory"], 0)
+        self.assertEqual(
+            payload["counts"]["formal_verifier_queue_reuse_or_composition"]
+            + payload["counts"]["formal_verifier_queue_bridge_or_wrapper"]
+            + payload["counts"]["formal_verifier_queue_requires_new_theory"],
+            payload["counts"]["formal_verifier_queue_items"],
+        )
+        self.assertEqual(
+            payload["counts"]["formal_verifier_queue_no_registered_rag_candidate_delta"],
+            payload["counts"]["proof_search_retrieval_no_registered_ablation_candidate_delta"],
+        )
+        self.assertEqual(
+            payload["counts"]["formal_verifier_queue_no_registered_rag_solved_delta"],
+            payload["counts"]["proof_search_retrieval_no_registered_ablation_solved_delta"],
+        )
+        self.assertEqual(
+            payload["counts"]["formal_verifier_queue_kernel_smoke_kernel_verified"],
+            payload["counts"]["kernel_smoke_proof_audit_kernel_verified"],
+        )
         self.assertTrue(Path(payload["artifacts"]["formalization_delta_plan"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formalization_delta_graph"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formal_verifier_queue"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formal_verifier_queue_jsonl"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formal_verifier_queue_report"]).exists())
         self.assertEqual(
             payload["counts"]["primitive_source_coverage_primitives"],
             payload["counts"]["missing_formal_primitives"],

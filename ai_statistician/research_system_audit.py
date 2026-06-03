@@ -33,6 +33,7 @@ from .evaluation_benchmark_guidance import build_evaluation_benchmark_guidance
 from .formal_gap_task_export import export_formal_gap_lean_tasks
 from .formalization_delta_plan import build_formalization_delta_plan
 from .formalization_target_audit import audit_formalization_targets
+from .formal_verifier_queue import export_formal_verifier_queue
 from .formal_source_graph import audit_formal_source_graph
 from .formal_source_hybrid import FormalSourceHybridRetriever
 from .formal_source_index import FormalSourceSqliteIndex, build_formal_source_search_backend
@@ -490,6 +491,15 @@ async def run_research_system_audit(
         formal_gap_tasks_dir=out_dir / "formal_gap_lean_tasks",
     )
     stage_start = _record_stage(stage_timings, "formalization_delta_plan", stage_start)
+    formal_verifier_queue_manifest = export_formal_verifier_queue(
+        out_dir / "formalization_delta_plan",
+        out_dir / "formal_verifier_queue",
+        proof_search_no_registered_ablation_dir=out_dir / "proof_search_retrieval_no_registered_ablation",
+        kernel_smoke_proof_audit_dir=(out_dir / "kernel_smoke_proof_audit")
+        if kernel_smoke_manifest is not None
+        else None,
+    )
+    stage_start = _record_stage(stage_timings, "formal_verifier_queue", stage_start)
 
     research_training_manifest = export_research_training_dataset(
         out_dir / "research_benchmark",
@@ -692,6 +702,7 @@ async def run_research_system_audit(
         "assumption_interface_export": bool(assumption_interface_manifest["all_ok"]),
         "primitive_source_coverage_audit": bool(primitive_source_coverage_manifest["all_ok"]),
         "formalization_delta_plan": bool(formalization_delta_manifest["all_ok"]),
+        "formal_verifier_queue": bool(formal_verifier_queue_manifest["all_ok"]),
         "research_training_export": bool(research_training_manifest["all_ok"]),
         "research_policy_baseline": bool(research_policy_manifest["all_ok"]),
         "next_iteration_queue": bool(next_iteration_manifest["all_ok"]),
@@ -726,6 +737,7 @@ async def run_research_system_audit(
         "autoform_target_export",
         "proof_bank_expansion_export",
         "proof_bank_action_export",
+        "formal_verifier_queue",
         "research_training_export",
         "research_policy_baseline",
         "next_iteration_queue",
@@ -1333,6 +1345,33 @@ async def run_research_system_audit(
             "formalization_delta_plan_high_cost_new_theory": formalization_delta_manifest[
                 "n_high_cost_new_theory"
             ],
+            "formal_verifier_queue_items": formal_verifier_queue_manifest["n_items"],
+            "formal_verifier_queue_ok": formal_verifier_queue_manifest["n_ok"],
+            "formal_verifier_queue_high_priority": formal_verifier_queue_manifest["n_high_priority"],
+            "formal_verifier_queue_reuse_or_composition": formal_verifier_queue_manifest[
+                "n_reuse_or_composition"
+            ],
+            "formal_verifier_queue_bridge_or_wrapper": formal_verifier_queue_manifest[
+                "n_bridge_or_wrapper"
+            ],
+            "formal_verifier_queue_requires_new_theory": formal_verifier_queue_manifest[
+                "n_requires_new_theory"
+            ],
+            "formal_verifier_queue_routes_with_no_registered_rag_lift": formal_verifier_queue_manifest[
+                "n_routes_with_no_registered_rag_lift"
+            ],
+            "formal_verifier_queue_no_registered_rag_candidate_delta": formal_verifier_queue_manifest[
+                "no_registered_rag_candidate_delta"
+            ],
+            "formal_verifier_queue_no_registered_rag_solved_delta": formal_verifier_queue_manifest[
+                "no_registered_rag_solved_delta"
+            ],
+            "formal_verifier_queue_kernel_smoke_kernel_verified": formal_verifier_queue_manifest[
+                "kernel_smoke_kernel_verified"
+            ],
+            "formal_verifier_queue_kernel_smoke_total": formal_verifier_queue_manifest[
+                "kernel_smoke_total"
+            ],
             "proof_bank_actions_high_priority": proof_bank_action_manifest["by_priority"].get("high", 0),
             "proof_bank_actions_medium_priority": proof_bank_action_manifest["by_priority"].get("medium", 0),
             "proof_bank_actions_low_priority": proof_bank_action_manifest["by_priority"].get("low", 0),
@@ -1886,6 +1925,15 @@ async def run_research_system_audit(
             ),
             "formalization_delta_plan_report": str(
                 out_dir / "formalization_delta_plan" / "formalization_delta_plan.md"
+            ),
+            "formal_verifier_queue": str(
+                out_dir / "formal_verifier_queue" / "formal_verifier_queue_manifest.json"
+            ),
+            "formal_verifier_queue_jsonl": str(
+                out_dir / "formal_verifier_queue" / "formal_verifier_queue.jsonl"
+            ),
+            "formal_verifier_queue_report": str(
+                out_dir / "formal_verifier_queue" / "formal_verifier_queue.md"
             ),
             "primitive_source_coverage": str(
                 out_dir / "primitive_source_coverage" / "primitive_source_coverage_manifest.json"
