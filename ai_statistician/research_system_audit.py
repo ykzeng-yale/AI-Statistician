@@ -46,7 +46,7 @@ from .autoform_target_export import export_autoform_targets
 from .frontier_smoke_benchmark import FrontierSmokeConfig, run_frontier_smoke_benchmark
 from .proof_audit import audit_proof_bank
 from .proof_bank_action_export import export_proof_bank_actions
-from .proof_bank import proof_bank_fingerprint
+from .proof_bank import all_obligations, proof_bank_fingerprint
 from .proof_bank_expansion_export import export_proof_bank_expansion_candidates
 from .primitive_source_coverage_audit import audit_primitive_source_coverage
 from .proof_policy_baseline import evaluate_retrieval_proof_policy_baseline
@@ -92,6 +92,7 @@ class ResearchSystemAuditConfig:
     local_lean_project: str | None = None
     local_lean_timeout: int = 90
     kernel_smoke_ids: tuple[str, ...] = ()
+    kernel_smoke_from_actions: int = 0
     formal_source_index_cache: str | None = "runs/formal_source_index_cache/formal_source_index.sqlite"
     refresh_formal_source_index_cache: bool = False
     lean_rag_db: str | None = None
@@ -232,26 +233,9 @@ async def run_research_system_audit(
     )
     stage_start = _record_stage(stage_timings, "proof_audit", stage_start)
     kernel_smoke_manifest: dict[str, object] | None = None
+    kernel_smoke_auto_ids: list[str] = []
+    kernel_smoke_selected_ids = list(dict.fromkeys(config.kernel_smoke_ids))
     claim_ledger_proof_manifest_path = out_dir / "proof_audit" / "proof_audit_manifest.json"
-    if config.kernel_smoke_ids:
-        kernel_smoke_verifier = CachingProofVerifier(
-            LocalLeanProofVerifier(
-                project_root=config.local_lean_project,
-                timeout_s=config.local_lean_timeout,
-            )
-        )
-        kernel_smoke_manifest = await audit_proof_bank(
-            kernel_smoke_verifier,
-            out_dir / "kernel_smoke_proof_audit",
-            ids=list(config.kernel_smoke_ids),
-            export_lean=True,
-            export_attempt_log=True,
-            include_negative_controls=False,
-        )
-        claim_ledger_proof_manifest_path = (
-            out_dir / "kernel_smoke_proof_audit" / "proof_audit_manifest.json"
-        )
-        stage_start = _record_stage(stage_timings, "kernel_smoke_proof_audit", stage_start)
 
     frontier_smoke_manifest = await run_frontier_smoke_benchmark(
         out_dir / "frontier_smoke_benchmark",
@@ -442,6 +426,34 @@ async def run_research_system_audit(
         out_dir / "proof_bank_actions",
     )
     stage_start = _record_stage(stage_timings, "proof_bank_action_export", stage_start)
+    if config.kernel_smoke_from_actions > 0:
+        kernel_smoke_auto_ids = _select_kernel_smoke_ids_from_actions(
+            proof_bank_action_manifest,
+            limit=config.kernel_smoke_from_actions,
+            exclude=kernel_smoke_selected_ids,
+        )
+        kernel_smoke_selected_ids = list(
+            dict.fromkeys([*kernel_smoke_selected_ids, *kernel_smoke_auto_ids])
+        )
+    if kernel_smoke_selected_ids:
+        kernel_smoke_verifier = CachingProofVerifier(
+            LocalLeanProofVerifier(
+                project_root=config.local_lean_project,
+                timeout_s=config.local_lean_timeout,
+            )
+        )
+        kernel_smoke_manifest = await audit_proof_bank(
+            kernel_smoke_verifier,
+            out_dir / "kernel_smoke_proof_audit",
+            ids=kernel_smoke_selected_ids,
+            export_lean=True,
+            export_attempt_log=True,
+            include_negative_controls=False,
+        )
+        claim_ledger_proof_manifest_path = (
+            out_dir / "kernel_smoke_proof_audit" / "proof_audit_manifest.json"
+        )
+        stage_start = _record_stage(stage_timings, "kernel_smoke_proof_audit", stage_start)
     primitive_source_coverage_manifest = audit_primitive_source_coverage(
         out_dir / "research_benchmark",
         out_dir / "primitive_source_coverage",
@@ -712,6 +724,7 @@ async def run_research_system_audit(
             "local_lean_project": config.local_lean_project or "",
             "local_lean_timeout": config.local_lean_timeout,
             "kernel_smoke_ids": list(config.kernel_smoke_ids),
+            "kernel_smoke_from_actions": config.kernel_smoke_from_actions,
             "formal_source_index_cache": config.formal_source_index_cache or "",
             "refresh_formal_source_index_cache": config.refresh_formal_source_index_cache,
             "lean_rag_db": config.lean_rag_db or "",
@@ -997,7 +1010,10 @@ async def run_research_system_audit(
             "proof_verification_strength": proof_manifest["verification_strength"],
             "proofs_total": proof_manifest["n_obligations"],
             "kernel_smoke_proof_audit_enabled": kernel_smoke_manifest is not None,
-            "kernel_smoke_proof_audit_ids": list(config.kernel_smoke_ids),
+            "kernel_smoke_proof_audit_ids": kernel_smoke_selected_ids,
+            "kernel_smoke_proof_audit_explicit_ids": list(config.kernel_smoke_ids),
+            "kernel_smoke_proof_audit_auto_ids": kernel_smoke_auto_ids,
+            "kernel_smoke_from_actions": config.kernel_smoke_from_actions,
             "kernel_smoke_proof_audit_verified": (
                 int(kernel_smoke_manifest["n_verified"]) if kernel_smoke_manifest else 0
             ),
@@ -1923,6 +1939,70 @@ def _record_stage(
         }
     )
     return now
+
+
+def _select_kernel_smoke_ids_from_actions(
+    proof_bank_action_manifest: dict[str, object],
+    *,
+    limit: int,
+    exclude: list[str] | tuple[str, ...] = (),
+) -> list[str]:
+    """Pick registered proof-bank obligations worth local-kernel smoke checking.
+
+    Exact proof-bank reuse rows are selected first because they can immediately
+    upgrade claim-ledger rows from mock/static support to kernel-backed support.
+    Broader bridge-chain rows are useful next, but they remain premise-selection
+    evidence until a non-placeholder composition proof is accepted by Lean.
+    """
+
+    if limit <= 0:
+        return []
+    valid_obligation_ids = {obligation.id for obligation in all_obligations()}
+    selected: list[str] = []
+    seen = set(str(item) for item in exclude)
+    action_rank = {
+        "reuse_exact_proof_bank_obligation": 0,
+        "compose_existing_bridge_chain": 1,
+        "add_minimal_wrapper": 2,
+        "design_bridge_lemma": 3,
+        "design_from_first_principles": 4,
+    }
+
+    def row_sort_key(row: dict[str, object]) -> tuple[int, int, int, str]:
+        action_class = str(row.get("action_class", ""))
+        return (
+            action_rank.get(action_class, 99),
+            int(row.get("priority_rank", 99) or 99),
+            -int(row.get("priority_score", 0) or 0),
+            str(row.get("primitive", "")),
+        )
+
+    rows = [
+        row
+        for row in proof_bank_action_manifest.get("actions", [])
+        if isinstance(row, dict) and bool(row.get("ok", False))
+    ]
+    for row in sorted(rows, key=row_sort_key):
+        candidates: list[str] = []
+        primitive = str(row.get("primitive", ""))
+        if primitive:
+            candidates.append(primitive)
+        candidates.extend(
+            str(item)
+            for item in row.get("bridge_candidate_obligations", []) or []
+            if str(item)
+        )
+        candidates.extend(
+            str(item) for item in row.get("expected_premises", []) or [] if str(item)
+        )
+        for obligation_id in candidates:
+            if obligation_id in seen or obligation_id not in valid_obligation_ids:
+                continue
+            selected.append(obligation_id)
+            seen.add(obligation_id)
+            if len(selected) >= limit:
+                return selected
+    return selected
 
 
 def _research_benchmark_cache_info(

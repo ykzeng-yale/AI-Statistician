@@ -1708,6 +1708,7 @@ use that manifest as the claim-ledger proof overlay:
 python3 -m ai_statistician.cli research-system-audit \
   --runs 25 \
   --lean-rag-db runs/current_status_lean_rag_dependency_graph/stat_inference.sqlite \
+  --kernel-smoke-from-actions 3 \
   --kernel-smoke-id positivity \
   --kernel-smoke-id conditional_expectation \
   --kernel-smoke-id iterated_expectation \
@@ -1724,6 +1725,12 @@ This writes `kernel_smoke_proof_audit/proof_audit_manifest.json` and
 for the selected obligations; they do not imply the whole registered proof bank
 was kernel checked unless the main proof audit also reports AXLE/local-Lean
 kernel verification.
+`--kernel-smoke-from-actions N` fills the smoke set from the current
+`proof_bank_actions` queue after proof-bank expansion. It prioritizes exact
+proof-bank reuse rows, then bridge-chain rows, and filters candidates to
+registered proof-bank obligation IDs before invoking local Lean. This turns the
+current formal-gap action queue into a small proof-evidence smoke without
+promoting retrieval hits, Mathlib names, or bridge-chain metadata by themselves.
 The same audit also uses a persistent SQLite formal-source index cache by
 default (`runs/formal_source_index_cache/formal_source_index.sqlite`). Repeated
 release audits can copy that cache into the run directory instead of rescanning

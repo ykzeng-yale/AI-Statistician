@@ -254,6 +254,7 @@ Current release signal:
   python3 -m ai_statistician.cli research-system-audit \
     --runs 25 \
     --lean-rag-db runs/current_status_lean_rag_dependency_graph/stat_inference.sqlite \
+    --kernel-smoke-from-actions 3 \
     --kernel-smoke-id positivity \
     --kernel-smoke-id conditional_expectation \
     --kernel-smoke-id iterated_expectation \
@@ -266,6 +267,12 @@ Current release signal:
   `kernel_smoke_proof_audit_kernel_verified`,
   `kernel_smoke_proof_audit_strength`, and
   `claim_ledger_kernel_overlay_upgrades` make the evidence boundary explicit.
+  `--kernel-smoke-from-actions N` automatically selects up to `N` registered
+  proof-bank obligations from the current proof-bank action queue, prioritizing
+  exact proof-bank reuse rows before broader bridge-chain rows. The selector
+  filters out Mathlib names and unregistered expected premises, so retrieval
+  metadata cannot become proof evidence without a matching proof-bank
+  obligation and local Lean check.
 - 12/12 bounded whole-proof search obligations kernel verified in the local
   release
 - proof attempts exported as SFT data

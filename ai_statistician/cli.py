@@ -2014,6 +2014,7 @@ async def _research_system_audit(args: argparse.Namespace) -> int:
             local_lean_project=args.lean_project,
             local_lean_timeout=args.lean_timeout,
             kernel_smoke_ids=tuple(args.kernel_smoke_id or ()),
+            kernel_smoke_from_actions=args.kernel_smoke_from_actions,
             formal_source_index_cache=args.formal_source_index_cache,
             refresh_formal_source_index_cache=args.refresh_formal_source_index_cache,
             lean_rag_db=args.lean_rag_db,
@@ -3412,6 +3413,16 @@ def build_parser() -> argparse.ArgumentParser:
             "run a small local Lean proof-audit overlay for this proof obligation id; "
             "repeatable. Uses --lean-project/--lean-timeout and does not replace the "
             "main proof audit."
+        ),
+    )
+    research_system_audit.add_argument(
+        "--kernel-smoke-from-actions",
+        type=int,
+        default=0,
+        help=(
+            "auto-select up to N registered proof-bank obligations from the current "
+            "proof-bank action queue for a local Lean smoke overlay. Exact proof-bank "
+            "reuse rows are prioritized before broader bridge-chain rows."
         ),
     )
     research_system_audit.add_argument(

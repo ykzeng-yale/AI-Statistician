@@ -119,7 +119,11 @@ from ai_statistician.research_paper_index import build_paper_source_index, retri
 from ai_statistician.research_policy_baseline import evaluate_research_policy_baseline
 from ai_statistician.research_report import build_research_markdown_report
 from ai_statistician.research_schema import FormalSubclaim, ResearchReport
-from ai_statistician.research_system_audit import ResearchSystemAuditConfig, run_research_system_audit
+from ai_statistician.research_system_audit import (
+    ResearchSystemAuditConfig,
+    _select_kernel_smoke_ids_from_actions,
+    run_research_system_audit,
+)
 from ai_statistician.research_trace_audit import audit_research_traces
 from ai_statistician.research_trace_audit import DIAGNOSTIC_METRIC_ALIASES
 from ai_statistician.research_training_export import export_research_training_dataset
@@ -175,6 +179,42 @@ class ProofBankTests(unittest.TestCase):
         )
         self.assertTrue(hits)
         self.assertEqual(hits[0].obligation_id, "difference_estimator_variance_decompose")
+
+    def test_kernel_smoke_action_selector_prefers_registered_exact_reuse(self) -> None:
+        payload = {
+            "actions": [
+                {
+                    "ok": True,
+                    "action_class": "compose_existing_bridge_chain",
+                    "priority_rank": 0,
+                    "priority_score": 999,
+                    "primitive": "not_a_registered_obligation",
+                    "bridge_candidate_obligations": ["submartingale_stopped_process"],
+                    "expected_premises": ["Submartingale.stoppedProcess"],
+                },
+                {
+                    "ok": True,
+                    "action_class": "reuse_exact_proof_bank_obligation",
+                    "priority_rank": 2,
+                    "priority_score": 10,
+                    "primitive": "conditional_expectation",
+                    "bridge_candidate_obligations": ["iterated_expectation"],
+                    "expected_premises": ["integral_condExp"],
+                },
+            ]
+        }
+        self.assertEqual(
+            _select_kernel_smoke_ids_from_actions(payload, limit=2),
+            ["conditional_expectation", "iterated_expectation"],
+        )
+        self.assertEqual(
+            _select_kernel_smoke_ids_from_actions(
+                payload,
+                limit=2,
+                exclude=("conditional_expectation",),
+            ),
+            ["iterated_expectation", "submartingale_stopped_process"],
+        )
 
     def test_retrieval_audit_recovers_proof_bank(self) -> None:
         payload = audit_proof_bank_retrieval(Path("runs/test_retrieval_audit"), k=5)
@@ -9298,6 +9338,8 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertFalse(payload["counts"]["kernel_smoke_proof_audit_enabled"])
         self.assertEqual(payload["counts"]["kernel_smoke_proof_audit_total"], 0)
         self.assertEqual(payload["counts"]["kernel_smoke_proof_audit_kernel_verified"], 0)
+        self.assertEqual(payload["counts"]["kernel_smoke_from_actions"], 0)
+        self.assertEqual(payload["counts"]["kernel_smoke_proof_audit_auto_ids"], [])
         self.assertEqual(payload["counts"]["proof_training_examples"], payload["counts"]["proofs_verified"])
         self.assertEqual(
             payload["counts"]["proof_training_train"] + payload["counts"]["proof_training_validation"],
