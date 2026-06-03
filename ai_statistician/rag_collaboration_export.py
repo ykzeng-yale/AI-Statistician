@@ -146,6 +146,22 @@ def export_rag_collaboration_manifest(
     formal_verifier_replay_repair_patch_rerun_queue_payload = _read_json(
         formal_verifier_replay_repair_patch_rerun_queue_path
     )
+    formal_verifier_replay_repair_patch_rerun_attempt_path = _artifact_path(
+        artifacts,
+        "formal_verifier_replay_repair_patch_rerun_attempts",
+        run_dir,
+    )
+    formal_verifier_replay_repair_patch_rerun_attempt_payload = _read_json(
+        formal_verifier_replay_repair_patch_rerun_attempt_path
+    )
+    formal_verifier_replay_repair_patch_rerun_calibration_path = _artifact_path(
+        artifacts,
+        "formal_verifier_replay_repair_patch_rerun_calibration",
+        run_dir,
+    )
+    formal_verifier_replay_repair_patch_rerun_calibration_payload = _read_json(
+        formal_verifier_replay_repair_patch_rerun_calibration_path
+    )
     guidance_payload = _read_json(_artifact_path(artifacts, "evaluation_benchmark_guidance", run_dir))
 
     target_rows = _handoff_targets(
@@ -723,6 +739,56 @@ def export_rag_collaboration_manifest(
                 formal_verifier_replay_repair_patch_rerun_queue_payload,
                 max_rows=min(max_targets, 10),
             ),
+            "formal_verifier_replay_repair_patch_rerun_attempts": counts.get(
+                "formal_verifier_replay_repair_patch_rerun_attempts",
+                formal_verifier_replay_repair_patch_rerun_attempt_payload.get(
+                    "n_rerun_attempt_rows"
+                ),
+            ),
+            "formal_verifier_replay_repair_patch_rerun_attempts_local_lean_compiled": counts.get(
+                "formal_verifier_replay_repair_patch_rerun_attempts_local_lean_compiled",
+                formal_verifier_replay_repair_patch_rerun_attempt_payload.get(
+                    "n_local_lean_compiled"
+                ),
+            ),
+            "formal_verifier_replay_repair_patch_rerun_attempts_patch_markers": counts.get(
+                "formal_verifier_replay_repair_patch_rerun_attempts_patch_markers",
+                formal_verifier_replay_repair_patch_rerun_attempt_payload.get(
+                    "n_with_patch_proposal_marker"
+                ),
+            ),
+            "formal_verifier_replay_repair_patch_rerun_attempts_manifest": str(
+                formal_verifier_replay_repair_patch_rerun_attempt_path
+            ),
+            "formal_verifier_replay_repair_patch_rerun_attempts_preview": _formal_verifier_replay_repair_patch_rerun_attempt_preview(
+                formal_verifier_replay_repair_patch_rerun_attempt_payload,
+                max_rows=min(max_targets, 10),
+            ),
+            "formal_verifier_replay_repair_patch_rerun_calibration_rows": counts.get(
+                "formal_verifier_replay_repair_patch_rerun_calibration_rows",
+                formal_verifier_replay_repair_patch_rerun_calibration_payload.get(
+                    "n_calibration_rows"
+                ),
+            ),
+            "formal_verifier_replay_repair_patch_rerun_calibration_full_route_kernel_verified": counts.get(
+                "formal_verifier_replay_repair_patch_rerun_calibration_full_route_kernel_verified",
+                formal_verifier_replay_repair_patch_rerun_calibration_payload.get(
+                    "n_full_route_kernel_verified"
+                ),
+            ),
+            "formal_verifier_replay_repair_patch_rerun_calibration_compiled_patch_proposal_not_proof": counts.get(
+                "formal_verifier_replay_repair_patch_rerun_calibration_compiled_patch_proposal_not_proof",
+                formal_verifier_replay_repair_patch_rerun_calibration_payload.get(
+                    "n_compiled_patch_proposal_not_proof"
+                ),
+            ),
+            "formal_verifier_replay_repair_patch_rerun_calibration_manifest": str(
+                formal_verifier_replay_repair_patch_rerun_calibration_path
+            ),
+            "formal_verifier_replay_repair_patch_rerun_calibration_preview": _formal_verifier_replay_repair_patch_rerun_calibration_preview(
+                formal_verifier_replay_repair_patch_rerun_calibration_payload,
+                max_rows=min(max_targets, 10),
+            ),
             "claim_ledger_repair_response_promotion_overlay_enabled": counts.get(
                 "claim_ledger_repair_response_promotion_overlay_enabled"
             ),
@@ -780,6 +846,8 @@ def export_rag_collaboration_manifest(
             "FormalVerifier repair patch responses are proof evidence only when response validation accepts full-route kernel-verified calibration.",
             "FormalVerifier repair patch response promotion rows are ledger-update contracts; they do not mutate the proof ledger by themselves.",
             "FormalVerifier repair patch rerun queue rows are replay-calibration work items, not theorem proof evidence.",
+            "FormalVerifier repair patch rerun attempts are patched-artifact source checks, not theorem proof evidence.",
+            "FormalVerifier repair patch rerun calibration rows are proof evidence only at full_route_kernel_verified.",
             "Claim-ledger repair-response promotion overlays close formal gaps only for matching ready kernel-verified promotion rows.",
             "FORMAL_GAP and theorem-hole queues remain open until a non-placeholder Lean proof is verified.",
         ],
@@ -1261,6 +1329,76 @@ def _formal_verifier_replay_repair_patch_rerun_queue_preview(
     return rows
 
 
+def _formal_verifier_replay_repair_patch_rerun_attempt_preview(
+    payload: dict[str, Any],
+    *,
+    max_rows: int,
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    attempt_rows = payload.get("rows", [])
+    if not isinstance(attempt_rows, list):
+        return rows
+    for row in attempt_rows:
+        if not isinstance(row, dict):
+            continue
+        rows.append(
+            {
+                "rerun_attempt_id": row.get("rerun_attempt_id"),
+                "rerun_id": row.get("rerun_id"),
+                "replay_id": row.get("replay_id"),
+                "display_name": row.get("display_name"),
+                "patched_artifact_path": row.get("patched_artifact_path", ""),
+                "rerun_attempt_status": row.get("rerun_attempt_status", ""),
+                "local_lean_checked": row.get("local_lean_checked", False),
+                "local_lean_compiled": row.get("local_lean_compiled", False),
+                "contains_patch_proposal_marker": row.get(
+                    "contains_patch_proposal_marker",
+                    False,
+                ),
+                "residual_formal_gaps": row.get("residual_formal_gaps", [])[:5],
+                "proof_evidence_boundary": row.get("proof_evidence_boundary", ""),
+            }
+        )
+        if len(rows) >= max_rows:
+            break
+    return rows
+
+
+def _formal_verifier_replay_repair_patch_rerun_calibration_preview(
+    payload: dict[str, Any],
+    *,
+    max_rows: int,
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    calibration_rows = payload.get("rows", [])
+    if not isinstance(calibration_rows, list):
+        return rows
+    for row in calibration_rows:
+        if not isinstance(row, dict):
+            continue
+        rows.append(
+            {
+                "rerun_calibration_id": row.get("rerun_calibration_id"),
+                "rerun_id": row.get("rerun_id"),
+                "rerun_attempt_id": row.get("rerun_attempt_id"),
+                "replay_id": row.get("replay_id"),
+                "display_name": row.get("display_name"),
+                "patch_rerun_calibration_status": row.get(
+                    "patch_rerun_calibration_status",
+                    "",
+                ),
+                "local_lean_compiled": row.get("local_lean_compiled", False),
+                "n_residual_formal_gaps": row.get("n_residual_formal_gaps", 0),
+                "full_route_proof_status": row.get("full_route_proof_status", ""),
+                "next_action": row.get("next_action", ""),
+                "proof_evidence_boundary": row.get("proof_evidence_boundary", ""),
+            }
+        )
+        if len(rows) >= max_rows:
+            break
+    return rows
+
+
 def _theorem_composition_packet_preview(
     payload: dict[str, Any],
     *,
@@ -1386,6 +1524,12 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Formal verifier repair patch rerun queue: `{queue.get('formal_verifier_replay_repair_patch_rerun_queue_items')}` items "
         f"(`{queue.get('formal_verifier_replay_repair_patch_rerun_queue_ready')}` ready, "
         f"`{queue.get('formal_verifier_replay_repair_patch_rerun_queue_blocked')}` blocked)",
+        f"- Formal verifier repair patch rerun attempts: `{queue.get('formal_verifier_replay_repair_patch_rerun_attempts')}` attempts "
+        f"(`{queue.get('formal_verifier_replay_repair_patch_rerun_attempts_local_lean_compiled')}` compiled, "
+        f"`{queue.get('formal_verifier_replay_repair_patch_rerun_attempts_patch_markers')}` patch markers)",
+        f"- Formal verifier repair patch rerun calibration: `{queue.get('formal_verifier_replay_repair_patch_rerun_calibration_rows')}` rows "
+        f"(`{queue.get('formal_verifier_replay_repair_patch_rerun_calibration_full_route_kernel_verified')}` full-route kernel, "
+        f"`{queue.get('formal_verifier_replay_repair_patch_rerun_calibration_compiled_patch_proposal_not_proof')}` compiled patch proposals)",
         "- Claim-ledger repair-response promotion overlay: "
         f"`{queue.get('claim_ledger_repair_response_promotion_upgrades')}` upgrades from "
         f"`{queue.get('claim_ledger_repair_response_promotion_overlay_rows')}` ready rows",

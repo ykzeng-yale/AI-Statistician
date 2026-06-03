@@ -65,6 +65,12 @@ from .formal_verifier_replay_repair_patch_response_promotion import (
 from .formal_verifier_replay_repair_patch_rerun_queue import (
     export_formal_verifier_replay_repair_patch_rerun_queue,
 )
+from .formal_verifier_replay_repair_patch_rerun_attempt import (
+    export_formal_verifier_replay_repair_patch_rerun_attempts,
+)
+from .formal_verifier_replay_repair_patch_rerun_calibration import (
+    export_formal_verifier_replay_repair_patch_rerun_calibration,
+)
 from .formal_verifier_replay_repair import export_formal_verifier_replay_repair_packets
 from .formal_source_graph import audit_formal_source_graph
 from .formal_source_index import (
@@ -1683,6 +1689,68 @@ def _formal_verifier_replay_repair_patch_rerun_queue(args: argparse.Namespace) -
     print(
         f"markdown report written to "
         f"{(Path(args.out) / 'formal_verifier_replay_repair_patch_rerun_queue.md').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formal_verifier_replay_repair_patch_rerun_attempts(args: argparse.Namespace) -> int:
+    payload = export_formal_verifier_replay_repair_patch_rerun_attempts(
+        Path(args.formal_verifier_replay_repair_patch_rerun_queue_dir),
+        Path(args.out),
+        lean_project=args.lean_project,
+        lean_timeout=args.lean_timeout,
+        max_items=args.max_items,
+    )
+    print("\nAI Statistical Theory Lab Formal Verifier Repair Patch Rerun Attempts")
+    print("=" * 72)
+    print(
+        f"attempts={payload['n_ok']}/{payload['n_rerun_attempt_rows']} "
+        f"lean_checked={payload['n_local_lean_checked']} "
+        f"lean_compiled={payload['n_local_lean_compiled']} "
+        f"patch_markers={payload['n_with_patch_proposal_marker']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\npatch rerun attempt manifest written to "
+        f"{(Path(args.out) / 'formal_verifier_replay_repair_patch_rerun_attempt_manifest.json').resolve()}"
+    )
+    print(
+        f"patch rerun attempt jsonl written to "
+        f"{(Path(args.out) / 'formal_verifier_replay_repair_patch_rerun_attempts.jsonl').resolve()}"
+    )
+    print(
+        f"markdown report written to "
+        f"{(Path(args.out) / 'formal_verifier_replay_repair_patch_rerun_attempts.md').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formal_verifier_replay_repair_patch_rerun_calibration(args: argparse.Namespace) -> int:
+    payload = export_formal_verifier_replay_repair_patch_rerun_calibration(
+        Path(args.formal_verifier_replay_repair_patch_rerun_queue_dir),
+        Path(args.formal_verifier_replay_repair_patch_rerun_attempt_dir),
+        Path(args.out),
+    )
+    print("\nAI Statistical Theory Lab Formal Verifier Repair Patch Rerun Calibration")
+    print("=" * 72)
+    print(
+        f"rows={payload['n_ok']}/{payload['n_calibration_rows']} "
+        f"compiled={payload['n_local_lean_compiled']} "
+        f"full_route_kernel={payload['n_full_route_kernel_verified']} "
+        f"compiled_patch_proposals={payload['n_compiled_patch_proposal_not_proof']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\npatch rerun calibration manifest written to "
+        f"{(Path(args.out) / 'formal_verifier_replay_repair_patch_rerun_calibration_manifest.json').resolve()}"
+    )
+    print(
+        f"patch rerun calibration jsonl written to "
+        f"{(Path(args.out) / 'formal_verifier_replay_repair_patch_rerun_calibration.jsonl').resolve()}"
+    )
+    print(
+        f"markdown report written to "
+        f"{(Path(args.out) / 'formal_verifier_replay_repair_patch_rerun_calibration.md').resolve()}"
     )
     return 0 if payload["all_ok"] else 1
 
@@ -3772,6 +3840,63 @@ def build_parser() -> argparse.ArgumentParser:
     )
     formal_verifier_replay_repair_patch_rerun_queue.set_defaults(
         func=_formal_verifier_replay_repair_patch_rerun_queue
+    )
+
+    formal_verifier_replay_repair_patch_rerun_attempts = sub.add_parser(
+        "formal-verifier-replay-repair-patch-rerun-attempts",
+        help="run local Lean checks for queued repair patch artifacts",
+    )
+    formal_verifier_replay_repair_patch_rerun_attempts.add_argument(
+        "--formal-verifier-replay-repair-patch-rerun-queue-dir",
+        required=True,
+        help="directory containing formal_verifier_replay_repair_patch_rerun_queue_manifest.json",
+    )
+    formal_verifier_replay_repair_patch_rerun_attempts.add_argument(
+        "--lean-project",
+        help="local Lake project used to run lake env lean on patched artifacts",
+    )
+    formal_verifier_replay_repair_patch_rerun_attempts.add_argument(
+        "--lean-timeout",
+        type=int,
+        default=90,
+        help="timeout in seconds for each patched artifact Lean check",
+    )
+    formal_verifier_replay_repair_patch_rerun_attempts.add_argument(
+        "--max-items",
+        type=int,
+        default=0,
+        help="maximum ready queue items to attempt; 0 means all ready items",
+    )
+    formal_verifier_replay_repair_patch_rerun_attempts.add_argument(
+        "--out",
+        default="runs/formal_verifier_replay_repair_patch_rerun_attempts",
+        help="formal-verifier repair patch rerun attempt output directory",
+    )
+    formal_verifier_replay_repair_patch_rerun_attempts.set_defaults(
+        func=_formal_verifier_replay_repair_patch_rerun_attempts
+    )
+
+    formal_verifier_replay_repair_patch_rerun_calibration = sub.add_parser(
+        "formal-verifier-replay-repair-patch-rerun-calibration",
+        help="calibrate patch-rerun attempts before proof-ledger promotion",
+    )
+    formal_verifier_replay_repair_patch_rerun_calibration.add_argument(
+        "--formal-verifier-replay-repair-patch-rerun-queue-dir",
+        required=True,
+        help="directory containing formal_verifier_replay_repair_patch_rerun_queue_manifest.json",
+    )
+    formal_verifier_replay_repair_patch_rerun_calibration.add_argument(
+        "--formal-verifier-replay-repair-patch-rerun-attempt-dir",
+        required=True,
+        help="directory containing formal_verifier_replay_repair_patch_rerun_attempt_manifest.json",
+    )
+    formal_verifier_replay_repair_patch_rerun_calibration.add_argument(
+        "--out",
+        default="runs/formal_verifier_replay_repair_patch_rerun_calibration",
+        help="formal-verifier repair patch rerun calibration output directory",
+    )
+    formal_verifier_replay_repair_patch_rerun_calibration.set_defaults(
+        func=_formal_verifier_replay_repair_patch_rerun_calibration
     )
 
     rag_collaboration_export = sub.add_parser(

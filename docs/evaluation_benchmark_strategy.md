@@ -376,6 +376,12 @@ Current release signal:
 - `formal-verifier-replay-repair-patch-rerun-queue` carries patch proposals that
   still need replay calibration into typed rerun work items with artifact,
   command, and promotion-gate context; these rows are not proof evidence
+- `formal-verifier-replay-repair-patch-rerun-attempts` runs queued patch
+  artifacts through local Lean source checks when configured; a compiling patch
+  artifact is source-artifact evidence, not theorem proof evidence
+- `formal-verifier-replay-repair-patch-rerun-calibration` separates compiling
+  patch proposals from `full_route_kernel_verified` reruns before any
+  proof-ledger promotion path can consume them
 - `claim-ledger --repair-response-promotion-manifest` applies those ready rows
   as a question-scoped overlay to the matching formal gap; non-ready rows remain
   task/queue state and do not close ledger proof gaps

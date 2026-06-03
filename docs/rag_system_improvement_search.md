@@ -228,6 +228,32 @@ python3 -m ai_statistician.cli formal-verifier-replay-repair-patch-rerun-queue \
   --out runs/current_formal_verifier_replay_repair_patch_rerun_queue
 ```
 
+`formal_verifier_replay_repair_patch_rerun_attempts` checks those queued patch
+artifacts under local Lean when a Lake project is available. A compiling patch
+artifact proves only that the patched source file is syntactically/import-wise
+valid; it is still a patch proposal if the artifact contains a non-evidence
+marker or has residual formal gaps.
+
+```bash
+python3 -m ai_statistician.cli formal-verifier-replay-repair-patch-rerun-attempts \
+  --formal-verifier-replay-repair-patch-rerun-queue-dir runs/current_formal_verifier_replay_repair_patch_rerun_queue \
+  --lean-project /Users/yukang/LeanProjects/LeanPractice \
+  --out runs/current_formal_verifier_replay_repair_patch_rerun_attempts
+```
+
+`formal_verifier_replay_repair_patch_rerun_calibration` is the proof boundary
+for those reruns. It reports `full_route_kernel_verified` only when a rerun
+attempt compiles, is placeholder-free, has no residual formal gaps, and is no
+longer merely a patch-plan artifact. Compiled patch proposals remain repair
+feedback, not proof evidence.
+
+```bash
+python3 -m ai_statistician.cli formal-verifier-replay-repair-patch-rerun-calibration \
+  --formal-verifier-replay-repair-patch-rerun-queue-dir runs/current_formal_verifier_replay_repair_patch_rerun_queue \
+  --formal-verifier-replay-repair-patch-rerun-attempt-dir runs/current_formal_verifier_replay_repair_patch_rerun_attempts \
+  --out runs/current_formal_verifier_replay_repair_patch_rerun_calibration
+```
+
 The claim ledger can now consume that promotion manifest as an overlay. Only
 rows already marked `READY_FOR_PROOF_LEDGER_PROMOTION` with kernel evidence can
 upgrade the matching formal-gap row; awaiting responses and patch proposals
@@ -271,7 +297,9 @@ python3 -m ai_statistician.cli claim-ledger \
    `formal-verifier-replay-repair-patch-response-promotion` exposes only
    corroborated full-route kernel repairs as proof-ledger promotion candidates.
    Patch proposals that still need replay calibration are now carried forward by
-   `formal-verifier-replay-repair-patch-rerun-queue` as typed work items.
+   `formal-verifier-replay-repair-patch-rerun-queue` as typed work items, checked
+   by `formal-verifier-replay-repair-patch-rerun-attempts`, and calibrated by
+   `formal-verifier-replay-repair-patch-rerun-calibration`.
 2. Add query-intent expansion for missing primitives:
    primitive name, theorem goal, problem class, local gap reason, and candidate
    proof-bank bridge names should all become retriever queries.

@@ -61,6 +61,12 @@ from .formal_verifier_replay_repair_patch_response_promotion import (
 from .formal_verifier_replay_repair_patch_rerun_queue import (
     export_formal_verifier_replay_repair_patch_rerun_queue,
 )
+from .formal_verifier_replay_repair_patch_rerun_attempt import (
+    export_formal_verifier_replay_repair_patch_rerun_attempts,
+)
+from .formal_verifier_replay_repair_patch_rerun_calibration import (
+    export_formal_verifier_replay_repair_patch_rerun_calibration,
+)
 from .formal_verifier_replay_repair import export_formal_verifier_replay_repair_packets
 from .formal_source_graph import audit_formal_source_graph
 from .formal_source_hybrid import FormalSourceHybridRetriever
@@ -683,6 +689,32 @@ async def run_research_system_audit(
         "formal_verifier_replay_repair_patch_rerun_queue",
         stage_start,
     )
+    formal_verifier_replay_repair_patch_rerun_attempt_manifest = (
+        export_formal_verifier_replay_repair_patch_rerun_attempts(
+            out_dir / "formal_verifier_replay_repair_patch_rerun_queue",
+            out_dir / "formal_verifier_replay_repair_patch_rerun_attempts",
+            lean_project=config.local_lean_project,
+            lean_timeout=config.local_lean_timeout,
+            max_items=config.formal_verifier_replay_attempts,
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "formal_verifier_replay_repair_patch_rerun_attempts",
+        stage_start,
+    )
+    formal_verifier_replay_repair_patch_rerun_calibration_manifest = (
+        export_formal_verifier_replay_repair_patch_rerun_calibration(
+            out_dir / "formal_verifier_replay_repair_patch_rerun_queue",
+            out_dir / "formal_verifier_replay_repair_patch_rerun_attempts",
+            out_dir / "formal_verifier_replay_repair_patch_rerun_calibration",
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "formal_verifier_replay_repair_patch_rerun_calibration",
+        stage_start,
+    )
 
     research_training_manifest = export_research_training_dataset(
         out_dir / "research_benchmark",
@@ -922,6 +954,12 @@ async def run_research_system_audit(
         "formal_verifier_replay_repair_patch_rerun_queue": bool(
             formal_verifier_replay_repair_patch_rerun_queue_manifest["all_ok"]
         ),
+        "formal_verifier_replay_repair_patch_rerun_attempts": bool(
+            formal_verifier_replay_repair_patch_rerun_attempt_manifest["all_ok"]
+        ),
+        "formal_verifier_replay_repair_patch_rerun_calibration": bool(
+            formal_verifier_replay_repair_patch_rerun_calibration_manifest["all_ok"]
+        ),
         "research_training_export": bool(research_training_manifest["all_ok"]),
         "research_policy_baseline": bool(research_policy_manifest["all_ok"]),
         "next_iteration_queue": bool(next_iteration_manifest["all_ok"]),
@@ -969,6 +1007,8 @@ async def run_research_system_audit(
         "formal_verifier_replay_repair_patch_response_validation",
         "formal_verifier_replay_repair_patch_response_promotion",
         "formal_verifier_replay_repair_patch_rerun_queue",
+        "formal_verifier_replay_repair_patch_rerun_attempts",
+        "formal_verifier_replay_repair_patch_rerun_calibration",
         "research_training_export",
         "research_policy_baseline",
         "next_iteration_queue",
@@ -1945,6 +1985,45 @@ async def run_research_system_audit(
             "formal_verifier_replay_repair_patch_rerun_queue_ok": formal_verifier_replay_repair_patch_rerun_queue_manifest[
                 "n_ok"
             ],
+            "formal_verifier_replay_repair_patch_rerun_attempts": formal_verifier_replay_repair_patch_rerun_attempt_manifest[
+                "n_rerun_attempt_rows"
+            ],
+            "formal_verifier_replay_repair_patch_rerun_attempts_local_lean_checked": formal_verifier_replay_repair_patch_rerun_attempt_manifest[
+                "n_local_lean_checked"
+            ],
+            "formal_verifier_replay_repair_patch_rerun_attempts_local_lean_compiled": formal_verifier_replay_repair_patch_rerun_attempt_manifest[
+                "n_local_lean_compiled"
+            ],
+            "formal_verifier_replay_repair_patch_rerun_attempts_patch_markers": formal_verifier_replay_repair_patch_rerun_attempt_manifest[
+                "n_with_patch_proposal_marker"
+            ],
+            "formal_verifier_replay_repair_patch_rerun_attempts_residual_gaps": formal_verifier_replay_repair_patch_rerun_attempt_manifest[
+                "n_with_residual_formal_gaps"
+            ],
+            "formal_verifier_replay_repair_patch_rerun_attempts_ok": formal_verifier_replay_repair_patch_rerun_attempt_manifest[
+                "n_ok"
+            ],
+            "formal_verifier_replay_repair_patch_rerun_calibration_rows": formal_verifier_replay_repair_patch_rerun_calibration_manifest[
+                "n_calibration_rows"
+            ],
+            "formal_verifier_replay_repair_patch_rerun_calibration_attempted": formal_verifier_replay_repair_patch_rerun_calibration_manifest[
+                "n_attempted"
+            ],
+            "formal_verifier_replay_repair_patch_rerun_calibration_compiled": formal_verifier_replay_repair_patch_rerun_calibration_manifest[
+                "n_local_lean_compiled"
+            ],
+            "formal_verifier_replay_repair_patch_rerun_calibration_full_route_kernel_verified": formal_verifier_replay_repair_patch_rerun_calibration_manifest[
+                "n_full_route_kernel_verified"
+            ],
+            "formal_verifier_replay_repair_patch_rerun_calibration_compiled_patch_proposal_not_proof": formal_verifier_replay_repair_patch_rerun_calibration_manifest[
+                "n_compiled_patch_proposal_not_proof"
+            ],
+            "formal_verifier_replay_repair_patch_rerun_calibration_compiled_with_residual_gaps": formal_verifier_replay_repair_patch_rerun_calibration_manifest[
+                "n_compiled_with_residual_gaps"
+            ],
+            "formal_verifier_replay_repair_patch_rerun_calibration_ok": formal_verifier_replay_repair_patch_rerun_calibration_manifest[
+                "n_ok"
+            ],
             "proof_bank_actions_high_priority": proof_bank_action_manifest["by_priority"].get("high", 0),
             "proof_bank_actions_medium_priority": proof_bank_action_manifest["by_priority"].get("medium", 0),
             "proof_bank_actions_low_priority": proof_bank_action_manifest["by_priority"].get("low", 0),
@@ -2714,6 +2793,36 @@ async def run_research_system_audit(
                 out_dir
                 / "formal_verifier_replay_repair_patch_rerun_queue"
                 / "formal_verifier_replay_repair_patch_rerun_queue.md"
+            ),
+            "formal_verifier_replay_repair_patch_rerun_attempts": str(
+                out_dir
+                / "formal_verifier_replay_repair_patch_rerun_attempts"
+                / "formal_verifier_replay_repair_patch_rerun_attempt_manifest.json"
+            ),
+            "formal_verifier_replay_repair_patch_rerun_attempts_jsonl": str(
+                out_dir
+                / "formal_verifier_replay_repair_patch_rerun_attempts"
+                / "formal_verifier_replay_repair_patch_rerun_attempts.jsonl"
+            ),
+            "formal_verifier_replay_repair_patch_rerun_attempts_report": str(
+                out_dir
+                / "formal_verifier_replay_repair_patch_rerun_attempts"
+                / "formal_verifier_replay_repair_patch_rerun_attempts.md"
+            ),
+            "formal_verifier_replay_repair_patch_rerun_calibration": str(
+                out_dir
+                / "formal_verifier_replay_repair_patch_rerun_calibration"
+                / "formal_verifier_replay_repair_patch_rerun_calibration_manifest.json"
+            ),
+            "formal_verifier_replay_repair_patch_rerun_calibration_jsonl": str(
+                out_dir
+                / "formal_verifier_replay_repair_patch_rerun_calibration"
+                / "formal_verifier_replay_repair_patch_rerun_calibration.jsonl"
+            ),
+            "formal_verifier_replay_repair_patch_rerun_calibration_report": str(
+                out_dir
+                / "formal_verifier_replay_repair_patch_rerun_calibration"
+                / "formal_verifier_replay_repair_patch_rerun_calibration.md"
             ),
             "primitive_source_coverage": str(
                 out_dir / "primitive_source_coverage" / "primitive_source_coverage_manifest.json"

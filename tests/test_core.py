@@ -64,6 +64,12 @@ from ai_statistician.formal_verifier_replay_repair_patch_response_promotion impo
 from ai_statistician.formal_verifier_replay_repair_patch_rerun_queue import (
     export_formal_verifier_replay_repair_patch_rerun_queue,
 )
+from ai_statistician.formal_verifier_replay_repair_patch_rerun_attempt import (
+    export_formal_verifier_replay_repair_patch_rerun_attempts,
+)
+from ai_statistician.formal_verifier_replay_repair_patch_rerun_calibration import (
+    export_formal_verifier_replay_repair_patch_rerun_calibration,
+)
 from ai_statistician.formal_verifier_replay_repair import export_formal_verifier_replay_repair_packets
 from ai_statistician.formalization_delta_plan import build_formalization_delta_plan
 from ai_statistician.formalization_target_audit import audit_formalization_targets
@@ -7706,6 +7712,47 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                 "runs/test_formal_verifier_replay_repair_patch_rerun_queue/formal_verifier_replay_repair_patch_rerun_queue.md"
             ).exists()
         )
+        rerun_attempts = export_formal_verifier_replay_repair_patch_rerun_attempts(
+            Path("runs/test_formal_verifier_replay_repair_patch_rerun_queue"),
+            Path("runs/test_formal_verifier_replay_repair_patch_rerun_attempts"),
+        )
+        self.assertTrue(rerun_attempts["all_ok"])
+        self.assertEqual(rerun_attempts["n_rerun_attempt_rows"], 1)
+        self.assertEqual(rerun_attempts["n_local_lean_checked"], 0)
+        self.assertEqual(rerun_attempts["n_artifact_readable"], 1)
+        self.assertEqual(rerun_attempts["n_with_patch_proposal_marker"], 1)
+        attempt_row = rerun_attempts["rows"][0]
+        self.assertEqual(attempt_row["rerun_attempt_status"], "PATCH_ARTIFACT_AWAITING_LOCAL_LEAN")
+        self.assertIn("not theorem proof evidence", attempt_row["proof_evidence_boundary"])
+        rerun_calibration = export_formal_verifier_replay_repair_patch_rerun_calibration(
+            Path("runs/test_formal_verifier_replay_repair_patch_rerun_queue"),
+            Path("runs/test_formal_verifier_replay_repair_patch_rerun_attempts"),
+            Path("runs/test_formal_verifier_replay_repair_patch_rerun_calibration"),
+        )
+        self.assertTrue(rerun_calibration["all_ok"])
+        self.assertEqual(rerun_calibration["n_calibration_rows"], 1)
+        self.assertEqual(rerun_calibration["n_attempted"], 1)
+        self.assertEqual(rerun_calibration["n_full_route_kernel_verified"], 0)
+        calibration_row = rerun_calibration["rows"][0]
+        self.assertEqual(
+            calibration_row["patch_rerun_calibration_status"],
+            "patch_rerun_awaiting_local_lean",
+        )
+        self.assertEqual(
+            calibration_row["proof_evidence_status"],
+            "PATCH_RERUN_CALIBRATION_NOT_PROOF_EVIDENCE",
+        )
+        self.assertIn("full_route_kernel_verified", calibration_row["proof_evidence_boundary"])
+        self.assertTrue(
+            Path(
+                "runs/test_formal_verifier_replay_repair_patch_rerun_attempts/formal_verifier_replay_repair_patch_rerun_attempt_manifest.json"
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                "runs/test_formal_verifier_replay_repair_patch_rerun_calibration/formal_verifier_replay_repair_patch_rerun_calibration_manifest.json"
+            ).exists()
+        )
         self.assertTrue(
             Path(
                 "runs/test_formal_verifier_replay_repair_patch_autoworker/formal_verifier_replay_repair_patch_autoworker_manifest.json"
@@ -8013,6 +8060,8 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "formal_verifier_replay_repair_patch_response_validation",
             "formal_verifier_replay_repair_patch_response_promotion",
             "formal_verifier_replay_repair_patch_rerun_queue",
+            "formal_verifier_replay_repair_patch_rerun_attempts",
+            "formal_verifier_replay_repair_patch_rerun_calibration",
             "evaluation_benchmark_guidance",
         ):
             (root / subdir).mkdir(parents=True, exist_ok=True)
@@ -8700,6 +8749,85 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             ),
             encoding="utf-8",
         )
+        (
+            root
+            / "formal_verifier_replay_repair_patch_rerun_attempts"
+            / "formal_verifier_replay_repair_patch_rerun_attempt_manifest.json"
+        ).write_text(
+            json.dumps(
+                {
+                    "n_rerun_attempt_rows": 1,
+                    "n_local_lean_checked": 1,
+                    "n_local_lean_compiled": 1,
+                    "n_with_patch_proposal_marker": 1,
+                    "rows": [
+                        {
+                            "rerun_attempt_id": (
+                                "formal_verifier_replay_repair_patch_rerun_attempt:test"
+                            ),
+                            "rerun_id": "formal_verifier_replay_repair_patch_rerun:test",
+                            "replay_id": "formal_verifier_replay:test",
+                            "display_name": (
+                                "causal_ate_aipw:aipw_double_robustness:skeleton"
+                            ),
+                            "patched_artifact_path": "runs/test/patched_aipw.lean",
+                            "rerun_attempt_status": (
+                                "PATCH_ARTIFACT_COMPILES_NOT_PROOF_EVIDENCE"
+                            ),
+                            "local_lean_checked": True,
+                            "local_lean_compiled": True,
+                            "contains_patch_proposal_marker": True,
+                            "residual_formal_gaps": ["aipw_score_definition"],
+                            "proof_evidence_boundary": (
+                                "This row is a patched-artifact rerun attempt, not theorem proof evidence."
+                            ),
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        (
+            root
+            / "formal_verifier_replay_repair_patch_rerun_calibration"
+            / "formal_verifier_replay_repair_patch_rerun_calibration_manifest.json"
+        ).write_text(
+            json.dumps(
+                {
+                    "n_calibration_rows": 1,
+                    "n_attempted": 1,
+                    "n_local_lean_compiled": 1,
+                    "n_full_route_kernel_verified": 0,
+                    "n_compiled_patch_proposal_not_proof": 1,
+                    "rows": [
+                        {
+                            "rerun_calibration_id": (
+                                "formal_verifier_replay_repair_patch_rerun_calibration:test"
+                            ),
+                            "rerun_id": "formal_verifier_replay_repair_patch_rerun:test",
+                            "rerun_attempt_id": (
+                                "formal_verifier_replay_repair_patch_rerun_attempt:test"
+                            ),
+                            "replay_id": "formal_verifier_replay:test",
+                            "display_name": (
+                                "causal_ate_aipw:aipw_double_robustness:skeleton"
+                            ),
+                            "patch_rerun_calibration_status": (
+                                "patch_artifact_compiles_patch_proposal_not_proof"
+                            ),
+                            "local_lean_compiled": True,
+                            "n_residual_formal_gaps": 1,
+                            "full_route_proof_status": "UNPROVED_PATCH_RERUN_TARGET",
+                            "next_action": "replace patch plan with verified bridge proof",
+                            "proof_evidence_boundary": (
+                                "This patch-rerun calibration row is proof evidence only when full_route_kernel_verified."
+                            ),
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
         (root / "evaluation_benchmark_guidance" / "evaluation_benchmark_guidance_manifest.json").write_text(
             json.dumps({"top_actions": [{"rank": 1, "action": "improve RAG"}]}),
             encoding="utf-8",
@@ -8827,6 +8955,12 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                         "formal_verifier_replay_repair_patch_rerun_queue_items": 1,
                         "formal_verifier_replay_repair_patch_rerun_queue_ready": 1,
                         "formal_verifier_replay_repair_patch_rerun_queue_blocked": 0,
+                        "formal_verifier_replay_repair_patch_rerun_attempts": 1,
+                        "formal_verifier_replay_repair_patch_rerun_attempts_local_lean_compiled": 1,
+                        "formal_verifier_replay_repair_patch_rerun_attempts_patch_markers": 1,
+                        "formal_verifier_replay_repair_patch_rerun_calibration_rows": 1,
+                        "formal_verifier_replay_repair_patch_rerun_calibration_full_route_kernel_verified": 0,
+                        "formal_verifier_replay_repair_patch_rerun_calibration_compiled_patch_proposal_not_proof": 1,
                         "claim_ledger_repair_response_promotion_overlay_enabled": True,
                         "claim_ledger_repair_response_promotion_overlay_rows": 0,
                         "claim_ledger_repair_response_promotion_upgrades": 0,
@@ -8942,6 +9076,16 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                             root
                             / "formal_verifier_replay_repair_patch_rerun_queue"
                             / "formal_verifier_replay_repair_patch_rerun_queue_manifest.json"
+                        ),
+                        "formal_verifier_replay_repair_patch_rerun_attempts": str(
+                            root
+                            / "formal_verifier_replay_repair_patch_rerun_attempts"
+                            / "formal_verifier_replay_repair_patch_rerun_attempt_manifest.json"
+                        ),
+                        "formal_verifier_replay_repair_patch_rerun_calibration": str(
+                            root
+                            / "formal_verifier_replay_repair_patch_rerun_calibration"
+                            / "formal_verifier_replay_repair_patch_rerun_calibration_manifest.json"
                         ),
                         "evaluation_benchmark_guidance": str(
                             root
@@ -9313,6 +9457,54 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                 "formal_verifier_replay_repair_patch_rerun_queue_preview"
             ][0]["proof_evidence_boundary"],
         )
+        self.assertEqual(
+            payload["formal_capacity_queue"][
+                "formal_verifier_replay_repair_patch_rerun_attempts"
+            ],
+            1,
+        )
+        self.assertEqual(
+            payload["formal_capacity_queue"][
+                "formal_verifier_replay_repair_patch_rerun_attempts_local_lean_compiled"
+            ],
+            1,
+        )
+        self.assertEqual(
+            payload["formal_capacity_queue"][
+                "formal_verifier_replay_repair_patch_rerun_attempts_patch_markers"
+            ],
+            1,
+        )
+        self.assertEqual(
+            payload["formal_capacity_queue"][
+                "formal_verifier_replay_repair_patch_rerun_attempts_preview"
+            ][0]["rerun_attempt_status"],
+            "PATCH_ARTIFACT_COMPILES_NOT_PROOF_EVIDENCE",
+        )
+        self.assertEqual(
+            payload["formal_capacity_queue"][
+                "formal_verifier_replay_repair_patch_rerun_calibration_rows"
+            ],
+            1,
+        )
+        self.assertEqual(
+            payload["formal_capacity_queue"][
+                "formal_verifier_replay_repair_patch_rerun_calibration_full_route_kernel_verified"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["formal_capacity_queue"][
+                "formal_verifier_replay_repair_patch_rerun_calibration_compiled_patch_proposal_not_proof"
+            ],
+            1,
+        )
+        self.assertEqual(
+            payload["formal_capacity_queue"][
+                "formal_verifier_replay_repair_patch_rerun_calibration_preview"
+            ][0]["patch_rerun_calibration_status"],
+            "patch_artifact_compiles_patch_proposal_not_proof",
+        )
         self.assertTrue(
             payload["formal_capacity_queue"]["claim_ledger_repair_response_promotion_overlay_enabled"]
         )
@@ -9337,6 +9529,8 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertIn("patch responses", " ".join(payload["honesty_boundaries"]))
         self.assertIn("promotion rows", " ".join(payload["honesty_boundaries"]))
         self.assertIn("rerun queue rows", " ".join(payload["honesty_boundaries"]))
+        self.assertIn("rerun attempts are patched-artifact", " ".join(payload["honesty_boundaries"]))
+        self.assertIn("rerun calibration rows are proof evidence only", " ".join(payload["honesty_boundaries"]))
         self.assertIn("promotion overlays close formal gaps", " ".join(payload["honesty_boundaries"]))
         self.assertTrue((out / "rag_collaboration_manifest.json").exists())
         self.assertTrue((out / "rag_collaboration.md").exists())
@@ -11245,6 +11439,8 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["gates"]["formal_verifier_replay_repair_patch_response_validation"])
         self.assertTrue(payload["gates"]["formal_verifier_replay_repair_patch_response_promotion"])
         self.assertTrue(payload["gates"]["formal_verifier_replay_repair_patch_rerun_queue"])
+        self.assertTrue(payload["gates"]["formal_verifier_replay_repair_patch_rerun_attempts"])
+        self.assertTrue(payload["gates"]["formal_verifier_replay_repair_patch_rerun_calibration"])
         self.assertTrue(payload["gates"]["research_training_export"])
         self.assertTrue(payload["gates"]["research_policy_baseline"])
         self.assertTrue(payload["gates"]["next_iteration_queue"])
@@ -11539,6 +11735,8 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "formal_verifier_replay_repair_patch_response_validation",
             "formal_verifier_replay_repair_patch_response_promotion",
             "formal_verifier_replay_repair_patch_rerun_queue",
+            "formal_verifier_replay_repair_patch_rerun_attempts",
+            "formal_verifier_replay_repair_patch_rerun_calibration",
             "research_training_export",
             "research_policy_baseline",
             "next_iteration_queue",
@@ -11957,6 +12155,59 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             0,
         )
         self.assertEqual(payload["counts"]["formal_verifier_replay_repair_patch_rerun_queue_ok"], 0)
+        self.assertEqual(payload["counts"]["formal_verifier_replay_repair_patch_rerun_attempts"], 0)
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_replay_repair_patch_rerun_attempts_local_lean_checked"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_replay_repair_patch_rerun_attempts_local_lean_compiled"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formal_verifier_replay_repair_patch_rerun_attempts_patch_markers"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formal_verifier_replay_repair_patch_rerun_attempts_residual_gaps"],
+            0,
+        )
+        self.assertEqual(payload["counts"]["formal_verifier_replay_repair_patch_rerun_attempts_ok"], 0)
+        self.assertEqual(
+            payload["counts"]["formal_verifier_replay_repair_patch_rerun_calibration_rows"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formal_verifier_replay_repair_patch_rerun_calibration_attempted"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formal_verifier_replay_repair_patch_rerun_calibration_compiled"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_replay_repair_patch_rerun_calibration_full_route_kernel_verified"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_replay_repair_patch_rerun_calibration_compiled_patch_proposal_not_proof"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_replay_repair_patch_rerun_calibration_compiled_with_residual_gaps"
+            ],
+            0,
+        )
+        self.assertEqual(payload["counts"]["formal_verifier_replay_repair_patch_rerun_calibration_ok"], 0)
         self.assertTrue(Path(payload["artifacts"]["formalization_delta_plan"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formalization_delta_graph"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_verifier_queue"]).exists())
@@ -12076,6 +12327,46 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             Path(
                 payload["artifacts"][
                     "formal_verifier_replay_repair_patch_rerun_queue_report"
+                ]
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"]["formal_verifier_replay_repair_patch_rerun_attempts"]
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formal_verifier_replay_repair_patch_rerun_attempts_jsonl"
+                ]
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formal_verifier_replay_repair_patch_rerun_attempts_report"
+                ]
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formal_verifier_replay_repair_patch_rerun_calibration"
+                ]
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formal_verifier_replay_repair_patch_rerun_calibration_jsonl"
+                ]
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formal_verifier_replay_repair_patch_rerun_calibration_report"
                 ]
             ).exists()
         )
