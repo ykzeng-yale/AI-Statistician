@@ -318,6 +318,19 @@ python3 -m ai_statistician.cli formal-verifier-replay-repair-patch-rerun-residua
   --out runs/current_formal_verifier_replay_repair_patch_rerun_residual_followup_queue
 ```
 
+`formal_verifier_agentic_proof_strategy_plan` converts those residual follow-up
+items into scoped agentic proof-search work contracts. Patch items become
+AlphaEvolve-style evolve blocks with explicit Lean/MCP proof-state tools and
+calibration gates; source-discovery items become AlphaProof-style goal-cache
+entries. These rows are search/evaluator plans only, not theorem proof
+evidence.
+
+```bash
+python3 -m ai_statistician.cli formal-verifier-agentic-proof-strategy-plan \
+  --formal-verifier-replay-repair-patch-rerun-residual-followup-queue-dir runs/current_formal_verifier_replay_repair_patch_rerun_residual_followup_queue \
+  --out runs/current_formal_verifier_agentic_proof_strategy_plan
+```
+
 The claim ledger can now consume that promotion manifest as an overlay. Only
 rows already marked `READY_FOR_PROOF_LEDGER_PROMOTION` with kernel evidence can
 upgrade the matching formal-gap row; awaiting responses and patch proposals

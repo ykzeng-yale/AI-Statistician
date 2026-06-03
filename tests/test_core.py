@@ -85,6 +85,9 @@ from ai_statistician.formal_verifier_replay_repair_patch_rerun_residual_response
 from ai_statistician.formal_verifier_replay_repair_patch_rerun_residual_followup_queue import (
     export_formal_verifier_replay_repair_patch_rerun_residual_followup_queue,
 )
+from ai_statistician.formal_verifier_agentic_proof_strategy_plan import (
+    export_formal_verifier_agentic_proof_strategy_plan,
+)
 from ai_statistician.formal_verifier_replay_repair import export_formal_verifier_replay_repair_packets
 from ai_statistician.formalization_delta_plan import build_formalization_delta_plan
 from ai_statistician.formalization_target_audit import audit_formalization_targets
@@ -8002,6 +8005,47 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                 "runs/test_formal_verifier_replay_repair_patch_rerun_residual_followup_queue/formal_verifier_replay_repair_patch_rerun_residual_followup_queue.md"
             ).exists()
         )
+        agentic_strategy_plan = export_formal_verifier_agentic_proof_strategy_plan(
+            Path(
+                "runs/test_formal_verifier_replay_repair_patch_rerun_residual_followup_queue"
+            ),
+            Path("runs/test_formal_verifier_agentic_proof_strategy_plan"),
+        )
+        self.assertTrue(agentic_strategy_plan["all_ok"])
+        self.assertEqual(
+            agentic_strategy_plan["n_strategy_rows"],
+            residual_followup_queue["n_followup_items"],
+        )
+        self.assertEqual(agentic_strategy_plan["n_patch_evolve_blocks"], 1)
+        self.assertEqual(agentic_strategy_plan["n_source_discovery_cache_items"], 0)
+        self.assertEqual(agentic_strategy_plan["n_ready"], 1)
+        self.assertEqual(agentic_strategy_plan["n_with_live_tool_plan"], 1)
+        agentic_strategy_row = agentic_strategy_plan["rows"][0]
+        self.assertEqual(
+            agentic_strategy_row["agentic_strategy_kind"],
+            "evolve_block_residual_patch",
+        )
+        self.assertIn("lean_multi_attempt", agentic_strategy_row["required_live_tools"])
+        self.assertIn("alphaevolve", " ".join(agentic_strategy_row["paper_patterns"]))
+        self.assertIn(
+            "not theorem proof evidence",
+            agentic_strategy_row["proof_evidence_boundary"],
+        )
+        self.assertTrue(
+            Path(
+                "runs/test_formal_verifier_agentic_proof_strategy_plan/formal_verifier_agentic_proof_strategy_plan_manifest.json"
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                "runs/test_formal_verifier_agentic_proof_strategy_plan/formal_verifier_agentic_proof_strategy_plan.jsonl"
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                "runs/test_formal_verifier_agentic_proof_strategy_plan/formal_verifier_agentic_proof_strategy_plan.md"
+            ).exists()
+        )
         self.assertTrue(
             Path(
                 "runs/test_formal_verifier_replay_repair_patch_rerun_residual_autoworker/formal_verifier_replay_repair_patch_rerun_residual_autoworker_manifest.json"
@@ -8416,6 +8460,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "formal_verifier_replay_repair_patch_rerun_residual_autoworker",
             "formal_verifier_replay_repair_patch_rerun_residual_response_validation",
             "formal_verifier_replay_repair_patch_rerun_residual_followup_queue",
+            "formal_verifier_agentic_proof_strategy_plan",
             "evaluation_benchmark_guidance",
         ):
             (root / subdir).mkdir(parents=True, exist_ok=True)
@@ -9466,6 +9511,76 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             ),
             encoding="utf-8",
         )
+        (
+            root
+            / "formal_verifier_agentic_proof_strategy_plan"
+            / "formal_verifier_agentic_proof_strategy_plan_manifest.json"
+        ).write_text(
+            json.dumps(
+                {
+                    "n_followup_rows": 1,
+                    "n_strategy_rows": 1,
+                    "n_ready": 1,
+                    "n_patch_evolve_blocks": 1,
+                    "n_source_discovery_cache_items": 0,
+                    "n_with_live_tool_plan": 1,
+                    "n_ok": 1,
+                    "proof_evidence_boundary": (
+                        "Agentic proof strategy rows are search/evaluator plans, not theorem proof evidence."
+                    ),
+                    "rows": [
+                        {
+                            "strategy_id": (
+                                "formal_verifier_agentic_proof_strategy:test"
+                            ),
+                            "rank": 1,
+                            "followup_id": (
+                                "formal_verifier_replay_repair_patch_rerun_residual_followup:test"
+                            ),
+                            "display_name": (
+                                "causal_ate_aipw:aipw_double_robustness:skeleton"
+                            ),
+                            "residual_gap": "aipw_score_definition",
+                            "followup_kind": "residual_patch_rerun",
+                            "followup_status": "READY_FOR_RESIDUAL_PATCH_RERUN",
+                            "agentic_strategy_kind": "evolve_block_residual_patch",
+                            "paper_patterns": [
+                                "alphaevolve_evolve_block_evaluator_database",
+                                "ax_prover_orchestrator_prover_verifier_loop",
+                                "alphaproof_nexus_proof_sketch_guided_agent",
+                                "lean_lsp_mcp_proof_state_provider",
+                            ],
+                            "required_live_tools": [
+                                "lean_goal",
+                                "lean_diagnostic_messages",
+                                "lean_local_search",
+                                "lean_multi_attempt",
+                            ],
+                            "evaluator_gates": [
+                                "formal-verifier-replay-repair-patch-rerun-attempts",
+                                "formal-verifier-replay-repair-patch-rerun-calibration",
+                                "full-route Lean kernel verification",
+                            ],
+                            "global_goal_cache_keys": [
+                                "target:aipw_double_robustness",
+                                "residual_gap:aipw_score_definition",
+                            ],
+                            "candidate_database_key": (
+                                "formal_proof_candidate:test"
+                            ),
+                            "priority_score": 120,
+                            "proof_evidence_status": (
+                                "AGENTIC_STRATEGY_PLAN_NOT_PROOF_EVIDENCE"
+                            ),
+                            "proof_evidence_boundary": (
+                                "Agentic proof strategy rows are search/evaluator plans, not theorem proof evidence."
+                            ),
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
         (root / "evaluation_benchmark_guidance" / "evaluation_benchmark_guidance_manifest.json").write_text(
             json.dumps({"top_actions": [{"rank": 1, "action": "improve RAG"}]}),
             encoding="utf-8",
@@ -9631,6 +9746,12 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                         "formal_verifier_replay_repair_patch_rerun_residual_followup_queue_with_artifact": 1,
                         "formal_verifier_replay_repair_patch_rerun_residual_followup_queue_with_source_queries": 0,
                         "formal_verifier_replay_repair_patch_rerun_residual_followup_queue_ok": 1,
+                        "formal_verifier_agentic_proof_strategy_plan_rows": 1,
+                        "formal_verifier_agentic_proof_strategy_plan_ready": 1,
+                        "formal_verifier_agentic_proof_strategy_plan_patch_evolve_blocks": 1,
+                        "formal_verifier_agentic_proof_strategy_plan_source_discovery_cache_items": 0,
+                        "formal_verifier_agentic_proof_strategy_plan_with_live_tool_plan": 1,
+                        "formal_verifier_agentic_proof_strategy_plan_ok": 1,
                         "claim_ledger_repair_response_promotion_overlay_enabled": True,
                         "claim_ledger_repair_response_promotion_overlay_rows": 0,
                         "claim_ledger_repair_response_promotion_upgrades": 0,
@@ -9781,6 +9902,11 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                             root
                             / "formal_verifier_replay_repair_patch_rerun_residual_followup_queue"
                             / "formal_verifier_replay_repair_patch_rerun_residual_followup_queue_manifest.json"
+                        ),
+                        "formal_verifier_agentic_proof_strategy_plan": str(
+                            root
+                            / "formal_verifier_agentic_proof_strategy_plan"
+                            / "formal_verifier_agentic_proof_strategy_plan_manifest.json"
                         ),
                         "evaluation_benchmark_guidance": str(
                             root
@@ -10362,6 +10488,40 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                 "formal_verifier_replay_repair_patch_rerun_residual_followup_queue_preview"
             ][0]["proof_evidence_boundary"],
         )
+        self.assertEqual(
+            payload["formal_capacity_queue"][
+                "formal_verifier_agentic_proof_strategy_plan_rows"
+            ],
+            1,
+        )
+        self.assertEqual(
+            payload["formal_capacity_queue"][
+                "formal_verifier_agentic_proof_strategy_plan_patch_evolve_blocks"
+            ],
+            1,
+        )
+        self.assertEqual(
+            payload["formal_capacity_queue"][
+                "formal_verifier_agentic_proof_strategy_plan_source_discovery_cache_items"
+            ],
+            0,
+        )
+        strategy_preview = payload["formal_capacity_queue"][
+            "formal_verifier_agentic_proof_strategy_plan_preview"
+        ][0]
+        self.assertEqual(
+            strategy_preview["agentic_strategy_kind"],
+            "evolve_block_residual_patch",
+        )
+        self.assertIn("lean_multi_attempt", strategy_preview["required_live_tools"])
+        self.assertIn(
+            "alphaevolve_evolve_block_evaluator_database",
+            strategy_preview["paper_patterns"],
+        )
+        self.assertIn(
+            "not theorem proof evidence",
+            strategy_preview["proof_evidence_boundary"],
+        )
         self.assertIn(
             "residual prompt packets",
             " ".join(payload["honesty_boundaries"]),
@@ -10376,6 +10536,10 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         )
         self.assertIn(
             "residual follow-up queue",
+            " ".join(payload["honesty_boundaries"]),
+        )
+        self.assertIn(
+            "agentic proof strategy plan",
             " ".join(payload["honesty_boundaries"]),
         )
         self.assertTrue(
@@ -12320,6 +12484,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["gates"]["formal_verifier_replay_repair_patch_rerun_residual_autoworker"])
         self.assertTrue(payload["gates"]["formal_verifier_replay_repair_patch_rerun_residual_response_validation"])
         self.assertTrue(payload["gates"]["formal_verifier_replay_repair_patch_rerun_residual_followup_queue"])
+        self.assertTrue(payload["gates"]["formal_verifier_agentic_proof_strategy_plan"])
         self.assertTrue(payload["gates"]["research_training_export"])
         self.assertTrue(payload["gates"]["research_policy_baseline"])
         self.assertTrue(payload["gates"]["next_iteration_queue"])
@@ -12621,6 +12786,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "formal_verifier_replay_repair_patch_rerun_residual_autoworker",
             "formal_verifier_replay_repair_patch_rerun_residual_response_validation",
             "formal_verifier_replay_repair_patch_rerun_residual_followup_queue",
+            "formal_verifier_agentic_proof_strategy_plan",
             "research_training_export",
             "research_policy_baseline",
             "next_iteration_queue",
@@ -13318,6 +13484,36 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             ],
             0,
         )
+        self.assertEqual(
+            payload["counts"]["formal_verifier_agentic_proof_strategy_plan_rows"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formal_verifier_agentic_proof_strategy_plan_ready"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_agentic_proof_strategy_plan_patch_evolve_blocks"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_agentic_proof_strategy_plan_source_discovery_cache_items"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_agentic_proof_strategy_plan_with_live_tool_plan"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formal_verifier_agentic_proof_strategy_plan_ok"],
+            0,
+        )
         self.assertTrue(Path(payload["artifacts"]["formalization_delta_plan"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formalization_delta_graph"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_verifier_queue"]).exists())
@@ -13582,6 +13778,25 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             Path(
                 payload["artifacts"][
                     "formal_verifier_replay_repair_patch_rerun_residual_followup_queue_report"
+                ]
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"]["formal_verifier_agentic_proof_strategy_plan"]
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formal_verifier_agentic_proof_strategy_plan_jsonl"
+                ]
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formal_verifier_agentic_proof_strategy_plan_report"
                 ]
             ).exists()
         )

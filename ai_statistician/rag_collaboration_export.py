@@ -202,6 +202,14 @@ def export_rag_collaboration_manifest(
     formal_verifier_replay_repair_patch_rerun_residual_followup_queue_payload = _read_json(
         formal_verifier_replay_repair_patch_rerun_residual_followup_queue_path
     )
+    formal_verifier_agentic_proof_strategy_plan_path = _artifact_path(
+        artifacts,
+        "formal_verifier_agentic_proof_strategy_plan",
+        run_dir,
+    )
+    formal_verifier_agentic_proof_strategy_plan_payload = _read_json(
+        formal_verifier_agentic_proof_strategy_plan_path
+    )
     guidance_payload = _read_json(_artifact_path(artifacts, "evaluation_benchmark_guidance", run_dir))
 
     target_rows = _handoff_targets(
@@ -1050,6 +1058,35 @@ def export_rag_collaboration_manifest(
                 formal_verifier_replay_repair_patch_rerun_residual_followup_queue_payload,
                 max_rows=min(max_targets, 10),
             ),
+            "formal_verifier_agentic_proof_strategy_plan_rows": counts.get(
+                "formal_verifier_agentic_proof_strategy_plan_rows",
+                formal_verifier_agentic_proof_strategy_plan_payload.get(
+                    "n_strategy_rows"
+                ),
+            ),
+            "formal_verifier_agentic_proof_strategy_plan_ready": counts.get(
+                "formal_verifier_agentic_proof_strategy_plan_ready",
+                formal_verifier_agentic_proof_strategy_plan_payload.get("n_ready"),
+            ),
+            "formal_verifier_agentic_proof_strategy_plan_patch_evolve_blocks": counts.get(
+                "formal_verifier_agentic_proof_strategy_plan_patch_evolve_blocks",
+                formal_verifier_agentic_proof_strategy_plan_payload.get(
+                    "n_patch_evolve_blocks"
+                ),
+            ),
+            "formal_verifier_agentic_proof_strategy_plan_source_discovery_cache_items": counts.get(
+                "formal_verifier_agentic_proof_strategy_plan_source_discovery_cache_items",
+                formal_verifier_agentic_proof_strategy_plan_payload.get(
+                    "n_source_discovery_cache_items"
+                ),
+            ),
+            "formal_verifier_agentic_proof_strategy_plan_manifest": str(
+                formal_verifier_agentic_proof_strategy_plan_path
+            ),
+            "formal_verifier_agentic_proof_strategy_plan_preview": _formal_verifier_agentic_proof_strategy_plan_preview(
+                formal_verifier_agentic_proof_strategy_plan_payload,
+                max_rows=min(max_targets, 10),
+            ),
             "claim_ledger_repair_response_promotion_overlay_enabled": counts.get(
                 "claim_ledger_repair_response_promotion_overlay_enabled"
             ),
@@ -1114,6 +1151,7 @@ def export_rag_collaboration_manifest(
             "FormalVerifier repair patch rerun residual autoworker responses are deterministic proposals, not theorem proof evidence.",
             "FormalVerifier repair patch rerun residual response validation accepts proof claims only with full_route_kernel_verified evidence.",
             "FormalVerifier repair patch rerun residual follow-up queue rows are operational work items, not theorem proof evidence.",
+            "FormalVerifier agentic proof strategy plan rows are search/evaluator plans, not theorem proof evidence.",
             "Claim-ledger repair-response promotion overlays close formal gaps only for matching ready kernel-verified promotion rows.",
             "FORMAL_GAP and theorem-hole queues remain open until a non-placeholder Lean proof is verified.",
         ],
@@ -1883,6 +1921,43 @@ def _formal_verifier_replay_repair_patch_rerun_residual_followup_queue_preview(
     return rows
 
 
+def _formal_verifier_agentic_proof_strategy_plan_preview(
+    payload: dict[str, Any],
+    *,
+    max_rows: int,
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    strategy_rows = payload.get("rows", [])
+    if not isinstance(strategy_rows, list):
+        return rows
+    for row in strategy_rows:
+        if not isinstance(row, dict):
+            continue
+        rows.append(
+            {
+                "strategy_id": row.get("strategy_id"),
+                "rank": row.get("rank"),
+                "followup_id": row.get("followup_id"),
+                "display_name": row.get("display_name"),
+                "residual_gap": row.get("residual_gap"),
+                "followup_kind": row.get("followup_kind", ""),
+                "followup_status": row.get("followup_status", ""),
+                "agentic_strategy_kind": row.get("agentic_strategy_kind", ""),
+                "paper_patterns": row.get("paper_patterns", [])[:4],
+                "required_live_tools": row.get("required_live_tools", [])[:6],
+                "evaluator_gates": row.get("evaluator_gates", [])[:5],
+                "global_goal_cache_keys": row.get("global_goal_cache_keys", [])[:5],
+                "candidate_database_key": row.get("candidate_database_key", ""),
+                "priority_score": row.get("priority_score", 0),
+                "proof_evidence_status": row.get("proof_evidence_status", ""),
+                "proof_evidence_boundary": row.get("proof_evidence_boundary", ""),
+            }
+        )
+        if len(rows) >= max_rows:
+            break
+    return rows
+
+
 def _theorem_composition_packet_preview(
     payload: dict[str, Any],
     *,
@@ -2032,6 +2107,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"(`{queue.get('formal_verifier_replay_repair_patch_rerun_residual_followup_queue_ready')}` ready, "
         f"`{queue.get('formal_verifier_replay_repair_patch_rerun_residual_followup_queue_blocked')}` blocked, "
         f"`{queue.get('formal_verifier_replay_repair_patch_rerun_residual_followup_queue_source_discovery')}` source-discovery)",
+        f"- Formal verifier agentic proof strategy plan: `{queue.get('formal_verifier_agentic_proof_strategy_plan_rows')}` rows "
+        f"(`{queue.get('formal_verifier_agentic_proof_strategy_plan_patch_evolve_blocks')}` patch evolve blocks, "
+        f"`{queue.get('formal_verifier_agentic_proof_strategy_plan_source_discovery_cache_items')}` source-discovery cache items)",
         "- Claim-ledger repair-response promotion overlay: "
         f"`{queue.get('claim_ledger_repair_response_promotion_upgrades')}` upgrades from "
         f"`{queue.get('claim_ledger_repair_response_promotion_overlay_rows')}` ready rows",
@@ -2249,6 +2327,26 @@ def _markdown_report(payload: dict[str, object]) -> str:
         commands = ", ".join(f"`{item}`" for item in row.get("execution_commands", [])) or "none"
         lines.append(f"  source queries: {queries}")
         lines.append(f"  commands: {commands}")
+        lines.append(f"  proof status: {row.get('proof_evidence_status')}")
+        lines.append(f"  boundary: {row.get('proof_evidence_boundary')}")
+    lines.extend(["", "## Agentic Proof Strategy Plan", ""])
+    for row in queue.get(
+        "formal_verifier_agentic_proof_strategy_plan_preview",
+        [],
+    ):
+        if not isinstance(row, dict):
+            continue
+        lines.append(
+            f"- #{row.get('rank')} `{row.get('display_name')}` -> `{row.get('residual_gap')}` "
+            f"({row.get('agentic_strategy_kind')}): score={row.get('priority_score')}"
+        )
+        patterns = ", ".join(f"`{item}`" for item in row.get("paper_patterns", [])) or "none"
+        tools = ", ".join(f"`{item}`" for item in row.get("required_live_tools", [])) or "none"
+        gates = ", ".join(f"`{item}`" for item in row.get("evaluator_gates", [])) or "none"
+        lines.append(f"  patterns: {patterns}")
+        lines.append(f"  live tools: {tools}")
+        lines.append(f"  evaluator gates: {gates}")
+        lines.append(f"  candidate DB key: `{row.get('candidate_database_key')}`")
         lines.append(f"  proof status: {row.get('proof_evidence_status')}")
         lines.append(f"  boundary: {row.get('proof_evidence_boundary')}")
     lines.extend(["", "## Theorem Composition Handoff", ""])

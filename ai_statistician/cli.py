@@ -86,6 +86,9 @@ from .formal_verifier_replay_repair_patch_rerun_residual_response_validation imp
 from .formal_verifier_replay_repair_patch_rerun_residual_followup_queue import (
     export_formal_verifier_replay_repair_patch_rerun_residual_followup_queue,
 )
+from .formal_verifier_agentic_proof_strategy_plan import (
+    export_formal_verifier_agentic_proof_strategy_plan,
+)
 from .formal_verifier_replay_repair import export_formal_verifier_replay_repair_packets
 from .formal_source_graph import audit_formal_source_graph
 from .formal_source_index import (
@@ -1937,6 +1940,40 @@ def _formal_verifier_replay_repair_patch_rerun_residual_followup_queue(
     print(
         f"markdown report written to "
         f"{(Path(args.out) / 'formal_verifier_replay_repair_patch_rerun_residual_followup_queue.md').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formal_verifier_agentic_proof_strategy_plan(
+    args: argparse.Namespace,
+) -> int:
+    payload = export_formal_verifier_agentic_proof_strategy_plan(
+        Path(
+            args.formal_verifier_replay_repair_patch_rerun_residual_followup_queue_dir
+        ),
+        Path(args.out),
+    )
+    print("\nAI Statistical Theory Lab Formal Verifier Agentic Proof Strategy Plan")
+    print("=" * 72)
+    print(
+        f"rows={payload['n_ok']}/{payload['n_strategy_rows']} "
+        f"ready={payload['n_ready']} "
+        f"patch_evolve_blocks={payload['n_patch_evolve_blocks']} "
+        f"source_discovery_cache_items={payload['n_source_discovery_cache_items']} "
+        f"with_live_tool_plan={payload['n_with_live_tool_plan']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nagentic proof strategy manifest written to "
+        f"{(Path(args.out) / 'formal_verifier_agentic_proof_strategy_plan_manifest.json').resolve()}"
+    )
+    print(
+        f"agentic proof strategy jsonl written to "
+        f"{(Path(args.out) / 'formal_verifier_agentic_proof_strategy_plan.jsonl').resolve()}"
+    )
+    print(
+        f"markdown report written to "
+        f"{(Path(args.out) / 'formal_verifier_agentic_proof_strategy_plan.md').resolve()}"
     )
     return 0 if payload["all_ok"] else 1
 
@@ -4202,6 +4239,24 @@ def build_parser() -> argparse.ArgumentParser:
     )
     formal_verifier_replay_repair_patch_rerun_residual_followup_queue.set_defaults(
         func=_formal_verifier_replay_repair_patch_rerun_residual_followup_queue
+    )
+
+    formal_verifier_agentic_proof_strategy_plan = sub.add_parser(
+        "formal-verifier-agentic-proof-strategy-plan",
+        help="plan agentic proof-search strategies from residual follow-up queue items",
+    )
+    formal_verifier_agentic_proof_strategy_plan.add_argument(
+        "--formal-verifier-replay-repair-patch-rerun-residual-followup-queue-dir",
+        required=True,
+        help="directory containing formal_verifier_replay_repair_patch_rerun_residual_followup_queue_manifest.json",
+    )
+    formal_verifier_agentic_proof_strategy_plan.add_argument(
+        "--out",
+        default="runs/formal_verifier_agentic_proof_strategy_plan",
+        help="formal-verifier agentic proof strategy plan output directory",
+    )
+    formal_verifier_agentic_proof_strategy_plan.set_defaults(
+        func=_formal_verifier_agentic_proof_strategy_plan
     )
 
     rag_collaboration_export = sub.add_parser(

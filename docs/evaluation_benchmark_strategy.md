@@ -448,6 +448,14 @@ dependency-graph activation and candidate lift as search evidence only, then
 move capacity tracking to harder obligations that cannot close by static
 expected-lemma templates.
 
+Recent agentic-prover integration: residual follow-up rows now feed a
+`formal_verifier_agentic_proof_strategy_plan` gate. The plan borrows the useful
+architecture from Ax-Prover, AlphaProof Nexus, and AlphaEvolve: verifier-driven
+Lean proof-state loops, proof-sketch/global-goal-cache reuse, and scoped
+evolve-block candidate evaluation. It reports patch-evolve and source-discovery
+cache work as search plans only; promotion still requires local Lean/kernel
+calibration and residual-gap validation.
+
 `formal-verifier-queue` is the handoff from that diagnostic to theorem work:
 it records whether hard-mode dependency-graph RAG increased the candidate
 frontier, whether related subclaims have verifier/search history, and whether
