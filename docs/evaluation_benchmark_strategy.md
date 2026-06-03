@@ -225,7 +225,9 @@ Current release signal:
   verifier pass can learn from earlier feedback instead of retrying routes
   blindly. The queue records graph-neighborhood dependency depth, import/source
   cone size, proof-bank/local source trust, and a lightweight semantic
-  faithfulness review for each theorem route.
+  faithfulness review for each theorem route. When a selected kernel-smoke run
+  verifies related proof-bank subclaims, the row records that source-trust
+  calibration separately from theorem-route proof status.
   Queue rows are task contracts only; they do not become proof evidence until
   the named theorem or bridge proof passes AXLE/local Lean with a
   non-placeholder proof body.
@@ -247,6 +249,8 @@ Pass criteria:
   mode, RAG-lift context, related proof-bank obligations, prior verifier/search
   feedback, dependency/source-trust metrics, semantic review status, and
   explicit proof-evidence boundary
+- kernel-smoke overlap can calibrate source trust for related subclaims, but
+  cannot close the theorem route without a non-placeholder theorem/bridge proof
 - new proof-bank additions reduce the missing primitive count or increase
   bridge readiness
 

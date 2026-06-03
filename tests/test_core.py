@@ -7082,6 +7082,20 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             encoding="utf-8",
         )
         history_obligations = payload["theorem_formalization_routes"][0]["required_primitives"][:2]
+        (kernel_smoke_dir / "proof_audit_manifest.json").write_text(
+            json.dumps(
+                {
+                    "n_obligations": 3,
+                    "n_kernel_verified": 3,
+                    "checks": [
+                        {"obligation_id": history_obligations[0], "ok": True, "kernel_verified": True},
+                        {"obligation_id": history_obligations[-1], "ok": True, "kernel_verified": True},
+                        {"obligation_id": "unrelated_kernel_smoke_obligation", "ok": True, "kernel_verified": True},
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
         proof_attempt_log = Path("runs/test_formal_verifier_proof_attempts.jsonl")
         proof_attempt_rows = [
             {
@@ -7145,6 +7159,14 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             queue["n_items"],
         )
         self.assertGreater(queue["n_rows_with_local_or_proof_bank_source_trust"], 0)
+        self.assertGreater(queue["n_rows_with_kernel_smoke_overlap"], 0)
+        self.assertGreater(queue["n_rows_source_trust_kernel_calibrated"], 0)
+        self.assertGreater(queue["n_kernel_smoke_related_verified"], 0)
+        calibrated_rows = [
+            row for row in queue["rows"] if row["source_trust_calibration_status"] == "kernel_smoke_overlap_verified"
+        ]
+        self.assertTrue(calibrated_rows)
+        self.assertIn("calibrates only related", calibrated_rows[0]["source_trust_calibration_boundary"])
         queue_row = queue["rows"][0]
         self.assertEqual(queue_row["owner_agent"], "formal_verifier")
         self.assertIn(queue_row["priority"], {"high", "medium", "low"})
@@ -7427,6 +7449,8 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                     "max_import_cone_size": 7,
                     "n_rows_semantic_needs_review": 0,
                     "mean_semantic_faithfulness_score": 72.0,
+                    "n_rows_with_kernel_smoke_overlap": 1,
+                    "n_rows_source_trust_kernel_calibrated": 1,
                     "rows": [
                         {
                             "item_id": "formal_verifier_queue:test",
@@ -7447,6 +7471,9 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                             "dependency_graph_depth": 2,
                             "import_cone_size": 7,
                             "source_trust_level": "proof_bank_and_local_candidates",
+                            "source_trust_calibration_status": "kernel_smoke_overlap_verified",
+                            "kernel_smoke_related_verified": 1,
+                            "kernel_smoke_related_total": 1,
                             "semantic_faithfulness_score": 72,
                             "semantic_faithfulness_status": "strong_overlap",
                             "proof_evidence_boundary": "This queue row is not proof evidence.",
@@ -7515,6 +7542,8 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                         "formal_verifier_queue_max_import_cone_size": 7,
                         "formal_verifier_queue_semantic_needs_review": 0,
                         "formal_verifier_queue_mean_semantic_faithfulness_score": 72.0,
+                        "formal_verifier_queue_rows_with_kernel_smoke_overlap": 1,
+                        "formal_verifier_queue_rows_source_trust_kernel_calibrated": 1,
                     },
                     "artifacts": {
                         "proof_audit": str(root / "proof_audit" / "proof_audit_manifest.json"),
@@ -7619,6 +7648,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertEqual(payload["formal_capacity_queue"]["formal_verifier_queue_proof_search_solved"], 1)
         self.assertEqual(payload["formal_capacity_queue"]["formal_verifier_queue_max_dependency_graph_depth"], 2)
         self.assertEqual(payload["formal_capacity_queue"]["formal_verifier_queue_semantic_needs_review"], 0)
+        self.assertEqual(payload["formal_capacity_queue"]["formal_verifier_queue_rows_source_trust_kernel_calibrated"], 1)
         self.assertEqual(
             payload["formal_capacity_queue"]["formal_verifier_queue_preview"][0]["display_name"],
             "causal_ate_aipw:aipw_double_robustness:skeleton",
@@ -7630,6 +7660,10 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertEqual(
             payload["formal_capacity_queue"]["formal_verifier_queue_preview"][0]["source_trust_level"],
             "proof_bank_and_local_candidates",
+        )
+        self.assertEqual(
+            payload["formal_capacity_queue"]["formal_verifier_queue_preview"][0]["source_trust_calibration_status"],
+            "kernel_smoke_overlap_verified",
         )
         self.assertEqual(
             payload["formal_capacity_queue"]["formal_verifier_queue_preview"][0]["semantic_faithfulness_status"],
@@ -10001,6 +10035,13 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             payload["counts"]["formal_verifier_queue_items"],
         )
         self.assertGreaterEqual(payload["counts"]["formal_verifier_queue_mean_semantic_faithfulness_score"], 0)
+        self.assertEqual(payload["counts"]["formal_verifier_queue_rows_with_kernel_smoke_overlap"], 0)
+        self.assertEqual(payload["counts"]["formal_verifier_queue_rows_source_trust_kernel_calibrated"], 0)
+        self.assertEqual(payload["counts"]["formal_verifier_queue_kernel_smoke_related_obligations"], 0)
+        self.assertEqual(
+            payload["counts"]["formal_verifier_queue_kernel_smoke_related_verified"],
+            payload["counts"]["formal_verifier_queue_kernel_smoke_related_obligations"],
+        )
         self.assertEqual(
             payload["counts"]["formal_verifier_queue_no_registered_rag_candidate_delta"],
             payload["counts"]["proof_search_retrieval_no_registered_ablation_candidate_delta"],

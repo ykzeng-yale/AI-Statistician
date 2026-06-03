@@ -100,9 +100,10 @@ routes, the no-registered proof-search RAG candidate delta, and selected
 kernel-smoke context into owner-agent work items for the FormalVerifier. The
 queue now also attaches related proof-bank obligations, prior proof-attempt
 positives/negatives, proof-search solved subclaim history, graph-neighborhood
-dependency depth, source-trust class, and semantic-faithfulness status. It is
-useful for choosing the next theorem/bridge proof attempt, but it is still a
-task contract rather than proof evidence.
+dependency depth, source-trust class, semantic-faithfulness status, and
+kernel-smoke overlap calibration for related subclaims. It is useful for
+choosing the next theorem/bridge proof attempt, but it is still a task contract
+rather than proof evidence.
 
 ## Next Build Targets
 
@@ -119,9 +120,9 @@ task contract rather than proof evidence.
    already turns those route summaries into ranked verifier work items with
    RAG-lift context, proof-attempt history, proof-search subclaim history, and
    explicit proof gates, plus dependency depth, import-cone size, source trust
-   level, and semantic-faithfulness review. The next version should add
-   source-trust calibration against successful kernel proofs and route-level
-   proof-attempt replay.
+   level, semantic-faithfulness review, and kernel-smoke source-trust
+   calibration. The next version should add route-level proof-attempt replay
+   and calibration against full theorem proof attempts.
 2. Add query-intent expansion for missing primitives:
    primitive name, theorem goal, problem class, local gap reason, and candidate
    proof-bank bridge names should all become retriever queries.

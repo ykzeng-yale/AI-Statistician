@@ -11,7 +11,7 @@ from typing import Any
 from .fingerprint import stable_hash
 
 
-FORMAL_VERIFIER_QUEUE_SCHEMA_VERSION = 3
+FORMAL_VERIFIER_QUEUE_SCHEMA_VERSION = 4
 
 
 @dataclass(frozen=True)
@@ -47,6 +47,10 @@ class FormalVerifierQueueRow:
     semantic_faithfulness_score: int
     semantic_faithfulness_status: str
     semantic_review_notes: tuple[str, ...]
+    kernel_smoke_related_obligations: tuple[str, ...]
+    kernel_smoke_related_verified: int
+    kernel_smoke_related_total: int
+    source_trust_calibration_status: str
     required_primitives: tuple[str, ...]
     related_proof_obligations: tuple[str, ...]
     first_next_actions: tuple[str, ...]
@@ -65,6 +69,7 @@ class FormalVerifierQueueRow:
     kernel_smoke_total: int
     kernel_smoke_kernel_verified: int
     route_evidence_boundary: str
+    source_trust_calibration_boundary: str
     proof_history_boundary: str
     proof_evidence_boundary: str
     ok: bool
@@ -118,6 +123,7 @@ def export_formal_verifier_queue(
     proof_search_rows = _read_jsonl(proof_search_results_path, errors) if proof_search_results_path else []
     proof_attempt_history = _proof_attempt_history_by_obligation(proof_attempt_rows)
     proof_search_history = _proof_search_history_by_obligation(proof_search_rows)
+    kernel_smoke_history = _kernel_smoke_history_by_obligation(kernel_manifest)
 
     routes = [
         row
@@ -132,6 +138,7 @@ def export_formal_verifier_queue(
             proof_attempt_history=proof_attempt_history,
             proof_search_history=proof_search_history,
             graph_context=graph_context,
+            kernel_smoke_history=kernel_smoke_history,
         )
         for route in routes
     ]
@@ -143,6 +150,7 @@ def export_formal_verifier_queue(
     by_stage = Counter(row.verification_stage for row in rows)
     by_source_trust = Counter(row.source_trust_level for row in rows)
     by_semantic_status = Counter(row.semantic_faithfulness_status for row in rows)
+    by_calibration_status = Counter(row.source_trust_calibration_status for row in rows)
     payload: dict[str, object] = {
         "schema_version": FORMAL_VERIFIER_QUEUE_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -171,6 +179,7 @@ def export_formal_verifier_queue(
         "by_verification_stage": dict(sorted(by_stage.items())),
         "by_source_trust_level": dict(sorted(by_source_trust.items())),
         "by_semantic_faithfulness_status": dict(sorted(by_semantic_status.items())),
+        "by_source_trust_calibration_status": dict(sorted(by_calibration_status.items())),
         "n_high_priority": by_priority.get("high", 0),
         "n_reuse_or_composition": by_route_class.get("reuse_or_composition", 0),
         "n_bridge_or_wrapper": by_route_class.get("bridge_or_wrapper", 0),
@@ -209,6 +218,14 @@ def export_formal_verifier_queue(
             if rows
             else 0.0
         ),
+        "n_rows_with_kernel_smoke_overlap": sum(1 for row in rows if row.kernel_smoke_related_total > 0),
+        "n_rows_source_trust_kernel_calibrated": sum(
+            1 for row in rows if row.source_trust_calibration_status == "kernel_smoke_overlap_verified"
+        ),
+        "n_kernel_smoke_related_obligations": len(
+            {obligation for row in rows for obligation in row.kernel_smoke_related_obligations}
+        ),
+        "n_kernel_smoke_related_verified": sum(row.kernel_smoke_related_verified for row in rows),
         "no_registered_rag_candidate_delta": int(
             no_registered_manifest.get("formal_source_candidate_delta", 0) or 0
         ),
@@ -230,6 +247,7 @@ def export_formal_verifier_queue(
             "no-registered proof-search deltas are search/frontier evidence only",
             "proof-attempt history is subclaim feedback, not a proof of the queued theorem route",
             "dependency depth, source trust, and semantic-faithfulness scores are heuristic planning signals",
+            "kernel-smoke overlaps calibrate related subclaims only, not the queued theorem route",
             "kernel smoke proves only the selected registered subclaims, not the queued theorem routes",
             "queued theorem routes remain formal gaps until AXLE/local Lean verifies a non-placeholder proof",
         ],
@@ -257,6 +275,7 @@ def _row_from_route(
     proof_attempt_history: dict[str, dict[str, Any]],
     proof_search_history: dict[str, dict[str, Any]],
     graph_context: dict[str, dict[str, Any]],
+    kernel_smoke_history: dict[str, dict[str, Any]],
 ) -> FormalVerifierQueueRow:
     errors: list[str] = []
     route_id = str(route.get("route_id", ""))
@@ -278,6 +297,11 @@ def _row_from_route(
     search_summary = _summarize_proof_search_history(related_obligations, proof_search_history)
     proof_history_status = _proof_history_status(attempt_summary, search_summary)
     route_metrics = _route_planning_metrics(route, graph_context)
+    kernel_smoke_summary = _summarize_kernel_smoke_overlap(related_obligations, kernel_smoke_history)
+    source_trust_calibration_status = _source_trust_calibration_status(
+        kernel_smoke_summary,
+        kernel_manifest,
+    )
     priority_score = _priority_score(
         route,
         verification_stage,
@@ -327,6 +351,10 @@ def _row_from_route(
         semantic_faithfulness_score=int(route_metrics["semantic_faithfulness_score"]),
         semantic_faithfulness_status=str(route_metrics["semantic_faithfulness_status"]),
         semantic_review_notes=tuple(str(item) for item in route_metrics["semantic_review_notes"]),
+        kernel_smoke_related_obligations=tuple(kernel_smoke_summary["related_obligations"]),
+        kernel_smoke_related_verified=int(kernel_smoke_summary["verified"]),
+        kernel_smoke_related_total=int(kernel_smoke_summary["total"]),
+        source_trust_calibration_status=source_trust_calibration_status,
         required_primitives=required_primitives,
         related_proof_obligations=related_obligations,
         first_next_actions=first_next_actions,
@@ -349,6 +377,11 @@ def _row_from_route(
         kernel_smoke_total=int(kernel_manifest.get("n_obligations", 0) or 0),
         kernel_smoke_kernel_verified=int(kernel_manifest.get("n_kernel_verified", 0) or 0),
         route_evidence_boundary=str(route.get("evidence_boundary", "")),
+        source_trust_calibration_boundary=(
+            "Kernel-smoke overlap calibrates only related proof-bank subclaims. It does not "
+            "prove the queued theorem route until the theorem or bridge proof itself passes "
+            "AXLE/local Lean."
+        ),
         proof_history_boundary=(
             "Proof-attempt and proof-search history applies only to related proof-bank "
             "subclaims. It is subclaim feedback for routing and prioritization, not proof "
@@ -757,6 +790,58 @@ def _proof_search_history_by_obligation(rows: list[dict[str, Any]]) -> dict[str,
     return history
 
 
+def _kernel_smoke_history_by_obligation(kernel_manifest: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    history: dict[str, dict[str, Any]] = {}
+    for row in kernel_manifest.get("checks", []) or []:
+        if not isinstance(row, dict):
+            continue
+        obligation_id = str(row.get("obligation_id", "") or "")
+        if not obligation_id:
+            continue
+        history[obligation_id] = {
+            "ok": bool(row.get("ok")),
+            "kernel_verified": bool(row.get("kernel_verified")),
+            "verification_strength": str(row.get("verification_strength", "") or ""),
+            "verifier": str(row.get("verifier", "") or ""),
+        }
+    return history
+
+
+def _summarize_kernel_smoke_overlap(
+    related_obligations: tuple[str, ...],
+    kernel_smoke_history: dict[str, dict[str, Any]],
+) -> dict[str, object]:
+    related: list[str] = []
+    verified = 0
+    for obligation in related_obligations:
+        row = kernel_smoke_history.get(obligation)
+        if not row:
+            continue
+        related.append(obligation)
+        if row.get("kernel_verified"):
+            verified += 1
+    return {
+        "related_obligations": tuple(related),
+        "total": len(related),
+        "verified": verified,
+    }
+
+
+def _source_trust_calibration_status(
+    kernel_smoke_summary: dict[str, object],
+    kernel_manifest: dict[str, Any],
+) -> str:
+    total = int(kernel_smoke_summary.get("total", 0) or 0)
+    verified = int(kernel_smoke_summary.get("verified", 0) or 0)
+    if total > 0 and verified == total:
+        return "kernel_smoke_overlap_verified"
+    if total > 0:
+        return "kernel_smoke_overlap_partial_or_failed"
+    if int(kernel_manifest.get("n_obligations", 0) or 0) > 0:
+        return "kernel_smoke_no_route_overlap"
+    return "kernel_smoke_not_run"
+
+
 def _summarize_attempt_history(
     related_obligations: tuple[str, ...],
     history: dict[str, dict[str, Any]],
@@ -868,6 +953,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Proof-search solved subclaim hits: `{payload.get('n_proof_search_solved')}`",
         f"- Max dependency depth/import cone: `{payload.get('max_dependency_graph_depth')}` / `{payload.get('max_import_cone_size')}`",
         f"- Semantic review rows: `{payload.get('n_rows_semantic_needs_review')}`",
+        f"- Kernel-smoke calibrated rows: `{payload.get('n_rows_source_trust_kernel_calibrated')}`",
         "",
         "## Stage Counts",
         "",
@@ -895,6 +981,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
                 f"- Semantic faithfulness: `{row.get('semantic_faithfulness_score')}` "
                 f"({row.get('semantic_faithfulness_status')}); "
                 f"notes: {', '.join(str(item) for item in row.get('semantic_review_notes', [])) or 'none'}",
+                f"- Kernel-smoke calibration: `{row.get('source_trust_calibration_status')}` "
+                f"({row.get('kernel_smoke_related_verified')}/{row.get('kernel_smoke_related_total')} related)",
                 f"- Proof history: `{row.get('proof_history_status')}` "
                 f"({row.get('proof_attempt_positive')}/"
                 f"{row.get('proof_attempt_negative')} attempts, "
@@ -906,6 +994,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
                 "- Required primitives: "
                 + ", ".join(f"`{item}`" for item in row.get("required_primitives", [])[:10]),
                 f"- History boundary: {row.get('proof_history_boundary')}",
+                f"- Source calibration boundary: {row.get('source_trust_calibration_boundary')}",
                 f"- Boundary: {row.get('proof_evidence_boundary')}",
                 "",
             ]

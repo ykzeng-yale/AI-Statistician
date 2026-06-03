@@ -273,6 +273,14 @@ def export_rag_collaboration_manifest(
                 "formal_verifier_queue_mean_semantic_faithfulness_score",
                 formal_verifier_queue_payload.get("mean_semantic_faithfulness_score"),
             ),
+            "formal_verifier_queue_rows_with_kernel_smoke_overlap": counts.get(
+                "formal_verifier_queue_rows_with_kernel_smoke_overlap",
+                formal_verifier_queue_payload.get("n_rows_with_kernel_smoke_overlap"),
+            ),
+            "formal_verifier_queue_rows_source_trust_kernel_calibrated": counts.get(
+                "formal_verifier_queue_rows_source_trust_kernel_calibrated",
+                formal_verifier_queue_payload.get("n_rows_source_trust_kernel_calibrated"),
+            ),
             "formal_verifier_queue_manifest": str(formal_verifier_queue_path),
             "formal_verifier_queue_preview": _formal_verifier_queue_preview(
                 formal_verifier_queue_payload,
@@ -435,6 +443,9 @@ def _formal_verifier_queue_preview(
                 "dependency_graph_depth": row.get("dependency_graph_depth", 0),
                 "import_cone_size": row.get("import_cone_size", 0),
                 "source_trust_level": row.get("source_trust_level", ""),
+                "source_trust_calibration_status": row.get("source_trust_calibration_status", ""),
+                "kernel_smoke_related_verified": row.get("kernel_smoke_related_verified", 0),
+                "kernel_smoke_related_total": row.get("kernel_smoke_related_total", 0),
                 "semantic_faithfulness_score": row.get("semantic_faithfulness_score", 0),
                 "semantic_faithfulness_status": row.get("semantic_faithfulness_status", ""),
                 "proof_evidence_boundary": row.get("proof_evidence_boundary", ""),
@@ -526,6 +537,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Formal verifier source/semantic checks: max depth `{queue.get('formal_verifier_queue_max_dependency_graph_depth')}`, "
         f"max import cone `{queue.get('formal_verifier_queue_max_import_cone_size')}`, "
         f"semantic review rows `{queue.get('formal_verifier_queue_semantic_needs_review')}`",
+        f"- Formal verifier kernel calibration: `{queue.get('formal_verifier_queue_rows_source_trust_kernel_calibrated')}` "
+        f"source-trust rows calibrated by kernel-smoke overlap",
         f"- Queue: exact_reuse=`{queue.get('reuse_exact_proof_bank_obligation')}`, compose=`{queue.get('compose_existing_bridge_chain')}`, minimal_wrapper=`{queue.get('add_minimal_wrapper')}`, design_bridge=`{queue.get('design_bridge_lemma')}`",
         f"- Theorem composition packets: `{composition.get('theorem_composition_packets')}` "
         f"(exact links `{composition.get('theorem_composition_exact_proof_bank_links')}`, "
@@ -553,6 +566,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"attempts={row.get('proof_attempt_positive')}/{row.get('proof_attempt_negative')}, "
             f"search_solved={row.get('proof_search_solved')}, "
             f"source={row.get('source_trust_level')}, "
+            f"kernel_calibration={row.get('source_trust_calibration_status')}, "
             f"semantic={row.get('semantic_faithfulness_score')}/"
             f"{row.get('semantic_faithfulness_status')}]"
         )

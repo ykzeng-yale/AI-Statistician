@@ -1416,6 +1416,18 @@ async def run_research_system_audit(
             "formal_verifier_queue_mean_semantic_faithfulness_score": formal_verifier_queue_manifest[
                 "mean_semantic_faithfulness_score"
             ],
+            "formal_verifier_queue_rows_with_kernel_smoke_overlap": formal_verifier_queue_manifest[
+                "n_rows_with_kernel_smoke_overlap"
+            ],
+            "formal_verifier_queue_rows_source_trust_kernel_calibrated": formal_verifier_queue_manifest[
+                "n_rows_source_trust_kernel_calibrated"
+            ],
+            "formal_verifier_queue_kernel_smoke_related_obligations": formal_verifier_queue_manifest[
+                "n_kernel_smoke_related_obligations"
+            ],
+            "formal_verifier_queue_kernel_smoke_related_verified": formal_verifier_queue_manifest[
+                "n_kernel_smoke_related_verified"
+            ],
             "formal_verifier_queue_no_registered_rag_candidate_delta": formal_verifier_queue_manifest[
                 "no_registered_rag_candidate_delta"
             ],
