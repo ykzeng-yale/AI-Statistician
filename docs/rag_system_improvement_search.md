@@ -331,6 +331,19 @@ python3 -m ai_statistician.cli formal-verifier-agentic-proof-strategy-plan \
   --out runs/current_formal_verifier_agentic_proof_strategy_plan
 ```
 
+`formal_verifier_agentic_proof_candidate_evaluation_queue` turns each strategy
+row into a concrete candidate-generation work order. It records candidate
+database lineage, attempt budgets, evaluator pools, live Lean/MCP tool
+sequence, and promotion gates. These rows are still not proof evidence; they
+are the queue for generating and scoring proof candidates before patch-rerun
+calibration.
+
+```bash
+python3 -m ai_statistician.cli formal-verifier-agentic-proof-candidate-evaluation-queue \
+  --formal-verifier-agentic-proof-strategy-plan-dir runs/current_formal_verifier_agentic_proof_strategy_plan \
+  --out runs/current_formal_verifier_agentic_proof_candidate_evaluation_queue
+```
+
 The claim ledger can now consume that promotion manifest as an overlay. Only
 rows already marked `READY_FOR_PROOF_LEDGER_PROMOTION` with kernel evidence can
 upgrade the matching formal-gap row; awaiting responses and patch proposals

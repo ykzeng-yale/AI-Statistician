@@ -88,6 +88,9 @@ from ai_statistician.formal_verifier_replay_repair_patch_rerun_residual_followup
 from ai_statistician.formal_verifier_agentic_proof_strategy_plan import (
     export_formal_verifier_agentic_proof_strategy_plan,
 )
+from ai_statistician.formal_verifier_agentic_proof_candidate_evaluation_queue import (
+    export_formal_verifier_agentic_proof_candidate_evaluation_queue,
+)
 from ai_statistician.formal_verifier_replay_repair import export_formal_verifier_replay_repair_packets
 from ai_statistician.formalization_delta_plan import build_formalization_delta_plan
 from ai_statistician.formalization_target_audit import audit_formalization_targets
@@ -8046,6 +8049,61 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                 "runs/test_formal_verifier_agentic_proof_strategy_plan/formal_verifier_agentic_proof_strategy_plan.md"
             ).exists()
         )
+        candidate_evaluation_queue = (
+            export_formal_verifier_agentic_proof_candidate_evaluation_queue(
+                Path("runs/test_formal_verifier_agentic_proof_strategy_plan"),
+                Path(
+                    "runs/test_formal_verifier_agentic_proof_candidate_evaluation_queue"
+                ),
+            )
+        )
+        self.assertTrue(candidate_evaluation_queue["all_ok"])
+        self.assertEqual(
+            candidate_evaluation_queue["n_candidate_queue_items"],
+            agentic_strategy_plan["n_strategy_rows"],
+        )
+        self.assertEqual(candidate_evaluation_queue["n_ready"], 1)
+        self.assertEqual(candidate_evaluation_queue["n_blocked"], 0)
+        self.assertEqual(candidate_evaluation_queue["n_patch_candidate_items"], 1)
+        self.assertEqual(
+            candidate_evaluation_queue["n_source_discovery_candidate_items"],
+            0,
+        )
+        self.assertEqual(candidate_evaluation_queue["n_with_candidate_database_key"], 1)
+        self.assertEqual(candidate_evaluation_queue["n_with_live_evaluator_pool"], 1)
+        candidate_queue_row = candidate_evaluation_queue["rows"][0]
+        self.assertEqual(
+            candidate_queue_row["generation_mode"],
+            "residual_patch_candidate_generation",
+        )
+        self.assertEqual(
+            candidate_queue_row["status"],
+            "READY_FOR_CANDIDATE_GENERATION",
+        )
+        self.assertIn("lean_multi_attempt", candidate_queue_row["evaluator_pool"])
+        self.assertIn(
+            "full_route_kernel_verified",
+            candidate_queue_row["promotion_gate"],
+        )
+        self.assertIn(
+            "not theorem proof evidence",
+            candidate_queue_row["proof_evidence_boundary"],
+        )
+        self.assertTrue(
+            Path(
+                "runs/test_formal_verifier_agentic_proof_candidate_evaluation_queue/formal_verifier_agentic_proof_candidate_evaluation_queue_manifest.json"
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                "runs/test_formal_verifier_agentic_proof_candidate_evaluation_queue/formal_verifier_agentic_proof_candidate_evaluation_queue.jsonl"
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                "runs/test_formal_verifier_agentic_proof_candidate_evaluation_queue/formal_verifier_agentic_proof_candidate_evaluation_queue.md"
+            ).exists()
+        )
         self.assertTrue(
             Path(
                 "runs/test_formal_verifier_replay_repair_patch_rerun_residual_autoworker/formal_verifier_replay_repair_patch_rerun_residual_autoworker_manifest.json"
@@ -8461,6 +8519,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "formal_verifier_replay_repair_patch_rerun_residual_response_validation",
             "formal_verifier_replay_repair_patch_rerun_residual_followup_queue",
             "formal_verifier_agentic_proof_strategy_plan",
+            "formal_verifier_agentic_proof_candidate_evaluation_queue",
             "evaluation_benchmark_guidance",
         ):
             (root / subdir).mkdir(parents=True, exist_ok=True)
@@ -9581,6 +9640,76 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             ),
             encoding="utf-8",
         )
+        (
+            root
+            / "formal_verifier_agentic_proof_candidate_evaluation_queue"
+            / "formal_verifier_agentic_proof_candidate_evaluation_queue_manifest.json"
+        ).write_text(
+            json.dumps(
+                {
+                    "n_strategy_rows": 1,
+                    "n_candidate_queue_items": 1,
+                    "n_ready": 1,
+                    "n_blocked": 0,
+                    "n_patch_candidate_items": 1,
+                    "n_source_discovery_candidate_items": 0,
+                    "n_with_candidate_database_key": 1,
+                    "n_with_live_evaluator_pool": 1,
+                    "n_ok": 1,
+                    "proof_evidence_boundary": (
+                        "Agentic proof candidate evaluation queue rows are candidate-generation work orders, not theorem proof evidence."
+                    ),
+                    "rows": [
+                        {
+                            "candidate_evaluation_id": (
+                                "formal_verifier_agentic_proof_candidate_evaluation:test"
+                            ),
+                            "rank": 1,
+                            "strategy_id": (
+                                "formal_verifier_agentic_proof_strategy:test"
+                            ),
+                            "display_name": (
+                                "causal_ate_aipw:aipw_double_robustness:skeleton"
+                            ),
+                            "residual_gap": "aipw_score_definition",
+                            "generation_mode": (
+                                "residual_patch_candidate_generation"
+                            ),
+                            "candidate_database_key": (
+                                "formal_proof_candidate:test"
+                            ),
+                            "candidate_lineage_key": (
+                                "agentic_candidate_lineage:test"
+                            ),
+                            "attempt_budget": 5,
+                            "status": "READY_FOR_CANDIDATE_GENERATION",
+                            "evaluator_pool": [
+                                "lean_goal",
+                                "lean_diagnostic_messages",
+                                "lean_multi_attempt",
+                                "formal-verifier-replay-repair-patch-rerun-calibration",
+                            ],
+                            "live_tool_sequence": [
+                                "lean_goal",
+                                "lean_diagnostic_messages",
+                                "lean_multi_attempt",
+                                "formal-verifier-replay-repair-patch-rerun-calibration",
+                            ],
+                            "promotion_gate": (
+                                "candidate is proof-relevant only if patch-rerun calibration reports full_route_kernel_verified"
+                            ),
+                            "proof_evidence_status": (
+                                "AGENTIC_PROOF_CANDIDATE_EVALUATION_QUEUE_NOT_PROOF_EVIDENCE"
+                            ),
+                            "proof_evidence_boundary": (
+                                "Agentic proof candidate evaluation queue rows are candidate-generation work orders, not theorem proof evidence."
+                            ),
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
         (root / "evaluation_benchmark_guidance" / "evaluation_benchmark_guidance_manifest.json").write_text(
             json.dumps({"top_actions": [{"rank": 1, "action": "improve RAG"}]}),
             encoding="utf-8",
@@ -9752,6 +9881,14 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                         "formal_verifier_agentic_proof_strategy_plan_source_discovery_cache_items": 0,
                         "formal_verifier_agentic_proof_strategy_plan_with_live_tool_plan": 1,
                         "formal_verifier_agentic_proof_strategy_plan_ok": 1,
+                        "formal_verifier_agentic_proof_candidate_evaluation_queue_items": 1,
+                        "formal_verifier_agentic_proof_candidate_evaluation_queue_ready": 1,
+                        "formal_verifier_agentic_proof_candidate_evaluation_queue_blocked": 0,
+                        "formal_verifier_agentic_proof_candidate_evaluation_queue_patch_candidates": 1,
+                        "formal_verifier_agentic_proof_candidate_evaluation_queue_source_discovery_candidates": 0,
+                        "formal_verifier_agentic_proof_candidate_evaluation_queue_with_candidate_database_key": 1,
+                        "formal_verifier_agentic_proof_candidate_evaluation_queue_with_live_evaluator_pool": 1,
+                        "formal_verifier_agentic_proof_candidate_evaluation_queue_ok": 1,
                         "claim_ledger_repair_response_promotion_overlay_enabled": True,
                         "claim_ledger_repair_response_promotion_overlay_rows": 0,
                         "claim_ledger_repair_response_promotion_upgrades": 0,
@@ -9907,6 +10044,11 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                             root
                             / "formal_verifier_agentic_proof_strategy_plan"
                             / "formal_verifier_agentic_proof_strategy_plan_manifest.json"
+                        ),
+                        "formal_verifier_agentic_proof_candidate_evaluation_queue": str(
+                            root
+                            / "formal_verifier_agentic_proof_candidate_evaluation_queue"
+                            / "formal_verifier_agentic_proof_candidate_evaluation_queue_manifest.json"
                         ),
                         "evaluation_benchmark_guidance": str(
                             root
@@ -10522,6 +10664,54 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "not theorem proof evidence",
             strategy_preview["proof_evidence_boundary"],
         )
+        self.assertEqual(
+            payload["formal_capacity_queue"][
+                "formal_verifier_agentic_proof_candidate_evaluation_queue_items"
+            ],
+            1,
+        )
+        self.assertEqual(
+            payload["formal_capacity_queue"][
+                "formal_verifier_agentic_proof_candidate_evaluation_queue_ready"
+            ],
+            1,
+        )
+        self.assertEqual(
+            payload["formal_capacity_queue"][
+                "formal_verifier_agentic_proof_candidate_evaluation_queue_patch_candidates"
+            ],
+            1,
+        )
+        self.assertEqual(
+            payload["formal_capacity_queue"][
+                "formal_verifier_agentic_proof_candidate_evaluation_queue_source_discovery_candidates"
+            ],
+            0,
+        )
+        candidate_queue_preview = payload["formal_capacity_queue"][
+            "formal_verifier_agentic_proof_candidate_evaluation_queue_preview"
+        ][0]
+        self.assertEqual(
+            candidate_queue_preview["generation_mode"],
+            "residual_patch_candidate_generation",
+        )
+        self.assertEqual(
+            candidate_queue_preview["status"],
+            "READY_FOR_CANDIDATE_GENERATION",
+        )
+        self.assertIn("lean_multi_attempt", candidate_queue_preview["evaluator_pool"])
+        self.assertIn(
+            "agentic_candidate_lineage",
+            candidate_queue_preview["candidate_lineage_key"],
+        )
+        self.assertIn(
+            "full_route_kernel_verified",
+            candidate_queue_preview["promotion_gate"],
+        )
+        self.assertIn(
+            "not theorem proof evidence",
+            candidate_queue_preview["proof_evidence_boundary"],
+        )
         self.assertIn(
             "residual prompt packets",
             " ".join(payload["honesty_boundaries"]),
@@ -10540,6 +10730,10 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         )
         self.assertIn(
             "agentic proof strategy plan",
+            " ".join(payload["honesty_boundaries"]),
+        )
+        self.assertIn(
+            "agentic proof candidate evaluation queue",
             " ".join(payload["honesty_boundaries"]),
         )
         self.assertTrue(
@@ -12485,6 +12679,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["gates"]["formal_verifier_replay_repair_patch_rerun_residual_response_validation"])
         self.assertTrue(payload["gates"]["formal_verifier_replay_repair_patch_rerun_residual_followup_queue"])
         self.assertTrue(payload["gates"]["formal_verifier_agentic_proof_strategy_plan"])
+        self.assertTrue(payload["gates"]["formal_verifier_agentic_proof_candidate_evaluation_queue"])
         self.assertTrue(payload["gates"]["research_training_export"])
         self.assertTrue(payload["gates"]["research_policy_baseline"])
         self.assertTrue(payload["gates"]["next_iteration_queue"])
@@ -12787,6 +12982,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "formal_verifier_replay_repair_patch_rerun_residual_response_validation",
             "formal_verifier_replay_repair_patch_rerun_residual_followup_queue",
             "formal_verifier_agentic_proof_strategy_plan",
+            "formal_verifier_agentic_proof_candidate_evaluation_queue",
             "research_training_export",
             "research_policy_baseline",
             "next_iteration_queue",
@@ -13514,6 +13710,54 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             payload["counts"]["formal_verifier_agentic_proof_strategy_plan_ok"],
             0,
         )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_agentic_proof_candidate_evaluation_queue_items"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_agentic_proof_candidate_evaluation_queue_ready"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_agentic_proof_candidate_evaluation_queue_blocked"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_agentic_proof_candidate_evaluation_queue_patch_candidates"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_agentic_proof_candidate_evaluation_queue_source_discovery_candidates"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_agentic_proof_candidate_evaluation_queue_with_candidate_database_key"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_agentic_proof_candidate_evaluation_queue_with_live_evaluator_pool"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_agentic_proof_candidate_evaluation_queue_ok"
+            ],
+            0,
+        )
         self.assertTrue(Path(payload["artifacts"]["formalization_delta_plan"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formalization_delta_graph"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_verifier_queue"]).exists())
@@ -13797,6 +14041,27 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             Path(
                 payload["artifacts"][
                     "formal_verifier_agentic_proof_strategy_plan_report"
+                ]
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formal_verifier_agentic_proof_candidate_evaluation_queue"
+                ]
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formal_verifier_agentic_proof_candidate_evaluation_queue_jsonl"
+                ]
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formal_verifier_agentic_proof_candidate_evaluation_queue_report"
                 ]
             ).exists()
         )

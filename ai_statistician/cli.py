@@ -89,6 +89,9 @@ from .formal_verifier_replay_repair_patch_rerun_residual_followup_queue import (
 from .formal_verifier_agentic_proof_strategy_plan import (
     export_formal_verifier_agentic_proof_strategy_plan,
 )
+from .formal_verifier_agentic_proof_candidate_evaluation_queue import (
+    export_formal_verifier_agentic_proof_candidate_evaluation_queue,
+)
 from .formal_verifier_replay_repair import export_formal_verifier_replay_repair_packets
 from .formal_source_graph import audit_formal_source_graph
 from .formal_source_index import (
@@ -1974,6 +1977,39 @@ def _formal_verifier_agentic_proof_strategy_plan(
     print(
         f"markdown report written to "
         f"{(Path(args.out) / 'formal_verifier_agentic_proof_strategy_plan.md').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formal_verifier_agentic_proof_candidate_evaluation_queue(
+    args: argparse.Namespace,
+) -> int:
+    payload = export_formal_verifier_agentic_proof_candidate_evaluation_queue(
+        Path(args.formal_verifier_agentic_proof_strategy_plan_dir),
+        Path(args.out),
+    )
+    print("\nAI Statistical Theory Lab Formal Verifier Agentic Proof Candidate Evaluation Queue")
+    print("=" * 72)
+    print(
+        f"items={payload['n_ok']}/{payload['n_candidate_queue_items']} "
+        f"ready={payload['n_ready']} "
+        f"blocked={payload['n_blocked']} "
+        f"patch_candidates={payload['n_patch_candidate_items']} "
+        f"source_discovery_candidates={payload['n_source_discovery_candidate_items']} "
+        f"with_live_evaluator_pool={payload['n_with_live_evaluator_pool']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nagentic proof candidate evaluation queue manifest written to "
+        f"{(Path(args.out) / 'formal_verifier_agentic_proof_candidate_evaluation_queue_manifest.json').resolve()}"
+    )
+    print(
+        f"agentic proof candidate evaluation queue jsonl written to "
+        f"{(Path(args.out) / 'formal_verifier_agentic_proof_candidate_evaluation_queue.jsonl').resolve()}"
+    )
+    print(
+        f"markdown report written to "
+        f"{(Path(args.out) / 'formal_verifier_agentic_proof_candidate_evaluation_queue.md').resolve()}"
     )
     return 0 if payload["all_ok"] else 1
 
@@ -4257,6 +4293,24 @@ def build_parser() -> argparse.ArgumentParser:
     )
     formal_verifier_agentic_proof_strategy_plan.set_defaults(
         func=_formal_verifier_agentic_proof_strategy_plan
+    )
+
+    formal_verifier_agentic_proof_candidate_evaluation_queue = sub.add_parser(
+        "formal-verifier-agentic-proof-candidate-evaluation-queue",
+        help="queue candidate generation/evaluation work from agentic proof strategy rows",
+    )
+    formal_verifier_agentic_proof_candidate_evaluation_queue.add_argument(
+        "--formal-verifier-agentic-proof-strategy-plan-dir",
+        required=True,
+        help="directory containing formal_verifier_agentic_proof_strategy_plan_manifest.json",
+    )
+    formal_verifier_agentic_proof_candidate_evaluation_queue.add_argument(
+        "--out",
+        default="runs/formal_verifier_agentic_proof_candidate_evaluation_queue",
+        help="formal-verifier agentic proof candidate evaluation queue output directory",
+    )
+    formal_verifier_agentic_proof_candidate_evaluation_queue.set_defaults(
+        func=_formal_verifier_agentic_proof_candidate_evaluation_queue
     )
 
     rag_collaboration_export = sub.add_parser(

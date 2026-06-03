@@ -210,6 +210,14 @@ def export_rag_collaboration_manifest(
     formal_verifier_agentic_proof_strategy_plan_payload = _read_json(
         formal_verifier_agentic_proof_strategy_plan_path
     )
+    formal_verifier_agentic_proof_candidate_evaluation_queue_path = _artifact_path(
+        artifacts,
+        "formal_verifier_agentic_proof_candidate_evaluation_queue",
+        run_dir,
+    )
+    formal_verifier_agentic_proof_candidate_evaluation_queue_payload = _read_json(
+        formal_verifier_agentic_proof_candidate_evaluation_queue_path
+    )
     guidance_payload = _read_json(_artifact_path(artifacts, "evaluation_benchmark_guidance", run_dir))
 
     target_rows = _handoff_targets(
@@ -1087,6 +1095,43 @@ def export_rag_collaboration_manifest(
                 formal_verifier_agentic_proof_strategy_plan_payload,
                 max_rows=min(max_targets, 10),
             ),
+            "formal_verifier_agentic_proof_candidate_evaluation_queue_items": counts.get(
+                "formal_verifier_agentic_proof_candidate_evaluation_queue_items",
+                formal_verifier_agentic_proof_candidate_evaluation_queue_payload.get(
+                    "n_candidate_queue_items"
+                ),
+            ),
+            "formal_verifier_agentic_proof_candidate_evaluation_queue_ready": counts.get(
+                "formal_verifier_agentic_proof_candidate_evaluation_queue_ready",
+                formal_verifier_agentic_proof_candidate_evaluation_queue_payload.get(
+                    "n_ready"
+                ),
+            ),
+            "formal_verifier_agentic_proof_candidate_evaluation_queue_blocked": counts.get(
+                "formal_verifier_agentic_proof_candidate_evaluation_queue_blocked",
+                formal_verifier_agentic_proof_candidate_evaluation_queue_payload.get(
+                    "n_blocked"
+                ),
+            ),
+            "formal_verifier_agentic_proof_candidate_evaluation_queue_patch_candidates": counts.get(
+                "formal_verifier_agentic_proof_candidate_evaluation_queue_patch_candidates",
+                formal_verifier_agentic_proof_candidate_evaluation_queue_payload.get(
+                    "n_patch_candidate_items"
+                ),
+            ),
+            "formal_verifier_agentic_proof_candidate_evaluation_queue_source_discovery_candidates": counts.get(
+                "formal_verifier_agentic_proof_candidate_evaluation_queue_source_discovery_candidates",
+                formal_verifier_agentic_proof_candidate_evaluation_queue_payload.get(
+                    "n_source_discovery_candidate_items"
+                ),
+            ),
+            "formal_verifier_agentic_proof_candidate_evaluation_queue_manifest": str(
+                formal_verifier_agentic_proof_candidate_evaluation_queue_path
+            ),
+            "formal_verifier_agentic_proof_candidate_evaluation_queue_preview": _formal_verifier_agentic_proof_candidate_evaluation_queue_preview(
+                formal_verifier_agentic_proof_candidate_evaluation_queue_payload,
+                max_rows=min(max_targets, 10),
+            ),
             "claim_ledger_repair_response_promotion_overlay_enabled": counts.get(
                 "claim_ledger_repair_response_promotion_overlay_enabled"
             ),
@@ -1152,6 +1197,7 @@ def export_rag_collaboration_manifest(
             "FormalVerifier repair patch rerun residual response validation accepts proof claims only with full_route_kernel_verified evidence.",
             "FormalVerifier repair patch rerun residual follow-up queue rows are operational work items, not theorem proof evidence.",
             "FormalVerifier agentic proof strategy plan rows are search/evaluator plans, not theorem proof evidence.",
+            "FormalVerifier agentic proof candidate evaluation queue rows are candidate-generation work orders, not theorem proof evidence.",
             "Claim-ledger repair-response promotion overlays close formal gaps only for matching ready kernel-verified promotion rows.",
             "FORMAL_GAP and theorem-hole queues remain open until a non-placeholder Lean proof is verified.",
         ],
@@ -1958,6 +2004,42 @@ def _formal_verifier_agentic_proof_strategy_plan_preview(
     return rows
 
 
+def _formal_verifier_agentic_proof_candidate_evaluation_queue_preview(
+    payload: dict[str, Any],
+    *,
+    max_rows: int,
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    queue_rows = payload.get("rows", [])
+    if not isinstance(queue_rows, list):
+        return rows
+    for row in queue_rows:
+        if not isinstance(row, dict):
+            continue
+        rows.append(
+            {
+                "candidate_evaluation_id": row.get("candidate_evaluation_id"),
+                "rank": row.get("rank"),
+                "strategy_id": row.get("strategy_id"),
+                "display_name": row.get("display_name"),
+                "residual_gap": row.get("residual_gap"),
+                "generation_mode": row.get("generation_mode", ""),
+                "candidate_database_key": row.get("candidate_database_key", ""),
+                "candidate_lineage_key": row.get("candidate_lineage_key", ""),
+                "attempt_budget": row.get("attempt_budget", 0),
+                "status": row.get("status", ""),
+                "evaluator_pool": row.get("evaluator_pool", [])[:8],
+                "live_tool_sequence": row.get("live_tool_sequence", [])[:8],
+                "promotion_gate": row.get("promotion_gate", ""),
+                "proof_evidence_status": row.get("proof_evidence_status", ""),
+                "proof_evidence_boundary": row.get("proof_evidence_boundary", ""),
+            }
+        )
+        if len(rows) >= max_rows:
+            break
+    return rows
+
+
 def _theorem_composition_packet_preview(
     payload: dict[str, Any],
     *,
@@ -2110,6 +2192,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Formal verifier agentic proof strategy plan: `{queue.get('formal_verifier_agentic_proof_strategy_plan_rows')}` rows "
         f"(`{queue.get('formal_verifier_agentic_proof_strategy_plan_patch_evolve_blocks')}` patch evolve blocks, "
         f"`{queue.get('formal_verifier_agentic_proof_strategy_plan_source_discovery_cache_items')}` source-discovery cache items)",
+        f"- Formal verifier agentic proof candidate evaluation queue: `{queue.get('formal_verifier_agentic_proof_candidate_evaluation_queue_items')}` items "
+        f"(`{queue.get('formal_verifier_agentic_proof_candidate_evaluation_queue_patch_candidates')}` patch candidates, "
+        f"`{queue.get('formal_verifier_agentic_proof_candidate_evaluation_queue_source_discovery_candidates')}` source-discovery candidates)",
         "- Claim-ledger repair-response promotion overlay: "
         f"`{queue.get('claim_ledger_repair_response_promotion_upgrades')}` upgrades from "
         f"`{queue.get('claim_ledger_repair_response_promotion_overlay_rows')}` ready rows",
@@ -2347,6 +2432,27 @@ def _markdown_report(payload: dict[str, object]) -> str:
         lines.append(f"  live tools: {tools}")
         lines.append(f"  evaluator gates: {gates}")
         lines.append(f"  candidate DB key: `{row.get('candidate_database_key')}`")
+        lines.append(f"  proof status: {row.get('proof_evidence_status')}")
+        lines.append(f"  boundary: {row.get('proof_evidence_boundary')}")
+    lines.extend(["", "## Agentic Proof Candidate Evaluation Queue", ""])
+    for row in queue.get(
+        "formal_verifier_agentic_proof_candidate_evaluation_queue_preview",
+        [],
+    ):
+        if not isinstance(row, dict):
+            continue
+        lines.append(
+            f"- #{row.get('rank')} `{row.get('display_name')}` -> `{row.get('residual_gap')}` "
+            f"({row.get('status')}): {row.get('generation_mode')}"
+        )
+        evaluators = ", ".join(f"`{item}`" for item in row.get("evaluator_pool", [])) or "none"
+        sequence = ", ".join(f"`{item}`" for item in row.get("live_tool_sequence", [])) or "none"
+        lines.append(f"  candidate DB key: `{row.get('candidate_database_key')}`")
+        lines.append(f"  lineage key: `{row.get('candidate_lineage_key')}`")
+        lines.append(f"  attempt budget: {row.get('attempt_budget')}")
+        lines.append(f"  evaluator pool: {evaluators}")
+        lines.append(f"  live tool sequence: {sequence}")
+        lines.append(f"  promotion gate: {row.get('promotion_gate')}")
         lines.append(f"  proof status: {row.get('proof_evidence_status')}")
         lines.append(f"  boundary: {row.get('proof_evidence_boundary')}")
     lines.extend(["", "## Theorem Composition Handoff", ""])

@@ -85,6 +85,9 @@ from .formal_verifier_replay_repair_patch_rerun_residual_followup_queue import (
 from .formal_verifier_agentic_proof_strategy_plan import (
     export_formal_verifier_agentic_proof_strategy_plan,
 )
+from .formal_verifier_agentic_proof_candidate_evaluation_queue import (
+    export_formal_verifier_agentic_proof_candidate_evaluation_queue,
+)
 from .formal_verifier_replay_repair import export_formal_verifier_replay_repair_packets
 from .formal_source_graph import audit_formal_source_graph
 from .formal_source_hybrid import FormalSourceHybridRetriever
@@ -812,6 +815,17 @@ async def run_research_system_audit(
         "formal_verifier_agentic_proof_strategy_plan",
         stage_start,
     )
+    formal_verifier_agentic_proof_candidate_evaluation_queue_manifest = (
+        export_formal_verifier_agentic_proof_candidate_evaluation_queue(
+            out_dir / "formal_verifier_agentic_proof_strategy_plan",
+            out_dir / "formal_verifier_agentic_proof_candidate_evaluation_queue",
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "formal_verifier_agentic_proof_candidate_evaluation_queue",
+        stage_start,
+    )
 
     research_training_manifest = export_research_training_dataset(
         out_dir / "research_benchmark",
@@ -1085,6 +1099,9 @@ async def run_research_system_audit(
         "formal_verifier_agentic_proof_strategy_plan": bool(
             formal_verifier_agentic_proof_strategy_plan_manifest["all_ok"]
         ),
+        "formal_verifier_agentic_proof_candidate_evaluation_queue": bool(
+            formal_verifier_agentic_proof_candidate_evaluation_queue_manifest["all_ok"]
+        ),
         "research_training_export": bool(research_training_manifest["all_ok"]),
         "research_policy_baseline": bool(research_policy_manifest["all_ok"]),
         "next_iteration_queue": bool(next_iteration_manifest["all_ok"]),
@@ -1140,6 +1157,7 @@ async def run_research_system_audit(
         "formal_verifier_replay_repair_patch_rerun_residual_response_validation",
         "formal_verifier_replay_repair_patch_rerun_residual_followup_queue",
         "formal_verifier_agentic_proof_strategy_plan",
+        "formal_verifier_agentic_proof_candidate_evaluation_queue",
         "research_training_export",
         "research_policy_baseline",
         "next_iteration_queue",
@@ -2290,6 +2308,30 @@ async def run_research_system_audit(
             "formal_verifier_agentic_proof_strategy_plan_ok": formal_verifier_agentic_proof_strategy_plan_manifest[
                 "n_ok"
             ],
+            "formal_verifier_agentic_proof_candidate_evaluation_queue_items": formal_verifier_agentic_proof_candidate_evaluation_queue_manifest[
+                "n_candidate_queue_items"
+            ],
+            "formal_verifier_agentic_proof_candidate_evaluation_queue_ready": formal_verifier_agentic_proof_candidate_evaluation_queue_manifest[
+                "n_ready"
+            ],
+            "formal_verifier_agentic_proof_candidate_evaluation_queue_blocked": formal_verifier_agentic_proof_candidate_evaluation_queue_manifest[
+                "n_blocked"
+            ],
+            "formal_verifier_agentic_proof_candidate_evaluation_queue_patch_candidates": formal_verifier_agentic_proof_candidate_evaluation_queue_manifest[
+                "n_patch_candidate_items"
+            ],
+            "formal_verifier_agentic_proof_candidate_evaluation_queue_source_discovery_candidates": formal_verifier_agentic_proof_candidate_evaluation_queue_manifest[
+                "n_source_discovery_candidate_items"
+            ],
+            "formal_verifier_agentic_proof_candidate_evaluation_queue_with_candidate_database_key": formal_verifier_agentic_proof_candidate_evaluation_queue_manifest[
+                "n_with_candidate_database_key"
+            ],
+            "formal_verifier_agentic_proof_candidate_evaluation_queue_with_live_evaluator_pool": formal_verifier_agentic_proof_candidate_evaluation_queue_manifest[
+                "n_with_live_evaluator_pool"
+            ],
+            "formal_verifier_agentic_proof_candidate_evaluation_queue_ok": formal_verifier_agentic_proof_candidate_evaluation_queue_manifest[
+                "n_ok"
+            ],
             "proof_bank_actions_high_priority": proof_bank_action_manifest["by_priority"].get("high", 0),
             "proof_bank_actions_medium_priority": proof_bank_action_manifest["by_priority"].get("medium", 0),
             "proof_bank_actions_low_priority": proof_bank_action_manifest["by_priority"].get("low", 0),
@@ -3179,6 +3221,21 @@ async def run_research_system_audit(
                 out_dir
                 / "formal_verifier_agentic_proof_strategy_plan"
                 / "formal_verifier_agentic_proof_strategy_plan.md"
+            ),
+            "formal_verifier_agentic_proof_candidate_evaluation_queue": str(
+                out_dir
+                / "formal_verifier_agentic_proof_candidate_evaluation_queue"
+                / "formal_verifier_agentic_proof_candidate_evaluation_queue_manifest.json"
+            ),
+            "formal_verifier_agentic_proof_candidate_evaluation_queue_jsonl": str(
+                out_dir
+                / "formal_verifier_agentic_proof_candidate_evaluation_queue"
+                / "formal_verifier_agentic_proof_candidate_evaluation_queue.jsonl"
+            ),
+            "formal_verifier_agentic_proof_candidate_evaluation_queue_report": str(
+                out_dir
+                / "formal_verifier_agentic_proof_candidate_evaluation_queue"
+                / "formal_verifier_agentic_proof_candidate_evaluation_queue.md"
             ),
             "primitive_source_coverage": str(
                 out_dir / "primitive_source_coverage" / "primitive_source_coverage_manifest.json"

@@ -455,6 +455,10 @@ Lean proof-state loops, proof-sketch/global-goal-cache reuse, and scoped
 evolve-block candidate evaluation. It reports patch-evolve and source-discovery
 cache work as search plans only; promotion still requires local Lean/kernel
 calibration and residual-gap validation.
+The follow-on `formal_verifier_agentic_proof_candidate_evaluation_queue` gate
+adds candidate database lineage, attempt budgets, evaluator pools, live-tool
+sequences, and promotion gates, turning those plans into auditable work orders
+for proof-candidate generation without upgrading them to proof evidence.
 
 `formal-verifier-queue` is the handoff from that diagnostic to theorem work:
 it records whether hard-mode dependency-graph RAG increased the candidate
