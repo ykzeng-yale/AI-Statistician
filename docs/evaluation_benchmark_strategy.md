@@ -261,6 +261,11 @@ Current release signal:
   proof-body templates are not proof evidence; they are accepted only after the
   repaired route is rerun through AXLE/local Lean and calibrates as
   `full_route_kernel_verified`.
+- `formal-verifier-replay-repair-application-export` turns those repair packets
+  into per-route Lean repair scaffolds and rerun-command tasks. The scaffolds
+  point at the candidate bridge/import/type repair and the failed
+  placeholder-stripped target, but they are still work artifacts only; evidence
+  begins after the repaired route is rerun and kernel calibrated.
 - compose-existing bridge-chain opportunities are now 51
 - minimal-wrapper debt is now 2, down from 10 after adding the robust
   median-of-means, conformal rank/quantile, and continuous-mapping wrappers

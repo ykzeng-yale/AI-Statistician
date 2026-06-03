@@ -387,9 +387,13 @@ def _priority_score(task: dict[str, Any], row: dict[str, Any]) -> int:
 
 
 def _target_theorem_name(formal_statement: str, display_name: str) -> str:
-    match = re.search(r"\btheorem\s+([A-Za-z_][A-Za-z0-9_']*)\b", formal_statement)
-    if match:
-        return match.group(1)
+    for line in formal_statement.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith("theorem "):
+            continue
+        match = re.match(r"theorem\s+([A-Za-z_][A-Za-z0-9_']*)\b", stripped)
+        if match:
+            return match.group(1)
     cleaned = re.sub(r"[^A-Za-z0-9_]+", "_", display_name).strip("_")
     return cleaned or "replay_target"
 

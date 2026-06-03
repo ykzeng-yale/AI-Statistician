@@ -137,6 +137,11 @@ a candidate bridge/import/type-alignment plan. These packets are repair work
 contracts only; their proof templates are not proof evidence until the repaired
 route is rerun and calibrates as kernel verified.
 
+The next handoff layer is `formal_verifier_replay_repair_application`. It writes
+per-packet Lean repair scaffolds and rerun-command tasks, so a RAG/prover worker
+can open a concrete bridge/import/type repair file, patch it, rerun the replay
+attempt, and feed the result back into calibration.
+
 ## Next Build Targets
 
 1. Expand library-aware minimal formalization planning:
@@ -158,7 +163,9 @@ route is rerun and calibrates as kernel verified.
    use `formal-verifier-replay-attempts --local-lean` on the highest-priority
    tasks, then use `formal-verifier-replay-calibration` and
    `formal-verifier-replay-repair-export` to turn the resulting Lean errors
-   into route-specific bridge/composition work packets.
+   into route-specific bridge/composition work packets, followed by
+   `formal-verifier-replay-repair-application-export` to produce the concrete
+   Lean scaffold queue for patching and rerun.
 2. Add query-intent expansion for missing primitives:
    primitive name, theorem goal, problem class, local gap reason, and candidate
    proof-bank bridge names should all become retriever queries.
@@ -241,6 +248,17 @@ python3 -m ai_statistician.cli formal-verifier-replay-repair-export \
 This exports the concrete repair packet queue for failed replay attempts. Apply
 the bridge/import/type repair, rerun `formal-verifier-replay-attempts`, and only
 promote routes whose recalibration reports a kernel-verified full-route proof.
+
+```bash
+python3 -m ai_statistician.cli formal-verifier-replay-repair-application-export \
+  --formal-verifier-replay-repair-dir runs/current/formal_verifier_replay_repair \
+  --formal-verifier-replay-attempt-dir runs/current/formal_verifier_replay_attempts \
+  --out runs/current/formal_verifier_replay_repair_application
+```
+
+This writes the per-route Lean repair scaffolds under
+`lean_repair_tasks/`. They are not checked proof artifacts; they are the patch
+surface for the next replay attempt.
 
 ## Honesty Boundary
 
