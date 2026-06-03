@@ -348,6 +348,9 @@ Current release signal:
 - `formal-verifier-replay-repair-execution-queue` ranks validated repair
   scaffolds into prover/RAG patch work orders with rerun commands and explicit
   promotion gates; queue rows are still not proof evidence
+- `formal-verifier-replay-repair-prompt-packets` packages ready repair work
+  orders into self-contained prover/RAG prompts with scaffold source, output
+  contracts, forbidden proof claims, and replay-calibration gates
 - release-speed `research-system-audit` runs can add a targeted local-kernel
   smoke overlay, for example:
 

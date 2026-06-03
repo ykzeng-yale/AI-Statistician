@@ -156,6 +156,12 @@ status, artifact path, candidate bridge lemma, replay subclaims, and rerun
 commands into the next concrete RAG/prover action. Queue rows are not proof
 evidence; they only make the next repair attempt explicit and auditable.
 
+`formal_verifier_replay_repair_prompt_packets` turns ready execution-queue rows
+into self-contained prover/RAG prompts. Each packet includes the current scaffold
+source, candidate bridge, replay subclaims, rerun commands, forbidden proof
+claims, and an expected JSON output contract. Prompt packets are worker
+instructions only; they are not proof evidence.
+
 ## Next Build Targets
 
 1. Expand library-aware minimal formalization planning:
@@ -296,6 +302,18 @@ python3 -m ai_statistician.cli formal-verifier-replay-repair-execution-queue \
 This writes the ranked repair-patch work orders. Patch the highest-ranked
 validated scaffold first, rerun the replay-attempt and calibration commands in
 the row, and keep the theorem as a formal gap unless calibration returns
+`full_route_kernel_verified`.
+
+```bash
+python3 -m ai_statistician.cli formal-verifier-replay-repair-prompt-packets \
+  --formal-verifier-replay-repair-execution-queue-dir runs/current/formal_verifier_replay_repair_execution_queue \
+  --formal-verifier-replay-repair-application-dir runs/current/formal_verifier_replay_repair_application \
+  --out runs/current/formal_verifier_replay_repair_prompt_packets
+```
+
+These packets are the direct handoff to a prover/RAG worker. The worker must
+return patch and rerun evidence under the packet's output contract; theorem
+closure is accepted only after replay calibration reports
 `full_route_kernel_verified`.
 
 ## Honesty Boundary

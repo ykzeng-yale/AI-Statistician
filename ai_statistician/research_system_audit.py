@@ -46,6 +46,9 @@ from .formal_verifier_replay_repair_application_validation import (
 from .formal_verifier_replay_repair_execution_queue import (
     export_formal_verifier_replay_repair_execution_queue,
 )
+from .formal_verifier_replay_repair_prompt_packets import (
+    export_formal_verifier_replay_repair_prompt_packets,
+)
 from .formal_verifier_replay_repair import export_formal_verifier_replay_repair_packets
 from .formal_source_graph import audit_formal_source_graph
 from .formal_source_hybrid import FormalSourceHybridRetriever
@@ -591,6 +594,18 @@ async def run_research_system_audit(
         "formal_verifier_replay_repair_execution_queue",
         stage_start,
     )
+    formal_verifier_replay_repair_prompt_packets_manifest = (
+        export_formal_verifier_replay_repair_prompt_packets(
+            out_dir / "formal_verifier_replay_repair_execution_queue",
+            out_dir / "formal_verifier_replay_repair_application",
+            out_dir / "formal_verifier_replay_repair_prompt_packets",
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "formal_verifier_replay_repair_prompt_packets",
+        stage_start,
+    )
 
     research_training_manifest = export_research_training_dataset(
         out_dir / "research_benchmark",
@@ -809,6 +824,9 @@ async def run_research_system_audit(
         "formal_verifier_replay_repair_execution_queue": bool(
             formal_verifier_replay_repair_execution_queue_manifest["all_ok"]
         ),
+        "formal_verifier_replay_repair_prompt_packets": bool(
+            formal_verifier_replay_repair_prompt_packets_manifest["all_ok"]
+        ),
         "research_training_export": bool(research_training_manifest["all_ok"]),
         "research_policy_baseline": bool(research_policy_manifest["all_ok"]),
         "next_iteration_queue": bool(next_iteration_manifest["all_ok"]),
@@ -851,6 +869,7 @@ async def run_research_system_audit(
         "formal_verifier_replay_repair_application",
         "formal_verifier_replay_repair_application_validation",
         "formal_verifier_replay_repair_execution_queue",
+        "formal_verifier_replay_repair_prompt_packets",
         "research_training_export",
         "research_policy_baseline",
         "next_iteration_queue",
@@ -1718,6 +1737,21 @@ async def run_research_system_audit(
             "formal_verifier_replay_repair_execution_queue_placeholder_free": formal_verifier_replay_repair_execution_queue_manifest[
                 "n_placeholder_free"
             ],
+            "formal_verifier_replay_repair_prompt_packets": formal_verifier_replay_repair_prompt_packets_manifest[
+                "n_prompt_packets"
+            ],
+            "formal_verifier_replay_repair_prompt_packets_ok": formal_verifier_replay_repair_prompt_packets_manifest[
+                "n_ok"
+            ],
+            "formal_verifier_replay_repair_prompt_packets_with_scaffold_source": formal_verifier_replay_repair_prompt_packets_manifest[
+                "n_with_scaffold_source"
+            ],
+            "formal_verifier_replay_repair_prompt_packets_with_command_plan": formal_verifier_replay_repair_prompt_packets_manifest[
+                "n_with_command_plan"
+            ],
+            "formal_verifier_replay_repair_prompt_packets_local_lean_compiled_scaffold": formal_verifier_replay_repair_prompt_packets_manifest[
+                "n_local_lean_compiled_scaffold"
+            ],
             "proof_bank_actions_high_priority": proof_bank_action_manifest["by_priority"].get("high", 0),
             "proof_bank_actions_medium_priority": proof_bank_action_manifest["by_priority"].get("medium", 0),
             "proof_bank_actions_low_priority": proof_bank_action_manifest["by_priority"].get("low", 0),
@@ -2397,6 +2431,21 @@ async def run_research_system_audit(
                 out_dir
                 / "formal_verifier_replay_repair_execution_queue"
                 / "formal_verifier_replay_repair_execution_queue.md"
+            ),
+            "formal_verifier_replay_repair_prompt_packets": str(
+                out_dir
+                / "formal_verifier_replay_repair_prompt_packets"
+                / "formal_verifier_replay_repair_prompt_packets_manifest.json"
+            ),
+            "formal_verifier_replay_repair_prompt_packets_jsonl": str(
+                out_dir
+                / "formal_verifier_replay_repair_prompt_packets"
+                / "formal_verifier_replay_repair_prompt_packets.jsonl"
+            ),
+            "formal_verifier_replay_repair_prompt_packets_report": str(
+                out_dir
+                / "formal_verifier_replay_repair_prompt_packets"
+                / "formal_verifier_replay_repair_prompt_packets.md"
             ),
             "primitive_source_coverage": str(
                 out_dir / "primitive_source_coverage" / "primitive_source_coverage_manifest.json"
