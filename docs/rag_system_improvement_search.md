@@ -188,6 +188,19 @@ python3 -m ai_statistician.cli formal-verifier-replay-repair-patch-response-vali
   --out runs/current_formal_verifier_replay_repair_patch_response_validation
 ```
 
+`formal_verifier_replay_repair_patch_response_promotion` is the next proof
+boundary. It reads validated responses and exports proof-ledger promotion rows
+only for accepted full-route kernel-verified repairs whose replay attempt and
+calibration manifests corroborate the claim. Awaiting responses and patch
+proposals stay non-evidence, and promotion rows are ledger-update contracts, not
+ledger mutations.
+
+```bash
+python3 -m ai_statistician.cli formal-verifier-replay-repair-patch-response-promotion \
+  --formal-verifier-replay-repair-patch-response-validation-dir runs/current_formal_verifier_replay_repair_patch_response_validation \
+  --out runs/current_formal_verifier_replay_repair_patch_response_promotion
+```
+
 ## Next Build Targets
 
 1. Expand library-aware minimal formalization planning:
@@ -213,7 +226,9 @@ python3 -m ai_statistician.cli formal-verifier-replay-repair-patch-response-vali
    `formal-verifier-replay-repair-application-export` to produce the concrete
    Lean scaffold queue for patching and rerun, and finally
    `formal-verifier-replay-repair-patch-response-validation` to reject malformed
-   or overclaiming worker responses before any proof claim is promoted.
+   or overclaiming worker responses before
+   `formal-verifier-replay-repair-patch-response-promotion` exposes only
+   corroborated full-route kernel repairs as proof-ledger promotion candidates.
 2. Add query-intent expansion for missing primitives:
    primitive name, theorem goal, problem class, local gap reason, and candidate
    proof-bank bridge names should all become retriever queries.

@@ -296,6 +296,9 @@ Pass criteria:
 - every formal-verifier repair response validation row records whether a worker
   response is awaiting, a non-evidence patch proposal, an accepted
   full-route-kernel proof artifact, or a rejected unsupported proof claim
+- every formal-verifier repair response promotion row records whether a
+  validated response is awaiting, needs replay calibration, is blocked by
+  evidence-manifest mismatch, or is ready for proof-ledger promotion
 - kernel-smoke overlap can calibrate source trust for related subclaims, but
   cannot close the theorem route without a non-placeholder theorem/bridge proof
 - new proof-bank additions reduce the missing primitive count or increase
@@ -358,6 +361,10 @@ Current release signal:
   patch responses against those contracts. Absent responses are awaiting work,
   patch proposals remain non-evidence, and proof evidence is accepted only for
   full-route kernel-verified calibration with no residual formal gaps.
+- `formal-verifier-replay-repair-patch-response-promotion` exports
+  proof-ledger promotion rows from validated responses, but only accepted
+  full-route kernel responses with corroborating replay attempt and calibration
+  manifests become promotion-ready
 - `lean-rag-dependency-health` records schema, integrity, and FTS-probe status
   for the optional dependency-graph DB; malformed DBs are disabled with a
   fallback reason instead of crashing the audit

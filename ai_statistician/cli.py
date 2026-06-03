@@ -56,6 +56,9 @@ from .formal_verifier_replay_repair_prompt_packets import (
 from .formal_verifier_replay_repair_patch_response_validation import (
     export_formal_verifier_replay_repair_patch_response_validation,
 )
+from .formal_verifier_replay_repair_patch_response_promotion import (
+    export_formal_verifier_replay_repair_patch_response_promotion,
+)
 from .formal_verifier_replay_repair import export_formal_verifier_replay_repair_packets
 from .formal_source_graph import audit_formal_source_graph
 from .formal_source_index import (
@@ -1586,6 +1589,36 @@ def _formal_verifier_replay_repair_patch_response_validation(args: argparse.Name
     print(
         f"markdown report written to "
         f"{(Path(args.out) / 'formal_verifier_replay_repair_patch_response_validation.md').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formal_verifier_replay_repair_patch_response_promotion(args: argparse.Namespace) -> int:
+    payload = export_formal_verifier_replay_repair_patch_response_promotion(
+        Path(args.formal_verifier_replay_repair_patch_response_validation_dir),
+        Path(args.out),
+    )
+    print("\nAI Statistical Theory Lab Formal Verifier Repair Patch Response Promotion")
+    print("=" * 72)
+    print(
+        f"rows={payload['n_ok']}/{payload['n_promotion_rows']} "
+        f"ready={payload['n_ready_for_proof_promotion']} "
+        f"awaiting={payload['n_awaiting_worker_response']} "
+        f"patch_needs_replay={payload['n_patch_proposal_needs_replay_calibration']} "
+        f"blocked={payload['n_blocked']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\npromotion manifest written to "
+        f"{(Path(args.out) / 'formal_verifier_replay_repair_patch_response_promotion_manifest.json').resolve()}"
+    )
+    print(
+        f"promotion jsonl written to "
+        f"{(Path(args.out) / 'formal_verifier_replay_repair_patch_response_promotion.jsonl').resolve()}"
+    )
+    print(
+        f"markdown report written to "
+        f"{(Path(args.out) / 'formal_verifier_replay_repair_patch_response_promotion.md').resolve()}"
     )
     return 0 if payload["all_ok"] else 1
 
@@ -3604,6 +3637,24 @@ def build_parser() -> argparse.ArgumentParser:
     )
     formal_verifier_replay_repair_patch_response_validation.set_defaults(
         func=_formal_verifier_replay_repair_patch_response_validation
+    )
+
+    formal_verifier_replay_repair_patch_response_promotion = sub.add_parser(
+        "formal-verifier-replay-repair-patch-response-promotion",
+        help="export proof-ledger promotion rows from validated repair patch responses",
+    )
+    formal_verifier_replay_repair_patch_response_promotion.add_argument(
+        "--formal-verifier-replay-repair-patch-response-validation-dir",
+        required=True,
+        help="directory containing formal_verifier_replay_repair_patch_response_validation_manifest.json",
+    )
+    formal_verifier_replay_repair_patch_response_promotion.add_argument(
+        "--out",
+        default="runs/formal_verifier_replay_repair_patch_response_promotion",
+        help="formal-verifier repair patch response promotion output directory",
+    )
+    formal_verifier_replay_repair_patch_response_promotion.set_defaults(
+        func=_formal_verifier_replay_repair_patch_response_promotion
     )
 
     rag_collaboration_export = sub.add_parser(

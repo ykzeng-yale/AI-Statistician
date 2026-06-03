@@ -122,6 +122,14 @@ def export_rag_collaboration_manifest(
     formal_verifier_replay_repair_patch_response_validation_payload = _read_json(
         formal_verifier_replay_repair_patch_response_validation_path
     )
+    formal_verifier_replay_repair_patch_response_promotion_path = _artifact_path(
+        artifacts,
+        "formal_verifier_replay_repair_patch_response_promotion",
+        run_dir,
+    )
+    formal_verifier_replay_repair_patch_response_promotion_payload = _read_json(
+        formal_verifier_replay_repair_patch_response_promotion_path
+    )
     guidance_payload = _read_json(_artifact_path(artifacts, "evaluation_benchmark_guidance", run_dir))
 
     target_rows = _handoff_targets(
@@ -622,6 +630,41 @@ def export_rag_collaboration_manifest(
                 formal_verifier_replay_repair_patch_response_validation_payload,
                 max_rows=min(max_targets, 10),
             ),
+            "formal_verifier_replay_repair_patch_response_promotion_rows": counts.get(
+                "formal_verifier_replay_repair_patch_response_promotion_rows",
+                formal_verifier_replay_repair_patch_response_promotion_payload.get(
+                    "n_promotion_rows"
+                ),
+            ),
+            "formal_verifier_replay_repair_patch_response_promotion_ready": counts.get(
+                "formal_verifier_replay_repair_patch_response_promotion_ready",
+                formal_verifier_replay_repair_patch_response_promotion_payload.get(
+                    "n_ready_for_proof_promotion"
+                ),
+            ),
+            "formal_verifier_replay_repair_patch_response_promotion_awaiting": counts.get(
+                "formal_verifier_replay_repair_patch_response_promotion_awaiting",
+                formal_verifier_replay_repair_patch_response_promotion_payload.get(
+                    "n_awaiting_worker_response"
+                ),
+            ),
+            "formal_verifier_replay_repair_patch_response_promotion_patch_needs_replay": counts.get(
+                "formal_verifier_replay_repair_patch_response_promotion_patch_needs_replay",
+                formal_verifier_replay_repair_patch_response_promotion_payload.get(
+                    "n_patch_proposal_needs_replay_calibration"
+                ),
+            ),
+            "formal_verifier_replay_repair_patch_response_promotion_blocked": counts.get(
+                "formal_verifier_replay_repair_patch_response_promotion_blocked",
+                formal_verifier_replay_repair_patch_response_promotion_payload.get("n_blocked"),
+            ),
+            "formal_verifier_replay_repair_patch_response_promotion_manifest": str(
+                formal_verifier_replay_repair_patch_response_promotion_path
+            ),
+            "formal_verifier_replay_repair_patch_response_promotion_preview": _formal_verifier_replay_repair_patch_response_promotion_preview(
+                formal_verifier_replay_repair_patch_response_promotion_payload,
+                max_rows=min(max_targets, 10),
+            ),
             "handoff_targets": target_rows,
             "proof_bank_expansion_manifest": str(
                 _artifact_path(artifacts, "proof_bank_expansion", run_dir)
@@ -667,6 +710,7 @@ def export_rag_collaboration_manifest(
             "FormalVerifier repair execution queue items are patch work orders, not theorem proof evidence.",
             "FormalVerifier repair prompt packets are worker instructions, not theorem proof evidence.",
             "FormalVerifier repair patch responses are proof evidence only when response validation accepts full-route kernel-verified calibration.",
+            "FormalVerifier repair patch response promotion rows are ledger-update contracts; they do not mutate the proof ledger by themselves.",
             "FORMAL_GAP and theorem-hole queues remain open until a non-placeholder Lean proof is verified.",
         ],
     }
@@ -1080,6 +1124,40 @@ def _formal_verifier_replay_repair_patch_response_validation_preview(
     return rows
 
 
+def _formal_verifier_replay_repair_patch_response_promotion_preview(
+    payload: dict[str, Any],
+    *,
+    max_rows: int,
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    promotion_rows = payload.get("rows", [])
+    if not isinstance(promotion_rows, list):
+        return rows
+    for row in promotion_rows:
+        if not isinstance(row, dict):
+            continue
+        rows.append(
+            {
+                "promotion_id": row.get("promotion_id"),
+                "response_validation_id": row.get("response_validation_id"),
+                "prompt_packet_id": row.get("prompt_packet_id"),
+                "execution_id": row.get("execution_id"),
+                "display_name": row.get("display_name"),
+                "candidate_bridge_lemma_name": row.get("candidate_bridge_lemma_name"),
+                "source_acceptance_status": row.get("source_acceptance_status", ""),
+                "promotion_status": row.get("promotion_status", ""),
+                "promotion_ready": row.get("promotion_ready", False),
+                "action_type": row.get("action_type", ""),
+                "required_gate": row.get("required_gate", ""),
+                "evidence_paths": row.get("evidence_paths", [])[:4],
+                "proof_evidence_boundary": row.get("proof_evidence_boundary", ""),
+            }
+        )
+        if len(rows) >= max_rows:
+            break
+    return rows
+
+
 def _theorem_composition_packet_preview(
     payload: dict[str, Any],
     *,
@@ -1195,6 +1273,10 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"(`{queue.get('formal_verifier_replay_repair_patch_response_validation_accepted_full_route_kernel_verified')}` accepted, "
         f"`{queue.get('formal_verifier_replay_repair_patch_response_validation_awaiting')}` awaiting, "
         f"`{queue.get('formal_verifier_replay_repair_patch_response_validation_rejected')}` rejected)",
+        f"- Formal verifier repair response promotion: `{queue.get('formal_verifier_replay_repair_patch_response_promotion_rows')}` rows "
+        f"(`{queue.get('formal_verifier_replay_repair_patch_response_promotion_ready')}` ready, "
+        f"`{queue.get('formal_verifier_replay_repair_patch_response_promotion_awaiting')}` awaiting, "
+        f"`{queue.get('formal_verifier_replay_repair_patch_response_promotion_blocked')}` blocked)",
         f"- Queue: exact_reuse=`{queue.get('reuse_exact_proof_bank_obligation')}`, compose=`{queue.get('compose_existing_bridge_chain')}`, minimal_wrapper=`{queue.get('add_minimal_wrapper')}`, design_bridge=`{queue.get('design_bridge_lemma')}`",
         f"- Theorem composition packets: `{composition.get('theorem_composition_packets')}` "
         f"(exact links `{composition.get('theorem_composition_exact_proof_bank_links')}`, "
@@ -1327,6 +1409,20 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"kernel={row.get('kernel_verified')} calibration={row.get('replay_calibration_status')}"
         )
         lines.append(f"  proof status: {row.get('proof_evidence_status')}")
+        lines.append(f"  boundary: {row.get('proof_evidence_boundary')}")
+    lines.extend(["", "## Formal Verifier Repair Response Promotion", ""])
+    for row in queue.get("formal_verifier_replay_repair_patch_response_promotion_preview", []):
+        if not isinstance(row, dict):
+            continue
+        lines.append(
+            f"- `{row.get('display_name')}` ({row.get('promotion_status')}): "
+            f"{row.get('candidate_bridge_lemma_name')}"
+        )
+        lines.append(
+            f"  ready={row.get('promotion_ready')} action={row.get('action_type')} "
+            f"gate={row.get('required_gate')}"
+        )
+        lines.append(f"  evidence paths: {', '.join(row.get('evidence_paths', [])) or 'none'}")
         lines.append(f"  boundary: {row.get('proof_evidence_boundary')}")
     lines.extend(["", "## Theorem Composition Handoff", ""])
     lines.append(str(composition.get("proof_evidence_boundary", "")))
