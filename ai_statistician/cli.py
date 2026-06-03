@@ -865,6 +865,7 @@ def _lean_rag_package_audit(args: argparse.Namespace) -> int:
     )
     registry = payload["source_registry"]
     seeds = payload["seed_queries"]
+    coverage = payload["target_source_coverage"]
     graph = payload["shared_graph_manifest"]
     print("\nAI Statistical Theory Lab Lean RAG Package Audit")
     print("=" * 72)
@@ -876,6 +877,11 @@ def _lean_rag_package_audit(args: argparse.Namespace) -> int:
         f"sources=local:{registry.get('n_local_sources', 0)} "
         f"external:{registry.get('n_external_sources', 0)} "
         f"seed_queries={seeds.get('n_queries', 0)} lanes={','.join(seeds.get('lanes', [])) or 'none'}"
+    )
+    missing_targets = ",".join(coverage.get("missing_target_ids", [])) or "none"
+    print(
+        f"target_sources={coverage.get('n_present', 0)}/{coverage.get('n_targets', 0)} "
+        f"coverage_ok={coverage.get('coverage_ok', False)} missing={missing_targets}"
     )
     print(
         f"shared_graph_manifest={graph.get('available')} "

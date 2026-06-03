@@ -337,6 +337,26 @@ def export_rag_collaboration_manifest(
             "lean_rag_package_seed_queries": counts.get("lean_rag_package_seed_queries"),
             "lean_rag_package_seed_query_lanes": counts.get("lean_rag_package_seed_query_lanes"),
             "lean_rag_package_seed_lanes": _lean_rag_seed_lanes(lean_rag_package_payload),
+            "lean_rag_package_target_sources": counts.get("lean_rag_package_target_sources"),
+            "lean_rag_package_target_sources_present": counts.get(
+                "lean_rag_package_target_sources_present"
+            ),
+            "lean_rag_package_target_sources_missing": counts.get(
+                "lean_rag_package_target_sources_missing"
+            ),
+            "lean_rag_package_target_source_coverage_ok": counts.get(
+                "lean_rag_package_target_source_coverage_ok"
+            ),
+            "lean_rag_package_missing_target_sources": counts.get(
+                "lean_rag_package_missing_target_sources",
+                dict(lean_rag_package_payload.get("target_source_coverage", {}) or {}).get(
+                    "missing_target_ids",
+                    [],
+                ),
+            ),
+            "lean_rag_package_target_source_boundary": dict(
+                lean_rag_package_payload.get("target_source_coverage", {}) or {}
+            ).get("proof_evidence_boundary", ""),
             "lean_rag_package_policy": dict(
                 dict(lean_rag_package_payload.get("source_registry", {}) or {}).get("policy", {})
                 or {}
@@ -2380,6 +2400,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"`{rag.get('lean_rag_dependency_fallback_reason')}`)",
         f"- Lean RAG package: `{rag.get('lean_rag_package_contract_ok')}` at `{rag.get('lean_rag_package_branch')}` / `{str(rag.get('lean_rag_package_commit') or '')[:12]}`",
         f"- Lean RAG seed lanes: `{', '.join(rag.get('lean_rag_package_seed_lanes', []))}`",
+        f"- Lean RAG target sources: `{rag.get('lean_rag_package_target_sources_present')}/{rag.get('lean_rag_package_target_sources')}` present "
+        f"(missing `{', '.join(rag.get('lean_rag_package_missing_target_sources', []) or [])}`)",
         f"- Retrieval recall/MRR: `{rag.get('formal_source_retrieval_recall_at_k')}` / `{rag.get('formal_source_retrieval_mrr')}`",
         f"- External retrieval recall/MRR: `{rag.get('formal_source_retrieval_external_recall_at_k')}` / `{rag.get('formal_source_retrieval_external_mrr')}`",
         f"- Combined retrieval recall/MRR: `{rag.get('formal_source_retrieval_all_recall_at_k')}` / `{rag.get('formal_source_retrieval_all_mrr')}`",

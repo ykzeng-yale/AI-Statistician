@@ -1908,6 +1908,13 @@ This checks required scripts/docs, source-registry trust policy, seed query
 lanes, and any available `build/lean_graph/shared_manifest.json`. It is the
 fast monitor for whether the external RAG package is usable; it does not treat
 generated external indexes as proof evidence.
+The same audit now includes advisory target source coverage for expected Lean
+reuse corpora: Mathlib, StatInference, EmpiricalProcessLEAN, legacy
+AI-Statistician StatInference, lean-stat-learning-theory, atlas-lean,
+autoform-bot exports, formal_slt, lean_rademacher,
+lean_machine_learning_lml, brownian_motion_lean,
+kolmogorov_extension_lean, and scilean_calculus. Coverage gaps guide source
+registry expansion; they do not change theorem proof status.
 
 Algorithm registry audit:
 

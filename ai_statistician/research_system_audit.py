@@ -1468,6 +1468,24 @@ async def run_research_system_audit(
                 "n_lanes",
                 0,
             ),
+            "lean_rag_package_target_sources": lean_rag_package_manifest[
+                "target_source_coverage"
+            ].get("n_targets", 0),
+            "lean_rag_package_target_sources_present": lean_rag_package_manifest[
+                "target_source_coverage"
+            ].get("n_present", 0),
+            "lean_rag_package_target_sources_missing": lean_rag_package_manifest[
+                "target_source_coverage"
+            ].get("n_missing", 0),
+            "lean_rag_package_target_source_coverage_ok": lean_rag_package_manifest[
+                "target_source_coverage"
+            ].get("coverage_ok", False),
+            "lean_rag_package_missing_target_sources": list(
+                lean_rag_package_manifest["target_source_coverage"].get(
+                    "missing_target_ids",
+                    (),
+                )
+            ),
             "lean_rag_package_verify_candidates_with_lean": lean_rag_package_manifest[
                 "source_registry"
             ].get("policy", {}).get("verify_candidates_with_lean", False),

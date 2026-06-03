@@ -3279,6 +3279,23 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(payload["contract_ok"])
         self.assertTrue(payload["all_ok"])
         self.assertEqual(payload["source_registry"]["n_external_sources"], 2)
+        self.assertEqual(payload["target_source_coverage"]["n_targets"], 13)
+        self.assertGreaterEqual(payload["target_source_coverage"]["n_present"], 3)
+        self.assertIn(
+            "formal_slt",
+            payload["target_source_coverage"]["missing_target_ids"],
+        )
+        self.assertFalse(payload["target_source_coverage"]["coverage_ok"])
+        self.assertIn(
+            "not Lean proof evidence",
+            payload["target_source_coverage"]["proof_evidence_boundary"],
+        )
+        self.assertTrue(
+            any(
+                "missing target corpora" in action
+                for action in payload["recommended_actions"]
+            )
+        )
         self.assertEqual(payload["seed_queries"]["n_lanes"], 2)
         self.assertIn("durrett", payload["seed_queries"]["lanes"])
         self.assertTrue(payload["script_capabilities"]["shared_status_reports_live_drift"])
@@ -8751,6 +8768,23 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                         }
                     },
                     "seed_queries": {"lanes": ["chewi", "durrett", "vaart"]},
+                    "target_source_coverage": {
+                        "n_targets": 13,
+                        "n_present": 7,
+                        "n_missing": 6,
+                        "coverage_ok": False,
+                        "missing_target_ids": [
+                            "formal_slt",
+                            "lean_rademacher",
+                            "lean_machine_learning_lml",
+                            "brownian_motion_lean",
+                            "kolmogorov_extension_lean",
+                            "scilean_calculus",
+                        ],
+                        "proof_evidence_boundary": (
+                            "Target Lean source coverage is retrieval-planning evidence only, not Lean proof evidence."
+                        ),
+                    },
                 }
             ),
             encoding="utf-8",
@@ -10151,6 +10185,18 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                         "lean_rag_package_external_sources": 5,
                         "lean_rag_package_seed_queries": 3,
                         "lean_rag_package_seed_query_lanes": 3,
+                        "lean_rag_package_target_sources": 13,
+                        "lean_rag_package_target_sources_present": 7,
+                        "lean_rag_package_target_sources_missing": 6,
+                        "lean_rag_package_target_source_coverage_ok": False,
+                        "lean_rag_package_missing_target_sources": [
+                            "formal_slt",
+                            "lean_rademacher",
+                            "lean_machine_learning_lml",
+                            "brownian_motion_lean",
+                            "kolmogorov_extension_lean",
+                            "scilean_calculus",
+                        ],
                         "formal_source_graph_symbols": 75074,
                         "formal_source_graph_edges": 1477458,
                         "formal_source_retrieval_benchmark_recall_at_k": 1.0,
@@ -10532,6 +10578,19 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertEqual(
             payload["rag_provider_evidence"]["lean_rag_package_seed_lanes"],
             ["chewi", "durrett", "vaart"],
+        )
+        self.assertEqual(payload["rag_provider_evidence"]["lean_rag_package_target_sources"], 13)
+        self.assertEqual(
+            payload["rag_provider_evidence"]["lean_rag_package_target_sources_present"],
+            7,
+        )
+        self.assertIn(
+            "formal_slt",
+            payload["rag_provider_evidence"]["lean_rag_package_missing_target_sources"],
+        )
+        self.assertIn(
+            "not Lean proof evidence",
+            payload["rag_provider_evidence"]["lean_rag_package_target_source_boundary"],
         )
         self.assertFalse(
             payload["rag_provider_evidence"]["lean_rag_package_policy"]["refresh_dirty_checkouts"]
@@ -13556,6 +13615,10 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertFalse(payload["counts"]["lean_rag_dependency_fallback_used"])
         self.assertTrue(payload["counts"]["lean_rag_dependency_requested_integrity_ok"])
         self.assertTrue(payload["counts"]["lean_rag_dependency_requested_fts_probe_ok"])
+        self.assertGreaterEqual(payload["counts"]["lean_rag_package_target_sources"], 13)
+        self.assertGreaterEqual(payload["counts"]["lean_rag_package_target_sources_present"], 1)
+        self.assertGreaterEqual(payload["counts"]["lean_rag_package_target_sources_missing"], 0)
+        self.assertIn("lean_rag_package_missing_target_sources", payload["counts"])
         self.assertIn("timings", payload)
         self.assertGreater(payload["timings"]["total_elapsed_ms"], 0)
         self.assertTrue(payload["timings"]["stages"])

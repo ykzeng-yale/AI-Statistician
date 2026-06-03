@@ -25,6 +25,97 @@ REQUIRED_PACKAGE_FILES: tuple[str, ...] = (
     "scripts/refresh_lean_reuse_sources.py",
 )
 
+TARGET_LEAN_SOURCE_COVERAGE: tuple[dict[str, object], ...] = (
+    {
+        "target_id": "mathlib",
+        "display_name": "Mathlib",
+        "role": "external candidate and documentation source",
+        "aliases": ("mathlib4", "mathlib-docs-distribution", "mathlib"),
+    },
+    {
+        "target_id": "statinference_local",
+        "display_name": "StatInference local corpus",
+        "role": "authoritative local proof corpus",
+        "aliases": ("statinference-local", "statinference"),
+    },
+    {
+        "target_id": "empirical_process_lean",
+        "display_name": "EmpiricalProcessLEAN package checkout",
+        "role": "authoritative empirical-process proof package",
+        "aliases": ("empericalprocesslean", "empiricalprocesslean"),
+    },
+    {
+        "target_id": "legacy_ai_statistician_statinference",
+        "display_name": "Legacy AI-Statistician StatInference",
+        "role": "legacy proof reuse corpus",
+        "aliases": (
+            "legacy-ai-statistician-statinference",
+            "legacy-statinference",
+            "ai-statistician-legacy",
+        ),
+    },
+    {
+        "target_id": "lean_stat_learning_theory",
+        "display_name": "lean-stat-learning-theory",
+        "role": "statistical learning theorem candidate source",
+        "aliases": ("lean-stat-learning-theory", "slt"),
+    },
+    {
+        "target_id": "atlas_lean",
+        "display_name": "atlas-lean",
+        "role": "broad Lean theorem candidate source",
+        "aliases": ("atlas-lean",),
+    },
+    {
+        "target_id": "autoform_bot",
+        "display_name": "autoform-bot exports",
+        "role": "formalization/automation candidate source",
+        "aliases": ("autoform-bot", "facebookresearch-autoform-bot"),
+    },
+    {
+        "target_id": "formal_slt",
+        "display_name": "formal_slt",
+        "role": "statistical learning theorem candidate source",
+        "aliases": ("formal_slt", "formal-slt"),
+    },
+    {
+        "target_id": "lean_rademacher",
+        "display_name": "lean_rademacher",
+        "role": "Rademacher-complexity candidate source",
+        "aliases": ("lean_rademacher", "lean-rademacher"),
+    },
+    {
+        "target_id": "lean_machine_learning_lml",
+        "display_name": "lean_machine_learning_lml",
+        "role": "machine-learning Lean candidate source",
+        "aliases": ("lean_machine_learning_lml", "lean-machine-learning-lml", "lml"),
+    },
+    {
+        "target_id": "brownian_motion_lean",
+        "display_name": "brownian_motion_lean",
+        "role": "stochastic-process candidate source",
+        "aliases": ("brownian_motion_lean", "brownian-motion-lean"),
+    },
+    {
+        "target_id": "kolmogorov_extension_lean",
+        "display_name": "kolmogorov_extension_lean",
+        "role": "measure/probability extension candidate source",
+        "aliases": ("kolmogorov_extension_lean", "kolmogorov-extension-lean"),
+    },
+    {
+        "target_id": "scilean_calculus",
+        "display_name": "SciLean calculus",
+        "role": "calculus/analysis automation candidate source",
+        "aliases": ("scilean_calculus", "scilean-calculus", "scilean"),
+    },
+)
+
+SOURCE_COVERAGE_BOUNDARY = (
+    "Target Lean source coverage is retrieval-planning evidence only, not Lean "
+    "proof evidence. A source hit can suggest premises, but theorem status "
+    "changes only after local Lean/AXLE kernel verification."
+)
+
 
 def audit_lean_rag_package(
     out_dir: Path,
@@ -54,6 +145,11 @@ def audit_lean_rag_package(
     registry_policy = dict(source_registry.get("policy", {}) or {})
     local_sources = list(source_registry.get("local_sources", []) or [])
     external_sources = list(source_registry.get("external_sources", []) or [])
+    target_source_coverage = _target_source_coverage(
+        local_sources=local_sources,
+        external_sources=external_sources,
+        git_payload=git_payload,
+    )
     generated_outputs = dict(source_registry.get("generated_outputs", {}) or {})
     required_files_present = bool(file_rows) and all(bool(row["exists"]) for row in file_rows)
     registry_ok = bool(source_registry) and isinstance(source_registry.get("version"), int)
@@ -112,6 +208,7 @@ def audit_lean_rag_package(
             "policy_ok": policy_ok,
         },
         "seed_queries": seed_query_payload,
+        "target_source_coverage": target_source_coverage,
         "script_capabilities": script_capabilities,
         "shared_graph_manifest": graph_manifest,
         "recommended_actions": _recommended_actions(
@@ -121,6 +218,7 @@ def audit_lean_rag_package(
             registry_ok=registry_ok,
             seed_queries_ok=seed_queries_ok,
             policy_ok=policy_ok,
+            target_source_coverage=target_source_coverage,
             graph_manifest=graph_manifest,
         ),
     }
@@ -134,6 +232,7 @@ def audit_lean_rag_package(
                 "n_queries": seed_query_payload["n_queries"],
                 "lanes": seed_query_payload["lanes"],
             },
+            "target_source_coverage": target_source_coverage,
             "shared_graph_manifest": payload["shared_graph_manifest"],
         }
     )
@@ -270,6 +369,89 @@ def _empty_seed_query_payload() -> dict[str, object]:
     }
 
 
+def _target_source_coverage(
+    *,
+    local_sources: list[object],
+    external_sources: list[object],
+    git_payload: dict[str, object],
+) -> dict[str, object]:
+    local_names = _source_name_rows(local_sources)
+    external_names = _source_name_rows(external_sources)
+    all_names = (*local_names, *external_names)
+    normalized_names = {row["normalized"]: row for row in all_names}
+    git_evidence = " ".join(
+        str(git_payload.get(key, ""))
+        for key in ("repo_root", "remote", "branch")
+    )
+    normalized_git_evidence = _normalize_source_name(git_evidence)
+    rows: list[dict[str, object]] = []
+    for target in TARGET_LEAN_SOURCE_COVERAGE:
+        aliases = tuple(str(alias) for alias in target.get("aliases", ()) or ())
+        normalized_aliases = {_normalize_source_name(alias) for alias in aliases}
+        matched_rows = [
+            row for key, row in normalized_names.items() if key in normalized_aliases
+        ]
+        repository_match = (
+            str(target.get("target_id")) == "empirical_process_lean"
+            and any(alias in normalized_git_evidence for alias in normalized_aliases)
+        )
+        present = bool(matched_rows) or repository_match
+        evidence_names = tuple(sorted({str(row["name"]) for row in matched_rows}))
+        evidence_scope = "registry"
+        if repository_match and not evidence_names:
+            evidence_names = (str(git_payload.get("remote", "") or git_payload.get("repo_root", "")),)
+            evidence_scope = "package_git_remote"
+        elif repository_match:
+            evidence_scope = "registry_and_package_git_remote"
+        rows.append(
+            {
+                "target_id": str(target.get("target_id", "")),
+                "display_name": str(target.get("display_name", "")),
+                "role": str(target.get("role", "")),
+                "aliases": aliases,
+                "present": present,
+                "evidence_scope": evidence_scope if present else "missing",
+                "matched_source_names": evidence_names,
+                "recommended_action": ""
+                if present
+                else (
+                    "Add this corpus to lean_rag/knowledgebase/source_registry.json "
+                    "as candidate-search-only or documentation-search-only source, "
+                    "then rebuild the external reuse index on clean checkouts."
+                ),
+                "proof_evidence_boundary": SOURCE_COVERAGE_BOUNDARY,
+            }
+        )
+    missing = tuple(row["target_id"] for row in rows if not row["present"])
+    present = tuple(row["target_id"] for row in rows if row["present"])
+    return {
+        "n_targets": len(rows),
+        "n_present": len(present),
+        "n_missing": len(missing),
+        "coverage_ok": not missing,
+        "present_target_ids": present,
+        "missing_target_ids": missing,
+        "rows": rows,
+        "proof_evidence_boundary": SOURCE_COVERAGE_BOUNDARY,
+    }
+
+
+def _source_name_rows(rows: list[object]) -> tuple[dict[str, str], ...]:
+    names: list[dict[str, str]] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        name = str(row.get("name", ""))
+        if not name:
+            continue
+        names.append({"name": name, "normalized": _normalize_source_name(name)})
+    return tuple(names)
+
+
+def _normalize_source_name(value: str) -> str:
+    return "".join(ch for ch in value.lower() if ch.isalnum())
+
+
 def _script_capabilities(root: Path) -> dict[str, object]:
     shared = _read_text(root / "scripts" / "shared_proof_retrieval.py")
     refresh = _read_text(root / "scripts" / "refresh_lean_reuse_sources.py")
@@ -403,6 +585,7 @@ def _recommended_actions(
     registry_ok: bool,
     seed_queries_ok: bool,
     policy_ok: bool,
+    target_source_coverage: dict[str, object],
     graph_manifest: dict[str, object],
 ) -> list[str]:
     actions: list[str] = []
@@ -424,6 +607,13 @@ def _recommended_actions(
         actions.append(
             "Align source_registry policy with Lean verification boundaries: verify candidates with Lean and do not refresh dirty checkouts."
         )
+    missing_sources = tuple(target_source_coverage.get("missing_target_ids", ()) or ())
+    if missing_sources:
+        actions.append(
+            "Expand lean_rag source coverage for missing target corpora: "
+            + ", ".join(str(item) for item in missing_sources)
+            + ". Treat these additions as candidate retrieval sources until local Lean verifies imported uses."
+        )
     if not graph_manifest.get("available"):
         actions.append(
             "Run `python3 lean_rag/scripts/shared_proof_retrieval.py refresh --checkout main --no-export-main-csv` on a clean Lean tree when a fresh graph cache is needed."
@@ -440,6 +630,7 @@ def _recommended_actions(
 def _markdown_report(payload: dict[str, object]) -> str:
     registry = dict(payload.get("source_registry", {}) or {})
     seeds = dict(payload.get("seed_queries", {}) or {})
+    coverage = dict(payload.get("target_source_coverage", {}) or {})
     graph = dict(payload.get("shared_graph_manifest", {}) or {})
     git_payload = dict(payload.get("git", {}) or {})
     lines = [
@@ -450,6 +641,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Package root: `{payload.get('package_root')}`",
         f"- Git: `{git_payload.get('branch', '')}@{git_payload.get('short_commit', '')}` dirty=`{git_payload.get('dirty', '')}`",
         f"- Sources: local=`{registry.get('n_local_sources')}` external=`{registry.get('n_external_sources')}`",
+        f"- Target source coverage: `{coverage.get('n_present')}/{coverage.get('n_targets')}` present; missing=`{', '.join(coverage.get('missing_target_ids', []))}`",
         f"- Policy: verify_candidates_with_lean=`{dict(registry.get('policy', {}) or {}).get('verify_candidates_with_lean')}` refresh_dirty_checkouts=`{dict(registry.get('policy', {}) or {}).get('refresh_dirty_checkouts')}`",
         f"- Seed lanes: `{', '.join(seeds.get('lanes', []))}`",
         f"- Shared graph manifest: available=`{graph.get('available')}` indexed=`{graph.get('n_indexed_checkouts')}` dirty=`{graph.get('n_dirty_checkouts')}`",
@@ -467,6 +659,18 @@ def _markdown_report(payload: dict[str, object]) -> str:
         if not isinstance(row, dict):
             continue
         lines.append(f"- `{row.get('lane')}`: {row.get('goal')}")
+    lines.extend(["", "## Target Source Coverage", ""])
+    lines.append(str(coverage.get("proof_evidence_boundary", SOURCE_COVERAGE_BOUNDARY)))
+    lines.append("")
+    for row in coverage.get("rows", []):
+        if not isinstance(row, dict):
+            continue
+        status = "present" if row.get("present") else "missing"
+        matched = ", ".join(str(item) for item in row.get("matched_source_names", [])) or "none"
+        lines.append(
+            f"- `{row.get('target_id')}` ({status}): {row.get('display_name')} "
+            f"matched={matched}"
+        )
     return "\n".join(lines) + "\n"
 
 

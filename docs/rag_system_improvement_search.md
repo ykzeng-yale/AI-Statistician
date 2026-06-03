@@ -86,6 +86,12 @@ release-style `research-system-audit` records the same package contract through
 other proof chats see whether the strongest shared RAG package is present,
 fresh enough to trust as retrieval infrastructure, and still respecting the
 Lean proof boundary.
+The package audit also reports advisory target source coverage for Mathlib,
+StatInference, EmpiricalProcessLEAN, legacy AI-Statistician StatInference,
+lean-stat-learning-theory, atlas-lean, autoform-bot exports, formal_slt,
+lean_rademacher, lean_machine_learning_lml, brownian_motion_lean,
+kolmogorov_extension_lean, and scilean_calculus. Missing entries are source
+expansion work items only; they are not theorem failures or proof evidence.
 
 The audit now also records `lean_rag_dependency_health`. Before the optional
 dependency-graph SQLite DB is attached to hybrid retrieval, the backend checks
