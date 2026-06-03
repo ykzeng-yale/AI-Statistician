@@ -54,6 +54,8 @@ def export_rag_collaboration_manifest(
     theorem_composition_payload = _read_json(theorem_composition_path)
     formal_verifier_queue_path = _artifact_path(artifacts, "formal_verifier_queue", run_dir)
     formal_verifier_queue_payload = _read_json(formal_verifier_queue_path)
+    formal_verifier_replay_path = _artifact_path(artifacts, "formal_verifier_replay", run_dir)
+    formal_verifier_replay_payload = _read_json(formal_verifier_replay_path)
     guidance_payload = _read_json(_artifact_path(artifacts, "evaluation_benchmark_guidance", run_dir))
 
     target_rows = _handoff_targets(
@@ -286,6 +288,35 @@ def export_rag_collaboration_manifest(
                 formal_verifier_queue_payload,
                 max_rows=min(max_targets, 10),
             ),
+            "formal_verifier_replay_tasks": counts.get(
+                "formal_verifier_replay_tasks",
+                formal_verifier_replay_payload.get("n_replay_tasks"),
+            ),
+            "formal_verifier_replay_kernel_calibrated": counts.get(
+                "formal_verifier_replay_kernel_calibrated",
+                formal_verifier_replay_payload.get("n_kernel_calibrated"),
+            ),
+            "formal_verifier_replay_proof_search_subclaim": counts.get(
+                "formal_verifier_replay_proof_search_subclaim",
+                formal_verifier_replay_payload.get("n_proof_search_subclaim_replay"),
+            ),
+            "formal_verifier_replay_bridge_lemma": counts.get(
+                "formal_verifier_replay_bridge_lemma",
+                formal_verifier_replay_payload.get("n_bridge_lemma_replay"),
+            ),
+            "formal_verifier_replay_semantic_review": counts.get(
+                "formal_verifier_replay_semantic_review",
+                formal_verifier_replay_payload.get("n_semantic_review"),
+            ),
+            "formal_verifier_replay_training_examples": counts.get(
+                "formal_verifier_replay_training_examples",
+                formal_verifier_replay_payload.get("n_training_examples"),
+            ),
+            "formal_verifier_replay_manifest": str(formal_verifier_replay_path),
+            "formal_verifier_replay_preview": _formal_verifier_replay_preview(
+                formal_verifier_replay_payload,
+                max_rows=min(max_targets, 10),
+            ),
             "handoff_targets": target_rows,
             "proof_bank_expansion_manifest": str(
                 _artifact_path(artifacts, "proof_bank_expansion", run_dir)
@@ -322,6 +353,7 @@ def export_rag_collaboration_manifest(
             "RAG hits are retrieval evidence only, not Lean proof evidence.",
             "Only proof-audit rows with kernel_verified=true are proof evidence.",
             "Simulation diagnostics are empirical evidence, not theorem proofs.",
+            "FormalVerifier replay rows are executable task/training artifacts, not theorem proof evidence.",
             "FORMAL_GAP and theorem-hole queues remain open until a non-placeholder Lean proof is verified.",
         ],
     }
@@ -456,6 +488,42 @@ def _formal_verifier_queue_preview(
     return rows
 
 
+def _formal_verifier_replay_preview(
+    payload: dict[str, Any],
+    *,
+    max_rows: int,
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    payload_rows = payload.get("tasks", [])
+    if not isinstance(payload_rows, list):
+        return rows
+    for row in payload_rows:
+        if not isinstance(row, dict):
+            continue
+        rows.append(
+            {
+                "replay_id": row.get("replay_id"),
+                "source_queue_item_id": row.get("source_queue_item_id"),
+                "route_id": row.get("route_id"),
+                "display_name": row.get("display_name"),
+                "replay_mode": row.get("replay_mode"),
+                "replay_priority_score": row.get("replay_priority_score"),
+                "acceptance_gate": row.get("acceptance_gate"),
+                "subclaim_replay_obligations": row.get("subclaim_replay_obligations", [])[:8],
+                "kernel_smoke_related_verified": row.get("kernel_smoke_related_verified", 0),
+                "kernel_smoke_related_total": row.get("kernel_smoke_related_total", 0),
+                "proof_search_solved": row.get("proof_search_solved", 0),
+                "source_trust_calibration_status": row.get("source_trust_calibration_status", ""),
+                "semantic_faithfulness_status": row.get("semantic_faithfulness_status", ""),
+                "required_kernel_boundary": row.get("required_kernel_boundary", ""),
+                "proof_evidence_boundary": row.get("proof_evidence_boundary", ""),
+            }
+        )
+        if len(rows) >= max_rows:
+            break
+    return rows
+
+
 def _theorem_composition_packet_preview(
     payload: dict[str, Any],
     *,
@@ -539,6 +607,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"semantic review rows `{queue.get('formal_verifier_queue_semantic_needs_review')}`",
         f"- Formal verifier kernel calibration: `{queue.get('formal_verifier_queue_rows_source_trust_kernel_calibrated')}` "
         f"source-trust rows calibrated by kernel-smoke overlap",
+        f"- Formal verifier replay: `{queue.get('formal_verifier_replay_tasks')}` tasks "
+        f"(`{queue.get('formal_verifier_replay_kernel_calibrated')}` kernel-calibrated, "
+        f"`{queue.get('formal_verifier_replay_proof_search_subclaim')}` proof-search subclaim replay)",
         f"- Queue: exact_reuse=`{queue.get('reuse_exact_proof_bank_obligation')}`, compose=`{queue.get('compose_existing_bridge_chain')}`, minimal_wrapper=`{queue.get('add_minimal_wrapper')}`, design_bridge=`{queue.get('design_bridge_lemma')}`",
         f"- Theorem composition packets: `{composition.get('theorem_composition_packets')}` "
         f"(exact links `{composition.get('theorem_composition_exact_proof_bank_links')}`, "
@@ -569,6 +640,21 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"kernel_calibration={row.get('source_trust_calibration_status')}, "
             f"semantic={row.get('semantic_faithfulness_score')}/"
             f"{row.get('semantic_faithfulness_status')}]"
+        )
+    lines.extend(["", "## Formal Verifier Replay", ""])
+    for row in queue.get("formal_verifier_replay_preview", []):
+        if not isinstance(row, dict):
+            continue
+        obligations = ", ".join(
+            f"`{item}`" for item in row.get("subclaim_replay_obligations", [])
+        ) or "none"
+        lines.append(
+            f"- `{row.get('display_name')}` ({row.get('replay_mode')}): "
+            f"{row.get('acceptance_gate')} "
+            f"[subclaims={obligations}, "
+            f"kernel={row.get('kernel_smoke_related_verified')}/"
+            f"{row.get('kernel_smoke_related_total')}, "
+            f"proof_search_solved={row.get('proof_search_solved')}]"
         )
     lines.extend(["", "## Theorem Composition Handoff", ""])
     lines.append(str(composition.get("proof_evidence_boundary", "")))

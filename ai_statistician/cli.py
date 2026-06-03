@@ -38,6 +38,7 @@ from .formal_gap_task_export import export_formal_gap_lean_tasks
 from .formalization_delta_plan import build_formalization_delta_plan
 from .formalization_target_audit import audit_formalization_targets
 from .formal_verifier_queue import export_formal_verifier_queue
+from .formal_verifier_replay_export import export_formal_verifier_replay
 from .formal_source_graph import audit_formal_source_graph
 from .formal_source_index import (
     FormalSourceSqliteIndex,
@@ -1257,6 +1258,34 @@ def _formal_verifier_queue(args: argparse.Namespace) -> int:
     )
     print(f"jsonl written to {(Path(args.out) / 'formal_verifier_queue.jsonl').resolve()}")
     print(f"markdown report written to {(Path(args.out) / 'formal_verifier_queue.md').resolve()}")
+    return 0 if payload["all_ok"] else 1
+
+
+def _formal_verifier_replay_export(args: argparse.Namespace) -> int:
+    payload = export_formal_verifier_replay(
+        Path(args.formal_verifier_queue_dir),
+        Path(args.out),
+        max_tasks=args.max_tasks,
+    )
+    print("\nAI Statistical Theory Lab Formal Verifier Replay")
+    print("=" * 72)
+    print(
+        f"tasks={payload['n_ok']}/{payload['n_replay_tasks']} "
+        f"kernel_calibrated={payload['n_kernel_calibrated']} "
+        f"proof_search_replay={payload['n_proof_search_subclaim_replay']} "
+        f"bridge_replay={payload['n_bridge_lemma_replay']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nformal verifier replay manifest written to "
+        f"{(Path(args.out) / 'formal_verifier_replay_manifest.json').resolve()}"
+    )
+    print(f"task jsonl written to {(Path(args.out) / 'formal_verifier_replay_tasks.jsonl').resolve()}")
+    print(
+        f"training jsonl written to "
+        f"{(Path(args.out) / 'formal_verifier_replay_training.jsonl').resolve()}"
+    )
+    print(f"markdown report written to {(Path(args.out) / 'formal_verifier_replay.md').resolve()}")
     return 0 if payload["all_ok"] else 1
 
 
@@ -3027,6 +3056,23 @@ def build_parser() -> argparse.ArgumentParser:
         help="formal-verifier queue output directory",
     )
     formal_verifier_queue.set_defaults(func=_formal_verifier_queue)
+
+    formal_verifier_replay = sub.add_parser(
+        "formal-verifier-replay-export",
+        help="export route-level FormalVerifier replay tasks from a verifier queue",
+    )
+    formal_verifier_replay.add_argument(
+        "--formal-verifier-queue-dir",
+        required=True,
+        help="directory containing formal_verifier_queue_manifest.json",
+    )
+    formal_verifier_replay.add_argument("--max-tasks", type=int, default=20)
+    formal_verifier_replay.add_argument(
+        "--out",
+        default="runs/formal_verifier_replay",
+        help="formal-verifier replay output directory",
+    )
+    formal_verifier_replay.set_defaults(func=_formal_verifier_replay_export)
 
     rag_collaboration_export = sub.add_parser(
         "rag-collaboration-export",

@@ -34,6 +34,7 @@ from .formal_gap_task_export import export_formal_gap_lean_tasks
 from .formalization_delta_plan import build_formalization_delta_plan
 from .formalization_target_audit import audit_formalization_targets
 from .formal_verifier_queue import export_formal_verifier_queue
+from .formal_verifier_replay_export import export_formal_verifier_replay
 from .formal_source_graph import audit_formal_source_graph
 from .formal_source_hybrid import FormalSourceHybridRetriever
 from .formal_source_index import FormalSourceSqliteIndex, build_formal_source_search_backend
@@ -502,6 +503,11 @@ async def run_research_system_audit(
         proof_search_results_path=out_dir / "proof_search_audit" / "proof_search_results.jsonl",
     )
     stage_start = _record_stage(stage_timings, "formal_verifier_queue", stage_start)
+    formal_verifier_replay_manifest = export_formal_verifier_replay(
+        out_dir / "formal_verifier_queue",
+        out_dir / "formal_verifier_replay",
+    )
+    stage_start = _record_stage(stage_timings, "formal_verifier_replay", stage_start)
 
     research_training_manifest = export_research_training_dataset(
         out_dir / "research_benchmark",
@@ -705,6 +711,7 @@ async def run_research_system_audit(
         "primitive_source_coverage_audit": bool(primitive_source_coverage_manifest["all_ok"]),
         "formalization_delta_plan": bool(formalization_delta_manifest["all_ok"]),
         "formal_verifier_queue": bool(formal_verifier_queue_manifest["all_ok"]),
+        "formal_verifier_replay": bool(formal_verifier_replay_manifest["all_ok"]),
         "research_training_export": bool(research_training_manifest["all_ok"]),
         "research_policy_baseline": bool(research_policy_manifest["all_ok"]),
         "next_iteration_queue": bool(next_iteration_manifest["all_ok"]),
@@ -740,6 +747,7 @@ async def run_research_system_audit(
         "proof_bank_expansion_export",
         "proof_bank_action_export",
         "formal_verifier_queue",
+        "formal_verifier_replay",
         "research_training_export",
         "research_policy_baseline",
         "next_iteration_queue",
@@ -1440,6 +1448,29 @@ async def run_research_system_audit(
             "formal_verifier_queue_kernel_smoke_total": formal_verifier_queue_manifest[
                 "kernel_smoke_total"
             ],
+            "formal_verifier_replay_tasks": formal_verifier_replay_manifest["n_replay_tasks"],
+            "formal_verifier_replay_ok": formal_verifier_replay_manifest["n_ok"],
+            "formal_verifier_replay_kernel_calibrated": formal_verifier_replay_manifest[
+                "n_kernel_calibrated"
+            ],
+            "formal_verifier_replay_proof_search_subclaim": formal_verifier_replay_manifest[
+                "n_proof_search_subclaim_replay"
+            ],
+            "formal_verifier_replay_bridge_lemma": formal_verifier_replay_manifest[
+                "n_bridge_lemma_replay"
+            ],
+            "formal_verifier_replay_semantic_review": formal_verifier_replay_manifest[
+                "n_semantic_review"
+            ],
+            "formal_verifier_replay_training_examples": formal_verifier_replay_manifest[
+                "n_training_examples"
+            ],
+            "formal_verifier_replay_subclaim_obligations": formal_verifier_replay_manifest[
+                "n_subclaim_replay_obligations"
+            ],
+            "formal_verifier_replay_kernel_smoke_related_verified": formal_verifier_replay_manifest[
+                "n_kernel_smoke_related_verified"
+            ],
             "proof_bank_actions_high_priority": proof_bank_action_manifest["by_priority"].get("high", 0),
             "proof_bank_actions_medium_priority": proof_bank_action_manifest["by_priority"].get("medium", 0),
             "proof_bank_actions_low_priority": proof_bank_action_manifest["by_priority"].get("low", 0),
@@ -2002,6 +2033,18 @@ async def run_research_system_audit(
             ),
             "formal_verifier_queue_report": str(
                 out_dir / "formal_verifier_queue" / "formal_verifier_queue.md"
+            ),
+            "formal_verifier_replay": str(
+                out_dir / "formal_verifier_replay" / "formal_verifier_replay_manifest.json"
+            ),
+            "formal_verifier_replay_jsonl": str(
+                out_dir / "formal_verifier_replay" / "formal_verifier_replay_tasks.jsonl"
+            ),
+            "formal_verifier_replay_training_jsonl": str(
+                out_dir / "formal_verifier_replay" / "formal_verifier_replay_training.jsonl"
+            ),
+            "formal_verifier_replay_report": str(
+                out_dir / "formal_verifier_replay" / "formal_verifier_replay.md"
             ),
             "primitive_source_coverage": str(
                 out_dir / "primitive_source_coverage" / "primitive_source_coverage_manifest.json"

@@ -37,6 +37,7 @@ from ai_statistician.frontier_precision_audit import audit_frontier_precision
 from ai_statistician.frontier_smoke_benchmark import FrontierSmokeConfig, run_frontier_smoke_benchmark, select_supported_frontier_questions
 from ai_statistician.formal_gap_task_export import export_formal_gap_lean_tasks
 from ai_statistician.formal_verifier_queue import export_formal_verifier_queue
+from ai_statistician.formal_verifier_replay_export import export_formal_verifier_replay
 from ai_statistician.formalization_delta_plan import build_formalization_delta_plan
 from ai_statistician.formalization_target_audit import audit_formalization_targets
 from ai_statistician.formal_source_graph import FormalSourceGraphRetriever, audit_formal_source_graph
@@ -7190,6 +7191,32 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(Path("runs/test_formal_verifier_queue/formal_verifier_queue_manifest.json").exists())
         self.assertTrue(Path("runs/test_formal_verifier_queue/formal_verifier_queue.jsonl").exists())
         self.assertTrue(Path("runs/test_formal_verifier_queue/formal_verifier_queue.md").exists())
+        replay = export_formal_verifier_replay(
+            Path("runs/test_formal_verifier_queue"),
+            Path("runs/test_formal_verifier_replay"),
+        )
+        self.assertTrue(replay["all_ok"])
+        self.assertEqual(replay["n_replay_tasks"], queue["n_items"])
+        self.assertEqual(replay["n_ok"], replay["n_replay_tasks"])
+        self.assertEqual(replay["n_training_examples"], replay["n_replay_tasks"])
+        self.assertGreater(replay["n_kernel_calibrated"], 0)
+        self.assertGreater(replay["n_subclaim_replay_obligations"], 0)
+        kernel_replay_tasks = [
+            task
+            for task in replay["tasks"]
+            if task["replay_mode"] == "kernel_calibrated_subclaim_replay_then_theorem_composition"
+        ]
+        self.assertTrue(kernel_replay_tasks)
+        replay_task = kernel_replay_tasks[0]
+        self.assertEqual(replay_task["owner_agent"], "formal_verifier")
+        self.assertIn("replay_mode", replay_task)
+        self.assertIn("not proof evidence", replay_task["proof_evidence_boundary"])
+        self.assertIn("not proof evidence", replay_task["training_completion"])
+        self.assertIn("AXLE/local Lean", replay_task["required_kernel_boundary"])
+        self.assertTrue(Path("runs/test_formal_verifier_replay/formal_verifier_replay_manifest.json").exists())
+        self.assertTrue(Path("runs/test_formal_verifier_replay/formal_verifier_replay_tasks.jsonl").exists())
+        self.assertTrue(Path("runs/test_formal_verifier_replay/formal_verifier_replay_training.jsonl").exists())
+        self.assertTrue(Path("runs/test_formal_verifier_replay/formal_verifier_replay.md").exists())
 
     def test_primitive_source_coverage_audit_classifies_missing_primitives(self) -> None:
         async def run():
@@ -7279,6 +7306,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "proof_bank_expansion",
             "theorem_composition",
             "formal_verifier_queue",
+            "formal_verifier_replay",
             "evaluation_benchmark_guidance",
         ):
             (root / subdir).mkdir(parents=True, exist_ok=True)
@@ -7483,6 +7511,40 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             ),
             encoding="utf-8",
         )
+        (root / "formal_verifier_replay" / "formal_verifier_replay_manifest.json").write_text(
+            json.dumps(
+                {
+                    "n_replay_tasks": 1,
+                    "n_kernel_calibrated": 1,
+                    "n_proof_search_subclaim_replay": 1,
+                    "n_bridge_lemma_replay": 0,
+                    "n_semantic_review": 0,
+                    "n_training_examples": 1,
+                    "tasks": [
+                        {
+                            "replay_id": "formal_verifier_replay:test",
+                            "source_queue_item_id": "formal_verifier_queue:test",
+                            "route_id": "theorem_route:test",
+                            "display_name": "causal_ate_aipw:aipw_double_robustness:skeleton",
+                            "replay_mode": "kernel_calibrated_subclaim_replay_then_theorem_composition",
+                            "replay_priority_score": 341,
+                            "acceptance_gate": "non-placeholder theorem passes AXLE/local Lean verify_proof",
+                            "subclaim_replay_obligations": ["aipw_score_definition"],
+                            "kernel_smoke_related_verified": 1,
+                            "kernel_smoke_related_total": 1,
+                            "proof_search_solved": 1,
+                            "source_trust_calibration_status": "kernel_smoke_overlap_verified",
+                            "semantic_faithfulness_status": "strong_overlap",
+                            "required_kernel_boundary": (
+                                "The acceptance gate requires AXLE/local Lean on the replay target."
+                            ),
+                            "proof_evidence_boundary": "This replay task is not proof evidence.",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
         (root / "evaluation_benchmark_guidance" / "evaluation_benchmark_guidance_manifest.json").write_text(
             json.dumps({"top_actions": [{"rank": 1, "action": "improve RAG"}]}),
             encoding="utf-8",
@@ -7544,6 +7606,12 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                         "formal_verifier_queue_mean_semantic_faithfulness_score": 72.0,
                         "formal_verifier_queue_rows_with_kernel_smoke_overlap": 1,
                         "formal_verifier_queue_rows_source_trust_kernel_calibrated": 1,
+                        "formal_verifier_replay_tasks": 1,
+                        "formal_verifier_replay_kernel_calibrated": 1,
+                        "formal_verifier_replay_proof_search_subclaim": 1,
+                        "formal_verifier_replay_bridge_lemma": 0,
+                        "formal_verifier_replay_semantic_review": 0,
+                        "formal_verifier_replay_training_examples": 1,
                     },
                     "artifacts": {
                         "proof_audit": str(root / "proof_audit" / "proof_audit_manifest.json"),
@@ -7593,6 +7661,9 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                         ),
                         "formal_verifier_queue": str(
                             root / "formal_verifier_queue" / "formal_verifier_queue_manifest.json"
+                        ),
+                        "formal_verifier_replay": str(
+                            root / "formal_verifier_replay" / "formal_verifier_replay_manifest.json"
                         ),
                         "evaluation_benchmark_guidance": str(
                             root
@@ -7673,7 +7744,24 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "not proof evidence",
             payload["formal_capacity_queue"]["formal_verifier_queue_preview"][0]["proof_evidence_boundary"],
         )
+        self.assertEqual(payload["formal_capacity_queue"]["formal_verifier_replay_tasks"], 1)
+        self.assertEqual(payload["formal_capacity_queue"]["formal_verifier_replay_kernel_calibrated"], 1)
+        self.assertEqual(payload["formal_capacity_queue"]["formal_verifier_replay_proof_search_subclaim"], 1)
+        self.assertEqual(payload["formal_capacity_queue"]["formal_verifier_replay_training_examples"], 1)
+        self.assertEqual(
+            payload["formal_capacity_queue"]["formal_verifier_replay_preview"][0]["replay_mode"],
+            "kernel_calibrated_subclaim_replay_then_theorem_composition",
+        )
+        self.assertEqual(
+            payload["formal_capacity_queue"]["formal_verifier_replay_preview"][0]["subclaim_replay_obligations"][0],
+            "aipw_score_definition",
+        )
+        self.assertIn(
+            "not proof evidence",
+            payload["formal_capacity_queue"]["formal_verifier_replay_preview"][0]["proof_evidence_boundary"],
+        )
         self.assertIn("RAG hits are retrieval evidence only", " ".join(payload["honesty_boundaries"]))
+        self.assertIn("replay rows are executable", " ".join(payload["honesty_boundaries"]))
         self.assertTrue((out / "rag_collaboration_manifest.json").exists())
         self.assertTrue((out / "rag_collaboration.md").exists())
         self.assertIn("Formal Verifier Queue", (out / "rag_collaboration.md").read_text())
@@ -9554,6 +9642,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["gates"]["primitive_source_coverage_audit"])
         self.assertTrue(payload["gates"]["formalization_delta_plan"])
         self.assertTrue(payload["gates"]["formal_verifier_queue"])
+        self.assertTrue(payload["gates"]["formal_verifier_replay"])
         self.assertTrue(payload["gates"]["research_training_export"])
         self.assertTrue(payload["gates"]["research_policy_baseline"])
         self.assertTrue(payload["gates"]["next_iteration_queue"])
@@ -9829,6 +9918,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "proof_bank_action_export",
             "primitive_source_coverage_audit",
             "formal_verifier_queue",
+            "formal_verifier_replay",
             "research_training_export",
             "research_policy_baseline",
             "next_iteration_queue",
@@ -10054,11 +10144,27 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             payload["counts"]["formal_verifier_queue_kernel_smoke_kernel_verified"],
             payload["counts"]["kernel_smoke_proof_audit_kernel_verified"],
         )
+        self.assertEqual(payload["counts"]["formal_verifier_replay_ok"], payload["counts"]["formal_verifier_replay_tasks"])
+        self.assertEqual(payload["counts"]["formal_verifier_replay_tasks"], payload["counts"]["formal_verifier_queue_items"])
+        self.assertGreater(payload["counts"]["formal_verifier_replay_tasks"], 0)
+        self.assertEqual(
+            payload["counts"]["formal_verifier_replay_training_examples"],
+            payload["counts"]["formal_verifier_replay_tasks"],
+        )
+        self.assertGreaterEqual(payload["counts"]["formal_verifier_replay_kernel_calibrated"], 0)
+        self.assertGreater(payload["counts"]["formal_verifier_replay_proof_search_subclaim"], 0)
+        self.assertGreaterEqual(payload["counts"]["formal_verifier_replay_bridge_lemma"], 0)
+        self.assertGreaterEqual(payload["counts"]["formal_verifier_replay_semantic_review"], 0)
+        self.assertGreater(payload["counts"]["formal_verifier_replay_subclaim_obligations"], 0)
         self.assertTrue(Path(payload["artifacts"]["formalization_delta_plan"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formalization_delta_graph"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_verifier_queue"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_verifier_queue_jsonl"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_verifier_queue_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formal_verifier_replay"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formal_verifier_replay_jsonl"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formal_verifier_replay_training_jsonl"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formal_verifier_replay_report"]).exists())
         self.assertEqual(
             payload["counts"]["primitive_source_coverage_primitives"],
             payload["counts"]["missing_formal_primitives"],

@@ -105,6 +105,15 @@ kernel-smoke overlap calibration for related subclaims. It is useful for
 choosing the next theorem/bridge proof attempt, but it is still a task contract
 rather than proof evidence.
 
+The audit now also exports `formal_verifier_replay` from that queue. Replay
+tasks choose concrete next modes such as kernel-calibrated subclaim replay,
+proof-search subclaim replay, bridge-lemma replay, semantic route review, and
+theorem-composition replay. The export also writes replay-policy training
+examples, so future verifier controllers can learn from queue state, proof
+history, source-trust calibration, and semantic review fields. These rows are
+still executable task contracts only; they do not prove the target theorem
+unless AXLE or local Lean verifies the replayed theorem/bridge proof.
+
 ## Next Build Targets
 
 1. Expand library-aware minimal formalization planning:
@@ -121,8 +130,10 @@ rather than proof evidence.
    RAG-lift context, proof-attempt history, proof-search subclaim history, and
    explicit proof gates, plus dependency depth, import-cone size, source trust
    level, semantic-faithfulness review, and kernel-smoke source-trust
-   calibration. The next version should add route-level proof-attempt replay
-   and calibration against full theorem proof attempts.
+   calibration. `formal-verifier-replay-export` now turns those rows into
+   route-level replay tasks and replay-policy examples. The next version should
+   run those replay tasks against full theorem/bridge proof attempts and
+   calibrate the queue/replay policy against the resulting Lean errors.
 2. Add query-intent expansion for missing primitives:
    primitive name, theorem goal, problem class, local gap reason, and candidate
    proof-bank bridge names should all become retriever queries.
@@ -157,6 +168,16 @@ with heuristic costs, plus `formalization_delta_graph.json`. The graph is
 planning evidence only. It should eventually be upgraded with dependency depth,
 import-cone size, source trust level, proof attempt history, theorem-goal nodes,
 informal-proof-step nodes, and semantic-faithfulness review.
+
+```bash
+python3 -m ai_statistician.cli formal-verifier-replay-export \
+  --formal-verifier-queue-dir runs/current/formal_verifier_queue \
+  --out runs/current/formal_verifier_replay
+```
+
+This converts the ranked queue into replay tasks and replay-policy examples.
+It is the handoff to a full theorem/bridge proof attempt, not evidence that the
+attempt has succeeded.
 
 ## Honesty Boundary
 

@@ -231,6 +231,15 @@ Current release signal:
   Queue rows are task contracts only; they do not become proof evidence until
   the named theorem or bridge proof passes AXLE/local Lean with a
   non-placeholder proof body.
+- `formal-verifier-replay-export` turns those ranked queue rows into concrete
+  route-level replay tasks and replay-policy training examples. It chooses
+  modes such as kernel-calibrated subclaim replay, proof-search subclaim replay,
+  bridge-lemma replay, semantic route review, or theorem-composition replay.
+  The artifact is useful for telling the FormalVerifier exactly what to replay
+  next and which acceptance gate to preserve, but it is still not proof
+  evidence. Subclaim replay and kernel-smoke overlap calibrate only related
+  obligations; the theorem route closes only after the replay target passes
+  AXLE/local Lean with a non-placeholder proof.
 - compose-existing bridge-chain opportunities are now 51
 - minimal-wrapper debt is now 2, down from 10 after adding the robust
   median-of-means, conformal rank/quantile, and continuous-mapping wrappers
@@ -249,6 +258,9 @@ Pass criteria:
   mode, RAG-lift context, related proof-bank obligations, prior verifier/search
   feedback, dependency/source-trust metrics, semantic review status, and
   explicit proof-evidence boundary
+- every formal-verifier replay task carries a replay mode, replay steps,
+  subclaim replay obligations, training prompt/completion, acceptance gate, and
+  proof-evidence boundary
 - kernel-smoke overlap can calibrate source trust for related subclaims, but
   cannot close the theorem route without a non-placeholder theorem/bridge proof
 - new proof-bank additions reduce the missing primitive count or increase
@@ -359,7 +371,12 @@ it records whether hard-mode dependency-graph RAG increased the candidate
 frontier, whether related subclaims have verifier/search history, and whether
 the route has plausible source and semantic support, but keeps those signals
 separate from proof status. A queue row is still unproved until AXLE/local Lean
-accepts the referenced theorem or bridge proof.
+accepts the referenced theorem or bridge proof. `formal-verifier-replay-export`
+is the next handoff: it converts those planning signals into route-level replay
+tasks and replay-policy examples, including kernel-calibrated and
+proof-search-solved subclaim replay where available. Those replay tasks are not
+theorem proof evidence; they are the contract for the next full theorem or
+bridge proof attempt.
 
 ### S6. Algorithm and Simulation Stress Suite
 
