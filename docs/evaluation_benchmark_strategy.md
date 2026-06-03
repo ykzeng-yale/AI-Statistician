@@ -203,6 +203,13 @@ Current release signal:
   targets and a downstream-use theorem. A local Lean compile of that target is
   useful interface evidence, but it is still not proof evidence for the
   statistical assumption or for any downstream identification theorem.
+- `formalization-delta-plan` now turns proof-bank action rows plus
+  primitive-source coverage into an explicit, costed Δ-plan. This is the
+  library-aware planning layer: it distinguishes exact reuse, theorem
+  composition, assumption interfaces, minimal wrappers, bridge lemmas, and
+  first-principles primitive work before a FormalVerifier spends proof-search
+  budget. Its cost is heuristic planning evidence, not a proof of true
+  minimality and not Lean proof evidence.
 - compose-existing bridge-chain opportunities are now 51
 - minimal-wrapper debt is now 2, down from 10 after adding the robust
   median-of-means, conformal rank/quantile, and continuous-mapping wrappers
@@ -212,6 +219,7 @@ Pass criteria:
 - every primitive has an owning theorem goal
 - every primitive has local source candidates or an explicit source gap
 - bridge readiness is classified
+- every proof-bank action has a formalization-delta stage and estimated cost
 - new proof-bank additions reduce the missing primitive count or increase
   bridge readiness
 

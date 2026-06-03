@@ -89,19 +89,45 @@ Lean proof boundary.
 
 ## Next Build Targets
 
-1. Add query-intent expansion for missing primitives:
+1. Add library-aware minimal formalization planning:
+   the current `formalization-delta-plan` is a first heuristic pass that ranks
+   proof-bank actions by reuse, blocker, source-coverage, and bridge/wrapper
+   cost. The next version should promote this from a flat queue to a dependency
+   DAG: target theorem -> definitions -> assumptions -> existing Lean
+   declarations -> bridge lemmas -> first-principles primitives.
+2. Add query-intent expansion for missing primitives:
    primitive name, theorem goal, problem class, local gap reason, and candidate
    proof-bank bridge names should all become retriever queries.
-2. Add source-aware reranking:
+3. Add source-aware reranking:
    prefer importable/local verified declarations, penalize WIP/sorry-heavy
    retrieval-only corpora for proof-bank promotion, and keep them available for
    theorem-shape planning.
-3. Add proof-state/premise feedback:
+4. Add proof-state/premise feedback:
    successful proof candidates become positive premise examples; retrieved but
    unused or failed candidates become hard negatives.
-4. Only after the expanded benchmark exposes semantic misses, add a local
+5. Only after the expanded benchmark exposes semantic misses, add a local
    embedding provider or external LeanSearch/LeanExplore provider behind an
    ablation gate.
+
+## Library-Aware Delta Planning
+
+The next prover/formal-verifier bottleneck is not only "which premise proves the
+current goal?" It is "what is the smallest useful Lean extension Δ that turns
+the current library into one capable of proving the target theorem?" The current
+system now exposes a lightweight version:
+
+```bash
+python3 -m ai_statistician.cli formalization-delta-plan \
+  --proof-bank-actions-dir runs/current/proof_bank_actions \
+  --primitive-source-coverage-dir runs/current/primitive_source_coverage \
+  --out runs/current/formalization_delta_plan
+```
+
+This outputs exact-reuse rows, bridge-chain composition rows, assumption
+interfaces, minimal wrappers, bridge lemmas, and first-principles primitive rows
+with heuristic costs. This is planning evidence only. It should eventually be
+upgraded with dependency depth, import-cone size, source trust level, proof
+attempt history, and semantic-faithfulness review.
 
 ## Honesty Boundary
 

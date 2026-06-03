@@ -36,6 +36,7 @@ from ai_statistician.fresh_holdout_frontier_audit import audit_fresh_holdout_fro
 from ai_statistician.frontier_precision_audit import audit_frontier_precision
 from ai_statistician.frontier_smoke_benchmark import FrontierSmokeConfig, run_frontier_smoke_benchmark, select_supported_frontier_questions
 from ai_statistician.formal_gap_task_export import export_formal_gap_lean_tasks
+from ai_statistician.formalization_delta_plan import build_formalization_delta_plan
 from ai_statistician.formalization_target_audit import audit_formalization_targets
 from ai_statistician.formal_source_graph import FormalSourceGraphRetriever, audit_formal_source_graph
 from ai_statistician.formal_source_hybrid import FormalSourceHybridRetriever
@@ -6957,6 +6958,53 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(Path("runs/test_assumption_interfaces/assumption_interfaces.jsonl").exists())
         self.assertTrue(Path("runs/test_assumption_interfaces/lean/conditional_exchangeability.lean").exists())
 
+    def test_formalization_delta_plan_ranks_minimal_formalization_work(self) -> None:
+        async def run():
+            questions = load_open_research_questions(Path("examples/research_questions.json"))[:2]
+            await run_research_benchmark(
+                questions,
+                Path("runs/test_formalization_delta_run"),
+                proof_verifier=MockProofVerifier(),
+                n_runs=25,
+                seed=20260528,
+            )
+            export_proof_bank_expansion_candidates(
+                Path("runs/test_formalization_delta_run"),
+                Path("runs/test_formalization_delta_expansion"),
+            )
+            export_proof_bank_actions(
+                Path("runs/test_formalization_delta_expansion"),
+                Path("runs/test_formalization_delta_actions"),
+            )
+            audit_primitive_source_coverage(
+                Path("runs/test_formalization_delta_run"),
+                Path("runs/test_formalization_delta_primitive_source_coverage"),
+            )
+            return build_formalization_delta_plan(
+                Path("runs/test_formalization_delta_actions"),
+                Path("runs/test_formalization_delta_plan"),
+                primitive_source_coverage_dir=Path("runs/test_formalization_delta_primitive_source_coverage"),
+            )
+
+        payload = asyncio.run(run())
+        self.assertTrue(payload["all_ok"])
+        self.assertGreater(payload["n_plan_rows"], 0)
+        self.assertEqual(payload["n_ok"], payload["n_plan_rows"])
+        self.assertGreater(payload["total_estimated_cost"], 0)
+        self.assertGreater(
+            payload["n_low_cost_existing_reuse"]
+            + payload["n_medium_cost_bridge_or_wrapper"]
+            + payload["n_high_cost_new_theory"],
+            0,
+        )
+        first = payload["rows"][0]
+        self.assertIn("delta_kind", first)
+        self.assertIn("total_cost", first)
+        self.assertIn("not proof evidence", " ".join(payload["limitations"]))
+        self.assertTrue(Path("runs/test_formalization_delta_plan/formalization_delta_plan_manifest.json").exists())
+        self.assertTrue(Path("runs/test_formalization_delta_plan/formalization_delta_plan.jsonl").exists())
+        self.assertTrue(Path("runs/test_formalization_delta_plan/formalization_delta_plan.md").exists())
+
     def test_primitive_source_coverage_audit_classifies_missing_primitives(self) -> None:
         async def run():
             questions = load_open_research_questions(Path("examples/research_questions.json"))[:2]
@@ -9192,6 +9240,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["gates"]["proof_bank_expansion_export"])
         self.assertTrue(payload["gates"]["proof_bank_action_export"])
         self.assertTrue(payload["gates"]["primitive_source_coverage_audit"])
+        self.assertTrue(payload["gates"]["formalization_delta_plan"])
         self.assertTrue(payload["gates"]["research_training_export"])
         self.assertTrue(payload["gates"]["research_policy_baseline"])
         self.assertTrue(payload["gates"]["next_iteration_queue"])
@@ -9605,6 +9654,12 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             payload["counts"]["assumption_interfaces_local_lean_checked"],
         )
         self.assertTrue(Path(payload["artifacts"]["assumption_interfaces"]).exists())
+        self.assertEqual(payload["counts"]["formalization_delta_plan_ok"], payload["counts"]["formalization_delta_plan_rows"])
+        self.assertGreater(payload["counts"]["formalization_delta_plan_total_estimated_cost"], 0)
+        self.assertGreaterEqual(payload["counts"]["formalization_delta_plan_low_cost_existing_reuse"], 0)
+        self.assertGreaterEqual(payload["counts"]["formalization_delta_plan_medium_cost_bridge_or_wrapper"], 0)
+        self.assertGreaterEqual(payload["counts"]["formalization_delta_plan_high_cost_new_theory"], 0)
+        self.assertTrue(Path(payload["artifacts"]["formalization_delta_plan"]).exists())
         self.assertEqual(
             payload["counts"]["primitive_source_coverage_primitives"],
             payload["counts"]["missing_formal_primitives"],

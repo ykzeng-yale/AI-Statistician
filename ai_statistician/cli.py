@@ -35,6 +35,7 @@ from .frontier_theory_revision_formalization_audit import audit_frontier_theory_
 from .frontier_theory_revision_queue import export_frontier_theory_revision_queue
 from .frontier_theory_target_audit import audit_frontier_theory_targets
 from .formal_gap_task_export import export_formal_gap_lean_tasks
+from .formalization_delta_plan import build_formalization_delta_plan
 from .formalization_target_audit import audit_formalization_targets
 from .formal_source_graph import audit_formal_source_graph
 from .formal_source_index import (
@@ -1183,6 +1184,35 @@ def _assumption_interface_export(args: argparse.Namespace) -> int:
     )
     print(f"jsonl written to {(Path(args.out) / 'assumption_interfaces.jsonl').resolve()}")
     print(f"markdown report written to {(Path(args.out) / 'assumption_interfaces.md').resolve()}")
+    return 0 if payload["all_ok"] else 1
+
+
+def _formalization_delta_plan(args: argparse.Namespace) -> int:
+    payload = build_formalization_delta_plan(
+        Path(args.proof_bank_actions_dir),
+        Path(args.out),
+        primitive_source_coverage_dir=(
+            Path(args.primitive_source_coverage_dir)
+            if args.primitive_source_coverage_dir
+            else None
+        ),
+    )
+    print("\nAI Statistical Theory Lab Formalization Delta Plan")
+    print("=" * 72)
+    print(
+        f"rows={payload['n_ok']}/{payload['n_plan_rows']} "
+        f"cost={payload['total_estimated_cost']} "
+        f"low={payload['n_low_cost_existing_reuse']} "
+        f"medium={payload['n_medium_cost_bridge_or_wrapper']} "
+        f"high={payload['n_high_cost_new_theory']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nformalization delta manifest written to "
+        f"{(Path(args.out) / 'formalization_delta_plan_manifest.json').resolve()}"
+    )
+    print(f"jsonl written to {(Path(args.out) / 'formalization_delta_plan.jsonl').resolve()}")
+    print(f"markdown report written to {(Path(args.out) / 'formalization_delta_plan.md').resolve()}")
     return 0 if payload["all_ok"] else 1
 
 
@@ -2896,6 +2926,26 @@ def build_parser() -> argparse.ArgumentParser:
     assumption_interface_export.add_argument("--lean-project", help="optional local Lake project for `lake env lean` checks")
     assumption_interface_export.add_argument("--lean-timeout", type=int, default=90)
     assumption_interface_export.set_defaults(func=_assumption_interface_export)
+
+    formalization_delta_plan = sub.add_parser(
+        "formalization-delta-plan",
+        help="rank the minimal useful Lean formalization delta from proof-bank action rows",
+    )
+    formalization_delta_plan.add_argument(
+        "--proof-bank-actions-dir",
+        required=True,
+        help="directory containing proof_bank_action_manifest.json",
+    )
+    formalization_delta_plan.add_argument(
+        "--primitive-source-coverage-dir",
+        help="optional directory containing primitive_source_coverage_manifest.json",
+    )
+    formalization_delta_plan.add_argument(
+        "--out",
+        default="runs/formalization_delta_plan",
+        help="formalization-delta output directory",
+    )
+    formalization_delta_plan.set_defaults(func=_formalization_delta_plan)
 
     rag_collaboration_export = sub.add_parser(
         "rag-collaboration-export",

@@ -31,6 +31,7 @@ from .claim_ledger_action_export import export_claim_ledger_actions
 from .claim_ledger import build_claim_ledger
 from .evaluation_benchmark_guidance import build_evaluation_benchmark_guidance
 from .formal_gap_task_export import export_formal_gap_lean_tasks
+from .formalization_delta_plan import build_formalization_delta_plan
 from .formalization_target_audit import audit_formalization_targets
 from .formal_source_graph import audit_formal_source_graph
 from .formal_source_hybrid import FormalSourceHybridRetriever
@@ -470,6 +471,12 @@ async def run_research_system_audit(
         lean_rag_db_path=Path(config.lean_rag_db) if config.lean_rag_db else None,
     )
     stage_start = _record_stage(stage_timings, "primitive_source_coverage_audit", stage_start)
+    formalization_delta_manifest = build_formalization_delta_plan(
+        out_dir / "proof_bank_actions",
+        out_dir / "formalization_delta_plan",
+        primitive_source_coverage_dir=out_dir / "primitive_source_coverage",
+    )
+    stage_start = _record_stage(stage_timings, "formalization_delta_plan", stage_start)
 
     research_training_manifest = export_research_training_dataset(
         out_dir / "research_benchmark",
@@ -667,6 +674,7 @@ async def run_research_system_audit(
         "proof_bank_action_export": bool(proof_bank_action_manifest["all_ok"]),
         "assumption_interface_export": bool(assumption_interface_manifest["all_ok"]),
         "primitive_source_coverage_audit": bool(primitive_source_coverage_manifest["all_ok"]),
+        "formalization_delta_plan": bool(formalization_delta_manifest["all_ok"]),
         "research_training_export": bool(research_training_manifest["all_ok"]),
         "research_policy_baseline": bool(research_policy_manifest["all_ok"]),
         "next_iteration_queue": bool(next_iteration_manifest["all_ok"]),
@@ -1223,6 +1231,20 @@ async def run_research_system_audit(
             "assumption_interfaces_all_local_lean_compiled": assumption_interface_manifest[
                 "all_local_lean_compiled"
             ],
+            "formalization_delta_plan_rows": formalization_delta_manifest["n_plan_rows"],
+            "formalization_delta_plan_ok": formalization_delta_manifest["n_ok"],
+            "formalization_delta_plan_total_estimated_cost": formalization_delta_manifest[
+                "total_estimated_cost"
+            ],
+            "formalization_delta_plan_low_cost_existing_reuse": formalization_delta_manifest[
+                "n_low_cost_existing_reuse"
+            ],
+            "formalization_delta_plan_medium_cost_bridge_or_wrapper": formalization_delta_manifest[
+                "n_medium_cost_bridge_or_wrapper"
+            ],
+            "formalization_delta_plan_high_cost_new_theory": formalization_delta_manifest[
+                "n_high_cost_new_theory"
+            ],
             "proof_bank_actions_high_priority": proof_bank_action_manifest["by_priority"].get("high", 0),
             "proof_bank_actions_medium_priority": proof_bank_action_manifest["by_priority"].get("medium", 0),
             "proof_bank_actions_low_priority": proof_bank_action_manifest["by_priority"].get("low", 0),
@@ -1754,6 +1776,15 @@ async def run_research_system_audit(
             ),
             "assumption_interfaces_report": str(
                 out_dir / "assumption_interfaces" / "assumption_interfaces.md"
+            ),
+            "formalization_delta_plan": str(
+                out_dir / "formalization_delta_plan" / "formalization_delta_plan_manifest.json"
+            ),
+            "formalization_delta_plan_jsonl": str(
+                out_dir / "formalization_delta_plan" / "formalization_delta_plan.jsonl"
+            ),
+            "formalization_delta_plan_report": str(
+                out_dir / "formalization_delta_plan" / "formalization_delta_plan.md"
             ),
             "primitive_source_coverage": str(
                 out_dir / "primitive_source_coverage" / "primitive_source_coverage_manifest.json"
