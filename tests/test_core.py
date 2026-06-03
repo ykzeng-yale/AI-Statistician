@@ -1647,6 +1647,19 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("denominator_safety", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_positivity_direct_wrapper_records_lower_bound_bridge(self) -> None:
+        obligation = get_obligation("positivity")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("propensity_score_ne_zero_of_lower_bound",))
+        self.assertIn("theorem positivity_of_lower_bound", content)
+        self.assertIn("(hδ : 0 < δ) (hp : δ ≤ p)", content)
+        self.assertIn("0 < p ∧ p ≠ 0", content)
+        self.assertIn("lt_of_lt_of_le hδ hp", content)
+        self.assertIn("ne_of_gt hp_pos", content)
+        self.assertIn("positivity", obligation.tags)
+        self.assertIn("direct_primitive_wrapper", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_propensity_weight_cancel_uses_lower_bound_denominator_safety(self) -> None:
         obligation = get_obligation("propensity_weight_mul_cancel_of_lower_bound")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)
@@ -1823,6 +1836,29 @@ class ProofBankTests(unittest.TestCase):
         self.assertIn("conditional_expectation", obligation.tags)
         self.assertIn("iterated_expectation", obligation.tags)
         self.assertIn("tower_property", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
+    def test_conditional_expectation_direct_wrapper_reuses_integral_bridge(self) -> None:
+        obligation = get_obligation("conditional_expectation")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("condexp_integral_eq_integral_real",))
+        self.assertIn("theorem conditionalExpectation_integral_eq_integral_real", content)
+        self.assertIn("∫ ω, μ[X | m] ω ∂μ = ∫ ω, X ω ∂μ", content)
+        self.assertIn("integral_condExp", content)
+        self.assertIn("conditional_expectation", obligation.tags)
+        self.assertIn("direct_primitive_wrapper", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
+    def test_iterated_expectation_direct_wrapper_reuses_tower_bridge(self) -> None:
+        obligation = get_obligation("iterated_expectation")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("condexp_tower_of_sub_sigma_real", "conditional_expectation"))
+        self.assertIn("theorem iteratedExpectation_tower_real", content)
+        self.assertIn("hm12 : m1 ≤ m2", content)
+        self.assertIn("μ[μ[X | m2] | m1] =ᵐ[μ] μ[X | m1]", content)
+        self.assertIn("condExp_condExp_of_le", content)
+        self.assertIn("iterated_expectation", obligation.tags)
+        self.assertIn("direct_primitive_wrapper", obligation.tags)
         self.assertNotIn("by sorry", content)
 
     def test_integrable_ae_tendsto_condexp_filtration_wraps_upward_theorem(self) -> None:
@@ -5654,6 +5690,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "integral_of_constant",
             "potential_outcome_consistency",
             "potential_outcome_observed_consistency",
+            "positivity",
             "condexp_integral_eq_integral_real",
             "aipw_score_expectation_decompose",
             "propensity_weight_identity",
@@ -5725,7 +5762,9 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "propensity_weight_mul_cancel_of_lower_bound",
             rows["positivity"]["bridge_candidate_obligations"],
         )
-        self.assertEqual(rows["positivity"]["priority_band"], "BRIDGE_REUSE_READY")
+        self.assertEqual(rows["positivity"]["priority_band"], "EXACT_PROOF_BANK_REUSE")
+        self.assertEqual(rows["positivity"]["exact_proof_bank_obligation"], "positivity")
+        self.assertTrue(rows["positivity"]["proof_bank_exact_match_available"])
         self.assertIn(
             "propensity_weight_mul_cancel_of_lower_bound",
             rows["propensity_weight_identity"]["bridge_candidate_obligations"],
@@ -6284,6 +6323,8 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "iid_real_clt_tendsto_distribution",
             "independent_real_condExp_natural_eq_mean",
             "condexp_integral_eq_integral_real",
+            "conditional_expectation",
+            "iterated_expectation",
             "finite_sample_mean_unbiased",
             "finite_sample_mean_variance_indep",
             "matrix_inverse_continuous_mapping_bridge",
@@ -6331,7 +6372,6 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "sample_moment_lln",
             "iid_empirical_mean_clt",
             "exogeneity_moment_condition",
-            "conditional_expectation",
         ):
             self.assertIn(
                 "independent_real_condExp_natural_eq_mean",
@@ -6355,6 +6395,12 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                 "integrable_ae_tendsto_condexp_filtration",
                 rows[primitive]["bridge_candidate_obligations"],
             )
+        self.assertEqual(rows["conditional_expectation"]["priority_band"], "EXACT_PROOF_BANK_REUSE")
+        self.assertEqual(
+            rows["conditional_expectation"]["exact_proof_bank_obligation"],
+            "conditional_expectation",
+        )
+        self.assertTrue(rows["conditional_expectation"]["proof_bank_exact_match_available"])
         self.assertIn(
             "condexp_tower_of_sub_sigma_real",
             rows["iterated_expectation"]["bridge_candidate_obligations"],
@@ -6363,6 +6409,9 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "integrable_l1_tendsto_condexp_filtration",
             rows["iterated_expectation"]["bridge_candidate_obligations"],
         )
+        self.assertEqual(rows["iterated_expectation"]["priority_band"], "EXACT_PROOF_BANK_REUSE")
+        self.assertEqual(rows["iterated_expectation"]["exact_proof_bank_obligation"], "iterated_expectation")
+        self.assertTrue(rows["iterated_expectation"]["proof_bank_exact_match_available"])
         for primitive in ("sample_moment_lln", "iid_empirical_mean_clt"):
             self.assertIn(
                 "iid_real_clt_tendsto_distribution",

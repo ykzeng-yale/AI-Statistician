@@ -685,6 +685,47 @@ theorem propensityScore_ne_zero_of_lower_bound {δ p : ℝ}
         expected_lemmas=("lt_of_lt_of_le", "ne_of_gt"),
         depends_on=("potential_outcome_observed_consistency",),
     ),
+    "positivity": FormalObligation(
+        id="positivity",
+        title="Positivity primitive wrapper from a strict lower bound",
+        english=(
+            "If a scalar propensity score `p` is bounded below by a strictly "
+            "positive constant `δ`, then `p` is strictly positive and nonzero. "
+            "This names the `positivity` frontier primitive directly for "
+            "causal identification and IPW/AIPW traces. It is a denominator "
+            "safety bridge only; it does not prove overlap for a population, "
+            "conditional exchangeability, or causal identification."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+
+theorem positivity_of_lower_bound {δ p : ℝ}
+    (hδ : 0 < δ) (hp : δ ≤ p) :
+    0 < p ∧ p ≠ 0 := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  have hp_pos : 0 < p := lt_of_lt_of_le hδ hp\n"
+            "  exact ⟨hp_pos, ne_of_gt hp_pos⟩"
+        ),
+        tags=(
+            "causal",
+            "ate",
+            "positivity",
+            "overlap",
+            "propensity",
+            "propensity_score",
+            "inverse_probability_weight",
+            "aipw",
+            "semiparametric",
+            "denominator_safety",
+            "direct_primitive_wrapper",
+        ),
+        expected_lemmas=("lt_of_lt_of_le", "ne_of_gt"),
+        depends_on=("propensity_score_ne_zero_of_lower_bound",),
+    ),
     "propensity_weight_mul_cancel_of_lower_bound": FormalObligation(
         id="propensity_weight_mul_cancel_of_lower_bound",
         title="Propensity lower bound licenses inverse-weight cancellation",
@@ -3567,6 +3608,96 @@ theorem condExp_tower_of_sub_sigma_real
         ),
         expected_lemmas=("condExp_condExp_of_le",),
         depends_on=("condexp_integral_eq_integral_real",),
+    ),
+    "conditional_expectation": FormalObligation(
+        id="conditional_expectation",
+        title="Conditional-expectation integral primitive wrapper",
+        english=(
+            "For a real-valued random variable, the integral of its conditional "
+            "expectation with respect to a sub-sigma-field equals the original "
+            "integral. This names the `conditional_expectation` frontier "
+            "primitive directly for causal and exogeneity theorem skeletons. "
+            "It is a Mathlib-backed conditional-expectation bridge only; it "
+            "does not prove conditional exchangeability or any model-specific "
+            "identification assumption."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+open scoped MeasureTheory
+
+theorem conditionalExpectation_integral_eq_integral_real
+    {Ω : Type*} [mΩ : MeasurableSpace Ω]
+    (m : MeasurableSpace Ω)
+    (μ : Measure[mΩ] Ω)
+    (hm : m ≤ mΩ) [SigmaFinite (μ.trim hm)]
+    (X : Ω → ℝ) :
+    ∫ ω, μ[X | m] ω ∂μ = ∫ ω, X ω ∂μ := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  rw [integral_condExp (m := m) (m₀ := mΩ) (μ := μ) (f := X) hm]"
+        ),
+        tags=(
+            "expectation",
+            "conditional_expectation",
+            "iterated_expectation",
+            "law_of_total_expectation",
+            "exogeneity_moment_condition",
+            "aipw",
+            "causal",
+            "semiparametric",
+            "direct_primitive_wrapper",
+        ),
+        expected_lemmas=("integral_condExp",),
+        depends_on=("condexp_integral_eq_integral_real",),
+    ),
+    "iterated_expectation": FormalObligation(
+        id="iterated_expectation",
+        title="Iterated-expectation tower primitive wrapper",
+        english=(
+            "For nested sigma-fields, conditioning a real random variable on "
+            "the larger sigma-field and then the smaller one is almost "
+            "everywhere the same as conditioning directly on the smaller "
+            "sigma-field. This names the `iterated_expectation` frontier "
+            "primitive directly. It assumes the nested sigma-field setup and "
+            "does not prove model-specific exchangeability or identification."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+open scoped MeasureTheory
+
+theorem iteratedExpectation_tower_real
+    {Ω : Type*} [mΩ : MeasurableSpace Ω]
+    (m1 m2 : MeasurableSpace Ω)
+    (μ : Measure[mΩ] Ω)
+    (hm12 : m1 ≤ m2)
+    (hm2 : m2 ≤ mΩ) [SigmaFinite (μ.trim hm2)]
+    (X : Ω → ℝ) :
+    μ[μ[X | m2] | m1] =ᵐ[μ] μ[X | m1] := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  exact condExp_condExp_of_le (μ := μ) (f := X) hm12 hm2"
+        ),
+        tags=(
+            "expectation",
+            "conditional_expectation",
+            "iterated_expectation",
+            "tower_property",
+            "filtration",
+            "causal",
+            "semiparametric",
+            "exogeneity_moment_condition",
+            "direct_primitive_wrapper",
+        ),
+        expected_lemmas=("condExp_condExp_of_le",),
+        depends_on=("condexp_tower_of_sub_sigma_real", "conditional_expectation"),
     ),
     "conditional_mean_residual_zero_of_condExp_ae_eq": FormalObligation(
         id="conditional_mean_residual_zero_of_condExp_ae_eq",

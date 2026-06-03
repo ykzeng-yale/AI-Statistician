@@ -536,6 +536,17 @@ named primitive as exact proof-bank reuse, while still leaving complete
 randomization validity, randomization-variance decomposition, and Neyman
 conservativeness as separate theorem-family work.
 
+The causal-identification lane now also has exact primitive wrappers for
+`conditional_expectation`, `iterated_expectation`, and `positivity`.
+`conditionalExpectation_integral_eq_integral_real` wraps Mathlib's
+conditional-expectation integral identity, `iteratedExpectation_tower_real`
+wraps the nested-sigma-field tower property, and `positivity_of_lower_bound`
+turns a strict lower bound into positivity and denominator safety. These
+reduce the causal-identification theorem-composition packet to one unresolved
+primitive, `conditional_exchangeability`. They do **not** prove exchangeability,
+unconfoundedness, overlap as a population assumption, or full ATE
+identification end to end.
+
 Important boundary:
 
 - These are finite, reusable Mathlib-backed estimator/probability/statistical
