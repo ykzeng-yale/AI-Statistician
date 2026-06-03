@@ -948,6 +948,7 @@ def _lean_rag_source_registry_expansion_preflight(args: argparse.Namespace) -> i
         f"rows={payload['n_rows']} clone_required={payload['n_clone_required']} "
         f"present_clean_git={payload['n_present_clean_git']} "
         f"present_local_path={payload['n_present_local_path']} "
+        f"indexer_unsupported={payload['n_indexer_unsupported']} "
         f"hard_blockers={payload['n_hard_blockers']}"
     )
     print(
@@ -1429,6 +1430,7 @@ def _goal_conditioned_minimal_formalization_plan(args: argparse.Namespace) -> in
         f"bridges={payload['n_bridge_nodes']} "
         f"source={payload['n_source_discovery_nodes']} "
         f"first_principles={payload['n_first_principles_nodes']} "
+        f"minimal_cuts={payload['n_goal_plans_with_minimal_cut']} "
         f"all_ok={payload['all_ok']}"
     )
     print(

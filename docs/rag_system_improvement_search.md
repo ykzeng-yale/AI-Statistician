@@ -120,7 +120,10 @@ python3 -m ai_statistician.cli lean-rag-source-registry-expansion-preflight \
 The preflight separates `source_registry_apply_ready` from
 `external_refresh_ready`: missing clone destinations can still permit a reviewed
 registry update, while dirty checkouts, remote mismatches, and non-git
-destination collisions block refresh.
+destination collisions block refresh. It also reports
+`n_indexer_unsupported`: staged sources do not improve retrieval merely by
+appearing in the registry unless the current refresh/index/search scripts have a
+route that scans them into the external reuse index.
 
 The audit now also records `lean_rag_dependency_health`. Before the optional
 dependency-graph SQLite DB is attached to hybrid retrieval, the backend checks
@@ -502,10 +505,14 @@ python3 -m ai_statistician.cli goal-conditioned-minimal-formalization-plan \
 
 This narrows the global delta plan to theorem-specific minimal cuts. It records
 selected primitives, exact-reuse nodes, wrapper/bridge/source/first-principles
-nodes, next worker packets, and explicit `do_not_formalize_now` hints so the
-prover does not spend time porting unrelated machinery. The output is planning
-evidence only; Lean proof status still comes from replay attempts and kernel
-verification.
+nodes, a `minimal_cut_summary`, a transparent `route_cost_breakdown`, next
+worker packets, and explicit `do_not_formalize_now` hints so the prover does not
+spend time porting unrelated machinery. This is the shared integration surface
+for exploratory backward-planner work: stronger semantic parsers, AND/OR route
+search, MCP proof-state probes, or LeanExplore-style declaration search should
+improve the route generator while preserving this artifact contract. The output
+is planning evidence only; Lean proof status still comes from replay attempts
+and kernel verification.
 
 ```bash
 python3 -m ai_statistician.cli formal-verifier-replay-export \

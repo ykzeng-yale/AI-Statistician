@@ -571,6 +571,48 @@ def export_rag_collaboration_manifest(
                     "n_first_principles_nodes"
                 ),
             ),
+            "goal_conditioned_minimal_formalization_minimal_additional_nodes": counts.get(
+                "goal_conditioned_minimal_formalization_minimal_additional_nodes",
+                goal_conditioned_minimal_formalization_plan_payload.get(
+                    "n_minimal_additional_formalization_nodes"
+                ),
+            ),
+            "goal_conditioned_minimal_formalization_minimal_cuts": counts.get(
+                "goal_conditioned_minimal_formalization_minimal_cuts",
+                goal_conditioned_minimal_formalization_plan_payload.get(
+                    "n_goal_plans_with_minimal_cut"
+                ),
+            ),
+            "goal_conditioned_minimal_formalization_cost_terms": counts.get(
+                "goal_conditioned_minimal_formalization_cost_terms",
+                goal_conditioned_minimal_formalization_plan_payload.get(
+                    "n_route_cost_breakdown_terms"
+                ),
+            ),
+            "goal_conditioned_minimal_formalization_and_or_nodes": counts.get(
+                "goal_conditioned_minimal_formalization_and_or_nodes",
+                goal_conditioned_minimal_formalization_plan_payload.get(
+                    "n_and_or_plan_nodes"
+                ),
+            ),
+            "goal_conditioned_minimal_formalization_and_or_edges": counts.get(
+                "goal_conditioned_minimal_formalization_and_or_edges",
+                goal_conditioned_minimal_formalization_plan_payload.get(
+                    "n_and_or_plan_edges"
+                ),
+            ),
+            "goal_conditioned_minimal_formalization_route_revision_triggers": counts.get(
+                "goal_conditioned_minimal_formalization_route_revision_triggers",
+                goal_conditioned_minimal_formalization_plan_payload.get(
+                    "n_route_revision_triggers"
+                ),
+            ),
+            "goal_conditioned_minimal_formalization_portable_work_packets": counts.get(
+                "goal_conditioned_minimal_formalization_portable_work_packets",
+                goal_conditioned_minimal_formalization_plan_payload.get(
+                    "n_portable_work_packets"
+                ),
+            ),
             "goal_conditioned_minimal_formalization_manifest": str(
                 goal_conditioned_minimal_formalization_plan_path
             ),
@@ -1530,6 +1572,7 @@ def _goal_conditioned_minimal_formalization_plan_preview(
                 "recommended_action": row.get("recommended_action", ""),
                 "best_route_cost": row.get("best_route_cost", 0),
                 "goal_conditioned_cost": row.get("goal_conditioned_cost", 0),
+                "route_cost_breakdown": row.get("route_cost_breakdown", {}),
                 "route_efficiency_score": row.get("route_efficiency_score", 0),
                 "selected_primitives": row.get("selected_primitives", [])[:8],
                 "existing_reuse_nodes": row.get("existing_reuse_nodes", [])[:4],
@@ -1541,6 +1584,17 @@ def _goal_conditioned_minimal_formalization_plan_preview(
                     "minimal_additional_formalization_nodes",
                     [],
                 )[:6],
+                "minimal_cut_summary": row.get("minimal_cut_summary", {}),
+                "route_dag_contract": row.get("route_dag_contract", {}),
+                "and_or_plan": _compact_graph_preview(row.get("and_or_plan", {})),
+                "informal_knowledge_dag": _compact_graph_preview(
+                    row.get("informal_knowledge_dag", {})
+                ),
+                "lean_realization_dag": _compact_graph_preview(
+                    row.get("lean_realization_dag", {})
+                ),
+                "route_revision_triggers": row.get("route_revision_triggers", [])[:8],
+                "portable_work_packets": row.get("portable_work_packets", [])[:6],
                 "do_not_formalize_now": row.get("do_not_formalize_now", [])[:8],
                 "next_work_packets": row.get("next_work_packets", [])[:6],
                 "route_summary": row.get("route_summary", ""),
@@ -1551,6 +1605,20 @@ def _goal_conditioned_minimal_formalization_plan_preview(
         if len(rows) >= max_rows:
             break
     return rows
+
+
+def _compact_graph_preview(graph: Any) -> dict[str, object]:
+    if not isinstance(graph, dict):
+        return {}
+    nodes = graph.get("nodes", [])
+    edges = graph.get("edges", [])
+    return {
+        "n_nodes": len(nodes) if isinstance(nodes, list) else 0,
+        "n_edges": len(edges) if isinstance(edges, list) else 0,
+        "nodes": nodes[:6] if isinstance(nodes, list) else [],
+        "edges": edges[:6] if isinstance(edges, list) else [],
+        "boundary": graph.get("boundary", ""),
+    }
 
 
 def _formal_verifier_replay_preview(
@@ -2443,7 +2511,10 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"(`{queue.get('goal_conditioned_minimal_formalization_low_cost')}` low cost, "
         f"`{queue.get('goal_conditioned_minimal_formalization_existing_reuse_nodes')}` reuse, "
         f"`{queue.get('goal_conditioned_minimal_formalization_wrapper_nodes')}` wrappers, "
-        f"`{queue.get('goal_conditioned_minimal_formalization_bridge_nodes')}` bridges)",
+        f"`{queue.get('goal_conditioned_minimal_formalization_bridge_nodes')}` bridges, "
+        f"`{queue.get('goal_conditioned_minimal_formalization_minimal_cuts')}` minimal cuts, "
+        f"`{queue.get('goal_conditioned_minimal_formalization_and_or_nodes')}` AND/OR nodes, "
+        f"`{queue.get('goal_conditioned_minimal_formalization_portable_work_packets')}` portable packets)",
         f"- Formal verifier replay: `{queue.get('formal_verifier_replay_tasks')}` tasks "
         f"(`{queue.get('formal_verifier_replay_kernel_calibrated')}` kernel-calibrated, "
         f"`{queue.get('formal_verifier_replay_proof_search_subclaim')}` proof-search subclaim replay)",
@@ -2573,6 +2644,12 @@ def _markdown_report(payload: dict[str, object]) -> str:
             for packet in row.get("next_work_packets", [])
             if isinstance(packet, dict)
         ) or "none"
+        cut = row.get("minimal_cut_summary", {})
+        if not isinstance(cut, dict):
+            cut = {}
+        cost = row.get("route_cost_breakdown", {})
+        if not isinstance(cost, dict):
+            cost = {}
         lines.append(
             f"- `{row.get('display_name')}` cost={row.get('goal_conditioned_cost')} "
             f"efficiency={row.get('route_efficiency_score')} class={row.get('route_class')}"
@@ -2580,6 +2657,22 @@ def _markdown_report(payload: dict[str, object]) -> str:
         lines.append(f"  selected primitives: {selected}")
         lines.append(f"  add now: {nodes}")
         lines.append(f"  do not formalize now: {skipped}")
+        lines.append(
+            "  minimal cut: "
+            f"use_existing={len(cut.get('use_existing', []))} "
+            f"wrappers={len(cut.get('add_wrappers', []))} "
+            f"bridges={len(cut.get('add_bridge_lemmas', []))} "
+            f"source={len(cut.get('add_source_discovery', []))} "
+            f"first_principles={len(cut.get('add_first_principles', []))}"
+        )
+        lines.append(
+            "  cost terms: "
+            f"base={cost.get('base_route_cost')} "
+            f"import={cost.get('import_cone_penalty')} "
+            f"depth={cost.get('dependency_depth_penalty')} "
+            f"blockers={cost.get('blocker_penalty')} "
+            f"trust_credit={cost.get('source_trust_credit')}"
+        )
         lines.append(f"  next packets: {next_packets}")
         lines.append(f"  summary: {row.get('route_summary')}")
         lines.append(f"  boundary: {row.get('proof_evidence_boundary')}")

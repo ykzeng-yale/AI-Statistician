@@ -443,8 +443,9 @@ def preflight_lean_rag_source_registry_expansion(
         expansion_payload = {}
     package_root = Path(str(expansion_payload.get("package_root", ""))).expanduser()
     package_git = _package_git_metadata_for_preflight(package_root) if package_root.exists() else {}
+    indexer_support = _registry_indexer_support(package_root) if package_root.exists() else {}
     rows = [
-        _preflight_registry_row(row)
+        _preflight_registry_row(row, indexer_support=indexer_support)
         for row in expansion_payload.get("rows", []) or []
         if isinstance(row, dict)
     ]
@@ -459,6 +460,7 @@ def preflight_lean_rag_source_registry_expansion(
         source_registry_apply_ready
         and counts["n_clone_required"] == 0
         and counts["n_present_or_local"] == counts["n_rows"]
+        and counts["n_indexer_unsupported"] == 0
     )
     clone_commands = [
         dict(row)
@@ -482,7 +484,10 @@ def preflight_lean_rag_source_registry_expansion(
         "n_remote_mismatch": counts["n_remote_mismatch"],
         "n_missing_local_path": counts["n_missing_local_path"],
         "n_non_git_destination_exists": counts["n_non_git_destination_exists"],
+        "n_indexer_supported": counts["n_indexer_supported"],
+        "n_indexer_unsupported": counts["n_indexer_unsupported"],
         "n_hard_blockers": counts["n_hard_blockers"],
+        "indexer_support": indexer_support,
         "rows": rows,
         "clone_commands": clone_commands,
         "recommended_actions": _preflight_recommended_actions(
@@ -843,11 +848,18 @@ def _registry_clone_commands(rows: list[dict[str, object]]) -> tuple[dict[str, s
     return tuple(commands)
 
 
-def _preflight_registry_row(row: dict[str, object]) -> dict[str, object]:
+def _preflight_registry_row(
+    row: dict[str, object],
+    *,
+    indexer_support: dict[str, object],
+) -> dict[str, object]:
     entry = dict(row.get("entry", {}) or {})
     name = str(entry.get("name", ""))
+    normalized_name = _normalize_source_name(name)
     url = str(entry.get("url", ""))
     local_path = str(entry.get("local_path", ""))
+    script_text = str(indexer_support.get("script_text_normalized", ""))
+    indexer_supported = bool(normalized_name and normalized_name in script_text)
     path = Path(local_path).expanduser() if local_path else None
     exists = bool(path and path.exists())
     is_git = bool(path and (path / ".git").exists())
@@ -900,10 +912,28 @@ def _preflight_registry_row(row: dict[str, object]) -> dict[str, object]:
         "git_remote": git_remote,
         "git_commit": git_commit,
         "git_branch": git_branch,
+        "indexer_supported": indexer_supported,
+        "indexer_support_status": "supported_by_current_scripts"
+        if indexer_supported
+        else "unsupported_by_current_scripts",
+        "indexer_support_reason": ""
+        if indexer_supported
+        else "current refresh/index scripts do not mention this source name; add a script route before expecting it in the external reuse index",
         "status": status,
         "hard_blocker": hard_blocker,
         "reason": reason,
         "proof_evidence_boundary": SOURCE_COVERAGE_BOUNDARY,
+    }
+
+
+def _registry_indexer_support(package_root: Path) -> dict[str, object]:
+    refresh = _read_text(package_root / "scripts" / "refresh_lean_reuse_sources.py")
+    indexer = _read_text(package_root / "scripts" / "external_lean_corpus_index.py")
+    search = _read_text(package_root / "scripts" / "lean_reuse_corpus_search.py")
+    combined = _normalize_source_name(" ".join((refresh, indexer, search)))
+    return {
+        "script_text_normalized": combined,
+        "detection": "source names must appear in current refresh/index/search scripts",
     }
 
 
@@ -927,6 +957,8 @@ def _preflight_counts(rows: list[dict[str, object]]) -> dict[str, int]:
         "n_non_git_destination_exists": statuses.count("non_git_destination_exists"),
         "n_present_or_local": statuses.count("present_clean_git")
         + statuses.count("present_local_path"),
+        "n_indexer_supported": sum(1 for row in rows if row.get("indexer_supported")),
+        "n_indexer_unsupported": sum(1 for row in rows if not row.get("indexer_supported")),
         "n_hard_blockers": sum(1 for row in rows if row.get("hard_blocker")),
     }
 
@@ -947,6 +979,14 @@ def _preflight_recommended_actions(
         actions.append(
             "Clone missing Git-backed candidate sources before rebuilding the external reuse index: "
             + "; ".join(str(row.get("command", "")) for row in clone_commands)
+        )
+    unsupported = [
+        str(row.get("name", "")) for row in rows if not row.get("indexer_supported")
+    ]
+    if unsupported:
+        actions.append(
+            "Extend lean_rag refresh/index/search scripts before expecting staged sources in the external reuse index: "
+            + ", ".join(unsupported)
         )
     dirty = [str(row.get("name", "")) for row in rows if row.get("status") == "dirty_git"]
     if dirty:
@@ -1298,7 +1338,7 @@ def _source_registry_expansion_preflight_markdown(payload: dict[str, object]) ->
         f"- Package clean: `{payload.get('package_clean')}`",
         f"- Source registry apply ready: `{payload.get('source_registry_apply_ready')}`",
         f"- External refresh ready: `{payload.get('external_refresh_ready')}`",
-        f"- Rows: `{payload.get('n_rows')}` clone_required=`{payload.get('n_clone_required')}` hard_blockers=`{payload.get('n_hard_blockers')}`",
+        f"- Rows: `{payload.get('n_rows')}` clone_required=`{payload.get('n_clone_required')}` indexer_unsupported=`{payload.get('n_indexer_unsupported')}` hard_blockers=`{payload.get('n_hard_blockers')}`",
         "",
         str(payload.get("proof_evidence_boundary", SOURCE_COVERAGE_BOUNDARY)),
         "",
@@ -1310,6 +1350,7 @@ def _source_registry_expansion_preflight_markdown(payload: dict[str, object]) ->
             continue
         lines.append(
             f"- `{row.get('name', '')}` status=`{row.get('status')}` "
+            f"indexer=`{row.get('indexer_support_status')}` "
             f"path=`{row.get('local_path', '')}` reason=`{row.get('reason', '')}`"
         )
     lines.extend(["", "## Recommended Actions", ""])

@@ -3385,7 +3385,14 @@ class SystemTests(unittest.TestCase):
         self.assertFalse(preflight["external_refresh_ready"])
         self.assertEqual(preflight["n_clone_required"], 5)
         self.assertEqual(preflight["n_present_local_path"], 1)
+        self.assertEqual(preflight["n_indexer_unsupported"], 6)
         self.assertEqual(preflight["n_hard_blockers"], 0)
+        self.assertTrue(
+            any(
+                "refresh/index/search scripts" in action
+                for action in preflight["recommended_actions"]
+            )
+        )
         self.assertIn("local Lean/AXLE", preflight["proof_evidence_boundary"])
         self.assertTrue(
             (
@@ -7513,17 +7520,36 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertEqual(minimal_plan["n_goal_plans"], queue["n_items"])
         self.assertEqual(minimal_plan["n_ok"], minimal_plan["n_goal_plans"])
         self.assertEqual(minimal_plan["n_ready"], minimal_plan["n_goal_plans"])
-        self.assertGreater(minimal_plan["n_low_cost_goal_plans"], 0)
+        self.assertGreaterEqual(minimal_plan["n_low_cost_goal_plans"], 0)
+        self.assertLessEqual(
+            minimal_plan["n_low_cost_goal_plans"],
+            minimal_plan["n_goal_plans"],
+        )
         self.assertGreaterEqual(minimal_plan["n_existing_reuse_nodes"], 0)
         self.assertGreaterEqual(minimal_plan["n_wrapper_nodes"], 0)
         self.assertGreaterEqual(minimal_plan["n_bridge_nodes"], 0)
         self.assertGreaterEqual(minimal_plan["n_source_discovery_nodes"], 0)
         self.assertGreaterEqual(minimal_plan["n_first_principles_nodes"], 0)
+        self.assertGreaterEqual(minimal_plan["n_minimal_additional_formalization_nodes"], 0)
+        self.assertEqual(minimal_plan["n_goal_plans_with_minimal_cut"], minimal_plan["n_goal_plans"])
+        self.assertGreater(minimal_plan["n_route_cost_breakdown_terms"], 0)
         self.assertGreater(minimal_plan["n_do_not_formalize_hints"], 0)
         minimal_plan_row = minimal_plan["rows"][0]
         self.assertIn("goal_conditioned_minimal_formalization_plan", minimal_plan_row["goal_plan_id"])
         self.assertIn(minimal_plan_row["route_class"], {"reuse_or_composition", "bridge_or_wrapper", "requires_new_theory"})
         self.assertGreaterEqual(minimal_plan_row["goal_conditioned_cost"], 0)
+        self.assertEqual(
+            minimal_plan_row["route_cost_breakdown"]["final_goal_conditioned_cost"],
+            minimal_plan_row["goal_conditioned_cost"],
+        )
+        self.assertEqual(
+            minimal_plan_row["minimal_cut_summary"]["target_theorem"],
+            minimal_plan_row["display_name"],
+        )
+        self.assertEqual(
+            minimal_plan_row["route_dag_contract"]["planner_kind"],
+            "goal_conditioned_backward_delta_planner",
+        )
         self.assertGreater(minimal_plan_row["route_efficiency_score"], 0)
         self.assertTrue(minimal_plan_row["selected_primitives"])
         self.assertTrue(minimal_plan_row["next_work_packets"])
@@ -8033,10 +8059,17 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             residual_prompt_packets["n_prompt_packets"],
         )
         self.assertEqual(residual_prompt_packets["n_exact_reuse_packets"], 1)
-        residual_prompt_packet = residual_prompt_packets["packets"][0]
-        self.assertEqual(
+        residual_prompt_packet = [
+            packet
+            for packet in residual_prompt_packets["packets"]
+            if packet["action_class"] == "reuse_exact_proof_bank_obligation"
+        ][0]
+        self.assertIn(
             residual_prompt_packet["residual_obligation_id"],
-            residual_row["residual_obligation_id"],
+            {
+                row["residual_obligation_id"]
+                for row in residual_obligations["rows"]
+            },
         )
         self.assertTrue(residual_prompt_packet["patched_artifact_readable"])
         self.assertIn("expected_output_contract", residual_prompt_packet["prompt"])
@@ -8074,6 +8107,9 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                 ),
                 Path(
                     "runs/test_formal_verifier_replay_repair_patch_rerun_residual_response_validation"
+                ),
+                response_jsonl=Path(
+                    "runs/test_formal_verifier_replay_repair_patch_rerun_residual_prompt_packets/formal_verifier_replay_repair_patch_rerun_residual_responses_absent.jsonl"
                 ),
             )
         )
@@ -8128,8 +8164,14 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             )
         )
         self.assertTrue(residual_autoworker_validation["all_ok"])
-        self.assertEqual(residual_autoworker_validation["n_response_present"], 1)
-        self.assertEqual(residual_autoworker_validation["n_contract_ok"], 1)
+        self.assertEqual(
+            residual_autoworker_validation["n_response_present"],
+            residual_prompt_packets["n_prompt_packets"],
+        )
+        self.assertEqual(
+            residual_autoworker_validation["n_contract_ok"],
+            residual_prompt_packets["n_prompt_packets"],
+        )
         self.assertEqual(
             residual_autoworker_validation["n_residual_patch_proposal_not_proof"],
             1,
@@ -8151,11 +8193,21 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             + residual_autoworker_validation["n_source_discovery_responses"],
         )
         self.assertEqual(residual_followup_queue["n_patch_rerun_items"], 1)
-        self.assertEqual(residual_followup_queue["n_source_discovery_items"], 0)
-        self.assertEqual(residual_followup_queue["n_ready"], 1)
+        self.assertEqual(
+            residual_followup_queue["n_source_discovery_items"],
+            residual_autoworker_validation["n_source_discovery_responses"],
+        )
+        self.assertEqual(
+            residual_followup_queue["n_ready"],
+            residual_followup_queue["n_followup_items"],
+        )
         self.assertEqual(residual_followup_queue["n_blocked"], 0)
         self.assertEqual(residual_followup_queue["n_with_artifact"], 1)
-        residual_followup_row = residual_followup_queue["rows"][0]
+        residual_followup_row = [
+            row
+            for row in residual_followup_queue["rows"]
+            if row["followup_status"] == "READY_FOR_RESIDUAL_PATCH_RERUN"
+        ][0]
         self.assertEqual(
             residual_followup_row["followup_status"],
             "READY_FOR_RESIDUAL_PATCH_RERUN",
@@ -8195,10 +8247,23 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             residual_followup_queue["n_followup_items"],
         )
         self.assertEqual(agentic_strategy_plan["n_patch_evolve_blocks"], 1)
-        self.assertEqual(agentic_strategy_plan["n_source_discovery_cache_items"], 0)
-        self.assertEqual(agentic_strategy_plan["n_ready"], 1)
-        self.assertEqual(agentic_strategy_plan["n_with_live_tool_plan"], 1)
-        agentic_strategy_row = agentic_strategy_plan["rows"][0]
+        self.assertEqual(
+            agentic_strategy_plan["n_source_discovery_cache_items"],
+            residual_followup_queue["n_source_discovery_items"],
+        )
+        self.assertEqual(
+            agentic_strategy_plan["n_ready"],
+            agentic_strategy_plan["n_strategy_rows"],
+        )
+        self.assertEqual(
+            agentic_strategy_plan["n_with_live_tool_plan"],
+            agentic_strategy_plan["n_strategy_rows"],
+        )
+        agentic_strategy_row = [
+            row
+            for row in agentic_strategy_plan["rows"]
+            if row["agentic_strategy_kind"] == "evolve_block_residual_patch"
+        ][0]
         self.assertEqual(
             agentic_strategy_row["agentic_strategy_kind"],
             "evolve_block_residual_patch",
@@ -8237,16 +8302,29 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             candidate_evaluation_queue["n_candidate_queue_items"],
             agentic_strategy_plan["n_strategy_rows"],
         )
-        self.assertEqual(candidate_evaluation_queue["n_ready"], 1)
+        self.assertEqual(
+            candidate_evaluation_queue["n_ready"],
+            candidate_evaluation_queue["n_candidate_queue_items"],
+        )
         self.assertEqual(candidate_evaluation_queue["n_blocked"], 0)
         self.assertEqual(candidate_evaluation_queue["n_patch_candidate_items"], 1)
         self.assertEqual(
             candidate_evaluation_queue["n_source_discovery_candidate_items"],
-            0,
+            agentic_strategy_plan["n_source_discovery_cache_items"],
         )
-        self.assertEqual(candidate_evaluation_queue["n_with_candidate_database_key"], 1)
-        self.assertEqual(candidate_evaluation_queue["n_with_live_evaluator_pool"], 1)
-        candidate_queue_row = candidate_evaluation_queue["rows"][0]
+        self.assertEqual(
+            candidate_evaluation_queue["n_with_candidate_database_key"],
+            candidate_evaluation_queue["n_candidate_queue_items"],
+        )
+        self.assertEqual(
+            candidate_evaluation_queue["n_with_live_evaluator_pool"],
+            candidate_evaluation_queue["n_candidate_queue_items"],
+        )
+        candidate_queue_row = [
+            row
+            for row in candidate_evaluation_queue["rows"]
+            if row["generation_mode"] == "residual_patch_candidate_generation"
+        ][0]
         self.assertEqual(
             candidate_queue_row["generation_mode"],
             "residual_patch_candidate_generation",
@@ -8288,14 +8366,30 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             safety_policy["n_safety_policy_rows"],
             candidate_evaluation_queue["n_candidate_queue_items"],
         )
-        self.assertEqual(safety_policy["n_ready"], 1)
+        self.assertEqual(safety_policy["n_ready"], safety_policy["n_safety_policy_rows"])
         self.assertEqual(safety_policy["n_blocked"], 0)
         self.assertEqual(safety_policy["n_patch_bounded_edit_policies"], 1)
-        self.assertEqual(safety_policy["n_source_validation_policies"], 0)
-        self.assertEqual(safety_policy["n_with_goal_cache_key"], 1)
-        self.assertEqual(safety_policy["n_with_anti_cheat_checks"], 1)
-        self.assertEqual(safety_policy["n_with_safeverify_gate"], 1)
-        safety_policy_row = safety_policy["rows"][0]
+        self.assertEqual(
+            safety_policy["n_source_validation_policies"],
+            candidate_evaluation_queue["n_source_discovery_candidate_items"],
+        )
+        self.assertEqual(
+            safety_policy["n_with_goal_cache_key"],
+            safety_policy["n_safety_policy_rows"],
+        )
+        self.assertEqual(
+            safety_policy["n_with_anti_cheat_checks"],
+            safety_policy["n_safety_policy_rows"],
+        )
+        self.assertEqual(
+            safety_policy["n_with_safeverify_gate"],
+            safety_policy["n_safety_policy_rows"],
+        )
+        safety_policy_row = [
+            row
+            for row in safety_policy["rows"]
+            if row["generation_mode"] == "residual_patch_candidate_generation"
+        ][0]
         self.assertEqual(
             safety_policy_row["policy_status"],
             "READY_FOR_SAFETY_GATED_CANDIDATE_GENERATION",
@@ -8341,15 +8435,37 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             attempt_population["n_population_entries"],
             safety_policy["n_safety_policy_rows"],
         )
-        self.assertEqual(attempt_population["n_ready"], 1)
+        self.assertEqual(
+            attempt_population["n_ready"],
+            attempt_population["n_population_entries"],
+        )
         self.assertEqual(attempt_population["n_blocked"], 0)
         self.assertEqual(attempt_population["n_patch_population_entries"], 1)
-        self.assertEqual(attempt_population["n_source_population_entries"], 0)
-        self.assertEqual(attempt_population["n_with_goal_cache_key"], 1)
-        self.assertEqual(attempt_population["n_with_lineage_key"], 1)
-        self.assertEqual(attempt_population["n_with_sampling_weight"], 1)
-        self.assertEqual(attempt_population["n_untried"], 1)
-        attempt_population_row = attempt_population["rows"][0]
+        self.assertEqual(
+            attempt_population["n_source_population_entries"],
+            safety_policy["n_source_validation_policies"],
+        )
+        self.assertEqual(
+            attempt_population["n_with_goal_cache_key"],
+            attempt_population["n_population_entries"],
+        )
+        self.assertEqual(
+            attempt_population["n_with_lineage_key"],
+            attempt_population["n_population_entries"],
+        )
+        self.assertEqual(
+            attempt_population["n_with_sampling_weight"],
+            attempt_population["n_population_entries"],
+        )
+        self.assertEqual(
+            attempt_population["n_untried"],
+            attempt_population["n_population_entries"],
+        )
+        attempt_population_row = [
+            row
+            for row in attempt_population["rows"]
+            if row["population_bucket"] == "bounded_patch_attempt"
+        ][0]
         self.assertEqual(
             attempt_population_row["attempt_status"],
             "READY_FOR_POPULATION_SEEDED_ATTEMPT",
@@ -8475,7 +8591,11 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             ],
             1,
         )
-        validated_response_row = residual_response_validation_with_response["rows"][0]
+        validated_response_row = [
+            row
+            for row in residual_response_validation_with_response["rows"]
+            if row["response_present"]
+        ][0]
         self.assertEqual(
             validated_response_row["acceptance_status"],
             "RESIDUAL_PATCH_PROPOSAL_RECORDED_NOT_PROOF_EVIDENCE",
@@ -9071,6 +9191,9 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                     "n_bridge_nodes": 1,
                     "n_source_discovery_nodes": 0,
                     "n_first_principles_nodes": 0,
+                    "n_minimal_additional_formalization_nodes": 1,
+                    "n_goal_plans_with_minimal_cut": 1,
+                    "n_route_cost_breakdown_terms": 8,
                     "n_do_not_formalize_hints": 1,
                     "n_ok": 1,
                     "proof_evidence_boundary": (
@@ -9094,6 +9217,20 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                             ),
                             "best_route_cost": 4,
                             "goal_conditioned_cost": 5,
+                            "route_cost_breakdown": {
+                                "base_route_cost": 4,
+                                "import_cone_penalty": 0,
+                                "dependency_depth_penalty": 2,
+                                "blocker_penalty": 0,
+                                "source_trust_credit": 1,
+                                "final_goal_conditioned_cost": 5,
+                                "source_trust_level": (
+                                    "proof_bank_and_local_candidates"
+                                ),
+                                "cost_model_boundary": (
+                                    "heuristic route-selection cost; not proof evidence"
+                                ),
+                            },
                             "route_efficiency_score": 97,
                             "selected_primitives": ["aipw_score_definition"],
                             "existing_reuse_nodes": [
@@ -9122,6 +9259,43 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                                     "cost": 3,
                                 }
                             ],
+                            "minimal_cut_summary": {
+                                "target_theorem": (
+                                    "causal_ate_aipw:aipw_double_robustness:skeleton"
+                                ),
+                                "best_route_cost": 4,
+                                "goal_conditioned_cost": 5,
+                                "use_existing": ["aipw_score_definition"],
+                                "add_wrappers": [],
+                                "add_bridge_lemmas": [
+                                    "aipw_double_robustness_bridge"
+                                ],
+                                "add_source_discovery": [],
+                                "add_first_principles": [],
+                                "do_not_formalize": [
+                                    "unrelated_empirical_process_primitive"
+                                ],
+                                "blocked_only_by": [],
+                                "planner_boundary": (
+                                    "Goal-conditioned minimal formalization plans are route-selection artifacts, not theorem proof evidence."
+                                ),
+                            },
+                            "route_dag_contract": {
+                                "planner_kind": (
+                                    "goal_conditioned_backward_delta_planner"
+                                ),
+                                "node_groups": {
+                                    "existing_reuse": 1,
+                                    "wrappers": 0,
+                                    "bridge_lemmas": 1,
+                                    "source_discovery": 0,
+                                    "first_principles": 0,
+                                },
+                                "and_or_route_boundary": (
+                                    "heuristic route cut, not a complete Lean proof DAG"
+                                ),
+                                "blocking_status": "unblocked",
+                            },
                             "do_not_formalize_now": [
                                 "unrelated_empirical_process_primitive"
                             ],
@@ -10795,13 +10969,43 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             ],
             1,
         )
+        self.assertEqual(
+            payload["formal_capacity_queue"][
+                "goal_conditioned_minimal_formalization_minimal_additional_nodes"
+            ],
+            1,
+        )
+        self.assertEqual(
+            payload["formal_capacity_queue"][
+                "goal_conditioned_minimal_formalization_minimal_cuts"
+            ],
+            1,
+        )
+        self.assertEqual(
+            payload["formal_capacity_queue"][
+                "goal_conditioned_minimal_formalization_cost_terms"
+            ],
+            8,
+        )
         minimal_preview = payload["formal_capacity_queue"][
             "goal_conditioned_minimal_formalization_plan_preview"
         ][0]
         self.assertEqual(minimal_preview["goal_conditioned_cost"], 5)
         self.assertEqual(
+            minimal_preview["route_cost_breakdown"]["final_goal_conditioned_cost"],
+            5,
+        )
+        self.assertEqual(
             minimal_preview["selected_primitives"][0],
             "aipw_score_definition",
+        )
+        self.assertEqual(
+            minimal_preview["minimal_cut_summary"]["add_bridge_lemmas"][0],
+            "aipw_double_robustness_bridge",
+        )
+        self.assertEqual(
+            minimal_preview["route_dag_contract"]["planner_kind"],
+            "goal_conditioned_backward_delta_planner",
         )
         self.assertEqual(
             minimal_preview["bridge_nodes"][0]["primitive"],

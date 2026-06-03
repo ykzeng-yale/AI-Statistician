@@ -128,6 +128,14 @@ these files are the first executable bridge from `next_iteration_agenda` to live
 action, training/exportable repair work, and replayable repair artifacts. It is
 not yet full autonomous theory repair.
 
+Goal-conditioned minimal formalization plans add a `minimal_cut_summary`,
+`route_cost_breakdown`, and route-DAG contract marker on top of the verifier
+queue. This is the intended merge point for exploratory formalization-gap
+planner work: better theorem parsing, semantic coverage classification, route
+search, or MCP/Lean declaration probes should improve this route artifact while
+promotion still depends on replay attempts and AXLE/local Lean kernel
+verification.
+
 Repair-task audit and training export:
 
 ```bash
@@ -1927,7 +1935,9 @@ evidence.
 Use `lean-rag-source-registry-expansion-preflight` against that manifest before
 applying it. The preflight reports package cleanliness, missing clone
 destinations, dirty or remote-mismatched candidate checkouts, and whether the
-external reuse index is actually refresh-ready.
+external reuse index is actually refresh-ready. It also reports staged sources
+that lack a route through the current refresh/index/search scripts, because a
+registry entry alone is not retrieval evidence.
 
 Algorithm registry audit:
 

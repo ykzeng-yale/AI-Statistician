@@ -293,9 +293,10 @@ def _residual_row(
         ),
         proof_evidence_status="RESIDUAL_OBLIGATION_NOT_PROOF_EVIDENCE",
         proof_evidence_boundary=(
-            "This residual obligation is a proof/library work contract. It is not "
-            "theorem proof evidence until a non-placeholder proof or composition "
-            "passes AXLE/local Lean and the patched rerun recalibrates as "
+            "This residual obligation is a proof/library work contract, not "
+            "proof evidence. It is not theorem proof evidence until a "
+            "non-placeholder proof or composition passes AXLE/local Lean and "
+            "the patched rerun recalibrates as "
             "full_route_kernel_verified."
         ),
         ok=not errors,
