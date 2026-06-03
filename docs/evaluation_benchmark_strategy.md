@@ -595,4 +595,6 @@ Recent formal-verifier improvement: patch-rerun residual obligations now export
 worker-ready prompt packets with patched artifact context, rerun commands, and
 output contracts. This makes exact proof-bank reuse, bridge-chain composition,
 and source-discovery blockers actionable without weakening the proof-evidence
-boundary.
+boundary. A residual-response validation gate now audits worker outputs from
+those packets, treating missing responses as awaiting work and rejecting any
+proof claim that lacks full patch-rerun kernel calibration.

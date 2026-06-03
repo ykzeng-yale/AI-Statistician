@@ -76,6 +76,9 @@ from ai_statistician.formal_verifier_replay_repair_patch_rerun_residual_obligati
 from ai_statistician.formal_verifier_replay_repair_patch_rerun_residual_prompt_packets import (
     export_formal_verifier_replay_repair_patch_rerun_residual_prompt_packets,
 )
+from ai_statistician.formal_verifier_replay_repair_patch_rerun_residual_response_validation import (
+    export_formal_verifier_replay_repair_patch_rerun_residual_response_validation,
+)
 from ai_statistician.formal_verifier_replay_repair import export_formal_verifier_replay_repair_packets
 from ai_statistician.formalization_delta_plan import build_formalization_delta_plan
 from ai_statistician.formalization_target_audit import audit_formalization_targets
@@ -7877,6 +7880,122 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                 "runs/test_formal_verifier_replay_repair_patch_rerun_residual_prompt_packets/formal_verifier_replay_repair_patch_rerun_residual_prompt_packets.md"
             ).exists()
         )
+        residual_response_validation = (
+            export_formal_verifier_replay_repair_patch_rerun_residual_response_validation(
+                Path(
+                    "runs/test_formal_verifier_replay_repair_patch_rerun_residual_prompt_packets"
+                ),
+                Path(
+                    "runs/test_formal_verifier_replay_repair_patch_rerun_residual_response_validation"
+                ),
+            )
+        )
+        self.assertTrue(residual_response_validation["all_ok"])
+        self.assertEqual(
+            residual_response_validation["n_response_validation_rows"],
+            residual_prompt_packets["n_prompt_packets"],
+        )
+        self.assertEqual(residual_response_validation["n_response_present"], 0)
+        self.assertEqual(
+            residual_response_validation["n_awaiting_worker_response"],
+            residual_prompt_packets["n_prompt_packets"],
+        )
+        awaiting_row = residual_response_validation["rows"][0]
+        self.assertEqual(
+            awaiting_row["acceptance_status"],
+            "AWAITING_RESIDUAL_WORKER_RESPONSE",
+        )
+        self.assertIn("not proof evidence", awaiting_row["proof_evidence_boundary"])
+        residual_response_jsonl = Path(
+            "runs/test_formal_verifier_replay_repair_patch_rerun_residual_prompt_packets/formal_verifier_replay_repair_patch_rerun_residual_responses.jsonl"
+        )
+        residual_response_jsonl.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "task": "formal_verifier_replay_repair_patch_rerun_residual_obligation",
+                    "prompt_packet_id": residual_prompt_packet["prompt_packet_id"],
+                    "residual_obligation_id": residual_prompt_packet[
+                        "residual_obligation_id"
+                    ],
+                    "rerun_calibration_id": residual_prompt_packet[
+                        "rerun_calibration_id"
+                    ],
+                    "target_theorem_name": residual_prompt_packet["target_theorem_name"],
+                    "candidate_bridge_lemma_name": residual_prompt_packet[
+                        "candidate_bridge_lemma_name"
+                    ],
+                    "residual_gap": residual_prompt_packet["residual_gap"],
+                    "action_class": residual_prompt_packet["action_class"],
+                    "proposed_lean_artifact_path": residual_prompt_packet[
+                        "patched_artifact_path"
+                    ],
+                    "changed_lean_declarations": ["Demo.residual_gap_candidate"],
+                    "proof_or_composition_patch": "exact Demo.residual_gap_candidate",
+                    "used_proof_bank_obligations": [
+                        residual_prompt_packet["residual_gap"]
+                    ],
+                    "used_local_declarations": ["Demo.residual_gap_candidate"],
+                    "source_discovery_queries": [],
+                    "rerun_commands": residual_prompt_packet["command_plan"],
+                    "patch_rerun_attempt_manifest": "",
+                    "patch_rerun_calibration_manifest": "",
+                    "patch_rerun_residual_obligations_manifest": "",
+                    "patch_rerun_calibration_status": "UNRUN_AFTER_RESIDUAL_PATCH",
+                    "kernel_verified": False,
+                    "closed_residual_gaps": [],
+                    "remaining_residual_gaps": [
+                        residual_prompt_packet["residual_gap"]
+                    ],
+                    "remaining_residual_formal_gaps": [
+                        residual_prompt_packet["residual_gap"]
+                    ],
+                    "claim_status": "RESIDUAL_PATCH_PROPOSAL_NOT_PROOF_EVIDENCE",
+                    "promotion_gate": (
+                        "accept only if patch_rerun_calibration_status is full_route_kernel_verified"
+                    ),
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        residual_response_validation_with_response = (
+            export_formal_verifier_replay_repair_patch_rerun_residual_response_validation(
+                Path(
+                    "runs/test_formal_verifier_replay_repair_patch_rerun_residual_prompt_packets"
+                ),
+                Path(
+                    "runs/test_formal_verifier_replay_repair_patch_rerun_residual_response_validation_with_response"
+                ),
+                response_jsonl=residual_response_jsonl,
+            )
+        )
+        self.assertTrue(residual_response_validation_with_response["all_ok"])
+        self.assertEqual(
+            residual_response_validation_with_response["n_response_present"],
+            1,
+        )
+        self.assertEqual(
+            residual_response_validation_with_response["n_contract_ok"],
+            1,
+        )
+        self.assertEqual(
+            residual_response_validation_with_response[
+                "n_residual_patch_proposal_not_proof"
+            ],
+            1,
+        )
+        validated_response_row = residual_response_validation_with_response["rows"][0]
+        self.assertEqual(
+            validated_response_row["acceptance_status"],
+            "RESIDUAL_PATCH_PROPOSAL_RECORDED_NOT_PROOF_EVIDENCE",
+        )
+        self.assertFalse(validated_response_row["kernel_verified"])
+        self.assertTrue(
+            Path(
+                "runs/test_formal_verifier_replay_repair_patch_rerun_residual_response_validation/formal_verifier_replay_repair_patch_rerun_residual_response_validation_manifest.json"
+            ).exists()
+        )
         self.assertTrue(
             Path(
                 "runs/test_formal_verifier_replay_repair_patch_autoworker/formal_verifier_replay_repair_patch_autoworker_manifest.json"
@@ -8188,6 +8307,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "formal_verifier_replay_repair_patch_rerun_calibration",
             "formal_verifier_replay_repair_patch_rerun_residual_obligations",
             "formal_verifier_replay_repair_patch_rerun_residual_prompt_packets",
+            "formal_verifier_replay_repair_patch_rerun_residual_response_validation",
             "evaluation_benchmark_guidance",
         ):
             (root / subdir).mkdir(parents=True, exist_ok=True)
@@ -9064,6 +9184,59 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             ),
             encoding="utf-8",
         )
+        (
+            root
+            / "formal_verifier_replay_repair_patch_rerun_residual_response_validation"
+            / "formal_verifier_replay_repair_patch_rerun_residual_response_validation_manifest.json"
+        ).write_text(
+            json.dumps(
+                {
+                    "n_response_validation_rows": 1,
+                    "n_response_present": 0,
+                    "n_awaiting_worker_response": 1,
+                    "n_contract_ok": 0,
+                    "n_residual_patch_proposal_not_proof": 0,
+                    "n_source_discovery_responses": 0,
+                    "n_accepted_full_route_kernel_verified": 0,
+                    "n_rejected": 0,
+                    "n_ok": 1,
+                    "rows": [
+                        {
+                            "residual_response_validation_id": (
+                                "formal_verifier_replay_repair_patch_rerun_residual_response_validation:test"
+                            ),
+                            "prompt_packet_id": (
+                                "formal_verifier_replay_repair_patch_rerun_residual_prompt_packet:test"
+                            ),
+                            "residual_obligation_id": (
+                                "formal_verifier_replay_repair_patch_rerun_residual_obligation:test"
+                            ),
+                            "rerun_calibration_id": (
+                                "formal_verifier_replay_repair_patch_rerun_calibration:test"
+                            ),
+                            "display_name": (
+                                "causal_ate_aipw:aipw_double_robustness:skeleton"
+                            ),
+                            "residual_gap": "aipw_score_definition",
+                            "action_class": "reuse_exact_proof_bank_obligation",
+                            "response_present": False,
+                            "response_contract_ok": False,
+                            "acceptance_status": "AWAITING_RESIDUAL_WORKER_RESPONSE",
+                            "patch_rerun_calibration_status": "",
+                            "kernel_verified": False,
+                            "remaining_residual_formal_gaps": [],
+                            "proof_evidence_status": (
+                                "AWAITING_RESPONSE_NOT_PROOF_EVIDENCE"
+                            ),
+                            "proof_evidence_boundary": (
+                                "This awaiting residual response state is not proof evidence."
+                            ),
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
         (root / "evaluation_benchmark_guidance" / "evaluation_benchmark_guidance_manifest.json").write_text(
             json.dumps({"top_actions": [{"rank": 1, "action": "improve RAG"}]}),
             encoding="utf-8",
@@ -9208,6 +9381,14 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                         "formal_verifier_replay_repair_patch_rerun_residual_prompt_packets_exact_reuse": 1,
                         "formal_verifier_replay_repair_patch_rerun_residual_prompt_packets_bridge_chain": 0,
                         "formal_verifier_replay_repair_patch_rerun_residual_prompt_packets_source_discovery": 0,
+                        "formal_verifier_replay_repair_patch_rerun_residual_response_validation_rows": 1,
+                        "formal_verifier_replay_repair_patch_rerun_residual_response_validation_responses": 0,
+                        "formal_verifier_replay_repair_patch_rerun_residual_response_validation_awaiting": 1,
+                        "formal_verifier_replay_repair_patch_rerun_residual_response_validation_contract_ok": 0,
+                        "formal_verifier_replay_repair_patch_rerun_residual_response_validation_patch_proposal_not_proof": 0,
+                        "formal_verifier_replay_repair_patch_rerun_residual_response_validation_source_discovery": 0,
+                        "formal_verifier_replay_repair_patch_rerun_residual_response_validation_accepted_full_route_kernel_verified": 0,
+                        "formal_verifier_replay_repair_patch_rerun_residual_response_validation_rejected": 0,
                         "claim_ledger_repair_response_promotion_overlay_enabled": True,
                         "claim_ledger_repair_response_promotion_overlay_rows": 0,
                         "claim_ledger_repair_response_promotion_upgrades": 0,
@@ -9343,6 +9524,11 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                             root
                             / "formal_verifier_replay_repair_patch_rerun_residual_prompt_packets"
                             / "formal_verifier_replay_repair_patch_rerun_residual_prompt_packets_manifest.json"
+                        ),
+                        "formal_verifier_replay_repair_patch_rerun_residual_response_validation": str(
+                            root
+                            / "formal_verifier_replay_repair_patch_rerun_residual_response_validation"
+                            / "formal_verifier_replay_repair_patch_rerun_residual_response_validation_manifest.json"
                         ),
                         "evaluation_benchmark_guidance": str(
                             root
@@ -9828,8 +10014,42 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                 "formal_verifier_replay_repair_patch_rerun_residual_prompt_packets_preview"
             ][0]["proof_evidence_boundary"],
         )
+        self.assertEqual(
+            payload["formal_capacity_queue"][
+                "formal_verifier_replay_repair_patch_rerun_residual_response_validation_rows"
+            ],
+            1,
+        )
+        self.assertEqual(
+            payload["formal_capacity_queue"][
+                "formal_verifier_replay_repair_patch_rerun_residual_response_validation_awaiting"
+            ],
+            1,
+        )
+        self.assertEqual(
+            payload["formal_capacity_queue"][
+                "formal_verifier_replay_repair_patch_rerun_residual_response_validation_rejected"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["formal_capacity_queue"][
+                "formal_verifier_replay_repair_patch_rerun_residual_response_validation_preview"
+            ][0]["acceptance_status"],
+            "AWAITING_RESIDUAL_WORKER_RESPONSE",
+        )
+        self.assertIn(
+            "not proof evidence",
+            payload["formal_capacity_queue"][
+                "formal_verifier_replay_repair_patch_rerun_residual_response_validation_preview"
+            ][0]["proof_evidence_boundary"],
+        )
         self.assertIn(
             "residual prompt packets",
+            " ".join(payload["honesty_boundaries"]),
+        )
+        self.assertIn(
+            "residual response validation",
             " ".join(payload["honesty_boundaries"]),
         )
         self.assertTrue(
@@ -11771,6 +11991,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["gates"]["formal_verifier_replay_repair_patch_rerun_calibration"])
         self.assertTrue(payload["gates"]["formal_verifier_replay_repair_patch_rerun_residual_obligations"])
         self.assertTrue(payload["gates"]["formal_verifier_replay_repair_patch_rerun_residual_prompt_packets"])
+        self.assertTrue(payload["gates"]["formal_verifier_replay_repair_patch_rerun_residual_response_validation"])
         self.assertTrue(payload["gates"]["research_training_export"])
         self.assertTrue(payload["gates"]["research_policy_baseline"])
         self.assertTrue(payload["gates"]["next_iteration_queue"])
@@ -12069,6 +12290,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "formal_verifier_replay_repair_patch_rerun_calibration",
             "formal_verifier_replay_repair_patch_rerun_residual_obligations",
             "formal_verifier_replay_repair_patch_rerun_residual_prompt_packets",
+            "formal_verifier_replay_repair_patch_rerun_residual_response_validation",
             "research_training_export",
             "research_policy_baseline",
             "next_iteration_queue",
@@ -12628,6 +12850,60 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             ],
             0,
         )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_replay_repair_patch_rerun_residual_response_validation_rows"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_replay_repair_patch_rerun_residual_response_validation_responses"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_replay_repair_patch_rerun_residual_response_validation_awaiting"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_replay_repair_patch_rerun_residual_response_validation_contract_ok"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_replay_repair_patch_rerun_residual_response_validation_patch_proposal_not_proof"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_replay_repair_patch_rerun_residual_response_validation_source_discovery"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_replay_repair_patch_rerun_residual_response_validation_accepted_full_route_kernel_verified"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_replay_repair_patch_rerun_residual_response_validation_rejected"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_replay_repair_patch_rerun_residual_response_validation_ok"
+            ],
+            0,
+        )
         self.assertTrue(Path(payload["artifacts"]["formalization_delta_plan"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formalization_delta_graph"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_verifier_queue"]).exists())
@@ -12829,6 +13105,27 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             Path(
                 payload["artifacts"][
                     "formal_verifier_replay_repair_patch_rerun_residual_prompt_packets_report"
+                ]
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formal_verifier_replay_repair_patch_rerun_residual_response_validation"
+                ]
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formal_verifier_replay_repair_patch_rerun_residual_response_validation_jsonl"
+                ]
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formal_verifier_replay_repair_patch_rerun_residual_response_validation_report"
                 ]
             ).exists()
         )

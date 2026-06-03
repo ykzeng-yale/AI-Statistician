@@ -77,6 +77,9 @@ from .formal_verifier_replay_repair_patch_rerun_residual_obligations import (
 from .formal_verifier_replay_repair_patch_rerun_residual_prompt_packets import (
     export_formal_verifier_replay_repair_patch_rerun_residual_prompt_packets,
 )
+from .formal_verifier_replay_repair_patch_rerun_residual_response_validation import (
+    export_formal_verifier_replay_repair_patch_rerun_residual_response_validation,
+)
 from .formal_verifier_replay_repair import export_formal_verifier_replay_repair_packets
 from .formal_source_graph import audit_formal_source_graph
 from .formal_source_index import (
@@ -1826,6 +1829,42 @@ def _formal_verifier_replay_repair_patch_rerun_residual_prompt_packets(
     print(
         f"markdown report written to "
         f"{(Path(args.out) / 'formal_verifier_replay_repair_patch_rerun_residual_prompt_packets.md').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formal_verifier_replay_repair_patch_rerun_residual_response_validation(
+    args: argparse.Namespace,
+) -> int:
+    payload = export_formal_verifier_replay_repair_patch_rerun_residual_response_validation(
+        Path(args.formal_verifier_replay_repair_patch_rerun_residual_prompt_packets_dir),
+        Path(args.out),
+        response_jsonl=Path(args.response_jsonl) if args.response_jsonl else None,
+    )
+    print("\nAI Statistical Theory Lab Formal Verifier Patch Rerun Residual Response Validation")
+    print("=" * 72)
+    print(
+        f"rows={payload['n_ok']}/{payload['n_response_validation_rows']} "
+        f"responses={payload['n_response_present']} "
+        f"awaiting={payload['n_awaiting_worker_response']} "
+        f"contract_ok={payload['n_contract_ok']} "
+        f"patch_proposals={payload['n_residual_patch_proposal_not_proof']} "
+        f"source_discovery={payload['n_source_discovery_responses']} "
+        f"accepted={payload['n_accepted_full_route_kernel_verified']} "
+        f"rejected={payload['n_rejected']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nresidual response validation manifest written to "
+        f"{(Path(args.out) / 'formal_verifier_replay_repair_patch_rerun_residual_response_validation_manifest.json').resolve()}"
+    )
+    print(
+        f"residual response validation jsonl written to "
+        f"{(Path(args.out) / 'formal_verifier_replay_repair_patch_rerun_residual_response_validation.jsonl').resolve()}"
+    )
+    print(
+        f"markdown report written to "
+        f"{(Path(args.out) / 'formal_verifier_replay_repair_patch_rerun_residual_response_validation.md').resolve()}"
     )
     return 0 if payload["all_ok"] else 1
 
@@ -4023,6 +4062,31 @@ def build_parser() -> argparse.ArgumentParser:
     )
     formal_verifier_replay_repair_patch_rerun_residual_prompt_packets.set_defaults(
         func=_formal_verifier_replay_repair_patch_rerun_residual_prompt_packets
+    )
+
+    formal_verifier_replay_repair_patch_rerun_residual_response_validation = (
+        sub.add_parser(
+            "formal-verifier-replay-repair-patch-rerun-residual-response-validation",
+            help="validate worker responses to patch-rerun residual prompt packets",
+        )
+    )
+    formal_verifier_replay_repair_patch_rerun_residual_response_validation.add_argument(
+        "--formal-verifier-replay-repair-patch-rerun-residual-prompt-packets-dir",
+        required=True,
+        help="directory containing formal_verifier_replay_repair_patch_rerun_residual_prompt_packets_manifest.json",
+    )
+    formal_verifier_replay_repair_patch_rerun_residual_response_validation.add_argument(
+        "--response-jsonl",
+        default="",
+        help="optional JSONL file of residual worker responses",
+    )
+    formal_verifier_replay_repair_patch_rerun_residual_response_validation.add_argument(
+        "--out",
+        default="runs/formal_verifier_replay_repair_patch_rerun_residual_response_validation",
+        help="formal-verifier repair patch rerun residual response-validation output directory",
+    )
+    formal_verifier_replay_repair_patch_rerun_residual_response_validation.set_defaults(
+        func=_formal_verifier_replay_repair_patch_rerun_residual_response_validation
     )
 
     rag_collaboration_export = sub.add_parser(

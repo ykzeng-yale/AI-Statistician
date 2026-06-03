@@ -281,6 +281,18 @@ python3 -m ai_statistician.cli formal-verifier-replay-repair-patch-rerun-residua
   --out runs/current_formal_verifier_replay_repair_patch_rerun_residual_prompt_packets
 ```
 
+`formal_verifier_replay_repair_patch_rerun_residual_response_validation`
+validates worker responses to those packets. Missing response JSONL is an
+awaiting state, not a failed gate; present responses must match the packet
+contract, and proof claims are accepted only with `full_route_kernel_verified`
+patch-rerun calibration and no remaining residual formal gaps.
+
+```bash
+python3 -m ai_statistician.cli formal-verifier-replay-repair-patch-rerun-residual-response-validation \
+  --formal-verifier-replay-repair-patch-rerun-residual-prompt-packets-dir runs/current_formal_verifier_replay_repair_patch_rerun_residual_prompt_packets \
+  --out runs/current_formal_verifier_replay_repair_patch_rerun_residual_response_validation
+```
+
 The claim ledger can now consume that promotion manifest as an overlay. Only
 rows already marked `READY_FOR_PROOF_LEDGER_PROMOTION` with kernel evidence can
 upgrade the matching formal-gap row; awaiting responses and patch proposals
