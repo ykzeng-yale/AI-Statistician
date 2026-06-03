@@ -34,6 +34,9 @@ from .formal_gap_task_export import export_formal_gap_lean_tasks
 from .formalization_delta_plan import build_formalization_delta_plan
 from .formalization_target_audit import audit_formalization_targets
 from .formal_verifier_queue import export_formal_verifier_queue
+from .goal_conditioned_minimal_formalization_plan import (
+    export_goal_conditioned_minimal_formalization_plan,
+)
 from .formal_verifier_replay_attempt import export_formal_verifier_replay_attempts
 from .formal_verifier_replay_calibration import export_formal_verifier_replay_calibration
 from .formal_verifier_replay_export import export_formal_verifier_replay
@@ -90,6 +93,9 @@ from .formal_verifier_agentic_proof_candidate_evaluation_queue import (
 )
 from .formal_verifier_agentic_proof_safety_policy import (
     export_formal_verifier_agentic_proof_safety_policy,
+)
+from .formal_verifier_agentic_proof_attempt_population import (
+    export_formal_verifier_agentic_proof_attempt_population,
 )
 from .formal_verifier_replay_repair import export_formal_verifier_replay_repair_packets
 from .formal_source_graph import audit_formal_source_graph
@@ -577,6 +583,18 @@ async def run_research_system_audit(
         proof_search_results_path=out_dir / "proof_search_audit" / "proof_search_results.jsonl",
     )
     stage_start = _record_stage(stage_timings, "formal_verifier_queue", stage_start)
+    goal_conditioned_minimal_formalization_plan_manifest = (
+        export_goal_conditioned_minimal_formalization_plan(
+            out_dir / "formalization_delta_plan",
+            out_dir / "formal_verifier_queue",
+            out_dir / "goal_conditioned_minimal_formalization_plan",
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "goal_conditioned_minimal_formalization_plan",
+        stage_start,
+    )
     formal_verifier_replay_manifest = export_formal_verifier_replay(
         out_dir / "formal_verifier_queue",
         out_dir / "formal_verifier_replay",
@@ -840,6 +858,17 @@ async def run_research_system_audit(
         "formal_verifier_agentic_proof_safety_policy",
         stage_start,
     )
+    formal_verifier_agentic_proof_attempt_population_manifest = (
+        export_formal_verifier_agentic_proof_attempt_population(
+            out_dir / "formal_verifier_agentic_proof_safety_policy",
+            out_dir / "formal_verifier_agentic_proof_attempt_population",
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "formal_verifier_agentic_proof_attempt_population",
+        stage_start,
+    )
 
     research_training_manifest = export_research_training_dataset(
         out_dir / "research_benchmark",
@@ -1049,6 +1078,9 @@ async def run_research_system_audit(
         "primitive_source_coverage_audit": bool(primitive_source_coverage_manifest["all_ok"]),
         "formalization_delta_plan": bool(formalization_delta_manifest["all_ok"]),
         "formal_verifier_queue": bool(formal_verifier_queue_manifest["all_ok"]),
+        "goal_conditioned_minimal_formalization_plan": bool(
+            goal_conditioned_minimal_formalization_plan_manifest["all_ok"]
+        ),
         "formal_verifier_replay": bool(formal_verifier_replay_manifest["all_ok"]),
         "formal_verifier_replay_attempts": bool(formal_verifier_replay_attempt_manifest["all_ok"]),
         "formal_verifier_replay_calibration": bool(
@@ -1119,6 +1151,9 @@ async def run_research_system_audit(
         "formal_verifier_agentic_proof_safety_policy": bool(
             formal_verifier_agentic_proof_safety_policy_manifest["all_ok"]
         ),
+        "formal_verifier_agentic_proof_attempt_population": bool(
+            formal_verifier_agentic_proof_attempt_population_manifest["all_ok"]
+        ),
         "research_training_export": bool(research_training_manifest["all_ok"]),
         "research_policy_baseline": bool(research_policy_manifest["all_ok"]),
         "next_iteration_queue": bool(next_iteration_manifest["all_ok"]),
@@ -1154,6 +1189,7 @@ async def run_research_system_audit(
         "proof_bank_expansion_export",
         "proof_bank_action_export",
         "formal_verifier_queue",
+        "goal_conditioned_minimal_formalization_plan",
         "formal_verifier_replay",
         "formal_verifier_replay_attempts",
         "formal_verifier_replay_calibration",
@@ -1176,6 +1212,7 @@ async def run_research_system_audit(
         "formal_verifier_agentic_proof_strategy_plan",
         "formal_verifier_agentic_proof_candidate_evaluation_queue",
         "formal_verifier_agentic_proof_safety_policy",
+        "formal_verifier_agentic_proof_attempt_population",
         "research_training_export",
         "research_policy_baseline",
         "next_iteration_queue",
@@ -1897,6 +1934,45 @@ async def run_research_system_audit(
             "formal_verifier_queue_kernel_smoke_total": formal_verifier_queue_manifest[
                 "kernel_smoke_total"
             ],
+            "goal_conditioned_minimal_formalization_plans": goal_conditioned_minimal_formalization_plan_manifest[
+                "n_goal_plans"
+            ],
+            "goal_conditioned_minimal_formalization_ready": goal_conditioned_minimal_formalization_plan_manifest[
+                "n_ready"
+            ],
+            "goal_conditioned_minimal_formalization_low_cost": goal_conditioned_minimal_formalization_plan_manifest[
+                "n_low_cost_goal_plans"
+            ],
+            "goal_conditioned_minimal_formalization_reuse_or_composition": goal_conditioned_minimal_formalization_plan_manifest[
+                "n_reuse_or_composition"
+            ],
+            "goal_conditioned_minimal_formalization_bridge_or_wrapper": goal_conditioned_minimal_formalization_plan_manifest[
+                "n_bridge_or_wrapper"
+            ],
+            "goal_conditioned_minimal_formalization_requires_new_theory": goal_conditioned_minimal_formalization_plan_manifest[
+                "n_requires_new_theory"
+            ],
+            "goal_conditioned_minimal_formalization_existing_reuse_nodes": goal_conditioned_minimal_formalization_plan_manifest[
+                "n_existing_reuse_nodes"
+            ],
+            "goal_conditioned_minimal_formalization_wrapper_nodes": goal_conditioned_minimal_formalization_plan_manifest[
+                "n_wrapper_nodes"
+            ],
+            "goal_conditioned_minimal_formalization_bridge_nodes": goal_conditioned_minimal_formalization_plan_manifest[
+                "n_bridge_nodes"
+            ],
+            "goal_conditioned_minimal_formalization_source_discovery_nodes": goal_conditioned_minimal_formalization_plan_manifest[
+                "n_source_discovery_nodes"
+            ],
+            "goal_conditioned_minimal_formalization_first_principles_nodes": goal_conditioned_minimal_formalization_plan_manifest[
+                "n_first_principles_nodes"
+            ],
+            "goal_conditioned_minimal_formalization_do_not_formalize_hints": goal_conditioned_minimal_formalization_plan_manifest[
+                "n_do_not_formalize_hints"
+            ],
+            "goal_conditioned_minimal_formalization_ok": goal_conditioned_minimal_formalization_plan_manifest[
+                "n_ok"
+            ],
             "formal_verifier_replay_tasks": formal_verifier_replay_manifest["n_replay_tasks"],
             "formal_verifier_replay_ok": formal_verifier_replay_manifest["n_ok"],
             "formal_verifier_replay_kernel_calibrated": formal_verifier_replay_manifest[
@@ -2375,6 +2451,36 @@ async def run_research_system_audit(
                 "n_with_safeverify_gate"
             ],
             "formal_verifier_agentic_proof_safety_policy_ok": formal_verifier_agentic_proof_safety_policy_manifest[
+                "n_ok"
+            ],
+            "formal_verifier_agentic_proof_attempt_population_entries": formal_verifier_agentic_proof_attempt_population_manifest[
+                "n_population_entries"
+            ],
+            "formal_verifier_agentic_proof_attempt_population_ready": formal_verifier_agentic_proof_attempt_population_manifest[
+                "n_ready"
+            ],
+            "formal_verifier_agentic_proof_attempt_population_blocked": formal_verifier_agentic_proof_attempt_population_manifest[
+                "n_blocked"
+            ],
+            "formal_verifier_agentic_proof_attempt_population_patch_entries": formal_verifier_agentic_proof_attempt_population_manifest[
+                "n_patch_population_entries"
+            ],
+            "formal_verifier_agentic_proof_attempt_population_source_entries": formal_verifier_agentic_proof_attempt_population_manifest[
+                "n_source_population_entries"
+            ],
+            "formal_verifier_agentic_proof_attempt_population_with_goal_cache_key": formal_verifier_agentic_proof_attempt_population_manifest[
+                "n_with_goal_cache_key"
+            ],
+            "formal_verifier_agentic_proof_attempt_population_with_lineage_key": formal_verifier_agentic_proof_attempt_population_manifest[
+                "n_with_lineage_key"
+            ],
+            "formal_verifier_agentic_proof_attempt_population_with_sampling_weight": formal_verifier_agentic_proof_attempt_population_manifest[
+                "n_with_sampling_weight"
+            ],
+            "formal_verifier_agentic_proof_attempt_population_untried": formal_verifier_agentic_proof_attempt_population_manifest[
+                "n_untried"
+            ],
+            "formal_verifier_agentic_proof_attempt_population_ok": formal_verifier_agentic_proof_attempt_population_manifest[
                 "n_ok"
             ],
             "proof_bank_actions_high_priority": proof_bank_action_manifest["by_priority"].get("high", 0),
@@ -2955,6 +3061,21 @@ async def run_research_system_audit(
             "formal_verifier_queue_report": str(
                 out_dir / "formal_verifier_queue" / "formal_verifier_queue.md"
             ),
+            "goal_conditioned_minimal_formalization_plan": str(
+                out_dir
+                / "goal_conditioned_minimal_formalization_plan"
+                / "goal_conditioned_minimal_formalization_plan_manifest.json"
+            ),
+            "goal_conditioned_minimal_formalization_plan_jsonl": str(
+                out_dir
+                / "goal_conditioned_minimal_formalization_plan"
+                / "goal_conditioned_minimal_formalization_plan.jsonl"
+            ),
+            "goal_conditioned_minimal_formalization_plan_report": str(
+                out_dir
+                / "goal_conditioned_minimal_formalization_plan"
+                / "goal_conditioned_minimal_formalization_plan.md"
+            ),
             "formal_verifier_replay": str(
                 out_dir / "formal_verifier_replay" / "formal_verifier_replay_manifest.json"
             ),
@@ -3296,6 +3417,21 @@ async def run_research_system_audit(
                 out_dir
                 / "formal_verifier_agentic_proof_safety_policy"
                 / "formal_verifier_agentic_proof_safety_policy.md"
+            ),
+            "formal_verifier_agentic_proof_attempt_population": str(
+                out_dir
+                / "formal_verifier_agentic_proof_attempt_population"
+                / "formal_verifier_agentic_proof_attempt_population_manifest.json"
+            ),
+            "formal_verifier_agentic_proof_attempt_population_jsonl": str(
+                out_dir
+                / "formal_verifier_agentic_proof_attempt_population"
+                / "formal_verifier_agentic_proof_attempt_population.jsonl"
+            ),
+            "formal_verifier_agentic_proof_attempt_population_report": str(
+                out_dir
+                / "formal_verifier_agentic_proof_attempt_population"
+                / "formal_verifier_agentic_proof_attempt_population.md"
             ),
             "primitive_source_coverage": str(
                 out_dir / "primitive_source_coverage" / "primitive_source_coverage_manifest.json"

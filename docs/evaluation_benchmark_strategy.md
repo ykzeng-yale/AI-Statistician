@@ -464,6 +464,18 @@ markers, declaration/header guards, forbidden-token checks, helper-lemma
 anti-restatement checks, source-claim checks, goal-cache keys, and SafeVerify
 promotion requirements before candidate generation can be treated as a valid
 work order.
+The `formal_verifier_agentic_proof_attempt_population` gate then registers
+safety-gated work orders into reusable proof-search memory with goal-cache
+keys, candidate lineage, proof-sketch population keys, untried diagnostic
+signatures, lessons learned, and sampling weights. Those population scores are
+search signals only, not proof evidence.
+
+The `goal_conditioned_minimal_formalization_plan` gate is the complementary
+efficiency layer before replay: it converts the global formalization delta and
+verifier queue into theorem-specific minimal cuts, including selected
+primitives, exact-reuse/wrapper/bridge/source nodes, next worker packets, and
+`do_not_formalize_now` hints. It should reduce wasted formalization breadth,
+but it is still route-selection metadata rather than theorem proof evidence.
 
 `formal-verifier-queue` is the handoff from that diagnostic to theorem work:
 it records whether hard-mode dependency-graph RAG increased the candidate

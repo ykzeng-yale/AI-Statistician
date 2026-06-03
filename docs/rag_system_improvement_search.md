@@ -118,6 +118,13 @@ kernel-smoke overlap calibration for related subclaims. It is useful for
 choosing the next theorem/bridge proof attempt, but it is still a task contract
 rather than proof evidence.
 
+The audit also exports `goal_conditioned_minimal_formalization_plan` between
+the verifier queue and replay. It answers the target-specific efficiency
+question: for this theorem, add exactly these existing-reuse, wrapper, bridge,
+source-discovery, or first-principles nodes now, and leave unrelated primitives
+out of the current cut. These rows are route-selection artifacts only; they do
+not prove the theorem.
+
 The audit now also exports `formal_verifier_replay` from that queue. Replay
 tasks choose concrete next modes such as kernel-calibrated subclaim replay,
 proof-search subclaim replay, bridge-lemma replay, semantic route review, and
@@ -356,6 +363,18 @@ python3 -m ai_statistician.cli formal-verifier-agentic-proof-safety-policy \
   --out runs/current_formal_verifier_agentic_proof_safety_policy
 ```
 
+`formal_verifier_agentic_proof_attempt_population` seeds reusable
+proof-attempt memory from the safety policies. It records goal-cache keys,
+candidate lineage, proof-sketch population keys, diagnostic signatures, lessons
+learned, and sampling weights. This is search memory only; population rank or
+sampling weight never counts as proof evidence.
+
+```bash
+python3 -m ai_statistician.cli formal-verifier-agentic-proof-attempt-population \
+  --formal-verifier-agentic-proof-safety-policy-dir runs/current_formal_verifier_agentic_proof_safety_policy \
+  --out runs/current_formal_verifier_agentic_proof_attempt_population
+```
+
 The claim ledger can now consume that promotion manifest as an overlay. Only
 rows already marked `READY_FOR_PROOF_LEDGER_PROMOTION` with kernel evidence can
 upgrade the matching formal-gap row; awaiting responses and patch proposals
@@ -438,6 +457,20 @@ with heuristic costs, plus `formalization_delta_graph.json`. The graph is
 planning evidence only. It should eventually be upgraded with dependency depth,
 import-cone size, source trust level, proof attempt history, theorem-goal nodes,
 informal-proof-step nodes, and semantic-faithfulness review.
+
+```bash
+python3 -m ai_statistician.cli goal-conditioned-minimal-formalization-plan \
+  --formalization-delta-plan-dir runs/current/formalization_delta_plan \
+  --formal-verifier-queue-dir runs/current/formal_verifier_queue \
+  --out runs/current/goal_conditioned_minimal_formalization_plan
+```
+
+This narrows the global delta plan to theorem-specific minimal cuts. It records
+selected primitives, exact-reuse nodes, wrapper/bridge/source/first-principles
+nodes, next worker packets, and explicit `do_not_formalize_now` hints so the
+prover does not spend time porting unrelated machinery. The output is planning
+evidence only; Lean proof status still comes from replay attempts and kernel
+verification.
 
 ```bash
 python3 -m ai_statistician.cli formal-verifier-replay-export \

@@ -94,9 +94,15 @@ from ai_statistician.formal_verifier_agentic_proof_candidate_evaluation_queue im
 from ai_statistician.formal_verifier_agentic_proof_safety_policy import (
     export_formal_verifier_agentic_proof_safety_policy,
 )
+from ai_statistician.formal_verifier_agentic_proof_attempt_population import (
+    export_formal_verifier_agentic_proof_attempt_population,
+)
 from ai_statistician.formal_verifier_replay_repair import export_formal_verifier_replay_repair_packets
 from ai_statistician.formalization_delta_plan import build_formalization_delta_plan
 from ai_statistician.formalization_target_audit import audit_formalization_targets
+from ai_statistician.goal_conditioned_minimal_formalization_plan import (
+    export_goal_conditioned_minimal_formalization_plan,
+)
 from ai_statistician.formal_source_graph import FormalSourceGraphRetriever, audit_formal_source_graph
 from ai_statistician.formal_source_hybrid import FormalSourceHybridRetriever
 from ai_statistician.formal_source_index import (
@@ -7371,6 +7377,45 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(Path("runs/test_formal_verifier_queue/formal_verifier_queue_manifest.json").exists())
         self.assertTrue(Path("runs/test_formal_verifier_queue/formal_verifier_queue.jsonl").exists())
         self.assertTrue(Path("runs/test_formal_verifier_queue/formal_verifier_queue.md").exists())
+        minimal_plan = export_goal_conditioned_minimal_formalization_plan(
+            Path("runs/test_formalization_delta_plan"),
+            Path("runs/test_formal_verifier_queue"),
+            Path("runs/test_goal_conditioned_minimal_formalization_plan"),
+        )
+        self.assertTrue(minimal_plan["all_ok"])
+        self.assertEqual(minimal_plan["n_goal_plans"], queue["n_items"])
+        self.assertEqual(minimal_plan["n_ok"], minimal_plan["n_goal_plans"])
+        self.assertEqual(minimal_plan["n_ready"], minimal_plan["n_goal_plans"])
+        self.assertGreater(minimal_plan["n_low_cost_goal_plans"], 0)
+        self.assertGreaterEqual(minimal_plan["n_existing_reuse_nodes"], 0)
+        self.assertGreaterEqual(minimal_plan["n_wrapper_nodes"], 0)
+        self.assertGreaterEqual(minimal_plan["n_bridge_nodes"], 0)
+        self.assertGreaterEqual(minimal_plan["n_source_discovery_nodes"], 0)
+        self.assertGreaterEqual(minimal_plan["n_first_principles_nodes"], 0)
+        self.assertGreater(minimal_plan["n_do_not_formalize_hints"], 0)
+        minimal_plan_row = minimal_plan["rows"][0]
+        self.assertIn("goal_conditioned_minimal_formalization_plan", minimal_plan_row["goal_plan_id"])
+        self.assertIn(minimal_plan_row["route_class"], {"reuse_or_composition", "bridge_or_wrapper", "requires_new_theory"})
+        self.assertGreaterEqual(minimal_plan_row["goal_conditioned_cost"], 0)
+        self.assertGreater(minimal_plan_row["route_efficiency_score"], 0)
+        self.assertTrue(minimal_plan_row["selected_primitives"])
+        self.assertTrue(minimal_plan_row["next_work_packets"])
+        self.assertIn("not theorem proof evidence", minimal_plan_row["proof_evidence_boundary"])
+        self.assertTrue(
+            Path(
+                "runs/test_goal_conditioned_minimal_formalization_plan/goal_conditioned_minimal_formalization_plan_manifest.json"
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                "runs/test_goal_conditioned_minimal_formalization_plan/goal_conditioned_minimal_formalization_plan.jsonl"
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                "runs/test_goal_conditioned_minimal_formalization_plan/goal_conditioned_minimal_formalization_plan.md"
+            ).exists()
+        )
         replay = export_formal_verifier_replay(
             Path("runs/test_formal_verifier_queue"),
             Path("runs/test_formal_verifier_replay"),
@@ -8160,6 +8205,60 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                 "runs/test_formal_verifier_agentic_proof_safety_policy/formal_verifier_agentic_proof_safety_policy.md"
             ).exists()
         )
+        attempt_population = export_formal_verifier_agentic_proof_attempt_population(
+            Path("runs/test_formal_verifier_agentic_proof_safety_policy"),
+            Path("runs/test_formal_verifier_agentic_proof_attempt_population"),
+        )
+        self.assertTrue(attempt_population["all_ok"])
+        self.assertEqual(
+            attempt_population["n_population_entries"],
+            safety_policy["n_safety_policy_rows"],
+        )
+        self.assertEqual(attempt_population["n_ready"], 1)
+        self.assertEqual(attempt_population["n_blocked"], 0)
+        self.assertEqual(attempt_population["n_patch_population_entries"], 1)
+        self.assertEqual(attempt_population["n_source_population_entries"], 0)
+        self.assertEqual(attempt_population["n_with_goal_cache_key"], 1)
+        self.assertEqual(attempt_population["n_with_lineage_key"], 1)
+        self.assertEqual(attempt_population["n_with_sampling_weight"], 1)
+        self.assertEqual(attempt_population["n_untried"], 1)
+        attempt_population_row = attempt_population["rows"][0]
+        self.assertEqual(
+            attempt_population_row["attempt_status"],
+            "READY_FOR_POPULATION_SEEDED_ATTEMPT",
+        )
+        self.assertEqual(
+            attempt_population_row["population_bucket"],
+            "bounded_patch_attempt",
+        )
+        self.assertIn(
+            "proof_sketch_population",
+            attempt_population_row["proof_sketch_population_key"],
+        )
+        self.assertEqual(
+            attempt_population_row["diagnostic_signature"],
+            "UNTRIED_CANDIDATE_SEED",
+        )
+        self.assertGreater(attempt_population_row["selection_weight"], 0)
+        self.assertIn(
+            "not theorem proof evidence",
+            attempt_population_row["proof_evidence_boundary"],
+        )
+        self.assertTrue(
+            Path(
+                "runs/test_formal_verifier_agentic_proof_attempt_population/formal_verifier_agentic_proof_attempt_population_manifest.json"
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                "runs/test_formal_verifier_agentic_proof_attempt_population/formal_verifier_agentic_proof_attempt_population.jsonl"
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                "runs/test_formal_verifier_agentic_proof_attempt_population/formal_verifier_agentic_proof_attempt_population.md"
+            ).exists()
+        )
         self.assertTrue(
             Path(
                 "runs/test_formal_verifier_replay_repair_patch_rerun_residual_autoworker/formal_verifier_replay_repair_patch_rerun_residual_autoworker_manifest.json"
@@ -8555,6 +8654,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "proof_bank_expansion",
             "theorem_composition",
             "formal_verifier_queue",
+            "goal_conditioned_minimal_formalization_plan",
             "formal_verifier_replay",
             "formal_verifier_replay_attempts",
             "formal_verifier_replay_calibration",
@@ -8577,6 +8677,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "formal_verifier_agentic_proof_strategy_plan",
             "formal_verifier_agentic_proof_candidate_evaluation_queue",
             "formal_verifier_agentic_proof_safety_policy",
+            "formal_verifier_agentic_proof_attempt_population",
             "evaluation_benchmark_guidance",
         ):
             (root / subdir).mkdir(parents=True, exist_ok=True)
@@ -8787,6 +8888,101 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                             "semantic_faithfulness_score": 72,
                             "semantic_faithfulness_status": "strong_overlap",
                             "proof_evidence_boundary": "This queue row is not proof evidence.",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        (
+            root
+            / "goal_conditioned_minimal_formalization_plan"
+            / "goal_conditioned_minimal_formalization_plan_manifest.json"
+        ).write_text(
+            json.dumps(
+                {
+                    "n_goal_plans": 1,
+                    "n_ready": 1,
+                    "n_low_cost_goal_plans": 1,
+                    "n_reuse_or_composition": 1,
+                    "n_bridge_or_wrapper": 0,
+                    "n_requires_new_theory": 0,
+                    "n_existing_reuse_nodes": 1,
+                    "n_wrapper_nodes": 0,
+                    "n_bridge_nodes": 1,
+                    "n_source_discovery_nodes": 0,
+                    "n_first_principles_nodes": 0,
+                    "n_do_not_formalize_hints": 1,
+                    "n_ok": 1,
+                    "proof_evidence_boundary": (
+                        "Goal-conditioned minimal formalization plans are route-selection artifacts, not theorem proof evidence."
+                    ),
+                    "rows": [
+                        {
+                            "goal_plan_id": (
+                                "goal_conditioned_minimal_formalization_plan:test"
+                            ),
+                            "route_id": "theorem_route:test",
+                            "formal_verifier_queue_item_id": (
+                                "formal_verifier_queue:test"
+                            ),
+                            "display_name": (
+                                "causal_ate_aipw:aipw_double_robustness:skeleton"
+                            ),
+                            "route_class": "reuse_or_composition",
+                            "recommended_action": (
+                                "compose exact reuse skeleton before adding new theory"
+                            ),
+                            "best_route_cost": 4,
+                            "goal_conditioned_cost": 5,
+                            "route_efficiency_score": 97,
+                            "selected_primitives": ["aipw_score_definition"],
+                            "existing_reuse_nodes": [
+                                {
+                                    "primitive": "aipw_score_definition",
+                                    "action_class": (
+                                        "reuse_exact_proof_bank_obligation"
+                                    ),
+                                    "cost": 1,
+                                }
+                            ],
+                            "wrapper_nodes": [],
+                            "bridge_nodes": [
+                                {
+                                    "primitive": "aipw_double_robustness_bridge",
+                                    "action_class": "design_bridge_lemma",
+                                    "cost": 3,
+                                }
+                            ],
+                            "source_discovery_nodes": [],
+                            "first_principles_nodes": [],
+                            "minimal_additional_formalization_nodes": [
+                                {
+                                    "primitive": "aipw_double_robustness_bridge",
+                                    "action_class": "design_bridge_lemma",
+                                    "cost": 3,
+                                }
+                            ],
+                            "do_not_formalize_now": [
+                                "unrelated_empirical_process_primitive"
+                            ],
+                            "next_work_packets": [
+                                {
+                                    "primitive": "aipw_double_robustness_bridge",
+                                    "action_class": "design_bridge_lemma",
+                                    "worker_packet_kind": "bridge_lemma",
+                                    "expected_cost": 3,
+                                }
+                            ],
+                            "route_summary": (
+                                "Add one bridge lemma and skip unrelated primitives."
+                            ),
+                            "proof_evidence_status": (
+                                "GOAL_CONDITIONED_MINIMAL_FORMALIZATION_PLAN_NOT_PROOF_EVIDENCE"
+                            ),
+                            "proof_evidence_boundary": (
+                                "Goal-conditioned minimal formalization plans are route-selection artifacts, not theorem proof evidence."
+                            ),
                         }
                     ],
                 }
@@ -9836,6 +10032,75 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             ),
             encoding="utf-8",
         )
+        (
+            root
+            / "formal_verifier_agentic_proof_attempt_population"
+            / "formal_verifier_agentic_proof_attempt_population_manifest.json"
+        ).write_text(
+            json.dumps(
+                {
+                    "n_safety_policy_rows": 1,
+                    "n_population_entries": 1,
+                    "n_ready": 1,
+                    "n_blocked": 0,
+                    "n_patch_population_entries": 1,
+                    "n_source_population_entries": 0,
+                    "n_with_goal_cache_key": 1,
+                    "n_with_lineage_key": 1,
+                    "n_with_sampling_weight": 1,
+                    "n_untried": 1,
+                    "n_ok": 1,
+                    "proof_evidence_boundary": (
+                        "Agentic proof attempt population rows are memory/sampling records for candidate search, not theorem proof evidence."
+                    ),
+                    "rows": [
+                        {
+                            "population_entry_id": (
+                                "formal_verifier_agentic_proof_attempt_population:test"
+                            ),
+                            "rank": 1,
+                            "safety_policy_id": (
+                                "formal_verifier_agentic_proof_safety_policy:test"
+                            ),
+                            "display_name": (
+                                "causal_ate_aipw:aipw_double_robustness:skeleton"
+                            ),
+                            "residual_gap": "aipw_score_definition",
+                            "generation_mode": (
+                                "residual_patch_candidate_generation"
+                            ),
+                            "population_bucket": "bounded_patch_attempt",
+                            "attempt_status": "READY_FOR_POPULATION_SEEDED_ATTEMPT",
+                            "goal_cache_key": "agentic_goal_cache:test",
+                            "candidate_lineage_key": (
+                                "agentic_candidate_lineage:test"
+                            ),
+                            "proof_sketch_population_key": (
+                                "proof_sketch_population:test"
+                            ),
+                            "selection_weight": 130,
+                            "diagnostic_signature": "UNTRIED_CANDIDATE_SEED",
+                            "lessons_learned": [
+                                "untried bounded-edit patch seed"
+                            ],
+                            "sampler_policy": (
+                                "priority_weighted_goal_cache_population_sampling"
+                            ),
+                            "promotion_gate": (
+                                "population entry can only become proof evidence after full_route_kernel_verified calibration"
+                            ),
+                            "proof_evidence_status": (
+                                "AGENTIC_PROOF_ATTEMPT_POPULATION_NOT_PROOF_EVIDENCE"
+                            ),
+                            "proof_evidence_boundary": (
+                                "Agentic proof attempt population rows are memory/sampling records for candidate search, not theorem proof evidence."
+                            ),
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
         (root / "evaluation_benchmark_guidance" / "evaluation_benchmark_guidance_manifest.json").write_text(
             json.dumps({"top_actions": [{"rank": 1, "action": "improve RAG"}]}),
             encoding="utf-8",
@@ -9902,6 +10167,19 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                         "formal_verifier_queue_mean_semantic_faithfulness_score": 72.0,
                         "formal_verifier_queue_rows_with_kernel_smoke_overlap": 1,
                         "formal_verifier_queue_rows_source_trust_kernel_calibrated": 1,
+                        "goal_conditioned_minimal_formalization_plans": 1,
+                        "goal_conditioned_minimal_formalization_ready": 1,
+                        "goal_conditioned_minimal_formalization_low_cost": 1,
+                        "goal_conditioned_minimal_formalization_reuse_or_composition": 1,
+                        "goal_conditioned_minimal_formalization_bridge_or_wrapper": 0,
+                        "goal_conditioned_minimal_formalization_requires_new_theory": 0,
+                        "goal_conditioned_minimal_formalization_existing_reuse_nodes": 1,
+                        "goal_conditioned_minimal_formalization_wrapper_nodes": 0,
+                        "goal_conditioned_minimal_formalization_bridge_nodes": 1,
+                        "goal_conditioned_minimal_formalization_source_discovery_nodes": 0,
+                        "goal_conditioned_minimal_formalization_first_principles_nodes": 0,
+                        "goal_conditioned_minimal_formalization_do_not_formalize_hints": 1,
+                        "goal_conditioned_minimal_formalization_ok": 1,
                         "formal_verifier_replay_tasks": 1,
                         "formal_verifier_replay_kernel_calibrated": 1,
                         "formal_verifier_replay_proof_search_subclaim": 1,
@@ -10024,6 +10302,16 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                         "formal_verifier_agentic_proof_safety_policy_with_anti_cheat_checks": 1,
                         "formal_verifier_agentic_proof_safety_policy_with_safeverify_gate": 1,
                         "formal_verifier_agentic_proof_safety_policy_ok": 1,
+                        "formal_verifier_agentic_proof_attempt_population_entries": 1,
+                        "formal_verifier_agentic_proof_attempt_population_ready": 1,
+                        "formal_verifier_agentic_proof_attempt_population_blocked": 0,
+                        "formal_verifier_agentic_proof_attempt_population_patch_entries": 1,
+                        "formal_verifier_agentic_proof_attempt_population_source_entries": 0,
+                        "formal_verifier_agentic_proof_attempt_population_with_goal_cache_key": 1,
+                        "formal_verifier_agentic_proof_attempt_population_with_lineage_key": 1,
+                        "formal_verifier_agentic_proof_attempt_population_with_sampling_weight": 1,
+                        "formal_verifier_agentic_proof_attempt_population_untried": 1,
+                        "formal_verifier_agentic_proof_attempt_population_ok": 1,
                         "claim_ledger_repair_response_promotion_overlay_enabled": True,
                         "claim_ledger_repair_response_promotion_overlay_rows": 0,
                         "claim_ledger_repair_response_promotion_upgrades": 0,
@@ -10081,6 +10369,11 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                         ),
                         "formal_verifier_queue": str(
                             root / "formal_verifier_queue" / "formal_verifier_queue_manifest.json"
+                        ),
+                        "goal_conditioned_minimal_formalization_plan": str(
+                            root
+                            / "goal_conditioned_minimal_formalization_plan"
+                            / "goal_conditioned_minimal_formalization_plan_manifest.json"
                         ),
                         "formal_verifier_replay": str(
                             root / "formal_verifier_replay" / "formal_verifier_replay_manifest.json"
@@ -10190,6 +10483,11 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                             / "formal_verifier_agentic_proof_safety_policy"
                             / "formal_verifier_agentic_proof_safety_policy_manifest.json"
                         ),
+                        "formal_verifier_agentic_proof_attempt_population": str(
+                            root
+                            / "formal_verifier_agentic_proof_attempt_population"
+                            / "formal_verifier_agentic_proof_attempt_population_manifest.json"
+                        ),
                         "evaluation_benchmark_guidance": str(
                             root
                             / "evaluation_benchmark_guidance"
@@ -10273,6 +10571,54 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertIn(
             "not proof evidence",
             payload["formal_capacity_queue"]["formal_verifier_queue_preview"][0]["proof_evidence_boundary"],
+        )
+        self.assertEqual(
+            payload["formal_capacity_queue"][
+                "goal_conditioned_minimal_formalization_plans"
+            ],
+            1,
+        )
+        self.assertEqual(
+            payload["formal_capacity_queue"][
+                "goal_conditioned_minimal_formalization_low_cost"
+            ],
+            1,
+        )
+        self.assertEqual(
+            payload["formal_capacity_queue"][
+                "goal_conditioned_minimal_formalization_existing_reuse_nodes"
+            ],
+            1,
+        )
+        self.assertEqual(
+            payload["formal_capacity_queue"][
+                "goal_conditioned_minimal_formalization_bridge_nodes"
+            ],
+            1,
+        )
+        minimal_preview = payload["formal_capacity_queue"][
+            "goal_conditioned_minimal_formalization_plan_preview"
+        ][0]
+        self.assertEqual(minimal_preview["goal_conditioned_cost"], 5)
+        self.assertEqual(
+            minimal_preview["selected_primitives"][0],
+            "aipw_score_definition",
+        )
+        self.assertEqual(
+            minimal_preview["bridge_nodes"][0]["primitive"],
+            "aipw_double_robustness_bridge",
+        )
+        self.assertEqual(
+            minimal_preview["do_not_formalize_now"][0],
+            "unrelated_empirical_process_primitive",
+        )
+        self.assertEqual(
+            minimal_preview["next_work_packets"][0]["worker_packet_kind"],
+            "bridge_lemma",
+        )
+        self.assertIn(
+            "not theorem proof evidence",
+            minimal_preview["proof_evidence_boundary"],
         )
         self.assertEqual(payload["formal_capacity_queue"]["formal_verifier_replay_tasks"], 1)
         self.assertEqual(payload["formal_capacity_queue"]["formal_verifier_replay_kernel_calibrated"], 1)
@@ -10898,6 +11244,55 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "not theorem proof evidence",
             safety_preview["proof_evidence_boundary"],
         )
+        self.assertEqual(
+            payload["formal_capacity_queue"][
+                "formal_verifier_agentic_proof_attempt_population_entries"
+            ],
+            1,
+        )
+        self.assertEqual(
+            payload["formal_capacity_queue"][
+                "formal_verifier_agentic_proof_attempt_population_ready"
+            ],
+            1,
+        )
+        self.assertEqual(
+            payload["formal_capacity_queue"][
+                "formal_verifier_agentic_proof_attempt_population_patch_entries"
+            ],
+            1,
+        )
+        self.assertEqual(
+            payload["formal_capacity_queue"][
+                "formal_verifier_agentic_proof_attempt_population_source_entries"
+            ],
+            0,
+        )
+        population_preview = payload["formal_capacity_queue"][
+            "formal_verifier_agentic_proof_attempt_population_preview"
+        ][0]
+        self.assertEqual(
+            population_preview["attempt_status"],
+            "READY_FOR_POPULATION_SEEDED_ATTEMPT",
+        )
+        self.assertEqual(
+            population_preview["population_bucket"],
+            "bounded_patch_attempt",
+        )
+        self.assertIn("agentic_goal_cache", population_preview["goal_cache_key"])
+        self.assertIn(
+            "proof_sketch_population",
+            population_preview["proof_sketch_population_key"],
+        )
+        self.assertEqual(
+            population_preview["diagnostic_signature"],
+            "UNTRIED_CANDIDATE_SEED",
+        )
+        self.assertGreater(population_preview["selection_weight"], 0)
+        self.assertIn(
+            "not theorem proof evidence",
+            population_preview["proof_evidence_boundary"],
+        )
         self.assertIn(
             "residual prompt packets",
             " ".join(payload["honesty_boundaries"]),
@@ -10924,6 +11319,10 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         )
         self.assertIn(
             "agentic proof safety policy",
+            " ".join(payload["honesty_boundaries"]),
+        )
+        self.assertIn(
+            "agentic proof attempt population",
             " ".join(payload["honesty_boundaries"]),
         )
         self.assertTrue(
@@ -12849,6 +13248,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["gates"]["primitive_source_coverage_audit"])
         self.assertTrue(payload["gates"]["formalization_delta_plan"])
         self.assertTrue(payload["gates"]["formal_verifier_queue"])
+        self.assertTrue(payload["gates"]["goal_conditioned_minimal_formalization_plan"])
         self.assertTrue(payload["gates"]["formal_verifier_replay"])
         self.assertTrue(payload["gates"]["formal_verifier_replay_attempts"])
         self.assertTrue(payload["gates"]["formal_verifier_replay_calibration"])
@@ -12871,6 +13271,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["gates"]["formal_verifier_agentic_proof_strategy_plan"])
         self.assertTrue(payload["gates"]["formal_verifier_agentic_proof_candidate_evaluation_queue"])
         self.assertTrue(payload["gates"]["formal_verifier_agentic_proof_safety_policy"])
+        self.assertTrue(payload["gates"]["formal_verifier_agentic_proof_attempt_population"])
         self.assertTrue(payload["gates"]["research_training_export"])
         self.assertTrue(payload["gates"]["research_policy_baseline"])
         self.assertTrue(payload["gates"]["next_iteration_queue"])
@@ -13153,6 +13554,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "lean_rag_dependency_health",
             "primitive_source_coverage_audit",
             "formal_verifier_queue",
+            "goal_conditioned_minimal_formalization_plan",
             "formal_verifier_replay",
             "formal_verifier_replay_attempts",
             "formal_verifier_replay_calibration",
@@ -13175,6 +13577,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "formal_verifier_agentic_proof_strategy_plan",
             "formal_verifier_agentic_proof_candidate_evaluation_queue",
             "formal_verifier_agentic_proof_safety_policy",
+            "formal_verifier_agentic_proof_attempt_population",
             "research_training_export",
             "research_policy_baseline",
             "next_iteration_queue",
@@ -13399,6 +13802,56 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertEqual(
             payload["counts"]["formal_verifier_queue_kernel_smoke_kernel_verified"],
             payload["counts"]["kernel_smoke_proof_audit_kernel_verified"],
+        )
+        self.assertEqual(
+            payload["counts"]["goal_conditioned_minimal_formalization_plans"],
+            payload["counts"]["formal_verifier_queue_items"],
+        )
+        self.assertEqual(
+            payload["counts"]["goal_conditioned_minimal_formalization_ready"],
+            payload["counts"]["goal_conditioned_minimal_formalization_plans"],
+        )
+        self.assertEqual(
+            payload["counts"]["goal_conditioned_minimal_formalization_ok"],
+            payload["counts"]["goal_conditioned_minimal_formalization_plans"],
+        )
+        self.assertGreater(
+            payload["counts"]["goal_conditioned_minimal_formalization_plans"],
+            0,
+        )
+        self.assertGreaterEqual(
+            payload["counts"]["goal_conditioned_minimal_formalization_low_cost"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["goal_conditioned_minimal_formalization_reuse_or_composition"]
+            + payload["counts"]["goal_conditioned_minimal_formalization_bridge_or_wrapper"]
+            + payload["counts"]["goal_conditioned_minimal_formalization_requires_new_theory"],
+            payload["counts"]["goal_conditioned_minimal_formalization_plans"],
+        )
+        self.assertGreaterEqual(
+            payload["counts"]["goal_conditioned_minimal_formalization_existing_reuse_nodes"],
+            0,
+        )
+        self.assertGreaterEqual(
+            payload["counts"]["goal_conditioned_minimal_formalization_wrapper_nodes"],
+            0,
+        )
+        self.assertGreaterEqual(
+            payload["counts"]["goal_conditioned_minimal_formalization_bridge_nodes"],
+            0,
+        )
+        self.assertGreaterEqual(
+            payload["counts"]["goal_conditioned_minimal_formalization_source_discovery_nodes"],
+            0,
+        )
+        self.assertGreaterEqual(
+            payload["counts"]["goal_conditioned_minimal_formalization_first_principles_nodes"],
+            0,
+        )
+        self.assertGreaterEqual(
+            payload["counts"]["goal_conditioned_minimal_formalization_do_not_formalize_hints"],
+            0,
         )
         self.assertEqual(payload["counts"]["formal_verifier_replay_ok"], payload["counts"]["formal_verifier_replay_tasks"])
         self.assertEqual(payload["counts"]["formal_verifier_replay_tasks"], payload["counts"]["formal_verifier_queue_items"])
@@ -13996,11 +14449,84 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             payload["counts"]["formal_verifier_agentic_proof_safety_policy_ok"],
             0,
         )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_agentic_proof_attempt_population_entries"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_agentic_proof_attempt_population_ready"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_agentic_proof_attempt_population_blocked"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_agentic_proof_attempt_population_patch_entries"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_agentic_proof_attempt_population_source_entries"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_agentic_proof_attempt_population_with_goal_cache_key"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_agentic_proof_attempt_population_with_lineage_key"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_agentic_proof_attempt_population_with_sampling_weight"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_agentic_proof_attempt_population_untried"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formal_verifier_agentic_proof_attempt_population_ok"],
+            0,
+        )
         self.assertTrue(Path(payload["artifacts"]["formalization_delta_plan"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formalization_delta_graph"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_verifier_queue"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_verifier_queue_jsonl"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_verifier_queue_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["goal_conditioned_minimal_formalization_plan"]).exists())
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "goal_conditioned_minimal_formalization_plan_jsonl"
+                ]
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "goal_conditioned_minimal_formalization_plan_report"
+                ]
+            ).exists()
+        )
         self.assertTrue(Path(payload["artifacts"]["formal_verifier_replay"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_verifier_replay_jsonl"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_verifier_replay_training_jsonl"]).exists())
@@ -14321,6 +14847,27 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             Path(
                 payload["artifacts"][
                     "formal_verifier_agentic_proof_safety_policy_report"
+                ]
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formal_verifier_agentic_proof_attempt_population"
+                ]
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formal_verifier_agentic_proof_attempt_population_jsonl"
+                ]
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formal_verifier_agentic_proof_attempt_population_report"
                 ]
             ).exists()
         )

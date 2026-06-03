@@ -60,6 +60,14 @@ def export_rag_collaboration_manifest(
     theorem_composition_payload = _read_json(theorem_composition_path)
     formal_verifier_queue_path = _artifact_path(artifacts, "formal_verifier_queue", run_dir)
     formal_verifier_queue_payload = _read_json(formal_verifier_queue_path)
+    goal_conditioned_minimal_formalization_plan_path = _artifact_path(
+        artifacts,
+        "goal_conditioned_minimal_formalization_plan",
+        run_dir,
+    )
+    goal_conditioned_minimal_formalization_plan_payload = _read_json(
+        goal_conditioned_minimal_formalization_plan_path
+    )
     formal_verifier_replay_path = _artifact_path(artifacts, "formal_verifier_replay", run_dir)
     formal_verifier_replay_payload = _read_json(formal_verifier_replay_path)
     formal_verifier_replay_attempt_path = _artifact_path(
@@ -225,6 +233,14 @@ def export_rag_collaboration_manifest(
     )
     formal_verifier_agentic_proof_safety_policy_payload = _read_json(
         formal_verifier_agentic_proof_safety_policy_path
+    )
+    formal_verifier_agentic_proof_attempt_population_path = _artifact_path(
+        artifacts,
+        "formal_verifier_agentic_proof_attempt_population",
+        run_dir,
+    )
+    formal_verifier_agentic_proof_attempt_population_payload = _read_json(
+        formal_verifier_agentic_proof_attempt_population_path
     )
     guidance_payload = _read_json(_artifact_path(artifacts, "evaluation_benchmark_guidance", run_dir))
 
@@ -477,6 +493,49 @@ def export_rag_collaboration_manifest(
             "formal_verifier_queue_manifest": str(formal_verifier_queue_path),
             "formal_verifier_queue_preview": _formal_verifier_queue_preview(
                 formal_verifier_queue_payload,
+                max_rows=min(max_targets, 10),
+            ),
+            "goal_conditioned_minimal_formalization_plans": counts.get(
+                "goal_conditioned_minimal_formalization_plans",
+                goal_conditioned_minimal_formalization_plan_payload.get("n_goal_plans"),
+            ),
+            "goal_conditioned_minimal_formalization_low_cost": counts.get(
+                "goal_conditioned_minimal_formalization_low_cost",
+                goal_conditioned_minimal_formalization_plan_payload.get(
+                    "n_low_cost_goal_plans"
+                ),
+            ),
+            "goal_conditioned_minimal_formalization_existing_reuse_nodes": counts.get(
+                "goal_conditioned_minimal_formalization_existing_reuse_nodes",
+                goal_conditioned_minimal_formalization_plan_payload.get(
+                    "n_existing_reuse_nodes"
+                ),
+            ),
+            "goal_conditioned_minimal_formalization_wrapper_nodes": counts.get(
+                "goal_conditioned_minimal_formalization_wrapper_nodes",
+                goal_conditioned_minimal_formalization_plan_payload.get("n_wrapper_nodes"),
+            ),
+            "goal_conditioned_minimal_formalization_bridge_nodes": counts.get(
+                "goal_conditioned_minimal_formalization_bridge_nodes",
+                goal_conditioned_minimal_formalization_plan_payload.get("n_bridge_nodes"),
+            ),
+            "goal_conditioned_minimal_formalization_source_discovery_nodes": counts.get(
+                "goal_conditioned_minimal_formalization_source_discovery_nodes",
+                goal_conditioned_minimal_formalization_plan_payload.get(
+                    "n_source_discovery_nodes"
+                ),
+            ),
+            "goal_conditioned_minimal_formalization_first_principles_nodes": counts.get(
+                "goal_conditioned_minimal_formalization_first_principles_nodes",
+                goal_conditioned_minimal_formalization_plan_payload.get(
+                    "n_first_principles_nodes"
+                ),
+            ),
+            "goal_conditioned_minimal_formalization_manifest": str(
+                goal_conditioned_minimal_formalization_plan_path
+            ),
+            "goal_conditioned_minimal_formalization_plan_preview": _goal_conditioned_minimal_formalization_plan_preview(
+                goal_conditioned_minimal_formalization_plan_payload,
                 max_rows=min(max_targets, 10),
             ),
             "formal_verifier_replay_tasks": counts.get(
@@ -1173,6 +1232,39 @@ def export_rag_collaboration_manifest(
                 formal_verifier_agentic_proof_safety_policy_payload,
                 max_rows=min(max_targets, 10),
             ),
+            "formal_verifier_agentic_proof_attempt_population_entries": counts.get(
+                "formal_verifier_agentic_proof_attempt_population_entries",
+                formal_verifier_agentic_proof_attempt_population_payload.get(
+                    "n_population_entries"
+                ),
+            ),
+            "formal_verifier_agentic_proof_attempt_population_ready": counts.get(
+                "formal_verifier_agentic_proof_attempt_population_ready",
+                formal_verifier_agentic_proof_attempt_population_payload.get("n_ready"),
+            ),
+            "formal_verifier_agentic_proof_attempt_population_blocked": counts.get(
+                "formal_verifier_agentic_proof_attempt_population_blocked",
+                formal_verifier_agentic_proof_attempt_population_payload.get("n_blocked"),
+            ),
+            "formal_verifier_agentic_proof_attempt_population_patch_entries": counts.get(
+                "formal_verifier_agentic_proof_attempt_population_patch_entries",
+                formal_verifier_agentic_proof_attempt_population_payload.get(
+                    "n_patch_population_entries"
+                ),
+            ),
+            "formal_verifier_agentic_proof_attempt_population_source_entries": counts.get(
+                "formal_verifier_agentic_proof_attempt_population_source_entries",
+                formal_verifier_agentic_proof_attempt_population_payload.get(
+                    "n_source_population_entries"
+                ),
+            ),
+            "formal_verifier_agentic_proof_attempt_population_manifest": str(
+                formal_verifier_agentic_proof_attempt_population_path
+            ),
+            "formal_verifier_agentic_proof_attempt_population_preview": _formal_verifier_agentic_proof_attempt_population_preview(
+                formal_verifier_agentic_proof_attempt_population_payload,
+                max_rows=min(max_targets, 10),
+            ),
             "claim_ledger_repair_response_promotion_overlay_enabled": counts.get(
                 "claim_ledger_repair_response_promotion_overlay_enabled"
             ),
@@ -1237,9 +1329,11 @@ def export_rag_collaboration_manifest(
             "FormalVerifier repair patch rerun residual autoworker responses are deterministic proposals, not theorem proof evidence.",
             "FormalVerifier repair patch rerun residual response validation accepts proof claims only with full_route_kernel_verified evidence.",
             "FormalVerifier repair patch rerun residual follow-up queue rows are operational work items, not theorem proof evidence.",
+            "Goal-conditioned minimal formalization plans are route-selection artifacts, not theorem proof evidence.",
             "FormalVerifier agentic proof strategy plan rows are search/evaluator plans, not theorem proof evidence.",
             "FormalVerifier agentic proof candidate evaluation queue rows are candidate-generation work orders, not theorem proof evidence.",
             "FormalVerifier agentic proof safety policy rows are preflight guardrails, not theorem proof evidence.",
+            "FormalVerifier agentic proof attempt population rows are search-memory records, not theorem proof evidence.",
             "Claim-ledger repair-response promotion overlays close formal gaps only for matching ready kernel-verified promotion rows.",
             "FORMAL_GAP and theorem-hole queues remain open until a non-placeholder Lean proof is verified.",
         ],
@@ -1367,6 +1461,50 @@ def _formal_verifier_queue_preview(
                 "kernel_smoke_related_total": row.get("kernel_smoke_related_total", 0),
                 "semantic_faithfulness_score": row.get("semantic_faithfulness_score", 0),
                 "semantic_faithfulness_status": row.get("semantic_faithfulness_status", ""),
+                "proof_evidence_boundary": row.get("proof_evidence_boundary", ""),
+            }
+        )
+        if len(rows) >= max_rows:
+            break
+    return rows
+
+
+def _goal_conditioned_minimal_formalization_plan_preview(
+    payload: dict[str, Any],
+    *,
+    max_rows: int,
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    plan_rows = payload.get("rows", [])
+    if not isinstance(plan_rows, list):
+        return rows
+    for row in plan_rows:
+        if not isinstance(row, dict):
+            continue
+        rows.append(
+            {
+                "goal_plan_id": row.get("goal_plan_id"),
+                "route_id": row.get("route_id"),
+                "display_name": row.get("display_name"),
+                "route_class": row.get("route_class"),
+                "recommended_action": row.get("recommended_action", ""),
+                "best_route_cost": row.get("best_route_cost", 0),
+                "goal_conditioned_cost": row.get("goal_conditioned_cost", 0),
+                "route_efficiency_score": row.get("route_efficiency_score", 0),
+                "selected_primitives": row.get("selected_primitives", [])[:8],
+                "existing_reuse_nodes": row.get("existing_reuse_nodes", [])[:4],
+                "wrapper_nodes": row.get("wrapper_nodes", [])[:4],
+                "bridge_nodes": row.get("bridge_nodes", [])[:4],
+                "source_discovery_nodes": row.get("source_discovery_nodes", [])[:4],
+                "first_principles_nodes": row.get("first_principles_nodes", [])[:4],
+                "minimal_additional_formalization_nodes": row.get(
+                    "minimal_additional_formalization_nodes",
+                    [],
+                )[:6],
+                "do_not_formalize_now": row.get("do_not_formalize_now", [])[:8],
+                "next_work_packets": row.get("next_work_packets", [])[:6],
+                "route_summary": row.get("route_summary", ""),
+                "proof_evidence_status": row.get("proof_evidence_status", ""),
                 "proof_evidence_boundary": row.get("proof_evidence_boundary", ""),
             }
         )
@@ -2129,6 +2267,48 @@ def _formal_verifier_agentic_proof_safety_policy_preview(
     return rows
 
 
+def _formal_verifier_agentic_proof_attempt_population_preview(
+    payload: dict[str, Any],
+    *,
+    max_rows: int,
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    population_rows = payload.get("rows", [])
+    if not isinstance(population_rows, list):
+        return rows
+    for row in population_rows:
+        if not isinstance(row, dict):
+            continue
+        rows.append(
+            {
+                "population_entry_id": row.get("population_entry_id"),
+                "rank": row.get("rank"),
+                "safety_policy_id": row.get("safety_policy_id"),
+                "display_name": row.get("display_name"),
+                "residual_gap": row.get("residual_gap"),
+                "generation_mode": row.get("generation_mode", ""),
+                "population_bucket": row.get("population_bucket", ""),
+                "attempt_status": row.get("attempt_status", ""),
+                "goal_cache_key": row.get("goal_cache_key", ""),
+                "candidate_lineage_key": row.get("candidate_lineage_key", ""),
+                "proof_sketch_population_key": row.get(
+                    "proof_sketch_population_key",
+                    "",
+                ),
+                "selection_weight": row.get("selection_weight", 0),
+                "diagnostic_signature": row.get("diagnostic_signature", ""),
+                "lessons_learned": row.get("lessons_learned", [])[:4],
+                "sampler_policy": row.get("sampler_policy", ""),
+                "promotion_gate": row.get("promotion_gate", ""),
+                "proof_evidence_status": row.get("proof_evidence_status", ""),
+                "proof_evidence_boundary": row.get("proof_evidence_boundary", ""),
+            }
+        )
+        if len(rows) >= max_rows:
+            break
+    return rows
+
+
 def _theorem_composition_packet_preview(
     payload: dict[str, Any],
     *,
@@ -2215,6 +2395,11 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"semantic review rows `{queue.get('formal_verifier_queue_semantic_needs_review')}`",
         f"- Formal verifier kernel calibration: `{queue.get('formal_verifier_queue_rows_source_trust_kernel_calibrated')}` "
         f"source-trust rows calibrated by kernel-smoke overlap",
+        f"- Goal-conditioned minimal formalization: `{queue.get('goal_conditioned_minimal_formalization_plans')}` plans "
+        f"(`{queue.get('goal_conditioned_minimal_formalization_low_cost')}` low cost, "
+        f"`{queue.get('goal_conditioned_minimal_formalization_existing_reuse_nodes')}` reuse, "
+        f"`{queue.get('goal_conditioned_minimal_formalization_wrapper_nodes')}` wrappers, "
+        f"`{queue.get('goal_conditioned_minimal_formalization_bridge_nodes')}` bridges)",
         f"- Formal verifier replay: `{queue.get('formal_verifier_replay_tasks')}` tasks "
         f"(`{queue.get('formal_verifier_replay_kernel_calibrated')}` kernel-calibrated, "
         f"`{queue.get('formal_verifier_replay_proof_search_subclaim')}` proof-search subclaim replay)",
@@ -2287,6 +2472,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Formal verifier agentic proof safety policy: `{queue.get('formal_verifier_agentic_proof_safety_policy_rows')}` rows "
         f"(`{queue.get('formal_verifier_agentic_proof_safety_policy_patch_bounded_edit')}` bounded-edit, "
         f"`{queue.get('formal_verifier_agentic_proof_safety_policy_source_validation')}` source-validation)",
+        f"- Formal verifier agentic proof attempt population: `{queue.get('formal_verifier_agentic_proof_attempt_population_entries')}` entries "
+        f"(`{queue.get('formal_verifier_agentic_proof_attempt_population_patch_entries')}` patch, "
+        f"`{queue.get('formal_verifier_agentic_proof_attempt_population_source_entries')}` source)",
         "- Claim-ledger repair-response promotion overlay: "
         f"`{queue.get('claim_ledger_repair_response_promotion_upgrades')}` upgrades from "
         f"`{queue.get('claim_ledger_repair_response_promotion_overlay_rows')}` ready rows",
@@ -2321,6 +2509,36 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"semantic={row.get('semantic_faithfulness_score')}/"
             f"{row.get('semantic_faithfulness_status')}]"
         )
+    lines.extend(["", "## Goal-Conditioned Minimal Formalization", ""])
+    for row in queue.get("goal_conditioned_minimal_formalization_plan_preview", []):
+        if not isinstance(row, dict):
+            continue
+        selected = ", ".join(
+            f"`{item}`" for item in row.get("selected_primitives", [])
+        ) or "none"
+        skipped = ", ".join(
+            f"`{item}`" for item in row.get("do_not_formalize_now", [])
+        ) or "none"
+        nodes = ", ".join(
+            f"`{node.get('primitive')}`/{node.get('action_class')}"
+            for node in row.get("minimal_additional_formalization_nodes", [])
+            if isinstance(node, dict)
+        ) or "reuse existing nodes"
+        next_packets = ", ".join(
+            f"`{packet.get('primitive')}`:{packet.get('worker_packet_kind')}"
+            for packet in row.get("next_work_packets", [])
+            if isinstance(packet, dict)
+        ) or "none"
+        lines.append(
+            f"- `{row.get('display_name')}` cost={row.get('goal_conditioned_cost')} "
+            f"efficiency={row.get('route_efficiency_score')} class={row.get('route_class')}"
+        )
+        lines.append(f"  selected primitives: {selected}")
+        lines.append(f"  add now: {nodes}")
+        lines.append(f"  do not formalize now: {skipped}")
+        lines.append(f"  next packets: {next_packets}")
+        lines.append(f"  summary: {row.get('route_summary')}")
+        lines.append(f"  boundary: {row.get('proof_evidence_boundary')}")
     lines.extend(["", "## Formal Verifier Replay", ""])
     for row in queue.get("formal_verifier_replay_preview", []):
         if not isinstance(row, dict):
@@ -2566,6 +2784,25 @@ def _markdown_report(payload: dict[str, object]) -> str:
         lines.append(f"  anti-cheat checks: {anti_cheat}")
         lines.append(f"  forbidden tokens: {forbidden}")
         lines.append(f"  SafeVerify gate: {row.get('safeverify_gate')}")
+        lines.append(f"  proof status: {row.get('proof_evidence_status')}")
+        lines.append(f"  boundary: {row.get('proof_evidence_boundary')}")
+    lines.extend(["", "## Agentic Proof Attempt Population", ""])
+    for row in queue.get("formal_verifier_agentic_proof_attempt_population_preview", []):
+        if not isinstance(row, dict):
+            continue
+        lines.append(
+            f"- #{row.get('rank')} `{row.get('display_name')}` -> `{row.get('residual_gap')}` "
+            f"({row.get('attempt_status')}): {row.get('population_bucket')}"
+        )
+        lessons = ", ".join(f"`{item}`" for item in row.get("lessons_learned", [])) or "none"
+        lines.append(f"  goal cache key: `{row.get('goal_cache_key')}`")
+        lines.append(f"  population key: `{row.get('proof_sketch_population_key')}`")
+        lines.append(f"  lineage key: `{row.get('candidate_lineage_key')}`")
+        lines.append(f"  selection weight: {row.get('selection_weight')}")
+        lines.append(f"  diagnostic signature: `{row.get('diagnostic_signature')}`")
+        lines.append(f"  lessons: {lessons}")
+        lines.append(f"  sampler policy: `{row.get('sampler_policy')}`")
+        lines.append(f"  promotion gate: {row.get('promotion_gate')}")
         lines.append(f"  proof status: {row.get('proof_evidence_status')}")
         lines.append(f"  boundary: {row.get('proof_evidence_boundary')}")
     lines.extend(["", "## Theorem Composition Handoff", ""])

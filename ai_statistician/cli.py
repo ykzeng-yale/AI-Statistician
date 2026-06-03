@@ -38,6 +38,9 @@ from .formal_gap_task_export import export_formal_gap_lean_tasks
 from .formalization_delta_plan import build_formalization_delta_plan
 from .formalization_target_audit import audit_formalization_targets
 from .formal_verifier_queue import export_formal_verifier_queue
+from .goal_conditioned_minimal_formalization_plan import (
+    export_goal_conditioned_minimal_formalization_plan,
+)
 from .formal_verifier_replay_attempt import export_formal_verifier_replay_attempts
 from .formal_verifier_replay_calibration import export_formal_verifier_replay_calibration
 from .formal_verifier_replay_export import export_formal_verifier_replay
@@ -94,6 +97,9 @@ from .formal_verifier_agentic_proof_candidate_evaluation_queue import (
 )
 from .formal_verifier_agentic_proof_safety_policy import (
     export_formal_verifier_agentic_proof_safety_policy,
+)
+from .formal_verifier_agentic_proof_attempt_population import (
+    export_formal_verifier_agentic_proof_attempt_population,
 )
 from .formal_verifier_replay_repair import export_formal_verifier_replay_repair_packets
 from .formal_source_graph import audit_formal_source_graph
@@ -1340,6 +1346,40 @@ def _formal_verifier_queue(args: argparse.Namespace) -> int:
     return 0 if payload["all_ok"] else 1
 
 
+def _goal_conditioned_minimal_formalization_plan(args: argparse.Namespace) -> int:
+    payload = export_goal_conditioned_minimal_formalization_plan(
+        Path(args.formalization_delta_plan_dir),
+        Path(args.formal_verifier_queue_dir),
+        Path(args.out),
+        max_routes=args.max_routes,
+    )
+    print("\nAI Statistical Theory Lab Goal-Conditioned Minimal Formalization Plan")
+    print("=" * 72)
+    print(
+        f"plans={payload['n_ok']}/{payload['n_goal_plans']} "
+        f"low_cost={payload['n_low_cost_goal_plans']} "
+        f"reuse={payload['n_existing_reuse_nodes']} "
+        f"wrappers={payload['n_wrapper_nodes']} "
+        f"bridges={payload['n_bridge_nodes']} "
+        f"source={payload['n_source_discovery_nodes']} "
+        f"first_principles={payload['n_first_principles_nodes']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\ngoal-conditioned minimal formalization manifest written to "
+        f"{(Path(args.out) / 'goal_conditioned_minimal_formalization_plan_manifest.json').resolve()}"
+    )
+    print(
+        f"jsonl written to "
+        f"{(Path(args.out) / 'goal_conditioned_minimal_formalization_plan.jsonl').resolve()}"
+    )
+    print(
+        f"markdown report written to "
+        f"{(Path(args.out) / 'goal_conditioned_minimal_formalization_plan.md').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
 def _formal_verifier_replay_export(args: argparse.Namespace) -> int:
     payload = export_formal_verifier_replay(
         Path(args.formal_verifier_queue_dir),
@@ -2046,6 +2086,39 @@ def _formal_verifier_agentic_proof_safety_policy(
     print(
         f"markdown report written to "
         f"{(Path(args.out) / 'formal_verifier_agentic_proof_safety_policy.md').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formal_verifier_agentic_proof_attempt_population(
+    args: argparse.Namespace,
+) -> int:
+    payload = export_formal_verifier_agentic_proof_attempt_population(
+        Path(args.formal_verifier_agentic_proof_safety_policy_dir),
+        Path(args.out),
+    )
+    print("\nAI Statistical Theory Lab Formal Verifier Agentic Proof Attempt Population")
+    print("=" * 72)
+    print(
+        f"entries={payload['n_ok']}/{payload['n_population_entries']} "
+        f"ready={payload['n_ready']} "
+        f"blocked={payload['n_blocked']} "
+        f"patch={payload['n_patch_population_entries']} "
+        f"source={payload['n_source_population_entries']} "
+        f"goal_cache={payload['n_with_goal_cache_key']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nagentic proof attempt population manifest written to "
+        f"{(Path(args.out) / 'formal_verifier_agentic_proof_attempt_population_manifest.json').resolve()}"
+    )
+    print(
+        f"agentic proof attempt population jsonl written to "
+        f"{(Path(args.out) / 'formal_verifier_agentic_proof_attempt_population.jsonl').resolve()}"
+    )
+    print(
+        f"markdown report written to "
+        f"{(Path(args.out) / 'formal_verifier_agentic_proof_attempt_population.md').resolve()}"
     )
     return 0 if payload["all_ok"] else 1
 
@@ -3852,6 +3925,30 @@ def build_parser() -> argparse.ArgumentParser:
     )
     formal_verifier_queue.set_defaults(func=_formal_verifier_queue)
 
+    goal_conditioned_minimal_formalization_plan = sub.add_parser(
+        "goal-conditioned-minimal-formalization-plan",
+        help="choose the smallest theorem-specific Lean formalization route from delta and verifier queue artifacts",
+    )
+    goal_conditioned_minimal_formalization_plan.add_argument(
+        "--formalization-delta-plan-dir",
+        required=True,
+        help="directory containing formalization_delta_plan_manifest.json",
+    )
+    goal_conditioned_minimal_formalization_plan.add_argument(
+        "--formal-verifier-queue-dir",
+        required=True,
+        help="directory containing formal_verifier_queue_manifest.json",
+    )
+    goal_conditioned_minimal_formalization_plan.add_argument("--max-routes", type=int, default=20)
+    goal_conditioned_minimal_formalization_plan.add_argument(
+        "--out",
+        default="runs/goal_conditioned_minimal_formalization_plan",
+        help="goal-conditioned minimal formalization output directory",
+    )
+    goal_conditioned_minimal_formalization_plan.set_defaults(
+        func=_goal_conditioned_minimal_formalization_plan
+    )
+
     formal_verifier_replay = sub.add_parser(
         "formal-verifier-replay-export",
         help="export route-level FormalVerifier replay tasks from a verifier queue",
@@ -4365,6 +4462,24 @@ def build_parser() -> argparse.ArgumentParser:
     )
     formal_verifier_agentic_proof_safety_policy.set_defaults(
         func=_formal_verifier_agentic_proof_safety_policy
+    )
+
+    formal_verifier_agentic_proof_attempt_population = sub.add_parser(
+        "formal-verifier-agentic-proof-attempt-population",
+        help="seed reusable proof-attempt population memory from safety policies",
+    )
+    formal_verifier_agentic_proof_attempt_population.add_argument(
+        "--formal-verifier-agentic-proof-safety-policy-dir",
+        required=True,
+        help="directory containing formal_verifier_agentic_proof_safety_policy_manifest.json",
+    )
+    formal_verifier_agentic_proof_attempt_population.add_argument(
+        "--out",
+        default="runs/formal_verifier_agentic_proof_attempt_population",
+        help="formal-verifier agentic proof attempt population output directory",
+    )
+    formal_verifier_agentic_proof_attempt_population.set_defaults(
+        func=_formal_verifier_agentic_proof_attempt_population
     )
 
     rag_collaboration_export = sub.add_parser(
