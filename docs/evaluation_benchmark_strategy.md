@@ -199,6 +199,10 @@ Current release signal:
   is a compiling, non-vacuous Lean predicate/interface plus downstream theorem
   use; the system must not close them with tautological "proofs" of the
   assumption itself.
+- `assumption-interface-export` materializes those rows into Lean interface
+  targets and a downstream-use theorem. A local Lean compile of that target is
+  useful interface evidence, but it is still not proof evidence for the
+  statistical assumption or for any downstream identification theorem.
 - compose-existing bridge-chain opportunities are now 51
 - minimal-wrapper debt is now 2, down from 10 after adding the robust
   median-of-means, conformal rank/quantile, and continuous-mapping wrappers
@@ -298,6 +302,13 @@ diagnostics, run `proof-search-audit --no-registered-proof` or
 `--local-lean`/AXLE when claiming verifier evidence. Mock/static solved counts
 are not proof evidence and should not be used to claim that a new retrieval
 provider proves more theorems.
+
+Current hard-mode note: the latest `--no-registered-proof` retrieval ablation
+still solves the sampled obligations at 25/25 for both baseline and enhanced
+retrievers, so solved-rate lift is saturated. In that regime, report
+dependency-graph activation and candidate lift as search evidence only, then
+move capacity tracking to harder obligations that cannot close by static
+expected-lemma templates.
 
 ### S6. Algorithm and Simulation Stress Suite
 

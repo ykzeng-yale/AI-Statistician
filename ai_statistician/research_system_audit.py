@@ -26,6 +26,7 @@ from .algorithm_repair_sandbox_patch_eval import evaluate_algorithm_repair_sandb
 from .algorithm_repair_sandbox_rerun import rerun_algorithm_repair_sandbox_applications
 from .adversarial_intake_audit import audit_adversarial_unsupported_intake
 from .architecture_audit import audit_architecture
+from .assumption_interface_export import export_assumption_interfaces
 from .claim_ledger_action_export import export_claim_ledger_actions
 from .claim_ledger import build_claim_ledger
 from .evaluation_benchmark_guidance import build_evaluation_benchmark_guidance
@@ -426,6 +427,13 @@ async def run_research_system_audit(
         out_dir / "proof_bank_actions",
     )
     stage_start = _record_stage(stage_timings, "proof_bank_action_export", stage_start)
+    assumption_interface_manifest = export_assumption_interfaces(
+        out_dir / "proof_bank_actions",
+        out_dir / "assumption_interfaces",
+        lean_project=config.local_lean_project,
+        lean_timeout=config.local_lean_timeout,
+    )
+    stage_start = _record_stage(stage_timings, "assumption_interface_export", stage_start)
     if config.kernel_smoke_from_actions > 0:
         kernel_smoke_auto_ids = _select_kernel_smoke_ids_from_actions(
             proof_bank_action_manifest,
@@ -657,6 +665,7 @@ async def run_research_system_audit(
         and int(autoform_target_manifest["n_targets"]) == int(formal_gap_task_manifest["n_tasks"]),
         "proof_bank_expansion_export": bool(proof_bank_expansion_manifest["all_ok"]),
         "proof_bank_action_export": bool(proof_bank_action_manifest["all_ok"]),
+        "assumption_interface_export": bool(assumption_interface_manifest["all_ok"]),
         "primitive_source_coverage_audit": bool(primitive_source_coverage_manifest["all_ok"]),
         "research_training_export": bool(research_training_manifest["all_ok"]),
         "research_policy_baseline": bool(research_policy_manifest["all_ok"]),
@@ -1203,6 +1212,17 @@ async def run_research_system_audit(
             "proof_bank_actions_design_from_first_principles": proof_bank_action_manifest[
                 "n_design_from_first_principles"
             ],
+            "assumption_interfaces": assumption_interface_manifest["n_interfaces"],
+            "assumption_interfaces_ok": assumption_interface_manifest["n_ok"],
+            "assumption_interfaces_local_lean_checked": assumption_interface_manifest[
+                "n_local_lean_checked"
+            ],
+            "assumption_interfaces_local_lean_compiled": assumption_interface_manifest[
+                "n_local_lean_compiled"
+            ],
+            "assumption_interfaces_all_local_lean_compiled": assumption_interface_manifest[
+                "all_local_lean_compiled"
+            ],
             "proof_bank_actions_high_priority": proof_bank_action_manifest["by_priority"].get("high", 0),
             "proof_bank_actions_medium_priority": proof_bank_action_manifest["by_priority"].get("medium", 0),
             "proof_bank_actions_low_priority": proof_bank_action_manifest["by_priority"].get("low", 0),
@@ -1726,6 +1746,15 @@ async def run_research_system_audit(
             "proof_bank_actions": str(out_dir / "proof_bank_actions" / "proof_bank_action_manifest.json"),
             "proof_bank_actions_jsonl": str(out_dir / "proof_bank_actions" / "proof_bank_actions.jsonl"),
             "proof_bank_actions_report": str(out_dir / "proof_bank_actions" / "proof_bank_actions.md"),
+            "assumption_interfaces": str(
+                out_dir / "assumption_interfaces" / "assumption_interface_manifest.json"
+            ),
+            "assumption_interfaces_jsonl": str(
+                out_dir / "assumption_interfaces" / "assumption_interfaces.jsonl"
+            ),
+            "assumption_interfaces_report": str(
+                out_dir / "assumption_interfaces" / "assumption_interfaces.md"
+            ),
             "primitive_source_coverage": str(
                 out_dir / "primitive_source_coverage" / "primitive_source_coverage_manifest.json"
             ),

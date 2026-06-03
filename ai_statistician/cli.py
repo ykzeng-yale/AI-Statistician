@@ -17,6 +17,7 @@ from .algorithm_repair_sandbox_apply import apply_algorithm_repair_sandbox_resul
 from .algorithm_repair_sandbox_patch_eval import evaluate_algorithm_repair_sandbox_patches
 from .algorithm_repair_sandbox_rerun import rerun_algorithm_repair_sandbox_applications
 from .architecture_audit import audit_architecture
+from .assumption_interface_export import export_assumption_interfaces
 from .autoform_harness import audit_autoform_harness
 from .capability_audit import build_capability_audit, write_capability_audit
 from .claim_ledger_action_export import export_claim_ledger_actions
@@ -1159,6 +1160,29 @@ def _proof_bank_action_export(args: argparse.Namespace) -> int:
     )
     print(f"jsonl written to {(Path(args.out) / 'proof_bank_actions.jsonl').resolve()}")
     print(f"markdown report written to {(Path(args.out) / 'proof_bank_actions.md').resolve()}")
+    return 0 if payload["all_ok"] else 1
+
+
+def _assumption_interface_export(args: argparse.Namespace) -> int:
+    payload = export_assumption_interfaces(
+        Path(args.proof_bank_actions_dir),
+        Path(args.out),
+        lean_project=args.lean_project,
+        lean_timeout=args.lean_timeout,
+    )
+    print("\nAI Statistical Theory Lab Assumption Interfaces")
+    print("=" * 72)
+    print(
+        f"interfaces={payload['n_ok']}/{payload['n_interfaces']} "
+        f"local_lean={payload['n_local_lean_compiled']}/{payload['n_local_lean_checked']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nassumption interface manifest written to "
+        f"{(Path(args.out) / 'assumption_interface_manifest.json').resolve()}"
+    )
+    print(f"jsonl written to {(Path(args.out) / 'assumption_interfaces.jsonl').resolve()}")
+    print(f"markdown report written to {(Path(args.out) / 'assumption_interfaces.md').resolve()}")
     return 0 if payload["all_ok"] else 1
 
 
@@ -2854,6 +2878,24 @@ def build_parser() -> argparse.ArgumentParser:
         help="proof-bank action output directory",
     )
     proof_bank_action_export.set_defaults(func=_proof_bank_action_export)
+
+    assumption_interface_export = sub.add_parser(
+        "assumption-interface-export",
+        help="export formalized Lean assumption-interface predicate targets from proof-bank actions",
+    )
+    assumption_interface_export.add_argument(
+        "--proof-bank-actions-dir",
+        required=True,
+        help="directory containing proof_bank_action_manifest.json",
+    )
+    assumption_interface_export.add_argument(
+        "--out",
+        default="runs/assumption_interfaces",
+        help="assumption-interface output directory",
+    )
+    assumption_interface_export.add_argument("--lean-project", help="optional local Lake project for `lake env lean` checks")
+    assumption_interface_export.add_argument("--lean-timeout", type=int, default=90)
+    assumption_interface_export.set_defaults(func=_assumption_interface_export)
 
     rag_collaboration_export = sub.add_parser(
         "rag-collaboration-export",

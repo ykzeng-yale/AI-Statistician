@@ -25,6 +25,7 @@ from ai_statistician.algorithm_repair_sandbox_rerun import rerun_algorithm_repai
 from ai_statistician.algorithm_simulation_stress_audit import audit_algorithm_simulation_stress
 from ai_statistician.adversarial_intake_audit import audit_adversarial_unsupported_intake
 from ai_statistician.architecture_audit import audit_architecture
+from ai_statistician.assumption_interface_export import export_assumption_interfaces
 from ai_statistician.capability_audit import build_capability_audit, write_capability_audit
 from ai_statistician.claim_ledger_action_export import export_claim_ledger_actions
 from ai_statistician.claim_ledger import build_claim_ledger
@@ -138,6 +139,102 @@ from ai_statistician.theory_proposal import MockTheoryProposer, TheoryProposal
 from ai_statistician.trace_audit import audit_run_traces
 from ai_statistician.verifier import CachingProofVerifier, LocalLeanProofVerifier, MockProofVerifier
 from ai_statistician.verifier import splice_proof
+
+
+def _write_tiny_lean_rag_dependency_db(path: Path) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists():
+        path.unlink()
+    with sqlite3.connect(path) as conn:
+        conn.executescript(
+            """
+            CREATE TABLE declarations (
+              id INTEGER PRIMARY KEY,
+              name TEXT NOT NULL,
+              short_name TEXT NOT NULL,
+              kind TEXT NOT NULL,
+              module TEXT NOT NULL,
+              path TEXT NOT NULL,
+              line_start INTEGER NOT NULL,
+              line_end INTEGER NOT NULL,
+              namespace TEXT NOT NULL,
+              attributes TEXT NOT NULL,
+              signature TEXT NOT NULL,
+              proof TEXT NOT NULL,
+              has_proof INTEGER NOT NULL,
+              has_sorry INTEGER NOT NULL,
+              text_hash TEXT NOT NULL
+            );
+            CREATE TABLE declaration_edges (
+              id INTEGER PRIMARY KEY,
+              src_decl_id INTEGER NOT NULL,
+              dst_decl_id INTEGER NOT NULL,
+              edge_type TEXT NOT NULL,
+              match_kind TEXT NOT NULL,
+              scope TEXT NOT NULL,
+              weight INTEGER NOT NULL
+            );
+            CREATE VIRTUAL TABLE decl_fts USING fts5(
+              name, short_name, kind, module, namespace, signature, proof
+            );
+            """
+        )
+        rows = [
+            (
+                1,
+                "Demo.variance_sum_indep",
+                "variance_sum_indep",
+                "theorem",
+                "Demo",
+                "Demo.lean",
+                5,
+                7,
+                "Demo",
+                "[]",
+                "theorem variance_sum_indep (h : IndepFun X Y mu) : variance (X + Y) mu = variance X mu + variance Y mu",
+                "by trivial",
+                1,
+                0,
+                "hash1",
+            ),
+            (
+                2,
+                "Demo.consumer_uses_variance_sum_indep",
+                "consumer_uses_variance_sum_indep",
+                "lemma",
+                "Demo",
+                "Demo.lean",
+                9,
+                10,
+                "Demo",
+                "[]",
+                "lemma consumer_uses_variance_sum_indep : True",
+                "by have h := Demo.variance_sum_indep; trivial",
+                1,
+                0,
+                "hash2",
+            ),
+        ]
+        conn.executemany(
+            "INSERT INTO declarations VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            rows,
+        )
+        conn.executemany(
+            """
+            INSERT INTO decl_fts(rowid, name, short_name, kind, module, namespace, signature, proof)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            [(row[0], row[1], row[2], row[3], row[4], row[8], row[10], row[11]) for row in rows],
+        )
+        conn.execute(
+            """
+            INSERT INTO declaration_edges(
+              src_decl_id, dst_decl_id, edge_type, match_kind, scope, weight
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (2, 1, "explicit_source", "qualified", "proof", 1),
+        )
+    return path
 
 
 class ProofBankTests(unittest.TestCase):
@@ -6820,6 +6917,46 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(Path("runs/test_proof_bank_actions/proof_bank_actions.jsonl").exists())
         self.assertTrue(Path("runs/test_proof_bank_actions/proof_bank_actions.md").exists())
 
+    def test_assumption_interface_export_writes_lean_predicate_target(self) -> None:
+        async def run():
+            questions = load_open_research_questions(Path("examples/research_questions.json"))[:2]
+            await run_research_benchmark(
+                questions,
+                Path("runs/test_assumption_interface_run"),
+                proof_verifier=MockProofVerifier(),
+                n_runs=25,
+                seed=20260528,
+            )
+            export_proof_bank_expansion_candidates(
+                Path("runs/test_assumption_interface_run"),
+                Path("runs/test_assumption_interface_expansion"),
+            )
+            export_proof_bank_actions(
+                Path("runs/test_assumption_interface_expansion"),
+                Path("runs/test_assumption_interface_actions"),
+            )
+            return export_assumption_interfaces(
+                Path("runs/test_assumption_interface_actions"),
+                Path("runs/test_assumption_interfaces"),
+            )
+
+        payload = asyncio.run(run())
+        self.assertTrue(payload["all_ok"])
+        self.assertEqual(payload["n_interfaces"], 1)
+        self.assertEqual(payload["n_ok"], 1)
+        self.assertFalse(payload["local_lean_enabled"])
+        target = payload["targets"][0]
+        self.assertEqual(target["primitive"], "conditional_exchangeability")
+        self.assertEqual(target["interface_name"], "ConditionalExchangeability")
+        self.assertIn("structure ConditionalExchangeability", target["lean_statement"])
+        self.assertIn("ConditionalExchangeability_intro", target["lean_statement"])
+        self.assertIn("ConditionalExchangeability_downstream_use", target["lean_statement"])
+        self.assertIn("does not prove the assumption itself", target["evidence_boundary"])
+        self.assertFalse(target["local_lean_checked"])
+        self.assertTrue(Path("runs/test_assumption_interfaces/assumption_interface_manifest.json").exists())
+        self.assertTrue(Path("runs/test_assumption_interfaces/assumption_interfaces.jsonl").exists())
+        self.assertTrue(Path("runs/test_assumption_interfaces/lean/conditional_exchangeability.lean").exists())
+
     def test_primitive_source_coverage_audit_classifies_missing_primitives(self) -> None:
         async def run():
             questions = load_open_research_questions(Path("examples/research_questions.json"))[:2]
@@ -9011,10 +9148,13 @@ theorem composition_gap (h_frontier_missing : False) : True := by
 
     def test_research_system_audit_runs_frontier_gates(self) -> None:
         async def run():
+            lean_rag_db = _write_tiny_lean_rag_dependency_db(
+                Path("runs/test_research_system_audit_lean_rag/stat_inference.sqlite")
+            )
             return await run_research_system_audit(
                 Path("runs/test_research_system_audit"),
                 question_file=Path("examples/research_questions.json"),
-                config=ResearchSystemAuditConfig(n_runs=25, seed=20260528),
+                config=ResearchSystemAuditConfig(n_runs=25, seed=20260528, lean_rag_db=str(lean_rag_db)),
             )
 
         payload = asyncio.run(run())
@@ -9454,6 +9594,17 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             + payload["counts"]["proof_bank_actions_formalize_assumption_interface"]
             + payload["counts"]["proof_bank_actions_design_from_first_principles"],
         )
+        self.assertTrue(payload["gates"]["assumption_interface_export"])
+        self.assertEqual(
+            payload["counts"]["assumption_interfaces"],
+            payload["counts"]["proof_bank_actions_formalize_assumption_interface"],
+        )
+        self.assertEqual(payload["counts"]["assumption_interfaces_ok"], payload["counts"]["assumption_interfaces"])
+        self.assertEqual(
+            payload["counts"]["assumption_interfaces_local_lean_compiled"],
+            payload["counts"]["assumption_interfaces_local_lean_checked"],
+        )
+        self.assertTrue(Path(payload["artifacts"]["assumption_interfaces"]).exists())
         self.assertEqual(
             payload["counts"]["primitive_source_coverage_primitives"],
             payload["counts"]["missing_formal_primitives"],
