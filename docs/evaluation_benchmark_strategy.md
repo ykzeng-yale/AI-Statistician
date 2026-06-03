@@ -254,6 +254,13 @@ Current release signal:
   replay, and genuinely kernel-verified full theorem/bridge targets. This is
   the first full-route feedback ledger for replay policy repair; only
   `full_route_kernel_verified` rows are proof evidence.
+- `formal-verifier-replay-repair-export` turns failed calibrated replay attempts
+  into route-specific repair packets. The packet joins the failed Lean/AXLE
+  error, replay-task subclaim obligations, attempt retrieval hits, and a
+  candidate bridge/import/type-alignment repair plan. These packets and their
+  proof-body templates are not proof evidence; they are accepted only after the
+  repaired route is rerun through AXLE/local Lean and calibrates as
+  `full_route_kernel_verified`.
 - compose-existing bridge-chain opportunities are now 51
 - minimal-wrapper debt is now 2, down from 10 after adding the robust
   median-of-means, conformal rank/quantile, and continuous-mapping wrappers

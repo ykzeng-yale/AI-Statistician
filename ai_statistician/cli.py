@@ -41,6 +41,7 @@ from .formal_verifier_queue import export_formal_verifier_queue
 from .formal_verifier_replay_attempt import export_formal_verifier_replay_attempts
 from .formal_verifier_replay_calibration import export_formal_verifier_replay_calibration
 from .formal_verifier_replay_export import export_formal_verifier_replay
+from .formal_verifier_replay_repair import export_formal_verifier_replay_repair_packets
 from .formal_source_graph import audit_formal_source_graph
 from .formal_source_index import (
     FormalSourceSqliteIndex,
@@ -1356,6 +1357,42 @@ def _formal_verifier_replay_calibration(args: argparse.Namespace) -> int:
     print(
         f"markdown report written to "
         f"{(Path(args.out) / 'formal_verifier_replay_calibration.md').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formal_verifier_replay_repair_export(args: argparse.Namespace) -> int:
+    payload = export_formal_verifier_replay_repair_packets(
+        Path(args.formal_verifier_replay_dir),
+        Path(args.formal_verifier_replay_attempt_dir),
+        Path(args.formal_verifier_replay_calibration_dir),
+        Path(args.out),
+        max_packets=args.max_packets,
+    )
+    print("\nAI Statistical Theory Lab Formal Verifier Replay Repair")
+    print("=" * 72)
+    print(
+        f"packets={payload['n_ok']}/{payload['n_repair_packets']} "
+        f"tactic_no_progress={payload['n_tactic_no_progress']} "
+        f"missing_identifier={payload['n_missing_identifier']} "
+        f"exact_subclaims={payload['n_with_exact_subclaims']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nformal verifier replay repair manifest written to "
+        f"{(Path(args.out) / 'formal_verifier_replay_repair_manifest.json').resolve()}"
+    )
+    print(
+        f"repair packet jsonl written to "
+        f"{(Path(args.out) / 'formal_verifier_replay_repair_packets.jsonl').resolve()}"
+    )
+    print(
+        f"repair training jsonl written to "
+        f"{(Path(args.out) / 'formal_verifier_replay_repair_training.jsonl').resolve()}"
+    )
+    print(
+        f"markdown report written to "
+        f"{(Path(args.out) / 'formal_verifier_replay_repair.md').resolve()}"
     )
     return 0 if payload["all_ok"] else 1
 
@@ -3199,6 +3236,33 @@ def build_parser() -> argparse.ArgumentParser:
         help="formal-verifier replay calibration output directory",
     )
     formal_verifier_replay_calibration.set_defaults(func=_formal_verifier_replay_calibration)
+
+    formal_verifier_replay_repair = sub.add_parser(
+        "formal-verifier-replay-repair-export",
+        help="export route-specific repair packets from failed FormalVerifier replay attempts",
+    )
+    formal_verifier_replay_repair.add_argument(
+        "--formal-verifier-replay-dir",
+        required=True,
+        help="directory containing formal_verifier_replay_manifest.json",
+    )
+    formal_verifier_replay_repair.add_argument(
+        "--formal-verifier-replay-attempt-dir",
+        required=True,
+        help="directory containing formal_verifier_replay_attempt_manifest.json",
+    )
+    formal_verifier_replay_repair.add_argument(
+        "--formal-verifier-replay-calibration-dir",
+        required=True,
+        help="directory containing formal_verifier_replay_calibration_manifest.json",
+    )
+    formal_verifier_replay_repair.add_argument("--max-packets", type=int, default=20)
+    formal_verifier_replay_repair.add_argument(
+        "--out",
+        default="runs/formal_verifier_replay_repair",
+        help="formal-verifier replay repair packet output directory",
+    )
+    formal_verifier_replay_repair.set_defaults(func=_formal_verifier_replay_repair_export)
 
     rag_collaboration_export = sub.add_parser(
         "rag-collaboration-export",

@@ -70,6 +70,12 @@ def export_rag_collaboration_manifest(
     formal_verifier_replay_calibration_payload = _read_json(
         formal_verifier_replay_calibration_path
     )
+    formal_verifier_replay_repair_path = _artifact_path(
+        artifacts,
+        "formal_verifier_replay_repair",
+        run_dir,
+    )
+    formal_verifier_replay_repair_payload = _read_json(formal_verifier_replay_repair_path)
     guidance_payload = _read_json(_artifact_path(artifacts, "evaluation_benchmark_guidance", run_dir))
 
     target_rows = _handoff_targets(
@@ -375,6 +381,35 @@ def export_rag_collaboration_manifest(
                 formal_verifier_replay_calibration_payload,
                 max_rows=min(max_targets, 10),
             ),
+            "formal_verifier_replay_repair_packets": counts.get(
+                "formal_verifier_replay_repair_packets",
+                formal_verifier_replay_repair_payload.get("n_repair_packets"),
+            ),
+            "formal_verifier_replay_repair_ok": counts.get(
+                "formal_verifier_replay_repair_ok",
+                formal_verifier_replay_repair_payload.get("n_ok"),
+            ),
+            "formal_verifier_replay_repair_tactic_no_progress": counts.get(
+                "formal_verifier_replay_repair_tactic_no_progress",
+                formal_verifier_replay_repair_payload.get("n_tactic_no_progress"),
+            ),
+            "formal_verifier_replay_repair_missing_identifier": counts.get(
+                "formal_verifier_replay_repair_missing_identifier",
+                formal_verifier_replay_repair_payload.get("n_missing_identifier"),
+            ),
+            "formal_verifier_replay_repair_with_exact_subclaims": counts.get(
+                "formal_verifier_replay_repair_with_exact_subclaims",
+                formal_verifier_replay_repair_payload.get("n_with_exact_subclaims"),
+            ),
+            "formal_verifier_replay_repair_training_examples": counts.get(
+                "formal_verifier_replay_repair_training_examples",
+                formal_verifier_replay_repair_payload.get("n_training_examples"),
+            ),
+            "formal_verifier_replay_repair_manifest": str(formal_verifier_replay_repair_path),
+            "formal_verifier_replay_repair_preview": _formal_verifier_replay_repair_preview(
+                formal_verifier_replay_repair_payload,
+                max_rows=min(max_targets, 10),
+            ),
             "handoff_targets": target_rows,
             "proof_bank_expansion_manifest": str(
                 _artifact_path(artifacts, "proof_bank_expansion", run_dir)
@@ -414,6 +449,7 @@ def export_rag_collaboration_manifest(
             "FormalVerifier replay rows are executable task/training artifacts, not theorem proof evidence.",
             "FormalVerifier replay attempts are proof evidence only when kernel_verified=true and placeholders were removed.",
             "FormalVerifier replay calibration rows are proof evidence only for full-route kernel-verified targets.",
+            "FormalVerifier replay repair packets and proof templates are not proof evidence until a repaired attempt passes AXLE/local Lean.",
             "FORMAL_GAP and theorem-hole queues remain open until a non-placeholder Lean proof is verified.",
         ],
     }
@@ -617,6 +653,39 @@ def _formal_verifier_replay_calibration_preview(
     return rows
 
 
+def _formal_verifier_replay_repair_preview(
+    payload: dict[str, Any],
+    *,
+    max_rows: int,
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    packets = payload.get("packets", [])
+    if not isinstance(packets, list):
+        return rows
+    for packet in packets:
+        if not isinstance(packet, dict):
+            continue
+        rows.append(
+            {
+                "packet_id": packet.get("packet_id"),
+                "replay_id": packet.get("replay_id"),
+                "route_id": packet.get("route_id"),
+                "display_name": packet.get("display_name"),
+                "repair_class": packet.get("repair_class"),
+                "first_error_category": packet.get("first_error_category"),
+                "candidate_bridge_lemma_name": packet.get("candidate_bridge_lemma_name"),
+                "subclaim_replay_obligations": packet.get("subclaim_replay_obligations", [])[:8],
+                "retrieval_hit_obligations": packet.get("retrieval_hit_obligations", [])[:8],
+                "acceptance_gate": packet.get("acceptance_gate", ""),
+                "repair_acceptance_gate": packet.get("repair_acceptance_gate", ""),
+                "proof_evidence_boundary": packet.get("proof_evidence_boundary", ""),
+            }
+        )
+        if len(rows) >= max_rows:
+            break
+    return rows
+
+
 def _theorem_composition_packet_preview(
     payload: dict[str, Any],
     *,
@@ -710,6 +779,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"awaiting `{queue.get('formal_verifier_replay_awaiting_full_route_attempt')}`, "
         f"failed `{queue.get('formal_verifier_replay_failed_full_route_attempt')}`, "
         f"kernel `{queue.get('formal_verifier_replay_full_route_kernel_verified')}`",
+        f"- Formal verifier replay repair: `{queue.get('formal_verifier_replay_repair_packets')}` packets "
+        f"(`{queue.get('formal_verifier_replay_repair_tactic_no_progress')}` tactic-no-progress, "
+        f"`{queue.get('formal_verifier_replay_repair_missing_identifier')}` missing identifier)",
         f"- Queue: exact_reuse=`{queue.get('reuse_exact_proof_bank_obligation')}`, compose=`{queue.get('compose_existing_bridge_chain')}`, minimal_wrapper=`{queue.get('add_minimal_wrapper')}`, design_bridge=`{queue.get('design_bridge_lemma')}`",
         f"- Theorem composition packets: `{composition.get('theorem_composition_packets')}` "
         f"(exact links `{composition.get('theorem_composition_exact_proof_bank_links')}`, "
@@ -765,6 +837,21 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"(attempts={row.get('n_attempts')}, error={row.get('first_error_category')})"
         )
         lines.append(f"  update: {row.get('replay_policy_update')}")
+    lines.extend(["", "## Formal Verifier Replay Repair", ""])
+    for packet in queue.get("formal_verifier_replay_repair_preview", []):
+        if not isinstance(packet, dict):
+            continue
+        obligations = ", ".join(
+            f"`{item}`" for item in packet.get("subclaim_replay_obligations", [])
+        ) or "none"
+        lines.append(
+            f"- `{packet.get('display_name')}` ({packet.get('repair_class')}, "
+            f"error={packet.get('first_error_category')}): "
+            f"{packet.get('candidate_bridge_lemma_name')}"
+        )
+        lines.append(f"  subclaims: {obligations}")
+        lines.append(f"  gate: {packet.get('repair_acceptance_gate')}")
+        lines.append(f"  boundary: {packet.get('proof_evidence_boundary')}")
     lines.extend(["", "## Theorem Composition Handoff", ""])
     lines.append(str(composition.get("proof_evidence_boundary", "")))
     lines.append("")

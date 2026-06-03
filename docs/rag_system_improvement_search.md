@@ -130,6 +130,13 @@ the calibration input. A failed Lean attempt is useful repair feedback; only a
 kernel-verified placeholder-free attempt can be promoted to replay-target proof
 evidence.
 
+The audit now also exports `formal_verifier_replay_repair`. It converts failed
+calibrated replay attempts into route-specific repair packets that join the
+first Lean/AXLE error, replay subclaim obligations, attempt retrieval hits, and
+a candidate bridge/import/type-alignment plan. These packets are repair work
+contracts only; their proof templates are not proof evidence until the repaired
+route is rerun and calibrates as kernel verified.
+
 ## Next Build Targets
 
 1. Expand library-aware minimal formalization planning:
@@ -149,8 +156,9 @@ evidence.
    calibration. `formal-verifier-replay-export` now turns those rows into
    route-level replay tasks and replay-policy examples. The next version should
    use `formal-verifier-replay-attempts --local-lean` on the highest-priority
-   tasks, then use `formal-verifier-replay-calibration` to repair the resulting
-   Lean errors.
+   tasks, then use `formal-verifier-replay-calibration` and
+   `formal-verifier-replay-repair-export` to turn the resulting Lean errors
+   into route-specific bridge/composition work packets.
 2. Add query-intent expansion for missing primitives:
    primitive name, theorem goal, problem class, local gap reason, and candidate
    proof-bank bridge names should all become retriever queries.
@@ -221,6 +229,18 @@ python3 -m ai_statistician.cli formal-verifier-replay-calibration \
 Omit `--attempt-log` to audit the honest missing-attempt state. Include it once
 the FormalVerifier has attempted the replay targets, so failed Lean errors and
 kernel-verified route closures are separated in the handoff.
+
+```bash
+python3 -m ai_statistician.cli formal-verifier-replay-repair-export \
+  --formal-verifier-replay-dir runs/current/formal_verifier_replay \
+  --formal-verifier-replay-attempt-dir runs/current/formal_verifier_replay_attempts \
+  --formal-verifier-replay-calibration-dir runs/current/formal_verifier_replay_calibration \
+  --out runs/current/formal_verifier_replay_repair
+```
+
+This exports the concrete repair packet queue for failed replay attempts. Apply
+the bridge/import/type repair, rerun `formal-verifier-replay-attempts`, and only
+promote routes whose recalibration reports a kernel-verified full-route proof.
 
 ## Honesty Boundary
 
