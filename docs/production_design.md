@@ -1699,6 +1699,31 @@ The release-style research-system audit runs this proof-bank audit before
 frontier/research smoke gates so a caching verifier can reuse the full-bank
 kernel results downstream; for real AXLE or local-Lean runs, the proof gate
 requires `all_kernel_verified=true`.
+When the release-speed system audit intentionally keeps the main proof-bank
+audit in offline `mock_static_check` mode, pass one or more
+`--kernel-smoke-id` values to verify selected obligations with local Lean and
+use that manifest as the claim-ledger proof overlay:
+
+```bash
+python3 -m ai_statistician.cli research-system-audit \
+  --runs 25 \
+  --lean-rag-db runs/current_status_lean_rag_dependency_graph/stat_inference.sqlite \
+  --kernel-smoke-id positivity \
+  --kernel-smoke-id conditional_expectation \
+  --kernel-smoke-id iterated_expectation \
+  --lean-project /Users/yukang/LeanProjects/LeanPractice \
+  --out runs/research_system_audit_kernel_smoke
+```
+
+This writes `kernel_smoke_proof_audit/proof_audit_manifest.json` and
+`kernel_smoke_proof_audit/proof_attempts.jsonl`. The top-level manifest reports
+`kernel_smoke_proof_audit_total`,
+`kernel_smoke_proof_audit_kernel_verified`,
+`kernel_smoke_proof_audit_strength`, and
+`claim_ledger_kernel_overlay_upgrades`. These fields are kernel evidence only
+for the selected obligations; they do not imply the whole registered proof bank
+was kernel checked unless the main proof audit also reports AXLE/local-Lean
+kernel verification.
 The same audit also uses a persistent SQLite formal-source index cache by
 default (`runs/formal_source_index_cache/formal_source_index.sqlite`). Repeated
 release audits can copy that cache into the run directory instead of rescanning

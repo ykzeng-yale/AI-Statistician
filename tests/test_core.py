@@ -8982,6 +8982,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["gates"]["research_algorithm_audit"])
         self.assertTrue(payload["gates"]["algorithm_simulation_stress_audit"])
         self.assertTrue(payload["gates"]["proof_audit"])
+        self.assertTrue(payload["gates"]["kernel_smoke_proof_audit"])
         self.assertTrue(payload["gates"]["proof_training_export"])
         self.assertTrue(payload["gates"]["proof_repair_export"])
         self.assertTrue(payload["gates"]["proof_policy_baseline"])
@@ -9294,6 +9295,9 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertGreater(payload["counts"]["verifier_cache_hits"], 0)
         self.assertGreater(payload["counts"]["verifier_cache_misses"], 0)
         self.assertGreater(payload["counts"]["verifier_cache_size"], 0)
+        self.assertFalse(payload["counts"]["kernel_smoke_proof_audit_enabled"])
+        self.assertEqual(payload["counts"]["kernel_smoke_proof_audit_total"], 0)
+        self.assertEqual(payload["counts"]["kernel_smoke_proof_audit_kernel_verified"], 0)
         self.assertEqual(payload["counts"]["proof_training_examples"], payload["counts"]["proofs_verified"])
         self.assertEqual(
             payload["counts"]["proof_training_train"] + payload["counts"]["proof_training_validation"],

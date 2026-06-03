@@ -91,6 +91,7 @@ class ResearchSystemAuditConfig:
     use_local_lean: bool = False
     local_lean_project: str | None = None
     local_lean_timeout: int = 90
+    kernel_smoke_ids: tuple[str, ...] = ()
     formal_source_index_cache: str | None = "runs/formal_source_index_cache/formal_source_index.sqlite"
     refresh_formal_source_index_cache: bool = False
     lean_rag_db: str | None = None
@@ -230,6 +231,27 @@ async def run_research_system_audit(
         include_negative_controls=not (config.use_axle or config.use_local_lean),
     )
     stage_start = _record_stage(stage_timings, "proof_audit", stage_start)
+    kernel_smoke_manifest: dict[str, object] | None = None
+    claim_ledger_proof_manifest_path = out_dir / "proof_audit" / "proof_audit_manifest.json"
+    if config.kernel_smoke_ids:
+        kernel_smoke_verifier = CachingProofVerifier(
+            LocalLeanProofVerifier(
+                project_root=config.local_lean_project,
+                timeout_s=config.local_lean_timeout,
+            )
+        )
+        kernel_smoke_manifest = await audit_proof_bank(
+            kernel_smoke_verifier,
+            out_dir / "kernel_smoke_proof_audit",
+            ids=list(config.kernel_smoke_ids),
+            export_lean=True,
+            export_attempt_log=True,
+            include_negative_controls=False,
+        )
+        claim_ledger_proof_manifest_path = (
+            out_dir / "kernel_smoke_proof_audit" / "proof_audit_manifest.json"
+        )
+        stage_start = _record_stage(stage_timings, "kernel_smoke_proof_audit", stage_start)
 
     frontier_smoke_manifest = await run_frontier_smoke_benchmark(
         out_dir / "frontier_smoke_benchmark",
@@ -455,7 +477,7 @@ async def run_research_system_audit(
     claim_ledger_manifest = build_claim_ledger(
         out_dir / "research_benchmark",
         out_dir / "claim_ledger",
-        proof_audit_manifest=out_dir / "proof_audit" / "proof_audit_manifest.json",
+        proof_audit_manifest=claim_ledger_proof_manifest_path,
     )
     stage_start = _record_stage(stage_timings, "claim_ledger", stage_start)
     claim_ledger_action_manifest = export_claim_ledger_actions(
@@ -579,6 +601,12 @@ async def run_research_system_audit(
             not (config.use_axle or config.use_local_lean)
             or bool(proof_manifest["all_kernel_verified"])
         ),
+        "kernel_smoke_proof_audit": (
+            True
+            if kernel_smoke_manifest is None
+            else bool(kernel_smoke_manifest["all_kernel_verified"])
+            and bool(kernel_smoke_manifest["dependency_graph"]["all_ok"])
+        ),
         "proof_training_export": int(proof_training_manifest["n_sft_examples"])
         == int(proof_manifest["proof_attempt_log"]["n_positive"]),
         "proof_repair_export": (
@@ -683,6 +711,7 @@ async def run_research_system_audit(
             "use_local_lean": config.use_local_lean,
             "local_lean_project": config.local_lean_project or "",
             "local_lean_timeout": config.local_lean_timeout,
+            "kernel_smoke_ids": list(config.kernel_smoke_ids),
             "formal_source_index_cache": config.formal_source_index_cache or "",
             "refresh_formal_source_index_cache": config.refresh_formal_source_index_cache,
             "lean_rag_db": config.lean_rag_db or "",
@@ -967,6 +996,26 @@ async def run_research_system_audit(
             "proofs_all_kernel_verified": proof_manifest["all_kernel_verified"],
             "proof_verification_strength": proof_manifest["verification_strength"],
             "proofs_total": proof_manifest["n_obligations"],
+            "kernel_smoke_proof_audit_enabled": kernel_smoke_manifest is not None,
+            "kernel_smoke_proof_audit_ids": list(config.kernel_smoke_ids),
+            "kernel_smoke_proof_audit_verified": (
+                int(kernel_smoke_manifest["n_verified"]) if kernel_smoke_manifest else 0
+            ),
+            "kernel_smoke_proof_audit_kernel_verified": (
+                int(kernel_smoke_manifest["n_kernel_verified"]) if kernel_smoke_manifest else 0
+            ),
+            "kernel_smoke_proof_audit_total": (
+                int(kernel_smoke_manifest["n_obligations"]) if kernel_smoke_manifest else 0
+            ),
+            "kernel_smoke_proof_audit_all_kernel_verified": (
+                bool(kernel_smoke_manifest["all_kernel_verified"]) if kernel_smoke_manifest else False
+            ),
+            "kernel_smoke_proof_audit_verifier": (
+                str(kernel_smoke_manifest["verifier"]) if kernel_smoke_manifest else ""
+            ),
+            "kernel_smoke_proof_audit_strength": (
+                str(kernel_smoke_manifest["verification_strength"]) if kernel_smoke_manifest else ""
+            ),
             "verifier_cache_hits": verifier.cache_hits,
             "verifier_cache_misses": verifier.cache_misses,
             "verifier_cache_size": verifier.cache_info()["size"],
@@ -1553,6 +1602,12 @@ async def run_research_system_audit(
             ),
             "proof_audit": str(out_dir / "proof_audit" / "proof_audit_manifest.json"),
             "proof_attempt_log": str(out_dir / "proof_audit" / "proof_attempts.jsonl"),
+            "kernel_smoke_proof_audit": str(
+                out_dir / "kernel_smoke_proof_audit" / "proof_audit_manifest.json"
+            ),
+            "kernel_smoke_proof_attempt_log": str(
+                out_dir / "kernel_smoke_proof_audit" / "proof_attempts.jsonl"
+            ),
             "proof_training_export": str(out_dir / "proof_training_export" / "proof_training_manifest.json"),
             "proof_training_train": str(out_dir / "proof_training_export" / "proof_sft_train.jsonl"),
             "proof_training_validation": str(out_dir / "proof_training_export" / "proof_sft_validation.jsonl"),

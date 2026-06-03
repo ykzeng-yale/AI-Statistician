@@ -2013,6 +2013,7 @@ async def _research_system_audit(args: argparse.Namespace) -> int:
             use_local_lean=args.local_lean,
             local_lean_project=args.lean_project,
             local_lean_timeout=args.lean_timeout,
+            kernel_smoke_ids=tuple(args.kernel_smoke_id or ()),
             formal_source_index_cache=args.formal_source_index_cache,
             refresh_formal_source_index_cache=args.refresh_formal_source_index_cache,
             lean_rag_db=args.lean_rag_db,
@@ -3404,6 +3405,15 @@ def build_parser() -> argparse.ArgumentParser:
     research_system_audit.add_argument("--local-lean", action="store_true", help="use local lake env lean kernel verification")
     research_system_audit.add_argument("--lean-project", help="local Lake project used by --local-lean")
     research_system_audit.add_argument("--lean-timeout", type=int, default=90, help="timeout seconds for each local Lean check")
+    research_system_audit.add_argument(
+        "--kernel-smoke-id",
+        action="append",
+        help=(
+            "run a small local Lean proof-audit overlay for this proof obligation id; "
+            "repeatable. Uses --lean-project/--lean-timeout and does not replace the "
+            "main proof audit."
+        ),
+    )
     research_system_audit.add_argument(
         "--formal-source-index-cache",
         default="runs/formal_source_index_cache/formal_source_index.sqlite",

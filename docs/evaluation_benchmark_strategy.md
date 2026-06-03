@@ -22,8 +22,10 @@ The release audit already makes this boundary visible:
   closure is still a formal-library development problem. The target/action
   audits additionally separate exact proof-bank reuse from unresolved primitive
   work; exact reuse is not new proof evidence for the full frontier theorem.
-- `proofs_kernel_verified=112/112` is strong for the registered proof bank, but
-  those are reusable subclaims, not complete JASA/AOAS-level asymptotic proofs.
+- `proofs_kernel_verified=N/N` is strong only when the cited run used AXLE or
+  `--local-lean`. Release-speed `research-system-audit` runs may intentionally
+  use `mock_static_check`; in that case `proofs_verified` is proof-bank
+  regression evidence, not Lean-kernel evidence.
 - `proof_search_kernel_verified=12/12` is useful controller evidence, but the
   current search space is whole-proof candidate search, not tactic-state MCTS
   or trained proving.
@@ -49,6 +51,11 @@ Pass criteria:
 - all unit tests pass
 - all release gates pass
 - proof-bank obligations are kernel verified when local Lean is requested
+- release-speed audits that keep the main proof-bank audit in mock/static mode
+  can pass selected `--kernel-smoke-id` obligations through local Lean; those
+  rows are reported separately as `kernel_smoke_proof_audit_*` and can upgrade
+  matching claim-ledger entries to kernel-backed evidence without implying the
+  whole proof bank was kernel checked
 - trace, provenance, fingerprint, and gap manifests are internally consistent
 - `research-system-audit` gates the `claim-ledger` export so typed
   problem/procedure/theorem/proof/simulation/revision rows exist without
@@ -237,7 +244,28 @@ Sources:
 
 Current release signal:
 
-- 112/112 proof-bank obligations kernel verified in the local-kernel release
+- the registered proof bank is tracked by `proof-audit`; proof evidence is
+  kernel-level only for runs whose `verification_strength` is AXLE or
+  `local_lean_kernel_batch`
+- release-speed `research-system-audit` runs can add a targeted local-kernel
+  smoke overlay, for example:
+
+  ```bash
+  python3 -m ai_statistician.cli research-system-audit \
+    --runs 25 \
+    --lean-rag-db runs/current_status_lean_rag_dependency_graph/stat_inference.sqlite \
+    --kernel-smoke-id positivity \
+    --kernel-smoke-id conditional_expectation \
+    --kernel-smoke-id iterated_expectation \
+    --lean-project /Users/yukang/LeanProjects/LeanPractice \
+    --out runs/research_system_audit_kernel_smoke
+  ```
+
+  The manifest fields
+  `kernel_smoke_proof_audit_total`,
+  `kernel_smoke_proof_audit_kernel_verified`,
+  `kernel_smoke_proof_audit_strength`, and
+  `claim_ledger_kernel_overlay_upgrades` make the evidence boundary explicit.
 - 12/12 bounded whole-proof search obligations kernel verified in the local
   release
 - proof attempts exported as SFT data
