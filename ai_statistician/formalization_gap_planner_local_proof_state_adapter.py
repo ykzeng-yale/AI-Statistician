@@ -19,7 +19,10 @@ PROOF_EVIDENCE_STATUS = (
     "FORMALIZATION_GAP_PLANNER_LOCAL_PROOF_STATE_ADAPTER_NOT_PROOF_EVIDENCE"
 )
 ADAPTER_TOOL_NAME = "local_lean_proof_state_adapter"
-PLACEHOLDER_RE = re.compile(r"\b(sorry|admit)\b")
+PLACEHOLDER_RE = re.compile(r"\b(sorry|admit|axiom)\b")
+LEAN_COMMAND_RE = re.compile(
+    r"(?m)^\s*(import|namespace|section|variable|theorem|lemma|example|def|noncomputable)\b"
+)
 
 
 def export_formalization_gap_planner_local_proof_state_adapter_responses(
@@ -97,6 +100,7 @@ def export_formalization_gap_planner_local_proof_state_adapter_responses(
         "n_local_lean_failed": by_attempt_status.get("local_lean_failed", 0),
         "n_local_lean_unavailable": by_attempt_status.get("local_lean_unavailable", 0),
         "n_placeholder_blocked": by_attempt_status.get("placeholder_blocked", 0),
+        "n_non_lean_skeleton": by_attempt_status.get("non_lean_skeleton", 0),
         "n_missing_skeleton": by_attempt_status.get("missing_theorem_skeleton", 0),
         "all_ok": not errors and bool(proof_rows) and len(responses) == len(proof_rows),
         "errors": errors,
@@ -169,8 +173,16 @@ def _proof_state_response(
         residual_goals.extend(_residuals_for_primitives(target_primitives, "missing skeleton"))
     elif PLACEHOLDER_RE.search(skeleton):
         attempt_status = "placeholder_blocked"
-        diagnostics.append("theorem_skeleton contains sorry/admit; local proof-state adapter did not run it")
+        diagnostics.append("theorem_skeleton contains sorry/admit/axiom; local proof-state adapter did not run it")
         residual_goals.extend(_residuals_for_primitives(target_primitives, "placeholder proof"))
+    elif not _looks_like_lean_command(skeleton):
+        attempt_status = "non_lean_skeleton"
+        diagnostics.append(
+            "theorem_skeleton is not a Lean command; materialize a full theorem/lemma/example statement before proof-state feedback"
+        )
+        diagnostics.append(f"queued theorem_skeleton={skeleton[:160]!r}")
+        residual_goals.extend(_residuals_for_primitives(target_primitives, "non-Lean theorem skeleton"))
+        route_revision_reasons.append("materialize Lean theorem skeleton before proof-state feedback")
     elif not lean_command:
         attempt_status = "local_lean_unavailable"
         diagnostics.append("local Lean command unavailable; install lean or configure lake project")
@@ -193,7 +205,7 @@ def _proof_state_response(
                 _residuals_for_primitives(target_primitives, result["first_error"] or "local Lean failed")
             )
             route_revision_reasons.append("local Lean failed on proof-state scaffold")
-    route_revision_recommended = attempt_status == "local_lean_failed"
+    route_revision_recommended = attempt_status in {"local_lean_failed", "non_lean_skeleton"}
     return {
         "refinement_item_id": str(queue_row.get("refinement_item_id", "")),
         "route_id": str(queue_row.get("route_id", "")),
@@ -264,6 +276,10 @@ def _lean_command(lean_project: Path | None) -> tuple[str, ...]:
     if shutil.which("lean") is not None:
         return ("lean",)
     return tuple()
+
+
+def _looks_like_lean_command(skeleton: str) -> bool:
+    return bool(LEAN_COMMAND_RE.search(skeleton))
 
 
 def _lean_source(skeleton: str) -> str:
@@ -353,6 +369,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Local Lean failed: {payload.get('n_local_lean_failed')}",
         f"- Local Lean unavailable: {payload.get('n_local_lean_unavailable')}",
         f"- Placeholder blocked: {payload.get('n_placeholder_blocked')}",
+        f"- Non-Lean skeleton: {payload.get('n_non_lean_skeleton')}",
         f"- All OK: {payload.get('all_ok')}",
         "",
         "## Boundary",

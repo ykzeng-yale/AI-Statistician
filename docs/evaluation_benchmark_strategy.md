@@ -487,6 +487,11 @@ Paperclip/PaperQA/OpenScholar-style literature search, LeanSearch/Loogle/
 LeanExplore/local Lean RAG grounding, Lean/LSP and LeanDojo-style proof-state
 feedback, and the built-in route-revision overlay. Missing commands,
 credentials, or configured paths are capacity gaps, not proof failures.
+The `formalization-gap-planner-local-literature-adapter` gate is the
+live-local literature fallback behind that registry: it replaces offline
+`literature_discovery` rows with source refs and route-evidence nodes from a
+local text/markdown/json corpus, or emits focused literature-gap nodes when no
+local source matches. These rows are source-route evidence only.
 The `formalization-gap-planner-local-formal-source-adapter` gate is the first
 live-local grounding adapter behind that registry: it replaces offline
 `lean_library_grounding` rows with declaration hits and coverage updates from
@@ -495,9 +500,10 @@ dependency graph. These hits are library-grounding evidence only.
 The `formalization-gap-planner-local-proof-state-adapter` gate is the
 corresponding local prover-feedback adapter: it consumes queued
 `proof_state_feedback` skeletons, runs local Lean when available, blocks
-`sorry`/`admit` probes before invocation, and records diagnostics plus residual
-goals for route revision. These rows are proof-state diagnostics only, not
-theorem proof evidence.
+`sorry`/`admit`/`axiom` probes before invocation, classifies name-only
+non-Lean skeletons as statement-materialization gaps, and records diagnostics
+plus residual goals for route revision. These rows are proof-state diagnostics
+only, not theorem proof evidence.
 The `formalization-gap-planner-refinement-queue` gate then turns route
 revision triggers, interactive hooks, evaluator mismatches, and replay
 calibration residuals into bounded work items for literature discovery,

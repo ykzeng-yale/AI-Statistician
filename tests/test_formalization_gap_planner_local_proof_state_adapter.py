@@ -60,6 +60,18 @@ def test_local_proof_state_adapter_emits_prover_feedback(
             "theorem_skeleton": "theorem probe_conditional_mean_residual_zero : True := by\n  exact False.elim (by exact False.elim (by contradiction))",
             "queries": ["probe conditional mean residual zero"],
         },
+        {
+            "refinement_item_id": "refinement:name_only",
+            "goal_plan_id": "goal:test",
+            "route_id": "route:test",
+            "display_name": display_name,
+            "hook_kind": "proof_state_feedback",
+            "refinement_stage": "proof",
+            "owner_agent": "proof",
+            "target_primitives": ["nuisance_correctness_cases"],
+            "theorem_skeleton": "skeleton",
+            "queries": ["name-only theorem skeleton"],
+        },
     ]
     (queue_dir / "formalization_gap_planner_refinement_queue_manifest.json").write_text(
         json.dumps({"rows": queue_rows}, indent=2),
@@ -95,14 +107,20 @@ def test_local_proof_state_adapter_emits_prover_feedback(
     )
 
     assert payload["all_ok"]
-    assert payload["n_local_proof_state_responses"] == 1
-    assert payload["n_merged_responses"] == 2
+    assert payload["n_local_proof_state_responses"] == 2
+    assert payload["n_merged_responses"] == 3
     assert payload["n_local_lean_failed"] == 1
-    response = payload["responses"][0]
+    assert payload["n_non_lean_skeleton"] == 1
+    by_item = {row["refinement_item_id"]: row for row in payload["responses"]}
+    response = by_item["refinement:proof"]
     assert response["attempt_status"] == "local_lean_failed"
     assert response["route_revision_recommended"]
     assert response["residual_goals"]
     assert any("unsolved goals" in item for item in response["prover_diagnostics"])
+    name_only = by_item["refinement:name_only"]
+    assert name_only["attempt_status"] == "non_lean_skeleton"
+    assert name_only["route_revision_recommended"]
+    assert any("not a Lean command" in item for item in name_only["prover_diagnostics"])
 
     evidence_payload = export_formalization_gap_planner_refinement_evidence(
         queue_dir,
@@ -110,5 +128,5 @@ def test_local_proof_state_adapter_emits_prover_feedback(
         response_jsonl=adapter_dir / "formalization_gap_planner_refinement_evidence_responses.jsonl",
     )
     assert evidence_payload["all_ok"]
-    assert evidence_payload["n_contract_ok"] == 2
-    assert evidence_payload["n_route_revision_proposals"] == 1
+    assert evidence_payload["n_contract_ok"] == 3
+    assert evidence_payload["n_route_revision_proposals"] == 2

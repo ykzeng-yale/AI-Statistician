@@ -81,9 +81,15 @@ python3 -m ai_statistician.cli formalization-gap-planner-refinement-adapter-resp
   --ground-truth runs/current/formalization_gap_planner_benchmark/formalization_gap_planner_ground_truth.json \
   --out runs/current/formalization_gap_planner_refinement_adapter
 
-python3 -m ai_statistician.cli formalization-gap-planner-local-formal-source-adapter \
+python3 -m ai_statistician.cli formalization-gap-planner-local-literature-adapter \
   --formalization-gap-planner-refinement-queue-dir runs/current/formalization_gap_planner_refinement_queue \
   --base-response-jsonl runs/current/formalization_gap_planner_refinement_adapter/formalization_gap_planner_refinement_evidence_responses.jsonl \
+  --literature-root /path/to/local/paper_or_text_corpus \
+  --out runs/current/formalization_gap_planner_local_literature_adapter
+
+python3 -m ai_statistician.cli formalization-gap-planner-local-formal-source-adapter \
+  --formalization-gap-planner-refinement-queue-dir runs/current/formalization_gap_planner_refinement_queue \
+  --base-response-jsonl runs/current/formalization_gap_planner_local_literature_adapter/formalization_gap_planner_refinement_evidence_responses.jsonl \
   --lean-rag-db runs/current_status_lean_rag_dependency_graph/stat_inference.sqlite \
   --out runs/current/formalization_gap_planner_local_formal_source_adapter
 
@@ -109,13 +115,17 @@ grounding, proof-state feedback, and route-revision items. Optional evaluation
 and replay-calibration manifests add route-truth mismatches and prover residuals
 as prioritization signals. The adapter command is a deterministic offline
 producer that turns the shipped route-truth labels into response JSONL for local
-end-to-end tests. The local formal-source adapter can then replace
+end-to-end tests. The local literature adapter can replace
+`literature_discovery` rows with source-backed route evidence from a local
+text/markdown/json corpus or mark focused literature gaps for later
+Paperclip/PaperQA/OpenScholar search. The local formal-source adapter can then replace
 `lean_library_grounding` rows with real declaration-search evidence from the
 current formal-source backend and optional Lean RAG dependency DB, while
 preserving other adapter responses. The local proof-state adapter can then
 replace `proof_state_feedback` rows with local Lean diagnostics, blocks
-`sorry`/`admit` skeletons before invocation, and merges residual goals into the
-same evidence JSONL. Live Paperclip/PaperQA/OpenScholar,
+`sorry`/`admit`/`axiom` skeletons before invocation, reports name-only or
+otherwise non-Lean skeletons as statement-materialization gaps, and merges
+residual goals into the same evidence JSONL. Live Paperclip/PaperQA/OpenScholar,
 LeanSearch/Loogle/LeanExplore, and Lean/LSP/prover adapters should emit the
 same response contract. The evidence command validates tool responses keyed by
 `refinement_item_id` and emits route-revision proposals. The overlay command
@@ -250,33 +260,38 @@ The current implementation composes four existing AI Statistician artifacts:
    so the refinement loop can be exercised without live MCP credentials. It is
    adapter output, not proof evidence.
 
-7. `formalization_gap_planner_local_formal_source_adapter`
+7. `formalization_gap_planner_local_literature_adapter`
+   Replaces literature-discovery rows with local source-backed route evidence
+   from text/markdown/json corpora, or emits focused literature-gap nodes when
+   the local corpus has no match. It is route evidence, not proof evidence.
+
+8. `formalization_gap_planner_local_formal_source_adapter`
    Replaces Lean-library-grounding rows with local declaration-search evidence
    from the formal-source backend and optional Lean RAG dependency DB, while
    preserving other adapter responses.
 
-8. `formalization_gap_planner_local_proof_state_adapter`
+9. `formalization_gap_planner_local_proof_state_adapter`
    Replaces proof-state-feedback rows with local Lean diagnostics and residual
    goals, while preserving merged literature and Lean-grounding responses. It
    blocks `sorry`/`admit` skeletons and remains diagnostic feedback, not proof
    evidence.
 
-9. `formalization_gap_planner_refinement_evidence`
+10. `formalization_gap_planner_refinement_evidence`
    Records tool responses to the refinement queue and normalizes literature
    evidence, Lean declaration hits, coverage updates, prover diagnostics,
    residual goals, and route-revision proposals.
 
-10. `formalization_gap_planner_route_revision_overlay`
+11. `formalization_gap_planner_route_revision_overlay`
    Applies accepted route-revision proposals back to the selected route plan as
    a non-mutating overlay with changed primitives, DAG nodes, source refs,
    residual goals, and replay gates.
 
-11. `formalization_gap_planner_benchmark`
+12. `formalization_gap_planner_benchmark`
    Exports reusable route-truth labels for evaluation: required primitives,
    actual existing reuse, actual Lean delta, coverage classification, source
    references, and proof-evidence boundaries.
 
-12. `formal_verifier_replay_export`
+13. `formal_verifier_replay_export`
    Turns selected routes into theorem/bridge replay tasks. This is the handoff
    to actual proof attempts, not proof evidence.
 

@@ -44,6 +44,9 @@ from .formalization_gap_planner_adapter_registry import (
 from .formalization_gap_planner_local_formal_source_adapter import (
     export_formalization_gap_planner_local_formal_source_adapter_responses,
 )
+from .formalization_gap_planner_local_literature_adapter import (
+    export_formalization_gap_planner_local_literature_adapter_responses,
+)
 from .formalization_gap_planner_local_proof_state_adapter import (
     export_formalization_gap_planner_local_proof_state_adapter_responses,
 )
@@ -1616,6 +1619,37 @@ def _formalization_gap_planner_refinement_adapter_responses(
     return 0 if payload["all_ok"] else 1
 
 
+def _formalization_gap_planner_local_literature_adapter(args: argparse.Namespace) -> int:
+    payload = export_formalization_gap_planner_local_literature_adapter_responses(
+        Path(args.formalization_gap_planner_refinement_queue_dir),
+        Path(args.out),
+        literature_roots=tuple(Path(root) for root in (args.literature_root or [])),
+        base_response_jsonl=Path(args.base_response_jsonl)
+        if args.base_response_jsonl
+        else None,
+        max_items=args.max_items,
+        k=args.k,
+        max_file_bytes=args.max_file_bytes,
+    )
+    print("\nAI Statistical Theory Lab Formalization Gap Planner Local Literature Adapter")
+    print("=" * 72)
+    print(
+        f"responses={payload['n_local_literature_responses']}/"
+        f"{payload['n_literature_discovery_rows']} "
+        f"merged={payload['n_merged_responses']} "
+        f"docs={payload['n_documents_indexed']} "
+        f"hits={payload['n_source_hits']} "
+        f"gaps={payload['n_literature_gap_responses']} "
+        f"revision={payload['n_route_revision_recommended']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nlocal literature adapter manifest written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_local_literature_adapter_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
 def _formalization_gap_planner_local_formal_source_adapter(args: argparse.Namespace) -> int:
     payload = export_formalization_gap_planner_local_formal_source_adapter_responses(
         Path(args.formalization_gap_planner_refinement_queue_dir),
@@ -1675,6 +1709,7 @@ def _formalization_gap_planner_local_proof_state_adapter(args: argparse.Namespac
         f"failed={payload['n_local_lean_failed']} "
         f"unavailable={payload['n_local_lean_unavailable']} "
         f"placeholder={payload['n_placeholder_blocked']} "
+        f"nonlean={payload['n_non_lean_skeleton']} "
         f"all_ok={payload['all_ok']}"
     )
     print(
@@ -4459,6 +4494,51 @@ def build_parser() -> argparse.ArgumentParser:
     )
     formalization_gap_planner_refinement_adapter_responses.set_defaults(
         func=_formalization_gap_planner_refinement_adapter_responses
+    )
+
+    formalization_gap_planner_local_literature_adapter = sub.add_parser(
+        "formalization-gap-planner-local-literature-adapter",
+        help="emit literature-route evidence responses from a local text corpus",
+    )
+    formalization_gap_planner_local_literature_adapter.add_argument(
+        "--formalization-gap-planner-refinement-queue-dir",
+        required=True,
+        help="directory containing formalization_gap_planner_refinement_queue_manifest.json",
+    )
+    formalization_gap_planner_local_literature_adapter.add_argument(
+        "--literature-root",
+        action="append",
+        help="local text/markdown/json corpus root or file; repeatable",
+    )
+    formalization_gap_planner_local_literature_adapter.add_argument(
+        "--base-response-jsonl",
+        help="optional existing response JSONL to merge with local literature responses",
+    )
+    formalization_gap_planner_local_literature_adapter.add_argument(
+        "--max-items",
+        type=int,
+        default=0,
+        help="limit queue rows scanned before filtering literature hooks; 0 keeps all",
+    )
+    formalization_gap_planner_local_literature_adapter.add_argument(
+        "-k",
+        type=int,
+        default=5,
+        help="local source hits per literature-discovery item",
+    )
+    formalization_gap_planner_local_literature_adapter.add_argument(
+        "--max-file-bytes",
+        type=int,
+        default=1_000_000,
+        help="maximum bytes read from each local corpus file",
+    )
+    formalization_gap_planner_local_literature_adapter.add_argument(
+        "--out",
+        default="runs/formalization_gap_planner_local_literature_adapter",
+        help="local literature adapter output directory",
+    )
+    formalization_gap_planner_local_literature_adapter.set_defaults(
+        func=_formalization_gap_planner_local_literature_adapter
     )
 
     formalization_gap_planner_local_formal_source_adapter = sub.add_parser(

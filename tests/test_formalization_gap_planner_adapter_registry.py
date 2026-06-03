@@ -26,6 +26,7 @@ def test_formalization_gap_planner_adapter_registry_exports_contracts() -> None:
     assert payload["n_ready_local_or_configured"] >= 3
     adapter_ids = {row["adapter_id"] for row in payload["rows"]}
     assert "local_route_truth_benchmark_adapter" in adapter_ids
+    assert "local_literature_corpus" in adapter_ids
     assert "paperclip_cli_mcp" in adapter_ids
     assert "local_formal_source_index" in adapter_ids
     assert "local_lean_rag_dependency_graph" in adapter_ids
@@ -35,8 +36,10 @@ def test_formalization_gap_planner_adapter_registry_exports_contracts() -> None:
     assert by_id["local_route_truth_benchmark_adapter"]["readiness_status"] == "READY_LOCAL"
     assert by_id["route_revision_overlay"]["readiness_status"] == "READY_LOCAL"
     assert by_id["local_lean_rag_dependency_graph"]["detected_paths"][str(lean_rag_db)]
+    assert by_id["local_literature_corpus"]["detected_paths"][str(paper_dir)]
     assert by_id["paperqa2_local_library"]["detected_paths"][str(paper_dir)]
     assert "source_refs" in by_id["paperclip_cli_mcp"]["output_contract_fields"]
+    assert "route_evidence_nodes" in by_id["local_literature_corpus"]["output_contract_fields"]
     assert "lean_declaration_hits" in by_id["local_formal_source_index"]["output_contract_fields"]
     assert "prover_diagnostics" in by_id["lean_lsp_mcp"]["output_contract_fields"]
     assert "not theorem proof evidence" in payload["proof_evidence_boundary"]

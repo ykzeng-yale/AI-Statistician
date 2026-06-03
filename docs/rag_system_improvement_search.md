@@ -531,9 +531,15 @@ python3 -m ai_statistician.cli formalization-gap-planner-refinement-adapter-resp
   --formalization-gap-planner-refinement-queue-dir runs/current/formalization_gap_planner_refinement_queue \
   --out runs/current/formalization_gap_planner_refinement_adapter
 
-python3 -m ai_statistician.cli formalization-gap-planner-local-formal-source-adapter \
+python3 -m ai_statistician.cli formalization-gap-planner-local-literature-adapter \
   --formalization-gap-planner-refinement-queue-dir runs/current/formalization_gap_planner_refinement_queue \
   --base-response-jsonl runs/current/formalization_gap_planner_refinement_adapter/formalization_gap_planner_refinement_evidence_responses.jsonl \
+  --literature-root /path/to/local/paper_or_text_corpus \
+  --out runs/current/formalization_gap_planner_local_literature_adapter
+
+python3 -m ai_statistician.cli formalization-gap-planner-local-formal-source-adapter \
+  --formalization-gap-planner-refinement-queue-dir runs/current/formalization_gap_planner_refinement_queue \
+  --base-response-jsonl runs/current/formalization_gap_planner_local_literature_adapter/formalization_gap_planner_refinement_evidence_responses.jsonl \
   --lean-rag-db runs/current_status_lean_rag_dependency_graph/stat_inference.sqlite \
   --out runs/current/formalization_gap_planner_local_formal_source_adapter
 
@@ -560,14 +566,18 @@ Lean/LSP or LeanDojo proof-state feedback. The queue is the work-order contract
 for those adapters. The adapter command is the offline regression producer: it
 emits the same response JSONL using packaged route-truth labels so the evidence
 validator and route-revision proposal path can be exercised without live MCP
-credentials. The local formal-source adapter is the first live-local
-replacement stage: it searches indexed declarations for Lean-grounding rows and
-merges those results into the same evidence JSONL. The local proof-state
-adapter is the next live-local replacement stage: it runs or records local Lean
-proof-state checks for queued skeletons, blocks `sorry`/`admit` probes, and
-merges prover diagnostics and residual goals into that JSONL. The overlay
-command writes accepted proposals back against the route plan as an inspectable
-revised-route artifact. These rows are route evidence only.
+credentials. The local literature adapter is the first live-local replacement
+stage: it searches local text/markdown/json corpora for literature-discovery
+rows and merges source evidence or focused literature-gap nodes into the same
+JSONL. The local formal-source adapter then searches indexed declarations for
+Lean-grounding rows and merges those results into the same evidence JSONL. The
+local proof-state adapter is the next live-local replacement stage: it runs or
+records local Lean proof-state checks for queued skeletons, blocks
+`sorry`/`admit`/`axiom` probes, classifies name-only non-Lean skeletons as
+statement-materialization gaps, and merges prover diagnostics and residual
+goals into that JSONL. The overlay command writes accepted proposals back
+against the route plan as an inspectable revised-route artifact. These rows are
+route evidence only.
 
 ```bash
 python3 -m ai_statistician.cli formal-verifier-replay-export \
