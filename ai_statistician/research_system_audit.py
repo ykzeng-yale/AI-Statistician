@@ -1263,6 +1263,18 @@ async def run_research_system_audit(
             "formalization_delta_graph_skeleton_to_proof_step_edges": formalization_delta_manifest[
                 "dependency_graph_skeleton_to_proof_step_edges"
             ],
+            "formalization_delta_theorem_routes": formalization_delta_manifest[
+                "n_theorem_formalization_routes"
+            ],
+            "formalization_delta_theorem_routes_with_informal_steps": formalization_delta_manifest[
+                "n_theorem_routes_with_informal_steps"
+            ],
+            "formalization_delta_theorem_routes_with_reuse_candidates": formalization_delta_manifest[
+                "n_theorem_routes_with_reuse_candidates"
+            ],
+            "formalization_delta_theorem_routes_requiring_new_theory": formalization_delta_manifest[
+                "n_theorem_routes_requiring_new_theory"
+            ],
             "formalization_delta_plan_low_cost_existing_reuse": formalization_delta_manifest[
                 "n_low_cost_existing_reuse"
             ],

@@ -211,7 +211,9 @@ Current release signal:
   budget. It also writes a dependency graph linking problem classes, theorem
   goals, Lean theorem skeletons, informal proof steps, imports, gaps,
   primitives, actions, stages, expected premises, proof-bank obligations, and
-  candidate Lean declarations.
+  candidate Lean declarations. It also emits theorem-level formalization
+  routes that summarize each target skeleton's informal proof steps, required
+  primitives, reuse candidates, cost class, and first next actions.
   Its cost and graph are heuristic planning evidence, not a proof of true
   minimality and not Lean proof evidence.
 - compose-existing bridge-chain opportunities are now 51

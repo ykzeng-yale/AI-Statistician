@@ -7029,6 +7029,23 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertGreater(payload["dependency_graph_goal_to_primitive_edges"], 0)
         self.assertGreater(payload["dependency_graph_goal_to_skeleton_edges"], 0)
         self.assertGreater(payload["dependency_graph_skeleton_to_proof_step_edges"], 0)
+        self.assertGreater(payload["n_theorem_formalization_routes"], 0)
+        self.assertGreaterEqual(
+            payload["dependency_graph_theorem_skeleton_nodes"],
+            payload["n_theorem_formalization_routes"],
+        )
+        self.assertGreater(payload["n_theorem_routes_with_informal_steps"], 0)
+        self.assertGreater(payload["n_theorem_routes_with_reuse_candidates"], 0)
+        route = payload["theorem_formalization_routes"][0]
+        self.assertIn("route_id", route)
+        self.assertIn("display_name", route)
+        self.assertIn("theorem_skeleton", route)
+        self.assertIn(route["theorem_skeleton"], route["display_name"])
+        self.assertGreater(route["n_informal_proof_steps"], 0)
+        self.assertGreater(route["n_required_primitives"], 0)
+        self.assertIn(route["route_class"], {"reuse_or_composition", "bridge_or_wrapper", "requires_new_theory"})
+        self.assertIn("evidence_boundary", route)
+        self.assertIn("not proof evidence", route["evidence_boundary"])
         graph = payload["dependency_graph"]
         self.assertEqual(graph["n_nodes"], payload["dependency_graph_nodes"])
         self.assertEqual(graph["n_edges"], payload["dependency_graph_edges"])
@@ -9700,6 +9717,13 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertGreater(payload["counts"]["formalization_delta_graph_goal_to_primitive_edges"], 0)
         self.assertGreater(payload["counts"]["formalization_delta_graph_goal_to_skeleton_edges"], 0)
         self.assertGreater(payload["counts"]["formalization_delta_graph_skeleton_to_proof_step_edges"], 0)
+        self.assertGreater(payload["counts"]["formalization_delta_theorem_routes"], 0)
+        self.assertGreaterEqual(
+            payload["counts"]["formalization_delta_graph_theorem_skeleton_nodes"],
+            payload["counts"]["formalization_delta_theorem_routes"],
+        )
+        self.assertGreater(payload["counts"]["formalization_delta_theorem_routes_with_informal_steps"], 0)
+        self.assertGreater(payload["counts"]["formalization_delta_theorem_routes_with_reuse_candidates"], 0)
         self.assertGreaterEqual(payload["counts"]["formalization_delta_plan_low_cost_existing_reuse"], 0)
         self.assertGreaterEqual(payload["counts"]["formalization_delta_plan_medium_cost_bridge_or_wrapper"], 0)
         self.assertGreaterEqual(payload["counts"]["formalization_delta_plan_high_cost_new_theory"], 0)

@@ -11,7 +11,7 @@ from typing import Any
 from .fingerprint import stable_hash
 
 
-FORMALIZATION_DELTA_PLAN_SCHEMA_VERSION = 1
+FORMALIZATION_DELTA_PLAN_SCHEMA_VERSION = 2
 
 
 ACTION_COSTS = {
@@ -130,6 +130,7 @@ def build_formalization_delta_plan(
     by_delta_kind = Counter(row.delta_kind for row in rows)
     by_action_class = Counter(row.action_class for row in rows)
     graph = _build_dependency_graph(rows, task_by_id)
+    theorem_routes = _build_theorem_routes(rows, task_by_id)
     payload: dict[str, object] = {
         "schema_version": FORMALIZATION_DELTA_PLAN_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -167,6 +168,26 @@ def build_formalization_delta_plan(
         "dependency_graph_skeleton_to_proof_step_edges": graph["by_edge_kind"].get(
             "has_informal_proof_step", 0
         ),
+        "n_theorem_formalization_routes": len(theorem_routes),
+        "n_theorem_routes_with_informal_steps": sum(
+            1 for route in theorem_routes if route.get("informal_proof_steps")
+        ),
+        "n_theorem_routes_with_reuse_candidates": sum(
+            1
+            for route in theorem_routes
+            if int(route.get("source_support_count", 0) or 0) > 0
+        ),
+        "n_theorem_routes_requiring_new_theory": sum(
+            1 for route in theorem_routes if route.get("route_class") == "requires_new_theory"
+        ),
+        "theorem_formalization_routes": theorem_routes,
+        "top_theorem_routes_by_cost": sorted(
+            theorem_routes,
+            key=lambda route: (
+                -int(route.get("total_estimated_cost", 0) or 0),
+                str(route.get("task_id", "")),
+            ),
+        )[:10],
         "top_low_cost_rows": [asdict(row) for row in rows[:10]],
         "top_high_cost_rows": [asdict(row) for row in sorted(rows, key=lambda row: -row.total_cost)[:10]],
         "rows": [asdict(row) for row in rows],
@@ -257,6 +278,110 @@ def _row_from_action(
         ok=not errors and bool(action.get("ok", False)),
         errors=tuple(errors),
     )
+
+
+def _build_theorem_routes(
+    rows: list[FormalizationDeltaPlanRow],
+    task_by_id: dict[str, dict[str, Any]],
+) -> list[dict[str, object]]:
+    rows_by_task: dict[str, list[FormalizationDeltaPlanRow]] = {}
+    for row in rows:
+        for task_id in row.source_task_ids:
+            if task_id:
+                rows_by_task.setdefault(task_id, []).append(row)
+
+    routes: list[dict[str, object]] = []
+    for task_id, task_rows in sorted(rows_by_task.items()):
+        task = task_by_id.get(task_id, {})
+        if not task:
+            continue
+        declaration = _task_declaration(str(task.get("statement", "")))
+        if not declaration:
+            continue
+        ordered_rows = sorted(
+            {row.action_id: row for row in task_rows}.values(),
+            key=lambda row: (row.total_cost, row.primitive, row.action_id),
+        )
+        proof_steps = _proof_strategy_steps(str(task.get("proof_strategy", "")))
+        required_primitives = tuple(sorted({row.primitive for row in ordered_rows if row.primitive}))
+        action_classes = Counter(row.action_class for row in ordered_rows)
+        plan_stages = Counter(row.plan_stage for row in ordered_rows)
+        total_cost = sum(row.total_cost for row in ordered_rows)
+        support_count = sum(
+            len(row.expected_premises)
+            + len(row.bridge_candidate_obligations)
+            + len(row.candidate_declarations)
+            for row in ordered_rows
+        )
+        actions = [
+            {
+                "primitive": row.primitive,
+                "action_id": row.action_id,
+                "action_class": row.action_class,
+                "plan_stage": row.plan_stage,
+                "delta_kind": row.delta_kind,
+                "total_cost": row.total_cost,
+                "priority": row.priority,
+                "expected_premises": list(row.expected_premises),
+                "bridge_candidate_obligations": list(row.bridge_candidate_obligations),
+                "candidate_declarations": list(row.candidate_declarations),
+                "blocked_reasons": list(row.blocked_reasons),
+                "next_step": row.next_step,
+            }
+            for row in ordered_rows
+        ]
+        routes.append(
+            {
+                "schema_version": FORMALIZATION_DELTA_PLAN_SCHEMA_VERSION,
+                "route_id": f"theorem_route:{task_id}:{stable_hash(str(task.get('statement', '')))[:12]}",
+                "task_id": task_id,
+                "question_id": str(task.get("question_id", "")),
+                "problem_class": str(task.get("problem_class", "")),
+                "theorem_goal_id": str(task.get("theorem_goal_id", "")),
+                "theorem_skeleton": declaration,
+                "display_name": _task_display_name(task_id, task, declaration),
+                "namespace": str(task.get("namespace", "")),
+                "statement_hash": stable_hash(str(task.get("statement", "")))[:16],
+                "imports": [str(item) for item in task.get("imports", []) or [] if str(item)],
+                "allowed_sorry": task.get("allowed_sorry", None),
+                "informal_proof_steps": list(proof_steps),
+                "n_informal_proof_steps": len(proof_steps),
+                "required_primitives": list(required_primitives),
+                "n_required_primitives": len(required_primitives),
+                "total_estimated_cost": total_cost,
+                "max_primitive_cost": max((row.total_cost for row in ordered_rows), default=0),
+                "low_cost_action_count": sum(1 for row in ordered_rows if row.total_cost <= 2),
+                "medium_cost_action_count": sum(1 for row in ordered_rows if 3 <= row.total_cost <= 5),
+                "high_cost_action_count": sum(1 for row in ordered_rows if row.total_cost >= 6),
+                "route_class": _route_class(ordered_rows),
+                "by_action_class": dict(sorted(action_classes.items())),
+                "by_plan_stage": dict(sorted(plan_stages.items())),
+                "source_support_count": support_count,
+                "actions": actions,
+                "first_next_actions": actions[:5],
+                "evidence_boundary": (
+                    "This route summarizes minimal formalization work for a theorem skeleton. "
+                    "It is not proof evidence until the referenced Lean work is verified by "
+                    "AXLE or the local Lean kernel."
+                ),
+            }
+        )
+    return sorted(
+        routes,
+        key=lambda route: (
+            int(route.get("total_estimated_cost", 0) or 0),
+            str(route.get("theorem_skeleton", "")),
+            str(route.get("task_id", "")),
+        ),
+    )
+
+
+def _route_class(rows: list[FormalizationDeltaPlanRow]) -> str:
+    if any(row.total_cost >= 6 for row in rows):
+        return "requires_new_theory"
+    if any(3 <= row.total_cost <= 5 for row in rows):
+        return "bridge_or_wrapper"
+    return "reuse_or_composition"
 
 
 def _build_dependency_graph(
@@ -355,11 +480,12 @@ def _build_dependency_graph(
             )
             add_edge(node_id, primitive_id, "mentions_primitive")
             if declaration:
-                skeleton_id = f"theorem_skeleton:{declaration}"
+                skeleton_id = f"theorem_skeleton:{task_id}:{statement_hash}"
                 add_node(
                     skeleton_id,
                     "lean_theorem_skeleton",
-                    declaration,
+                    _task_display_name(task_id, task, declaration),
+                    declaration=declaration,
                     namespace=str(task.get("namespace", "")),
                     statement_hash=statement_hash,
                     allowed_sorry=task.get("allowed_sorry", None),
@@ -508,6 +634,13 @@ def _task_declaration(statement: str) -> str:
     return match.group(1) if match else ""
 
 
+def _task_display_name(task_id: str, task: dict[str, Any], declaration: str) -> str:
+    question_id = str(task.get("question_id", ""))
+    theorem_goal_id = str(task.get("theorem_goal_id", ""))
+    parts = [item for item in (question_id, theorem_goal_id, declaration) if item]
+    return ":".join(parts) if parts else task_id
+
+
 def _proof_strategy_steps(proof_strategy: str) -> tuple[str, ...]:
     pieces = re.split(r"[.;]\s+|\n+", proof_strategy.strip())
     return tuple(piece.strip() for piece in pieces if piece.strip())
@@ -546,6 +679,16 @@ def _markdown_report(payload: dict[str, object]) -> str:
     ]
     for stage, count in (payload.get("by_plan_stage") or {}).items():
         lines.append(f"- `{stage}`: {count}")
+    lines.extend(["", "## Theorem Formalization Routes", ""])
+    for route in payload.get("theorem_formalization_routes", []):
+        if not isinstance(route, dict):
+            continue
+        lines.append(
+            f"- `{route.get('display_name')}`: {route.get('route_class')} "
+            f"(cost={route.get('total_estimated_cost')}, "
+            f"steps={route.get('n_informal_proof_steps')}, "
+            f"primitives={route.get('n_required_primitives')})"
+        )
     lines.extend(["", "## Top Low-Cost Rows", ""])
     for row in payload.get("top_low_cost_rows", []):
         if not isinstance(row, dict):
