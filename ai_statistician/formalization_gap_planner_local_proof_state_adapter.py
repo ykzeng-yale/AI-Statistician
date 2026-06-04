@@ -20,6 +20,9 @@ PROOF_EVIDENCE_STATUS = (
 )
 ADAPTER_TOOL_NAME = "local_lean_proof_state_adapter"
 PLACEHOLDER_RE = re.compile(r"\b(sorry|admit|axiom)\b")
+FORMAL_GAP_PLACEHOLDER_RE = re.compile(
+    r"\bFORMAL_GAP\b|\bh_frontier_missing[A-Za-z0-9_']*"
+)
 LEAN_COMMAND_RE = re.compile(
     r"(?m)^\s*(import|namespace|section|variable|theorem|lemma|example|def|noncomputable)\b"
 )
@@ -100,6 +103,9 @@ def export_formalization_gap_planner_local_proof_state_adapter_responses(
         "n_local_lean_failed": by_attempt_status.get("local_lean_failed", 0),
         "n_local_lean_unavailable": by_attempt_status.get("local_lean_unavailable", 0),
         "n_placeholder_blocked": by_attempt_status.get("placeholder_blocked", 0),
+        "n_formal_gap_scaffold_blocked": by_attempt_status.get(
+            "formal_gap_scaffold_blocked", 0
+        ),
         "n_non_lean_skeleton": by_attempt_status.get("non_lean_skeleton", 0),
         "n_missing_skeleton": by_attempt_status.get("missing_theorem_skeleton", 0),
         "all_ok": not errors and bool(proof_rows) and len(responses) == len(proof_rows),
@@ -117,6 +123,7 @@ def export_formalization_gap_planner_local_proof_state_adapter_responses(
             "local proof-state responses are refinement diagnostics, not target theorem proof evidence",
             "accepted temporary scaffolds still require verifier replay and calibration before promotion",
             "placeholder skeletons are not sent to Lean because sorry/admit can mask missing proof work",
+            "FORMAL_GAP and h_frontier_missing skeletons are blocked before Lean because they are roadmap scaffolds, not theorem proof candidates",
         ],
     }
     if out_dir is not None:
@@ -175,6 +182,17 @@ def _proof_state_response(
         attempt_status = "placeholder_blocked"
         diagnostics.append("theorem_skeleton contains sorry/admit/axiom; local proof-state adapter did not run it")
         residual_goals.extend(_residuals_for_primitives(target_primitives, "placeholder proof"))
+    elif FORMAL_GAP_PLACEHOLDER_RE.search(skeleton):
+        attempt_status = "formal_gap_scaffold_blocked"
+        diagnostics.append(
+            "theorem_skeleton contains FORMAL_GAP or h_frontier_missing placeholder assumptions; local proof-state adapter did not treat it as proof-state acceptance"
+        )
+        residual_goals.extend(
+            _residuals_for_primitives(target_primitives, "formal-gap placeholder scaffold")
+        )
+        route_revision_reasons.append(
+            "replace h_frontier_missing/FORMAL_GAP scaffold with non-placeholder Lean theorem before proof-state acceptance"
+        )
     elif not _looks_like_lean_command(skeleton):
         attempt_status = "non_lean_skeleton"
         diagnostics.append(
@@ -205,7 +223,11 @@ def _proof_state_response(
                 _residuals_for_primitives(target_primitives, result["first_error"] or "local Lean failed")
             )
             route_revision_reasons.append("local Lean failed on proof-state scaffold")
-    route_revision_recommended = attempt_status in {"local_lean_failed", "non_lean_skeleton"}
+    route_revision_recommended = attempt_status in {
+        "formal_gap_scaffold_blocked",
+        "local_lean_failed",
+        "non_lean_skeleton",
+    }
     return {
         "refinement_item_id": str(queue_row.get("refinement_item_id", "")),
         "route_id": str(queue_row.get("route_id", "")),
@@ -369,6 +391,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Local Lean failed: {payload.get('n_local_lean_failed')}",
         f"- Local Lean unavailable: {payload.get('n_local_lean_unavailable')}",
         f"- Placeholder blocked: {payload.get('n_placeholder_blocked')}",
+        f"- Formal-gap scaffold blocked: {payload.get('n_formal_gap_scaffold_blocked')}",
         f"- Non-Lean skeleton: {payload.get('n_non_lean_skeleton')}",
         f"- All OK: {payload.get('all_ok')}",
         "",

@@ -1709,6 +1709,7 @@ def _formalization_gap_planner_local_proof_state_adapter(args: argparse.Namespac
         f"failed={payload['n_local_lean_failed']} "
         f"unavailable={payload['n_local_lean_unavailable']} "
         f"placeholder={payload['n_placeholder_blocked']} "
+        f"formal_gap={payload['n_formal_gap_scaffold_blocked']} "
         f"nonlean={payload['n_non_lean_skeleton']} "
         f"all_ok={payload['all_ok']}"
     )

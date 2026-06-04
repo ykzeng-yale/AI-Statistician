@@ -72,6 +72,23 @@ def test_local_proof_state_adapter_emits_prover_feedback(
             "theorem_skeleton": "skeleton",
             "queries": ["name-only theorem skeleton"],
         },
+        {
+            "refinement_item_id": "refinement:formal_gap",
+            "goal_plan_id": "goal:test",
+            "route_id": "route:test",
+            "display_name": display_name,
+            "hook_kind": "proof_state_feedback",
+            "refinement_stage": "proof",
+            "owner_agent": "proof",
+            "target_primitives": ["nuisance_correctness_cases"],
+            "theorem_skeleton": (
+                "/- Status: FORMAL_GAP. -/\n"
+                "theorem probe_frontier_gap "
+                "(h_frontier_missing_nuisance_correctness_cases : True) : True := by\n"
+                "  exact h_frontier_missing_nuisance_correctness_cases"
+            ),
+            "queries": ["formal gap theorem skeleton"],
+        },
     ]
     (queue_dir / "formalization_gap_planner_refinement_queue_manifest.json").write_text(
         json.dumps({"rows": queue_rows}, indent=2),
@@ -107,10 +124,11 @@ def test_local_proof_state_adapter_emits_prover_feedback(
     )
 
     assert payload["all_ok"]
-    assert payload["n_local_proof_state_responses"] == 2
-    assert payload["n_merged_responses"] == 3
+    assert payload["n_local_proof_state_responses"] == 3
+    assert payload["n_merged_responses"] == 4
     assert payload["n_local_lean_failed"] == 1
     assert payload["n_non_lean_skeleton"] == 1
+    assert payload["n_formal_gap_scaffold_blocked"] == 1
     by_item = {row["refinement_item_id"]: row for row in payload["responses"]}
     response = by_item["refinement:proof"]
     assert response["attempt_status"] == "local_lean_failed"
@@ -121,6 +139,10 @@ def test_local_proof_state_adapter_emits_prover_feedback(
     assert name_only["attempt_status"] == "non_lean_skeleton"
     assert name_only["route_revision_recommended"]
     assert any("not a Lean command" in item for item in name_only["prover_diagnostics"])
+    formal_gap = by_item["refinement:formal_gap"]
+    assert formal_gap["attempt_status"] == "formal_gap_scaffold_blocked"
+    assert formal_gap["route_revision_recommended"]
+    assert any("h_frontier_missing" in item for item in formal_gap["prover_diagnostics"])
 
     evidence_payload = export_formalization_gap_planner_refinement_evidence(
         queue_dir,
@@ -128,5 +150,5 @@ def test_local_proof_state_adapter_emits_prover_feedback(
         response_jsonl=adapter_dir / "formalization_gap_planner_refinement_evidence_responses.jsonl",
     )
     assert evidence_payload["all_ok"]
-    assert evidence_payload["n_contract_ok"] == 3
-    assert evidence_payload["n_route_revision_proposals"] == 2
+    assert evidence_payload["n_contract_ok"] == 4
+    assert evidence_payload["n_route_revision_proposals"] == 3
