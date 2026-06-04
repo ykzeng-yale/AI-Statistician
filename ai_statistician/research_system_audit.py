@@ -123,6 +123,7 @@ from .formal_source_retrieval_benchmark import (
     run_formal_source_retrieval_benchmark,
 )
 from .lean_rag_package_audit import (
+    apply_lean_rag_source_registry_expansion,
     audit_lean_rag_package,
     preflight_lean_rag_source_registry_expansion,
     stage_lean_rag_source_registry_expansion,
@@ -314,6 +315,27 @@ async def run_research_system_audit(
     stage_start = _record_stage(
         stage_timings,
         "lean_rag_source_registry_expansion_preflight",
+        stage_start,
+    )
+    lean_rag_source_registry_expansion_apply_manifest = (
+        apply_lean_rag_source_registry_expansion(
+            out_dir / "lean_rag_source_registry_expansion_apply",
+            expansion_manifest=(
+                out_dir
+                / "lean_rag_source_registry_expansion"
+                / "source_registry_expansion_manifest.json"
+            ),
+            preflight_manifest=(
+                out_dir
+                / "lean_rag_source_registry_expansion_preflight"
+                / "source_registry_expansion_preflight_manifest.json"
+            ),
+            dry_run=True,
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "lean_rag_source_registry_expansion_apply",
         stage_start,
     )
 
@@ -1141,6 +1163,14 @@ async def run_research_system_audit(
             ]
             or int(lean_rag_source_registry_expansion_manifest.get("n_staged", 0)) == 0
         ),
+        "lean_rag_source_registry_expansion_apply": bool(
+            (
+                lean_rag_source_registry_expansion_apply_manifest["apply_ready"]
+                and lean_rag_source_registry_expansion_apply_manifest["dry_run"]
+                and not lean_rag_source_registry_expansion_apply_manifest["applied"]
+            )
+            or int(lean_rag_source_registry_expansion_manifest.get("n_staged", 0)) == 0
+        ),
         "fresh_holdout_frontier_audit": bool(fresh_holdout_manifest["all_ok"]),
         "research_algorithm_audit": bool(algorithm_manifest["all_ok"]),
         "algorithm_simulation_stress_audit": bool(algorithm_simulation_stress_manifest["all_ok"]),
@@ -1700,6 +1730,37 @@ async def run_research_system_audit(
             "lean_rag_source_registry_expansion_preflight_hard_blockers": lean_rag_source_registry_expansion_preflight_manifest[
                 "n_hard_blockers"
             ],
+            "lean_rag_source_registry_expansion_apply_ready": lean_rag_source_registry_expansion_apply_manifest[
+                "apply_ready"
+            ],
+            "lean_rag_source_registry_expansion_apply_dry_run": lean_rag_source_registry_expansion_apply_manifest[
+                "dry_run"
+            ],
+            "lean_rag_source_registry_expansion_apply_applied": lean_rag_source_registry_expansion_apply_manifest[
+                "applied"
+            ],
+            "lean_rag_source_registry_expansion_apply_errors": len(
+                lean_rag_source_registry_expansion_apply_manifest.get("errors", ())
+            ),
+            "lean_rag_source_registry_expansion_apply_warnings": len(
+                lean_rag_source_registry_expansion_apply_manifest.get("warnings", ())
+            ),
+            "lean_rag_source_registry_expansion_apply_current_fingerprint_match": (
+                lean_rag_source_registry_expansion_apply_manifest.get(
+                    "source_registry_fingerprint_before_expected"
+                )
+                == lean_rag_source_registry_expansion_apply_manifest.get(
+                    "source_registry_fingerprint_before_actual"
+                )
+            ),
+            "lean_rag_source_registry_expansion_apply_staged_fingerprint_match": (
+                lean_rag_source_registry_expansion_apply_manifest.get(
+                    "staged_source_registry_fingerprint_expected"
+                )
+                == lean_rag_source_registry_expansion_apply_manifest.get(
+                    "staged_source_registry_fingerprint_actual"
+                )
+            ),
             "research_ready_with_gaps": benchmark_manifest["n_ready_with_gaps"],
             "research_simulation_flagged": benchmark_manifest["n_simulation_flagged"],
             "research_formal_blocked": benchmark_manifest["n_formal_blocked"],
@@ -3332,6 +3393,16 @@ async def run_research_system_audit(
                 out_dir
                 / "lean_rag_source_registry_expansion_preflight"
                 / "source_registry_expansion_preflight.md"
+            ),
+            "lean_rag_source_registry_expansion_apply": str(
+                out_dir
+                / "lean_rag_source_registry_expansion_apply"
+                / "source_registry_expansion_apply_manifest.json"
+            ),
+            "lean_rag_source_registry_expansion_apply_report": str(
+                out_dir
+                / "lean_rag_source_registry_expansion_apply"
+                / "source_registry_expansion_apply.md"
             ),
             "fresh_holdout_frontier_audit": str(
                 out_dir / "fresh_holdout_frontier_audit" / "fresh_holdout_frontier_manifest.json"

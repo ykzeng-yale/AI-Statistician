@@ -15564,6 +15564,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["gates"]["lean_rag_dependency_health"])
         self.assertTrue(payload["gates"]["lean_rag_source_registry_expansion"])
         self.assertTrue(payload["gates"]["lean_rag_source_registry_expansion_preflight"])
+        self.assertTrue(payload["gates"]["lean_rag_source_registry_expansion_apply"])
         self.assertTrue(payload["gates"]["fresh_holdout_frontier_audit"])
         self.assertTrue(payload["gates"]["research_algorithm_audit"])
         self.assertTrue(payload["gates"]["algorithm_simulation_stress_audit"])
@@ -15920,6 +15921,24 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             payload["counts"]["lean_rag_source_registry_expansion_preflight_hard_blockers"],
             0,
         )
+        self.assertTrue(payload["counts"]["lean_rag_source_registry_expansion_apply_ready"])
+        self.assertTrue(payload["counts"]["lean_rag_source_registry_expansion_apply_dry_run"])
+        self.assertFalse(payload["counts"]["lean_rag_source_registry_expansion_apply_applied"])
+        self.assertEqual(payload["counts"]["lean_rag_source_registry_expansion_apply_errors"], 0)
+        self.assertGreaterEqual(
+            payload["counts"]["lean_rag_source_registry_expansion_apply_warnings"],
+            0,
+        )
+        self.assertTrue(
+            payload["counts"][
+                "lean_rag_source_registry_expansion_apply_current_fingerprint_match"
+            ]
+        )
+        self.assertTrue(
+            payload["counts"][
+                "lean_rag_source_registry_expansion_apply_staged_fingerprint_match"
+            ]
+        )
         self.assertIn("timings", payload)
         self.assertGreater(payload["timings"]["total_elapsed_ms"], 0)
         self.assertTrue(payload["timings"]["stages"])
@@ -15937,6 +15956,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "lean_rag_dependency_health",
             "lean_rag_source_registry_expansion",
             "lean_rag_source_registry_expansion_preflight",
+            "lean_rag_source_registry_expansion_apply",
             "primitive_source_coverage_audit",
             "formal_verifier_queue",
             "goal_conditioned_minimal_formalization_plan",
@@ -17648,6 +17668,10 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(Path(payload["artifacts"]["lean_rag_source_registry_expansion_preflight"]).exists())
         self.assertTrue(
             Path(payload["artifacts"]["lean_rag_source_registry_expansion_preflight_report"]).exists()
+        )
+        self.assertTrue(Path(payload["artifacts"]["lean_rag_source_registry_expansion_apply"]).exists())
+        self.assertTrue(
+            Path(payload["artifacts"]["lean_rag_source_registry_expansion_apply_report"]).exists()
         )
         self.assertTrue(Path(payload["artifacts"]["fresh_holdout_frontier_audit"]).exists())
         self.assertTrue(Path(payload["artifacts"]["fresh_holdout_frontier_report"]).exists())
