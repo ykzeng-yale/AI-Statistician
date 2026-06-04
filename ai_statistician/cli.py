@@ -133,6 +133,9 @@ from .formal_verifier_agentic_proof_attempt_population import (
 from .formal_verifier_agentic_proof_execution_queue import (
     export_formal_verifier_agentic_proof_execution_queue,
 )
+from .formal_verifier_agentic_proof_execution_materializer import (
+    export_formal_verifier_agentic_proof_execution_materializer,
+)
 from .formal_verifier_replay_repair import export_formal_verifier_replay_repair_packets
 from .formal_source_graph import audit_formal_source_graph
 from .formal_source_index import (
@@ -2586,6 +2589,39 @@ def _formal_verifier_agentic_proof_execution_queue(
     print(
         f"markdown report written to "
         f"{(Path(args.out) / 'formal_verifier_agentic_proof_execution_queue.md').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formal_verifier_agentic_proof_execution_materializer(
+    args: argparse.Namespace,
+) -> int:
+    payload = export_formal_verifier_agentic_proof_execution_materializer(
+        Path(args.formal_verifier_agentic_proof_execution_queue_dir),
+        Path(args.out),
+        overwrite=args.overwrite,
+    )
+    print("\nAI Statistical Theory Lab Formal Verifier Agentic Proof Execution Materializer")
+    print("=" * 72)
+    print(
+        f"rows={payload['n_ok']}/{payload['n_materializer_rows']} "
+        f"artifacts={payload['n_materialized_artifacts']} "
+        f"new={payload['n_new_artifacts']} "
+        f"live_goal_ready={payload['n_live_goal_location_ready']} "
+        f"kernel={payload['n_kernel_verified']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nagentic proof execution materializer manifest written to "
+        f"{(Path(args.out) / 'formal_verifier_agentic_proof_execution_materializer_manifest.json').resolve()}"
+    )
+    print(
+        f"agentic proof execution materializer jsonl written to "
+        f"{(Path(args.out) / 'formal_verifier_agentic_proof_execution_materializer.jsonl').resolve()}"
+    )
+    print(
+        f"markdown report written to "
+        f"{(Path(args.out) / 'formal_verifier_agentic_proof_execution_materializer.md').resolve()}"
     )
     return 0 if payload["all_ok"] else 1
 
@@ -5341,6 +5377,29 @@ def build_parser() -> argparse.ArgumentParser:
     )
     formal_verifier_agentic_proof_execution_queue.set_defaults(
         func=_formal_verifier_agentic_proof_execution_queue
+    )
+
+    formal_verifier_agentic_proof_execution_materializer = sub.add_parser(
+        "formal-verifier-agentic-proof-execution-materializer",
+        help="materialize bounded Lean artifacts from agentic proof execution rows",
+    )
+    formal_verifier_agentic_proof_execution_materializer.add_argument(
+        "--formal-verifier-agentic-proof-execution-queue-dir",
+        required=True,
+        help="directory containing formal_verifier_agentic_proof_execution_queue_manifest.json",
+    )
+    formal_verifier_agentic_proof_execution_materializer.add_argument(
+        "--out",
+        default="runs/formal_verifier_agentic_proof_execution_materializer",
+        help="formal-verifier agentic proof execution materializer output directory",
+    )
+    formal_verifier_agentic_proof_execution_materializer.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="rewrite existing candidate artifacts instead of reusing them",
+    )
+    formal_verifier_agentic_proof_execution_materializer.set_defaults(
+        func=_formal_verifier_agentic_proof_execution_materializer
     )
 
     rag_collaboration_export = sub.add_parser(

@@ -100,6 +100,9 @@ from ai_statistician.formal_verifier_agentic_proof_attempt_population import (
 from ai_statistician.formal_verifier_agentic_proof_execution_queue import (
     export_formal_verifier_agentic_proof_execution_queue,
 )
+from ai_statistician.formal_verifier_agentic_proof_execution_materializer import (
+    export_formal_verifier_agentic_proof_execution_materializer,
+)
 from ai_statistician.formal_verifier_replay_repair import export_formal_verifier_replay_repair_packets
 from ai_statistician.formalization_delta_plan import build_formalization_delta_plan
 from ai_statistician.formalization_target_audit import audit_formalization_targets
@@ -3160,6 +3163,106 @@ class ProofBankTests(unittest.TestCase):
 
 
 class SystemTests(unittest.TestCase):
+    def test_agentic_proof_execution_materializer_creates_live_goal_location(self) -> None:
+        root = Path("runs/test_formal_verifier_agentic_proof_execution_materializer")
+        attempt_dir = root / "attempt_population"
+        queue_dir = root / "execution_queue"
+        materializer_dir = root / "execution_materializer"
+        if root.exists():
+            shutil.rmtree(root)
+        attempt_dir.mkdir(parents=True)
+        (
+            attempt_dir
+            / "formal_verifier_agentic_proof_attempt_population_manifest.json"
+        ).write_text(
+            json.dumps(
+                {
+                    "rows": [
+                        {
+                            "population_entry_id": "population:test",
+                            "safety_policy_id": "safety:test",
+                            "candidate_evaluation_id": "candidate:test",
+                            "strategy_id": "strategy:test",
+                            "followup_id": "followup:test",
+                            "residual_obligation_id": "residual:test",
+                            "display_name": "causal_ate_aipw:kernel_overlay_composition",
+                            "target_theorem_name": "formal:causal_ate_aipw:causal_identification",
+                            "candidate_bridge_lemma_name": "compose_kernel_overlay_subclaims",
+                            "residual_gap": "potential_outcome_consistency, conditional_exchangeability",
+                            "action_class": "compose_kernel_overlay_verified_subclaims",
+                            "generation_mode": "residual_patch_candidate_generation",
+                            "population_bucket": "bounded_patch_attempt",
+                            "goal_cache_key": "agentic_goal_cache:test",
+                            "candidate_database_key": "candidate_database:test",
+                            "candidate_lineage_key": "candidate_lineage:test",
+                            "proof_sketch_population_key": "proof_sketch_population:test",
+                            "kernel_overlay_context": {
+                                "already_kernel_verified_subclaims": [
+                                    "conditional_expectation",
+                                    "positivity",
+                                ],
+                                "target_blockers": [
+                                    "potential_outcome_consistency",
+                                    "conditional_exchangeability",
+                                ],
+                            },
+                            "attempt_status": "READY_FOR_POPULATION_SEEDED_ATTEMPT",
+                            "selection_weight": 10,
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        queue_before = export_formal_verifier_agentic_proof_execution_queue(
+            attempt_dir,
+            queue_dir,
+        )
+        self.assertTrue(queue_before["all_ok"])
+        self.assertEqual(queue_before["n_live_goal_requested"], 1)
+        self.assertEqual(queue_before["n_live_goal_location_ready"], 0)
+        self.assertEqual(queue_before["n_needs_target_location"], 1)
+
+        materialized = export_formal_verifier_agentic_proof_execution_materializer(
+            queue_dir,
+            materializer_dir,
+        )
+        self.assertTrue(materialized["all_ok"])
+        self.assertEqual(materialized["n_materialized_artifacts"], 1)
+        self.assertEqual(materialized["n_live_goal_location_ready"], 1)
+        self.assertEqual(materialized["n_kernel_verified"], 0)
+        materialized_row = materialized["rows"][0]
+        self.assertTrue(Path(materialized_row["candidate_artifact_path"]).exists())
+        self.assertTrue(Path(materialized_row["execution_transcript_path"]).exists())
+        self.assertGreater(materialized_row["target_lean_line"], 0)
+        source = Path(materialized_row["candidate_artifact_path"]).read_text()
+        self.assertIn("-- AI_STAT_EVOLVE_BLOCK_START", source)
+        self.assertIn("exact True.intro", source)
+        self.assertNotIn("sorry", source)
+        self.assertNotIn("admit", source)
+
+        queue_after = export_formal_verifier_agentic_proof_execution_queue(
+            attempt_dir,
+            queue_dir,
+        )
+        self.assertEqual(queue_after["n_live_goal_location_ready"], 1)
+        self.assertEqual(queue_after["n_needs_target_location"], 0)
+        queue_after_row = queue_after["rows"][0]
+        self.assertTrue(queue_after_row["live_goal_location_ready"])
+        self.assertEqual(
+            queue_after_row["execution_preflight_status"],
+            "READY_FOR_LIVE_LEAN_GOAL",
+        )
+        self.assertEqual(
+            queue_after_row["target_location_preflight"]["target_lean_file"],
+            materialized_row["candidate_artifact_path"],
+        )
+        self.assertEqual(
+            queue_after_row["target_location_preflight"]["target_lean_line"],
+            materialized_row["target_lean_line"],
+        )
+
     def test_lean_rag_package_audit_loads_registry_seed_queries_and_manifest(self) -> None:
         root = Path("runs/test_lean_rag_package_fixture")
         package = root / "lean_rag"

@@ -467,6 +467,17 @@ def _target_location_preflight(
         or context_location.get("imports")
         or []
     )
+    candidate_exists = candidate_artifact_path.exists()
+    if candidate_exists and (not target_lean_file or target_lean_line <= 0):
+        inferred = _infer_candidate_artifact_location(candidate_artifact_path)
+        if not target_lean_file:
+            target_lean_file = str(candidate_artifact_path)
+        if target_lean_line <= 0:
+            target_lean_line = int(inferred.get("target_lean_line", 0))
+        if target_lean_column <= 0:
+            target_lean_column = int(inferred.get("target_lean_column", 0))
+        if not target_lean_declaration:
+            target_lean_declaration = str(inferred.get("target_lean_declaration", ""))
     live_goal_requested = "lean_goal" in proof_state_provider_plan
     missing: list[str] = []
     if live_goal_requested:
@@ -474,7 +485,6 @@ def _target_location_preflight(
             missing.append("target_lean_file")
         if target_lean_line <= 0:
             missing.append("target_lean_line")
-    candidate_exists = candidate_artifact_path.exists()
     if not live_goal_requested:
         status = "LIVE_GOAL_NOT_REQUIRED"
         next_step = "run the non-goal execution plan for this row"
@@ -505,6 +515,37 @@ def _target_location_preflight(
             "Target-location preflight is execution routing only; it is not "
             "theorem proof evidence."
         ),
+    }
+
+
+def _infer_candidate_artifact_location(path: Path) -> dict[str, object]:
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except Exception:
+        return {
+            "target_lean_line": 0,
+            "target_lean_column": 0,
+            "target_lean_declaration": "",
+        }
+    target_line = 0
+    target_declaration = ""
+    for index, line in enumerate(lines, start=1):
+        stripped = line.strip()
+        if stripped == "-- AI_STAT_EVOLVE_BLOCK_START" and index < len(lines):
+            target_line = index + 1
+        if not target_declaration and stripped.startswith(("theorem ", "lemma ")):
+            parts = stripped.split()
+            if len(parts) >= 2:
+                target_declaration = parts[1]
+    if target_line <= 0:
+        for index, line in enumerate(lines, start=1):
+            if ":= by" in line:
+                target_line = min(index + 1, len(lines))
+                break
+    return {
+        "target_lean_line": target_line,
+        "target_lean_column": 3 if target_line > 0 else 0,
+        "target_lean_declaration": target_declaration,
     }
 
 
