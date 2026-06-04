@@ -10,7 +10,7 @@ from typing import Any
 from .fingerprint import stable_hash
 
 
-FORMALIZATION_GAP_PLANNER_REFINEMENT_EVIDENCE_SCHEMA_VERSION = 1
+FORMALIZATION_GAP_PLANNER_REFINEMENT_EVIDENCE_SCHEMA_VERSION = 2
 PROOF_EVIDENCE_STATUS = "FORMALIZATION_GAP_PLANNER_REFINEMENT_EVIDENCE_NOT_PROOF_EVIDENCE"
 PROOF_EVIDENCE_BOUNDARY = (
     "Formalization gap planner refinement evidence records literature search, "
@@ -42,6 +42,8 @@ class FormalizationGapPlannerRefinementEvidenceRow:
     coverage_updates: dict[str, str]
     prover_diagnostics: tuple[str, ...]
     residual_goals: tuple[str, ...]
+    prover_attempt_status: str
+    prover_diagnostic_signature: str
     route_revision_summary: str
     revised_selected_primitives: tuple[str, ...]
     revised_delta_primitives: tuple[str, ...]
@@ -88,6 +90,9 @@ def export_formalization_gap_planner_refinement_evidence(
     ]
     by_hook_kind = Counter(row.hook_kind for row in rows)
     by_acceptance_status = Counter(row.acceptance_status for row in rows)
+    by_prover_attempt_status = Counter(
+        row.prover_attempt_status for row in rows if row.prover_attempt_status
+    )
     route_revision_proposals = [
         _route_revision_proposal(row)
         for row in rows
@@ -125,6 +130,13 @@ def export_formalization_gap_planner_refinement_evidence(
         "errors": errors,
         "by_hook_kind": dict(sorted(by_hook_kind.items())),
         "by_acceptance_status": dict(sorted(by_acceptance_status.items())),
+        "by_prover_attempt_status": dict(sorted(by_prover_attempt_status.items())),
+        "n_prover_attempt_status_records": sum(
+            1 for row in rows if row.prover_attempt_status
+        ),
+        "n_distinct_prover_diagnostic_signatures": len(
+            {row.prover_diagnostic_signature for row in rows if row.prover_diagnostic_signature}
+        ),
         "rows": [asdict(row) for row in rows],
         "route_revision_proposals": route_revision_proposals,
         "evidence_fingerprint": stable_hash([asdict(row) for row in rows]),
@@ -194,6 +206,8 @@ def _evidence_row(
             coverage_updates={},
             prover_diagnostics=(),
             residual_goals=(),
+            prover_attempt_status="",
+            prover_diagnostic_signature="",
             route_revision_summary="",
             revised_selected_primitives=(),
             revised_delta_primitives=(),
@@ -231,6 +245,7 @@ def _evidence_row(
     coverage_updates = _coverage_updates(response.get("coverage_updates", {}), errors)
     prover_diagnostics = _str_tuple(response.get("prover_diagnostics", []))
     residual_goals = _str_tuple(response.get("residual_goals", []))
+    prover_attempt_status = str(response.get("attempt_status", ""))
     route_revision_summary = str(response.get("route_revision_summary", ""))
     revised_selected_primitives = _str_tuple(
         response.get("revised_selected_primitives", [])
@@ -242,6 +257,12 @@ def _evidence_row(
     revised_lean_nodes = _dict_tuple(response.get("revised_lean_realization_dag_nodes", []))
     route_revision_recommended = bool(response.get("route_revision_recommended", False))
     route_revision_reasons = _str_tuple(response.get("route_revision_reasons", []))
+    prover_diagnostic_signature = _prover_diagnostic_signature(
+        prover_attempt_status,
+        prover_diagnostics,
+        residual_goals,
+        route_revision_reasons,
+    )
     if "route_revision_recommended" in response and not isinstance(
         response.get("route_revision_recommended"),
         bool,
@@ -301,6 +322,8 @@ def _evidence_row(
         coverage_updates=coverage_updates,
         prover_diagnostics=prover_diagnostics,
         residual_goals=residual_goals,
+        prover_attempt_status=prover_attempt_status,
+        prover_diagnostic_signature=prover_diagnostic_signature,
         route_revision_summary=route_revision_summary,
         revised_selected_primitives=revised_selected_primitives,
         revised_delta_primitives=revised_delta_primitives,
@@ -337,6 +360,8 @@ def _route_revision_proposal(
         "source_refs": row.source_refs,
         "lean_declaration_hits": row.lean_declaration_hits,
         "residual_goals": row.residual_goals,
+        "prover_attempt_status": row.prover_attempt_status,
+        "prover_diagnostic_signature": row.prover_diagnostic_signature,
         "required_gate": (
             "rerun goal-conditioned minimal formalization planning and replay "
             "before treating this revision as proof-relevant"
@@ -458,6 +483,24 @@ def _evidence_id(refinement_item_id: str, response: dict[str, Any] | None) -> st
     )[:16]
 
 
+def _prover_diagnostic_signature(
+    attempt_status: str,
+    diagnostics: tuple[str, ...],
+    residual_goals: tuple[str, ...],
+    route_revision_reasons: tuple[str, ...],
+) -> str:
+    if not attempt_status and not diagnostics and not residual_goals:
+        return ""
+    return "prover_diagnostic_signature:" + stable_hash(
+        [
+            attempt_status,
+            tuple(item[:200] for item in diagnostics[:8]),
+            tuple(item[:200] for item in residual_goals[:8]),
+            tuple(item[:200] for item in route_revision_reasons[:8]),
+        ]
+    )[:16]
+
+
 def _markdown_report(payload: dict[str, object]) -> str:
     lines = [
         "# Formalization Gap Planner Refinement Evidence",
@@ -468,6 +511,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Awaiting tool response: {payload.get('n_awaiting_tool_response')}",
         f"- Route revision recommended: {payload.get('n_route_revision_recommended')}",
         f"- Route revision proposals: {payload.get('n_route_revision_proposals')}",
+        f"- Prover attempt statuses: {payload.get('by_prover_attempt_status')}",
         f"- All OK: {payload.get('all_ok')}",
         "",
         "## Boundary",
@@ -483,6 +527,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         lines.append(
             f"- `{row.get('display_name')}` {row.get('hook_kind')} "
             f"status={row.get('acceptance_status')} "
+            f"attempt={row.get('prover_attempt_status') or 'n/a'} "
             f"revision={row.get('route_revision_recommended')}"
         )
         if row.get("route_revision_reasons"):

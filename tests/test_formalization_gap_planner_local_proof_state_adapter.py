@@ -152,3 +152,25 @@ def test_local_proof_state_adapter_emits_prover_feedback(
     assert evidence_payload["all_ok"]
     assert evidence_payload["n_contract_ok"] == 4
     assert evidence_payload["n_route_revision_proposals"] == 3
+    assert evidence_payload["by_prover_attempt_status"] == {
+        "formal_gap_scaffold_blocked": 1,
+        "local_lean_failed": 1,
+        "non_lean_skeleton": 1,
+    }
+    evidence_by_item = {
+        row["refinement_item_id"]: row for row in evidence_payload["rows"]
+    }
+    formal_gap_evidence = evidence_by_item["refinement:formal_gap"]
+    assert (
+        formal_gap_evidence["prover_attempt_status"]
+        == "formal_gap_scaffold_blocked"
+    )
+    assert formal_gap_evidence["prover_diagnostic_signature"]
+    proposals_by_item = {
+        row["refinement_item_id"]: row
+        for row in evidence_payload["route_revision_proposals"]
+    }
+    assert (
+        proposals_by_item["refinement:formal_gap"]["prover_attempt_status"]
+        == "formal_gap_scaffold_blocked"
+    )
