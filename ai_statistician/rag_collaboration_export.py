@@ -1462,6 +1462,7 @@ def export_rag_collaboration_manifest(
             "Only proof-audit rows with kernel_verified=true are proof evidence.",
             "Standalone kernel proof-audit overlays prove only listed obligations, not the source system-audit proof count.",
             "Kernel-overlay alignment is subclaim coverage guidance, not proof of enclosing theorem routes.",
+            "Kernel-overlay composition agentic seeds are proof-worker routing artifacts, not theorem proof evidence.",
             "Simulation diagnostics are empirical evidence, not theorem proofs.",
             "FormalVerifier replay rows are executable task/training artifacts, not theorem proof evidence.",
             "FormalVerifier replay attempts are proof evidence only when kernel_verified=true and placeholders were removed.",
@@ -1495,6 +1496,8 @@ def export_rag_collaboration_manifest(
     payload["handoff_fingerprint"] = stable_hash(
         {
             "proof_evidence": payload["proof_evidence"],
+            "kernel_proof_evidence_overlays": payload["kernel_proof_evidence_overlays"],
+            "kernel_proof_overlay_alignment": payload["kernel_proof_overlay_alignment"],
             "rag_provider_evidence": payload["rag_provider_evidence"],
             "formal_capacity_queue": payload["formal_capacity_queue"],
             "theorem_composition_handoff": payload["theorem_composition_handoff"],
@@ -1688,6 +1691,10 @@ def _kernel_proof_overlay_alignment(
         composition_rows,
         max_rows=max_rows,
     )
+    composition_agentic_seeds = _kernel_overlay_composition_agentic_seed_items(
+        composition_work_items,
+        max_rows=max_rows,
+    )
     return {
         "current_fingerprint_kernel_obligations": len(current_kernel_ids),
         "theorem_composition_packets_with_kernel_overlay": len(composition_rows),
@@ -1695,6 +1702,15 @@ def _kernel_proof_overlay_alignment(
             composition_kernel_obligations
         ),
         "kernel_overlay_composition_work_items": len(composition_work_items),
+        "kernel_overlay_composition_agentic_seeds": len(composition_agentic_seeds),
+        "kernel_overlay_composition_agentic_seeds_ready": sum(
+            1
+            for row in composition_agentic_seeds
+            if row.get("seed_status") == "READY_FOR_AGENTIC_COMPOSITION_ATTEMPT"
+        ),
+        "kernel_overlay_composition_agentic_seeds_with_source_queries": sum(
+            1 for row in composition_agentic_seeds if row.get("source_discovery_queries")
+        ),
         "kernel_overlay_composition_work_items_exact_subclaims_fully_matched": sum(
             1
             for row in composition_work_items
@@ -1707,6 +1723,7 @@ def _kernel_proof_overlay_alignment(
         "formal_verifier_replay_tasks_with_kernel_overlay": len(replay_rows),
         "theorem_composition_kernel_overlay_preview": composition_rows[:max_rows],
         "kernel_overlay_composition_work_item_preview": composition_work_items,
+        "kernel_overlay_composition_agentic_seed_preview": composition_agentic_seeds,
         "formal_verifier_queue_kernel_overlay_preview": queue_rows[:max_rows],
         "formal_verifier_replay_kernel_overlay_preview": replay_rows[:max_rows],
         "proof_evidence_boundary": (
@@ -1769,6 +1786,109 @@ def _kernel_overlay_composition_work_items(
         )
     )
     return work_items[:max_rows]
+
+
+def _kernel_overlay_composition_agentic_seed_items(
+    work_items: list[dict[str, object]],
+    *,
+    max_rows: int,
+) -> list[dict[str, object]]:
+    seeds: list[dict[str, object]] = []
+    for item in work_items:
+        work_item_id = str(item.get("work_item_id", ""))
+        source_claim_id = str(item.get("source_claim_id", ""))
+        question_id = str(item.get("question_id", ""))
+        matched = _str_list(item.get("already_kernel_verified_subclaims", []))
+        unmatched = _str_list(item.get("unmatched_exact_proof_bank_obligations", []))
+        unresolved = _str_list(item.get("unresolved_primitives", []))
+        blockers = [*unmatched, *unresolved]
+        goal_cache_key = "kernel_overlay_composition_goal:" + stable_hash(
+            [source_claim_id, question_id, matched, blockers]
+        )[:16]
+        candidate_database_key = "kernel_overlay_composition_candidate:" + stable_hash(
+            [work_item_id, goal_cache_key, blockers]
+        )[:16]
+        seed_id = "kernel_overlay_composition_agentic_seed:" + stable_hash(
+            [work_item_id, candidate_database_key, goal_cache_key]
+        )[:16]
+        source_queries = tuple(
+            f"{question_id} {blocker} Lean theorem proof source".strip()
+            for blocker in blockers
+            if blocker
+        )
+        seeds.append(
+            {
+                "seed_id": seed_id,
+                "work_item_id": work_item_id,
+                "packet_id": item.get("packet_id"),
+                "source_claim_id": source_claim_id,
+                "question_id": question_id,
+                "problem_class": item.get("problem_class"),
+                "seed_status": "READY_FOR_AGENTIC_COMPOSITION_ATTEMPT",
+                "agentic_strategy_kind": "kernel_overlay_composition_patch_seed",
+                "goal_cache_key": goal_cache_key,
+                "candidate_database_key": candidate_database_key,
+                "proof_sketch_population_key": (
+                    "kernel_overlay_composition_sketch:"
+                    + stable_hash([goal_cache_key, matched])[:16]
+                ),
+                "already_kernel_verified_subclaims": matched,
+                "target_blockers": blockers,
+                "source_discovery_queries": source_queries,
+                "required_live_tools": (
+                    "lean_goal",
+                    "lean_diagnostic_messages",
+                    "lean_hover",
+                    "lean_local_search",
+                    "lean_multi_attempt",
+                ),
+                "evaluator_gates": (
+                    "bounded-edit statement/header guard",
+                    "source discovery for unmatched blockers",
+                    "sorry/axiom/placeholder scan",
+                    "AXLE/local Lean composed theorem verification",
+                ),
+                "bounded_edit_contract": {
+                    "bounded_edit_required": True,
+                    "start_marker": "-- AI_STAT_EVOLVE_BLOCK_START",
+                    "end_marker": "-- AI_STAT_EVOLVE_BLOCK_END",
+                    "editable_scope": (
+                        "composed theorem proof body plus minimal blocker bridge "
+                        "lemmas only"
+                    ),
+                    "forbidden_tokens": ["sorry", "admit", "axiom"],
+                    "anti_cheat_checks": [
+                        "edit_outside_evolve_block",
+                        "target_restated_as_helper_lemma",
+                        "helper_lemma_contains_placeholder",
+                        "hallucinated_known_source_lemma",
+                    ],
+                },
+                "generation_contract": (
+                    "reuse already_kernel_verified_subclaims as subclaim evidence only",
+                    "materialize every target_blocker before claiming the source theorem",
+                    "preserve theorem statement, imports, namespace, and declaration header",
+                    "submit a non-placeholder composed theorem to AXLE/local Lean",
+                ),
+                "promotion_gate": item.get("promotion_gate", ""),
+                "proof_evidence_status": (
+                    "KERNEL_OVERLAY_COMPOSITION_AGENTIC_SEED_NOT_PROOF_EVIDENCE"
+                ),
+                "proof_evidence_boundary": (
+                    "This agentic seed is a proof-worker routing artifact, not proof "
+                    "evidence. It becomes proof-relevant only after the composed "
+                    "non-placeholder theorem passes AXLE/local Lean."
+                ),
+            }
+        )
+    seeds.sort(
+        key=lambda seed: (
+            len(seed.get("target_blockers", []) or []),
+            str(seed.get("source_claim_id", "")),
+            str(seed.get("seed_id", "")),
+        )
+    )
+    return seeds[:max_rows]
 
 
 def _kernel_overlay_queue_alignment_rows(
@@ -2945,7 +3065,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Kernel overlay alignment: `{kernel_alignment.get('theorem_composition_packets_with_kernel_overlay')}` composition packets, "
         f"`{kernel_alignment.get('formal_verifier_queue_rows_with_kernel_overlay')}` queue rows, "
         f"`{kernel_alignment.get('formal_verifier_replay_tasks_with_kernel_overlay')}` replay tasks, "
-        f"`{kernel_alignment.get('kernel_overlay_composition_work_items')}` composition work items",
+        f"`{kernel_alignment.get('kernel_overlay_composition_work_items')}` composition work items, "
+        f"`{kernel_alignment.get('kernel_overlay_composition_agentic_seeds')}` agentic seeds",
         f"- Lean RAG active: `{rag.get('lean_rag_dependency_graph_enabled')}`",
         f"- Lean RAG DB: `{rag.get('lean_rag_dependency_graph_path')}`",
         f"- Lean RAG DB health: `{rag.get('lean_rag_dependency_health_status')}` "
@@ -3121,6 +3242,32 @@ def _markdown_report(payload: dict[str, object]) -> str:
         lines.append(f"  kernel subclaims: {matched}")
         lines.append(f"  unmatched exact obligations: {unmatched}")
         lines.append(f"  unresolved primitives: {unresolved}")
+        lines.append(f"  gate: {row.get('promotion_gate')}")
+        lines.append(f"  boundary: {row.get('proof_evidence_boundary')}")
+    lines.extend(["", "### Composition Agentic Seeds", ""])
+    for row in kernel_alignment.get("kernel_overlay_composition_agentic_seed_preview", []):
+        if not isinstance(row, dict):
+            continue
+        subclaims = ", ".join(
+            f"`{item}`" for item in row.get("already_kernel_verified_subclaims", [])
+        ) or "none"
+        blockers = ", ".join(
+            f"`{item}`" for item in row.get("target_blockers", [])
+        ) or "none"
+        tools = ", ".join(f"`{item}`" for item in row.get("required_live_tools", [])) or "none"
+        queries = ", ".join(
+            f"`{item}`" for item in row.get("source_discovery_queries", [])
+        ) or "none"
+        lines.append(
+            f"- `{row.get('seed_id')}` for `{row.get('source_claim_id')}` "
+            f"({row.get('seed_status')}): {row.get('agentic_strategy_kind')}"
+        )
+        lines.append(f"  goal cache key: `{row.get('goal_cache_key')}`")
+        lines.append(f"  candidate DB key: `{row.get('candidate_database_key')}`")
+        lines.append(f"  kernel subclaims: {subclaims}")
+        lines.append(f"  blockers: {blockers}")
+        lines.append(f"  source queries: {queries}")
+        lines.append(f"  live tools: {tools}")
         lines.append(f"  gate: {row.get('promotion_gate')}")
         lines.append(f"  boundary: {row.get('proof_evidence_boundary')}")
     for row in kernel_alignment.get("formal_verifier_queue_kernel_overlay_preview", []):

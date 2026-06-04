@@ -12166,6 +12166,15 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertEqual(alignment["formal_verifier_queue_rows_with_kernel_overlay"], 1)
         self.assertEqual(alignment["formal_verifier_replay_tasks_with_kernel_overlay"], 1)
         self.assertEqual(alignment["kernel_overlay_composition_work_items"], 1)
+        self.assertEqual(alignment["kernel_overlay_composition_agentic_seeds"], 1)
+        self.assertEqual(
+            alignment["kernel_overlay_composition_agentic_seeds_ready"],
+            1,
+        )
+        self.assertEqual(
+            alignment["kernel_overlay_composition_agentic_seeds_with_source_queries"],
+            1,
+        )
         self.assertEqual(
             alignment[
                 "kernel_overlay_composition_work_items_exact_subclaims_fully_matched"
@@ -12189,8 +12198,33 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertEqual(work_item["unresolved_primitives"], ["new_bridge_needed"])
         self.assertEqual(work_item["target_blocker_count"], 1)
         self.assertIn("not proof evidence", work_item["proof_evidence_boundary"])
+        seed = alignment["kernel_overlay_composition_agentic_seed_preview"][0]
+        self.assertEqual(seed["work_item_id"], work_item["work_item_id"])
+        self.assertEqual(
+            seed["agentic_strategy_kind"],
+            "kernel_overlay_composition_patch_seed",
+        )
+        self.assertEqual(seed["seed_status"], "READY_FOR_AGENTIC_COMPOSITION_ATTEMPT")
+        self.assertIn("kernel_overlay_composition_goal", seed["goal_cache_key"])
+        self.assertIn(
+            "kernel_overlay_composition_candidate",
+            seed["candidate_database_key"],
+        )
+        self.assertIn("lean_goal", seed["required_live_tools"])
+        self.assertIn("lean_multi_attempt", seed["required_live_tools"])
+        self.assertIn("new_bridge_needed", " ".join(seed["source_discovery_queries"]))
+        self.assertTrue(seed["bounded_edit_contract"]["bounded_edit_required"])
+        self.assertIn(
+            "target_restated_as_helper_lemma",
+            seed["bounded_edit_contract"]["anti_cheat_checks"],
+        )
+        self.assertIn("not proof evidence", seed["proof_evidence_boundary"])
         self.assertIn(
             "Kernel-overlay alignment is subclaim coverage guidance",
+            " ".join(payload["honesty_boundaries"]),
+        )
+        self.assertIn(
+            "Kernel-overlay composition agentic seeds are proof-worker routing artifacts",
             " ".join(payload["honesty_boundaries"]),
         )
         self.assertIn(
@@ -12199,6 +12233,10 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         )
         self.assertIn(
             "Composition Work Items",
+            (out / "rag_collaboration.md").read_text(),
+        )
+        self.assertIn(
+            "Composition Agentic Seeds",
             (out / "rag_collaboration.md").read_text(),
         )
 
