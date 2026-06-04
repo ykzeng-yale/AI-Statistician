@@ -8925,6 +8925,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "formal_verifier_agentic_proof_candidate_evaluation_queue",
             "formal_verifier_agentic_proof_safety_policy",
             "formal_verifier_agentic_proof_attempt_population",
+            "formalization_gap_planner_proof_state_triage",
             "evaluation_benchmark_guidance",
         ):
             (root / subdir).mkdir(parents=True, exist_ok=True)
@@ -10434,6 +10435,75 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             ),
             encoding="utf-8",
         )
+        (
+            root
+            / "formalization_gap_planner_proof_state_triage"
+            / "formalization_gap_planner_proof_state_triage_manifest.json"
+        ).write_text(
+            json.dumps(
+                {
+                    "n_overlay_rows": 1,
+                    "n_triage_items": 1,
+                    "n_ok": 1,
+                    "n_formal_gap_scaffold_items": 1,
+                    "n_local_lean_failed_items": 0,
+                    "n_non_lean_skeleton_items": 0,
+                    "n_distinct_diagnostic_signatures": 1,
+                    "proof_evidence_boundary": (
+                        "Formalization gap planner proof-state triage rows are route-level work orders, not theorem proof evidence."
+                    ),
+                    "rows": [
+                        {
+                            "triage_item_id": (
+                                "formalization_gap_planner_proof_state_triage:test"
+                            ),
+                            "rank": 1,
+                            "display_name": (
+                                "causal_ate_aipw:aipw_double_robustness:skeleton"
+                            ),
+                            "triage_class": (
+                                "materialize_non_placeholder_theorem"
+                            ),
+                            "owner_agent": "formalization_planner",
+                            "priority_score": 125,
+                            "applied_prover_attempt_statuses": [
+                                "formal_gap_scaffold_blocked"
+                            ],
+                            "applied_prover_diagnostic_signatures": [
+                                "prover_diagnostic_signature:test"
+                            ],
+                            "residual_goals": [
+                                "nuisance_correctness_cases: formal-gap placeholder scaffold"
+                            ],
+                            "added_delta_primitives": [
+                                "nuisance_correctness_cases"
+                            ],
+                            "recommended_next_action": (
+                                "replace FORMAL_GAP/h_frontier_missing scaffold with the smallest non-placeholder theorem or bridge lemma required by the route"
+                            ),
+                            "recommended_tools": [
+                                "goal-conditioned minimal formalization planner",
+                                "local formal-source adapter",
+                                "proof-state adapter",
+                            ],
+                            "required_artifacts": [
+                                "non-placeholder Lean theorem or bridge statement"
+                            ],
+                            "required_gate": (
+                                "rerun proof-state adapter, route overlay, verifier replay, and kernel/residual-gap validation before any proof promotion"
+                            ),
+                            "proof_evidence_status": (
+                                "FORMALIZATION_GAP_PLANNER_PROOF_STATE_TRIAGE_NOT_PROOF_EVIDENCE"
+                            ),
+                            "proof_evidence_boundary": (
+                                "Formalization gap planner proof-state triage rows are route-level work orders, not theorem proof evidence."
+                            ),
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
         (root / "evaluation_benchmark_guidance" / "evaluation_benchmark_guidance_manifest.json").write_text(
             json.dumps({"top_actions": [{"rank": 1, "action": "improve RAG"}]}),
             encoding="utf-8",
@@ -10662,6 +10732,11 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                         "formal_verifier_agentic_proof_attempt_population_with_sampling_weight": 1,
                         "formal_verifier_agentic_proof_attempt_population_untried": 1,
                         "formal_verifier_agentic_proof_attempt_population_ok": 1,
+                        "formalization_gap_planner_proof_state_triage_items": 1,
+                        "formalization_gap_planner_proof_state_triage_formal_gap_scaffold_items": 1,
+                        "formalization_gap_planner_proof_state_triage_local_lean_failed_items": 0,
+                        "formalization_gap_planner_proof_state_triage_non_lean_skeleton_items": 0,
+                        "formalization_gap_planner_proof_state_triage_distinct_signatures": 1,
                         "claim_ledger_repair_response_promotion_overlay_enabled": True,
                         "claim_ledger_repair_response_promotion_overlay_rows": 0,
                         "claim_ledger_repair_response_promotion_upgrades": 0,
@@ -10849,9 +10924,26 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             encoding="utf-8",
         )
 
-        payload = export_rag_collaboration_manifest(system_manifest, out)
+        triage_manifest_path = (
+            root
+            / "formalization_gap_planner_proof_state_triage"
+            / "formalization_gap_planner_proof_state_triage_manifest.json"
+        )
+        payload = export_rag_collaboration_manifest(
+            system_manifest,
+            out,
+            artifact_overrides={
+                "formalization_gap_planner_proof_state_triage": triage_manifest_path
+            },
+        )
 
         self.assertEqual(payload["proof_evidence"]["proofs_kernel_verified"], 109)
+        self.assertEqual(
+            payload["artifact_overrides_applied"][
+                "formalization_gap_planner_proof_state_triage"
+            ],
+            str(triage_manifest_path),
+        )
         self.assertEqual(payload["proof_evidence"]["proof_bank_fingerprint"], "a" * 64)
         self.assertTrue(payload["rag_provider_evidence"]["lean_rag_dependency_graph_enabled"])
         self.assertEqual(
@@ -11696,6 +11788,44 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "not theorem proof evidence",
             population_preview["proof_evidence_boundary"],
         )
+        self.assertEqual(
+            payload["formal_capacity_queue"][
+                "formalization_gap_planner_proof_state_triage_items"
+            ],
+            1,
+        )
+        self.assertEqual(
+            payload["formal_capacity_queue"][
+                "formalization_gap_planner_proof_state_triage_formal_gap_scaffold_items"
+            ],
+            1,
+        )
+        self.assertEqual(
+            payload["formal_capacity_queue"][
+                "formalization_gap_planner_proof_state_triage_distinct_signatures"
+            ],
+            1,
+        )
+        triage_preview = payload["formal_capacity_queue"][
+            "formalization_gap_planner_proof_state_triage_preview"
+        ][0]
+        self.assertEqual(
+            triage_preview["triage_class"],
+            "materialize_non_placeholder_theorem",
+        )
+        self.assertEqual(triage_preview["owner_agent"], "formalization_planner")
+        self.assertIn(
+            "formal_gap_scaffold_blocked",
+            triage_preview["applied_prover_attempt_statuses"],
+        )
+        self.assertIn(
+            "non-placeholder",
+            triage_preview["recommended_next_action"],
+        )
+        self.assertIn(
+            "not theorem proof evidence",
+            triage_preview["proof_evidence_boundary"],
+        )
         self.assertIn(
             "residual prompt packets",
             " ".join(payload["honesty_boundaries"]),
@@ -11726,6 +11856,10 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         )
         self.assertIn(
             "agentic proof attempt population",
+            " ".join(payload["honesty_boundaries"]),
+        )
+        self.assertIn(
+            "proof-state triage rows are proof-worker work orders",
             " ".join(payload["honesty_boundaries"]),
         )
         self.assertTrue(

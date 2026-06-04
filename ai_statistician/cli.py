@@ -2560,10 +2560,16 @@ def _research_training_export(args: argparse.Namespace) -> int:
 
 
 def _rag_collaboration_export(args: argparse.Namespace) -> int:
+    artifact_overrides: dict[str, str] = {}
+    if args.formalization_gap_planner_proof_state_triage_manifest:
+        artifact_overrides["formalization_gap_planner_proof_state_triage"] = (
+            args.formalization_gap_planner_proof_state_triage_manifest
+        )
     payload = export_rag_collaboration_manifest(
         Path(args.system_audit_manifest),
         Path(args.out),
         max_targets=args.max_targets,
+        artifact_overrides=artifact_overrides,
     )
     proof = payload["proof_evidence"]
     rag = payload["rag_provider_evidence"]
@@ -5277,6 +5283,14 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=20,
         help="maximum non-composition formal primitives to include as RAG handoff targets",
+    )
+    rag_collaboration_export.add_argument(
+        "--formalization-gap-planner-proof-state-triage-manifest",
+        default="",
+        help=(
+            "optional standalone proof-state triage manifest to include in the RAG handoff "
+            "without requiring the source system-audit manifest to list it"
+        ),
     )
     rag_collaboration_export.set_defaults(func=_rag_collaboration_export)
 

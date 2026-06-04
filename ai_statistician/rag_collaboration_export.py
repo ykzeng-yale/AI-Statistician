@@ -16,6 +16,7 @@ def export_rag_collaboration_manifest(
     out_dir: Path,
     *,
     max_targets: int = 20,
+    artifact_overrides: dict[str, str | Path] | None = None,
 ) -> dict[str, object]:
     """Export a compact handoff for the shared RAG/prover-search thread.
 
@@ -32,6 +33,12 @@ def export_rag_collaboration_manifest(
     run_dir = system_audit_manifest.parent
     counts = dict(system_payload.get("counts", {}) or {})
     artifacts = dict(system_payload.get("artifacts", {}) or {})
+    normalized_artifact_overrides = {
+        str(key): str(value)
+        for key, value in dict(artifact_overrides or {}).items()
+        if str(key) and str(value)
+    }
+    artifacts.update(normalized_artifact_overrides)
 
     proof_payload = _read_json(_artifact_path(artifacts, "proof_audit", run_dir))
     retrieval_payload = _read_json(_artifact_path(artifacts, "formal_source_retrieval_benchmark", run_dir))
@@ -242,6 +249,14 @@ def export_rag_collaboration_manifest(
     formal_verifier_agentic_proof_attempt_population_payload = _read_json(
         formal_verifier_agentic_proof_attempt_population_path
     )
+    formalization_gap_planner_proof_state_triage_path = _artifact_path(
+        artifacts,
+        "formalization_gap_planner_proof_state_triage",
+        run_dir,
+    )
+    formalization_gap_planner_proof_state_triage_payload = _read_json(
+        formalization_gap_planner_proof_state_triage_path
+    )
     guidance_payload = _read_json(_artifact_path(artifacts, "evaluation_benchmark_guidance", run_dir))
 
     target_rows = _handoff_targets(
@@ -291,6 +306,7 @@ def export_rag_collaboration_manifest(
         "created_at": datetime.now(timezone.utc).isoformat(),
         "source_system_audit_manifest": str(system_audit_manifest),
         "source_run_dir": str(run_dir),
+        "artifact_overrides_applied": dict(sorted(normalized_artifact_overrides.items())),
         "proof_evidence": {
             "proofs_kernel_verified": counts.get("proofs_kernel_verified"),
             "proofs_total": counts.get("proofs_total"),
@@ -1347,6 +1363,43 @@ def export_rag_collaboration_manifest(
                 formal_verifier_agentic_proof_attempt_population_payload,
                 max_rows=min(max_targets, 10),
             ),
+            "formalization_gap_planner_proof_state_triage_items": counts.get(
+                "formalization_gap_planner_proof_state_triage_items",
+                formalization_gap_planner_proof_state_triage_payload.get(
+                    "n_triage_items"
+                ),
+            ),
+            "formalization_gap_planner_proof_state_triage_formal_gap_scaffold_items": counts.get(
+                "formalization_gap_planner_proof_state_triage_formal_gap_scaffold_items",
+                formalization_gap_planner_proof_state_triage_payload.get(
+                    "n_formal_gap_scaffold_items"
+                ),
+            ),
+            "formalization_gap_planner_proof_state_triage_local_lean_failed_items": counts.get(
+                "formalization_gap_planner_proof_state_triage_local_lean_failed_items",
+                formalization_gap_planner_proof_state_triage_payload.get(
+                    "n_local_lean_failed_items"
+                ),
+            ),
+            "formalization_gap_planner_proof_state_triage_non_lean_skeleton_items": counts.get(
+                "formalization_gap_planner_proof_state_triage_non_lean_skeleton_items",
+                formalization_gap_planner_proof_state_triage_payload.get(
+                    "n_non_lean_skeleton_items"
+                ),
+            ),
+            "formalization_gap_planner_proof_state_triage_distinct_signatures": counts.get(
+                "formalization_gap_planner_proof_state_triage_distinct_signatures",
+                formalization_gap_planner_proof_state_triage_payload.get(
+                    "n_distinct_diagnostic_signatures"
+                ),
+            ),
+            "formalization_gap_planner_proof_state_triage_manifest": str(
+                formalization_gap_planner_proof_state_triage_path
+            ),
+            "formalization_gap_planner_proof_state_triage_preview": _formalization_gap_planner_proof_state_triage_preview(
+                formalization_gap_planner_proof_state_triage_payload,
+                max_rows=min(max_targets, 10),
+            ),
             "claim_ledger_repair_response_promotion_overlay_enabled": counts.get(
                 "claim_ledger_repair_response_promotion_overlay_enabled"
             ),
@@ -1416,6 +1469,7 @@ def export_rag_collaboration_manifest(
             "FormalVerifier agentic proof candidate evaluation queue rows are candidate-generation work orders, not theorem proof evidence.",
             "FormalVerifier agentic proof safety policy rows are preflight guardrails, not theorem proof evidence.",
             "FormalVerifier agentic proof attempt population rows are search-memory records, not theorem proof evidence.",
+            "Formalization gap proof-state triage rows are proof-worker work orders, not theorem proof evidence.",
             "Claim-ledger repair-response promotion overlays close formal gaps only for matching ready kernel-verified promotion rows.",
             "FORMAL_GAP and theorem-hole queues remain open until a non-placeholder Lean proof is verified.",
         ],
@@ -2417,6 +2471,49 @@ def _formal_verifier_agentic_proof_attempt_population_preview(
     return rows
 
 
+def _formalization_gap_planner_proof_state_triage_preview(
+    payload: dict[str, Any],
+    *,
+    max_rows: int,
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    triage_rows = payload.get("rows", [])
+    if not isinstance(triage_rows, list):
+        return rows
+    for row in triage_rows:
+        if not isinstance(row, dict):
+            continue
+        rows.append(
+            {
+                "triage_item_id": row.get("triage_item_id"),
+                "rank": row.get("rank"),
+                "display_name": row.get("display_name"),
+                "triage_class": row.get("triage_class", ""),
+                "owner_agent": row.get("owner_agent", ""),
+                "priority_score": row.get("priority_score", 0),
+                "applied_prover_attempt_statuses": row.get(
+                    "applied_prover_attempt_statuses",
+                    [],
+                ),
+                "applied_prover_diagnostic_signatures": row.get(
+                    "applied_prover_diagnostic_signatures",
+                    [],
+                ),
+                "residual_goals": row.get("residual_goals", [])[:5],
+                "added_delta_primitives": row.get("added_delta_primitives", [])[:5],
+                "recommended_next_action": row.get("recommended_next_action", ""),
+                "recommended_tools": row.get("recommended_tools", [])[:6],
+                "required_artifacts": row.get("required_artifacts", [])[:5],
+                "required_gate": row.get("required_gate", ""),
+                "proof_evidence_status": row.get("proof_evidence_status", ""),
+                "proof_evidence_boundary": row.get("proof_evidence_boundary", ""),
+            }
+        )
+        if len(rows) >= max_rows:
+            break
+    return rows
+
+
 def _theorem_composition_packet_preview(
     payload: dict[str, Any],
     *,
@@ -2590,6 +2687,10 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Formal verifier agentic proof attempt population: `{queue.get('formal_verifier_agentic_proof_attempt_population_entries')}` entries "
         f"(`{queue.get('formal_verifier_agentic_proof_attempt_population_patch_entries')}` patch, "
         f"`{queue.get('formal_verifier_agentic_proof_attempt_population_source_entries')}` source)",
+        f"- Formalization gap proof-state triage: `{queue.get('formalization_gap_planner_proof_state_triage_items')}` items "
+        f"(`{queue.get('formalization_gap_planner_proof_state_triage_formal_gap_scaffold_items')}` formal-gap scaffold, "
+        f"`{queue.get('formalization_gap_planner_proof_state_triage_local_lean_failed_items')}` local Lean failed, "
+        f"`{queue.get('formalization_gap_planner_proof_state_triage_non_lean_skeleton_items')}` non-Lean skeleton)",
         "- Claim-ledger repair-response promotion overlay: "
         f"`{queue.get('claim_ledger_repair_response_promotion_upgrades')}` upgrades from "
         f"`{queue.get('claim_ledger_repair_response_promotion_overlay_rows')}` ready rows",
@@ -2940,6 +3041,25 @@ def _markdown_report(payload: dict[str, object]) -> str:
         lines.append(f"  lessons: {lessons}")
         lines.append(f"  sampler policy: `{row.get('sampler_policy')}`")
         lines.append(f"  promotion gate: {row.get('promotion_gate')}")
+        lines.append(f"  proof status: {row.get('proof_evidence_status')}")
+        lines.append(f"  boundary: {row.get('proof_evidence_boundary')}")
+    lines.extend(["", "## Proof-State Triage", ""])
+    for row in queue.get("formalization_gap_planner_proof_state_triage_preview", []):
+        if not isinstance(row, dict):
+            continue
+        statuses = ", ".join(
+            f"`{item}`" for item in row.get("applied_prover_attempt_statuses", [])
+        ) or "none"
+        tools = ", ".join(f"`{item}`" for item in row.get("recommended_tools", [])) or "none"
+        lines.append(
+            f"- #{row.get('rank')} `{row.get('display_name')}` "
+            f"({row.get('triage_class')}, score={row.get('priority_score')}): "
+            f"{row.get('recommended_next_action')}"
+        )
+        lines.append(f"  owner: `{row.get('owner_agent')}`")
+        lines.append(f"  attempt statuses: {statuses}")
+        lines.append(f"  tools: {tools}")
+        lines.append(f"  required gate: {row.get('required_gate')}")
         lines.append(f"  proof status: {row.get('proof_evidence_status')}")
         lines.append(f"  boundary: {row.get('proof_evidence_boundary')}")
     lines.extend(["", "## Theorem Composition Handoff", ""])
