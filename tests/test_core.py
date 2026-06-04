@@ -15516,6 +15516,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["gates"]["formal_verifier_agentic_proof_execution_queue"])
         self.assertTrue(payload["gates"]["formal_verifier_agentic_proof_execution_materializer"])
         self.assertTrue(payload["gates"]["formal_verifier_agentic_proof_execution_artifact_verifier"])
+        self.assertTrue(payload["gates"]["formal_verifier_agentic_proof_source_theorem_promotion_queue"])
         self.assertTrue(payload["gates"]["research_training_export"])
         self.assertTrue(payload["gates"]["research_policy_baseline"])
         self.assertTrue(payload["gates"]["next_iteration_queue"])
@@ -15829,6 +15830,9 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "formal_verifier_agentic_proof_safety_policy",
             "formal_verifier_agentic_proof_attempt_population",
             "formal_verifier_agentic_proof_execution_queue",
+            "formal_verifier_agentic_proof_execution_materializer",
+            "formal_verifier_agentic_proof_execution_artifact_verifier",
+            "formal_verifier_agentic_proof_source_theorem_promotion_queue",
             "research_training_export",
             "research_policy_baseline",
             "next_iteration_queue",
@@ -16883,6 +16887,48 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                 "formal_verifier_agentic_proof_execution_artifact_proof_evidence_status"
             ],
         )
+        self.assertEqual(
+            payload["counts"]["formal_verifier_agentic_proof_source_theorem_promotion_rows"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_agentic_proof_source_theorem_promotion_artifact_kernel_inputs"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formal_verifier_agentic_proof_source_theorem_promotion_ready"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_agentic_proof_source_theorem_promotion_source_theorem_kernel_verified"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_agentic_proof_source_theorem_promotion_needs_source_target"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_agentic_proof_source_theorem_promotion_blocked_artifact_failed"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formal_verifier_agentic_proof_source_theorem_promotion_ok"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_agentic_proof_source_theorem_promotion_proof_evidence_status"
+            ],
+            "SOURCE_THEOREM_PROMOTION_QUEUE_NOT_PROOF_EVIDENCE",
+        )
         self.assertTrue(Path(payload["artifacts"]["formalization_delta_plan"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formalization_delta_graph"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_verifier_queue"]).exists())
@@ -17307,6 +17353,27 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             Path(
                 payload["artifacts"][
                     "formal_verifier_agentic_proof_execution_artifact_verifier_report"
+                ]
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formal_verifier_agentic_proof_source_theorem_promotion_queue"
+                ]
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formal_verifier_agentic_proof_source_theorem_promotion_queue_jsonl"
+                ]
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formal_verifier_agentic_proof_source_theorem_promotion_queue_report"
                 ]
             ).exists()
         )

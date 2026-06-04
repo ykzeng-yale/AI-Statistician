@@ -109,6 +109,9 @@ from .formal_verifier_agentic_proof_execution_materializer import (
 from .formal_verifier_agentic_proof_execution_artifact_verifier import (
     export_formal_verifier_agentic_proof_execution_artifact_verifier,
 )
+from .formal_verifier_agentic_proof_source_theorem_promotion_queue import (
+    export_formal_verifier_agentic_proof_source_theorem_promotion_queue,
+)
 from .formal_verifier_replay_repair import export_formal_verifier_replay_repair_packets
 from .formal_source_graph import audit_formal_source_graph
 from .formal_source_hybrid import FormalSourceHybridRetriever
@@ -938,6 +941,17 @@ async def run_research_system_audit(
         "formal_verifier_agentic_proof_execution_artifact_verifier",
         stage_start,
     )
+    formal_verifier_agentic_proof_source_theorem_promotion_queue_manifest = (
+        export_formal_verifier_agentic_proof_source_theorem_promotion_queue(
+            out_dir / "formal_verifier_agentic_proof_execution_artifact_verifier",
+            out_dir / "formal_verifier_agentic_proof_source_theorem_promotion_queue",
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "formal_verifier_agentic_proof_source_theorem_promotion_queue",
+        stage_start,
+    )
 
     research_training_manifest = export_research_training_dataset(
         out_dir / "research_benchmark",
@@ -1235,6 +1249,11 @@ async def run_research_system_audit(
         "formal_verifier_agentic_proof_execution_artifact_verifier": bool(
             formal_verifier_agentic_proof_execution_artifact_verifier_manifest["all_ok"]
         ),
+        "formal_verifier_agentic_proof_source_theorem_promotion_queue": bool(
+            formal_verifier_agentic_proof_source_theorem_promotion_queue_manifest[
+                "all_ok"
+            ]
+        ),
         "research_training_export": bool(research_training_manifest["all_ok"]),
         "research_policy_baseline": bool(research_policy_manifest["all_ok"]),
         "next_iteration_queue": bool(next_iteration_manifest["all_ok"]),
@@ -1298,6 +1317,7 @@ async def run_research_system_audit(
         "formal_verifier_agentic_proof_execution_queue",
         "formal_verifier_agentic_proof_execution_materializer",
         "formal_verifier_agentic_proof_execution_artifact_verifier",
+        "formal_verifier_agentic_proof_source_theorem_promotion_queue",
         "research_training_export",
         "research_policy_baseline",
         "next_iteration_queue",
@@ -2759,6 +2779,30 @@ async def run_research_system_audit(
             "formal_verifier_agentic_proof_execution_artifact_proof_evidence_status": formal_verifier_agentic_proof_execution_artifact_verifier_manifest.get(
                 "proof_evidence_status", ""
             ),
+            "formal_verifier_agentic_proof_source_theorem_promotion_rows": formal_verifier_agentic_proof_source_theorem_promotion_queue_manifest[
+                "n_promotion_rows"
+            ],
+            "formal_verifier_agentic_proof_source_theorem_promotion_artifact_kernel_inputs": formal_verifier_agentic_proof_source_theorem_promotion_queue_manifest[
+                "n_artifact_kernel_verified_inputs"
+            ],
+            "formal_verifier_agentic_proof_source_theorem_promotion_ready": formal_verifier_agentic_proof_source_theorem_promotion_queue_manifest[
+                "n_ready_for_source_theorem_integration"
+            ],
+            "formal_verifier_agentic_proof_source_theorem_promotion_source_theorem_kernel_verified": formal_verifier_agentic_proof_source_theorem_promotion_queue_manifest[
+                "n_source_theorem_kernel_verified"
+            ],
+            "formal_verifier_agentic_proof_source_theorem_promotion_needs_source_target": formal_verifier_agentic_proof_source_theorem_promotion_queue_manifest[
+                "n_needs_source_theorem_target"
+            ],
+            "formal_verifier_agentic_proof_source_theorem_promotion_blocked_artifact_failed": formal_verifier_agentic_proof_source_theorem_promotion_queue_manifest[
+                "n_blocked_artifact_verification_failed"
+            ],
+            "formal_verifier_agentic_proof_source_theorem_promotion_ok": formal_verifier_agentic_proof_source_theorem_promotion_queue_manifest[
+                "n_ok"
+            ],
+            "formal_verifier_agentic_proof_source_theorem_promotion_proof_evidence_status": formal_verifier_agentic_proof_source_theorem_promotion_queue_manifest.get(
+                "proof_evidence_status", ""
+            ),
             "proof_bank_actions_high_priority": proof_bank_action_manifest["by_priority"].get("high", 0),
             "proof_bank_actions_medium_priority": proof_bank_action_manifest["by_priority"].get("medium", 0),
             "proof_bank_actions_low_priority": proof_bank_action_manifest["by_priority"].get("low", 0),
@@ -3768,6 +3812,21 @@ async def run_research_system_audit(
                 out_dir
                 / "formal_verifier_agentic_proof_execution_artifact_verifier"
                 / "formal_verifier_agentic_proof_execution_artifact_verifier.md"
+            ),
+            "formal_verifier_agentic_proof_source_theorem_promotion_queue": str(
+                out_dir
+                / "formal_verifier_agentic_proof_source_theorem_promotion_queue"
+                / "formal_verifier_agentic_proof_source_theorem_promotion_queue_manifest.json"
+            ),
+            "formal_verifier_agentic_proof_source_theorem_promotion_queue_jsonl": str(
+                out_dir
+                / "formal_verifier_agentic_proof_source_theorem_promotion_queue"
+                / "formal_verifier_agentic_proof_source_theorem_promotion_queue.jsonl"
+            ),
+            "formal_verifier_agentic_proof_source_theorem_promotion_queue_report": str(
+                out_dir
+                / "formal_verifier_agentic_proof_source_theorem_promotion_queue"
+                / "formal_verifier_agentic_proof_source_theorem_promotion_queue.md"
             ),
             "primitive_source_coverage": str(
                 out_dir / "primitive_source_coverage" / "primitive_source_coverage_manifest.json"
