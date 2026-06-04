@@ -106,6 +106,9 @@ from ai_statistician.formal_verifier_agentic_proof_execution_materializer import
 from ai_statistician.formal_verifier_agentic_proof_execution_artifact_verifier import (
     export_formal_verifier_agentic_proof_execution_artifact_verifier,
 )
+from ai_statistician.formal_verifier_agentic_proof_source_theorem_promotion_queue import (
+    export_formal_verifier_agentic_proof_source_theorem_promotion_queue,
+)
 from ai_statistician.formal_verifier_replay_repair import export_formal_verifier_replay_repair_packets
 from ai_statistician.formalization_delta_plan import build_formalization_delta_plan
 from ai_statistician.formalization_target_audit import audit_formalization_targets
@@ -3262,6 +3265,45 @@ class SystemTests(unittest.TestCase):
         self.assertFalse(verified_row["source_theorem_kernel_verified"])
         self.assertIn("NOT_SOURCE_THEOREM", verified_row["verification_status"])
         self.assertIn("not proof evidence", verified_row["proof_evidence_boundary"])
+
+        source_promotion = (
+            export_formal_verifier_agentic_proof_source_theorem_promotion_queue(
+                root / "artifact_verifier",
+                root / "source_theorem_promotion_queue",
+            )
+        )
+        self.assertTrue(source_promotion["all_ok"])
+        self.assertEqual(source_promotion["n_promotion_rows"], 1)
+        self.assertEqual(source_promotion["n_artifact_kernel_verified_inputs"], 1)
+        self.assertEqual(
+            source_promotion["n_ready_for_source_theorem_integration"],
+            1,
+        )
+        self.assertEqual(source_promotion["n_source_theorem_kernel_verified"], 0)
+        self.assertEqual(source_promotion["n_needs_source_theorem_target"], 1)
+        source_promotion_row = source_promotion["rows"][0]
+        self.assertEqual(
+            source_promotion_row["promotion_status"],
+            "READY_FOR_SOURCE_THEOREM_INTEGRATION",
+        )
+        self.assertEqual(
+            source_promotion_row["action_type"],
+            "integrate_artifact_proof_into_source_theorem",
+        )
+        self.assertTrue(source_promotion_row["artifact_kernel_verified"])
+        self.assertFalse(source_promotion_row["source_theorem_kernel_verified"])
+        self.assertIn("source theorem", source_promotion_row["required_gate"])
+        self.assertIn(
+            "not source theorem proof evidence",
+            source_promotion_row["proof_evidence_boundary"],
+        )
+        self.assertTrue(
+            (
+                root
+                / "source_theorem_promotion_queue"
+                / "formal_verifier_agentic_proof_source_theorem_promotion_queue_manifest.json"
+            ).exists()
+        )
 
         queue_after = export_formal_verifier_agentic_proof_execution_queue(
             attempt_dir,
@@ -12485,6 +12527,10 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             parent
             / "current_kernel_overlay_seeded_agentic_proof_execution_artifact_verifier"
         )
+        seeded_source_theorem_promotion_dir = (
+            parent
+            / "current_kernel_overlay_seeded_agentic_proof_source_theorem_promotion_queue"
+        )
         out = parent / "rag_collaboration_export"
         shutil.rmtree(parent, ignore_errors=True)
         run_dir.mkdir(parents=True, exist_ok=True)
@@ -12505,6 +12551,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         seeded_execution_queue_dir.mkdir(parents=True, exist_ok=True)
         seeded_materializer_dir.mkdir(parents=True, exist_ok=True)
         seeded_artifact_verifier_dir.mkdir(parents=True, exist_ok=True)
+        seeded_source_theorem_promotion_dir.mkdir(parents=True, exist_ok=True)
         proof_fingerprint = "f" * 64
         proof_audit_dir = run_dir / "proof_audit"
         proof_audit_dir.mkdir(parents=True, exist_ok=True)
@@ -12983,6 +13030,60 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             ),
             encoding="utf-8",
         )
+        (
+            seeded_source_theorem_promotion_dir
+            / "formal_verifier_agentic_proof_source_theorem_promotion_queue_manifest.json"
+        ).write_text(
+            json.dumps(
+                {
+                    "n_artifact_verifier_rows": 1,
+                    "n_promotion_rows": 1,
+                    "n_artifact_kernel_verified_inputs": 1,
+                    "n_source_theorem_kernel_verified": 0,
+                    "n_ready_for_source_theorem_integration": 1,
+                    "n_blocked_artifact_verification_failed": 0,
+                    "n_source_theorem_target_known": 0,
+                    "n_needs_source_theorem_target": 1,
+                    "n_ok": 1,
+                    "proof_evidence_status": "SOURCE_THEOREM_PROMOTION_QUEUE_NOT_PROOF_EVIDENCE",
+                    "rows": [
+                        {
+                            "source_theorem_promotion_id": "formal_verifier_agentic_proof_source_theorem_promotion_queue:auto",
+                            "artifact_verification_id": "formal_verifier_agentic_proof_execution_artifact_verifier:auto",
+                            "materialization_id": "formal_verifier_agentic_proof_execution_materializer:auto",
+                            "execution_queue_id": "formal_verifier_agentic_proof_execution_queue:auto",
+                            "display_name": "auto:claim:skeleton",
+                            "target_theorem_name": "formal:auto:claim",
+                            "candidate_artifact_path": candidate_artifact_path,
+                            "target_lean_declaration": "auto_claim_skeleton_route_probe",
+                            "artifact_kernel_verified": True,
+                            "source_theorem_kernel_verified": False,
+                            "source_theorem_target_known": False,
+                            "promotion_status": "READY_FOR_SOURCE_THEOREM_INTEGRATION",
+                            "owner_agent": "formal_verifier_source_theorem_integrator",
+                            "action_type": "integrate_artifact_proof_into_source_theorem",
+                            "priority": "high",
+                            "required_gate": (
+                                "source theorem passes AXLE/local Lean without placeholders"
+                            ),
+                            "required_inputs": [
+                                "candidate_artifact_path",
+                                "source_theorem_statement_or_file",
+                            ],
+                            "command_plan": [
+                                "resolve the source theorem file",
+                                "run AXLE or local Lean on the source theorem target",
+                            ],
+                            "proof_evidence_status": "SOURCE_THEOREM_PROMOTION_QUEUE_NOT_PROOF_EVIDENCE",
+                            "proof_evidence_boundary": (
+                                "Source-theorem promotion queue rows are not proof evidence."
+                            ),
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
         triage_manifest_path = (
             triage_dir / "formalization_gap_planner_proof_state_triage_manifest.json"
         )
@@ -13032,6 +13133,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                         "formal_verifier_agentic_proof_execution_materializer_rows": 0,
                         "formal_verifier_agentic_proof_execution_artifact_kernel_verified": 0,
                         "formal_verifier_agentic_proof_execution_source_theorem_kernel_verified": 0,
+                        "formal_verifier_agentic_proof_source_theorem_promotion_ready": 0,
                     },
                     "artifacts": {
                         "proof_audit": str(proof_audit_manifest_path),
@@ -13304,6 +13406,56 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             verifier_preview["verification_status"],
             "ARTIFACT_KERNEL_VERIFIED_NOT_SOURCE_THEOREM",
         )
+        self.assertEqual(
+            payload["artifact_auto_discoveries_applied"][
+                "formal_verifier_agentic_proof_source_theorem_promotion_queue"
+            ],
+            str(
+                seeded_source_theorem_promotion_dir
+                / "formal_verifier_agentic_proof_source_theorem_promotion_queue_manifest.json"
+            ),
+        )
+        self.assertEqual(
+            queue["formal_verifier_agentic_proof_source_theorem_promotion_rows"],
+            1,
+        )
+        self.assertEqual(
+            queue[
+                "formal_verifier_agentic_proof_source_theorem_promotion_artifact_kernel_inputs"
+            ],
+            1,
+        )
+        self.assertEqual(
+            queue["formal_verifier_agentic_proof_source_theorem_promotion_ready"],
+            1,
+        )
+        self.assertEqual(
+            queue[
+                "formal_verifier_agentic_proof_source_theorem_promotion_source_theorem_kernel_verified"
+            ],
+            0,
+        )
+        self.assertEqual(
+            queue[
+                "formal_verifier_agentic_proof_source_theorem_promotion_needs_source_target"
+            ],
+            1,
+        )
+        source_promotion_preview = queue[
+            "formal_verifier_agentic_proof_source_theorem_promotion_preview"
+        ][0]
+        self.assertEqual(
+            source_promotion_preview["promotion_status"],
+            "READY_FOR_SOURCE_THEOREM_INTEGRATION",
+        )
+        self.assertEqual(
+            source_promotion_preview["action_type"],
+            "integrate_artifact_proof_into_source_theorem",
+        )
+        self.assertTrue(source_promotion_preview["artifact_kernel_verified"])
+        self.assertFalse(
+            source_promotion_preview["source_theorem_kernel_verified"]
+        )
         self.assertEqual(queue["formalization_gap_planner_proof_state_triage_items"], 2)
         self.assertEqual(
             queue[
@@ -13327,6 +13479,10 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         )
         self.assertIn(
             "agentic artifact verifier rows are artifact-level Lean checks",
+            " ".join(payload["honesty_boundaries"]),
+        )
+        self.assertIn(
+            "source-theorem promotion queue rows are integration work orders",
             " ".join(payload["honesty_boundaries"]),
         )
         kernel_overlay = payload["kernel_proof_evidence_overlays"]
@@ -13450,6 +13606,10 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         )
         self.assertIn(
             "Agentic Proof Artifact Verifier",
+            (out / "rag_collaboration.md").read_text(),
+        )
+        self.assertIn(
+            "Agentic Source-Theorem Promotion Queue",
             (out / "rag_collaboration.md").read_text(),
         )
 

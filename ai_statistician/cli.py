@@ -139,6 +139,9 @@ from .formal_verifier_agentic_proof_execution_materializer import (
 from .formal_verifier_agentic_proof_execution_artifact_verifier import (
     export_formal_verifier_agentic_proof_execution_artifact_verifier,
 )
+from .formal_verifier_agentic_proof_source_theorem_promotion_queue import (
+    export_formal_verifier_agentic_proof_source_theorem_promotion_queue,
+)
 from .formal_verifier_replay_repair import export_formal_verifier_replay_repair_packets
 from .formal_source_graph import audit_formal_source_graph
 from .formal_source_index import (
@@ -2659,6 +2662,38 @@ def _formal_verifier_agentic_proof_execution_artifact_verifier(
     print(
         f"markdown report written to "
         f"{(Path(args.out) / 'formal_verifier_agentic_proof_execution_artifact_verifier.md').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formal_verifier_agentic_proof_source_theorem_promotion_queue(
+    args: argparse.Namespace,
+) -> int:
+    payload = export_formal_verifier_agentic_proof_source_theorem_promotion_queue(
+        Path(args.formal_verifier_agentic_proof_execution_artifact_verifier_dir),
+        Path(args.out),
+    )
+    print("\nAI Statistical Theory Lab Formal Verifier Agentic Source-Theorem Queue")
+    print("=" * 72)
+    print(
+        f"rows={payload['n_ok']}/{payload['n_promotion_rows']} "
+        f"artifact_kernel_inputs={payload['n_artifact_kernel_verified_inputs']} "
+        f"ready_source_integration={payload['n_ready_for_source_theorem_integration']} "
+        f"source_theorem_kernel={payload['n_source_theorem_kernel_verified']} "
+        f"needs_source_target={payload['n_needs_source_theorem_target']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nsource-theorem promotion queue manifest written to "
+        f"{(Path(args.out) / 'formal_verifier_agentic_proof_source_theorem_promotion_queue_manifest.json').resolve()}"
+    )
+    print(
+        f"source-theorem promotion queue jsonl written to "
+        f"{(Path(args.out) / 'formal_verifier_agentic_proof_source_theorem_promotion_queue.jsonl').resolve()}"
+    )
+    print(
+        f"markdown report written to "
+        f"{(Path(args.out) / 'formal_verifier_agentic_proof_source_theorem_promotion_queue.md').resolve()}"
     )
     return 0 if payload["all_ok"] else 1
 
@@ -5467,6 +5502,26 @@ def build_parser() -> argparse.ArgumentParser:
     )
     formal_verifier_agentic_proof_execution_artifact_verifier.set_defaults(
         func=_formal_verifier_agentic_proof_execution_artifact_verifier
+    )
+
+    formal_verifier_agentic_proof_source_theorem_promotion_queue = sub.add_parser(
+        "formal-verifier-agentic-proof-source-theorem-promotion-queue",
+        help=(
+            "queue source-theorem integration work from agentic artifact verifier rows"
+        ),
+    )
+    formal_verifier_agentic_proof_source_theorem_promotion_queue.add_argument(
+        "--formal-verifier-agentic-proof-execution-artifact-verifier-dir",
+        required=True,
+        help="directory containing formal_verifier_agentic_proof_execution_artifact_verifier_manifest.json",
+    )
+    formal_verifier_agentic_proof_source_theorem_promotion_queue.add_argument(
+        "--out",
+        default="runs/formal_verifier_agentic_proof_source_theorem_promotion_queue",
+        help="formal-verifier agentic source-theorem promotion queue output directory",
+    )
+    formal_verifier_agentic_proof_source_theorem_promotion_queue.set_defaults(
+        func=_formal_verifier_agentic_proof_source_theorem_promotion_queue
     )
 
     rag_collaboration_export = sub.add_parser(

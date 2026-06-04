@@ -283,6 +283,14 @@ def export_rag_collaboration_manifest(
     formal_verifier_agentic_proof_execution_artifact_verifier_payload = _read_json(
         formal_verifier_agentic_proof_execution_artifact_verifier_path
     )
+    formal_verifier_agentic_proof_source_theorem_promotion_queue_path = _artifact_path(
+        artifacts,
+        "formal_verifier_agentic_proof_source_theorem_promotion_queue",
+        run_dir,
+    )
+    formal_verifier_agentic_proof_source_theorem_promotion_queue_payload = _read_json(
+        formal_verifier_agentic_proof_source_theorem_promotion_queue_path
+    )
     formalization_gap_planner_proof_state_triage_path = _artifact_path(
         artifacts,
         "formalization_gap_planner_proof_state_triage",
@@ -302,6 +310,7 @@ def export_rag_collaboration_manifest(
         formal_verifier_agentic_proof_execution_queue_payload=formal_verifier_agentic_proof_execution_queue_payload,
         formal_verifier_agentic_proof_execution_materializer_payload=formal_verifier_agentic_proof_execution_materializer_payload,
         formal_verifier_agentic_proof_execution_artifact_verifier_payload=formal_verifier_agentic_proof_execution_artifact_verifier_payload,
+        formal_verifier_agentic_proof_source_theorem_promotion_queue_payload=formal_verifier_agentic_proof_source_theorem_promotion_queue_payload,
     )
 
     target_rows = _handoff_targets(
@@ -1590,6 +1599,49 @@ def export_rag_collaboration_manifest(
                 formal_verifier_agentic_proof_execution_artifact_verifier_payload,
                 max_rows=min(max_targets, 10),
             ),
+            "formal_verifier_agentic_proof_source_theorem_promotion_rows": counts.get(
+                "formal_verifier_agentic_proof_source_theorem_promotion_rows",
+                formal_verifier_agentic_proof_source_theorem_promotion_queue_payload.get(
+                    "n_promotion_rows"
+                ),
+            ),
+            "formal_verifier_agentic_proof_source_theorem_promotion_artifact_kernel_inputs": counts.get(
+                "formal_verifier_agentic_proof_source_theorem_promotion_artifact_kernel_inputs",
+                formal_verifier_agentic_proof_source_theorem_promotion_queue_payload.get(
+                    "n_artifact_kernel_verified_inputs"
+                ),
+            ),
+            "formal_verifier_agentic_proof_source_theorem_promotion_ready": counts.get(
+                "formal_verifier_agentic_proof_source_theorem_promotion_ready",
+                formal_verifier_agentic_proof_source_theorem_promotion_queue_payload.get(
+                    "n_ready_for_source_theorem_integration"
+                ),
+            ),
+            "formal_verifier_agentic_proof_source_theorem_promotion_source_theorem_kernel_verified": counts.get(
+                "formal_verifier_agentic_proof_source_theorem_promotion_source_theorem_kernel_verified",
+                formal_verifier_agentic_proof_source_theorem_promotion_queue_payload.get(
+                    "n_source_theorem_kernel_verified"
+                ),
+            ),
+            "formal_verifier_agentic_proof_source_theorem_promotion_needs_source_target": counts.get(
+                "formal_verifier_agentic_proof_source_theorem_promotion_needs_source_target",
+                formal_verifier_agentic_proof_source_theorem_promotion_queue_payload.get(
+                    "n_needs_source_theorem_target"
+                ),
+            ),
+            "formal_verifier_agentic_proof_source_theorem_promotion_blocked_artifact_failed": counts.get(
+                "formal_verifier_agentic_proof_source_theorem_promotion_blocked_artifact_failed",
+                formal_verifier_agentic_proof_source_theorem_promotion_queue_payload.get(
+                    "n_blocked_artifact_verification_failed"
+                ),
+            ),
+            "formal_verifier_agentic_proof_source_theorem_promotion_manifest": str(
+                formal_verifier_agentic_proof_source_theorem_promotion_queue_path
+            ),
+            "formal_verifier_agentic_proof_source_theorem_promotion_preview": _formal_verifier_agentic_proof_source_theorem_promotion_preview(
+                formal_verifier_agentic_proof_source_theorem_promotion_queue_payload,
+                max_rows=min(max_targets, 10),
+            ),
             "formalization_gap_planner_proof_state_triage_items": counts.get(
                 "formalization_gap_planner_proof_state_triage_items",
                 formalization_gap_planner_proof_state_triage_payload.get(
@@ -1702,6 +1754,7 @@ def export_rag_collaboration_manifest(
             "FormalVerifier agentic proof execution queue rows are proof-worker work contracts, not theorem proof evidence.",
             "FormalVerifier agentic proof execution materializer rows are bounded proof-worker inputs, not theorem proof evidence.",
             "FormalVerifier agentic artifact verifier rows are artifact-level Lean checks only; they do not prove source theorem or residual gap claims.",
+            "FormalVerifier agentic source-theorem promotion queue rows are integration work orders, not proof evidence.",
             "Formalization gap proof-state triage rows are proof-worker work orders, not theorem proof evidence.",
             "Claim-ledger repair-response promotion overlays close formal gaps only for matching ready kernel-verified promotion rows.",
             "FORMAL_GAP and theorem-hole queues remain open until a non-placeholder Lean proof is verified.",
@@ -1797,6 +1850,16 @@ def _auto_discover_artifacts(
             )
             / "formal_verifier_agentic_proof_execution_artifact_verifier_manifest.json",
             ("n_artifact_kernel_verified", "n_local_lean_checked"),
+        ),
+        "formal_verifier_agentic_proof_source_theorem_promotion_queue": (
+            Path(
+                "current_kernel_overlay_seeded_agentic_proof_source_theorem_promotion_queue"
+            )
+            / "formal_verifier_agentic_proof_source_theorem_promotion_queue_manifest.json",
+            (
+                "n_ready_for_source_theorem_integration",
+                "n_source_theorem_kernel_verified",
+            ),
         ),
     }
     for key, (relative_path, context_counts) in seeded_agentic_candidates.items():
@@ -1937,6 +2000,18 @@ def _overlay_auto_discovered_agentic_counts(
                 "formal_verifier_agentic_proof_execution_artifact_forbidden_token_failures": "n_forbidden_token_failures",
                 "formal_verifier_agentic_proof_execution_artifact_verifier_ok": "n_ok",
                 "formal_verifier_agentic_proof_execution_artifact_proof_evidence_status": "proof_evidence_status",
+            },
+        ),
+        "formal_verifier_agentic_proof_source_theorem_promotion_queue": (
+            "formal_verifier_agentic_proof_source_theorem_promotion_queue_payload",
+            {
+                "formal_verifier_agentic_proof_source_theorem_promotion_rows": "n_promotion_rows",
+                "formal_verifier_agentic_proof_source_theorem_promotion_artifact_kernel_inputs": "n_artifact_kernel_verified_inputs",
+                "formal_verifier_agentic_proof_source_theorem_promotion_ready": "n_ready_for_source_theorem_integration",
+                "formal_verifier_agentic_proof_source_theorem_promotion_source_theorem_kernel_verified": "n_source_theorem_kernel_verified",
+                "formal_verifier_agentic_proof_source_theorem_promotion_needs_source_target": "n_needs_source_theorem_target",
+                "formal_verifier_agentic_proof_source_theorem_promotion_blocked_artifact_failed": "n_blocked_artifact_verification_failed",
+                "formal_verifier_agentic_proof_source_theorem_promotion_ok": "n_ok",
             },
         ),
     }
@@ -3502,6 +3577,51 @@ def _formal_verifier_agentic_proof_execution_artifact_verifier_preview(
     return rows
 
 
+def _formal_verifier_agentic_proof_source_theorem_promotion_preview(
+    payload: dict[str, Any],
+    *,
+    max_rows: int,
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    promotion_rows = payload.get("rows", [])
+    if not isinstance(promotion_rows, list):
+        return rows
+    for row in promotion_rows:
+        if not isinstance(row, dict):
+            continue
+        rows.append(
+            {
+                "source_theorem_promotion_id": row.get(
+                    "source_theorem_promotion_id"
+                ),
+                "artifact_verification_id": row.get("artifact_verification_id"),
+                "materialization_id": row.get("materialization_id"),
+                "execution_queue_id": row.get("execution_queue_id"),
+                "display_name": row.get("display_name"),
+                "target_theorem_name": row.get("target_theorem_name", ""),
+                "candidate_artifact_path": row.get("candidate_artifact_path", ""),
+                "target_lean_declaration": row.get("target_lean_declaration", ""),
+                "artifact_kernel_verified": row.get("artifact_kernel_verified"),
+                "source_theorem_kernel_verified": row.get(
+                    "source_theorem_kernel_verified"
+                ),
+                "source_theorem_target_known": row.get("source_theorem_target_known"),
+                "promotion_status": row.get("promotion_status", ""),
+                "owner_agent": row.get("owner_agent", ""),
+                "action_type": row.get("action_type", ""),
+                "priority": row.get("priority", ""),
+                "required_gate": row.get("required_gate", ""),
+                "required_inputs": row.get("required_inputs", [])[:6],
+                "command_plan": row.get("command_plan", [])[:5],
+                "proof_evidence_status": row.get("proof_evidence_status", ""),
+                "proof_evidence_boundary": row.get("proof_evidence_boundary", ""),
+            }
+        )
+        if len(rows) >= max_rows:
+            break
+    return rows
+
+
 def _formalization_gap_planner_proof_state_triage_preview(
     payload: dict[str, Any],
     *,
@@ -3751,6 +3871,11 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"artifact kernel `{queue.get('formal_verifier_agentic_proof_execution_artifact_kernel_verified')}`, "
         f"source theorem kernel `{queue.get('formal_verifier_agentic_proof_execution_source_theorem_kernel_verified')}` "
         f"({queue.get('formal_verifier_agentic_proof_execution_artifact_proof_evidence_status')})",
+        f"- Formal verifier agentic source-theorem promotion: `{queue.get('formal_verifier_agentic_proof_source_theorem_promotion_rows')}` rows "
+        f"(`{queue.get('formal_verifier_agentic_proof_source_theorem_promotion_ready')}` ready, "
+        f"`{queue.get('formal_verifier_agentic_proof_source_theorem_promotion_artifact_kernel_inputs')}` artifact-kernel inputs, "
+        f"`{queue.get('formal_verifier_agentic_proof_source_theorem_promotion_source_theorem_kernel_verified')}` source-theorem kernels, "
+        f"`{queue.get('formal_verifier_agentic_proof_source_theorem_promotion_needs_source_target')}` need source target)",
         f"- Formalization gap proof-state triage: `{queue.get('formalization_gap_planner_proof_state_triage_items')}` items "
         f"(`{queue.get('formalization_gap_planner_proof_state_triage_formal_gap_scaffold_items')}` formal-gap scaffold, "
         f"`{queue.get('formalization_gap_planner_proof_state_triage_local_lean_failed_items')}` local Lean failed, "
@@ -4331,6 +4456,39 @@ def _markdown_report(payload: dict[str, object]) -> str:
         lines.append(
             f"  verifier: `{row.get('verifier')}` / `{row.get('verification_strength')}`"
         )
+        lines.append(f"  proof status: {row.get('proof_evidence_status')}")
+        lines.append(f"  boundary: {row.get('proof_evidence_boundary')}")
+    lines.extend(["", "## Agentic Source-Theorem Promotion Queue", ""])
+    lines.append(
+        "Rows here are integration work orders from artifact-level Lean checks; "
+        "they do not close source theorem gaps by themselves."
+    )
+    for row in queue.get(
+        "formal_verifier_agentic_proof_source_theorem_promotion_preview",
+        [],
+    ):
+        if not isinstance(row, dict):
+            continue
+        lines.append(
+            f"- `{row.get('target_theorem_name')}` "
+            f"({row.get('promotion_status')}): `{row.get('action_type')}`"
+        )
+        lines.append(f"  owner: `{row.get('owner_agent')}` priority `{row.get('priority')}`")
+        lines.append(f"  artifact: `{row.get('candidate_artifact_path')}`")
+        lines.append(
+            f"  artifact kernel: `{row.get('artifact_kernel_verified')}`, "
+            f"source theorem kernel: `{row.get('source_theorem_kernel_verified')}`, "
+            f"source target known: `{row.get('source_theorem_target_known')}`"
+        )
+        commands = ", ".join(
+            f"`{item}`" for item in row.get("command_plan", [])
+        ) or "none"
+        inputs = ", ".join(
+            f"`{item}`" for item in row.get("required_inputs", [])
+        ) or "none"
+        lines.append(f"  required inputs: {inputs}")
+        lines.append(f"  command plan: {commands}")
+        lines.append(f"  gate: {row.get('required_gate')}")
         lines.append(f"  proof status: {row.get('proof_evidence_status')}")
         lines.append(f"  boundary: {row.get('proof_evidence_boundary')}")
     lines.extend(["", "## Proof-State Triage", ""])
