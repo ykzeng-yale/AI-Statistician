@@ -1759,6 +1759,7 @@ def _formalization_gap_planner_route_revision_overlay(args: argparse.Namespace) 
         f"orphan={payload['n_orphan_route_revision_proposals']} "
         f"added={payload['n_added_primitives']} "
         f"delta_added={payload['n_added_delta_primitives']} "
+        f"prover_status_routes={payload['n_routes_with_prover_attempt_status']} "
         f"all_ok={payload['all_ok']}"
     )
     print(

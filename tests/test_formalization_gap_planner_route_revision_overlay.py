@@ -124,6 +124,19 @@ def test_route_revision_overlay_applies_adapter_evidence_to_plan() -> None:
         ),
     )
     assert evidence_payload["all_ok"]
+    evidence_manifest_path = (
+        evidence_dir / "formalization_gap_planner_refinement_evidence_manifest.json"
+    )
+    evidence_manifest = json.loads(evidence_manifest_path.read_text(encoding="utf-8"))
+    for proposal in evidence_manifest["route_revision_proposals"]:
+        if proposal["hook_kind"] == "proof_state_feedback":
+            proposal["prover_attempt_status"] = "formal_gap_scaffold_blocked"
+            proposal["prover_diagnostic_signature"] = "prover_diagnostic_signature:test"
+            break
+    evidence_manifest_path.write_text(
+        json.dumps(evidence_manifest, indent=2),
+        encoding="utf-8",
+    )
 
     overlay_payload = export_formalization_gap_planner_route_revision_overlay(
         plan_dir,
@@ -137,5 +150,15 @@ def test_route_revision_overlay_applies_adapter_evidence_to_plan() -> None:
     assert overlay_row["revision_status"] == "ROUTE_REVISION_APPLIED"
     assert "conditional_mean_residual_zero" in overlay_row["added_primitives"]
     assert "nuisance_correctness_cases" in overlay_row["revised_delta_primitives"]
+    assert overlay_payload["by_prover_attempt_status"] == {
+        "formal_gap_scaffold_blocked": 1
+    }
+    assert overlay_payload["n_routes_with_prover_attempt_status"] == 1
+    assert overlay_row["applied_prover_attempt_statuses"] == (
+        "formal_gap_scaffold_blocked",
+    )
+    assert overlay_row["applied_prover_diagnostic_signatures"] == (
+        "prover_diagnostic_signature:test",
+    )
     assert len(overlay_row["revised_lean_realization_dag_nodes"]) >= 4
     assert "not theorem proof evidence" in overlay_payload["proof_evidence_boundary"]

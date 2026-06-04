@@ -10,7 +10,7 @@ from typing import Any
 from .fingerprint import stable_hash
 
 
-FORMALIZATION_GAP_PLANNER_ROUTE_REVISION_OVERLAY_SCHEMA_VERSION = 1
+FORMALIZATION_GAP_PLANNER_ROUTE_REVISION_OVERLAY_SCHEMA_VERSION = 2
 PROOF_EVIDENCE_STATUS = "FORMALIZATION_GAP_PLANNER_ROUTE_REVISION_OVERLAY_NOT_PROOF_EVIDENCE"
 PROOF_EVIDENCE_BOUNDARY = (
     "Formalization gap planner route-revision overlays apply refinement "
@@ -43,6 +43,8 @@ class FormalizationGapPlannerRouteRevisionOverlayRow:
     source_refs: tuple[str, ...]
     lean_declaration_hits: tuple[dict[str, object], ...]
     residual_goals: tuple[str, ...]
+    applied_prover_attempt_statuses: tuple[str, ...]
+    applied_prover_diagnostic_signatures: tuple[str, ...]
     revised_informal_knowledge_dag_nodes: tuple[dict[str, object], ...]
     revised_lean_realization_dag_nodes: tuple[dict[str, object], ...]
     next_required_gate: str
@@ -93,6 +95,9 @@ def export_formalization_gap_planner_route_revision_overlay(
         rows.append(_orphan_overlay_row(proposal))
 
     by_revision_status = Counter(row.revision_status for row in rows)
+    by_prover_attempt_status = Counter(
+        status for row in rows for status in row.applied_prover_attempt_statuses
+    )
     payload: dict[str, object] = {
         "schema_version": FORMALIZATION_GAP_PLANNER_ROUTE_REVISION_OVERLAY_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -116,6 +121,17 @@ def export_formalization_gap_planner_route_revision_overlay(
         "n_orphan_rows": by_revision_status.get("ORPHAN_ROUTE_REVISION_PROPOSAL", 0),
         "n_added_primitives": sum(len(row.added_primitives) for row in rows),
         "n_added_delta_primitives": sum(len(row.added_delta_primitives) for row in rows),
+        "n_routes_with_prover_attempt_status": sum(
+            1 for row in rows if row.applied_prover_attempt_statuses
+        ),
+        "n_distinct_prover_diagnostic_signatures": len(
+            {
+                signature
+                for row in rows
+                for signature in row.applied_prover_diagnostic_signatures
+                if signature
+            }
+        ),
         "n_informal_dag_nodes": sum(
             len(row.revised_informal_knowledge_dag_nodes) for row in rows
         ),
@@ -126,6 +142,7 @@ def export_formalization_gap_planner_route_revision_overlay(
         "all_ok": not errors and bool(rows) and all(row.ok for row in rows),
         "errors": errors,
         "by_revision_status": dict(sorted(by_revision_status.items())),
+        "by_prover_attempt_status": dict(sorted(by_prover_attempt_status.items())),
         "rows": [asdict(row) for row in rows],
         "route_revision_overlay_fingerprint": stable_hash([asdict(row) for row in rows]),
         "next_required_gate": (
@@ -190,6 +207,8 @@ def _overlay_row(
             source_refs=(),
             lean_declaration_hits=(),
             residual_goals=(),
+            applied_prover_attempt_statuses=(),
+            applied_prover_diagnostic_signatures=(),
             revised_informal_knowledge_dag_nodes=_existing_graph_nodes(
                 plan_row.get("informal_knowledge_dag", {})
             ),
@@ -267,6 +286,12 @@ def _overlay_row(
             for proposal in proposals
             for residual in proposal.get("residual_goals", [])
         ),
+        applied_prover_attempt_statuses=_str_tuple(
+            proposal.get("prover_attempt_status", "") for proposal in proposals
+        ),
+        applied_prover_diagnostic_signatures=_str_tuple(
+            proposal.get("prover_diagnostic_signature", "") for proposal in proposals
+        ),
         revised_informal_knowledge_dag_nodes=informal_nodes,
         revised_lean_realization_dag_nodes=lean_nodes,
         next_required_gate=(
@@ -309,6 +334,12 @@ def _orphan_overlay_row(
         source_refs=_str_tuple(proposal.get("source_refs", [])),
         lean_declaration_hits=_dict_tuple(proposal.get("lean_declaration_hits", [])),
         residual_goals=_str_tuple(proposal.get("residual_goals", [])),
+        applied_prover_attempt_statuses=_str_tuple(
+            [proposal.get("prover_attempt_status", "")]
+        ),
+        applied_prover_diagnostic_signatures=_str_tuple(
+            [proposal.get("prover_diagnostic_signature", "")]
+        ),
         revised_informal_knowledge_dag_nodes=_dict_tuple(
             proposal.get("revised_informal_knowledge_dag_nodes", [])
         ),
@@ -466,6 +497,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Routes revised: {payload.get('n_routes_with_revision')}",
         f"- Routes without revision: {payload.get('n_routes_without_revision')}",
         f"- Orphan proposals: {payload.get('n_orphan_route_revision_proposals')}",
+        f"- Prover attempt statuses: {payload.get('by_prover_attempt_status')}",
         f"- All OK: {payload.get('all_ok')}",
         "",
         "## Boundary",
@@ -481,6 +513,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         lines.append(
             f"- `{row.get('display_name')}` status={row.get('revision_status')} "
             f"added={len(row.get('added_primitives', []))} "
+            f"attempts={row.get('applied_prover_attempt_statuses', [])} "
             f"proposals={len(row.get('applied_proposal_ids', []))}"
         )
     return "\n".join(lines) + "\n"
