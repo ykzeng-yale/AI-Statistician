@@ -975,10 +975,25 @@ def _preflight_recommended_actions(
         actions.append(
             "Do not apply the staged source registry until the package checkout is clean and all hard blockers are resolved."
         )
-    if clone_commands and not external_refresh_ready:
+    clone_required_names = {
+        str(row.get("name", ""))
+        for row in rows
+        if row.get("status") == "clone_required" and row.get("name")
+    }
+    clone_required_commands = [
+        str(row.get("command", ""))
+        for row in clone_commands
+        if str(row.get("name", "")) in clone_required_names and row.get("command")
+    ]
+    if clone_required_names and not external_refresh_ready:
+        action_tail = (
+            "; ".join(clone_required_commands)
+            if clone_required_commands
+            else ", ".join(sorted(clone_required_names))
+        )
         actions.append(
             "Clone missing Git-backed candidate sources before rebuilding the external reuse index: "
-            + "; ".join(str(row.get("command", "")) for row in clone_commands)
+            + action_tail
         )
     unsupported = [
         str(row.get("name", "")) for row in rows if not row.get("indexer_supported")

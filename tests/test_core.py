@@ -3570,6 +3570,28 @@ class SystemTests(unittest.TestCase):
                 / "source_registry_expansion_preflight_manifest.json"
             ).exists()
         )
+        mixed_payload = json.loads(expansion_manifest.read_text(encoding="utf-8"))
+        present_external = root / "present_external" / "lean-rademacher"
+        present_external.mkdir(parents=True, exist_ok=True)
+        for row in mixed_payload["rows"]:
+            entry = row["entry"]
+            if entry["name"] == "lean-rademacher":
+                entry["url"] = ""
+                entry["local_path"] = str(present_external)
+        mixed_manifest = root / "registry_expansion_mixed_manifest.json"
+        mixed_manifest.write_text(json.dumps(mixed_payload), encoding="utf-8")
+        mixed_preflight = preflight_lean_rag_source_registry_expansion(
+            root / "registry_expansion_mixed_preflight",
+            expansion_manifest=mixed_manifest,
+        )
+        self.assertEqual(mixed_preflight["n_clone_required"], 4)
+        self.assertEqual(mixed_preflight["n_present_local_path"], 2)
+        clone_action = next(
+            action
+            for action in mixed_preflight["recommended_actions"]
+            if action.startswith("Clone missing Git-backed candidate sources")
+        )
+        self.assertNotIn("lean-rademacher", clone_action)
 
     def test_evaluation_benchmark_guidance_flags_capacity_gaps(self) -> None:
         payload = {
