@@ -39,6 +39,7 @@ class FormalVerifierAgenticProofSafetyPolicyRow:
     candidate_database_key: str
     candidate_lineage_key: str
     goal_cache_key: str
+    kernel_overlay_context: dict[str, object]
     bounded_edit_policy: dict[str, object]
     statement_guard_policy: tuple[str, ...]
     forbidden_tokens: tuple[str, ...]
@@ -101,6 +102,9 @@ def export_formal_verifier_agentic_proof_safety_policy(
         "n_with_goal_cache_key": sum(1 for row in policy_rows if row.goal_cache_key),
         "n_with_anti_cheat_checks": sum(1 for row in policy_rows if row.anti_cheat_checks),
         "n_with_safeverify_gate": sum(1 for row in policy_rows if row.safeverify_gate),
+        "n_with_kernel_overlay_context": sum(
+            1 for row in policy_rows if row.kernel_overlay_context
+        ),
         "n_ok": sum(1 for row in policy_rows if row.ok),
         "all_ok": not errors and all(row.ok for row in policy_rows),
         "errors": errors,
@@ -148,6 +152,9 @@ def _safety_policy_row(
     queue_ok = bool(row.get("ok", False))
     evaluator_pool = _str_tuple(row.get("evaluator_pool", []))
     live_tool_sequence = _str_tuple(row.get("live_tool_sequence", []))
+    kernel_overlay_context = row.get("kernel_overlay_context", {})
+    if not isinstance(kernel_overlay_context, dict):
+        kernel_overlay_context = {}
 
     for field_name, value in (
         ("candidate_evaluation_id", candidate_evaluation_id),
@@ -166,6 +173,12 @@ def _safety_policy_row(
         errors.append(f"candidate evaluation queue row is not ready: {status}")
     if not evaluator_pool:
         errors.append("evaluator_pool missing")
+    if (
+        str(row.get("agentic_strategy_kind", ""))
+        == "kernel_overlay_composition_patch_seed"
+        and not kernel_overlay_context
+    ):
+        errors.append("kernel_overlay_context missing")
 
     goal_cache_key = "agentic_goal_cache:" + stable_hash(
         [
@@ -268,6 +281,37 @@ def _safety_policy_row(
             "full_route_kernel_verified, and residual-gap validation reports no "
             "remaining formal gaps"
         )
+        if kernel_overlay_context:
+            bounded_edit_policy = {
+                **bounded_edit_policy,
+                "kernel_overlay_bounded_edit_contract": kernel_overlay_context.get(
+                    "bounded_edit_contract",
+                    {},
+                ),
+            }
+            source_claim_checks = (
+                *source_claim_checks,
+                "already kernel-verified subclaims may be reused only as subclaim evidence",
+                "each kernel-overlay target blocker must be materialized before source theorem promotion",
+            )
+            required_static_checks = (
+                *required_static_checks,
+                "candidate metadata lists kernel-overlay verified subclaims and target blockers",
+            )
+            required_dynamic_checks = tuple(
+                dict.fromkeys(
+                    (
+                        *required_dynamic_checks,
+                        "source discovery for kernel-overlay target blockers",
+                    )
+                )
+            )
+            safeverify_gate = (
+                "kernel-overlay composition candidate can be promoted only after "
+                "statement/header guards pass, each target_blocker is materialized, "
+                "Lean kernel accepts the non-placeholder composed theorem, and "
+                "patch-rerun calibration is full_route_kernel_verified"
+            )
 
     policy_status = (
         "READY_FOR_SAFETY_GATED_CANDIDATE_GENERATION"
@@ -294,6 +338,7 @@ def _safety_policy_row(
         candidate_database_key=candidate_database_key,
         candidate_lineage_key=candidate_lineage_key,
         goal_cache_key=goal_cache_key,
+        kernel_overlay_context=kernel_overlay_context,
         bounded_edit_policy=bounded_edit_policy,
         statement_guard_policy=statement_guard_policy,
         forbidden_tokens=forbidden_tokens,
@@ -365,6 +410,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- With goal cache key: {payload.get('n_with_goal_cache_key')}",
         f"- With anti-cheat checks: {payload.get('n_with_anti_cheat_checks')}",
         f"- With SafeVerify gate: {payload.get('n_with_safeverify_gate')}",
+        f"- With kernel-overlay context: {payload.get('n_with_kernel_overlay_context')}",
         f"- All OK: {payload.get('all_ok')}",
         f"- Fingerprint: `{payload.get('safety_policy_fingerprint')}`",
         "",
@@ -384,6 +430,17 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"({row.get('policy_status')}): {row.get('generation_mode')}"
         )
         lines.append(f"  goal cache key: `{row.get('goal_cache_key')}`")
+        context = row.get("kernel_overlay_context", {})
+        if isinstance(context, dict) and context:
+            blockers = ", ".join(
+                f"`{item}`" for item in context.get("target_blockers", [])
+            ) or "none"
+            subclaims = ", ".join(
+                f"`{item}`"
+                for item in context.get("already_kernel_verified_subclaims", [])
+            ) or "none"
+            lines.append(f"  kernel-overlay subclaims: {subclaims}")
+            lines.append(f"  kernel-overlay blockers: {blockers}")
         lines.append(f"  bounded edit required: `{bounded.get('bounded_edit_required')}`")
         if bounded.get("start_marker"):
             lines.append(f"  markers: `{bounded.get('start_marker')}` / `{bounded.get('end_marker')}`")

@@ -40,6 +40,7 @@ class FormalVerifierAgenticProofAttemptPopulationRow:
     goal_cache_key: str
     candidate_database_key: str
     candidate_lineage_key: str
+    kernel_overlay_context: dict[str, object]
     proof_sketch_population_key: str
     attempt_status: str
     prior_attempt_count: int
@@ -99,6 +100,9 @@ def export_formal_verifier_agentic_proof_attempt_population(
         "n_with_goal_cache_key": sum(1 for row in population_rows if row.goal_cache_key),
         "n_with_lineage_key": sum(1 for row in population_rows if row.candidate_lineage_key),
         "n_with_sampling_weight": sum(1 for row in population_rows if row.selection_weight > 0),
+        "n_with_kernel_overlay_context": sum(
+            1 for row in population_rows if row.kernel_overlay_context
+        ),
         "n_untried": by_status.get("READY_FOR_POPULATION_SEEDED_ATTEMPT", 0),
         "n_ok": sum(1 for row in population_rows if row.ok),
         "all_ok": not errors and all(row.ok for row in population_rows),
@@ -150,6 +154,9 @@ def _population_row(
     goal_cache_key = str(row.get("goal_cache_key", ""))
     candidate_database_key = str(row.get("candidate_database_key", ""))
     candidate_lineage_key = str(row.get("candidate_lineage_key", ""))
+    kernel_overlay_context = row.get("kernel_overlay_context", {})
+    if not isinstance(kernel_overlay_context, dict):
+        kernel_overlay_context = {}
     policy_status = str(row.get("policy_status", ""))
     policy_ok = bool(row.get("ok", False))
     anti_cheat_checks = _str_tuple(row.get("anti_cheat_checks", []))
@@ -196,6 +203,12 @@ def _population_row(
             "untried bounded-edit patch seed; preserve theorem statement and header",
             "reject helper lemmas that restate the target or contain placeholders",
         )
+    if kernel_overlay_context:
+        lessons = (
+            *lessons,
+            "kernel-overlay subclaims are reusable only as subclaim evidence",
+            "target blockers must be solved before source theorem promotion",
+        )
 
     replay_priority = int(row.get("priority_score", 0))
     selection_weight = base_weight + min(50, max(0, replay_priority // 4))
@@ -216,6 +229,12 @@ def _population_row(
         "record lessons learned without upgrading search state to proof evidence",
         "update sampling weight only as a search-priority signal",
     )
+    if kernel_overlay_context:
+        required_memory_updates = (
+            *required_memory_updates,
+            "record solved/deferred status for every kernel-overlay target blocker",
+            "record which already kernel-verified subclaims were reused in the composed theorem",
+        )
 
     return FormalVerifierAgenticProofAttemptPopulationRow(
         schema_version=FORMAL_VERIFIER_AGENTIC_PROOF_ATTEMPT_POPULATION_SCHEMA_VERSION,
@@ -235,6 +254,7 @@ def _population_row(
         goal_cache_key=goal_cache_key,
         candidate_database_key=candidate_database_key,
         candidate_lineage_key=candidate_lineage_key,
+        kernel_overlay_context=kernel_overlay_context,
         proof_sketch_population_key=proof_sketch_population_key,
         attempt_status=attempt_status,
         prior_attempt_count=0,
@@ -311,6 +331,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- With goal cache key: {payload.get('n_with_goal_cache_key')}",
         f"- With lineage key: {payload.get('n_with_lineage_key')}",
         f"- With sampling weight: {payload.get('n_with_sampling_weight')}",
+        f"- With kernel-overlay context: {payload.get('n_with_kernel_overlay_context')}",
         f"- All OK: {payload.get('all_ok')}",
         f"- Fingerprint: `{payload.get('attempt_population_fingerprint')}`",
         "",
@@ -331,6 +352,17 @@ def _markdown_report(payload: dict[str, object]) -> str:
         )
         lines.append(f"  goal cache key: `{row.get('goal_cache_key')}`")
         lines.append(f"  population key: `{row.get('proof_sketch_population_key')}`")
+        context = row.get("kernel_overlay_context", {})
+        if isinstance(context, dict) and context:
+            blockers = ", ".join(
+                f"`{item}`" for item in context.get("target_blockers", [])
+            ) or "none"
+            subclaims = ", ".join(
+                f"`{item}`"
+                for item in context.get("already_kernel_verified_subclaims", [])
+            ) or "none"
+            lines.append(f"  kernel-overlay subclaims: {subclaims}")
+            lines.append(f"  kernel-overlay blockers: {blockers}")
         lines.append(f"  selection weight: {row.get('selection_weight')}")
         lines.append(f"  diagnostic signature: `{row.get('diagnostic_signature')}`")
         lines.append(f"  lessons: {lessons}")

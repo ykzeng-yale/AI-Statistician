@@ -8431,6 +8431,88 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                 "runs/test_formal_verifier_agentic_proof_strategy_plan_seeded/formal_verifier_agentic_proof_strategy_plan.md"
             ).read_text(),
         )
+        seeded_candidate_queue = (
+            export_formal_verifier_agentic_proof_candidate_evaluation_queue(
+                Path("runs/test_formal_verifier_agentic_proof_strategy_plan_seeded"),
+                Path(
+                    "runs/test_formal_verifier_agentic_proof_candidate_evaluation_queue_seeded"
+                ),
+            )
+        )
+        self.assertTrue(seeded_candidate_queue["all_ok"])
+        self.assertEqual(seeded_candidate_queue["n_kernel_overlay_candidate_items"], 1)
+        self.assertEqual(seeded_candidate_queue["n_with_kernel_overlay_context"], 1)
+        seeded_candidate_row = seeded_candidate_queue["rows"][0]
+        self.assertEqual(seeded_candidate_row["attempt_budget"], 7)
+        self.assertEqual(
+            seeded_candidate_row["kernel_overlay_context"]["target_blockers"],
+            (
+                "potential_outcome_consistency",
+                "conditional_exchangeability",
+            ),
+        )
+        self.assertIn(
+            "conditional_expectation",
+            seeded_candidate_row["kernel_overlay_context"][
+                "already_kernel_verified_subclaims"
+            ],
+        )
+        self.assertIn(
+            "source discovery for unmatched blockers",
+            seeded_candidate_row["evaluator_pool"],
+        )
+        self.assertIn(
+            "kernel-overlay blockers",
+            Path(
+                "runs/test_formal_verifier_agentic_proof_candidate_evaluation_queue_seeded/formal_verifier_agentic_proof_candidate_evaluation_queue.md"
+            ).read_text(),
+        )
+        seeded_safety_policy = export_formal_verifier_agentic_proof_safety_policy(
+            Path(
+                "runs/test_formal_verifier_agentic_proof_candidate_evaluation_queue_seeded"
+            ),
+            Path("runs/test_formal_verifier_agentic_proof_safety_policy_seeded"),
+        )
+        self.assertTrue(seeded_safety_policy["all_ok"])
+        self.assertEqual(seeded_safety_policy["n_with_kernel_overlay_context"], 1)
+        seeded_safety_row = seeded_safety_policy["rows"][0]
+        self.assertEqual(
+            list(seeded_safety_row["kernel_overlay_context"]["target_blockers"]),
+            [
+                "potential_outcome_consistency",
+                "conditional_exchangeability",
+            ],
+        )
+        self.assertIn(
+            "kernel-overlay composition candidate can be promoted",
+            seeded_safety_row["safeverify_gate"],
+        )
+        self.assertIn(
+            "kernel_overlay_bounded_edit_contract",
+            seeded_safety_row["bounded_edit_policy"],
+        )
+        seeded_population = export_formal_verifier_agentic_proof_attempt_population(
+            Path("runs/test_formal_verifier_agentic_proof_safety_policy_seeded"),
+            Path("runs/test_formal_verifier_agentic_proof_attempt_population_seeded"),
+        )
+        self.assertTrue(seeded_population["all_ok"])
+        self.assertEqual(seeded_population["n_with_kernel_overlay_context"], 1)
+        seeded_population_row = seeded_population["rows"][0]
+        self.assertEqual(
+            list(seeded_population_row["kernel_overlay_context"]["target_blockers"]),
+            [
+                "potential_outcome_consistency",
+                "conditional_exchangeability",
+            ],
+        )
+        self.assertIn(
+            "target blockers must be solved",
+            " ".join(seeded_population_row["lessons_learned"]),
+        )
+        self.assertIn(
+            "kernel-overlay target blocker",
+            " ".join(seeded_population_row["required_memory_updates"]),
+        )
         self.assertTrue(
             Path(
                 "runs/test_formal_verifier_agentic_proof_strategy_plan/formal_verifier_agentic_proof_strategy_plan_manifest.json"

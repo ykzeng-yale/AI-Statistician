@@ -38,6 +38,7 @@ class FormalVerifierAgenticProofCandidateEvaluationQueueRow:
     generation_mode: str
     candidate_database_key: str
     candidate_lineage_key: str
+    kernel_overlay_context: dict[str, object]
     attempt_budget: int
     evaluator_pool: tuple[str, ...]
     live_tool_sequence: tuple[str, ...]
@@ -99,10 +100,17 @@ def export_formal_verifier_agentic_proof_candidate_evaluation_queue(
             "source_discovery_candidate_generation",
             0,
         ),
+        "n_kernel_overlay_candidate_items": by_strategy_kind.get(
+            "kernel_overlay_composition_patch_seed",
+            0,
+        ),
         "n_with_candidate_database_key": sum(
             1 for row in queue_rows if row.candidate_database_key
         ),
         "n_with_live_evaluator_pool": sum(1 for row in queue_rows if row.evaluator_pool),
+        "n_with_kernel_overlay_context": sum(
+            1 for row in queue_rows if row.kernel_overlay_context
+        ),
         "n_ok": sum(1 for row in queue_rows if row.ok),
         "all_ok": not errors and all(row.ok for row in queue_rows),
         "errors": errors,
@@ -156,6 +164,10 @@ def _candidate_queue_row(
     candidate_database_key = str(row.get("candidate_database_key", ""))
     required_live_tools = _str_tuple(row.get("required_live_tools", []))
     evaluator_gates = _str_tuple(row.get("evaluator_gates", []))
+    evolve_block_scope = row.get("evolve_block_scope", {})
+    if not isinstance(evolve_block_scope, dict):
+        evolve_block_scope = {}
+    kernel_overlay_context = _kernel_overlay_context(row, evolve_block_scope)
 
     for field_name, value in (
         ("strategy_id", strategy_id),
@@ -174,6 +186,8 @@ def _candidate_queue_row(
         errors.append("required_live_tools missing")
     if not evaluator_gates:
         errors.append("evaluator_gates missing")
+    if strategy_kind == "kernel_overlay_composition_patch_seed" and not kernel_overlay_context:
+        errors.append("kernel_overlay_context missing")
 
     if strategy_kind == "global_goal_cache_source_discovery":
         generation_mode = "source_discovery_candidate_generation"
@@ -203,6 +217,43 @@ def _candidate_queue_row(
         promotion_gate = (
             "source candidates may only become proof work after retrieval/source "
             "coverage is refreshed and residual prompt packets are regenerated"
+        )
+    elif strategy_kind == "kernel_overlay_composition_patch_seed":
+        generation_mode = "residual_patch_candidate_generation"
+        attempt_budget = 7
+        generation_contract = (
+            "generate a candidate composed Lean theorem using the kernel_overlay_context",
+            "reuse already_kernel_verified_subclaims only as subclaim evidence",
+            "materialize every target_blocker before claiming the source theorem",
+            "preserve theorem statements, namespaces, imports, and declaration headers",
+            "evaluate candidates through live Lean diagnostics and AXLE/local Lean verification",
+        )
+        live_tool_sequence = tuple(
+            dict.fromkeys(
+                (
+                    "lean_goal",
+                    "lean_diagnostic_messages",
+                    "lean_hover",
+                    "lean_local_search",
+                    "lean_multi_attempt",
+                    "source discovery for unmatched blockers",
+                    "formal-verifier-replay-repair-patch-rerun-attempts",
+                    "formal-verifier-replay-repair-patch-rerun-calibration",
+                    "formal-verifier-replay-repair-patch-rerun-residual-response-validation",
+                )
+            )
+        )
+        expected_candidate_artifacts = (
+            "candidate composed theorem Lean patch",
+            "source-discovery manifest for target blockers",
+            "patch-rerun attempt manifest",
+            "patch-rerun calibration manifest",
+            "residual response validation manifest",
+        )
+        promotion_gate = (
+            "kernel-overlay composition candidate is proof-relevant only if every "
+            "target_blocker is materialized and the non-placeholder composed theorem "
+            "passes AXLE/local Lean with full_route_kernel_verified calibration"
         )
     else:
         generation_mode = "residual_patch_candidate_generation"
@@ -276,6 +327,7 @@ def _candidate_queue_row(
         generation_mode=generation_mode,
         candidate_database_key=candidate_database_key,
         candidate_lineage_key=candidate_lineage_key,
+        kernel_overlay_context=kernel_overlay_context,
         attempt_budget=attempt_budget,
         evaluator_pool=evaluator_pool,
         live_tool_sequence=live_tool_sequence,
@@ -291,6 +343,35 @@ def _candidate_queue_row(
         ok=not errors,
         errors=tuple(errors),
     )
+
+
+def _kernel_overlay_context(
+    row: dict[str, Any],
+    evolve_block_scope: dict[str, Any],
+) -> dict[str, object]:
+    if str(row.get("agentic_strategy_kind", "")) != "kernel_overlay_composition_patch_seed":
+        return {}
+    return {
+        "seed_id": str(evolve_block_scope.get("seed_id", "")),
+        "work_item_id": str(evolve_block_scope.get("work_item_id", "")),
+        "packet_id": str(evolve_block_scope.get("packet_id", "")),
+        "source_claim_id": str(evolve_block_scope.get("source_claim_id", "")),
+        "question_id": str(evolve_block_scope.get("question_id", "")),
+        "source_goal_cache_keys": _str_tuple(row.get("global_goal_cache_keys", [])),
+        "already_kernel_verified_subclaims": _str_tuple(
+            evolve_block_scope.get("already_kernel_verified_subclaims", [])
+        ),
+        "target_blockers": _str_tuple(evolve_block_scope.get("target_blockers", [])),
+        "source_discovery_queries": _str_tuple(
+            evolve_block_scope.get("source_discovery_queries", [])
+        ),
+        "bounded_edit_contract": evolve_block_scope.get("bounded_edit_contract", {}),
+        "generation_contract": _str_tuple(evolve_block_scope.get("generation_contract", [])),
+        "proof_evidence_boundary": (
+            "Kernel-overlay context guides candidate generation only; it is not "
+            "theorem proof evidence for the source claim."
+        ),
+    }
 
 
 def _rank_rows(
@@ -345,6 +426,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Source-discovery candidate items: {payload.get('n_source_discovery_candidate_items')}",
         f"- With candidate database key: {payload.get('n_with_candidate_database_key')}",
         f"- With live evaluator pool: {payload.get('n_with_live_evaluator_pool')}",
+        f"- With kernel-overlay context: {payload.get('n_with_kernel_overlay_context')}",
         f"- All OK: {payload.get('all_ok')}",
         f"- Fingerprint: `{payload.get('candidate_evaluation_queue_fingerprint')}`",
         "",
@@ -366,6 +448,17 @@ def _markdown_report(payload: dict[str, object]) -> str:
         sequence = ", ".join(f"`{item}`" for item in row.get("live_tool_sequence", []))
         lines.append(f"  candidate DB key: `{row.get('candidate_database_key')}`")
         lines.append(f"  lineage key: `{row.get('candidate_lineage_key')}`")
+        context = row.get("kernel_overlay_context", {})
+        if isinstance(context, dict) and context:
+            blockers = ", ".join(
+                f"`{item}`" for item in context.get("target_blockers", [])
+            ) or "none"
+            subclaims = ", ".join(
+                f"`{item}`"
+                for item in context.get("already_kernel_verified_subclaims", [])
+            ) or "none"
+            lines.append(f"  kernel-overlay subclaims: {subclaims}")
+            lines.append(f"  kernel-overlay blockers: {blockers}")
         lines.append(f"  attempt budget: {row.get('attempt_budget')}")
         lines.append(f"  evaluator pool: {evaluators}")
         lines.append(f"  live tool sequence: {sequence}")
