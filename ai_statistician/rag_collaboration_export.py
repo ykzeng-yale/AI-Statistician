@@ -39,7 +39,11 @@ def export_rag_collaboration_manifest(
         if str(key) and str(value)
     }
     artifacts.update(normalized_artifact_overrides)
-    artifact_auto_discoveries = _auto_discover_artifacts(artifacts, run_dir)
+    artifact_auto_discoveries = _auto_discover_artifacts(
+        artifacts,
+        run_dir,
+        protected_keys=set(normalized_artifact_overrides),
+    )
     artifacts.update(artifact_auto_discoveries)
 
     proof_payload = _read_json(_artifact_path(artifacts, "proof_audit", run_dir))
@@ -1313,6 +1317,20 @@ def export_rag_collaboration_manifest(
                     "n_source_discovery_candidate_items"
                 ),
             ),
+            "formal_verifier_agentic_proof_candidate_evaluation_queue_kernel_overlay_candidates": counts.get(
+                "formal_verifier_agentic_proof_candidate_evaluation_queue_kernel_overlay_candidates",
+                formal_verifier_agentic_proof_candidate_evaluation_queue_payload.get(
+                    "n_kernel_overlay_candidate_items",
+                    0,
+                ),
+            ),
+            "formal_verifier_agentic_proof_candidate_evaluation_queue_with_kernel_overlay_context": counts.get(
+                "formal_verifier_agentic_proof_candidate_evaluation_queue_with_kernel_overlay_context",
+                formal_verifier_agentic_proof_candidate_evaluation_queue_payload.get(
+                    "n_with_kernel_overlay_context",
+                    0,
+                ),
+            ),
             "formal_verifier_agentic_proof_candidate_evaluation_queue_manifest": str(
                 formal_verifier_agentic_proof_candidate_evaluation_queue_path
             ),
@@ -1346,6 +1364,13 @@ def export_rag_collaboration_manifest(
                     "n_source_validation_policies"
                 ),
             ),
+            "formal_verifier_agentic_proof_safety_policy_with_kernel_overlay_context": counts.get(
+                "formal_verifier_agentic_proof_safety_policy_with_kernel_overlay_context",
+                formal_verifier_agentic_proof_safety_policy_payload.get(
+                    "n_with_kernel_overlay_context",
+                    0,
+                ),
+            ),
             "formal_verifier_agentic_proof_safety_policy_manifest": str(
                 formal_verifier_agentic_proof_safety_policy_path
             ),
@@ -1377,6 +1402,13 @@ def export_rag_collaboration_manifest(
                 "formal_verifier_agentic_proof_attempt_population_source_entries",
                 formal_verifier_agentic_proof_attempt_population_payload.get(
                     "n_source_population_entries"
+                ),
+            ),
+            "formal_verifier_agentic_proof_attempt_population_with_kernel_overlay_context": counts.get(
+                "formal_verifier_agentic_proof_attempt_population_with_kernel_overlay_context",
+                formal_verifier_agentic_proof_attempt_population_payload.get(
+                    "n_with_kernel_overlay_context",
+                    0,
                 ),
             ),
             "formal_verifier_agentic_proof_attempt_population_manifest": str(
@@ -1530,18 +1562,69 @@ def _artifact_path(artifacts: dict[str, object], key: str, run_dir: Path) -> Pat
     return candidate if candidate.exists() else path
 
 
-def _auto_discover_artifacts(artifacts: dict[str, object], run_dir: Path) -> dict[str, str]:
+def _auto_discover_artifacts(
+    artifacts: dict[str, object],
+    run_dir: Path,
+    *,
+    protected_keys: set[str] | None = None,
+) -> dict[str, str]:
     discoveries: dict[str, str] = {}
     if not _is_current_run_dir(run_dir):
         return discoveries
+    protected = set(protected_keys or set())
     triage_key = "formalization_gap_planner_proof_state_triage"
-    if str(artifacts.get(triage_key, "")):
-        return discoveries
-    triage_manifest = (
-        Path("current_formalization_gap_planner_proof_state_triage")
-        / "formalization_gap_planner_proof_state_triage_manifest.json"
-    )
-    candidates = (run_dir.parent / triage_manifest,)
+    if triage_key not in protected and not str(artifacts.get(triage_key, "")):
+        triage_manifest = (
+            Path("current_formalization_gap_planner_proof_state_triage")
+            / "formalization_gap_planner_proof_state_triage_manifest.json"
+        )
+        triage_candidate = _first_existing(run_dir.parent / triage_manifest)
+        if triage_candidate is not None:
+            discoveries[triage_key] = str(triage_candidate)
+    seeded_agentic_candidates = {
+        "formal_verifier_agentic_proof_strategy_plan": (
+            Path("current_kernel_overlay_seeded_agentic_proof_strategy_plan")
+            / "formal_verifier_agentic_proof_strategy_plan_manifest.json",
+            ("n_kernel_overlay_composition_seeds",),
+        ),
+        "formal_verifier_agentic_proof_candidate_evaluation_queue": (
+            Path("current_kernel_overlay_seeded_agentic_proof_candidate_evaluation_queue")
+            / "formal_verifier_agentic_proof_candidate_evaluation_queue_manifest.json",
+            ("n_kernel_overlay_candidate_items", "n_with_kernel_overlay_context"),
+        ),
+        "formal_verifier_agentic_proof_safety_policy": (
+            Path("current_kernel_overlay_seeded_agentic_proof_safety_policy")
+            / "formal_verifier_agentic_proof_safety_policy_manifest.json",
+            ("n_with_kernel_overlay_context",),
+        ),
+        "formal_verifier_agentic_proof_attempt_population": (
+            Path("current_kernel_overlay_seeded_agentic_proof_attempt_population")
+            / "formal_verifier_agentic_proof_attempt_population_manifest.json",
+            ("n_with_kernel_overlay_context",),
+        ),
+    }
+    for key, (relative_path, context_counts) in seeded_agentic_candidates.items():
+        if key in protected:
+            continue
+        candidate = _first_existing(run_dir.parent / relative_path)
+        if candidate is None:
+            continue
+        candidate_score = _context_count_score(_read_json(candidate), context_counts)
+        if candidate_score <= 0:
+            continue
+        existing_raw = str(artifacts.get(key, ""))
+        if existing_raw:
+            existing_score = _context_count_score(
+                _read_json(_artifact_path(artifacts, key, run_dir)),
+                context_counts,
+            )
+            if existing_score >= candidate_score:
+                continue
+        discoveries[key] = str(candidate)
+    return discoveries
+
+
+def _first_existing(*candidates: Path) -> Path | None:
     seen: set[Path] = set()
     for candidate in candidates:
         resolved = candidate.resolve()
@@ -1549,9 +1632,18 @@ def _auto_discover_artifacts(artifacts: dict[str, object], run_dir: Path) -> dic
             continue
         seen.add(resolved)
         if candidate.exists():
-            discoveries[triage_key] = str(candidate)
-            break
-    return discoveries
+            return candidate
+    return None
+
+
+def _context_count_score(payload: dict[str, Any], keys: tuple[str, ...]) -> int:
+    score = 0
+    for key in keys:
+        try:
+            score += int(payload.get(key, 0) or 0)
+        except (TypeError, ValueError):
+            continue
+    return score
 
 
 def _kernel_proof_evidence_overlays(
@@ -2843,28 +2935,57 @@ def _formal_verifier_agentic_proof_candidate_evaluation_queue_preview(
     for row in queue_rows:
         if not isinstance(row, dict):
             continue
-        rows.append(
-            {
-                "candidate_evaluation_id": row.get("candidate_evaluation_id"),
-                "rank": row.get("rank"),
-                "strategy_id": row.get("strategy_id"),
-                "display_name": row.get("display_name"),
-                "residual_gap": row.get("residual_gap"),
-                "generation_mode": row.get("generation_mode", ""),
-                "candidate_database_key": row.get("candidate_database_key", ""),
-                "candidate_lineage_key": row.get("candidate_lineage_key", ""),
-                "attempt_budget": row.get("attempt_budget", 0),
-                "status": row.get("status", ""),
-                "evaluator_pool": row.get("evaluator_pool", [])[:8],
-                "live_tool_sequence": row.get("live_tool_sequence", [])[:8],
-                "promotion_gate": row.get("promotion_gate", ""),
-                "proof_evidence_status": row.get("proof_evidence_status", ""),
-                "proof_evidence_boundary": row.get("proof_evidence_boundary", ""),
-            }
-        )
+        preview = {
+            "candidate_evaluation_id": row.get("candidate_evaluation_id"),
+            "rank": row.get("rank"),
+            "strategy_id": row.get("strategy_id"),
+            "display_name": row.get("display_name"),
+            "residual_gap": row.get("residual_gap"),
+            "generation_mode": row.get("generation_mode", ""),
+            "candidate_database_key": row.get("candidate_database_key", ""),
+            "candidate_lineage_key": row.get("candidate_lineage_key", ""),
+            "attempt_budget": row.get("attempt_budget", 0),
+            "status": row.get("status", ""),
+            "evaluator_pool": row.get("evaluator_pool", [])[:8],
+            "live_tool_sequence": row.get("live_tool_sequence", [])[:8],
+            "promotion_gate": row.get("promotion_gate", ""),
+            "proof_evidence_status": row.get("proof_evidence_status", ""),
+            "proof_evidence_boundary": row.get("proof_evidence_boundary", ""),
+        }
+        preview.update(_kernel_overlay_context_preview_fields(row))
+        rows.append(preview)
         if len(rows) >= max_rows:
             break
     return rows
+
+
+def _kernel_overlay_context_preview_fields(row: dict[str, Any]) -> dict[str, object]:
+    context = row.get("kernel_overlay_context", {})
+    if not isinstance(context, dict) or not context:
+        return {
+            "kernel_overlay_context_present": False,
+            "kernel_overlay_work_item_id": "",
+            "kernel_overlay_seed_id": "",
+            "kernel_overlay_source_claim_id": "",
+            "kernel_overlay_verified_subclaims": [],
+            "kernel_overlay_target_blockers": [],
+            "kernel_overlay_source_discovery_queries": [],
+        }
+    return {
+        "kernel_overlay_context_present": True,
+        "kernel_overlay_work_item_id": str(context.get("work_item_id", "")),
+        "kernel_overlay_seed_id": str(context.get("seed_id", "")),
+        "kernel_overlay_source_claim_id": str(context.get("source_claim_id", "")),
+        "kernel_overlay_verified_subclaims": _str_list(
+            context.get("already_kernel_verified_subclaims", [])
+        )[:6],
+        "kernel_overlay_target_blockers": _str_list(
+            context.get("target_blockers", [])
+        )[:6],
+        "kernel_overlay_source_discovery_queries": _str_list(
+            context.get("source_discovery_queries", [])
+        )[:4],
+    }
 
 
 def _formal_verifier_agentic_proof_safety_policy_preview(
@@ -2882,33 +3003,33 @@ def _formal_verifier_agentic_proof_safety_policy_preview(
         bounded_edit_policy = row.get("bounded_edit_policy", {})
         if not isinstance(bounded_edit_policy, dict):
             bounded_edit_policy = {}
-        rows.append(
-            {
-                "safety_policy_id": row.get("safety_policy_id"),
-                "rank": row.get("rank"),
-                "candidate_evaluation_id": row.get("candidate_evaluation_id"),
-                "display_name": row.get("display_name"),
-                "residual_gap": row.get("residual_gap"),
-                "generation_mode": row.get("generation_mode", ""),
-                "policy_status": row.get("policy_status", ""),
-                "goal_cache_key": row.get("goal_cache_key", ""),
-                "bounded_edit_required": bounded_edit_policy.get(
-                    "bounded_edit_required",
-                    False,
-                ),
-                "bounded_edit_start_marker": bounded_edit_policy.get(
-                    "start_marker",
-                    "",
-                ),
-                "bounded_edit_end_marker": bounded_edit_policy.get("end_marker", ""),
-                "anti_cheat_checks": row.get("anti_cheat_checks", [])[:8],
-                "forbidden_tokens": row.get("forbidden_tokens", [])[:8],
-                "required_static_checks": row.get("required_static_checks", [])[:8],
-                "safeverify_gate": row.get("safeverify_gate", ""),
-                "proof_evidence_status": row.get("proof_evidence_status", ""),
-                "proof_evidence_boundary": row.get("proof_evidence_boundary", ""),
-            }
-        )
+        preview = {
+            "safety_policy_id": row.get("safety_policy_id"),
+            "rank": row.get("rank"),
+            "candidate_evaluation_id": row.get("candidate_evaluation_id"),
+            "display_name": row.get("display_name"),
+            "residual_gap": row.get("residual_gap"),
+            "generation_mode": row.get("generation_mode", ""),
+            "policy_status": row.get("policy_status", ""),
+            "goal_cache_key": row.get("goal_cache_key", ""),
+            "bounded_edit_required": bounded_edit_policy.get(
+                "bounded_edit_required",
+                False,
+            ),
+            "bounded_edit_start_marker": bounded_edit_policy.get(
+                "start_marker",
+                "",
+            ),
+            "bounded_edit_end_marker": bounded_edit_policy.get("end_marker", ""),
+            "anti_cheat_checks": row.get("anti_cheat_checks", [])[:8],
+            "forbidden_tokens": row.get("forbidden_tokens", [])[:8],
+            "required_static_checks": row.get("required_static_checks", [])[:8],
+            "safeverify_gate": row.get("safeverify_gate", ""),
+            "proof_evidence_status": row.get("proof_evidence_status", ""),
+            "proof_evidence_boundary": row.get("proof_evidence_boundary", ""),
+        }
+        preview.update(_kernel_overlay_context_preview_fields(row))
+        rows.append(preview)
         if len(rows) >= max_rows:
             break
     return rows
@@ -2926,31 +3047,31 @@ def _formal_verifier_agentic_proof_attempt_population_preview(
     for row in population_rows:
         if not isinstance(row, dict):
             continue
-        rows.append(
-            {
-                "population_entry_id": row.get("population_entry_id"),
-                "rank": row.get("rank"),
-                "safety_policy_id": row.get("safety_policy_id"),
-                "display_name": row.get("display_name"),
-                "residual_gap": row.get("residual_gap"),
-                "generation_mode": row.get("generation_mode", ""),
-                "population_bucket": row.get("population_bucket", ""),
-                "attempt_status": row.get("attempt_status", ""),
-                "goal_cache_key": row.get("goal_cache_key", ""),
-                "candidate_lineage_key": row.get("candidate_lineage_key", ""),
-                "proof_sketch_population_key": row.get(
-                    "proof_sketch_population_key",
-                    "",
-                ),
-                "selection_weight": row.get("selection_weight", 0),
-                "diagnostic_signature": row.get("diagnostic_signature", ""),
-                "lessons_learned": row.get("lessons_learned", [])[:4],
-                "sampler_policy": row.get("sampler_policy", ""),
-                "promotion_gate": row.get("promotion_gate", ""),
-                "proof_evidence_status": row.get("proof_evidence_status", ""),
-                "proof_evidence_boundary": row.get("proof_evidence_boundary", ""),
-            }
-        )
+        preview = {
+            "population_entry_id": row.get("population_entry_id"),
+            "rank": row.get("rank"),
+            "safety_policy_id": row.get("safety_policy_id"),
+            "display_name": row.get("display_name"),
+            "residual_gap": row.get("residual_gap"),
+            "generation_mode": row.get("generation_mode", ""),
+            "population_bucket": row.get("population_bucket", ""),
+            "attempt_status": row.get("attempt_status", ""),
+            "goal_cache_key": row.get("goal_cache_key", ""),
+            "candidate_lineage_key": row.get("candidate_lineage_key", ""),
+            "proof_sketch_population_key": row.get(
+                "proof_sketch_population_key",
+                "",
+            ),
+            "selection_weight": row.get("selection_weight", 0),
+            "diagnostic_signature": row.get("diagnostic_signature", ""),
+            "lessons_learned": row.get("lessons_learned", [])[:4],
+            "sampler_policy": row.get("sampler_policy", ""),
+            "promotion_gate": row.get("promotion_gate", ""),
+            "proof_evidence_status": row.get("proof_evidence_status", ""),
+            "proof_evidence_boundary": row.get("proof_evidence_boundary", ""),
+        }
+        preview.update(_kernel_overlay_context_preview_fields(row))
+        rows.append(preview)
         if len(rows) >= max_rows:
             break
     return rows
@@ -3177,13 +3298,17 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"`{queue.get('formal_verifier_agentic_proof_strategy_plan_kernel_overlay_composition_seeds')}` kernel-overlay composition seeds)",
         f"- Formal verifier agentic proof candidate evaluation queue: `{queue.get('formal_verifier_agentic_proof_candidate_evaluation_queue_items')}` items "
         f"(`{queue.get('formal_verifier_agentic_proof_candidate_evaluation_queue_patch_candidates')}` patch candidates, "
-        f"`{queue.get('formal_verifier_agentic_proof_candidate_evaluation_queue_source_discovery_candidates')}` source-discovery candidates)",
+        f"`{queue.get('formal_verifier_agentic_proof_candidate_evaluation_queue_source_discovery_candidates')}` source-discovery candidates, "
+        f"`{queue.get('formal_verifier_agentic_proof_candidate_evaluation_queue_kernel_overlay_candidates')}` kernel-overlay candidates, "
+        f"`{queue.get('formal_verifier_agentic_proof_candidate_evaluation_queue_with_kernel_overlay_context')}` with kernel-overlay context)",
         f"- Formal verifier agentic proof safety policy: `{queue.get('formal_verifier_agentic_proof_safety_policy_rows')}` rows "
         f"(`{queue.get('formal_verifier_agentic_proof_safety_policy_patch_bounded_edit')}` bounded-edit, "
-        f"`{queue.get('formal_verifier_agentic_proof_safety_policy_source_validation')}` source-validation)",
+        f"`{queue.get('formal_verifier_agentic_proof_safety_policy_source_validation')}` source-validation, "
+        f"`{queue.get('formal_verifier_agentic_proof_safety_policy_with_kernel_overlay_context')}` with kernel-overlay context)",
         f"- Formal verifier agentic proof attempt population: `{queue.get('formal_verifier_agentic_proof_attempt_population_entries')}` entries "
         f"(`{queue.get('formal_verifier_agentic_proof_attempt_population_patch_entries')}` patch, "
-        f"`{queue.get('formal_verifier_agentic_proof_attempt_population_source_entries')}` source)",
+        f"`{queue.get('formal_verifier_agentic_proof_attempt_population_source_entries')}` source, "
+        f"`{queue.get('formal_verifier_agentic_proof_attempt_population_with_kernel_overlay_context')}` with kernel-overlay context)",
         f"- Formalization gap proof-state triage: `{queue.get('formalization_gap_planner_proof_state_triage_items')}` items "
         f"(`{queue.get('formalization_gap_planner_proof_state_triage_formal_gap_scaffold_items')}` formal-gap scaffold, "
         f"`{queue.get('formalization_gap_planner_proof_state_triage_local_lean_failed_items')}` local Lean failed, "
@@ -3598,6 +3723,19 @@ def _markdown_report(payload: dict[str, object]) -> str:
         sequence = ", ".join(f"`{item}`" for item in row.get("live_tool_sequence", [])) or "none"
         lines.append(f"  candidate DB key: `{row.get('candidate_database_key')}`")
         lines.append(f"  lineage key: `{row.get('candidate_lineage_key')}`")
+        if row.get("kernel_overlay_context_present"):
+            subclaims = ", ".join(
+                f"`{item}`" for item in row.get("kernel_overlay_verified_subclaims", [])
+            ) or "none"
+            blockers = ", ".join(
+                f"`{item}`" for item in row.get("kernel_overlay_target_blockers", [])
+            ) or "none"
+            queries = ", ".join(
+                f"`{item}`" for item in row.get("kernel_overlay_source_discovery_queries", [])
+            ) or "none"
+            lines.append(f"  kernel-overlay subclaims: {subclaims}")
+            lines.append(f"  kernel-overlay blockers: {blockers}")
+            lines.append(f"  kernel-overlay source queries: {queries}")
         lines.append(f"  attempt budget: {row.get('attempt_budget')}")
         lines.append(f"  evaluator pool: {evaluators}")
         lines.append(f"  live tool sequence: {sequence}")
@@ -3615,6 +3753,15 @@ def _markdown_report(payload: dict[str, object]) -> str:
         anti_cheat = ", ".join(f"`{item}`" for item in row.get("anti_cheat_checks", [])) or "none"
         forbidden = ", ".join(f"`{item}`" for item in row.get("forbidden_tokens", [])) or "none"
         lines.append(f"  goal cache key: `{row.get('goal_cache_key')}`")
+        if row.get("kernel_overlay_context_present"):
+            subclaims = ", ".join(
+                f"`{item}`" for item in row.get("kernel_overlay_verified_subclaims", [])
+            ) or "none"
+            blockers = ", ".join(
+                f"`{item}`" for item in row.get("kernel_overlay_target_blockers", [])
+            ) or "none"
+            lines.append(f"  kernel-overlay subclaims: {subclaims}")
+            lines.append(f"  kernel-overlay blockers: {blockers}")
         lines.append(f"  bounded edit required: `{row.get('bounded_edit_required')}`")
         if row.get("bounded_edit_start_marker"):
             lines.append(
@@ -3636,6 +3783,15 @@ def _markdown_report(payload: dict[str, object]) -> str:
         lessons = ", ".join(f"`{item}`" for item in row.get("lessons_learned", [])) or "none"
         lines.append(f"  goal cache key: `{row.get('goal_cache_key')}`")
         lines.append(f"  population key: `{row.get('proof_sketch_population_key')}`")
+        if row.get("kernel_overlay_context_present"):
+            subclaims = ", ".join(
+                f"`{item}`" for item in row.get("kernel_overlay_verified_subclaims", [])
+            ) or "none"
+            blockers = ", ".join(
+                f"`{item}`" for item in row.get("kernel_overlay_target_blockers", [])
+            ) or "none"
+            lines.append(f"  kernel-overlay subclaims: {subclaims}")
+            lines.append(f"  kernel-overlay blockers: {blockers}")
         lines.append(f"  lineage key: `{row.get('candidate_lineage_key')}`")
         lines.append(f"  selection weight: {row.get('selection_weight')}")
         lines.append(f"  diagnostic signature: `{row.get('diagnostic_signature')}`")

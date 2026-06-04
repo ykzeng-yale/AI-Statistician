@@ -2459,7 +2459,9 @@ def _formal_verifier_agentic_proof_candidate_evaluation_queue(
         f"blocked={payload['n_blocked']} "
         f"patch_candidates={payload['n_patch_candidate_items']} "
         f"source_discovery_candidates={payload['n_source_discovery_candidate_items']} "
+        f"kernel_overlay_candidates={payload['n_kernel_overlay_candidate_items']} "
         f"with_live_evaluator_pool={payload['n_with_live_evaluator_pool']} "
+        f"kernel_overlay_context={payload['n_with_kernel_overlay_context']} "
         f"all_ok={payload['all_ok']}"
     )
     print(
@@ -2493,6 +2495,7 @@ def _formal_verifier_agentic_proof_safety_policy(
         f"bounded_edit={payload['n_patch_bounded_edit_policies']} "
         f"source_validation={payload['n_source_validation_policies']} "
         f"anti_cheat={payload['n_with_anti_cheat_checks']} "
+        f"kernel_overlay_context={payload['n_with_kernel_overlay_context']} "
         f"all_ok={payload['all_ok']}"
     )
     print(
@@ -2526,6 +2529,7 @@ def _formal_verifier_agentic_proof_attempt_population(
         f"patch={payload['n_patch_population_entries']} "
         f"source={payload['n_source_population_entries']} "
         f"goal_cache={payload['n_with_goal_cache_key']} "
+        f"kernel_overlay_context={payload['n_with_kernel_overlay_context']} "
         f"all_ok={payload['all_ok']}"
     )
     print(

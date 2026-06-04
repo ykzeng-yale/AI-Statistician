@@ -2522,11 +2522,17 @@ async def run_research_system_audit(
             "formal_verifier_agentic_proof_candidate_evaluation_queue_source_discovery_candidates": formal_verifier_agentic_proof_candidate_evaluation_queue_manifest[
                 "n_source_discovery_candidate_items"
             ],
+            "formal_verifier_agentic_proof_candidate_evaluation_queue_kernel_overlay_candidates": formal_verifier_agentic_proof_candidate_evaluation_queue_manifest[
+                "n_kernel_overlay_candidate_items"
+            ],
             "formal_verifier_agentic_proof_candidate_evaluation_queue_with_candidate_database_key": formal_verifier_agentic_proof_candidate_evaluation_queue_manifest[
                 "n_with_candidate_database_key"
             ],
             "formal_verifier_agentic_proof_candidate_evaluation_queue_with_live_evaluator_pool": formal_verifier_agentic_proof_candidate_evaluation_queue_manifest[
                 "n_with_live_evaluator_pool"
+            ],
+            "formal_verifier_agentic_proof_candidate_evaluation_queue_with_kernel_overlay_context": formal_verifier_agentic_proof_candidate_evaluation_queue_manifest[
+                "n_with_kernel_overlay_context"
             ],
             "formal_verifier_agentic_proof_candidate_evaluation_queue_ok": formal_verifier_agentic_proof_candidate_evaluation_queue_manifest[
                 "n_ok"
@@ -2555,6 +2561,9 @@ async def run_research_system_audit(
             "formal_verifier_agentic_proof_safety_policy_with_safeverify_gate": formal_verifier_agentic_proof_safety_policy_manifest[
                 "n_with_safeverify_gate"
             ],
+            "formal_verifier_agentic_proof_safety_policy_with_kernel_overlay_context": formal_verifier_agentic_proof_safety_policy_manifest[
+                "n_with_kernel_overlay_context"
+            ],
             "formal_verifier_agentic_proof_safety_policy_ok": formal_verifier_agentic_proof_safety_policy_manifest[
                 "n_ok"
             ],
@@ -2581,6 +2590,9 @@ async def run_research_system_audit(
             ],
             "formal_verifier_agentic_proof_attempt_population_with_sampling_weight": formal_verifier_agentic_proof_attempt_population_manifest[
                 "n_with_sampling_weight"
+            ],
+            "formal_verifier_agentic_proof_attempt_population_with_kernel_overlay_context": formal_verifier_agentic_proof_attempt_population_manifest[
+                "n_with_kernel_overlay_context"
             ],
             "formal_verifier_agentic_proof_attempt_population_untried": formal_verifier_agentic_proof_attempt_population_manifest[
                 "n_untried"

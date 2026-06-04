@@ -12157,6 +12157,27 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         theorem_composition_dir = run_dir / "theorem_composition"
         formal_verifier_queue_dir = run_dir / "formal_verifier_queue"
         formal_verifier_replay_dir = run_dir / "formal_verifier_replay"
+        generic_strategy_plan_dir = run_dir / "formal_verifier_agentic_proof_strategy_plan"
+        generic_candidate_queue_dir = (
+            run_dir / "formal_verifier_agentic_proof_candidate_evaluation_queue"
+        )
+        generic_safety_policy_dir = run_dir / "formal_verifier_agentic_proof_safety_policy"
+        generic_attempt_population_dir = (
+            run_dir / "formal_verifier_agentic_proof_attempt_population"
+        )
+        seeded_strategy_plan_dir = (
+            parent / "current_kernel_overlay_seeded_agentic_proof_strategy_plan"
+        )
+        seeded_candidate_queue_dir = (
+            parent
+            / "current_kernel_overlay_seeded_agentic_proof_candidate_evaluation_queue"
+        )
+        seeded_safety_policy_dir = (
+            parent / "current_kernel_overlay_seeded_agentic_proof_safety_policy"
+        )
+        seeded_attempt_population_dir = (
+            parent / "current_kernel_overlay_seeded_agentic_proof_attempt_population"
+        )
         out = parent / "rag_collaboration_export"
         shutil.rmtree(parent, ignore_errors=True)
         run_dir.mkdir(parents=True, exist_ok=True)
@@ -12165,6 +12186,14 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         theorem_composition_dir.mkdir(parents=True, exist_ok=True)
         formal_verifier_queue_dir.mkdir(parents=True, exist_ok=True)
         formal_verifier_replay_dir.mkdir(parents=True, exist_ok=True)
+        generic_strategy_plan_dir.mkdir(parents=True, exist_ok=True)
+        generic_candidate_queue_dir.mkdir(parents=True, exist_ok=True)
+        generic_safety_policy_dir.mkdir(parents=True, exist_ok=True)
+        generic_attempt_population_dir.mkdir(parents=True, exist_ok=True)
+        seeded_strategy_plan_dir.mkdir(parents=True, exist_ok=True)
+        seeded_candidate_queue_dir.mkdir(parents=True, exist_ok=True)
+        seeded_safety_policy_dir.mkdir(parents=True, exist_ok=True)
+        seeded_attempt_population_dir.mkdir(parents=True, exist_ok=True)
         proof_fingerprint = "f" * 64
         proof_audit_dir = run_dir / "proof_audit"
         proof_audit_dir.mkdir(parents=True, exist_ok=True)
@@ -12269,6 +12298,226 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             ),
             encoding="utf-8",
         )
+        for manifest_dir, manifest_name, payload in (
+            (
+                generic_strategy_plan_dir,
+                "formal_verifier_agentic_proof_strategy_plan_manifest.json",
+                {
+                    "n_strategy_rows": 1,
+                    "n_ready": 1,
+                    "n_patch_evolve_blocks": 1,
+                    "n_source_discovery_cache_items": 0,
+                    "n_kernel_overlay_composition_seeds": 0,
+                    "rows": [],
+                },
+            ),
+            (
+                generic_candidate_queue_dir,
+                "formal_verifier_agentic_proof_candidate_evaluation_queue_manifest.json",
+                {
+                    "n_candidate_queue_items": 1,
+                    "n_ready": 1,
+                    "n_blocked": 0,
+                    "n_patch_candidate_items": 1,
+                    "n_source_discovery_candidate_items": 0,
+                    "n_kernel_overlay_candidate_items": 0,
+                    "n_with_kernel_overlay_context": 0,
+                    "rows": [],
+                },
+            ),
+            (
+                generic_safety_policy_dir,
+                "formal_verifier_agentic_proof_safety_policy_manifest.json",
+                {
+                    "n_safety_policy_rows": 1,
+                    "n_ready": 1,
+                    "n_blocked": 0,
+                    "n_patch_bounded_edit_policies": 1,
+                    "n_source_validation_policies": 0,
+                    "n_with_kernel_overlay_context": 0,
+                    "rows": [],
+                },
+            ),
+            (
+                generic_attempt_population_dir,
+                "formal_verifier_agentic_proof_attempt_population_manifest.json",
+                {
+                    "n_population_entries": 1,
+                    "n_ready": 1,
+                    "n_blocked": 0,
+                    "n_patch_population_entries": 1,
+                    "n_source_population_entries": 0,
+                    "n_with_kernel_overlay_context": 0,
+                    "rows": [],
+                },
+            ),
+        ):
+            (manifest_dir / manifest_name).write_text(
+                json.dumps(payload),
+                encoding="utf-8",
+            )
+        kernel_overlay_context = {
+            "work_item_id": "kernel_overlay_composition_work:auto",
+            "seed_id": "kernel_overlay_composition_agentic_seed:auto",
+            "source_claim_id": "formal:auto:claim",
+            "already_kernel_verified_subclaims": [
+                "constant_estimator_unbiased",
+                "finite_union_bound",
+            ],
+            "target_blockers": ["new_bridge_needed"],
+            "source_discovery_queries": ["new_bridge_needed Lean bridge theorem"],
+        }
+        (
+            seeded_strategy_plan_dir
+            / "formal_verifier_agentic_proof_strategy_plan_manifest.json"
+        ).write_text(
+            json.dumps(
+                {
+                    "n_strategy_rows": 1,
+                    "n_ready": 1,
+                    "n_patch_evolve_blocks": 0,
+                    "n_source_discovery_cache_items": 0,
+                    "n_kernel_overlay_composition_seeds": 1,
+                    "rows": [
+                        {
+                            "strategy_id": "formal_verifier_agentic_proof_strategy:auto",
+                            "rank": 1,
+                            "followup_id": "kernel_overlay_composition:auto",
+                            "display_name": "auto:claim:skeleton",
+                            "residual_gap": "new_bridge_needed",
+                            "followup_kind": "kernel_overlay_composition",
+                            "followup_status": "READY_FOR_AGENTIC_COMPOSITION_ATTEMPT",
+                            "agentic_strategy_kind": "kernel_overlay_composition_patch_seed",
+                            "paper_patterns": ["alphaproof_nexus_proof_sketch_guided_agent"],
+                            "required_live_tools": ["lean_goal", "lean_multi_attempt"],
+                            "evaluator_gates": ["full-route Lean kernel verification"],
+                            "global_goal_cache_keys": ["kernel_overlay_composition_goal:auto"],
+                            "candidate_database_key": "kernel_overlay_composition_candidate:auto",
+                            "priority_score": 150,
+                            "proof_evidence_status": "AGENTIC_STRATEGY_PLAN_NOT_PROOF_EVIDENCE",
+                            "proof_evidence_boundary": "Agentic proof strategy rows are not theorem proof evidence.",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        (
+            seeded_candidate_queue_dir
+            / "formal_verifier_agentic_proof_candidate_evaluation_queue_manifest.json"
+        ).write_text(
+            json.dumps(
+                {
+                    "n_candidate_queue_items": 1,
+                    "n_ready": 1,
+                    "n_blocked": 0,
+                    "n_patch_candidate_items": 1,
+                    "n_source_discovery_candidate_items": 0,
+                    "n_kernel_overlay_candidate_items": 1,
+                    "n_with_kernel_overlay_context": 1,
+                    "rows": [
+                        {
+                            "candidate_evaluation_id": "formal_verifier_agentic_proof_candidate_evaluation:auto",
+                            "rank": 1,
+                            "strategy_id": "formal_verifier_agentic_proof_strategy:auto",
+                            "display_name": "auto:claim:skeleton",
+                            "residual_gap": "new_bridge_needed",
+                            "generation_mode": "residual_patch_candidate_generation",
+                            "candidate_database_key": "kernel_overlay_composition_candidate:auto",
+                            "candidate_lineage_key": "agentic_candidate_lineage:auto",
+                            "kernel_overlay_context": kernel_overlay_context,
+                            "attempt_budget": 7,
+                            "status": "READY_FOR_CANDIDATE_GENERATION",
+                            "evaluator_pool": ["lean_goal", "lean_multi_attempt"],
+                            "live_tool_sequence": ["lean_goal", "lean_multi_attempt"],
+                            "promotion_gate": "candidate is proof-relevant only after full_route_kernel_verified",
+                            "proof_evidence_status": "AGENTIC_PROOF_CANDIDATE_EVALUATION_QUEUE_NOT_PROOF_EVIDENCE",
+                            "proof_evidence_boundary": "Candidate queue rows are not theorem proof evidence.",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        (
+            seeded_safety_policy_dir
+            / "formal_verifier_agentic_proof_safety_policy_manifest.json"
+        ).write_text(
+            json.dumps(
+                {
+                    "n_safety_policy_rows": 1,
+                    "n_ready": 1,
+                    "n_blocked": 0,
+                    "n_patch_bounded_edit_policies": 1,
+                    "n_source_validation_policies": 0,
+                    "n_with_kernel_overlay_context": 1,
+                    "rows": [
+                        {
+                            "safety_policy_id": "formal_verifier_agentic_proof_safety_policy:auto",
+                            "rank": 1,
+                            "candidate_evaluation_id": "formal_verifier_agentic_proof_candidate_evaluation:auto",
+                            "display_name": "auto:claim:skeleton",
+                            "residual_gap": "new_bridge_needed",
+                            "generation_mode": "residual_patch_candidate_generation",
+                            "policy_status": "READY_FOR_SAFETY_GATED_CANDIDATE_GENERATION",
+                            "goal_cache_key": "agentic_goal_cache:auto",
+                            "kernel_overlay_context": kernel_overlay_context,
+                            "bounded_edit_policy": {
+                                "bounded_edit_required": True,
+                                "start_marker": "-- AI_STAT_EVOLVE_BLOCK_START",
+                                "end_marker": "-- AI_STAT_EVOLVE_BLOCK_END",
+                            },
+                            "anti_cheat_checks": ["target_restated_as_helper_lemma"],
+                            "forbidden_tokens": ["sorry", "admit", "axiom"],
+                            "required_static_checks": ["statement/header guard"],
+                            "safeverify_gate": "kernel-overlay composition candidate can be promoted only after full-route Lean verification",
+                            "proof_evidence_status": "AGENTIC_PROOF_SAFETY_POLICY_NOT_PROOF_EVIDENCE",
+                            "proof_evidence_boundary": "Safety policy rows are not theorem proof evidence.",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        (
+            seeded_attempt_population_dir
+            / "formal_verifier_agentic_proof_attempt_population_manifest.json"
+        ).write_text(
+            json.dumps(
+                {
+                    "n_population_entries": 1,
+                    "n_ready": 1,
+                    "n_blocked": 0,
+                    "n_patch_population_entries": 1,
+                    "n_source_population_entries": 0,
+                    "n_with_kernel_overlay_context": 1,
+                    "rows": [
+                        {
+                            "population_entry_id": "formal_verifier_agentic_proof_attempt_population:auto",
+                            "rank": 1,
+                            "safety_policy_id": "formal_verifier_agentic_proof_safety_policy:auto",
+                            "display_name": "auto:claim:skeleton",
+                            "residual_gap": "new_bridge_needed",
+                            "generation_mode": "residual_patch_candidate_generation",
+                            "population_bucket": "bounded_patch_attempt",
+                            "attempt_status": "READY_FOR_POPULATION_SEEDED_ATTEMPT",
+                            "goal_cache_key": "agentic_goal_cache:auto",
+                            "candidate_lineage_key": "agentic_candidate_lineage:auto",
+                            "kernel_overlay_context": kernel_overlay_context,
+                            "proof_sketch_population_key": "proof_sketch_population:auto",
+                            "selection_weight": 130,
+                            "diagnostic_signature": "UNTRIED_CANDIDATE_SEED",
+                            "lessons_learned": ["target blockers must be solved before promotion"],
+                            "sampler_policy": "priority_weighted_goal_cache_population_sampling",
+                            "promotion_gate": "population entry can only become proof evidence after full_route_kernel_verified",
+                            "proof_evidence_status": "AGENTIC_PROOF_ATTEMPT_POPULATION_NOT_PROOF_EVIDENCE",
+                            "proof_evidence_boundary": "Attempt population rows are not theorem proof evidence.",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
         triage_manifest_path = (
             triage_dir / "formalization_gap_planner_proof_state_triage_manifest.json"
         )
@@ -12326,6 +12575,22 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                         "formal_verifier_replay": str(
                             formal_verifier_replay_dir / "formal_verifier_replay_manifest.json"
                         ),
+                        "formal_verifier_agentic_proof_strategy_plan": str(
+                            generic_strategy_plan_dir
+                            / "formal_verifier_agentic_proof_strategy_plan_manifest.json"
+                        ),
+                        "formal_verifier_agentic_proof_candidate_evaluation_queue": str(
+                            generic_candidate_queue_dir
+                            / "formal_verifier_agentic_proof_candidate_evaluation_queue_manifest.json"
+                        ),
+                        "formal_verifier_agentic_proof_safety_policy": str(
+                            generic_safety_policy_dir
+                            / "formal_verifier_agentic_proof_safety_policy_manifest.json"
+                        ),
+                        "formal_verifier_agentic_proof_attempt_population": str(
+                            generic_attempt_population_dir
+                            / "formal_verifier_agentic_proof_attempt_population_manifest.json"
+                        ),
                     },
                 }
             ),
@@ -12341,7 +12606,97 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             ],
             str(triage_manifest_path),
         )
+        self.assertEqual(
+            payload["artifact_auto_discoveries_applied"][
+                "formal_verifier_agentic_proof_strategy_plan"
+            ],
+            str(
+                seeded_strategy_plan_dir
+                / "formal_verifier_agentic_proof_strategy_plan_manifest.json"
+            ),
+        )
+        self.assertEqual(
+            payload["artifact_auto_discoveries_applied"][
+                "formal_verifier_agentic_proof_candidate_evaluation_queue"
+            ],
+            str(
+                seeded_candidate_queue_dir
+                / "formal_verifier_agentic_proof_candidate_evaluation_queue_manifest.json"
+            ),
+        )
+        self.assertEqual(
+            payload["artifact_auto_discoveries_applied"][
+                "formal_verifier_agentic_proof_safety_policy"
+            ],
+            str(
+                seeded_safety_policy_dir
+                / "formal_verifier_agentic_proof_safety_policy_manifest.json"
+            ),
+        )
+        self.assertEqual(
+            payload["artifact_auto_discoveries_applied"][
+                "formal_verifier_agentic_proof_attempt_population"
+            ],
+            str(
+                seeded_attempt_population_dir
+                / "formal_verifier_agentic_proof_attempt_population_manifest.json"
+            ),
+        )
         queue = payload["formal_capacity_queue"]
+        self.assertEqual(
+            queue[
+                "formal_verifier_agentic_proof_strategy_plan_kernel_overlay_composition_seeds"
+            ],
+            1,
+        )
+        self.assertEqual(
+            queue[
+                "formal_verifier_agentic_proof_candidate_evaluation_queue_kernel_overlay_candidates"
+            ],
+            1,
+        )
+        self.assertEqual(
+            queue[
+                "formal_verifier_agentic_proof_candidate_evaluation_queue_with_kernel_overlay_context"
+            ],
+            1,
+        )
+        self.assertEqual(
+            queue[
+                "formal_verifier_agentic_proof_safety_policy_with_kernel_overlay_context"
+            ],
+            1,
+        )
+        self.assertEqual(
+            queue[
+                "formal_verifier_agentic_proof_attempt_population_with_kernel_overlay_context"
+            ],
+            1,
+        )
+        seeded_candidate_preview = queue[
+            "formal_verifier_agentic_proof_candidate_evaluation_queue_preview"
+        ][0]
+        self.assertTrue(seeded_candidate_preview["kernel_overlay_context_present"])
+        self.assertEqual(
+            seeded_candidate_preview["kernel_overlay_target_blockers"],
+            ["new_bridge_needed"],
+        )
+        self.assertIn(
+            "finite_union_bound",
+            seeded_candidate_preview["kernel_overlay_verified_subclaims"],
+        )
+        self.assertEqual(
+            queue["formal_verifier_agentic_proof_safety_policy_preview"][0][
+                "kernel_overlay_target_blockers"
+            ],
+            ["new_bridge_needed"],
+        )
+        self.assertEqual(
+            queue["formal_verifier_agentic_proof_attempt_population_preview"][0][
+                "kernel_overlay_target_blockers"
+            ],
+            ["new_bridge_needed"],
+        )
         self.assertEqual(queue["formalization_gap_planner_proof_state_triage_items"], 2)
         self.assertEqual(
             queue[
@@ -12390,6 +12745,10 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         )
         self.assertIn(
             "Kernel Proof Evidence Overlays",
+            (out / "rag_collaboration.md").read_text(),
+        )
+        self.assertIn(
+            "kernel-overlay subclaims",
             (out / "rag_collaboration.md").read_text(),
         )
         alignment = payload["kernel_proof_overlay_alignment"]
@@ -15500,6 +15859,12 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         )
         self.assertEqual(
             payload["counts"][
+                "formal_verifier_agentic_proof_candidate_evaluation_queue_kernel_overlay_candidates"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
                 "formal_verifier_agentic_proof_candidate_evaluation_queue_with_candidate_database_key"
             ],
             0,
@@ -15507,6 +15872,12 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertEqual(
             payload["counts"][
                 "formal_verifier_agentic_proof_candidate_evaluation_queue_with_live_evaluator_pool"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_agentic_proof_candidate_evaluation_queue_with_kernel_overlay_context"
             ],
             0,
         )
@@ -15559,6 +15930,12 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             0,
         )
         self.assertEqual(
+            payload["counts"][
+                "formal_verifier_agentic_proof_safety_policy_with_kernel_overlay_context"
+            ],
+            0,
+        )
+        self.assertEqual(
             payload["counts"]["formal_verifier_agentic_proof_safety_policy_ok"],
             0,
         )
@@ -15607,6 +15984,12 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertEqual(
             payload["counts"][
                 "formal_verifier_agentic_proof_attempt_population_with_sampling_weight"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_agentic_proof_attempt_population_with_kernel_overlay_context"
             ],
             0,
         )
