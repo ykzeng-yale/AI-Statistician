@@ -1684,15 +1684,29 @@ def _kernel_proof_overlay_alignment(
         obligation_key="subclaim_replay_obligations",
         max_rows=max_rows,
     )
+    composition_work_items = _kernel_overlay_composition_work_items(
+        composition_rows,
+        max_rows=max_rows,
+    )
     return {
         "current_fingerprint_kernel_obligations": len(current_kernel_ids),
         "theorem_composition_packets_with_kernel_overlay": len(composition_rows),
         "theorem_composition_kernel_overlay_obligations": len(
             composition_kernel_obligations
         ),
+        "kernel_overlay_composition_work_items": len(composition_work_items),
+        "kernel_overlay_composition_work_items_exact_subclaims_fully_matched": sum(
+            1
+            for row in composition_work_items
+            if not row.get("unmatched_exact_proof_bank_obligations")
+        ),
+        "kernel_overlay_composition_work_items_with_unresolved_primitives": sum(
+            1 for row in composition_work_items if row.get("unresolved_primitives")
+        ),
         "formal_verifier_queue_rows_with_kernel_overlay": len(queue_rows),
         "formal_verifier_replay_tasks_with_kernel_overlay": len(replay_rows),
         "theorem_composition_kernel_overlay_preview": composition_rows[:max_rows],
+        "kernel_overlay_composition_work_item_preview": composition_work_items,
         "formal_verifier_queue_kernel_overlay_preview": queue_rows[:max_rows],
         "formal_verifier_replay_kernel_overlay_preview": replay_rows[:max_rows],
         "proof_evidence_boundary": (
@@ -1702,6 +1716,59 @@ def _kernel_proof_overlay_alignment(
             "the composed non-placeholder theorem passes AXLE/local Lean."
         ),
     }
+
+
+def _kernel_overlay_composition_work_items(
+    composition_rows: list[dict[str, object]],
+    *,
+    max_rows: int,
+) -> list[dict[str, object]]:
+    work_items: list[dict[str, object]] = []
+    for row in composition_rows:
+        exact = _str_list(row.get("exact_proof_bank_obligations", []))
+        matched = _str_list(row.get("kernel_overlay_verified_obligations", []))
+        unmatched = sorted(set(exact) - set(matched))
+        unresolved = _str_list(row.get("unresolved_primitives", []))
+        work_item_id = "kernel_overlay_composition_work:" + stable_hash(
+            [row.get("packet_id"), matched, unmatched, unresolved]
+        )[:16]
+        work_items.append(
+            {
+                "work_item_id": work_item_id,
+                "packet_id": row.get("packet_id"),
+                "source_claim_id": row.get("source_claim_id"),
+                "question_id": row.get("question_id"),
+                "problem_class": row.get("problem_class"),
+                "already_kernel_verified_subclaims": matched,
+                "unmatched_exact_proof_bank_obligations": unmatched,
+                "unresolved_primitives": unresolved,
+                "target_blocker_count": len(unmatched) + len(unresolved),
+                "recommended_next_action": row.get("recommended_next_action", ""),
+                "proof_worker_contract": (
+                    "Use the already_kernel_verified_subclaims as exact proof-bank "
+                    "evidence for subclaims only; materialize any unmatched exact "
+                    "obligations or unresolved primitives, then submit a non-placeholder "
+                    "composed theorem proof to AXLE/local Lean."
+                ),
+                "promotion_gate": row.get("required_gate", ""),
+                "proof_evidence_status": (
+                    "KERNEL_OVERLAY_COMPOSITION_WORK_ITEM_NOT_PROOF_EVIDENCE"
+                ),
+                "proof_evidence_boundary": (
+                    "This work item is a proof-construction target. It is not proof "
+                    "evidence for the source claim until the composed theorem passes "
+                    "AXLE/local Lean."
+                ),
+            }
+        )
+    work_items.sort(
+        key=lambda item: (
+            int(item.get("target_blocker_count", 0) or 0),
+            -len(item.get("already_kernel_verified_subclaims", []) or []),
+            str(item.get("work_item_id", "")),
+        )
+    )
+    return work_items[:max_rows]
 
 
 def _kernel_overlay_queue_alignment_rows(
@@ -2877,7 +2944,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"`{kernel_overlays.get('standalone_kernel_verified_distinct_current_fingerprint_obligations')}` fingerprint-matched obligations)",
         f"- Kernel overlay alignment: `{kernel_alignment.get('theorem_composition_packets_with_kernel_overlay')}` composition packets, "
         f"`{kernel_alignment.get('formal_verifier_queue_rows_with_kernel_overlay')}` queue rows, "
-        f"`{kernel_alignment.get('formal_verifier_replay_tasks_with_kernel_overlay')}` replay tasks",
+        f"`{kernel_alignment.get('formal_verifier_replay_tasks_with_kernel_overlay')}` replay tasks, "
+        f"`{kernel_alignment.get('kernel_overlay_composition_work_items')}` composition work items",
         f"- Lean RAG active: `{rag.get('lean_rag_dependency_graph_enabled')}`",
         f"- Lean RAG DB: `{rag.get('lean_rag_dependency_graph_path')}`",
         f"- Lean RAG DB health: `{rag.get('lean_rag_dependency_health_status')}` "
@@ -3033,6 +3101,28 @@ def _markdown_report(payload: dict[str, object]) -> str:
         )
         lines.append(f"  unresolved: {unresolved}")
         lines.append(f"  next: {row.get('recommended_next_action')}")
+    lines.extend(["", "### Composition Work Items", ""])
+    for row in kernel_alignment.get("kernel_overlay_composition_work_item_preview", []):
+        if not isinstance(row, dict):
+            continue
+        matched = ", ".join(
+            f"`{item}`" for item in row.get("already_kernel_verified_subclaims", [])
+        ) or "none"
+        unmatched = ", ".join(
+            f"`{item}`" for item in row.get("unmatched_exact_proof_bank_obligations", [])
+        ) or "none"
+        unresolved = ", ".join(
+            f"`{item}`" for item in row.get("unresolved_primitives", [])
+        ) or "none"
+        lines.append(
+            f"- `{row.get('work_item_id')}` for `{row.get('source_claim_id')}` "
+            f"(blockers={row.get('target_blocker_count')})"
+        )
+        lines.append(f"  kernel subclaims: {matched}")
+        lines.append(f"  unmatched exact obligations: {unmatched}")
+        lines.append(f"  unresolved primitives: {unresolved}")
+        lines.append(f"  gate: {row.get('promotion_gate')}")
+        lines.append(f"  boundary: {row.get('proof_evidence_boundary')}")
     for row in kernel_alignment.get("formal_verifier_queue_kernel_overlay_preview", []):
         if not isinstance(row, dict):
             continue

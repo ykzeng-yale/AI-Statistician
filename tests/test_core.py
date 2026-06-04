@@ -12165,18 +12165,40 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         )
         self.assertEqual(alignment["formal_verifier_queue_rows_with_kernel_overlay"], 1)
         self.assertEqual(alignment["formal_verifier_replay_tasks_with_kernel_overlay"], 1)
+        self.assertEqual(alignment["kernel_overlay_composition_work_items"], 1)
+        self.assertEqual(
+            alignment[
+                "kernel_overlay_composition_work_items_exact_subclaims_fully_matched"
+            ],
+            1,
+        )
+        self.assertEqual(
+            alignment[
+                "kernel_overlay_composition_work_items_with_unresolved_primitives"
+            ],
+            1,
+        )
         self.assertEqual(
             alignment["theorem_composition_kernel_overlay_preview"][0][
                 "kernel_overlay_verified_obligations"
             ],
             ["constant_estimator_unbiased", "finite_union_bound"],
         )
+        work_item = alignment["kernel_overlay_composition_work_item_preview"][0]
+        self.assertEqual(work_item["unmatched_exact_proof_bank_obligations"], [])
+        self.assertEqual(work_item["unresolved_primitives"], ["new_bridge_needed"])
+        self.assertEqual(work_item["target_blocker_count"], 1)
+        self.assertIn("not proof evidence", work_item["proof_evidence_boundary"])
         self.assertIn(
             "Kernel-overlay alignment is subclaim coverage guidance",
             " ".join(payload["honesty_boundaries"]),
         )
         self.assertIn(
             "Kernel Overlay Alignment",
+            (out / "rag_collaboration.md").read_text(),
+        )
+        self.assertIn(
+            "Composition Work Items",
             (out / "rag_collaboration.md").read_text(),
         )
 
