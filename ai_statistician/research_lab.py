@@ -3617,14 +3617,16 @@ class TheoryPlanner:
                     role="estimator",
                     formula=(
                         "Impute missing confounder X from shadow variable Z, fit M ~ A + X_hat and "
-                        "Y ~ A + M + X_hat, and estimate the indirect effect alpha_A * beta_M."
+                        "Y ~ A + M + X_hat with a residual-confounding correction for the mediator "
+                        "coefficient, and estimate the indirect effect alpha_A * beta_M."
                     ),
                     informal_derivation=(
                         "Nonignorable missingness makes complete-case mediation biased when the missing "
                         "confounder also drives mediator and outcome. A shadow variable correlated with the "
                         "confounder provides a bridge: first reconstruct the confounder from observed cases, "
-                        "then plug the reconstruction into the usual product-of-coefficients mediation "
-                        "estimator. The full nonparametric inverse problem remains a formal gap."
+                        "then correct the product-of-coefficients mediation estimator for residual confounder "
+                        "variance left after reconstruction. The full nonparametric inverse problem remains "
+                        "a formal gap."
                     ),
                     algorithm="shadow_variable_mediation_sieve",
                     theorem_goals=tuple(goal.id for goal in goals),
@@ -3634,7 +3636,7 @@ class TheoryPlanner:
                         "effect, and evaluate RMSE, 95% coverage, and shadow-imputation accuracy."
                     ),
                     limitations=(
-                        "v0 uses a linear shadow-imputation surrogate rather than a nonparametric sieve inverse problem",
+                        "v0 uses a linear shadow-imputation and residual-confounding correction surrogate rather than a nonparametric sieve inverse problem",
                         "semiparametric efficiency and asymptotic distribution under nonignorable missingness remain gaps",
                     ),
                 ),
@@ -6853,6 +6855,9 @@ class ResearchSimulator:
         ses: list[float] = []
         imputation_corrs: list[float] = []
         missing_fractions: list[float] = []
+        residual_corrections: list[float] = []
+        naive_beta_hats: list[float] = []
+        corrected_beta_hats: list[float] = []
         failed = 0
         for _ in range(self.n_runs):
             x = rng.normal(size=n)
@@ -6886,19 +6891,45 @@ class ResearchSimulator:
                 failed += 1
                 continue
             alpha_hat = float(med_coef[1])
-            beta_hat = float(out_coef[2])
+            beta_hat_naive = float(out_coef[2])
+            confounder_loading_hat = float(med_coef[2])
+            outcome_confounder_proxy_coef = float(out_coef[3])
+            imputation_residual = x[observed] - impute_design_obs @ impute_coef
+            imputation_residual_variance = float(
+                np.var(imputation_residual, ddof=min(impute_design_obs.shape[1], imputation_residual.size - 1))
+            )
+            mediator_residual_variance = max(
+                med_sigma2 - confounder_loading_hat**2 * imputation_residual_variance,
+                1e-8,
+            )
+            residual_confounding_correction = (
+                outcome_confounder_proxy_coef
+                * confounder_loading_hat
+                * imputation_residual_variance
+                / mediator_residual_variance
+            )
+            beta_hat = beta_hat_naive - residual_confounding_correction
             estimate = alpha_hat * beta_hat
             alpha_se = math.sqrt(max(float(med_cov[1, 1]), 1e-12))
             beta_se = math.sqrt(max(float(out_cov[2, 2]), 1e-12))
             se = 1.35 * math.sqrt(max(beta_hat**2 * alpha_se**2 + alpha_hat**2 * beta_se**2, 1e-12))
             corr = float(np.corrcoef(x, x_hat)[0, 1])
-            if not math.isfinite(estimate) or not math.isfinite(se) or se <= 0 or not math.isfinite(corr):
+            if (
+                not math.isfinite(estimate)
+                or not math.isfinite(se)
+                or se <= 0
+                or not math.isfinite(corr)
+                or not math.isfinite(residual_confounding_correction)
+            ):
                 failed += 1
                 continue
             estimates.append(estimate)
             ses.append(se)
             imputation_corrs.append(corr)
             missing_fractions.append(float(np.mean(~observed)))
+            residual_corrections.append(float(residual_confounding_correction))
+            naive_beta_hats.append(float(beta_hat_naive))
+            corrected_beta_hats.append(float(beta_hat))
 
         metrics = _estimation_metrics(estimates, ses, target, max(len(estimates), 1))
         metrics["n_runs"] = float(self.n_runs)
@@ -6906,6 +6937,13 @@ class ResearchSimulator:
         metrics["n_obs"] = float(n)
         metrics["missing_fraction"] = float(np.mean(missing_fractions)) if missing_fractions else float("nan")
         metrics["shadow_imputation_correlation"] = float(np.mean(imputation_corrs)) if imputation_corrs else float("nan")
+        metrics["mean_residual_confounding_correction"] = (
+            float(np.mean(residual_corrections)) if residual_corrections else float("nan")
+        )
+        metrics["mean_naive_mediator_coefficient"] = float(np.mean(naive_beta_hats)) if naive_beta_hats else float("nan")
+        metrics["mean_corrected_mediator_coefficient"] = (
+            float(np.mean(corrected_beta_hats)) if corrected_beta_hats else float("nan")
+        )
         metrics["mediation_indirect_effect_rmse"] = metrics["rmse"]
         metrics["selection_accuracy"] = metrics["shadow_imputation_correlation"]
         passed = (

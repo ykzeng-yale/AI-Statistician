@@ -4342,6 +4342,34 @@ class SystemTests(unittest.TestCase):
         self.assertGreaterEqual(deconv_sim.metrics["dominant_cell_accuracy"], 0.80)
         self.assertLessEqual(deconv_sim.metrics["platform_scale_rmse"], 0.10)
 
+    def test_shadow_variable_mediation_residual_correction_handles_frontier_smoke_seed(self) -> None:
+        question = next(
+            row.to_open_research_question()
+            for row in load_frontier_benchmark_questions(Path("docs/frontier_stat_theory_benchmark.md"))
+            if row.id == "missing_censored_measurement_error_02"
+        )
+        problem = ProblemFormalizer().formalize(question)
+        procedures, _ = TheoryPlanner().plan(problem)
+        simulations = ResearchSimulator(n_runs=50, seed=20260528).run(problem, procedures)
+        mediation_sim = next(
+            row
+            for row in simulations
+            if row.procedure_id == "shadow_variable_mediation_bridge_estimator"
+        )
+        self.assertTrue(mediation_sim.passed)
+        self.assertEqual(mediation_sim.diagnosis.status, "OK")
+        self.assertLessEqual(abs(mediation_sim.metrics["relative_bias"]), 0.03)
+        self.assertLessEqual(mediation_sim.metrics["mediation_indirect_effect_rmse"], 0.04)
+        self.assertGreaterEqual(mediation_sim.metrics["coverage_95"], 0.94)
+        self.assertGreaterEqual(
+            mediation_sim.metrics["mean_residual_confounding_correction"],
+            0.04,
+        )
+        self.assertGreater(
+            mediation_sim.metrics["mean_naive_mediator_coefficient"],
+            mediation_sim.metrics["mean_corrected_mediator_coefficient"],
+        )
+
     def test_bayesian_tree_mcmc_frontier_question_runs_registered_simulators(self) -> None:
         question = next(
             row.to_open_research_question()
