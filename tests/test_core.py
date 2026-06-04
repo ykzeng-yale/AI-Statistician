@@ -138,6 +138,7 @@ from ai_statistician.formal_source_retrieval_ablation import run_formal_source_r
 from ai_statistician.lean_rag_dependency import LeanRagDependencyRetriever
 from ai_statistician.lean_rag_dependency_health import audit_lean_rag_dependency_health
 from ai_statistician.lean_rag_package_audit import (
+    apply_lean_rag_source_registry_expansion,
     audit_lean_rag_package,
     preflight_lean_rag_source_registry_expansion,
     stage_lean_rag_source_registry_expansion,
@@ -3569,6 +3570,51 @@ class SystemTests(unittest.TestCase):
                 / "registry_expansion_preflight"
                 / "source_registry_expansion_preflight_manifest.json"
             ).exists()
+        )
+        source_registry_path = package / "knowledgebase" / "source_registry.json"
+        source_registry_before_apply = source_registry_path.read_text(encoding="utf-8")
+        preflight_manifest = (
+            root
+            / "registry_expansion_preflight"
+            / "source_registry_expansion_preflight_manifest.json"
+        )
+        dry_apply = apply_lean_rag_source_registry_expansion(
+            root / "registry_expansion_apply_dry_run",
+            expansion_manifest=expansion_manifest,
+            preflight_manifest=preflight_manifest,
+        )
+        self.assertTrue(dry_apply["apply_ready"])
+        self.assertTrue(dry_apply["dry_run"])
+        self.assertFalse(dry_apply["applied"])
+        self.assertIn("dry_run=True", dry_apply["warnings"][0])
+        self.assertEqual(
+            source_registry_path.read_text(encoding="utf-8"),
+            source_registry_before_apply,
+        )
+        applied = apply_lean_rag_source_registry_expansion(
+            root / "registry_expansion_apply",
+            expansion_manifest=expansion_manifest,
+            preflight_manifest=preflight_manifest,
+            dry_run=False,
+        )
+        self.assertTrue(applied["apply_ready"])
+        self.assertTrue(applied["applied"])
+        self.assertTrue(Path(applied["backup_path"]).exists())
+        applied_registry = json.loads(source_registry_path.read_text(encoding="utf-8"))
+        applied_external_names = [
+            row["name"] for row in applied_registry["external_sources"] if "name" in row
+        ]
+        self.assertIn("brownian-motion-lean", applied_external_names)
+        self.assertIn("local Lean/AXLE", applied["proof_evidence_boundary"])
+        drift_refusal = apply_lean_rag_source_registry_expansion(
+            root / "registry_expansion_apply_after_drift",
+            expansion_manifest=expansion_manifest,
+            preflight_manifest=preflight_manifest,
+        )
+        self.assertFalse(drift_refusal["apply_ready"])
+        self.assertIn(
+            "source_registry.json changed after staging; restage before apply",
+            drift_refusal["errors"],
         )
         mixed_payload = json.loads(expansion_manifest.read_text(encoding="utf-8"))
         present_external = root / "present_external" / "lean-rademacher"

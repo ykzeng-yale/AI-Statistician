@@ -13,6 +13,7 @@ from .fingerprint import stable_hash
 LEAN_RAG_PACKAGE_AUDIT_SCHEMA_VERSION = 1
 LEAN_RAG_SOURCE_REGISTRY_EXPANSION_SCHEMA_VERSION = 1
 LEAN_RAG_SOURCE_EXPANSION_PREFLIGHT_SCHEMA_VERSION = 1
+LEAN_RAG_SOURCE_REGISTRY_APPLY_SCHEMA_VERSION = 1
 VALID_SOURCE_REGISTRY_SECTIONS = ("local_sources", "external_sources")
 
 REQUIRED_PACKAGE_FILES: tuple[str, ...] = (
@@ -371,6 +372,8 @@ def stage_lean_rag_source_registry_expansion(
         "source_registry_path": str(root / "knowledgebase" / "source_registry.json")
         if root.exists()
         else "",
+        "source_registry_fingerprint_before": stable_hash(source_registry),
+        "staged_source_registry_fingerprint": stable_hash(staged_registry),
         "lean_rag_package_audit_manifest": str(
             audit_dir / "lean_rag_package_audit_manifest.json"
         ),
@@ -508,6 +511,161 @@ def preflight_lean_rag_source_registry_expansion(
         encoding="utf-8",
     )
     return payload
+
+
+def apply_lean_rag_source_registry_expansion(
+    out_dir: Path,
+    *,
+    expansion_manifest: Path | str,
+    preflight_manifest: Path | str | None = None,
+    dry_run: bool = True,
+) -> dict[str, object]:
+    """Apply a reviewed staged Lean RAG source registry with safety gates.
+
+    The default dry-run mode is read-only. A real apply requires a clean
+    preflight, an unchanged source_registry.json fingerprint, and an explicit
+    caller opt-in via ``dry_run=False``.
+    """
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    manifest_path = Path(expansion_manifest).expanduser()
+    expansion_payload = _load_json_object(manifest_path)
+    preflight_payload = (
+        _load_json_object(Path(preflight_manifest).expanduser())
+        if preflight_manifest
+        else preflight_lean_rag_source_registry_expansion(
+            out_dir / "preflight",
+            expansion_manifest=manifest_path,
+        )
+    )
+    source_registry_path = _manifest_path(
+        expansion_payload.get("source_registry_path", ""),
+        base_dir=manifest_path.parent,
+    )
+    staged_registry_path = _manifest_path(
+        expansion_payload.get("staged_source_registry", ""),
+        base_dir=manifest_path.parent,
+    )
+    current_registry = _load_json_object(source_registry_path)
+    staged_registry = _load_json_object(staged_registry_path)
+    current_fingerprint = stable_hash(current_registry) if current_registry else ""
+    staged_fingerprint = stable_hash(staged_registry) if staged_registry else ""
+    expected_current_fingerprint = str(
+        expansion_payload.get("source_registry_fingerprint_before", "")
+    )
+    expected_staged_fingerprint = str(
+        expansion_payload.get("staged_source_registry_fingerprint", "")
+    )
+    errors: list[str] = []
+    warnings: list[str] = []
+    if not expansion_payload.get("stage_ready"):
+        errors.append("expansion manifest is not stage_ready")
+    if not preflight_payload.get("source_registry_apply_ready"):
+        errors.append("preflight does not mark source_registry_apply_ready")
+    if not source_registry_path.exists():
+        errors.append("source_registry_path does not exist")
+    if not staged_registry_path.exists():
+        errors.append("staged_source_registry does not exist")
+    if not expected_current_fingerprint:
+        errors.append("expansion manifest lacks source_registry_fingerprint_before; restage before apply")
+    elif current_fingerprint != expected_current_fingerprint:
+        errors.append("source_registry.json changed after staging; restage before apply")
+    if not expected_staged_fingerprint:
+        errors.append("expansion manifest lacks staged_source_registry_fingerprint; restage before apply")
+    elif staged_fingerprint != expected_staged_fingerprint:
+        errors.append("staged_source_registry changed after staging; restage before apply")
+    _validate_staged_registry_policy(staged_registry, errors=errors)
+
+    apply_ready = not errors
+    applied = False
+    backup_path = out_dir / "source_registry.before_apply.json"
+    if apply_ready and not dry_run:
+        backup_path.write_text(
+            json.dumps(current_registry, indent=2, default=str) + "\n",
+            encoding="utf-8",
+        )
+        source_registry_path.write_text(
+            json.dumps(staged_registry, indent=2, default=str) + "\n",
+            encoding="utf-8",
+        )
+        applied = True
+    elif apply_ready:
+        warnings.append("dry_run=True; source_registry.json was not modified")
+
+    payload: dict[str, object] = {
+        "schema_version": LEAN_RAG_SOURCE_REGISTRY_APPLY_SCHEMA_VERSION,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "dry_run": dry_run,
+        "apply_ready": apply_ready,
+        "applied": applied,
+        "expansion_manifest": str(manifest_path),
+        "preflight_manifest": str(preflight_manifest or out_dir / "preflight"),
+        "source_registry_path": str(source_registry_path),
+        "staged_source_registry": str(staged_registry_path),
+        "source_registry_fingerprint_before_expected": expected_current_fingerprint,
+        "source_registry_fingerprint_before_actual": current_fingerprint,
+        "staged_source_registry_fingerprint_expected": expected_staged_fingerprint,
+        "staged_source_registry_fingerprint_actual": staged_fingerprint,
+        "source_registry_fingerprint_after": stable_hash(staged_registry)
+        if applied
+        else current_fingerprint,
+        "backup_path": str(backup_path) if applied else "",
+        "n_staged": expansion_payload.get("n_staged", 0),
+        "target_source_coverage_before": expansion_payload.get(
+            "target_source_coverage_before", {}
+        ),
+        "target_source_coverage_after": expansion_payload.get(
+            "target_source_coverage_after", {}
+        ),
+        "errors": errors,
+        "warnings": warnings,
+        "proof_evidence_boundary": SOURCE_COVERAGE_BOUNDARY,
+    }
+    (out_dir / "source_registry_expansion_apply_manifest.json").write_text(
+        json.dumps(payload, indent=2, default=str) + "\n",
+        encoding="utf-8",
+    )
+    (out_dir / "source_registry_expansion_apply.md").write_text(
+        _source_registry_expansion_apply_markdown(payload),
+        encoding="utf-8",
+    )
+    return payload
+
+
+def _load_json_object(path: Path) -> dict[str, object]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _manifest_path(value: object, *, base_dir: Path) -> Path:
+    raw = str(value or "")
+    path = Path(raw).expanduser()
+    if path.is_absolute() or path.exists():
+        return path
+    candidate = base_dir / path.name
+    if candidate.exists():
+        return candidate
+    return path
+
+
+def _validate_staged_registry_policy(
+    staged_registry: dict[str, object],
+    *,
+    errors: list[str],
+) -> None:
+    if not staged_registry:
+        errors.append("staged source registry is empty or unreadable")
+        return
+    policy = dict(staged_registry.get("policy", {}) or {})
+    if policy.get("verify_candidates_with_lean") is not True:
+        errors.append("staged registry policy must verify candidates with Lean")
+    if policy.get("do_not_vendor_generated_indexes") is not True:
+        errors.append("staged registry policy must not vendor generated indexes")
+    if policy.get("refresh_dirty_checkouts") is not False:
+        errors.append("staged registry policy must refuse dirty checkout refreshes")
 
 
 def _env_package_root() -> Path | None:
@@ -1371,6 +1529,48 @@ def _source_registry_expansion_preflight_markdown(payload: dict[str, object]) ->
     lines.extend(["", "## Recommended Actions", ""])
     for action in payload.get("recommended_actions", []):
         lines.append(f"- {action}")
+    return "\n".join(lines) + "\n"
+
+
+def _source_registry_expansion_apply_markdown(payload: dict[str, object]) -> str:
+    before = dict(payload.get("target_source_coverage_before", {}) or {})
+    after = dict(payload.get("target_source_coverage_after", {}) or {})
+    lines = [
+        "# Lean RAG Source Registry Expansion Apply",
+        "",
+        f"- Dry run: `{payload.get('dry_run')}`",
+        f"- Apply ready: `{payload.get('apply_ready')}`",
+        f"- Applied: `{payload.get('applied')}`",
+        f"- Expansion manifest: `{payload.get('expansion_manifest', '')}`",
+        f"- Source registry: `{payload.get('source_registry_path', '')}`",
+        f"- Staged registry: `{payload.get('staged_source_registry', '')}`",
+        f"- Staged rows: `{payload.get('n_staged')}`",
+        f"- Target coverage before: `{before.get('n_present')}/{before.get('n_targets')}`",
+        f"- Target coverage after: `{after.get('n_present')}/{after.get('n_targets')}`",
+        f"- Backup path: `{payload.get('backup_path', '')}`",
+        "",
+        "## Fingerprints",
+        "",
+        f"- Current expected: `{payload.get('source_registry_fingerprint_before_expected', '')}`",
+        f"- Current actual: `{payload.get('source_registry_fingerprint_before_actual', '')}`",
+        f"- Staged expected: `{payload.get('staged_source_registry_fingerprint_expected', '')}`",
+        f"- Staged actual: `{payload.get('staged_source_registry_fingerprint_actual', '')}`",
+        f"- After: `{payload.get('source_registry_fingerprint_after', '')}`",
+        "",
+        str(payload.get("proof_evidence_boundary", SOURCE_COVERAGE_BOUNDARY)),
+        "",
+        "## Errors",
+        "",
+    ]
+    for error in payload.get("errors", []):
+        lines.append(f"- {error}")
+    if not payload.get("errors"):
+        lines.append("- none")
+    lines.extend(["", "## Warnings", ""])
+    for warning in payload.get("warnings", []):
+        lines.append(f"- {warning}")
+    if not payload.get("warnings"):
+        lines.append("- none")
     return "\n".join(lines) + "\n"
 
 

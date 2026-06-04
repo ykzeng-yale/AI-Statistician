@@ -160,6 +160,7 @@ from .formal_source_retrieval_benchmark import (
 )
 from .intake_audit import audit_question_intake
 from .lean_rag_package_audit import (
+    apply_lean_rag_source_registry_expansion,
     audit_lean_rag_package,
     preflight_lean_rag_source_registry_expansion,
     stage_lean_rag_source_registry_expansion,
@@ -998,6 +999,39 @@ def _lean_rag_source_registry_expansion_preflight(args: argparse.Namespace) -> i
         f"{(Path(args.out) / 'source_registry_expansion_preflight_manifest.json').resolve()}"
     )
     return 0 if payload["source_registry_apply_ready"] else 1
+
+
+def _lean_rag_source_registry_expansion_apply(args: argparse.Namespace) -> int:
+    payload = apply_lean_rag_source_registry_expansion(
+        Path(args.out),
+        expansion_manifest=Path(args.expansion_manifest),
+        preflight_manifest=Path(args.preflight_manifest)
+        if args.preflight_manifest
+        else None,
+        dry_run=not args.apply,
+    )
+    before = dict(payload.get("target_source_coverage_before", {}) or {})
+    after = dict(payload.get("target_source_coverage_after", {}) or {})
+    print("\nAI Statistical Theory Lab Lean RAG Source Registry Expansion Apply")
+    print("=" * 72)
+    print(
+        f"dry_run={payload['dry_run']} apply_ready={payload['apply_ready']} "
+        f"applied={payload['applied']}"
+    )
+    print(
+        f"coverage={before.get('n_present', 0)}/{before.get('n_targets', 0)} -> "
+        f"{after.get('n_present', 0)}/{after.get('n_targets', 0)} "
+        f"staged={payload['n_staged']}"
+    )
+    if payload["errors"]:
+        print("errors=" + "; ".join(str(error) for error in payload["errors"]))
+    if payload["warnings"]:
+        print("warnings=" + "; ".join(str(warning) for warning in payload["warnings"]))
+    print(
+        f"\nsource registry expansion apply manifest written to "
+        f"{(Path(args.out) / 'source_registry_expansion_apply_manifest.json').resolve()}"
+    )
+    return 0 if payload["apply_ready"] and (payload["dry_run"] or payload["applied"]) else 1
 
 
 def _lean_rag_dependency_health(args: argparse.Namespace) -> int:
@@ -4190,6 +4224,34 @@ def build_parser() -> argparse.ArgumentParser:
     )
     lean_rag_source_registry_expansion_preflight.set_defaults(
         func=_lean_rag_source_registry_expansion_preflight
+    )
+
+    lean_rag_source_registry_expansion_apply = sub.add_parser(
+        "lean-rag-source-registry-expansion-apply",
+        help="dry-run or apply a reviewed staged Lean RAG source registry expansion",
+    )
+    lean_rag_source_registry_expansion_apply.add_argument(
+        "--expansion-manifest",
+        required=True,
+        help="path to source_registry_expansion_manifest.json",
+    )
+    lean_rag_source_registry_expansion_apply.add_argument(
+        "--preflight-manifest",
+        default="",
+        help="optional source_registry_expansion_preflight_manifest.json to enforce",
+    )
+    lean_rag_source_registry_expansion_apply.add_argument(
+        "--apply",
+        action="store_true",
+        help="mutate source_registry.json after all safety gates pass; omitted means dry-run",
+    )
+    lean_rag_source_registry_expansion_apply.add_argument(
+        "--out",
+        default="runs/lean_rag_source_registry_expansion_apply",
+        help="source registry expansion apply output directory",
+    )
+    lean_rag_source_registry_expansion_apply.set_defaults(
+        func=_lean_rag_source_registry_expansion_apply
     )
 
     lean_rag_dependency_health = sub.add_parser(
