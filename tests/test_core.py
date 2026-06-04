@@ -11914,10 +11914,47 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         parent = Path("runs/test_rag_collaboration_auto_discovery")
         run_dir = parent / "current_registry_candidate_system_audit"
         triage_dir = parent / "current_formalization_gap_planner_proof_state_triage"
+        kernel_smoke_dir = parent / "current_target_source_coverage_kernel_smoke"
         out = parent / "rag_collaboration_export"
         shutil.rmtree(parent, ignore_errors=True)
         run_dir.mkdir(parents=True, exist_ok=True)
         triage_dir.mkdir(parents=True, exist_ok=True)
+        kernel_smoke_dir.mkdir(parents=True, exist_ok=True)
+        proof_fingerprint = "f" * 64
+        proof_audit_dir = run_dir / "proof_audit"
+        proof_audit_dir.mkdir(parents=True, exist_ok=True)
+        proof_audit_manifest_path = proof_audit_dir / "proof_audit_manifest.json"
+        proof_audit_manifest_path.write_text(
+            json.dumps({"proof_bank_fingerprint": proof_fingerprint}),
+            encoding="utf-8",
+        )
+        (kernel_smoke_dir / "proof_audit_manifest.json").write_text(
+            json.dumps(
+                {
+                    "created_at": "2026-06-03T20:14:40+00:00",
+                    "verifier": "local.lake_env_lean",
+                    "verification_strength": "local_lean_kernel_batch",
+                    "proof_bank_fingerprint": proof_fingerprint,
+                    "n_obligations": 2,
+                    "n_verified": 2,
+                    "n_kernel_verified": 2,
+                    "all_kernel_verified": True,
+                    "checks": [
+                        {
+                            "obligation_id": "constant_estimator_unbiased",
+                            "ok": True,
+                            "kernel_verified": True,
+                        },
+                        {
+                            "obligation_id": "finite_union_bound",
+                            "ok": True,
+                            "kernel_verified": True,
+                        },
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
         triage_manifest_path = (
             triage_dir / "formalization_gap_planner_proof_state_triage_manifest.json"
         )
@@ -11964,7 +12001,9 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                         "proofs_total": 0,
                         "missing_formal_primitives": 0,
                     },
-                    "artifacts": {},
+                    "artifacts": {
+                        "proof_audit": str(proof_audit_manifest_path),
+                    },
                 }
             ),
             encoding="utf-8",
@@ -12000,6 +12039,35 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertIn(
             "proof-state triage rows are proof-worker work orders",
             " ".join(payload["honesty_boundaries"]),
+        )
+        kernel_overlay = payload["kernel_proof_evidence_overlays"]
+        self.assertEqual(kernel_overlay["standalone_kernel_proof_audits"], 1)
+        self.assertEqual(
+            kernel_overlay["standalone_kernel_proof_audits_matching_system_fingerprint"],
+            1,
+        )
+        self.assertEqual(
+            kernel_overlay["standalone_kernel_verified_distinct_obligations"],
+            2,
+        )
+        self.assertEqual(
+            kernel_overlay[
+                "standalone_kernel_verified_distinct_current_fingerprint_obligations"
+            ],
+            2,
+        )
+        self.assertTrue(
+            kernel_overlay["standalone_kernel_proof_audit_preview"][0][
+                "fingerprint_matches_system_proof_bank"
+            ]
+        )
+        self.assertIn(
+            "Standalone kernel proof-audit overlays prove only listed obligations",
+            " ".join(payload["honesty_boundaries"]),
+        )
+        self.assertIn(
+            "Kernel Proof Evidence Overlays",
+            (out / "rag_collaboration.md").read_text(),
         )
 
     def test_research_training_export_writes_agent_sft_and_grpo_data(self) -> None:

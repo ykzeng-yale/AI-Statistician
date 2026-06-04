@@ -43,6 +43,10 @@ def export_rag_collaboration_manifest(
     artifacts.update(artifact_auto_discoveries)
 
     proof_payload = _read_json(_artifact_path(artifacts, "proof_audit", run_dir))
+    kernel_proof_evidence_overlays = _kernel_proof_evidence_overlays(
+        run_dir,
+        system_proof_bank_fingerprint=str(proof_payload.get("proof_bank_fingerprint", "")),
+    )
     retrieval_payload = _read_json(_artifact_path(artifacts, "formal_source_retrieval_benchmark", run_dir))
     retrieval_ablation_payload = _read_json(
         _artifact_path(artifacts, "formal_source_retrieval_ablation", run_dir)
@@ -318,6 +322,7 @@ def export_rag_collaboration_manifest(
             "proof_dependency_edges": counts.get("proof_dependency_edges"),
             "proof_audit_manifest": str(_artifact_path(artifacts, "proof_audit", run_dir)),
         },
+        "kernel_proof_evidence_overlays": kernel_proof_evidence_overlays,
         "rag_provider_evidence": {
             "lean_rag_dependency_graph_enabled": counts.get("lean_rag_dependency_graph_enabled"),
             "lean_rag_dependency_graph_path": counts.get("lean_rag_dependency_graph_path"),
@@ -1447,6 +1452,7 @@ def export_rag_collaboration_manifest(
         "honesty_boundaries": [
             "RAG hits are retrieval evidence only, not Lean proof evidence.",
             "Only proof-audit rows with kernel_verified=true are proof evidence.",
+            "Standalone kernel proof-audit overlays prove only listed obligations, not the source system-audit proof count.",
             "Simulation diagnostics are empirical evidence, not theorem proofs.",
             "FormalVerifier replay rows are executable task/training artifacts, not theorem proof evidence.",
             "FormalVerifier replay attempts are proof evidence only when kernel_verified=true and placeholders were removed.",
@@ -1507,6 +1513,8 @@ def _artifact_path(artifacts: dict[str, object], key: str, run_dir: Path) -> Pat
 
 def _auto_discover_artifacts(artifacts: dict[str, object], run_dir: Path) -> dict[str, str]:
     discoveries: dict[str, str] = {}
+    if not _is_current_run_dir(run_dir):
+        return discoveries
     triage_key = "formalization_gap_planner_proof_state_triage"
     if str(artifacts.get(triage_key, "")):
         return discoveries
@@ -1514,10 +1522,7 @@ def _auto_discover_artifacts(artifacts: dict[str, object], run_dir: Path) -> dic
         Path("current_formalization_gap_planner_proof_state_triage")
         / "formalization_gap_planner_proof_state_triage_manifest.json"
     )
-    candidates = (
-        run_dir.parent / triage_manifest,
-        Path.cwd() / "runs" / triage_manifest,
-    )
+    candidates = (run_dir.parent / triage_manifest,)
     seen: set[Path] = set()
     for candidate in candidates:
         resolved = candidate.resolve()
@@ -1528,6 +1533,128 @@ def _auto_discover_artifacts(artifacts: dict[str, object], run_dir: Path) -> dic
             discoveries[triage_key] = str(candidate)
             break
     return discoveries
+
+
+def _kernel_proof_evidence_overlays(
+    run_dir: Path,
+    *,
+    system_proof_bank_fingerprint: str,
+) -> dict[str, object]:
+    rows: list[dict[str, object]] = []
+    distinct_kernel_ids: set[str] = set()
+    matching_kernel_ids: set[str] = set()
+    if not _is_current_run_dir(run_dir):
+        return _kernel_proof_evidence_overlay_payload(rows, distinct_kernel_ids, matching_kernel_ids)
+    for manifest_path in _kernel_proof_audit_candidates(run_dir):
+        payload = _read_json(manifest_path)
+        if not _is_kernel_proof_audit_payload(payload):
+            continue
+        kernel_ids = _kernel_verified_obligation_ids(payload)
+        if not kernel_ids:
+            continue
+        distinct_kernel_ids.update(kernel_ids)
+        fingerprint = str(payload.get("proof_bank_fingerprint", ""))
+        fingerprint_matches = bool(
+            system_proof_bank_fingerprint
+            and fingerprint
+            and fingerprint == system_proof_bank_fingerprint
+        )
+        if fingerprint_matches:
+            matching_kernel_ids.update(kernel_ids)
+        rows.append(
+            {
+                "manifest": str(manifest_path),
+                "created_at": payload.get("created_at", ""),
+                "verifier": payload.get("verifier", ""),
+                "verification_strength": payload.get("verification_strength", ""),
+                "proof_bank_fingerprint": fingerprint,
+                "fingerprint_matches_system_proof_bank": fingerprint_matches,
+                "n_obligations": payload.get("n_obligations", 0),
+                "n_verified": payload.get("n_verified", 0),
+                "n_kernel_verified": payload.get("n_kernel_verified", 0),
+                "all_kernel_verified": bool(payload.get("all_kernel_verified")),
+                "sample_kernel_verified_obligations": kernel_ids[:8],
+            }
+        )
+    rows.sort(
+        key=lambda row: (
+            not bool(row.get("fingerprint_matches_system_proof_bank")),
+            -int(row.get("n_kernel_verified", 0) or 0),
+            str(row.get("manifest", "")),
+        )
+    )
+    return _kernel_proof_evidence_overlay_payload(rows, distinct_kernel_ids, matching_kernel_ids)
+
+
+def _kernel_proof_evidence_overlay_payload(
+    rows: list[dict[str, object]],
+    distinct_kernel_ids: set[str],
+    matching_kernel_ids: set[str],
+) -> dict[str, object]:
+    return {
+        "standalone_kernel_proof_audits": len(rows),
+        "standalone_kernel_proof_audits_matching_system_fingerprint": sum(
+            1 for row in rows if row.get("fingerprint_matches_system_proof_bank")
+        ),
+        "standalone_kernel_verified_distinct_obligations": len(distinct_kernel_ids),
+        "standalone_kernel_verified_distinct_current_fingerprint_obligations": len(
+            matching_kernel_ids
+        ),
+        "standalone_kernel_proof_audit_preview": rows[:8],
+        "proof_evidence_boundary": (
+            "Standalone kernel proof-audit overlays are Lean/AXLE proof evidence only "
+            "for the listed proof-bank obligations. They do not upgrade the source "
+            "system-audit proof count or close frontier formal gaps unless the proof-bank "
+            "fingerprint and obligation IDs match the promoted claim."
+        ),
+    }
+
+
+def _kernel_proof_audit_candidates(run_dir: Path) -> list[Path]:
+    candidate_patterns = (
+        "current*_proof_audit*/proof_audit_manifest.json",
+        "current*kernel_smoke*/proof_audit_manifest.json",
+        "proof_audit_local_lean_current/proof_audit_manifest.json",
+    )
+    candidates: list[Path] = []
+    seen: set[Path] = set()
+    for pattern in candidate_patterns:
+        for candidate in sorted(run_dir.parent.glob(pattern)):
+            resolved = candidate.resolve()
+            if resolved in seen:
+                continue
+            seen.add(resolved)
+            candidates.append(candidate)
+    return candidates
+
+
+def _is_kernel_proof_audit_payload(payload: dict[str, Any]) -> bool:
+    if int(payload.get("n_kernel_verified", 0) or 0) <= 0:
+        return False
+    strength = str(payload.get("verification_strength", "")).lower()
+    verifier = str(payload.get("verifier", "")).lower()
+    return (
+        "kernel" in strength
+        or "lean" in strength
+        or "axle" in strength
+        or "lean" in verifier
+        or "axle" in verifier
+    )
+
+
+def _kernel_verified_obligation_ids(payload: dict[str, Any]) -> list[str]:
+    ids: list[str] = []
+    for row in payload.get("checks", []):
+        if not isinstance(row, dict):
+            continue
+        obligation_id = str(row.get("obligation_id", ""))
+        if obligation_id and row.get("kernel_verified"):
+            ids.append(obligation_id)
+    return list(dict.fromkeys(ids))
+
+
+def _is_current_run_dir(run_dir: Path) -> bool:
+    return run_dir.name.startswith("current_")
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -2596,6 +2723,7 @@ def _query_hint(row: dict[str, Any]) -> str:
 
 def _markdown_report(payload: dict[str, object]) -> str:
     proof = dict(payload.get("proof_evidence", {}) or {})
+    kernel_overlays = dict(payload.get("kernel_proof_evidence_overlays", {}) or {})
     rag = dict(payload.get("rag_provider_evidence", {}) or {})
     retrieval = dict(payload.get("retrieval_ablation_evidence", {}) or {})
     queue = dict(payload.get("formal_capacity_queue", {}) or {})
@@ -2606,6 +2734,10 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Source run: `{payload.get('source_run_dir')}`",
         f"- Proof bank: `{proof.get('proofs_kernel_verified')}/{proof.get('proofs_total')}` kernel verified",
         f"- Proof fingerprint: `{proof.get('proof_bank_fingerprint')}`",
+        f"- Standalone kernel proof overlays: `{kernel_overlays.get('standalone_kernel_proof_audits')}` audits, "
+        f"`{kernel_overlays.get('standalone_kernel_verified_distinct_obligations')}` distinct obligations "
+        f"(`{kernel_overlays.get('standalone_kernel_proof_audits_matching_system_fingerprint')}` fingerprint-matched audits, "
+        f"`{kernel_overlays.get('standalone_kernel_verified_distinct_current_fingerprint_obligations')}` fingerprint-matched obligations)",
         f"- Lean RAG active: `{rag.get('lean_rag_dependency_graph_enabled')}`",
         f"- Lean RAG DB: `{rag.get('lean_rag_dependency_graph_path')}`",
         f"- Lean RAG DB health: `{rag.get('lean_rag_dependency_health_status')}` "
@@ -2727,9 +2859,28 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"(exact links `{composition.get('theorem_composition_exact_proof_bank_links')}`, "
         f"unresolved primitives `{composition.get('theorem_composition_unresolved_primitives')}`)",
         "",
-        "## Handoff Targets",
+        "## Kernel Proof Evidence Overlays",
+        "",
+        str(kernel_overlays.get("proof_evidence_boundary", "")),
         "",
     ]
+    for row in kernel_overlays.get("standalone_kernel_proof_audit_preview", []):
+        if not isinstance(row, dict):
+            continue
+        sample_ids = ", ".join(
+            f"`{item}`" for item in row.get("sample_kernel_verified_obligations", [])
+        ) or "none"
+        lines.append(
+            f"- `{row.get('manifest')}`: kernel `{row.get('n_kernel_verified')}/{row.get('n_obligations')}`, "
+            f"strength `{row.get('verification_strength')}`, fingerprint match `{row.get('fingerprint_matches_system_proof_bank')}`"
+        )
+        lines.append(f"  verifier: `{row.get('verifier')}`")
+        lines.append(f"  sample obligations: {sample_ids}")
+    lines.extend([
+        "",
+        "## Handoff Targets",
+        "",
+    ])
     for target in queue.get("handoff_targets", []):
         if not isinstance(target, dict):
             continue
