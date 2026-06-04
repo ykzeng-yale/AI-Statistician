@@ -122,7 +122,11 @@ from .formal_source_retrieval_benchmark import (
     EXTERNAL_USER_INTENT_FORMAL_SOURCE_RETRIEVAL_BENCHMARK,
     run_formal_source_retrieval_benchmark,
 )
-from .lean_rag_package_audit import audit_lean_rag_package
+from .lean_rag_package_audit import (
+    audit_lean_rag_package,
+    preflight_lean_rag_source_registry_expansion,
+    stage_lean_rag_source_registry_expansion,
+)
 from .lean_rag_dependency_health import audit_lean_rag_dependency_health
 from .autoform_harness import audit_autoform_harness
 from .autoform_target_export import export_autoform_targets
@@ -284,6 +288,34 @@ async def run_research_system_audit(
         package_root=Path(config.lean_rag_package_root) if config.lean_rag_package_root else None,
     )
     stage_start = _record_stage(stage_timings, "lean_rag_package_audit", stage_start)
+    lean_rag_source_registry_expansion_manifest = (
+        stage_lean_rag_source_registry_expansion(
+            out_dir / "lean_rag_source_registry_expansion",
+            package_root=Path(config.lean_rag_package_root)
+            if config.lean_rag_package_root
+            else None,
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "lean_rag_source_registry_expansion",
+        stage_start,
+    )
+    lean_rag_source_registry_expansion_preflight_manifest = (
+        preflight_lean_rag_source_registry_expansion(
+            out_dir / "lean_rag_source_registry_expansion_preflight",
+            expansion_manifest=(
+                out_dir
+                / "lean_rag_source_registry_expansion"
+                / "source_registry_expansion_manifest.json"
+            ),
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "lean_rag_source_registry_expansion_preflight",
+        stage_start,
+    )
 
     formal_source_retrieval_benchmark_manifest = run_formal_source_retrieval_benchmark(
         out_dir / "formal_source_retrieval_benchmark",
@@ -1100,6 +1132,15 @@ async def run_research_system_audit(
         "formal_source_retrieval_ablation": bool(formal_source_retrieval_ablation_manifest["all_ok"]),
         "lean_rag_dependency_health": bool(lean_rag_dependency_health_manifest["all_ok"]),
         "lean_rag_package_contract": bool(lean_rag_package_manifest["all_ok"]),
+        "lean_rag_source_registry_expansion": bool(
+            lean_rag_source_registry_expansion_manifest["all_ok"]
+        ),
+        "lean_rag_source_registry_expansion_preflight": bool(
+            lean_rag_source_registry_expansion_preflight_manifest[
+                "source_registry_apply_ready"
+            ]
+            or int(lean_rag_source_registry_expansion_manifest.get("n_staged", 0)) == 0
+        ),
         "fresh_holdout_frontier_audit": bool(fresh_holdout_manifest["all_ok"]),
         "research_algorithm_audit": bool(algorithm_manifest["all_ok"]),
         "algorithm_simulation_stress_audit": bool(algorithm_simulation_stress_manifest["all_ok"]),
@@ -1620,6 +1661,45 @@ async def run_research_system_audit(
             "lean_rag_package_status_drift_supported": lean_rag_package_manifest[
                 "script_capabilities"
             ].get("shared_status_reports_live_drift", False),
+            "lean_rag_source_registry_expansion_all_ok": lean_rag_source_registry_expansion_manifest[
+                "all_ok"
+            ],
+            "lean_rag_source_registry_expansion_stage_ready": lean_rag_source_registry_expansion_manifest[
+                "stage_ready"
+            ],
+            "lean_rag_source_registry_expansion_candidates": lean_rag_source_registry_expansion_manifest[
+                "n_candidates"
+            ],
+            "lean_rag_source_registry_expansion_staged": lean_rag_source_registry_expansion_manifest[
+                "n_staged"
+            ],
+            "lean_rag_source_registry_expansion_invalid": lean_rag_source_registry_expansion_manifest[
+                "n_invalid"
+            ],
+            "lean_rag_source_registry_expansion_coverage_before_present": lean_rag_source_registry_expansion_manifest[
+                "target_source_coverage_before"
+            ].get("n_present", 0),
+            "lean_rag_source_registry_expansion_coverage_after_present": lean_rag_source_registry_expansion_manifest[
+                "target_source_coverage_after"
+            ].get("n_present", 0),
+            "lean_rag_source_registry_expansion_coverage_after_missing": lean_rag_source_registry_expansion_manifest[
+                "target_source_coverage_after"
+            ].get("n_missing", 0),
+            "lean_rag_source_registry_expansion_preflight_apply_ready": lean_rag_source_registry_expansion_preflight_manifest[
+                "source_registry_apply_ready"
+            ],
+            "lean_rag_source_registry_expansion_preflight_external_refresh_ready": lean_rag_source_registry_expansion_preflight_manifest[
+                "external_refresh_ready"
+            ],
+            "lean_rag_source_registry_expansion_preflight_clone_required": lean_rag_source_registry_expansion_preflight_manifest[
+                "n_clone_required"
+            ],
+            "lean_rag_source_registry_expansion_preflight_indexer_unsupported": lean_rag_source_registry_expansion_preflight_manifest[
+                "n_indexer_unsupported"
+            ],
+            "lean_rag_source_registry_expansion_preflight_hard_blockers": lean_rag_source_registry_expansion_preflight_manifest[
+                "n_hard_blockers"
+            ],
             "research_ready_with_gaps": benchmark_manifest["n_ready_with_gaps"],
             "research_simulation_flagged": benchmark_manifest["n_simulation_flagged"],
             "research_formal_blocked": benchmark_manifest["n_formal_blocked"],
@@ -3222,6 +3302,36 @@ async def run_research_system_audit(
             ),
             "lean_rag_package_report": str(
                 out_dir / "lean_rag_package_audit" / "lean_rag_package_audit.md"
+            ),
+            "lean_rag_source_registry_expansion": str(
+                out_dir
+                / "lean_rag_source_registry_expansion"
+                / "source_registry_expansion_manifest.json"
+            ),
+            "lean_rag_source_registry_expansion_report": str(
+                out_dir
+                / "lean_rag_source_registry_expansion"
+                / "source_registry_expansion.md"
+            ),
+            "lean_rag_source_registry_expansion_staged_registry": str(
+                out_dir
+                / "lean_rag_source_registry_expansion"
+                / "staged_source_registry.json"
+            ),
+            "lean_rag_source_registry_expansion_delta": str(
+                out_dir
+                / "lean_rag_source_registry_expansion"
+                / "source_registry_delta.json"
+            ),
+            "lean_rag_source_registry_expansion_preflight": str(
+                out_dir
+                / "lean_rag_source_registry_expansion_preflight"
+                / "source_registry_expansion_preflight_manifest.json"
+            ),
+            "lean_rag_source_registry_expansion_preflight_report": str(
+                out_dir
+                / "lean_rag_source_registry_expansion_preflight"
+                / "source_registry_expansion_preflight.md"
             ),
             "fresh_holdout_frontier_audit": str(
                 out_dir / "fresh_holdout_frontier_audit" / "fresh_holdout_frontier_manifest.json"
