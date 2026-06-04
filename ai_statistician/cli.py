@@ -62,6 +62,9 @@ from .formalization_gap_planner_refinement_queue import (
 from .formalization_gap_planner_route_revision_overlay import (
     export_formalization_gap_planner_route_revision_overlay,
 )
+from .formalization_gap_planner_proof_state_triage import (
+    export_formalization_gap_planner_proof_state_triage,
+)
 from .formalization_target_audit import audit_formalization_targets
 from .formal_verifier_queue import export_formal_verifier_queue
 from .goal_conditioned_minimal_formalization_plan import (
@@ -1765,6 +1768,28 @@ def _formalization_gap_planner_route_revision_overlay(args: argparse.Namespace) 
     print(
         f"\nroute revision overlay manifest written to "
         f"{(Path(args.out) / 'formalization_gap_planner_route_revision_overlay_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formalization_gap_planner_proof_state_triage(args: argparse.Namespace) -> int:
+    payload = export_formalization_gap_planner_proof_state_triage(
+        Path(args.formalization_gap_planner_route_revision_overlay_dir),
+        Path(args.out),
+    )
+    print("\nAI Statistical Theory Lab Formalization Gap Planner Proof-State Triage")
+    print("=" * 72)
+    print(
+        f"items={payload['n_ok']}/{payload['n_triage_items']} "
+        f"formal_gap={payload['n_formal_gap_scaffold_items']} "
+        f"local_failed={payload['n_local_lean_failed_items']} "
+        f"nonlean={payload['n_non_lean_skeleton_items']} "
+        f"signatures={payload['n_distinct_diagnostic_signatures']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nproof-state triage manifest written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_proof_state_triage_manifest.json').resolve()}"
     )
     return 0 if payload["all_ok"] else 1
 
@@ -4680,6 +4705,24 @@ def build_parser() -> argparse.ArgumentParser:
     )
     formalization_gap_planner_route_revision_overlay.set_defaults(
         func=_formalization_gap_planner_route_revision_overlay
+    )
+
+    formalization_gap_planner_proof_state_triage = sub.add_parser(
+        "formalization-gap-planner-proof-state-triage",
+        help="rank route-level proof-state statuses into proof-worker triage items",
+    )
+    formalization_gap_planner_proof_state_triage.add_argument(
+        "--formalization-gap-planner-route-revision-overlay-dir",
+        required=True,
+        help="directory containing formalization_gap_planner_route_revision_overlay_manifest.json",
+    )
+    formalization_gap_planner_proof_state_triage.add_argument(
+        "--out",
+        default="runs/formalization_gap_planner_proof_state_triage",
+        help="proof-state triage output directory",
+    )
+    formalization_gap_planner_proof_state_triage.set_defaults(
+        func=_formalization_gap_planner_proof_state_triage
     )
 
     formal_verifier_replay = sub.add_parser(
