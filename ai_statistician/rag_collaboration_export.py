@@ -267,6 +267,22 @@ def export_rag_collaboration_manifest(
     formal_verifier_agentic_proof_execution_queue_payload = _read_json(
         formal_verifier_agentic_proof_execution_queue_path
     )
+    formal_verifier_agentic_proof_execution_materializer_path = _artifact_path(
+        artifacts,
+        "formal_verifier_agentic_proof_execution_materializer",
+        run_dir,
+    )
+    formal_verifier_agentic_proof_execution_materializer_payload = _read_json(
+        formal_verifier_agentic_proof_execution_materializer_path
+    )
+    formal_verifier_agentic_proof_execution_artifact_verifier_path = _artifact_path(
+        artifacts,
+        "formal_verifier_agentic_proof_execution_artifact_verifier",
+        run_dir,
+    )
+    formal_verifier_agentic_proof_execution_artifact_verifier_payload = _read_json(
+        formal_verifier_agentic_proof_execution_artifact_verifier_path
+    )
     formalization_gap_planner_proof_state_triage_path = _artifact_path(
         artifacts,
         "formalization_gap_planner_proof_state_triage",
@@ -276,6 +292,17 @@ def export_rag_collaboration_manifest(
         formalization_gap_planner_proof_state_triage_path
     )
     guidance_payload = _read_json(_artifact_path(artifacts, "evaluation_benchmark_guidance", run_dir))
+    counts = _overlay_auto_discovered_agentic_counts(
+        counts,
+        artifact_auto_discoveries,
+        formal_verifier_agentic_proof_strategy_plan_payload=formal_verifier_agentic_proof_strategy_plan_payload,
+        formal_verifier_agentic_proof_candidate_evaluation_queue_payload=formal_verifier_agentic_proof_candidate_evaluation_queue_payload,
+        formal_verifier_agentic_proof_safety_policy_payload=formal_verifier_agentic_proof_safety_policy_payload,
+        formal_verifier_agentic_proof_attempt_population_payload=formal_verifier_agentic_proof_attempt_population_payload,
+        formal_verifier_agentic_proof_execution_queue_payload=formal_verifier_agentic_proof_execution_queue_payload,
+        formal_verifier_agentic_proof_execution_materializer_payload=formal_verifier_agentic_proof_execution_materializer_payload,
+        formal_verifier_agentic_proof_execution_artifact_verifier_payload=formal_verifier_agentic_proof_execution_artifact_verifier_payload,
+    )
 
     target_rows = _handoff_targets(
         primitive_payload.get("rows", []),
@@ -1489,6 +1516,80 @@ def export_rag_collaboration_manifest(
                 formal_verifier_agentic_proof_execution_queue_payload,
                 max_rows=min(max_targets, 10),
             ),
+            "formal_verifier_agentic_proof_execution_materializer_rows": counts.get(
+                "formal_verifier_agentic_proof_execution_materializer_rows",
+                formal_verifier_agentic_proof_execution_materializer_payload.get(
+                    "n_materializer_rows"
+                ),
+            ),
+            "formal_verifier_agentic_proof_execution_materializer_artifacts": counts.get(
+                "formal_verifier_agentic_proof_execution_materializer_artifacts",
+                formal_verifier_agentic_proof_execution_materializer_payload.get(
+                    "n_materialized_artifacts"
+                ),
+            ),
+            "formal_verifier_agentic_proof_execution_materializer_live_goal_location_ready": counts.get(
+                "formal_verifier_agentic_proof_execution_materializer_live_goal_location_ready",
+                formal_verifier_agentic_proof_execution_materializer_payload.get(
+                    "n_live_goal_location_ready"
+                ),
+            ),
+            "formal_verifier_agentic_proof_execution_materializer_kernel_verified": counts.get(
+                "formal_verifier_agentic_proof_execution_materializer_kernel_verified",
+                formal_verifier_agentic_proof_execution_materializer_payload.get(
+                    "n_kernel_verified"
+                ),
+            ),
+            "formal_verifier_agentic_proof_execution_materializer_manifest": str(
+                formal_verifier_agentic_proof_execution_materializer_path
+            ),
+            "formal_verifier_agentic_proof_execution_materializer_preview": _formal_verifier_agentic_proof_execution_materializer_preview(
+                formal_verifier_agentic_proof_execution_materializer_payload,
+                max_rows=min(max_targets, 10),
+            ),
+            "formal_verifier_agentic_proof_execution_artifact_verifier_enabled": counts.get(
+                "formal_verifier_agentic_proof_execution_artifact_verifier_enabled",
+                formal_verifier_agentic_proof_execution_artifact_verifier_payload.get(
+                    "enabled"
+                ),
+            ),
+            "formal_verifier_agentic_proof_execution_artifact_verifier_checked": counts.get(
+                "formal_verifier_agentic_proof_execution_artifact_verifier_checked",
+                formal_verifier_agentic_proof_execution_artifact_verifier_payload.get(
+                    "n_local_lean_checked"
+                ),
+            ),
+            "formal_verifier_agentic_proof_execution_artifact_verifier_compiled": counts.get(
+                "formal_verifier_agentic_proof_execution_artifact_verifier_compiled",
+                formal_verifier_agentic_proof_execution_artifact_verifier_payload.get(
+                    "n_local_lean_compiled"
+                ),
+            ),
+            "formal_verifier_agentic_proof_execution_artifact_kernel_verified": counts.get(
+                "formal_verifier_agentic_proof_execution_artifact_kernel_verified",
+                formal_verifier_agentic_proof_execution_artifact_verifier_payload.get(
+                    "n_artifact_kernel_verified"
+                ),
+            ),
+            "formal_verifier_agentic_proof_execution_source_theorem_kernel_verified": counts.get(
+                "formal_verifier_agentic_proof_execution_source_theorem_kernel_verified",
+                formal_verifier_agentic_proof_execution_artifact_verifier_payload.get(
+                    "n_source_theorem_kernel_verified"
+                ),
+            ),
+            "formal_verifier_agentic_proof_execution_artifact_proof_evidence_status": counts.get(
+                "formal_verifier_agentic_proof_execution_artifact_proof_evidence_status",
+                formal_verifier_agentic_proof_execution_artifact_verifier_payload.get(
+                    "proof_evidence_status"
+                ),
+            ),
+            "formal_verifier_agentic_proof_execution_artifact_verifier_manifest": str(
+                formal_verifier_agentic_proof_execution_artifact_verifier_path
+            ),
+            "formal_verifier_agentic_proof_execution_artifact_verifier_preview": _formal_verifier_agentic_proof_execution_artifact_verifier_preview(
+                formal_verifier_agentic_proof_execution_artifact_verifier_payload,
+                max_rows=min(max_targets, 10),
+            ),
             "formalization_gap_planner_proof_state_triage_items": counts.get(
                 "formalization_gap_planner_proof_state_triage_items",
                 formalization_gap_planner_proof_state_triage_payload.get(
@@ -1599,6 +1700,8 @@ def export_rag_collaboration_manifest(
             "FormalVerifier agentic proof safety policy rows are preflight guardrails, not theorem proof evidence.",
             "FormalVerifier agentic proof attempt population rows are search-memory records, not theorem proof evidence.",
             "FormalVerifier agentic proof execution queue rows are proof-worker work contracts, not theorem proof evidence.",
+            "FormalVerifier agentic proof execution materializer rows are bounded proof-worker inputs, not theorem proof evidence.",
+            "FormalVerifier agentic artifact verifier rows are artifact-level Lean checks only; they do not prove source theorem or residual gap claims.",
             "Formalization gap proof-state triage rows are proof-worker work orders, not theorem proof evidence.",
             "Claim-ledger repair-response promotion overlays close formal gaps only for matching ready kernel-verified promotion rows.",
             "FORMAL_GAP and theorem-hole queues remain open until a non-placeholder Lean proof is verified.",
@@ -1683,6 +1786,18 @@ def _auto_discover_artifacts(
                 "n_with_verified_sketch_gate",
             ),
         ),
+        "formal_verifier_agentic_proof_execution_materializer": (
+            Path("current_kernel_overlay_seeded_agentic_proof_execution_materializer")
+            / "formal_verifier_agentic_proof_execution_materializer_manifest.json",
+            ("n_materialized_artifacts", "n_live_goal_location_ready"),
+        ),
+        "formal_verifier_agentic_proof_execution_artifact_verifier": (
+            Path(
+                "current_kernel_overlay_seeded_agentic_proof_execution_artifact_verifier"
+            )
+            / "formal_verifier_agentic_proof_execution_artifact_verifier_manifest.json",
+            ("n_artifact_kernel_verified", "n_local_lean_checked"),
+        ),
     }
     for key, (relative_path, context_counts) in seeded_agentic_candidates.items():
         if key in protected:
@@ -1725,6 +1840,116 @@ def _context_count_score(payload: dict[str, Any], keys: tuple[str, ...]) -> int:
         except (TypeError, ValueError):
             continue
     return score
+
+
+def _overlay_auto_discovered_agentic_counts(
+    counts: dict[str, object],
+    artifact_auto_discoveries: dict[str, str],
+    **payloads: dict[str, Any],
+) -> dict[str, object]:
+    """Let richer auto-discovered current manifests replace stale generic counts."""
+
+    updated = dict(counts)
+    mappings = {
+        "formal_verifier_agentic_proof_strategy_plan": (
+            "formal_verifier_agentic_proof_strategy_plan_payload",
+            {
+                "formal_verifier_agentic_proof_strategy_plan_rows": "n_strategy_rows",
+                "formal_verifier_agentic_proof_strategy_plan_ready": "n_ready",
+                "formal_verifier_agentic_proof_strategy_plan_patch_evolve_blocks": "n_patch_evolve_blocks",
+                "formal_verifier_agentic_proof_strategy_plan_source_discovery_cache_items": "n_source_discovery_cache_items",
+                "formal_verifier_agentic_proof_strategy_plan_kernel_overlay_composition_seeds": "n_kernel_overlay_composition_seeds",
+            },
+        ),
+        "formal_verifier_agentic_proof_candidate_evaluation_queue": (
+            "formal_verifier_agentic_proof_candidate_evaluation_queue_payload",
+            {
+                "formal_verifier_agentic_proof_candidate_evaluation_queue_items": "n_candidate_queue_items",
+                "formal_verifier_agentic_proof_candidate_evaluation_queue_ready": "n_ready",
+                "formal_verifier_agentic_proof_candidate_evaluation_queue_blocked": "n_blocked",
+                "formal_verifier_agentic_proof_candidate_evaluation_queue_patch_candidates": "n_patch_candidate_items",
+                "formal_verifier_agentic_proof_candidate_evaluation_queue_source_discovery_candidates": "n_source_discovery_candidate_items",
+                "formal_verifier_agentic_proof_candidate_evaluation_queue_kernel_overlay_candidates": "n_kernel_overlay_candidate_items",
+                "formal_verifier_agentic_proof_candidate_evaluation_queue_with_kernel_overlay_context": "n_with_kernel_overlay_context",
+            },
+        ),
+        "formal_verifier_agentic_proof_safety_policy": (
+            "formal_verifier_agentic_proof_safety_policy_payload",
+            {
+                "formal_verifier_agentic_proof_safety_policy_rows": "n_safety_policy_rows",
+                "formal_verifier_agentic_proof_safety_policy_ready": "n_ready",
+                "formal_verifier_agentic_proof_safety_policy_blocked": "n_blocked",
+                "formal_verifier_agentic_proof_safety_policy_patch_bounded_edit": "n_patch_bounded_edit_policies",
+                "formal_verifier_agentic_proof_safety_policy_source_validation": "n_source_validation_policies",
+                "formal_verifier_agentic_proof_safety_policy_with_kernel_overlay_context": "n_with_kernel_overlay_context",
+            },
+        ),
+        "formal_verifier_agentic_proof_attempt_population": (
+            "formal_verifier_agentic_proof_attempt_population_payload",
+            {
+                "formal_verifier_agentic_proof_attempt_population_entries": "n_population_entries",
+                "formal_verifier_agentic_proof_attempt_population_ready": "n_ready",
+                "formal_verifier_agentic_proof_attempt_population_blocked": "n_blocked",
+                "formal_verifier_agentic_proof_attempt_population_patch_entries": "n_patch_population_entries",
+                "formal_verifier_agentic_proof_attempt_population_source_entries": "n_source_population_entries",
+                "formal_verifier_agentic_proof_attempt_population_with_kernel_overlay_context": "n_with_kernel_overlay_context",
+            },
+        ),
+        "formal_verifier_agentic_proof_execution_queue": (
+            "formal_verifier_agentic_proof_execution_queue_payload",
+            {
+                "formal_verifier_agentic_proof_execution_queue_items": "n_execution_queue_items",
+                "formal_verifier_agentic_proof_execution_queue_ready": "n_ready",
+                "formal_verifier_agentic_proof_execution_queue_blocked": "n_blocked",
+                "formal_verifier_agentic_proof_execution_queue_patch_items": "n_patch_execution_items",
+                "formal_verifier_agentic_proof_execution_queue_source_items": "n_source_execution_items",
+                "formal_verifier_agentic_proof_execution_queue_with_candidate_artifact_path": "n_with_candidate_artifact_path",
+                "formal_verifier_agentic_proof_execution_queue_with_live_tool_plan": "n_with_live_tool_plan",
+                "formal_verifier_agentic_proof_execution_queue_with_proof_route_dag_plan": "n_with_proof_route_dag_plan",
+                "formal_verifier_agentic_proof_execution_queue_with_verified_sketch_gate": "n_with_verified_sketch_gate",
+                "formal_verifier_agentic_proof_execution_queue_with_blueprint_export_plan": "n_with_blueprint_export_plan",
+                "formal_verifier_agentic_proof_execution_queue_with_kernel_overlay_context": "n_with_kernel_overlay_context",
+                "formal_verifier_agentic_proof_execution_queue_live_goal_requested": "n_live_goal_requested",
+                "formal_verifier_agentic_proof_execution_queue_live_goal_location_ready": "n_live_goal_location_ready",
+                "formal_verifier_agentic_proof_execution_queue_needs_target_location": "n_needs_target_location",
+                "formal_verifier_agentic_proof_execution_queue_candidate_artifact_exists": "n_candidate_artifact_exists",
+            },
+        ),
+        "formal_verifier_agentic_proof_execution_materializer": (
+            "formal_verifier_agentic_proof_execution_materializer_payload",
+            {
+                "formal_verifier_agentic_proof_execution_materializer_rows": "n_materializer_rows",
+                "formal_verifier_agentic_proof_execution_materializer_artifacts": "n_materialized_artifacts",
+                "formal_verifier_agentic_proof_execution_materializer_new_artifacts": "n_new_artifacts",
+                "formal_verifier_agentic_proof_execution_materializer_live_goal_location_ready": "n_live_goal_location_ready",
+                "formal_verifier_agentic_proof_execution_materializer_kernel_verified": "n_kernel_verified",
+            },
+        ),
+        "formal_verifier_agentic_proof_execution_artifact_verifier": (
+            "formal_verifier_agentic_proof_execution_artifact_verifier_payload",
+            {
+                "formal_verifier_agentic_proof_execution_artifact_verifier_enabled": "enabled",
+                "formal_verifier_agentic_proof_execution_artifact_verifier_rows": "n_verifier_rows",
+                "formal_verifier_agentic_proof_execution_artifact_verifier_checked": "n_local_lean_checked",
+                "formal_verifier_agentic_proof_execution_artifact_verifier_compiled": "n_local_lean_compiled",
+                "formal_verifier_agentic_proof_execution_artifact_kernel_verified": "n_artifact_kernel_verified",
+                "formal_verifier_agentic_proof_execution_source_theorem_kernel_verified": "n_source_theorem_kernel_verified",
+                "formal_verifier_agentic_proof_execution_artifact_forbidden_token_failures": "n_forbidden_token_failures",
+                "formal_verifier_agentic_proof_execution_artifact_verifier_ok": "n_ok",
+                "formal_verifier_agentic_proof_execution_artifact_proof_evidence_status": "proof_evidence_status",
+            },
+        ),
+    }
+    for artifact_key, (payload_name, field_map) in mappings.items():
+        if artifact_key not in artifact_auto_discoveries:
+            continue
+        payload = payloads.get(payload_name, {})
+        if not isinstance(payload, dict):
+            continue
+        for count_key, payload_key in field_map.items():
+            if payload_key in payload:
+                updated[count_key] = payload[payload_key]
+    return updated
 
 
 def _kernel_proof_evidence_overlays(
@@ -3203,6 +3428,80 @@ def _formal_verifier_agentic_proof_execution_queue_preview(
     return rows
 
 
+def _formal_verifier_agentic_proof_execution_materializer_preview(
+    payload: dict[str, Any],
+    *,
+    max_rows: int,
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    materializer_rows = payload.get("rows", [])
+    if not isinstance(materializer_rows, list):
+        return rows
+    for row in materializer_rows:
+        if not isinstance(row, dict):
+            continue
+        rows.append(
+            {
+                "materialization_id": row.get("materialization_id"),
+                "execution_queue_id": row.get("execution_queue_id"),
+                "display_name": row.get("display_name"),
+                "target_theorem_name": row.get("target_theorem_name", ""),
+                "materialization_status": row.get("materialization_status", ""),
+                "candidate_artifact_path": row.get("candidate_artifact_path", ""),
+                "target_lean_file": row.get("target_lean_file", ""),
+                "target_lean_line": row.get("target_lean_line"),
+                "target_lean_declaration": row.get("target_lean_declaration", ""),
+                "live_goal_location_ready": row.get("live_goal_location_ready"),
+                "kernel_verified": row.get("kernel_verified"),
+                "proof_evidence_status": row.get("proof_evidence_status", ""),
+                "proof_evidence_boundary": row.get("proof_evidence_boundary", ""),
+            }
+        )
+        if len(rows) >= max_rows:
+            break
+    return rows
+
+
+def _formal_verifier_agentic_proof_execution_artifact_verifier_preview(
+    payload: dict[str, Any],
+    *,
+    max_rows: int,
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    verifier_rows = payload.get("rows", [])
+    if not isinstance(verifier_rows, list):
+        return rows
+    for row in verifier_rows:
+        if not isinstance(row, dict):
+            continue
+        rows.append(
+            {
+                "artifact_verification_id": row.get("artifact_verification_id"),
+                "materialization_id": row.get("materialization_id"),
+                "execution_queue_id": row.get("execution_queue_id"),
+                "display_name": row.get("display_name"),
+                "target_theorem_name": row.get("target_theorem_name", ""),
+                "candidate_artifact_path": row.get("candidate_artifact_path", ""),
+                "target_lean_declaration": row.get("target_lean_declaration", ""),
+                "target_lean_line": row.get("target_lean_line"),
+                "local_lean_checked": row.get("local_lean_checked"),
+                "local_lean_compiled": row.get("local_lean_compiled"),
+                "artifact_kernel_verified": row.get("artifact_kernel_verified"),
+                "source_theorem_kernel_verified": row.get(
+                    "source_theorem_kernel_verified"
+                ),
+                "verification_status": row.get("verification_status", ""),
+                "verifier": row.get("verifier", ""),
+                "verification_strength": row.get("verification_strength", ""),
+                "proof_evidence_status": row.get("proof_evidence_status", ""),
+                "proof_evidence_boundary": row.get("proof_evidence_boundary", ""),
+            }
+        )
+        if len(rows) >= max_rows:
+            break
+    return rows
+
+
 def _formalization_gap_planner_proof_state_triage_preview(
     payload: dict[str, Any],
     *,
@@ -3443,6 +3742,15 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"`{queue.get('formal_verifier_agentic_proof_execution_queue_with_verified_sketch_gate')}` verified-sketch, "
         f"`{queue.get('formal_verifier_agentic_proof_execution_queue_with_blueprint_export_plan')}` Blueprint, "
         f"`{queue.get('formal_verifier_agentic_proof_execution_queue_with_kernel_overlay_context')}` with kernel-overlay context)",
+        f"- Formal verifier agentic proof materializer: `{queue.get('formal_verifier_agentic_proof_execution_materializer_rows')}` rows "
+        f"(`{queue.get('formal_verifier_agentic_proof_execution_materializer_artifacts')}` artifacts, "
+        f"`{queue.get('formal_verifier_agentic_proof_execution_materializer_live_goal_location_ready')}` live-goal locations, "
+        f"`{queue.get('formal_verifier_agentic_proof_execution_materializer_kernel_verified')}` artifact kernels)",
+        f"- Formal verifier agentic artifact verifier: checked `{queue.get('formal_verifier_agentic_proof_execution_artifact_verifier_checked')}`, "
+        f"compiled `{queue.get('formal_verifier_agentic_proof_execution_artifact_verifier_compiled')}`, "
+        f"artifact kernel `{queue.get('formal_verifier_agentic_proof_execution_artifact_kernel_verified')}`, "
+        f"source theorem kernel `{queue.get('formal_verifier_agentic_proof_execution_source_theorem_kernel_verified')}` "
+        f"({queue.get('formal_verifier_agentic_proof_execution_artifact_proof_evidence_status')})",
         f"- Formalization gap proof-state triage: `{queue.get('formalization_gap_planner_proof_state_triage_items')}` items "
         f"(`{queue.get('formalization_gap_planner_proof_state_triage_formal_gap_scaffold_items')}` formal-gap scaffold, "
         f"`{queue.get('formalization_gap_planner_proof_state_triage_local_lean_failed_items')}` local Lean failed, "
@@ -3970,6 +4278,59 @@ def _markdown_report(payload: dict[str, object]) -> str:
             lines.append(f"  kernel-overlay verified subclaims: {subclaims}")
             lines.append(f"  kernel-overlay target blockers: {blockers}")
         lines.append(f"  promotion gate: {row.get('promotion_gate')}")
+        lines.append(f"  proof status: {row.get('proof_evidence_status')}")
+        lines.append(f"  boundary: {row.get('proof_evidence_boundary')}")
+    lines.extend(["", "## Agentic Proof Execution Materializer", ""])
+    for row in queue.get(
+        "formal_verifier_agentic_proof_execution_materializer_preview",
+        [],
+    ):
+        if not isinstance(row, dict):
+            continue
+        lines.append(
+            f"- `{row.get('materialization_id')}` for `{row.get('target_theorem_name')}` "
+            f"({row.get('materialization_status')})"
+        )
+        lines.append(f"  artifact: `{row.get('candidate_artifact_path')}`")
+        lines.append(
+            f"  target: `{row.get('target_lean_file')}`:"
+            f"{row.get('target_lean_line')} / `{row.get('target_lean_declaration')}`"
+        )
+        lines.append(
+            f"  live goal ready: `{row.get('live_goal_location_ready')}`, "
+            f"artifact kernel: `{row.get('kernel_verified')}`"
+        )
+        lines.append(f"  proof status: {row.get('proof_evidence_status')}")
+        lines.append(f"  boundary: {row.get('proof_evidence_boundary')}")
+    lines.extend(["", "## Agentic Proof Artifact Verifier", ""])
+    lines.append(
+        "Artifact verifier rows report Lean checks on generated artifacts; source-theorem "
+        "kernel proof remains separate."
+    )
+    for row in queue.get(
+        "formal_verifier_agentic_proof_execution_artifact_verifier_preview",
+        [],
+    ):
+        if not isinstance(row, dict):
+            continue
+        lines.append(
+            f"- `{row.get('artifact_verification_id')}` for `{row.get('target_theorem_name')}` "
+            f"({row.get('verification_status')})"
+        )
+        lines.append(f"  artifact: `{row.get('candidate_artifact_path')}`")
+        lines.append(
+            f"  target: line {row.get('target_lean_line')} / "
+            f"`{row.get('target_lean_declaration')}`"
+        )
+        lines.append(
+            f"  checked: `{row.get('local_lean_checked')}`, "
+            f"compiled: `{row.get('local_lean_compiled')}`, "
+            f"artifact kernel: `{row.get('artifact_kernel_verified')}`, "
+            f"source theorem kernel: `{row.get('source_theorem_kernel_verified')}`"
+        )
+        lines.append(
+            f"  verifier: `{row.get('verifier')}` / `{row.get('verification_strength')}`"
+        )
         lines.append(f"  proof status: {row.get('proof_evidence_status')}")
         lines.append(f"  boundary: {row.get('proof_evidence_boundary')}")
     lines.extend(["", "## Proof-State Triage", ""])

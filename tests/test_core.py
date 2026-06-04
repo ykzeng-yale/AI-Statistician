@@ -12477,6 +12477,14 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         seeded_execution_queue_dir = (
             parent / "current_kernel_overlay_seeded_agentic_proof_execution_queue"
         )
+        seeded_materializer_dir = (
+            parent
+            / "current_kernel_overlay_seeded_agentic_proof_execution_materializer"
+        )
+        seeded_artifact_verifier_dir = (
+            parent
+            / "current_kernel_overlay_seeded_agentic_proof_execution_artifact_verifier"
+        )
         out = parent / "rag_collaboration_export"
         shutil.rmtree(parent, ignore_errors=True)
         run_dir.mkdir(parents=True, exist_ok=True)
@@ -12495,6 +12503,8 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         seeded_safety_policy_dir.mkdir(parents=True, exist_ok=True)
         seeded_attempt_population_dir.mkdir(parents=True, exist_ok=True)
         seeded_execution_queue_dir.mkdir(parents=True, exist_ok=True)
+        seeded_materializer_dir.mkdir(parents=True, exist_ok=True)
+        seeded_artifact_verifier_dir.mkdir(parents=True, exist_ok=True)
         proof_fingerprint = "f" * 64
         proof_audit_dir = run_dir / "proof_audit"
         proof_audit_dir.mkdir(parents=True, exist_ok=True)
@@ -12892,6 +12902,87 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             ),
             encoding="utf-8",
         )
+        candidate_artifact_path = (
+            "runs/current_kernel_overlay_seeded_agentic_proof_execution_queue/"
+            "candidate_artifacts/auto_claim_skeleton.lean"
+        )
+        (
+            seeded_materializer_dir
+            / "formal_verifier_agentic_proof_execution_materializer_manifest.json"
+        ).write_text(
+            json.dumps(
+                {
+                    "n_materializer_rows": 1,
+                    "n_materialized_artifacts": 1,
+                    "n_new_artifacts": 1,
+                    "n_live_goal_location_ready": 1,
+                    "n_kernel_verified": 0,
+                    "n_ok": 1,
+                    "rows": [
+                        {
+                            "materialization_id": "formal_verifier_agentic_proof_execution_materializer:auto",
+                            "execution_queue_id": "formal_verifier_agentic_proof_execution_queue:auto",
+                            "display_name": "auto:claim:skeleton",
+                            "target_theorem_name": "formal:auto:claim",
+                            "materialization_status": "MATERIALIZED_LEAN_ARTIFACT",
+                            "candidate_artifact_path": candidate_artifact_path,
+                            "target_lean_file": candidate_artifact_path,
+                            "target_lean_line": 21,
+                            "target_lean_declaration": "auto_claim_skeleton_route_probe",
+                            "live_goal_location_ready": True,
+                            "kernel_verified": False,
+                            "proof_evidence_status": "AGENTIC_PROOF_EXECUTION_MATERIALIZER_NOT_PROOF_EVIDENCE",
+                            "proof_evidence_boundary": (
+                                "Materializer rows are not theorem proof evidence."
+                            ),
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        (
+            seeded_artifact_verifier_dir
+            / "formal_verifier_agentic_proof_execution_artifact_verifier_manifest.json"
+        ).write_text(
+            json.dumps(
+                {
+                    "enabled": True,
+                    "n_verifier_rows": 1,
+                    "n_local_lean_checked": 1,
+                    "n_local_lean_compiled": 1,
+                    "n_artifact_kernel_verified": 1,
+                    "n_source_theorem_kernel_verified": 0,
+                    "n_forbidden_token_failures": 0,
+                    "n_ok": 1,
+                    "proof_evidence_status": "AGENTIC_ARTIFACT_KERNEL_CHECK_NOT_SOURCE_THEOREM_PROOF",
+                    "rows": [
+                        {
+                            "artifact_verification_id": "formal_verifier_agentic_proof_execution_artifact_verifier:auto",
+                            "materialization_id": "formal_verifier_agentic_proof_execution_materializer:auto",
+                            "execution_queue_id": "formal_verifier_agentic_proof_execution_queue:auto",
+                            "display_name": "auto:claim:skeleton",
+                            "target_theorem_name": "formal:auto:claim",
+                            "candidate_artifact_path": candidate_artifact_path,
+                            "target_lean_declaration": "auto_claim_skeleton_route_probe",
+                            "target_lean_line": 21,
+                            "local_lean_checked": True,
+                            "local_lean_compiled": True,
+                            "artifact_kernel_verified": True,
+                            "source_theorem_kernel_verified": False,
+                            "verification_status": "ARTIFACT_KERNEL_VERIFIED_NOT_SOURCE_THEOREM",
+                            "verifier": "local.lean_artifact",
+                            "verification_strength": "local_lean_artifact_kernel",
+                            "proof_evidence_status": "AGENTIC_ARTIFACT_KERNEL_CHECK_NOT_SOURCE_THEOREM_PROOF",
+                            "proof_evidence_boundary": (
+                                "Artifact verifier rows are not source theorem proof evidence."
+                            ),
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
         triage_manifest_path = (
             triage_dir / "formalization_gap_planner_proof_state_triage_manifest.json"
         )
@@ -12937,6 +13028,10 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                         "proofs_kernel_verified": 0,
                         "proofs_total": 0,
                         "missing_formal_primitives": 0,
+                        "formal_verifier_agentic_proof_execution_queue_items": 0,
+                        "formal_verifier_agentic_proof_execution_materializer_rows": 0,
+                        "formal_verifier_agentic_proof_execution_artifact_kernel_verified": 0,
+                        "formal_verifier_agentic_proof_execution_source_theorem_kernel_verified": 0,
                     },
                     "artifacts": {
                         "proof_audit": str(proof_audit_manifest_path),
@@ -13128,6 +13223,87 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "theorem-route DAG",
             " ".join(execution_preview["blueprint_export_plan"]),
         )
+        self.assertEqual(
+            payload["artifact_auto_discoveries_applied"][
+                "formal_verifier_agentic_proof_execution_materializer"
+            ],
+            str(
+                seeded_materializer_dir
+                / "formal_verifier_agentic_proof_execution_materializer_manifest.json"
+            ),
+        )
+        self.assertEqual(
+            payload["artifact_auto_discoveries_applied"][
+                "formal_verifier_agentic_proof_execution_artifact_verifier"
+            ],
+            str(
+                seeded_artifact_verifier_dir
+                / "formal_verifier_agentic_proof_execution_artifact_verifier_manifest.json"
+            ),
+        )
+        self.assertEqual(
+            queue["formal_verifier_agentic_proof_execution_materializer_rows"],
+            1,
+        )
+        self.assertEqual(
+            queue["formal_verifier_agentic_proof_execution_materializer_artifacts"],
+            1,
+        )
+        self.assertEqual(
+            queue[
+                "formal_verifier_agentic_proof_execution_materializer_live_goal_location_ready"
+            ],
+            1,
+        )
+        self.assertEqual(
+            queue["formal_verifier_agentic_proof_execution_materializer_kernel_verified"],
+            0,
+        )
+        materializer_preview = queue[
+            "formal_verifier_agentic_proof_execution_materializer_preview"
+        ][0]
+        self.assertEqual(
+            materializer_preview["target_lean_declaration"],
+            "auto_claim_skeleton_route_probe",
+        )
+        self.assertTrue(materializer_preview["live_goal_location_ready"])
+        self.assertFalse(materializer_preview["kernel_verified"])
+        self.assertTrue(
+            queue["formal_verifier_agentic_proof_execution_artifact_verifier_enabled"]
+        )
+        self.assertEqual(
+            queue["formal_verifier_agentic_proof_execution_artifact_verifier_checked"],
+            1,
+        )
+        self.assertEqual(
+            queue["formal_verifier_agentic_proof_execution_artifact_verifier_compiled"],
+            1,
+        )
+        self.assertEqual(
+            queue["formal_verifier_agentic_proof_execution_artifact_kernel_verified"],
+            1,
+        )
+        self.assertEqual(
+            queue[
+                "formal_verifier_agentic_proof_execution_source_theorem_kernel_verified"
+            ],
+            0,
+        )
+        self.assertEqual(
+            queue[
+                "formal_verifier_agentic_proof_execution_artifact_proof_evidence_status"
+            ],
+            "AGENTIC_ARTIFACT_KERNEL_CHECK_NOT_SOURCE_THEOREM_PROOF",
+        )
+        verifier_preview = queue[
+            "formal_verifier_agentic_proof_execution_artifact_verifier_preview"
+        ][0]
+        self.assertTrue(verifier_preview["artifact_kernel_verified"])
+        self.assertFalse(verifier_preview["source_theorem_kernel_verified"])
+        self.assertEqual(
+            verifier_preview["verification_status"],
+            "ARTIFACT_KERNEL_VERIFIED_NOT_SOURCE_THEOREM",
+        )
         self.assertEqual(queue["formalization_gap_planner_proof_state_triage_items"], 2)
         self.assertEqual(
             queue[
@@ -13147,6 +13323,10 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         )
         self.assertIn(
             "proof-state triage rows are proof-worker work orders",
+            " ".join(payload["honesty_boundaries"]),
+        )
+        self.assertIn(
+            "agentic artifact verifier rows are artifact-level Lean checks",
             " ".join(payload["honesty_boundaries"]),
         )
         kernel_overlay = payload["kernel_proof_evidence_overlays"]
@@ -13266,6 +13446,10 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         )
         self.assertIn(
             "Composition Agentic Seeds",
+            (out / "rag_collaboration.md").read_text(),
+        )
+        self.assertIn(
+            "Agentic Proof Artifact Verifier",
             (out / "rag_collaboration.md").read_text(),
         )
 
