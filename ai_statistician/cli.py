@@ -3540,6 +3540,7 @@ async def _research_system_audit(args: argparse.Namespace) -> int:
             refresh_research_benchmark_cache=args.refresh_research_benchmark_cache,
             formal_verifier_replay_attempts=args.formal_verifier_replay_attempts,
             formal_verifier_replay_attempt_log=args.formal_verifier_replay_attempt_log,
+            verify_agentic_artifacts=args.verify_agentic_artifacts,
             adaptive_mc_rerun=not args.no_adaptive_mc_rerun,
             adaptive_mc_multiplier=args.adaptive_mc_multiplier,
         ),
@@ -6065,6 +6066,14 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "attempt the first N FormalVerifier replay targets during the audit; "
             "when --lean-project is set these attempts use local Lean"
+        ),
+    )
+    research_system_audit.add_argument(
+        "--verify-agentic-artifacts",
+        action="store_true",
+        help=(
+            "run local Lean checks on materialized agentic proof-worker artifacts; "
+            "this reports artifact-level kernel evidence only, not source theorem proof evidence"
         ),
     )
     research_system_audit.add_argument(

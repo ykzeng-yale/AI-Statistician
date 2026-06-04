@@ -93,6 +93,7 @@ def export_formal_verifier_agentic_proof_execution_artifact_verifier(
         "formal_verifier_agentic_proof_execution_materializer_manifest": str(
             materializer_manifest_path
         ),
+        "enabled": True,
         "lean_project": str(lean_project or ""),
         "lean_timeout": lean_timeout,
         "lean_command": list(command),

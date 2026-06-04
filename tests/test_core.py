@@ -3252,6 +3252,7 @@ class SystemTests(unittest.TestCase):
             lean_command=("true",),
         )
         self.assertTrue(verified["all_ok"])
+        self.assertTrue(verified["enabled"])
         self.assertEqual(verified["n_local_lean_checked"], 1)
         self.assertEqual(verified["n_local_lean_compiled"], 1)
         self.assertEqual(verified["n_artifact_kernel_verified"], 1)
@@ -15169,6 +15170,8 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["gates"]["formal_verifier_agentic_proof_safety_policy"])
         self.assertTrue(payload["gates"]["formal_verifier_agentic_proof_attempt_population"])
         self.assertTrue(payload["gates"]["formal_verifier_agentic_proof_execution_queue"])
+        self.assertTrue(payload["gates"]["formal_verifier_agentic_proof_execution_materializer"])
+        self.assertTrue(payload["gates"]["formal_verifier_agentic_proof_execution_artifact_verifier"])
         self.assertTrue(payload["gates"]["research_training_export"])
         self.assertTrue(payload["gates"]["research_policy_baseline"])
         self.assertTrue(payload["gates"]["next_iteration_queue"])
@@ -16499,6 +16502,43 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             payload["counts"]["formal_verifier_agentic_proof_execution_queue_ok"],
             0,
         )
+        self.assertEqual(
+            payload["counts"]["formal_verifier_agentic_proof_execution_materializer_rows"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formal_verifier_agentic_proof_execution_materializer_artifacts"],
+            0,
+        )
+        self.assertFalse(
+            payload["counts"][
+                "formal_verifier_agentic_proof_execution_artifact_verifier_enabled"
+            ]
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_agentic_proof_execution_artifact_verifier_checked"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_agentic_proof_execution_artifact_kernel_verified"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_agentic_proof_execution_source_theorem_kernel_verified"
+            ],
+            0,
+        )
+        self.assertIn(
+            "NOT_PROOF_EVIDENCE",
+            payload["counts"][
+                "formal_verifier_agentic_proof_execution_artifact_proof_evidence_status"
+            ],
+        )
         self.assertTrue(Path(payload["artifacts"]["formalization_delta_plan"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formalization_delta_graph"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_verifier_queue"]).exists())
@@ -16881,6 +16921,48 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             Path(
                 payload["artifacts"][
                     "formal_verifier_agentic_proof_execution_queue_report"
+                ]
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formal_verifier_agentic_proof_execution_materializer"
+                ]
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formal_verifier_agentic_proof_execution_materializer_jsonl"
+                ]
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formal_verifier_agentic_proof_execution_materializer_report"
+                ]
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formal_verifier_agentic_proof_execution_artifact_verifier"
+                ]
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formal_verifier_agentic_proof_execution_artifact_verifier_jsonl"
+                ]
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formal_verifier_agentic_proof_execution_artifact_verifier_report"
                 ]
             ).exists()
         )

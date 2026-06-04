@@ -103,6 +103,12 @@ from .formal_verifier_agentic_proof_attempt_population import (
 from .formal_verifier_agentic_proof_execution_queue import (
     export_formal_verifier_agentic_proof_execution_queue,
 )
+from .formal_verifier_agentic_proof_execution_materializer import (
+    export_formal_verifier_agentic_proof_execution_materializer,
+)
+from .formal_verifier_agentic_proof_execution_artifact_verifier import (
+    export_formal_verifier_agentic_proof_execution_artifact_verifier,
+)
 from .formal_verifier_replay_repair import export_formal_verifier_replay_repair_packets
 from .formal_source_graph import audit_formal_source_graph
 from .formal_source_hybrid import FormalSourceHybridRetriever
@@ -179,6 +185,7 @@ class ResearchSystemAuditConfig:
     refresh_research_benchmark_cache: bool = False
     formal_verifier_replay_attempts: int = 0
     formal_verifier_replay_attempt_log: str | None = None
+    verify_agentic_artifacts: bool = False
     adaptive_mc_rerun: bool = True
     adaptive_mc_multiplier: int = 5
 
@@ -899,6 +906,38 @@ async def run_research_system_audit(
         "formal_verifier_agentic_proof_execution_queue",
         stage_start,
     )
+    formal_verifier_agentic_proof_execution_materializer_manifest = (
+        export_formal_verifier_agentic_proof_execution_materializer(
+            out_dir / "formal_verifier_agentic_proof_execution_queue",
+            out_dir / "formal_verifier_agentic_proof_execution_materializer",
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "formal_verifier_agentic_proof_execution_materializer",
+        stage_start,
+    )
+    if config.verify_agentic_artifacts:
+        formal_verifier_agentic_proof_execution_artifact_verifier_manifest = (
+            export_formal_verifier_agentic_proof_execution_artifact_verifier(
+                out_dir / "formal_verifier_agentic_proof_execution_materializer",
+                out_dir / "formal_verifier_agentic_proof_execution_artifact_verifier",
+                lean_project=config.local_lean_project,
+                lean_timeout=config.local_lean_timeout,
+            )
+        )
+    else:
+        formal_verifier_agentic_proof_execution_artifact_verifier_manifest = (
+            _write_disabled_agentic_artifact_verifier_manifest(
+                out_dir / "formal_verifier_agentic_proof_execution_artifact_verifier",
+                materializer_manifest=formal_verifier_agentic_proof_execution_materializer_manifest,
+            )
+        )
+    stage_start = _record_stage(
+        stage_timings,
+        "formal_verifier_agentic_proof_execution_artifact_verifier",
+        stage_start,
+    )
 
     research_training_manifest = export_research_training_dataset(
         out_dir / "research_benchmark",
@@ -1190,6 +1229,12 @@ async def run_research_system_audit(
         "formal_verifier_agentic_proof_execution_queue": bool(
             formal_verifier_agentic_proof_execution_queue_manifest["all_ok"]
         ),
+        "formal_verifier_agentic_proof_execution_materializer": bool(
+            formal_verifier_agentic_proof_execution_materializer_manifest["all_ok"]
+        ),
+        "formal_verifier_agentic_proof_execution_artifact_verifier": bool(
+            formal_verifier_agentic_proof_execution_artifact_verifier_manifest["all_ok"]
+        ),
         "research_training_export": bool(research_training_manifest["all_ok"]),
         "research_policy_baseline": bool(research_policy_manifest["all_ok"]),
         "next_iteration_queue": bool(next_iteration_manifest["all_ok"]),
@@ -1251,6 +1296,8 @@ async def run_research_system_audit(
         "formal_verifier_agentic_proof_safety_policy",
         "formal_verifier_agentic_proof_attempt_population",
         "formal_verifier_agentic_proof_execution_queue",
+        "formal_verifier_agentic_proof_execution_materializer",
+        "formal_verifier_agentic_proof_execution_artifact_verifier",
         "research_training_export",
         "research_policy_baseline",
         "next_iteration_queue",
@@ -1296,6 +1343,7 @@ async def run_research_system_audit(
             "refresh_research_benchmark_cache": config.refresh_research_benchmark_cache,
             "formal_verifier_replay_attempts": config.formal_verifier_replay_attempts,
             "formal_verifier_replay_attempt_log": config.formal_verifier_replay_attempt_log or "",
+            "verify_agentic_artifacts": config.verify_agentic_artifacts,
             "adaptive_mc_rerun": config.adaptive_mc_rerun,
             "adaptive_mc_multiplier": config.adaptive_mc_multiplier,
             "question_file": str(question_file or Path("examples/research_questions.json")),
@@ -2666,6 +2714,51 @@ async def run_research_system_audit(
             "formal_verifier_agentic_proof_execution_queue_ok": formal_verifier_agentic_proof_execution_queue_manifest[
                 "n_ok"
             ],
+            "formal_verifier_agentic_proof_execution_materializer_rows": formal_verifier_agentic_proof_execution_materializer_manifest[
+                "n_materializer_rows"
+            ],
+            "formal_verifier_agentic_proof_execution_materializer_artifacts": formal_verifier_agentic_proof_execution_materializer_manifest[
+                "n_materialized_artifacts"
+            ],
+            "formal_verifier_agentic_proof_execution_materializer_new_artifacts": formal_verifier_agentic_proof_execution_materializer_manifest[
+                "n_new_artifacts"
+            ],
+            "formal_verifier_agentic_proof_execution_materializer_live_goal_location_ready": formal_verifier_agentic_proof_execution_materializer_manifest[
+                "n_live_goal_location_ready"
+            ],
+            "formal_verifier_agentic_proof_execution_materializer_kernel_verified": formal_verifier_agentic_proof_execution_materializer_manifest[
+                "n_kernel_verified"
+            ],
+            "formal_verifier_agentic_proof_execution_materializer_ok": formal_verifier_agentic_proof_execution_materializer_manifest[
+                "n_ok"
+            ],
+            "formal_verifier_agentic_proof_execution_artifact_verifier_enabled": formal_verifier_agentic_proof_execution_artifact_verifier_manifest.get(
+                "enabled", config.verify_agentic_artifacts
+            ),
+            "formal_verifier_agentic_proof_execution_artifact_verifier_rows": formal_verifier_agentic_proof_execution_artifact_verifier_manifest[
+                "n_verifier_rows"
+            ],
+            "formal_verifier_agentic_proof_execution_artifact_verifier_checked": formal_verifier_agentic_proof_execution_artifact_verifier_manifest[
+                "n_local_lean_checked"
+            ],
+            "formal_verifier_agentic_proof_execution_artifact_verifier_compiled": formal_verifier_agentic_proof_execution_artifact_verifier_manifest[
+                "n_local_lean_compiled"
+            ],
+            "formal_verifier_agentic_proof_execution_artifact_kernel_verified": formal_verifier_agentic_proof_execution_artifact_verifier_manifest[
+                "n_artifact_kernel_verified"
+            ],
+            "formal_verifier_agentic_proof_execution_source_theorem_kernel_verified": formal_verifier_agentic_proof_execution_artifact_verifier_manifest[
+                "n_source_theorem_kernel_verified"
+            ],
+            "formal_verifier_agentic_proof_execution_artifact_forbidden_token_failures": formal_verifier_agentic_proof_execution_artifact_verifier_manifest[
+                "n_forbidden_token_failures"
+            ],
+            "formal_verifier_agentic_proof_execution_artifact_verifier_ok": formal_verifier_agentic_proof_execution_artifact_verifier_manifest[
+                "n_ok"
+            ],
+            "formal_verifier_agentic_proof_execution_artifact_proof_evidence_status": formal_verifier_agentic_proof_execution_artifact_verifier_manifest.get(
+                "proof_evidence_status", ""
+            ),
             "proof_bank_actions_high_priority": proof_bank_action_manifest["by_priority"].get("high", 0),
             "proof_bank_actions_medium_priority": proof_bank_action_manifest["by_priority"].get("medium", 0),
             "proof_bank_actions_low_priority": proof_bank_action_manifest["by_priority"].get("low", 0),
@@ -3646,6 +3739,36 @@ async def run_research_system_audit(
                 / "formal_verifier_agentic_proof_execution_queue"
                 / "formal_verifier_agentic_proof_execution_queue.md"
             ),
+            "formal_verifier_agentic_proof_execution_materializer": str(
+                out_dir
+                / "formal_verifier_agentic_proof_execution_materializer"
+                / "formal_verifier_agentic_proof_execution_materializer_manifest.json"
+            ),
+            "formal_verifier_agentic_proof_execution_materializer_jsonl": str(
+                out_dir
+                / "formal_verifier_agentic_proof_execution_materializer"
+                / "formal_verifier_agentic_proof_execution_materializer.jsonl"
+            ),
+            "formal_verifier_agentic_proof_execution_materializer_report": str(
+                out_dir
+                / "formal_verifier_agentic_proof_execution_materializer"
+                / "formal_verifier_agentic_proof_execution_materializer.md"
+            ),
+            "formal_verifier_agentic_proof_execution_artifact_verifier": str(
+                out_dir
+                / "formal_verifier_agentic_proof_execution_artifact_verifier"
+                / "formal_verifier_agentic_proof_execution_artifact_verifier_manifest.json"
+            ),
+            "formal_verifier_agentic_proof_execution_artifact_verifier_jsonl": str(
+                out_dir
+                / "formal_verifier_agentic_proof_execution_artifact_verifier"
+                / "formal_verifier_agentic_proof_execution_artifact_verifier.jsonl"
+            ),
+            "formal_verifier_agentic_proof_execution_artifact_verifier_report": str(
+                out_dir
+                / "formal_verifier_agentic_proof_execution_artifact_verifier"
+                / "formal_verifier_agentic_proof_execution_artifact_verifier.md"
+            ),
             "primitive_source_coverage": str(
                 out_dir / "primitive_source_coverage" / "primitive_source_coverage_manifest.json"
             ),
@@ -3932,6 +4055,61 @@ def _select_kernel_smoke_ids_from_actions(
             if len(selected) >= limit:
                 return selected
     return selected
+
+
+def _write_disabled_agentic_artifact_verifier_manifest(
+    out_dir: Path,
+    *,
+    materializer_manifest: dict[str, object],
+) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "schema_version": 1,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "enabled": False,
+        "disable_reason": "verify_agentic_artifacts is false for this audit",
+        "n_materializer_rows": int(materializer_manifest.get("n_materializer_rows", 0) or 0),
+        "n_verifier_rows": 0,
+        "n_local_lean_checked": 0,
+        "n_local_lean_compiled": 0,
+        "n_artifact_kernel_verified": 0,
+        "n_source_theorem_kernel_verified": 0,
+        "n_forbidden_token_failures": 0,
+        "n_ok": 0,
+        "all_artifacts_kernel_verified": False,
+        "all_ok": True,
+        "errors": [],
+        "by_verification_status": {},
+        "rows": [],
+        "artifact_verifier_fingerprint": stable_hash(
+            [
+                "disabled_agentic_artifact_verifier",
+                materializer_manifest.get("materializer_fingerprint", ""),
+            ]
+        ),
+        "proof_evidence_status": "AGENTIC_ARTIFACT_VERIFIER_DISABLED_NOT_PROOF_EVIDENCE",
+        "proof_evidence_boundary": (
+            "Agentic artifact verification was not requested. This disabled "
+            "manifest records zero artifact kernel checks and zero source theorem "
+            "kernel checks; it is not theorem proof evidence."
+        ),
+    }
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (
+        out_dir
+        / "formal_verifier_agentic_proof_execution_artifact_verifier_manifest.json"
+    ).write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
+    (
+        out_dir / "formal_verifier_agentic_proof_execution_artifact_verifier.jsonl"
+    ).write_text("", encoding="utf-8")
+    (
+        out_dir / "formal_verifier_agentic_proof_execution_artifact_verifier.md"
+    ).write_text(
+        "# Formal Verifier Agentic Proof Execution Artifact Verifier\n\n"
+        "Disabled for this audit. No artifact-level Lean checks were run, and no "
+        "source theorem proof evidence is claimed.\n",
+        encoding="utf-8",
+    )
+    return payload
 
 
 def _research_benchmark_cache_info(
