@@ -2412,6 +2412,11 @@ def _formal_verifier_agentic_proof_strategy_plan(
             args.formal_verifier_replay_repair_patch_rerun_residual_followup_queue_dir
         ),
         Path(args.out),
+        rag_collaboration_manifest=(
+            Path(args.rag_collaboration_manifest)
+            if args.rag_collaboration_manifest
+            else None
+        ),
     )
     print("\nAI Statistical Theory Lab Formal Verifier Agentic Proof Strategy Plan")
     print("=" * 72)
@@ -2420,6 +2425,7 @@ def _formal_verifier_agentic_proof_strategy_plan(
         f"ready={payload['n_ready']} "
         f"patch_evolve_blocks={payload['n_patch_evolve_blocks']} "
         f"source_discovery_cache_items={payload['n_source_discovery_cache_items']} "
+        f"kernel_overlay_composition_seeds={payload['n_kernel_overlay_composition_seeds']} "
         f"with_live_tool_plan={payload['n_with_live_tool_plan']} "
         f"all_ok={payload['all_ok']}"
     )
@@ -5205,6 +5211,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--out",
         default="runs/formal_verifier_agentic_proof_strategy_plan",
         help="formal-verifier agentic proof strategy plan output directory",
+    )
+    formal_verifier_agentic_proof_strategy_plan.add_argument(
+        "--rag-collaboration-manifest",
+        default="",
+        help=(
+            "optional rag_collaboration_manifest.json containing kernel-overlay "
+            "composition agentic seeds to append to the strategy plan"
+        ),
     )
     formal_verifier_agentic_proof_strategy_plan.set_defaults(
         func=_formal_verifier_agentic_proof_strategy_plan

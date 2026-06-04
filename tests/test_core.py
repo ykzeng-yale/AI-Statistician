@@ -8274,6 +8274,163 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "not theorem proof evidence",
             agentic_strategy_row["proof_evidence_boundary"],
         )
+        seed_rag_dir = Path("runs/test_agentic_strategy_kernel_overlay_seed_rag")
+        shutil.rmtree(seed_rag_dir, ignore_errors=True)
+        seed_rag_dir.mkdir(parents=True, exist_ok=True)
+        seed_rag_manifest = seed_rag_dir / "rag_collaboration_manifest.json"
+        seed_rag_manifest.write_text(
+            json.dumps(
+                {
+                    "kernel_proof_overlay_alignment": {
+                        "kernel_overlay_composition_agentic_seed_preview": [
+                            {
+                                "seed_id": (
+                                    "kernel_overlay_composition_agentic_seed:test"
+                                ),
+                                "work_item_id": "kernel_overlay_composition_work:test",
+                                "packet_id": "theorem_composition:test",
+                                "source_claim_id": (
+                                    "formal:causal_ate_aipw:causal_identification"
+                                ),
+                                "question_id": "causal_ate_aipw",
+                                "problem_class": "semiparametric_causal_ate",
+                                "seed_status": (
+                                    "READY_FOR_AGENTIC_COMPOSITION_ATTEMPT"
+                                ),
+                                "agentic_strategy_kind": (
+                                    "kernel_overlay_composition_patch_seed"
+                                ),
+                                "goal_cache_key": (
+                                    "kernel_overlay_composition_goal:test"
+                                ),
+                                "candidate_database_key": (
+                                    "kernel_overlay_composition_candidate:test"
+                                ),
+                                "proof_sketch_population_key": (
+                                    "kernel_overlay_composition_sketch:test"
+                                ),
+                                "already_kernel_verified_subclaims": [
+                                    "conditional_expectation",
+                                    "iterated_expectation",
+                                ],
+                                "target_blockers": [
+                                    "potential_outcome_consistency",
+                                    "conditional_exchangeability",
+                                ],
+                                "source_discovery_queries": [
+                                    (
+                                        "causal_ate_aipw potential_outcome_consistency "
+                                        "Lean theorem proof source"
+                                    ),
+                                    (
+                                        "causal_ate_aipw conditional_exchangeability "
+                                        "Lean theorem proof source"
+                                    ),
+                                ],
+                                "required_live_tools": [
+                                    "lean_goal",
+                                    "lean_diagnostic_messages",
+                                    "lean_hover",
+                                    "lean_local_search",
+                                    "lean_multi_attempt",
+                                ],
+                                "evaluator_gates": [
+                                    "bounded-edit statement/header guard",
+                                    "source discovery for unmatched blockers",
+                                    "sorry/axiom/placeholder scan",
+                                    "AXLE/local Lean composed theorem verification",
+                                ],
+                                "bounded_edit_contract": {
+                                    "bounded_edit_required": True,
+                                    "start_marker": "-- AI_STAT_EVOLVE_BLOCK_START",
+                                    "end_marker": "-- AI_STAT_EVOLVE_BLOCK_END",
+                                    "anti_cheat_checks": [
+                                        "target_restated_as_helper_lemma"
+                                    ],
+                                },
+                                "generation_contract": [
+                                    (
+                                        "reuse already_kernel_verified_subclaims "
+                                        "as subclaim evidence only"
+                                    ),
+                                    (
+                                        "submit a non-placeholder composed theorem "
+                                        "to AXLE/local Lean"
+                                    ),
+                                ],
+                                "promotion_gate": (
+                                    "non-placeholder theorem composition passes "
+                                    "AXLE/local Lean verify_proof"
+                                ),
+                                "proof_evidence_boundary": (
+                                    "This agentic seed is a proof-worker routing "
+                                    "artifact, not proof evidence."
+                                ),
+                            }
+                        ]
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        seeded_strategy_plan = export_formal_verifier_agentic_proof_strategy_plan(
+            Path(
+                "runs/test_formal_verifier_replay_repair_patch_rerun_residual_followup_queue"
+            ),
+            Path("runs/test_formal_verifier_agentic_proof_strategy_plan_seeded"),
+            rag_collaboration_manifest=seed_rag_manifest,
+        )
+        self.assertTrue(seeded_strategy_plan["all_ok"])
+        self.assertEqual(seeded_strategy_plan["n_kernel_overlay_composition_seed_rows"], 1)
+        self.assertEqual(seeded_strategy_plan["n_kernel_overlay_composition_seeds"], 1)
+        self.assertEqual(
+            seeded_strategy_plan["n_strategy_rows"],
+            residual_followup_queue["n_followup_items"] + 1,
+        )
+        self.assertEqual(
+            seeded_strategy_plan["n_ready"],
+            seeded_strategy_plan["n_strategy_rows"],
+        )
+        seeded_row = [
+            row
+            for row in seeded_strategy_plan["rows"]
+            if row["agentic_strategy_kind"] == "kernel_overlay_composition_patch_seed"
+        ][0]
+        self.assertEqual(
+            seeded_row["followup_kind"],
+            "kernel_overlay_composition",
+        )
+        self.assertIn(
+            "kernel_overlay_composition_goal",
+            " ".join(seeded_row["global_goal_cache_keys"]),
+        )
+        self.assertIn(
+            "kernel_overlay_composition_candidate",
+            seeded_row["candidate_database_key"],
+        )
+        self.assertIn("lean_multi_attempt", seeded_row["required_live_tools"])
+        self.assertEqual(
+            seeded_row["evolve_block_scope"]["target_blockers"],
+            (
+                "potential_outcome_consistency",
+                "conditional_exchangeability",
+            ),
+        )
+        self.assertTrue(
+            seeded_row["evolve_block_scope"]["bounded_edit_contract"][
+                "bounded_edit_required"
+            ]
+        )
+        self.assertIn(
+            "not proof evidence",
+            seeded_row["proof_evidence_boundary"],
+        )
+        self.assertIn(
+            "Kernel-overlay composition seeds",
+            Path(
+                "runs/test_formal_verifier_agentic_proof_strategy_plan_seeded/formal_verifier_agentic_proof_strategy_plan.md"
+            ).read_text(),
+        )
         self.assertTrue(
             Path(
                 "runs/test_formal_verifier_agentic_proof_strategy_plan/formal_verifier_agentic_proof_strategy_plan_manifest.json"

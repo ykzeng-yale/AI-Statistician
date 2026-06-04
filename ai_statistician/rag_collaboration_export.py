@@ -1269,6 +1269,13 @@ def export_rag_collaboration_manifest(
                     "n_source_discovery_cache_items"
                 ),
             ),
+            "formal_verifier_agentic_proof_strategy_plan_kernel_overlay_composition_seeds": counts.get(
+                "formal_verifier_agentic_proof_strategy_plan_kernel_overlay_composition_seeds",
+                formal_verifier_agentic_proof_strategy_plan_payload.get(
+                    "n_kernel_overlay_composition_seeds",
+                    0,
+                ),
+            ),
             "formal_verifier_agentic_proof_strategy_plan_manifest": str(
                 formal_verifier_agentic_proof_strategy_plan_path
             ),
@@ -3166,7 +3173,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"`{queue.get('formal_verifier_replay_repair_patch_rerun_residual_followup_queue_source_discovery')}` source-discovery)",
         f"- Formal verifier agentic proof strategy plan: `{queue.get('formal_verifier_agentic_proof_strategy_plan_rows')}` rows "
         f"(`{queue.get('formal_verifier_agentic_proof_strategy_plan_patch_evolve_blocks')}` patch evolve blocks, "
-        f"`{queue.get('formal_verifier_agentic_proof_strategy_plan_source_discovery_cache_items')}` source-discovery cache items)",
+        f"`{queue.get('formal_verifier_agentic_proof_strategy_plan_source_discovery_cache_items')}` source-discovery cache items, "
+        f"`{queue.get('formal_verifier_agentic_proof_strategy_plan_kernel_overlay_composition_seeds')}` kernel-overlay composition seeds)",
         f"- Formal verifier agentic proof candidate evaluation queue: `{queue.get('formal_verifier_agentic_proof_candidate_evaluation_queue_items')}` items "
         f"(`{queue.get('formal_verifier_agentic_proof_candidate_evaluation_queue_patch_candidates')}` patch candidates, "
         f"`{queue.get('formal_verifier_agentic_proof_candidate_evaluation_queue_source_discovery_candidates')}` source-discovery candidates)",
