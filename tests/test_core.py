@@ -11915,11 +11915,17 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         run_dir = parent / "current_registry_candidate_system_audit"
         triage_dir = parent / "current_formalization_gap_planner_proof_state_triage"
         kernel_smoke_dir = parent / "current_target_source_coverage_kernel_smoke"
+        theorem_composition_dir = run_dir / "theorem_composition"
+        formal_verifier_queue_dir = run_dir / "formal_verifier_queue"
+        formal_verifier_replay_dir = run_dir / "formal_verifier_replay"
         out = parent / "rag_collaboration_export"
         shutil.rmtree(parent, ignore_errors=True)
         run_dir.mkdir(parents=True, exist_ok=True)
         triage_dir.mkdir(parents=True, exist_ok=True)
         kernel_smoke_dir.mkdir(parents=True, exist_ok=True)
+        theorem_composition_dir.mkdir(parents=True, exist_ok=True)
+        formal_verifier_queue_dir.mkdir(parents=True, exist_ok=True)
+        formal_verifier_replay_dir.mkdir(parents=True, exist_ok=True)
         proof_fingerprint = "f" * 64
         proof_audit_dir = run_dir / "proof_audit"
         proof_audit_dir.mkdir(parents=True, exist_ok=True)
@@ -11950,6 +11956,75 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                             "ok": True,
                             "kernel_verified": True,
                         },
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        (theorem_composition_dir / "theorem_composition_manifest.json").write_text(
+            json.dumps(
+                {
+                    "n_packets": 1,
+                    "n_exact_proof_bank_links": 2,
+                    "n_unresolved_primitives": 1,
+                    "packets": [
+                        {
+                            "packet_id": "theorem_composition:auto",
+                            "source_claim_id": "formal:auto:claim",
+                            "question_id": "auto_question",
+                            "problem_class": "auto_class",
+                            "status": "PARTIAL_EXACT_REUSE_READY",
+                            "exact_proof_bank_obligations": [
+                                "constant_estimator_unbiased",
+                                "finite_union_bound",
+                            ],
+                            "unresolved_primitives": ["new_bridge_needed"],
+                            "required_gate": (
+                                "non-placeholder theorem composition passes AXLE/local Lean"
+                            ),
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        (formal_verifier_queue_dir / "formal_verifier_queue_manifest.json").write_text(
+            json.dumps(
+                {
+                    "rows": [
+                        {
+                            "item_id": "formal_verifier_queue:auto",
+                            "route_id": "theorem_route:auto",
+                            "display_name": "auto:claim:skeleton",
+                            "related_proof_obligations": [
+                                "constant_estimator_unbiased",
+                                "new_bridge_needed",
+                            ],
+                            "required_gate": "non-placeholder theorem passes AXLE/local Lean",
+                            "proof_evidence_boundary": "queue row is not proof evidence",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        (formal_verifier_replay_dir / "formal_verifier_replay_manifest.json").write_text(
+            json.dumps(
+                {
+                    "tasks": [
+                        {
+                            "replay_id": "formal_verifier_replay:auto",
+                            "route_id": "theorem_route:auto",
+                            "display_name": "auto:claim:skeleton",
+                            "subclaim_replay_obligations": [
+                                "finite_union_bound",
+                                "new_bridge_needed",
+                            ],
+                            "acceptance_gate": (
+                                "non-placeholder theorem passes AXLE/local Lean"
+                            ),
+                            "proof_evidence_boundary": "replay task is not proof evidence",
+                        }
                     ],
                 }
             ),
@@ -12003,6 +12078,15 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                     },
                     "artifacts": {
                         "proof_audit": str(proof_audit_manifest_path),
+                        "theorem_composition": str(
+                            theorem_composition_dir / "theorem_composition_manifest.json"
+                        ),
+                        "formal_verifier_queue": str(
+                            formal_verifier_queue_dir / "formal_verifier_queue_manifest.json"
+                        ),
+                        "formal_verifier_replay": str(
+                            formal_verifier_replay_dir / "formal_verifier_replay_manifest.json"
+                        ),
                     },
                 }
             ),
@@ -12067,6 +12151,32 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         )
         self.assertIn(
             "Kernel Proof Evidence Overlays",
+            (out / "rag_collaboration.md").read_text(),
+        )
+        alignment = payload["kernel_proof_overlay_alignment"]
+        self.assertEqual(alignment["current_fingerprint_kernel_obligations"], 2)
+        self.assertEqual(
+            alignment["theorem_composition_packets_with_kernel_overlay"],
+            1,
+        )
+        self.assertEqual(
+            alignment["theorem_composition_kernel_overlay_obligations"],
+            2,
+        )
+        self.assertEqual(alignment["formal_verifier_queue_rows_with_kernel_overlay"], 1)
+        self.assertEqual(alignment["formal_verifier_replay_tasks_with_kernel_overlay"], 1)
+        self.assertEqual(
+            alignment["theorem_composition_kernel_overlay_preview"][0][
+                "kernel_overlay_verified_obligations"
+            ],
+            ["constant_estimator_unbiased", "finite_union_bound"],
+        )
+        self.assertIn(
+            "Kernel-overlay alignment is subclaim coverage guidance",
+            " ".join(payload["honesty_boundaries"]),
+        )
+        self.assertIn(
+            "Kernel Overlay Alignment",
             (out / "rag_collaboration.md").read_text(),
         )
 

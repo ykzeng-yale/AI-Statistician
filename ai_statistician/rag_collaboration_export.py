@@ -307,6 +307,13 @@ def export_rag_collaboration_manifest(
             "passes AXLE/local Lean verify_proof."
         ),
     }
+    kernel_proof_overlay_alignment = _kernel_proof_overlay_alignment(
+        kernel_proof_evidence_overlays,
+        theorem_composition_handoff,
+        formal_verifier_queue_payload,
+        formal_verifier_replay_payload,
+        max_rows=min(max_targets, 10),
+    )
     payload: dict[str, object] = {
         "schema_version": RAG_COLLABORATION_EXPORT_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -323,6 +330,7 @@ def export_rag_collaboration_manifest(
             "proof_audit_manifest": str(_artifact_path(artifacts, "proof_audit", run_dir)),
         },
         "kernel_proof_evidence_overlays": kernel_proof_evidence_overlays,
+        "kernel_proof_overlay_alignment": kernel_proof_overlay_alignment,
         "rag_provider_evidence": {
             "lean_rag_dependency_graph_enabled": counts.get("lean_rag_dependency_graph_enabled"),
             "lean_rag_dependency_graph_path": counts.get("lean_rag_dependency_graph_path"),
@@ -1453,6 +1461,7 @@ def export_rag_collaboration_manifest(
             "RAG hits are retrieval evidence only, not Lean proof evidence.",
             "Only proof-audit rows with kernel_verified=true are proof evidence.",
             "Standalone kernel proof-audit overlays prove only listed obligations, not the source system-audit proof count.",
+            "Kernel-overlay alignment is subclaim coverage guidance, not proof of enclosing theorem routes.",
             "Simulation diagnostics are empirical evidence, not theorem proofs.",
             "FormalVerifier replay rows are executable task/training artifacts, not theorem proof evidence.",
             "FormalVerifier replay attempts are proof evidence only when kernel_verified=true and placeholders were removed.",
@@ -1600,6 +1609,12 @@ def _kernel_proof_evidence_overlay_payload(
         "standalone_kernel_verified_distinct_current_fingerprint_obligations": len(
             matching_kernel_ids
         ),
+        "standalone_kernel_verified_current_fingerprint_obligation_ids": sorted(
+            matching_kernel_ids
+        ),
+        "standalone_kernel_verified_distinct_obligation_ids_preview": sorted(
+            distinct_kernel_ids
+        )[:25],
         "standalone_kernel_proof_audit_preview": rows[:8],
         "proof_evidence_boundary": (
             "Standalone kernel proof-audit overlays are Lean/AXLE proof evidence only "
@@ -1608,6 +1623,127 @@ def _kernel_proof_evidence_overlay_payload(
             "fingerprint and obligation IDs match the promoted claim."
         ),
     }
+
+
+def _kernel_proof_overlay_alignment(
+    kernel_overlay_payload: dict[str, object],
+    theorem_composition_handoff: dict[str, object],
+    formal_verifier_queue_payload: dict[str, Any],
+    formal_verifier_replay_payload: dict[str, Any],
+    *,
+    max_rows: int,
+) -> dict[str, object]:
+    current_kernel_ids = set(
+        str(item)
+        for item in kernel_overlay_payload.get(
+            "standalone_kernel_verified_current_fingerprint_obligation_ids",
+            [],
+        )
+        if str(item)
+    )
+    composition_rows: list[dict[str, object]] = []
+    composition_kernel_obligations: set[str] = set()
+    for packet in theorem_composition_handoff.get("packet_preview", []):
+        if not isinstance(packet, dict):
+            continue
+        exact_obligations = _str_list(packet.get("exact_proof_bank_obligations", []))
+        matched = sorted(set(exact_obligations) & current_kernel_ids)
+        if not matched:
+            continue
+        composition_kernel_obligations.update(matched)
+        composition_rows.append(
+            {
+                "packet_id": packet.get("packet_id"),
+                "source_claim_id": packet.get("source_claim_id"),
+                "question_id": packet.get("question_id"),
+                "problem_class": packet.get("problem_class"),
+                "status": packet.get("status"),
+                "exact_proof_bank_obligations": exact_obligations,
+                "kernel_overlay_verified_obligations": matched,
+                "unresolved_primitives": packet.get("unresolved_primitives", []),
+                "required_gate": packet.get("required_gate", ""),
+                "recommended_next_action": (
+                    "reuse the matched kernel-verified subclaims, then build and "
+                    "kernel-verify the non-placeholder composed theorem; do not "
+                    "promote this packet as a full theorem proof by itself"
+                ),
+            }
+        )
+
+    queue_rows = _kernel_overlay_queue_alignment_rows(
+        formal_verifier_queue_payload.get("rows", []),
+        current_kernel_ids,
+        id_key="item_id",
+        obligation_key="related_proof_obligations",
+        max_rows=max_rows,
+    )
+    replay_rows = _kernel_overlay_queue_alignment_rows(
+        formal_verifier_replay_payload.get("tasks", []),
+        current_kernel_ids,
+        id_key="replay_id",
+        obligation_key="subclaim_replay_obligations",
+        max_rows=max_rows,
+    )
+    return {
+        "current_fingerprint_kernel_obligations": len(current_kernel_ids),
+        "theorem_composition_packets_with_kernel_overlay": len(composition_rows),
+        "theorem_composition_kernel_overlay_obligations": len(
+            composition_kernel_obligations
+        ),
+        "formal_verifier_queue_rows_with_kernel_overlay": len(queue_rows),
+        "formal_verifier_replay_tasks_with_kernel_overlay": len(replay_rows),
+        "theorem_composition_kernel_overlay_preview": composition_rows[:max_rows],
+        "formal_verifier_queue_kernel_overlay_preview": queue_rows[:max_rows],
+        "formal_verifier_replay_kernel_overlay_preview": replay_rows[:max_rows],
+        "proof_evidence_boundary": (
+            "Kernel-overlay alignment identifies proof-bank subclaims that already "
+            "have matching-fingerprint kernel evidence. It is not proof evidence for "
+            "the enclosing theorem route, replay task, or composition packet until "
+            "the composed non-placeholder theorem passes AXLE/local Lean."
+        ),
+    }
+
+
+def _kernel_overlay_queue_alignment_rows(
+    rows_payload: object,
+    current_kernel_ids: set[str],
+    *,
+    id_key: str,
+    obligation_key: str,
+    max_rows: int,
+) -> list[dict[str, object]]:
+    aligned_rows: list[dict[str, object]] = []
+    if not isinstance(rows_payload, list):
+        return aligned_rows
+    for row in rows_payload:
+        if not isinstance(row, dict):
+            continue
+        obligations = _str_list(row.get(obligation_key, []))
+        matched = sorted(set(obligations) & current_kernel_ids)
+        if not matched:
+            continue
+        aligned_rows.append(
+            {
+                id_key: row.get(id_key),
+                "route_id": row.get("route_id"),
+                "display_name": row.get("display_name"),
+                "kernel_overlay_verified_obligations": matched,
+                "all_candidate_obligations": obligations[:10],
+                "required_gate": row.get("required_gate")
+                or row.get("acceptance_gate")
+                or row.get("required_kernel_boundary", ""),
+                "proof_evidence_boundary": row.get("proof_evidence_boundary", ""),
+            }
+        )
+        if len(aligned_rows) >= max_rows:
+            break
+    return aligned_rows
+
+
+def _str_list(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item) for item in value if str(item)]
 
 
 def _kernel_proof_audit_candidates(run_dir: Path) -> list[Path]:
@@ -2724,6 +2860,7 @@ def _query_hint(row: dict[str, Any]) -> str:
 def _markdown_report(payload: dict[str, object]) -> str:
     proof = dict(payload.get("proof_evidence", {}) or {})
     kernel_overlays = dict(payload.get("kernel_proof_evidence_overlays", {}) or {})
+    kernel_alignment = dict(payload.get("kernel_proof_overlay_alignment", {}) or {})
     rag = dict(payload.get("rag_provider_evidence", {}) or {})
     retrieval = dict(payload.get("retrieval_ablation_evidence", {}) or {})
     queue = dict(payload.get("formal_capacity_queue", {}) or {})
@@ -2738,6 +2875,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"`{kernel_overlays.get('standalone_kernel_verified_distinct_obligations')}` distinct obligations "
         f"(`{kernel_overlays.get('standalone_kernel_proof_audits_matching_system_fingerprint')}` fingerprint-matched audits, "
         f"`{kernel_overlays.get('standalone_kernel_verified_distinct_current_fingerprint_obligations')}` fingerprint-matched obligations)",
+        f"- Kernel overlay alignment: `{kernel_alignment.get('theorem_composition_packets_with_kernel_overlay')}` composition packets, "
+        f"`{kernel_alignment.get('formal_verifier_queue_rows_with_kernel_overlay')}` queue rows, "
+        f"`{kernel_alignment.get('formal_verifier_replay_tasks_with_kernel_overlay')}` replay tasks",
         f"- Lean RAG active: `{rag.get('lean_rag_dependency_graph_enabled')}`",
         f"- Lean RAG DB: `{rag.get('lean_rag_dependency_graph_path')}`",
         f"- Lean RAG DB health: `{rag.get('lean_rag_dependency_health_status')}` "
@@ -2876,6 +3016,43 @@ def _markdown_report(payload: dict[str, object]) -> str:
         )
         lines.append(f"  verifier: `{row.get('verifier')}`")
         lines.append(f"  sample obligations: {sample_ids}")
+    lines.extend(["", "## Kernel Overlay Alignment", ""])
+    lines.append(str(kernel_alignment.get("proof_evidence_boundary", "")))
+    lines.append("")
+    for row in kernel_alignment.get("theorem_composition_kernel_overlay_preview", []):
+        if not isinstance(row, dict):
+            continue
+        matched = ", ".join(
+            f"`{item}`" for item in row.get("kernel_overlay_verified_obligations", [])
+        ) or "none"
+        unresolved = ", ".join(
+            f"`{item}`" for item in row.get("unresolved_primitives", [])
+        ) or "none"
+        lines.append(
+            f"- composition `{row.get('packet_id')}` from `{row.get('source_claim_id')}`: {matched}"
+        )
+        lines.append(f"  unresolved: {unresolved}")
+        lines.append(f"  next: {row.get('recommended_next_action')}")
+    for row in kernel_alignment.get("formal_verifier_queue_kernel_overlay_preview", []):
+        if not isinstance(row, dict):
+            continue
+        matched = ", ".join(
+            f"`{item}`" for item in row.get("kernel_overlay_verified_obligations", [])
+        ) or "none"
+        lines.append(
+            f"- queue `{row.get('item_id')}` `{row.get('display_name')}`: {matched}"
+        )
+        lines.append(f"  gate: {row.get('required_gate')}")
+    for row in kernel_alignment.get("formal_verifier_replay_kernel_overlay_preview", []):
+        if not isinstance(row, dict):
+            continue
+        matched = ", ".join(
+            f"`{item}`" for item in row.get("kernel_overlay_verified_obligations", [])
+        ) or "none"
+        lines.append(
+            f"- replay `{row.get('replay_id')}` `{row.get('display_name')}`: {matched}"
+        )
+        lines.append(f"  gate: {row.get('required_gate')}")
     lines.extend([
         "",
         "## Handoff Targets",
