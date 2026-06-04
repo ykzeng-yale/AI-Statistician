@@ -2651,6 +2651,18 @@ async def run_research_system_audit(
             "formal_verifier_agentic_proof_execution_queue_with_kernel_overlay_context": formal_verifier_agentic_proof_execution_queue_manifest[
                 "n_with_kernel_overlay_context"
             ],
+            "formal_verifier_agentic_proof_execution_queue_live_goal_requested": formal_verifier_agentic_proof_execution_queue_manifest.get(
+                "n_live_goal_requested", 0
+            ),
+            "formal_verifier_agentic_proof_execution_queue_live_goal_location_ready": formal_verifier_agentic_proof_execution_queue_manifest.get(
+                "n_live_goal_location_ready", 0
+            ),
+            "formal_verifier_agentic_proof_execution_queue_needs_target_location": formal_verifier_agentic_proof_execution_queue_manifest.get(
+                "n_needs_target_location", 0
+            ),
+            "formal_verifier_agentic_proof_execution_queue_candidate_artifact_exists": formal_verifier_agentic_proof_execution_queue_manifest.get(
+                "n_candidate_artifact_exists", 0
+            ),
             "formal_verifier_agentic_proof_execution_queue_ok": formal_verifier_agentic_proof_execution_queue_manifest[
                 "n_ok"
             ],

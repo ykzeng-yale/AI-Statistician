@@ -8827,6 +8827,13 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             execution_queue["n_execution_queue_items"],
         )
         self.assertEqual(
+            execution_queue["n_live_goal_requested"],
+            execution_queue["n_patch_execution_items"],
+        )
+        self.assertEqual(execution_queue["n_live_goal_location_ready"], 0)
+        self.assertEqual(execution_queue["n_needs_target_location"], 1)
+        self.assertEqual(execution_queue["n_candidate_artifact_exists"], 0)
+        self.assertEqual(
             execution_queue["n_with_proof_route_dag_plan"],
             execution_queue["n_execution_queue_items"],
         )
@@ -8846,6 +8853,19 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertEqual(
             execution_row["execution_status"],
             "READY_FOR_AGENTIC_PROOF_WORKER_EXECUTION",
+        )
+        self.assertFalse(execution_row["live_goal_location_ready"])
+        self.assertEqual(
+            execution_row["execution_preflight_status"],
+            "NEEDS_TARGET_LEAN_LOCATION_BEFORE_LIVE_GOAL",
+        )
+        self.assertIn(
+            "target_lean_file",
+            execution_row["target_location_preflight"]["missing"],
+        )
+        self.assertIn(
+            "target_lean_line",
+            execution_row["target_location_preflight"]["missing"],
         )
         self.assertTrue(execution_row["candidate_artifact_path"].endswith(".lean"))
         self.assertIn("lean_goal", execution_row["proof_state_provider_plan"])

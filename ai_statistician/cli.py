@@ -2571,6 +2571,8 @@ def _formal_verifier_agentic_proof_execution_queue(
         f"verified_sketch={payload['n_with_verified_sketch_gate']} "
         f"blueprint_export={payload['n_with_blueprint_export_plan']} "
         f"kernel_overlay_context={payload['n_with_kernel_overlay_context']} "
+        f"live_goal_ready={payload['n_live_goal_location_ready']}/{payload['n_live_goal_requested']} "
+        f"needs_target_location={payload['n_needs_target_location']} "
         f"all_ok={payload['all_ok']}"
     )
     print(

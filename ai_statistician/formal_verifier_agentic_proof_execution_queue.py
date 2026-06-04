@@ -44,6 +44,9 @@ class FormalVerifierAgenticProofExecutionQueueRow:
     kernel_overlay_context: dict[str, object]
     candidate_artifact_path: str
     execution_transcript_path: str
+    target_location_preflight: dict[str, object]
+    live_goal_location_ready: bool
+    execution_preflight_status: str
     proof_state_provider_plan: tuple[str, ...]
     proof_route_dag_plan: tuple[str, ...]
     verified_sketch_gate_plan: tuple[str, ...]
@@ -122,6 +125,23 @@ def export_formal_verifier_agentic_proof_execution_queue(
         ),
         "n_with_kernel_overlay_context": sum(
             1 for row in queue_rows if row.kernel_overlay_context
+        ),
+        "n_live_goal_requested": sum(
+            1 for row in queue_rows if "lean_goal" in row.proof_state_provider_plan
+        ),
+        "n_live_goal_location_ready": sum(
+            1 for row in queue_rows if row.live_goal_location_ready
+        ),
+        "n_needs_target_location": sum(
+            1
+            for row in queue_rows
+            if row.execution_preflight_status
+            == "NEEDS_TARGET_LEAN_LOCATION_BEFORE_LIVE_GOAL"
+        ),
+        "n_candidate_artifact_exists": sum(
+            1
+            for row in queue_rows
+            if bool(row.target_location_preflight.get("candidate_artifact_exists"))
         ),
         "n_ok": sum(1 for row in queue_rows if row.ok),
         "all_ok": not errors and all(row.ok for row in queue_rows),
@@ -302,6 +322,18 @@ def _execution_queue_row(
             *blueprint_export_plan,
             "mark kernel-overlay target blockers as open child obligations",
         )
+    target_location_preflight = _target_location_preflight(
+        row,
+        kernel_overlay_context=kernel_overlay_context,
+        proof_state_provider_plan=proof_state_provider_plan,
+        candidate_artifact_path=candidate_artifact_path,
+    )
+    live_goal_location_ready = bool(
+        target_location_preflight.get("live_goal_location_ready")
+    )
+    execution_preflight_status = str(
+        target_location_preflight.get("execution_preflight_status", "")
+    )
     status = (
         "READY_FOR_AGENTIC_PROOF_WORKER_EXECUTION"
         if not errors
@@ -330,6 +362,9 @@ def _execution_queue_row(
         kernel_overlay_context=kernel_overlay_context,
         candidate_artifact_path=str(candidate_artifact_path),
         execution_transcript_path=str(execution_transcript_path),
+        target_location_preflight=target_location_preflight,
+        live_goal_location_ready=live_goal_location_ready,
+        execution_preflight_status=execution_preflight_status,
         proof_state_provider_plan=tuple(dict.fromkeys(proof_state_provider_plan)),
         proof_route_dag_plan=tuple(dict.fromkeys(proof_route_dag_plan)),
         verified_sketch_gate_plan=tuple(dict.fromkeys(verified_sketch_gate_plan)),
@@ -381,6 +416,125 @@ def _safe_name(row: dict[str, Any], queue_id: str) -> str:
     return f"{cleaned[:80] or 'agentic_proof_candidate'}_{queue_id.rsplit(':', 1)[-1]}"
 
 
+def _target_location_preflight(
+    row: dict[str, Any],
+    *,
+    kernel_overlay_context: dict[str, object],
+    proof_state_provider_plan: tuple[str, ...],
+    candidate_artifact_path: Path,
+) -> dict[str, object]:
+    """Summarize whether live Lean goal inspection can run immediately."""
+
+    context_location = kernel_overlay_context.get("target_location", {})
+    if not isinstance(context_location, dict):
+        context_location = {}
+    target_lean_file = _first_str(
+        row.get("target_lean_file"),
+        row.get("lean_file"),
+        row.get("target_source_path"),
+        context_location.get("target_lean_file"),
+        context_location.get("lean_file"),
+        context_location.get("target_source_path"),
+    )
+    target_lean_declaration = _first_str(
+        row.get("target_lean_declaration"),
+        row.get("lean_declaration"),
+        row.get("target_declaration"),
+        context_location.get("target_lean_declaration"),
+        context_location.get("lean_declaration"),
+        context_location.get("target_declaration"),
+    )
+    target_lean_line = _first_positive_int(
+        row.get("target_lean_line"),
+        row.get("lean_line"),
+        row.get("target_line"),
+        context_location.get("target_lean_line"),
+        context_location.get("lean_line"),
+        context_location.get("target_line"),
+    )
+    target_lean_column = _first_positive_int(
+        row.get("target_lean_column"),
+        row.get("lean_column"),
+        row.get("target_column"),
+        context_location.get("target_lean_column"),
+        context_location.get("lean_column"),
+        context_location.get("target_column"),
+    )
+    target_imports = _str_tuple(
+        row.get("target_imports")
+        or row.get("imports")
+        or context_location.get("target_imports")
+        or context_location.get("imports")
+        or []
+    )
+    live_goal_requested = "lean_goal" in proof_state_provider_plan
+    missing: list[str] = []
+    if live_goal_requested:
+        if not target_lean_file:
+            missing.append("target_lean_file")
+        if target_lean_line <= 0:
+            missing.append("target_lean_line")
+    candidate_exists = candidate_artifact_path.exists()
+    if not live_goal_requested:
+        status = "LIVE_GOAL_NOT_REQUIRED"
+        next_step = "run the non-goal execution plan for this row"
+    elif not missing:
+        status = "READY_FOR_LIVE_LEAN_GOAL"
+        next_step = "invoke lean_goal at the resolved target Lean location"
+    else:
+        status = "NEEDS_TARGET_LEAN_LOCATION_BEFORE_LIVE_GOAL"
+        next_step = (
+            "resolve target_lean_file and target_lean_line, or generate the "
+            "candidate artifact and record its declaration location before "
+            "calling lean_goal"
+        )
+    return {
+        "live_goal_requested": live_goal_requested,
+        "live_goal_location_ready": live_goal_requested and not missing,
+        "execution_preflight_status": status,
+        "target_lean_file": target_lean_file,
+        "target_lean_line": target_lean_line,
+        "target_lean_column": target_lean_column,
+        "target_lean_declaration": target_lean_declaration,
+        "target_imports": list(target_imports),
+        "candidate_artifact_path": str(candidate_artifact_path),
+        "candidate_artifact_exists": candidate_exists,
+        "missing": missing,
+        "next_step": next_step,
+        "proof_evidence_boundary": (
+            "Target-location preflight is execution routing only; it is not "
+            "theorem proof evidence."
+        ),
+    }
+
+
+def _first_str(*values: object) -> str:
+    for value in values:
+        text = str(value or "").strip()
+        if text:
+            return text
+    return ""
+
+
+def _first_positive_int(*values: object) -> int:
+    for value in values:
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError):
+            continue
+        if parsed > 0:
+            return parsed
+    return 0
+
+
+def _str_tuple(values: object) -> tuple[str, ...]:
+    if isinstance(values, (str, bytes)):
+        values = [values]
+    if not isinstance(values, (list, tuple, set)):
+        return ()
+    return tuple(str(item) for item in values if str(item))
+
+
 def _read_json(path: Path, errors: list[str]) -> dict[str, Any]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -407,6 +561,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- With verified-sketch gate: {payload.get('n_with_verified_sketch_gate')}",
         f"- With Blueprint export plan: {payload.get('n_with_blueprint_export_plan')}",
         f"- With kernel-overlay context: {payload.get('n_with_kernel_overlay_context')}",
+        f"- Live Lean goal requested: {payload.get('n_live_goal_requested')}",
+        f"- Live Lean goal location ready: {payload.get('n_live_goal_location_ready')}",
+        f"- Needs target location: {payload.get('n_needs_target_location')}",
         f"- Fingerprint: `{payload.get('execution_queue_fingerprint')}`",
         "",
         str(payload.get("proof_evidence_boundary", "")),
@@ -443,6 +600,14 @@ def _markdown_report(payload: dict[str, object]) -> str:
         lines.append(f"  proof-route DAG: {dag_plan}")
         lines.append(f"  verified-sketch gate: {sketch_gate}")
         lines.append(f"  Blueprint export: {blueprint_plan}")
+        preflight = row.get("target_location_preflight", {})
+        if isinstance(preflight, dict) and preflight:
+            missing = ", ".join(f"`{item}`" for item in preflight.get("missing", []))
+            lines.append(
+                f"  target-location preflight: `{preflight.get('execution_preflight_status')}`"
+            )
+            if missing:
+                lines.append(f"  target-location missing: {missing}")
         context = row.get("kernel_overlay_context", {})
         if isinstance(context, dict) and context:
             blockers = ", ".join(
