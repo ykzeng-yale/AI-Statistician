@@ -39,6 +39,8 @@ def export_rag_collaboration_manifest(
         if str(key) and str(value)
     }
     artifacts.update(normalized_artifact_overrides)
+    artifact_auto_discoveries = _auto_discover_artifacts(artifacts, run_dir)
+    artifacts.update(artifact_auto_discoveries)
 
     proof_payload = _read_json(_artifact_path(artifacts, "proof_audit", run_dir))
     retrieval_payload = _read_json(_artifact_path(artifacts, "formal_source_retrieval_benchmark", run_dir))
@@ -307,6 +309,7 @@ def export_rag_collaboration_manifest(
         "source_system_audit_manifest": str(system_audit_manifest),
         "source_run_dir": str(run_dir),
         "artifact_overrides_applied": dict(sorted(normalized_artifact_overrides.items())),
+        "artifact_auto_discoveries_applied": dict(sorted(artifact_auto_discoveries.items())),
         "proof_evidence": {
             "proofs_kernel_verified": counts.get("proofs_kernel_verified"),
             "proofs_total": counts.get("proofs_total"),
@@ -1500,6 +1503,31 @@ def _artifact_path(artifacts: dict[str, object], key: str, run_dir: Path) -> Pat
         return path
     candidate = run_dir / path
     return candidate if candidate.exists() else path
+
+
+def _auto_discover_artifacts(artifacts: dict[str, object], run_dir: Path) -> dict[str, str]:
+    discoveries: dict[str, str] = {}
+    triage_key = "formalization_gap_planner_proof_state_triage"
+    if str(artifacts.get(triage_key, "")):
+        return discoveries
+    triage_manifest = (
+        Path("current_formalization_gap_planner_proof_state_triage")
+        / "formalization_gap_planner_proof_state_triage_manifest.json"
+    )
+    candidates = (
+        run_dir.parent / triage_manifest,
+        Path.cwd() / "runs" / triage_manifest,
+    )
+    seen: set[Path] = set()
+    for candidate in candidates:
+        resolved = candidate.resolve()
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        if candidate.exists():
+            discoveries[triage_key] = str(candidate)
+            break
+    return discoveries
 
 
 def _read_json(path: Path) -> dict[str, Any]:

@@ -11907,7 +11907,100 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "Formal Verifier Repair Prompt Packets",
             (out / "rag_collaboration.md").read_text(),
         )
+        self.assertIn("Proof-State Triage", (out / "rag_collaboration.md").read_text())
         self.assertIn("Theorem Composition Handoff", (out / "rag_collaboration.md").read_text())
+
+    def test_rag_collaboration_export_auto_discovers_current_proof_state_triage(self) -> None:
+        parent = Path("runs/test_rag_collaboration_auto_discovery")
+        run_dir = parent / "current_registry_candidate_system_audit"
+        triage_dir = parent / "current_formalization_gap_planner_proof_state_triage"
+        out = parent / "rag_collaboration_export"
+        shutil.rmtree(parent, ignore_errors=True)
+        run_dir.mkdir(parents=True, exist_ok=True)
+        triage_dir.mkdir(parents=True, exist_ok=True)
+        triage_manifest_path = (
+            triage_dir / "formalization_gap_planner_proof_state_triage_manifest.json"
+        )
+        triage_manifest_path.write_text(
+            json.dumps(
+                {
+                    "n_triage_items": 2,
+                    "n_formal_gap_scaffold_items": 2,
+                    "n_local_lean_failed_items": 0,
+                    "n_non_lean_skeleton_items": 0,
+                    "n_distinct_diagnostic_signatures": 2,
+                    "rows": [
+                        {
+                            "triage_item_id": "triage:auto",
+                            "rank": 1,
+                            "display_name": "auto:formal_gap:skeleton",
+                            "triage_class": "materialize_non_placeholder_theorem",
+                            "owner_agent": "formalization_planner",
+                            "priority_score": 120,
+                            "applied_prover_attempt_statuses": [
+                                "formal_gap_scaffold_blocked"
+                            ],
+                            "applied_prover_diagnostic_signatures": [
+                                "prover_diagnostic_signature:auto"
+                            ],
+                            "recommended_next_action": (
+                                "replace FORMAL_GAP scaffold with a non-placeholder theorem"
+                            ),
+                            "proof_evidence_boundary": (
+                                "Auto-discovered triage rows are work orders, not theorem proof evidence."
+                            ),
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        system_manifest = run_dir / "research_system_audit_manifest.json"
+        system_manifest.write_text(
+            json.dumps(
+                {
+                    "counts": {
+                        "proofs_kernel_verified": 0,
+                        "proofs_total": 0,
+                        "missing_formal_primitives": 0,
+                    },
+                    "artifacts": {},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        payload = export_rag_collaboration_manifest(system_manifest, out)
+
+        self.assertEqual(payload["artifact_overrides_applied"], {})
+        self.assertEqual(
+            payload["artifact_auto_discoveries_applied"][
+                "formalization_gap_planner_proof_state_triage"
+            ],
+            str(triage_manifest_path),
+        )
+        queue = payload["formal_capacity_queue"]
+        self.assertEqual(queue["formalization_gap_planner_proof_state_triage_items"], 2)
+        self.assertEqual(
+            queue[
+                "formalization_gap_planner_proof_state_triage_formal_gap_scaffold_items"
+            ],
+            2,
+        )
+        self.assertEqual(
+            queue["formalization_gap_planner_proof_state_triage_distinct_signatures"],
+            2,
+        )
+        self.assertEqual(
+            queue["formalization_gap_planner_proof_state_triage_preview"][0][
+                "triage_class"
+            ],
+            "materialize_non_placeholder_theorem",
+        )
+        self.assertIn(
+            "proof-state triage rows are proof-worker work orders",
+            " ".join(payload["honesty_boundaries"]),
+        )
 
     def test_research_training_export_writes_agent_sft_and_grpo_data(self) -> None:
         async def run():
