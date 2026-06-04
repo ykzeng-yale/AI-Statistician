@@ -7572,6 +7572,11 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                 "runs/test_goal_conditioned_minimal_formalization_plan/goal_conditioned_minimal_formalization_plan.md"
             ).exists()
         )
+        self.assertTrue(
+            Path(
+                "runs/test_goal_conditioned_minimal_formalization_plan/library_aware_formalization_gap_plan.schema.json"
+            ).exists()
+        )
         replay = export_formal_verifier_replay(
             Path("runs/test_formal_verifier_queue"),
             Path("runs/test_formal_verifier_replay"),

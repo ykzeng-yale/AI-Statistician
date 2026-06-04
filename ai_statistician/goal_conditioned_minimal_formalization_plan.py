@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from .fingerprint import stable_hash
+from .formalization_gap_planner_contract import write_portable_gap_plan_schema
 
 
 GOAL_CONDITIONED_MINIMAL_FORMALIZATION_PLAN_SCHEMA_VERSION = 3
@@ -247,6 +248,7 @@ def export_goal_conditioned_minimal_formalization_plan(
             _markdown_report(payload),
             encoding="utf-8",
         )
+        write_portable_gap_plan_schema(out_dir)
     return payload
 
 
