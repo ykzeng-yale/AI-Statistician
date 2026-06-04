@@ -100,6 +100,9 @@ from .formal_verifier_agentic_proof_safety_policy import (
 from .formal_verifier_agentic_proof_attempt_population import (
     export_formal_verifier_agentic_proof_attempt_population,
 )
+from .formal_verifier_agentic_proof_execution_queue import (
+    export_formal_verifier_agentic_proof_execution_queue,
+)
 from .formal_verifier_replay_repair import export_formal_verifier_replay_repair_packets
 from .formal_source_graph import audit_formal_source_graph
 from .formal_source_hybrid import FormalSourceHybridRetriever
@@ -885,6 +888,17 @@ async def run_research_system_audit(
         "formal_verifier_agentic_proof_attempt_population",
         stage_start,
     )
+    formal_verifier_agentic_proof_execution_queue_manifest = (
+        export_formal_verifier_agentic_proof_execution_queue(
+            out_dir / "formal_verifier_agentic_proof_attempt_population",
+            out_dir / "formal_verifier_agentic_proof_execution_queue",
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "formal_verifier_agentic_proof_execution_queue",
+        stage_start,
+    )
 
     research_training_manifest = export_research_training_dataset(
         out_dir / "research_benchmark",
@@ -1173,6 +1187,9 @@ async def run_research_system_audit(
         "formal_verifier_agentic_proof_attempt_population": bool(
             formal_verifier_agentic_proof_attempt_population_manifest["all_ok"]
         ),
+        "formal_verifier_agentic_proof_execution_queue": bool(
+            formal_verifier_agentic_proof_execution_queue_manifest["all_ok"]
+        ),
         "research_training_export": bool(research_training_manifest["all_ok"]),
         "research_policy_baseline": bool(research_policy_manifest["all_ok"]),
         "next_iteration_queue": bool(next_iteration_manifest["all_ok"]),
@@ -1233,6 +1250,7 @@ async def run_research_system_audit(
         "formal_verifier_agentic_proof_candidate_evaluation_queue",
         "formal_verifier_agentic_proof_safety_policy",
         "formal_verifier_agentic_proof_attempt_population",
+        "formal_verifier_agentic_proof_execution_queue",
         "research_training_export",
         "research_policy_baseline",
         "next_iteration_queue",
@@ -2600,6 +2618,42 @@ async def run_research_system_audit(
             "formal_verifier_agentic_proof_attempt_population_ok": formal_verifier_agentic_proof_attempt_population_manifest[
                 "n_ok"
             ],
+            "formal_verifier_agentic_proof_execution_queue_items": formal_verifier_agentic_proof_execution_queue_manifest[
+                "n_execution_queue_items"
+            ],
+            "formal_verifier_agentic_proof_execution_queue_ready": formal_verifier_agentic_proof_execution_queue_manifest[
+                "n_ready"
+            ],
+            "formal_verifier_agentic_proof_execution_queue_blocked": formal_verifier_agentic_proof_execution_queue_manifest[
+                "n_blocked"
+            ],
+            "formal_verifier_agentic_proof_execution_queue_patch_items": formal_verifier_agentic_proof_execution_queue_manifest[
+                "n_patch_execution_items"
+            ],
+            "formal_verifier_agentic_proof_execution_queue_source_items": formal_verifier_agentic_proof_execution_queue_manifest[
+                "n_source_execution_items"
+            ],
+            "formal_verifier_agentic_proof_execution_queue_with_candidate_artifact_path": formal_verifier_agentic_proof_execution_queue_manifest[
+                "n_with_candidate_artifact_path"
+            ],
+            "formal_verifier_agentic_proof_execution_queue_with_live_tool_plan": formal_verifier_agentic_proof_execution_queue_manifest[
+                "n_with_live_tool_plan"
+            ],
+            "formal_verifier_agentic_proof_execution_queue_with_proof_route_dag_plan": formal_verifier_agentic_proof_execution_queue_manifest[
+                "n_with_proof_route_dag_plan"
+            ],
+            "formal_verifier_agentic_proof_execution_queue_with_verified_sketch_gate": formal_verifier_agentic_proof_execution_queue_manifest[
+                "n_with_verified_sketch_gate"
+            ],
+            "formal_verifier_agentic_proof_execution_queue_with_blueprint_export_plan": formal_verifier_agentic_proof_execution_queue_manifest[
+                "n_with_blueprint_export_plan"
+            ],
+            "formal_verifier_agentic_proof_execution_queue_with_kernel_overlay_context": formal_verifier_agentic_proof_execution_queue_manifest[
+                "n_with_kernel_overlay_context"
+            ],
+            "formal_verifier_agentic_proof_execution_queue_ok": formal_verifier_agentic_proof_execution_queue_manifest[
+                "n_ok"
+            ],
             "proof_bank_actions_high_priority": proof_bank_action_manifest["by_priority"].get("high", 0),
             "proof_bank_actions_medium_priority": proof_bank_action_manifest["by_priority"].get("medium", 0),
             "proof_bank_actions_low_priority": proof_bank_action_manifest["by_priority"].get("low", 0),
@@ -3564,6 +3618,21 @@ async def run_research_system_audit(
                 out_dir
                 / "formal_verifier_agentic_proof_attempt_population"
                 / "formal_verifier_agentic_proof_attempt_population.md"
+            ),
+            "formal_verifier_agentic_proof_execution_queue": str(
+                out_dir
+                / "formal_verifier_agentic_proof_execution_queue"
+                / "formal_verifier_agentic_proof_execution_queue_manifest.json"
+            ),
+            "formal_verifier_agentic_proof_execution_queue_jsonl": str(
+                out_dir
+                / "formal_verifier_agentic_proof_execution_queue"
+                / "formal_verifier_agentic_proof_execution_queue.jsonl"
+            ),
+            "formal_verifier_agentic_proof_execution_queue_report": str(
+                out_dir
+                / "formal_verifier_agentic_proof_execution_queue"
+                / "formal_verifier_agentic_proof_execution_queue.md"
             ),
             "primitive_source_coverage": str(
                 out_dir / "primitive_source_coverage" / "primitive_source_coverage_manifest.json"

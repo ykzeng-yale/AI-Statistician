@@ -259,6 +259,14 @@ def export_rag_collaboration_manifest(
     formal_verifier_agentic_proof_attempt_population_payload = _read_json(
         formal_verifier_agentic_proof_attempt_population_path
     )
+    formal_verifier_agentic_proof_execution_queue_path = _artifact_path(
+        artifacts,
+        "formal_verifier_agentic_proof_execution_queue",
+        run_dir,
+    )
+    formal_verifier_agentic_proof_execution_queue_payload = _read_json(
+        formal_verifier_agentic_proof_execution_queue_path
+    )
     formalization_gap_planner_proof_state_triage_path = _artifact_path(
         artifacts,
         "formalization_gap_planner_proof_state_triage",
@@ -1418,6 +1426,69 @@ def export_rag_collaboration_manifest(
                 formal_verifier_agentic_proof_attempt_population_payload,
                 max_rows=min(max_targets, 10),
             ),
+            "formal_verifier_agentic_proof_execution_queue_items": counts.get(
+                "formal_verifier_agentic_proof_execution_queue_items",
+                formal_verifier_agentic_proof_execution_queue_payload.get(
+                    "n_execution_queue_items"
+                ),
+            ),
+            "formal_verifier_agentic_proof_execution_queue_ready": counts.get(
+                "formal_verifier_agentic_proof_execution_queue_ready",
+                formal_verifier_agentic_proof_execution_queue_payload.get("n_ready"),
+            ),
+            "formal_verifier_agentic_proof_execution_queue_blocked": counts.get(
+                "formal_verifier_agentic_proof_execution_queue_blocked",
+                formal_verifier_agentic_proof_execution_queue_payload.get(
+                    "n_blocked"
+                ),
+            ),
+            "formal_verifier_agentic_proof_execution_queue_patch_items": counts.get(
+                "formal_verifier_agentic_proof_execution_queue_patch_items",
+                formal_verifier_agentic_proof_execution_queue_payload.get(
+                    "n_patch_execution_items"
+                ),
+            ),
+            "formal_verifier_agentic_proof_execution_queue_source_items": counts.get(
+                "formal_verifier_agentic_proof_execution_queue_source_items",
+                formal_verifier_agentic_proof_execution_queue_payload.get(
+                    "n_source_execution_items"
+                ),
+            ),
+            "formal_verifier_agentic_proof_execution_queue_with_proof_route_dag_plan": counts.get(
+                "formal_verifier_agentic_proof_execution_queue_with_proof_route_dag_plan",
+                formal_verifier_agentic_proof_execution_queue_payload.get(
+                    "n_with_proof_route_dag_plan",
+                    0,
+                ),
+            ),
+            "formal_verifier_agentic_proof_execution_queue_with_verified_sketch_gate": counts.get(
+                "formal_verifier_agentic_proof_execution_queue_with_verified_sketch_gate",
+                formal_verifier_agentic_proof_execution_queue_payload.get(
+                    "n_with_verified_sketch_gate",
+                    0,
+                ),
+            ),
+            "formal_verifier_agentic_proof_execution_queue_with_blueprint_export_plan": counts.get(
+                "formal_verifier_agentic_proof_execution_queue_with_blueprint_export_plan",
+                formal_verifier_agentic_proof_execution_queue_payload.get(
+                    "n_with_blueprint_export_plan",
+                    0,
+                ),
+            ),
+            "formal_verifier_agentic_proof_execution_queue_with_kernel_overlay_context": counts.get(
+                "formal_verifier_agentic_proof_execution_queue_with_kernel_overlay_context",
+                formal_verifier_agentic_proof_execution_queue_payload.get(
+                    "n_with_kernel_overlay_context",
+                    0,
+                ),
+            ),
+            "formal_verifier_agentic_proof_execution_queue_manifest": str(
+                formal_verifier_agentic_proof_execution_queue_path
+            ),
+            "formal_verifier_agentic_proof_execution_queue_preview": _formal_verifier_agentic_proof_execution_queue_preview(
+                formal_verifier_agentic_proof_execution_queue_payload,
+                max_rows=min(max_targets, 10),
+            ),
             "formalization_gap_planner_proof_state_triage_items": counts.get(
                 "formalization_gap_planner_proof_state_triage_items",
                 formalization_gap_planner_proof_state_triage_payload.get(
@@ -1527,6 +1598,7 @@ def export_rag_collaboration_manifest(
             "FormalVerifier agentic proof candidate evaluation queue rows are candidate-generation work orders, not theorem proof evidence.",
             "FormalVerifier agentic proof safety policy rows are preflight guardrails, not theorem proof evidence.",
             "FormalVerifier agentic proof attempt population rows are search-memory records, not theorem proof evidence.",
+            "FormalVerifier agentic proof execution queue rows are proof-worker work contracts, not theorem proof evidence.",
             "Formalization gap proof-state triage rows are proof-worker work orders, not theorem proof evidence.",
             "Claim-ledger repair-response promotion overlays close formal gaps only for matching ready kernel-verified promotion rows.",
             "FORMAL_GAP and theorem-hole queues remain open until a non-placeholder Lean proof is verified.",
@@ -1601,6 +1673,15 @@ def _auto_discover_artifacts(
             Path("current_kernel_overlay_seeded_agentic_proof_attempt_population")
             / "formal_verifier_agentic_proof_attempt_population_manifest.json",
             ("n_with_kernel_overlay_context",),
+        ),
+        "formal_verifier_agentic_proof_execution_queue": (
+            Path("current_kernel_overlay_seeded_agentic_proof_execution_queue")
+            / "formal_verifier_agentic_proof_execution_queue_manifest.json",
+            (
+                "n_with_kernel_overlay_context",
+                "n_with_proof_route_dag_plan",
+                "n_with_verified_sketch_gate",
+            ),
         ),
     }
     for key, (relative_path, context_counts) in seeded_agentic_candidates.items():
@@ -3077,6 +3158,51 @@ def _formal_verifier_agentic_proof_attempt_population_preview(
     return rows
 
 
+def _formal_verifier_agentic_proof_execution_queue_preview(
+    payload: dict[str, Any],
+    *,
+    max_rows: int,
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    execution_rows = payload.get("rows", [])
+    if not isinstance(execution_rows, list):
+        return rows
+    for row in execution_rows:
+        if not isinstance(row, dict):
+            continue
+        preview = {
+            "execution_queue_id": row.get("execution_queue_id"),
+            "rank": row.get("rank"),
+            "population_entry_id": row.get("population_entry_id"),
+            "safety_policy_id": row.get("safety_policy_id"),
+            "display_name": row.get("display_name"),
+            "residual_gap": row.get("residual_gap"),
+            "generation_mode": row.get("generation_mode", ""),
+            "population_bucket": row.get("population_bucket", ""),
+            "execution_status": row.get("execution_status", ""),
+            "candidate_artifact_path": row.get("candidate_artifact_path", ""),
+            "execution_transcript_path": row.get("execution_transcript_path", ""),
+            "proof_state_provider_plan": row.get(
+                "proof_state_provider_plan",
+                [],
+            )[:5],
+            "proof_route_dag_plan": row.get("proof_route_dag_plan", [])[:4],
+            "verified_sketch_gate_plan": row.get(
+                "verified_sketch_gate_plan",
+                [],
+            )[:4],
+            "blueprint_export_plan": row.get("blueprint_export_plan", [])[:4],
+            "promotion_gate": row.get("promotion_gate", ""),
+            "proof_evidence_status": row.get("proof_evidence_status", ""),
+            "proof_evidence_boundary": row.get("proof_evidence_boundary", ""),
+        }
+        preview.update(_kernel_overlay_context_preview_fields(row))
+        rows.append(preview)
+        if len(rows) >= max_rows:
+            break
+    return rows
+
+
 def _formalization_gap_planner_proof_state_triage_preview(
     payload: dict[str, Any],
     *,
@@ -3309,6 +3435,14 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"(`{queue.get('formal_verifier_agentic_proof_attempt_population_patch_entries')}` patch, "
         f"`{queue.get('formal_verifier_agentic_proof_attempt_population_source_entries')}` source, "
         f"`{queue.get('formal_verifier_agentic_proof_attempt_population_with_kernel_overlay_context')}` with kernel-overlay context)",
+        f"- Formal verifier agentic proof execution queue: `{queue.get('formal_verifier_agentic_proof_execution_queue_items')}` items "
+        f"(`{queue.get('formal_verifier_agentic_proof_execution_queue_ready')}` ready, "
+        f"`{queue.get('formal_verifier_agentic_proof_execution_queue_patch_items')}` patch, "
+        f"`{queue.get('formal_verifier_agentic_proof_execution_queue_source_items')}` source, "
+        f"`{queue.get('formal_verifier_agentic_proof_execution_queue_with_proof_route_dag_plan')}` route-DAG, "
+        f"`{queue.get('formal_verifier_agentic_proof_execution_queue_with_verified_sketch_gate')}` verified-sketch, "
+        f"`{queue.get('formal_verifier_agentic_proof_execution_queue_with_blueprint_export_plan')}` Blueprint, "
+        f"`{queue.get('formal_verifier_agentic_proof_execution_queue_with_kernel_overlay_context')}` with kernel-overlay context)",
         f"- Formalization gap proof-state triage: `{queue.get('formalization_gap_planner_proof_state_triage_items')}` items "
         f"(`{queue.get('formalization_gap_planner_proof_state_triage_formal_gap_scaffold_items')}` formal-gap scaffold, "
         f"`{queue.get('formalization_gap_planner_proof_state_triage_local_lean_failed_items')}` local Lean failed, "
@@ -3797,6 +3931,44 @@ def _markdown_report(payload: dict[str, object]) -> str:
         lines.append(f"  diagnostic signature: `{row.get('diagnostic_signature')}`")
         lines.append(f"  lessons: {lessons}")
         lines.append(f"  sampler policy: `{row.get('sampler_policy')}`")
+        lines.append(f"  promotion gate: {row.get('promotion_gate')}")
+        lines.append(f"  proof status: {row.get('proof_evidence_status')}")
+        lines.append(f"  boundary: {row.get('proof_evidence_boundary')}")
+    lines.extend(["", "## Agentic Proof Execution Queue", ""])
+    for row in queue.get("formal_verifier_agentic_proof_execution_queue_preview", []):
+        if not isinstance(row, dict):
+            continue
+        lines.append(
+            f"- #{row.get('rank')} `{row.get('display_name')}` -> `{row.get('residual_gap')}` "
+            f"({row.get('execution_status')}): {row.get('population_bucket')}"
+        )
+        tools = ", ".join(
+            f"`{item}`" for item in row.get("proof_state_provider_plan", [])
+        ) or "none"
+        dag = ", ".join(
+            f"`{item}`" for item in row.get("proof_route_dag_plan", [])[:2]
+        ) or "none"
+        sketch = ", ".join(
+            f"`{item}`" for item in row.get("verified_sketch_gate_plan", [])[:2]
+        ) or "none"
+        blueprint = ", ".join(
+            f"`{item}`" for item in row.get("blueprint_export_plan", [])[:2]
+        ) or "none"
+        lines.append(f"  artifact: `{row.get('candidate_artifact_path')}`")
+        lines.append(f"  transcript: `{row.get('execution_transcript_path')}`")
+        lines.append(f"  proof-state tools: {tools}")
+        lines.append(f"  route-DAG plan: {dag}")
+        lines.append(f"  verified-sketch gate: {sketch}")
+        lines.append(f"  Blueprint export: {blueprint}")
+        if row.get("kernel_overlay_context_present"):
+            subclaims = ", ".join(
+                f"`{item}`" for item in row.get("kernel_overlay_verified_subclaims", [])
+            ) or "none"
+            blockers = ", ".join(
+                f"`{item}`" for item in row.get("kernel_overlay_target_blockers", [])
+            ) or "none"
+            lines.append(f"  kernel-overlay verified subclaims: {subclaims}")
+            lines.append(f"  kernel-overlay target blockers: {blockers}")
         lines.append(f"  promotion gate: {row.get('promotion_gate')}")
         lines.append(f"  proof status: {row.get('proof_evidence_status')}")
         lines.append(f"  boundary: {row.get('proof_evidence_boundary')}")

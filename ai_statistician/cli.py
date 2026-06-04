@@ -130,6 +130,9 @@ from .formal_verifier_agentic_proof_safety_policy import (
 from .formal_verifier_agentic_proof_attempt_population import (
     export_formal_verifier_agentic_proof_attempt_population,
 )
+from .formal_verifier_agentic_proof_execution_queue import (
+    export_formal_verifier_agentic_proof_execution_queue,
+)
 from .formal_verifier_replay_repair import export_formal_verifier_replay_repair_packets
 from .formal_source_graph import audit_formal_source_graph
 from .formal_source_index import (
@@ -2543,6 +2546,44 @@ def _formal_verifier_agentic_proof_attempt_population(
     print(
         f"markdown report written to "
         f"{(Path(args.out) / 'formal_verifier_agentic_proof_attempt_population.md').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formal_verifier_agentic_proof_execution_queue(
+    args: argparse.Namespace,
+) -> int:
+    payload = export_formal_verifier_agentic_proof_execution_queue(
+        Path(args.formal_verifier_agentic_proof_attempt_population_dir),
+        Path(args.out),
+    )
+    print("\nAI Statistical Theory Lab Formal Verifier Agentic Proof Execution Queue")
+    print("=" * 72)
+    print(
+        f"items={payload['n_ok']}/{payload['n_execution_queue_items']} "
+        f"ready={payload['n_ready']} "
+        f"blocked={payload['n_blocked']} "
+        f"patch={payload['n_patch_execution_items']} "
+        f"source={payload['n_source_execution_items']} "
+        f"candidate_artifacts={payload['n_with_candidate_artifact_path']} "
+        f"live_tool_plan={payload['n_with_live_tool_plan']} "
+        f"proof_route_dag={payload['n_with_proof_route_dag_plan']} "
+        f"verified_sketch={payload['n_with_verified_sketch_gate']} "
+        f"blueprint_export={payload['n_with_blueprint_export_plan']} "
+        f"kernel_overlay_context={payload['n_with_kernel_overlay_context']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nagentic proof execution queue manifest written to "
+        f"{(Path(args.out) / 'formal_verifier_agentic_proof_execution_queue_manifest.json').resolve()}"
+    )
+    print(
+        f"agentic proof execution queue jsonl written to "
+        f"{(Path(args.out) / 'formal_verifier_agentic_proof_execution_queue.jsonl').resolve()}"
+    )
+    print(
+        f"markdown report written to "
+        f"{(Path(args.out) / 'formal_verifier_agentic_proof_execution_queue.md').resolve()}"
     )
     return 0 if payload["all_ok"] else 1
 
@@ -5280,6 +5321,24 @@ def build_parser() -> argparse.ArgumentParser:
     )
     formal_verifier_agentic_proof_attempt_population.set_defaults(
         func=_formal_verifier_agentic_proof_attempt_population
+    )
+
+    formal_verifier_agentic_proof_execution_queue = sub.add_parser(
+        "formal-verifier-agentic-proof-execution-queue",
+        help="export executable proof-worker contracts from proof-attempt memory",
+    )
+    formal_verifier_agentic_proof_execution_queue.add_argument(
+        "--formal-verifier-agentic-proof-attempt-population-dir",
+        required=True,
+        help="directory containing formal_verifier_agentic_proof_attempt_population_manifest.json",
+    )
+    formal_verifier_agentic_proof_execution_queue.add_argument(
+        "--out",
+        default="runs/formal_verifier_agentic_proof_execution_queue",
+        help="formal-verifier agentic proof execution queue output directory",
+    )
+    formal_verifier_agentic_proof_execution_queue.set_defaults(
+        func=_formal_verifier_agentic_proof_execution_queue
     )
 
     rag_collaboration_export = sub.add_parser(
