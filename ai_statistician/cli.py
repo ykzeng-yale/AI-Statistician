@@ -136,6 +136,9 @@ from .formal_verifier_agentic_proof_execution_queue import (
 from .formal_verifier_agentic_proof_execution_materializer import (
     export_formal_verifier_agentic_proof_execution_materializer,
 )
+from .formal_verifier_agentic_proof_execution_artifact_verifier import (
+    export_formal_verifier_agentic_proof_execution_artifact_verifier,
+)
 from .formal_verifier_replay_repair import export_formal_verifier_replay_repair_packets
 from .formal_source_graph import audit_formal_source_graph
 from .formal_source_index import (
@@ -2622,6 +2625,40 @@ def _formal_verifier_agentic_proof_execution_materializer(
     print(
         f"markdown report written to "
         f"{(Path(args.out) / 'formal_verifier_agentic_proof_execution_materializer.md').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formal_verifier_agentic_proof_execution_artifact_verifier(
+    args: argparse.Namespace,
+) -> int:
+    payload = export_formal_verifier_agentic_proof_execution_artifact_verifier(
+        Path(args.formal_verifier_agentic_proof_execution_materializer_dir),
+        Path(args.out),
+        lean_project=Path(args.lean_project) if args.lean_project else None,
+        lean_timeout=args.lean_timeout,
+    )
+    print("\nAI Statistical Theory Lab Formal Verifier Agentic Proof Artifact Verifier")
+    print("=" * 72)
+    print(
+        f"rows={payload['n_ok']}/{payload['n_verifier_rows']} "
+        f"checked={payload['n_local_lean_checked']} "
+        f"compiled={payload['n_local_lean_compiled']} "
+        f"artifact_kernel={payload['n_artifact_kernel_verified']} "
+        f"source_theorem_kernel={payload['n_source_theorem_kernel_verified']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nagentic proof artifact verifier manifest written to "
+        f"{(Path(args.out) / 'formal_verifier_agentic_proof_execution_artifact_verifier_manifest.json').resolve()}"
+    )
+    print(
+        f"agentic proof artifact verifier jsonl written to "
+        f"{(Path(args.out) / 'formal_verifier_agentic_proof_execution_artifact_verifier.jsonl').resolve()}"
+    )
+    print(
+        f"markdown report written to "
+        f"{(Path(args.out) / 'formal_verifier_agentic_proof_execution_artifact_verifier.md').resolve()}"
     )
     return 0 if payload["all_ok"] else 1
 
@@ -5400,6 +5437,35 @@ def build_parser() -> argparse.ArgumentParser:
     )
     formal_verifier_agentic_proof_execution_materializer.set_defaults(
         func=_formal_verifier_agentic_proof_execution_materializer
+    )
+
+    formal_verifier_agentic_proof_execution_artifact_verifier = sub.add_parser(
+        "formal-verifier-agentic-proof-execution-artifact-verifier",
+        help="run local Lean checks on materialized agentic proof artifacts",
+    )
+    formal_verifier_agentic_proof_execution_artifact_verifier.add_argument(
+        "--formal-verifier-agentic-proof-execution-materializer-dir",
+        required=True,
+        help="directory containing formal_verifier_agentic_proof_execution_materializer_manifest.json",
+    )
+    formal_verifier_agentic_proof_execution_artifact_verifier.add_argument(
+        "--out",
+        default="runs/formal_verifier_agentic_proof_execution_artifact_verifier",
+        help="formal-verifier agentic proof execution artifact verifier output directory",
+    )
+    formal_verifier_agentic_proof_execution_artifact_verifier.add_argument(
+        "--lean-project",
+        default="",
+        help="optional local Lake project; when set runs lake env lean",
+    )
+    formal_verifier_agentic_proof_execution_artifact_verifier.add_argument(
+        "--lean-timeout",
+        type=int,
+        default=90,
+        help="seconds before local Lean artifact verification times out",
+    )
+    formal_verifier_agentic_proof_execution_artifact_verifier.set_defaults(
+        func=_formal_verifier_agentic_proof_execution_artifact_verifier
     )
 
     rag_collaboration_export = sub.add_parser(

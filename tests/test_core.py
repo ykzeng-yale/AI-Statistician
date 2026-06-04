@@ -103,6 +103,9 @@ from ai_statistician.formal_verifier_agentic_proof_execution_queue import (
 from ai_statistician.formal_verifier_agentic_proof_execution_materializer import (
     export_formal_verifier_agentic_proof_execution_materializer,
 )
+from ai_statistician.formal_verifier_agentic_proof_execution_artifact_verifier import (
+    export_formal_verifier_agentic_proof_execution_artifact_verifier,
+)
 from ai_statistician.formal_verifier_replay_repair import export_formal_verifier_replay_repair_packets
 from ai_statistician.formalization_delta_plan import build_formalization_delta_plan
 from ai_statistician.formalization_target_audit import audit_formalization_targets
@@ -3237,10 +3240,27 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(Path(materialized_row["execution_transcript_path"]).exists())
         self.assertGreater(materialized_row["target_lean_line"], 0)
         source = Path(materialized_row["candidate_artifact_path"]).read_text()
+        self.assertNotIn("import Mathlib", source)
         self.assertIn("-- AI_STAT_EVOLVE_BLOCK_START", source)
         self.assertIn("exact True.intro", source)
         self.assertNotIn("sorry", source)
         self.assertNotIn("admit", source)
+
+        verified = export_formal_verifier_agentic_proof_execution_artifact_verifier(
+            materializer_dir,
+            root / "artifact_verifier",
+            lean_command=("true",),
+        )
+        self.assertTrue(verified["all_ok"])
+        self.assertEqual(verified["n_local_lean_checked"], 1)
+        self.assertEqual(verified["n_local_lean_compiled"], 1)
+        self.assertEqual(verified["n_artifact_kernel_verified"], 1)
+        self.assertEqual(verified["n_source_theorem_kernel_verified"], 0)
+        verified_row = verified["rows"][0]
+        self.assertTrue(verified_row["artifact_kernel_verified"])
+        self.assertFalse(verified_row["source_theorem_kernel_verified"])
+        self.assertIn("NOT_SOURCE_THEOREM", verified_row["verification_status"])
+        self.assertIn("not proof evidence", verified_row["proof_evidence_boundary"])
 
         queue_after = export_formal_verifier_agentic_proof_execution_queue(
             attempt_dir,

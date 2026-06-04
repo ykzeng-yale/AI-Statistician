@@ -282,7 +282,6 @@ def _candidate_source(
         f"-- {key}: {value}" for key, value in metadata.items() if value
     )
     return (
-        "import Mathlib\n\n"
         "/-!\n"
         "Bounded Lean work artifact for an agentic proof-worker queue row.\n"
         "This route probe is operational input for live proof-state tooling.\n"
