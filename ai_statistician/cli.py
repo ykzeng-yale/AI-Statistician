@@ -33,6 +33,9 @@ from .stat_claim_certificate_witness_queue import (
 from .stat_claim_certificate_witness_materializer import (
     materialize_stat_claim_certificate_witness_drafts,
 )
+from .stat_claim_certificate_witness_context_packets import (
+    export_stat_claim_certificate_witness_context_packets,
+)
 from .stat_claim_certificate_witness_prompt_packets import (
     export_stat_claim_certificate_witness_prompt_packets,
 )
@@ -3458,6 +3461,40 @@ def _stat_claim_certificate_witness_prompt_packets(args: argparse.Namespace) -> 
     return 0 if payload["all_ok"] else 1
 
 
+def _stat_claim_certificate_witness_context_packets(args: argparse.Namespace) -> int:
+    payload = export_stat_claim_certificate_witness_context_packets(
+        Path(args.prompt_packets_dir),
+        Path(args.out),
+        max_packets=args.max_packets,
+        max_snippets_per_source=args.max_snippets_per_source,
+        max_snippet_chars=args.max_snippet_chars,
+    )
+    print("\nAI Statistical Theory Lab Statistical Claim Certificate Witness Context Packets")
+    print("=" * 72)
+    print(
+        f"context_packets={payload['n_ok']}/{payload['n_context_packets']} "
+        f"source_paths={payload['n_resolved_source_paths']}/{payload['n_source_paths']} "
+        f"snippets={payload['n_snippets']} "
+        f"status={payload['proof_evidence_status']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    for family, count in payload["by_family"].items():
+        print(f"  {family}: {count}")
+    print(
+        f"\nwitness context packet manifest written to "
+        f"{(Path(args.out) / 'stat_claim_certificate_witness_context_packets_manifest.json').resolve()}"
+    )
+    print(
+        f"context packets written to "
+        f"{(Path(args.out) / 'stat_claim_certificate_witness_context_packets.jsonl').resolve()}"
+    )
+    print(
+        f"markdown report written to "
+        f"{(Path(args.out) / 'stat_claim_certificate_witness_context_packets.md').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
 def _stat_claim_certificate_witness_response_validate(args: argparse.Namespace) -> int:
     payload = validate_stat_claim_certificate_witness_worker_outputs(
         Path(args.prompt_packets_dir),
@@ -6804,6 +6841,42 @@ def build_parser() -> argparse.ArgumentParser:
     )
     stat_claim_certificate_witness_prompt_packets.set_defaults(
         func=_stat_claim_certificate_witness_prompt_packets
+    )
+
+    stat_claim_certificate_witness_context_packets = sub.add_parser(
+        "stat-claim-certificate-witness-context-packets",
+        help="resolve certificate witness prompt evidence paths into bounded source-context packets",
+    )
+    stat_claim_certificate_witness_context_packets.add_argument(
+        "--prompt-packets-dir",
+        required=True,
+        help="directory containing stat_claim_certificate_witness_prompt_packets_manifest.json",
+    )
+    stat_claim_certificate_witness_context_packets.add_argument(
+        "--max-packets",
+        type=int,
+        default=None,
+        help="optional maximum number of witness context packets to export",
+    )
+    stat_claim_certificate_witness_context_packets.add_argument(
+        "--max-snippets-per-source",
+        type=int,
+        default=3,
+        help="maximum snippets to retain from each cited source file",
+    )
+    stat_claim_certificate_witness_context_packets.add_argument(
+        "--max-snippet-chars",
+        type=int,
+        default=1200,
+        help="maximum characters per source snippet",
+    )
+    stat_claim_certificate_witness_context_packets.add_argument(
+        "--out",
+        default="runs/stat_claim_certificate_witness_context_packets",
+        help="certificate witness context packet output directory",
+    )
+    stat_claim_certificate_witness_context_packets.set_defaults(
+        func=_stat_claim_certificate_witness_context_packets
     )
 
     stat_claim_certificate_witness_response_validate = sub.add_parser(

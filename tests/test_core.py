@@ -43,6 +43,9 @@ from ai_statistician.stat_claim_certificate_witness_materializer import (
 from ai_statistician.stat_claim_certificate_witness_prompt_packets import (
     export_stat_claim_certificate_witness_prompt_packets,
 )
+from ai_statistician.stat_claim_certificate_witness_context_packets import (
+    export_stat_claim_certificate_witness_context_packets,
+)
 from ai_statistician.stat_claim_certificate_witness_response_apply import (
     apply_stat_claim_certificate_witness_responses,
 )
@@ -7614,6 +7617,117 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(Path("runs/test_stat_claim_certificate_witness_prompt_packets/stat_claim_certificate_witness_prompt_packets_manifest.json").exists())
         self.assertTrue(Path("runs/test_stat_claim_certificate_witness_prompt_packets/stat_claim_certificate_witness_prompt_packets.jsonl").exists())
         self.assertTrue(Path("runs/test_stat_claim_certificate_witness_prompt_packets/stat_claim_certificate_witness_prompt_packets.md").exists())
+
+    def test_stat_claim_certificate_witness_context_packets_extract_source_snippets(self) -> None:
+        prompt_dir = Path("runs/test_stat_claim_certificate_witness_context_packets_prompt")
+        out_dir = Path("runs/test_stat_claim_certificate_witness_context_packets")
+        shutil.rmtree(prompt_dir, ignore_errors=True)
+        shutil.rmtree(out_dir, ignore_errors=True)
+        prompt_dir.mkdir(parents=True, exist_ok=True)
+        source_path = prompt_dir / "source.md"
+        source_path.write_text(
+            "\n".join(
+                [
+                    "Split conformal prediction uses exchangeable ranks.",
+                    "The rank_threshold is chosen from calibration scores.",
+                    "The coverage_level_alpha parameter controls marginal coverage.",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        packet = {
+            "prompt_packet_id": "prompt:context",
+            "draft_id": "draft:context",
+            "task_id": "task:context",
+            "target_id": "target:context",
+            "source_claim_id": "claim:context",
+            "question_id": "q_context",
+            "certificate_family": "conformal_coverage_certificate",
+            "checker_name": "ConformalCoverageCertificateChecker",
+            "checker_obligation_id": "conformal_coverage_certificate_sound",
+            "statement": "Split conformal marginal coverage follows from exchangeable ranks.",
+            "required_fields": ["rank_threshold", "coverage_level_alpha"],
+            "source_evidence_paths": [str(source_path)],
+        }
+        (prompt_dir / "stat_claim_certificate_witness_prompt_packets_manifest.json").write_text(
+            json.dumps(
+                {
+                    "all_ok": True,
+                    "n_prompt_packets": 1,
+                    "proof_evidence_status": "STAT_CLAIM_CERTIFICATE_WITNESS_PROMPT_PACKETS_NOT_PROOF_EVIDENCE",
+                    "packets": [packet],
+                }
+            ),
+            encoding="utf-8",
+        )
+        (prompt_dir / "stat_claim_certificate_witness_prompt_packets.jsonl").write_text(
+            json.dumps(packet) + "\n",
+            encoding="utf-8",
+        )
+
+        payload = export_stat_claim_certificate_witness_context_packets(prompt_dir, out_dir)
+
+        self.assertTrue(payload["all_ok"])
+        self.assertEqual(payload["n_context_packets"], 1)
+        self.assertEqual(payload["n_ok"], 1)
+        self.assertEqual(payload["n_resolved_source_paths"], 1)
+        self.assertEqual(payload["n_missing_source_paths"], 0)
+        self.assertGreater(payload["n_snippets"], 0)
+        self.assertEqual(
+            payload["proof_evidence_status"],
+            "STAT_CLAIM_CERTIFICATE_WITNESS_CONTEXT_PACKETS_NOT_PROOF_EVIDENCE",
+        )
+        context_packet = payload["packets"][0]
+        self.assertIn("rank_threshold", context_packet["field_context_hints"])
+        self.assertTrue(context_packet["field_context_hints"]["rank_threshold"]["candidate_snippet_ids"])
+        self.assertIn("exchangeable ranks", context_packet["snippets"][0]["text"])
+        self.assertIn("Do not treat snippets as proof", context_packet["worker_instruction"])
+        self.assertTrue(Path("runs/test_stat_claim_certificate_witness_context_packets/stat_claim_certificate_witness_context_packets_manifest.json").exists())
+        self.assertTrue(Path("runs/test_stat_claim_certificate_witness_context_packets/stat_claim_certificate_witness_context_packets.jsonl").exists())
+        self.assertTrue(Path("runs/test_stat_claim_certificate_witness_context_packets/stat_claim_certificate_witness_context_packets.md").exists())
+
+    def test_stat_claim_certificate_witness_context_packets_reports_missing_source_paths(self) -> None:
+        prompt_dir = Path("runs/test_stat_claim_certificate_witness_context_packets_missing_prompt")
+        out_dir = Path("runs/test_stat_claim_certificate_witness_context_packets_missing")
+        shutil.rmtree(prompt_dir, ignore_errors=True)
+        shutil.rmtree(out_dir, ignore_errors=True)
+        prompt_dir.mkdir(parents=True, exist_ok=True)
+        packet = {
+            "prompt_packet_id": "prompt:missing-context",
+            "draft_id": "draft:missing-context",
+            "task_id": "task:missing-context",
+            "target_id": "target:missing-context",
+            "source_claim_id": "claim:missing-context",
+            "question_id": "q_missing_context",
+            "certificate_family": "kkt_optimality_certificate",
+            "checker_name": "KktOptimalityCertificateChecker",
+            "checker_obligation_id": "kkt_optimality_certificate_sound",
+            "statement": "KKT optimality follows from a primal-dual gap certificate.",
+            "required_fields": ["primal_candidate", "dual_bound_certificate"],
+            "source_evidence_paths": ["runs/test_stat_claim_certificate_witness_context_packets_missing_prompt/missing.md"],
+        }
+        (prompt_dir / "stat_claim_certificate_witness_prompt_packets_manifest.json").write_text(
+            json.dumps({"all_ok": True, "n_prompt_packets": 1, "packets": [packet]}),
+            encoding="utf-8",
+        )
+        (prompt_dir / "stat_claim_certificate_witness_prompt_packets.jsonl").write_text(
+            json.dumps(packet) + "\n",
+            encoding="utf-8",
+        )
+
+        payload = export_stat_claim_certificate_witness_context_packets(prompt_dir, out_dir)
+
+        self.assertFalse(payload["all_ok"])
+        self.assertEqual(payload["n_context_packets"], 1)
+        self.assertEqual(payload["n_ok"], 0)
+        self.assertEqual(payload["n_missing_source_paths"], 1)
+        self.assertEqual(payload["n_snippets"], 0)
+        context_packet = payload["packets"][0]
+        self.assertEqual(
+            list(context_packet["missing_source_paths"]),
+            packet["source_evidence_paths"],
+        )
+        self.assertIn("missing source evidence path", " ".join(context_packet["errors"]))
 
     def test_stat_claim_certificate_witness_response_validation_accepts_source_cited_response(self) -> None:
         prompt_dir = Path("runs/test_stat_claim_certificate_witness_response_validation_accept_prompt")
@@ -18755,6 +18869,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["gates"]["stat_claim_certificate_witness_queue"])
         self.assertTrue(payload["gates"]["stat_claim_certificate_witness_materializer"])
         self.assertTrue(payload["gates"]["stat_claim_certificate_witness_prompt_packets"])
+        self.assertTrue(payload["gates"]["stat_claim_certificate_witness_context_packets"])
         self.assertTrue(payload["gates"]["stat_claim_certificate_witness_response_validation"])
         self.assertTrue(payload["gates"]["stat_claim_certificate_witness_response_apply"])
         self.assertTrue(payload["gates"]["stat_claim_certificate_witness_validator"])
@@ -19275,6 +19390,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "stat_claim_certificate_witness_queue",
             "stat_claim_certificate_witness_materializer",
             "stat_claim_certificate_witness_prompt_packets",
+            "stat_claim_certificate_witness_context_packets",
             "stat_claim_certificate_witness_response_validation",
             "stat_claim_certificate_witness_response_apply",
             "stat_claim_certificate_witness_validator",
@@ -21108,6 +21224,38 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "STAT_CLAIM_CERTIFICATE_WITNESS_PROMPT_PACKETS_NOT_PROOF_EVIDENCE",
         )
         self.assertEqual(
+            payload["counts"]["stat_claim_certificate_witness_context_packets"],
+            payload["counts"]["stat_claim_certificate_witness_prompt_packets"],
+        )
+        self.assertEqual(
+            payload["counts"]["stat_claim_certificate_witness_context_packets_ok"],
+            payload["counts"]["stat_claim_certificate_witness_context_packets"],
+        )
+        self.assertEqual(
+            payload["counts"]["stat_claim_certificate_witness_context_packets_with_context"],
+            payload["counts"]["stat_claim_certificate_witness_context_packets"],
+        )
+        self.assertEqual(
+            payload["counts"]["stat_claim_certificate_witness_context_packets_resolved_source_paths"],
+            payload["counts"]["stat_claim_certificate_witness_context_packets_source_paths"],
+        )
+        self.assertEqual(
+            payload["counts"]["stat_claim_certificate_witness_context_packets_missing_source_paths"],
+            0,
+        )
+        self.assertGreaterEqual(
+            payload["counts"]["stat_claim_certificate_witness_context_packets_snippets"],
+            payload["counts"]["stat_claim_certificate_witness_context_packets"],
+        )
+        self.assertGreaterEqual(
+            payload["counts"]["stat_claim_certificate_witness_context_packets_field_hints"],
+            payload["counts"]["stat_claim_certificate_witness_context_packets"],
+        )
+        self.assertEqual(
+            payload["counts"]["stat_claim_certificate_witness_context_packets_proof_evidence_status"],
+            "STAT_CLAIM_CERTIFICATE_WITNESS_CONTEXT_PACKETS_NOT_PROOF_EVIDENCE",
+        )
+        self.assertEqual(
             payload["counts"]["stat_claim_certificate_witness_response_validation_rows"],
             payload["counts"]["stat_claim_certificate_witness_prompt_packets"],
         )
@@ -21339,6 +21487,9 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_prompt_packets"]).exists())
         self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_prompt_packets_jsonl"]).exists())
         self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_prompt_packets_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_context_packets"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_context_packets_jsonl"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_context_packets_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_response_validation"]).exists())
         self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_response_validation_jsonl"]).exists())
         self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_response_validation_report"]).exists())
