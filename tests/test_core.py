@@ -4299,6 +4299,35 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(
             Path("runs/test_evaluation_benchmark_guidance/evaluation_benchmark_guidance.md").exists()
         )
+        zero_kernel_payload = json.loads(json.dumps(payload))
+        zero_kernel_payload["counts"]["proofs_kernel_verified"] = 0
+        zero_kernel_payload["counts"]["proof_search_kernel_verified"] = 0
+        zero_kernel_payload["counts"]["proof_search_retrieval_ablation_candidate_delta"] = 4
+        zero_kernel_payload["counts"][
+            "proof_search_retrieval_no_registered_ablation_candidate_delta"
+        ] = 4
+        zero_kernel_guidance = build_evaluation_benchmark_guidance(
+            Path("runs/test_evaluation_benchmark_guidance_zero_kernel"),
+            system_audit_payload=zero_kernel_payload,
+        )
+        zero_kernel_statuses = {
+            row["suite_id"]: row["status"] for row in zero_kernel_guidance["suites"]
+        }
+        self.assertEqual(
+            zero_kernel_statuses["S5_proof_bank_and_search"],
+            "CAPACITY_GAP",
+        )
+        zero_kernel_s5 = next(
+            row
+            for row in zero_kernel_guidance["suites"]
+            if row["suite_id"] == "S5_proof_bank_and_search"
+        )
+        self.assertIn("kernel verification", " ".join(zero_kernel_s5["issues"]))
+        self.assertIn("AXLE/local Lean", zero_kernel_guidance["top_actions"][2]["action"])
+        self.assertIn(
+            "proof_search_kernel_verified",
+            zero_kernel_guidance["top_actions"][2]["success_metric"],
+        )
 
     def test_algorithm_registry_audit_passes(self) -> None:
         payload = audit_algorithm_registry(Path("runs/test_algorithm_audit"))

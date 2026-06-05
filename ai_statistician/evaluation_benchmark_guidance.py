@@ -103,6 +103,7 @@ def build_evaluation_benchmark_guidance(
                         "formal_gaps",
                         "missing_formal_primitives",
                         "proofs_kernel_verified",
+                        "proof_search_kernel_verified",
                         "proof_search_solved",
                         "proof_search_retrieval_ablation_candidate_delta",
                         "proof_search_retrieval_no_registered_ablation_candidate_delta",
@@ -149,6 +150,10 @@ def _suite_rows(
     proof_search_hard_solved_delta = _int(
         counts.get("proof_search_retrieval_no_registered_ablation_solved_delta")
     )
+    proofs_kernel_verified = _int(counts.get("proofs_kernel_verified"))
+    proof_search_kernel_verified = _int(counts.get("proof_search_kernel_verified"))
+    proof_search_solved = _int(counts.get("proof_search_solved"))
+    proof_search_obligations = _int(counts.get("proof_search_obligations"))
     algorithm_promotion_ready = _int(counts.get("algorithm_repair_sandbox_patch_eval_promotion_ready"))
     rows = [
         BenchmarkSuiteGuidanceRow(
@@ -277,11 +282,19 @@ def _suite_rows(
             exercised=bool(artifacts.get("proof_audit"))
             and bool(artifacts.get("proof_search_retrieval_ablation"))
             and bool(artifacts.get("proof_search_retrieval_no_registered_ablation")),
-            status="SATURATED"
-            if proof_search_candidate_delta == 0
-            and proof_search_hard_candidate_delta == 0
-            and _int(counts.get("proof_search_solved")) == _int(counts.get("proof_search_obligations"))
-            else "OK",
+            status=(
+                "CAPACITY_GAP"
+                if proofs_kernel_verified == 0
+                and proof_search_kernel_verified == 0
+                and (proof_search_solved > 0 or proof_search_obligations > 0)
+                else (
+                    "SATURATED"
+                    if proof_search_candidate_delta == 0
+                    and proof_search_hard_candidate_delta == 0
+                    and proof_search_solved == proof_search_obligations
+                    else "OK"
+                )
+            ),
             evidence_paths=(
                 str(artifacts.get("proof_audit", "")),
                 str(artifacts.get("proof_search_audit", "")),
@@ -289,9 +302,10 @@ def _suite_rows(
                 str(artifacts.get("proof_search_retrieval_no_registered_ablation", "")),
             ),
             key_counts={
-                "proofs_kernel_verified": counts.get("proofs_kernel_verified"),
-                "proof_search_solved": counts.get("proof_search_solved"),
-                "proof_search_obligations": counts.get("proof_search_obligations"),
+                "proofs_kernel_verified": proofs_kernel_verified,
+                "proof_search_kernel_verified": proof_search_kernel_verified,
+                "proof_search_solved": proof_search_solved,
+                "proof_search_obligations": proof_search_obligations,
                 "proof_search_retrieval_ablation_candidate_delta": proof_search_candidate_delta,
                 "proof_search_retrieval_no_registered_ablation_candidate_delta": proof_search_hard_candidate_delta,
                 "proof_search_retrieval_no_registered_ablation_solved_delta": proof_search_hard_solved_delta,
@@ -304,9 +318,20 @@ def _suite_rows(
                 "Kernel-verified registered obligations are proof evidence; ordinary and no-registered "
                 "retrieval ablations are search evidence unless run with AXLE/local Lean verification."
             ),
-            issues=("current bounded proof-search suite is saturated; stronger RAG shows no downstream lift",)
-            if proof_search_candidate_delta == 0 and proof_search_hard_candidate_delta == 0
-            else (),
+            issues=tuple(
+                issue
+                for issue in (
+                    "proof-search and proof-bank evidence lacks AXLE/local Lean kernel verification"
+                    if proofs_kernel_verified == 0
+                    and proof_search_kernel_verified == 0
+                    and (proof_search_solved > 0 or proof_search_obligations > 0)
+                    else "",
+                    "current bounded proof-search suite is saturated; stronger RAG shows no downstream lift"
+                    if proof_search_candidate_delta == 0 and proof_search_hard_candidate_delta == 0
+                    else "",
+                )
+                if issue
+            ),
         ),
         BenchmarkSuiteGuidanceRow(
             suite_id="S6_algorithm_simulation_stress",
@@ -450,6 +475,9 @@ def _top_actions(
     proof_search_frontier_delta = _int(counts.get("proof_search_retrieval_ablation_candidate_delta")) + _int(
         counts.get("proof_search_retrieval_no_registered_ablation_candidate_delta")
     )
+    proof_kernel_evidence = _int(counts.get("proofs_kernel_verified")) + _int(
+        counts.get("proof_search_kernel_verified")
+    )
     actions = [
         {
             "rank": 1,
@@ -468,18 +496,31 @@ def _top_actions(
         {
             "rank": 3,
             "owner_suite": "S5_proof_bank_and_search/S7_feedback_loop_repair",
-            "action": "Add harder RAG/proof-search and seeded feedback-loop failures where stronger retrieval or repair must change a decision.",
+            "action": (
+                "Rerun hard RAG/proof-search candidates through AXLE/local Lean and seed feedback-loop failures where repair must change a decision."
+                if proof_kernel_evidence == 0
+                else "Add harder RAG/proof-search and seeded feedback-loop failures where stronger retrieval or repair must change a decision."
+            ),
             "why": (
-                "The current proof-search/RAG ablations still show no candidate-frontier lift and "
-                "algorithm repair has no promotion-ready patch."
-                if proof_search_frontier_delta == 0
+                "Search/retrieval artifacts are present, but the current audit has no proof-bank or proof-search kernel evidence; "
+                "algorithm repair also has no promotion-ready patch."
+                if proof_kernel_evidence == 0
                 else (
-                    f"Proof-search/RAG hard-mode candidate-frontier lift is {proof_search_frontier_delta}; "
-                    "the next bottleneck is turning that search signal into verifier-checked harder obligations, "
-                    "while algorithm repair still has no promotion-ready patch."
+                    "The current proof-search/RAG ablations still show no candidate-frontier lift and "
+                    "algorithm repair has no promotion-ready patch."
+                    if proof_search_frontier_delta == 0
+                    else (
+                        f"Proof-search/RAG hard-mode candidate-frontier lift is {proof_search_frontier_delta}; "
+                        "the next bottleneck is turning that search signal into verifier-checked harder obligations, "
+                        "while algorithm repair still has no promotion-ready patch."
+                    )
                 )
             ),
-            "success_metric": "dependency-graph retrieval improves candidate frontier or solved count on hard obligations, and at least one seeded simulation/proof failure yields a verified changed trace.",
+            "success_metric": (
+                "proof_search_kernel_verified or proofs_kernel_verified becomes positive under AXLE/local Lean, and at least one seeded simulation/proof failure yields a verified changed trace."
+                if proof_kernel_evidence == 0
+                else "dependency-graph retrieval improves candidate frontier or solved count on hard obligations, and at least one seeded simulation/proof failure yields a verified changed trace."
+            ),
         },
     ]
     if (
