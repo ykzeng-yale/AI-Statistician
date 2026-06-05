@@ -162,6 +162,9 @@ from .huggingface_lean_source_audit import audit_huggingface_lean_sources
 from .hf_lean_source_revalidation_tasks import (
     export_huggingface_lean_source_revalidation_tasks,
 )
+from .hf_lean_source_revalidation_artifact_validation import (
+    export_huggingface_lean_source_revalidation_artifact_validation,
+)
 from .intake_audit import audit_question_intake
 from .lean_rag_package_audit import (
     apply_lean_rag_source_registry_expansion,
@@ -1109,6 +1112,31 @@ def _huggingface_lean_source_revalidation_tasks(args: argparse.Namespace) -> int
     print(
         f"task queue written to "
         f"{(Path(args.out) / 'hf_lean_source_revalidation_tasks.jsonl').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _huggingface_lean_source_revalidation_artifact_validation(args: argparse.Namespace) -> int:
+    payload = export_huggingface_lean_source_revalidation_artifact_validation(
+        Path(args.task_dir),
+        Path(args.out),
+        response_jsonl=Path(args.response_jsonl) if args.response_jsonl else None,
+    )
+    print("\nAI Statistical Theory Lab Hugging Face Lean Source Revalidation Artifact Validation")
+    print("=" * 72)
+    print(
+        f"tasks={payload['n_tasks']} responses={payload['n_responses']} "
+        f"awaiting={payload['n_awaiting_worker_output']} "
+        f"contract_ok={payload['n_contract_ok']}"
+    )
+    print(
+        f"kernel_verified_rows={payload['n_kernel_verified_rows']} "
+        f"proof_evidence_ready={payload['n_proof_evidence_ready']} "
+        f"status={payload['proof_evidence_status']}"
+    )
+    print(
+        f"\nhf Lean source revalidation artifact validation manifest written to "
+        f"{(Path(args.out) / 'hf_lean_source_revalidation_artifact_validation_manifest.json').resolve()}"
     )
     return 0 if payload["all_ok"] else 1
 
@@ -4395,6 +4423,29 @@ def build_parser() -> argparse.ArgumentParser:
     )
     huggingface_lean_source_revalidation_tasks.set_defaults(
         func=_huggingface_lean_source_revalidation_tasks
+    )
+
+    huggingface_lean_source_revalidation_artifact_validation = sub.add_parser(
+        "huggingface-lean-source-revalidation-artifact-validation",
+        help="validate worker outputs for Hugging Face Lean source revalidation task packets",
+    )
+    huggingface_lean_source_revalidation_artifact_validation.add_argument(
+        "--task-dir",
+        default="runs/huggingface_lean_source_revalidation_tasks",
+        help="directory containing hf_lean_source_revalidation_tasks_manifest.json",
+    )
+    huggingface_lean_source_revalidation_artifact_validation.add_argument(
+        "--response-jsonl",
+        default="",
+        help="optional worker output JSONL; default is task-dir/hf_lean_source_revalidation_worker_outputs.jsonl",
+    )
+    huggingface_lean_source_revalidation_artifact_validation.add_argument(
+        "--out",
+        default="runs/huggingface_lean_source_revalidation_artifact_validation",
+        help="Hugging Face Lean source revalidation artifact validation output directory",
+    )
+    huggingface_lean_source_revalidation_artifact_validation.set_defaults(
+        func=_huggingface_lean_source_revalidation_artifact_validation
     )
 
     lean_rag_dependency_health = sub.add_parser(

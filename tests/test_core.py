@@ -170,6 +170,9 @@ from ai_statistician.proof_training_export import export_proof_training_dataset
 from ai_statistician.hf_lean_source_revalidation_tasks import (
     export_huggingface_lean_source_revalidation_tasks,
 )
+from ai_statistician.hf_lean_source_revalidation_artifact_validation import (
+    export_huggingface_lean_source_revalidation_artifact_validation,
+)
 from ai_statistician.prover_component_audit import build_prover_component_audit, write_prover_component_audit
 from ai_statistician.rag_collaboration_export import export_rag_collaboration_manifest
 from ai_statistician.questions import load_question_file, question_from_json
@@ -401,6 +404,96 @@ class ProofBankTests(unittest.TestCase):
             Path(
                 "runs/test_hf_lean_source_revalidation_tasks/hf_lean_source_revalidation_tasks.jsonl"
             ).exists()
+        )
+
+    def test_hf_lean_source_revalidation_artifact_validation_gates_worker_outputs(self) -> None:
+        task_dir = Path("runs/test_hf_lean_source_artifact_validation_tasks")
+        task_payload = {
+            "task_id": "hf_lean_source_revalidation_task:oproofs",
+            "dataset_id": "m-a-p/OProofs",
+            "source_id": "hf::m-a-p::OProofs",
+            "task_status": "READY_FOR_SAMPLE_RECONSTRUCTION_AND_LOCAL_VERIFY",
+            "sample_manifest_path": str(task_dir / "work" / "oproofs" / "sample_manifest.json"),
+            "lean_reconstruction_dir": str(task_dir / "work" / "oproofs" / "lean"),
+            "verifier_attempt_log": str(task_dir / "work" / "oproofs" / "verifier_attempts.jsonl"),
+            "promotion_manifest_path": str(task_dir / "work" / "oproofs" / "candidate_promotion_manifest.json"),
+        }
+        task_dir.mkdir(parents=True, exist_ok=True)
+        (task_dir / "hf_lean_source_revalidation_tasks_manifest.json").write_text(
+            json.dumps({"rows": [task_payload]}, indent=2),
+            encoding="utf-8",
+        )
+        (task_dir / "hf_lean_source_revalidation_tasks.jsonl").write_text(
+            json.dumps(task_payload, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        awaiting = export_huggingface_lean_source_revalidation_artifact_validation(
+            task_dir,
+            Path("runs/test_hf_lean_source_artifact_validation_awaiting"),
+        )
+        self.assertTrue(awaiting["all_ok"])
+        self.assertEqual(awaiting["n_awaiting_worker_output"], 1)
+        self.assertEqual(awaiting["n_proof_evidence_ready"], 0)
+        self.assertEqual(
+            awaiting["proof_evidence_status"],
+            "HF_LEAN_SOURCE_REVALIDATION_ARTIFACT_VALIDATION_NOT_PROOF_EVIDENCE",
+        )
+
+        sample_manifest = Path(task_payload["sample_manifest_path"])
+        lean_dir = Path(task_payload["lean_reconstruction_dir"])
+        verifier_log = Path(task_payload["verifier_attempt_log"])
+        promotion_manifest = Path(task_payload["promotion_manifest_path"])
+        lean_dir.mkdir(parents=True, exist_ok=True)
+        sample_manifest.parent.mkdir(parents=True, exist_ok=True)
+        sample_manifest.write_text(json.dumps({"rows": [{"row_hash": "r1"}]}), encoding="utf-8")
+        (lean_dir / "row_1.lean").write_text("theorem trivial_row : True := by trivial\n", encoding="utf-8")
+        verifier_log.write_text(
+            json.dumps({"task_id": task_payload["task_id"], "kernel_verified": True}) + "\n",
+            encoding="utf-8",
+        )
+        promotion_manifest.write_text(
+            json.dumps({"kernel_verified_rows": 1, "proof_evidence_ready": 1}),
+            encoding="utf-8",
+        )
+        response_jsonl = task_dir / "hf_lean_source_revalidation_worker_outputs.jsonl"
+        response_jsonl.write_text(
+            json.dumps(
+                {
+                    "response_id": "worker-output-1",
+                    "task_id": task_payload["task_id"],
+                    "dataset_id": task_payload["dataset_id"],
+                    "sample_manifest_path": str(sample_manifest),
+                    "lean_reconstruction_dir": str(lean_dir),
+                    "verifier_attempt_log": str(verifier_log),
+                    "promotion_manifest_path": str(promotion_manifest),
+                    "sampled_rows": 1,
+                    "reconstructed_artifacts": 1,
+                    "verifier": "local.lake_env_lean",
+                    "verification_strength": "local_lean_kernel",
+                    "kernel_verified_rows": 1,
+                    "proof_evidence_ready": 1,
+                },
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        accepted = export_huggingface_lean_source_revalidation_artifact_validation(
+            task_dir,
+            Path("runs/test_hf_lean_source_artifact_validation_accepted"),
+        )
+        self.assertTrue(accepted["all_ok"])
+        self.assertEqual(accepted["n_responses"], 1)
+        self.assertEqual(accepted["n_contract_ok"], 1)
+        self.assertEqual(accepted["n_kernel_verified_rows"], 1)
+        self.assertEqual(accepted["n_proof_evidence_ready"], 1)
+        self.assertEqual(
+            accepted["proof_evidence_status"],
+            "HF_LEAN_SOURCE_REVALIDATION_LOCAL_KERNEL_EVIDENCE_RECORDED",
+        )
+        self.assertEqual(
+            accepted["rows"][0]["acceptance_status"],
+            "ACCEPTED_LOCAL_KERNEL_VERIFIED_HF_SOURCE_ROWS",
         )
 
     def test_retriever_finds_indicator_obligation(self) -> None:
@@ -15837,6 +15930,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["gates"]["lean_rag_source_registry_expansion_apply"])
         self.assertTrue(payload["gates"]["huggingface_lean_source_audit"])
         self.assertTrue(payload["gates"]["huggingface_lean_source_revalidation_tasks"])
+        self.assertTrue(payload["gates"]["huggingface_lean_source_revalidation_artifact_validation"])
         self.assertTrue(payload["gates"]["fresh_holdout_frontier_audit"])
         self.assertTrue(payload["gates"]["research_algorithm_audit"])
         self.assertTrue(payload["gates"]["algorithm_simulation_stress_audit"])
@@ -16198,6 +16292,28 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertEqual(
             payload["counts"]["huggingface_lean_source_revalidation_tasks_proof_evidence_status"],
             "HF_LEAN_SOURCE_REVALIDATION_TASKS_NOT_PROOF_EVIDENCE",
+        )
+        self.assertEqual(
+            payload["counts"]["huggingface_lean_source_revalidation_artifact_validation_rows"],
+            payload["counts"]["huggingface_lean_source_revalidation_tasks"],
+        )
+        self.assertEqual(payload["counts"]["huggingface_lean_source_revalidation_artifact_validation_responses"], 0)
+        self.assertEqual(
+            payload["counts"]["huggingface_lean_source_revalidation_artifact_validation_awaiting"],
+            payload["counts"]["huggingface_lean_source_revalidation_tasks"],
+        )
+        self.assertEqual(payload["counts"]["huggingface_lean_source_revalidation_artifact_validation_contract_ok"], 0)
+        self.assertEqual(
+            payload["counts"]["huggingface_lean_source_revalidation_artifact_validation_kernel_verified_rows"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["huggingface_lean_source_revalidation_artifact_validation_proof_evidence_ready"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["huggingface_lean_source_revalidation_artifact_validation_proof_evidence_status"],
+            "HF_LEAN_SOURCE_REVALIDATION_ARTIFACT_VALIDATION_NOT_PROOF_EVIDENCE",
         )
         self.assertEqual(payload["counts"]["huggingface_lean_source_proof_evidence_ready"], 0)
         self.assertFalse(payload["counts"]["huggingface_lean_source_use_network"])

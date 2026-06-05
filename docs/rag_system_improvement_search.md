@@ -180,6 +180,21 @@ packets define sample manifests, Lean reconstruction directories, verifier logs,
 promotion manifests, and required local Lean/AXLE gates; they are still not
 proof evidence.
 
+Worker outputs are validated with:
+
+```bash
+python3 -m ai_statistician.cli huggingface-lean-source-revalidation-artifact-validation \
+  --task-dir runs/current/huggingface_lean_source_revalidation_tasks \
+  --out runs/current/huggingface_lean_source_revalidation_artifact_validation
+```
+
+The validator writes `hf_lean_source_revalidation_artifact_validation_manifest.json`
+and JSONL/markdown companions. Missing worker outputs are recorded as awaiting
+responses. A row can report proof evidence only when the worker output matches
+the task id and dataset id, points to sample/reconstruction/verifier/promotion
+artifacts, and records local Lean/AXLE kernel verification for reconstructed
+Lean rows.
+
 - `formal_proof_pairs`: streamed retrieval memory and proof-pair SFT candidates.
 - `tactic_state_training`: proof-state-aware premise/tactic retrieval candidates.
 - `proof_repair_or_process_training`: repair, trajectory, or proof-compression
