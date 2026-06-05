@@ -154,6 +154,7 @@ from .proof_policy_baseline import evaluate_retrieval_proof_policy_baseline
 from .proof_policy_model import train_proof_policy_model
 from .proof_repair_export import export_proof_repair_dataset
 from .proof_search_audit import audit_proof_search_controller
+from .proof_search_kernel_rerun_queue import export_proof_search_kernel_rerun_queue
 from .proof_search_retrieval_ablation import run_proof_search_retrieval_ablation
 from .proof_search_training_export import export_proof_search_process_dataset
 from .proof_search_value_model import train_proof_search_value_model
@@ -567,6 +568,12 @@ async def run_research_system_audit(
         Path(str(proof_search_manifest["results_jsonl"])),
         out_dir / "proof_search_training_export",
         validation_fraction=0.2,
+    )
+    proof_search_kernel_rerun_queue_manifest = export_proof_search_kernel_rerun_queue(
+        out_dir / "proof_search_audit",
+        out_dir / "proof_search_kernel_rerun_queue",
+        local_lean_project=config.local_lean_project,
+        local_lean_timeout=config.local_lean_timeout,
     )
     stage_start = _record_stage(stage_timings, "proof_training_repair_policy_exports", stage_start)
 
@@ -2087,6 +2094,15 @@ async def run_research_system_audit(
             "proof_search_obligations": proof_search_manifest["n_obligations"],
             "proof_search_solved": proof_search_manifest["n_solved"],
             "proof_search_kernel_verified": proof_search_manifest["n_kernel_verified"],
+            "proof_search_kernel_rerun_queue_items": proof_search_kernel_rerun_queue_manifest[
+                "n_queue_rows"
+            ],
+            "proof_search_kernel_rerun_queue_ready": proof_search_kernel_rerun_queue_manifest[
+                "n_ready_for_local_lean_or_axle"
+            ],
+            "proof_search_kernel_rerun_queue_blocked": proof_search_kernel_rerun_queue_manifest[
+                "n_blocked_missing_selected_proof_body"
+            ],
             "proof_search_nodes_expanded": proof_search_manifest["nodes_expanded"],
             "proof_search_mean_nodes_expanded": proof_search_manifest["mean_nodes_expanded"],
             "proof_search_tactic_template_candidates_total": proof_search_manifest[
@@ -3750,6 +3766,17 @@ async def run_research_system_audit(
             ),
             "proof_search_audit": str(out_dir / "proof_search_audit" / "proof_search_audit_manifest.json"),
             "proof_search_results": str(out_dir / "proof_search_audit" / "proof_search_results.jsonl"),
+            "proof_search_kernel_rerun_queue": str(
+                out_dir
+                / "proof_search_kernel_rerun_queue"
+                / "proof_search_kernel_rerun_queue_manifest.json"
+            ),
+            "proof_search_kernel_rerun_queue_jsonl": str(
+                out_dir / "proof_search_kernel_rerun_queue" / "proof_search_kernel_rerun_queue.jsonl"
+            ),
+            "proof_search_kernel_rerun_queue_report": str(
+                out_dir / "proof_search_kernel_rerun_queue" / "proof_search_kernel_rerun_queue.md"
+            ),
             "proof_search_bootstrap_audit": str(
                 out_dir / "proof_search_bootstrap_audit" / "proof_search_audit_manifest.json"
             ),

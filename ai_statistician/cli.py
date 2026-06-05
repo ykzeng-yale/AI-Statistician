@@ -187,6 +187,7 @@ from .proof_policy_baseline import evaluate_retrieval_proof_policy_baseline
 from .proof_policy_model import train_proof_policy_model
 from .proof_repair_export import export_proof_repair_dataset
 from .proof_search_audit import audit_proof_search_controller
+from .proof_search_kernel_rerun_queue import export_proof_search_kernel_rerun_queue
 from .proof_search_retrieval_ablation import run_proof_search_retrieval_ablation
 from .proof_search_training_export import export_proof_search_process_dataset
 from .proof_search_value_model import train_proof_search_value_model
@@ -300,9 +301,19 @@ def _theory_proposer_from_args(args: argparse.Namespace):
 
 def _proof_verifier_from_args(args: argparse.Namespace):
     if getattr(args, "local_lean", False):
+        lean_project = getattr(args, "lean_project", None) or getattr(
+            args,
+            "local_lean_project",
+            None,
+        )
+        lean_timeout = getattr(
+            args,
+            "lean_timeout",
+            getattr(args, "local_lean_timeout", 90),
+        ) or getattr(args, "local_lean_timeout", 90)
         return LocalLeanProofVerifier(
-            project_root=getattr(args, "lean_project", None),
-            timeout_s=getattr(args, "lean_timeout", 90),
+            project_root=lean_project,
+            timeout_s=lean_timeout,
         )
     return AxleProofVerifier() if getattr(args, "real_lean", False) else MockProofVerifier()
 
@@ -504,6 +515,33 @@ async def _proof_search_audit(args: argparse.Namespace) -> int:
     print(f"results={Path(str(payload['results_jsonl'])).resolve()}")
     print(f"manifest written to {(Path(args.out) / 'proof_search_audit_manifest.json').resolve()}")
     return 0
+
+
+def _proof_search_kernel_rerun_queue(args: argparse.Namespace) -> int:
+    payload = export_proof_search_kernel_rerun_queue(
+        Path(args.proof_search_audit_dir),
+        Path(args.out),
+        local_lean_project=args.local_lean_project,
+        local_lean_timeout=args.local_lean_timeout,
+        max_rows=args.max_rows,
+    )
+    print("\nAI Statistician Proof Search Kernel Rerun Queue")
+    print("=" * 72)
+    print(
+        f"rows={payload['n_ok']}/{payload['n_queue_rows']} "
+        f"ready={payload['n_ready_for_local_lean_or_axle']} "
+        f"blocked={payload['n_blocked_missing_selected_proof_body']} "
+        f"source_kernel={payload['n_source_kernel_verified']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(f"rerun command: {payload['batch_local_lean_rerun_command']}")
+    print(
+        f"manifest written to "
+        f"{(Path(args.out) / 'proof_search_kernel_rerun_queue_manifest.json').resolve()}"
+    )
+    print(f"jsonl written to {(Path(args.out) / 'proof_search_kernel_rerun_queue.jsonl').resolve()}")
+    print(f"markdown report written to {(Path(args.out) / 'proof_search_kernel_rerun_queue.md').resolve()}")
+    return 0 if payload["all_ok"] else 1
 
 
 def _proof_search_training_export(args: argparse.Namespace) -> int:
@@ -4000,6 +4038,29 @@ def build_parser() -> argparse.ArgumentParser:
         help="output directory for proof_search_results.jsonl and manifest",
     )
     proof_search_audit.set_defaults(func=lambda args: asyncio.run(_proof_search_audit(args)))
+
+    proof_search_kernel_rerun_queue = sub.add_parser(
+        "proof-search-kernel-rerun-queue",
+        help="queue mock/static proof-search solutions for AXLE/local Lean replay",
+    )
+    proof_search_kernel_rerun_queue.add_argument(
+        "--proof-search-audit-dir",
+        required=True,
+        help="directory containing proof_search_audit_manifest.json and proof_search_results.jsonl",
+    )
+    proof_search_kernel_rerun_queue.add_argument(
+        "--local-lean-project",
+        default=None,
+        help="optional local Lake project for the generated local Lean replay command",
+    )
+    proof_search_kernel_rerun_queue.add_argument("--local-lean-timeout", type=int, default=90)
+    proof_search_kernel_rerun_queue.add_argument("--max-rows", type=int, default=50)
+    proof_search_kernel_rerun_queue.add_argument(
+        "--out",
+        default="runs/proof_search_kernel_rerun_queue",
+        help="proof-search kernel rerun queue output directory",
+    )
+    proof_search_kernel_rerun_queue.set_defaults(func=_proof_search_kernel_rerun_queue)
 
     proof_search_training_export = sub.add_parser(
         "proof-search-training-export",

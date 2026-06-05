@@ -77,6 +77,12 @@ def export_rag_collaboration_manifest(
     theorem_composition_payload = _read_json(theorem_composition_path)
     formal_verifier_queue_path = _artifact_path(artifacts, "formal_verifier_queue", run_dir)
     formal_verifier_queue_payload = _read_json(formal_verifier_queue_path)
+    proof_search_kernel_rerun_queue_path = _artifact_path(
+        artifacts,
+        "proof_search_kernel_rerun_queue",
+        run_dir,
+    )
+    proof_search_kernel_rerun_queue_payload = _read_json(proof_search_kernel_rerun_queue_path)
     goal_conditioned_minimal_formalization_plan_path = _artifact_path(
         artifacts,
         "goal_conditioned_minimal_formalization_plan",
@@ -594,6 +600,29 @@ def export_rag_collaboration_manifest(
             "formal_verifier_queue_proof_search_solved": counts.get(
                 "formal_verifier_queue_proof_search_solved",
                 formal_verifier_queue_payload.get("n_proof_search_solved"),
+            ),
+            "proof_search_kernel_rerun_queue_items": counts.get(
+                "proof_search_kernel_rerun_queue_items",
+                proof_search_kernel_rerun_queue_payload.get("n_queue_rows"),
+            ),
+            "proof_search_kernel_rerun_queue_ready": counts.get(
+                "proof_search_kernel_rerun_queue_ready",
+                proof_search_kernel_rerun_queue_payload.get("n_ready_for_local_lean_or_axle"),
+            ),
+            "proof_search_kernel_rerun_queue_blocked": counts.get(
+                "proof_search_kernel_rerun_queue_blocked",
+                proof_search_kernel_rerun_queue_payload.get(
+                    "n_blocked_missing_selected_proof_body"
+                ),
+            ),
+            "proof_search_kernel_rerun_queue_manifest": str(proof_search_kernel_rerun_queue_path),
+            "proof_search_kernel_rerun_queue_command": proof_search_kernel_rerun_queue_payload.get(
+                "batch_local_lean_rerun_command",
+                "",
+            ),
+            "proof_search_kernel_rerun_queue_preview": _proof_search_kernel_rerun_queue_preview(
+                proof_search_kernel_rerun_queue_payload,
+                max_rows=min(max_targets, 10),
             ),
             "formal_verifier_queue_max_dependency_graph_depth": counts.get(
                 "formal_verifier_queue_max_dependency_graph_depth",
@@ -1800,6 +1829,7 @@ def export_rag_collaboration_manifest(
             "FormalVerifier replay rows are executable task/training artifacts, not theorem proof evidence.",
             "FormalVerifier replay attempts are proof evidence only when kernel_verified=true and placeholders were removed.",
             "FormalVerifier replay calibration rows are proof evidence only for full-route kernel-verified targets.",
+            "Proof-search kernel-rerun queue rows are replay work orders, not proof evidence.",
             "FormalVerifier replay repair packets and proof templates are not proof evidence until a repaired attempt passes AXLE/local Lean.",
             "FormalVerifier replay repair application scaffolds are work artifacts, not proof evidence.",
             "FormalVerifier repair scaffold validation is source-artifact integrity evidence, not theorem proof evidence.",
@@ -2613,6 +2643,38 @@ def _lean_rag_seed_lanes(payload: dict[str, Any]) -> list[str]:
     if isinstance(lanes, tuple):
         return [str(lane) for lane in lanes]
     return []
+
+
+def _proof_search_kernel_rerun_queue_preview(
+    payload: dict[str, Any],
+    *,
+    max_rows: int,
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    payload_rows = payload.get("rows", [])
+    if not isinstance(payload_rows, list):
+        return rows
+    for row in payload_rows:
+        if not isinstance(row, dict):
+            continue
+        rows.append(
+            {
+                "rerun_queue_id": row.get("rerun_queue_id"),
+                "obligation_id": row.get("obligation_id"),
+                "title": row.get("title"),
+                "status": row.get("status"),
+                "selected_source": row.get("selected_source"),
+                "selected_verifier": row.get("selected_verifier"),
+                "selected_verification_strength": row.get("selected_verification_strength"),
+                "prior_nodes_expanded": row.get("prior_nodes_expanded", 0),
+                "prior_candidates_total": row.get("prior_candidates_total", 0),
+                "required_gate": row.get("required_gate"),
+                "proof_evidence_status": row.get("proof_evidence_status"),
+            }
+        )
+        if len(rows) >= max_rows:
+            break
+    return rows
 
 
 def _formal_verifier_queue_preview(
@@ -3902,6 +3964,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"`{queue.get('formal_verifier_queue_requires_new_theory')}` new-theory routes)",
         f"- Formal verifier proof history: `{queue.get('formal_verifier_queue_rows_with_attempt_history')}` rows "
         f"with attempt history, `{queue.get('formal_verifier_queue_proof_search_solved')}` solved subclaim searches",
+        f"- Proof-search kernel rerun queue: `{queue.get('proof_search_kernel_rerun_queue_ready')}` ready, "
+        f"`{queue.get('proof_search_kernel_rerun_queue_blocked')}` blocked "
+        f"from `{queue.get('proof_search_kernel_rerun_queue_items')}` rows",
         f"- Formal verifier source/semantic checks: max depth `{queue.get('formal_verifier_queue_max_dependency_graph_depth')}`, "
         f"max import cone `{queue.get('formal_verifier_queue_max_import_cone_size')}`, "
         f"semantic review rows `{queue.get('formal_verifier_queue_semantic_needs_review')}`",
@@ -4150,6 +4215,19 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{target.get('suggested_next_step')}"
         )
         lines.append(f"  query: `{target.get('query_hint')}`")
+    lines.extend(["", "## Proof Search Kernel Rerun Queue", ""])
+    command = str(queue.get("proof_search_kernel_rerun_queue_command") or "")
+    if command:
+        lines.append(f"- command: `{command}`")
+    for row in queue.get("proof_search_kernel_rerun_queue_preview", []):
+        if not isinstance(row, dict):
+            continue
+        lines.append(
+            f"- `{row.get('obligation_id')}` status=`{row.get('status')}` "
+            f"source=`{row.get('selected_source')}` "
+            f"strength=`{row.get('selected_verification_strength')}`"
+        )
+        lines.append(f"  gate: {row.get('required_gate')}")
     lines.extend(["", "## Formal Verifier Queue", ""])
     for row in queue.get("formal_verifier_queue_preview", []):
         if not isinstance(row, dict):

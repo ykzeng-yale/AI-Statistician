@@ -163,6 +163,7 @@ from ai_statistician.proof_policy_model import load_proof_policy_model, train_pr
 from ai_statistician.proof_repair_export import export_proof_repair_dataset
 from ai_statistician.proof_search import BestFirstWholeProofSearchController, ProofCandidate
 from ai_statistician.proof_search_audit import audit_proof_search_controller
+from ai_statistician.proof_search_kernel_rerun_queue import export_proof_search_kernel_rerun_queue
 from ai_statistician.proof_search_retrieval_ablation import run_proof_search_retrieval_ablation
 from ai_statistician.proof_search_training_export import export_proof_search_process_dataset
 from ai_statistician.proof_search_value_model import (
@@ -238,6 +239,7 @@ from ai_statistician.theory_proposal import MockTheoryProposer, TheoryProposal
 from ai_statistician.trace_audit import audit_run_traces
 from ai_statistician.verifier import CachingProofVerifier, LocalLeanProofVerifier, MockProofVerifier
 from ai_statistician.verifier import splice_proof
+from ai_statistician.cli import _proof_verifier_from_args
 
 
 def _write_tiny_lean_rag_dependency_db(path: Path) -> Path:
@@ -1846,6 +1848,123 @@ class ProofBankTests(unittest.TestCase):
         self.assertTrue(value_guided.solved)
         self.assertIsNotNone(value_guided.nodes[0].value_score)
         self.assertEqual(value_guided.nodes[0].source, "registered_proof_body")
+
+    def test_proof_search_kernel_rerun_queue_exports_mock_solved_rows(self) -> None:
+        source_dir = Path("runs/test_proof_search_kernel_rerun_source")
+        source_dir.mkdir(parents=True, exist_ok=True)
+        results_path = source_dir / "proof_search_results.jsonl"
+        result_rows = [
+            {
+                "obligation_id": "adapted_hitting_after_is_stopping_time",
+                "solved": True,
+                "kernel_verified": False,
+                "selected_candidate_id": "adapted_hitting_after_is_stopping_time:registered",
+                "selected_source": "registered_proof_body",
+                "selected_proof_body": "by\n  exact hX.isStoppingTime_hittingAfter hS",
+                "selected_verification_strength": "mock_static_check",
+                "verifier": "mock",
+                "nodes_expanded": 1,
+                "candidates_total": 12,
+                "formal_source_candidates_total": 3,
+                "search_fingerprint": "search-a",
+            },
+            {
+                "obligation_id": "affine_estimator_expectation",
+                "solved": True,
+                "kernel_verified": True,
+                "selected_candidate_id": "affine_estimator_expectation:registered",
+                "selected_source": "registered_proof_body",
+                "selected_proof_body": "by\n  rfl",
+                "selected_verification_strength": "local_lean_kernel",
+                "verifier": "local.lake_env_lean",
+                "nodes_expanded": 1,
+                "candidates_total": 8,
+                "formal_source_candidates_total": 2,
+                "search_fingerprint": "search-b",
+            },
+            {
+                "obligation_id": "affine_estimator_variance",
+                "solved": True,
+                "kernel_verified": False,
+                "selected_candidate_id": "affine_estimator_variance:registered",
+                "selected_source": "registered_proof_body",
+                "selected_proof_body": "",
+                "selected_verification_strength": "mock_static_check",
+                "verifier": "mock",
+                "nodes_expanded": 1,
+                "candidates_total": 10,
+                "formal_source_candidates_total": 2,
+                "search_fingerprint": "search-c",
+            },
+        ]
+        results_path.write_text(
+            "\n".join(json.dumps(row) for row in result_rows) + "\n",
+            encoding="utf-8",
+        )
+        (source_dir / "proof_search_audit_manifest.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 6,
+                    "verifier": "mock",
+                    "max_obligations": 3,
+                    "max_nodes": 4,
+                    "include_invalid_probe": True,
+                    "include_registered_proof": True,
+                    "policy_model_json": "runs/example/proof_policy_model.json",
+                    "value_model_json": "",
+                    "results_jsonl": str(results_path),
+                }
+            ),
+            encoding="utf-8",
+        )
+        payload = export_proof_search_kernel_rerun_queue(
+            source_dir,
+            Path("runs/test_proof_search_kernel_rerun_queue"),
+            local_lean_project="/tmp/LeanPractice",
+            local_lean_timeout=17,
+        )
+        self.assertFalse(payload["all_ok"])
+        self.assertEqual(payload["n_source_result_rows"], 3)
+        self.assertEqual(payload["n_source_solved"], 3)
+        self.assertEqual(payload["n_source_kernel_verified"], 1)
+        self.assertEqual(payload["n_source_needs_kernel_rerun"], 2)
+        self.assertEqual(payload["n_queue_rows"], 2)
+        self.assertEqual(payload["n_ready_for_local_lean_or_axle"], 1)
+        self.assertEqual(payload["n_blocked_missing_selected_proof_body"], 1)
+        self.assertIn("--local-lean-project /tmp/LeanPractice", payload["batch_local_lean_rerun_command"])
+        self.assertIn("--include-invalid-probe", payload["batch_local_lean_rerun_command"])
+        self.assertIn("--local-lean-timeout 17", payload["batch_local_lean_rerun_command"])
+        self.assertIn("proof_search_kernel_rerun_local_lean", payload["batch_local_lean_rerun_command"])
+        ready_rows = [
+            row for row in payload["rows"] if row["status"] == "READY_FOR_LOCAL_LEAN_OR_AXLE_RERUN"
+        ]
+        self.assertEqual(len(ready_rows), 1)
+        self.assertEqual(ready_rows[0]["proof_evidence_status"], "PROOF_SEARCH_KERNEL_RERUN_QUEUE_NOT_PROOF_EVIDENCE")
+        self.assertIn(
+            "AXLE/local Lean",
+            ready_rows[0]["required_gate"],
+        )
+        self.assertTrue(Path("runs/test_proof_search_kernel_rerun_queue/proof_search_kernel_rerun_queue.jsonl").exists())
+        self.assertTrue(Path("runs/test_proof_search_kernel_rerun_queue/proof_search_kernel_rerun_queue.md").exists())
+
+    def test_proof_search_audit_local_lean_project_arg_reaches_verifier(self) -> None:
+        lean_project = Path("runs/test_cli_local_lean_project_arg")
+        lean_project.mkdir(parents=True, exist_ok=True)
+        (lean_project / "lakefile.toml").write_text(
+            'name = "unit"\ndefaultTargets = []\n',
+            encoding="utf-8",
+        )
+
+        class Args:
+            local_lean = True
+            local_lean_project = str(lean_project)
+            local_lean_timeout = 7
+            real_lean = False
+
+        verifier = _proof_verifier_from_args(Args())
+        self.assertIsInstance(verifier, LocalLeanProofVerifier)
+        self.assertEqual(verifier.project_root, lean_project)
+        self.assertEqual(verifier.timeout_s, 7)
 
     def test_proof_search_audit_can_disable_registered_proof_bodies_for_hard_mode(self) -> None:
         async def run():
