@@ -666,6 +666,25 @@ goals into that JSONL. The overlay command writes accepted proposals back
 against the route plan as an inspectable revised-route artifact. These rows are
 route evidence only.
 
+LeanBlueprint is now a first-class knowledge-base integration for future route
+DAG visualization:
+
+```bash
+python3 -m ai_statistician.cli lean-blueprint-knowledge \
+  --out runs/current/lean_blueprint_knowledge
+```
+
+This does not build a project-specific blueprint yet. It records
+PatrickMassot/leanblueprint as an Apache-2.0 integration-reference source and
+exports `lean_blueprint_knowledge_graph.json` plus
+`lean_blueprint_visualization_adapter_plan.json`. The adapter maps
+`\lean`, `\leanok`, `\uses`, `\notready`, `\discussion`, `\proves`, and
+`\mathlibok` to future AI-Statistician visualization fields: informal route DAG
+nodes, prerequisite edges, Lean declaration links, proof/readiness status,
+issue links, and Mathlib-reuse status. These fields are planning and
+visualization metadata only; proof status still changes only after local Lean
+verification of the linked declarations.
+
 ```bash
 python3 -m ai_statistician.cli formal-verifier-replay-export \
   --formal-verifier-queue-dir runs/current/formal_verifier_queue \

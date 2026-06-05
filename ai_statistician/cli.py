@@ -192,6 +192,7 @@ from .lean_rag_package_audit import (
     preflight_lean_rag_source_registry_expansion,
     stage_lean_rag_source_registry_expansion,
 )
+from .lean_blueprint_knowledge import export_lean_blueprint_knowledge
 from .lean_rag_dependency_health import audit_lean_rag_dependency_health
 from .paper_theory_roundtrip import export_paper_theory_roundtrip
 from .proof_audit import audit_proof_bank
@@ -913,6 +914,35 @@ def _research_knowledge_audit(args: argparse.Namespace) -> int:
         f"{(Path(args.out) / 'research_knowledge_audit_manifest.json').resolve()}"
     )
     print(f"markdown report written to {(Path(args.out) / 'research_knowledge_audit.md').resolve()}")
+    return 0 if payload["all_ok"] else 1
+
+
+def _lean_blueprint_knowledge(args: argparse.Namespace) -> int:
+    payload = export_lean_blueprint_knowledge(
+        Path(args.out),
+        blueprint_root=Path(args.blueprint_root) if args.blueprint_root else None,
+    )
+    graph = payload["knowledge_graph"]
+    source = payload["source"]
+    print("\nAI Statistical Theory Lab LeanBlueprint Knowledge")
+    print("=" * 72)
+    print(
+        f"available={source.get('exists')} all_ok={payload['all_ok']} "
+        f"commit={str(source.get('git_commit', ''))[:12]} root={source.get('root')}"
+    )
+    print(
+        f"macros={len(payload['macros'])} statuses={len(payload['statuses'])} "
+        f"graph={graph.get('n_nodes')} nodes/{graph.get('n_edges')} edges"
+    )
+    print(
+        f"\nLeanBlueprint manifest written to "
+        f"{(Path(args.out) / 'lean_blueprint_knowledge_manifest.json').resolve()}"
+    )
+    print(f"graph written to {(Path(args.out) / 'lean_blueprint_knowledge_graph.json').resolve()}")
+    print(
+        f"adapter plan written to "
+        f"{(Path(args.out) / 'lean_blueprint_visualization_adapter_plan.json').resolve()}"
+    )
     return 0 if payload["all_ok"] else 1
 
 
@@ -4377,6 +4407,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="research knowledge audit output directory",
     )
     research_knowledge_audit.set_defaults(func=_research_knowledge_audit)
+
+    lean_blueprint_knowledge = sub.add_parser(
+        "lean-blueprint-knowledge",
+        help="export LeanBlueprint knowledge and visualization adapter artifacts",
+    )
+    lean_blueprint_knowledge.add_argument(
+        "--blueprint-root",
+        default="",
+        help="optional local PatrickMassot/leanblueprint checkout; defaults to ~/.codex/external/leanblueprint",
+    )
+    lean_blueprint_knowledge.add_argument(
+        "--out",
+        default="runs/lean_blueprint_knowledge",
+        help="LeanBlueprint knowledge output directory",
+    )
+    lean_blueprint_knowledge.set_defaults(func=_lean_blueprint_knowledge)
 
     frontier_coverage_audit = sub.add_parser(
         "frontier-coverage-audit",
