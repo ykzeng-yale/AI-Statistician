@@ -32,6 +32,7 @@ from .architecture_audit import audit_architecture
 from .assumption_interface_export import export_assumption_interfaces
 from .claim_ledger_action_export import export_claim_ledger_actions
 from .claim_ledger import build_claim_ledger
+from .stat_claim_certificate_plan import export_stat_claim_certificate_plan
 from .evaluation_benchmark_guidance import build_evaluation_benchmark_guidance
 from .formal_gap_task_export import export_formal_gap_lean_tasks
 from .formalization_delta_plan import build_formalization_delta_plan
@@ -1159,6 +1160,11 @@ async def run_research_system_audit(
         out_dir / "claim_ledger_actions",
     )
     stage_start = _record_stage(stage_timings, "claim_ledger_actions", stage_start)
+    stat_claim_certificate_manifest = export_stat_claim_certificate_plan(
+        out_dir / "claim_ledger",
+        out_dir / "stat_claim_certificate_plan",
+    )
+    stage_start = _record_stage(stage_timings, "stat_claim_certificate_plan", stage_start)
     theorem_composition_manifest = export_theorem_composition_packets(
         out_dir / "claim_ledger",
         out_dir / "theorem_composition",
@@ -1488,6 +1494,7 @@ async def run_research_system_audit(
         "research_report": bool(research_report_manifest["all_ok"]),
         "claim_ledger": bool(claim_ledger_manifest["all_ok"]),
         "claim_ledger_actions": bool(claim_ledger_action_manifest["all_ok"]),
+        "stat_claim_certificate_plan": bool(stat_claim_certificate_manifest["all_ok"]),
         "theorem_composition_export": bool(theorem_composition_manifest["all_ok"]),
         "research_loop": bool(research_loop_manifest["all_loop_traces_written"])
         and bool(research_loop_manifest["all_repair_tasks_exported"])
@@ -1553,6 +1560,7 @@ async def run_research_system_audit(
         "research_report",
         "claim_ledger",
         "claim_ledger_actions",
+        "stat_claim_certificate_plan",
         "theorem_composition_export",
     )
     if (
@@ -3485,6 +3493,33 @@ async def run_research_system_audit(
                 "research_coordinator",
                 0,
             ),
+            "stat_claim_certificate_targets": stat_claim_certificate_manifest["n_targets"],
+            "stat_claim_certificate_targets_ok": stat_claim_certificate_manifest["n_ok"],
+            "stat_claim_certificate_checker_families": stat_claim_certificate_manifest[
+                "n_checker_families"
+            ],
+            "stat_claim_certificate_proof_evidence_ready": stat_claim_certificate_manifest[
+                "n_proof_evidence_ready"
+            ],
+            "stat_claim_certificate_proof_evidence_status": stat_claim_certificate_manifest[
+                "proof_evidence_status"
+            ],
+            "stat_claim_certificate_conformal_targets": stat_claim_certificate_manifest[
+                "by_family"
+            ].get("conformal_coverage_certificate", 0),
+            "stat_claim_certificate_randomization_targets": stat_claim_certificate_manifest[
+                "by_family"
+            ].get("randomization_variance_certificate", 0),
+            "stat_claim_certificate_multiple_testing_targets": stat_claim_certificate_manifest[
+                "by_family"
+            ].get("multiple_testing_threshold_certificate", 0),
+            "stat_claim_certificate_privacy_targets": stat_claim_certificate_manifest[
+                "by_family"
+            ].get("privacy_accountant_certificate", 0),
+            "stat_claim_certificate_kkt_targets": stat_claim_certificate_manifest["by_family"].get(
+                "kkt_optimality_certificate",
+                0,
+            ),
             "theorem_composition_packets": theorem_composition_manifest["n_packets"],
             "theorem_composition_packets_ok": theorem_composition_manifest["n_ok"],
             "theorem_composition_exact_proof_bank_links": theorem_composition_manifest[
@@ -4609,6 +4644,15 @@ async def run_research_system_audit(
             ),
             "claim_ledger_actions_jsonl": str(out_dir / "claim_ledger_actions" / "claim_ledger_actions.jsonl"),
             "claim_ledger_actions_report": str(out_dir / "claim_ledger_actions" / "claim_ledger_actions.md"),
+            "stat_claim_certificate_plan": str(
+                out_dir / "stat_claim_certificate_plan" / "stat_claim_certificate_plan_manifest.json"
+            ),
+            "stat_claim_certificate_targets_jsonl": str(
+                out_dir / "stat_claim_certificate_plan" / "stat_claim_certificate_targets.jsonl"
+            ),
+            "stat_claim_certificate_plan_report": str(
+                out_dir / "stat_claim_certificate_plan" / "stat_claim_certificate_plan.md"
+            ),
             "theorem_composition": str(
                 out_dir / "theorem_composition" / "theorem_composition_manifest.json"
             ),
@@ -5011,6 +5055,9 @@ def _research_benchmark_cache_key(
             "claim_ledger": _source_file_hash(Path(__file__).with_name("claim_ledger.py")),
             "claim_ledger_action_export": _source_file_hash(
                 Path(__file__).with_name("claim_ledger_action_export.py")
+            ),
+            "stat_claim_certificate_plan": _source_file_hash(
+                Path(__file__).with_name("stat_claim_certificate_plan.py")
             ),
             "research_lab": _source_file_hash(Path(__file__).with_name("research_lab.py")),
             "research_schema": _source_file_hash(Path(__file__).with_name("research_schema.py")),

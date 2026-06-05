@@ -29,6 +29,7 @@ from ai_statistician.assumption_interface_export import export_assumption_interf
 from ai_statistician.capability_audit import build_capability_audit, write_capability_audit
 from ai_statistician.claim_ledger_action_export import export_claim_ledger_actions
 from ai_statistician.claim_ledger import build_claim_ledger
+from ai_statistician.stat_claim_certificate_plan import export_stat_claim_certificate_plan
 from ai_statistician.doctor import build_doctor_report, write_doctor_manifest
 from ai_statistician.evaluation_benchmark_guidance import build_evaluation_benchmark_guidance
 from ai_statistician.frontier_coverage_audit import audit_frontier_coverage, load_frontier_benchmark_questions
@@ -7031,6 +7032,74 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(Path("runs/test_theorem_composition/theorem_composition_manifest.json").exists())
         self.assertTrue(Path("runs/test_theorem_composition/theorem_composition_packets.jsonl").exists())
         self.assertTrue(Path("runs/test_theorem_composition/theorem_composition.md").exists())
+
+    def test_stat_claim_certificate_plan_exports_checker_targets_without_proof_claims(self) -> None:
+        ledger_dir = Path("runs/test_stat_claim_certificate_plan_ledger")
+        out_dir = Path("runs/test_stat_claim_certificate_plan")
+        shutil.rmtree(ledger_dir, ignore_errors=True)
+        shutil.rmtree(out_dir, ignore_errors=True)
+        ledger_dir.mkdir(parents=True, exist_ok=True)
+        rows = [
+            {
+                "claim_id": "theorem_goal:conformal_prediction_coverage:coverage",
+                "question_id": "conformal_prediction_coverage",
+                "problem_class": "conformal_prediction",
+                "kind": "theorem_goal",
+                "status": "FORMAL_GAP",
+                "statement": "Split conformal prediction has marginal coverage by exchangeable ranks and quantile threshold.",
+                "required_primitives": ["exchangeable_rank_uniformity", "order_statistic_quantile_rule"],
+                "evidence_paths": ["runs/test_stat_claim_certificate_plan_ledger/conformal.json"],
+            },
+            {
+                "claim_id": "theorem_goal:design_based_variance_bound:neyman",
+                "question_id": "design_based_variance_bound",
+                "problem_class": "design_based_variance",
+                "kind": "theorem_goal",
+                "status": "PROOF_FAILED",
+                "statement": "The Neyman conservative variance estimator upper-bounds randomization variance.",
+                "required_primitives": ["complete_randomization_distribution", "neyman_variance_bound"],
+                "evidence_paths": ["runs/test_stat_claim_certificate_plan_ledger/randomization.json"],
+            },
+            {
+                "claim_id": "theorem_goal:multiple_testing_fdr_bh:fdr",
+                "question_id": "multiple_testing_fdr_bh",
+                "problem_class": "multiple_testing_fdr",
+                "kind": "theorem_goal",
+                "status": "THEOREM_GOAL_CONJECTURED",
+                "statement": "The Benjamini-Hochberg step-up threshold controls false discovery rate under valid p-values.",
+                "required_primitives": ["p_value_validity", "stepup_threshold_monotonicity"],
+                "evidence_paths": ["runs/test_stat_claim_certificate_plan_ledger/bh.json"],
+            },
+        ]
+        (ledger_dir / "claim_ledger_manifest.json").write_text(
+            json.dumps({"all_ok": True, "n_claims": len(rows)}),
+            encoding="utf-8",
+        )
+        (ledger_dir / "claim_ledger.jsonl").write_text(
+            "\n".join(json.dumps(row) for row in rows) + "\n",
+            encoding="utf-8",
+        )
+
+        payload = export_stat_claim_certificate_plan(ledger_dir, out_dir)
+
+        self.assertTrue(payload["all_ok"])
+        self.assertEqual(payload["n_targets"], 3)
+        self.assertEqual(payload["n_ok"], 3)
+        self.assertEqual(payload["n_proof_evidence_ready"], 0)
+        self.assertEqual(
+            payload["proof_evidence_status"],
+            "STAT_CLAIM_CERTIFICATE_PLAN_NOT_PROOF_EVIDENCE",
+        )
+        self.assertEqual(payload["by_family"]["conformal_coverage_certificate"], 1)
+        self.assertEqual(payload["by_family"]["randomization_variance_certificate"], 1)
+        self.assertEqual(payload["by_family"]["multiple_testing_threshold_certificate"], 1)
+        first = payload["targets"][0]
+        self.assertIn("checker cert = true", first["checker_theorem_shape"])
+        self.assertIn("Lean/AXLE kernel verifies", first["required_gate"])
+        self.assertIn("not proof evidence", first["evidence_boundary"])
+        self.assertTrue(Path("runs/test_stat_claim_certificate_plan/stat_claim_certificate_plan_manifest.json").exists())
+        self.assertTrue(Path("runs/test_stat_claim_certificate_plan/stat_claim_certificate_targets.jsonl").exists())
+        self.assertTrue(Path("runs/test_stat_claim_certificate_plan/stat_claim_certificate_plan.md").exists())
 
     def test_claim_ledger_action_export_turns_revision_rows_into_owner_tasks(self) -> None:
         async def run():
@@ -17642,6 +17711,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["gates"]["research_report"])
         self.assertTrue(payload["gates"]["claim_ledger"])
         self.assertTrue(payload["gates"]["claim_ledger_actions"])
+        self.assertTrue(payload["gates"]["stat_claim_certificate_plan"])
         self.assertTrue(payload["gates"]["theorem_composition_export"])
         self.assertTrue(payload["gates"]["research_loop"])
         self.assertTrue(payload["gates"]["research_loop_repair_audit"])
@@ -18153,6 +18223,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "research_report",
             "claim_ledger",
             "claim_ledger_actions",
+            "stat_claim_certificate_plan",
             "theorem_composition_export",
         }:
             self.assertIn(expected_stage, timing_stages)
@@ -19890,6 +19961,20 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             payload["counts"]["claim_ledger_actions_research_coordinator"],
             payload["counts"]["claim_ledger_actions_exact_proof_bank_reuse"],
         )
+        self.assertEqual(
+            payload["counts"]["stat_claim_certificate_targets_ok"],
+            payload["counts"]["stat_claim_certificate_targets"],
+        )
+        self.assertGreater(payload["counts"]["stat_claim_certificate_targets"], 0)
+        self.assertGreaterEqual(payload["counts"]["stat_claim_certificate_checker_families"], 3)
+        self.assertEqual(payload["counts"]["stat_claim_certificate_proof_evidence_ready"], 0)
+        self.assertEqual(
+            payload["counts"]["stat_claim_certificate_proof_evidence_status"],
+            "STAT_CLAIM_CERTIFICATE_PLAN_NOT_PROOF_EVIDENCE",
+        )
+        self.assertGreater(payload["counts"]["stat_claim_certificate_conformal_targets"], 0)
+        self.assertGreater(payload["counts"]["stat_claim_certificate_randomization_targets"], 0)
+        self.assertGreater(payload["counts"]["stat_claim_certificate_multiple_testing_targets"], 0)
         self.assertEqual(payload["counts"]["theorem_composition_packets_ok"], payload["counts"]["theorem_composition_packets"])
         self.assertEqual(
             payload["counts"]["theorem_composition_packets"],
@@ -20012,6 +20097,9 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(Path(payload["artifacts"]["claim_ledger_actions"]).exists())
         self.assertTrue(Path(payload["artifacts"]["claim_ledger_actions_jsonl"]).exists())
         self.assertTrue(Path(payload["artifacts"]["claim_ledger_actions_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_plan"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_targets_jsonl"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_plan_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["theorem_composition"]).exists())
         self.assertTrue(Path(payload["artifacts"]["theorem_composition_jsonl"]).exists())
         self.assertTrue(Path(payload["artifacts"]["theorem_composition_report"]).exists())

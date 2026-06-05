@@ -22,6 +22,7 @@ from .autoform_harness import audit_autoform_harness
 from .capability_audit import build_capability_audit, write_capability_audit
 from .claim_ledger_action_export import export_claim_ledger_actions
 from .claim_ledger import build_claim_ledger
+from .stat_claim_certificate_plan import export_stat_claim_certificate_plan
 from .doctor import build_doctor_report, write_doctor_manifest
 from .evaluation import EvalConfig, run_seed_eval
 from .autoform_target_export import export_autoform_targets
@@ -3248,6 +3249,31 @@ def _claim_ledger_action_export(args: argparse.Namespace) -> int:
     return 0 if payload["all_ok"] else 1
 
 
+def _stat_claim_certificate_plan(args: argparse.Namespace) -> int:
+    payload = export_stat_claim_certificate_plan(
+        Path(args.claim_ledger_dir),
+        Path(args.out),
+        max_targets=args.max_targets,
+    )
+    print("\nAI Statistical Theory Lab Statistical Claim Certificate Plan")
+    print("=" * 72)
+    print(
+        f"targets={payload['n_ok']}/{payload['n_targets']} "
+        f"families={payload['n_checker_families']} "
+        f"status={payload['proof_evidence_status']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    for family, count in payload["by_family"].items():
+        print(f"  {family}: {count}")
+    print(
+        f"\nstat-claim certificate manifest written to "
+        f"{(Path(args.out) / 'stat_claim_certificate_plan_manifest.json').resolve()}"
+    )
+    print(f"jsonl written to {(Path(args.out) / 'stat_claim_certificate_targets.jsonl').resolve()}")
+    print(f"markdown report written to {(Path(args.out) / 'stat_claim_certificate_plan.md').resolve()}")
+    return 0 if payload["all_ok"] else 1
+
+
 def _theorem_composition_export(args: argparse.Namespace) -> int:
     payload = export_theorem_composition_packets(Path(args.claim_ledger_dir), Path(args.out))
     print("\nAI Statistical Theory Lab Theorem Composition Packets")
@@ -6323,6 +6349,28 @@ def build_parser() -> argparse.ArgumentParser:
         help="claim-ledger action output directory",
     )
     claim_ledger_actions.set_defaults(func=_claim_ledger_action_export)
+
+    stat_claim_certificate_plan = sub.add_parser(
+        "stat-claim-certificate-plan",
+        help="export Axon-style certificate-checker targets from a typed claim ledger",
+    )
+    stat_claim_certificate_plan.add_argument(
+        "--claim-ledger-dir",
+        required=True,
+        help="directory containing claim_ledger_manifest.json and claim_ledger.jsonl",
+    )
+    stat_claim_certificate_plan.add_argument(
+        "--max-targets",
+        type=int,
+        default=40,
+        help="maximum certificate-checker target rows to export",
+    )
+    stat_claim_certificate_plan.add_argument(
+        "--out",
+        default="runs/stat_claim_certificate_plan",
+        help="statistical claim certificate plan output directory",
+    )
+    stat_claim_certificate_plan.set_defaults(func=_stat_claim_certificate_plan)
 
     theorem_composition = sub.add_parser(
         "theorem-composition-export",
