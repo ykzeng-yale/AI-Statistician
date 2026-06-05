@@ -191,6 +191,7 @@ from ai_statistician.hf_lean_source_revalidation_artifact_validation import (
 from ai_statistician.hf_lean_source_revalidation_promotion_queue import (
     export_huggingface_lean_source_revalidation_promotion_queue,
 )
+from ai_statistician.lean_blueprint_knowledge import export_lean_blueprint_knowledge
 from ai_statistician.paper_theory_roundtrip import export_paper_theory_roundtrip
 from ai_statistician.prover_component_audit import build_prover_component_audit, write_prover_component_audit
 from ai_statistician.rag_collaboration_export import export_rag_collaboration_manifest
@@ -207,6 +208,7 @@ from ai_statistician.research_source_inventory import (
     KOLMOGOROV_EXTENSION_ROOT,
     LEAN_MACHINE_LEARNING_ROOT,
     LEAN_RADEMACHER_ROOT,
+    LEAN_BLUEPRINT_ROOT,
     SCILEAN_ROOT,
     source_allows_training_export,
 )
@@ -5175,6 +5177,41 @@ class SystemTests(unittest.TestCase):
         autoform = next(row for row in source_inventory["rows"] if row["source_id"] == "autoform_bot_harness")
         self.assertEqual(autoform["usage_policy"], "integration_reference_no_training_export")
         self.assertTrue(autoform["git_commit"])
+        self.assertIn("lean_blueprint", source_inventory_ids)
+        lean_blueprint = next(row for row in source_inventory["rows"] if row["source_id"] == "lean_blueprint")
+        self.assertEqual(lean_blueprint["usage_policy"], "integration_reference_no_training_export")
+        self.assertEqual(lean_blueprint["license_policy"], "Apache-2.0")
+        self.assertTrue(lean_blueprint["git_commit"])
+
+    def test_lean_blueprint_knowledge_exports_visualization_graph(self) -> None:
+        payload = export_lean_blueprint_knowledge(Path("runs/test_lean_blueprint_knowledge"))
+        self.assertTrue(payload["all_ok"])
+        self.assertEqual(payload["source"]["root"], str(LEAN_BLUEPRINT_ROOT))
+        self.assertEqual(payload["source"]["license_policy"], "Apache-2.0")
+        self.assertEqual(payload["source"]["usage_policy"], "integration_reference_no_training_export")
+        self.assertIn("visualization", payload["boundary"])
+        macros = {row["macro"]: row for row in payload["macros"]}
+        self.assertIn(r"\lean{decls}", macros)
+        self.assertIn(r"\leanok", macros)
+        self.assertIn(r"\uses{labels}", macros)
+        self.assertIn(r"\mathlibok", macros)
+        statuses = {row["status"] for row in payload["statuses"]}
+        self.assertIn("can_state", statuses)
+        self.assertIn("can_prove", statuses)
+        self.assertIn("fully_proved", statuses)
+        graph = payload["knowledge_graph"]
+        self.assertGreaterEqual(graph["n_nodes"], len(payload["macros"]) + len(payload["statuses"]))
+        self.assertGreater(graph["n_edges"], 0)
+        self.assertEqual(
+            payload["adapter_contract"]["adapter_id"],
+            "lean_blueprint_visualization_adapter",
+        )
+        self.assertTrue(Path("runs/test_lean_blueprint_knowledge/lean_blueprint_knowledge_manifest.json").exists())
+        self.assertTrue(Path("runs/test_lean_blueprint_knowledge/lean_blueprint_knowledge_graph.json").exists())
+        self.assertTrue(
+            Path("runs/test_lean_blueprint_knowledge/lean_blueprint_visualization_adapter_plan.json").exists()
+        )
+        self.assertTrue(Path("runs/test_lean_blueprint_knowledge/lean_blueprint_knowledge.md").exists())
 
     def test_autoform_harness_audit_detects_reusable_framework(self) -> None:
         payload = audit_autoform_harness(Path("runs/test_autoform_harness"))

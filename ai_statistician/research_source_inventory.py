@@ -26,6 +26,7 @@ LEAN_MACHINE_LEARNING_ROOT = Path("/Users/yukang/.codex/external/LeanMachineLear
 BROWNIAN_MOTION_ROOT = Path("/Users/yukang/.codex/external/brownian-motion")
 KOLMOGOROV_EXTENSION_ROOT = Path("/Users/yukang/.codex/external/kolmogorov_extension4")
 SCILEAN_ROOT = Path("/Users/yukang/.codex/external/SciLean")
+LEAN_BLUEPRINT_ROOT = Path("/Users/yukang/.codex/external/leanblueprint")
 
 
 @dataclass(frozen=True)
@@ -313,6 +314,23 @@ SOURCE_INVENTORY_TARGETS: tuple[SourceInventoryTarget, ...] = (
             "visualizer",
         ),
         license_policy="CC-BY-NC-4.0",
+        usage_policy="integration_reference_no_training_export",
+    ),
+    SourceInventoryTarget(
+        id="lean_blueprint",
+        source_type="formalization_blueprint_tool",
+        location=str(LEAN_BLUEPRINT_ROOT),
+        required_extensions=(".py", ".md", ".tex", ".sty", ".yml"),
+        keywords=(
+            "leanblueprint",
+            "blueprint",
+            "dependency",
+            "leanok",
+            "notready",
+            "mathlibok",
+            "graphcolor",
+        ),
+        license_policy="Apache-2.0",
         usage_policy="integration_reference_no_training_export",
     ),
 )

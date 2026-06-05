@@ -10,6 +10,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 RESOURCE_ROOT = PROJECT_ROOT / "AI for Math Resources"
 LEGACY_AI_STATISTICIAN_ROOT = PROJECT_ROOT / "legacy_sources" / "ai_statistician"
 VENDORED_EMPIRICAL_PROCESS_ROOT = PROJECT_ROOT / "legacy_sources" / "emperical_process_lean"
+LEAN_BLUEPRINT_ROOT = Path("/Users/yukang/.codex/external/leanblueprint")
 
 
 KNOWLEDGE_CARDS: tuple[KnowledgeCard, ...] = (
@@ -618,6 +619,30 @@ KNOWLEDGE_CARDS: tuple[KnowledgeCard, ...] = (
         tags=("autoform", "autoformalization", "lean", "harness", "statement_extraction", "evaluation"),
     ),
     KnowledgeCard(
+        id="lean_blueprint_knowledge",
+        title="LeanBlueprint formalization dependency graph and visualization metadata",
+        source_type="local_repo",
+        location=str(LEAN_BLUEPRINT_ROOT),
+        summary=(
+            "Local clone of PatrickMassot/leanblueprint, a plasTeX plugin and CLI "
+            "for building Lean formalization blueprints. Its key macros "
+            "\\lean, \\leanok, \\uses, \\notready, \\discussion, \\proves, and "
+            "\\mathlibok synchronize informal exposition, formal declaration "
+            "links, dependency edges, discussion issues, and proof progress. "
+            "AI-Statistician uses it as visualization/planning metadata for "
+            "route DAGs, not as proof evidence."
+        ),
+        tags=(
+            "leanblueprint",
+            "blueprint",
+            "visualization",
+            "dependency_graph",
+            "formalization",
+            "lean",
+            "route_dag",
+        ),
+    ),
+    KnowledgeCard(
         id="local_mathlib_probability",
         title="Local Mathlib probability and statistics source",
         source_type="local_repo",
@@ -828,6 +853,7 @@ FORMAL_INFRASTRUCTURE_KNOWLEDGE: tuple[str, ...] = (
     "atlas_lean_repository",
     "autoform_bot_harness",
     "openprover_pipeline",
+    "lean_blueprint_knowledge",
 )
 
 
