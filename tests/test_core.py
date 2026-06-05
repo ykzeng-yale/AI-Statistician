@@ -173,6 +173,9 @@ from ai_statistician.hf_lean_source_revalidation_tasks import (
 from ai_statistician.hf_lean_source_revalidation_artifact_validation import (
     export_huggingface_lean_source_revalidation_artifact_validation,
 )
+from ai_statistician.hf_lean_source_revalidation_promotion_queue import (
+    export_huggingface_lean_source_revalidation_promotion_queue,
+)
 from ai_statistician.prover_component_audit import build_prover_component_audit, write_prover_component_audit
 from ai_statistician.rag_collaboration_export import export_rag_collaboration_manifest
 from ai_statistician.questions import load_question_file, question_from_json
@@ -494,6 +497,87 @@ class ProofBankTests(unittest.TestCase):
         self.assertEqual(
             accepted["rows"][0]["acceptance_status"],
             "ACCEPTED_LOCAL_KERNEL_VERIFIED_HF_SOURCE_ROWS",
+        )
+
+    def test_hf_lean_source_revalidation_promotion_queue_exports_ready_rows(self) -> None:
+        validation_dir = Path("runs/test_hf_lean_source_promotion_validation")
+        out_dir = Path("runs/test_hf_lean_source_promotion_queue")
+        evidence_dir = validation_dir / "evidence" / "oproofs"
+        lean_dir = evidence_dir / "lean"
+        sample_manifest = evidence_dir / "sample_manifest.json"
+        verifier_log = evidence_dir / "verifier_attempts.jsonl"
+        promotion_manifest = evidence_dir / "candidate_promotion_manifest.json"
+        lean_dir.mkdir(parents=True, exist_ok=True)
+        sample_manifest.write_text(json.dumps({"rows": [{"row_hash": "r1"}]}), encoding="utf-8")
+        (lean_dir / "row_1.lean").write_text("theorem row_1 : True := by trivial\n", encoding="utf-8")
+        verifier_log.write_text(json.dumps({"kernel_verified": True}) + "\n", encoding="utf-8")
+        promotion_manifest.write_text(
+            json.dumps({"kernel_verified_rows": 1, "proof_evidence_ready": 1}),
+            encoding="utf-8",
+        )
+        rows = [
+            {
+                "validation_id": "validation-awaiting",
+                "task_id": "hf_lean_source_revalidation_task:awaiting",
+                "dataset_id": "leanpolish-anon/lean-proof-compression",
+                "source_id": "hf::leanpolish-anon::lean-proof-compression",
+                "acceptance_status": "AWAITING_HF_LEAN_SOURCE_REVALIDATION_WORKER_OUTPUT",
+                "response_present": False,
+                "response_contract_ok": False,
+                "kernel_verified_rows": 0,
+                "proof_evidence_ready": 0,
+                "sample_manifest_path": "",
+                "lean_reconstruction_dir": "",
+                "verifier_attempt_log": "",
+                "promotion_manifest_path": "",
+                "verifier": "",
+                "verification_strength": "",
+            },
+            {
+                "validation_id": "validation-accepted",
+                "task_id": "hf_lean_source_revalidation_task:oproofs",
+                "dataset_id": "m-a-p/OProofs",
+                "source_id": "hf::m-a-p::OProofs",
+                "acceptance_status": "ACCEPTED_LOCAL_KERNEL_VERIFIED_HF_SOURCE_ROWS",
+                "response_present": True,
+                "response_contract_ok": True,
+                "kernel_verified_rows": 1,
+                "proof_evidence_ready": 1,
+                "sample_manifest_path": str(sample_manifest),
+                "lean_reconstruction_dir": str(lean_dir),
+                "verifier_attempt_log": str(verifier_log),
+                "promotion_manifest_path": str(promotion_manifest),
+                "verifier": "local.lake_env_lean",
+                "verification_strength": "local_lean_kernel",
+            },
+        ]
+        validation_dir.mkdir(parents=True, exist_ok=True)
+        (validation_dir / "hf_lean_source_revalidation_artifact_validation_manifest.json").write_text(
+            json.dumps({"all_ok": True, "rows": rows}, indent=2),
+            encoding="utf-8",
+        )
+        payload = export_huggingface_lean_source_revalidation_promotion_queue(
+            validation_dir,
+            out_dir,
+        )
+        self.assertTrue(payload["all_ok"])
+        self.assertEqual(payload["n_promotion_rows"], 2)
+        self.assertEqual(payload["n_ready_for_promotion"], 1)
+        self.assertEqual(payload["n_awaiting_worker_output"], 1)
+        self.assertEqual(payload["n_blocked"], 0)
+        self.assertEqual(payload["n_kernel_verified_rows"], 1)
+        self.assertEqual(payload["n_proof_evidence_ready"], 1)
+        self.assertEqual(
+            payload["proof_evidence_status"],
+            "HF_LEAN_SOURCE_REVALIDATION_PROMOTION_QUEUE_NOT_PROOF_EVIDENCE",
+        )
+        ready_rows = [row for row in payload["rows"] if row["promotion_ready"]]
+        self.assertEqual(len(ready_rows), 1)
+        self.assertEqual(ready_rows[0]["promotion_status"], "READY_FOR_HF_LEAN_SOURCE_REUSE_PROMOTION")
+        self.assertTrue(
+            (
+                out_dir / "hf_lean_source_revalidation_promotion_queue_manifest.json"
+            ).exists()
         )
 
     def test_retriever_finds_indicator_obligation(self) -> None:
@@ -15931,6 +16015,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["gates"]["huggingface_lean_source_audit"])
         self.assertTrue(payload["gates"]["huggingface_lean_source_revalidation_tasks"])
         self.assertTrue(payload["gates"]["huggingface_lean_source_revalidation_artifact_validation"])
+        self.assertTrue(payload["gates"]["huggingface_lean_source_revalidation_promotion_queue"])
         self.assertTrue(payload["gates"]["fresh_holdout_frontier_audit"])
         self.assertTrue(payload["gates"]["research_algorithm_audit"])
         self.assertTrue(payload["gates"]["algorithm_simulation_stress_audit"])
@@ -16314,6 +16399,28 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertEqual(
             payload["counts"]["huggingface_lean_source_revalidation_artifact_validation_proof_evidence_status"],
             "HF_LEAN_SOURCE_REVALIDATION_ARTIFACT_VALIDATION_NOT_PROOF_EVIDENCE",
+        )
+        self.assertEqual(
+            payload["counts"]["huggingface_lean_source_revalidation_promotion_rows"],
+            payload["counts"]["huggingface_lean_source_revalidation_artifact_validation_rows"],
+        )
+        self.assertEqual(payload["counts"]["huggingface_lean_source_revalidation_promotion_ready"], 0)
+        self.assertEqual(
+            payload["counts"]["huggingface_lean_source_revalidation_promotion_awaiting"],
+            payload["counts"]["huggingface_lean_source_revalidation_artifact_validation_rows"],
+        )
+        self.assertEqual(payload["counts"]["huggingface_lean_source_revalidation_promotion_blocked"], 0)
+        self.assertEqual(
+            payload["counts"]["huggingface_lean_source_revalidation_promotion_kernel_verified_rows"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["huggingface_lean_source_revalidation_promotion_proof_evidence_ready"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["huggingface_lean_source_revalidation_promotion_proof_evidence_status"],
+            "HF_LEAN_SOURCE_REVALIDATION_PROMOTION_QUEUE_NOT_PROOF_EVIDENCE",
         )
         self.assertEqual(payload["counts"]["huggingface_lean_source_proof_evidence_ready"], 0)
         self.assertFalse(payload["counts"]["huggingface_lean_source_use_network"])

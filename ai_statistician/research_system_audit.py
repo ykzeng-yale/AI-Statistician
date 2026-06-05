@@ -129,6 +129,9 @@ from .hf_lean_source_revalidation_tasks import (
 from .hf_lean_source_revalidation_artifact_validation import (
     export_huggingface_lean_source_revalidation_artifact_validation,
 )
+from .hf_lean_source_revalidation_promotion_queue import (
+    export_huggingface_lean_source_revalidation_promotion_queue,
+)
 from .lean_rag_package_audit import (
     apply_lean_rag_source_registry_expansion,
     audit_lean_rag_package,
@@ -372,6 +375,17 @@ async def run_research_system_audit(
     stage_start = _record_stage(
         stage_timings,
         "huggingface_lean_source_revalidation_artifact_validation",
+        stage_start,
+    )
+    huggingface_lean_source_revalidation_promotion_queue_manifest = (
+        export_huggingface_lean_source_revalidation_promotion_queue(
+            out_dir / "huggingface_lean_source_revalidation_artifact_validation",
+            out_dir / "huggingface_lean_source_revalidation_promotion_queue",
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "huggingface_lean_source_revalidation_promotion_queue",
         stage_start,
     )
 
@@ -1224,6 +1238,15 @@ async def run_research_system_audit(
             ]
         )
         > 0,
+        "huggingface_lean_source_revalidation_promotion_queue": bool(
+            huggingface_lean_source_revalidation_promotion_queue_manifest["all_ok"]
+        )
+        and int(
+            huggingface_lean_source_revalidation_promotion_queue_manifest[
+                "n_promotion_rows"
+            ]
+        )
+        > 0,
         "fresh_holdout_frontier_audit": bool(fresh_holdout_manifest["all_ok"]),
         "research_algorithm_audit": bool(algorithm_manifest["all_ok"]),
         "algorithm_simulation_stress_audit": bool(algorithm_simulation_stress_manifest["all_ok"]),
@@ -1823,6 +1846,27 @@ async def run_research_system_audit(
                 "n_proof_evidence_ready"
             ],
             "huggingface_lean_source_revalidation_artifact_validation_proof_evidence_status": huggingface_lean_source_revalidation_artifact_validation_manifest[
+                "proof_evidence_status"
+            ],
+            "huggingface_lean_source_revalidation_promotion_rows": huggingface_lean_source_revalidation_promotion_queue_manifest[
+                "n_promotion_rows"
+            ],
+            "huggingface_lean_source_revalidation_promotion_ready": huggingface_lean_source_revalidation_promotion_queue_manifest[
+                "n_ready_for_promotion"
+            ],
+            "huggingface_lean_source_revalidation_promotion_awaiting": huggingface_lean_source_revalidation_promotion_queue_manifest[
+                "n_awaiting_worker_output"
+            ],
+            "huggingface_lean_source_revalidation_promotion_blocked": huggingface_lean_source_revalidation_promotion_queue_manifest[
+                "n_blocked"
+            ],
+            "huggingface_lean_source_revalidation_promotion_kernel_verified_rows": huggingface_lean_source_revalidation_promotion_queue_manifest[
+                "n_kernel_verified_rows"
+            ],
+            "huggingface_lean_source_revalidation_promotion_proof_evidence_ready": huggingface_lean_source_revalidation_promotion_queue_manifest[
+                "n_proof_evidence_ready"
+            ],
+            "huggingface_lean_source_revalidation_promotion_proof_evidence_status": huggingface_lean_source_revalidation_promotion_queue_manifest[
                 "proof_evidence_status"
             ],
             "huggingface_lean_source_proof_evidence_ready": huggingface_lean_source_manifest[
@@ -3592,6 +3636,21 @@ async def run_research_system_audit(
                 out_dir
                 / "huggingface_lean_source_revalidation_artifact_validation"
                 / "hf_lean_source_revalidation_artifact_validation.md"
+            ),
+            "huggingface_lean_source_revalidation_promotion_queue": str(
+                out_dir
+                / "huggingface_lean_source_revalidation_promotion_queue"
+                / "hf_lean_source_revalidation_promotion_queue_manifest.json"
+            ),
+            "huggingface_lean_source_revalidation_promotion_queue_jsonl": str(
+                out_dir
+                / "huggingface_lean_source_revalidation_promotion_queue"
+                / "hf_lean_source_revalidation_promotion_queue.jsonl"
+            ),
+            "huggingface_lean_source_revalidation_promotion_queue_report": str(
+                out_dir
+                / "huggingface_lean_source_revalidation_promotion_queue"
+                / "hf_lean_source_revalidation_promotion_queue.md"
             ),
             "huggingface_lean_source_report": str(
                 out_dir

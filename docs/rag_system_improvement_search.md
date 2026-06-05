@@ -195,6 +195,21 @@ the task id and dataset id, points to sample/reconstruction/verifier/promotion
 artifacts, and records local Lean/AXLE kernel verification for reconstructed
 Lean rows.
 
+Validated rows are then converted into a non-mutating promotion-review queue:
+
+```bash
+python3 -m ai_statistician.cli huggingface-lean-source-revalidation-promotion-queue \
+  --artifact-validation-dir runs/current/huggingface_lean_source_revalidation_artifact_validation \
+  --out runs/current/huggingface_lean_source_revalidation_promotion_queue
+```
+
+The promotion queue writes
+`hf_lean_source_revalidation_promotion_queue_manifest.json`, JSONL, and markdown
+companions. Awaiting worker outputs remain explicit no-op rows. Ready rows still
+do not mutate the proof bank, source registry, or claim ledger; they require
+review, deduplication, local Lean/AXLE evidence, and a rerun of proof-bank,
+proof-search, and system-audit gates before any source reuse promotion.
+
 - `formal_proof_pairs`: streamed retrieval memory and proof-pair SFT candidates.
 - `tactic_state_training`: proof-state-aware premise/tactic retrieval candidates.
 - `proof_repair_or_process_training`: repair, trajectory, or proof-compression

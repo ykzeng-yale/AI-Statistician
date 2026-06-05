@@ -165,6 +165,9 @@ from .hf_lean_source_revalidation_tasks import (
 from .hf_lean_source_revalidation_artifact_validation import (
     export_huggingface_lean_source_revalidation_artifact_validation,
 )
+from .hf_lean_source_revalidation_promotion_queue import (
+    export_huggingface_lean_source_revalidation_promotion_queue,
+)
 from .intake_audit import audit_question_intake
 from .lean_rag_package_audit import (
     apply_lean_rag_source_registry_expansion,
@@ -1137,6 +1140,29 @@ def _huggingface_lean_source_revalidation_artifact_validation(args: argparse.Nam
     print(
         f"\nhf Lean source revalidation artifact validation manifest written to "
         f"{(Path(args.out) / 'hf_lean_source_revalidation_artifact_validation_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _huggingface_lean_source_revalidation_promotion_queue(args: argparse.Namespace) -> int:
+    payload = export_huggingface_lean_source_revalidation_promotion_queue(
+        Path(args.artifact_validation_dir),
+        Path(args.out),
+    )
+    print("\nAI Statistical Theory Lab Hugging Face Lean Source Revalidation Promotion Queue")
+    print("=" * 72)
+    print(
+        f"rows={payload['n_promotion_rows']} ready={payload['n_ready_for_promotion']} "
+        f"awaiting={payload['n_awaiting_worker_output']} blocked={payload['n_blocked']}"
+    )
+    print(
+        f"kernel_verified_rows={payload['n_kernel_verified_rows']} "
+        f"proof_evidence_ready={payload['n_proof_evidence_ready']} "
+        f"status={payload['proof_evidence_status']}"
+    )
+    print(
+        f"\nhf Lean source promotion queue manifest written to "
+        f"{(Path(args.out) / 'hf_lean_source_revalidation_promotion_queue_manifest.json').resolve()}"
     )
     return 0 if payload["all_ok"] else 1
 
@@ -4446,6 +4472,24 @@ def build_parser() -> argparse.ArgumentParser:
     )
     huggingface_lean_source_revalidation_artifact_validation.set_defaults(
         func=_huggingface_lean_source_revalidation_artifact_validation
+    )
+
+    huggingface_lean_source_revalidation_promotion_queue = sub.add_parser(
+        "huggingface-lean-source-revalidation-promotion-queue",
+        help="export promotion-review rows from validated Hugging Face Lean source artifacts",
+    )
+    huggingface_lean_source_revalidation_promotion_queue.add_argument(
+        "--artifact-validation-dir",
+        default="runs/huggingface_lean_source_revalidation_artifact_validation",
+        help="directory containing hf_lean_source_revalidation_artifact_validation_manifest.json",
+    )
+    huggingface_lean_source_revalidation_promotion_queue.add_argument(
+        "--out",
+        default="runs/huggingface_lean_source_revalidation_promotion_queue",
+        help="Hugging Face Lean source promotion queue output directory",
+    )
+    huggingface_lean_source_revalidation_promotion_queue.set_defaults(
+        func=_huggingface_lean_source_revalidation_promotion_queue
     )
 
     lean_rag_dependency_health = sub.add_parser(
