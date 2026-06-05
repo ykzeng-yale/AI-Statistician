@@ -145,6 +145,46 @@ candidate-frontier/search evidence instead of being hidden by gold proof-bank
 shortcuts. Those rows remain retrieval/search evidence unless AXLE or local
 Lean kernel verification is enabled for the proof-search run.
 
+The Hugging Face Lean-source discovery pass now has a repeatable audit command:
+
+```bash
+python3 -m ai_statistician.cli huggingface-lean-source-audit \
+  --out runs/current/huggingface_lean_source_audit
+```
+
+This query set includes the OProver collection, pinned high-value Lean datasets,
+and broad Hugging Face searches for Lean4, LeanDojo, NuminaMath-LEAN,
+Lean-GitHub, Lean Workbook, LeanPolish, proof repair/compression, miniF2F,
+ProofNet, PutnamBench, Mathlib, analysis, calculus, and statistics. The audit
+writes `huggingface_lean_source_audit_manifest.json`,
+`huggingface_lean_rag_integration_plan.json`, and a markdown report. The plan
+artifact is the machine-readable contract for downstream RAG workers: source id,
+dataset URL, role, ingestion mode, license/provenance policy, dedupe keys, and
+the local Lean validation gate. The audit ranks each dataset by RAG/training
+role:
+
+- `formal_proof_pairs`: streamed retrieval memory and proof-pair SFT candidates.
+- `tactic_state_training`: proof-state-aware premise/tactic retrieval candidates.
+- `proof_repair_or_process_training`: repair, trajectory, or proof-compression
+  supervision candidates.
+- `formal_code_corpus`: declaration/code-context retrieval candidates.
+- `benchmark_eval`: holdout or calibration corpora, not default training data.
+
+OProver/OProofs is treated as a critical source because the upstream paper and
+Hugging Face metadata describe a large Lean 4 corpus with theorem statements,
+compiler-verified proofs, retrieved context, failed attempts, compiler feedback,
+and repairs. The current Hugging Face `m-a-p/OProofs` dataset is Apache-2.0 and
+large enough that the correct local integration is streamed/sample indexing and
+deduplication, not vendoring parquet shards into this repository. Every row
+remains candidate retrieval/training evidence until a concrete statement/proof is
+reconstructed or imported and verified under the local target Lean toolchain.
+The OProver GitHub codebase is also Apache-2.0 and should be considered a
+runtime-backend/design source for future work: its useful surfaces are iterative
+feedback inference, the Kimina Lean server verification wrapper, retrieval
+database management, pass@k tooling, and SFT/RL/CPT recipes. Those components
+are not vendored here; reuse should go through a narrow adapter or benchmarked
+backend experiment.
+
 The audit now also exports `formal_verifier_queue` after the
 `formalization_delta_plan`. This queue joins theorem-level formalization
 routes, the no-registered proof-search RAG candidate delta, and selected
