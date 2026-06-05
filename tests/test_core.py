@@ -134,6 +134,7 @@ from ai_statistician.formal_source_retrieval_benchmark import (
     FormalSourceRetrievalBenchmarkCase,
     run_formal_source_retrieval_benchmark,
 )
+from ai_statistician.huggingface_lean_source_audit import audit_huggingface_lean_sources
 from ai_statistician.formal_source_retrieval_ablation import run_formal_source_retrieval_ablation_benchmark
 from ai_statistician.lean_rag_dependency import LeanRagDependencyRetriever
 from ai_statistician.lean_rag_dependency_health import audit_lean_rag_dependency_health
@@ -1151,6 +1152,123 @@ class ProofBankTests(unittest.TestCase):
                 any(hit.declaration.source_id == source_id for hit in hits),
                 f"{source_id} not retrieved for {query!r}; got {[hit.declaration.source_id for hit in hits]}",
             )
+
+    def test_huggingface_lean_source_audit_classifies_oproofs_and_process_sources(self) -> None:
+        offline_payloads = {
+            "collection:m-a-p/oprover": {
+                "title": "OProver",
+                "lastUpdated": "2026-05-19T06:29:45.224Z",
+                "shareUrl": "https://hf.co/collections/m-a-p/oprover",
+                "items": [
+                    {
+                        "id": "m-a-p/OProver-8B",
+                        "repoType": "model",
+                        "lastModified": "2026-05-19T08:02:29.000Z",
+                        "downloads": 529,
+                        "numParameters": 8190735360,
+                    },
+                    {
+                        "id": "m-a-p/OProofs",
+                        "repoType": "dataset",
+                        "lastModified": "2026-05-19T08:07:13.000Z",
+                        "datasetsServerInfo": {
+                            "numRows": 6804694,
+                            "formats": ["parquet"],
+                        },
+                    },
+                    {
+                        "id": "2605.17283",
+                        "type": "paper",
+                        "title": "OProver: A Unified Framework for Agentic Formal Theorem Proving",
+                    },
+                ],
+            },
+            "search:Lean4": [
+                {
+                    "id": "phanerozoic/Lean4-Mathlib",
+                    "downloads": 40,
+                    "tags": ["license:apache-2.0", "lean4", "format:parquet"],
+                },
+                {
+                    "id": "leanpolish-anon/lean-proof-compression",
+                    "downloads": 20,
+                    "description": "Kernel-verified Lean proof compression and repair pairs.",
+                    "cardData": {"license": "apache-2.0"},
+                },
+            ],
+            "dataset:m-a-p/OProofs": {
+                "id": "m-a-p/OProofs",
+                "sha": "d3bb4410c8715eb449206e6c2fbf8cbb1a8bd7b8",
+                "lastModified": "2026-05-19T08:07:13.000Z",
+                "private": False,
+                "gated": False,
+                "disabled": False,
+                "downloads": 786,
+                "cardData": {
+                    "license": "apache-2.0",
+                    "tags": ["lean4", "theorem-proving", "formal-mathematics"],
+                    "size_categories": ["1M<n<10M"],
+                },
+                "description": (
+                    "Records: 6,804,694\nFiles: 73 parquet shards. "
+                    "Built from NuminaMath-LEAN, Lean-Workbook, Leanabell-FormalStmt, and Goedel-Pset."
+                ),
+                "usedStorage": 27496905567,
+                "siblings": [
+                    {"rfilename": "data/train-00000-of-00073.parquet"},
+                    {"rfilename": "data/train-00001-of-00073.parquet"},
+                ],
+            },
+            "dataset:leanpolish-anon/lean-proof-compression": {
+                "id": "leanpolish-anon/lean-proof-compression",
+                "description": "Kernel-verified Lean proof compression and process supervision pairs.",
+                "cardData": {"license": "apache-2.0"},
+                "tags": ["lean4", "format:parquet"],
+                "downloads": 20,
+            },
+            "dataset:phanerozoic/Lean4-Mathlib": {
+                "id": "phanerozoic/Lean4-Mathlib",
+                "description": "Structured Lean4 Mathlib declarations.",
+                "cardData": {
+                    "license": "apache-2.0",
+                    "dataset_info": {
+                        "features": [{"name": "name"}, {"name": "code"}],
+                        "splits": [{"name": "train", "num_examples": 193047}],
+                    },
+                },
+                "tags": ["lean4", "mathlib", "format:parquet"],
+            },
+        }
+        payload = audit_huggingface_lean_sources(
+            Path("runs/test_huggingface_lean_source_audit"),
+            search_terms=("Lean4",),
+            pinned_dataset_ids=("m-a-p/OProofs",),
+            collection_slugs=("m-a-p/oprover",),
+            max_detail_fetches=10,
+            use_network=False,
+            offline_payloads=offline_payloads,
+        )
+
+        self.assertTrue(payload["summary"]["oproofs_detected"])
+        self.assertEqual(payload["summary"]["oproofs_reported_rows"], 6804694)
+        self.assertEqual(payload["summary"]["proof_evidence_ready"], 0)
+        self.assertTrue(payload["rag_integration_plan"])
+        self.assertTrue(
+            any(row["dataset_id"] == "m-a-p/OProofs" for row in payload["rag_integration_plan"])
+        )
+        rows = {row["dataset_id"]: row for row in payload["rows"]}
+        self.assertEqual(rows["m-a-p/OProofs"]["priority"], "critical")
+        self.assertEqual(rows["m-a-p/OProofs"]["relevance_class"], "formal_proof_pairs")
+        self.assertIn("local_lean_revalidation_required", rows["m-a-p/OProofs"]["trust_policy"])
+        self.assertEqual(
+            rows["leanpolish-anon/lean-proof-compression"]["relevance_class"],
+            "proof_repair_or_process_training",
+        )
+        self.assertEqual(rows["phanerozoic/Lean4-Mathlib"]["relevance_class"], "formal_code_corpus")
+        self.assertTrue(str(payload["rows"][0]["url"]).startswith("https://"))
+        self.assertTrue(Path("runs/test_huggingface_lean_source_audit/huggingface_lean_source_audit_manifest.json").exists())
+        self.assertTrue(Path("runs/test_huggingface_lean_source_audit/huggingface_lean_rag_integration_plan.json").exists())
+        self.assertTrue(Path("runs/test_huggingface_lean_source_audit/huggingface_lean_source_audit.md").exists())
 
     def test_mock_proof_bank_audit_exports_lean(self) -> None:
         async def run():

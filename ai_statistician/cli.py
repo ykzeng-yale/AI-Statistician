@@ -158,6 +158,7 @@ from .formal_source_retrieval_benchmark import (
     EXTERNAL_USER_INTENT_FORMAL_SOURCE_RETRIEVAL_BENCHMARK,
     run_formal_source_retrieval_benchmark,
 )
+from .huggingface_lean_source_audit import audit_huggingface_lean_sources
 from .intake_audit import audit_question_intake
 from .lean_rag_package_audit import (
     apply_lean_rag_source_registry_expansion,
@@ -1032,6 +1033,41 @@ def _lean_rag_source_registry_expansion_apply(args: argparse.Namespace) -> int:
         f"{(Path(args.out) / 'source_registry_expansion_apply_manifest.json').resolve()}"
     )
     return 0 if payload["apply_ready"] and (payload["dry_run"] or payload["applied"]) else 1
+
+
+def _huggingface_lean_source_audit(args: argparse.Namespace) -> int:
+    payload = audit_huggingface_lean_sources(
+        Path(args.out),
+        max_results_per_query=args.max_results_per_query,
+        max_detail_fetches=args.max_detail_fetches,
+        timeout_s=args.timeout,
+        use_network=not args.no_network,
+    )
+    summary = payload["summary"]
+    print("\nAI Statistical Theory Lab Hugging Face Lean Source Audit")
+    print("=" * 72)
+    print(
+        f"candidates={summary.get('n_candidates', 0)} "
+        f"critical={summary.get('n_critical', 0)} high={summary.get('n_high', 0)} "
+        f"public_ungated={summary.get('n_public_ungated', 0)}"
+    )
+    print(
+        f"oproofs_detected={summary.get('oproofs_detected', False)} "
+        f"oproofs_rows={summary.get('oproofs_reported_rows', 0)} "
+        f"oproofs_shards={summary.get('oproofs_parquet_shards', 0)} "
+        f"proof_evidence_ready={summary.get('proof_evidence_ready', 0)}"
+    )
+    for row in payload["rows"][:10]:
+        print(
+            f"  {row['priority']:8} {row['dataset_id']:48} "
+            f"class={row['relevance_class']} rows={row['num_rows']}"
+        )
+    print(
+        f"\nhuggingface Lean source audit manifest written to "
+        f"{(Path(args.out) / 'huggingface_lean_source_audit_manifest.json').resolve()}"
+    )
+    print(f"markdown report written to {(Path(args.out) / 'huggingface_lean_source_audit.md').resolve()}")
+    return 0 if summary.get("oproofs_detected") else 1
 
 
 def _lean_rag_dependency_health(args: argparse.Namespace) -> int:
@@ -4253,6 +4289,40 @@ def build_parser() -> argparse.ArgumentParser:
     lean_rag_source_registry_expansion_apply.set_defaults(
         func=_lean_rag_source_registry_expansion_apply
     )
+
+    huggingface_lean_source_audit = sub.add_parser(
+        "huggingface-lean-source-audit",
+        help="discover and rank Hugging Face Lean corpora for local RAG/training reuse",
+    )
+    huggingface_lean_source_audit.add_argument(
+        "--max-results-per-query",
+        type=int,
+        default=100,
+        help="maximum Hugging Face dataset search results per Lean-related query",
+    )
+    huggingface_lean_source_audit.add_argument(
+        "--max-detail-fetches",
+        type=int,
+        default=140,
+        help="maximum dataset detail API calls after search and pinned-source discovery",
+    )
+    huggingface_lean_source_audit.add_argument(
+        "--timeout",
+        type=int,
+        default=20,
+        help="per-request Hugging Face API timeout in seconds",
+    )
+    huggingface_lean_source_audit.add_argument(
+        "--no-network",
+        action="store_true",
+        help="only use built-in pinned metadata; mainly for smoke tests",
+    )
+    huggingface_lean_source_audit.add_argument(
+        "--out",
+        default="runs/huggingface_lean_source_audit",
+        help="Hugging Face Lean source audit output directory",
+    )
+    huggingface_lean_source_audit.set_defaults(func=_huggingface_lean_source_audit)
 
     lean_rag_dependency_health = sub.add_parser(
         "lean-rag-dependency-health",
