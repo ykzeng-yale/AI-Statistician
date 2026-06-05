@@ -13294,6 +13294,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         run_dir = parent / "current_registry_candidate_system_audit"
         triage_dir = parent / "current_formalization_gap_planner_proof_state_triage"
         kernel_smoke_dir = parent / "current_target_source_coverage_kernel_smoke"
+        proof_search_kernel_rerun_dir = parent / "proof_search_kernel_rerun_local_lean"
         theorem_composition_dir = run_dir / "theorem_composition"
         formal_verifier_queue_dir = run_dir / "formal_verifier_queue"
         formal_verifier_replay_dir = run_dir / "formal_verifier_replay"
@@ -13345,6 +13346,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         run_dir.mkdir(parents=True, exist_ok=True)
         triage_dir.mkdir(parents=True, exist_ok=True)
         kernel_smoke_dir.mkdir(parents=True, exist_ok=True)
+        proof_search_kernel_rerun_dir.mkdir(parents=True, exist_ok=True)
         theorem_composition_dir.mkdir(parents=True, exist_ok=True)
         formal_verifier_queue_dir.mkdir(parents=True, exist_ok=True)
         formal_verifier_replay_dir.mkdir(parents=True, exist_ok=True)
@@ -13393,6 +13395,20 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                             "kernel_verified": True,
                         },
                     ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        (proof_search_kernel_rerun_dir / "proof_search_audit_manifest.json").write_text(
+            json.dumps(
+                {
+                    "verifier": "local.lake_env_lean",
+                    "n_obligations": 2,
+                    "n_solved": 2,
+                    "n_kernel_verified": 2,
+                    "results_jsonl": str(
+                        proof_search_kernel_rerun_dir / "proof_search_results.jsonl"
+                    ),
                 }
             ),
             encoding="utf-8",
@@ -14056,6 +14072,28 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                 "formalization_gap_planner_proof_state_triage"
             ],
             str(triage_manifest_path),
+        )
+        self.assertEqual(
+            payload["artifact_auto_discoveries_applied"][
+                "proof_search_kernel_rerun_local_lean"
+            ],
+            str(proof_search_kernel_rerun_dir / "proof_search_audit_manifest.json"),
+        )
+        self.assertEqual(
+            payload["proof_evidence"]["proof_search_kernel_rerun_local_lean_verified"],
+            2,
+        )
+        self.assertEqual(
+            payload["proof_evidence"]["proof_search_kernel_rerun_local_lean_total"],
+            2,
+        )
+        self.assertEqual(
+            payload["proof_evidence"]["proof_search_kernel_rerun_local_lean_verifier"],
+            "local.lake_env_lean",
+        )
+        self.assertIn(
+            "selected proof-search obligations only",
+            payload["proof_evidence"]["proof_search_kernel_rerun_local_lean_boundary"],
         )
         self.assertEqual(
             payload["artifact_auto_discoveries_applied"][

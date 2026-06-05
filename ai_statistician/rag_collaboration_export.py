@@ -47,6 +47,14 @@ def export_rag_collaboration_manifest(
     artifacts.update(artifact_auto_discoveries)
 
     proof_payload = _read_json(_artifact_path(artifacts, "proof_audit", run_dir))
+    proof_search_kernel_rerun_local_lean_path = _artifact_path(
+        artifacts,
+        "proof_search_kernel_rerun_local_lean",
+        run_dir,
+    )
+    proof_search_kernel_rerun_local_lean_payload = _read_json(
+        proof_search_kernel_rerun_local_lean_path
+    )
     kernel_proof_evidence_overlays = _kernel_proof_evidence_overlays(
         run_dir,
         system_proof_bank_fingerprint=str(proof_payload.get("proof_bank_fingerprint", "")),
@@ -391,6 +399,30 @@ def export_rag_collaboration_manifest(
             "proof_bank_fingerprint": proof_payload.get("proof_bank_fingerprint"),
             "proof_dependency_edges": counts.get("proof_dependency_edges"),
             "proof_audit_manifest": str(_artifact_path(artifacts, "proof_audit", run_dir)),
+            "proof_search_kernel_rerun_local_lean_verified": counts.get(
+                "proof_search_kernel_rerun_local_lean_verified",
+                proof_search_kernel_rerun_local_lean_payload.get("n_kernel_verified"),
+            ),
+            "proof_search_kernel_rerun_local_lean_total": counts.get(
+                "proof_search_kernel_rerun_local_lean_total",
+                proof_search_kernel_rerun_local_lean_payload.get("n_obligations"),
+            ),
+            "proof_search_kernel_rerun_local_lean_verifier": counts.get(
+                "proof_search_kernel_rerun_local_lean_verifier",
+                proof_search_kernel_rerun_local_lean_payload.get("verifier"),
+            ),
+            "proof_search_kernel_rerun_local_lean_manifest": str(
+                proof_search_kernel_rerun_local_lean_path
+            ),
+            "proof_search_kernel_rerun_local_lean_results": str(
+                proof_search_kernel_rerun_local_lean_payload.get("results_jsonl", "")
+            ),
+            "proof_search_kernel_rerun_local_lean_boundary": (
+                "Focused local Lean proof-search rerun evidence calibrates the selected "
+                "proof-search obligations only. It does not mutate the default system-audit "
+                "proof_search_kernel_verified count unless the system audit itself is run "
+                "with AXLE/local Lean."
+            ),
         },
         "kernel_proof_evidence_overlays": kernel_proof_evidence_overlays,
         "kernel_proof_overlay_alignment": kernel_proof_overlay_alignment,
@@ -1829,6 +1861,7 @@ def export_rag_collaboration_manifest(
             "FormalVerifier replay rows are executable task/training artifacts, not theorem proof evidence.",
             "FormalVerifier replay attempts are proof evidence only when kernel_verified=true and placeholders were removed.",
             "FormalVerifier replay calibration rows are proof evidence only for full-route kernel-verified targets.",
+            "Focused proof-search local Lean reruns are overlay evidence for their selected obligations, not a replacement for default audit counts.",
             "Proof-search kernel-rerun queue rows are replay work orders, not proof evidence.",
             "FormalVerifier replay repair packets and proof templates are not proof evidence until a repaired attempt passes AXLE/local Lean.",
             "FormalVerifier replay repair application scaffolds are work artifacts, not proof evidence.",
@@ -1910,6 +1943,19 @@ def _auto_discover_artifacts(
         triage_candidate = _first_existing(run_dir.parent / triage_manifest)
         if triage_candidate is not None:
             discoveries[triage_key] = str(triage_candidate)
+    proof_search_kernel_rerun_key = "proof_search_kernel_rerun_local_lean"
+    if proof_search_kernel_rerun_key not in protected and not str(
+        artifacts.get(proof_search_kernel_rerun_key, "")
+    ):
+        rerun_candidate = _first_existing(
+            run_dir.parent
+            / "proof_search_kernel_rerun_local_lean"
+            / "proof_search_audit_manifest.json"
+        )
+        if rerun_candidate is not None:
+            rerun_payload = _read_json(rerun_candidate)
+            if int(rerun_payload.get("n_kernel_verified", 0) or 0) > 0:
+                discoveries[proof_search_kernel_rerun_key] = str(rerun_candidate)
     seeded_agentic_candidates = {
         "formal_verifier_agentic_proof_strategy_plan": (
             Path("current_kernel_overlay_seeded_agentic_proof_strategy_plan")
@@ -3933,6 +3979,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
         "",
         f"- Source run: `{payload.get('source_run_dir')}`",
         f"- Proof bank: `{proof.get('proofs_kernel_verified')}/{proof.get('proofs_total')}` kernel verified",
+        f"- Proof-search local rerun: `{proof.get('proof_search_kernel_rerun_local_lean_verified')}/"
+        f"{proof.get('proof_search_kernel_rerun_local_lean_total')}` kernel verified "
+        f"via `{proof.get('proof_search_kernel_rerun_local_lean_verifier')}`",
         f"- Proof fingerprint: `{proof.get('proof_bank_fingerprint')}`",
         f"- Standalone kernel proof overlays: `{kernel_overlays.get('standalone_kernel_proof_audits')}` audits, "
         f"`{kernel_overlays.get('standalone_kernel_verified_distinct_obligations')}` distinct obligations "
