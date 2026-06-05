@@ -40,6 +40,9 @@ from .stat_claim_certificate_readiness_overlay import (
 from .stat_claim_certificate_witness_materializer import (
     materialize_stat_claim_certificate_witness_drafts,
 )
+from .stat_claim_certificate_witness_validator import (
+    validate_stat_claim_certificate_witness_drafts,
+)
 from .stat_claim_certificate_witness_queue import export_stat_claim_certificate_witness_queue
 from .evaluation_benchmark_guidance import build_evaluation_benchmark_guidance
 from .formal_gap_task_export import export_formal_gap_lean_tasks
@@ -1195,6 +1198,11 @@ async def run_research_system_audit(
         out_dir / "stat_claim_certificate_witness_materializer",
     )
     stage_start = _record_stage(stage_timings, "stat_claim_certificate_witness_materializer", stage_start)
+    stat_claim_certificate_witness_validator_manifest = validate_stat_claim_certificate_witness_drafts(
+        out_dir / "stat_claim_certificate_witness_materializer",
+        out_dir / "stat_claim_certificate_witness_validator",
+    )
+    stage_start = _record_stage(stage_timings, "stat_claim_certificate_witness_validator", stage_start)
     theorem_composition_manifest = export_theorem_composition_packets(
         out_dir / "claim_ledger",
         out_dir / "theorem_composition",
@@ -1531,6 +1539,9 @@ async def run_research_system_audit(
         "stat_claim_certificate_witness_materializer": bool(
             stat_claim_certificate_witness_materializer_manifest["all_ok"]
         ),
+        "stat_claim_certificate_witness_validator": bool(
+            stat_claim_certificate_witness_validator_manifest["all_ok"]
+        ),
         "theorem_composition_export": bool(theorem_composition_manifest["all_ok"]),
         "research_loop": bool(research_loop_manifest["all_loop_traces_written"])
         and bool(research_loop_manifest["all_repair_tasks_exported"])
@@ -1601,6 +1612,7 @@ async def run_research_system_audit(
         "stat_claim_certificate_readiness",
         "stat_claim_certificate_witness_queue",
         "stat_claim_certificate_witness_materializer",
+        "stat_claim_certificate_witness_validator",
         "theorem_composition_export",
     )
     if (
@@ -3638,6 +3650,30 @@ async def run_research_system_audit(
             "stat_claim_certificate_witness_materializer_proof_evidence_status": stat_claim_certificate_witness_materializer_manifest[
                 "proof_evidence_status"
             ],
+            "stat_claim_certificate_witness_validator_drafts": stat_claim_certificate_witness_validator_manifest[
+                "n_drafts"
+            ],
+            "stat_claim_certificate_witness_validator_ok": stat_claim_certificate_witness_validator_manifest[
+                "n_ok"
+            ],
+            "stat_claim_certificate_witness_validator_ready_for_checker_validation": stat_claim_certificate_witness_validator_manifest[
+                "n_ready_for_checker_validation"
+            ],
+            "stat_claim_certificate_witness_validator_incomplete": stat_claim_certificate_witness_validator_manifest[
+                "n_incomplete"
+            ],
+            "stat_claim_certificate_witness_validator_missing_source_evidence": stat_claim_certificate_witness_validator_manifest[
+                "n_missing_source_evidence"
+            ],
+            "stat_claim_certificate_witness_validator_open_semantic_gap_rows": stat_claim_certificate_witness_validator_manifest[
+                "n_open_semantic_gap_rows"
+            ],
+            "stat_claim_certificate_witness_validator_proof_overclaim_rows": stat_claim_certificate_witness_validator_manifest[
+                "n_proof_overclaim_rows"
+            ],
+            "stat_claim_certificate_witness_validator_proof_evidence_status": stat_claim_certificate_witness_validator_manifest[
+                "proof_evidence_status"
+            ],
             "theorem_composition_packets": theorem_composition_manifest["n_packets"],
             "theorem_composition_packets_ok": theorem_composition_manifest["n_ok"],
             "theorem_composition_exact_proof_bank_links": theorem_composition_manifest[
@@ -4840,6 +4876,21 @@ async def run_research_system_audit(
                 / "stat_claim_certificate_witness_materializer"
                 / "stat_claim_certificate_witness_materializer.md"
             ),
+            "stat_claim_certificate_witness_validator": str(
+                out_dir
+                / "stat_claim_certificate_witness_validator"
+                / "stat_claim_certificate_witness_validator_manifest.json"
+            ),
+            "stat_claim_certificate_witness_validation": str(
+                out_dir
+                / "stat_claim_certificate_witness_validator"
+                / "stat_claim_certificate_witness_validation.jsonl"
+            ),
+            "stat_claim_certificate_witness_validator_report": str(
+                out_dir
+                / "stat_claim_certificate_witness_validator"
+                / "stat_claim_certificate_witness_validator.md"
+            ),
             "theorem_composition": str(
                 out_dir / "theorem_composition" / "theorem_composition_manifest.json"
             ),
@@ -5257,6 +5308,9 @@ def _research_benchmark_cache_key(
             ),
             "stat_claim_certificate_witness_materializer": _source_file_hash(
                 Path(__file__).with_name("stat_claim_certificate_witness_materializer.py")
+            ),
+            "stat_claim_certificate_witness_validator": _source_file_hash(
+                Path(__file__).with_name("stat_claim_certificate_witness_validator.py")
             ),
             "research_lab": _source_file_hash(Path(__file__).with_name("research_lab.py")),
             "research_schema": _source_file_hash(Path(__file__).with_name("research_schema.py")),

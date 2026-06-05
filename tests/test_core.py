@@ -40,6 +40,9 @@ from ai_statistician.stat_claim_certificate_witness_queue import (
 from ai_statistician.stat_claim_certificate_witness_materializer import (
     materialize_stat_claim_certificate_witness_drafts,
 )
+from ai_statistician.stat_claim_certificate_witness_validator import (
+    validate_stat_claim_certificate_witness_drafts,
+)
 from ai_statistician.doctor import build_doctor_report, write_doctor_manifest
 from ai_statistician.evaluation_benchmark_guidance import build_evaluation_benchmark_guidance
 from ai_statistician.frontier_coverage_audit import audit_frontier_coverage, load_frontier_benchmark_questions
@@ -7508,6 +7511,166 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(Path("runs/test_stat_claim_certificate_witness_materializer/stat_claim_certificate_witness_materializer_manifest.json").exists())
         self.assertTrue(Path("runs/test_stat_claim_certificate_witness_materializer/stat_claim_certificate_witness_drafts.jsonl").exists())
         self.assertTrue(Path("runs/test_stat_claim_certificate_witness_materializer/stat_claim_certificate_witness_materializer.md").exists())
+
+    def test_stat_claim_certificate_witness_validator_rejects_incomplete_drafts(self) -> None:
+        materializer_dir = Path("runs/test_stat_claim_certificate_witness_validator_incomplete_materializer")
+        out_dir = Path("runs/test_stat_claim_certificate_witness_validator_incomplete")
+        shutil.rmtree(materializer_dir, ignore_errors=True)
+        shutil.rmtree(out_dir, ignore_errors=True)
+        materializer_dir.mkdir(parents=True, exist_ok=True)
+        draft_dir = materializer_dir / "witness_drafts"
+        draft_dir.mkdir(parents=True, exist_ok=True)
+        draft_path = draft_dir / "incomplete.json"
+        draft_payload = {
+            "draft_id": "draft:incomplete",
+            "task_id": "task:incomplete",
+            "target_id": "target:incomplete",
+            "draft_status": "WITNESS_DRAFT_UNFILLED",
+            "fields": {"rank_threshold": None, "coverage_level_alpha": None},
+            "source_field_evidence": {"rank_threshold": [], "coverage_level_alpha": []},
+            "open_semantic_gaps": ["not linked to source yet"],
+            "checker_validation": {"attempted": False, "passed": False, "transcript_path": ""},
+            "proof_evidence_status": "STAT_CLAIM_CERTIFICATE_WITNESS_DRAFT_NOT_PROOF_EVIDENCE",
+        }
+        draft_path.write_text(json.dumps(draft_payload), encoding="utf-8")
+        row = {
+            "draft_id": "draft:incomplete",
+            "task_id": "task:incomplete",
+            "target_id": "target:incomplete",
+            "source_claim_id": "claim:incomplete",
+            "question_id": "q_incomplete",
+            "certificate_family": "conformal_coverage_certificate",
+            "required_fields": ["rank_threshold", "coverage_level_alpha"],
+            "draft_path": str(draft_path),
+        }
+        (materializer_dir / "stat_claim_certificate_witness_materializer_manifest.json").write_text(
+            json.dumps({"all_ok": True, "proof_evidence_status": "STAT_CLAIM_CERTIFICATE_WITNESS_DRAFT_NOT_PROOF_EVIDENCE"}),
+            encoding="utf-8",
+        )
+        (materializer_dir / "stat_claim_certificate_witness_drafts.jsonl").write_text(
+            json.dumps(row) + "\n",
+            encoding="utf-8",
+        )
+
+        payload = validate_stat_claim_certificate_witness_drafts(materializer_dir, out_dir)
+
+        self.assertTrue(payload["all_ok"])
+        self.assertEqual(payload["n_drafts"], 1)
+        self.assertEqual(payload["n_ready_for_checker_validation"], 0)
+        self.assertEqual(payload["n_incomplete"], 1)
+        self.assertEqual(payload["n_open_semantic_gap_rows"], 1)
+        self.assertEqual(payload["rows"][0]["validation_status"], "REJECTED_INCOMPLETE_FIELDS")
+        self.assertEqual(
+            payload["proof_evidence_status"],
+            "STAT_CLAIM_CERTIFICATE_WITNESS_VALIDATION_NOT_PROOF_EVIDENCE",
+        )
+        self.assertTrue(Path("runs/test_stat_claim_certificate_witness_validator_incomplete/stat_claim_certificate_witness_validator_manifest.json").exists())
+        self.assertTrue(Path("runs/test_stat_claim_certificate_witness_validator_incomplete/stat_claim_certificate_witness_validation.jsonl").exists())
+        self.assertTrue(Path("runs/test_stat_claim_certificate_witness_validator_incomplete/stat_claim_certificate_witness_validator.md").exists())
+
+    def test_stat_claim_certificate_witness_validator_accepts_source_cited_draft(self) -> None:
+        materializer_dir = Path("runs/test_stat_claim_certificate_witness_validator_ready_materializer")
+        out_dir = Path("runs/test_stat_claim_certificate_witness_validator_ready")
+        shutil.rmtree(materializer_dir, ignore_errors=True)
+        shutil.rmtree(out_dir, ignore_errors=True)
+        materializer_dir.mkdir(parents=True, exist_ok=True)
+        draft_dir = materializer_dir / "witness_drafts"
+        draft_dir.mkdir(parents=True, exist_ok=True)
+        draft_path = draft_dir / "ready.json"
+        draft_payload = {
+            "draft_id": "draft:ready",
+            "task_id": "task:ready",
+            "target_id": "target:ready",
+            "draft_status": "READY_FOR_CHECKER_VALIDATION",
+            "fields": {
+                "primal_candidate": {"objective_value": 1.0},
+                "dual_candidate": {"objective_value": 0.75},
+            },
+            "source_field_evidence": {
+                "primal_candidate": ["source-span:primal"],
+                "dual_candidate": ["source-span:dual"],
+            },
+            "open_semantic_gaps": [],
+            "checker_validation": {"attempted": False, "passed": False, "transcript_path": ""},
+            "proof_evidence_status": "STAT_CLAIM_CERTIFICATE_WITNESS_DRAFT_NOT_PROOF_EVIDENCE",
+        }
+        draft_path.write_text(json.dumps(draft_payload), encoding="utf-8")
+        row = {
+            "draft_id": "draft:ready",
+            "task_id": "task:ready",
+            "target_id": "target:ready",
+            "source_claim_id": "claim:ready",
+            "question_id": "q_ready",
+            "certificate_family": "kkt_optimality_certificate",
+            "required_fields": ["primal_candidate", "dual_candidate"],
+            "draft_path": str(draft_path),
+        }
+        (materializer_dir / "stat_claim_certificate_witness_materializer_manifest.json").write_text(
+            json.dumps({"all_ok": True, "proof_evidence_status": "STAT_CLAIM_CERTIFICATE_WITNESS_DRAFT_NOT_PROOF_EVIDENCE"}),
+            encoding="utf-8",
+        )
+        (materializer_dir / "stat_claim_certificate_witness_drafts.jsonl").write_text(
+            json.dumps(row) + "\n",
+            encoding="utf-8",
+        )
+
+        payload = validate_stat_claim_certificate_witness_drafts(materializer_dir, out_dir)
+
+        self.assertTrue(payload["all_ok"])
+        self.assertEqual(payload["n_ready_for_checker_validation"], 1)
+        self.assertEqual(payload["n_incomplete"], 0)
+        self.assertEqual(payload["n_missing_source_evidence"], 0)
+        self.assertEqual(payload["rows"][0]["validation_status"], "READY_FOR_CHECKER_VALIDATION")
+        self.assertFalse(payload["rows"][0]["checker_validation_passed"])
+
+    def test_stat_claim_certificate_witness_validator_rejects_proof_overclaim(self) -> None:
+        materializer_dir = Path("runs/test_stat_claim_certificate_witness_validator_overclaim_materializer")
+        out_dir = Path("runs/test_stat_claim_certificate_witness_validator_overclaim")
+        shutil.rmtree(materializer_dir, ignore_errors=True)
+        shutil.rmtree(out_dir, ignore_errors=True)
+        materializer_dir.mkdir(parents=True, exist_ok=True)
+        draft_dir = materializer_dir / "witness_drafts"
+        draft_dir.mkdir(parents=True, exist_ok=True)
+        draft_path = draft_dir / "overclaim.json"
+        draft_payload = {
+            "draft_id": "draft:overclaim",
+            "task_id": "task:overclaim",
+            "target_id": "target:overclaim",
+            "draft_status": "PROVED",
+            "fields": {"rank_threshold": 3},
+            "source_field_evidence": {"rank_threshold": ["source-span:rank"]},
+            "open_semantic_gaps": [],
+            "checker_validation": {"attempted": False, "passed": True, "transcript_path": ""},
+            "proof_evidence_status": "SOURCE_THEOREM_PROVED",
+            "source_claim_proved": True,
+        }
+        draft_path.write_text(json.dumps(draft_payload), encoding="utf-8")
+        row = {
+            "draft_id": "draft:overclaim",
+            "task_id": "task:overclaim",
+            "target_id": "target:overclaim",
+            "source_claim_id": "claim:overclaim",
+            "question_id": "q_overclaim",
+            "certificate_family": "conformal_coverage_certificate",
+            "required_fields": ["rank_threshold"],
+            "draft_path": str(draft_path),
+        }
+        (materializer_dir / "stat_claim_certificate_witness_materializer_manifest.json").write_text(
+            json.dumps({"all_ok": True, "proof_evidence_status": "STAT_CLAIM_CERTIFICATE_WITNESS_DRAFT_NOT_PROOF_EVIDENCE"}),
+            encoding="utf-8",
+        )
+        (materializer_dir / "stat_claim_certificate_witness_drafts.jsonl").write_text(
+            json.dumps(row) + "\n",
+            encoding="utf-8",
+        )
+
+        payload = validate_stat_claim_certificate_witness_drafts(materializer_dir, out_dir)
+
+        self.assertTrue(payload["all_ok"])
+        self.assertEqual(payload["n_ready_for_checker_validation"], 0)
+        self.assertEqual(payload["n_proof_overclaim_rows"], 1)
+        self.assertEqual(payload["rows"][0]["validation_status"], "REJECTED_PROOF_EVIDENCE_OVERCLAIM")
+        self.assertTrue(payload["rows"][0]["proof_overclaim_errors"])
 
     def test_claim_ledger_action_export_turns_revision_rows_into_owner_tasks(self) -> None:
         async def run():
@@ -18124,6 +18287,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["gates"]["stat_claim_certificate_readiness"])
         self.assertTrue(payload["gates"]["stat_claim_certificate_witness_queue"])
         self.assertTrue(payload["gates"]["stat_claim_certificate_witness_materializer"])
+        self.assertTrue(payload["gates"]["stat_claim_certificate_witness_validator"])
         self.assertTrue(payload["gates"]["theorem_composition_export"])
         self.assertTrue(payload["gates"]["research_loop"])
         self.assertTrue(payload["gates"]["research_loop_repair_audit"])
@@ -18640,6 +18804,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "stat_claim_certificate_readiness",
             "stat_claim_certificate_witness_queue",
             "stat_claim_certificate_witness_materializer",
+            "stat_claim_certificate_witness_validator",
             "theorem_composition_export",
         }:
             self.assertIn(expected_stage, timing_stages)
@@ -20453,6 +20618,24 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             payload["counts"]["stat_claim_certificate_witness_materializer_proof_evidence_status"],
             "STAT_CLAIM_CERTIFICATE_WITNESS_DRAFT_NOT_PROOF_EVIDENCE",
         )
+        self.assertEqual(
+            payload["counts"]["stat_claim_certificate_witness_validator_drafts"],
+            payload["counts"]["stat_claim_certificate_witness_materializer_drafts"],
+        )
+        self.assertEqual(
+            payload["counts"]["stat_claim_certificate_witness_validator_ok"],
+            payload["counts"]["stat_claim_certificate_witness_validator_drafts"],
+        )
+        self.assertEqual(payload["counts"]["stat_claim_certificate_witness_validator_ready_for_checker_validation"], 0)
+        self.assertEqual(
+            payload["counts"]["stat_claim_certificate_witness_validator_incomplete"],
+            payload["counts"]["stat_claim_certificate_witness_validator_drafts"],
+        )
+        self.assertEqual(payload["counts"]["stat_claim_certificate_witness_validator_proof_overclaim_rows"], 0)
+        self.assertEqual(
+            payload["counts"]["stat_claim_certificate_witness_validator_proof_evidence_status"],
+            "STAT_CLAIM_CERTIFICATE_WITNESS_VALIDATION_NOT_PROOF_EVIDENCE",
+        )
         self.assertEqual(payload["counts"]["theorem_composition_packets_ok"], payload["counts"]["theorem_composition_packets"])
         self.assertEqual(
             payload["counts"]["theorem_composition_packets"],
@@ -20593,6 +20776,9 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_drafts"]).exists())
         self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_draft_dir"]).exists())
         self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_materializer_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_validator"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_validation"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_validator_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["theorem_composition"]).exists())
         self.assertTrue(Path(payload["artifacts"]["theorem_composition_jsonl"]).exists())
         self.assertTrue(Path(payload["artifacts"]["theorem_composition_report"]).exists())

@@ -33,6 +33,9 @@ from .stat_claim_certificate_witness_queue import (
 from .stat_claim_certificate_witness_materializer import (
     materialize_stat_claim_certificate_witness_drafts,
 )
+from .stat_claim_certificate_witness_validator import (
+    validate_stat_claim_certificate_witness_drafts,
+)
 from .doctor import build_doctor_report, write_doctor_manifest
 from .evaluation import EvalConfig, run_seed_eval
 from .autoform_target_export import export_autoform_targets
@@ -3420,6 +3423,32 @@ def _stat_claim_certificate_witness_materialize(args: argparse.Namespace) -> int
     return 0 if payload["all_ok"] else 1
 
 
+def _stat_claim_certificate_witness_validate(args: argparse.Namespace) -> int:
+    payload = validate_stat_claim_certificate_witness_drafts(
+        Path(args.materializer_dir),
+        Path(args.out),
+    )
+    print("\nAI Statistical Theory Lab Statistical Claim Certificate Witness Validator")
+    print("=" * 72)
+    print(
+        f"drafts={payload['n_ok']}/{payload['n_drafts']} "
+        f"ready_for_checker={payload['n_ready_for_checker_validation']} "
+        f"incomplete={payload['n_incomplete']} "
+        f"overclaims={payload['n_proof_overclaim_rows']} "
+        f"status={payload['proof_evidence_status']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    for status, count in payload["by_status"].items():
+        print(f"  {status}: {count}")
+    print(
+        f"\nwitness validator manifest written to "
+        f"{(Path(args.out) / 'stat_claim_certificate_witness_validator_manifest.json').resolve()}"
+    )
+    print(f"validation rows written to {(Path(args.out) / 'stat_claim_certificate_witness_validation.jsonl').resolve()}")
+    print(f"markdown report written to {(Path(args.out) / 'stat_claim_certificate_witness_validator.md').resolve()}")
+    return 0 if payload["all_ok"] else 1
+
+
 def _theorem_composition_export(args: argparse.Namespace) -> int:
     payload = export_theorem_composition_packets(Path(args.claim_ledger_dir), Path(args.out))
     print("\nAI Statistical Theory Lab Theorem Composition Packets")
@@ -6646,6 +6675,24 @@ def build_parser() -> argparse.ArgumentParser:
     )
     stat_claim_certificate_witness_materialize.set_defaults(
         func=_stat_claim_certificate_witness_materialize
+    )
+
+    stat_claim_certificate_witness_validate = sub.add_parser(
+        "stat-claim-certificate-witness-validate",
+        help="validate certificate witness drafts before checker execution",
+    )
+    stat_claim_certificate_witness_validate.add_argument(
+        "--materializer-dir",
+        required=True,
+        help="directory containing stat_claim_certificate_witness_materializer_manifest.json",
+    )
+    stat_claim_certificate_witness_validate.add_argument(
+        "--out",
+        default="runs/stat_claim_certificate_witness_validator",
+        help="certificate witness validator output directory",
+    )
+    stat_claim_certificate_witness_validate.set_defaults(
+        func=_stat_claim_certificate_witness_validate
     )
 
     theorem_composition = sub.add_parser(
