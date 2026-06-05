@@ -1060,6 +1060,13 @@ def _huggingface_lean_source_audit(args: argparse.Namespace) -> int:
         f"oproofs_shards={summary.get('oproofs_parquet_shards', 0)} "
         f"proof_evidence_ready={summary.get('proof_evidence_ready', 0)}"
     )
+    queue_summary = payload.get("revalidation_queue_summary", {})
+    print(
+        f"revalidation_queue={queue_summary.get('n_queue_rows', 0)} "
+        f"ready={queue_summary.get('n_ready', 0)} "
+        f"kernel_verified={queue_summary.get('n_kernel_verified', 0)} "
+        f"status={queue_summary.get('proof_evidence_status', '')}"
+    )
     for row in payload["rows"][:10]:
         print(
             f"  {row['priority']:8} {row['dataset_id']:48} "

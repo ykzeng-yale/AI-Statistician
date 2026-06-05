@@ -1257,6 +1257,22 @@ class ProofBankTests(unittest.TestCase):
         self.assertTrue(
             any(row["dataset_id"] == "m-a-p/OProofs" for row in payload["rag_integration_plan"])
         )
+        self.assertGreaterEqual(payload["revalidation_queue_summary"]["n_queue_rows"], 1)
+        self.assertEqual(payload["revalidation_queue_summary"]["n_kernel_verified"], 0)
+        self.assertEqual(payload["revalidation_queue_summary"]["n_proof_evidence_ready"], 0)
+        self.assertEqual(
+            payload["revalidation_queue_summary"]["proof_evidence_status"],
+            "HF_LEAN_SOURCE_REVALIDATION_QUEUE_NOT_PROOF_EVIDENCE",
+        )
+        queue_rows = {
+            row["dataset_id"]: row for row in payload["revalidation_queue"]
+        }
+        self.assertIn("m-a-p/OProofs", queue_rows)
+        self.assertEqual(
+            queue_rows["m-a-p/OProofs"]["revalidation_status"],
+            "READY_FOR_LOCAL_REVALIDATION_SAMPLE",
+        )
+        self.assertIn("local Lean/AXLE", queue_rows["m-a-p/OProofs"]["required_gate"])
         rows = {row["dataset_id"]: row for row in payload["rows"]}
         self.assertEqual(rows["m-a-p/OProofs"]["priority"], "critical")
         self.assertEqual(rows["m-a-p/OProofs"]["relevance_class"], "formal_proof_pairs")
@@ -1269,6 +1285,7 @@ class ProofBankTests(unittest.TestCase):
         self.assertTrue(str(payload["rows"][0]["url"]).startswith("https://"))
         self.assertTrue(Path("runs/test_huggingface_lean_source_audit/huggingface_lean_source_audit_manifest.json").exists())
         self.assertTrue(Path("runs/test_huggingface_lean_source_audit/huggingface_lean_rag_integration_plan.json").exists())
+        self.assertTrue(Path("runs/test_huggingface_lean_source_audit/huggingface_lean_source_revalidation_queue.jsonl").exists())
         self.assertTrue(Path("runs/test_huggingface_lean_source_audit/huggingface_lean_source_audit.md").exists())
 
     def test_mock_proof_bank_audit_exports_lean(self) -> None:
@@ -16075,6 +16092,21 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertGreaterEqual(payload["counts"]["huggingface_lean_source_public_ungated"], 1)
         self.assertTrue(payload["counts"]["huggingface_lean_source_oproofs_detected"])
         self.assertGreaterEqual(payload["counts"]["huggingface_lean_source_rag_integration_rows"], 1)
+        self.assertGreaterEqual(
+            payload["counts"]["huggingface_lean_source_revalidation_queue_rows"],
+            payload["counts"]["huggingface_lean_source_rag_integration_rows"],
+        )
+        self.assertGreaterEqual(payload["counts"]["huggingface_lean_source_revalidation_queue_ready"], 1)
+        self.assertEqual(payload["counts"]["huggingface_lean_source_revalidation_queue_blocked"], 0)
+        self.assertEqual(payload["counts"]["huggingface_lean_source_revalidation_queue_kernel_verified"], 0)
+        self.assertEqual(
+            payload["counts"]["huggingface_lean_source_revalidation_queue_proof_evidence_ready"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["huggingface_lean_source_revalidation_queue_proof_evidence_status"],
+            "HF_LEAN_SOURCE_REVALIDATION_QUEUE_NOT_PROOF_EVIDENCE",
+        )
         self.assertEqual(payload["counts"]["huggingface_lean_source_proof_evidence_ready"], 0)
         self.assertFalse(payload["counts"]["huggingface_lean_source_use_network"])
         self.assertTrue(payload["counts"]["lean_rag_source_registry_expansion_all_ok"])

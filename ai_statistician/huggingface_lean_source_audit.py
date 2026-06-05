@@ -12,7 +12,8 @@ from typing import Any
 from .fingerprint import stable_hash
 
 
-HUGGINGFACE_LEAN_SOURCE_AUDIT_SCHEMA_VERSION = 1
+HUGGINGFACE_LEAN_SOURCE_AUDIT_SCHEMA_VERSION = 2
+HF_LEAN_SOURCE_REVALIDATION_QUEUE_SCHEMA_VERSION = 1
 HF_API_BASE = "https://huggingface.co/api"
 
 DEFAULT_HF_LEAN_SEARCH_TERMS: tuple[str, ...] = (
@@ -82,6 +83,9 @@ PROOF_EVIDENCE_BOUNDARY = (
     "A dataset row is not AI-Statistician proof evidence until the concrete Lean "
     "statement/proof is imported or reconstructed and verified locally under the "
     "target Lean toolchain."
+)
+REVALIDATION_QUEUE_PROOF_EVIDENCE_STATUS = (
+    "HF_LEAN_SOURCE_REVALIDATION_QUEUE_NOT_PROOF_EVIDENCE"
 )
 
 
@@ -266,15 +270,37 @@ def audit_huggingface_lean_sources(
         "collection_papers": paper_rows,
         "rows": row_dicts,
         "rag_integration_plan": _rag_integration_plan(rows),
+        "revalidation_queue": _revalidation_queue(rows),
         "top_recommendations": _top_recommendations(rows),
+        "revalidation_queue_proof_evidence_status": REVALIDATION_QUEUE_PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
         "errors": errors,
         "warnings": warnings,
+    }
+    revalidation_queue = [dict(row) for row in _list(payload["revalidation_queue"])]
+    payload["revalidation_queue_summary"] = {
+        "schema_version": HF_LEAN_SOURCE_REVALIDATION_QUEUE_SCHEMA_VERSION,
+        "n_queue_rows": len(revalidation_queue),
+        "n_ready": sum(
+            1
+            for row in revalidation_queue
+            if str(row.get("revalidation_status", "")).startswith("READY_")
+        ),
+        "n_blocked": sum(
+            1
+            for row in revalidation_queue
+            if str(row.get("revalidation_status", "")).startswith("BLOCKED_")
+        ),
+        "n_kernel_verified": 0,
+        "n_proof_evidence_ready": 0,
+        "proof_evidence_status": REVALIDATION_QUEUE_PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
     }
     payload["manifest_fingerprint"] = stable_hash(
         {
             "schema_version": HUGGINGFACE_LEAN_SOURCE_AUDIT_SCHEMA_VERSION,
             "rows": row_dicts,
+            "revalidation_queue": revalidation_queue,
             "collection_models": model_rows,
             "collection_papers": paper_rows,
             "summary": payload["summary"],
@@ -287,6 +313,11 @@ def audit_huggingface_lean_sources(
     )
     (out_dir / "huggingface_lean_rag_integration_plan.json").write_text(
         json.dumps(payload["rag_integration_plan"], indent=2, default=str) + "\n",
+        encoding="utf-8",
+    )
+    (out_dir / "huggingface_lean_source_revalidation_queue.jsonl").write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in revalidation_queue)
+        + ("\n" if revalidation_queue else ""),
         encoding="utf-8",
     )
     (out_dir / "huggingface_lean_source_audit.md").write_text(
@@ -734,6 +765,90 @@ def _rag_integration_plan(rows: list[HuggingFaceLeanSourceRow]) -> list[dict[str
     return plan
 
 
+def _revalidation_queue(rows: list[HuggingFaceLeanSourceRow]) -> list[dict[str, object]]:
+    queue: list[dict[str, object]] = []
+    for row in rows:
+        if row.priority not in {"critical", "high"}:
+            continue
+        status = "READY_FOR_LOCAL_REVALIDATION_SAMPLE"
+        errors: list[str] = []
+        if row.private or row.gated or row.disabled:
+            status = "BLOCKED_ACCESS_OR_DISABLED_SOURCE"
+            errors.append("source is private, gated, or disabled")
+        elif not row.license:
+            status = "READY_FOR_METADATA_AND_LICENSE_REVIEW"
+        revalidation_id = stable_hash(
+            {
+                "dataset_id": row.dataset_id,
+                "sha": row.sha,
+                "priority": row.priority,
+                "relevance_class": row.relevance_class,
+            }
+        )[:16]
+        queue.append(
+            {
+                "schema_version": HF_LEAN_SOURCE_REVALIDATION_QUEUE_SCHEMA_VERSION,
+                "revalidation_id": f"hf_lean_source_revalidation:{revalidation_id}",
+                "source_id": "hf::" + row.dataset_id.replace("/", "::"),
+                "dataset_id": row.dataset_id,
+                "url": row.url,
+                "sha": row.sha,
+                "last_modified": row.last_modified,
+                "priority": row.priority,
+                "relevance_class": row.relevance_class,
+                "retrieval_role": row.retrieval_role,
+                "ingestion_mode": _ingestion_mode(row),
+                "license": row.license,
+                "num_rows": row.num_rows,
+                "parquet_shards": row.parquet_shards,
+                "formats": list(row.formats),
+                "schema_fields": list(row.schema_fields),
+                "trust_policy": row.trust_policy,
+                "usage_policy": row.usage_policy,
+                "revalidation_status": status,
+                "owner_agent": "hf_lean_source_revalidation_worker",
+                "action_type": "sample_reconstruct_and_locally_verify_lean_rows",
+                "required_inputs": [
+                    "dataset metadata",
+                    "license/access review",
+                    "small deterministic sample of proof-bearing rows",
+                    "target Lean project/toolchain",
+                ],
+                "command_plan": [
+                    "stream or sample rows without vendoring generated indexes",
+                    "dedupe by dataset_id, sha, formal_statement_hash, and formal_proof_hash",
+                    "reconstruct complete Lean imports/header when available",
+                    "run local Lean or AXLE on reconstructed statements/proofs",
+                    "promote only kernel-verified rows into proof-bank or proof-search evidence",
+                ],
+                "required_gate": (
+                    "local Lean/AXLE kernel verification of reconstructed Lean artifacts"
+                ),
+                "license_review_required": not bool(row.license),
+                "expected_outputs": [
+                    "sample manifest with row hashes",
+                    "Lean reconstruction artifacts",
+                    "local verifier attempt log",
+                    "candidate promotion manifest for kernel-verified rows only",
+                ],
+                "dedupe_keys": [
+                    "dataset_id",
+                    "sha",
+                    "formal_statement_hash",
+                    "formal_proof_hash",
+                ],
+                "do_not_vendor": True,
+                "kernel_verified_rows": 0,
+                "proof_evidence_ready": 0,
+                "proof_evidence_status": REVALIDATION_QUEUE_PROOF_EVIDENCE_STATUS,
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+                "ok": not errors,
+                "errors": errors,
+            }
+        )
+    return queue
+
+
 def _ingestion_mode(row: HuggingFaceLeanSourceRow) -> str:
     if row.relevance_class == "benchmark_eval":
         return "metadata_index_and_holdout_split_only"
@@ -761,6 +876,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- OProofs rows: `{summary.get('oproofs_reported_rows')}`",
         f"- OProofs parquet shards: `{summary.get('oproofs_parquet_shards')}`",
         f"- Proof evidence ready: `{summary.get('proof_evidence_ready')}`",
+        f"- Revalidation queue rows: `{dict(payload.get('revalidation_queue_summary', {}) or {}).get('n_queue_rows', 0)}`",
         "",
         "## Boundary",
         "",
@@ -806,6 +922,14 @@ def _markdown_report(payload: dict[str, object]) -> str:
         lines.extend(["", "## Integration Plan", ""])
         lines.append(
             f"`huggingface_lean_rag_integration_plan.json` contains `{len(plan)}` critical/high source plans."
+        )
+    queue_summary = dict(payload.get("revalidation_queue_summary", {}) or {})
+    if queue_summary:
+        lines.extend(["", "## Revalidation Queue", ""])
+        lines.append(
+            "`huggingface_lean_source_revalidation_queue.jsonl` contains "
+            f"`{queue_summary.get('n_queue_rows', 0)}` source revalidation work orders; "
+            f"`{queue_summary.get('n_kernel_verified', 0)}` are kernel verified so far."
         )
     errors = _list(payload.get("errors"))
     warnings = _list(payload.get("warnings"))

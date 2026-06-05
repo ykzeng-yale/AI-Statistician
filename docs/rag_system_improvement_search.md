@@ -157,11 +157,14 @@ and broad Hugging Face searches for Lean4, LeanDojo, NuminaMath-LEAN,
 Lean-GitHub, Lean Workbook, LeanPolish, proof repair/compression, miniF2F,
 ProofNet, PutnamBench, Mathlib, analysis, calculus, and statistics. The audit
 writes `huggingface_lean_source_audit_manifest.json`,
-`huggingface_lean_rag_integration_plan.json`, and a markdown report. The plan
+`huggingface_lean_rag_integration_plan.json`,
+`huggingface_lean_source_revalidation_queue.jsonl`, and a markdown report. The plan
 artifact is the machine-readable contract for downstream RAG workers: source id,
 dataset URL, role, ingestion mode, license/provenance policy, dedupe keys, and
-the local Lean validation gate. The audit ranks each dataset by RAG/training
-role:
+the local Lean validation gate. The revalidation queue turns critical/high rows
+into deterministic work orders for sampling records, reconstructing Lean
+artifacts, and running local Lean/AXLE before any proof-bank or proof-search
+promotion. The audit ranks each dataset by RAG/training role:
 
 - `formal_proof_pairs`: streamed retrieval memory and proof-pair SFT candidates.
 - `tactic_state_training`: proof-state-aware premise/tactic retrieval candidates.

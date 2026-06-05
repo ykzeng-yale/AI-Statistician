@@ -1722,6 +1722,24 @@ async def run_research_system_audit(
             "huggingface_lean_source_rag_integration_rows": len(
                 huggingface_lean_source_manifest.get("rag_integration_plan", ())
             ),
+            "huggingface_lean_source_revalidation_queue_rows": huggingface_lean_source_manifest[
+                "revalidation_queue_summary"
+            ].get("n_queue_rows", 0),
+            "huggingface_lean_source_revalidation_queue_ready": huggingface_lean_source_manifest[
+                "revalidation_queue_summary"
+            ].get("n_ready", 0),
+            "huggingface_lean_source_revalidation_queue_blocked": huggingface_lean_source_manifest[
+                "revalidation_queue_summary"
+            ].get("n_blocked", 0),
+            "huggingface_lean_source_revalidation_queue_kernel_verified": huggingface_lean_source_manifest[
+                "revalidation_queue_summary"
+            ].get("n_kernel_verified", 0),
+            "huggingface_lean_source_revalidation_queue_proof_evidence_ready": huggingface_lean_source_manifest[
+                "revalidation_queue_summary"
+            ].get("n_proof_evidence_ready", 0),
+            "huggingface_lean_source_revalidation_queue_proof_evidence_status": huggingface_lean_source_manifest[
+                "revalidation_queue_summary"
+            ].get("proof_evidence_status", ""),
             "huggingface_lean_source_proof_evidence_ready": huggingface_lean_source_manifest[
                 "summary"
             ].get("proof_evidence_ready", 0),
@@ -3454,6 +3472,11 @@ async def run_research_system_audit(
                 out_dir
                 / "huggingface_lean_source_audit"
                 / "huggingface_lean_rag_integration_plan.json"
+            ),
+            "huggingface_lean_source_revalidation_queue": str(
+                out_dir
+                / "huggingface_lean_source_audit"
+                / "huggingface_lean_source_revalidation_queue.jsonl"
             ),
             "huggingface_lean_source_report": str(
                 out_dir
