@@ -13188,6 +13188,10 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             parent
             / "current_kernel_overlay_seeded_agentic_proof_source_theorem_promotion_queue"
         )
+        seeded_source_theorem_target_resolution_dir = (
+            parent
+            / "current_kernel_overlay_seeded_agentic_proof_source_theorem_target_resolution"
+        )
         out = parent / "rag_collaboration_export"
         shutil.rmtree(parent, ignore_errors=True)
         run_dir.mkdir(parents=True, exist_ok=True)
@@ -13209,6 +13213,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         seeded_materializer_dir.mkdir(parents=True, exist_ok=True)
         seeded_artifact_verifier_dir.mkdir(parents=True, exist_ok=True)
         seeded_source_theorem_promotion_dir.mkdir(parents=True, exist_ok=True)
+        seeded_source_theorem_target_resolution_dir.mkdir(parents=True, exist_ok=True)
         proof_fingerprint = "f" * 64
         proof_audit_dir = run_dir / "proof_audit"
         proof_audit_dir.mkdir(parents=True, exist_ok=True)
@@ -13742,6 +13747,71 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             ),
             encoding="utf-8",
         )
+        (
+            seeded_source_theorem_target_resolution_dir
+            / "formal_verifier_agentic_proof_source_theorem_target_resolution_manifest.json"
+        ).write_text(
+            json.dumps(
+                {
+                    "n_promotion_rows": 1,
+                    "n_target_resolution_rows": 1,
+                    "n_resolved_source_theorem_targets": 1,
+                    "n_needs_route_ledger_match": 0,
+                    "n_already_source_theorem_target_known": 0,
+                    "n_blocked_artifact_kernel_required": 0,
+                    "n_overlay_rows": 1,
+                    "n_ok": 1,
+                    "all_ok": True,
+                    "proof_evidence_status": "SOURCE_THEOREM_TARGET_RESOLUTION_NOT_PROOF_EVIDENCE",
+                    "proof_evidence_boundary": (
+                        "Agentic source-theorem target-resolution rows resolve route-ledger targets "
+                        "for artifact-kernel-verified proof probes. They are not proof evidence."
+                    ),
+                    "rows": [
+                        {
+                            "target_resolution_id": "formal_verifier_agentic_proof_source_theorem_target_resolution:auto",
+                            "source_theorem_promotion_id": "formal_verifier_agentic_proof_source_theorem_promotion_queue:auto",
+                            "artifact_verification_id": "formal_verifier_agentic_proof_execution_artifact_verifier:auto",
+                            "execution_queue_id": "formal_verifier_agentic_proof_execution_queue:auto",
+                            "display_name": "auto:claim:skeleton",
+                            "target_theorem_name": "formal:auto:claim",
+                            "candidate_artifact_path": candidate_artifact_path,
+                            "resolution_status": "RESOLVED_SOURCE_THEOREM_TARGET_FOR_INTEGRATION",
+                            "match_source": "formal_verifier_queue",
+                            "source_route_id": "theorem_route:auto",
+                            "source_queue_item_id": "formal_verifier_queue:auto",
+                            "source_replay_id": "formal_verifier_replay:auto",
+                            "task_id": "formal_gap:auto:claim",
+                            "question_id": "auto",
+                            "theorem_goal_id": "claim",
+                            "source_theorem_target_known": True,
+                            "source_theorem_statement": "theorem auto_claim : True := by trivial",
+                            "source_theorem_lean_file": "StatInference/Auto.lean",
+                            "artifact_kernel_verified": True,
+                            "action_type": "attach_resolved_source_theorem_target_overlay",
+                            "required_gate": "rerun source-theorem promotion and then verify the source theorem",
+                            "proof_evidence_status": "SOURCE_THEOREM_TARGET_RESOLUTION_NOT_PROOF_EVIDENCE",
+                            "proof_evidence_boundary": (
+                                "Target-resolution rows are route overlays, not theorem proof evidence."
+                            ),
+                        }
+                    ],
+                    "overlay_rows": [
+                        {
+                            "artifact_verification_id": "formal_verifier_agentic_proof_execution_artifact_verifier:auto",
+                            "source_theorem_target_known": True,
+                            "source_theorem_target_resolution_id": "formal_verifier_agentic_proof_source_theorem_target_resolution:auto",
+                            "source_theorem_route_id": "theorem_route:auto",
+                            "source_theorem_queue_item_id": "formal_verifier_queue:auto",
+                            "source_theorem_replay_id": "formal_verifier_replay:auto",
+                            "source_theorem_statement": "theorem auto_claim : True := by trivial",
+                            "proof_evidence_status": "SOURCE_THEOREM_TARGET_RESOLUTION_NOT_PROOF_EVIDENCE",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
         triage_manifest_path = (
             triage_dir / "formalization_gap_planner_proof_state_triage_manifest.json"
         )
@@ -14120,6 +14190,58 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertFalse(
             source_promotion_preview["source_theorem_kernel_verified"]
         )
+        self.assertEqual(
+            payload["artifact_auto_discoveries_applied"][
+                "formal_verifier_agentic_proof_source_theorem_target_resolution"
+            ],
+            str(
+                seeded_source_theorem_target_resolution_dir
+                / "formal_verifier_agentic_proof_source_theorem_target_resolution_manifest.json"
+            ),
+        )
+        self.assertEqual(
+            queue["formal_verifier_agentic_proof_source_theorem_target_resolution_rows"],
+            1,
+        )
+        self.assertEqual(
+            queue["formal_verifier_agentic_proof_source_theorem_target_resolution_resolved"],
+            1,
+        )
+        self.assertEqual(
+            queue[
+                "formal_verifier_agentic_proof_source_theorem_target_resolution_needs_route_match"
+            ],
+            0,
+        )
+        self.assertEqual(
+            queue["formal_verifier_agentic_proof_source_theorem_target_resolution_overlays"],
+            1,
+        )
+        self.assertEqual(
+            queue[
+                "formal_verifier_agentic_proof_source_theorem_target_resolution_proof_evidence_status"
+            ],
+            "SOURCE_THEOREM_TARGET_RESOLUTION_NOT_PROOF_EVIDENCE",
+        )
+        target_resolution_preview = queue[
+            "formal_verifier_agentic_proof_source_theorem_target_resolution_preview"
+        ][0]
+        self.assertEqual(
+            target_resolution_preview["resolution_status"],
+            "RESOLVED_SOURCE_THEOREM_TARGET_FOR_INTEGRATION",
+        )
+        self.assertEqual(
+            target_resolution_preview["match_source"],
+            "formal_verifier_queue",
+        )
+        self.assertEqual(
+            target_resolution_preview["source_route_id"],
+            "theorem_route:auto",
+        )
+        self.assertEqual(
+            target_resolution_preview["source_theorem_statement"],
+            "theorem auto_claim : True := by trivial",
+        )
         self.assertEqual(queue["formalization_gap_planner_proof_state_triage_items"], 2)
         self.assertEqual(
             queue[
@@ -14147,6 +14269,10 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         )
         self.assertIn(
             "source-theorem promotion queue rows are target-resolution or integration work orders",
+            " ".join(payload["honesty_boundaries"]),
+        )
+        self.assertIn(
+            "source-theorem target-resolution rows are route-ledger overlays",
             " ".join(payload["honesty_boundaries"]),
         )
         kernel_overlay = payload["kernel_proof_evidence_overlays"]
@@ -14274,6 +14400,10 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         )
         self.assertIn(
             "Agentic Source-Theorem Promotion Queue",
+            (out / "rag_collaboration.md").read_text(),
+        )
+        self.assertIn(
+            "Agentic Source-Theorem Target Resolution",
             (out / "rag_collaboration.md").read_text(),
         )
 
