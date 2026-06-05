@@ -144,6 +144,54 @@ theorem randomizationVarianceCertificate_sound {Ω : Type*}
         expected_lemmas=("variance_nonneg", "nlinarith"),
         depends_on=("neyman_bound_conservative_of_variance_decomposition",),
     ),
+    "multiple_testing_threshold_certificate_sound": FormalObligation(
+        id="multiple_testing_threshold_certificate_sound",
+        title="Multiple-testing BH threshold certificate checker soundness",
+        english=(
+            "A multiple-testing threshold certificate packages the deterministic "
+            "conditions needed for monotonicity of the Benjamini-Hochberg "
+            "threshold grid: nonnegative nominal level and ordered rank indices. "
+            "The checker proves that `q*k/m` is monotone in the rank index. "
+            "This is a small algebraic certificate theorem only; it does not "
+            "prove p-value validity, step-up self-consistency, independence, "
+            "or FDR control."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+
+noncomputable def certifiedBHThreshold (q : ℝ) (m k : Nat) : ℝ :=
+  q * (k : ℝ) / (m : ℝ)
+
+structure BHThresholdCertificate (q : ℝ) (k l : Nat) : Prop where
+  nonnegative_level : 0 ≤ q
+  ordered_indices : k ≤ l
+
+theorem multipleTestingThresholdCertificate_sound {q : ℝ} {m k l : Nat}
+    (cert : BHThresholdCertificate q k l) :
+    certifiedBHThreshold q m k ≤ certifiedBHThreshold q m l := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  rcases cert with ⟨hq, hkl⟩\n"
+            "  unfold certifiedBHThreshold\n"
+            "  gcongr"
+        ),
+        tags=(
+            "certificate_checker",
+            "multiple_testing_threshold_certificate",
+            "multiple_testing",
+            "fdr",
+            "bh",
+            "benjamini_hochberg",
+            "threshold",
+            "monotonicity",
+            "kernel_smoke",
+        ),
+        expected_lemmas=("gcongr",),
+        depends_on=("bh_threshold_grid_mono",),
+    ),
 }
 
 

@@ -2438,8 +2438,8 @@ Apply a central limit theorem to the centered score and use Slutsky's theorem.
 
         payload = asyncio.run(run())
         self.assertTrue(payload["all_ok"])
-        self.assertEqual(payload["n_obligations"], 2)
-        self.assertEqual(payload["n_verified"], 2)
+        self.assertEqual(payload["n_obligations"], 3)
+        self.assertEqual(payload["n_verified"], 3)
         self.assertEqual(payload["n_kernel_verified"], 0)
         self.assertEqual(
             payload["proof_evidence_status"],
@@ -2461,6 +2461,12 @@ Apply a central limit theorem to the centered score and use Slutsky's theorem.
             Path(
                 "runs/test_stat_claim_certificate_checker_audit_mock/lean/"
                 "randomization_variance_certificate_sound.lean"
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                "runs/test_stat_claim_certificate_checker_audit_mock/lean/"
+                "multiple_testing_threshold_certificate_sound.lean"
             ).exists()
         )
 
@@ -20034,10 +20040,10 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertGreater(payload["counts"]["stat_claim_certificate_conformal_targets"], 0)
         self.assertGreater(payload["counts"]["stat_claim_certificate_randomization_targets"], 0)
         self.assertGreater(payload["counts"]["stat_claim_certificate_multiple_testing_targets"], 0)
-        self.assertEqual(payload["counts"]["stat_claim_certificate_checker_obligations"], 2)
-        self.assertEqual(payload["counts"]["stat_claim_certificate_checker_verified"], 2)
+        self.assertEqual(payload["counts"]["stat_claim_certificate_checker_obligations"], 3)
+        self.assertEqual(payload["counts"]["stat_claim_certificate_checker_verified"], 3)
         self.assertEqual(payload["counts"]["stat_claim_certificate_checker_kernel_verified"], 0)
-        self.assertEqual(payload["counts"]["stat_claim_certificate_checker_non_kernel_verified"], 2)
+        self.assertEqual(payload["counts"]["stat_claim_certificate_checker_non_kernel_verified"], 3)
         self.assertFalse(payload["counts"]["stat_claim_certificate_checker_all_kernel_verified"])
         self.assertEqual(
             payload["counts"]["stat_claim_certificate_checker_proof_evidence_status"],
