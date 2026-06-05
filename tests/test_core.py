@@ -37,6 +37,9 @@ from ai_statistician.stat_claim_certificate_readiness_overlay import (
 from ai_statistician.stat_claim_certificate_witness_queue import (
     export_stat_claim_certificate_witness_queue,
 )
+from ai_statistician.stat_claim_certificate_witness_materializer import (
+    materialize_stat_claim_certificate_witness_drafts,
+)
 from ai_statistician.doctor import build_doctor_report, write_doctor_manifest
 from ai_statistician.evaluation_benchmark_guidance import build_evaluation_benchmark_guidance
 from ai_statistician.frontier_coverage_audit import audit_frontier_coverage, load_frontier_benchmark_questions
@@ -7429,6 +7432,82 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(Path("runs/test_stat_claim_certificate_witness_queue/stat_claim_certificate_witness_tasks.jsonl").exists())
         self.assertTrue(Path("runs/test_stat_claim_certificate_witness_queue/stat_claim_certificate_witness_blocked.jsonl").exists())
         self.assertTrue(Path("runs/test_stat_claim_certificate_witness_queue/stat_claim_certificate_witness_queue.md").exists())
+
+    def test_stat_claim_certificate_witness_materializer_writes_unfilled_drafts(self) -> None:
+        queue_dir = Path("runs/test_stat_claim_certificate_witness_materializer_queue")
+        out_dir = Path("runs/test_stat_claim_certificate_witness_materializer")
+        shutil.rmtree(queue_dir, ignore_errors=True)
+        shutil.rmtree(out_dir, ignore_errors=True)
+        queue_dir.mkdir(parents=True, exist_ok=True)
+        tasks = [
+            {
+                "task_id": "task:conformal",
+                "target_id": "cert:conformal",
+                "source_claim_id": "claim:conformal",
+                "question_id": "conformal_prediction_coverage",
+                "problem_class": "conformal_prediction",
+                "certificate_family": "conformal_coverage_certificate",
+                "checker_name": "ConformalCoverageCertificateChecker",
+                "checker_obligation_id": "conformal_coverage_certificate_sound",
+                "witness_schema": ["rank_threshold", "coverage_level_alpha"],
+                "expected_witness_path": "runs/test_stat_claim_certificate_witness_materializer_queue/witnesses/conformal.json",
+                "semantic_linkage_requirements": ["do not add assumptions"],
+                "forbidden_shortcuts": ["do not restate target theorem"],
+                "evidence_paths": ["runs/test_stat_claim_certificate_witness_materializer_queue/source.json"],
+            },
+            {
+                "task_id": "task:kkt",
+                "target_id": "cert:kkt",
+                "source_claim_id": "claim:kkt",
+                "question_id": "lasso_optimality",
+                "problem_class": "optimization",
+                "certificate_family": "kkt_optimality_certificate",
+                "checker_name": "KktOptimalityCertificateChecker",
+                "checker_obligation_id": "kkt_optimality_certificate_sound",
+                "witness_schema": ["primal_candidate", "dual_candidate"],
+                "expected_witness_path": "runs/test_stat_claim_certificate_witness_materializer_queue/witnesses/kkt.json",
+                "semantic_linkage_requirements": ["do not add assumptions"],
+                "forbidden_shortcuts": ["do not restate target theorem"],
+                "evidence_paths": ["runs/test_stat_claim_certificate_witness_materializer_queue/kkt_source.json"],
+            },
+        ]
+        (queue_dir / "stat_claim_certificate_witness_queue_manifest.json").write_text(
+            json.dumps(
+                {
+                    "all_ok": True,
+                    "n_tasks": len(tasks),
+                    "proof_evidence_status": "STAT_CLAIM_CERTIFICATE_WITNESS_QUEUE_NOT_PROOF_EVIDENCE",
+                }
+            ),
+            encoding="utf-8",
+        )
+        (queue_dir / "stat_claim_certificate_witness_tasks.jsonl").write_text(
+            "\n".join(json.dumps(row) for row in tasks) + "\n",
+            encoding="utf-8",
+        )
+
+        payload = materialize_stat_claim_certificate_witness_drafts(queue_dir, out_dir)
+
+        self.assertTrue(payload["all_ok"])
+        self.assertEqual(payload["n_drafts"], 2)
+        self.assertEqual(payload["n_ok"], 2)
+        self.assertEqual(payload["n_unfilled"], 2)
+        self.assertEqual(payload["n_ready_for_checker_validation"], 0)
+        self.assertEqual(payload["by_family"]["conformal_coverage_certificate"], 1)
+        self.assertEqual(payload["by_family"]["kkt_optimality_certificate"], 1)
+        self.assertEqual(
+            payload["proof_evidence_status"],
+            "STAT_CLAIM_CERTIFICATE_WITNESS_DRAFT_NOT_PROOF_EVIDENCE",
+        )
+        first_draft = Path(payload["drafts"][0]["draft_path"])
+        self.assertTrue(first_draft.exists())
+        draft_payload = json.loads(first_draft.read_text(encoding="utf-8"))
+        self.assertEqual(draft_payload["draft_status"], "WITNESS_DRAFT_UNFILLED")
+        self.assertFalse(draft_payload["checker_validation"]["attempted"])
+        self.assertEqual(draft_payload["fields"]["rank_threshold"], None)
+        self.assertTrue(Path("runs/test_stat_claim_certificate_witness_materializer/stat_claim_certificate_witness_materializer_manifest.json").exists())
+        self.assertTrue(Path("runs/test_stat_claim_certificate_witness_materializer/stat_claim_certificate_witness_drafts.jsonl").exists())
+        self.assertTrue(Path("runs/test_stat_claim_certificate_witness_materializer/stat_claim_certificate_witness_materializer.md").exists())
 
     def test_claim_ledger_action_export_turns_revision_rows_into_owner_tasks(self) -> None:
         async def run():
@@ -18044,6 +18123,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["gates"]["stat_claim_certificate_checker_audit"])
         self.assertTrue(payload["gates"]["stat_claim_certificate_readiness"])
         self.assertTrue(payload["gates"]["stat_claim_certificate_witness_queue"])
+        self.assertTrue(payload["gates"]["stat_claim_certificate_witness_materializer"])
         self.assertTrue(payload["gates"]["theorem_composition_export"])
         self.assertTrue(payload["gates"]["research_loop"])
         self.assertTrue(payload["gates"]["research_loop_repair_audit"])
@@ -18559,6 +18639,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "stat_claim_certificate_checker_audit",
             "stat_claim_certificate_readiness",
             "stat_claim_certificate_witness_queue",
+            "stat_claim_certificate_witness_materializer",
             "theorem_composition_export",
         }:
             self.assertIn(expected_stage, timing_stages)
@@ -20352,6 +20433,26 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             payload["counts"]["stat_claim_certificate_witness_queue_proof_evidence_status"],
             "STAT_CLAIM_CERTIFICATE_WITNESS_QUEUE_NOT_PROOF_EVIDENCE",
         )
+        self.assertEqual(
+            payload["counts"]["stat_claim_certificate_witness_materializer_drafts"],
+            payload["counts"]["stat_claim_certificate_witness_queue_tasks"],
+        )
+        self.assertEqual(
+            payload["counts"]["stat_claim_certificate_witness_materializer_ok"],
+            payload["counts"]["stat_claim_certificate_witness_materializer_drafts"],
+        )
+        self.assertEqual(
+            payload["counts"]["stat_claim_certificate_witness_materializer_unfilled"],
+            payload["counts"]["stat_claim_certificate_witness_materializer_drafts"],
+        )
+        self.assertEqual(
+            payload["counts"]["stat_claim_certificate_witness_materializer_ready_for_checker_validation"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["stat_claim_certificate_witness_materializer_proof_evidence_status"],
+            "STAT_CLAIM_CERTIFICATE_WITNESS_DRAFT_NOT_PROOF_EVIDENCE",
+        )
         self.assertEqual(payload["counts"]["theorem_composition_packets_ok"], payload["counts"]["theorem_composition_packets"])
         self.assertEqual(
             payload["counts"]["theorem_composition_packets"],
@@ -20488,6 +20589,10 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_tasks"]).exists())
         self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_blocked"]).exists())
         self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_queue_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_materializer"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_drafts"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_draft_dir"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_materializer_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["theorem_composition"]).exists())
         self.assertTrue(Path(payload["artifacts"]["theorem_composition_jsonl"]).exists())
         self.assertTrue(Path(payload["artifacts"]["theorem_composition_report"]).exists())
