@@ -62,6 +62,11 @@ def validate_stat_claim_certificate_witness_drafts(
     materializer_manifest_path = (
         materializer_dir / "stat_claim_certificate_witness_materializer_manifest.json"
     )
+    if not materializer_manifest_path.exists():
+        materializer_manifest_path = (
+            materializer_dir
+            / "stat_claim_certificate_witness_response_apply_manifest.json"
+        )
     draft_jsonl_path = materializer_dir / "stat_claim_certificate_witness_drafts.jsonl"
     materializer_manifest = _read_json(materializer_manifest_path, errors)
     draft_rows = _read_jsonl(draft_jsonl_path, errors)

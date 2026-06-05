@@ -43,6 +43,9 @@ from .stat_claim_certificate_witness_materializer import (
 from .stat_claim_certificate_witness_prompt_packets import (
     export_stat_claim_certificate_witness_prompt_packets,
 )
+from .stat_claim_certificate_witness_response_apply import (
+    apply_stat_claim_certificate_witness_responses,
+)
 from .stat_claim_certificate_witness_response_validation import (
     validate_stat_claim_certificate_witness_worker_outputs,
 )
@@ -1222,8 +1225,20 @@ async def run_research_system_audit(
         "stat_claim_certificate_witness_response_validation",
         stage_start,
     )
+    stat_claim_certificate_witness_response_apply_manifest = (
+        apply_stat_claim_certificate_witness_responses(
+            out_dir / "stat_claim_certificate_witness_response_validation",
+            out_dir / "stat_claim_certificate_witness_response_apply",
+            materializer_dir=out_dir / "stat_claim_certificate_witness_materializer",
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "stat_claim_certificate_witness_response_apply",
+        stage_start,
+    )
     stat_claim_certificate_witness_validator_manifest = validate_stat_claim_certificate_witness_drafts(
-        out_dir / "stat_claim_certificate_witness_materializer",
+        out_dir / "stat_claim_certificate_witness_response_apply",
         out_dir / "stat_claim_certificate_witness_validator",
     )
     stage_start = _record_stage(stage_timings, "stat_claim_certificate_witness_validator", stage_start)
@@ -1569,6 +1584,9 @@ async def run_research_system_audit(
         "stat_claim_certificate_witness_response_validation": bool(
             stat_claim_certificate_witness_response_validation_manifest["all_ok"]
         ),
+        "stat_claim_certificate_witness_response_apply": bool(
+            stat_claim_certificate_witness_response_apply_manifest["all_ok"]
+        ),
         "stat_claim_certificate_witness_validator": bool(
             stat_claim_certificate_witness_validator_manifest["all_ok"]
         ),
@@ -1644,6 +1662,7 @@ async def run_research_system_audit(
         "stat_claim_certificate_witness_materializer",
         "stat_claim_certificate_witness_prompt_packets",
         "stat_claim_certificate_witness_response_validation",
+        "stat_claim_certificate_witness_response_apply",
         "stat_claim_certificate_witness_validator",
         "theorem_composition_export",
     )
@@ -3739,6 +3758,36 @@ async def run_research_system_audit(
             "stat_claim_certificate_witness_response_validation_proof_evidence_status": stat_claim_certificate_witness_response_validation_manifest[
                 "proof_evidence_status"
             ],
+            "stat_claim_certificate_witness_response_apply_drafts": stat_claim_certificate_witness_response_apply_manifest[
+                "n_drafts"
+            ],
+            "stat_claim_certificate_witness_response_apply_ok": stat_claim_certificate_witness_response_apply_manifest[
+                "n_ok"
+            ],
+            "stat_claim_certificate_witness_response_apply_applied": stat_claim_certificate_witness_response_apply_manifest[
+                "n_worker_response_applied"
+            ],
+            "stat_claim_certificate_witness_response_apply_accepted_for_draft_update": stat_claim_certificate_witness_response_apply_manifest[
+                "n_accepted_for_draft_update"
+            ],
+            "stat_claim_certificate_witness_response_apply_awaiting": stat_claim_certificate_witness_response_apply_manifest[
+                "n_awaiting_worker_output"
+            ],
+            "stat_claim_certificate_witness_response_apply_rejected_response_rows": stat_claim_certificate_witness_response_apply_manifest[
+                "n_rejected_response_rows"
+            ],
+            "stat_claim_certificate_witness_response_apply_missing_validation_rows": stat_claim_certificate_witness_response_apply_manifest[
+                "n_missing_validation_rows"
+            ],
+            "stat_claim_certificate_witness_response_apply_missing_response_rows": stat_claim_certificate_witness_response_apply_manifest[
+                "n_missing_response_rows"
+            ],
+            "stat_claim_certificate_witness_response_apply_missing_response_fields": stat_claim_certificate_witness_response_apply_manifest[
+                "n_missing_response_fields"
+            ],
+            "stat_claim_certificate_witness_response_apply_proof_evidence_status": stat_claim_certificate_witness_response_apply_manifest[
+                "proof_evidence_status"
+            ],
             "stat_claim_certificate_witness_validator_drafts": stat_claim_certificate_witness_validator_manifest[
                 "n_drafts"
             ],
@@ -4995,6 +5044,29 @@ async def run_research_system_audit(
                 / "stat_claim_certificate_witness_response_validation"
                 / "stat_claim_certificate_witness_response_validation.md"
             ),
+            "stat_claim_certificate_witness_response_apply": str(
+                out_dir
+                / "stat_claim_certificate_witness_response_apply"
+                / "stat_claim_certificate_witness_response_apply_manifest.json"
+            ),
+            "stat_claim_certificate_witness_response_apply_jsonl": str(
+                out_dir
+                / "stat_claim_certificate_witness_response_apply"
+                / "stat_claim_certificate_witness_response_apply.jsonl"
+            ),
+            "stat_claim_certificate_witness_response_apply_drafts": str(
+                out_dir
+                / "stat_claim_certificate_witness_response_apply"
+                / "stat_claim_certificate_witness_drafts.jsonl"
+            ),
+            "stat_claim_certificate_witness_response_apply_draft_dir": str(
+                out_dir / "stat_claim_certificate_witness_response_apply" / "witness_drafts"
+            ),
+            "stat_claim_certificate_witness_response_apply_report": str(
+                out_dir
+                / "stat_claim_certificate_witness_response_apply"
+                / "stat_claim_certificate_witness_response_apply.md"
+            ),
             "stat_claim_certificate_witness_validator": str(
                 out_dir
                 / "stat_claim_certificate_witness_validator"
@@ -5430,6 +5502,9 @@ def _research_benchmark_cache_key(
             ),
             "stat_claim_certificate_witness_prompt_packets": _source_file_hash(
                 Path(__file__).with_name("stat_claim_certificate_witness_prompt_packets.py")
+            ),
+            "stat_claim_certificate_witness_response_apply": _source_file_hash(
+                Path(__file__).with_name("stat_claim_certificate_witness_response_apply.py")
             ),
             "stat_claim_certificate_witness_response_validation": _source_file_hash(
                 Path(__file__).with_name("stat_claim_certificate_witness_response_validation.py")

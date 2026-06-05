@@ -36,6 +36,9 @@ from .stat_claim_certificate_witness_materializer import (
 from .stat_claim_certificate_witness_prompt_packets import (
     export_stat_claim_certificate_witness_prompt_packets,
 )
+from .stat_claim_certificate_witness_response_apply import (
+    apply_stat_claim_certificate_witness_responses,
+)
 from .stat_claim_certificate_witness_response_validation import (
     validate_stat_claim_certificate_witness_worker_outputs,
 )
@@ -3490,6 +3493,41 @@ def _stat_claim_certificate_witness_response_validate(args: argparse.Namespace) 
     return 0 if payload["all_ok"] else 1
 
 
+def _stat_claim_certificate_witness_response_apply(args: argparse.Namespace) -> int:
+    payload = apply_stat_claim_certificate_witness_responses(
+        Path(args.response_validation_dir),
+        Path(args.out),
+        materializer_dir=Path(args.materializer_dir) if args.materializer_dir else None,
+    )
+    print("\nAI Statistical Theory Lab Statistical Claim Certificate Witness Response Apply")
+    print("=" * 72)
+    print(
+        f"drafts={payload['n_ok']}/{payload['n_drafts']} "
+        f"applied={payload['n_worker_response_applied']} "
+        f"awaiting={payload['n_awaiting_worker_output']} "
+        f"rejected={payload['n_rejected_response_rows']} "
+        f"status={payload['proof_evidence_status']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    for status, count in payload["by_status"].items():
+        print(f"  {status}: {count}")
+    print(
+        f"\nwitness response apply manifest written to "
+        f"{(Path(args.out) / 'stat_claim_certificate_witness_response_apply_manifest.json').resolve()}"
+    )
+    print(
+        f"applied rows written to "
+        f"{(Path(args.out) / 'stat_claim_certificate_witness_response_apply.jsonl').resolve()}"
+    )
+    print(f"draft rows written to {(Path(args.out) / 'stat_claim_certificate_witness_drafts.jsonl').resolve()}")
+    print(f"draft files written to {(Path(args.out) / 'witness_drafts').resolve()}")
+    print(
+        f"markdown report written to "
+        f"{(Path(args.out) / 'stat_claim_certificate_witness_response_apply.md').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
 def _stat_claim_certificate_witness_validate(args: argparse.Namespace) -> int:
     payload = validate_stat_claim_certificate_witness_drafts(
         Path(args.materializer_dir),
@@ -6789,6 +6827,29 @@ def build_parser() -> argparse.ArgumentParser:
     )
     stat_claim_certificate_witness_response_validate.set_defaults(
         func=_stat_claim_certificate_witness_response_validate
+    )
+
+    stat_claim_certificate_witness_response_apply = sub.add_parser(
+        "stat-claim-certificate-witness-response-apply",
+        help="copy accepted witness worker responses into draft artifacts",
+    )
+    stat_claim_certificate_witness_response_apply.add_argument(
+        "--response-validation-dir",
+        required=True,
+        help="directory containing stat_claim_certificate_witness_response_validation_manifest.json",
+    )
+    stat_claim_certificate_witness_response_apply.add_argument(
+        "--materializer-dir",
+        default=None,
+        help="optional materializer directory; defaults to the prompt-packet manifest lineage",
+    )
+    stat_claim_certificate_witness_response_apply.add_argument(
+        "--out",
+        default="runs/stat_claim_certificate_witness_response_apply",
+        help="certificate witness response-apply output directory",
+    )
+    stat_claim_certificate_witness_response_apply.set_defaults(
+        func=_stat_claim_certificate_witness_response_apply
     )
 
     stat_claim_certificate_witness_validate = sub.add_parser(

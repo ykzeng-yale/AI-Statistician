@@ -43,6 +43,9 @@ from ai_statistician.stat_claim_certificate_witness_materializer import (
 from ai_statistician.stat_claim_certificate_witness_prompt_packets import (
     export_stat_claim_certificate_witness_prompt_packets,
 )
+from ai_statistician.stat_claim_certificate_witness_response_apply import (
+    apply_stat_claim_certificate_witness_responses,
+)
 from ai_statistician.stat_claim_certificate_witness_response_validation import (
     validate_stat_claim_certificate_witness_worker_outputs,
 )
@@ -7771,6 +7774,210 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertEqual(payload["n_missing_worker_outputs"], 1)
         self.assertEqual(payload["n_accepted_for_draft_update"], 0)
         self.assertEqual(payload["rows"][0]["validation_status"], "AWAITING_WORKER_OUTPUT")
+
+    def test_stat_claim_certificate_witness_response_apply_updates_accepted_draft(self) -> None:
+        root = Path("runs/test_stat_claim_certificate_witness_response_apply_accept")
+        prompt_dir = root / "prompt_packets"
+        materializer_dir = root / "materializer"
+        validation_dir = root / "response_validation"
+        apply_dir = root / "response_apply"
+        validator_dir = root / "validator"
+        shutil.rmtree(root, ignore_errors=True)
+        prompt_dir.mkdir(parents=True, exist_ok=True)
+        materializer_dir.mkdir(parents=True, exist_ok=True)
+        draft_dir = materializer_dir / "witness_drafts"
+        draft_dir.mkdir(parents=True, exist_ok=True)
+        draft_path = draft_dir / "draft.json"
+        draft_payload = {
+            "schema_version": 1,
+            "draft_id": "draft:apply",
+            "task_id": "task:apply",
+            "target_id": "target:apply",
+            "source_claim_id": "claim:apply",
+            "question_id": "q_apply",
+            "certificate_family": "conformal_coverage_certificate",
+            "draft_status": "WITNESS_DRAFT_UNFILLED",
+            "fields": {"rank_threshold": None, "coverage_level_alpha": None},
+            "source_field_evidence": {"rank_threshold": [], "coverage_level_alpha": []},
+            "open_semantic_gaps": ["unfilled"],
+            "checker_validation": {"attempted": False, "passed": False, "transcript_path": ""},
+            "source_claim_proved": False,
+            "proof_evidence_status": "STAT_CLAIM_CERTIFICATE_WITNESS_DRAFT_NOT_PROOF_EVIDENCE",
+        }
+        draft_path.write_text(json.dumps(draft_payload), encoding="utf-8")
+        draft_row = {
+            "draft_id": "draft:apply",
+            "task_id": "task:apply",
+            "target_id": "target:apply",
+            "source_claim_id": "claim:apply",
+            "question_id": "q_apply",
+            "certificate_family": "conformal_coverage_certificate",
+            "required_fields": ["rank_threshold", "coverage_level_alpha"],
+            "draft_path": str(draft_path),
+        }
+        (materializer_dir / "stat_claim_certificate_witness_materializer_manifest.json").write_text(
+            json.dumps({"all_ok": True, "proof_evidence_status": "STAT_CLAIM_CERTIFICATE_WITNESS_DRAFT_NOT_PROOF_EVIDENCE"}),
+            encoding="utf-8",
+        )
+        (materializer_dir / "stat_claim_certificate_witness_drafts.jsonl").write_text(
+            json.dumps(draft_row) + "\n",
+            encoding="utf-8",
+        )
+        packet = {
+            "prompt_packet_id": "prompt:apply",
+            "draft_id": "draft:apply",
+            "task_id": "task:apply",
+            "target_id": "target:apply",
+            "source_claim_id": "claim:apply",
+            "question_id": "q_apply",
+            "certificate_family": "conformal_coverage_certificate",
+            "required_fields": ["rank_threshold", "coverage_level_alpha"],
+        }
+        (prompt_dir / "stat_claim_certificate_witness_prompt_packets_manifest.json").write_text(
+            json.dumps(
+                {
+                    "all_ok": True,
+                    "materializer_dir": str(materializer_dir),
+                    "worker_output_jsonl": "stat_claim_certificate_witness_worker_outputs.jsonl",
+                    "packets": [packet],
+                }
+            ),
+            encoding="utf-8",
+        )
+        (prompt_dir / "stat_claim_certificate_witness_prompt_packets.jsonl").write_text(
+            json.dumps(packet) + "\n",
+            encoding="utf-8",
+        )
+        response = {
+            "prompt_packet_id": "prompt:apply",
+            "draft_id": "draft:apply",
+            "task_id": "task:apply",
+            "fields": {"rank_threshold": 3, "coverage_level_alpha": 0.1},
+            "source_field_evidence": {
+                "rank_threshold": ["source-span:rank"],
+                "coverage_level_alpha": ["source-span:alpha"],
+            },
+            "open_semantic_gaps": [],
+            "semantic_linkage_review": "source spans identify rank and alpha",
+            "checker_validation": {"attempted": False, "passed": False},
+            "proof_evidence_status": "STAT_CLAIM_CERTIFICATE_WITNESS_DRAFT_NOT_PROOF_EVIDENCE",
+            "source_claim_proved": False,
+            "limitations": ["not proof evidence"],
+        }
+        (prompt_dir / "stat_claim_certificate_witness_worker_outputs.jsonl").write_text(
+            json.dumps(response) + "\n",
+            encoding="utf-8",
+        )
+        validate_stat_claim_certificate_witness_worker_outputs(prompt_dir, validation_dir)
+
+        payload = apply_stat_claim_certificate_witness_responses(
+            validation_dir,
+            apply_dir,
+            materializer_dir=materializer_dir,
+        )
+
+        self.assertTrue(payload["all_ok"])
+        self.assertEqual(payload["n_worker_response_applied"], 1)
+        self.assertEqual(payload["n_accepted_for_draft_update"], 1)
+        self.assertEqual(payload["n_awaiting_worker_output"], 0)
+        self.assertEqual(payload["drafts"][0]["apply_status"], "APPLIED_ACCEPTED_RESPONSE")
+        applied_draft = json.loads(Path(payload["drafts"][0]["applied_draft_path"]).read_text())
+        self.assertEqual(applied_draft["fields"]["rank_threshold"], 3)
+        self.assertEqual(applied_draft["source_field_evidence"]["coverage_level_alpha"], ["source-span:alpha"])
+        self.assertEqual(applied_draft["draft_status"], "WITNESS_DRAFT_FILLED")
+        self.assertFalse(applied_draft["source_claim_proved"])
+        self.assertEqual(
+            applied_draft["proof_evidence_status"],
+            "STAT_CLAIM_CERTIFICATE_WITNESS_DRAFT_NOT_PROOF_EVIDENCE",
+        )
+        validator = validate_stat_claim_certificate_witness_drafts(apply_dir, validator_dir)
+        self.assertTrue(validator["all_ok"])
+        self.assertEqual(validator["n_ready_for_checker_validation"], 1)
+        self.assertTrue(Path("runs/test_stat_claim_certificate_witness_response_apply_accept/response_apply/stat_claim_certificate_witness_response_apply_manifest.json").exists())
+        self.assertTrue(Path("runs/test_stat_claim_certificate_witness_response_apply_accept/response_apply/stat_claim_certificate_witness_drafts.jsonl").exists())
+
+    def test_stat_claim_certificate_witness_response_apply_leaves_awaiting_draft_unfilled(self) -> None:
+        root = Path("runs/test_stat_claim_certificate_witness_response_apply_awaiting")
+        prompt_dir = root / "prompt_packets"
+        materializer_dir = root / "materializer"
+        validation_dir = root / "response_validation"
+        apply_dir = root / "response_apply"
+        validator_dir = root / "validator"
+        shutil.rmtree(root, ignore_errors=True)
+        prompt_dir.mkdir(parents=True, exist_ok=True)
+        materializer_dir.mkdir(parents=True, exist_ok=True)
+        draft_dir = materializer_dir / "witness_drafts"
+        draft_dir.mkdir(parents=True, exist_ok=True)
+        draft_path = draft_dir / "draft.json"
+        draft_path.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "draft_id": "draft:awaiting",
+                    "task_id": "task:awaiting",
+                    "target_id": "target:awaiting",
+                    "draft_status": "WITNESS_DRAFT_UNFILLED",
+                    "fields": {"threshold_rule": None},
+                    "source_field_evidence": {"threshold_rule": []},
+                    "open_semantic_gaps": ["worker output absent"],
+                    "checker_validation": {"attempted": False, "passed": False},
+                    "proof_evidence_status": "STAT_CLAIM_CERTIFICATE_WITNESS_DRAFT_NOT_PROOF_EVIDENCE",
+                }
+            ),
+            encoding="utf-8",
+        )
+        draft_row = {
+            "draft_id": "draft:awaiting",
+            "task_id": "task:awaiting",
+            "target_id": "target:awaiting",
+            "source_claim_id": "claim:awaiting",
+            "question_id": "q_awaiting",
+            "certificate_family": "multiple_testing_certificate",
+            "required_fields": ["threshold_rule"],
+            "draft_path": str(draft_path),
+        }
+        (materializer_dir / "stat_claim_certificate_witness_materializer_manifest.json").write_text(
+            json.dumps({"all_ok": True, "proof_evidence_status": "STAT_CLAIM_CERTIFICATE_WITNESS_DRAFT_NOT_PROOF_EVIDENCE"}),
+            encoding="utf-8",
+        )
+        (materializer_dir / "stat_claim_certificate_witness_drafts.jsonl").write_text(
+            json.dumps(draft_row) + "\n",
+            encoding="utf-8",
+        )
+        packet = {
+            "prompt_packet_id": "prompt:awaiting",
+            "draft_id": "draft:awaiting",
+            "task_id": "task:awaiting",
+            "target_id": "target:awaiting",
+            "source_claim_id": "claim:awaiting",
+            "question_id": "q_awaiting",
+            "certificate_family": "multiple_testing_certificate",
+            "required_fields": ["threshold_rule"],
+        }
+        (prompt_dir / "stat_claim_certificate_witness_prompt_packets_manifest.json").write_text(
+            json.dumps({"all_ok": True, "materializer_dir": str(materializer_dir), "packets": [packet]}),
+            encoding="utf-8",
+        )
+        (prompt_dir / "stat_claim_certificate_witness_prompt_packets.jsonl").write_text(
+            json.dumps(packet) + "\n",
+            encoding="utf-8",
+        )
+        validate_stat_claim_certificate_witness_worker_outputs(prompt_dir, validation_dir)
+
+        payload = apply_stat_claim_certificate_witness_responses(
+            validation_dir,
+            apply_dir,
+            materializer_dir=materializer_dir,
+        )
+
+        self.assertTrue(payload["all_ok"])
+        self.assertEqual(payload["n_worker_response_applied"], 0)
+        self.assertEqual(payload["n_awaiting_worker_output"], 1)
+        self.assertEqual(payload["drafts"][0]["apply_status"], "UNCHANGED_AWAITING_WORKER_OUTPUT")
+        validator = validate_stat_claim_certificate_witness_drafts(apply_dir, validator_dir)
+        self.assertTrue(validator["all_ok"])
+        self.assertEqual(validator["n_ready_for_checker_validation"], 0)
+        self.assertEqual(validator["n_incomplete"], 1)
 
     def test_stat_claim_certificate_witness_validator_rejects_incomplete_drafts(self) -> None:
         materializer_dir = Path("runs/test_stat_claim_certificate_witness_validator_incomplete_materializer")
@@ -18549,6 +18756,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["gates"]["stat_claim_certificate_witness_materializer"])
         self.assertTrue(payload["gates"]["stat_claim_certificate_witness_prompt_packets"])
         self.assertTrue(payload["gates"]["stat_claim_certificate_witness_response_validation"])
+        self.assertTrue(payload["gates"]["stat_claim_certificate_witness_response_apply"])
         self.assertTrue(payload["gates"]["stat_claim_certificate_witness_validator"])
         self.assertTrue(payload["gates"]["theorem_composition_export"])
         self.assertTrue(payload["gates"]["research_loop"])
@@ -19067,6 +19275,8 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "stat_claim_certificate_witness_queue",
             "stat_claim_certificate_witness_materializer",
             "stat_claim_certificate_witness_prompt_packets",
+            "stat_claim_certificate_witness_response_validation",
+            "stat_claim_certificate_witness_response_apply",
             "stat_claim_certificate_witness_validator",
             "theorem_composition_export",
         }:
@@ -20941,8 +21151,36 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "STAT_CLAIM_CERTIFICATE_WITNESS_RESPONSE_VALIDATION_NOT_PROOF_EVIDENCE",
         )
         self.assertEqual(
-            payload["counts"]["stat_claim_certificate_witness_validator_drafts"],
+            payload["counts"]["stat_claim_certificate_witness_response_apply_drafts"],
             payload["counts"]["stat_claim_certificate_witness_materializer_drafts"],
+        )
+        self.assertEqual(
+            payload["counts"]["stat_claim_certificate_witness_response_apply_ok"],
+            payload["counts"]["stat_claim_certificate_witness_response_apply_drafts"],
+        )
+        self.assertEqual(
+            payload["counts"]["stat_claim_certificate_witness_response_apply_applied"],
+            payload["counts"]["stat_claim_certificate_witness_response_validation_accepted_for_draft_update"],
+        )
+        self.assertEqual(
+            payload["counts"]["stat_claim_certificate_witness_response_apply_accepted_for_draft_update"],
+            payload["counts"]["stat_claim_certificate_witness_response_apply_applied"],
+        )
+        self.assertEqual(
+            payload["counts"]["stat_claim_certificate_witness_response_apply_awaiting"],
+            payload["counts"]["stat_claim_certificate_witness_response_validation_awaiting"],
+        )
+        self.assertEqual(payload["counts"]["stat_claim_certificate_witness_response_apply_rejected_response_rows"], 0)
+        self.assertEqual(payload["counts"]["stat_claim_certificate_witness_response_apply_missing_validation_rows"], 0)
+        self.assertEqual(payload["counts"]["stat_claim_certificate_witness_response_apply_missing_response_rows"], 0)
+        self.assertEqual(payload["counts"]["stat_claim_certificate_witness_response_apply_missing_response_fields"], 0)
+        self.assertEqual(
+            payload["counts"]["stat_claim_certificate_witness_response_apply_proof_evidence_status"],
+            "STAT_CLAIM_CERTIFICATE_WITNESS_RESPONSE_APPLY_NOT_PROOF_EVIDENCE",
+        )
+        self.assertEqual(
+            payload["counts"]["stat_claim_certificate_witness_validator_drafts"],
+            payload["counts"]["stat_claim_certificate_witness_response_apply_drafts"],
         )
         self.assertEqual(
             payload["counts"]["stat_claim_certificate_witness_validator_ok"],
@@ -21104,6 +21342,11 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_response_validation"]).exists())
         self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_response_validation_jsonl"]).exists())
         self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_response_validation_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_response_apply"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_response_apply_jsonl"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_response_apply_drafts"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_response_apply_draft_dir"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_response_apply_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_validator"]).exists())
         self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_validation"]).exists())
         self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_validator_report"]).exists())
