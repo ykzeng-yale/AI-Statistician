@@ -47,6 +47,7 @@ class FormalVerifierAgenticProofExecutionMaterializerRow:
     static_contract_status: str
     forbidden_tokens_found: tuple[str, ...]
     live_goal_location_ready: bool
+    live_proof_state_request: dict[str, object]
     kernel_verified: bool
     proof_evidence_status: str
     proof_evidence_boundary: str
@@ -99,6 +100,15 @@ def export_formal_verifier_agentic_proof_execution_materializer(
         ),
         "n_live_goal_location_ready": sum(
             1 for row in rows if row.live_goal_location_ready
+        ),
+        "n_live_proof_state_requests": sum(
+            1 for row in rows if row.live_proof_state_request
+        ),
+        "n_lean_lsp_mcp_ready_requests": sum(
+            1
+            for row in rows
+            if "lean_lsp_mcp"
+            in row.live_proof_state_request.get("provider_preferences", ())
         ),
         "n_kernel_verified": sum(1 for row in rows if row.kernel_verified),
         "n_ok": sum(1 for row in rows if row.ok),
@@ -179,6 +189,7 @@ def _materializer_row(
     )
     status = "MATERIALIZATION_BLOCKED"
     forbidden_tokens_found: tuple[str, ...] = ()
+    live_proof_state_request: dict[str, object] = {}
     if population_bucket == "source_discovery_attempt":
         status = "SOURCE_DISCOVERY_ROW_NOT_MATERIALIZED"
     elif not errors:
@@ -211,6 +222,15 @@ def _materializer_row(
             )
         if target_lean_line <= 0:
             errors.append("target Lean line could not be inferred")
+        live_proof_state_request = _live_proof_state_request(
+            row=row,
+            candidate_artifact_path=candidate_artifact_path,
+            target_lean_line=target_lean_line,
+            target_lean_column=target_lean_column,
+            target_lean_declaration=target_lean_declaration,
+            target_blockers=target_blockers,
+            reused_subclaims=reused_subclaims,
+        )
         _write_transcript(
             execution_transcript_path,
             row=row,
@@ -220,6 +240,7 @@ def _materializer_row(
             target_lean_column=target_lean_column,
             target_lean_declaration=target_lean_declaration,
             status=status,
+            live_proof_state_request=live_proof_state_request,
         )
     static_contract_status = (
         "STATIC_CONTRACT_READY_FOR_LIVE_GOAL"
@@ -253,6 +274,9 @@ def _materializer_row(
         live_goal_location_ready=(
             ok and target_lean_line > 0 and status != "SOURCE_DISCOVERY_ROW_NOT_MATERIALIZED"
         ),
+        live_proof_state_request=live_proof_state_request
+        if ok and target_lean_line > 0 and status != "SOURCE_DISCOVERY_ROW_NOT_MATERIALIZED"
+        else {},
         kernel_verified=False,
         proof_evidence_status=PROOF_EVIDENCE_STATUS,
         proof_evidence_boundary=PROOF_EVIDENCE_BOUNDARY,
@@ -320,6 +344,85 @@ def _artifact_location(source: str, declaration_name: str) -> dict[str, object]:
     }
 
 
+def _live_proof_state_request(
+    *,
+    row: dict[str, Any],
+    candidate_artifact_path: Path,
+    target_lean_line: int,
+    target_lean_column: int,
+    target_lean_declaration: str,
+    target_blockers: tuple[str, ...],
+    reused_subclaims: tuple[str, ...],
+) -> dict[str, object]:
+    requested_tools = _str_tuple(row.get("proof_state_provider_plan", ()))
+    mcp_tools = tuple(
+        tool
+        for tool in (
+            "lean_goal",
+            "lean_diagnostic_messages",
+            "lean_hover",
+            "lean_local_search",
+            "lean_multi_attempt",
+        )
+        if tool in requested_tools or tool in {"lean_goal", "lean_diagnostic_messages"}
+    )
+    return {
+        "schema_version": 1,
+        "request_id": "live_proof_state_request:"
+        + stable_hash(
+            [
+                row.get("execution_queue_id", ""),
+                str(candidate_artifact_path),
+                target_lean_line,
+                target_lean_column,
+                target_lean_declaration,
+            ]
+        )[:16],
+        "provider_preferences": (
+            "lean_lsp_mcp",
+            "local_lean_proof_state_adapter",
+            "local.lake_env_lean",
+        ),
+        "mcp_tool_calls": tuple(
+            {
+                "tool": tool,
+                "arguments": {
+                    "file": str(candidate_artifact_path),
+                    "line": target_lean_line,
+                    "column": target_lean_column,
+                    "declaration": target_lean_declaration,
+                },
+            }
+            for tool in mcp_tools
+        ),
+        "fallback_adapter": "formalization-gap-planner-local-proof-state-adapter",
+        "candidate_artifact_path": str(candidate_artifact_path),
+        "target_lean_file": str(candidate_artifact_path),
+        "target_lean_line": target_lean_line,
+        "target_lean_column": target_lean_column,
+        "target_lean_declaration": target_lean_declaration,
+        "goal_cache_key": str(row.get("goal_cache_key", "")),
+        "candidate_database_key": str(row.get("candidate_database_key", "")),
+        "candidate_lineage_key": str(row.get("candidate_lineage_key", "")),
+        "proof_sketch_population_key": str(row.get("proof_sketch_population_key", "")),
+        "target_blockers": target_blockers,
+        "reused_kernel_overlay_subclaims": reused_subclaims,
+        "expected_transcript_events": (
+            "lean_goal_result",
+            "lean_diagnostic_messages_result",
+            "lean_multi_attempt_result",
+            "local_lean_or_axle_verifier_result",
+        ),
+        "proof_evidence_status": "LIVE_PROOF_STATE_REQUEST_NOT_PROOF_EVIDENCE",
+        "proof_evidence_boundary": (
+            "This request is an operational proof-state work packet. Tool output "
+            "is diagnostic/search evidence until the resulting candidate passes "
+            "safety checks, local Lean/AXLE kernel verification, replay "
+            "calibration, and residual-gap validation."
+        ),
+    }
+
+
 def _write_transcript(
     path: Path,
     *,
@@ -330,6 +433,7 @@ def _write_transcript(
     target_lean_column: int,
     target_lean_declaration: str,
     status: str,
+    live_proof_state_request: dict[str, object],
 ) -> None:
     transcript_row = {
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -342,6 +446,7 @@ def _write_transcript(
         "target_lean_line": target_lean_line,
         "target_lean_column": target_lean_column,
         "target_lean_declaration": target_lean_declaration,
+        "live_proof_state_request": live_proof_state_request,
         "kernel_verified": False,
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
@@ -388,6 +493,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Materialized artifacts: {payload.get('n_materialized_artifacts')}",
         f"- New artifacts: {payload.get('n_new_artifacts')}",
         f"- Live goal location ready: {payload.get('n_live_goal_location_ready')}",
+        f"- Live proof-state requests: {payload.get('n_live_proof_state_requests')}",
+        f"- Lean-LSP/MCP-ready requests: {payload.get('n_lean_lsp_mcp_ready_requests')}",
         f"- Kernel verified: {payload.get('n_kernel_verified')}",
         f"- Fingerprint: `{payload.get('materializer_fingerprint')}`",
         "",
@@ -403,6 +510,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"- #{row.get('target_lean_declaration')} "
             f"`{row.get('materialization_status')}` "
             f"line={row.get('target_lean_line')} "
+            f"live_request={bool(row.get('live_proof_state_request'))} "
             f"artifact=`{row.get('candidate_artifact_path')}`"
         )
         if row.get("errors"):

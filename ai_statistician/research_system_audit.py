@@ -3125,6 +3125,12 @@ async def run_research_system_audit(
             "formal_verifier_agentic_proof_execution_materializer_live_goal_location_ready": formal_verifier_agentic_proof_execution_materializer_manifest[
                 "n_live_goal_location_ready"
             ],
+            "formal_verifier_agentic_proof_execution_materializer_live_proof_state_requests": formal_verifier_agentic_proof_execution_materializer_manifest[
+                "n_live_proof_state_requests"
+            ],
+            "formal_verifier_agentic_proof_execution_materializer_lean_lsp_mcp_ready_requests": formal_verifier_agentic_proof_execution_materializer_manifest[
+                "n_lean_lsp_mcp_ready_requests"
+            ],
             "formal_verifier_agentic_proof_execution_materializer_kernel_verified": formal_verifier_agentic_proof_execution_materializer_manifest[
                 "n_kernel_verified"
             ],

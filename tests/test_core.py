@@ -3745,11 +3745,62 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(materialized["all_ok"])
         self.assertEqual(materialized["n_materialized_artifacts"], 1)
         self.assertEqual(materialized["n_live_goal_location_ready"], 1)
+        self.assertEqual(materialized["n_live_proof_state_requests"], 1)
+        self.assertEqual(materialized["n_lean_lsp_mcp_ready_requests"], 1)
         self.assertEqual(materialized["n_kernel_verified"], 0)
         materialized_row = materialized["rows"][0]
         self.assertTrue(Path(materialized_row["candidate_artifact_path"]).exists())
         self.assertTrue(Path(materialized_row["execution_transcript_path"]).exists())
         self.assertGreater(materialized_row["target_lean_line"], 0)
+        live_request = materialized_row["live_proof_state_request"]
+        self.assertEqual(
+            live_request["target_lean_file"],
+            materialized_row["candidate_artifact_path"],
+        )
+        self.assertEqual(
+            live_request["target_lean_line"],
+            materialized_row["target_lean_line"],
+        )
+        self.assertEqual(
+            live_request["target_lean_declaration"],
+            materialized_row["target_lean_declaration"],
+        )
+        self.assertIn("lean_lsp_mcp", live_request["provider_preferences"])
+        self.assertIn(
+            "local_lean_proof_state_adapter",
+            live_request["provider_preferences"],
+        )
+        self.assertIn(
+            "lean_goal",
+            {call["tool"] for call in live_request["mcp_tool_calls"]},
+        )
+        self.assertIn(
+            "lean_diagnostic_messages",
+            {call["tool"] for call in live_request["mcp_tool_calls"]},
+        )
+        self.assertEqual(live_request["goal_cache_key"], "agentic_goal_cache:test")
+        self.assertEqual(
+            tuple(live_request["target_blockers"]),
+            (
+                "potential_outcome_consistency",
+                "conditional_exchangeability",
+            ),
+        )
+        self.assertEqual(
+            live_request["proof_evidence_status"],
+            "LIVE_PROOF_STATE_REQUEST_NOT_PROOF_EVIDENCE",
+        )
+        transcript_row = json.loads(
+            Path(materialized_row["execution_transcript_path"]).read_text(encoding="utf-8").splitlines()[0]
+        )
+        self.assertEqual(
+            transcript_row["live_proof_state_request"]["request_id"],
+            live_request["request_id"],
+        )
+        self.assertIn(
+            "diagnostic/search evidence",
+            transcript_row["live_proof_state_request"]["proof_evidence_boundary"],
+        )
         source = Path(materialized_row["candidate_artifact_path"]).read_text()
         self.assertNotIn("import Mathlib", source)
         self.assertIn("-- AI_STAT_EVOLVE_BLOCK_START", source)
@@ -13819,6 +13870,8 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                     "n_materialized_artifacts": 1,
                     "n_new_artifacts": 1,
                     "n_live_goal_location_ready": 1,
+                    "n_live_proof_state_requests": 1,
+                    "n_lean_lsp_mcp_ready_requests": 1,
                     "n_kernel_verified": 0,
                     "n_ok": 1,
                     "rows": [
@@ -13833,6 +13886,19 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                             "target_lean_line": 21,
                             "target_lean_declaration": "auto_claim_skeleton_route_probe",
                             "live_goal_location_ready": True,
+                            "live_proof_state_request": {
+                                "request_id": "live_proof_state_request:auto",
+                                "provider_preferences": [
+                                    "lean_lsp_mcp",
+                                    "local_lean_proof_state_adapter",
+                                    "local.lake_env_lean",
+                                ],
+                                "target_lean_file": candidate_artifact_path,
+                                "target_lean_line": 21,
+                                "target_lean_column": 3,
+                                "target_lean_declaration": "auto_claim_skeleton_route_probe",
+                                "proof_evidence_status": "LIVE_PROOF_STATE_REQUEST_NOT_PROOF_EVIDENCE",
+                            },
                             "kernel_verified": False,
                             "proof_evidence_status": "AGENTIC_PROOF_EXECUTION_MATERIALIZER_NOT_PROOF_EVIDENCE",
                             "proof_evidence_boundary": (
@@ -14302,6 +14368,18 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             1,
         )
         self.assertEqual(
+            queue[
+                "formal_verifier_agentic_proof_execution_materializer_live_proof_state_requests"
+            ],
+            1,
+        )
+        self.assertEqual(
+            queue[
+                "formal_verifier_agentic_proof_execution_materializer_lean_lsp_mcp_ready_requests"
+            ],
+            1,
+        )
+        self.assertEqual(
             queue["formal_verifier_agentic_proof_execution_materializer_kernel_verified"],
             0,
         )
@@ -14313,6 +14391,15 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "auto_claim_skeleton_route_probe",
         )
         self.assertTrue(materializer_preview["live_goal_location_ready"])
+        self.assertTrue(materializer_preview["live_proof_state_request_present"])
+        self.assertEqual(
+            materializer_preview["live_proof_state_request_id"],
+            "live_proof_state_request:auto",
+        )
+        self.assertIn(
+            "lean_lsp_mcp",
+            materializer_preview["live_proof_state_provider_preferences"],
+        )
         self.assertFalse(materializer_preview["kernel_verified"])
         self.assertTrue(
             queue["formal_verifier_agentic_proof_execution_artifact_verifier_enabled"]
@@ -18029,6 +18116,18 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         )
         self.assertEqual(
             payload["counts"]["formal_verifier_agentic_proof_execution_materializer_artifacts"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_agentic_proof_execution_materializer_live_proof_state_requests"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_agentic_proof_execution_materializer_lean_lsp_mcp_ready_requests"
+            ],
             0,
         )
         self.assertFalse(

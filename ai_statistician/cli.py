@@ -2822,6 +2822,8 @@ def _formal_verifier_agentic_proof_execution_materializer(
         f"artifacts={payload['n_materialized_artifacts']} "
         f"new={payload['n_new_artifacts']} "
         f"live_goal_ready={payload['n_live_goal_location_ready']} "
+        f"live_requests={payload['n_live_proof_state_requests']} "
+        f"lean_lsp_mcp_ready={payload['n_lean_lsp_mcp_ready_requests']} "
         f"kernel={payload['n_kernel_verified']} "
         f"all_ok={payload['all_ok']}"
     )

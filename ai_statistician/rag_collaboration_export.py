@@ -1613,6 +1613,18 @@ def export_rag_collaboration_manifest(
                     "n_live_goal_location_ready"
                 ),
             ),
+            "formal_verifier_agentic_proof_execution_materializer_live_proof_state_requests": counts.get(
+                "formal_verifier_agentic_proof_execution_materializer_live_proof_state_requests",
+                formal_verifier_agentic_proof_execution_materializer_payload.get(
+                    "n_live_proof_state_requests"
+                ),
+            ),
+            "formal_verifier_agentic_proof_execution_materializer_lean_lsp_mcp_ready_requests": counts.get(
+                "formal_verifier_agentic_proof_execution_materializer_lean_lsp_mcp_ready_requests",
+                formal_verifier_agentic_proof_execution_materializer_payload.get(
+                    "n_lean_lsp_mcp_ready_requests"
+                ),
+            ),
             "formal_verifier_agentic_proof_execution_materializer_kernel_verified": counts.get(
                 "formal_verifier_agentic_proof_execution_materializer_kernel_verified",
                 formal_verifier_agentic_proof_execution_materializer_payload.get(
@@ -2144,6 +2156,8 @@ def _overlay_auto_discovered_agentic_counts(
                 "formal_verifier_agentic_proof_execution_materializer_artifacts": "n_materialized_artifacts",
                 "formal_verifier_agentic_proof_execution_materializer_new_artifacts": "n_new_artifacts",
                 "formal_verifier_agentic_proof_execution_materializer_live_goal_location_ready": "n_live_goal_location_ready",
+                "formal_verifier_agentic_proof_execution_materializer_live_proof_state_requests": "n_live_proof_state_requests",
+                "formal_verifier_agentic_proof_execution_materializer_lean_lsp_mcp_ready_requests": "n_lean_lsp_mcp_ready_requests",
                 "formal_verifier_agentic_proof_execution_materializer_kernel_verified": "n_kernel_verified",
             },
         ),
@@ -3720,6 +3734,9 @@ def _formal_verifier_agentic_proof_execution_materializer_preview(
     for row in materializer_rows:
         if not isinstance(row, dict):
             continue
+        live_request = row.get("live_proof_state_request", {})
+        if not isinstance(live_request, dict):
+            live_request = {}
         rows.append(
             {
                 "materialization_id": row.get("materialization_id"),
@@ -3732,6 +3749,12 @@ def _formal_verifier_agentic_proof_execution_materializer_preview(
                 "target_lean_line": row.get("target_lean_line"),
                 "target_lean_declaration": row.get("target_lean_declaration", ""),
                 "live_goal_location_ready": row.get("live_goal_location_ready"),
+                "live_proof_state_request_present": bool(live_request),
+                "live_proof_state_request_id": live_request.get("request_id", ""),
+                "live_proof_state_provider_preferences": live_request.get(
+                    "provider_preferences",
+                    [],
+                ),
                 "kernel_verified": row.get("kernel_verified"),
                 "proof_evidence_status": row.get("proof_evidence_status", ""),
                 "proof_evidence_boundary": row.get("proof_evidence_boundary", ""),
@@ -4120,6 +4143,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Formal verifier agentic proof materializer: `{queue.get('formal_verifier_agentic_proof_execution_materializer_rows')}` rows "
         f"(`{queue.get('formal_verifier_agentic_proof_execution_materializer_artifacts')}` artifacts, "
         f"`{queue.get('formal_verifier_agentic_proof_execution_materializer_live_goal_location_ready')}` live-goal locations, "
+        f"`{queue.get('formal_verifier_agentic_proof_execution_materializer_live_proof_state_requests')}` live proof-state requests, "
+        f"`{queue.get('formal_verifier_agentic_proof_execution_materializer_lean_lsp_mcp_ready_requests')}` Lean-LSP/MCP-ready, "
         f"`{queue.get('formal_verifier_agentic_proof_execution_materializer_kernel_verified')}` artifact kernels)",
         f"- Formal verifier agentic artifact verifier: checked `{queue.get('formal_verifier_agentic_proof_execution_artifact_verifier_checked')}`, "
         f"compiled `{queue.get('formal_verifier_agentic_proof_execution_artifact_verifier_compiled')}`, "
