@@ -22,6 +22,7 @@ from .autoform_harness import audit_autoform_harness
 from .capability_audit import build_capability_audit, write_capability_audit
 from .claim_ledger_action_export import export_claim_ledger_actions
 from .claim_ledger import build_claim_ledger
+from .stat_claim_certificate_checker_audit import audit_stat_claim_certificate_checkers
 from .stat_claim_certificate_plan import export_stat_claim_certificate_plan
 from .doctor import build_doctor_report, write_doctor_manifest
 from .evaluation import EvalConfig, run_seed_eval
@@ -3274,6 +3275,32 @@ def _stat_claim_certificate_plan(args: argparse.Namespace) -> int:
     return 0 if payload["all_ok"] else 1
 
 
+def _stat_claim_certificate_checker_audit(args: argparse.Namespace) -> int:
+    verifier = _proof_verifier_from_args(args)
+    payload = asyncio.run(
+        audit_stat_claim_certificate_checkers(
+            verifier,
+            Path(args.out),
+            ids=args.id or None,
+        )
+    )
+    print("\nAI Statistical Theory Lab Statistical Claim Certificate Checker Audit")
+    print("=" * 72)
+    print(
+        f"verified={payload['n_verified']}/{payload['n_obligations']} "
+        f"kernel={payload['n_kernel_verified']}/{payload['n_obligations']} "
+        f"status={payload['proof_evidence_status']} "
+        f"verifier={payload['verifier']}"
+    )
+    print(
+        f"\nchecker audit manifest written to "
+        f"{(Path(args.out) / 'stat_claim_certificate_checker_audit_manifest.json').resolve()}"
+    )
+    print(f"Lean artifacts written to {(Path(args.out) / 'lean').resolve()}")
+    print(f"markdown report written to {(Path(args.out) / 'stat_claim_certificate_checker_audit.md').resolve()}")
+    return 0 if payload["all_ok"] else 1
+
+
 def _theorem_composition_export(args: argparse.Namespace) -> int:
     payload = export_theorem_composition_packets(Path(args.claim_ledger_dir), Path(args.out))
     print("\nAI Statistical Theory Lab Theorem Composition Packets")
@@ -6371,6 +6398,44 @@ def build_parser() -> argparse.ArgumentParser:
         help="statistical claim certificate plan output directory",
     )
     stat_claim_certificate_plan.set_defaults(func=_stat_claim_certificate_plan)
+
+    stat_claim_certificate_checker_audit = sub.add_parser(
+        "stat-claim-certificate-checker-audit",
+        help="verify small statistical certificate-checker soundness theorems",
+    )
+    stat_claim_certificate_checker_audit.add_argument(
+        "--id",
+        action="append",
+        help="certificate checker obligation id to verify; repeatable",
+    )
+    stat_claim_certificate_checker_audit.add_argument(
+        "--local-lean",
+        action="store_true",
+        help="use local lake env lean kernel verification",
+    )
+    stat_claim_certificate_checker_audit.add_argument(
+        "--lean-project",
+        help="local Lake project used by --local-lean",
+    )
+    stat_claim_certificate_checker_audit.add_argument(
+        "--lean-timeout",
+        type=int,
+        default=90,
+        help="timeout seconds for each local Lean check",
+    )
+    stat_claim_certificate_checker_audit.add_argument(
+        "--real-lean",
+        action="store_true",
+        help="use AXLE verify_proof instead of mock verifier",
+    )
+    stat_claim_certificate_checker_audit.add_argument(
+        "--out",
+        default="runs/stat_claim_certificate_checker_audit",
+        help="certificate checker audit output directory",
+    )
+    stat_claim_certificate_checker_audit.set_defaults(
+        func=_stat_claim_certificate_checker_audit
+    )
 
     theorem_composition = sub.add_parser(
         "theorem-composition-export",

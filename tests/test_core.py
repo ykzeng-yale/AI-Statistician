@@ -29,6 +29,7 @@ from ai_statistician.assumption_interface_export import export_assumption_interf
 from ai_statistician.capability_audit import build_capability_audit, write_capability_audit
 from ai_statistician.claim_ledger_action_export import export_claim_ledger_actions
 from ai_statistician.claim_ledger import build_claim_ledger
+from ai_statistician.stat_claim_certificate_checker_audit import audit_stat_claim_certificate_checkers
 from ai_statistician.stat_claim_certificate_plan import export_stat_claim_certificate_plan
 from ai_statistician.doctor import build_doctor_report, write_doctor_manifest
 from ai_statistician.evaluation_benchmark_guidance import build_evaluation_benchmark_guidance
@@ -2427,6 +2428,56 @@ Apply a central limit theorem to the centered score and use Slutsky's theorem.
         self.assertFalse(check.kernel_verified)
         self.assertEqual(check.verification_strength, "local_lean_placeholder_rejected")
         self.assertIn("candidate still contains sorry", check.errors)
+
+    def test_stat_claim_certificate_checker_audit_mock_contract(self) -> None:
+        async def run():
+            return await audit_stat_claim_certificate_checkers(
+                MockProofVerifier(),
+                Path("runs/test_stat_claim_certificate_checker_audit_mock"),
+            )
+
+        payload = asyncio.run(run())
+        self.assertTrue(payload["all_ok"])
+        self.assertEqual(payload["n_obligations"], 1)
+        self.assertEqual(payload["n_verified"], 1)
+        self.assertEqual(payload["n_kernel_verified"], 0)
+        self.assertEqual(
+            payload["proof_evidence_status"],
+            "STAT_CLAIM_CERTIFICATE_CHECKER_NOT_KERNEL_VERIFIED",
+        )
+        self.assertTrue(
+            Path(
+                "runs/test_stat_claim_certificate_checker_audit_mock/"
+                "stat_claim_certificate_checker_audit_manifest.json"
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                "runs/test_stat_claim_certificate_checker_audit_mock/lean/"
+                "conformal_coverage_certificate_sound.lean"
+            ).exists()
+        )
+
+    def test_stat_claim_certificate_checker_audit_local_lean_when_available(self) -> None:
+        lean_project = Path("/Users/yukang/LeanProjects/LeanPractice")
+        if shutil.which("lake") is None or not (lean_project / "lakefile.toml").exists():
+            raise unittest.SkipTest("local Lake/Mathlib project not available")
+
+        async def run():
+            verifier = LocalLeanProofVerifier(project_root=lean_project, timeout_s=120)
+            return await audit_stat_claim_certificate_checkers(
+                verifier,
+                Path("runs/test_stat_claim_certificate_checker_audit_local_lean"),
+            )
+
+        payload = asyncio.run(run())
+        self.assertTrue(payload["all_ok"])
+        self.assertEqual(payload["n_kernel_verified"], payload["n_obligations"])
+        self.assertTrue(payload["all_kernel_verified"])
+        self.assertEqual(
+            payload["proof_evidence_status"],
+            "STAT_CLAIM_CERTIFICATE_CHECKER_KERNEL_VERIFIED",
+        )
 
     def test_local_lean_proof_audit_batches_mathlib_proofs_when_available(self) -> None:
         lean_project = Path("/Users/yukang/LeanProjects/LeanPractice")
@@ -17712,6 +17763,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["gates"]["claim_ledger"])
         self.assertTrue(payload["gates"]["claim_ledger_actions"])
         self.assertTrue(payload["gates"]["stat_claim_certificate_plan"])
+        self.assertTrue(payload["gates"]["stat_claim_certificate_checker_audit"])
         self.assertTrue(payload["gates"]["theorem_composition_export"])
         self.assertTrue(payload["gates"]["research_loop"])
         self.assertTrue(payload["gates"]["research_loop_repair_audit"])
@@ -18224,6 +18276,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "claim_ledger",
             "claim_ledger_actions",
             "stat_claim_certificate_plan",
+            "stat_claim_certificate_checker_audit",
             "theorem_composition_export",
         }:
             self.assertIn(expected_stage, timing_stages)
@@ -19975,6 +20028,15 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertGreater(payload["counts"]["stat_claim_certificate_conformal_targets"], 0)
         self.assertGreater(payload["counts"]["stat_claim_certificate_randomization_targets"], 0)
         self.assertGreater(payload["counts"]["stat_claim_certificate_multiple_testing_targets"], 0)
+        self.assertEqual(payload["counts"]["stat_claim_certificate_checker_obligations"], 1)
+        self.assertEqual(payload["counts"]["stat_claim_certificate_checker_verified"], 1)
+        self.assertEqual(payload["counts"]["stat_claim_certificate_checker_kernel_verified"], 0)
+        self.assertEqual(payload["counts"]["stat_claim_certificate_checker_non_kernel_verified"], 1)
+        self.assertFalse(payload["counts"]["stat_claim_certificate_checker_all_kernel_verified"])
+        self.assertEqual(
+            payload["counts"]["stat_claim_certificate_checker_proof_evidence_status"],
+            "STAT_CLAIM_CERTIFICATE_CHECKER_NOT_KERNEL_VERIFIED",
+        )
         self.assertEqual(payload["counts"]["theorem_composition_packets_ok"], payload["counts"]["theorem_composition_packets"])
         self.assertEqual(
             payload["counts"]["theorem_composition_packets"],
@@ -20100,6 +20162,10 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_plan"]).exists())
         self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_targets_jsonl"]).exists())
         self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_plan_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_checker_audit"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_checker_lean_dir"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_checker_attempts"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_checker_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["theorem_composition"]).exists())
         self.assertTrue(Path(payload["artifacts"]["theorem_composition_jsonl"]).exists())
         self.assertTrue(Path(payload["artifacts"]["theorem_composition_report"]).exists())
