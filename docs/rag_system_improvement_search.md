@@ -166,6 +166,20 @@ into deterministic work orders for sampling records, reconstructing Lean
 artifacts, and running local Lean/AXLE before any proof-bank or proof-search
 promotion. The audit ranks each dataset by RAG/training role:
 
+The worker-facing task packet export is:
+
+```bash
+python3 -m ai_statistician.cli huggingface-lean-source-revalidation-tasks \
+  --queue-jsonl runs/current/huggingface_lean_source_audit/huggingface_lean_source_revalidation_queue.jsonl \
+  --out runs/current/huggingface_lean_source_revalidation_tasks
+```
+
+It writes `hf_lean_source_revalidation_tasks_manifest.json`,
+`hf_lean_source_revalidation_tasks.jsonl`, and a markdown report. These task
+packets define sample manifests, Lean reconstruction directories, verifier logs,
+promotion manifests, and required local Lean/AXLE gates; they are still not
+proof evidence.
+
 - `formal_proof_pairs`: streamed retrieval memory and proof-pair SFT candidates.
 - `tactic_state_training`: proof-state-aware premise/tactic retrieval candidates.
 - `proof_repair_or_process_training`: repair, trajectory, or proof-compression

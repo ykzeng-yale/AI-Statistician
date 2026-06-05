@@ -167,6 +167,9 @@ from ai_statistician.proof_search_value_model import (
     train_proof_search_value_model,
 )
 from ai_statistician.proof_training_export import export_proof_training_dataset
+from ai_statistician.hf_lean_source_revalidation_tasks import (
+    export_huggingface_lean_source_revalidation_tasks,
+)
 from ai_statistician.prover_component_audit import build_prover_component_audit, write_prover_component_audit
 from ai_statistician.rag_collaboration_export import export_rag_collaboration_manifest
 from ai_statistician.questions import load_question_file, question_from_json
@@ -330,6 +333,75 @@ class ProofBankTests(unittest.TestCase):
             content = splice_proof(obligation.formal_statement, obligation.proof_body)
             self.assertNotIn("by sorry", content, obligation.id)
             self.assertIn("theorem", content, obligation.id)
+
+    def test_hf_lean_source_revalidation_tasks_export_worker_packets(self) -> None:
+        queue_dir = Path("runs/test_hf_lean_source_revalidation_queue")
+        queue_dir.mkdir(parents=True, exist_ok=True)
+        queue_jsonl = queue_dir / "huggingface_lean_source_revalidation_queue.jsonl"
+        rows = [
+            {
+                "revalidation_id": "hf_lean_source_revalidation:oproofs",
+                "source_id": "hf::m-a-p::OProofs",
+                "dataset_id": "m-a-p/OProofs",
+                "url": "https://huggingface.co/datasets/m-a-p/OProofs",
+                "sha": "abc123",
+                "priority": "critical",
+                "relevance_class": "formal_proof_pairs",
+                "retrieval_role": "proof_pair_retrieval_and_training_candidate",
+                "ingestion_mode": "stream_or_sample_proof_pairs_for_retrieval_memory_and_sft",
+                "revalidation_status": "READY_FOR_LOCAL_REVALIDATION_SAMPLE",
+                "license_review_required": False,
+                "required_inputs": ["dataset metadata", "target Lean project/toolchain"],
+                "dedupe_keys": ["dataset_id", "sha", "formal_statement_hash", "formal_proof_hash"],
+                "ok": True,
+            },
+            {
+                "revalidation_id": "hf_lean_source_revalidation:unknown_license",
+                "source_id": "hf::leanpolish-anon::lean-proof-compression",
+                "dataset_id": "leanpolish-anon/lean-proof-compression",
+                "url": "https://huggingface.co/datasets/leanpolish-anon/lean-proof-compression",
+                "sha": "",
+                "priority": "high",
+                "relevance_class": "proof_repair_or_process_training",
+                "retrieval_role": "proof_repair_policy_and_process_supervision_candidate",
+                "ingestion_mode": "stream_or_sample_process_rows_for_feedback_conditioned_repair_training",
+                "revalidation_status": "READY_FOR_METADATA_AND_LICENSE_REVIEW",
+                "license_review_required": True,
+                "required_inputs": ["license/access review"],
+                "dedupe_keys": ["dataset_id", "sha"],
+                "ok": True,
+            },
+        ]
+        queue_jsonl.write_text(
+            "\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n",
+            encoding="utf-8",
+        )
+        payload = export_huggingface_lean_source_revalidation_tasks(
+            queue_jsonl,
+            Path("runs/test_hf_lean_source_revalidation_tasks"),
+            max_tasks=5,
+        )
+        self.assertTrue(payload["all_ok"])
+        self.assertEqual(payload["n_tasks"], 2)
+        self.assertEqual(payload["n_ready"], 2)
+        self.assertEqual(payload["n_kernel_verified"], 0)
+        self.assertEqual(payload["n_proof_evidence_ready"], 0)
+        self.assertEqual(
+            payload["proof_evidence_status"],
+            "HF_LEAN_SOURCE_REVALIDATION_TASKS_NOT_PROOF_EVIDENCE",
+        )
+        task_rows = {row["dataset_id"]: row for row in payload["rows"]}
+        self.assertEqual(task_rows["m-a-p/OProofs"]["sample_size"], 8)
+        self.assertIn("local Lean/AXLE", task_rows["m-a-p/OProofs"]["required_gate"])
+        self.assertEqual(
+            task_rows["leanpolish-anon/lean-proof-compression"]["sample_strategy"],
+            "metadata_license_review_before_sampling",
+        )
+        self.assertTrue(
+            Path(
+                "runs/test_hf_lean_source_revalidation_tasks/hf_lean_source_revalidation_tasks.jsonl"
+            ).exists()
+        )
 
     def test_retriever_finds_indicator_obligation(self) -> None:
         retriever = ProofBankRetriever()
@@ -15764,6 +15836,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["gates"]["lean_rag_source_registry_expansion_preflight"])
         self.assertTrue(payload["gates"]["lean_rag_source_registry_expansion_apply"])
         self.assertTrue(payload["gates"]["huggingface_lean_source_audit"])
+        self.assertTrue(payload["gates"]["huggingface_lean_source_revalidation_tasks"])
         self.assertTrue(payload["gates"]["fresh_holdout_frontier_audit"])
         self.assertTrue(payload["gates"]["research_algorithm_audit"])
         self.assertTrue(payload["gates"]["algorithm_simulation_stress_audit"])
@@ -16106,6 +16179,25 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertEqual(
             payload["counts"]["huggingface_lean_source_revalidation_queue_proof_evidence_status"],
             "HF_LEAN_SOURCE_REVALIDATION_QUEUE_NOT_PROOF_EVIDENCE",
+        )
+        self.assertEqual(
+            payload["counts"]["huggingface_lean_source_revalidation_tasks"],
+            payload["counts"]["huggingface_lean_source_revalidation_queue_rows"],
+        )
+        self.assertEqual(
+            payload["counts"]["huggingface_lean_source_revalidation_tasks_ready"],
+            payload["counts"]["huggingface_lean_source_revalidation_tasks"],
+        )
+        self.assertEqual(payload["counts"]["huggingface_lean_source_revalidation_tasks_blocked"], 0)
+        self.assertEqual(
+            payload["counts"]["huggingface_lean_source_revalidation_tasks_license_review_required"],
+            payload["counts"]["huggingface_lean_source_revalidation_tasks"],
+        )
+        self.assertEqual(payload["counts"]["huggingface_lean_source_revalidation_tasks_kernel_verified"], 0)
+        self.assertEqual(payload["counts"]["huggingface_lean_source_revalidation_tasks_proof_evidence_ready"], 0)
+        self.assertEqual(
+            payload["counts"]["huggingface_lean_source_revalidation_tasks_proof_evidence_status"],
+            "HF_LEAN_SOURCE_REVALIDATION_TASKS_NOT_PROOF_EVIDENCE",
         )
         self.assertEqual(payload["counts"]["huggingface_lean_source_proof_evidence_ready"], 0)
         self.assertFalse(payload["counts"]["huggingface_lean_source_use_network"])

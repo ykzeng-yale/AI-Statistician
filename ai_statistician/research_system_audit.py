@@ -123,6 +123,9 @@ from .formal_source_retrieval_benchmark import (
     run_formal_source_retrieval_benchmark,
 )
 from .huggingface_lean_source_audit import audit_huggingface_lean_sources
+from .hf_lean_source_revalidation_tasks import (
+    export_huggingface_lean_source_revalidation_tasks,
+)
 from .lean_rag_package_audit import (
     apply_lean_rag_source_registry_expansion,
     audit_lean_rag_package,
@@ -344,6 +347,19 @@ async def run_research_system_audit(
         use_network=False,
     )
     stage_start = _record_stage(stage_timings, "huggingface_lean_source_audit", stage_start)
+    huggingface_lean_source_revalidation_tasks_manifest = (
+        export_huggingface_lean_source_revalidation_tasks(
+            out_dir
+            / "huggingface_lean_source_audit"
+            / "huggingface_lean_source_revalidation_queue.jsonl",
+            out_dir / "huggingface_lean_source_revalidation_tasks",
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "huggingface_lean_source_revalidation_tasks",
+        stage_start,
+    )
 
     formal_source_retrieval_benchmark_manifest = run_formal_source_retrieval_benchmark(
         out_dir / "formal_source_retrieval_benchmark",
@@ -1181,6 +1197,10 @@ async def run_research_system_audit(
             huggingface_lean_source_manifest["summary"].get("oproofs_detected")
         )
         and int(huggingface_lean_source_manifest["summary"].get("n_candidates", 0)) > 0,
+        "huggingface_lean_source_revalidation_tasks": bool(
+            huggingface_lean_source_revalidation_tasks_manifest["all_ok"]
+        )
+        and int(huggingface_lean_source_revalidation_tasks_manifest["n_tasks"]) > 0,
         "fresh_holdout_frontier_audit": bool(fresh_holdout_manifest["all_ok"]),
         "research_algorithm_audit": bool(algorithm_manifest["all_ok"]),
         "algorithm_simulation_stress_audit": bool(algorithm_simulation_stress_manifest["all_ok"]),
@@ -1740,6 +1760,27 @@ async def run_research_system_audit(
             "huggingface_lean_source_revalidation_queue_proof_evidence_status": huggingface_lean_source_manifest[
                 "revalidation_queue_summary"
             ].get("proof_evidence_status", ""),
+            "huggingface_lean_source_revalidation_tasks": huggingface_lean_source_revalidation_tasks_manifest[
+                "n_tasks"
+            ],
+            "huggingface_lean_source_revalidation_tasks_ready": huggingface_lean_source_revalidation_tasks_manifest[
+                "n_ready"
+            ],
+            "huggingface_lean_source_revalidation_tasks_blocked": huggingface_lean_source_revalidation_tasks_manifest[
+                "n_blocked"
+            ],
+            "huggingface_lean_source_revalidation_tasks_license_review_required": huggingface_lean_source_revalidation_tasks_manifest[
+                "n_license_review_required"
+            ],
+            "huggingface_lean_source_revalidation_tasks_kernel_verified": huggingface_lean_source_revalidation_tasks_manifest[
+                "n_kernel_verified"
+            ],
+            "huggingface_lean_source_revalidation_tasks_proof_evidence_ready": huggingface_lean_source_revalidation_tasks_manifest[
+                "n_proof_evidence_ready"
+            ],
+            "huggingface_lean_source_revalidation_tasks_proof_evidence_status": huggingface_lean_source_revalidation_tasks_manifest[
+                "proof_evidence_status"
+            ],
             "huggingface_lean_source_proof_evidence_ready": huggingface_lean_source_manifest[
                 "summary"
             ].get("proof_evidence_ready", 0),
@@ -3477,6 +3518,21 @@ async def run_research_system_audit(
                 out_dir
                 / "huggingface_lean_source_audit"
                 / "huggingface_lean_source_revalidation_queue.jsonl"
+            ),
+            "huggingface_lean_source_revalidation_tasks": str(
+                out_dir
+                / "huggingface_lean_source_revalidation_tasks"
+                / "hf_lean_source_revalidation_tasks_manifest.json"
+            ),
+            "huggingface_lean_source_revalidation_tasks_jsonl": str(
+                out_dir
+                / "huggingface_lean_source_revalidation_tasks"
+                / "hf_lean_source_revalidation_tasks.jsonl"
+            ),
+            "huggingface_lean_source_revalidation_tasks_report": str(
+                out_dir
+                / "huggingface_lean_source_revalidation_tasks"
+                / "hf_lean_source_revalidation_tasks.md"
             ),
             "huggingface_lean_source_report": str(
                 out_dir

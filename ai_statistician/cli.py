@@ -159,6 +159,9 @@ from .formal_source_retrieval_benchmark import (
     run_formal_source_retrieval_benchmark,
 )
 from .huggingface_lean_source_audit import audit_huggingface_lean_sources
+from .hf_lean_source_revalidation_tasks import (
+    export_huggingface_lean_source_revalidation_tasks,
+)
 from .intake_audit import audit_question_intake
 from .lean_rag_package_audit import (
     apply_lean_rag_source_registry_expansion,
@@ -1078,6 +1081,36 @@ def _huggingface_lean_source_audit(args: argparse.Namespace) -> int:
     )
     print(f"markdown report written to {(Path(args.out) / 'huggingface_lean_source_audit.md').resolve()}")
     return 0 if summary.get("oproofs_detected") else 1
+
+
+def _huggingface_lean_source_revalidation_tasks(args: argparse.Namespace) -> int:
+    payload = export_huggingface_lean_source_revalidation_tasks(
+        Path(args.queue_jsonl),
+        Path(args.out),
+        max_tasks=args.max_tasks,
+        sample_seed=args.sample_seed,
+    )
+    print("\nAI Statistical Theory Lab Hugging Face Lean Source Revalidation Tasks")
+    print("=" * 72)
+    print(
+        f"tasks={payload['n_tasks']} ready={payload['n_ready']} "
+        f"blocked={payload['n_blocked']} "
+        f"license_review={payload['n_license_review_required']}"
+    )
+    print(
+        f"kernel_verified={payload['n_kernel_verified']} "
+        f"proof_evidence_ready={payload['n_proof_evidence_ready']} "
+        f"status={payload['proof_evidence_status']}"
+    )
+    print(
+        f"\nhf Lean source revalidation task manifest written to "
+        f"{(Path(args.out) / 'hf_lean_source_revalidation_tasks_manifest.json').resolve()}"
+    )
+    print(
+        f"task queue written to "
+        f"{(Path(args.out) / 'hf_lean_source_revalidation_tasks.jsonl').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
 
 
 def _lean_rag_dependency_health(args: argparse.Namespace) -> int:
@@ -4333,6 +4366,36 @@ def build_parser() -> argparse.ArgumentParser:
         help="Hugging Face Lean source audit output directory",
     )
     huggingface_lean_source_audit.set_defaults(func=_huggingface_lean_source_audit)
+
+    huggingface_lean_source_revalidation_tasks = sub.add_parser(
+        "huggingface-lean-source-revalidation-tasks",
+        help="export worker task packets from the Hugging Face Lean source revalidation queue",
+    )
+    huggingface_lean_source_revalidation_tasks.add_argument(
+        "--queue-jsonl",
+        default="runs/huggingface_lean_source_audit/huggingface_lean_source_revalidation_queue.jsonl",
+        help="Hugging Face Lean source revalidation queue JSONL",
+    )
+    huggingface_lean_source_revalidation_tasks.add_argument(
+        "--max-tasks",
+        type=int,
+        default=20,
+        help="maximum source revalidation task packets to export",
+    )
+    huggingface_lean_source_revalidation_tasks.add_argument(
+        "--sample-seed",
+        type=int,
+        default=20260605,
+        help="deterministic sample seed recorded in task packets",
+    )
+    huggingface_lean_source_revalidation_tasks.add_argument(
+        "--out",
+        default="runs/huggingface_lean_source_revalidation_tasks",
+        help="Hugging Face Lean source revalidation task output directory",
+    )
+    huggingface_lean_source_revalidation_tasks.set_defaults(
+        func=_huggingface_lean_source_revalidation_tasks
+    )
 
     lean_rag_dependency_health = sub.add_parser(
         "lean-rag-dependency-health",
