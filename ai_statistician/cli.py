@@ -24,6 +24,9 @@ from .claim_ledger_action_export import export_claim_ledger_actions
 from .claim_ledger import build_claim_ledger
 from .stat_claim_certificate_checker_audit import audit_stat_claim_certificate_checkers
 from .stat_claim_certificate_plan import export_stat_claim_certificate_plan
+from .stat_claim_certificate_readiness_overlay import (
+    export_stat_claim_certificate_readiness_overlay,
+)
 from .doctor import build_doctor_report, write_doctor_manifest
 from .evaluation import EvalConfig, run_seed_eval
 from .autoform_target_export import export_autoform_targets
@@ -3301,6 +3304,32 @@ def _stat_claim_certificate_checker_audit(args: argparse.Namespace) -> int:
     return 0 if payload["all_ok"] else 1
 
 
+def _stat_claim_certificate_readiness_overlay(args: argparse.Namespace) -> int:
+    payload = export_stat_claim_certificate_readiness_overlay(
+        Path(args.certificate_plan_dir),
+        Path(args.checker_audit_dir),
+        Path(args.out),
+    )
+    print("\nAI Statistical Theory Lab Statistical Claim Certificate Readiness")
+    print("=" * 72)
+    print(
+        f"targets={payload['n_ok']}/{payload['n_targets']} "
+        f"ready={payload['n_ready_for_witness_validation']} "
+        f"checker_kernel={payload['n_checker_kernel_verified']} "
+        f"status={payload['proof_evidence_status']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    for status, count in payload["by_status"].items():
+        print(f"  {status}: {count}")
+    print(
+        f"\nreadiness manifest written to "
+        f"{(Path(args.out) / 'stat_claim_certificate_readiness_manifest.json').resolve()}"
+    )
+    print(f"jsonl written to {(Path(args.out) / 'stat_claim_certificate_readiness.jsonl').resolve()}")
+    print(f"markdown report written to {(Path(args.out) / 'stat_claim_certificate_readiness.md').resolve()}")
+    return 0 if payload["all_ok"] else 1
+
+
 def _theorem_composition_export(args: argparse.Namespace) -> int:
     payload = export_theorem_composition_packets(Path(args.claim_ledger_dir), Path(args.out))
     print("\nAI Statistical Theory Lab Theorem Composition Packets")
@@ -6435,6 +6464,29 @@ def build_parser() -> argparse.ArgumentParser:
     )
     stat_claim_certificate_checker_audit.set_defaults(
         func=_stat_claim_certificate_checker_audit
+    )
+
+    stat_claim_certificate_readiness = sub.add_parser(
+        "stat-claim-certificate-readiness",
+        help="overlay certificate-plan targets with checker-theorem readiness evidence",
+    )
+    stat_claim_certificate_readiness.add_argument(
+        "--certificate-plan-dir",
+        required=True,
+        help="directory containing stat_claim_certificate_plan_manifest.json and targets JSONL",
+    )
+    stat_claim_certificate_readiness.add_argument(
+        "--checker-audit-dir",
+        required=True,
+        help="directory containing stat_claim_certificate_checker_audit_manifest.json",
+    )
+    stat_claim_certificate_readiness.add_argument(
+        "--out",
+        default="runs/stat_claim_certificate_readiness",
+        help="certificate-readiness overlay output directory",
+    )
+    stat_claim_certificate_readiness.set_defaults(
+        func=_stat_claim_certificate_readiness_overlay
     )
 
     theorem_composition = sub.add_parser(

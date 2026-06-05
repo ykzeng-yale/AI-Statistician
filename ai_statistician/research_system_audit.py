@@ -34,6 +34,9 @@ from .claim_ledger_action_export import export_claim_ledger_actions
 from .claim_ledger import build_claim_ledger
 from .stat_claim_certificate_checker_audit import audit_stat_claim_certificate_checkers
 from .stat_claim_certificate_plan import export_stat_claim_certificate_plan
+from .stat_claim_certificate_readiness_overlay import (
+    export_stat_claim_certificate_readiness_overlay,
+)
 from .evaluation_benchmark_guidance import build_evaluation_benchmark_guidance
 from .formal_gap_task_export import export_formal_gap_lean_tasks
 from .formalization_delta_plan import build_formalization_delta_plan
@@ -1171,6 +1174,12 @@ async def run_research_system_audit(
         out_dir / "stat_claim_certificate_checker_audit",
     )
     stage_start = _record_stage(stage_timings, "stat_claim_certificate_checker_audit", stage_start)
+    stat_claim_certificate_readiness_manifest = export_stat_claim_certificate_readiness_overlay(
+        out_dir / "stat_claim_certificate_plan",
+        out_dir / "stat_claim_certificate_checker_audit",
+        out_dir / "stat_claim_certificate_readiness",
+    )
+    stage_start = _record_stage(stage_timings, "stat_claim_certificate_readiness", stage_start)
     theorem_composition_manifest = export_theorem_composition_packets(
         out_dir / "claim_ledger",
         out_dir / "theorem_composition",
@@ -1502,6 +1511,7 @@ async def run_research_system_audit(
         "claim_ledger_actions": bool(claim_ledger_action_manifest["all_ok"]),
         "stat_claim_certificate_plan": bool(stat_claim_certificate_manifest["all_ok"]),
         "stat_claim_certificate_checker_audit": bool(stat_claim_certificate_checker_manifest["all_ok"]),
+        "stat_claim_certificate_readiness": bool(stat_claim_certificate_readiness_manifest["all_ok"]),
         "theorem_composition_export": bool(theorem_composition_manifest["all_ok"]),
         "research_loop": bool(research_loop_manifest["all_loop_traces_written"])
         and bool(research_loop_manifest["all_repair_tasks_exported"])
@@ -1569,6 +1579,7 @@ async def run_research_system_audit(
         "claim_ledger_actions",
         "stat_claim_certificate_plan",
         "stat_claim_certificate_checker_audit",
+        "stat_claim_certificate_readiness",
         "theorem_composition_export",
     )
     if (
@@ -3546,6 +3557,33 @@ async def run_research_system_audit(
             "stat_claim_certificate_checker_proof_evidence_status": stat_claim_certificate_checker_manifest[
                 "proof_evidence_status"
             ],
+            "stat_claim_certificate_readiness_targets": stat_claim_certificate_readiness_manifest[
+                "n_targets"
+            ],
+            "stat_claim_certificate_readiness_ok": stat_claim_certificate_readiness_manifest[
+                "n_ok"
+            ],
+            "stat_claim_certificate_readiness_checker_available": stat_claim_certificate_readiness_manifest[
+                "n_checker_available"
+            ],
+            "stat_claim_certificate_readiness_checker_verified": stat_claim_certificate_readiness_manifest[
+                "n_checker_verified"
+            ],
+            "stat_claim_certificate_readiness_checker_kernel_verified": stat_claim_certificate_readiness_manifest[
+                "n_checker_kernel_verified"
+            ],
+            "stat_claim_certificate_readiness_ready_for_witness_validation": stat_claim_certificate_readiness_manifest[
+                "n_ready_for_witness_validation"
+            ],
+            "stat_claim_certificate_readiness_missing_checker": stat_claim_certificate_readiness_manifest[
+                "n_missing_checker"
+            ],
+            "stat_claim_certificate_readiness_non_kernel_checker": stat_claim_certificate_readiness_manifest[
+                "n_non_kernel_checker"
+            ],
+            "stat_claim_certificate_readiness_proof_evidence_status": stat_claim_certificate_readiness_manifest[
+                "proof_evidence_status"
+            ],
             "theorem_composition_packets": theorem_composition_manifest["n_packets"],
             "theorem_composition_packets_ok": theorem_composition_manifest["n_ok"],
             "theorem_composition_exact_proof_bank_links": theorem_composition_manifest[
@@ -4695,6 +4733,21 @@ async def run_research_system_audit(
                 / "stat_claim_certificate_checker_audit"
                 / "stat_claim_certificate_checker_audit.md"
             ),
+            "stat_claim_certificate_readiness": str(
+                out_dir
+                / "stat_claim_certificate_readiness"
+                / "stat_claim_certificate_readiness_manifest.json"
+            ),
+            "stat_claim_certificate_readiness_jsonl": str(
+                out_dir
+                / "stat_claim_certificate_readiness"
+                / "stat_claim_certificate_readiness.jsonl"
+            ),
+            "stat_claim_certificate_readiness_report": str(
+                out_dir
+                / "stat_claim_certificate_readiness"
+                / "stat_claim_certificate_readiness.md"
+            ),
             "theorem_composition": str(
                 out_dir / "theorem_composition" / "theorem_composition_manifest.json"
             ),
@@ -5103,6 +5156,9 @@ def _research_benchmark_cache_key(
             ),
             "stat_claim_certificate_plan": _source_file_hash(
                 Path(__file__).with_name("stat_claim_certificate_plan.py")
+            ),
+            "stat_claim_certificate_readiness_overlay": _source_file_hash(
+                Path(__file__).with_name("stat_claim_certificate_readiness_overlay.py")
             ),
             "research_lab": _source_file_hash(Path(__file__).with_name("research_lab.py")),
             "research_schema": _source_file_hash(Path(__file__).with_name("research_schema.py")),
