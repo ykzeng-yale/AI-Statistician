@@ -985,6 +985,7 @@ def _lean_rag_source_registry_expansion_preflight(args: argparse.Namespace) -> i
     print(
         f"package_clean={payload['package_clean']} "
         f"apply_ready={payload['source_registry_apply_ready']} "
+        f"no_staged={payload.get('no_staged', False)} "
         f"external_refresh_ready={payload['external_refresh_ready']}"
     )
     print(
@@ -998,7 +999,7 @@ def _lean_rag_source_registry_expansion_preflight(args: argparse.Namespace) -> i
         f"\nsource registry expansion preflight manifest written to "
         f"{(Path(args.out) / 'source_registry_expansion_preflight_manifest.json').resolve()}"
     )
-    return 0 if payload["source_registry_apply_ready"] else 1
+    return 0 if payload["source_registry_apply_ready"] or payload.get("no_staged", False) else 1
 
 
 def _lean_rag_source_registry_expansion_apply(args: argparse.Namespace) -> int:
@@ -1016,7 +1017,7 @@ def _lean_rag_source_registry_expansion_apply(args: argparse.Namespace) -> int:
     print("=" * 72)
     print(
         f"dry_run={payload['dry_run']} apply_ready={payload['apply_ready']} "
-        f"applied={payload['applied']}"
+        f"applied={payload['applied']} no_staged={payload.get('no_staged', False)}"
     )
     print(
         f"coverage={before.get('n_present', 0)}/{before.get('n_targets', 0)} -> "
@@ -1031,7 +1032,9 @@ def _lean_rag_source_registry_expansion_apply(args: argparse.Namespace) -> int:
         f"\nsource registry expansion apply manifest written to "
         f"{(Path(args.out) / 'source_registry_expansion_apply_manifest.json').resolve()}"
     )
-    return 0 if payload["apply_ready"] and (payload["dry_run"] or payload["applied"]) else 1
+    return 0 if payload["apply_ready"] and (
+        payload["dry_run"] or payload["applied"] or payload.get("no_staged", False)
+    ) else 1
 
 
 def _lean_rag_dependency_health(args: argparse.Namespace) -> int:

@@ -1739,6 +1739,10 @@ async def run_research_system_audit(
             "lean_rag_source_registry_expansion_apply_applied": lean_rag_source_registry_expansion_apply_manifest[
                 "applied"
             ],
+            "lean_rag_source_registry_expansion_apply_no_staged": lean_rag_source_registry_expansion_apply_manifest.get(
+                "no_staged",
+                False,
+            ),
             "lean_rag_source_registry_expansion_apply_errors": len(
                 lean_rag_source_registry_expansion_apply_manifest.get("errors", ())
             ),

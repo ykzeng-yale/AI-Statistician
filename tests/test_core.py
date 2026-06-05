@@ -138,6 +138,7 @@ from ai_statistician.formal_source_retrieval_ablation import run_formal_source_r
 from ai_statistician.lean_rag_dependency import LeanRagDependencyRetriever
 from ai_statistician.lean_rag_dependency_health import audit_lean_rag_dependency_health
 from ai_statistician.lean_rag_package_audit import (
+    TARGET_LEAN_SOURCE_COVERAGE,
     apply_lean_rag_source_registry_expansion,
     audit_lean_rag_package,
     preflight_lean_rag_source_registry_expansion,
@@ -3606,6 +3607,68 @@ class SystemTests(unittest.TestCase):
         ]
         self.assertIn("brownian-motion-lean", applied_external_names)
         self.assertIn("local Lean/AXLE", applied["proof_evidence_boundary"])
+        complete_registry = json.loads(source_registry_path.read_text(encoding="utf-8"))
+        complete_external_sources = list(complete_registry.get("external_sources", []))
+        known_names = {
+            str(row.get("name", ""))
+            for row in [*complete_registry.get("local_sources", []), *complete_external_sources]
+            if isinstance(row, dict)
+        }
+        for target in TARGET_LEAN_SOURCE_COVERAGE:
+            aliases = tuple(str(alias) for alias in target.get("aliases", ()) or ())
+            if not aliases:
+                continue
+            name = aliases[0]
+            if name in known_names:
+                continue
+            complete_external_sources.append(
+                {"name": name, "trust": "candidate search only"}
+            )
+            known_names.add(name)
+        complete_registry["external_sources"] = complete_external_sources
+        source_registry_path.write_text(
+            json.dumps(complete_registry),
+            encoding="utf-8",
+        )
+        complete_expansion = stage_lean_rag_source_registry_expansion(
+            root / "registry_expansion_complete",
+            package_root=package,
+        )
+        self.assertTrue(complete_expansion["all_ok"])
+        self.assertFalse(complete_expansion["stage_ready"])
+        self.assertEqual(complete_expansion["n_staged"], 0)
+        self.assertEqual(
+            complete_expansion["target_source_coverage_after"]["n_present"],
+            complete_expansion["target_source_coverage_after"]["n_targets"],
+        )
+        complete_preflight = preflight_lean_rag_source_registry_expansion(
+            root / "registry_expansion_complete_preflight",
+            expansion_manifest=(
+                root
+                / "registry_expansion_complete"
+                / "source_registry_expansion_manifest.json"
+            ),
+        )
+        self.assertTrue(complete_preflight["no_staged"])
+        self.assertTrue(complete_preflight["source_registry_apply_ready"])
+        self.assertTrue(complete_preflight["external_refresh_ready"])
+        self.assertEqual(complete_preflight["n_rows"], 0)
+        complete_apply = apply_lean_rag_source_registry_expansion(
+            root / "registry_expansion_complete_apply",
+            expansion_manifest=(
+                root
+                / "registry_expansion_complete"
+                / "source_registry_expansion_manifest.json"
+            ),
+            preflight_manifest=(
+                root
+                / "registry_expansion_complete_preflight"
+                / "source_registry_expansion_preflight_manifest.json"
+            ),
+        )
+        self.assertTrue(complete_apply["apply_ready"])
+        self.assertTrue(complete_apply["no_staged"])
+        self.assertFalse(complete_apply["applied"])
         drift_refusal = apply_lean_rag_source_registry_expansion(
             root / "registry_expansion_apply_after_drift",
             expansion_manifest=expansion_manifest,
@@ -15888,19 +15951,28 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertIn("lean_rag_package_registry_expansion_candidates", payload["counts"])
         self.assertIn("lean_rag_package_registry_expansion_candidate_names", payload["counts"])
         self.assertTrue(payload["counts"]["lean_rag_source_registry_expansion_all_ok"])
-        self.assertTrue(payload["counts"]["lean_rag_source_registry_expansion_stage_ready"])
+        self.assertTrue(
+            payload["counts"]["lean_rag_source_registry_expansion_stage_ready"]
+            or payload["counts"]["lean_rag_source_registry_expansion_coverage_after_present"]
+            == payload["counts"]["lean_rag_package_target_sources"]
+        )
         self.assertGreaterEqual(
             payload["counts"]["lean_rag_source_registry_expansion_candidates"],
-            1,
+            0,
         )
         self.assertGreaterEqual(
             payload["counts"]["lean_rag_source_registry_expansion_staged"],
-            1,
+            0,
         )
         self.assertEqual(payload["counts"]["lean_rag_source_registry_expansion_invalid"], 0)
         self.assertGreaterEqual(
             payload["counts"]["lean_rag_source_registry_expansion_coverage_after_present"],
             payload["counts"]["lean_rag_source_registry_expansion_coverage_before_present"],
+        )
+        self.assertTrue(
+            payload["counts"]["lean_rag_source_registry_expansion_staged"] > 0
+            or payload["counts"]["lean_rag_source_registry_expansion_coverage_after_present"]
+            == payload["counts"]["lean_rag_package_target_sources"]
         )
         self.assertEqual(
             payload["counts"]["lean_rag_source_registry_expansion_coverage_after_missing"],
@@ -15908,6 +15980,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         )
         self.assertTrue(
             payload["counts"]["lean_rag_source_registry_expansion_preflight_apply_ready"]
+            or payload["counts"]["lean_rag_source_registry_expansion_staged"] == 0
         )
         self.assertGreaterEqual(
             payload["counts"]["lean_rag_source_registry_expansion_preflight_clone_required"],
@@ -15924,6 +15997,10 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["counts"]["lean_rag_source_registry_expansion_apply_ready"])
         self.assertTrue(payload["counts"]["lean_rag_source_registry_expansion_apply_dry_run"])
         self.assertFalse(payload["counts"]["lean_rag_source_registry_expansion_apply_applied"])
+        self.assertEqual(
+            payload["counts"]["lean_rag_source_registry_expansion_apply_no_staged"],
+            payload["counts"]["lean_rag_source_registry_expansion_staged"] == 0,
+        )
         self.assertEqual(payload["counts"]["lean_rag_source_registry_expansion_apply_errors"], 0)
         self.assertGreaterEqual(
             payload["counts"]["lean_rag_source_registry_expansion_apply_warnings"],

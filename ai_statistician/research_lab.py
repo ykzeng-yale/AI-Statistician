@@ -5705,6 +5705,28 @@ class ResearchSimulator:
                 rationale="Too few successful Monte Carlo replicates are available for a stable theory judgment.",
                 metric_evidence=metric_evidence,
             )
+        coverage_mc_evidence = self._coverage_mc_precision_evidence(
+            metrics=metrics,
+            stress_test_metrics=row.stress_test_metrics,
+            failed_diagnostics=failed_diagnostics,
+            failed_stress_tests=failed_stress_tests,
+            effective_runs=max(n_runs - n_failed, 0.0),
+        )
+        if coverage_mc_evidence:
+            metric_evidence.update(coverage_mc_evidence)
+            return SimulationDiagnosis(
+                status="INSUFFICIENT_MC_PRECISION",
+                escalate_to="rerun_more_mc",
+                failed_diagnostics=failed_diagnostics or ("coverage_mc_precision",),
+                failed_stress_tests=failed_stress_tests,
+                rationale=(
+                    "The run is near a coverage acceptance threshold; the observed "
+                    "coverage shortfall is within two binomial Monte Carlo standard "
+                    "errors, so a larger simulation budget is needed before calling "
+                    "this a theory or procedure failure."
+                ),
+                metric_evidence=metric_evidence,
+            )
         return SimulationDiagnosis(
             status="THEORY_OR_PROCEDURE_ISSUE",
             escalate_to="theory_developer",
@@ -5713,6 +5735,61 @@ class ResearchSimulator:
             rationale="The implementation ran, but statistical diagnostics or stress tests violated the registered acceptance rule.",
             metric_evidence=metric_evidence,
         )
+
+    def _coverage_mc_precision_evidence(
+        self,
+        *,
+        metrics: dict[str, float],
+        stress_test_metrics: dict[str, dict[str, float]],
+        failed_diagnostics: tuple[str, ...],
+        failed_stress_tests: tuple[str, ...],
+        effective_runs: float,
+    ) -> dict[str, float]:
+        if effective_runs < 30 or effective_runs >= 200:
+            return {}
+        coverage = metrics.get("coverage_95")
+        if not isinstance(coverage, (int, float)) or not math.isfinite(float(coverage)):
+            return {}
+        coverage_value = float(coverage)
+        coverage_related = any(
+            token in diagnostic.lower()
+            for diagnostic in failed_diagnostics
+            for token in ("coverage", "confidence", "calibration")
+        ) or bool(failed_stress_tests)
+        if not coverage_related:
+            return {}
+        threshold = 0.88
+        for stress_name in failed_stress_tests:
+            stress_metrics = stress_test_metrics.get(stress_name, {})
+            primary_value = stress_metrics.get("primary_value")
+            stress_threshold = stress_metrics.get("threshold")
+            if not isinstance(primary_value, (int, float)) or not isinstance(
+                stress_threshold,
+                (int, float),
+            ):
+                continue
+            if not math.isfinite(float(primary_value)) or not math.isfinite(
+                float(stress_threshold)
+            ):
+                continue
+            if abs(float(primary_value) - coverage_value) <= 1e-12 and 0.5 <= float(
+                stress_threshold
+            ) <= 0.99:
+                threshold = max(threshold, float(stress_threshold))
+        if coverage_value >= threshold:
+            return {}
+        mc_se = math.sqrt(max(threshold * (1.0 - threshold), 0.0) / effective_runs)
+        if mc_se <= 0.0:
+            return {}
+        shortfall = threshold - coverage_value
+        if shortfall > 2.0 * mc_se:
+            return {}
+        return {
+            "coverage_mc_threshold": threshold,
+            "coverage_mc_standard_error": mc_se,
+            "coverage_mc_shortfall": shortfall,
+            "coverage_mc_effective_runs": effective_runs,
+        }
 
     def _diagnostic_failed(self, diagnostic: str, metrics: dict[str, float]) -> bool:
         text = diagnostic.lower()

@@ -5,7 +5,7 @@ import os
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 from .fingerprint import stable_hash
 
@@ -427,6 +427,17 @@ def stage_lean_rag_source_registry_expansion(
     return payload
 
 
+def _source_registry_expansion_no_staged(expansion_payload: Mapping[str, object]) -> bool:
+    """Return True when source-registry coverage is complete with no rows to stage."""
+
+    coverage_after = dict(expansion_payload.get("target_source_coverage_after", {}) or {})
+    n_targets = int(coverage_after.get("n_targets", 0) or 0)
+    n_present = int(coverage_after.get("n_present", 0) or 0)
+    n_missing = int(coverage_after.get("n_missing", 0) or 0)
+    n_staged = int(expansion_payload.get("n_staged", 0) or 0)
+    return bool(expansion_payload.get("all_ok")) and n_staged == 0 and n_targets > 0 and n_present >= n_targets and n_missing == 0
+
+
 def preflight_lean_rag_source_registry_expansion(
     out_dir: Path,
     *,
@@ -453,14 +464,15 @@ def preflight_lean_rag_source_registry_expansion(
         if isinstance(row, dict)
     ]
     counts = _preflight_counts(rows)
+    no_staged = _source_registry_expansion_no_staged(expansion_payload)
     source_registry_apply_ready = bool(
         expansion_payload.get("stage_ready")
         and package_root.exists()
         and not bool(package_git.get("dirty", True))
         and counts["n_hard_blockers"] == 0
-    )
+    ) or no_staged
     external_refresh_ready = bool(
-        source_registry_apply_ready
+        (source_registry_apply_ready or no_staged)
         and counts["n_clone_required"] == 0
         and counts["n_present_or_local"] == counts["n_rows"]
         and counts["n_indexer_unsupported"] == 0
@@ -478,6 +490,7 @@ def preflight_lean_rag_source_registry_expansion(
         "package_git": package_git,
         "package_clean": bool(package_root.exists()) and not bool(package_git.get("dirty", True)),
         "source_registry_apply_ready": source_registry_apply_ready,
+        "no_staged": no_staged,
         "external_refresh_ready": external_refresh_ready,
         "n_rows": counts["n_rows"],
         "n_present_clean_git": counts["n_present_clean_git"],
@@ -498,6 +511,7 @@ def preflight_lean_rag_source_registry_expansion(
             external_refresh_ready=external_refresh_ready,
             rows=rows,
             clone_commands=clone_commands,
+            no_staged=no_staged,
         ),
         "proof_evidence_boundary": SOURCE_COVERAGE_BOUNDARY,
     }
@@ -556,11 +570,13 @@ def apply_lean_rag_source_registry_expansion(
     expected_staged_fingerprint = str(
         expansion_payload.get("staged_source_registry_fingerprint", "")
     )
+    n_staged = int(expansion_payload.get("n_staged", 0) or 0)
+    no_staged = _source_registry_expansion_no_staged(expansion_payload)
     errors: list[str] = []
     warnings: list[str] = []
-    if not expansion_payload.get("stage_ready"):
+    if not expansion_payload.get("stage_ready") and not no_staged:
         errors.append("expansion manifest is not stage_ready")
-    if not preflight_payload.get("source_registry_apply_ready"):
+    if not preflight_payload.get("source_registry_apply_ready") and not no_staged:
         errors.append("preflight does not mark source_registry_apply_ready")
     if not source_registry_path.exists():
         errors.append("source_registry_path does not exist")
@@ -579,7 +595,9 @@ def apply_lean_rag_source_registry_expansion(
     apply_ready = not errors
     applied = False
     backup_path = out_dir / "source_registry.before_apply.json"
-    if apply_ready and not dry_run:
+    if apply_ready and no_staged:
+        warnings.append("n_staged=0; source_registry already covers target sources")
+    elif apply_ready and not dry_run:
         backup_path.write_text(
             json.dumps(current_registry, indent=2, default=str) + "\n",
             encoding="utf-8",
@@ -598,6 +616,7 @@ def apply_lean_rag_source_registry_expansion(
         "dry_run": dry_run,
         "apply_ready": apply_ready,
         "applied": applied,
+        "no_staged": no_staged,
         "expansion_manifest": str(manifest_path),
         "preflight_manifest": str(preflight_manifest or out_dir / "preflight"),
         "source_registry_path": str(source_registry_path),
@@ -610,7 +629,7 @@ def apply_lean_rag_source_registry_expansion(
         if applied
         else current_fingerprint,
         "backup_path": str(backup_path) if applied else "",
-        "n_staged": expansion_payload.get("n_staged", 0),
+        "n_staged": n_staged,
         "target_source_coverage_before": expansion_payload.get(
             "target_source_coverage_before", {}
         ),
@@ -1127,8 +1146,17 @@ def _preflight_recommended_actions(
     external_refresh_ready: bool,
     rows: list[dict[str, object]],
     clone_commands: list[dict[str, object]],
+    no_staged: bool = False,
 ) -> list[str]:
     actions: list[str] = []
+    if no_staged:
+        actions.append(
+            "No staged source-registry rows remain; target source coverage is already complete for the current registry."
+        )
+        actions.append(
+            "Rebuild or audit the external reuse index separately before treating retrieval coverage as proof evidence."
+        )
+        return actions
     if not source_registry_apply_ready:
         actions.append(
             "Do not apply the staged source registry until the package checkout is clean and all hard blockers are resolved."
@@ -1510,6 +1538,7 @@ def _source_registry_expansion_preflight_markdown(payload: dict[str, object]) ->
         f"- Package root: `{payload.get('package_root', '')}`",
         f"- Package clean: `{payload.get('package_clean')}`",
         f"- Source registry apply ready: `{payload.get('source_registry_apply_ready')}`",
+        f"- No staged rows: `{payload.get('no_staged')}`",
         f"- External refresh ready: `{payload.get('external_refresh_ready')}`",
         f"- Rows: `{payload.get('n_rows')}` clone_required=`{payload.get('n_clone_required')}` indexer_unsupported=`{payload.get('n_indexer_unsupported')}` hard_blockers=`{payload.get('n_hard_blockers')}`",
         "",
@@ -1541,6 +1570,7 @@ def _source_registry_expansion_apply_markdown(payload: dict[str, object]) -> str
         f"- Dry run: `{payload.get('dry_run')}`",
         f"- Apply ready: `{payload.get('apply_ready')}`",
         f"- Applied: `{payload.get('applied')}`",
+        f"- No staged rows: `{payload.get('no_staged')}`",
         f"- Expansion manifest: `{payload.get('expansion_manifest', '')}`",
         f"- Source registry: `{payload.get('source_registry_path', '')}`",
         f"- Staged registry: `{payload.get('staged_source_registry', '')}`",
