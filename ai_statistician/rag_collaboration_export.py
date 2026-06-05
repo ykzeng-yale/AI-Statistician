@@ -329,6 +329,36 @@ def export_rag_collaboration_manifest(
     formalization_gap_planner_proof_state_triage_payload = _read_json(
         formalization_gap_planner_proof_state_triage_path
     )
+    huggingface_lean_source_audit_path = _artifact_path(
+        artifacts,
+        "huggingface_lean_source_audit",
+        run_dir,
+    )
+    huggingface_lean_source_audit_payload = _read_json(huggingface_lean_source_audit_path)
+    huggingface_lean_source_revalidation_tasks_path = _artifact_path(
+        artifacts,
+        "huggingface_lean_source_revalidation_tasks",
+        run_dir,
+    )
+    huggingface_lean_source_revalidation_tasks_payload = _read_json(
+        huggingface_lean_source_revalidation_tasks_path
+    )
+    huggingface_lean_source_revalidation_artifact_validation_path = _artifact_path(
+        artifacts,
+        "huggingface_lean_source_revalidation_artifact_validation",
+        run_dir,
+    )
+    huggingface_lean_source_revalidation_artifact_validation_payload = _read_json(
+        huggingface_lean_source_revalidation_artifact_validation_path
+    )
+    huggingface_lean_source_revalidation_promotion_queue_path = _artifact_path(
+        artifacts,
+        "huggingface_lean_source_revalidation_promotion_queue",
+        run_dir,
+    )
+    huggingface_lean_source_revalidation_promotion_queue_payload = _read_json(
+        huggingface_lean_source_revalidation_promotion_queue_path
+    )
     guidance_payload = _read_json(_artifact_path(artifacts, "evaluation_benchmark_guidance", run_dir))
     counts = _overlay_auto_discovered_agentic_counts(
         counts,
@@ -343,6 +373,12 @@ def export_rag_collaboration_manifest(
         formal_verifier_agentic_proof_trace_memory_payload=formal_verifier_agentic_proof_trace_memory_payload,
         formal_verifier_agentic_proof_source_theorem_promotion_queue_payload=formal_verifier_agentic_proof_source_theorem_promotion_queue_payload,
         formal_verifier_agentic_proof_source_theorem_target_resolution_payload=formal_verifier_agentic_proof_source_theorem_target_resolution_payload,
+    )
+    huggingface_lean_source_summary = dict(
+        huggingface_lean_source_audit_payload.get("summary", {}) or {}
+    )
+    huggingface_lean_source_revalidation_queue_summary = dict(
+        huggingface_lean_source_audit_payload.get("revalidation_queue_summary", {}) or {}
     )
 
     target_rows = _handoff_targets(
@@ -663,6 +699,248 @@ def export_rag_collaboration_manifest(
             ),
             "proof_search_kernel_rerun_queue_preview": _proof_search_kernel_rerun_queue_preview(
                 proof_search_kernel_rerun_queue_payload,
+                max_rows=min(max_targets, 10),
+            ),
+            "huggingface_lean_source_candidates": counts.get(
+                "huggingface_lean_source_candidates",
+                huggingface_lean_source_summary.get("n_candidates"),
+            ),
+            "huggingface_lean_source_high_priority": counts.get(
+                "huggingface_lean_source_high_priority",
+                huggingface_lean_source_summary.get("n_high"),
+            ),
+            "huggingface_lean_source_critical": counts.get(
+                "huggingface_lean_source_critical",
+                huggingface_lean_source_summary.get("n_critical"),
+            ),
+            "huggingface_lean_source_public_ungated": counts.get(
+                "huggingface_lean_source_public_ungated",
+                huggingface_lean_source_summary.get("n_public_ungated"),
+            ),
+            "huggingface_lean_source_formal_proof_pair_sources": counts.get(
+                "huggingface_lean_source_formal_proof_pair_sources",
+                huggingface_lean_source_summary.get("n_formal_proof_pair_sources"),
+            ),
+            "huggingface_lean_source_tactic_state_sources": counts.get(
+                "huggingface_lean_source_tactic_state_sources",
+                huggingface_lean_source_summary.get("n_tactic_state_sources"),
+            ),
+            "huggingface_lean_source_repair_or_process_sources": counts.get(
+                "huggingface_lean_source_repair_or_process_sources",
+                huggingface_lean_source_summary.get("n_repair_or_process_sources"),
+            ),
+            "huggingface_lean_source_formal_code_corpora": counts.get(
+                "huggingface_lean_source_formal_code_corpora",
+                huggingface_lean_source_summary.get("n_formal_code_corpora"),
+            ),
+            "huggingface_lean_source_total_reported_dataset_rows": counts.get(
+                "huggingface_lean_source_total_reported_dataset_rows",
+                huggingface_lean_source_summary.get("total_reported_dataset_rows"),
+            ),
+            "huggingface_lean_source_oproofs_detected": counts.get(
+                "huggingface_lean_source_oproofs_detected",
+                huggingface_lean_source_summary.get("oproofs_detected"),
+            ),
+            "huggingface_lean_source_oproofs_reported_rows": counts.get(
+                "huggingface_lean_source_oproofs_reported_rows",
+                huggingface_lean_source_summary.get("oproofs_reported_rows"),
+            ),
+            "huggingface_lean_source_oproofs_parquet_shards": counts.get(
+                "huggingface_lean_source_oproofs_parquet_shards",
+                huggingface_lean_source_summary.get("oproofs_parquet_shards"),
+            ),
+            "huggingface_lean_source_rag_integration_rows": counts.get(
+                "huggingface_lean_source_rag_integration_rows",
+                len(huggingface_lean_source_audit_payload.get("rag_integration_plan", []) or []),
+            ),
+            "huggingface_lean_source_revalidation_queue_rows": counts.get(
+                "huggingface_lean_source_revalidation_queue_rows",
+                huggingface_lean_source_revalidation_queue_summary.get("n_queue_rows"),
+            ),
+            "huggingface_lean_source_revalidation_queue_ready": counts.get(
+                "huggingface_lean_source_revalidation_queue_ready",
+                huggingface_lean_source_revalidation_queue_summary.get("n_ready"),
+            ),
+            "huggingface_lean_source_revalidation_queue_blocked": counts.get(
+                "huggingface_lean_source_revalidation_queue_blocked",
+                huggingface_lean_source_revalidation_queue_summary.get("n_blocked"),
+            ),
+            "huggingface_lean_source_revalidation_queue_kernel_verified": counts.get(
+                "huggingface_lean_source_revalidation_queue_kernel_verified",
+                huggingface_lean_source_revalidation_queue_summary.get("n_kernel_verified"),
+            ),
+            "huggingface_lean_source_revalidation_queue_proof_evidence_ready": counts.get(
+                "huggingface_lean_source_revalidation_queue_proof_evidence_ready",
+                huggingface_lean_source_revalidation_queue_summary.get("n_proof_evidence_ready"),
+            ),
+            "huggingface_lean_source_revalidation_queue_proof_evidence_status": counts.get(
+                "huggingface_lean_source_revalidation_queue_proof_evidence_status",
+                huggingface_lean_source_revalidation_queue_summary.get("proof_evidence_status"),
+            ),
+            "huggingface_lean_source_revalidation_tasks": counts.get(
+                "huggingface_lean_source_revalidation_tasks",
+                huggingface_lean_source_revalidation_tasks_payload.get("n_tasks"),
+            ),
+            "huggingface_lean_source_revalidation_tasks_ready": counts.get(
+                "huggingface_lean_source_revalidation_tasks_ready",
+                huggingface_lean_source_revalidation_tasks_payload.get("n_ready"),
+            ),
+            "huggingface_lean_source_revalidation_tasks_blocked": counts.get(
+                "huggingface_lean_source_revalidation_tasks_blocked",
+                huggingface_lean_source_revalidation_tasks_payload.get("n_blocked"),
+            ),
+            "huggingface_lean_source_revalidation_tasks_license_review_required": counts.get(
+                "huggingface_lean_source_revalidation_tasks_license_review_required",
+                huggingface_lean_source_revalidation_tasks_payload.get(
+                    "n_license_review_required"
+                ),
+            ),
+            "huggingface_lean_source_revalidation_tasks_kernel_verified": counts.get(
+                "huggingface_lean_source_revalidation_tasks_kernel_verified",
+                huggingface_lean_source_revalidation_tasks_payload.get("n_kernel_verified"),
+            ),
+            "huggingface_lean_source_revalidation_tasks_proof_evidence_ready": counts.get(
+                "huggingface_lean_source_revalidation_tasks_proof_evidence_ready",
+                huggingface_lean_source_revalidation_tasks_payload.get(
+                    "n_proof_evidence_ready"
+                ),
+            ),
+            "huggingface_lean_source_revalidation_tasks_proof_evidence_status": counts.get(
+                "huggingface_lean_source_revalidation_tasks_proof_evidence_status",
+                huggingface_lean_source_revalidation_tasks_payload.get(
+                    "proof_evidence_status"
+                ),
+            ),
+            "huggingface_lean_source_revalidation_artifact_validation_rows": counts.get(
+                "huggingface_lean_source_revalidation_artifact_validation_rows",
+                huggingface_lean_source_revalidation_artifact_validation_payload.get(
+                    "n_validation_rows"
+                ),
+            ),
+            "huggingface_lean_source_revalidation_artifact_validation_responses": counts.get(
+                "huggingface_lean_source_revalidation_artifact_validation_responses",
+                huggingface_lean_source_revalidation_artifact_validation_payload.get(
+                    "n_responses"
+                ),
+            ),
+            "huggingface_lean_source_revalidation_artifact_validation_awaiting": counts.get(
+                "huggingface_lean_source_revalidation_artifact_validation_awaiting",
+                huggingface_lean_source_revalidation_artifact_validation_payload.get(
+                    "n_awaiting_worker_output"
+                ),
+            ),
+            "huggingface_lean_source_revalidation_artifact_validation_contract_ok": counts.get(
+                "huggingface_lean_source_revalidation_artifact_validation_contract_ok",
+                huggingface_lean_source_revalidation_artifact_validation_payload.get(
+                    "n_contract_ok"
+                ),
+            ),
+            "huggingface_lean_source_revalidation_artifact_validation_kernel_verified_rows": counts.get(
+                "huggingface_lean_source_revalidation_artifact_validation_kernel_verified_rows",
+                huggingface_lean_source_revalidation_artifact_validation_payload.get(
+                    "n_kernel_verified_rows"
+                ),
+            ),
+            "huggingface_lean_source_revalidation_artifact_validation_proof_evidence_ready": counts.get(
+                "huggingface_lean_source_revalidation_artifact_validation_proof_evidence_ready",
+                huggingface_lean_source_revalidation_artifact_validation_payload.get(
+                    "n_proof_evidence_ready"
+                ),
+            ),
+            "huggingface_lean_source_revalidation_artifact_validation_proof_evidence_status": counts.get(
+                "huggingface_lean_source_revalidation_artifact_validation_proof_evidence_status",
+                huggingface_lean_source_revalidation_artifact_validation_payload.get(
+                    "proof_evidence_status"
+                ),
+            ),
+            "huggingface_lean_source_revalidation_promotion_rows": counts.get(
+                "huggingface_lean_source_revalidation_promotion_rows",
+                huggingface_lean_source_revalidation_promotion_queue_payload.get(
+                    "n_promotion_rows"
+                ),
+            ),
+            "huggingface_lean_source_revalidation_promotion_ready": counts.get(
+                "huggingface_lean_source_revalidation_promotion_ready",
+                huggingface_lean_source_revalidation_promotion_queue_payload.get(
+                    "n_ready_for_promotion"
+                ),
+            ),
+            "huggingface_lean_source_revalidation_promotion_awaiting": counts.get(
+                "huggingface_lean_source_revalidation_promotion_awaiting",
+                huggingface_lean_source_revalidation_promotion_queue_payload.get(
+                    "n_awaiting_worker_output"
+                ),
+            ),
+            "huggingface_lean_source_revalidation_promotion_blocked": counts.get(
+                "huggingface_lean_source_revalidation_promotion_blocked",
+                huggingface_lean_source_revalidation_promotion_queue_payload.get(
+                    "n_blocked"
+                ),
+            ),
+            "huggingface_lean_source_revalidation_promotion_kernel_verified_rows": counts.get(
+                "huggingface_lean_source_revalidation_promotion_kernel_verified_rows",
+                huggingface_lean_source_revalidation_promotion_queue_payload.get(
+                    "n_kernel_verified_rows"
+                ),
+            ),
+            "huggingface_lean_source_revalidation_promotion_proof_evidence_ready": counts.get(
+                "huggingface_lean_source_revalidation_promotion_proof_evidence_ready",
+                huggingface_lean_source_revalidation_promotion_queue_payload.get(
+                    "n_proof_evidence_ready"
+                ),
+            ),
+            "huggingface_lean_source_revalidation_promotion_proof_evidence_status": counts.get(
+                "huggingface_lean_source_revalidation_promotion_proof_evidence_status",
+                huggingface_lean_source_revalidation_promotion_queue_payload.get(
+                    "proof_evidence_status"
+                ),
+            ),
+            "huggingface_lean_source_proof_evidence_ready": counts.get(
+                "huggingface_lean_source_proof_evidence_ready",
+                huggingface_lean_source_summary.get("proof_evidence_ready"),
+            ),
+            "huggingface_lean_source_use_network": counts.get(
+                "huggingface_lean_source_use_network",
+                huggingface_lean_source_audit_payload.get("use_network"),
+            ),
+            "huggingface_lean_source_audit_manifest": str(huggingface_lean_source_audit_path),
+            "huggingface_lean_source_rag_integration_plan": str(
+                _artifact_path(
+                    artifacts,
+                    "huggingface_lean_source_rag_integration_plan",
+                    run_dir,
+                )
+            ),
+            "huggingface_lean_source_revalidation_queue_jsonl": str(
+                _artifact_path(
+                    artifacts,
+                    "huggingface_lean_source_revalidation_queue",
+                    run_dir,
+                )
+            ),
+            "huggingface_lean_source_revalidation_tasks_manifest": str(
+                huggingface_lean_source_revalidation_tasks_path
+            ),
+            "huggingface_lean_source_revalidation_artifact_validation_manifest": str(
+                huggingface_lean_source_revalidation_artifact_validation_path
+            ),
+            "huggingface_lean_source_revalidation_promotion_manifest": str(
+                huggingface_lean_source_revalidation_promotion_queue_path
+            ),
+            "huggingface_lean_source_revalidation_queue_preview": _huggingface_lean_source_revalidation_queue_preview(
+                huggingface_lean_source_audit_payload,
+                max_rows=min(max_targets, 10),
+            ),
+            "huggingface_lean_source_revalidation_tasks_preview": _huggingface_lean_source_revalidation_tasks_preview(
+                huggingface_lean_source_revalidation_tasks_payload,
+                max_rows=min(max_targets, 10),
+            ),
+            "huggingface_lean_source_revalidation_artifact_validation_preview": _huggingface_lean_source_revalidation_artifact_validation_preview(
+                huggingface_lean_source_revalidation_artifact_validation_payload,
+                max_rows=min(max_targets, 10),
+            ),
+            "huggingface_lean_source_revalidation_promotion_preview": _huggingface_lean_source_revalidation_promotion_preview(
+                huggingface_lean_source_revalidation_promotion_queue_payload,
                 max_rows=min(max_targets, 10),
             ),
             "formal_verifier_queue_max_dependency_graph_depth": counts.get(
@@ -2014,6 +2292,7 @@ def export_rag_collaboration_manifest(
             "FormalVerifier agentic source-theorem promotion queue rows are target-resolution or integration work orders, not proof evidence.",
             "FormalVerifier agentic source-theorem target-resolution rows are route-ledger overlays, not proof evidence.",
             "Formalization gap proof-state triage rows are proof-worker work orders, not theorem proof evidence.",
+            "Hugging Face Lean/OProofs source rows are retrieval, training, or benchmark candidates only; they become proof evidence only after reconstructed Lean artifacts pass local Lean/AXLE kernel verification and promotion review.",
             "Claim-ledger repair-response promotion overlays close formal gaps only for matching ready kernel-verified promotion rows.",
             "FORMAL_GAP and theorem-hole queues remain open until a non-placeholder Lean proof is verified.",
         ],
@@ -4152,6 +4431,172 @@ def _formalization_gap_planner_proof_state_triage_preview(
     return rows
 
 
+def _huggingface_lean_source_revalidation_queue_preview(
+    payload: dict[str, Any],
+    *,
+    max_rows: int,
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    raw_rows = payload.get("revalidation_queue", [])
+    if not isinstance(raw_rows, list):
+        return rows
+    for row in raw_rows:
+        if not isinstance(row, dict):
+            continue
+        rows.append(
+            {
+                "revalidation_id": row.get("revalidation_id"),
+                "source_id": row.get("source_id"),
+                "dataset_id": row.get("dataset_id"),
+                "url": row.get("url"),
+                "priority": row.get("priority"),
+                "relevance_class": row.get("relevance_class"),
+                "retrieval_role": row.get("retrieval_role"),
+                "ingestion_mode": row.get("ingestion_mode"),
+                "license": row.get("license", ""),
+                "num_rows": row.get("num_rows", 0),
+                "parquet_shards": row.get("parquet_shards", 0),
+                "revalidation_status": row.get("revalidation_status"),
+                "owner_agent": row.get("owner_agent"),
+                "action_type": row.get("action_type"),
+                "required_gate": row.get("required_gate"),
+                "license_review_required": row.get("license_review_required"),
+                "do_not_vendor": row.get("do_not_vendor"),
+                "kernel_verified_rows": row.get("kernel_verified_rows", 0),
+                "proof_evidence_ready": row.get("proof_evidence_ready", 0),
+                "proof_evidence_status": row.get("proof_evidence_status", ""),
+                "proof_evidence_boundary": row.get("proof_evidence_boundary", ""),
+            }
+        )
+        if len(rows) >= max_rows:
+            break
+    return rows
+
+
+def _huggingface_lean_source_revalidation_tasks_preview(
+    payload: dict[str, Any],
+    *,
+    max_rows: int,
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    raw_rows = payload.get("rows", [])
+    if not isinstance(raw_rows, list):
+        return rows
+    for row in raw_rows:
+        if not isinstance(row, dict):
+            continue
+        rows.append(
+            {
+                "task_id": row.get("task_id"),
+                "revalidation_id": row.get("revalidation_id"),
+                "source_id": row.get("source_id"),
+                "dataset_id": row.get("dataset_id"),
+                "priority": row.get("priority"),
+                "priority_score": row.get("priority_score"),
+                "relevance_class": row.get("relevance_class"),
+                "retrieval_role": row.get("retrieval_role"),
+                "task_status": row.get("task_status"),
+                "owner_agent": row.get("owner_agent"),
+                "action_type": row.get("action_type"),
+                "sample_strategy": row.get("sample_strategy"),
+                "sample_size": row.get("sample_size", 0),
+                "sample_seed": row.get("sample_seed"),
+                "license_review_required": row.get("license_review_required"),
+                "local_work_dir": row.get("local_work_dir"),
+                "required_gate": row.get("required_gate"),
+                "kernel_verified_rows": row.get("kernel_verified_rows", 0),
+                "proof_evidence_ready": row.get("proof_evidence_ready", 0),
+                "proof_evidence_status": row.get("proof_evidence_status", ""),
+                "proof_evidence_boundary": row.get("proof_evidence_boundary", ""),
+            }
+        )
+        if len(rows) >= max_rows:
+            break
+    return rows
+
+
+def _huggingface_lean_source_revalidation_artifact_validation_preview(
+    payload: dict[str, Any],
+    *,
+    max_rows: int,
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    raw_rows = payload.get("rows", [])
+    if not isinstance(raw_rows, list):
+        return rows
+    for row in raw_rows:
+        if not isinstance(row, dict):
+            continue
+        rows.append(
+            {
+                "validation_id": row.get("validation_id"),
+                "task_id": row.get("task_id"),
+                "source_id": row.get("source_id"),
+                "dataset_id": row.get("dataset_id"),
+                "task_status": row.get("task_status"),
+                "response_present": row.get("response_present"),
+                "response_contract_ok": row.get("response_contract_ok"),
+                "sample_manifest_path": row.get("sample_manifest_path"),
+                "lean_reconstruction_dir": row.get("lean_reconstruction_dir"),
+                "verifier_attempt_log": row.get("verifier_attempt_log"),
+                "promotion_manifest_path": row.get("promotion_manifest_path"),
+                "sampled_rows": row.get("sampled_rows", 0),
+                "reconstructed_artifacts": row.get("reconstructed_artifacts", 0),
+                "verifier": row.get("verifier", ""),
+                "verification_strength": row.get("verification_strength", ""),
+                "kernel_verified_rows": row.get("kernel_verified_rows", 0),
+                "proof_evidence_ready": row.get("proof_evidence_ready", 0),
+                "artifact_paths_exist": row.get("artifact_paths_exist"),
+                "promotion_ready": row.get("promotion_ready"),
+                "acceptance_status": row.get("acceptance_status"),
+                "proof_evidence_status": row.get("proof_evidence_status", ""),
+                "proof_evidence_boundary": row.get("proof_evidence_boundary", ""),
+            }
+        )
+        if len(rows) >= max_rows:
+            break
+    return rows
+
+
+def _huggingface_lean_source_revalidation_promotion_preview(
+    payload: dict[str, Any],
+    *,
+    max_rows: int,
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    raw_rows = payload.get("rows", [])
+    if not isinstance(raw_rows, list):
+        return rows
+    for row in raw_rows:
+        if not isinstance(row, dict):
+            continue
+        rows.append(
+            {
+                "promotion_id": row.get("promotion_id"),
+                "validation_id": row.get("validation_id"),
+                "task_id": row.get("task_id"),
+                "source_id": row.get("source_id"),
+                "dataset_id": row.get("dataset_id"),
+                "source_acceptance_status": row.get("source_acceptance_status"),
+                "response_present": row.get("response_present"),
+                "response_contract_ok": row.get("response_contract_ok"),
+                "kernel_verified_rows": row.get("kernel_verified_rows", 0),
+                "proof_evidence_ready": row.get("proof_evidence_ready", 0),
+                "promotion_status": row.get("promotion_status"),
+                "promotion_ready": row.get("promotion_ready"),
+                "owner_agent": row.get("owner_agent"),
+                "action_type": row.get("action_type"),
+                "required_gate": row.get("required_gate"),
+                "evidence_paths": row.get("evidence_paths", []),
+                "proof_evidence_status": row.get("proof_evidence_status", ""),
+                "proof_evidence_boundary": row.get("proof_evidence_boundary", ""),
+            }
+        )
+        if len(rows) >= max_rows:
+            break
+    return rows
+
+
 def _theorem_composition_packet_preview(
     payload: dict[str, Any],
     *,
@@ -4254,6 +4699,13 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Proof-search kernel rerun queue: `{queue.get('proof_search_kernel_rerun_queue_ready')}` ready, "
         f"`{queue.get('proof_search_kernel_rerun_queue_blocked')}` blocked "
         f"from `{queue.get('proof_search_kernel_rerun_queue_items')}` rows",
+        f"- Hugging Face Lean/OProofs reuse: `{queue.get('huggingface_lean_source_candidates')}` candidates "
+        f"(`{queue.get('huggingface_lean_source_high_priority')}` high priority, "
+        f"OProofs detected `{queue.get('huggingface_lean_source_oproofs_detected')}`, "
+        f"`{queue.get('huggingface_lean_source_revalidation_tasks_ready')}` tasks ready, "
+        f"`{queue.get('huggingface_lean_source_revalidation_artifact_validation_awaiting')}` validation awaiting, "
+        f"`{queue.get('huggingface_lean_source_revalidation_promotion_ready')}` promotion-ready, "
+        f"`{queue.get('huggingface_lean_source_proof_evidence_ready')}` proof-evidence-ready)",
         f"- Formal verifier source/semantic checks: max depth `{queue.get('formal_verifier_queue_max_dependency_graph_depth')}`, "
         f"max import cone `{queue.get('formal_verifier_queue_max_import_cone_size')}`, "
         f"semantic review rows `{queue.get('formal_verifier_queue_semantic_needs_review')}`",
@@ -4527,6 +4979,63 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"strength=`{row.get('selected_verification_strength')}`"
         )
         lines.append(f"  gate: {row.get('required_gate')}")
+    lines.extend(["", "## Hugging Face Lean/OProofs Revalidation", ""])
+    lines.append(
+        "HF Lean datasets are external retrieval/training candidates. They are not proof "
+        "evidence until sampled Lean artifacts pass local Lean/AXLE and promotion review."
+    )
+    for row in queue.get("huggingface_lean_source_revalidation_queue_preview", []):
+        if not isinstance(row, dict):
+            continue
+        lines.append(
+            f"- `{row.get('dataset_id')}` ({row.get('relevance_class')}): "
+            f"{row.get('revalidation_status')}"
+        )
+        lines.append(
+            f"  role: {row.get('retrieval_role')} "
+            f"rows={row.get('num_rows')} shards={row.get('parquet_shards')}"
+        )
+        lines.append(f"  gate: {row.get('required_gate')}")
+        lines.append(f"  proof status: {row.get('proof_evidence_status')}")
+    lines.extend(["", "### HF Lean Revalidation Tasks", ""])
+    for row in queue.get("huggingface_lean_source_revalidation_tasks_preview", []):
+        if not isinstance(row, dict):
+            continue
+        lines.append(
+            f"- `{row.get('dataset_id')}` task `{row.get('task_id')}`: "
+            f"{row.get('task_status')} sample={row.get('sample_size')}"
+        )
+        lines.append(f"  work dir: `{row.get('local_work_dir')}`")
+        lines.append(f"  gate: {row.get('required_gate')}")
+        lines.append(f"  proof status: {row.get('proof_evidence_status')}")
+    lines.extend(["", "### HF Lean Artifact Validation", ""])
+    for row in queue.get("huggingface_lean_source_revalidation_artifact_validation_preview", []):
+        if not isinstance(row, dict):
+            continue
+        lines.append(
+            f"- `{row.get('dataset_id')}` validation `{row.get('validation_id')}`: "
+            f"{row.get('acceptance_status')}"
+        )
+        lines.append(
+            f"  response={row.get('response_present')} contract={row.get('response_contract_ok')} "
+            f"kernel_rows={row.get('kernel_verified_rows')}"
+        )
+        lines.append(f"  proof status: {row.get('proof_evidence_status')}")
+        lines.append(f"  boundary: {row.get('proof_evidence_boundary')}")
+    lines.extend(["", "### HF Lean Promotion Queue", ""])
+    for row in queue.get("huggingface_lean_source_revalidation_promotion_preview", []):
+        if not isinstance(row, dict):
+            continue
+        lines.append(
+            f"- `{row.get('dataset_id')}` promotion `{row.get('promotion_id')}`: "
+            f"{row.get('promotion_status')} ready={row.get('promotion_ready')}"
+        )
+        lines.append(
+            f"  kernel_rows={row.get('kernel_verified_rows')} "
+            f"evidence_paths={len(row.get('evidence_paths', []) or [])}"
+        )
+        lines.append(f"  gate: {row.get('required_gate')}")
+        lines.append(f"  proof status: {row.get('proof_evidence_status')}")
     lines.extend(["", "## Formal Verifier Queue", ""])
     for row in queue.get("formal_verifier_queue_preview", []):
         if not isinstance(row, dict):

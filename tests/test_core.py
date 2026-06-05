@@ -13482,6 +13482,350 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         )
         self.assertIn("Theorem Composition Handoff", (out / "rag_collaboration.md").read_text())
 
+    def test_rag_collaboration_export_surfaces_hf_lean_source_revalidation(self) -> None:
+        root = Path("runs/test_rag_collaboration_hf_lean_source_revalidation")
+        out = root / "rag_collaboration_export"
+        hf_audit_dir = root / "huggingface_lean_source_audit"
+        hf_tasks_dir = root / "huggingface_lean_source_revalidation_tasks"
+        hf_validation_dir = root / "huggingface_lean_source_revalidation_artifact_validation"
+        hf_promotion_dir = root / "huggingface_lean_source_revalidation_promotion_queue"
+        proof_audit_dir = root / "proof_audit"
+        shutil.rmtree(root, ignore_errors=True)
+        for path in (
+            hf_audit_dir,
+            hf_tasks_dir,
+            hf_validation_dir,
+            hf_promotion_dir,
+            proof_audit_dir,
+        ):
+            path.mkdir(parents=True, exist_ok=True)
+
+        proof_audit_manifest = proof_audit_dir / "proof_audit_manifest.json"
+        proof_audit_manifest.write_text(
+            json.dumps({"proof_bank_fingerprint": "b" * 64}),
+            encoding="utf-8",
+        )
+        hf_audit_manifest = hf_audit_dir / "huggingface_lean_source_audit_manifest.json"
+        hf_audit_manifest.write_text(
+            json.dumps(
+                {
+                    "summary": {
+                        "n_candidates": 1,
+                        "n_high": 1,
+                        "n_critical": 0,
+                        "n_public_ungated": 1,
+                        "n_formal_proof_pair_sources": 1,
+                        "n_tactic_state_sources": 0,
+                        "n_repair_or_process_sources": 0,
+                        "n_formal_code_corpora": 0,
+                        "total_reported_dataset_rows": 6804694,
+                        "proof_evidence_ready": 0,
+                        "oproofs_detected": True,
+                        "oproofs_reported_rows": 6804694,
+                        "oproofs_parquet_shards": 73,
+                    },
+                    "revalidation_queue_summary": {
+                        "n_queue_rows": 1,
+                        "n_ready": 1,
+                        "n_blocked": 0,
+                        "n_kernel_verified": 0,
+                        "n_proof_evidence_ready": 0,
+                        "proof_evidence_status": (
+                            "HF_LEAN_SOURCE_REVALIDATION_QUEUE_NOT_PROOF_EVIDENCE"
+                        ),
+                    },
+                    "rag_integration_plan": [
+                        {"dataset_id": "m-a-p/OProofs", "retrieval_role": "proof_memory"}
+                    ],
+                    "revalidation_queue": [
+                        {
+                            "revalidation_id": "hf_lean_source_revalidation:oproofs",
+                            "source_id": "hf::m-a-p::OProofs",
+                            "dataset_id": "m-a-p/OProofs",
+                            "url": "https://huggingface.co/datasets/m-a-p/OProofs",
+                            "priority": "high",
+                            "relevance_class": "formal_proof_pairs",
+                            "retrieval_role": (
+                                "retrieval_memory_and_proof_repair_sft_candidate"
+                            ),
+                            "ingestion_mode": (
+                                "stream_or_sample_proof_pairs_for_retrieval_memory_and_sft"
+                            ),
+                            "num_rows": 6804694,
+                            "parquet_shards": 73,
+                            "revalidation_status": (
+                                "READY_FOR_METADATA_AND_LICENSE_REVIEW"
+                            ),
+                            "owner_agent": "hf_lean_source_revalidation_worker",
+                            "action_type": (
+                                "sample_reconstruct_and_locally_verify_lean_rows"
+                            ),
+                            "required_gate": (
+                                "local Lean/AXLE kernel verification of reconstructed Lean artifacts"
+                            ),
+                            "license_review_required": True,
+                            "do_not_vendor": True,
+                            "kernel_verified_rows": 0,
+                            "proof_evidence_ready": 0,
+                            "proof_evidence_status": (
+                                "HF_LEAN_SOURCE_REVALIDATION_QUEUE_NOT_PROOF_EVIDENCE"
+                            ),
+                            "proof_evidence_boundary": (
+                                "HF rows are not proof evidence until locally verified."
+                            ),
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        hf_tasks_manifest = (
+            hf_tasks_dir / "hf_lean_source_revalidation_tasks_manifest.json"
+        )
+        hf_tasks_manifest.write_text(
+            json.dumps(
+                {
+                    "n_tasks": 1,
+                    "n_ready": 1,
+                    "n_blocked": 0,
+                    "n_license_review_required": 1,
+                    "n_kernel_verified": 0,
+                    "n_proof_evidence_ready": 0,
+                    "proof_evidence_status": (
+                        "HF_LEAN_SOURCE_REVALIDATION_TASKS_NOT_PROOF_EVIDENCE"
+                    ),
+                    "rows": [
+                        {
+                            "task_id": "hf_lean_source_revalidation_task:oproofs",
+                            "revalidation_id": "hf_lean_source_revalidation:oproofs",
+                            "source_id": "hf::m-a-p::OProofs",
+                            "dataset_id": "m-a-p/OProofs",
+                            "priority": "high",
+                            "priority_score": 90,
+                            "relevance_class": "formal_proof_pairs",
+                            "retrieval_role": (
+                                "retrieval_memory_and_proof_repair_sft_candidate"
+                            ),
+                            "task_status": (
+                                "READY_FOR_METADATA_LICENSE_AND_SAMPLE_PLANNING"
+                            ),
+                            "owner_agent": "hf_lean_source_revalidation_worker",
+                            "action_type": (
+                                "sample_reconstruct_and_verify_hf_lean_source"
+                            ),
+                            "sample_strategy": "sample_small_reconstruct_verify",
+                            "sample_size": 8,
+                            "sample_seed": 20260605,
+                            "license_review_required": True,
+                            "local_work_dir": str(hf_tasks_dir / "work" / "m-a-p_OProofs"),
+                            "required_gate": (
+                                "local Lean/AXLE kernel verification of reconstructed Lean artifacts"
+                            ),
+                            "kernel_verified_rows": 0,
+                            "proof_evidence_ready": 0,
+                            "proof_evidence_status": (
+                                "HF_LEAN_SOURCE_REVALIDATION_TASKS_NOT_PROOF_EVIDENCE"
+                            ),
+                            "proof_evidence_boundary": (
+                                "Tasks are work orders, not proof evidence."
+                            ),
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        hf_validation_manifest = (
+            hf_validation_dir
+            / "hf_lean_source_revalidation_artifact_validation_manifest.json"
+        )
+        hf_validation_manifest.write_text(
+            json.dumps(
+                {
+                    "n_validation_rows": 1,
+                    "n_responses": 0,
+                    "n_awaiting_worker_output": 1,
+                    "n_contract_ok": 0,
+                    "n_kernel_verified_rows": 0,
+                    "n_proof_evidence_ready": 0,
+                    "proof_evidence_status": (
+                        "HF_LEAN_SOURCE_REVALIDATION_ARTIFACT_VALIDATION_NOT_PROOF_EVIDENCE"
+                    ),
+                    "rows": [
+                        {
+                            "validation_id": (
+                                "hf_lean_source_revalidation_artifact_validation:oproofs"
+                            ),
+                            "task_id": "hf_lean_source_revalidation_task:oproofs",
+                            "source_id": "hf::m-a-p::OProofs",
+                            "dataset_id": "m-a-p/OProofs",
+                            "task_status": (
+                                "READY_FOR_METADATA_LICENSE_AND_SAMPLE_PLANNING"
+                            ),
+                            "response_present": False,
+                            "response_contract_ok": False,
+                            "sample_manifest_path": str(
+                                hf_tasks_dir / "work" / "m-a-p_OProofs" / "sample.json"
+                            ),
+                            "lean_reconstruction_dir": str(
+                                hf_tasks_dir / "work" / "m-a-p_OProofs" / "lean"
+                            ),
+                            "verifier_attempt_log": str(
+                                hf_tasks_dir / "work" / "m-a-p_OProofs" / "verify.jsonl"
+                            ),
+                            "promotion_manifest_path": str(
+                                hf_tasks_dir
+                                / "work"
+                                / "m-a-p_OProofs"
+                                / "promotion.json"
+                            ),
+                            "sampled_rows": 0,
+                            "reconstructed_artifacts": 0,
+                            "kernel_verified_rows": 0,
+                            "proof_evidence_ready": 0,
+                            "artifact_paths_exist": False,
+                            "promotion_ready": False,
+                            "acceptance_status": (
+                                "AWAITING_HF_LEAN_SOURCE_REVALIDATION_WORKER_OUTPUT"
+                            ),
+                            "proof_evidence_status": (
+                                "HF_LEAN_SOURCE_REVALIDATION_ARTIFACT_VALIDATION_NOT_PROOF_EVIDENCE"
+                            ),
+                            "proof_evidence_boundary": (
+                                "Validation rows need local verifier artifacts."
+                            ),
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        hf_promotion_manifest = (
+            hf_promotion_dir / "hf_lean_source_revalidation_promotion_queue_manifest.json"
+        )
+        hf_promotion_manifest.write_text(
+            json.dumps(
+                {
+                    "n_promotion_rows": 1,
+                    "n_ready_for_promotion": 0,
+                    "n_awaiting_worker_output": 1,
+                    "n_blocked": 0,
+                    "n_kernel_verified_rows": 0,
+                    "n_proof_evidence_ready": 0,
+                    "proof_evidence_status": (
+                        "HF_LEAN_SOURCE_REVALIDATION_PROMOTION_QUEUE_NOT_PROOF_EVIDENCE"
+                    ),
+                    "rows": [
+                        {
+                            "promotion_id": (
+                                "hf_lean_source_revalidation_promotion:oproofs"
+                            ),
+                            "validation_id": (
+                                "hf_lean_source_revalidation_artifact_validation:oproofs"
+                            ),
+                            "task_id": "hf_lean_source_revalidation_task:oproofs",
+                            "source_id": "hf::m-a-p::OProofs",
+                            "dataset_id": "m-a-p/OProofs",
+                            "source_acceptance_status": (
+                                "AWAITING_HF_LEAN_SOURCE_REVALIDATION_WORKER_OUTPUT"
+                            ),
+                            "response_present": False,
+                            "response_contract_ok": False,
+                            "kernel_verified_rows": 0,
+                            "proof_evidence_ready": 0,
+                            "promotion_status": "AWAITING_WORKER_OUTPUT_NO_PROMOTION",
+                            "promotion_ready": False,
+                            "owner_agent": "hf_lean_source_reuse_promotion_reviewer",
+                            "action_type": (
+                                "await_hf_lean_source_revalidation_worker_output"
+                            ),
+                            "required_gate": (
+                                "worker output passes artifact-validation contract"
+                            ),
+                            "evidence_paths": [],
+                            "proof_evidence_status": (
+                                "HF_LEAN_SOURCE_REVALIDATION_PROMOTION_QUEUE_NOT_PROOF_EVIDENCE"
+                            ),
+                            "proof_evidence_boundary": (
+                                "Promotion rows are review contracts, not proof evidence."
+                            ),
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        system_manifest = root / "research_system_audit_manifest.json"
+        system_manifest.write_text(
+            json.dumps(
+                {
+                    "counts": {
+                        "proofs_kernel_verified": 0,
+                        "proofs_total": 0,
+                        "missing_formal_primitives": 0,
+                    },
+                    "artifacts": {
+                        "proof_audit": str(proof_audit_manifest),
+                        "huggingface_lean_source_audit": str(hf_audit_manifest),
+                        "huggingface_lean_source_revalidation_tasks": str(
+                            hf_tasks_manifest
+                        ),
+                        "huggingface_lean_source_revalidation_artifact_validation": str(
+                            hf_validation_manifest
+                        ),
+                        "huggingface_lean_source_revalidation_promotion_queue": str(
+                            hf_promotion_manifest
+                        ),
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        payload = export_rag_collaboration_manifest(system_manifest, out)
+
+        queue = payload["formal_capacity_queue"]
+        self.assertEqual(queue["huggingface_lean_source_candidates"], 1)
+        self.assertTrue(queue["huggingface_lean_source_oproofs_detected"])
+        self.assertEqual(queue["huggingface_lean_source_oproofs_reported_rows"], 6804694)
+        self.assertEqual(queue["huggingface_lean_source_oproofs_parquet_shards"], 73)
+        self.assertEqual(queue["huggingface_lean_source_rag_integration_rows"], 1)
+        self.assertEqual(queue["huggingface_lean_source_revalidation_tasks"], 1)
+        self.assertEqual(queue["huggingface_lean_source_revalidation_tasks_ready"], 1)
+        self.assertEqual(
+            queue["huggingface_lean_source_revalidation_tasks_license_review_required"],
+            1,
+        )
+        self.assertEqual(
+            queue["huggingface_lean_source_revalidation_artifact_validation_awaiting"],
+            1,
+        )
+        self.assertEqual(queue["huggingface_lean_source_revalidation_promotion_ready"], 0)
+        self.assertEqual(queue["huggingface_lean_source_proof_evidence_ready"], 0)
+        self.assertEqual(
+            queue["huggingface_lean_source_revalidation_tasks_preview"][0]["dataset_id"],
+            "m-a-p/OProofs",
+        )
+        self.assertEqual(
+            queue["huggingface_lean_source_revalidation_tasks_preview"][0][
+                "sample_size"
+            ],
+            8,
+        )
+        self.assertEqual(
+            queue["huggingface_lean_source_revalidation_artifact_validation_preview"][0][
+                "acceptance_status"
+            ],
+            "AWAITING_HF_LEAN_SOURCE_REVALIDATION_WORKER_OUTPUT",
+        )
+        self.assertIn(
+            "Hugging Face Lean/OProofs source rows",
+            " ".join(payload["honesty_boundaries"]),
+        )
+        report = (out / "rag_collaboration.md").read_text()
+        self.assertIn("Hugging Face Lean/OProofs Revalidation", report)
+        self.assertIn("not proof evidence", report)
+
     def test_rag_collaboration_export_auto_discovers_current_proof_state_triage(self) -> None:
         parent = Path("runs/test_rag_collaboration_auto_discovery")
         run_dir = parent / "current_registry_candidate_system_audit"
