@@ -178,6 +178,12 @@ large enough that the correct local integration is streamed/sample indexing and
 deduplication, not vendoring parquet shards into this repository. Every row
 remains candidate retrieval/training evidence until a concrete statement/proof is
 reconstructed or imported and verified under the local target Lean toolchain.
+The OProver GitHub codebase is also Apache-2.0 and should be considered a
+runtime-backend/design source for future work: its useful surfaces are iterative
+feedback inference, the Kimina Lean server verification wrapper, retrieval
+database management, pass@k tooling, and SFT/RL/CPT recipes. Those components
+are not vendored here; reuse should go through a narrow adapter or benchmarked
+backend experiment.
 
 The audit now also exports `formal_verifier_queue` after the
 `formalization_delta_plan`. This queue joins theorem-level formalization
