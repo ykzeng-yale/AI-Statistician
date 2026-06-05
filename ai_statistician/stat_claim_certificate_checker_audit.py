@@ -94,6 +94,56 @@ theorem conformalCoverageCertificate_sound {Ω ρ : Type*}
         ),
         depends_on=("finite_conformal_rank_coverage_counting",),
     ),
+    "randomization_variance_certificate_sound": FormalObligation(
+        id="randomization_variance_certificate_sound",
+        title="Randomization variance certificate checker soundness",
+        english=(
+            "A Neyman randomization-variance certificate packages an exact "
+            "variance decomposition as an observable bound minus a treatment-"
+            "effect variance term. The checker uses nonnegativity of variance "
+            "to prove that the observable bound is conservative. This proves "
+            "only the encoded algebraic certificate; it does not prove complete "
+            "randomization, the finite-population model, or the decomposition "
+            "from first principles."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+structure NeymanVarianceCertificate {Ω : Type*}
+    [MeasurableSpace Ω]
+    (μ : Measure Ω) (observableBound exactVariance : ℝ)
+    (tau : Ω → ℝ) : Prop where
+  variance_decomposition : exactVariance = observableBound - variance tau μ
+
+theorem randomizationVarianceCertificate_sound {Ω : Type*}
+    [MeasurableSpace Ω]
+    (μ : Measure Ω) (observableBound exactVariance : ℝ)
+    (tau : Ω → ℝ)
+    (cert : NeymanVarianceCertificate μ observableBound exactVariance tau) :
+    exactVariance ≤ observableBound := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  rcases cert with ⟨hDecomp⟩\n"
+            "  have hNonneg : 0 ≤ variance tau μ := variance_nonneg tau μ\n"
+            "  nlinarith [hDecomp, hNonneg]"
+        ),
+        tags=(
+            "certificate_checker",
+            "randomization_variance_certificate",
+            "randomization",
+            "variance",
+            "design_based",
+            "neyman",
+            "conservative",
+            "kernel_smoke",
+        ),
+        expected_lemmas=("variance_nonneg", "nlinarith"),
+        depends_on=("neyman_bound_conservative_of_variance_decomposition",),
+    ),
 }
 
 
