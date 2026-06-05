@@ -575,6 +575,9 @@ async def run_research_system_audit(
         local_lean_project=config.local_lean_project,
         local_lean_timeout=config.local_lean_timeout,
     )
+    proof_search_kernel_rerun_local_lean_manifest = (
+        _proof_search_kernel_rerun_local_lean_overlay(out_dir)
+    )
     stage_start = _record_stage(stage_timings, "proof_training_repair_policy_exports", stage_start)
 
     prover_component_report = build_prover_component_audit(
@@ -2094,6 +2097,15 @@ async def run_research_system_audit(
             "proof_search_obligations": proof_search_manifest["n_obligations"],
             "proof_search_solved": proof_search_manifest["n_solved"],
             "proof_search_kernel_verified": proof_search_manifest["n_kernel_verified"],
+            "proof_search_kernel_rerun_local_lean_verified": proof_search_kernel_rerun_local_lean_manifest[
+                "n_kernel_verified"
+            ],
+            "proof_search_kernel_rerun_local_lean_total": proof_search_kernel_rerun_local_lean_manifest[
+                "n_obligations"
+            ],
+            "proof_search_kernel_rerun_local_lean_verifier": proof_search_kernel_rerun_local_lean_manifest[
+                "verifier"
+            ],
             "proof_search_kernel_rerun_queue_items": proof_search_kernel_rerun_queue_manifest[
                 "n_queue_rows"
             ],
@@ -3766,6 +3778,12 @@ async def run_research_system_audit(
             ),
             "proof_search_audit": str(out_dir / "proof_search_audit" / "proof_search_audit_manifest.json"),
             "proof_search_results": str(out_dir / "proof_search_audit" / "proof_search_results.jsonl"),
+            "proof_search_kernel_rerun_local_lean": str(
+                proof_search_kernel_rerun_local_lean_manifest["manifest_path"]
+            ),
+            "proof_search_kernel_rerun_local_lean_results": str(
+                proof_search_kernel_rerun_local_lean_manifest["results_jsonl"]
+            ),
             "proof_search_kernel_rerun_queue": str(
                 out_dir
                 / "proof_search_kernel_rerun_queue"
@@ -4565,6 +4583,40 @@ async def run_research_system_audit(
         encoding="utf-8",
     )
     return payload
+
+
+def _proof_search_kernel_rerun_local_lean_overlay(out_dir: Path) -> dict[str, object]:
+    manifest_path = (
+        out_dir.parent
+        / "proof_search_kernel_rerun_local_lean"
+        / "proof_search_audit_manifest.json"
+    )
+    empty = {
+        "manifest_path": "",
+        "results_jsonl": "",
+        "n_obligations": 0,
+        "n_solved": 0,
+        "n_kernel_verified": 0,
+        "verifier": "",
+        "all_kernel_verified_if_verifier_requires_kernel": False,
+    }
+    if not manifest_path.exists():
+        return empty
+    try:
+        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return empty
+    return {
+        "manifest_path": str(manifest_path),
+        "results_jsonl": str(payload.get("results_jsonl", "")),
+        "n_obligations": int(payload.get("n_obligations", 0) or 0),
+        "n_solved": int(payload.get("n_solved", 0) or 0),
+        "n_kernel_verified": int(payload.get("n_kernel_verified", 0) or 0),
+        "verifier": str(payload.get("verifier", "")),
+        "all_kernel_verified_if_verifier_requires_kernel": bool(
+            payload.get("all_kernel_verified_if_verifier_requires_kernel", False)
+        ),
+    }
 
 
 def _record_stage(

@@ -4447,6 +4447,36 @@ class SystemTests(unittest.TestCase):
             "proof_search_kernel_verified",
             zero_kernel_guidance["top_actions"][2]["success_metric"],
         )
+        overlay_kernel_payload = json.loads(json.dumps(zero_kernel_payload))
+        overlay_kernel_payload["counts"]["proof_search_kernel_rerun_local_lean_verified"] = 12
+        overlay_kernel_payload["counts"]["proof_search_kernel_rerun_local_lean_total"] = 12
+        overlay_kernel_payload["counts"][
+            "proof_search_kernel_rerun_local_lean_verifier"
+        ] = "local.lake_env_lean"
+        overlay_kernel_payload["artifacts"]["proof_search_kernel_rerun_local_lean"] = (
+            "runs/example/proof_search_kernel_rerun_local_lean/"
+            "proof_search_audit_manifest.json"
+        )
+        overlay_kernel_guidance = build_evaluation_benchmark_guidance(
+            Path("runs/test_evaluation_benchmark_guidance_overlay_kernel"),
+            system_audit_payload=overlay_kernel_payload,
+        )
+        overlay_kernel_s5 = next(
+            row
+            for row in overlay_kernel_guidance["suites"]
+            if row["suite_id"] == "S5_proof_bank_and_search"
+        )
+        self.assertEqual(overlay_kernel_s5["status"], "OK")
+        self.assertEqual(
+            overlay_kernel_s5["key_counts"]["proof_search_kernel_rerun_local_lean_verified"],
+            12,
+        )
+        self.assertIn(
+            "proof_search_kernel_rerun_local_lean",
+            " ".join(overlay_kernel_s5["evidence_paths"]),
+        )
+        self.assertNotIn("kernel verification", " ".join(overlay_kernel_s5["issues"]))
+        self.assertNotIn("AXLE/local Lean", overlay_kernel_guidance["top_actions"][2]["action"])
 
     def test_algorithm_registry_audit_passes(self) -> None:
         payload = audit_algorithm_registry(Path("runs/test_algorithm_audit"))

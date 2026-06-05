@@ -152,6 +152,12 @@ def _suite_rows(
     )
     proofs_kernel_verified = _int(counts.get("proofs_kernel_verified"))
     proof_search_kernel_verified = _int(counts.get("proof_search_kernel_verified"))
+    proof_search_kernel_rerun_verified = _int(
+        counts.get("proof_search_kernel_rerun_local_lean_verified")
+    )
+    proof_kernel_evidence = (
+        proofs_kernel_verified + proof_search_kernel_verified + proof_search_kernel_rerun_verified
+    )
     proof_search_solved = _int(counts.get("proof_search_solved"))
     proof_search_obligations = _int(counts.get("proof_search_obligations"))
     algorithm_promotion_ready = _int(counts.get("algorithm_repair_sandbox_patch_eval_promotion_ready"))
@@ -284,8 +290,7 @@ def _suite_rows(
             and bool(artifacts.get("proof_search_retrieval_no_registered_ablation")),
             status=(
                 "CAPACITY_GAP"
-                if proofs_kernel_verified == 0
-                and proof_search_kernel_verified == 0
+                if proof_kernel_evidence == 0
                 and (proof_search_solved > 0 or proof_search_obligations > 0)
                 else (
                     "SATURATED"
@@ -298,12 +303,20 @@ def _suite_rows(
             evidence_paths=(
                 str(artifacts.get("proof_audit", "")),
                 str(artifacts.get("proof_search_audit", "")),
+                str(artifacts.get("proof_search_kernel_rerun_local_lean", "")),
                 str(artifacts.get("proof_search_retrieval_ablation", "")),
                 str(artifacts.get("proof_search_retrieval_no_registered_ablation", "")),
             ),
             key_counts={
                 "proofs_kernel_verified": proofs_kernel_verified,
                 "proof_search_kernel_verified": proof_search_kernel_verified,
+                "proof_search_kernel_rerun_local_lean_verified": proof_search_kernel_rerun_verified,
+                "proof_search_kernel_rerun_local_lean_total": counts.get(
+                    "proof_search_kernel_rerun_local_lean_total"
+                ),
+                "proof_search_kernel_rerun_local_lean_verifier": counts.get(
+                    "proof_search_kernel_rerun_local_lean_verifier"
+                ),
                 "proof_search_solved": proof_search_solved,
                 "proof_search_obligations": proof_search_obligations,
                 "proof_search_retrieval_ablation_candidate_delta": proof_search_candidate_delta,
@@ -316,14 +329,14 @@ def _suite_rows(
             },
             honesty_boundary=(
                 "Kernel-verified registered obligations are proof evidence; ordinary and no-registered "
-                "retrieval ablations are search evidence unless run with AXLE/local Lean verification."
+                "retrieval ablations are search evidence unless run with AXLE/local Lean verification. "
+                "Focused local-rerun proof-search overlay counts are evidence only for their selected obligations."
             ),
             issues=tuple(
                 issue
                 for issue in (
                     "proof-search and proof-bank evidence lacks AXLE/local Lean kernel verification"
-                    if proofs_kernel_verified == 0
-                    and proof_search_kernel_verified == 0
+                    if proof_kernel_evidence == 0
                     and (proof_search_solved > 0 or proof_search_obligations > 0)
                     else "",
                     "current bounded proof-search suite is saturated; stronger RAG shows no downstream lift"
@@ -475,8 +488,10 @@ def _top_actions(
     proof_search_frontier_delta = _int(counts.get("proof_search_retrieval_ablation_candidate_delta")) + _int(
         counts.get("proof_search_retrieval_no_registered_ablation_candidate_delta")
     )
-    proof_kernel_evidence = _int(counts.get("proofs_kernel_verified")) + _int(
-        counts.get("proof_search_kernel_verified")
+    proof_kernel_evidence = (
+        _int(counts.get("proofs_kernel_verified"))
+        + _int(counts.get("proof_search_kernel_verified"))
+        + _int(counts.get("proof_search_kernel_rerun_local_lean_verified"))
     )
     actions = [
         {
@@ -517,7 +532,7 @@ def _top_actions(
                 )
             ),
             "success_metric": (
-                "proof_search_kernel_verified or proofs_kernel_verified becomes positive under AXLE/local Lean, and at least one seeded simulation/proof failure yields a verified changed trace."
+                "proof_search_kernel_verified, proof_search_kernel_rerun_local_lean_verified, or proofs_kernel_verified becomes positive under AXLE/local Lean, and at least one seeded simulation/proof failure yields a verified changed trace."
                 if proof_kernel_evidence == 0
                 else "dependency-graph retrieval improves candidate frontier or solved count on hard obligations, and at least one seeded simulation/proof failure yields a verified changed trace."
             ),
