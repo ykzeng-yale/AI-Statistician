@@ -122,6 +122,7 @@ from .formal_source_retrieval_benchmark import (
     EXTERNAL_USER_INTENT_FORMAL_SOURCE_RETRIEVAL_BENCHMARK,
     run_formal_source_retrieval_benchmark,
 )
+from .huggingface_lean_source_audit import audit_huggingface_lean_sources
 from .lean_rag_package_audit import (
     apply_lean_rag_source_registry_expansion,
     audit_lean_rag_package,
@@ -338,6 +339,11 @@ async def run_research_system_audit(
         "lean_rag_source_registry_expansion_apply",
         stage_start,
     )
+    huggingface_lean_source_manifest = audit_huggingface_lean_sources(
+        out_dir / "huggingface_lean_source_audit",
+        use_network=False,
+    )
+    stage_start = _record_stage(stage_timings, "huggingface_lean_source_audit", stage_start)
 
     formal_source_retrieval_benchmark_manifest = run_formal_source_retrieval_benchmark(
         out_dir / "formal_source_retrieval_benchmark",
@@ -1171,6 +1177,10 @@ async def run_research_system_audit(
             )
             or int(lean_rag_source_registry_expansion_manifest.get("n_staged", 0)) == 0
         ),
+        "huggingface_lean_source_audit": bool(
+            huggingface_lean_source_manifest["summary"].get("oproofs_detected")
+        )
+        and int(huggingface_lean_source_manifest["summary"].get("n_candidates", 0)) > 0,
         "fresh_holdout_frontier_audit": bool(fresh_holdout_manifest["all_ok"]),
         "research_algorithm_audit": bool(algorithm_manifest["all_ok"]),
         "algorithm_simulation_stress_audit": bool(algorithm_simulation_stress_manifest["all_ok"]),
@@ -1691,6 +1701,33 @@ async def run_research_system_audit(
             "lean_rag_package_status_drift_supported": lean_rag_package_manifest[
                 "script_capabilities"
             ].get("shared_status_reports_live_drift", False),
+            "huggingface_lean_source_candidates": huggingface_lean_source_manifest[
+                "summary"
+            ].get("n_candidates", 0),
+            "huggingface_lean_source_high_priority": huggingface_lean_source_manifest[
+                "summary"
+            ].get("n_high", 0),
+            "huggingface_lean_source_critical": huggingface_lean_source_manifest[
+                "summary"
+            ].get("n_critical", 0),
+            "huggingface_lean_source_public_ungated": huggingface_lean_source_manifest[
+                "summary"
+            ].get("n_public_ungated", 0),
+            "huggingface_lean_source_oproofs_detected": huggingface_lean_source_manifest[
+                "summary"
+            ].get("oproofs_detected", False),
+            "huggingface_lean_source_oproofs_reported_rows": huggingface_lean_source_manifest[
+                "summary"
+            ].get("oproofs_reported_rows", 0),
+            "huggingface_lean_source_rag_integration_rows": len(
+                huggingface_lean_source_manifest.get("rag_integration_plan", ())
+            ),
+            "huggingface_lean_source_proof_evidence_ready": huggingface_lean_source_manifest[
+                "summary"
+            ].get("proof_evidence_ready", 0),
+            "huggingface_lean_source_use_network": huggingface_lean_source_manifest[
+                "sources"
+            ].get("use_network", False),
             "lean_rag_source_registry_expansion_all_ok": lean_rag_source_registry_expansion_manifest[
                 "all_ok"
             ],
@@ -3407,6 +3444,21 @@ async def run_research_system_audit(
                 out_dir
                 / "lean_rag_source_registry_expansion_apply"
                 / "source_registry_expansion_apply.md"
+            ),
+            "huggingface_lean_source_audit": str(
+                out_dir
+                / "huggingface_lean_source_audit"
+                / "huggingface_lean_source_audit_manifest.json"
+            ),
+            "huggingface_lean_source_rag_integration_plan": str(
+                out_dir
+                / "huggingface_lean_source_audit"
+                / "huggingface_lean_rag_integration_plan.json"
+            ),
+            "huggingface_lean_source_report": str(
+                out_dir
+                / "huggingface_lean_source_audit"
+                / "huggingface_lean_source_audit.md"
             ),
             "fresh_holdout_frontier_audit": str(
                 out_dir / "fresh_holdout_frontier_audit" / "fresh_holdout_frontier_manifest.json"

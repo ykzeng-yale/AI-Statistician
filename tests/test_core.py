@@ -15746,6 +15746,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["gates"]["lean_rag_source_registry_expansion"])
         self.assertTrue(payload["gates"]["lean_rag_source_registry_expansion_preflight"])
         self.assertTrue(payload["gates"]["lean_rag_source_registry_expansion_apply"])
+        self.assertTrue(payload["gates"]["huggingface_lean_source_audit"])
         self.assertTrue(payload["gates"]["fresh_holdout_frontier_audit"])
         self.assertTrue(payload["gates"]["research_algorithm_audit"])
         self.assertTrue(payload["gates"]["algorithm_simulation_stress_audit"])
@@ -16068,6 +16069,14 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertIn("lean_rag_package_missing_target_sources", payload["counts"])
         self.assertIn("lean_rag_package_registry_expansion_candidates", payload["counts"])
         self.assertIn("lean_rag_package_registry_expansion_candidate_names", payload["counts"])
+        self.assertGreaterEqual(payload["counts"]["huggingface_lean_source_candidates"], 1)
+        self.assertGreaterEqual(payload["counts"]["huggingface_lean_source_high_priority"], 1)
+        self.assertEqual(payload["counts"]["huggingface_lean_source_critical"], 0)
+        self.assertGreaterEqual(payload["counts"]["huggingface_lean_source_public_ungated"], 1)
+        self.assertTrue(payload["counts"]["huggingface_lean_source_oproofs_detected"])
+        self.assertGreaterEqual(payload["counts"]["huggingface_lean_source_rag_integration_rows"], 1)
+        self.assertEqual(payload["counts"]["huggingface_lean_source_proof_evidence_ready"], 0)
+        self.assertFalse(payload["counts"]["huggingface_lean_source_use_network"])
         self.assertTrue(payload["counts"]["lean_rag_source_registry_expansion_all_ok"])
         self.assertTrue(
             payload["counts"]["lean_rag_source_registry_expansion_stage_ready"]
