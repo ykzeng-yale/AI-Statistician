@@ -36,6 +36,9 @@ from .stat_claim_certificate_witness_materializer import (
 from .stat_claim_certificate_witness_prompt_packets import (
     export_stat_claim_certificate_witness_prompt_packets,
 )
+from .stat_claim_certificate_witness_response_validation import (
+    validate_stat_claim_certificate_witness_worker_outputs,
+)
 from .stat_claim_certificate_witness_validator import (
     validate_stat_claim_certificate_witness_drafts,
 )
@@ -3452,6 +3455,41 @@ def _stat_claim_certificate_witness_prompt_packets(args: argparse.Namespace) -> 
     return 0 if payload["all_ok"] else 1
 
 
+def _stat_claim_certificate_witness_response_validate(args: argparse.Namespace) -> int:
+    payload = validate_stat_claim_certificate_witness_worker_outputs(
+        Path(args.prompt_packets_dir),
+        Path(args.out),
+        worker_output_jsonl=Path(args.worker_output_jsonl)
+        if args.worker_output_jsonl
+        else None,
+    )
+    print("\nAI Statistical Theory Lab Statistical Claim Certificate Witness Response Validation")
+    print("=" * 72)
+    print(
+        f"responses={payload['n_responses']} "
+        f"accepted={payload['n_accepted_for_draft_update']} "
+        f"awaiting={payload['n_awaiting_worker_output']} "
+        f"overclaims={payload['n_proof_overclaim_rows']} "
+        f"status={payload['proof_evidence_status']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    for status, count in payload["by_status"].items():
+        print(f"  {status}: {count}")
+    print(
+        f"\nwitness response validation manifest written to "
+        f"{(Path(args.out) / 'stat_claim_certificate_witness_response_validation_manifest.json').resolve()}"
+    )
+    print(
+        f"validation rows written to "
+        f"{(Path(args.out) / 'stat_claim_certificate_witness_response_validation.jsonl').resolve()}"
+    )
+    print(
+        f"markdown report written to "
+        f"{(Path(args.out) / 'stat_claim_certificate_witness_response_validation.md').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
 def _stat_claim_certificate_witness_validate(args: argparse.Namespace) -> int:
     payload = validate_stat_claim_certificate_witness_drafts(
         Path(args.materializer_dir),
@@ -6728,6 +6766,29 @@ def build_parser() -> argparse.ArgumentParser:
     )
     stat_claim_certificate_witness_prompt_packets.set_defaults(
         func=_stat_claim_certificate_witness_prompt_packets
+    )
+
+    stat_claim_certificate_witness_response_validate = sub.add_parser(
+        "stat-claim-certificate-witness-response-validate",
+        help="validate worker outputs for certificate witness prompt packets",
+    )
+    stat_claim_certificate_witness_response_validate.add_argument(
+        "--prompt-packets-dir",
+        required=True,
+        help="directory containing stat_claim_certificate_witness_prompt_packets_manifest.json",
+    )
+    stat_claim_certificate_witness_response_validate.add_argument(
+        "--worker-output-jsonl",
+        default=None,
+        help="optional worker-output JSONL path; defaults to the prompt-packet contract path",
+    )
+    stat_claim_certificate_witness_response_validate.add_argument(
+        "--out",
+        default="runs/stat_claim_certificate_witness_response_validation",
+        help="certificate witness response-validation output directory",
+    )
+    stat_claim_certificate_witness_response_validate.set_defaults(
+        func=_stat_claim_certificate_witness_response_validate
     )
 
     stat_claim_certificate_witness_validate = sub.add_parser(
