@@ -109,6 +109,9 @@ from ai_statistician.formal_verifier_agentic_proof_execution_artifact_verifier i
 from ai_statistician.formal_verifier_agentic_proof_source_theorem_promotion_queue import (
     export_formal_verifier_agentic_proof_source_theorem_promotion_queue,
 )
+from ai_statistician.formal_verifier_agentic_proof_source_theorem_target_resolution import (
+    export_formal_verifier_agentic_proof_source_theorem_target_resolution,
+)
 from ai_statistician.formal_verifier_replay_repair import export_formal_verifier_replay_repair_packets
 from ai_statistician.formalization_delta_plan import build_formalization_delta_plan
 from ai_statistician.formalization_target_audit import audit_formalization_targets
@@ -3692,6 +3695,82 @@ class SystemTests(unittest.TestCase):
                 root
                 / "source_theorem_promotion_queue"
                 / "formal_verifier_agentic_proof_source_theorem_promotion_queue_manifest.json"
+            ).exists()
+        )
+
+        target_resolution_unmatched = (
+            export_formal_verifier_agentic_proof_source_theorem_target_resolution(
+                root / "source_theorem_promotion_queue",
+                root / "source_theorem_target_resolution_unmatched",
+            )
+        )
+        self.assertTrue(target_resolution_unmatched["all_ok"])
+        self.assertEqual(target_resolution_unmatched["n_target_resolution_rows"], 1)
+        self.assertEqual(target_resolution_unmatched["n_resolved_source_theorem_targets"], 0)
+        self.assertEqual(target_resolution_unmatched["n_needs_route_ledger_match"], 1)
+        self.assertEqual(target_resolution_unmatched["n_overlay_rows"], 0)
+        self.assertEqual(
+            target_resolution_unmatched["rows"][0]["resolution_status"],
+            "NEEDS_ROUTE_LEDGER_MATCH",
+        )
+
+        route_dir = root / "formal_verifier_queue"
+        route_dir.mkdir(parents=True, exist_ok=True)
+        (route_dir / "formal_verifier_queue_manifest.json").write_text(
+            json.dumps(
+                {
+                    "rows": [
+                        {
+                            "item_id": "formal_verifier_queue:auto",
+                            "route_id": "theorem_route:auto",
+                            "task_id": "formal_gap:auto:claim",
+                            "question_id": "auto",
+                            "problem_class": "synthetic",
+                            "theorem_goal_id": "claim",
+                            "display_name": "auto:claim:skeleton",
+                            "target_theorem_name": "formal:causal_ate_aipw:causal_identification",
+                            "theorem_skeleton": "skeleton",
+                            "theorem_statement": "theorem auto_claim : True := by trivial",
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        target_resolution = (
+            export_formal_verifier_agentic_proof_source_theorem_target_resolution(
+                root / "source_theorem_promotion_queue",
+                root / "source_theorem_target_resolution",
+                formal_verifier_queue_dir=route_dir,
+            )
+        )
+        self.assertTrue(target_resolution["all_ok"])
+        self.assertEqual(target_resolution["n_resolved_source_theorem_targets"], 1)
+        self.assertEqual(target_resolution["n_needs_route_ledger_match"], 0)
+        self.assertEqual(target_resolution["n_overlay_rows"], 1)
+        target_resolution_row = target_resolution["rows"][0]
+        self.assertEqual(
+            target_resolution_row["resolution_status"],
+            "RESOLVED_SOURCE_THEOREM_TARGET_FOR_INTEGRATION",
+        )
+        self.assertEqual(target_resolution_row["match_source"], "formal_verifier_queue")
+        self.assertEqual(
+            target_resolution_row["source_theorem_statement"],
+            "theorem auto_claim : True := by trivial",
+        )
+        self.assertEqual(
+            target_resolution["overlay_rows"][0]["source_theorem_statement"],
+            "theorem auto_claim : True := by trivial",
+        )
+        self.assertEqual(
+            target_resolution["proof_evidence_status"],
+            "SOURCE_THEOREM_TARGET_RESOLUTION_NOT_PROOF_EVIDENCE",
+        )
+        self.assertTrue(
+            (
+                root
+                / "source_theorem_target_resolution"
+                / "formal_verifier_agentic_proof_source_theorem_target_resolution_overlays.jsonl"
             ).exists()
         )
 
@@ -16109,6 +16188,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["gates"]["formal_verifier_agentic_proof_execution_materializer"])
         self.assertTrue(payload["gates"]["formal_verifier_agentic_proof_execution_artifact_verifier"])
         self.assertTrue(payload["gates"]["formal_verifier_agentic_proof_source_theorem_promotion_queue"])
+        self.assertTrue(payload["gates"]["formal_verifier_agentic_proof_source_theorem_target_resolution"])
         self.assertTrue(payload["gates"]["research_training_export"])
         self.assertTrue(payload["gates"]["research_policy_baseline"])
         self.assertTrue(payload["gates"]["next_iteration_queue"])
@@ -17682,6 +17762,36 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             ],
             "SOURCE_THEOREM_PROMOTION_QUEUE_NOT_PROOF_EVIDENCE",
         )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_agentic_proof_source_theorem_target_resolution_rows"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_agentic_proof_source_theorem_target_resolution_resolved"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_agentic_proof_source_theorem_target_resolution_needs_route_match"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_agentic_proof_source_theorem_target_resolution_overlays"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_agentic_proof_source_theorem_target_resolution_proof_evidence_status"
+            ],
+            "SOURCE_THEOREM_TARGET_RESOLUTION_NOT_PROOF_EVIDENCE",
+        )
         self.assertTrue(Path(payload["artifacts"]["formalization_delta_plan"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formalization_delta_graph"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_verifier_queue"]).exists())
@@ -18127,6 +18237,34 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             Path(
                 payload["artifacts"][
                     "formal_verifier_agentic_proof_source_theorem_promotion_queue_report"
+                ]
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formal_verifier_agentic_proof_source_theorem_target_resolution"
+                ]
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formal_verifier_agentic_proof_source_theorem_target_resolution_jsonl"
+                ]
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formal_verifier_agentic_proof_source_theorem_target_resolution_overlays"
+                ]
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formal_verifier_agentic_proof_source_theorem_target_resolution_report"
                 ]
             ).exists()
         )

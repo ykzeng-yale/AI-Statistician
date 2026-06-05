@@ -142,6 +142,9 @@ from .formal_verifier_agentic_proof_execution_artifact_verifier import (
 from .formal_verifier_agentic_proof_source_theorem_promotion_queue import (
     export_formal_verifier_agentic_proof_source_theorem_promotion_queue,
 )
+from .formal_verifier_agentic_proof_source_theorem_target_resolution import (
+    export_formal_verifier_agentic_proof_source_theorem_target_resolution,
+)
 from .formal_verifier_replay_repair import export_formal_verifier_replay_repair_packets
 from .formal_source_graph import audit_formal_source_graph
 from .formal_source_index import (
@@ -2862,6 +2865,38 @@ def _formal_verifier_agentic_proof_source_theorem_promotion_queue(
     print(
         f"markdown report written to "
         f"{(Path(args.out) / 'formal_verifier_agentic_proof_source_theorem_promotion_queue.md').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formal_verifier_agentic_proof_source_theorem_target_resolution(
+    args: argparse.Namespace,
+) -> int:
+    payload = export_formal_verifier_agentic_proof_source_theorem_target_resolution(
+        Path(args.formal_verifier_agentic_proof_source_theorem_promotion_queue_dir),
+        Path(args.out),
+        formal_verifier_queue_dir=Path(args.formal_verifier_queue_dir)
+        if args.formal_verifier_queue_dir
+        else None,
+        formal_verifier_replay_dir=Path(args.formal_verifier_replay_dir)
+        if args.formal_verifier_replay_dir
+        else None,
+    )
+    print("\nAI Statistical Theory Lab Formal Verifier Agentic Source-Theorem Target Resolution")
+    print("=" * 72)
+    print(
+        f"rows={payload['n_ok']}/{payload['n_target_resolution_rows']} "
+        f"resolved={payload['n_resolved_source_theorem_targets']} "
+        f"needs_route_match={payload['n_needs_route_ledger_match']} "
+        f"overlays={payload['n_overlay_rows']} all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nsource-theorem target resolution manifest written to "
+        f"{(Path(args.out) / 'formal_verifier_agentic_proof_source_theorem_target_resolution_manifest.json').resolve()}"
+    )
+    print(
+        f"source-theorem target overlays written to "
+        f"{(Path(args.out) / 'formal_verifier_agentic_proof_source_theorem_target_resolution_overlays.jsonl').resolve()}"
     )
     return 0 if payload["all_ok"] else 1
 
@@ -5823,6 +5858,34 @@ def build_parser() -> argparse.ArgumentParser:
     )
     formal_verifier_agentic_proof_source_theorem_promotion_queue.set_defaults(
         func=_formal_verifier_agentic_proof_source_theorem_promotion_queue
+    )
+
+    formal_verifier_agentic_proof_source_theorem_target_resolution = sub.add_parser(
+        "formal-verifier-agentic-proof-source-theorem-target-resolution",
+        help="resolve route-ledger source theorem targets for agentic artifact proof probes",
+    )
+    formal_verifier_agentic_proof_source_theorem_target_resolution.add_argument(
+        "--formal-verifier-agentic-proof-source-theorem-promotion-queue-dir",
+        required=True,
+        help="directory containing formal_verifier_agentic_proof_source_theorem_promotion_queue_manifest.json",
+    )
+    formal_verifier_agentic_proof_source_theorem_target_resolution.add_argument(
+        "--formal-verifier-queue-dir",
+        default="",
+        help="optional directory containing formal_verifier_queue_manifest.json",
+    )
+    formal_verifier_agentic_proof_source_theorem_target_resolution.add_argument(
+        "--formal-verifier-replay-dir",
+        default="",
+        help="optional directory containing formal_verifier_replay_manifest.json",
+    )
+    formal_verifier_agentic_proof_source_theorem_target_resolution.add_argument(
+        "--out",
+        default="runs/formal_verifier_agentic_proof_source_theorem_target_resolution",
+        help="formal-verifier agentic source-theorem target resolution output directory",
+    )
+    formal_verifier_agentic_proof_source_theorem_target_resolution.set_defaults(
+        func=_formal_verifier_agentic_proof_source_theorem_target_resolution
     )
 
     rag_collaboration_export = sub.add_parser(

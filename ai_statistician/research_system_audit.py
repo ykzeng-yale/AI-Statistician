@@ -112,6 +112,9 @@ from .formal_verifier_agentic_proof_execution_artifact_verifier import (
 from .formal_verifier_agentic_proof_source_theorem_promotion_queue import (
     export_formal_verifier_agentic_proof_source_theorem_promotion_queue,
 )
+from .formal_verifier_agentic_proof_source_theorem_target_resolution import (
+    export_formal_verifier_agentic_proof_source_theorem_target_resolution,
+)
 from .formal_verifier_replay_repair import export_formal_verifier_replay_repair_packets
 from .formal_source_graph import audit_formal_source_graph
 from .formal_source_hybrid import FormalSourceHybridRetriever
@@ -1056,6 +1059,19 @@ async def run_research_system_audit(
         "formal_verifier_agentic_proof_source_theorem_promotion_queue",
         stage_start,
     )
+    formal_verifier_agentic_proof_source_theorem_target_resolution_manifest = (
+        export_formal_verifier_agentic_proof_source_theorem_target_resolution(
+            out_dir / "formal_verifier_agentic_proof_source_theorem_promotion_queue",
+            out_dir / "formal_verifier_agentic_proof_source_theorem_target_resolution",
+            formal_verifier_queue_dir=out_dir / "formal_verifier_queue",
+            formal_verifier_replay_dir=out_dir / "formal_verifier_replay",
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "formal_verifier_agentic_proof_source_theorem_target_resolution",
+        stage_start,
+    )
 
     research_training_manifest = export_research_training_dataset(
         out_dir / "research_benchmark",
@@ -1401,6 +1417,11 @@ async def run_research_system_audit(
                 "all_ok"
             ]
         ),
+        "formal_verifier_agentic_proof_source_theorem_target_resolution": bool(
+            formal_verifier_agentic_proof_source_theorem_target_resolution_manifest[
+                "all_ok"
+            ]
+        ),
         "research_training_export": bool(research_training_manifest["all_ok"]),
         "research_policy_baseline": bool(research_policy_manifest["all_ok"]),
         "next_iteration_queue": bool(next_iteration_manifest["all_ok"]),
@@ -1465,6 +1486,7 @@ async def run_research_system_audit(
         "formal_verifier_agentic_proof_execution_materializer",
         "formal_verifier_agentic_proof_execution_artifact_verifier",
         "formal_verifier_agentic_proof_source_theorem_promotion_queue",
+        "formal_verifier_agentic_proof_source_theorem_target_resolution",
         "research_training_export",
         "research_policy_baseline",
         "next_iteration_queue",
@@ -3135,6 +3157,30 @@ async def run_research_system_audit(
             "formal_verifier_agentic_proof_source_theorem_promotion_proof_evidence_status": formal_verifier_agentic_proof_source_theorem_promotion_queue_manifest.get(
                 "proof_evidence_status", ""
             ),
+            "formal_verifier_agentic_proof_source_theorem_target_resolution_rows": formal_verifier_agentic_proof_source_theorem_target_resolution_manifest[
+                "n_target_resolution_rows"
+            ],
+            "formal_verifier_agentic_proof_source_theorem_target_resolution_resolved": formal_verifier_agentic_proof_source_theorem_target_resolution_manifest[
+                "n_resolved_source_theorem_targets"
+            ],
+            "formal_verifier_agentic_proof_source_theorem_target_resolution_needs_route_match": formal_verifier_agentic_proof_source_theorem_target_resolution_manifest[
+                "n_needs_route_ledger_match"
+            ],
+            "formal_verifier_agentic_proof_source_theorem_target_resolution_already_known": formal_verifier_agentic_proof_source_theorem_target_resolution_manifest[
+                "n_already_source_theorem_target_known"
+            ],
+            "formal_verifier_agentic_proof_source_theorem_target_resolution_blocked_artifact_kernel": formal_verifier_agentic_proof_source_theorem_target_resolution_manifest[
+                "n_blocked_artifact_kernel_required"
+            ],
+            "formal_verifier_agentic_proof_source_theorem_target_resolution_overlays": formal_verifier_agentic_proof_source_theorem_target_resolution_manifest[
+                "n_overlay_rows"
+            ],
+            "formal_verifier_agentic_proof_source_theorem_target_resolution_ok": formal_verifier_agentic_proof_source_theorem_target_resolution_manifest[
+                "n_ok"
+            ],
+            "formal_verifier_agentic_proof_source_theorem_target_resolution_proof_evidence_status": formal_verifier_agentic_proof_source_theorem_target_resolution_manifest.get(
+                "proof_evidence_status", ""
+            ),
             "proof_bank_actions_high_priority": proof_bank_action_manifest["by_priority"].get("high", 0),
             "proof_bank_actions_medium_priority": proof_bank_action_manifest["by_priority"].get("medium", 0),
             "proof_bank_actions_low_priority": proof_bank_action_manifest["by_priority"].get("low", 0),
@@ -4264,6 +4310,26 @@ async def run_research_system_audit(
                 out_dir
                 / "formal_verifier_agentic_proof_source_theorem_promotion_queue"
                 / "formal_verifier_agentic_proof_source_theorem_promotion_queue.md"
+            ),
+            "formal_verifier_agentic_proof_source_theorem_target_resolution": str(
+                out_dir
+                / "formal_verifier_agentic_proof_source_theorem_target_resolution"
+                / "formal_verifier_agentic_proof_source_theorem_target_resolution_manifest.json"
+            ),
+            "formal_verifier_agentic_proof_source_theorem_target_resolution_jsonl": str(
+                out_dir
+                / "formal_verifier_agentic_proof_source_theorem_target_resolution"
+                / "formal_verifier_agentic_proof_source_theorem_target_resolution.jsonl"
+            ),
+            "formal_verifier_agentic_proof_source_theorem_target_resolution_overlays": str(
+                out_dir
+                / "formal_verifier_agentic_proof_source_theorem_target_resolution"
+                / "formal_verifier_agentic_proof_source_theorem_target_resolution_overlays.jsonl"
+            ),
+            "formal_verifier_agentic_proof_source_theorem_target_resolution_report": str(
+                out_dir
+                / "formal_verifier_agentic_proof_source_theorem_target_resolution"
+                / "formal_verifier_agentic_proof_source_theorem_target_resolution.md"
             ),
             "primitive_source_coverage": str(
                 out_dir / "primitive_source_coverage" / "primitive_source_coverage_manifest.json"
