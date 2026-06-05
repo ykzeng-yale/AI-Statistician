@@ -24,6 +24,7 @@ FAMILY_TO_CHECKER_OBLIGATION = {
     "conformal_coverage_certificate": "conformal_coverage_certificate_sound",
     "randomization_variance_certificate": "randomization_variance_certificate_sound",
     "multiple_testing_threshold_certificate": "multiple_testing_threshold_certificate_sound",
+    "kkt_optimality_certificate": "kkt_optimality_certificate_sound",
 }
 
 

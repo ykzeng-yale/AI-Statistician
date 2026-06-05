@@ -192,6 +192,50 @@ theorem multipleTestingThresholdCertificate_sound {q : ℝ} {m k l : Nat}
         expected_lemmas=("gcongr",),
         depends_on=("bh_threshold_grid_mono",),
     ),
+    "kkt_optimality_certificate_sound": FormalObligation(
+        id="kkt_optimality_certificate_sound",
+        title="KKT optimality certificate checker soundness",
+        english=(
+            "A KKT-style optimization certificate packages a primal objective, "
+            "a dual objective, an advertised tolerance, and an encoded "
+            "primal-dual gap bound. The checker proves only that the encoded "
+            "primal-dual certificate implies the advertised objective-gap "
+            "bound. It does not prove convexity, feasibility, stationarity, "
+            "strong duality, or that the encoded optimization problem matches "
+            "a paper estimator."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+
+structure KKTOptimalityCertificate
+    (primalObjective dualObjective tolerance : ℝ) : Prop where
+  primal_dual_gap_nonnegative : 0 ≤ primalObjective - dualObjective
+  primal_dual_gap_bound : primalObjective - dualObjective ≤ tolerance
+
+theorem kktOptimalityCertificate_sound
+    (primalObjective dualObjective tolerance : ℝ)
+    (cert : KKTOptimalityCertificate primalObjective dualObjective tolerance) :
+    primalObjective ≤ dualObjective + tolerance := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  rcases cert with ⟨_hNonneg, hGap⟩\n"
+            "  linarith"
+        ),
+        tags=(
+            "certificate_checker",
+            "kkt_optimality_certificate",
+            "optimization",
+            "kkt",
+            "primal_dual",
+            "objective_gap",
+            "kernel_smoke",
+        ),
+        expected_lemmas=("linarith",),
+        depends_on=(),
+    ),
 }
 
 
