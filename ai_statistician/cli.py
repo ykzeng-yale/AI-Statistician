@@ -27,6 +27,9 @@ from .stat_claim_certificate_plan import export_stat_claim_certificate_plan
 from .stat_claim_certificate_readiness_overlay import (
     export_stat_claim_certificate_readiness_overlay,
 )
+from .stat_claim_certificate_witness_queue import (
+    export_stat_claim_certificate_witness_queue,
+)
 from .doctor import build_doctor_report, write_doctor_manifest
 from .evaluation import EvalConfig, run_seed_eval
 from .autoform_target_export import export_autoform_targets
@@ -3360,6 +3363,33 @@ def _stat_claim_certificate_readiness_overlay(args: argparse.Namespace) -> int:
     return 0 if payload["all_ok"] else 1
 
 
+def _stat_claim_certificate_witness_queue(args: argparse.Namespace) -> int:
+    payload = export_stat_claim_certificate_witness_queue(
+        Path(args.certificate_plan_dir),
+        Path(args.readiness_dir),
+        Path(args.out),
+        max_tasks=args.max_tasks,
+    )
+    print("\nAI Statistical Theory Lab Statistical Claim Certificate Witness Queue")
+    print("=" * 72)
+    print(
+        f"tasks={payload['n_ok']}/{payload['n_tasks']} "
+        f"blocked={payload['n_blocked']} "
+        f"status={payload['proof_evidence_status']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    for family, count in payload["by_family"].items():
+        print(f"  {family}: {count}")
+    print(
+        f"\nwitness queue manifest written to "
+        f"{(Path(args.out) / 'stat_claim_certificate_witness_queue_manifest.json').resolve()}"
+    )
+    print(f"tasks written to {(Path(args.out) / 'stat_claim_certificate_witness_tasks.jsonl').resolve()}")
+    print(f"blocked rows written to {(Path(args.out) / 'stat_claim_certificate_witness_blocked.jsonl').resolve()}")
+    print(f"markdown report written to {(Path(args.out) / 'stat_claim_certificate_witness_queue.md').resolve()}")
+    return 0 if payload["all_ok"] else 1
+
+
 def _theorem_composition_export(args: argparse.Namespace) -> int:
     payload = export_theorem_composition_packets(Path(args.claim_ledger_dir), Path(args.out))
     print("\nAI Statistical Theory Lab Theorem Composition Packets")
@@ -6533,6 +6563,35 @@ def build_parser() -> argparse.ArgumentParser:
     )
     stat_claim_certificate_readiness.set_defaults(
         func=_stat_claim_certificate_readiness_overlay
+    )
+
+    stat_claim_certificate_witness_queue = sub.add_parser(
+        "stat-claim-certificate-witness-queue",
+        help="export witness-generation tasks for kernel-ready certificate targets",
+    )
+    stat_claim_certificate_witness_queue.add_argument(
+        "--certificate-plan-dir",
+        required=True,
+        help="directory containing stat_claim_certificate_plan_manifest.json",
+    )
+    stat_claim_certificate_witness_queue.add_argument(
+        "--readiness-dir",
+        required=True,
+        help="directory containing stat_claim_certificate_readiness_manifest.json",
+    )
+    stat_claim_certificate_witness_queue.add_argument(
+        "--max-tasks",
+        type=int,
+        default=None,
+        help="optional maximum number of ready witness tasks to export",
+    )
+    stat_claim_certificate_witness_queue.add_argument(
+        "--out",
+        default="runs/stat_claim_certificate_witness_queue",
+        help="certificate witness queue output directory",
+    )
+    stat_claim_certificate_witness_queue.set_defaults(
+        func=_stat_claim_certificate_witness_queue
     )
 
     theorem_composition = sub.add_parser(

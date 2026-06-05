@@ -34,6 +34,9 @@ from ai_statistician.stat_claim_certificate_plan import export_stat_claim_certif
 from ai_statistician.stat_claim_certificate_readiness_overlay import (
     export_stat_claim_certificate_readiness_overlay,
 )
+from ai_statistician.stat_claim_certificate_witness_queue import (
+    export_stat_claim_certificate_witness_queue,
+)
 from ai_statistician.doctor import build_doctor_report, write_doctor_manifest
 from ai_statistician.evaluation_benchmark_guidance import build_evaluation_benchmark_guidance
 from ai_statistician.frontier_coverage_audit import audit_frontier_coverage, load_frontier_benchmark_questions
@@ -7298,6 +7301,128 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(Path("runs/test_stat_claim_certificate_readiness/stat_claim_certificate_readiness_manifest.json").exists())
         self.assertTrue(Path("runs/test_stat_claim_certificate_readiness/stat_claim_certificate_readiness.jsonl").exists())
         self.assertTrue(Path("runs/test_stat_claim_certificate_readiness/stat_claim_certificate_readiness.md").exists())
+
+    def test_stat_claim_certificate_witness_queue_exports_ready_tasks_only(self) -> None:
+        plan_dir = Path("runs/test_stat_claim_certificate_witness_queue_plan")
+        readiness_dir = Path("runs/test_stat_claim_certificate_witness_queue_readiness")
+        out_dir = Path("runs/test_stat_claim_certificate_witness_queue")
+        shutil.rmtree(plan_dir, ignore_errors=True)
+        shutil.rmtree(readiness_dir, ignore_errors=True)
+        shutil.rmtree(out_dir, ignore_errors=True)
+        plan_dir.mkdir(parents=True, exist_ok=True)
+        readiness_dir.mkdir(parents=True, exist_ok=True)
+        targets = [
+            {
+                "target_id": "cert:conformal",
+                "source_claim_id": "claim:conformal",
+                "question_id": "conformal_prediction_coverage",
+                "problem_class": "conformal_prediction",
+                "claim_status": "FORMAL_GAP",
+                "certificate_family": "conformal_coverage_certificate",
+                "priority": "high",
+                "statement": "Split conformal coverage follows from rank counting.",
+                "checker_name": "ConformalCoverageCertificateChecker",
+                "witness_schema": ["rank_threshold", "coverage_level_alpha"],
+                "generator_contract": "emit witness JSON without adding assumptions",
+                "checker_contract": "check rank-count witness",
+                "required_gate": "witness satisfies checker contract",
+                "evidence_paths": ["runs/test_stat_claim_certificate_witness_queue_plan/conformal.json"],
+            },
+            {
+                "target_id": "cert:kkt",
+                "source_claim_id": "claim:kkt",
+                "question_id": "lasso_optimality",
+                "problem_class": "optimization",
+                "claim_status": "FORMAL_GAP",
+                "certificate_family": "kkt_optimality_certificate",
+                "priority": "medium",
+                "statement": "Estimator satisfies KKT optimality.",
+                "checker_name": "KktOptimalityCertificateChecker",
+                "witness_schema": ["primal_candidate", "dual_candidate"],
+                "generator_contract": "emit witness JSON without adding assumptions",
+                "checker_contract": "check KKT conditions",
+                "required_gate": "checker theorem exists",
+                "evidence_paths": ["runs/test_stat_claim_certificate_witness_queue_plan/kkt.json"],
+            },
+        ]
+        readiness_rows = [
+            {
+                "target_id": "cert:conformal",
+                "source_claim_id": "claim:conformal",
+                "question_id": "conformal_prediction_coverage",
+                "problem_class": "conformal_prediction",
+                "certificate_family": "conformal_coverage_certificate",
+                "checker_name": "ConformalCoverageCertificateChecker",
+                "checker_obligation_id": "conformal_coverage_certificate_sound",
+                "checker_kernel_verified": True,
+                "checker_verifier": "local.lake_env_lean",
+                "checker_verification_strength": "local_lean_kernel",
+                "readiness_status": "READY_FOR_WITNESS_GENERATION_AND_VALIDATION",
+                "ready_for_witness_validation": True,
+                "required_gate": "witness satisfies checker contract",
+                "evidence_paths": ["runs/test_stat_claim_certificate_witness_queue_readiness/checker.json"],
+            },
+            {
+                "target_id": "cert:kkt",
+                "source_claim_id": "claim:kkt",
+                "question_id": "lasso_optimality",
+                "problem_class": "optimization",
+                "certificate_family": "kkt_optimality_certificate",
+                "checker_obligation_id": "",
+                "checker_kernel_verified": False,
+                "readiness_status": "CHECKER_NOT_AVAILABLE",
+                "ready_for_witness_validation": False,
+                "required_next_step": "formalize and kernel-verify a small checker theorem",
+                "required_gate": "checker theorem passes local Lean/AXLE",
+                "evidence_paths": ["runs/test_stat_claim_certificate_witness_queue_readiness/kkt.json"],
+            },
+        ]
+        (plan_dir / "stat_claim_certificate_plan_manifest.json").write_text(
+            json.dumps({"all_ok": True, "n_targets": len(targets)}),
+            encoding="utf-8",
+        )
+        (plan_dir / "stat_claim_certificate_targets.jsonl").write_text(
+            "\n".join(json.dumps(row) for row in targets) + "\n",
+            encoding="utf-8",
+        )
+        (readiness_dir / "stat_claim_certificate_readiness_manifest.json").write_text(
+            json.dumps(
+                {
+                    "all_ok": True,
+                    "n_targets": len(readiness_rows),
+                    "n_ready_for_witness_validation": 1,
+                    "proof_evidence_status": "STAT_CLAIM_CERTIFICATE_READINESS_NOT_SOURCE_PROOF_EVIDENCE",
+                }
+            ),
+            encoding="utf-8",
+        )
+        (readiness_dir / "stat_claim_certificate_readiness.jsonl").write_text(
+            "\n".join(json.dumps(row) for row in readiness_rows) + "\n",
+            encoding="utf-8",
+        )
+
+        payload = export_stat_claim_certificate_witness_queue(plan_dir, readiness_dir, out_dir)
+
+        self.assertTrue(payload["all_ok"])
+        self.assertEqual(payload["n_readiness_rows"], 2)
+        self.assertEqual(payload["n_tasks"], 1)
+        self.assertEqual(payload["n_ok"], 1)
+        self.assertEqual(payload["n_blocked"], 1)
+        self.assertEqual(payload["n_missing_checker"], 1)
+        self.assertEqual(payload["by_family"]["conformal_coverage_certificate"], 1)
+        task = payload["tasks"][0]
+        self.assertEqual(task["target_id"], "cert:conformal")
+        self.assertEqual(task["witness_template"]["status"], "WITNESS_REQUIRED")
+        self.assertEqual(set(task["witness_template"]["fields"]), {"rank_threshold", "coverage_level_alpha"})
+        self.assertIn("do not add assumptions", " ".join(task["semantic_linkage_requirements"]))
+        self.assertEqual(
+            payload["proof_evidence_status"],
+            "STAT_CLAIM_CERTIFICATE_WITNESS_QUEUE_NOT_PROOF_EVIDENCE",
+        )
+        self.assertTrue(Path("runs/test_stat_claim_certificate_witness_queue/stat_claim_certificate_witness_queue_manifest.json").exists())
+        self.assertTrue(Path("runs/test_stat_claim_certificate_witness_queue/stat_claim_certificate_witness_tasks.jsonl").exists())
+        self.assertTrue(Path("runs/test_stat_claim_certificate_witness_queue/stat_claim_certificate_witness_blocked.jsonl").exists())
+        self.assertTrue(Path("runs/test_stat_claim_certificate_witness_queue/stat_claim_certificate_witness_queue.md").exists())
 
     def test_claim_ledger_action_export_turns_revision_rows_into_owner_tasks(self) -> None:
         async def run():
@@ -17912,6 +18037,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["gates"]["stat_claim_certificate_plan"])
         self.assertTrue(payload["gates"]["stat_claim_certificate_checker_audit"])
         self.assertTrue(payload["gates"]["stat_claim_certificate_readiness"])
+        self.assertTrue(payload["gates"]["stat_claim_certificate_witness_queue"])
         self.assertTrue(payload["gates"]["theorem_composition_export"])
         self.assertTrue(payload["gates"]["research_loop"])
         self.assertTrue(payload["gates"]["research_loop_repair_audit"])
@@ -18426,6 +18552,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "stat_claim_certificate_plan",
             "stat_claim_certificate_checker_audit",
             "stat_claim_certificate_readiness",
+            "stat_claim_certificate_witness_queue",
             "theorem_composition_export",
         }:
             self.assertIn(expected_stage, timing_stages)
@@ -20202,6 +20329,23 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             payload["counts"]["stat_claim_certificate_readiness_proof_evidence_status"],
             "STAT_CLAIM_CERTIFICATE_READINESS_NOT_SOURCE_PROOF_EVIDENCE",
         )
+        self.assertEqual(
+            payload["counts"]["stat_claim_certificate_witness_queue_tasks"],
+            payload["counts"]["stat_claim_certificate_readiness_ready_for_witness_validation"],
+        )
+        self.assertEqual(
+            payload["counts"]["stat_claim_certificate_witness_queue_ok"],
+            payload["counts"]["stat_claim_certificate_witness_queue_tasks"],
+        )
+        self.assertEqual(
+            payload["counts"]["stat_claim_certificate_witness_queue_blocked"]
+            + payload["counts"]["stat_claim_certificate_witness_queue_tasks"],
+            payload["counts"]["stat_claim_certificate_readiness_targets"],
+        )
+        self.assertEqual(
+            payload["counts"]["stat_claim_certificate_witness_queue_proof_evidence_status"],
+            "STAT_CLAIM_CERTIFICATE_WITNESS_QUEUE_NOT_PROOF_EVIDENCE",
+        )
         self.assertEqual(payload["counts"]["theorem_composition_packets_ok"], payload["counts"]["theorem_composition_packets"])
         self.assertEqual(
             payload["counts"]["theorem_composition_packets"],
@@ -20334,6 +20478,10 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_readiness"]).exists())
         self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_readiness_jsonl"]).exists())
         self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_readiness_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_queue"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_tasks"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_blocked"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_queue_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["theorem_composition"]).exists())
         self.assertTrue(Path(payload["artifacts"]["theorem_composition_jsonl"]).exists())
         self.assertTrue(Path(payload["artifacts"]["theorem_composition_report"]).exists())
