@@ -3158,6 +3158,12 @@ async def run_research_system_audit(
             "formal_verifier_agentic_proof_execution_artifact_forbidden_token_failures": formal_verifier_agentic_proof_execution_artifact_verifier_manifest[
                 "n_forbidden_token_failures"
             ],
+            "formal_verifier_agentic_proof_execution_artifact_transcript_paths": formal_verifier_agentic_proof_execution_artifact_verifier_manifest[
+                "n_execution_transcript_paths"
+            ],
+            "formal_verifier_agentic_proof_execution_artifact_transcript_events_written": formal_verifier_agentic_proof_execution_artifact_verifier_manifest[
+                "n_execution_transcript_events_written"
+            ],
             "formal_verifier_agentic_proof_execution_artifact_live_proof_state_requests": formal_verifier_agentic_proof_execution_artifact_verifier_manifest[
                 "n_live_proof_state_requests"
             ],
@@ -4733,6 +4739,8 @@ def _write_disabled_agentic_artifact_verifier_manifest(
         "n_artifact_kernel_verified": 0,
         "n_source_theorem_kernel_verified": 0,
         "n_forbidden_token_failures": 0,
+        "n_execution_transcript_paths": 0,
+        "n_execution_transcript_events_written": 0,
         "n_live_proof_state_requests": 0,
         "n_live_proof_state_request_valid": 0,
         "n_lean_lsp_mcp_ready_requests": 0,

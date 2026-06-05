@@ -32,6 +32,9 @@ class FormalVerifierAgenticProofExecutionArtifactVerifierRow:
     display_name: str
     target_theorem_name: str
     candidate_artifact_path: str
+    execution_transcript_path: str
+    execution_transcript_event_id: str
+    execution_transcript_event_written: bool
     target_lean_declaration: str
     target_lean_line: int
     live_proof_state_request_id: str
@@ -115,6 +118,12 @@ def export_formal_verifier_agentic_proof_execution_artifact_verifier(
         "n_forbidden_token_failures": sum(
             1 for row in rows if row.forbidden_tokens_found
         ),
+        "n_execution_transcript_paths": sum(
+            1 for row in rows if row.execution_transcript_path
+        ),
+        "n_execution_transcript_events_written": sum(
+            1 for row in rows if row.execution_transcript_event_written
+        ),
         "n_live_proof_state_requests": sum(
             1 for row in rows if row.live_proof_state_request_id
         ),
@@ -182,6 +191,8 @@ def _verifier_row(
     display_name = str(row.get("display_name", ""))
     target_theorem_name = str(row.get("target_theorem_name", ""))
     artifact_path = Path(str(row.get("candidate_artifact_path", "")))
+    execution_transcript_raw = str(row.get("execution_transcript_path", ""))
+    execution_transcript_path = Path(execution_transcript_raw) if execution_transcript_raw else None
     target_lean_declaration = str(row.get("target_lean_declaration", ""))
     target_lean_line = _int(row.get("target_lean_line"))
     (
@@ -252,6 +263,32 @@ def _verifier_row(
         "formal_verifier_agentic_proof_execution_artifact_verifier:"
         + stable_hash([materialization_id, artifact_path, lean_command])[:16]
     )
+    execution_transcript_event_id = (
+        "agentic_artifact_verifier_event:"
+        + stable_hash([artifact_verification_id, execution_transcript_path, status])[:16]
+    )
+    transcript_written = _append_verifier_transcript_event(
+        execution_transcript_path,
+        event_id=execution_transcript_event_id,
+        artifact_verification_id=artifact_verification_id,
+        materialization_id=materialization_id,
+        execution_queue_id=execution_queue_id,
+        candidate_artifact_path=artifact_path,
+        target_lean_declaration=target_lean_declaration,
+        target_lean_line=target_lean_line,
+        verification_status=status,
+        live_proof_state_request_id=live_request_id,
+        live_proof_state_request_status=live_request_status,
+        live_proof_state_requested_tools=live_request_tools,
+        local_lean_checked=checked,
+        local_lean_compiled=compiled,
+        artifact_kernel_verified=compiled,
+        source_theorem_kernel_verified=False,
+        verifier=verifier,
+        verification_strength=verification_strength,
+        returncode=returncode,
+        diagnostics=diagnostics,
+    )
     return FormalVerifierAgenticProofExecutionArtifactVerifierRow(
         schema_version=FORMAL_VERIFIER_AGENTIC_PROOF_EXECUTION_ARTIFACT_VERIFIER_SCHEMA_VERSION,
         artifact_verification_id=artifact_verification_id,
@@ -260,6 +297,11 @@ def _verifier_row(
         display_name=display_name,
         target_theorem_name=target_theorem_name,
         candidate_artifact_path=str(artifact_path),
+        execution_transcript_path=execution_transcript_raw,
+        execution_transcript_event_id=execution_transcript_event_id
+        if execution_transcript_raw
+        else "",
+        execution_transcript_event_written=transcript_written,
         target_lean_declaration=target_lean_declaration,
         target_lean_line=target_lean_line,
         live_proof_state_request_id=live_request_id,
@@ -285,6 +327,73 @@ def _verifier_row(
         ok=not errors,
         errors=tuple(errors),
     )
+
+
+def _append_verifier_transcript_event(
+    path: Path | None,
+    *,
+    event_id: str,
+    artifact_verification_id: str,
+    materialization_id: str,
+    execution_queue_id: str,
+    candidate_artifact_path: Path,
+    target_lean_declaration: str,
+    target_lean_line: int,
+    verification_status: str,
+    live_proof_state_request_id: str,
+    live_proof_state_request_status: str,
+    live_proof_state_requested_tools: tuple[str, ...],
+    local_lean_checked: bool,
+    local_lean_compiled: bool,
+    artifact_kernel_verified: bool,
+    source_theorem_kernel_verified: bool,
+    verifier: str,
+    verification_strength: str,
+    returncode: int,
+    diagnostics: tuple[str, ...],
+) -> bool:
+    if path is None:
+        return False
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if path.exists():
+            for line in path.read_text(encoding="utf-8").splitlines():
+                try:
+                    payload = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(payload, dict) and payload.get("event_id") == event_id:
+                    return False
+        event = {
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "event": "artifact_verifier_result",
+            "event_id": event_id,
+            "artifact_verification_id": artifact_verification_id,
+            "materialization_id": materialization_id,
+            "execution_queue_id": execution_queue_id,
+            "candidate_artifact_path": str(candidate_artifact_path),
+            "target_lean_declaration": target_lean_declaration,
+            "target_lean_line": target_lean_line,
+            "verification_status": verification_status,
+            "live_proof_state_request_id": live_proof_state_request_id,
+            "live_proof_state_request_status": live_proof_state_request_status,
+            "live_proof_state_requested_tools": live_proof_state_requested_tools,
+            "local_lean_checked": local_lean_checked,
+            "local_lean_compiled": local_lean_compiled,
+            "artifact_kernel_verified": artifact_kernel_verified,
+            "source_theorem_kernel_verified": source_theorem_kernel_verified,
+            "verifier": verifier,
+            "verification_strength": verification_strength,
+            "returncode": returncode,
+            "diagnostics": diagnostics,
+            "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+            "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+        }
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(event, sort_keys=True, default=str) + "\n")
+        return True
+    except OSError:
+        return False
 
 
 def _validate_live_proof_state_request(
@@ -419,6 +528,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Local Lean compiled: {payload.get('n_local_lean_compiled')}",
         f"- Artifact kernel verified: {payload.get('n_artifact_kernel_verified')}",
         f"- Source theorem kernel verified: {payload.get('n_source_theorem_kernel_verified')}",
+        f"- Transcript events written: {payload.get('n_execution_transcript_events_written')}",
         f"- Live proof-state requests valid: {payload.get('n_live_proof_state_request_valid')}/{payload.get('n_live_proof_state_requests')}",
         f"- Lean-LSP/MCP-ready requests: {payload.get('n_lean_lsp_mcp_ready_requests')}",
         f"- Lean command: `{payload.get('lean_command')}`",
@@ -436,6 +546,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"- `{row.get('target_lean_declaration')}` "
             f"{row.get('verification_status')} "
             f"request={row.get('live_proof_state_request_status')} "
+            f"transcript={row.get('execution_transcript_event_written')} "
             f"artifact_kernel={row.get('artifact_kernel_verified')} "
             f"source_theorem_kernel={row.get('source_theorem_kernel_verified')}"
         )

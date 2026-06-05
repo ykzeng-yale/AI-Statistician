@@ -1668,6 +1668,18 @@ def export_rag_collaboration_manifest(
                     "n_source_theorem_kernel_verified"
                 ),
             ),
+            "formal_verifier_agentic_proof_execution_artifact_transcript_paths": counts.get(
+                "formal_verifier_agentic_proof_execution_artifact_transcript_paths",
+                formal_verifier_agentic_proof_execution_artifact_verifier_payload.get(
+                    "n_execution_transcript_paths"
+                ),
+            ),
+            "formal_verifier_agentic_proof_execution_artifact_transcript_events_written": counts.get(
+                "formal_verifier_agentic_proof_execution_artifact_transcript_events_written",
+                formal_verifier_agentic_proof_execution_artifact_verifier_payload.get(
+                    "n_execution_transcript_events_written"
+                ),
+            ),
             "formal_verifier_agentic_proof_execution_artifact_live_proof_state_requests": counts.get(
                 "formal_verifier_agentic_proof_execution_artifact_live_proof_state_requests",
                 formal_verifier_agentic_proof_execution_artifact_verifier_payload.get(
@@ -2195,6 +2207,8 @@ def _overlay_auto_discovered_agentic_counts(
                 "formal_verifier_agentic_proof_execution_artifact_kernel_verified": "n_artifact_kernel_verified",
                 "formal_verifier_agentic_proof_execution_source_theorem_kernel_verified": "n_source_theorem_kernel_verified",
                 "formal_verifier_agentic_proof_execution_artifact_forbidden_token_failures": "n_forbidden_token_failures",
+                "formal_verifier_agentic_proof_execution_artifact_transcript_paths": "n_execution_transcript_paths",
+                "formal_verifier_agentic_proof_execution_artifact_transcript_events_written": "n_execution_transcript_events_written",
                 "formal_verifier_agentic_proof_execution_artifact_live_proof_state_requests": "n_live_proof_state_requests",
                 "formal_verifier_agentic_proof_execution_artifact_live_proof_state_request_valid": "n_live_proof_state_request_valid",
                 "formal_verifier_agentic_proof_execution_artifact_lean_lsp_mcp_ready_requests": "n_lean_lsp_mcp_ready_requests",
@@ -3813,6 +3827,14 @@ def _formal_verifier_agentic_proof_execution_artifact_verifier_preview(
                 "display_name": row.get("display_name"),
                 "target_theorem_name": row.get("target_theorem_name", ""),
                 "candidate_artifact_path": row.get("candidate_artifact_path", ""),
+                "execution_transcript_path": row.get("execution_transcript_path", ""),
+                "execution_transcript_event_id": row.get(
+                    "execution_transcript_event_id",
+                    "",
+                ),
+                "execution_transcript_event_written": row.get(
+                    "execution_transcript_event_written"
+                ),
                 "target_lean_declaration": row.get("target_lean_declaration", ""),
                 "target_lean_line": row.get("target_lean_line"),
                 "live_proof_state_request_id": row.get(
@@ -4192,6 +4214,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Formal verifier agentic artifact verifier: checked `{queue.get('formal_verifier_agentic_proof_execution_artifact_verifier_checked')}`, "
         f"compiled `{queue.get('formal_verifier_agentic_proof_execution_artifact_verifier_compiled')}`, "
         f"artifact kernel `{queue.get('formal_verifier_agentic_proof_execution_artifact_kernel_verified')}`, "
+        f"transcript events `{queue.get('formal_verifier_agentic_proof_execution_artifact_transcript_events_written')}`, "
         f"proof-state requests `{queue.get('formal_verifier_agentic_proof_execution_artifact_live_proof_state_request_valid')}`/"
         f"`{queue.get('formal_verifier_agentic_proof_execution_artifact_live_proof_state_requests')}` valid, "
         f"source theorem kernel `{queue.get('formal_verifier_agentic_proof_execution_source_theorem_kernel_verified')}` "

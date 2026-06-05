@@ -3823,6 +3823,8 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(verified["n_live_proof_state_request_valid"], 1)
         self.assertEqual(verified["n_lean_lsp_mcp_ready_requests"], 1)
         self.assertEqual(verified["n_live_proof_state_request_failures"], 0)
+        self.assertEqual(verified["n_execution_transcript_paths"], 1)
+        self.assertEqual(verified["n_execution_transcript_events_written"], 1)
         verified_row = verified["rows"][0]
         self.assertTrue(verified_row["artifact_kernel_verified"])
         self.assertFalse(verified_row["source_theorem_kernel_verified"])
@@ -3840,6 +3842,33 @@ class SystemTests(unittest.TestCase):
             verified_row["live_proof_state_provider_preferences"],
         )
         self.assertIn("lean_goal", verified_row["live_proof_state_requested_tools"])
+        self.assertEqual(
+            verified_row["execution_transcript_path"],
+            materialized_row["execution_transcript_path"],
+        )
+        self.assertTrue(verified_row["execution_transcript_event_written"])
+        transcript_events = [
+            json.loads(line)
+            for line in Path(materialized_row["execution_transcript_path"])
+            .read_text(encoding="utf-8")
+            .splitlines()
+        ]
+        verifier_events = [
+            event
+            for event in transcript_events
+            if event.get("event") == "artifact_verifier_result"
+        ]
+        self.assertEqual(len(verifier_events), 1)
+        self.assertEqual(
+            verifier_events[0]["event_id"],
+            verified_row["execution_transcript_event_id"],
+        )
+        self.assertEqual(
+            verifier_events[0]["live_proof_state_request_id"],
+            live_request["request_id"],
+        )
+        self.assertTrue(verifier_events[0]["artifact_kernel_verified"])
+        self.assertFalse(verifier_events[0]["source_theorem_kernel_verified"])
         self.assertIn("NOT_SOURCE_THEOREM", verified_row["verification_status"])
         self.assertIn("not proof evidence", verified_row["proof_evidence_boundary"])
 
@@ -13941,6 +13970,8 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                     "n_artifact_kernel_verified": 1,
                     "n_source_theorem_kernel_verified": 0,
                     "n_forbidden_token_failures": 0,
+                    "n_execution_transcript_paths": 1,
+                    "n_execution_transcript_events_written": 1,
                     "n_live_proof_state_requests": 1,
                     "n_live_proof_state_request_valid": 1,
                     "n_lean_lsp_mcp_ready_requests": 1,
@@ -13955,6 +13986,9 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                             "display_name": "auto:claim:skeleton",
                             "target_theorem_name": "formal:auto:claim",
                             "candidate_artifact_path": candidate_artifact_path,
+                            "execution_transcript_path": "runs/current_kernel_overlay_seeded_agentic_proof_execution_queue/execution_transcripts/auto_claim_skeleton.jsonl",
+                            "execution_transcript_event_id": "agentic_artifact_verifier_event:auto",
+                            "execution_transcript_event_written": True,
                             "target_lean_declaration": "auto_claim_skeleton_route_probe",
                             "target_lean_line": 21,
                             "live_proof_state_request_id": "live_proof_state_request:auto",
@@ -14458,6 +14492,18 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         )
         self.assertEqual(
             queue[
+                "formal_verifier_agentic_proof_execution_artifact_transcript_paths"
+            ],
+            1,
+        )
+        self.assertEqual(
+            queue[
+                "formal_verifier_agentic_proof_execution_artifact_transcript_events_written"
+            ],
+            1,
+        )
+        self.assertEqual(
+            queue[
                 "formal_verifier_agentic_proof_execution_artifact_live_proof_state_requests"
             ],
             1,
@@ -14489,6 +14535,11 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         verifier_preview = queue[
             "formal_verifier_agentic_proof_execution_artifact_verifier_preview"
         ][0]
+        self.assertTrue(verifier_preview["execution_transcript_event_written"])
+        self.assertEqual(
+            verifier_preview["execution_transcript_event_id"],
+            "agentic_artifact_verifier_event:auto",
+        )
         self.assertEqual(
             verifier_preview["live_proof_state_request_id"],
             "live_proof_state_request:auto",
@@ -18209,6 +18260,18 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertEqual(
             payload["counts"][
                 "formal_verifier_agentic_proof_execution_artifact_verifier_checked"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_agentic_proof_execution_artifact_transcript_paths"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_agentic_proof_execution_artifact_transcript_events_written"
             ],
             0,
         )
