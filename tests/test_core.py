@@ -46,6 +46,9 @@ from ai_statistician.stat_claim_certificate_witness_prompt_packets import (
 from ai_statistician.stat_claim_certificate_witness_context_packets import (
     export_stat_claim_certificate_witness_context_packets,
 )
+from ai_statistician.stat_claim_certificate_witness_context_triage import (
+    export_stat_claim_certificate_witness_context_triage,
+)
 from ai_statistician.stat_claim_certificate_witness_response_apply import (
     apply_stat_claim_certificate_witness_responses,
 )
@@ -7738,6 +7741,119 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             packet["source_evidence_paths"],
         )
         self.assertIn("missing source evidence path", " ".join(context_packet["errors"]))
+
+    def test_stat_claim_certificate_witness_context_triage_marks_worker_ready_direct_matches(self) -> None:
+        context_dir = Path("runs/test_stat_claim_certificate_witness_context_triage_ready_context")
+        out_dir = Path("runs/test_stat_claim_certificate_witness_context_triage_ready")
+        shutil.rmtree(context_dir, ignore_errors=True)
+        shutil.rmtree(out_dir, ignore_errors=True)
+        context_dir.mkdir(parents=True, exist_ok=True)
+        row = {
+            "context_packet_id": "context:ready",
+            "prompt_packet_id": "prompt:ready",
+            "draft_id": "draft:ready",
+            "task_id": "task:ready",
+            "target_id": "target:ready",
+            "source_claim_id": "claim:ready",
+            "question_id": "q_ready",
+            "certificate_family": "conformal_coverage_certificate",
+            "checker_name": "ConformalCoverageCertificateChecker",
+            "checker_obligation_id": "conformal_coverage_certificate_sound",
+            "required_fields": ["rank_threshold", "coverage_level_alpha"],
+            "missing_source_paths": [],
+            "snippets": [{"snippet_id": "snippet:rank", "text": "rank threshold alpha"}],
+            "field_context_hints": {
+                "rank_threshold": {
+                    "match_status": "DIRECT_FIELD_TERM_MATCH",
+                    "candidate_snippet_ids": ["snippet:rank"],
+                },
+                "coverage_level_alpha": {
+                    "match_status": "DIRECT_FIELD_TERM_MATCH",
+                    "candidate_snippet_ids": ["snippet:rank"],
+                },
+            },
+            "errors": [],
+        }
+        (context_dir / "stat_claim_certificate_witness_context_packets_manifest.json").write_text(
+            json.dumps({"all_ok": True, "n_context_packets": 1}),
+            encoding="utf-8",
+        )
+        (context_dir / "stat_claim_certificate_witness_context_packets.jsonl").write_text(
+            json.dumps(row) + "\n",
+            encoding="utf-8",
+        )
+
+        payload = export_stat_claim_certificate_witness_context_triage(context_dir, out_dir)
+
+        self.assertTrue(payload["all_ok"])
+        self.assertEqual(payload["n_triage_rows"], 1)
+        self.assertEqual(payload["n_worker_ready"], 1)
+        self.assertEqual(payload["n_source_review_required"], 0)
+        self.assertEqual(payload["n_direct_match_fields"], 2)
+        self.assertEqual(payload["n_fallback_context_fields"], 0)
+        triage_row = payload["rows"][0]
+        self.assertEqual(triage_row["context_status"], "READY_FOR_WORKER_RESPONSE")
+        self.assertTrue(triage_row["worker_ready"])
+        self.assertFalse(triage_row["source_review_required"])
+        self.assertEqual(
+            triage_row["proof_evidence_status"],
+            "STAT_CLAIM_CERTIFICATE_WITNESS_CONTEXT_TRIAGE_NOT_PROOF_EVIDENCE",
+        )
+        self.assertTrue(Path("runs/test_stat_claim_certificate_witness_context_triage_ready/stat_claim_certificate_witness_context_triage_manifest.json").exists())
+        self.assertTrue(Path("runs/test_stat_claim_certificate_witness_context_triage_ready/stat_claim_certificate_witness_context_worker_ready.jsonl").exists())
+        self.assertTrue(Path("runs/test_stat_claim_certificate_witness_context_triage_ready/stat_claim_certificate_witness_context_source_review.jsonl").exists())
+
+    def test_stat_claim_certificate_witness_context_triage_routes_fallback_to_source_review(self) -> None:
+        context_dir = Path("runs/test_stat_claim_certificate_witness_context_triage_review_context")
+        out_dir = Path("runs/test_stat_claim_certificate_witness_context_triage_review")
+        shutil.rmtree(context_dir, ignore_errors=True)
+        shutil.rmtree(out_dir, ignore_errors=True)
+        context_dir.mkdir(parents=True, exist_ok=True)
+        row = {
+            "context_packet_id": "context:review",
+            "prompt_packet_id": "prompt:review",
+            "draft_id": "draft:review",
+            "task_id": "task:review",
+            "target_id": "target:review",
+            "source_claim_id": "claim:review",
+            "question_id": "q_review",
+            "certificate_family": "kkt_optimality_certificate",
+            "checker_name": "KktOptimalityCertificateChecker",
+            "checker_obligation_id": "kkt_optimality_certificate_sound",
+            "required_fields": ["primal_candidate", "dual_bound_certificate"],
+            "missing_source_paths": [],
+            "snippets": [{"snippet_id": "snippet:kkt", "text": "primal dual gap"}],
+            "field_context_hints": {
+                "primal_candidate": {
+                    "match_status": "DIRECT_FIELD_TERM_MATCH",
+                    "candidate_snippet_ids": ["snippet:kkt"],
+                },
+                "dual_bound_certificate": {
+                    "match_status": "FALLBACK_PACKET_CONTEXT",
+                    "candidate_snippet_ids": ["snippet:kkt"],
+                },
+            },
+            "errors": [],
+        }
+        (context_dir / "stat_claim_certificate_witness_context_packets_manifest.json").write_text(
+            json.dumps({"all_ok": True, "n_context_packets": 1}),
+            encoding="utf-8",
+        )
+        (context_dir / "stat_claim_certificate_witness_context_packets.jsonl").write_text(
+            json.dumps(row) + "\n",
+            encoding="utf-8",
+        )
+
+        payload = export_stat_claim_certificate_witness_context_triage(context_dir, out_dir)
+
+        self.assertTrue(payload["all_ok"])
+        self.assertEqual(payload["n_worker_ready"], 0)
+        self.assertEqual(payload["n_source_review_required"], 1)
+        self.assertEqual(payload["n_fallback_context_fields"], 1)
+        triage_row = payload["rows"][0]
+        self.assertEqual(triage_row["context_status"], "NEEDS_SOURCE_CONTEXT_REVIEW")
+        self.assertEqual(triage_row["fallback_context_fields"], ("dual_bound_certificate",))
+        self.assertFalse(triage_row["worker_ready"])
 
     def test_stat_claim_certificate_witness_response_validation_accepts_source_cited_response(self) -> None:
         prompt_dir = Path("runs/test_stat_claim_certificate_witness_response_validation_accept_prompt")
@@ -18880,6 +18996,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["gates"]["stat_claim_certificate_witness_materializer"])
         self.assertTrue(payload["gates"]["stat_claim_certificate_witness_prompt_packets"])
         self.assertTrue(payload["gates"]["stat_claim_certificate_witness_context_packets"])
+        self.assertTrue(payload["gates"]["stat_claim_certificate_witness_context_triage"])
         self.assertTrue(payload["gates"]["stat_claim_certificate_witness_response_validation"])
         self.assertTrue(payload["gates"]["stat_claim_certificate_witness_response_apply"])
         self.assertTrue(payload["gates"]["stat_claim_certificate_witness_validator"])
@@ -19401,6 +19518,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "stat_claim_certificate_witness_materializer",
             "stat_claim_certificate_witness_prompt_packets",
             "stat_claim_certificate_witness_context_packets",
+            "stat_claim_certificate_witness_context_triage",
             "stat_claim_certificate_witness_response_validation",
             "stat_claim_certificate_witness_response_apply",
             "stat_claim_certificate_witness_validator",
@@ -21272,6 +21390,39 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "STAT_CLAIM_CERTIFICATE_WITNESS_CONTEXT_PACKETS_NOT_PROOF_EVIDENCE",
         )
         self.assertEqual(
+            payload["counts"]["stat_claim_certificate_witness_context_triage_rows"],
+            payload["counts"]["stat_claim_certificate_witness_context_packets"],
+        )
+        self.assertEqual(
+            payload["counts"]["stat_claim_certificate_witness_context_triage_ok"],
+            payload["counts"]["stat_claim_certificate_witness_context_triage_rows"],
+        )
+        self.assertEqual(
+            payload["counts"]["stat_claim_certificate_witness_context_triage_worker_ready"]
+            + payload["counts"]["stat_claim_certificate_witness_context_triage_source_review_required"],
+            payload["counts"]["stat_claim_certificate_witness_context_triage_rows"],
+        )
+        self.assertEqual(
+            payload["counts"]["stat_claim_certificate_witness_context_triage_direct_fields"],
+            payload["counts"]["stat_claim_certificate_witness_context_packets_field_direct_matches"],
+        )
+        self.assertEqual(
+            payload["counts"]["stat_claim_certificate_witness_context_triage_fallback_fields"],
+            payload["counts"]["stat_claim_certificate_witness_context_packets_field_fallbacks"],
+        )
+        self.assertEqual(
+            payload["counts"]["stat_claim_certificate_witness_context_triage_no_context_fields"],
+            payload["counts"]["stat_claim_certificate_witness_context_packets_field_no_context"],
+        )
+        self.assertEqual(
+            payload["counts"]["stat_claim_certificate_witness_context_triage_missing_source_paths"],
+            payload["counts"]["stat_claim_certificate_witness_context_packets_missing_source_paths"],
+        )
+        self.assertEqual(
+            payload["counts"]["stat_claim_certificate_witness_context_triage_proof_evidence_status"],
+            "STAT_CLAIM_CERTIFICATE_WITNESS_CONTEXT_TRIAGE_NOT_PROOF_EVIDENCE",
+        )
+        self.assertEqual(
             payload["counts"]["stat_claim_certificate_witness_response_validation_rows"],
             payload["counts"]["stat_claim_certificate_witness_prompt_packets"],
         )
@@ -21506,6 +21657,11 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_context_packets"]).exists())
         self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_context_packets_jsonl"]).exists())
         self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_context_packets_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_context_triage"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_context_triage_jsonl"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_context_worker_ready"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_context_source_review"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_context_triage_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_response_validation"]).exists())
         self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_response_validation_jsonl"]).exists())
         self.assertTrue(Path(payload["artifacts"]["stat_claim_certificate_witness_response_validation_report"]).exists())

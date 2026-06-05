@@ -36,6 +36,9 @@ from .stat_claim_certificate_witness_materializer import (
 from .stat_claim_certificate_witness_context_packets import (
     export_stat_claim_certificate_witness_context_packets,
 )
+from .stat_claim_certificate_witness_context_triage import (
+    export_stat_claim_certificate_witness_context_triage,
+)
 from .stat_claim_certificate_witness_prompt_packets import (
     export_stat_claim_certificate_witness_prompt_packets,
 )
@@ -3497,6 +3500,48 @@ def _stat_claim_certificate_witness_context_packets(args: argparse.Namespace) ->
     return 0 if payload["all_ok"] else 1
 
 
+def _stat_claim_certificate_witness_context_triage(args: argparse.Namespace) -> int:
+    payload = export_stat_claim_certificate_witness_context_triage(
+        Path(args.context_packets_dir),
+        Path(args.out),
+    )
+    print("\nAI Statistical Theory Lab Statistical Claim Certificate Witness Context Triage")
+    print("=" * 72)
+    print(
+        f"triage={payload['n_ok']}/{payload['n_triage_rows']} "
+        f"worker_ready={payload['n_worker_ready']} "
+        f"source_review={payload['n_source_review_required']} "
+        f"blocked_missing_context={payload['n_blocked_missing_context']} "
+        f"direct_fields={payload['n_direct_match_fields']} "
+        f"fallback_fields={payload['n_fallback_context_fields']} "
+        f"status={payload['proof_evidence_status']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    for status, count in payload["by_status"].items():
+        print(f"  {status}: {count}")
+    print(
+        f"\nwitness context triage manifest written to "
+        f"{(Path(args.out) / 'stat_claim_certificate_witness_context_triage_manifest.json').resolve()}"
+    )
+    print(
+        f"triage rows written to "
+        f"{(Path(args.out) / 'stat_claim_certificate_witness_context_triage.jsonl').resolve()}"
+    )
+    print(
+        f"worker-ready rows written to "
+        f"{(Path(args.out) / 'stat_claim_certificate_witness_context_worker_ready.jsonl').resolve()}"
+    )
+    print(
+        f"source-review rows written to "
+        f"{(Path(args.out) / 'stat_claim_certificate_witness_context_source_review.jsonl').resolve()}"
+    )
+    print(
+        f"markdown report written to "
+        f"{(Path(args.out) / 'stat_claim_certificate_witness_context_triage.md').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
 def _stat_claim_certificate_witness_response_validate(args: argparse.Namespace) -> int:
     payload = validate_stat_claim_certificate_witness_worker_outputs(
         Path(args.prompt_packets_dir),
@@ -6879,6 +6924,24 @@ def build_parser() -> argparse.ArgumentParser:
     )
     stat_claim_certificate_witness_context_packets.set_defaults(
         func=_stat_claim_certificate_witness_context_packets
+    )
+
+    stat_claim_certificate_witness_context_triage = sub.add_parser(
+        "stat-claim-certificate-witness-context-triage",
+        help="triage certificate witness context packets into worker-ready and source-review queues",
+    )
+    stat_claim_certificate_witness_context_triage.add_argument(
+        "--context-packets-dir",
+        required=True,
+        help="directory containing stat_claim_certificate_witness_context_packets_manifest.json",
+    )
+    stat_claim_certificate_witness_context_triage.add_argument(
+        "--out",
+        default="runs/stat_claim_certificate_witness_context_triage",
+        help="certificate witness context triage output directory",
+    )
+    stat_claim_certificate_witness_context_triage.set_defaults(
+        func=_stat_claim_certificate_witness_context_triage
     )
 
     stat_claim_certificate_witness_response_validate = sub.add_parser(
