@@ -3475,6 +3475,8 @@ def _stat_claim_certificate_witness_context_packets(args: argparse.Namespace) ->
         f"context_packets={payload['n_ok']}/{payload['n_context_packets']} "
         f"source_paths={payload['n_resolved_source_paths']}/{payload['n_source_paths']} "
         f"snippets={payload['n_snippets']} "
+        f"direct_field_matches={payload['n_field_context_direct_matches']} "
+        f"fallback_field_context={payload['n_field_context_fallbacks']} "
         f"status={payload['proof_evidence_status']} "
         f"all_ok={payload['all_ok']}"
     )

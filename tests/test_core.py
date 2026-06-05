@@ -7680,6 +7680,13 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         context_packet = payload["packets"][0]
         self.assertIn("rank_threshold", context_packet["field_context_hints"])
         self.assertTrue(context_packet["field_context_hints"]["rank_threshold"]["candidate_snippet_ids"])
+        self.assertEqual(
+            context_packet["field_context_hints"]["rank_threshold"]["match_status"],
+            "DIRECT_FIELD_TERM_MATCH",
+        )
+        self.assertGreaterEqual(payload["n_field_context_direct_matches"], 2)
+        self.assertEqual(payload["n_field_context_fallbacks"], 0)
+        self.assertEqual(payload["n_field_context_no_context"], 0)
         self.assertIn("exchangeable ranks", context_packet["snippets"][0]["text"])
         self.assertIn("Do not treat snippets as proof", context_packet["worker_instruction"])
         self.assertTrue(Path("runs/test_stat_claim_certificate_witness_context_packets/stat_claim_certificate_witness_context_packets_manifest.json").exists())
@@ -7722,6 +7729,9 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertEqual(payload["n_ok"], 0)
         self.assertEqual(payload["n_missing_source_paths"], 1)
         self.assertEqual(payload["n_snippets"], 0)
+        self.assertEqual(payload["n_field_context_direct_matches"], 0)
+        self.assertEqual(payload["n_field_context_fallbacks"], 0)
+        self.assertEqual(payload["n_field_context_no_context"], 2)
         context_packet = payload["packets"][0]
         self.assertEqual(
             list(context_packet["missing_source_paths"]),
@@ -21250,6 +21260,12 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertGreaterEqual(
             payload["counts"]["stat_claim_certificate_witness_context_packets_field_hints"],
             payload["counts"]["stat_claim_certificate_witness_context_packets"],
+        )
+        self.assertEqual(
+            payload["counts"]["stat_claim_certificate_witness_context_packets_field_direct_matches"]
+            + payload["counts"]["stat_claim_certificate_witness_context_packets_field_fallbacks"]
+            + payload["counts"]["stat_claim_certificate_witness_context_packets_field_no_context"],
+            payload["counts"]["stat_claim_certificate_witness_context_packets_field_hints"],
         )
         self.assertEqual(
             payload["counts"]["stat_claim_certificate_witness_context_packets_proof_evidence_status"],

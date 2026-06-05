@@ -110,6 +110,18 @@ def export_stat_claim_certificate_witness_context_packets(
         "n_field_context_hints": sum(
             len(packet.field_context_hints) for packet in packets
         ),
+        "n_field_context_direct_matches": _field_context_hint_count(
+            packets,
+            "DIRECT_FIELD_TERM_MATCH",
+        ),
+        "n_field_context_fallbacks": _field_context_hint_count(
+            packets,
+            "FALLBACK_PACKET_CONTEXT",
+        ),
+        "n_field_context_no_context": _field_context_hint_count(
+            packets,
+            "NO_CONTEXT",
+        ),
         "all_ok": (
             not errors
             and bool(prompt_manifest.get("all_ok", False))
@@ -289,9 +301,15 @@ def _field_context_hints(
         ]
         if not candidate_ids and snippets:
             candidate_ids = [str(snippets[0].get("snippet_id", ""))]
+            match_status = "FALLBACK_PACKET_CONTEXT"
+        elif candidate_ids:
+            match_status = "DIRECT_FIELD_TERM_MATCH"
+        else:
+            match_status = "NO_CONTEXT"
         hints[field] = {
             "query_terms": list(field_terms[:12]),
             "candidate_snippet_ids": tuple(candidate_ids[:5]),
+            "match_status": match_status,
             "rule": (
                 "Fill only if a candidate snippet or another cited source span supports "
                 "the value; otherwise leave null and list an open semantic gap."
@@ -314,6 +332,18 @@ def _worker_instruction(prompt_packet: dict[str, Any], snippets: list[dict[str, 
     ]
     lines.extend(f"- {snippet.get('snippet_id', '')}: {snippet.get('source_path', '')}" for snippet in snippets[:12])
     return "\n".join(lines)
+
+
+def _field_context_hint_count(
+    packets: list[StatClaimCertificateWitnessContextPacket],
+    match_status: str,
+) -> int:
+    total = 0
+    for packet in packets:
+        for hint in packet.field_context_hints.values():
+            if isinstance(hint, dict) and hint.get("match_status") == match_status:
+                total += 1
+    return total
 
 
 def _read_json(path: Path, errors: list[str]) -> dict[str, Any]:
@@ -431,6 +461,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Resolved source paths: `{payload.get('n_resolved_source_paths')}`",
         f"- Missing source paths: `{payload.get('n_missing_source_paths')}`",
         f"- Snippets: `{payload.get('n_snippets')}`",
+        f"- Direct field matches: `{payload.get('n_field_context_direct_matches')}`",
+        f"- Fallback field context: `{payload.get('n_field_context_fallbacks')}`",
         f"- Proof status: `{payload.get('proof_evidence_status')}`",
         "",
         "## Families",

@@ -3757,6 +3757,15 @@ async def run_research_system_audit(
             "stat_claim_certificate_witness_context_packets_field_hints": stat_claim_certificate_witness_context_packets_manifest[
                 "n_field_context_hints"
             ],
+            "stat_claim_certificate_witness_context_packets_field_direct_matches": stat_claim_certificate_witness_context_packets_manifest[
+                "n_field_context_direct_matches"
+            ],
+            "stat_claim_certificate_witness_context_packets_field_fallbacks": stat_claim_certificate_witness_context_packets_manifest[
+                "n_field_context_fallbacks"
+            ],
+            "stat_claim_certificate_witness_context_packets_field_no_context": stat_claim_certificate_witness_context_packets_manifest[
+                "n_field_context_no_context"
+            ],
             "stat_claim_certificate_witness_context_packets_proof_evidence_status": stat_claim_certificate_witness_context_packets_manifest[
                 "proof_evidence_status"
             ],
