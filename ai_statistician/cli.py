@@ -27,6 +27,9 @@ from .evaluation import EvalConfig, run_seed_eval
 from .autoform_target_export import export_autoform_targets
 from .frontier_backlog_audit import audit_frontier_backlog
 from .frontier_coverage_audit import audit_frontier_coverage
+from .frontier_discover_and_prove_prompt_packets import (
+    export_frontier_discover_and_prove_prompt_packets,
+)
 from .frontier_evaluation_triage import audit_frontier_evaluation_triage
 from .frontier_precision_audit import audit_frontier_precision
 from .frontier_simulation_rerun_audit import audit_frontier_simulation_reruns
@@ -168,6 +171,9 @@ from .huggingface_lean_source_audit import audit_huggingface_lean_sources
 from .hf_lean_source_revalidation_tasks import (
     export_huggingface_lean_source_revalidation_tasks,
 )
+from .hf_lean_source_revalidation_prompt_packets import (
+    export_huggingface_lean_source_revalidation_prompt_packets,
+)
 from .hf_lean_source_revalidation_artifact_validation import (
     export_huggingface_lean_source_revalidation_artifact_validation,
 )
@@ -182,6 +188,7 @@ from .lean_rag_package_audit import (
     stage_lean_rag_source_registry_expansion,
 )
 from .lean_rag_dependency_health import audit_lean_rag_dependency_health
+from .paper_theory_roundtrip import export_paper_theory_roundtrip
 from .proof_audit import audit_proof_bank
 from .proof_bank_action_export import export_proof_bank_actions
 from .proof_bank import all_obligations, obligations_by_tags
@@ -713,6 +720,70 @@ def _frontier_theory_target_audit(args: argparse.Namespace) -> int:
     return 0 if payload["all_scored"] else 1
 
 
+def _frontier_discover_and_prove_prompt_packets(args: argparse.Namespace) -> int:
+    payload = export_frontier_discover_and_prove_prompt_packets(
+        Path(args.out),
+        benchmark_file=Path(args.benchmark_file),
+        max_packets=args.max_packets,
+    )
+    print("\nAI Statistical Theory Lab Frontier Discover-and-Prove Prompt Packets")
+    print("=" * 72)
+    print(
+        f"packets={payload['n_prompt_packets']} "
+        f"contracts={payload['n_output_contracts']} "
+        f"expected_leaks={payload['n_prompt_expected_result_leaks']} "
+        f"source_leaks={payload['n_prompt_source_identity_leaks']} "
+        f"status={payload['proof_evidence_status']}"
+    )
+    print(
+        f"\nfrontier DAP prompt manifest written to "
+        f"{(Path(args.out) / 'frontier_discover_and_prove_prompt_packets_manifest.json').resolve()}"
+    )
+    print(
+        f"jsonl written to "
+        f"{(Path(args.out) / 'frontier_discover_and_prove_prompt_packets.jsonl').resolve()}"
+    )
+    print(
+        f"markdown report written to "
+        f"{(Path(args.out) / 'frontier_discover_and_prove_prompt_packets.md').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _paper_theory_roundtrip(args: argparse.Namespace) -> int:
+    payload = export_paper_theory_roundtrip(
+        Path(args.paper_root),
+        Path(args.out),
+        paper_id=args.paper_id or None,
+        max_statements=args.max_statements,
+    )
+    print("\nAI Statistical Theory Lab Paper Theory Round-Trip")
+    print("=" * 72)
+    print(
+        f"tex_files={payload['n_tex_files']} statements={payload['n_statements']} "
+        f"lean_queue={payload['n_lean_candidate_queue_rows']} "
+        f"roundtrip={payload['n_roundtrip_review_rows']} "
+        f"status={payload['proof_evidence_status']}"
+    )
+    print(
+        f"\npaper theory manifest written to "
+        f"{(Path(args.out) / 'paper_theory_roundtrip_manifest.json').resolve()}"
+    )
+    print(
+        f"statement catalog written to "
+        f"{(Path(args.out) / 'paper_statement_catalog.jsonl').resolve()}"
+    )
+    print(
+        f"Lean candidate queue written to "
+        f"{(Path(args.out) / 'statement_to_lean_candidate_queue.jsonl').resolve()}"
+    )
+    print(
+        f"round-trip review queue written to "
+        f"{(Path(args.out) / 'lean_to_latex_roundtrip_review_queue.jsonl').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
 def _frontier_evaluation_triage(args: argparse.Namespace) -> int:
     payload = audit_frontier_evaluation_triage(
         Path(args.run_dir),
@@ -1159,6 +1230,34 @@ def _huggingface_lean_source_revalidation_tasks(args: argparse.Namespace) -> int
     print(
         f"task queue written to "
         f"{(Path(args.out) / 'hf_lean_source_revalidation_tasks.jsonl').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _huggingface_lean_source_revalidation_prompt_packets(args: argparse.Namespace) -> int:
+    payload = export_huggingface_lean_source_revalidation_prompt_packets(
+        Path(args.task_dir),
+        Path(args.out),
+        max_packets=args.max_packets,
+    )
+    print("\nAI Statistical Theory Lab Hugging Face Lean Source Revalidation Prompt Packets")
+    print("=" * 72)
+    print(
+        f"tasks={payload['n_tasks']} ready={payload['n_ready_tasks']} "
+        f"prompt_packets={payload['n_prompt_packets']} "
+        f"license_review={payload['n_license_review_required']}"
+    )
+    print(
+        f"output_contracts={payload['n_with_output_contract']} "
+        f"status={payload['proof_evidence_status']}"
+    )
+    print(
+        f"\nhf Lean source revalidation prompt packet manifest written to "
+        f"{(Path(args.out) / 'hf_lean_source_revalidation_prompt_packets_manifest.json').resolve()}"
+    )
+    print(
+        f"prompt packet queue written to "
+        f"{(Path(args.out) / 'hf_lean_source_revalidation_prompt_packets.jsonl').resolve()}"
     )
     return 0 if payload["all_ok"] else 1
 
@@ -4272,6 +4371,52 @@ def build_parser() -> argparse.ArgumentParser:
     )
     frontier_theory_target_audit.set_defaults(func=_frontier_theory_target_audit)
 
+    frontier_dap_prompt_packets = sub.add_parser(
+        "frontier-discover-and-prove-prompt-packets",
+        help="export DAP-style hard-mode frontier discovery and hard-to-easy rewrite prompt packets",
+    )
+    frontier_dap_prompt_packets.add_argument(
+        "--benchmark-file",
+        default="docs/frontier_stat_theory_benchmark.md",
+        help="frontier statistical theory benchmark Markdown file",
+    )
+    frontier_dap_prompt_packets.add_argument(
+        "--max-packets",
+        type=int,
+        default=60,
+        help="maximum hard-mode frontier rows to export",
+    )
+    frontier_dap_prompt_packets.add_argument(
+        "--out",
+        default="runs/frontier_discover_and_prove_prompt_packets",
+        help="frontier DAP prompt packet output directory",
+    )
+    frontier_dap_prompt_packets.set_defaults(
+        func=_frontier_discover_and_prove_prompt_packets
+    )
+
+    paper_theory_roundtrip = sub.add_parser(
+        "paper-theory-roundtrip",
+        help="extract TeX paper statements and queue Lean realization plus Lean-to-LaTeX review work",
+    )
+    paper_theory_roundtrip.add_argument(
+        "--paper-root",
+        default="examples/paper_theory_roundtrip_sample.tex",
+        help="paper .tex file or directory containing arXiv LaTeX source",
+    )
+    paper_theory_roundtrip.add_argument(
+        "--paper-id",
+        default="",
+        help="optional stable paper id for emitted statement ids",
+    )
+    paper_theory_roundtrip.add_argument("--max-statements", type=int, default=200)
+    paper_theory_roundtrip.add_argument(
+        "--out",
+        default="runs/paper_theory_roundtrip",
+        help="paper theory round-trip output directory",
+    )
+    paper_theory_roundtrip.set_defaults(func=_paper_theory_roundtrip)
+
     frontier_evaluation_triage = sub.add_parser(
         "frontier-evaluation-triage",
         help="turn frontier theory-target misses and simulation flags into owner-routed work items",
@@ -4588,6 +4733,30 @@ def build_parser() -> argparse.ArgumentParser:
     )
     huggingface_lean_source_revalidation_tasks.set_defaults(
         func=_huggingface_lean_source_revalidation_tasks
+    )
+
+    huggingface_lean_source_revalidation_prompt_packets = sub.add_parser(
+        "huggingface-lean-source-revalidation-prompt-packets",
+        help="export worker prompt packets and response contracts for Hugging Face Lean source revalidation",
+    )
+    huggingface_lean_source_revalidation_prompt_packets.add_argument(
+        "--task-dir",
+        default="runs/huggingface_lean_source_revalidation_tasks",
+        help="directory containing hf_lean_source_revalidation_tasks_manifest.json",
+    )
+    huggingface_lean_source_revalidation_prompt_packets.add_argument(
+        "--max-packets",
+        type=int,
+        default=20,
+        help="maximum source revalidation prompt packets to export",
+    )
+    huggingface_lean_source_revalidation_prompt_packets.add_argument(
+        "--out",
+        default="runs/huggingface_lean_source_revalidation_prompt_packets",
+        help="Hugging Face Lean source revalidation prompt packet output directory",
+    )
+    huggingface_lean_source_revalidation_prompt_packets.set_defaults(
+        func=_huggingface_lean_source_revalidation_prompt_packets
     )
 
     huggingface_lean_source_revalidation_artifact_validation = sub.add_parser(

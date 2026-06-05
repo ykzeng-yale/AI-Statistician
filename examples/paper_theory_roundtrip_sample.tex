@@ -1,0 +1,42 @@
+\documentclass{article}
+\usepackage{amsmath,amsthm}
+
+\newtheorem{assumption}{Assumption}
+\newtheorem{definition}{Definition}
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+
+\begin{document}
+
+\begin{assumption}[Randomized treatment]\label{ass:randomized}
+Let $(Y(0),Y(1),A,X)$ be observed under randomized treatment assignment with
+$A \perp (Y(0),Y(1)) \mid X$ and $0 < \pi(X) < 1$.
+\end{assumption}
+
+\begin{definition}[Average treatment effect]\label{def:ate}
+The target estimand is
+\[
+\tau = \mathbb{E}[Y(1)-Y(0)].
+\]
+\end{definition}
+
+\begin{lemma}[Score unbiasedness]\label{lem:score-unbiased}
+Under Assumption~\ref{ass:randomized}, the inverse-propensity score for
+$\tau$ has mean zero after subtracting the estimand in Definition~\ref{def:ate}.
+\end{lemma}
+\begin{proof}
+Condition on $X$ and use treatment randomization to replace observed outcomes
+by the corresponding potential outcomes. The two conditional terms telescope.
+\end{proof}
+
+\begin{theorem}[Asymptotic normality of the ATE estimator]\label{thm:ate-clt}
+Assume Assumption~\ref{ass:randomized}, finite second moments, and a consistent
+propensity estimate. Then the inverse-propensity weighted estimator of $\tau$
+is asymptotically normal at rate $\sqrt{n}$.
+\end{theorem}
+\begin{proof}
+Decompose the estimator into the unbiased score in Lemma~\ref{lem:score-unbiased}
+plus a negligible nuisance remainder. Apply a central limit theorem and Slutsky's theorem.
+\end{proof}
+
+\end{document}

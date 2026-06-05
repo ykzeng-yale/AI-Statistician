@@ -343,6 +343,14 @@ def export_rag_collaboration_manifest(
     huggingface_lean_source_revalidation_tasks_payload = _read_json(
         huggingface_lean_source_revalidation_tasks_path
     )
+    huggingface_lean_source_revalidation_prompt_packets_path = _artifact_path(
+        artifacts,
+        "huggingface_lean_source_revalidation_prompt_packets",
+        run_dir,
+    )
+    huggingface_lean_source_revalidation_prompt_packets_payload = _read_json(
+        huggingface_lean_source_revalidation_prompt_packets_path
+    )
     huggingface_lean_source_revalidation_artifact_validation_path = _artifact_path(
         artifacts,
         "huggingface_lean_source_revalidation_artifact_validation",
@@ -811,6 +819,36 @@ def export_rag_collaboration_manifest(
                     "proof_evidence_status"
                 ),
             ),
+            "huggingface_lean_source_revalidation_prompt_packets": counts.get(
+                "huggingface_lean_source_revalidation_prompt_packets",
+                huggingface_lean_source_revalidation_prompt_packets_payload.get(
+                    "n_prompt_packets"
+                ),
+            ),
+            "huggingface_lean_source_revalidation_prompt_packets_ready_tasks": counts.get(
+                "huggingface_lean_source_revalidation_prompt_packets_ready_tasks",
+                huggingface_lean_source_revalidation_prompt_packets_payload.get(
+                    "n_ready_tasks"
+                ),
+            ),
+            "huggingface_lean_source_revalidation_prompt_packets_license_review_required": counts.get(
+                "huggingface_lean_source_revalidation_prompt_packets_license_review_required",
+                huggingface_lean_source_revalidation_prompt_packets_payload.get(
+                    "n_license_review_required"
+                ),
+            ),
+            "huggingface_lean_source_revalidation_prompt_packets_output_contracts": counts.get(
+                "huggingface_lean_source_revalidation_prompt_packets_output_contracts",
+                huggingface_lean_source_revalidation_prompt_packets_payload.get(
+                    "n_with_output_contract"
+                ),
+            ),
+            "huggingface_lean_source_revalidation_prompt_packets_proof_evidence_status": counts.get(
+                "huggingface_lean_source_revalidation_prompt_packets_proof_evidence_status",
+                huggingface_lean_source_revalidation_prompt_packets_payload.get(
+                    "proof_evidence_status"
+                ),
+            ),
             "huggingface_lean_source_revalidation_artifact_validation_rows": counts.get(
                 "huggingface_lean_source_revalidation_artifact_validation_rows",
                 huggingface_lean_source_revalidation_artifact_validation_payload.get(
@@ -921,6 +959,9 @@ def export_rag_collaboration_manifest(
             "huggingface_lean_source_revalidation_tasks_manifest": str(
                 huggingface_lean_source_revalidation_tasks_path
             ),
+            "huggingface_lean_source_revalidation_prompt_packets_manifest": str(
+                huggingface_lean_source_revalidation_prompt_packets_path
+            ),
             "huggingface_lean_source_revalidation_artifact_validation_manifest": str(
                 huggingface_lean_source_revalidation_artifact_validation_path
             ),
@@ -933,6 +974,10 @@ def export_rag_collaboration_manifest(
             ),
             "huggingface_lean_source_revalidation_tasks_preview": _huggingface_lean_source_revalidation_tasks_preview(
                 huggingface_lean_source_revalidation_tasks_payload,
+                max_rows=min(max_targets, 10),
+            ),
+            "huggingface_lean_source_revalidation_prompt_packets_preview": _huggingface_lean_source_revalidation_prompt_packets_preview(
+                huggingface_lean_source_revalidation_prompt_packets_payload,
                 max_rows=min(max_targets, 10),
             ),
             "huggingface_lean_source_revalidation_artifact_validation_preview": _huggingface_lean_source_revalidation_artifact_validation_preview(
@@ -2293,6 +2338,7 @@ def export_rag_collaboration_manifest(
             "FormalVerifier agentic source-theorem target-resolution rows are route-ledger overlays, not proof evidence.",
             "Formalization gap proof-state triage rows are proof-worker work orders, not theorem proof evidence.",
             "Hugging Face Lean/OProofs source rows are retrieval, training, or benchmark candidates only; they become proof evidence only after reconstructed Lean artifacts pass local Lean/AXLE kernel verification and promotion review.",
+            "Hugging Face Lean/OProofs prompt packets are worker instructions and response contracts, not proof evidence.",
             "Claim-ledger repair-response promotion overlays close formal gaps only for matching ready kernel-verified promotion rows.",
             "FORMAL_GAP and theorem-hole queues remain open until a non-placeholder Lean proof is verified.",
         ],
@@ -2359,6 +2405,19 @@ def _auto_discover_artifacts(
             rerun_payload = _read_json(rerun_candidate)
             if int(rerun_payload.get("n_kernel_verified", 0) or 0) > 0:
                 discoveries[proof_search_kernel_rerun_key] = str(rerun_candidate)
+    same_run_candidates = {
+        "huggingface_lean_source_revalidation_prompt_packets": (
+            run_dir
+            / "huggingface_lean_source_revalidation_prompt_packets"
+            / "hf_lean_source_revalidation_prompt_packets_manifest.json"
+        ),
+    }
+    for key, candidate in same_run_candidates.items():
+        if key in protected or str(artifacts.get(key, "")):
+            continue
+        discovered = _first_existing(candidate)
+        if discovered is not None:
+            discoveries[key] = str(discovered)
     seeded_agentic_candidates = {
         "formal_verifier_agentic_proof_strategy_plan": (
             Path("current_kernel_overlay_seeded_agentic_proof_strategy_plan")
@@ -4515,6 +4574,45 @@ def _huggingface_lean_source_revalidation_tasks_preview(
     return rows
 
 
+def _huggingface_lean_source_revalidation_prompt_packets_preview(
+    payload: dict[str, Any],
+    *,
+    max_rows: int,
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    raw_rows = payload.get("packets", [])
+    if not isinstance(raw_rows, list):
+        return rows
+    for row in raw_rows:
+        if not isinstance(row, dict):
+            continue
+        rows.append(
+            {
+                "prompt_packet_id": row.get("prompt_packet_id"),
+                "task_id": row.get("task_id"),
+                "source_id": row.get("source_id"),
+                "dataset_id": row.get("dataset_id"),
+                "priority": row.get("priority"),
+                "priority_score": row.get("priority_score"),
+                "relevance_class": row.get("relevance_class"),
+                "retrieval_role": row.get("retrieval_role"),
+                "task_status": row.get("task_status"),
+                "sample_strategy": row.get("sample_strategy"),
+                "sample_size": row.get("sample_size", 0),
+                "license_review_required": row.get("license_review_required"),
+                "local_work_dir": row.get("local_work_dir"),
+                "required_gate": row.get("required_gate"),
+                "expected_output_contract": row.get("expected_output_contract", {}),
+                "forbidden_claims": row.get("forbidden_claims", [])[:4],
+                "proof_evidence_status": row.get("proof_evidence_status", ""),
+                "proof_evidence_boundary": row.get("proof_evidence_boundary", ""),
+            }
+        )
+        if len(rows) >= max_rows:
+            break
+    return rows
+
+
 def _huggingface_lean_source_revalidation_artifact_validation_preview(
     payload: dict[str, Any],
     *,
@@ -4703,6 +4801,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"(`{queue.get('huggingface_lean_source_high_priority')}` high priority, "
         f"OProofs detected `{queue.get('huggingface_lean_source_oproofs_detected')}`, "
         f"`{queue.get('huggingface_lean_source_revalidation_tasks_ready')}` tasks ready, "
+        f"`{queue.get('huggingface_lean_source_revalidation_prompt_packets')}` prompt packets, "
         f"`{queue.get('huggingface_lean_source_revalidation_artifact_validation_awaiting')}` validation awaiting, "
         f"`{queue.get('huggingface_lean_source_revalidation_promotion_ready')}` promotion-ready, "
         f"`{queue.get('huggingface_lean_source_proof_evidence_ready')}` proof-evidence-ready)",
@@ -5006,6 +5105,23 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{row.get('task_status')} sample={row.get('sample_size')}"
         )
         lines.append(f"  work dir: `{row.get('local_work_dir')}`")
+        lines.append(f"  gate: {row.get('required_gate')}")
+        lines.append(f"  proof status: {row.get('proof_evidence_status')}")
+    lines.extend(["", "### HF Lean Prompt Packets", ""])
+    for row in queue.get("huggingface_lean_source_revalidation_prompt_packets_preview", []):
+        if not isinstance(row, dict):
+            continue
+        contract = row.get("expected_output_contract", {})
+        if not isinstance(contract, dict):
+            contract = {}
+        lines.append(
+            f"- `{row.get('dataset_id')}` prompt `{row.get('prompt_packet_id')}`: "
+            f"{row.get('sample_strategy')} sample={row.get('sample_size')}"
+        )
+        lines.append(
+            f"  response JSONL: `{contract.get('write_jsonl', '')}` "
+            f"license_review={row.get('license_review_required')}"
+        )
         lines.append(f"  gate: {row.get('required_gate')}")
         lines.append(f"  proof status: {row.get('proof_evidence_status')}")
     lines.extend(["", "### HF Lean Artifact Validation", ""])

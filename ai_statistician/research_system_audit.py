@@ -11,6 +11,9 @@ from typing import Any
 from .fingerprint import stable_hash
 from .frontier_backlog_audit import audit_frontier_backlog
 from .frontier_coverage_audit import audit_frontier_coverage
+from .frontier_discover_and_prove_prompt_packets import (
+    export_frontier_discover_and_prove_prompt_packets,
+)
 from .frontier_precision_audit import audit_frontier_precision
 from .fresh_holdout_frontier_audit import audit_fresh_holdout_frontier
 from .algorithm_repair_promotion import export_algorithm_repair_promotion_queue
@@ -129,6 +132,9 @@ from .huggingface_lean_source_audit import audit_huggingface_lean_sources
 from .hf_lean_source_revalidation_tasks import (
     export_huggingface_lean_source_revalidation_tasks,
 )
+from .hf_lean_source_revalidation_prompt_packets import (
+    export_huggingface_lean_source_revalidation_prompt_packets,
+)
 from .hf_lean_source_revalidation_artifact_validation import (
     export_huggingface_lean_source_revalidation_artifact_validation,
 )
@@ -145,6 +151,7 @@ from .lean_rag_dependency_health import audit_lean_rag_dependency_health
 from .autoform_harness import audit_autoform_harness
 from .autoform_target_export import export_autoform_targets
 from .frontier_smoke_benchmark import FrontierSmokeConfig, run_frontier_smoke_benchmark
+from .paper_theory_roundtrip import export_paper_theory_roundtrip
 from .proof_audit import audit_proof_bank
 from .proof_bank_action_export import export_proof_bank_actions
 from .proof_bank import all_obligations, proof_bank_fingerprint
@@ -370,6 +377,17 @@ async def run_research_system_audit(
         "huggingface_lean_source_revalidation_tasks",
         stage_start,
     )
+    huggingface_lean_source_revalidation_prompt_packets_manifest = (
+        export_huggingface_lean_source_revalidation_prompt_packets(
+            out_dir / "huggingface_lean_source_revalidation_tasks",
+            out_dir / "huggingface_lean_source_revalidation_prompt_packets",
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "huggingface_lean_source_revalidation_prompt_packets",
+        stage_start,
+    )
     huggingface_lean_source_revalidation_artifact_validation_manifest = (
         export_huggingface_lean_source_revalidation_artifact_validation(
             out_dir / "huggingface_lean_source_revalidation_tasks",
@@ -423,6 +441,25 @@ async def run_research_system_audit(
     frontier_precision_manifest = audit_frontier_precision(out_dir / "frontier_precision_audit")
     frontier_backlog_manifest = audit_frontier_backlog(out_dir / "frontier_backlog_audit")
     stage_start = _record_stage(stage_timings, "frontier_static_audits", stage_start)
+    frontier_dap_prompt_packets_manifest = export_frontier_discover_and_prove_prompt_packets(
+        out_dir / "frontier_discover_and_prove_prompt_packets",
+        max_packets=int(frontier_manifest.get("n_questions", 60) or 60),
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "frontier_discover_and_prove_prompt_packets",
+        stage_start,
+    )
+    paper_theory_roundtrip_manifest = export_paper_theory_roundtrip(
+        Path("examples/paper_theory_roundtrip_sample.tex"),
+        out_dir / "paper_theory_roundtrip",
+        paper_id="paper_theory_roundtrip_sample",
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "paper_theory_roundtrip",
+        stage_start,
+    )
 
     architecture_manifest = audit_architecture(out_dir / "architecture_audit")
     capability_report = build_research_capability_audit(
@@ -1217,6 +1254,10 @@ async def run_research_system_audit(
         "frontier_coverage_audit": bool(frontier_manifest["all_ok"]),
         "frontier_precision_audit": bool(frontier_precision_manifest["all_ok"]),
         "frontier_backlog_audit": bool(frontier_backlog_manifest["all_ok"]),
+        "frontier_discover_and_prove_prompt_packets": bool(
+            frontier_dap_prompt_packets_manifest["all_ok"]
+        ),
+        "paper_theory_roundtrip": bool(paper_theory_roundtrip_manifest["all_ok"]),
         "architecture_audit": bool(architecture_manifest["all_release_scaffold_components_present"]),
         "research_capability_audit": bool(capability_report["all_current_release_requirements_met"]),
         "frontier_smoke_benchmark": bool(frontier_smoke_manifest["all_gates_passed"]),
@@ -1255,6 +1296,15 @@ async def run_research_system_audit(
             huggingface_lean_source_revalidation_tasks_manifest["all_ok"]
         )
         and int(huggingface_lean_source_revalidation_tasks_manifest["n_tasks"]) > 0,
+        "huggingface_lean_source_revalidation_prompt_packets": bool(
+            huggingface_lean_source_revalidation_prompt_packets_manifest["all_ok"]
+        )
+        and int(
+            huggingface_lean_source_revalidation_prompt_packets_manifest[
+                "n_prompt_packets"
+            ]
+        )
+        > 0,
         "huggingface_lean_source_revalidation_artifact_validation": bool(
             huggingface_lean_source_revalidation_artifact_validation_manifest["all_ok"]
         )
@@ -1562,6 +1612,57 @@ async def run_research_system_audit(
             "frontier_questions": frontier_manifest["n_questions"],
             "frontier_supported": frontier_manifest["n_supported"],
             "frontier_unsupported": frontier_manifest["n_unsupported"],
+            "frontier_dap_prompt_packets": frontier_dap_prompt_packets_manifest[
+                "n_prompt_packets"
+            ],
+            "frontier_dap_output_contracts": frontier_dap_prompt_packets_manifest[
+                "n_output_contracts"
+            ],
+            "frontier_dap_expected_results_withheld": frontier_dap_prompt_packets_manifest[
+                "n_expected_results_withheld"
+            ],
+            "frontier_dap_source_identity_withheld": frontier_dap_prompt_packets_manifest[
+                "n_source_identity_withheld"
+            ],
+            "frontier_dap_prompt_expected_result_leaks": frontier_dap_prompt_packets_manifest[
+                "n_prompt_expected_result_leaks"
+            ],
+            "frontier_dap_source_identity_leaks": frontier_dap_prompt_packets_manifest[
+                "n_prompt_source_identity_leaks"
+            ],
+            "frontier_dap_proof_evidence_ready": frontier_dap_prompt_packets_manifest[
+                "n_proof_evidence_ready"
+            ],
+            "frontier_dap_proof_evidence_status": frontier_dap_prompt_packets_manifest[
+                "proof_evidence_status"
+            ],
+            "paper_theory_roundtrip_tex_files": paper_theory_roundtrip_manifest[
+                "n_tex_files"
+            ],
+            "paper_theory_roundtrip_statements": paper_theory_roundtrip_manifest[
+                "n_statements"
+            ],
+            "paper_theory_roundtrip_statements_with_proofs": paper_theory_roundtrip_manifest[
+                "n_with_proofs"
+            ],
+            "paper_theory_roundtrip_dependency_edges": paper_theory_roundtrip_manifest[
+                "n_dependency_edges"
+            ],
+            "paper_theory_roundtrip_stat_theory_ir_rows": paper_theory_roundtrip_manifest[
+                "n_stat_theory_ir_rows"
+            ],
+            "paper_theory_roundtrip_lean_candidate_queue_rows": paper_theory_roundtrip_manifest[
+                "n_lean_candidate_queue_rows"
+            ],
+            "paper_theory_roundtrip_roundtrip_review_rows": paper_theory_roundtrip_manifest[
+                "n_roundtrip_review_rows"
+            ],
+            "paper_theory_roundtrip_proof_evidence_ready": paper_theory_roundtrip_manifest[
+                "n_proof_evidence_ready"
+            ],
+            "paper_theory_roundtrip_proof_evidence_status": paper_theory_roundtrip_manifest[
+                "proof_evidence_status"
+            ],
             "frontier_precision_ok": frontier_precision_manifest["n_ok"],
             "frontier_precision_supported": frontier_precision_manifest["n_supported"],
             "frontier_precision_flagged": frontier_precision_manifest["n_flagged"],
@@ -1857,6 +1958,21 @@ async def run_research_system_audit(
                 "n_proof_evidence_ready"
             ],
             "huggingface_lean_source_revalidation_tasks_proof_evidence_status": huggingface_lean_source_revalidation_tasks_manifest[
+                "proof_evidence_status"
+            ],
+            "huggingface_lean_source_revalidation_prompt_packets": huggingface_lean_source_revalidation_prompt_packets_manifest[
+                "n_prompt_packets"
+            ],
+            "huggingface_lean_source_revalidation_prompt_packets_ready_tasks": huggingface_lean_source_revalidation_prompt_packets_manifest[
+                "n_ready_tasks"
+            ],
+            "huggingface_lean_source_revalidation_prompt_packets_license_review_required": huggingface_lean_source_revalidation_prompt_packets_manifest[
+                "n_license_review_required"
+            ],
+            "huggingface_lean_source_revalidation_prompt_packets_output_contracts": huggingface_lean_source_revalidation_prompt_packets_manifest[
+                "n_with_output_contract"
+            ],
+            "huggingface_lean_source_revalidation_prompt_packets_proof_evidence_status": huggingface_lean_source_revalidation_prompt_packets_manifest[
                 "proof_evidence_status"
             ],
             "huggingface_lean_source_revalidation_artifact_validation_rows": huggingface_lean_source_revalidation_artifact_validation_manifest[
@@ -3549,6 +3665,46 @@ async def run_research_system_audit(
                 out_dir / "frontier_backlog_audit" / "frontier_backlog_manifest.json"
             ),
             "frontier_backlog_report": str(out_dir / "frontier_backlog_audit" / "frontier_backlog.md"),
+            "frontier_discover_and_prove_prompt_packets": str(
+                out_dir
+                / "frontier_discover_and_prove_prompt_packets"
+                / "frontier_discover_and_prove_prompt_packets_manifest.json"
+            ),
+            "frontier_discover_and_prove_prompt_packets_jsonl": str(
+                out_dir
+                / "frontier_discover_and_prove_prompt_packets"
+                / "frontier_discover_and_prove_prompt_packets.jsonl"
+            ),
+            "frontier_discover_and_prove_prompt_packets_report": str(
+                out_dir
+                / "frontier_discover_and_prove_prompt_packets"
+                / "frontier_discover_and_prove_prompt_packets.md"
+            ),
+            "paper_theory_roundtrip": str(
+                out_dir / "paper_theory_roundtrip" / "paper_theory_roundtrip_manifest.json"
+            ),
+            "paper_theory_roundtrip_statement_catalog_jsonl": str(
+                out_dir / "paper_theory_roundtrip" / "paper_statement_catalog.jsonl"
+            ),
+            "paper_theory_roundtrip_stat_theory_ir_jsonl": str(
+                out_dir / "paper_theory_roundtrip" / "stat_theory_ir.jsonl"
+            ),
+            "paper_theory_roundtrip_lean_candidate_queue_jsonl": str(
+                out_dir
+                / "paper_theory_roundtrip"
+                / "statement_to_lean_candidate_queue.jsonl"
+            ),
+            "paper_theory_roundtrip_roundtrip_review_queue_jsonl": str(
+                out_dir
+                / "paper_theory_roundtrip"
+                / "lean_to_latex_roundtrip_review_queue.jsonl"
+            ),
+            "paper_theory_roundtrip_dependency_graph": str(
+                out_dir / "paper_theory_roundtrip" / "paper_theory_dependency_graph.json"
+            ),
+            "paper_theory_roundtrip_report": str(
+                out_dir / "paper_theory_roundtrip" / "paper_theory_roundtrip.md"
+            ),
             "architecture_audit": str(out_dir / "architecture_audit" / "architecture_audit_manifest.json"),
             "architecture_report": str(out_dir / "architecture_audit" / "architecture_audit.md"),
             "research_capability_audit": str(
@@ -3722,6 +3878,21 @@ async def run_research_system_audit(
                 out_dir
                 / "huggingface_lean_source_revalidation_tasks"
                 / "hf_lean_source_revalidation_tasks.md"
+            ),
+            "huggingface_lean_source_revalidation_prompt_packets": str(
+                out_dir
+                / "huggingface_lean_source_revalidation_prompt_packets"
+                / "hf_lean_source_revalidation_prompt_packets_manifest.json"
+            ),
+            "huggingface_lean_source_revalidation_prompt_packets_jsonl": str(
+                out_dir
+                / "huggingface_lean_source_revalidation_prompt_packets"
+                / "hf_lean_source_revalidation_prompt_packets.jsonl"
+            ),
+            "huggingface_lean_source_revalidation_prompt_packets_report": str(
+                out_dir
+                / "huggingface_lean_source_revalidation_prompt_packets"
+                / "hf_lean_source_revalidation_prompt_packets.md"
             ),
             "huggingface_lean_source_revalidation_artifact_validation": str(
                 out_dir

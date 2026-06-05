@@ -157,6 +157,9 @@ from ai_statistician.evaluation import EvalConfig, run_seed_eval
 from ai_statistician.autoform_target_export import export_autoform_targets
 from ai_statistician.intake_audit import audit_question_intake
 from ai_statistician.frontier_backlog_audit import audit_frontier_backlog
+from ai_statistician.frontier_discover_and_prove_prompt_packets import (
+    export_frontier_discover_and_prove_prompt_packets,
+)
 from ai_statistician.proof_audit import audit_proof_bank
 from ai_statistician.proof_bank_action_export import export_proof_bank_actions
 from ai_statistician.proof_bank_expansion_export import export_proof_bank_expansion_candidates
@@ -177,12 +180,16 @@ from ai_statistician.proof_training_export import export_proof_training_dataset
 from ai_statistician.hf_lean_source_revalidation_tasks import (
     export_huggingface_lean_source_revalidation_tasks,
 )
+from ai_statistician.hf_lean_source_revalidation_prompt_packets import (
+    export_huggingface_lean_source_revalidation_prompt_packets,
+)
 from ai_statistician.hf_lean_source_revalidation_artifact_validation import (
     export_huggingface_lean_source_revalidation_artifact_validation,
 )
 from ai_statistician.hf_lean_source_revalidation_promotion_queue import (
     export_huggingface_lean_source_revalidation_promotion_queue,
 )
+from ai_statistician.paper_theory_roundtrip import export_paper_theory_roundtrip
 from ai_statistician.prover_component_audit import build_prover_component_audit, write_prover_component_audit
 from ai_statistician.rag_collaboration_export import export_rag_collaboration_manifest
 from ai_statistician.questions import load_question_file, question_from_json
@@ -415,6 +422,269 @@ class ProofBankTests(unittest.TestCase):
             Path(
                 "runs/test_hf_lean_source_revalidation_tasks/hf_lean_source_revalidation_tasks.jsonl"
             ).exists()
+        )
+
+    def test_frontier_discover_and_prove_prompt_packets_withhold_answers(self) -> None:
+        root = Path("runs/test_frontier_discover_and_prove_prompt_packets")
+        shutil.rmtree(root, ignore_errors=True)
+        root.mkdir(parents=True, exist_ok=True)
+        benchmark = root / "frontier_benchmark.md"
+        benchmark.write_text(
+            "\n".join(
+                [
+                    "# Frontier Statistical Theory Benchmark",
+                    "",
+                    "## Causal Effects",
+                    "",
+                    "### causal_01: Hidden efficient influence function",
+                    "",
+                    "- Source: JASA, 2026-01-01; DOI: [10.1000/hidden-answer](https://doi.org/10.1000/hidden-answer)",
+                    "- Open question: How can a randomized experiment estimate a heterogeneous treatment-effect distribution?",
+                    "- Assumptions to recover: potential outcomes, randomized assignment, weak convergence.",
+                    "- Expected theoretical results:",
+                    "- Define the hidden efficient influence function answer.",
+                    "- Prove the undisclosed asymptotic normality theorem.",
+                    "",
+                    "## Sequential Inference",
+                    "",
+                    "### sequential_01: Anytime hidden boundary",
+                    "",
+                    "- Source: Biometrika, 2026-01-02; DOI: [10.2000/secret-boundary](https://doi.org/10.2000/secret-boundary)",
+                    "- Open question: How can optional stopping preserve validity?",
+                    "- Assumptions to recover: filtration, e-process, stopping time.",
+                    "- Expected theoretical results:",
+                    "- Construct the secret anytime-valid boundary.",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        payload = export_frontier_discover_and_prove_prompt_packets(
+            root / "out",
+            benchmark_file=benchmark,
+            max_packets=2,
+        )
+
+        self.assertTrue(payload["all_ok"])
+        self.assertEqual(payload["n_prompt_packets"], 2)
+        self.assertEqual(payload["n_output_contracts"], 2)
+        self.assertEqual(payload["n_expected_results_withheld"], 2)
+        self.assertEqual(payload["n_source_identity_withheld"], 2)
+        self.assertEqual(payload["n_prompt_expected_result_leaks"], 0)
+        self.assertEqual(payload["n_prompt_source_identity_leaks"], 0)
+        self.assertEqual(payload["n_proof_evidence_ready"], 0)
+        self.assertEqual(
+            payload["proof_evidence_status"],
+            "FRONTIER_DAP_PROMPT_PACKETS_NOT_PROOF_EVIDENCE",
+        )
+        packet = payload["packets"][0]
+        prompt = packet["prompt"]
+        self.assertIn("Hard Mode", prompt)
+        self.assertIn("Hard-to-easy rewrite", prompt)
+        self.assertIn("self_verification", prompt)
+        self.assertIn("proposed_estimand", prompt)
+        self.assertNotIn("hidden efficient influence function answer", prompt)
+        self.assertNotIn("10.1000/hidden-answer", prompt)
+        self.assertEqual(
+            packet["expected_output_contract"]["write_jsonl"],
+            "frontier_discover_and_prove_worker_outputs.jsonl",
+        )
+        self.assertEqual(
+            packet["expected_output_contract"]["zero_evidence_response"][
+                "proof_evidence_ready"
+            ],
+            0,
+        )
+        self.assertTrue(
+            (root / "out" / "frontier_discover_and_prove_prompt_packets_manifest.json").exists()
+        )
+        self.assertTrue(
+            (root / "out" / "frontier_discover_and_prove_prompt_packets.jsonl").exists()
+        )
+
+    def test_paper_theory_roundtrip_extracts_statement_catalog_and_review_queues(self) -> None:
+        root = Path("runs/test_paper_theory_roundtrip")
+        shutil.rmtree(root, ignore_errors=True)
+        root.mkdir(parents=True, exist_ok=True)
+        tex = root / "sample.tex"
+        tex.write_text(
+            r"""
+\documentclass{article}
+\begin{document}
+\begin{assumption}[Sampling]\label{ass:sampling}
+Let $X_1,\ldots,X_n$ be independent samples with finite second moment.
+\end{assumption}
+\begin{definition}[Mean estimand]\label{def:mean}
+The estimand is $\theta=\mathbb{E}[X]$.
+\end{definition}
+\begin{lemma}[Centered score]\label{lem:centered}
+Under Assumption~\ref{ass:sampling}, the score $X-\theta$ has mean zero.
+\end{lemma}
+\begin{proof}
+This follows by the definition of $\theta$ and integrability.
+\end{proof}
+\begin{theorem}[Central limit theorem]\label{thm:mean-clt}
+Under Assumption~\ref{ass:sampling}, the sample mean estimator is asymptotic normal
+at rate $\sqrt{n}$, using Lemma~\ref{lem:centered}.
+\end{theorem}
+\begin{proof}
+Apply a central limit theorem to the centered score and use Slutsky's theorem.
+\end{proof}
+\end{document}
+""",
+            encoding="utf-8",
+        )
+
+        payload = export_paper_theory_roundtrip(
+            tex,
+            root / "out",
+            paper_id="sample_paper",
+        )
+
+        self.assertTrue(payload["all_ok"])
+        self.assertEqual(payload["n_tex_files"], 1)
+        self.assertEqual(payload["n_statements"], 4)
+        self.assertEqual(payload["n_with_proofs"], 2)
+        self.assertEqual(payload["n_stat_theory_ir_rows"], 4)
+        self.assertEqual(payload["n_lean_candidate_queue_rows"], 4)
+        self.assertEqual(payload["n_roundtrip_review_rows"], 4)
+        self.assertEqual(payload["n_proof_evidence_ready"], 0)
+        self.assertEqual(
+            payload["proof_evidence_status"],
+            "PAPER_THEORY_ROUNDTRIP_NOT_PROOF_EVIDENCE",
+        )
+        statement_rows = [
+            json.loads(line)
+            for line in (root / "out" / "paper_statement_catalog.jsonl").read_text().splitlines()
+        ]
+        theorem = next(row for row in statement_rows if row["label"] == "thm:mean-clt")
+        self.assertIn("lem:centered", theorem["dependency_labels"])
+        self.assertGreater(theorem["source_start_line"], 0)
+        queue_rows = [
+            json.loads(line)
+            for line in (root / "out" / "statement_to_lean_candidate_queue.jsonl")
+            .read_text()
+            .splitlines()
+        ]
+        self.assertEqual(
+            queue_rows[0]["expected_output_contract"]["write_jsonl"],
+            "paper_theory_roundtrip_worker_outputs.jsonl",
+        )
+        self.assertIn(
+            "local Lean/AXLE",
+            queue_rows[0]["expected_output_contract"]["local_kernel_evidence_rule"],
+        )
+        roundtrip_rows = [
+            json.loads(line)
+            for line in (root / "out" / "lean_to_latex_roundtrip_review_queue.jsonl")
+            .read_text()
+            .splitlines()
+        ]
+        self.assertTrue(roundtrip_rows[0]["original_paper_hidden_from_informalizer"])
+        self.assertTrue((root / "out" / "paper_theory_dependency_graph.json").exists())
+        self.assertTrue((root / "out" / "paper_theory_roundtrip.md").exists())
+
+    def test_hf_lean_source_revalidation_prompt_packets_export_worker_contracts(self) -> None:
+        task_dir = Path("runs/test_hf_lean_source_revalidation_prompt_tasks")
+        out_dir = Path("runs/test_hf_lean_source_revalidation_prompt_packets")
+        shutil.rmtree(task_dir, ignore_errors=True)
+        shutil.rmtree(out_dir, ignore_errors=True)
+        task_dir.mkdir(parents=True, exist_ok=True)
+        rows = [
+            {
+                "task_id": "hf_lean_source_revalidation_task:oproofs",
+                "revalidation_id": "hf_lean_source_revalidation:oproofs",
+                "source_id": "hf::m-a-p::OProofs",
+                "dataset_id": "m-a-p/OProofs",
+                "url": "https://huggingface.co/datasets/m-a-p/OProofs",
+                "priority": "critical",
+                "priority_score": 90,
+                "relevance_class": "formal_proof_pairs",
+                "retrieval_role": "proof_pair_retrieval_and_training_candidate",
+                "task_status": "READY_FOR_SAMPLE_RECONSTRUCTION_AND_LOCAL_VERIFY",
+                "sample_strategy": "deterministic_small_proof_pair_sample",
+                "sample_size": 8,
+                "sample_seed": 20260605,
+                "license_review_required": False,
+                "local_work_dir": str(task_dir / "work" / "m-a-p_OProofs"),
+                "sample_manifest_path": str(task_dir / "work" / "m-a-p_OProofs" / "sample_manifest.json"),
+                "lean_reconstruction_dir": str(task_dir / "work" / "m-a-p_OProofs" / "lean"),
+                "verifier_attempt_log": str(task_dir / "work" / "m-a-p_OProofs" / "verifier_attempts.jsonl"),
+                "promotion_manifest_path": str(
+                    task_dir / "work" / "m-a-p_OProofs" / "candidate_promotion_manifest.json"
+                ),
+                "command_plan": [
+                    "review dataset metadata, license, access, and provenance",
+                    "run local Lean or AXLE on reconstructed Lean artifacts",
+                ],
+                "expected_outputs": ["sample manifest", "local verifier attempt log"],
+                "required_gate": "local Lean/AXLE kernel verification of reconstructed Lean artifacts",
+            },
+            {
+                "task_id": "hf_lean_source_revalidation_task:license_review",
+                "revalidation_id": "hf_lean_source_revalidation:license_review",
+                "source_id": "hf::leanpolish-anon::lean-proof-compression",
+                "dataset_id": "leanpolish-anon/lean-proof-compression",
+                "priority": "high",
+                "priority_score": 80,
+                "relevance_class": "proof_repair_or_process_training",
+                "retrieval_role": "proof_repair_policy_and_process_supervision_candidate",
+                "task_status": "READY_FOR_METADATA_LICENSE_AND_SAMPLE_PLANNING",
+                "sample_strategy": "metadata_license_review_before_sampling",
+                "sample_size": 0,
+                "sample_seed": 20260605,
+                "license_review_required": True,
+                "local_work_dir": str(task_dir / "work" / "leanpolish"),
+                "sample_manifest_path": str(task_dir / "work" / "leanpolish" / "sample_manifest.json"),
+                "lean_reconstruction_dir": str(task_dir / "work" / "leanpolish" / "lean"),
+                "verifier_attempt_log": str(task_dir / "work" / "leanpolish" / "verifier_attempts.jsonl"),
+                "promotion_manifest_path": str(
+                    task_dir / "work" / "leanpolish" / "candidate_promotion_manifest.json"
+                ),
+                "command_plan": ["review dataset metadata, license, access, and provenance"],
+                "expected_outputs": ["zero-evidence response if license review is blocked"],
+                "required_gate": "local Lean/AXLE kernel verification of reconstructed Lean artifacts",
+            },
+        ]
+        (task_dir / "hf_lean_source_revalidation_tasks_manifest.json").write_text(
+            json.dumps({"rows": rows}),
+            encoding="utf-8",
+        )
+        (task_dir / "hf_lean_source_revalidation_tasks.jsonl").write_text(
+            "\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n",
+            encoding="utf-8",
+        )
+
+        payload = export_huggingface_lean_source_revalidation_prompt_packets(
+            task_dir,
+            out_dir,
+            max_packets=5,
+        )
+
+        self.assertTrue(payload["all_ok"])
+        self.assertEqual(payload["n_tasks"], 2)
+        self.assertEqual(payload["n_prompt_packets"], 2)
+        self.assertEqual(payload["n_license_review_required"], 1)
+        self.assertEqual(payload["n_zero_sample_size"], 1)
+        packets = {row["dataset_id"]: row for row in payload["packets"]}
+        self.assertEqual(packets["m-a-p/OProofs"]["sample_size"], 8)
+        self.assertIn(
+            "hf_lean_source_revalidation_worker_outputs.jsonl",
+            packets["m-a-p/OProofs"]["expected_output_contract"]["write_jsonl"],
+        )
+        self.assertIn("proof_evidence_ready", packets["m-a-p/OProofs"]["prompt"])
+        self.assertIn("not proof evidence", packets["m-a-p/OProofs"]["proof_evidence_boundary"])
+        self.assertEqual(
+            packets["leanpolish-anon/lean-proof-compression"][
+                "expected_output_contract"
+            ]["allowed_zero_evidence_response"]["proof_evidence_ready"],
+            0,
+        )
+        self.assertTrue(
+            (out_dir / "hf_lean_source_revalidation_prompt_packets_manifest.json").exists()
+        )
+        self.assertTrue(
+            (out_dir / "hf_lean_source_revalidation_prompt_packets.jsonl").exists()
         )
 
     def test_hf_lean_source_revalidation_artifact_validation_gates_worker_outputs(self) -> None:
@@ -13487,6 +13757,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         out = root / "rag_collaboration_export"
         hf_audit_dir = root / "huggingface_lean_source_audit"
         hf_tasks_dir = root / "huggingface_lean_source_revalidation_tasks"
+        hf_prompt_dir = root / "huggingface_lean_source_revalidation_prompt_packets"
         hf_validation_dir = root / "huggingface_lean_source_revalidation_artifact_validation"
         hf_promotion_dir = root / "huggingface_lean_source_revalidation_promotion_queue"
         proof_audit_dir = root / "proof_audit"
@@ -13494,6 +13765,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         for path in (
             hf_audit_dir,
             hf_tasks_dir,
+            hf_prompt_dir,
             hf_validation_dir,
             hf_promotion_dir,
             proof_audit_dir,
@@ -13628,6 +13900,69 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                             ),
                             "proof_evidence_boundary": (
                                 "Tasks are work orders, not proof evidence."
+                            ),
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        hf_prompt_manifest = (
+            hf_prompt_dir / "hf_lean_source_revalidation_prompt_packets_manifest.json"
+        )
+        hf_prompt_manifest.write_text(
+            json.dumps(
+                {
+                    "n_tasks": 1,
+                    "n_ready_tasks": 1,
+                    "n_prompt_packets": 1,
+                    "n_license_review_required": 1,
+                    "n_with_output_contract": 1,
+                    "proof_evidence_status": (
+                        "HF_LEAN_SOURCE_REVALIDATION_PROMPT_PACKETS_NOT_PROOF_EVIDENCE"
+                    ),
+                    "packets": [
+                        {
+                            "prompt_packet_id": (
+                                "hf_lean_source_revalidation_prompt_packet:oproofs"
+                            ),
+                            "task_id": "hf_lean_source_revalidation_task:oproofs",
+                            "source_id": "hf::m-a-p::OProofs",
+                            "dataset_id": "m-a-p/OProofs",
+                            "priority": "high",
+                            "priority_score": 90,
+                            "relevance_class": "formal_proof_pairs",
+                            "retrieval_role": (
+                                "retrieval_memory_and_proof_repair_sft_candidate"
+                            ),
+                            "task_status": (
+                                "READY_FOR_METADATA_LICENSE_AND_SAMPLE_PLANNING"
+                            ),
+                            "sample_strategy": "sample_small_reconstruct_verify",
+                            "sample_size": 8,
+                            "license_review_required": True,
+                            "local_work_dir": str(hf_tasks_dir / "work" / "m-a-p_OProofs"),
+                            "required_gate": (
+                                "local Lean/AXLE kernel verification of reconstructed Lean artifacts"
+                            ),
+                            "expected_output_contract": {
+                                "write_jsonl": (
+                                    "hf_lean_source_revalidation_worker_outputs.jsonl"
+                                ),
+                                "required_fields": [
+                                    "task_id",
+                                    "dataset_id",
+                                    "proof_evidence_ready",
+                                ],
+                            },
+                            "forbidden_claims": [
+                                "do not report proof_evidence_ready > 0 without local Lean/AXLE kernel evidence"
+                            ],
+                            "proof_evidence_status": (
+                                "HF_LEAN_SOURCE_REVALIDATION_PROMPT_PACKETS_NOT_PROOF_EVIDENCE"
+                            ),
+                            "proof_evidence_boundary": (
+                                "Prompt packets are worker contracts, not proof evidence."
                             ),
                         }
                     ],
@@ -13770,6 +14105,9 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                         "huggingface_lean_source_revalidation_tasks": str(
                             hf_tasks_manifest
                         ),
+                        "huggingface_lean_source_revalidation_prompt_packets": str(
+                            hf_prompt_manifest
+                        ),
                         "huggingface_lean_source_revalidation_artifact_validation": str(
                             hf_validation_manifest
                         ),
@@ -13795,6 +14133,17 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertEqual(
             queue["huggingface_lean_source_revalidation_tasks_license_review_required"],
             1,
+        )
+        self.assertEqual(queue["huggingface_lean_source_revalidation_prompt_packets"], 1)
+        self.assertEqual(
+            queue["huggingface_lean_source_revalidation_prompt_packets_output_contracts"],
+            1,
+        )
+        self.assertEqual(
+            queue["huggingface_lean_source_revalidation_prompt_packets_preview"][0][
+                "expected_output_contract"
+            ]["write_jsonl"],
+            "hf_lean_source_revalidation_worker_outputs.jsonl",
         )
         self.assertEqual(
             queue["huggingface_lean_source_revalidation_artifact_validation_awaiting"],
@@ -13822,8 +14171,13 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "Hugging Face Lean/OProofs source rows",
             " ".join(payload["honesty_boundaries"]),
         )
+        self.assertIn(
+            "prompt packets are worker instructions",
+            " ".join(payload["honesty_boundaries"]),
+        )
         report = (out / "rag_collaboration.md").read_text()
         self.assertIn("Hugging Face Lean/OProofs Revalidation", report)
+        self.assertIn("HF Lean Prompt Packets", report)
         self.assertIn("not proof evidence", report)
 
     def test_rag_collaboration_export_auto_discovers_current_proof_state_triage(self) -> None:
@@ -17210,6 +17564,8 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["gates"]["frontier_coverage_audit"])
         self.assertTrue(payload["gates"]["frontier_precision_audit"])
         self.assertTrue(payload["gates"]["frontier_backlog_audit"])
+        self.assertTrue(payload["gates"]["frontier_discover_and_prove_prompt_packets"])
+        self.assertTrue(payload["gates"]["paper_theory_roundtrip"])
         self.assertTrue(payload["gates"]["architecture_audit"])
         self.assertTrue(payload["gates"]["research_capability_audit"])
         self.assertTrue(payload["gates"]["frontier_smoke_benchmark"])
@@ -17311,6 +17667,46 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertEqual(payload["counts"]["frontier_backlog_total"], payload["counts"]["frontier_unsupported"])
         self.assertEqual(payload["counts"]["frontier_backlog_domains"], 0)
         self.assertEqual(payload["counts"]["frontier_backlog_required_primitives"], 0)
+        self.assertEqual(
+            payload["counts"]["frontier_dap_prompt_packets"],
+            payload["counts"]["frontier_questions"],
+        )
+        self.assertEqual(
+            payload["counts"]["frontier_dap_output_contracts"],
+            payload["counts"]["frontier_dap_prompt_packets"],
+        )
+        self.assertEqual(
+            payload["counts"]["frontier_dap_expected_results_withheld"],
+            payload["counts"]["frontier_dap_prompt_packets"],
+        )
+        self.assertEqual(
+            payload["counts"]["frontier_dap_source_identity_withheld"],
+            payload["counts"]["frontier_dap_prompt_packets"],
+        )
+        self.assertEqual(payload["counts"]["frontier_dap_prompt_expected_result_leaks"], 0)
+        self.assertEqual(payload["counts"]["frontier_dap_source_identity_leaks"], 0)
+        self.assertEqual(payload["counts"]["frontier_dap_proof_evidence_ready"], 0)
+        self.assertEqual(
+            payload["counts"]["frontier_dap_proof_evidence_status"],
+            "FRONTIER_DAP_PROMPT_PACKETS_NOT_PROOF_EVIDENCE",
+        )
+        self.assertEqual(payload["counts"]["paper_theory_roundtrip_tex_files"], 1)
+        self.assertGreaterEqual(payload["counts"]["paper_theory_roundtrip_statements"], 4)
+        self.assertGreaterEqual(payload["counts"]["paper_theory_roundtrip_statements_with_proofs"], 1)
+        self.assertGreaterEqual(payload["counts"]["paper_theory_roundtrip_dependency_edges"], 1)
+        self.assertEqual(
+            payload["counts"]["paper_theory_roundtrip_stat_theory_ir_rows"],
+            payload["counts"]["paper_theory_roundtrip_statements"],
+        )
+        self.assertEqual(
+            payload["counts"]["paper_theory_roundtrip_lean_candidate_queue_rows"],
+            payload["counts"]["paper_theory_roundtrip_roundtrip_review_rows"],
+        )
+        self.assertEqual(payload["counts"]["paper_theory_roundtrip_proof_evidence_ready"], 0)
+        self.assertEqual(
+            payload["counts"]["paper_theory_roundtrip_proof_evidence_status"],
+            "PAPER_THEORY_ROUNDTRIP_NOT_PROOF_EVIDENCE",
+        )
         self.assertTrue(payload["counts"]["architecture_has_live_revision_loop"])
         self.assertGreaterEqual(payload["counts"]["architecture_components_partial"], 1)
         self.assertGreaterEqual(payload["counts"]["architecture_feedback_routes"], 5)
@@ -19510,6 +19906,16 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(Path(payload["artifacts"]["frontier_precision_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["frontier_backlog_audit"]).exists())
         self.assertTrue(Path(payload["artifacts"]["frontier_backlog_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["frontier_discover_and_prove_prompt_packets"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["frontier_discover_and_prove_prompt_packets_jsonl"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["frontier_discover_and_prove_prompt_packets_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["paper_theory_roundtrip"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["paper_theory_roundtrip_statement_catalog_jsonl"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["paper_theory_roundtrip_stat_theory_ir_jsonl"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["paper_theory_roundtrip_lean_candidate_queue_jsonl"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["paper_theory_roundtrip_roundtrip_review_queue_jsonl"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["paper_theory_roundtrip_dependency_graph"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["paper_theory_roundtrip_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["research_capability_audit"]).exists())
         self.assertTrue(Path(payload["artifacts"]["research_capability_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["frontier_smoke_benchmark"]).exists())
