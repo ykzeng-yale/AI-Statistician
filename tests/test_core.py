@@ -7188,6 +7188,26 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                 "required_primitives": ["p_value_validity", "stepup_threshold_monotonicity"],
                 "evidence_paths": ["runs/test_stat_claim_certificate_plan_ledger/bh.json"],
             },
+            {
+                "claim_id": "theorem_goal:causal_ate_aipw:causal_identification",
+                "question_id": "causal_ate_aipw",
+                "problem_class": "semiparametric_causal_ate",
+                "kind": "theorem_goal",
+                "status": "FORMAL_GAP",
+                "statement": "ATE identification uses consistency, exchangeability, and positivity.",
+                "required_primitives": ["conditional_exchangeability", "positivity"],
+                "evidence_paths": ["runs/test_stat_claim_certificate_plan_ledger/causal.json"],
+            },
+            {
+                "claim_id": "theorem_goal:causal_ate_aipw:aipw_double_robustness",
+                "question_id": "causal_ate_aipw",
+                "problem_class": "semiparametric_causal_ate",
+                "kind": "theorem_goal",
+                "status": "FORMAL_GAP",
+                "statement": "AIPW double robustness follows by cancelling conditional mean residuals.",
+                "required_primitives": ["conditional_mean_residual_zero", "aipw_score_definition"],
+                "evidence_paths": ["runs/test_stat_claim_certificate_plan_ledger/aipw.json"],
+            },
         ]
         (ledger_dir / "claim_ledger_manifest.json").write_text(
             json.dumps({"all_ok": True, "n_claims": len(rows)}),
@@ -7211,6 +7231,14 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertEqual(payload["by_family"]["conformal_coverage_certificate"], 1)
         self.assertEqual(payload["by_family"]["randomization_variance_certificate"], 1)
         self.assertEqual(payload["by_family"]["multiple_testing_threshold_certificate"], 1)
+        self.assertNotIn(
+            "theorem_goal:causal_ate_aipw:causal_identification",
+            {target["source_claim_id"] for target in payload["targets"]},
+        )
+        self.assertNotIn(
+            "theorem_goal:causal_ate_aipw:aipw_double_robustness",
+            {target["source_claim_id"] for target in payload["targets"]},
+        )
         first = payload["targets"][0]
         self.assertIn("checker cert = true", first["checker_theorem_shape"])
         self.assertIn("Lean/AXLE kernel verifies", first["required_gate"])

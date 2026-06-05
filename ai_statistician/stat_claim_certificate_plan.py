@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections import Counter
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -42,6 +43,15 @@ CERTIFICATE_BLUEPRINTS: tuple[dict[str, object], ...] = (
     {
         "family": "conformal_coverage_certificate",
         "checker": "ConformalCoverageCertificateChecker",
+        "anchor_keywords": (
+            "conformal",
+            "nonconformity",
+            "prediction interval",
+            "prediction set",
+            "exchangeable ranks",
+            "order-statistic quantile",
+            "quantile threshold",
+        ),
         "keywords": (
             "conformal",
             "exchangeability",
@@ -69,6 +79,14 @@ CERTIFICATE_BLUEPRINTS: tuple[dict[str, object], ...] = (
     {
         "family": "randomization_variance_certificate",
         "checker": "RandomizationVarianceCertificateChecker",
+        "anchor_keywords": (
+            "randomization",
+            "design-based",
+            "neyman",
+            "complete randomization",
+            "difference-in-means",
+            "finite-population",
+        ),
         "keywords": (
             "randomization",
             "design-based",
@@ -97,6 +115,12 @@ CERTIFICATE_BLUEPRINTS: tuple[dict[str, object], ...] = (
     {
         "family": "privacy_accountant_certificate",
         "checker": "PrivacyAccountantCertificateChecker",
+        "anchor_keywords": (
+            "privacy",
+            "differential privacy",
+            "privacy accountant",
+            "privacy-loss",
+        ),
         "keywords": (
             "privacy",
             "differential privacy",
@@ -123,6 +147,14 @@ CERTIFICATE_BLUEPRINTS: tuple[dict[str, object], ...] = (
     {
         "family": "kkt_optimality_certificate",
         "checker": "KktOptimalityCertificateChecker",
+        "anchor_keywords": (
+            "kkt",
+            "primal-dual",
+            "dual",
+            "convex",
+            "stationarity",
+            "lasso",
+        ),
         "keywords": (
             "kkt",
             "convex",
@@ -151,6 +183,16 @@ CERTIFICATE_BLUEPRINTS: tuple[dict[str, object], ...] = (
     {
         "family": "multiple_testing_threshold_certificate",
         "checker": "MultipleTestingThresholdCertificateChecker",
+        "anchor_keywords": (
+            "multiple testing",
+            "fdr",
+            "false discovery",
+            "benjamini",
+            "hochberg",
+            "bh",
+            "p-value",
+            "p_value",
+        ),
         "keywords": (
             "multiple testing",
             "fdr",
@@ -179,6 +221,16 @@ CERTIFICATE_BLUEPRINTS: tuple[dict[str, object], ...] = (
     {
         "family": "empirical_process_bound_certificate",
         "checker": "EmpiricalProcessBoundCertificateChecker",
+        "anchor_keywords": (
+            "empirical process",
+            "entropy",
+            "bracketing",
+            "covering number",
+            "symmetrization",
+            "rademacher",
+            "donsker",
+            "weak convergence",
+        ),
         "keywords": (
             "empirical process",
             "entropy",
@@ -324,11 +376,25 @@ def _best_blueprint(row: dict[str, Any]) -> tuple[dict[str, object] | None, int]
     best: dict[str, object] | None = None
     best_score = 0
     for blueprint in CERTIFICATE_BLUEPRINTS:
-        score = sum(1 for keyword in blueprint["keywords"] if str(keyword).lower() in haystack)
+        anchor_score = sum(
+            1 for keyword in blueprint.get("anchor_keywords", ()) if _keyword_present(str(keyword), haystack)
+        )
+        if anchor_score == 0:
+            continue
+        score = anchor_score * 2 + sum(
+            1 for keyword in blueprint["keywords"] if _keyword_present(str(keyword), haystack)
+        )
         if score > best_score:
             best = blueprint
             best_score = score
     return best, best_score
+
+
+def _keyword_present(keyword: str, haystack: str) -> bool:
+    keyword = keyword.strip().lower()
+    if not keyword:
+        return False
+    return re.search(rf"(?<![a-z0-9]){re.escape(keyword)}(?![a-z0-9])", haystack) is not None
 
 
 def _target_from_ledger_row(
