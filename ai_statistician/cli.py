@@ -139,6 +139,9 @@ from .formal_verifier_agentic_proof_execution_materializer import (
 from .formal_verifier_agentic_proof_execution_artifact_verifier import (
     export_formal_verifier_agentic_proof_execution_artifact_verifier,
 )
+from .formal_verifier_agentic_proof_trace_memory import (
+    export_formal_verifier_agentic_proof_trace_memory,
+)
 from .formal_verifier_agentic_proof_source_theorem_promotion_queue import (
     export_formal_verifier_agentic_proof_source_theorem_promotion_queue,
 )
@@ -2908,6 +2911,40 @@ def _formal_verifier_agentic_proof_source_theorem_promotion_queue(
     print(
         f"markdown report written to "
         f"{(Path(args.out) / 'formal_verifier_agentic_proof_source_theorem_promotion_queue.md').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formal_verifier_agentic_proof_trace_memory(
+    args: argparse.Namespace,
+) -> int:
+    payload = export_formal_verifier_agentic_proof_trace_memory(
+        Path(args.formal_verifier_agentic_proof_execution_artifact_verifier_dir),
+        Path(args.out),
+    )
+    print("\nAI Statistical Theory Lab Formal Verifier Agentic Proof Trace Memory")
+    print("=" * 72)
+    print(
+        f"rows={payload['n_ok']}/{payload['n_trace_memory_rows']} "
+        f"events={payload['n_transcript_events']} "
+        f"verifier_events={payload['n_with_verifier_result_event']} "
+        f"artifact_kernel={payload['n_artifact_kernel_verified']} "
+        f"source_theorem_kernel={payload['n_source_theorem_kernel_verified']} "
+        f"goal_cache={payload['n_goal_cache_keys']} "
+        f"lineage={payload['n_candidate_lineage_keys']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nagentic proof trace memory manifest written to "
+        f"{(Path(args.out) / 'formal_verifier_agentic_proof_trace_memory_manifest.json').resolve()}"
+    )
+    print(
+        f"agentic proof trace memory jsonl written to "
+        f"{(Path(args.out) / 'formal_verifier_agentic_proof_trace_memory.jsonl').resolve()}"
+    )
+    print(
+        f"markdown report written to "
+        f"{(Path(args.out) / 'formal_verifier_agentic_proof_trace_memory.md').resolve()}"
     )
     return 0 if payload["all_ok"] else 1
 
@@ -5904,6 +5941,24 @@ def build_parser() -> argparse.ArgumentParser:
     )
     formal_verifier_agentic_proof_execution_artifact_verifier.set_defaults(
         func=_formal_verifier_agentic_proof_execution_artifact_verifier
+    )
+
+    formal_verifier_agentic_proof_trace_memory = sub.add_parser(
+        "formal-verifier-agentic-proof-trace-memory",
+        help="summarize agentic proof execution transcripts into reusable search memory",
+    )
+    formal_verifier_agentic_proof_trace_memory.add_argument(
+        "--formal-verifier-agentic-proof-execution-artifact-verifier-dir",
+        required=True,
+        help="directory containing formal_verifier_agentic_proof_execution_artifact_verifier_manifest.json",
+    )
+    formal_verifier_agentic_proof_trace_memory.add_argument(
+        "--out",
+        default="runs/formal_verifier_agentic_proof_trace_memory",
+        help="formal-verifier agentic proof trace memory output directory",
+    )
+    formal_verifier_agentic_proof_trace_memory.set_defaults(
+        func=_formal_verifier_agentic_proof_trace_memory
     )
 
     formal_verifier_agentic_proof_source_theorem_promotion_queue = sub.add_parser(

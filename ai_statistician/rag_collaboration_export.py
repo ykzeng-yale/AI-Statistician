@@ -297,6 +297,14 @@ def export_rag_collaboration_manifest(
     formal_verifier_agentic_proof_execution_artifact_verifier_payload = _read_json(
         formal_verifier_agentic_proof_execution_artifact_verifier_path
     )
+    formal_verifier_agentic_proof_trace_memory_path = _artifact_path(
+        artifacts,
+        "formal_verifier_agentic_proof_trace_memory",
+        run_dir,
+    )
+    formal_verifier_agentic_proof_trace_memory_payload = _read_json(
+        formal_verifier_agentic_proof_trace_memory_path
+    )
     formal_verifier_agentic_proof_source_theorem_promotion_queue_path = _artifact_path(
         artifacts,
         "formal_verifier_agentic_proof_source_theorem_promotion_queue",
@@ -332,6 +340,7 @@ def export_rag_collaboration_manifest(
         formal_verifier_agentic_proof_execution_queue_payload=formal_verifier_agentic_proof_execution_queue_payload,
         formal_verifier_agentic_proof_execution_materializer_payload=formal_verifier_agentic_proof_execution_materializer_payload,
         formal_verifier_agentic_proof_execution_artifact_verifier_payload=formal_verifier_agentic_proof_execution_artifact_verifier_payload,
+        formal_verifier_agentic_proof_trace_memory_payload=formal_verifier_agentic_proof_trace_memory_payload,
         formal_verifier_agentic_proof_source_theorem_promotion_queue_payload=formal_verifier_agentic_proof_source_theorem_promotion_queue_payload,
         formal_verifier_agentic_proof_source_theorem_target_resolution_payload=formal_verifier_agentic_proof_source_theorem_target_resolution_payload,
     )
@@ -1717,6 +1726,73 @@ def export_rag_collaboration_manifest(
                 formal_verifier_agentic_proof_execution_artifact_verifier_payload,
                 max_rows=min(max_targets, 10),
             ),
+            "formal_verifier_agentic_proof_trace_memory_rows": counts.get(
+                "formal_verifier_agentic_proof_trace_memory_rows",
+                formal_verifier_agentic_proof_trace_memory_payload.get(
+                    "n_trace_memory_rows"
+                ),
+            ),
+            "formal_verifier_agentic_proof_trace_memory_transcript_events": counts.get(
+                "formal_verifier_agentic_proof_trace_memory_transcript_events",
+                formal_verifier_agentic_proof_trace_memory_payload.get(
+                    "n_transcript_events"
+                ),
+            ),
+            "formal_verifier_agentic_proof_trace_memory_verifier_events": counts.get(
+                "formal_verifier_agentic_proof_trace_memory_verifier_events",
+                formal_verifier_agentic_proof_trace_memory_payload.get(
+                    "n_with_verifier_result_event"
+                ),
+            ),
+            "formal_verifier_agentic_proof_trace_memory_artifact_kernel_verified": counts.get(
+                "formal_verifier_agentic_proof_trace_memory_artifact_kernel_verified",
+                formal_verifier_agentic_proof_trace_memory_payload.get(
+                    "n_artifact_kernel_verified"
+                ),
+            ),
+            "formal_verifier_agentic_proof_trace_memory_source_theorem_kernel_verified": counts.get(
+                "formal_verifier_agentic_proof_trace_memory_source_theorem_kernel_verified",
+                formal_verifier_agentic_proof_trace_memory_payload.get(
+                    "n_source_theorem_kernel_verified"
+                ),
+            ),
+            "formal_verifier_agentic_proof_trace_memory_goal_cache_keys": counts.get(
+                "formal_verifier_agentic_proof_trace_memory_goal_cache_keys",
+                formal_verifier_agentic_proof_trace_memory_payload.get(
+                    "n_goal_cache_keys"
+                ),
+            ),
+            "formal_verifier_agentic_proof_trace_memory_candidate_lineage_keys": counts.get(
+                "formal_verifier_agentic_proof_trace_memory_candidate_lineage_keys",
+                formal_verifier_agentic_proof_trace_memory_payload.get(
+                    "n_candidate_lineage_keys"
+                ),
+            ),
+            "formal_verifier_agentic_proof_trace_memory_with_repair_signals": counts.get(
+                "formal_verifier_agentic_proof_trace_memory_with_repair_signals",
+                formal_verifier_agentic_proof_trace_memory_payload.get(
+                    "n_with_repair_signals"
+                ),
+            ),
+            "formal_verifier_agentic_proof_trace_memory_with_required_followups": counts.get(
+                "formal_verifier_agentic_proof_trace_memory_with_required_followups",
+                formal_verifier_agentic_proof_trace_memory_payload.get(
+                    "n_with_required_followups"
+                ),
+            ),
+            "formal_verifier_agentic_proof_trace_memory_proof_evidence_status": counts.get(
+                "formal_verifier_agentic_proof_trace_memory_proof_evidence_status",
+                formal_verifier_agentic_proof_trace_memory_payload.get(
+                    "proof_evidence_status"
+                ),
+            ),
+            "formal_verifier_agentic_proof_trace_memory_manifest": str(
+                formal_verifier_agentic_proof_trace_memory_path
+            ),
+            "formal_verifier_agentic_proof_trace_memory_preview": _formal_verifier_agentic_proof_trace_memory_preview(
+                formal_verifier_agentic_proof_trace_memory_payload,
+                max_rows=min(max_targets, 10),
+            ),
             "formal_verifier_agentic_proof_source_theorem_promotion_rows": counts.get(
                 "formal_verifier_agentic_proof_source_theorem_promotion_rows",
                 formal_verifier_agentic_proof_source_theorem_promotion_queue_payload.get(
@@ -2046,6 +2122,15 @@ def _auto_discover_artifacts(
             / "formal_verifier_agentic_proof_execution_artifact_verifier_manifest.json",
             ("n_artifact_kernel_verified", "n_local_lean_checked"),
         ),
+        "formal_verifier_agentic_proof_trace_memory": (
+            Path("current_kernel_overlay_seeded_agentic_proof_trace_memory")
+            / "formal_verifier_agentic_proof_trace_memory_manifest.json",
+            (
+                "n_trace_memory_rows",
+                "n_with_verifier_result_event",
+                "n_artifact_kernel_verified",
+            ),
+        ),
         "formal_verifier_agentic_proof_source_theorem_promotion_queue": (
             Path(
                 "current_kernel_overlay_seeded_agentic_proof_source_theorem_promotion_queue"
@@ -2215,6 +2300,22 @@ def _overlay_auto_discovered_agentic_counts(
                 "formal_verifier_agentic_proof_execution_artifact_live_proof_state_request_failures": "n_live_proof_state_request_failures",
                 "formal_verifier_agentic_proof_execution_artifact_verifier_ok": "n_ok",
                 "formal_verifier_agentic_proof_execution_artifact_proof_evidence_status": "proof_evidence_status",
+            },
+        ),
+        "formal_verifier_agentic_proof_trace_memory": (
+            "formal_verifier_agentic_proof_trace_memory_payload",
+            {
+                "formal_verifier_agentic_proof_trace_memory_rows": "n_trace_memory_rows",
+                "formal_verifier_agentic_proof_trace_memory_transcript_events": "n_transcript_events",
+                "formal_verifier_agentic_proof_trace_memory_verifier_events": "n_with_verifier_result_event",
+                "formal_verifier_agentic_proof_trace_memory_artifact_kernel_verified": "n_artifact_kernel_verified",
+                "formal_verifier_agentic_proof_trace_memory_source_theorem_kernel_verified": "n_source_theorem_kernel_verified",
+                "formal_verifier_agentic_proof_trace_memory_goal_cache_keys": "n_goal_cache_keys",
+                "formal_verifier_agentic_proof_trace_memory_candidate_lineage_keys": "n_candidate_lineage_keys",
+                "formal_verifier_agentic_proof_trace_memory_with_repair_signals": "n_with_repair_signals",
+                "formal_verifier_agentic_proof_trace_memory_with_required_followups": "n_with_required_followups",
+                "formal_verifier_agentic_proof_trace_memory_ok": "n_ok",
+                "formal_verifier_agentic_proof_trace_memory_proof_evidence_status": "proof_evidence_status",
             },
         ),
         "formal_verifier_agentic_proof_source_theorem_promotion_queue": (
@@ -3870,6 +3971,55 @@ def _formal_verifier_agentic_proof_execution_artifact_verifier_preview(
     return rows
 
 
+def _formal_verifier_agentic_proof_trace_memory_preview(
+    payload: dict[str, Any],
+    *,
+    max_rows: int,
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    memory_rows = payload.get("rows", [])
+    if not isinstance(memory_rows, list):
+        return rows
+    for row in memory_rows:
+        if not isinstance(row, dict):
+            continue
+        rows.append(
+            {
+                "trace_memory_id": row.get("trace_memory_id"),
+                "execution_transcript_path": row.get(
+                    "execution_transcript_path",
+                    "",
+                ),
+                "execution_queue_id": row.get("execution_queue_id"),
+                "artifact_verification_id": row.get("artifact_verification_id", ""),
+                "live_proof_state_request_id": row.get(
+                    "live_proof_state_request_id",
+                    "",
+                ),
+                "goal_cache_key": row.get("goal_cache_key", ""),
+                "candidate_lineage_key": row.get("candidate_lineage_key", ""),
+                "target_theorem_name": row.get("target_theorem_name", ""),
+                "target_lean_declaration": row.get("target_lean_declaration", ""),
+                "event_types": row.get("event_types", []),
+                "artifact_kernel_verified": row.get("artifact_kernel_verified"),
+                "source_theorem_kernel_verified": row.get(
+                    "source_theorem_kernel_verified"
+                ),
+                "learned_outcome": row.get("learned_outcome", ""),
+                "diagnostic_signature": row.get("diagnostic_signature", ""),
+                "sampler_policy_update": row.get("sampler_policy_update", ""),
+                "replay_priority_delta": row.get("replay_priority_delta"),
+                "repair_signals": row.get("repair_signals", [])[:5],
+                "required_followups": row.get("required_followups", [])[:5],
+                "proof_evidence_status": row.get("proof_evidence_status", ""),
+                "proof_evidence_boundary": row.get("proof_evidence_boundary", ""),
+            }
+        )
+        if len(rows) >= max_rows:
+            break
+    return rows
+
+
 def _formal_verifier_agentic_proof_source_theorem_promotion_preview(
     payload: dict[str, Any],
     *,
@@ -4219,6 +4369,13 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"`{queue.get('formal_verifier_agentic_proof_execution_artifact_live_proof_state_requests')}` valid, "
         f"source theorem kernel `{queue.get('formal_verifier_agentic_proof_execution_source_theorem_kernel_verified')}` "
         f"({queue.get('formal_verifier_agentic_proof_execution_artifact_proof_evidence_status')})",
+        f"- Formal verifier agentic proof trace memory: `{queue.get('formal_verifier_agentic_proof_trace_memory_rows')}` rows "
+        f"(`{queue.get('formal_verifier_agentic_proof_trace_memory_verifier_events')}` verifier events, "
+        f"`{queue.get('formal_verifier_agentic_proof_trace_memory_artifact_kernel_verified')}` artifact-kernel outcomes, "
+        f"`{queue.get('formal_verifier_agentic_proof_trace_memory_source_theorem_kernel_verified')}` source-theorem kernels, "
+        f"`{queue.get('formal_verifier_agentic_proof_trace_memory_goal_cache_keys')}` goal-cache keys, "
+        f"`{queue.get('formal_verifier_agentic_proof_trace_memory_with_required_followups')}` with followups, "
+        f"{queue.get('formal_verifier_agentic_proof_trace_memory_proof_evidence_status')})",
         f"- Formal verifier agentic source-theorem promotion: `{queue.get('formal_verifier_agentic_proof_source_theorem_promotion_rows')}` rows "
         f"(`{queue.get('formal_verifier_agentic_proof_source_theorem_promotion_ready')}` ready, "
         f"`{queue.get('formal_verifier_agentic_proof_source_theorem_promotion_needs_target_resolution')}` target-resolution, "

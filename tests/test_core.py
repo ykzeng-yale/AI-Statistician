@@ -106,6 +106,9 @@ from ai_statistician.formal_verifier_agentic_proof_execution_materializer import
 from ai_statistician.formal_verifier_agentic_proof_execution_artifact_verifier import (
     export_formal_verifier_agentic_proof_execution_artifact_verifier,
 )
+from ai_statistician.formal_verifier_agentic_proof_trace_memory import (
+    export_formal_verifier_agentic_proof_trace_memory,
+)
 from ai_statistician.formal_verifier_agentic_proof_source_theorem_promotion_queue import (
     export_formal_verifier_agentic_proof_source_theorem_promotion_queue,
 )
@@ -3871,6 +3874,68 @@ class SystemTests(unittest.TestCase):
         self.assertFalse(verifier_events[0]["source_theorem_kernel_verified"])
         self.assertIn("NOT_SOURCE_THEOREM", verified_row["verification_status"])
         self.assertIn("not proof evidence", verified_row["proof_evidence_boundary"])
+
+        trace_memory = export_formal_verifier_agentic_proof_trace_memory(
+            root / "artifact_verifier",
+            root / "trace_memory",
+        )
+        self.assertTrue(trace_memory["all_ok"])
+        self.assertEqual(trace_memory["n_trace_memory_rows"], 1)
+        self.assertEqual(trace_memory["n_transcript_events"], 2)
+        self.assertEqual(trace_memory["n_with_materialization_event"], 1)
+        self.assertEqual(trace_memory["n_with_verifier_result_event"], 1)
+        self.assertEqual(trace_memory["n_artifact_kernel_verified"], 1)
+        self.assertEqual(trace_memory["n_source_theorem_kernel_verified"], 0)
+        self.assertEqual(trace_memory["n_goal_cache_keys"], 1)
+        self.assertEqual(trace_memory["n_candidate_lineage_keys"], 1)
+        self.assertEqual(trace_memory["n_with_required_followups"], 1)
+        self.assertEqual(
+            trace_memory["proof_evidence_status"],
+            "AGENTIC_PROOF_TRACE_MEMORY_NOT_PROOF_EVIDENCE",
+        )
+        trace_row = trace_memory["rows"][0]
+        self.assertEqual(
+            trace_row["learned_outcome"],
+            "ARTIFACT_KERNEL_VERIFIED_SOURCE_THEOREM_OPEN",
+        )
+        self.assertEqual(
+            trace_row["execution_transcript_path"],
+            materialized_row["execution_transcript_path"],
+        )
+        self.assertEqual(
+            trace_row["artifact_verification_id"],
+            verified_row["artifact_verification_id"],
+        )
+        self.assertEqual(trace_row["goal_cache_key"], "agentic_goal_cache:test")
+        self.assertEqual(
+            trace_row["candidate_lineage_key"],
+            "candidate_lineage:test",
+        )
+        self.assertIn(
+            "candidate artifact compiles",
+            trace_row["reusable_success_signals"],
+        )
+        self.assertIn(
+            "source theorem blocked",
+            trace_row["sampler_policy_update"],
+        )
+        self.assertTrue(
+            any(
+                "full source theorem" in followup
+                for followup in trace_row["required_followups"]
+            )
+        )
+        self.assertIn(
+            "not theorem proof evidence",
+            trace_row["proof_evidence_boundary"],
+        )
+        self.assertTrue(
+            (
+                root
+                / "trace_memory"
+                / "formal_verifier_agentic_proof_trace_memory_manifest.json"
+            ).exists()
+        )
 
         source_promotion = (
             export_formal_verifier_agentic_proof_source_theorem_promotion_queue(
@@ -13461,6 +13526,9 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             parent
             / "current_kernel_overlay_seeded_agentic_proof_execution_artifact_verifier"
         )
+        seeded_trace_memory_dir = (
+            parent / "current_kernel_overlay_seeded_agentic_proof_trace_memory"
+        )
         seeded_source_theorem_promotion_dir = (
             parent
             / "current_kernel_overlay_seeded_agentic_proof_source_theorem_promotion_queue"
@@ -13490,6 +13558,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         seeded_execution_queue_dir.mkdir(parents=True, exist_ok=True)
         seeded_materializer_dir.mkdir(parents=True, exist_ok=True)
         seeded_artifact_verifier_dir.mkdir(parents=True, exist_ok=True)
+        seeded_trace_memory_dir.mkdir(parents=True, exist_ok=True)
         seeded_source_theorem_promotion_dir.mkdir(parents=True, exist_ok=True)
         seeded_source_theorem_target_resolution_dir.mkdir(parents=True, exist_ok=True)
         proof_fingerprint = "f" * 64
@@ -14013,6 +14082,66 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                             "proof_evidence_status": "AGENTIC_ARTIFACT_KERNEL_CHECK_NOT_SOURCE_THEOREM_PROOF",
                             "proof_evidence_boundary": (
                                 "Artifact verifier rows are not source theorem proof evidence."
+                            ),
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        (
+            seeded_trace_memory_dir
+            / "formal_verifier_agentic_proof_trace_memory_manifest.json"
+        ).write_text(
+            json.dumps(
+                {
+                    "n_verifier_rows": 1,
+                    "n_trace_memory_rows": 1,
+                    "n_execution_transcript_paths": 1,
+                    "n_transcript_events": 2,
+                    "n_with_materialization_event": 1,
+                    "n_with_verifier_result_event": 1,
+                    "n_artifact_kernel_verified": 1,
+                    "n_source_theorem_kernel_verified": 0,
+                    "n_goal_cache_keys": 1,
+                    "n_candidate_lineage_keys": 1,
+                    "n_live_proof_state_requests": 1,
+                    "n_with_repair_signals": 0,
+                    "n_with_required_followups": 1,
+                    "n_ok": 1,
+                    "proof_evidence_status": "AGENTIC_PROOF_TRACE_MEMORY_NOT_PROOF_EVIDENCE",
+                    "rows": [
+                        {
+                            "trace_memory_id": "formal_verifier_agentic_proof_trace_memory:auto",
+                            "execution_transcript_path": "runs/current_kernel_overlay_seeded_agentic_proof_execution_queue/execution_transcripts/auto_claim_skeleton.jsonl",
+                            "execution_queue_id": "formal_verifier_agentic_proof_execution_queue:auto",
+                            "materialization_id": "formal_verifier_agentic_proof_execution_materializer:auto",
+                            "artifact_verification_id": "formal_verifier_agentic_proof_execution_artifact_verifier:auto",
+                            "live_proof_state_request_id": "live_proof_state_request:auto",
+                            "goal_cache_key": "agentic_goal_cache:auto",
+                            "candidate_lineage_key": "agentic_candidate_lineage:auto",
+                            "target_theorem_name": "formal:auto:claim",
+                            "target_lean_declaration": "auto_claim_skeleton_route_probe",
+                            "event_types": [
+                                "candidate_artifact_materialized",
+                                "artifact_verifier_result",
+                            ],
+                            "artifact_kernel_verified": True,
+                            "source_theorem_kernel_verified": False,
+                            "learned_outcome": "ARTIFACT_KERNEL_VERIFIED_SOURCE_THEOREM_OPEN",
+                            "diagnostic_signature": "agentic_trace_diag:auto",
+                            "sampler_policy_update": (
+                                "increase sampling weight for this route-probe lineage while keeping source theorem blocked"
+                            ),
+                            "replay_priority_delta": 35,
+                            "repair_signals": [],
+                            "required_followups": [
+                                "resolve exact source theorem target",
+                                "rerun full source theorem under local Lean/AXLE",
+                            ],
+                            "proof_evidence_status": "AGENTIC_PROOF_TRACE_MEMORY_NOT_PROOF_EVIDENCE",
+                            "proof_evidence_boundary": (
+                                "Trace memory rows are search-memory summaries, not theorem proof evidence."
                             ),
                         }
                     ],
@@ -14558,6 +14687,69 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertEqual(
             verifier_preview["verification_status"],
             "ARTIFACT_KERNEL_VERIFIED_NOT_SOURCE_THEOREM",
+        )
+        self.assertEqual(
+            payload["artifact_auto_discoveries_applied"][
+                "formal_verifier_agentic_proof_trace_memory"
+            ],
+            str(
+                seeded_trace_memory_dir
+                / "formal_verifier_agentic_proof_trace_memory_manifest.json"
+            ),
+        )
+        self.assertEqual(queue["formal_verifier_agentic_proof_trace_memory_rows"], 1)
+        self.assertEqual(
+            queue["formal_verifier_agentic_proof_trace_memory_transcript_events"],
+            2,
+        )
+        self.assertEqual(
+            queue["formal_verifier_agentic_proof_trace_memory_verifier_events"],
+            1,
+        )
+        self.assertEqual(
+            queue[
+                "formal_verifier_agentic_proof_trace_memory_artifact_kernel_verified"
+            ],
+            1,
+        )
+        self.assertEqual(
+            queue[
+                "formal_verifier_agentic_proof_trace_memory_source_theorem_kernel_verified"
+            ],
+            0,
+        )
+        self.assertEqual(
+            queue["formal_verifier_agentic_proof_trace_memory_goal_cache_keys"],
+            1,
+        )
+        self.assertEqual(
+            queue[
+                "formal_verifier_agentic_proof_trace_memory_candidate_lineage_keys"
+            ],
+            1,
+        )
+        self.assertEqual(
+            queue[
+                "formal_verifier_agentic_proof_trace_memory_with_required_followups"
+            ],
+            1,
+        )
+        trace_preview = queue["formal_verifier_agentic_proof_trace_memory_preview"][0]
+        self.assertEqual(
+            trace_preview["learned_outcome"],
+            "ARTIFACT_KERNEL_VERIFIED_SOURCE_THEOREM_OPEN",
+        )
+        self.assertIn(
+            "source theorem blocked",
+            trace_preview["sampler_policy_update"],
+        )
+        self.assertIn(
+            "rerun full source theorem",
+            " ".join(trace_preview["required_followups"]),
+        )
+        self.assertEqual(
+            trace_preview["proof_evidence_status"],
+            "AGENTIC_PROOF_TRACE_MEMORY_NOT_PROOF_EVIDENCE",
         )
         self.assertEqual(
             payload["artifact_auto_discoveries_applied"][
