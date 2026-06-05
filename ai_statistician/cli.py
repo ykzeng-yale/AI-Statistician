@@ -33,6 +33,9 @@ from .stat_claim_certificate_witness_queue import (
 from .stat_claim_certificate_witness_materializer import (
     materialize_stat_claim_certificate_witness_drafts,
 )
+from .stat_claim_certificate_witness_prompt_packets import (
+    export_stat_claim_certificate_witness_prompt_packets,
+)
 from .stat_claim_certificate_witness_validator import (
     validate_stat_claim_certificate_witness_drafts,
 )
@@ -3423,6 +3426,32 @@ def _stat_claim_certificate_witness_materialize(args: argparse.Namespace) -> int
     return 0 if payload["all_ok"] else 1
 
 
+def _stat_claim_certificate_witness_prompt_packets(args: argparse.Namespace) -> int:
+    payload = export_stat_claim_certificate_witness_prompt_packets(
+        Path(args.materializer_dir),
+        Path(args.out),
+        max_packets=args.max_packets,
+    )
+    print("\nAI Statistical Theory Lab Statistical Claim Certificate Witness Prompt Packets")
+    print("=" * 72)
+    print(
+        f"packets={payload['n_ok']}/{payload['n_prompt_packets']} "
+        f"source_grounded={payload['n_with_source_evidence_paths']} "
+        f"contracts={payload['n_with_output_contract']} "
+        f"status={payload['proof_evidence_status']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    for family, count in payload["by_family"].items():
+        print(f"  {family}: {count}")
+    print(
+        f"\nwitness prompt packet manifest written to "
+        f"{(Path(args.out) / 'stat_claim_certificate_witness_prompt_packets_manifest.json').resolve()}"
+    )
+    print(f"prompt packets written to {(Path(args.out) / 'stat_claim_certificate_witness_prompt_packets.jsonl').resolve()}")
+    print(f"markdown report written to {(Path(args.out) / 'stat_claim_certificate_witness_prompt_packets.md').resolve()}")
+    return 0 if payload["all_ok"] else 1
+
+
 def _stat_claim_certificate_witness_validate(args: argparse.Namespace) -> int:
     payload = validate_stat_claim_certificate_witness_drafts(
         Path(args.materializer_dir),
@@ -6675,6 +6704,30 @@ def build_parser() -> argparse.ArgumentParser:
     )
     stat_claim_certificate_witness_materialize.set_defaults(
         func=_stat_claim_certificate_witness_materialize
+    )
+
+    stat_claim_certificate_witness_prompt_packets = sub.add_parser(
+        "stat-claim-certificate-witness-prompt-packets",
+        help="export source-grounded prompt packets for filling certificate witness drafts",
+    )
+    stat_claim_certificate_witness_prompt_packets.add_argument(
+        "--materializer-dir",
+        required=True,
+        help="directory containing stat_claim_certificate_witness_materializer_manifest.json",
+    )
+    stat_claim_certificate_witness_prompt_packets.add_argument(
+        "--max-packets",
+        type=int,
+        default=None,
+        help="optional maximum number of witness prompt packets to export",
+    )
+    stat_claim_certificate_witness_prompt_packets.add_argument(
+        "--out",
+        default="runs/stat_claim_certificate_witness_prompt_packets",
+        help="certificate witness prompt packet output directory",
+    )
+    stat_claim_certificate_witness_prompt_packets.set_defaults(
+        func=_stat_claim_certificate_witness_prompt_packets
     )
 
     stat_claim_certificate_witness_validate = sub.add_parser(
