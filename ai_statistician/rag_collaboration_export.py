@@ -1617,6 +1617,12 @@ def export_rag_collaboration_manifest(
                     "n_ready_for_source_theorem_integration"
                 ),
             ),
+            "formal_verifier_agentic_proof_source_theorem_promotion_needs_target_resolution": counts.get(
+                "formal_verifier_agentic_proof_source_theorem_promotion_needs_target_resolution",
+                formal_verifier_agentic_proof_source_theorem_promotion_queue_payload.get(
+                    "n_needs_source_theorem_target_resolution"
+                ),
+            ),
             "formal_verifier_agentic_proof_source_theorem_promotion_source_theorem_kernel_verified": counts.get(
                 "formal_verifier_agentic_proof_source_theorem_promotion_source_theorem_kernel_verified",
                 formal_verifier_agentic_proof_source_theorem_promotion_queue_payload.get(
@@ -1754,7 +1760,7 @@ def export_rag_collaboration_manifest(
             "FormalVerifier agentic proof execution queue rows are proof-worker work contracts, not theorem proof evidence.",
             "FormalVerifier agentic proof execution materializer rows are bounded proof-worker inputs, not theorem proof evidence.",
             "FormalVerifier agentic artifact verifier rows are artifact-level Lean checks only; they do not prove source theorem or residual gap claims.",
-            "FormalVerifier agentic source-theorem promotion queue rows are integration work orders, not proof evidence.",
+            "FormalVerifier agentic source-theorem promotion queue rows are target-resolution or integration work orders, not proof evidence.",
             "Formalization gap proof-state triage rows are proof-worker work orders, not theorem proof evidence.",
             "Claim-ledger repair-response promotion overlays close formal gaps only for matching ready kernel-verified promotion rows.",
             "FORMAL_GAP and theorem-hole queues remain open until a non-placeholder Lean proof is verified.",
@@ -1858,6 +1864,7 @@ def _auto_discover_artifacts(
             / "formal_verifier_agentic_proof_source_theorem_promotion_queue_manifest.json",
             (
                 "n_ready_for_source_theorem_integration",
+                "n_needs_source_theorem_target_resolution",
                 "n_source_theorem_kernel_verified",
             ),
         ),
@@ -2008,6 +2015,7 @@ def _overlay_auto_discovered_agentic_counts(
                 "formal_verifier_agentic_proof_source_theorem_promotion_rows": "n_promotion_rows",
                 "formal_verifier_agentic_proof_source_theorem_promotion_artifact_kernel_inputs": "n_artifact_kernel_verified_inputs",
                 "formal_verifier_agentic_proof_source_theorem_promotion_ready": "n_ready_for_source_theorem_integration",
+                "formal_verifier_agentic_proof_source_theorem_promotion_needs_target_resolution": "n_needs_source_theorem_target_resolution",
                 "formal_verifier_agentic_proof_source_theorem_promotion_source_theorem_kernel_verified": "n_source_theorem_kernel_verified",
                 "formal_verifier_agentic_proof_source_theorem_promotion_needs_source_target": "n_needs_source_theorem_target",
                 "formal_verifier_agentic_proof_source_theorem_promotion_blocked_artifact_failed": "n_blocked_artifact_verification_failed",
@@ -3873,6 +3881,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"({queue.get('formal_verifier_agentic_proof_execution_artifact_proof_evidence_status')})",
         f"- Formal verifier agentic source-theorem promotion: `{queue.get('formal_verifier_agentic_proof_source_theorem_promotion_rows')}` rows "
         f"(`{queue.get('formal_verifier_agentic_proof_source_theorem_promotion_ready')}` ready, "
+        f"`{queue.get('formal_verifier_agentic_proof_source_theorem_promotion_needs_target_resolution')}` target-resolution, "
         f"`{queue.get('formal_verifier_agentic_proof_source_theorem_promotion_artifact_kernel_inputs')}` artifact-kernel inputs, "
         f"`{queue.get('formal_verifier_agentic_proof_source_theorem_promotion_source_theorem_kernel_verified')}` source-theorem kernels, "
         f"`{queue.get('formal_verifier_agentic_proof_source_theorem_promotion_needs_source_target')}` need source target)",
@@ -4460,7 +4469,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         lines.append(f"  boundary: {row.get('proof_evidence_boundary')}")
     lines.extend(["", "## Agentic Source-Theorem Promotion Queue", ""])
     lines.append(
-        "Rows here are integration work orders from artifact-level Lean checks; "
+        "Rows here are target-resolution or integration work orders from artifact-level Lean checks; "
         "they do not close source theorem gaps by themselves."
     )
     for row in queue.get(

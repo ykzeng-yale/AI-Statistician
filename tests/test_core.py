@@ -3663,6 +3663,10 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(source_promotion["n_artifact_kernel_verified_inputs"], 1)
         self.assertEqual(
             source_promotion["n_ready_for_source_theorem_integration"],
+            0,
+        )
+        self.assertEqual(
+            source_promotion["n_needs_source_theorem_target_resolution"],
             1,
         )
         self.assertEqual(source_promotion["n_source_theorem_kernel_verified"], 0)
@@ -3670,15 +3674,15 @@ class SystemTests(unittest.TestCase):
         source_promotion_row = source_promotion["rows"][0]
         self.assertEqual(
             source_promotion_row["promotion_status"],
-            "READY_FOR_SOURCE_THEOREM_INTEGRATION",
+            "NEEDS_SOURCE_THEOREM_TARGET_RESOLUTION",
         )
         self.assertEqual(
             source_promotion_row["action_type"],
-            "integrate_artifact_proof_into_source_theorem",
+            "resolve_source_theorem_target_for_artifact",
         )
         self.assertTrue(source_promotion_row["artifact_kernel_verified"])
         self.assertFalse(source_promotion_row["source_theorem_kernel_verified"])
-        self.assertIn("source theorem", source_promotion_row["required_gate"])
+        self.assertIn("route ledger resolves", source_promotion_row["required_gate"])
         self.assertIn(
             "not source theorem proof evidence",
             source_promotion_row["proof_evidence_boundary"],
@@ -3689,6 +3693,37 @@ class SystemTests(unittest.TestCase):
                 / "source_theorem_promotion_queue"
                 / "formal_verifier_agentic_proof_source_theorem_promotion_queue_manifest.json"
             ).exists()
+        )
+
+        verifier_manifest_path = (
+            root
+            / "artifact_verifier"
+            / "formal_verifier_agentic_proof_execution_artifact_verifier_manifest.json"
+        )
+        verifier_payload = json.loads(verifier_manifest_path.read_text(encoding="utf-8"))
+        verifier_payload["rows"][0]["source_theorem_lean_file"] = "StatInference/Target.lean"
+        verifier_manifest_path.write_text(json.dumps(verifier_payload), encoding="utf-8")
+        source_promotion_ready = (
+            export_formal_verifier_agentic_proof_source_theorem_promotion_queue(
+                root / "artifact_verifier",
+                root / "source_theorem_promotion_queue_ready",
+            )
+        )
+        self.assertEqual(
+            source_promotion_ready["n_ready_for_source_theorem_integration"],
+            1,
+        )
+        self.assertEqual(
+            source_promotion_ready["n_needs_source_theorem_target_resolution"],
+            0,
+        )
+        self.assertEqual(
+            source_promotion_ready["rows"][0]["promotion_status"],
+            "READY_FOR_SOURCE_THEOREM_INTEGRATION",
+        )
+        self.assertEqual(
+            source_promotion_ready["rows"][0]["action_type"],
+            "integrate_artifact_proof_into_source_theorem",
         )
 
         queue_after = export_formal_verifier_agentic_proof_execution_queue(
@@ -13583,7 +13618,8 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                     "n_promotion_rows": 1,
                     "n_artifact_kernel_verified_inputs": 1,
                     "n_source_theorem_kernel_verified": 0,
-                    "n_ready_for_source_theorem_integration": 1,
+                    "n_ready_for_source_theorem_integration": 0,
+                    "n_needs_source_theorem_target_resolution": 1,
                     "n_blocked_artifact_verification_failed": 0,
                     "n_source_theorem_target_known": 0,
                     "n_needs_source_theorem_target": 1,
@@ -13602,12 +13638,12 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                             "artifact_kernel_verified": True,
                             "source_theorem_kernel_verified": False,
                             "source_theorem_target_known": False,
-                            "promotion_status": "READY_FOR_SOURCE_THEOREM_INTEGRATION",
+                            "promotion_status": "NEEDS_SOURCE_THEOREM_TARGET_RESOLUTION",
                             "owner_agent": "formal_verifier_source_theorem_integrator",
-                            "action_type": "integrate_artifact_proof_into_source_theorem",
+                            "action_type": "resolve_source_theorem_target_for_artifact",
                             "priority": "high",
                             "required_gate": (
-                                "source theorem passes AXLE/local Lean without placeholders"
+                                "route ledger resolves the exact source theorem target"
                             ),
                             "required_inputs": [
                                 "candidate_artifact_path",
@@ -13615,7 +13651,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                             ],
                             "command_plan": [
                                 "resolve the source theorem file",
-                                "run AXLE or local Lean on the source theorem target",
+                                "rerun source-theorem promotion queue before source integration",
                             ],
                             "proof_evidence_status": "SOURCE_THEOREM_PROMOTION_QUEUE_NOT_PROOF_EVIDENCE",
                             "proof_evidence_boundary": (
@@ -13970,6 +14006,12 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         )
         self.assertEqual(
             queue["formal_verifier_agentic_proof_source_theorem_promotion_ready"],
+            0,
+        )
+        self.assertEqual(
+            queue[
+                "formal_verifier_agentic_proof_source_theorem_promotion_needs_target_resolution"
+            ],
             1,
         )
         self.assertEqual(
@@ -13989,11 +14031,11 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         ][0]
         self.assertEqual(
             source_promotion_preview["promotion_status"],
-            "READY_FOR_SOURCE_THEOREM_INTEGRATION",
+            "NEEDS_SOURCE_THEOREM_TARGET_RESOLUTION",
         )
         self.assertEqual(
             source_promotion_preview["action_type"],
-            "integrate_artifact_proof_into_source_theorem",
+            "resolve_source_theorem_target_for_artifact",
         )
         self.assertTrue(source_promotion_preview["artifact_kernel_verified"])
         self.assertFalse(
@@ -14025,7 +14067,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             " ".join(payload["honesty_boundaries"]),
         )
         self.assertIn(
-            "source-theorem promotion queue rows are integration work orders",
+            "source-theorem promotion queue rows are target-resolution or integration work orders",
             " ".join(payload["honesty_boundaries"]),
         )
         kernel_overlay = payload["kernel_proof_evidence_overlays"]
@@ -17604,6 +17646,12 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         )
         self.assertEqual(
             payload["counts"]["formal_verifier_agentic_proof_source_theorem_promotion_ready"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_agentic_proof_source_theorem_promotion_needs_target_resolution"
+            ],
             0,
         )
         self.assertEqual(

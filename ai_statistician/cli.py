@@ -2846,6 +2846,7 @@ def _formal_verifier_agentic_proof_source_theorem_promotion_queue(
         f"rows={payload['n_ok']}/{payload['n_promotion_rows']} "
         f"artifact_kernel_inputs={payload['n_artifact_kernel_verified_inputs']} "
         f"ready_source_integration={payload['n_ready_for_source_theorem_integration']} "
+        f"needs_target_resolution={payload['n_needs_source_theorem_target_resolution']} "
         f"source_theorem_kernel={payload['n_source_theorem_kernel_verified']} "
         f"needs_source_target={payload['n_needs_source_theorem_target']} "
         f"all_ok={payload['all_ok']}"

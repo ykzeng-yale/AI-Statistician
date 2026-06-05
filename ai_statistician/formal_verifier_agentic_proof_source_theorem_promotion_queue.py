@@ -92,6 +92,10 @@ def export_formal_verifier_agentic_proof_source_theorem_promotion_queue(
             "READY_FOR_SOURCE_THEOREM_INTEGRATION",
             0,
         ),
+        "n_needs_source_theorem_target_resolution": by_status.get(
+            "NEEDS_SOURCE_THEOREM_TARGET_RESOLUTION",
+            0,
+        ),
         "n_blocked_artifact_verification_failed": by_status.get(
             "BLOCKED_ARTIFACT_VERIFICATION_FAILED",
             0,
@@ -179,7 +183,7 @@ def _promotion_row(
             "attach the source theorem verifier manifest to the claim ledger",
             "rerun proof audit and research-system audit release gates",
         )
-    elif artifact_kernel_verified:
+    elif artifact_kernel_verified and source_theorem_target_known:
         promotion_status = "READY_FOR_SOURCE_THEOREM_INTEGRATION"
         action_type = "integrate_artifact_proof_into_source_theorem"
         priority = "high"
@@ -193,6 +197,20 @@ def _promotion_row(
             "replace the route probe with the real source theorem target under bounded edits",
             "run AXLE or local Lean on the source theorem target",
             "promote only after source_theorem_kernel_verified=true",
+        )
+    elif artifact_kernel_verified:
+        promotion_status = "NEEDS_SOURCE_THEOREM_TARGET_RESOLUTION"
+        action_type = "resolve_source_theorem_target_for_artifact"
+        priority = "high"
+        required_gate = (
+            "route ledger resolves the exact source theorem file, declaration, "
+            "and statement before integration is attempted"
+        )
+        command_plan = (
+            "resolve the source theorem file and exact statement from the route ledger",
+            "attach source_theorem_lean_file or source_theorem_target_known=true to the verifier row",
+            "keep the compiled route-probe artifact as artifact-only kernel evidence",
+            "rerun source-theorem promotion queue before source integration",
         )
     else:
         promotion_status = "BLOCKED_ARTIFACT_VERIFICATION_FAILED"

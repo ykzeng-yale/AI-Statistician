@@ -3117,6 +3117,9 @@ async def run_research_system_audit(
             "formal_verifier_agentic_proof_source_theorem_promotion_ready": formal_verifier_agentic_proof_source_theorem_promotion_queue_manifest[
                 "n_ready_for_source_theorem_integration"
             ],
+            "formal_verifier_agentic_proof_source_theorem_promotion_needs_target_resolution": formal_verifier_agentic_proof_source_theorem_promotion_queue_manifest[
+                "n_needs_source_theorem_target_resolution"
+            ],
             "formal_verifier_agentic_proof_source_theorem_promotion_source_theorem_kernel_verified": formal_verifier_agentic_proof_source_theorem_promotion_queue_manifest[
                 "n_source_theorem_kernel_verified"
             ],
