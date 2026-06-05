@@ -3819,9 +3819,27 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(verified["n_local_lean_compiled"], 1)
         self.assertEqual(verified["n_artifact_kernel_verified"], 1)
         self.assertEqual(verified["n_source_theorem_kernel_verified"], 0)
+        self.assertEqual(verified["n_live_proof_state_requests"], 1)
+        self.assertEqual(verified["n_live_proof_state_request_valid"], 1)
+        self.assertEqual(verified["n_lean_lsp_mcp_ready_requests"], 1)
+        self.assertEqual(verified["n_live_proof_state_request_failures"], 0)
         verified_row = verified["rows"][0]
         self.assertTrue(verified_row["artifact_kernel_verified"])
         self.assertFalse(verified_row["source_theorem_kernel_verified"])
+        self.assertEqual(
+            verified_row["live_proof_state_request_id"],
+            live_request["request_id"],
+        )
+        self.assertTrue(verified_row["live_proof_state_request_valid"])
+        self.assertEqual(
+            verified_row["live_proof_state_request_status"],
+            "LIVE_PROOF_STATE_REQUEST_VALID",
+        )
+        self.assertIn(
+            "lean_lsp_mcp",
+            verified_row["live_proof_state_provider_preferences"],
+        )
+        self.assertIn("lean_goal", verified_row["live_proof_state_requested_tools"])
         self.assertIn("NOT_SOURCE_THEOREM", verified_row["verification_status"])
         self.assertIn("not proof evidence", verified_row["proof_evidence_boundary"])
 
@@ -13923,6 +13941,10 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                     "n_artifact_kernel_verified": 1,
                     "n_source_theorem_kernel_verified": 0,
                     "n_forbidden_token_failures": 0,
+                    "n_live_proof_state_requests": 1,
+                    "n_live_proof_state_request_valid": 1,
+                    "n_lean_lsp_mcp_ready_requests": 1,
+                    "n_live_proof_state_request_failures": 0,
                     "n_ok": 1,
                     "proof_evidence_status": "AGENTIC_ARTIFACT_KERNEL_CHECK_NOT_SOURCE_THEOREM_PROOF",
                     "rows": [
@@ -13935,6 +13957,18 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                             "candidate_artifact_path": candidate_artifact_path,
                             "target_lean_declaration": "auto_claim_skeleton_route_probe",
                             "target_lean_line": 21,
+                            "live_proof_state_request_id": "live_proof_state_request:auto",
+                            "live_proof_state_request_valid": True,
+                            "live_proof_state_request_status": "LIVE_PROOF_STATE_REQUEST_VALID",
+                            "live_proof_state_provider_preferences": [
+                                "lean_lsp_mcp",
+                                "local_lean_proof_state_adapter",
+                                "local.lake_env_lean",
+                            ],
+                            "live_proof_state_requested_tools": [
+                                "lean_goal",
+                                "lean_diagnostic_messages",
+                            ],
                             "local_lean_checked": True,
                             "local_lean_compiled": True,
                             "artifact_kernel_verified": True,
@@ -14424,6 +14458,30 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         )
         self.assertEqual(
             queue[
+                "formal_verifier_agentic_proof_execution_artifact_live_proof_state_requests"
+            ],
+            1,
+        )
+        self.assertEqual(
+            queue[
+                "formal_verifier_agentic_proof_execution_artifact_live_proof_state_request_valid"
+            ],
+            1,
+        )
+        self.assertEqual(
+            queue[
+                "formal_verifier_agentic_proof_execution_artifact_lean_lsp_mcp_ready_requests"
+            ],
+            1,
+        )
+        self.assertEqual(
+            queue[
+                "formal_verifier_agentic_proof_execution_artifact_live_proof_state_request_failures"
+            ],
+            0,
+        )
+        self.assertEqual(
+            queue[
                 "formal_verifier_agentic_proof_execution_artifact_proof_evidence_status"
             ],
             "AGENTIC_ARTIFACT_KERNEL_CHECK_NOT_SOURCE_THEOREM_PROOF",
@@ -14431,6 +14489,19 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         verifier_preview = queue[
             "formal_verifier_agentic_proof_execution_artifact_verifier_preview"
         ][0]
+        self.assertEqual(
+            verifier_preview["live_proof_state_request_id"],
+            "live_proof_state_request:auto",
+        )
+        self.assertTrue(verifier_preview["live_proof_state_request_valid"])
+        self.assertEqual(
+            verifier_preview["live_proof_state_request_status"],
+            "LIVE_PROOF_STATE_REQUEST_VALID",
+        )
+        self.assertIn(
+            "lean_goal",
+            verifier_preview["live_proof_state_requested_tools"],
+        )
         self.assertTrue(verifier_preview["artifact_kernel_verified"])
         self.assertFalse(verifier_preview["source_theorem_kernel_verified"])
         self.assertEqual(
@@ -18138,6 +18209,30 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertEqual(
             payload["counts"][
                 "formal_verifier_agentic_proof_execution_artifact_verifier_checked"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_agentic_proof_execution_artifact_live_proof_state_requests"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_agentic_proof_execution_artifact_live_proof_state_request_valid"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_agentic_proof_execution_artifact_lean_lsp_mcp_ready_requests"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formal_verifier_agentic_proof_execution_artifact_live_proof_state_request_failures"
             ],
             0,
         )

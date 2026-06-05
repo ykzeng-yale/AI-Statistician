@@ -2859,6 +2859,9 @@ def _formal_verifier_agentic_proof_execution_artifact_verifier(
         f"compiled={payload['n_local_lean_compiled']} "
         f"artifact_kernel={payload['n_artifact_kernel_verified']} "
         f"source_theorem_kernel={payload['n_source_theorem_kernel_verified']} "
+        f"live_request_valid={payload['n_live_proof_state_request_valid']}/"
+        f"{payload['n_live_proof_state_requests']} "
+        f"lean_lsp_mcp_ready={payload['n_lean_lsp_mcp_ready_requests']} "
         f"all_ok={payload['all_ok']}"
     )
     print(

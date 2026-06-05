@@ -3158,6 +3158,18 @@ async def run_research_system_audit(
             "formal_verifier_agentic_proof_execution_artifact_forbidden_token_failures": formal_verifier_agentic_proof_execution_artifact_verifier_manifest[
                 "n_forbidden_token_failures"
             ],
+            "formal_verifier_agentic_proof_execution_artifact_live_proof_state_requests": formal_verifier_agentic_proof_execution_artifact_verifier_manifest[
+                "n_live_proof_state_requests"
+            ],
+            "formal_verifier_agentic_proof_execution_artifact_live_proof_state_request_valid": formal_verifier_agentic_proof_execution_artifact_verifier_manifest[
+                "n_live_proof_state_request_valid"
+            ],
+            "formal_verifier_agentic_proof_execution_artifact_lean_lsp_mcp_ready_requests": formal_verifier_agentic_proof_execution_artifact_verifier_manifest[
+                "n_lean_lsp_mcp_ready_requests"
+            ],
+            "formal_verifier_agentic_proof_execution_artifact_live_proof_state_request_failures": formal_verifier_agentic_proof_execution_artifact_verifier_manifest[
+                "n_live_proof_state_request_failures"
+            ],
             "formal_verifier_agentic_proof_execution_artifact_verifier_ok": formal_verifier_agentic_proof_execution_artifact_verifier_manifest[
                 "n_ok"
             ],
@@ -4721,6 +4733,10 @@ def _write_disabled_agentic_artifact_verifier_manifest(
         "n_artifact_kernel_verified": 0,
         "n_source_theorem_kernel_verified": 0,
         "n_forbidden_token_failures": 0,
+        "n_live_proof_state_requests": 0,
+        "n_live_proof_state_request_valid": 0,
+        "n_lean_lsp_mcp_ready_requests": 0,
+        "n_live_proof_state_request_failures": 0,
         "n_ok": 0,
         "all_artifacts_kernel_verified": False,
         "all_ok": True,

@@ -34,6 +34,11 @@ class FormalVerifierAgenticProofExecutionArtifactVerifierRow:
     candidate_artifact_path: str
     target_lean_declaration: str
     target_lean_line: int
+    live_proof_state_request_id: str
+    live_proof_state_request_valid: bool
+    live_proof_state_request_status: str
+    live_proof_state_provider_preferences: tuple[str, ...]
+    live_proof_state_requested_tools: tuple[str, ...]
     local_lean_checked: bool
     local_lean_compiled: bool
     artifact_kernel_verified: bool
@@ -110,6 +115,24 @@ def export_formal_verifier_agentic_proof_execution_artifact_verifier(
         "n_forbidden_token_failures": sum(
             1 for row in rows if row.forbidden_tokens_found
         ),
+        "n_live_proof_state_requests": sum(
+            1 for row in rows if row.live_proof_state_request_id
+        ),
+        "n_live_proof_state_request_valid": sum(
+            1 for row in rows if row.live_proof_state_request_valid
+        ),
+        "n_lean_lsp_mcp_ready_requests": sum(
+            1
+            for row in rows
+            if row.live_proof_state_request_valid
+            and "lean_lsp_mcp" in row.live_proof_state_provider_preferences
+        ),
+        "n_live_proof_state_request_failures": sum(
+            1
+            for row in rows
+            if row.live_proof_state_request_status
+            not in {"", "LIVE_PROOF_STATE_REQUEST_VALID"}
+        ),
         "n_ok": sum(1 for row in rows if row.ok),
         "all_artifacts_kernel_verified": bool(rows)
         and all(row.artifact_kernel_verified for row in rows),
@@ -161,6 +184,20 @@ def _verifier_row(
     artifact_path = Path(str(row.get("candidate_artifact_path", "")))
     target_lean_declaration = str(row.get("target_lean_declaration", ""))
     target_lean_line = _int(row.get("target_lean_line"))
+    (
+        live_request_id,
+        live_request_valid,
+        live_request_status,
+        live_request_providers,
+        live_request_tools,
+        live_request_errors,
+    ) = _validate_live_proof_state_request(
+        row,
+        artifact_path=artifact_path,
+        target_lean_line=target_lean_line,
+        target_lean_declaration=target_lean_declaration,
+    )
+    errors.extend(live_request_errors)
     source = ""
     forbidden_tokens_found: tuple[str, ...] = ()
     if not materialization_id:
@@ -225,6 +262,11 @@ def _verifier_row(
         candidate_artifact_path=str(artifact_path),
         target_lean_declaration=target_lean_declaration,
         target_lean_line=target_lean_line,
+        live_proof_state_request_id=live_request_id,
+        live_proof_state_request_valid=live_request_valid,
+        live_proof_state_request_status=live_request_status,
+        live_proof_state_provider_preferences=live_request_providers,
+        live_proof_state_requested_tools=live_request_tools,
         local_lean_checked=checked,
         local_lean_compiled=compiled,
         artifact_kernel_verified=compiled,
@@ -243,6 +285,66 @@ def _verifier_row(
         ok=not errors,
         errors=tuple(errors),
     )
+
+
+def _validate_live_proof_state_request(
+    row: dict[str, Any],
+    *,
+    artifact_path: Path,
+    target_lean_line: int,
+    target_lean_declaration: str,
+) -> tuple[str, bool, str, tuple[str, ...], tuple[str, ...], tuple[str, ...]]:
+    request = row.get("live_proof_state_request", {})
+    if not isinstance(request, dict) or not request:
+        return (
+            "",
+            False,
+            "MISSING_LIVE_PROOF_STATE_REQUEST",
+            (),
+            (),
+            ("live_proof_state_request missing",),
+        )
+    request_id = str(request.get("request_id", ""))
+    providers = _str_tuple(request.get("provider_preferences", ()))
+    tool_rows = request.get("mcp_tool_calls", ())
+    if not isinstance(tool_rows, (list, tuple)):
+        tool_rows = ()
+    tools = tuple(
+        str(tool.get("tool", ""))
+        for tool in tool_rows
+        if isinstance(tool, dict) and str(tool.get("tool", ""))
+    )
+    errors: list[str] = []
+    if not request_id:
+        errors.append("live_proof_state_request.request_id missing")
+    if "lean_lsp_mcp" not in providers:
+        errors.append("live_proof_state_request.provider_preferences lacks lean_lsp_mcp")
+    for required_tool in ("lean_goal", "lean_diagnostic_messages"):
+        if required_tool not in tools:
+            errors.append(f"live_proof_state_request missing {required_tool} call")
+    request_file = str(
+        request.get("target_lean_file")
+        or request.get("candidate_artifact_path")
+        or ""
+    )
+    if request_file != str(artifact_path):
+        errors.append(
+            "live_proof_state_request target file does not match candidate artifact"
+        )
+    if _int(request.get("target_lean_line")) != target_lean_line:
+        errors.append(
+            "live_proof_state_request target line does not match materialized artifact"
+        )
+    if str(request.get("target_lean_declaration", "")) != target_lean_declaration:
+        errors.append(
+            "live_proof_state_request target declaration does not match materialized artifact"
+        )
+    status = (
+        "LIVE_PROOF_STATE_REQUEST_VALID"
+        if not errors
+        else "LIVE_PROOF_STATE_REQUEST_INVALID"
+    )
+    return request_id, not errors, status, providers, tools, tuple(errors)
 
 
 def _run_local_lean(
@@ -300,6 +402,14 @@ def _int(value: object) -> int:
         return 0
 
 
+def _str_tuple(values: object) -> tuple[str, ...]:
+    if isinstance(values, (str, bytes)):
+        values = [values]
+    if not isinstance(values, (list, tuple, set)):
+        return ()
+    return tuple(str(item) for item in values if str(item))
+
+
 def _markdown_report(payload: dict[str, object]) -> str:
     lines = [
         "# Formal Verifier Agentic Proof Execution Artifact Verifier",
@@ -309,6 +419,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Local Lean compiled: {payload.get('n_local_lean_compiled')}",
         f"- Artifact kernel verified: {payload.get('n_artifact_kernel_verified')}",
         f"- Source theorem kernel verified: {payload.get('n_source_theorem_kernel_verified')}",
+        f"- Live proof-state requests valid: {payload.get('n_live_proof_state_request_valid')}/{payload.get('n_live_proof_state_requests')}",
+        f"- Lean-LSP/MCP-ready requests: {payload.get('n_lean_lsp_mcp_ready_requests')}",
         f"- Lean command: `{payload.get('lean_command')}`",
         f"- Fingerprint: `{payload.get('artifact_verifier_fingerprint')}`",
         "",
@@ -323,6 +435,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         lines.append(
             f"- `{row.get('target_lean_declaration')}` "
             f"{row.get('verification_status')} "
+            f"request={row.get('live_proof_state_request_status')} "
             f"artifact_kernel={row.get('artifact_kernel_verified')} "
             f"source_theorem_kernel={row.get('source_theorem_kernel_verified')}"
         )
