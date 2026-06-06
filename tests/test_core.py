@@ -4,6 +4,7 @@ import asyncio
 import json
 import shutil
 import sqlite3
+import subprocess
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -175,6 +176,7 @@ from ai_statistician.lean_rag_dependency import LeanRagDependencyRetriever
 from ai_statistician.lean_rag_dependency_health import audit_lean_rag_dependency_health
 from ai_statistician.lean_rag_package_audit import (
     TARGET_LEAN_SOURCE_COVERAGE,
+    _git_metadata,
     apply_lean_rag_source_registry_expansion,
     audit_lean_rag_package,
     preflight_lean_rag_source_registry_expansion,
@@ -4850,6 +4852,49 @@ class SystemTests(unittest.TestCase):
             if action.startswith("Clone missing Git-backed candidate sources")
         )
         self.assertNotIn("lean-rademacher", clone_action)
+
+    def test_lean_rag_package_git_metadata_reports_timeouts_conservatively(self) -> None:
+        package = Path("runs/test_lean_rag_package_git_timeout/lean_rag")
+
+        def fake_git_run(cmd, check, stdout, stderr, text, timeout):
+            git_args = tuple(cmd[3:])
+            if git_args in {
+                ("rev-parse", "--show-toplevel"),
+                ("rev-parse", "--short=12", "HEAD"),
+                ("status", "--short"),
+            }:
+                raise subprocess.TimeoutExpired(cmd=cmd, timeout=timeout)
+            if git_args == ("rev-parse", "--abbrev-ref", "HEAD"):
+                return subprocess.CompletedProcess(cmd, 0, stdout="main\n")
+            if git_args == ("rev-parse", "HEAD"):
+                return subprocess.CompletedProcess(cmd, 0, stdout="abcdef1234567890\n")
+            if git_args == ("remote", "get-url", "origin"):
+                return subprocess.CompletedProcess(
+                    cmd,
+                    0,
+                    stdout="https://github.com/ykzeng-yale/EmpericalProcessLEAN.git\n",
+                )
+            return subprocess.CompletedProcess(cmd, 1, stdout="")
+
+        with patch("ai_statistician.lean_rag_package_audit.subprocess.run", fake_git_run):
+            metadata = _git_metadata(package)
+
+        self.assertEqual(metadata["repo_root"], str(package.parent))
+        self.assertTrue(metadata["metadata_timeout"])
+        self.assertFalse(metadata["metadata_complete"])
+        self.assertTrue(metadata["dirty"])
+        self.assertTrue(metadata["dirty_probe_timeout"])
+        self.assertIn(
+            "rev-parse --show-toplevel",
+            metadata["metadata_timeout_commands"],
+        )
+        self.assertIn(
+            "rev-parse --short=12 HEAD",
+            metadata["metadata_timeout_commands"],
+        )
+        self.assertIn("status --short", metadata["metadata_timeout_commands"])
+        self.assertEqual(metadata["branch"], "main")
+        self.assertEqual(metadata["short_commit"], "")
 
     def test_evaluation_benchmark_guidance_flags_capacity_gaps(self) -> None:
         payload = {

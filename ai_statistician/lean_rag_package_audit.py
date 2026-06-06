@@ -1320,14 +1320,34 @@ def _empty_graph_manifest(db_dir: Path | str | None) -> dict[str, object]:
 
 
 def _git_metadata(root: Path) -> dict[str, object]:
-    repo_root = _git(root, "rev-parse", "--show-toplevel")
+    timeouts: list[str] = []
+
+    def probe(*args: str) -> str:
+        value, timed_out = _git_probe(root, *args)
+        if timed_out:
+            timeouts.append(" ".join(args))
+        return value
+
+    repo_root = probe("rev-parse", "--show-toplevel")
+    branch = probe("rev-parse", "--abbrev-ref", "HEAD")
+    commit = probe("rev-parse", "HEAD")
+    short_commit = probe("rev-parse", "--short=12", "HEAD")
+    remote = probe("remote", "get-url", "origin")
+    dirty_status, dirty_timed_out = _git_probe(root, "status", "--short")
+    if dirty_timed_out:
+        timeouts.append("status --short")
+    fallback_repo_root = root.parent if root.name == "lean_rag" else root
     return {
-        "repo_root": repo_root,
-        "branch": _git(root, "rev-parse", "--abbrev-ref", "HEAD"),
-        "commit": _git(root, "rev-parse", "HEAD"),
-        "short_commit": _git(root, "rev-parse", "--short=12", "HEAD"),
-        "remote": _git(root, "remote", "get-url", "origin"),
-        "dirty": bool(_git(root, "status", "--short")),
+        "repo_root": repo_root or str(fallback_repo_root),
+        "branch": branch,
+        "commit": commit,
+        "short_commit": short_commit,
+        "remote": remote,
+        "dirty": bool(dirty_status) or dirty_timed_out,
+        "dirty_probe_timeout": dirty_timed_out,
+        "metadata_timeout": bool(timeouts),
+        "metadata_timeout_commands": tuple(timeouts),
+        "metadata_complete": not timeouts,
     }
 
 
@@ -1355,6 +1375,11 @@ def _package_git_metadata_for_preflight(root: Path) -> dict[str, object]:
 
 
 def _git(root: Path, *args: str) -> str:
+    value, _timed_out = _git_probe(root, *args)
+    return value
+
+
+def _git_probe(root: Path, *args: str) -> tuple[str, bool]:
     try:
         proc = subprocess.run(
             ["git", "-C", str(root), *args],
@@ -1364,11 +1389,13 @@ def _git(root: Path, *args: str) -> str:
             text=True,
             timeout=30,
         )
+    except subprocess.TimeoutExpired:
+        return "", True
     except OSError:
-        return ""
+        return "", False
     if proc.returncode != 0:
-        return ""
-    return proc.stdout.strip()
+        return "", False
+    return proc.stdout.strip(), False
 
 
 def _recommended_actions(
