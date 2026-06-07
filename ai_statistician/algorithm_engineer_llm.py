@@ -132,6 +132,51 @@ def build_algorithm_engineer_prompt(
             "status": "optional fallback when no registered template matches",
             "language": "python",
             "entrypoint": "run_sandbox(seed: int, replicates: int) -> dict",
+            "safe_subset": {
+                "allowed_globals": [
+                    "math",
+                    "statistics",
+                    "abs",
+                    "bool",
+                    "dict",
+                    "enumerate",
+                    "float",
+                    "int",
+                    "len",
+                    "list",
+                    "max",
+                    "min",
+                    "pow",
+                    "range",
+                    "round",
+                    "sorted",
+                    "str",
+                    "sum",
+                    "tuple",
+                ],
+                "forbidden_dependencies": [
+                    "numpy",
+                    "scipy",
+                    "sklearn",
+                    "pandas",
+                    "statsmodels",
+                    "torch",
+                    "jax",
+                ],
+                "forbidden_syntax": [
+                    "import or from-import statements",
+                    "class definitions",
+                    "with blocks",
+                    "global/nonlocal",
+                    "file I/O, network, subprocess, eval, exec",
+                    "method calls or attribute access except math.* and statistics.*",
+                ],
+                "fallback_rule": (
+                    "If you cannot express the draft in this pure-Python safe subset, "
+                    "leave sandbox_code_drafts empty and put the implementation details "
+                    "in sandbox_plan/code_generation_plan instead."
+                ),
+            },
             "runtime_policy": (
                 "AgentRuntime will statically inspect and execute safe drafts only "
                 "inside a bounded sandbox; unsafe or nonconforming drafts are rejected."
@@ -149,7 +194,12 @@ def build_algorithm_engineer_prompt(
         "Design implementation and sandbox-validation artifacts for the AlgorithmEngineer subsystem. "
         "Return ONLY JSON matching required_output_contract. You may propose code and tests, but "
         "you must not claim you executed code, wrote files, promoted a production algorithm, or proved "
-        "any theorem. Pick registered runtime templates only when their contract matches the estimator.\n\n"
+        "any theorem. Pick registered runtime templates only when their contract matches the estimator. "
+        "For sandbox_code_drafts, obey the generated_code_sandbox_contract safe_subset exactly: do not "
+        "use imports, NumPy/SciPy/sklearn/pandas/statsmodels/torch/JAX, class definitions, file/network "
+        "operations, method calls, or attribute access except math.* and statistics.*. If the requested "
+        "prototype needs those tools, omit sandbox_code_drafts and describe the registered-template or "
+        "human-reviewed adapter plan instead.\n\n"
         + json.dumps(payload, indent=2, default=str)
     )
 
@@ -192,7 +242,11 @@ ALGORITHM_ENGINEER_OUTPUT_CONTRACT: dict[str, Any] = {
             "estimator_id": "string",
             "language": "python",
             "entrypoint": "run_sandbox",
-            "code": "def run_sandbox(seed: int, replicates: int) -> dict: ...",
+            "code": (
+                "def run_sandbox(seed: int, replicates: int) -> dict: ... "
+                "# pure Python only: no imports, no numpy/sklearn/pandas/scipy, "
+                "no method calls, no attribute access except math.* and statistics.*"
+            ),
             "intended_metrics": ["string"],
             "safety_notes": ["string"],
         }

@@ -8,7 +8,11 @@ from pathlib import Path
 import pytest
 
 from ai_statistician.cli import main
-from ai_statistician.algorithm_engineer_llm import AlgorithmEngineerConfig, LLMAlgorithmEngineerAgent
+from ai_statistician.algorithm_engineer_llm import (
+    AlgorithmEngineerConfig,
+    LLMAlgorithmEngineerAgent,
+    build_algorithm_engineer_prompt,
+)
 from ai_statistician.architect_coordinator_llm import (
     ArchitectCoordinatorConfig,
     LLMArchitectCoordinatorAgent,
@@ -99,6 +103,41 @@ def test_generated_algorithm_sandbox_rejects_unsafe_code(tmp_path: Path) -> None
     assert any("forbidden generated-code token" in row for row in prototype["safety_errors"])
     assert tool_call.tool_name == "python.generated_sandbox_precheck"
     assert tool_call.exit_status == "rejected"
+
+
+def test_algorithm_engineer_prompt_exposes_generated_python_safe_subset() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    prompt = build_algorithm_engineer_prompt(
+        question=question,
+        theory_packet={
+            "packet_id": "theory:test",
+            "estimator_specs": [{"id": "E1", "name": "split conformal interval"}],
+            "theorem_cards": [],
+            "simulation_ademp_spec": {},
+        },
+        simulation_manifest={
+            "manifest_id": "simulation:test",
+            "simulation_passed": True,
+            "registered_procedures": [],
+            "simulations": [],
+            "implementation_gaps": [],
+        },
+        implementation_gaps=[
+            {
+                "estimator_id": "E1",
+                "status": "REQUIRES_ALGORITHM_ENGINEER_ADAPTER",
+                "reason": "No registered executable conformal adapter.",
+            }
+        ],
+    )
+
+    assert "safe_subset" in prompt
+    assert "forbidden_dependencies" in prompt
+    assert "numpy" in prompt
+    assert "sklearn" in prompt
+    assert "import or from-import statements" in prompt
+    assert "method calls or attribute access except math.* and statistics.*" in prompt
+    assert "leave sandbox_code_drafts empty" in prompt
 
 
 def test_formal_subclaim_prover_uses_batch_kernel_verifier() -> None:
