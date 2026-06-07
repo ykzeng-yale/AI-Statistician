@@ -11,6 +11,8 @@ from ai_statistician.model_backend import (
     AnthropicGeneratorBackend,
     GeneratorRequest,
     StaticJSONGeneratorBackend,
+    claude_model_tier_for_model,
+    claude_model_tier_mismatch,
     default_generator_model,
     default_generator_provider,
 )
@@ -180,3 +182,20 @@ def test_live_generator_defaults_to_anthropic_cost_aware_tiers(monkeypatch: pyte
     assert default_generator_model("anthropic", model_tier="haiku") == "claude-haiku-test"
     assert default_generator_model("anthropic", model_tier="sonnet") == "claude-sonnet-test"
     assert default_generator_model("anthropic", model_tier="opus") == "claude-opus-test"
+
+
+def test_claude_model_tier_helpers_detect_cross_tier_model_overrides() -> None:
+    assert claude_model_tier_for_model("claude-haiku-4-5-20251001") == "haiku"
+    assert claude_model_tier_for_model("claude-sonnet-4-6") == "sonnet"
+    assert claude_model_tier_for_model("claude-opus-4-8") == "opus"
+    assert claude_model_tier_for_model("custom-anthropic-model") == ""
+    assert (
+        claude_model_tier_mismatch(
+            "claude-sonnet-4-6",
+            "haiku",
+            subject="SimulationEngineer",
+        )
+        == "SimulationEngineer expected Claude haiku tier but is configured with claude-sonnet-4-6"
+    )
+    assert claude_model_tier_mismatch("claude-haiku-4-5-20251001", "haiku") == ""
+    assert claude_model_tier_mismatch("custom-anthropic-model", "haiku") == ""

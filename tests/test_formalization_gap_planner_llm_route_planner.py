@@ -2493,6 +2493,41 @@ def test_llm_route_planner_auto_uses_haiku_for_small_bounded_routes() -> None:
     assert request.metadata["model_tier"] == "haiku"
 
 
+def test_llm_route_planner_rejects_anthropic_explicit_model_tier_mismatch() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_model_tier_mismatch"
+    )
+    out_dir = root / "llm_route_planner"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_light_input(root)
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="anthropic",
+        model="claude-sonnet-4-6",
+        model_tier="haiku",
+    )
+
+    assert not payload["all_ok"]
+    assert payload["by_request_model_tier"] == {"haiku": 1}
+    assert payload["n_request_model_tier_mismatches"] == 1
+    assert payload["n_request_schema_invalid"] == 1
+    mismatch = payload["request_model_tier_mismatches"][0]
+    assert mismatch["provider_name"] == "anthropic"
+    assert mismatch["model"] == "claude-sonnet-4-6"
+    assert mismatch["model_tier"] == "haiku"
+    assert "expected Claude haiku tier" in mismatch["error"]
+    packet = payload["request_packets"][0]
+    assert packet["model"] == "claude-sonnet-4-6"
+    assert packet["model_tier"] == "haiku"
+    row = payload["rows"][0]
+    assert row["ok"] is False
+    assert row["response_present"] is False
+    assert any("expected Claude haiku tier" in error for error in row["errors"])
+
+
 def test_llm_route_planner_auto_uses_sonnet_for_incomplete_realization_feedback() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_realization_tier_fake"

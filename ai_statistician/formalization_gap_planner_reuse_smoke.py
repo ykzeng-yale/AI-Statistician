@@ -1462,6 +1462,18 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_request_model_tier_opus",
             0,
         ),
+        "n_llm_route_planner_request_model_tier_mismatches": (
+            llm_route_planner_payload.get(
+                "n_request_model_tier_mismatches",
+                0,
+            )
+        ),
+        "llm_route_planner_request_model_tier_mismatches": (
+            llm_route_planner_payload.get(
+                "request_model_tier_mismatches",
+                [],
+            )
+        ),
         "llm_route_planner_max_repair_attempts": llm_route_planner_payload.get(
             "max_repair_attempts",
             0,
@@ -1624,6 +1636,18 @@ def run_formalization_gap_planner_reuse_smoke(
             feedback_llm_route_planner_payload.get(
                 "n_request_model_tier_opus",
                 0,
+            )
+        ),
+        "n_feedback_llm_route_planner_request_model_tier_mismatches": (
+            feedback_llm_route_planner_payload.get(
+                "n_request_model_tier_mismatches",
+                0,
+            )
+        ),
+        "feedback_llm_route_planner_request_model_tier_mismatches": (
+            feedback_llm_route_planner_payload.get(
+                "request_model_tier_mismatches",
+                [],
             )
         ),
         "feedback_llm_route_planner_max_repair_attempts": (
@@ -4258,6 +4282,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_llm_route_planner_request_packets')} "
             f"awaiting={payload.get('n_llm_route_planner_awaiting')} "
             f"provider_failures={payload.get('n_llm_route_planner_provider_failures')} "
+            f"model_tier_mismatches={payload.get('n_llm_route_planner_request_model_tier_mismatches')} "
             f"generator_metadata_rows={payload.get('n_llm_route_planner_rows_with_generator_metadata')}"
         ),
         (
@@ -4312,6 +4337,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_feedback_llm_route_planner_request_packets')} "
             f"awaiting={payload.get('n_feedback_llm_route_planner_awaiting')} "
             f"provider_failures={payload.get('n_feedback_llm_route_planner_provider_failures')} "
+            f"model_tier_mismatches={payload.get('n_feedback_llm_route_planner_request_model_tier_mismatches')} "
             f"generator_metadata_rows={payload.get('n_feedback_llm_route_planner_rows_with_generator_metadata')} "
             f"accepted={payload.get('n_feedback_llm_route_planner_accepted_route_plans')} "
             f"residual_goals={payload.get('n_feedback_llm_route_planner_request_residual_goals')}"

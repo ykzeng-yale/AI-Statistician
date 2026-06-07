@@ -18,6 +18,7 @@ DEFAULT_CLAUDE_GENERATOR_MODELS_BY_TIER = {
     "sonnet": DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
     "opus": DEFAULT_CLAUDE_OPUS_GENERATOR_MODEL,
 }
+CLAUDE_MODEL_TIERS = tuple(DEFAULT_CLAUDE_GENERATOR_MODELS_BY_TIER)
 ANTHROPIC_MODEL_SOURCE_CHECKED_DATE = "2026-06-07"
 ANTHROPIC_MODELS_OVERVIEW_URL = (
     "https://platform.claude.com/docs/en/docs/about-claude/models"
@@ -119,6 +120,32 @@ def default_generator_model(
     if provider == "static":
         return DEFAULT_STATIC_GENERATOR_MODEL
     return global_model
+
+
+def claude_model_tier_for_model(model: str) -> str:
+    """Infer the Claude tier family from a model id."""
+
+    key = str(model or "").strip().lower()
+    for tier in CLAUDE_MODEL_TIERS:
+        if tier in key:
+            return tier
+    return ""
+
+
+def claude_model_tier_mismatch(
+    model: str,
+    expected_model_tier: str,
+    *,
+    subject: str = "",
+) -> str:
+    """Return a policy violation when an Anthropic model id crosses tiers."""
+
+    expected = str(expected_model_tier or "").strip().lower()
+    actual = claude_model_tier_for_model(model)
+    if not expected or not actual or expected == actual:
+        return ""
+    prefix = f"{subject} " if subject else ""
+    return f"{prefix}expected Claude {expected} tier but is configured with {model}"
 
 
 @dataclass(frozen=True)

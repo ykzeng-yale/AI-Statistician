@@ -293,6 +293,8 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         + payload["n_llm_route_planner_request_model_tier_opus"]
         == payload["n_llm_route_planner_request_packets"]
     )
+    assert payload["n_llm_route_planner_request_model_tier_mismatches"] == 0
+    assert payload["llm_route_planner_request_model_tier_mismatches"] == []
     assert (
         payload["n_llm_route_planner_request_schema_valid"]
         == payload["n_llm_route_planner_request_packets"]
@@ -357,6 +359,8 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         + payload["n_feedback_llm_route_planner_request_model_tier_opus"]
         == payload["n_feedback_llm_route_planner_request_packets"]
     )
+    assert payload["n_feedback_llm_route_planner_request_model_tier_mismatches"] == 0
+    assert payload["feedback_llm_route_planner_request_model_tier_mismatches"] == []
     assert (
         payload["n_feedback_llm_route_planner_request_schema_valid"]
         == payload["n_feedback_llm_route_planner_request_packets"]
@@ -1739,6 +1743,8 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     assert sonnet_evaluation["mean_route_recall"] == 1.0
     assert sonnet_evaluation["n_rows_with_generator_metadata"] == 1
     assert payload["n_llm_route_planner_provider_failures"] == 0
+    assert payload["n_llm_route_planner_request_model_tier_mismatches"] == 0
+    assert payload["llm_route_planner_request_model_tier_mismatches"] == []
     assert payload["n_llm_route_planner_rows_with_generator_metadata"] == 1
     assert payload["n_llm_route_planner_rows_with_generation_errors"] == 0
     assert payload["n_llm_route_planner_response_contract_ok"] == 1
@@ -1747,6 +1753,8 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     assert payload["n_llm_route_planner_search_requests"] == 1
     assert payload["n_feedback_llm_route_planner_response_present"] == 1
     assert payload["n_feedback_llm_route_planner_provider_failures"] == 0
+    assert payload["n_feedback_llm_route_planner_request_model_tier_mismatches"] == 0
+    assert payload["feedback_llm_route_planner_request_model_tier_mismatches"] == []
     assert payload["n_feedback_llm_route_planner_rows_with_generator_metadata"] == 1
     assert payload["n_feedback_llm_route_planner_rows_with_generation_errors"] == 0
     assert payload["n_feedback_llm_route_planner_response_contract_ok"] == 1

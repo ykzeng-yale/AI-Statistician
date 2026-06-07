@@ -47,7 +47,10 @@ from .formalizer_llm import (
     FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE,
     LLMFormalizerProofEngineerAgent,
 )
-from .model_backend import ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY
+from .model_backend import (
+    ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
+    claude_model_tier_mismatch,
+)
 from .formal_source_index import FormalSourceHit, FormalSourceRetriever
 from .proof_bank import get_obligation
 from .proof_state_feedback import (
@@ -1881,23 +1884,11 @@ def _anthropic_model_tier_mismatch(row: Mapping[str, Any]) -> str:
     }
     if "anthropic" not in providers:
         return ""
-    expected_tier = str(row.get("model_tier", "") or "").strip().lower()
-    model = str(row.get("model", "") or "").strip()
-    actual_tier = _anthropic_model_family(model)
-    if not expected_tier or not actual_tier or actual_tier == expected_tier:
-        return ""
-    return (
-        f"{row.get('subsystem')} expected Claude {expected_tier} tier "
-        f"but is configured with {model}"
+    return claude_model_tier_mismatch(
+        str(row.get("model", "") or "").strip(),
+        str(row.get("model_tier", "") or "").strip().lower(),
+        subject=str(row.get("subsystem", "") or "").strip(),
     )
-
-
-def _anthropic_model_family(model: str) -> str:
-    key = model.strip().lower()
-    for family in ("haiku", "sonnet", "opus"):
-        if family in key:
-            return family
-    return ""
 
 
 def _llm_agent_topology_row(

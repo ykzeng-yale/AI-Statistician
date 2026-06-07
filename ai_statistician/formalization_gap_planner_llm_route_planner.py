@@ -22,6 +22,7 @@ from .model_backend import (
     GeneratorRequest,
     OpenAIResponsesGeneratorBackend,
     StaticJSONGeneratorBackend,
+    claude_model_tier_mismatch,
     default_generator_model,
 )
 
@@ -500,6 +501,7 @@ def export_formalization_gap_planner_llm_route_planner(
     by_model_tier = Counter(
         str(packet.get("model_tier", "") or "unknown") for packet in request_packets
     )
+    request_model_tier_mismatches = _request_model_tier_mismatches(request_packets)
     request_schema = llm_route_planner_request_json_schema()
     request_schema_errors = [
         validate_llm_route_planner_request(packet, request_schema)
@@ -580,6 +582,8 @@ def export_formalization_gap_planner_llm_route_planner(
         "n_request_model_tier_sonnet": by_model_tier.get("sonnet", 0),
         "n_request_model_tier_opus": by_model_tier.get("opus", 0),
         "by_request_model_tier": dict(sorted(by_model_tier.items())),
+        "n_request_model_tier_mismatches": len(request_model_tier_mismatches),
+        "request_model_tier_mismatches": request_model_tier_mismatches,
         "n_request_residual_goals": sum(
             len(_str_tuple(packet.get("residual_goals", [])))
             for packet in request_packets
@@ -1243,6 +1247,10 @@ def validate_llm_route_planner_request(
             "minimal_delta_cost_policy.cost_policy_id must equal "
             + MINIMAL_DELTA_COST_POLICY_ID
         )
+    if str(row.get("provider_name", "") or "").strip().lower() == "anthropic":
+        mismatch = _request_model_tier_mismatch(row)
+        if mismatch:
+            errors.append(str(mismatch["error"]))
     return sorted(set(errors))
 
 
@@ -1761,6 +1769,42 @@ def _model_for_provider_tier(
         requested_model,
         model_tier=model_tier,
     )
+
+
+def _request_model_tier_mismatches(
+    requests: tuple[dict[str, Any], ...],
+) -> list[dict[str, object]]:
+    return [
+        mismatch
+        for request in requests
+        for mismatch in [_request_model_tier_mismatch(request)]
+        if mismatch
+    ]
+
+
+def _request_model_tier_mismatch(
+    request: Mapping[str, Any],
+) -> dict[str, object]:
+    provider = str(request.get("provider_name", "") or "").strip().lower()
+    if provider != "anthropic":
+        return {}
+    model = str(request.get("model", "") or "").strip()
+    model_tier = str(request.get("model_tier", "") or "").strip().lower()
+    mismatch = claude_model_tier_mismatch(
+        model,
+        model_tier,
+        subject=f"request {request.get('request_id', '')}".strip(),
+    )
+    if not mismatch:
+        return {}
+    return {
+        "request_id": str(request.get("request_id", "")),
+        "route_id": str(request.get("route_id", "")),
+        "provider_name": provider,
+        "model": model,
+        "model_tier": model_tier,
+        "error": mismatch,
+    }
 
 
 def _llm_route_planner_model_tier_decision(
@@ -6615,6 +6659,7 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
         f"- Requests: {payload.get('n_request_schema_valid')}/{payload.get('n_request_packets')}",
         f"- Model tier mode: {payload.get('model_tier_selection_mode')}",
         f"- Request tiers: {payload.get('by_request_model_tier')}",
+        f"- Request model-tier mismatches: {payload.get('n_request_model_tier_mismatches')}",
         f"- Repair attempts: {payload.get('n_generated_response_repair_attempts')}",
         f"- Repaired responses: {payload.get('n_generated_responses_repaired')}",
         f"- Responses present: {payload.get('n_response_present')}",
