@@ -422,6 +422,7 @@ def standalone_input_json_schema() -> dict[str, object]:
                         "type": "array",
                         "items": {"type": "string"},
                     },
+                    "candidate_declaration_rows": object_array,
                     "expected_premises": string_array,
                     "bridge_candidate_obligations": string_array,
                     "source_refs": string_array,
@@ -644,6 +645,11 @@ def _route_specs(
                 primitive,
                 primitive_idx,
                 primitive_costs=primitive_costs,
+                target_prover_family=str(
+                    raw_route.get("target_prover_family", "")
+                    or metadata.get("target_prover_family", "")
+                    or target_prover_family
+                ),
             )
             for primitive_idx, primitive in enumerate(_raw_primitives(raw_route))
         ]
@@ -717,11 +723,20 @@ def _action_for_primitive(
     primitive_idx: int,
     *,
     primitive_costs: dict[str, int] | None = None,
+    target_prover_family: str,
 ) -> dict[str, object]:
     primitive_name = str(primitive.get("primitive", "")).strip()
     coverage_status = str(primitive.get("coverage_status", "unknown"))
     action_class = _action_class_for_coverage(coverage_status)
     primitive_costs = primitive_costs or {}
+    candidate_declaration_rows = _candidate_declaration_rows_for_primitive(
+        primitive,
+        target_prover_family=target_prover_family,
+    )
+    candidate_declarations = _candidate_declarations_for_primitive(
+        primitive,
+        candidate_declaration_rows=candidate_declaration_rows,
+    )
     total_cost = int(
         primitive.get(
             "cost",
@@ -749,7 +764,8 @@ def _action_for_primitive(
         "bridge_candidate_obligations": _str_tuple(
             primitive.get("bridge_candidate_obligations", [])
         ),
-        "candidate_declarations": _str_tuple(primitive.get("candidate_declarations", [])),
+        "candidate_declarations": candidate_declarations,
+        "candidate_declaration_rows": candidate_declaration_rows,
         "next_step": str(
             primitive.get("next_step", _next_step_for_action(action_class, primitive_name))
         ),
@@ -810,6 +826,30 @@ def _standalone_input_trace(
         for primitive in _raw_primitives(raw_route)
         if _dict_list(primitive.get("source_snippets", []))
     ]
+    primitive_candidate_declaration_rows = [
+        {
+            "primitive": str(primitive.get("primitive", "")),
+            "candidate_declaration_rows": list(
+                _candidate_declaration_rows_for_primitive(
+                    primitive,
+                    target_prover_family=str(
+                        raw_route.get("target_prover_family", "")
+                        or metadata.get("target_prover_family", "")
+                        or target_prover_family
+                    ),
+                )
+            ),
+        }
+        for primitive in _raw_primitives(raw_route)
+        if _candidate_declaration_rows_for_primitive(
+            primitive,
+            target_prover_family=str(
+                raw_route.get("target_prover_family", "")
+                or metadata.get("target_prover_family", "")
+                or target_prover_family
+            ),
+        )
+    ]
     cost_graph = _minimal_delta_and_or_cost_graph(raw_route)
     selected_cost_graph_option = _selected_cost_graph_option(cost_graph)
     realization_witness = _realization_coverage_witness(raw_route)
@@ -856,6 +896,7 @@ def _standalone_input_trace(
         ),
         "source_snippets": source_snippets,
         "primitive_source_snippets": primitive_source_snippets,
+        "primitive_candidate_declaration_rows": primitive_candidate_declaration_rows,
         "has_source_snippets": bool(source_snippets or primitive_source_snippets),
         "formal_declaration_hits": _dict_list(
             metadata.get(
@@ -1174,6 +1215,85 @@ def _normalize_primitive_key(value: object) -> str:
 
 def _coverage_unknown(value: str) -> bool:
     return _normalize_status(value) in {"", "unknown", "unclear", "needs_search"}
+
+
+def _candidate_declaration_rows_for_primitive(
+    primitive: dict[str, Any],
+    *,
+    target_prover_family: str,
+) -> tuple[dict[str, object], ...]:
+    rows: list[dict[str, object]] = []
+    for item in _dict_list(primitive.get("candidate_declaration_rows", [])):
+        declaration = str(
+            item.get("declaration")
+            or item.get("declaration_name")
+            or item.get("candidate_declaration")
+            or item.get("lean_declaration")
+            or item.get("name")
+            or item.get("full_name")
+            or ""
+        ).strip()
+        if not declaration:
+            continue
+        rows.append(
+            {
+                "declaration": declaration,
+                "target_prover_family": str(
+                    item.get("target_prover_family", "")
+                    or item.get("target_prover", "")
+                    or target_prover_family
+                ).strip(),
+                "source_field": str(
+                    item.get("source_field", "") or "candidate_declaration_rows"
+                ).strip(),
+            }
+        )
+    if not rows:
+        rows.extend(
+            {
+                "declaration": declaration,
+                "target_prover_family": target_prover_family,
+                "source_field": "candidate_declarations",
+            }
+            for declaration in _str_tuple(primitive.get("candidate_declarations", []))
+        )
+    compact: list[dict[str, object]] = []
+    seen: set[tuple[str, str]] = set()
+    for row in rows:
+        declaration = str(row.get("declaration", "")).strip()
+        target = str(row.get("target_prover_family", "")).strip()
+        key = (_normalize_primitive_key(declaration), _normalize_primitive_key(target))
+        if not declaration or key in seen:
+            continue
+        seen.add(key)
+        compact.append(
+            {
+                "declaration": declaration,
+                "target_prover_family": target,
+                "source_field": str(row.get("source_field", "")).strip()
+                or "candidate_declarations",
+            }
+        )
+    return tuple(compact)
+
+
+def _candidate_declarations_for_primitive(
+    primitive: dict[str, Any],
+    *,
+    candidate_declaration_rows: tuple[dict[str, object], ...],
+) -> tuple[str, ...]:
+    return tuple(
+        dict.fromkeys(
+            [
+                *_str_tuple(primitive.get("candidate_declarations", [])),
+                *[
+                    str(row.get("declaration", "")).strip()
+                    for row in candidate_declaration_rows
+                    if str(row.get("declaration", "")).strip()
+                ],
+            ]
+        )
+    )
 
 
 def _str_tuple(values: Any) -> tuple[str, ...]:

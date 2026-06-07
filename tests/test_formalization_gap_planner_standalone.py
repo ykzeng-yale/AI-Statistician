@@ -17,6 +17,9 @@ from ai_statistician.formalization_gap_planner_contract import (
 from ai_statistician.formalization_gap_planner_prover_adapter_contract import (
     export_formalization_gap_planner_prover_adapter_contract,
 )
+from ai_statistician.formalization_gap_planner_library_coverage_map import (
+    export_formalization_gap_planner_library_coverage_map,
+)
 from ai_statistician.formalization_gap_planner_standalone import (
     FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_SCHEMA_ID,
     export_formalization_gap_planner_standalone_plan,
@@ -363,3 +366,76 @@ def test_standalone_gap_planner_preserves_llm_minimal_delta_cost_graph_trace() -
     assert trace["realization_coverage_witness"] == realization_witness
     assert trace["realization_selected_primitives_missing_formal_realization"] == []
     assert trace["realization_delta_primitives_missing_route_alignment"] == []
+
+
+def test_standalone_gap_planner_preserves_candidate_declaration_rows_into_coverage_map() -> None:
+    root = Path("runs/test_formalization_gap_planner_standalone_candidate_rows")
+    input_json = root / "standalone_input.json"
+    out_dir = root / "plan"
+    coverage_dir = root / "coverage"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    declaration_row = {
+        "declaration": "Probability.exchangeable",
+        "target_prover_family": "lean4",
+        "source_field": "llm_candidate_declaration_rows",
+    }
+    input_json.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "component_name": "formalization_gap_planner_standalone_input",
+                "target_prover_family": "lean4",
+                "library_snapshot_ref": "mathlib4:candidate-row-fixture",
+                "routes": [
+                    {
+                        "route_id": "exchangeability_route",
+                        "display_name": "exchangeability_route",
+                        "theorem_statement": "Exchangeability is available in the library.",
+                        "primitives": [
+                            {
+                                "primitive": "exchangeability",
+                                "coverage_status": "exact_exists",
+                                "candidate_declaration_rows": [declaration_row],
+                            }
+                        ],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_standalone_plan(input_json, out_dir)
+
+    assert payload["all_ok"]
+    row = payload["rows"][0]
+    reuse_node = row["existing_reuse_nodes"][0]
+    assert reuse_node["candidate_declaration_rows"] == [declaration_row]
+    assert reuse_node["candidate_declarations"] == ["Probability.exchangeable"]
+    realization_node = next(
+        node
+        for node in row["formal_realization_dag_nodes"]
+        if node.get("label") == "exchangeability"
+    )
+    assert realization_node["candidate_declaration_rows"] == [declaration_row]
+    assert "Probability.exchangeable" in realization_node["declaration_sources"]
+    assert row["standalone_input_trace"]["primitive_candidate_declaration_rows"] == [
+        {
+            "primitive": "exchangeability",
+            "candidate_declaration_rows": [declaration_row],
+        }
+    ]
+
+    coverage_payload = export_formalization_gap_planner_library_coverage_map(
+        out_dir,
+        coverage_dir,
+    )
+
+    assert coverage_payload["all_ok"]
+    assert coverage_payload["n_rows_with_candidate_declaration_rows"] == 1
+    coverage_row = coverage_payload["rows"][0]
+    assert coverage_row["primitive"] == "exchangeability"
+    assert coverage_row["candidate_declaration_rows"] == (declaration_row,)
+    assert coverage_row["candidate_declarations"] == ("Probability.exchangeable",)

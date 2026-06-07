@@ -623,6 +623,11 @@ def _nodes_for_actions(
     for action in actions:
         if str(action.get("action_class", "")) not in action_classes:
             continue
+        candidate_declaration_rows = _candidate_declaration_rows_for_action(action)
+        candidate_declarations = _candidate_declarations_for_action(
+            action,
+            candidate_declaration_rows=candidate_declaration_rows,
+        )
         nodes.append(
             {
                 "primitive": str(action.get("primitive", "")),
@@ -637,11 +642,8 @@ def _nodes_for_actions(
                     for item in action.get("bridge_candidate_obligations", []) or []
                     if str(item)
                 ][:6],
-                "candidate_declarations": [
-                    str(item)
-                    for item in action.get("candidate_declarations", []) or []
-                    if str(item)
-                ][:6],
+                "candidate_declarations": list(candidate_declarations[:6]),
+                "candidate_declaration_rows": list(candidate_declaration_rows[:6]),
                 "source_refs": _source_refs_for_action(action),
                 "source_snippets": _source_snippets_for_action(action),
                 "next_step": str(action.get("next_step", "")),
@@ -679,6 +681,92 @@ def _source_snippets_for_action(action: dict[str, Any]) -> list[dict[str, object
         seen.add(key)
         snippets.append(dict(item))
     return snippets[:8]
+
+
+def _candidate_declaration_rows_for_action(
+    action: dict[str, Any],
+) -> tuple[dict[str, object], ...]:
+    rows: list[dict[str, object]] = []
+    for item in action.get("candidate_declaration_rows", []) or []:
+        if not isinstance(item, dict):
+            continue
+        declaration = str(
+            item.get("declaration")
+            or item.get("declaration_name")
+            or item.get("candidate_declaration")
+            or item.get("lean_declaration")
+            or item.get("name")
+            or item.get("full_name")
+            or ""
+        ).strip()
+        if not declaration:
+            continue
+        rows.append(
+            {
+                "declaration": declaration,
+                "target_prover_family": str(
+                    item.get("target_prover_family", "")
+                    or item.get("target_prover", "")
+                ).strip(),
+                "source_field": str(
+                    item.get("source_field", "") or "candidate_declaration_rows"
+                ).strip(),
+            }
+        )
+    compact: list[dict[str, object]] = []
+    seen: set[tuple[str, str]] = set()
+    for row in rows:
+        declaration = str(row.get("declaration", "")).strip()
+        target = str(row.get("target_prover_family", "")).strip()
+        key = (declaration.casefold(), target.casefold())
+        if not declaration or key in seen:
+            continue
+        seen.add(key)
+        compact.append(
+            {
+                "declaration": declaration,
+                "target_prover_family": target,
+                "source_field": str(row.get("source_field", "")).strip()
+                or "candidate_declaration_rows",
+            }
+        )
+    return tuple(compact)
+
+
+def _candidate_declarations_for_action(
+    action: dict[str, Any],
+    *,
+    candidate_declaration_rows: tuple[dict[str, object], ...],
+) -> tuple[str, ...]:
+    return tuple(
+        dict.fromkeys(
+            [
+                *_str_tuple(action.get("candidate_declarations", [])),
+                *[
+                    str(row.get("declaration", "")).strip()
+                    for row in candidate_declaration_rows
+                    if str(row.get("declaration", "")).strip()
+                ],
+            ]
+        )
+    )
+
+
+def _declaration_sources_for_node(node: dict[str, Any]) -> list[str]:
+    return list(
+        dict.fromkeys(
+            [
+                *_str_tuple(node.get("expected_premises", [])),
+                *_str_tuple(node.get("bridge_candidate_obligations", [])),
+                *_str_tuple(node.get("candidate_declarations", [])),
+                *[
+                    str(row.get("declaration", "")).strip()
+                    for row in _dict_tuple(node.get("candidate_declaration_rows", []))
+                    if str(row.get("declaration", "")).strip()
+                ],
+            ]
+        )
+    )[:8]
 
 
 def _str_tuple(value: Any) -> tuple[str, ...]:
@@ -1176,23 +1264,7 @@ def _lean_realization_dag(
     for node in (*existing_reuse, *minimal_nodes):
         primitive = str(node.get("primitive", ""))
         action_class = str(node.get("action_class", ""))
-        declaration_sources = [
-            *[
-                str(item)
-                for item in node.get("expected_premises", []) or []
-                if str(item)
-            ],
-            *[
-                str(item)
-                for item in node.get("bridge_candidate_obligations", []) or []
-                if str(item)
-            ],
-            *[
-                str(item)
-                for item in node.get("candidate_declarations", []) or []
-                if str(item)
-            ],
-        ][:8]
+        declaration_sources = _declaration_sources_for_node(node)
         node_id = _node_id("formal_realization", primitive + action_class)
         nodes.append(
             {
@@ -1203,6 +1275,12 @@ def _lean_realization_dag(
                 "evidence_status": PROOF_EVIDENCE_STATUS,
                 "action_class": action_class,
                 "declaration_sources": declaration_sources,
+                "candidate_declarations": list(
+                    _str_tuple(node.get("candidate_declarations", []))[:8]
+                ),
+                "candidate_declaration_rows": list(
+                    _dict_tuple(node.get("candidate_declaration_rows", []))[:8]
+                ),
             }
         )
         edges.append(
