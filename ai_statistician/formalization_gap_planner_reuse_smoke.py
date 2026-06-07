@@ -1464,6 +1464,22 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_response_present",
             0,
         ),
+        "n_llm_route_planner_provider_failures": llm_route_planner_payload.get(
+            "n_provider_failures",
+            0,
+        ),
+        "n_llm_route_planner_rows_with_generator_metadata": (
+            llm_route_planner_payload.get(
+                "n_rows_with_generator_metadata",
+                0,
+            )
+        ),
+        "n_llm_route_planner_rows_with_generation_errors": (
+            llm_route_planner_payload.get(
+                "n_rows_with_generation_errors",
+                0,
+            )
+        ),
         "n_llm_route_planner_awaiting": llm_route_planner_payload.get(
             "n_awaiting_llm_response",
             0,
@@ -1617,6 +1633,22 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_feedback_llm_route_planner_response_present": feedback_llm_route_planner_payload.get(
             "n_response_present",
             0,
+        ),
+        "n_feedback_llm_route_planner_provider_failures": feedback_llm_route_planner_payload.get(
+            "n_provider_failures",
+            0,
+        ),
+        "n_feedback_llm_route_planner_rows_with_generator_metadata": (
+            feedback_llm_route_planner_payload.get(
+                "n_rows_with_generator_metadata",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_rows_with_generation_errors": (
+            feedback_llm_route_planner_payload.get(
+                "n_rows_with_generation_errors",
+                0,
+            )
         ),
         "n_feedback_llm_route_planner_awaiting": feedback_llm_route_planner_payload.get(
             "n_awaiting_llm_response",
@@ -4163,7 +4195,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"- LLM route planner requests valid: "
             f"{payload.get('n_llm_route_planner_request_schema_valid')}/"
             f"{payload.get('n_llm_route_planner_request_packets')} "
-            f"awaiting={payload.get('n_llm_route_planner_awaiting')}"
+            f"awaiting={payload.get('n_llm_route_planner_awaiting')} "
+            f"provider_failures={payload.get('n_llm_route_planner_provider_failures')} "
+            f"generator_metadata_rows={payload.get('n_llm_route_planner_rows_with_generator_metadata')}"
         ),
         (
             f"- LLM route planner resource registry context/resources/contracts: "
@@ -4209,6 +4243,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_feedback_llm_route_planner_request_schema_valid')}/"
             f"{payload.get('n_feedback_llm_route_planner_request_packets')} "
             f"awaiting={payload.get('n_feedback_llm_route_planner_awaiting')} "
+            f"provider_failures={payload.get('n_feedback_llm_route_planner_provider_failures')} "
+            f"generator_metadata_rows={payload.get('n_feedback_llm_route_planner_rows_with_generator_metadata')} "
             f"accepted={payload.get('n_feedback_llm_route_planner_accepted_route_plans')} "
             f"residual_goals={payload.get('n_feedback_llm_route_planner_request_residual_goals')}"
         ),

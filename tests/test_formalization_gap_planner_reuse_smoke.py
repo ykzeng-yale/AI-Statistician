@@ -285,6 +285,9 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     )
     assert payload["n_llm_route_planner_request_schema_invalid"] == 0
     assert payload["n_llm_route_planner_response_present"] == 0
+    assert payload["n_llm_route_planner_provider_failures"] == 0
+    assert payload["n_llm_route_planner_rows_with_generator_metadata"] == 0
+    assert payload["n_llm_route_planner_rows_with_generation_errors"] == 0
     assert (
         payload["n_llm_route_planner_awaiting"]
         == payload["n_llm_route_planner_request_packets"]
@@ -346,6 +349,9 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     )
     assert payload["n_feedback_llm_route_planner_request_schema_invalid"] == 0
     assert payload["n_feedback_llm_route_planner_response_present"] == 0
+    assert payload["n_feedback_llm_route_planner_provider_failures"] == 0
+    assert payload["n_feedback_llm_route_planner_rows_with_generator_metadata"] == 0
+    assert payload["n_feedback_llm_route_planner_rows_with_generation_errors"] == 0
     assert payload["n_feedback_llm_route_planner_awaiting"] == payload[
         "n_feedback_llm_route_planner_request_packets"
     ]
@@ -1672,11 +1678,17 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     )
 
     assert payload["n_llm_route_planner_response_present"] == 1
+    assert payload["n_llm_route_planner_provider_failures"] == 0
+    assert payload["n_llm_route_planner_rows_with_generator_metadata"] == 1
+    assert payload["n_llm_route_planner_rows_with_generation_errors"] == 0
     assert payload["n_llm_route_planner_response_contract_ok"] == 1
     assert payload["n_llm_route_planner_accepted_route_plans"] == 1
     assert payload["n_llm_route_planner_awaiting"] == 0
     assert payload["n_llm_route_planner_search_requests"] == 1
     assert payload["n_feedback_llm_route_planner_response_present"] == 1
+    assert payload["n_feedback_llm_route_planner_provider_failures"] == 0
+    assert payload["n_feedback_llm_route_planner_rows_with_generator_metadata"] == 1
+    assert payload["n_feedback_llm_route_planner_rows_with_generation_errors"] == 0
     assert payload["n_feedback_llm_route_planner_response_contract_ok"] == 1
     assert payload["n_feedback_llm_route_planner_accepted_route_plans"] == 1
     assert payload["n_feedback_llm_route_planner_awaiting"] == 0
@@ -1804,3 +1816,122 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         ).read_text(encoding="utf-8")
     )
     assert feedback_seed_payload["routes"][0]["display_name"] == "llm_reviewed_rank_route"
+
+
+def test_reuse_smoke_surfaces_llm_route_planner_provider_failure() -> None:
+    root = Path("runs/test_formalization_gap_planner_reuse_smoke_llm_provider_failure")
+    input_path = root / "target_request.json"
+    failure_response_path = root / "provider_failure_response.json"
+    out_dir = root / "reuse_smoke"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "component_name": "formalization_gap_planner_target_intake",
+                "target_prover_family": "lean4",
+                "library_snapshot_ref": "mathlib4:reuse-smoke-llm-provider-failure",
+                "target_id": "split_conformal_coverage_provider_failure",
+                "title": "Split conformal finite-sample coverage provider failure",
+                "domain": "distribution-free prediction",
+                "theorem_statement": (
+                    "For exchangeable calibration and test scores, split "
+                    "conformal prediction has finite sample marginal coverage."
+                ),
+                "objects": ["calibration scores", "test score"],
+                "assumptions": [
+                    "exchangeable calibration and test scores",
+                    "finite calibration sample",
+                ],
+                "statistical_procedure": "split conformal prediction set",
+                "desired_conclusion": "finite sample marginal coverage inequality",
+                "desired_theorem_shape": "coverage probability lower bound",
+                "known_proof_sources": ["conformal prediction textbook"],
+                "candidate_primitives": [
+                    {
+                        "primitive": "exchangeability",
+                        "coverage_status": "exact_exists",
+                        "candidate_declarations": ["Probability.exchangeable"],
+                    },
+                    {
+                        "primitive": "rank uniformity",
+                        "coverage_status": "bridge_needed",
+                    },
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    failure_response_path.write_text(
+        json.dumps(
+            {
+                "provider_name": "anthropic",
+                "model": "claude-sonnet-4-6",
+                "response_payload": {},
+                "raw_response_text": "",
+                "generator_metadata": {
+                    "generator_only": True,
+                    "tools_available": False,
+                    "provider_failure": True,
+                    "exception_type": "TimeoutError",
+                    "exception_message": "simulated Anthropic timeout",
+                    "repair_attempt": 0,
+                },
+                "provider_failure": True,
+                "kernel_verified": False,
+                "proof_evidence_boundary": LLM_ROUTE_PLANNER_PROOF_EVIDENCE_BOUNDARY,
+                "repair_attempts": 0,
+                "repair_error_history": [],
+                "generation_errors": [
+                    "provider exception: TimeoutError: simulated Anthropic timeout"
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = run_formalization_gap_planner_reuse_smoke(
+        input_path,
+        out_dir,
+        target_prover_family="rocq",
+        target_library_snapshot_ref="rocq:reuse-smoke-llm-provider-failure",
+        llm_route_planner_response_json=failure_response_path,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_llm_route_planner_request_packets"] == 1
+    assert payload["n_llm_route_planner_response_present"] == 0
+    assert payload["n_llm_route_planner_provider_failures"] == 1
+    assert payload["n_llm_route_planner_rows_with_generator_metadata"] == 1
+    assert payload["n_llm_route_planner_rows_with_generation_errors"] == 1
+    assert payload["n_llm_route_planner_awaiting"] == 0
+    assert payload["n_llm_route_planner_accepted_route_plans"] == 0
+    assert payload["n_llm_route_planner_row_schema_valid"] == 1
+    assert payload["n_llm_route_planner_row_schema_invalid"] == 0
+    assert payload["n_feedback_llm_route_planner_provider_failures"] == 0
+    assert payload["n_feedback_llm_route_planner_rows_with_generation_errors"] == 0
+    assert (
+        payload["n_feedback_llm_route_planner_awaiting"]
+        == payload["n_feedback_llm_route_planner_request_packets"]
+    )
+    llm_manifest = json.loads(
+        (
+            out_dir
+            / "formalization_gap_planner_llm_route_planner"
+            / "formalization_gap_planner_llm_route_planner_manifest.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert llm_manifest["n_provider_failures"] == 1
+    assert llm_manifest["rows"][0]["acceptance_status"] == (
+        "REJECTED_LLM_ROUTE_PLANNER_PROVIDER_FAILURE"
+    )
+    assert llm_manifest["rows"][0]["generator_metadata"]["exception_type"] == (
+        "TimeoutError"
+    )
+    report = (
+        out_dir / "formalization_gap_planner_reuse_smoke.md"
+    ).read_text(encoding="utf-8")
+    assert "provider_failures=1" in report
