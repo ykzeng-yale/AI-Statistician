@@ -1413,6 +1413,29 @@ def test_runtime_formalization_gap_planner_bridge_preserves_non_lean_target() ->
     assert bridge["counts"]["primitives_with_candidate_declaration_rows"] == 2
 
 
+def test_formal_subclaim_prover_flags_configured_filter_that_excludes_all_candidates() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    problem = ProblemFormalizer().formalize(question)
+    _, theorem_goals = TheoryPlanner().plan(problem)
+    prover = FormalSubclaimProver(
+        verifier=MockProofVerifier(),
+        proof_obligation_ids=("variance_nonneg",),
+        max_proof_obligations=1,
+    )
+
+    subclaims = asyncio.run(prover.prove(problem, theorem_goals))
+    control = prover.proof_obligation_control()
+
+    assert all(row.claim_type != "lean_obligation" for row in subclaims)
+    assert any(row.status == "FORMAL_GAP" for row in subclaims)
+    assert "prob_measure_univ" in control["candidate_proof_obligation_ids"]
+    assert control["configured_proof_obligation_ids"] == ["variance_nonneg"]
+    assert control["requested_non_candidate_proof_obligation_ids"] == ["variance_nonneg"]
+    assert control["requested_candidate_intersection"] == []
+    assert control["proof_selection_filtered_all_candidates"] is True
+    assert control["n_selected_proof_obligations"] == 0
+
+
 def test_research_agent_runtime_rejects_unsupported_generator_provider() -> None:
     out_dir = Path("runs/test_research_agent_runtime_unsupported_provider_policy")
     shutil.rmtree(out_dir, ignore_errors=True)

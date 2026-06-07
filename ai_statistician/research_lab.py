@@ -5167,6 +5167,9 @@ class FormalSubclaimProver:
         self._last_selected_obligation_ids: tuple[str, ...] = ()
         self._last_prioritized_obligation_ids: tuple[str, ...] = ()
         self._last_selected_priority_obligation_ids: tuple[str, ...] = ()
+        self._last_requested_candidate_intersection: tuple[str, ...] = ()
+        self._last_requested_non_candidate_ids: tuple[str, ...] = ()
+        self._last_selection_filtered_all_candidates = False
 
     def formal_source_retriever(self) -> Any:
         if self._formal_source_retriever is None:
@@ -5182,6 +5185,9 @@ class FormalSubclaimProver:
             "candidate_proof_obligation_ids": list(self._last_candidate_obligation_ids),
             "selected_proof_obligation_ids": list(self._last_selected_obligation_ids),
             "selected_priority_proof_obligation_ids": list(self._last_selected_priority_obligation_ids),
+            "requested_candidate_intersection": list(self._last_requested_candidate_intersection),
+            "requested_non_candidate_proof_obligation_ids": list(self._last_requested_non_candidate_ids),
+            "proof_selection_filtered_all_candidates": self._last_selection_filtered_all_candidates,
             "n_candidate_proof_obligations": len(self._last_candidate_obligation_ids),
             "n_selected_proof_obligations": len(self._last_selected_obligation_ids),
             "selection_boundary": (
@@ -5249,10 +5255,20 @@ class FormalSubclaimProver:
         subclaims: list[FormalSubclaim] = []
         candidate_obligation_ids = self.candidate_proof_obligation_ids(problem, theorem_goals)
         self._last_candidate_obligation_ids = candidate_obligation_ids
+        self._last_requested_candidate_intersection = ()
+        self._last_requested_non_candidate_ids = ()
+        self._last_selection_filtered_all_candidates = False
         obligation_ids = candidate_obligation_ids
         if self.proof_obligation_ids:
             requested = set(self.proof_obligation_ids)
             obligation_ids = tuple(row for row in obligation_ids if row in requested)
+            self._last_requested_candidate_intersection = obligation_ids
+            self._last_requested_non_candidate_ids = tuple(
+                row for row in self.proof_obligation_ids if row not in set(candidate_obligation_ids)
+            )
+            self._last_selection_filtered_all_candidates = bool(
+                candidate_obligation_ids and self.proof_obligation_ids and not obligation_ids
+            )
         priority_ids = tuple(
             dict.fromkeys(
                 (
