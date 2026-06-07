@@ -1127,6 +1127,15 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     )
     assert gap_planner_bridge["counts"]["routes"] > 0
     assert gap_planner_bridge["counts"]["primitives"] > 0
+    assert gap_planner_bridge["counts"]["candidate_declaration_rows"] > 0
+    assert (
+        gap_planner_bridge["counts"]["primitives_with_candidate_declaration_rows"] > 0
+    )
+    assert any(
+        primitive.get("candidate_declaration_rows")
+        for route in gap_planner_bridge["standalone_seed"]["routes"]
+        for primitive in route["primitives"]
+    )
     assert "--model-tier auto" in gap_planner_bridge["next_llm_route_planner_prompt_cli"]
     assert "--max-repair-attempts 1" in gap_planner_bridge["next_llm_route_planner_prompt_cli"]
     assert "--provider anthropic" in gap_planner_bridge["next_llm_route_planner_prompt_cli"]
@@ -1148,6 +1157,7 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert len(persisted_bridge_rows) == 2
     assert persisted_bridge_rows[0]["standalone_seed_path"].endswith(".json")
     assert persisted_bridge_rows[0]["target_prover_family"] == "lean4"
+    assert persisted_bridge_rows[0]["counts"]["candidate_declaration_rows"] > 0
     assert "--model-tier auto" in persisted_bridge_rows[0]["llm_route_planner_prompt_cli"]
     assert "--max-repair-attempts 1" in persisted_bridge_rows[0]["llm_route_planner_prompt_cli"]
     assert len(handoff_rows) == 2
@@ -1176,6 +1186,14 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert runtime_handoff_audit["n_standalone_smoke_ok"] == 2
     assert runtime_handoff_audit["n_llm_prompt_smoke_ok"] == 2
     assert runtime_handoff_audit["n_llm_prompt_packets"] >= 2
+    assert runtime_handoff_audit["n_seed_candidate_declaration_rows"] > 0
+    assert (
+        runtime_handoff_audit["n_seed_primitives_with_candidate_declaration_rows"] > 0
+    )
+    assert all(
+        summary["seed_candidate_declaration_rows"] > 0
+        for summary in runtime_handoff_audit["smoke_summaries"]
+    )
     assert runtime_handoff_audit["by_category"]["target_prover"] == 6
     assert Path(
         runtime_handoff_audit[
@@ -1187,6 +1205,12 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
         / "runtime_formalization_gap_planner_handoff_audit"
         / "formalization_gap_planner_runtime_handoff_audit_manifest.json"
     ).exists()
+    runtime_handoff_report = (
+        out_dir
+        / "runtime_formalization_gap_planner_handoff_audit"
+        / "formalization_gap_planner_runtime_handoff_audit.md"
+    ).read_text(encoding="utf-8")
+    assert "Seed candidate declaration rows:" in runtime_handoff_report
     standalone_seed = gap_planner_bridge["standalone_seed"]
     assert validate_standalone_input_payload(standalone_seed) == []
     assert standalone_seed["component_name"] == "formalization_gap_planner_standalone_input"
@@ -1377,6 +1401,16 @@ def test_runtime_formalization_gap_planner_bridge_preserves_non_lean_target() ->
     assert seed["routes"][0]["replan_metadata"]["residual_goals"] == [
         "missing finite rank bridge"
     ]
+    primitive = seed["routes"][0]["primitives"][0]
+    assert primitive["candidate_declaration_rows"] == [
+        {
+            "declaration": "Rocq.Probability.exchangeable",
+            "target_prover_family": "rocq",
+            "source_field": "runtime_primitive_formal_source_hits",
+        }
+    ]
+    assert bridge["counts"]["candidate_declaration_rows"] == 2
+    assert bridge["counts"]["primitives_with_candidate_declaration_rows"] == 2
 
 
 def test_research_agent_runtime_rejects_unsupported_generator_provider() -> None:

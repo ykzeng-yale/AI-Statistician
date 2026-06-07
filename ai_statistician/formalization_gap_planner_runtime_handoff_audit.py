@@ -147,6 +147,25 @@ def audit_formalization_gap_planner_runtime_handoffs(
             int(summary.get("llm_prompt_awaiting_response", 0) or 0)
             for summary in smoke_summaries
         ),
+        "n_seed_routes": sum(
+            int(summary.get("seed_routes", 0) or 0) for summary in smoke_summaries
+        ),
+        "n_seed_primitives": sum(
+            int(summary.get("seed_primitives", 0) or 0)
+            for summary in smoke_summaries
+        ),
+        "n_seed_residual_goals": sum(
+            int(summary.get("seed_residual_goals", 0) or 0)
+            for summary in smoke_summaries
+        ),
+        "n_seed_candidate_declaration_rows": sum(
+            int(summary.get("seed_candidate_declaration_rows", 0) or 0)
+            for summary in smoke_summaries
+        ),
+        "n_seed_primitives_with_candidate_declaration_rows": sum(
+            int(summary.get("seed_primitives_with_candidate_declaration_rows", 0) or 0)
+            for summary in smoke_summaries
+        ),
         "by_category": dict(sorted(by_category.items())),
         "checks": check_dicts,
         "row_schema_errors": row_schema_errors,
@@ -277,12 +296,18 @@ def _audit_handoff_row(
         "llm_prompt_smoke_ok": False,
         "llm_prompt_packets": 0,
         "llm_prompt_awaiting_response": 0,
+        "seed_routes": 0,
+        "seed_primitives": 0,
+        "seed_residual_goals": 0,
+        "seed_candidate_declaration_rows": 0,
+        "seed_primitives_with_candidate_declaration_rows": 0,
     }
     seed_errors: list[str] = []
     seed_payload = _read_json(seed_path, seed_errors)
     validation_errors = validate_standalone_input_payload(seed_payload)
     seed_schema_ok = not seed_errors and not validation_errors
     summary["seed_schema_ok"] = seed_schema_ok
+    summary.update(_seed_context_counts(seed_payload))
     seed_target = str(seed_payload.get("target_prover_family", "")).strip()
     cost_control_ok = _prompt_cli_cost_control_ok(prompt_cli)
     live_explicit_ok = _live_cli_explicit_ok(live_cli)
@@ -517,6 +542,41 @@ def _audit_handoff_row(
     return checks, summary
 
 
+def _seed_context_counts(seed_payload: Mapping[str, Any]) -> dict[str, int]:
+    routes = [
+        dict(route)
+        for route in seed_payload.get("routes", [])
+        if isinstance(route, Mapping)
+    ]
+    primitives = [
+        dict(primitive)
+        for route in routes
+        for primitive in route.get("primitives", [])
+        if isinstance(primitive, Mapping)
+    ]
+    residual_goals = [
+        residual_goal
+        for route in routes
+        for residual_goal in _str_tuple(
+            _dict_value(route.get("replan_metadata", {})).get("residual_goals", [])
+        )
+    ]
+    candidate_declaration_rows = [
+        row
+        for primitive in primitives
+        for row in _dict_tuple(primitive.get("candidate_declaration_rows", []))
+    ]
+    return {
+        "seed_routes": len(routes),
+        "seed_primitives": len(primitives),
+        "seed_residual_goals": len(residual_goals),
+        "seed_candidate_declaration_rows": len(candidate_declaration_rows),
+        "seed_primitives_with_candidate_declaration_rows": sum(
+            1 for primitive in primitives if primitive.get("candidate_declaration_rows")
+        ),
+    }
+
+
 def _run_standalone_smoke(
     seed_path: Path,
     *,
@@ -644,6 +704,28 @@ def _read_jsonl(path: Path, errors: list[str]) -> list[dict[str, Any]]:
         else:
             errors.append(f"{path}:{idx} is not a JSON object")
     return rows
+
+
+def _dict_value(value: Any) -> dict[str, Any]:
+    return dict(value) if isinstance(value, Mapping) else {}
+
+
+def _dict_tuple(value: Any) -> tuple[dict[str, object], ...]:
+    if not isinstance(value, (list, tuple, set)):
+        return tuple()
+    return tuple(dict(item) for item in value if isinstance(item, Mapping))
+
+
+def _str_tuple(value: Any) -> tuple[str, ...]:
+    if value is None:
+        return tuple()
+    if isinstance(value, str):
+        return (value,) if value else tuple()
+    if isinstance(value, Mapping):
+        return tuple(str(key) for key in value if str(key))
+    if isinstance(value, (list, tuple, set)):
+        return tuple(str(item) for item in value if str(item))
+    return (str(value),) if str(value) else tuple()
 
 
 def _check(
@@ -804,6 +886,13 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
         f"- LLM prompt smoke OK: {payload.get('n_llm_prompt_smoke_ok')}",
         f"- Prompt packets: {payload.get('n_llm_prompt_packets')}",
         f"- Awaiting LLM response: {payload.get('n_llm_prompt_awaiting_response')}",
+        f"- Seed routes/primitives: {payload.get('n_seed_routes')}/{payload.get('n_seed_primitives')}",
+        f"- Seed residual goals: {payload.get('n_seed_residual_goals')}",
+        (
+            f"- Seed candidate declaration rows: "
+            f"{payload.get('n_seed_candidate_declaration_rows')} "
+            f"across {payload.get('n_seed_primitives_with_candidate_declaration_rows')} primitives"
+        ),
         f"- All OK: {payload.get('all_ok')}",
         "",
         "## Boundary",

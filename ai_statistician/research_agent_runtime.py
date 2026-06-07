@@ -2744,6 +2744,17 @@ def _runtime_formalization_gap_planner_bridge(
             for primitive in route.get("primitives", [])
             if primitive.get("coverage_status") == "source_port_needed"
         ),
+        "primitives_with_candidate_declaration_rows": sum(
+            1
+            for route in routes
+            for primitive in route.get("primitives", [])
+            if primitive.get("candidate_declaration_rows")
+        ),
+        "candidate_declaration_rows": sum(
+            len(primitive.get("candidate_declaration_rows", []) or [])
+            for route in routes
+            for primitive in route.get("primitives", [])
+        ),
     }
     seed["runtime_bridge_id"] = bridge_id
     seed["standalone_seed_artifact_id"] = standalone_seed_artifact_id
@@ -2808,6 +2819,7 @@ def _runtime_gap_planner_route(
         related_subclaims,
         residual_goals=residual_goals,
         source_refs=source_refs,
+        target_prover_family=target_prover_family,
     )
     route_id = (
         "runtime_gap_route:"
@@ -2858,16 +2870,24 @@ def _runtime_gap_route_primitives(
     *,
     residual_goals: tuple[str, ...],
     source_refs: tuple[str, ...],
+    target_prover_family: str,
 ) -> list[dict[str, Any]]:
     primitives: list[dict[str, Any]] = []
     primitive_names = _str_tuple(theorem_goal.required_primitives)
     for primitive in primitive_names:
         hits = _runtime_primitive_hits(subclaims, primitive)
+        candidate_declarations = _runtime_declaration_names(hits)
         primitives.append(
             {
                 "primitive": primitive,
                 "coverage_status": "bridge_needed" if hits else "source_port_needed",
-                "candidate_declarations": _runtime_declaration_names(hits),
+                "candidate_declarations": candidate_declarations,
+                "candidate_declaration_rows": _runtime_declaration_rows(
+                    hits,
+                    fallback_declarations=candidate_declarations,
+                    target_prover_family=target_prover_family,
+                    source_field="runtime_primitive_formal_source_hits",
+                ),
                 "source_refs": list(source_refs),
                 "expected_premises": list(_str_tuple(theorem_goal.proof_obligations)),
                 "side_conditions": list(residual_goals[:5]),
@@ -2882,14 +2902,24 @@ def _runtime_gap_route_primitives(
         primitive = subclaim.proof_obligation_id or subclaim.id.split(":")[-1]
         if primitive in primitive_names:
             continue
+        candidate_declarations = _runtime_declaration_names(
+            subclaim.formal_source_hits
+        ) or ([str(subclaim.proof_obligation_id)] if subclaim.proof_obligation_id else [])
         primitives.append(
             {
                 "primitive": primitive,
                 "coverage_status": _runtime_subclaim_coverage_status(subclaim),
-                "candidate_declarations": _runtime_declaration_names(
-                    subclaim.formal_source_hits
-                )
-                or ([str(subclaim.proof_obligation_id)] if subclaim.proof_obligation_id else []),
+                "candidate_declarations": candidate_declarations,
+                "candidate_declaration_rows": _runtime_declaration_rows(
+                    subclaim.formal_source_hits,
+                    fallback_declarations=candidate_declarations,
+                    target_prover_family=target_prover_family,
+                    source_field=(
+                        "runtime_formal_source_hits"
+                        if subclaim.formal_source_hits
+                        else "runtime_proof_obligation_id"
+                    ),
+                ),
                 "source_refs": list(source_refs),
                 "side_conditions": list(_str_tuple([*subclaim.errors[:3], subclaim.gap_reason or ""])),
                 "next_step": _runtime_subclaim_next_step(subclaim),
@@ -3011,6 +3041,62 @@ def _runtime_declaration_names(hits: list[dict[str, Any]]) -> list[str]:
             if str(hit.get(key, "")).strip():
                 names.append(str(hit.get(key, "")).strip())
     return list(dict.fromkeys(names))[:12]
+
+
+def _runtime_declaration_rows(
+    hits: list[dict[str, Any]],
+    *,
+    fallback_declarations: list[str],
+    target_prover_family: str,
+    source_field: str,
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for hit in hits:
+        declaration = ""
+        for key in ("declaration", "declaration_name", "name"):
+            if str(hit.get(key, "")).strip():
+                declaration = str(hit.get(key, "")).strip()
+                break
+        if not declaration:
+            continue
+        rows.append(
+            {
+                "declaration": declaration,
+                "target_prover_family": str(
+                    hit.get("target_prover_family", "")
+                    or hit.get("target_prover", "")
+                    or target_prover_family
+                ).strip(),
+                "source_field": str(hit.get("source_field", "") or source_field),
+            }
+        )
+    if not rows:
+        rows.extend(
+            {
+                "declaration": declaration,
+                "target_prover_family": target_prover_family,
+                "source_field": source_field,
+            }
+            for declaration in _str_tuple(fallback_declarations)
+        )
+    compact: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for row in rows:
+        declaration = str(row.get("declaration", "")).strip()
+        prover = str(row.get("target_prover_family", "")).strip()
+        key = (declaration.casefold(), prover.casefold())
+        if not declaration or key in seen:
+            continue
+        seen.add(key)
+        compact.append(
+            {
+                "declaration": declaration,
+                "target_prover_family": prover,
+                "source_field": str(row.get("source_field", "")).strip()
+                or source_field,
+            }
+        )
+    return compact[:12]
 
 
 def _runtime_gap_attempt_statuses(
