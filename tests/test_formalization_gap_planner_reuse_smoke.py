@@ -269,6 +269,20 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert payload["n_proof_boundary_ok"] == payload["n_stages"]
     assert payload["target_prover_family"] == "rocq"
     assert payload["source_target_prover_family"] == "lean4"
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_traces_with_llm_route_planner_metadata"
+        ]
+        == 0
+    )
+    assert payload["n_goal_plan_standalone_input_traces_with_llm_model_tier"] == 0
+    assert payload["goal_plan_standalone_input_trace_by_llm_model_tier"] == {}
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_traces_with_llm_generator_metadata"
+        ]
+        == 0
+    )
     assert payload["n_llm_route_planner_request_packets"] > 0
     assert payload["llm_route_planner_model_tier_selection_mode"] == "auto"
     assert payload["llm_route_planner_max_repair_attempts"] == 1
@@ -1678,6 +1692,22 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     )
 
     assert payload["n_llm_route_planner_response_present"] == 1
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_traces_with_llm_route_planner_metadata"
+        ]
+        == 1
+    )
+    assert payload["n_goal_plan_standalone_input_traces_with_llm_model_tier"] == 1
+    assert payload["goal_plan_standalone_input_trace_by_llm_model_tier"] == {
+        "sonnet": 1
+    }
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_traces_with_llm_generator_metadata"
+        ]
+        == 1
+    )
     assert payload["n_llm_route_planner_provider_failures"] == 0
     assert payload["n_llm_route_planner_rows_with_generator_metadata"] == 1
     assert payload["n_llm_route_planner_rows_with_generation_errors"] == 0
@@ -1804,6 +1834,10 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
             "source_field": "llm_candidate_declaration_rows",
         }
     ]
+    standalone_trace = plan_rows[0]["standalone_input_trace"]
+    assert standalone_trace["llm_route_planner_model_tier"] == "sonnet"
+    assert standalone_trace["llm_route_planner_has_generator_metadata"] is True
+    assert standalone_trace["llm_route_planner_generator_metadata"]["generator_only"] is True
     report_text = (
         out_dir / "formalization_gap_planner_reuse_smoke.md"
     ).read_text(encoding="utf-8")
@@ -1902,6 +1936,20 @@ def test_reuse_smoke_surfaces_llm_route_planner_provider_failure() -> None:
     )
 
     assert not payload["all_ok"]
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_traces_with_llm_route_planner_metadata"
+        ]
+        == 0
+    )
+    assert payload["n_goal_plan_standalone_input_traces_with_llm_model_tier"] == 0
+    assert payload["goal_plan_standalone_input_trace_by_llm_model_tier"] == {}
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_traces_with_llm_generator_metadata"
+        ]
+        == 0
+    )
     assert payload["n_llm_route_planner_request_packets"] == 1
     assert payload["n_llm_route_planner_response_present"] == 0
     assert payload["n_llm_route_planner_provider_failures"] == 1

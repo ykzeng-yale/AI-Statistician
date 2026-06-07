@@ -136,6 +136,13 @@ def export_formalization_gap_planner_standalone_plan(
     n_goal_plan_row_schema_invalid = (
         len(goal_plan_row_schema_errors) - n_goal_plan_row_schema_valid
     )
+    by_llm_model_tier = Counter(
+        str(row.standalone_input_trace.get("llm_route_planner_model_tier", ""))
+        or "missing"
+        for row in rows
+        if row.standalone_input_trace.get("llm_route_planner_row_id")
+        or row.standalone_input_trace.get("llm_route_planner_model_tier")
+    )
     payload: dict[str, object] = {
         "schema_version": GOAL_CONDITIONED_MINIMAL_FORMALIZATION_PLAN_SCHEMA_VERSION,
         "portable_schema_id": PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_ID,
@@ -197,6 +204,26 @@ def export_formalization_gap_planner_standalone_plan(
             1
             for row in rows
             if row.standalone_input_trace.get("has_replan_metadata")
+        ),
+        "n_standalone_input_traces_with_llm_route_planner_metadata": sum(
+            1
+            for row in rows
+            if row.standalone_input_trace.get("llm_route_planner_row_id")
+        ),
+        "n_standalone_input_traces_with_llm_model_tier": sum(
+            1
+            for row in rows
+            if row.standalone_input_trace.get("llm_route_planner_model_tier")
+        ),
+        "standalone_input_trace_by_llm_model_tier": dict(
+            sorted(by_llm_model_tier.items())
+        ),
+        "n_standalone_input_traces_with_llm_generator_metadata": sum(
+            1
+            for row in rows
+            if row.standalone_input_trace.get(
+                "llm_route_planner_has_generator_metadata"
+            )
         ),
         "n_standalone_input_traces_with_source_snippets": sum(
             1
@@ -853,6 +880,9 @@ def _standalone_input_trace(
     cost_graph = _minimal_delta_and_or_cost_graph(raw_route)
     selected_cost_graph_option = _selected_cost_graph_option(cost_graph)
     realization_witness = _realization_coverage_witness(raw_route)
+    llm_generator_metadata = _dict_value(
+        metadata.get("llm_route_planner_generator_metadata", {})
+    )
     return {
         "trace_kind": "standalone_input_route_trace",
         "source_route_id": route_id,
@@ -864,6 +894,30 @@ def _standalone_input_trace(
         ).strip(),
         "has_replan_metadata": bool(metadata),
         "replan_metadata": dict(metadata),
+        "llm_route_planner_row_id": str(
+            metadata.get("llm_route_planner_row_id", "")
+        ),
+        "llm_route_planner_request_id": str(
+            metadata.get("llm_route_planner_request_id", "")
+        ),
+        "llm_route_planner_provider": str(
+            metadata.get("llm_route_planner_provider", "")
+        ),
+        "llm_route_planner_model": str(metadata.get("llm_route_planner_model", "")),
+        "llm_route_planner_model_tier": str(
+            metadata.get("llm_route_planner_model_tier", "")
+        ),
+        "llm_route_planner_model_selection_rationale": str(
+            metadata.get("llm_route_planner_model_selection_rationale", "")
+        ),
+        "llm_route_planner_acceptance_status": str(
+            metadata.get("llm_route_planner_acceptance_status", "")
+        ),
+        "llm_route_planner_generator_metadata": llm_generator_metadata,
+        "llm_route_planner_generator_metadata_keys": _str_list(
+            metadata.get("llm_route_planner_generator_metadata_keys", [])
+        ),
+        "llm_route_planner_has_generator_metadata": bool(llm_generator_metadata),
         "applied_proposal_ids": _str_list(metadata.get("applied_proposal_ids", [])),
         "applied_refinement_evidence_ids": _str_list(
             metadata.get("applied_refinement_evidence_ids", [])
@@ -1322,6 +1376,10 @@ def _dict_list(values: Any) -> list[dict[str, object]]:
         seen.add(key)
         rows.append(dict(value))
     return rows
+
+
+def _dict_value(value: Any) -> dict[str, object]:
+    return dict(value) if isinstance(value, dict) else {}
 
 
 def _read_json(path: Path, errors: list[str]) -> dict[str, Any]:

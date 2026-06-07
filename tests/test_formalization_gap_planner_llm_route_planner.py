@@ -1910,6 +1910,17 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     )
     assert metadata["llm_route_planner_row_id"] == row["llm_route_planner_row_id"]
     assert metadata["llm_route_planner_acceptance_status"] == row["acceptance_status"]
+    assert metadata["llm_route_planner_model_tier"] == row["model_tier"]
+    assert (
+        metadata["llm_route_planner_model_selection_rationale"]
+        == row["model_selection_rationale"]
+    )
+    assert metadata["llm_route_planner_generator_metadata"] == row[
+        "generator_metadata"
+    ]
+    assert metadata["llm_route_planner_generator_metadata_keys"] == sorted(
+        row["generator_metadata"]
+    )
     assert metadata["applied_hook_kinds"] == ["llm_route_planner"]
     assert seed_route["realization_coverage_witness"] == row[
         "realization_coverage_witness"
@@ -1942,6 +1953,17 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         plan_dir,
     )
     assert plan_payload["all_ok"]
+    assert (
+        plan_payload[
+            "n_standalone_input_traces_with_llm_route_planner_metadata"
+        ]
+        == 1
+    )
+    assert plan_payload["n_standalone_input_traces_with_llm_model_tier"] == 1
+    assert plan_payload["standalone_input_trace_by_llm_model_tier"] == {
+        row["model_tier"]: 1
+    }
+    assert plan_payload["n_standalone_input_traces_with_llm_generator_metadata"] == 0
     source_payload = audit_formalization_gap_planner_source_grounding(
         plan_dir,
         source_audit_dir,
@@ -1965,6 +1987,14 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     )
     plan_row = plan_payload["rows"][0]
     trace = plan_row["standalone_input_trace"]
+    assert trace["llm_route_planner_row_id"] == row["llm_route_planner_row_id"]
+    assert trace["llm_route_planner_model_tier"] == row["model_tier"]
+    assert (
+        trace["llm_route_planner_model_selection_rationale"]
+        == row["model_selection_rationale"]
+    )
+    assert trace["llm_route_planner_generator_metadata"] == {}
+    assert trace["llm_route_planner_has_generator_metadata"] is False
     assert trace["has_source_snippets"]
     assert trace["source_snippets"][0]["source_ref"] == (
         "conformal_prediction_textbook"
@@ -2339,6 +2369,21 @@ def test_llm_route_planner_invokes_anthropic_generator_backend_without_live_api(
     assert request.metadata["component"] == "formalization_gap_planner_llm_route_planner"
     assert request.metadata["request_id"] == payload["request_packets"][0]["request_id"]
     assert request.metadata["model_tier"] == "sonnet"
+    seed_metadata = payload["standalone_seed"]["routes"][0]["replan_metadata"]
+    assert seed_metadata["llm_route_planner_model_tier"] == "sonnet"
+    assert "bridge_needed" in seed_metadata[
+        "llm_route_planner_model_selection_rationale"
+    ]
+    assert seed_metadata["llm_route_planner_generator_metadata"][
+        "schema_supplied"
+    ] is True
+    assert seed_metadata["llm_route_planner_generator_metadata"]["retry_count"] == 1
+    assert set(seed_metadata["llm_route_planner_generator_metadata_keys"]) >= {
+        "generator_only",
+        "retry_count",
+        "schema_supplied",
+        "tools_available",
+    }
     assert (
         out_dir
         / "formalization_gap_planner_llm_route_planner_standalone_seed.json"

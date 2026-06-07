@@ -5575,6 +5575,14 @@ def _accepted_route_for_seed(
         "llm_route_planner_request_id": row.request_id,
         "llm_route_planner_provider": row.provider_name,
         "llm_route_planner_model": row.model,
+        "llm_route_planner_model_tier": row.model_tier,
+        "llm_route_planner_model_selection_rationale": (
+            row.model_selection_rationale
+        ),
+        "llm_route_planner_generator_metadata": dict(row.generator_metadata),
+        "llm_route_planner_generator_metadata_keys": sorted(
+            str(key) for key in row.generator_metadata
+        ),
         "target_prover_family": row.target_prover_family,
         "llm_route_planner_acceptance_status": row.acceptance_status,
         "llm_route_planner_search_requests": [dict(item) for item in row.search_requests],

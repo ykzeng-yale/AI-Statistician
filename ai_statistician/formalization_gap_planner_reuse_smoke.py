@@ -1361,6 +1361,28 @@ def run_formalization_gap_planner_reuse_smoke(
         "source_library_snapshot_ref": str(plan_payload.get("library_snapshot_ref", "")),
         "target_library_snapshot_ref": adapter_snapshot_ref,
         "publication_library_snapshot_ref": publication_snapshot_ref,
+        "n_goal_plan_standalone_input_traces_with_llm_route_planner_metadata": (
+            plan_payload.get(
+                "n_standalone_input_traces_with_llm_route_planner_metadata",
+                0,
+            )
+        ),
+        "n_goal_plan_standalone_input_traces_with_llm_model_tier": (
+            plan_payload.get(
+                "n_standalone_input_traces_with_llm_model_tier",
+                0,
+            )
+        ),
+        "goal_plan_standalone_input_trace_by_llm_model_tier": plan_payload.get(
+            "standalone_input_trace_by_llm_model_tier",
+            {},
+        ),
+        "n_goal_plan_standalone_input_traces_with_llm_generator_metadata": (
+            plan_payload.get(
+                "n_standalone_input_traces_with_llm_generator_metadata",
+                0,
+            )
+        ),
         "max_routes": max_routes,
         "llm_route_planner_provider": llm_route_planner_provider,
         "llm_route_planner_model": str(llm_route_planner_payload.get("model", "")),
@@ -4191,6 +4213,13 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Work packets: {payload.get('n_portable_work_packets')}",
         f"- Publication bundle schema catalog entries: {payload.get('n_publication_bundle_schema_catalog_entries')}",
         f"- Publication bundle schema catalog contract errors: {payload.get('n_publication_bundle_schema_catalog_contract_errors')}",
+        (
+            f"- Goal-plan LLM trace metadata/model-tier/generator-metadata: "
+            f"{payload.get('n_goal_plan_standalone_input_traces_with_llm_route_planner_metadata')}/"
+            f"{payload.get('n_goal_plan_standalone_input_traces_with_llm_model_tier')}/"
+            f"{payload.get('n_goal_plan_standalone_input_traces_with_llm_generator_metadata')} "
+            f"tiers={payload.get('goal_plan_standalone_input_trace_by_llm_model_tier')}"
+        ),
         (
             f"- LLM route planner requests valid: "
             f"{payload.get('n_llm_route_planner_request_schema_valid')}/"
