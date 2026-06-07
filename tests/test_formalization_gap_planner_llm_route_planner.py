@@ -2276,6 +2276,7 @@ def test_llm_route_planner_invokes_anthropic_generator_backend_without_live_api(
                     "generator_only": True,
                     "tools_available": False,
                     "schema_supplied": request.schema is not None,
+                    "retry_count": 1,
                 },
             )
 
@@ -2293,12 +2294,19 @@ def test_llm_route_planner_invokes_anthropic_generator_backend_without_live_api(
     assert payload["by_request_model_tier"] == {"sonnet": 1}
     assert payload["n_raw_responses"] == 1
     assert payload["n_response_present"] == 1
+    assert payload["n_provider_failures"] == 0
+    assert payload["n_rows_with_generator_metadata"] == 1
     assert payload["n_response_contract_ok"] == 1
     assert payload["n_accepted_route_plans"] == 1
     row = payload["rows"][0]
     assert row["provider_name"] == "anthropic"
     assert row["model"] == "claude-sonnet-4-6"
     assert row["model_tier"] == "sonnet"
+    assert row["provider_failure"] is False
+    assert row["generator_metadata"]["generator_only"] is True
+    assert row["generator_metadata"]["tools_available"] is False
+    assert row["generator_metadata"]["schema_supplied"] is True
+    assert row["generator_metadata"]["retry_count"] == 1
     assert "bridge_needed" in row["model_selection_rationale"]
     packet = payload["request_packets"][0]
     assert packet["model"] == "claude-sonnet-4-6"
@@ -2335,6 +2343,63 @@ def test_llm_route_planner_invokes_anthropic_generator_backend_without_live_api(
         out_dir
         / "formalization_gap_planner_llm_route_planner_standalone_seed.json"
     ).exists()
+
+
+def test_llm_route_planner_records_provider_failure_as_rejected_row() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_provider_failure"
+    )
+    out_dir = root / "llm_route_planner"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+
+    class FailingAnthropicBackend:
+        provider_name = "anthropic"
+
+        def generate(self, request):
+            raise TimeoutError("simulated Anthropic timeout")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="anthropic",
+        invoke_provider=True,
+        generator_backend=FailingAnthropicBackend(),
+        max_repair_attempts=0,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_raw_responses"] == 1
+    assert payload["n_response_present"] == 0
+    assert payload["n_provider_failures"] == 1
+    assert payload["n_rows_with_generation_errors"] == 1
+    assert payload["n_awaiting_llm_response"] == 0
+    assert payload["n_rejected"] == 1
+    assert payload["by_acceptance_status"] == {
+        "REJECTED_LLM_ROUTE_PLANNER_PROVIDER_FAILURE": 1
+    }
+    row = payload["rows"][0]
+    assert row["provider_failure"] is True
+    assert row["response_present"] is False
+    assert row["response_contract_ok"] is False
+    assert row["ok"] is False
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_PROVIDER_FAILURE"
+    assert any("TimeoutError" in error for error in row["generation_errors"])
+    assert row["generator_metadata"]["provider_failure"] is True
+    assert row["generator_metadata"]["exception_type"] == "TimeoutError"
+    assert row["generator_metadata"]["tools_available"] is False
+    manifest = json.loads(
+        (
+            out_dir / "formalization_gap_planner_llm_route_planner_manifest.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert manifest["n_provider_failures"] == 1
+    assert manifest["rows"][0]["provider_failure"] is True
+    report = (
+        out_dir / "formalization_gap_planner_llm_route_planner.md"
+    ).read_text(encoding="utf-8")
+    assert "- Provider failures: 1" in report
 
 
 def test_llm_route_planner_auto_uses_haiku_for_small_bounded_routes() -> None:

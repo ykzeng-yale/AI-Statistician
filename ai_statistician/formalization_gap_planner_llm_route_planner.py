@@ -411,6 +411,8 @@ class FormalizationGapPlannerLLMRoutePlannerRow:
     source_snippets: tuple[dict[str, object], ...]
     realization_coverage_witness: dict[str, object]
     raw_response_text: str
+    generator_metadata: dict[str, object]
+    provider_failure: bool
     repair_attempts: int
     repair_error_history: tuple[dict[str, object], ...]
     generation_errors: tuple[str, ...]
@@ -865,6 +867,13 @@ def export_formalization_gap_planner_llm_route_planner(
         ),
         "n_rows": len(rows),
         "n_response_present": sum(1 for row in rows if row.response_present),
+        "n_provider_failures": sum(1 for row in rows if row.provider_failure),
+        "n_rows_with_generator_metadata": sum(
+            1 for row in rows if row.generator_metadata
+        ),
+        "n_rows_with_generation_errors": sum(
+            1 for row in rows if row.generation_errors
+        ),
         "n_awaiting_llm_response": by_acceptance_status.get(
             "AWAITING_LLM_ROUTE_PLANNER_RESPONSE",
             0,
@@ -1104,6 +1113,8 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
             "source_snippets",
             "realization_coverage_witness",
             "raw_response_text",
+            "generator_metadata",
+            "provider_failure",
             "repair_attempts",
             "repair_error_history",
             "generation_errors",
@@ -1148,6 +1159,8 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
                 "$ref": "#/$defs/realization_coverage_witness"
             },
             "raw_response_text": {"type": "string"},
+            "generator_metadata": {"type": "object"},
+            "provider_failure": {"type": "boolean"},
             "repair_attempts": {"type": "integer", "minimum": 0},
             "repair_error_history": object_array,
             "generation_errors": string_array,
@@ -1262,6 +1275,15 @@ def validate_llm_route_planner_row(
             errors.append("present non-contract response must be rejected")
     if row.get("response_contract_ok") and not row.get("standalone_route"):
         errors.append("accepted response must include standalone_route")
+    if row.get("provider_failure"):
+        if not _str_tuple(row.get("generation_errors", [])):
+            errors.append("provider_failure row must include generation_errors")
+        if not str(row.get("acceptance_status", "")).startswith(
+            "REJECTED_LLM_ROUTE_PLANNER_PROVIDER_FAILURE"
+        ):
+            errors.append(
+                "provider_failure row must use REJECTED_LLM_ROUTE_PLANNER_PROVIDER_FAILURE"
+            )
     if row.get("response_contract_ok"):
         witness = _dict_value(row, "realization_coverage_witness")
         if not bool(witness.get("realization_coverage_complete", False)):
@@ -1492,15 +1514,16 @@ def _generate_responses(
         last_response: dict[str, Any] | None = None
         last_generated: Any | None = None
         for attempt in range(repair_budget + 1):
+            request_model = _generator_model_for_request(
+                generator_backend,
+                model or str(packet.get("model", "")),
+            )
             try:
                 generated = generator_backend.generate(
                     GeneratorRequest(
                         system_prompt=str(prompt.get("system", "")),
                         user_prompt=user_prompt,
-                        model=_generator_model_for_request(
-                            generator_backend,
-                            model or str(packet.get("model", "")),
-                        ),
+                        model=request_model,
                         max_tokens=max_tokens,
                         temperature=temperature,
                         schema=llm_route_planner_response_payload_schema(),
@@ -1532,6 +1555,8 @@ def _generate_responses(
                     "model": generated.model,
                     "response_payload": payload,
                     "raw_response_text": generated.text,
+                    "generator_metadata": _jsonable_mapping(generated.metadata),
+                    "provider_failure": False,
                     "kernel_verified": False,
                     "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
                     "repair_attempts": attempt,
@@ -1565,19 +1590,44 @@ def _generate_responses(
                     attempt=attempt + 1,
                 )
             except Exception as exc:
+                exception_text = f"{type(exc).__name__}: {exc}"
                 if attempt >= repair_budget:
                     errors.append(
                         "LLM route planner provider failed for "
-                        f"{packet.get('request_id', '')}: {type(exc).__name__}: {exc}"
+                        f"{packet.get('request_id', '')}: {exception_text}"
                     )
-                    last_response = None
+                    last_response = {
+                        "request_id": str(packet.get("request_id", "")),
+                        "route_id": str(packet.get("route_id", "")),
+                        "provider_name": str(
+                            getattr(generator_backend, "provider_name", "")
+                        ),
+                        "model": request_model,
+                        "response_payload": {},
+                        "raw_response_text": str(getattr(last_generated, "text", "")),
+                        "generator_metadata": {
+                            "generator_only": True,
+                            "tools_available": False,
+                            "provider_failure": True,
+                            "exception_type": type(exc).__name__,
+                            "exception_message": str(exc)[:1000],
+                            "repair_attempt": attempt,
+                        },
+                        "provider_failure": True,
+                        "kernel_verified": False,
+                        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+                        "repair_attempts": attempt,
+                        "repair_error_history": tuple(repair_history),
+                        "generation_errors": (
+                            "provider exception: " + exception_text,
+                        ),
+                    }
                     break
+                provider_error = "provider exception: " + exception_text
                 repair_history.append(
                     {
                         "attempt": attempt,
-                        "errors": (
-                            f"provider exception: {type(exc).__name__}: {exc}",
-                        ),
+                        "errors": (provider_error,),
                     }
                 )
                 user_prompt = _repair_user_prompt(
@@ -1585,14 +1635,23 @@ def _generate_responses(
                     previous_response_text=str(
                         getattr(last_generated, "text", "")
                     ),
-                    validation_errors=[
-                        f"provider exception: {type(exc).__name__}: {exc}"
-                    ],
+                    validation_errors=[provider_error],
                     attempt=attempt + 1,
                 )
         if last_response is not None:
             responses.append(last_response)
     return responses
+
+
+def _jsonable_mapping(value: object) -> dict[str, object]:
+    if not isinstance(value, Mapping):
+        return {}
+    try:
+        encoded = json.dumps(dict(value), default=str)
+        decoded = json.loads(encoded)
+    except Exception:
+        return {str(key): str(item) for key, item in value.items()}
+    return dict(decoded) if isinstance(decoded, Mapping) else {}
 
 
 def _repair_user_prompt(
@@ -1804,7 +1863,8 @@ def _row_for_request(
     request_errors: list[str],
     response: Mapping[str, Any] | None,
 ) -> FormalizationGapPlannerLLMRoutePlannerRow:
-    response_present = response is not None
+    provider_failure = bool((response or {}).get("provider_failure", False))
+    response_present = response is not None and not provider_failure
     raw_text = str((response or {}).get("raw_response_text", ""))
     payload = _response_payload(response or {})
     generation_errors = _str_tuple((response or {}).get("generation_errors", []))
@@ -1824,7 +1884,9 @@ def _row_for_request(
         and not contract_errors
         and not generation_errors
     )
-    if not response_present:
+    if provider_failure:
+        acceptance_status = "REJECTED_LLM_ROUTE_PLANNER_PROVIDER_FAILURE"
+    elif not response_present:
         acceptance_status = "AWAITING_LLM_ROUTE_PLANNER_RESPONSE"
     elif response_errors or contract_errors:
         acceptance_status = "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
@@ -1891,6 +1953,10 @@ def _row_for_request(
             alignment_edges=route_alignment_edges,
         ),
         raw_response_text=raw_text,
+        generator_metadata=_jsonable_mapping(
+            (response or {}).get("generator_metadata", {})
+        ),
+        provider_failure=provider_failure,
         repair_attempts=max(0, int((response or {}).get("repair_attempts", 0) or 0)),
         repair_error_history=_dict_tuple(
             (response or {}).get("repair_error_history", [])
@@ -1900,10 +1966,8 @@ def _row_for_request(
         proof_evidence_status=PROOF_EVIDENCE_STATUS,
         proof_evidence_boundary=PROOF_EVIDENCE_BOUNDARY,
         ok=not request_errors
-        and (
-            not response_present
-            or response_contract_ok
-        ),
+        and not provider_failure
+        and (not response_present or response_contract_ok),
         errors=tuple(sorted(set(all_errors))),
     )
 
@@ -6546,6 +6610,8 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
         f"- Repair attempts: {payload.get('n_generated_response_repair_attempts')}",
         f"- Repaired responses: {payload.get('n_generated_responses_repaired')}",
         f"- Responses present: {payload.get('n_response_present')}",
+        f"- Provider failures: {payload.get('n_provider_failures')}",
+        f"- Rows with generator metadata: {payload.get('n_rows_with_generator_metadata')}",
         f"- Accepted route plans: {payload.get('n_accepted_route_plans')}",
         f"- Awaiting LLM response: {payload.get('n_awaiting_llm_response')}",
         f"- Rejected: {payload.get('n_rejected')}",
