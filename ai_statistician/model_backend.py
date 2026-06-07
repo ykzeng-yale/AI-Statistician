@@ -148,6 +148,38 @@ def claude_model_tier_mismatch(
     return f"{prefix}expected Claude {expected} tier but is configured with {model}"
 
 
+def claude_model_tier_policy_violations(
+    models_by_tier: Mapping[str, str],
+) -> list[str]:
+    """Return diagnostics when resolved Claude tiers defeat cost-aware routing."""
+
+    violations: list[str] = []
+    resolved_by_tier = {
+        tier: str(models_by_tier.get(tier, "") or "").strip()
+        for tier in CLAUDE_MODEL_TIERS
+    }
+    for tier, model in resolved_by_tier.items():
+        mismatch = claude_model_tier_mismatch(
+            model,
+            tier,
+            subject=f"Claude {tier} tier",
+        )
+        if mismatch:
+            violations.append(mismatch)
+
+    resolved_models = {
+        model for model in resolved_by_tier.values() if model
+    }
+    if len(resolved_models) == 1 and all(resolved_by_tier.values()):
+        only_model = next(iter(resolved_models))
+        violations.append(
+            "Claude cost-aware tier routing collapsed to one resolved model "
+            f"({only_model}); use tier-specific model env vars or unset the "
+            "global model override for Haiku/Sonnet switching."
+        )
+    return sorted(set(violations))
+
+
 @dataclass(frozen=True)
 class GeneratorRequest:
     """One LLM generation request.

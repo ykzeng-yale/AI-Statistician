@@ -13,6 +13,7 @@ from ai_statistician.model_backend import (
     StaticJSONGeneratorBackend,
     claude_model_tier_for_model,
     claude_model_tier_mismatch,
+    claude_model_tier_policy_violations,
     default_generator_model,
     default_generator_provider,
 )
@@ -182,6 +183,27 @@ def test_live_generator_defaults_to_anthropic_cost_aware_tiers(monkeypatch: pyte
     assert default_generator_model("anthropic", model_tier="haiku") == "claude-haiku-test"
     assert default_generator_model("anthropic", model_tier="sonnet") == "claude-sonnet-test"
     assert default_generator_model("anthropic", model_tier="opus") == "claude-opus-test"
+
+
+def test_claude_model_tier_policy_violations_detect_global_model_collapse(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AI_STATISTICIAN_LLM_MODEL", "claude-sonnet-4-6")
+    models = {
+        "haiku": default_generator_model("anthropic", model_tier="haiku"),
+        "sonnet": default_generator_model("anthropic", model_tier="sonnet"),
+        "opus": default_generator_model("anthropic", model_tier="opus"),
+    }
+
+    assert models == {
+        "haiku": "claude-sonnet-4-6",
+        "sonnet": "claude-sonnet-4-6",
+        "opus": "claude-sonnet-4-6",
+    }
+    violations = claude_model_tier_policy_violations(models)
+    assert any("Claude haiku tier expected Claude haiku tier" in item for item in violations)
+    assert any("Claude opus tier expected Claude opus tier" in item for item in violations)
+    assert any("collapsed to one resolved model" in item for item in violations)
 
 
 def test_claude_model_tier_helpers_detect_cross_tier_model_overrides() -> None:

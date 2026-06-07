@@ -11,7 +11,11 @@ from pathlib import Path
 from typing import Mapping
 
 from .algorithms import all_algorithms
-from .model_backend import default_generator_model, default_generator_provider
+from .model_backend import (
+    claude_model_tier_policy_violations,
+    default_generator_model,
+    default_generator_provider,
+)
 from .proof_bank import all_obligations
 
 
@@ -56,6 +60,11 @@ def build_doctor_report(
     llm_env = {**dotenv_values, **env}
     llm_provider = default_generator_provider(llm_env)
     llm_models = _llm_model_tiers(provider=llm_provider, env=llm_env)
+    llm_model_tier_policy_violations = (
+        claude_model_tier_policy_violations(llm_models)
+        if llm_provider == "anthropic"
+        else []
+    )
     llm_theory_blockers = _llm_runtime_blockers(
         provider=llm_provider,
         env=env,
@@ -81,6 +90,12 @@ def build_doctor_report(
         _runtime_check("real Lean / AXLE runtime", real_lean_blockers),
         DoctorCheck("LLM generator provider", "OK", False, f"default provider: {llm_provider}"),
         DoctorCheck("LLM generator models", "OK", False, _llm_models_detail(llm_models)),
+        DoctorCheck(
+            "LLM Claude tier policy",
+            "WARN" if llm_model_tier_policy_violations else "OK",
+            False,
+            "; ".join(llm_model_tier_policy_violations) or "tier routing is cost-aware",
+        ),
         *_llm_provider_checks(llm_provider, env=env, dotenv_values=dotenv_values),
         _runtime_check("LLM theory runtime", llm_theory_blockers),
         _openprover_check(env),
@@ -127,6 +142,9 @@ def build_doctor_report(
             "llm_theory_blockers": llm_theory_blockers,
             "llm_provider": llm_provider,
             "llm_models": llm_models,
+            "llm_model_tier_policy_violations": (
+                llm_model_tier_policy_violations
+            ),
             "openprover_available": _openprover_path(env).exists(),
             "n_obligations": len(all_obligations()),
             "n_algorithms": len(all_algorithms()),

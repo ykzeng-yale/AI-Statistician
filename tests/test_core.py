@@ -6198,6 +6198,7 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(report["summary"]["llm_models"]["haiku"], "claude-haiku-4-5-20251001")
         self.assertEqual(report["summary"]["llm_models"]["sonnet"], "claude-sonnet-4-6")
         self.assertEqual(report["summary"]["llm_models"]["opus"], "claude-opus-4-8")
+        self.assertEqual(report["summary"]["llm_model_tier_policy_violations"], [])
         serialized = json.dumps(report)
         self.assertNotIn("do-not-print-axle", serialized)
         self.assertNotIn("do-not-print-anthropic", serialized)
@@ -6205,6 +6206,28 @@ class SystemTests(unittest.TestCase):
         manifest = write_doctor_manifest(report, Path("runs/test_doctor"))
         self.assertTrue(manifest.exists())
         self.assertIn('"required_ok": true', manifest.read_text())
+
+    def test_doctor_report_flags_global_claude_model_tier_collapse(self) -> None:
+        report = build_doctor_report(
+            root=Path("."),
+            env_file=Path(".env"),
+            environ={
+                "ANTHROPIC_API_KEY": "do-not-print-anthropic",
+                "AI_STATISTICIAN_LLM_MODEL": "claude-sonnet-4-6",
+            },
+            max_manifests=0,
+        )
+
+        violations = report["summary"]["llm_model_tier_policy_violations"]
+        self.assertTrue(
+            any("collapsed to one resolved model" in item for item in violations)
+        )
+        self.assertTrue(
+            any("Claude haiku tier expected Claude haiku tier" in item for item in violations)
+        )
+        checks = {row["name"]: row for row in report["checks"]}
+        self.assertEqual(checks["LLM Claude tier policy"]["status"], "WARN")
+        self.assertNotIn("do-not-print-anthropic", json.dumps(report))
 
     def test_capability_audit_maps_objective_to_evidence(self) -> None:
         report = build_capability_audit(root=Path("."), max_manifests=3)
