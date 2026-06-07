@@ -73,15 +73,18 @@ def export_formal_verifier_replay_repair_patch_rerun_residual_prompt_packets(
     residual_rows = [
         row for row in residual_payload.get("rows", []) if isinstance(row, dict)
     ]
-    selected_rows = sorted(
-        residual_rows,
-        key=lambda row: (
-            _safe_int(row.get("priority_rank", 9)),
-            _action_rank(str(row.get("action_class", ""))),
-            str(row.get("display_name", "")),
-            str(row.get("residual_gap", "")),
-        ),
-    )[: max(0, max_packets)]
+    selected_rows = [
+        row
+        for _, row in sorted(
+            enumerate(residual_rows),
+            key=lambda item: (
+                _safe_int(item[1].get("priority_rank", 9)),
+                _action_rank(str(item[1].get("action_class", ""))),
+                str(item[1].get("display_name", "")),
+                item[0],
+            ),
+        )
+    ][: max(0, max_packets)]
     packets = [
         _prompt_packet(
             row,

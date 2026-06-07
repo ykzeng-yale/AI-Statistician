@@ -6,6 +6,13 @@ import re
 from dataclasses import asdict, dataclass
 from typing import Any, Protocol
 
+from .model_backend import (
+    AnthropicGeneratorBackend,
+    GeneratorBackend,
+    GeneratorRequest,
+    default_generator_model,
+)
+
 
 SUPPORTED_DGP_FAMILIES = ("normal", "bernoulli", "constant")
 SUPPORTED_ESTIMATOR_FAMILIES = ("sample_mean", "sample_proportion", "constant_estimator")
@@ -50,50 +57,61 @@ class MockTheoryProposer:
         return self.proposal
 
 
-class AnthropicTheoryProposer:
-    """Haiku-backed proposer for mapping natural-language questions to supported families.
+class GeneratorTheoryProposer:
+    """Generator-backed proposer for mapping questions to supported families.
 
-    This agent never expands the trusted estimator/proof surface. It can only
-    propose one of the supported family IDs, and `question_from_json` validates
-    the proposal before simulation or formal verification runs.
+    This is an LLM generator use case, not an acting agent. It never expands the
+    trusted estimator/proof surface; it can only propose one of the supported
+    family IDs, and `question_from_json` validates the proposal before
+    simulation or formal verification runs.
     """
 
     def __init__(
         self,
         *,
-        model: str = "claude-haiku-4-5",
-        api_key: str | None = None,
+        provider: GeneratorBackend,
+        model: str = "",
+        provider_name: str = "",
         max_tokens: int = 700,
     ) -> None:
+        self.provider = provider
         self.model = model
-        self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
+        self.provider_name = provider_name
         self.max_tokens = max_tokens
 
     def propose(self, raw_question: dict[str, Any]) -> TheoryProposal:
-        if not self.api_key:
-            raise ValueError("ANTHROPIC_API_KEY is not set")
-        try:
-            import anthropic
-        except Exception as exc:
-            raise ValueError(f"failed to import anthropic package: {exc!r}") from exc
-
-        client = anthropic.Anthropic(api_key=self.api_key)
-        response = client.messages.create(
-            model=self.model,
-            max_tokens=self.max_tokens,
-            temperature=0,
-            system=SYSTEM_PROMPT,
-            messages=[
-                {
-                    "role": "user",
-                    "content": "Classify this statistical question:\n"
-                    + json.dumps(raw_question, indent=2),
-                }
-            ],
+        response = self.provider.generate(
+            GeneratorRequest(
+                system_prompt=SYSTEM_PROMPT,
+                user_prompt="Classify this statistical question:\n" + json.dumps(raw_question, indent=2),
+                model=self.model,
+                max_tokens=self.max_tokens,
+                temperature=0,
+                schema=THEORY_PROPOSAL_JSON_SCHEMA,
+                metadata={"subsystem": "TheoryIntake", "agent": "GeneratorTheoryProposer"},
+            )
         )
-        text = response.content[0].text
-        payload = _extract_json(text)
-        return proposal_from_payload(payload, source=f"anthropic:{self.model}").validated()
+        payload = _extract_json(response.text)
+        provider_name = self.provider_name or response.provider
+        return proposal_from_payload(payload, source=f"{provider_name}:{self.model or 'default'}").validated()
+
+
+class AnthropicTheoryProposer(GeneratorTheoryProposer):
+    """Compatibility wrapper for the old Anthropic-only theory intake path."""
+
+    def __init__(
+        self,
+        *,
+        model: str = "",
+        api_key: str | None = None,
+        max_tokens: int = 700,
+    ) -> None:
+        super().__init__(
+            provider=AnthropicGeneratorBackend(api_key=api_key or os.environ.get("ANTHROPIC_API_KEY")),
+            max_tokens=max_tokens,
+            model=default_generator_model("anthropic", model, model_tier="haiku"),
+            provider_name="anthropic",
+        )
 
 
 SYSTEM_PROMPT = """\
@@ -128,6 +146,22 @@ label in dgp_family or estimator_family. The caller will reject it.
 """
 
 
+THEORY_PROPOSAL_JSON_SCHEMA: dict[str, Any] = {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "additionalProperties": True,
+    "required": ["dgp_family", "estimator_family", "true_params"],
+    "properties": {
+        "dgp_family": {"type": "string"},
+        "estimator_family": {"type": "string"},
+        "true_params": {"type": "object"},
+        "tags": {"type": "array", "items": {"type": "string"}},
+        "confidence": {"type": "number"},
+        "rationale": {"type": "string"},
+    },
+}
+
+
 def proposal_from_payload(payload: dict[str, Any], *, source: str) -> TheoryProposal:
     params = payload.get("true_params") or {}
     if not isinstance(params, dict):
@@ -158,4 +192,3 @@ def _extract_json(text: str) -> dict[str, Any]:
 
 def proposal_to_json(proposal: TheoryProposal) -> dict[str, Any]:
     return asdict(proposal)
-

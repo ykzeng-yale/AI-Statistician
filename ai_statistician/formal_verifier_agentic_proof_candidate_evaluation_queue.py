@@ -164,6 +164,7 @@ def _candidate_queue_row(
     candidate_database_key = str(row.get("candidate_database_key", ""))
     required_live_tools = _str_tuple(row.get("required_live_tools", []))
     evaluator_gates = _str_tuple(row.get("evaluator_gates", []))
+    global_goal_cache_keys = _str_tuple(row.get("global_goal_cache_keys", []))
     evolve_block_scope = row.get("evolve_block_scope", {})
     if not isinstance(evolve_block_scope, dict):
         evolve_block_scope = {}

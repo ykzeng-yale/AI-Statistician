@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import os
 from pathlib import Path
+from typing import Mapping
 
 from .algorithms import audit_algorithm_registry
 from .algorithm_repair_promotion import export_algorithm_repair_promotion_queue
@@ -69,9 +71,31 @@ from .frontier_theory_target_audit import audit_frontier_theory_targets
 from .formal_gap_task_export import export_formal_gap_lean_tasks
 from .formalization_delta_plan import build_formalization_delta_plan
 from .formalization_gap_planner_benchmark import export_formalization_gap_planner_benchmark
+from .formalization_gap_planner_benchmark_audit import (
+    audit_formalization_gap_planner_benchmark,
+)
+from .formalization_gap_planner_ablation_study import (
+    export_formalization_gap_planner_ablation_study,
+)
 from .formalization_gap_planner_evaluation import evaluate_formalization_gap_planner
 from .formalization_gap_planner_adapter_registry import (
     export_formalization_gap_planner_adapter_registry,
+)
+from .formalization_gap_planner_adapter_registry_audit import (
+    audit_formalization_gap_planner_adapter_registry,
+)
+from .formalization_gap_planner_component_resource_registry import (
+    export_formalization_gap_planner_component_resource_registry,
+)
+from .formalization_gap_planner_component_resource_registry_audit import (
+    audit_formalization_gap_planner_component_resource_registry,
+)
+from .formalization_gap_planner_interactive_session import (
+    export_formalization_gap_planner_interactive_session,
+)
+from .formalization_gap_planner_cross_prover_matrix_audit import (
+    DEFAULT_REUSE_TARGETS as FORMALIZATION_GAP_PLANNER_REUSE_TARGETS,
+    audit_formalization_gap_planner_cross_prover_matrix,
 )
 from .formalization_gap_planner_local_formal_source_adapter import (
     export_formalization_gap_planner_local_formal_source_adapter_responses,
@@ -81,6 +105,42 @@ from .formalization_gap_planner_local_literature_adapter import (
 )
 from .formalization_gap_planner_local_proof_state_adapter import (
     export_formalization_gap_planner_local_proof_state_adapter_responses,
+)
+from .formalization_gap_planner_library_coverage_map import (
+    export_formalization_gap_planner_library_coverage_map,
+)
+from .formalization_gap_planner_llm_route_planner import (
+    export_formalization_gap_planner_llm_route_planner,
+)
+from .formalization_gap_planner_primitive_action_queue import (
+    export_formalization_gap_planner_primitive_action_queue,
+)
+from .formalization_gap_planner_action_resource_plan import (
+    export_formalization_gap_planner_action_resource_plan,
+)
+from .formalization_gap_planner_resource_request_queue import (
+    export_formalization_gap_planner_resource_request_queue,
+)
+from .formalization_gap_planner_resource_response_ledger import (
+    export_formalization_gap_planner_resource_response_ledger,
+)
+from .formalization_gap_planner_minimal_delta_audit import (
+    audit_formalization_gap_planner_minimal_delta,
+)
+from .formalization_gap_planner_portable_plan_audit import (
+    audit_formalization_gap_planner_portable_plan,
+)
+from .formalization_gap_planner_publication_bundle import (
+    export_formalization_gap_planner_publication_bundle,
+)
+from .formalization_gap_planner_publication_bundle_audit import (
+    audit_formalization_gap_planner_publication_bundle,
+)
+from .formalization_gap_planner_reuse_smoke import (
+    run_formalization_gap_planner_reuse_smoke,
+)
+from .formalization_gap_planner_prover_adapter_contract import (
+    export_formalization_gap_planner_prover_adapter_contract,
 )
 from .formalization_gap_planner_refinement_adapters import (
     export_formalization_gap_planner_refinement_adapter_responses,
@@ -94,8 +154,29 @@ from .formalization_gap_planner_refinement_queue import (
 from .formalization_gap_planner_route_revision_overlay import (
     export_formalization_gap_planner_route_revision_overlay,
 )
+from .formalization_gap_planner_route_stability_audit import (
+    audit_formalization_gap_planner_route_stability,
+)
+from .formalization_gap_planner_route_replan_handoff import (
+    export_formalization_gap_planner_route_replan_handoff,
+)
+from .formalization_gap_planner_route_replan_handoff_audit import (
+    audit_formalization_gap_planner_route_replan_handoff,
+)
+from .formalization_gap_planner_runtime_handoff_audit import (
+    audit_formalization_gap_planner_runtime_handoffs,
+)
 from .formalization_gap_planner_proof_state_triage import (
     export_formalization_gap_planner_proof_state_triage,
+)
+from .formalization_gap_planner_source_grounding_audit import (
+    audit_formalization_gap_planner_source_grounding,
+)
+from .formalization_gap_planner_standalone import (
+    export_formalization_gap_planner_standalone_plan,
+)
+from .formalization_gap_planner_target_intake import (
+    normalize_formalization_gap_planner_target_intake,
 )
 from .formalization_target_audit import audit_formalization_targets
 from .formal_verifier_queue import export_formal_verifier_queue
@@ -247,15 +328,36 @@ from .research_next_iteration_audit import audit_next_iteration_queue
 from .research_capability_audit import build_research_capability_audit, write_research_capability_audit
 from .research_policy_baseline import evaluate_research_policy_baseline
 from .research_report import build_research_markdown_report
+from .research_architect import (
+    AnthropicArchitectLLMProvider,
+    LLMTheoryDeveloperRepairHandler,
+    LLMTheoryDeveloperAgent,
+    ResearchArchitectAgent,
+    ResearchArchitectConfig,
+    StaticArchitectLLMProvider,
+)
+from .architect_coordinator_llm import ArchitectCoordinatorConfig, LLMArchitectCoordinatorAgent
+from .algorithm_engineer_llm import AlgorithmEngineerConfig, LLMAlgorithmEngineerAgent
+from .model_backend import (
+    OpenAIResponsesGeneratorBackend,
+    default_generator_model,
+    default_generator_provider,
+)
+from .proof_state_feedback import LocalLeanProofStateFeedbackProvider
+from .simulation_engineer_llm import LLMSimulationEngineerAgent, SimulationEngineerConfig
+from .research_agent_runtime import ResearchAgentRuntimeConfig, run_research_agent_runtime
+from .research_agent_runtime_audit import audit_research_agent_runtime
 from .research_system_audit import ResearchSystemAuditConfig, run_research_system_audit
 from .research_trace_audit import audit_research_traces
 from .research_training_export import export_research_training_dataset
+from .critic_evaluator_llm import CriticEvaluatorConfig, LLMCriticEvaluatorAgent
+from .formalizer_llm import FormalizerConfig, LLMFormalizerProofEngineerAgent
 from .questions import QUESTIONS, load_question_file
 from .retrieval import audit_proof_bank_retrieval
 from .system import AIStatisticianSystem, compact_summary, write_run_manifest, write_trace
 from .system_audit import SystemAuditConfig, load_audit_questions, run_system_audit
 from .theorem_composition_export import export_theorem_composition_packets
-from .theory_proposal import AnthropicTheoryProposer
+from .theory_proposal import GeneratorTheoryProposer
 from .trace_audit import audit_run_traces
 from .verifier import AxleProofVerifier, LocalLeanProofVerifier, MockProofVerifier
 
@@ -269,6 +371,300 @@ def _load_dotenv(path: Path) -> None:
             continue
         key, value = stripped.split("=", 1)
         os.environ.setdefault(key.strip(), value.strip().strip("'\""))
+
+
+def _attach_runtime_learning_memory(args: argparse.Namespace, context: dict[str, object]) -> None:
+    paths = [str(item) for item in getattr(args, "learning_memory_jsonl", []) or [] if str(item).strip()]
+    if not paths:
+        return
+    context["runtime_learning_memory"] = _load_runtime_learning_memory(
+        [Path(item) for item in paths],
+        max_rows=int(getattr(args, "max_learning_memory_rows", 20) or 20),
+    )
+
+
+def _load_runtime_learning_memory(paths: list[Path], *, max_rows: int = 20) -> dict[str, object]:
+    rows: list[dict[str, object]] = []
+    errors: list[str] = []
+    for path in paths:
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError as exc:
+            errors.append(f"{path}: {exc}")
+            continue
+        for line_no, line in enumerate(lines, start=1):
+            if len(rows) >= max_rows:
+                break
+            stripped = line.strip()
+            if not stripped:
+                continue
+            try:
+                payload = json.loads(stripped)
+            except json.JSONDecodeError as exc:
+                errors.append(f"{path}:{line_no}: {exc}")
+                continue
+            if isinstance(payload, dict):
+                rows.append(_compact_runtime_learning_memory_row(payload))
+            else:
+                errors.append(f"{path}:{line_no}: expected JSON object")
+        if len(rows) >= max_rows:
+            break
+    return {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeLearningMemoryContext",
+        "source_paths": [str(path) for path in paths],
+        "rows": rows,
+        "counts": {
+            "rows_loaded": len(rows),
+            "source_paths": len(paths),
+            "errors": len(errors),
+            "max_rows": max_rows,
+        },
+        "errors": errors[:10],
+        "boundary": (
+            "Prior runtime learning rows are prompt memory and orchestration guidance. "
+            "They are not proof evidence, simulation evidence, execution evidence, or source authority."
+        ),
+    }
+
+
+def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str, object]:
+    compact = {
+        "schema_version": row.get("schema_version", 1),
+        "question_id": str(row.get("question_id", "")),
+        "learning_task": str(row.get("learning_task", "")),
+        "input_summary": row.get("input_summary", {}) if isinstance(row.get("input_summary", {}), dict) else {},
+        "target_behavior": str(row.get("target_behavior", "")),
+        "acceptance_gate": str(row.get("acceptance_gate", "")),
+    }
+    for key in (
+        "recommended_proof_obligation_ids",
+        "selected_proof_obligation_ids",
+        "kernel_verified_proof_obligation_ids",
+        "proved_non_kernel_proof_obligation_ids",
+        "failed_proof_obligation_ids",
+        "formal_gap_target_ids",
+    ):
+        values = row.get(key, ())
+        if isinstance(values, list):
+            compact[key] = [str(item) for item in values if str(item).strip()]
+    return compact
+
+
+LIVE_GENERATOR_PROVIDER_CHOICES = ("anthropic", "openai", "static")
+SUBSYSTEM_GENERATOR_PROVIDER_CHOICES = (
+    "same",
+    "anthropic",
+    "openai",
+    "static",
+    "none",
+)
+
+
+def _default_live_generator_provider() -> str:
+    provider = default_generator_provider()
+    return provider if provider in LIVE_GENERATOR_PROVIDER_CHOICES else "anthropic"
+
+
+def _default_model_for_provider(
+    provider_name: str,
+    requested_model: str = "",
+    *,
+    model_tier: str = "sonnet",
+) -> str:
+    return default_generator_model(provider_name, requested_model, model_tier=model_tier)
+
+
+def _model_for_subsystem_provider(
+    *,
+    provider_choice: str,
+    explicit_model: str,
+    args: argparse.Namespace,
+    default_model: str,
+    model_tier: str,
+) -> str:
+    if explicit_model:
+        return explicit_model
+    primary_provider = getattr(args, "provider", _default_live_generator_provider())
+    if provider_choice == primary_provider:
+        return _default_model_for_provider(primary_provider, model_tier=model_tier)
+    if provider_choice == "same":
+        return default_model
+    return _default_model_for_provider(provider_choice, model_tier=model_tier)
+
+
+def _build_theory_generator_backend(
+    *,
+    provider_name: str,
+    static_response_file: str = "",
+):
+    if provider_name == "static":
+        if not static_response_file:
+            raise ValueError("a static response file is required with provider=static")
+        return (
+            StaticArchitectLLMProvider(Path(static_response_file).read_text(encoding="utf-8")),
+            "static",
+        )
+    if provider_name == "anthropic":
+        return AnthropicArchitectLLMProvider(), "anthropic"
+    if provider_name == "openai":
+        return OpenAIResponsesGeneratorBackend(), "openai"
+    raise ValueError(f"unknown theory provider: {provider_name}")
+
+
+def _build_algorithm_engineer_agent_from_args(args: argparse.Namespace, *, default_model: str):
+    provider_choice = getattr(args, "algorithm_engineer_provider", "none")
+    if provider_choice == "none":
+        return None
+    if provider_choice == "same":
+        provider_choice = getattr(args, "provider", _default_live_generator_provider())
+    static_file = getattr(args, "algorithm_static_response_file", "")
+    if provider_choice == "static" and not static_file:
+        return None
+    provider, provider_name = _build_theory_generator_backend(
+        provider_name=provider_choice,
+        static_response_file=static_file,
+    )
+    model = _model_for_subsystem_provider(
+        provider_choice=provider_choice,
+        explicit_model=getattr(args, "algorithm_llm_model", ""),
+        args=args,
+        default_model=default_model,
+        model_tier="haiku",
+    )
+    return LLMAlgorithmEngineerAgent(
+        provider=provider,
+        config=AlgorithmEngineerConfig(
+            model=model,
+            max_tokens=getattr(args, "algorithm_max_tokens", 5000),
+            temperature=getattr(args, "algorithm_temperature", 0.1),
+            provider_name=provider_name,
+        ),
+    )
+
+
+def _build_simulation_engineer_agent_from_args(args: argparse.Namespace, *, default_model: str):
+    provider_choice = getattr(args, "simulation_engineer_provider", "none")
+    if provider_choice == "none":
+        return None
+    if provider_choice == "same":
+        provider_choice = getattr(args, "provider", _default_live_generator_provider())
+    static_file = getattr(args, "simulation_static_response_file", "")
+    if provider_choice == "static" and not static_file:
+        return None
+    provider, provider_name = _build_theory_generator_backend(
+        provider_name=provider_choice,
+        static_response_file=static_file,
+    )
+    model = _model_for_subsystem_provider(
+        provider_choice=provider_choice,
+        explicit_model=getattr(args, "simulation_llm_model", ""),
+        args=args,
+        default_model=default_model,
+        model_tier="haiku",
+    )
+    return LLMSimulationEngineerAgent(
+        provider=provider,
+        config=SimulationEngineerConfig(
+            model=model,
+            max_tokens=getattr(args, "simulation_max_tokens", 5000),
+            temperature=getattr(args, "simulation_temperature", 0.1),
+            provider_name=provider_name,
+        ),
+    )
+
+
+def _build_formalizer_agent_from_args(args: argparse.Namespace, *, default_model: str):
+    provider_choice = getattr(args, "formalizer_provider", "none")
+    if provider_choice == "none":
+        return None
+    if provider_choice == "same":
+        provider_choice = getattr(args, "provider", _default_live_generator_provider())
+    static_file = getattr(args, "formalizer_static_response_file", "")
+    if provider_choice == "static" and not static_file:
+        return None
+    provider, provider_name = _build_theory_generator_backend(
+        provider_name=provider_choice,
+        static_response_file=static_file,
+    )
+    model = _model_for_subsystem_provider(
+        provider_choice=provider_choice,
+        explicit_model=getattr(args, "formalizer_llm_model", ""),
+        args=args,
+        default_model=default_model,
+        model_tier="sonnet",
+    )
+    return LLMFormalizerProofEngineerAgent(
+        provider=provider,
+        config=FormalizerConfig(
+            model=model,
+            max_tokens=getattr(args, "formalizer_max_tokens", 6000),
+            temperature=getattr(args, "formalizer_temperature", 0.1),
+            provider_name=provider_name,
+        ),
+    )
+
+
+def _build_critic_evaluator_agent_from_args(args: argparse.Namespace, *, default_model: str):
+    provider_choice = getattr(args, "critic_evaluator_provider", "none")
+    if provider_choice == "none":
+        return None
+    if provider_choice == "same":
+        provider_choice = getattr(args, "provider", _default_live_generator_provider())
+    static_file = getattr(args, "critic_static_response_file", "")
+    if provider_choice == "static" and not static_file:
+        return None
+    provider, provider_name = _build_theory_generator_backend(
+        provider_name=provider_choice,
+        static_response_file=static_file,
+    )
+    model = _model_for_subsystem_provider(
+        provider_choice=provider_choice,
+        explicit_model=getattr(args, "critic_llm_model", ""),
+        args=args,
+        default_model=default_model,
+        model_tier="haiku",
+    )
+    return LLMCriticEvaluatorAgent(
+        provider=provider,
+        config=CriticEvaluatorConfig(
+            model=model,
+            max_tokens=getattr(args, "critic_max_tokens", 5000),
+            temperature=getattr(args, "critic_temperature", 0.1),
+            provider_name=provider_name,
+        ),
+    )
+
+
+def _build_architect_coordinator_agent_from_args(args: argparse.Namespace, *, default_model: str):
+    provider_choice = getattr(args, "architect_coordinator_provider", "none")
+    if provider_choice == "none":
+        return None
+    if provider_choice == "same":
+        provider_choice = getattr(args, "provider", _default_live_generator_provider())
+    static_file = getattr(args, "architect_static_response_file", "")
+    if provider_choice == "static" and not static_file:
+        return None
+    provider, provider_name = _build_theory_generator_backend(
+        provider_name=provider_choice,
+        static_response_file=static_file,
+    )
+    model = _model_for_subsystem_provider(
+        provider_choice=provider_choice,
+        explicit_model=getattr(args, "architect_llm_model", ""),
+        args=args,
+        default_model=default_model,
+        model_tier="sonnet",
+    )
+    return LLMArchitectCoordinatorAgent(
+        provider=provider,
+        config=ArchitectCoordinatorConfig(
+            model=model,
+            max_tokens=getattr(args, "architect_max_tokens", 5000),
+            temperature=getattr(args, "architect_temperature", 0.1),
+            provider_name=provider_name,
+        ),
+    )
 
 
 async def _demo(args: argparse.Namespace) -> int:
@@ -336,7 +732,21 @@ def _questions_from_args(args: argparse.Namespace):
 def _theory_proposer_from_args(args: argparse.Namespace):
     if not getattr(args, "llm_theory", False):
         return None
-    return AnthropicTheoryProposer(model=getattr(args, "llm_model", "claude-haiku-4-5"))
+    provider_choice = getattr(args, "llm_provider", _default_live_generator_provider())
+    provider, provider_name = _build_theory_generator_backend(
+        provider_name=provider_choice,
+        static_response_file=getattr(args, "llm_static_response_file", ""),
+    )
+    return GeneratorTheoryProposer(
+        provider=provider,
+        model=_default_model_for_provider(
+            provider_choice,
+            getattr(args, "llm_model", ""),
+            model_tier="haiku",
+        ),
+        provider_name=provider_name,
+        max_tokens=getattr(args, "llm_max_tokens", 700),
+    )
 
 
 def _proof_verifier_from_args(args: argparse.Namespace):
@@ -356,6 +766,25 @@ def _proof_verifier_from_args(args: argparse.Namespace):
             timeout_s=lean_timeout,
         )
     return AxleProofVerifier() if getattr(args, "real_lean", False) else MockProofVerifier()
+
+
+def _proof_state_provider_from_args(args: argparse.Namespace):
+    if not getattr(args, "local_lean", False):
+        return None
+    lean_project = getattr(args, "lean_project", None) or getattr(
+        args,
+        "local_lean_project",
+        None,
+    )
+    lean_timeout = getattr(
+        args,
+        "lean_timeout",
+        getattr(args, "local_lean_timeout", 90),
+    ) or getattr(args, "local_lean_timeout", 90)
+    return LocalLeanProofStateFeedbackProvider(
+        project_root=lean_project,
+        timeout_s=lean_timeout,
+    )
 
 
 async def _eval(args: argparse.Namespace) -> int:
@@ -1873,6 +2302,328 @@ def _goal_conditioned_minimal_formalization_plan(args: argparse.Namespace) -> in
     return 0 if payload["all_ok"] else 1
 
 
+def _formalization_gap_planner_target_intake(args: argparse.Namespace) -> int:
+    payload = normalize_formalization_gap_planner_target_intake(
+        Path(args.input),
+        Path(args.out),
+    )
+    print("\nAI Statistical Theory Lab Formalization Gap Planner Target Intake")
+    print("=" * 72)
+    print(
+        f"targets={payload['n_ok']}/{payload['n_targets']} "
+        f"primitive_seeds={payload['n_primitive_seed_rows']} "
+        f"literature_queries={payload['n_literature_queries']} "
+        f"lean_queries={payload['n_lean_grounding_queries']} "
+        f"missing_sources={payload['n_missing_proof_sources']} "
+        f"missing_skeletons={payload['n_missing_theorem_skeleton']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\ntarget-intake manifest written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_target_intake_manifest.json').resolve()}"
+    )
+    print(
+        f"standalone seed written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_target_intake_standalone_seed.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formalization_gap_planner_standalone_plan(args: argparse.Namespace) -> int:
+    payload = export_formalization_gap_planner_standalone_plan(
+        Path(args.input),
+        Path(args.out),
+        max_routes=args.max_routes,
+    )
+    print("\nAI Statistical Theory Lab Formalization Gap Planner Standalone Plan")
+    print("=" * 72)
+    print(
+        f"plans={payload['n_ok']}/{payload['n_goal_plans']} "
+        f"target={payload['target_prover_family']} "
+        f"reuse={payload['n_existing_reuse_nodes']} "
+        f"wrappers={payload['n_wrapper_nodes']} "
+        f"bridges={payload['n_bridge_nodes']} "
+        f"source={payload['n_source_discovery_nodes']} "
+        f"first_principles={payload['n_first_principles_nodes']} "
+        f"packets={payload['n_portable_work_packets']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nstandalone gap-plan manifest written to "
+        f"{(Path(args.out) / 'goal_conditioned_minimal_formalization_plan_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formalization_gap_planner_llm_route_planner(args: argparse.Namespace) -> int:
+    payload = export_formalization_gap_planner_llm_route_planner(
+        Path(args.input),
+        Path(args.out),
+        provider_name=args.provider,
+        model=args.model,
+        model_tier=args.model_tier,
+        max_tokens=args.max_tokens,
+        temperature=args.temperature,
+        max_repair_attempts=args.max_repair_attempts,
+        invoke_provider=args.invoke_provider,
+        response_json=Path(args.response_json) if args.response_json else None,
+        static_response_json=(
+            Path(args.static_response_file) if args.static_response_file else None
+        ),
+        goal_conditioned_minimal_formalization_plan_dir=(
+            Path(args.goal_conditioned_minimal_formalization_plan_dir)
+            if args.goal_conditioned_minimal_formalization_plan_dir
+            else None
+        ),
+        formalization_gap_planner_library_coverage_map_dir=(
+            Path(args.formalization_gap_planner_library_coverage_map_dir)
+            if args.formalization_gap_planner_library_coverage_map_dir
+            else None
+        ),
+        formalization_gap_planner_source_grounding_audit_dir=(
+            Path(args.formalization_gap_planner_source_grounding_audit_dir)
+            if args.formalization_gap_planner_source_grounding_audit_dir
+            else None
+        ),
+        formalization_gap_planner_resource_request_queue_dir=(
+            Path(args.formalization_gap_planner_resource_request_queue_dir)
+            if args.formalization_gap_planner_resource_request_queue_dir
+            else None
+        ),
+        formalization_gap_planner_resource_response_ledger_dir=(
+            Path(args.formalization_gap_planner_resource_response_ledger_dir)
+            if args.formalization_gap_planner_resource_response_ledger_dir
+            else None
+        ),
+        formalization_gap_planner_refinement_evidence_dir=(
+            Path(args.formalization_gap_planner_refinement_evidence_dir)
+            if args.formalization_gap_planner_refinement_evidence_dir
+            else None
+        ),
+        formalization_gap_planner_route_revision_overlay_dir=(
+            Path(args.formalization_gap_planner_route_revision_overlay_dir)
+            if args.formalization_gap_planner_route_revision_overlay_dir
+            else None
+        ),
+        formalization_gap_planner_interactive_session_dir=(
+            Path(args.formalization_gap_planner_interactive_session_dir)
+            if args.formalization_gap_planner_interactive_session_dir
+            else None
+        ),
+        formalization_gap_planner_component_resource_registry_dir=(
+            Path(args.formalization_gap_planner_component_resource_registry_dir)
+            if args.formalization_gap_planner_component_resource_registry_dir
+            else None
+        ),
+    )
+    print("\nAI Statistical Theory Lab Formalization Gap Planner LLM Route Planner")
+    print("=" * 78)
+    print(
+        f"requests={payload['n_request_schema_valid']}/{payload['n_request_packets']} "
+        f"responses={payload['n_response_present']} "
+        f"accepted={payload['n_accepted_route_plans']} "
+        f"awaiting={payload['n_awaiting_llm_response']} "
+        f"search_requests={payload['n_search_requests']} "
+        f"rejected={payload['n_rejected']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nLLM route planner manifest written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_llm_route_planner_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formalization_gap_planner_portable_plan_audit(args: argparse.Namespace) -> int:
+    payload = audit_formalization_gap_planner_portable_plan(
+        Path(args.goal_conditioned_minimal_formalization_plan_dir),
+        Path(args.out),
+    )
+    print("\nAI Statistical Theory Lab Formalization Gap Planner Portable Plan Audit")
+    print("=" * 72)
+    print(
+        f"checks={payload['n_ok']}/{payload['n_checks']} "
+        f"failed={payload['n_failed']} "
+        f"rows={payload['n_plan_rows']} "
+        f"target={payload['target_prover_family']} "
+        f"two_dag={payload['n_rows_with_two_dag']} "
+        f"work_packets={payload['n_rows_with_work_packets']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nportable plan audit manifest written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_portable_plan_audit_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formalization_gap_planner_library_coverage_map(args: argparse.Namespace) -> int:
+    payload = export_formalization_gap_planner_library_coverage_map(
+        Path(args.goal_conditioned_minimal_formalization_plan_dir),
+        Path(args.out),
+    )
+    print("\nAI Statistical Theory Lab Formalization Gap Planner Library Coverage Map")
+    print("=" * 72)
+    print(
+        f"rows={payload['n_ok']}/{payload['n_coverage_rows']} "
+        f"exact={payload['n_exact_exists']} "
+        f"near={payload['n_near_exists']} "
+        f"wrapper={payload['n_wrapper_needed']} "
+        f"bridge={payload['n_bridge_needed']} "
+        f"source={payload['n_source_port_needed']} "
+        f"new_theory={payload['n_definition_or_theory_missing']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nlibrary coverage map manifest written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_library_coverage_map_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formalization_gap_planner_primitive_action_queue(args: argparse.Namespace) -> int:
+    payload = export_formalization_gap_planner_primitive_action_queue(
+        Path(args.formalization_gap_planner_library_coverage_map_dir),
+        Path(args.out),
+    )
+    print("\nAI Statistical Theory Lab Formalization Gap Planner Primitive Action Queue")
+    print("=" * 72)
+    print(
+        f"items={payload['n_ok']}/{payload['n_action_items']} "
+        f"replay={payload['n_target_prover_replay']} "
+        f"compose={payload['n_compose_existing_declarations']} "
+        f"wrapper={payload['n_write_wrapper']} "
+        f"bridge={payload['n_prove_bridge_lemma']} "
+        f"source={payload['n_source_port']} "
+        f"new_theory={payload['n_design_new_theory_fragment']} "
+        f"rerun={payload['n_rerun_library_alignment']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nprimitive action queue manifest written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_primitive_action_queue_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formalization_gap_planner_action_resource_plan(args: argparse.Namespace) -> int:
+    payload = export_formalization_gap_planner_action_resource_plan(
+        Path(args.formalization_gap_planner_primitive_action_queue_dir),
+        Path(args.formalization_gap_planner_component_resource_registry_dir),
+        Path(args.out),
+    )
+    print("\nAI Statistical Theory Lab Formalization Gap Planner Action Resource Plan")
+    print("=" * 72)
+    print(
+        f"plans={payload['n_ok']}/{payload['n_resource_plan_rows']} "
+        f"local={payload['n_with_local_first_resources']} "
+        f"frontier={payload['n_with_frontier_escalation_resources']} "
+        f"contracts={payload['n_with_resource_contracts']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\naction resource plan manifest written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_action_resource_plan_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formalization_gap_planner_resource_request_queue(args: argparse.Namespace) -> int:
+    payload = export_formalization_gap_planner_resource_request_queue(
+        Path(args.formalization_gap_planner_action_resource_plan_dir),
+        Path(args.out),
+    )
+    print("\nAI Statistical Theory Lab Formalization Gap Planner Resource Request Queue")
+    print("=" * 72)
+    print(
+        f"requests={payload['n_ok']}/{payload['n_resource_request_rows']} "
+        f"local={payload['n_local_first_requests']} "
+        f"frontier={payload['n_frontier_escalation_requests']} "
+        f"resources={payload['n_distinct_resources']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nresource request queue manifest written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_resource_request_queue_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formalization_gap_planner_resource_response_ledger(args: argparse.Namespace) -> int:
+    payload = export_formalization_gap_planner_resource_response_ledger(
+        Path(args.formalization_gap_planner_resource_request_queue_dir),
+        Path(args.out),
+        response_jsonl=Path(args.response_jsonl) if args.response_jsonl else None,
+    )
+    print("\nAI Statistical Theory Lab Formalization Gap Planner Resource Response Ledger")
+    print("=" * 76)
+    print(
+        f"ledger={payload['n_ok']}/{payload['n_ledger_rows']} "
+        f"responses={payload['n_response_present']} "
+        f"awaiting={payload['n_awaiting_response']} "
+        f"contract_ok={payload['n_response_contract_ok']} "
+        f"rejected={payload['n_rejected']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nresource response ledger manifest written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_resource_response_ledger_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formalization_gap_planner_minimal_delta_audit(args: argparse.Namespace) -> int:
+    payload = audit_formalization_gap_planner_minimal_delta(
+        Path(args.goal_conditioned_minimal_formalization_plan_dir),
+        Path(args.out),
+    )
+    print("\nAI Statistical Theory Lab Formalization Gap Planner Minimal Delta Audit")
+    print("=" * 72)
+    print(
+        f"checks={payload['n_ok']}/{payload['n_checks']} "
+        f"failed={payload['n_failed']} "
+        f"rows={payload['n_plan_rows']} "
+        f"cost_formula={payload['n_rows_with_cost_formula_ok']} "
+        f"work_packets={payload['n_rows_with_work_packet_cut_ok']} "
+        f"dominated={payload['n_dominated_route_witnesses']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nminimal delta audit manifest written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_minimal_delta_audit_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formalization_gap_planner_source_grounding_audit(args: argparse.Namespace) -> int:
+    payload = audit_formalization_gap_planner_source_grounding(
+        Path(args.goal_conditioned_minimal_formalization_plan_dir),
+        Path(args.out),
+        formalization_gap_planner_refinement_evidence_dir=Path(
+            args.formalization_gap_planner_refinement_evidence_dir
+        )
+        if args.formalization_gap_planner_refinement_evidence_dir
+        else None,
+    )
+    print("\nAI Statistical Theory Lab Formalization Gap Planner Source Grounding Audit")
+    print("=" * 72)
+    print(
+        f"rows={payload['n_ok']}/{payload['n_source_grounding_rows']} "
+        f"source={payload['n_source_backed']} "
+        f"pending={payload['n_source_search_pending']} "
+        f"boundary={payload['n_formal_boundary_declared']} "
+        f"unaccounted={payload['n_unaccounted']} "
+        f"residual={payload['n_residual_grounding_rows']} "
+        f"residual_unaccounted={payload['n_residual_unaccounted']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nsource grounding audit manifest written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_source_grounding_audit_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
 def _formalization_gap_planner_benchmark(args: argparse.Namespace) -> int:
     payload = export_formalization_gap_planner_benchmark(
         Path(args.out),
@@ -1891,6 +2642,108 @@ def _formalization_gap_planner_benchmark(args: argparse.Namespace) -> int:
     print(
         f"\nbenchmark manifest written to "
         f"{(Path(args.out) / 'formalization_gap_planner_benchmark_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formalization_gap_planner_benchmark_audit(args: argparse.Namespace) -> int:
+    payload = audit_formalization_gap_planner_benchmark(
+        Path(args.formalization_gap_planner_benchmark_dir),
+        Path(args.out),
+    )
+    print("\nAI Statistical Theory Lab Formalization Gap Planner Benchmark Audit")
+    print("=" * 72)
+    print(
+        f"checks={payload['n_ok']}/{payload['n_checks']} "
+        f"failed={payload['n_failed']} "
+        f"routes={payload['n_routes']} "
+        f"families={payload['n_theorem_families']} "
+        f"splits={payload['n_evaluation_splits']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nbenchmark audit manifest written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_benchmark_audit_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formalization_gap_planner_ablation_study(args: argparse.Namespace) -> int:
+    payload = export_formalization_gap_planner_ablation_study(
+        Path(args.goal_conditioned_minimal_formalization_plan_dir),
+        Path(args.formalization_gap_planner_evaluation_dir),
+        Path(args.out),
+        formalization_gap_planner_interactive_session_dir=Path(
+            args.formalization_gap_planner_interactive_session_dir
+        )
+        if args.formalization_gap_planner_interactive_session_dir
+        else None,
+    )
+    print("\nAI Statistical Theory Lab Formalization Gap Planner Ablation Study")
+    print("=" * 72)
+    print(
+        f"variants={payload['n_ok']}/{payload['n_ablation_variants']} "
+        f"routes={payload['n_evaluation_rows']} "
+        f"best={payload['best_variant_by_route_recall']} "
+        f"largest_route_drop={payload['largest_route_recall_drop_variant']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nablation study manifest written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_ablation_study_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formalization_gap_planner_interactive_session(args: argparse.Namespace) -> int:
+    payload = export_formalization_gap_planner_interactive_session(
+        Path(args.goal_conditioned_minimal_formalization_plan_dir),
+        Path(args.out),
+        formalization_gap_planner_refinement_queue_dir=Path(
+            args.formalization_gap_planner_refinement_queue_dir
+        )
+        if args.formalization_gap_planner_refinement_queue_dir
+        else None,
+        formalization_gap_planner_refinement_evidence_dir=Path(
+            args.formalization_gap_planner_refinement_evidence_dir
+        )
+        if args.formalization_gap_planner_refinement_evidence_dir
+        else None,
+        formalization_gap_planner_route_stability_audit_dir=Path(
+            args.formalization_gap_planner_route_stability_audit_dir
+        )
+        if args.formalization_gap_planner_route_stability_audit_dir
+        else None,
+        formalization_gap_planner_route_replan_handoff_dir=Path(
+            args.formalization_gap_planner_route_replan_handoff_dir
+        )
+        if args.formalization_gap_planner_route_replan_handoff_dir
+        else None,
+        formalization_gap_planner_proof_state_triage_dir=Path(
+            args.formalization_gap_planner_proof_state_triage_dir
+        )
+        if args.formalization_gap_planner_proof_state_triage_dir
+        else None,
+        formalization_gap_planner_component_resource_registry_dir=Path(
+            args.formalization_gap_planner_component_resource_registry_dir
+        )
+        if args.formalization_gap_planner_component_resource_registry_dir
+        else None,
+    )
+    print("\nAI Statistical Theory Lab Formalization Gap Planner Interactive Session")
+    print("=" * 72)
+    print(
+        f"rows={payload['n_ok']}/{payload['n_session_rows']} "
+        f"literature={payload['n_run_literature_search']} "
+        f"lean={payload['n_run_lean_grounding']} "
+        f"proof_state={payload['n_run_proof_state_feedback']} "
+        f"replan={payload['n_run_route_replan']} "
+        f"replay={payload['n_run_target_prover_replay']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\ninteractive session manifest written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_interactive_session_manifest.json').resolve()}"
     )
     return 0 if payload["all_ok"] else 1
 
@@ -1915,6 +2768,81 @@ def _formalization_gap_planner_adapter_registry(args: argparse.Namespace) -> int
     print(
         f"\nadapter registry manifest written to "
         f"{(Path(args.out) / 'formalization_gap_planner_adapter_registry_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formalization_gap_planner_adapter_registry_audit(args: argparse.Namespace) -> int:
+    payload = audit_formalization_gap_planner_adapter_registry(
+        Path(args.formalization_gap_planner_adapter_registry_dir),
+        Path(args.out),
+    )
+    print("\nAI Statistical Theory Lab Formalization Gap Planner Adapter Registry Audit")
+    print("=" * 72)
+    print(
+        f"checks={payload['n_ok']}/{payload['n_checks']} "
+        f"failed={payload['n_failed']} "
+        f"adapters={payload['n_registry_rows']} "
+        f"required={payload['n_required_adapter_ids_present']}/{payload['n_required_adapter_ids']} "
+        f"ready={payload['n_ready_local_or_configured']} "
+        f"mcp_cli={payload['n_mcp_or_cli_surfaces']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nadapter registry audit manifest written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_adapter_registry_audit_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formalization_gap_planner_component_resource_registry(
+    args: argparse.Namespace,
+) -> int:
+    payload = export_formalization_gap_planner_component_resource_registry(
+        Path(args.out),
+        formalization_gap_planner_adapter_registry_dir=Path(
+            args.formalization_gap_planner_adapter_registry_dir
+        )
+        if args.formalization_gap_planner_adapter_registry_dir
+        else None,
+    )
+    print("\nAI Statistical Theory Lab Formalization Gap Planner Component Resource Registry")
+    print("=" * 72)
+    print(
+        f"components={payload['n_component_rows_ok']}/{payload['n_component_rows']} "
+        f"resources={payload['n_resource_rows_ok']}/{payload['n_resources']} "
+        f"frontier={payload['n_frontier_resources']} "
+        f"mcp_cli={payload['n_mcp_or_cli_resources']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\ncomponent resource registry manifest written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_component_resource_registry_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formalization_gap_planner_component_resource_registry_audit(
+    args: argparse.Namespace,
+) -> int:
+    payload = audit_formalization_gap_planner_component_resource_registry(
+        Path(args.formalization_gap_planner_component_resource_registry_dir),
+        Path(args.out),
+    )
+    print("\nAI Statistical Theory Lab Formalization Gap Planner Component Resource Registry Audit")
+    print("=" * 72)
+    print(
+        f"checks={payload['n_ok']}/{payload['n_checks']} "
+        f"failed={payload['n_failed']} "
+        f"components={payload['n_required_component_ids_present']}/{payload['n_required_component_ids']} "
+        f"resources={payload['n_required_resource_ids_present']}/{payload['n_required_resource_ids']} "
+        f"frontier={payload['n_frontier_resources']} "
+        f"mcp_cli={payload['n_mcp_or_cli_resources']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\ncomponent resource registry audit manifest written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_component_resource_registry_audit_manifest.json').resolve()}"
     )
     return 0 if payload["all_ok"] else 1
 
@@ -1963,7 +2891,8 @@ def _formalization_gap_planner_refinement_queue(args: argparse.Namespace) -> int
     print(
         f"items={payload['n_ok']}/{payload['n_refinement_items']} "
         f"literature={payload['n_literature_discovery_items']} "
-        f"lean={payload['n_lean_library_grounding_items']} "
+        f"formal={payload.get('n_formal_library_grounding_items', payload['n_lean_library_grounding_items'])} "
+        f"lean_legacy={payload['n_lean_library_grounding_items']} "
         f"prover={payload['n_proof_state_feedback_items']} "
         f"revision={payload['n_route_revision_items']} "
         f"all_ok={payload['all_ok']}"
@@ -1990,7 +2919,8 @@ def _formalization_gap_planner_refinement_adapter_responses(
         f"responses={payload['n_responses']}/{payload['n_queue_rows']} "
         f"matched={payload['n_ground_truth_matched']} "
         f"literature={payload['n_literature_responses']} "
-        f"lean={payload['n_lean_grounding_responses']} "
+        f"formal={payload.get('n_formal_grounding_responses', payload['n_lean_grounding_responses'])} "
+        f"lean_legacy={payload['n_lean_grounding_responses']} "
         f"prover={payload['n_prover_feedback_responses']} "
         f"revision={payload['n_route_revision_responses']} "
         f"revision_recommended={payload['n_route_revision_recommended']} "
@@ -2057,7 +2987,8 @@ def _formalization_gap_planner_local_formal_source_adapter(args: argparse.Namesp
     print("=" * 72)
     print(
         f"responses={payload['n_local_formal_source_responses']}/"
-        f"{payload['n_lean_library_grounding_rows']} "
+        f"{payload.get('n_formal_library_grounding_rows', payload['n_lean_library_grounding_rows'])} "
+        f"lean_legacy={payload['n_lean_library_grounding_rows']} "
         f"merged={payload['n_merged_responses']} "
         f"hits={payload['n_hits']} "
         f"exact={payload['n_exact_exists']} "
@@ -2133,6 +3064,11 @@ def _formalization_gap_planner_route_revision_overlay(args: argparse.Namespace) 
         Path(args.goal_conditioned_minimal_formalization_plan_dir),
         Path(args.formalization_gap_planner_refinement_evidence_dir),
         Path(args.out),
+        formalization_gap_planner_resource_response_ledger_dir=Path(
+            args.formalization_gap_planner_resource_response_ledger_dir
+        )
+        if args.formalization_gap_planner_resource_response_ledger_dir
+        else None,
     )
     print("\nAI Statistical Theory Lab Formalization Gap Planner Route Revision Overlay")
     print("=" * 72)
@@ -2141,6 +3077,7 @@ def _formalization_gap_planner_route_revision_overlay(args: argparse.Namespace) 
         f"revised={payload['n_routes_with_revision']} "
         f"unrevised={payload['n_routes_without_revision']} "
         f"orphan={payload['n_orphan_route_revision_proposals']} "
+        f"ledger_proposals={payload['n_resource_response_ledger_route_revision_proposals']} "
         f"added={payload['n_added_primitives']} "
         f"delta_added={payload['n_added_delta_primitives']} "
         f"prover_status_routes={payload['n_routes_with_prover_attempt_status']} "
@@ -2149,6 +3086,118 @@ def _formalization_gap_planner_route_revision_overlay(args: argparse.Namespace) 
     print(
         f"\nroute revision overlay manifest written to "
         f"{(Path(args.out) / 'formalization_gap_planner_route_revision_overlay_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formalization_gap_planner_route_stability_audit(args: argparse.Namespace) -> int:
+    payload = audit_formalization_gap_planner_route_stability(
+        Path(args.goal_conditioned_minimal_formalization_plan_dir),
+        Path(args.formalization_gap_planner_refinement_evidence_dir),
+        Path(args.formalization_gap_planner_route_revision_overlay_dir),
+        Path(args.out),
+    )
+    print("\nAI Statistical Theory Lab Formalization Gap Planner Route Stability Audit")
+    print("=" * 72)
+    print(
+        f"rows={payload['n_ok']}/{payload['n_stability_rows']} "
+        f"stable={payload['n_stable']} "
+        f"needs_expansion={payload['n_needs_expansion']} "
+        f"awaiting={payload['n_awaiting_responses']} "
+        f"replan={payload['n_apply_route_revision']} "
+        f"literature={payload['n_expand_literature']} "
+        f"lean={payload['n_expand_lean_grounding']} "
+        f"proof_state={payload['n_expand_proof_state']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nroute stability audit manifest written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_route_stability_audit_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formalization_gap_planner_route_replan_handoff(args: argparse.Namespace) -> int:
+    payload = export_formalization_gap_planner_route_replan_handoff(
+        Path(args.goal_conditioned_minimal_formalization_plan_dir),
+        Path(args.formalization_gap_planner_route_revision_overlay_dir),
+        Path(args.out),
+        formalization_gap_planner_route_stability_audit_dir=Path(
+            args.formalization_gap_planner_route_stability_audit_dir
+        )
+        if args.formalization_gap_planner_route_stability_audit_dir
+        else None,
+        target_prover_family=args.target_prover_family,
+        library_snapshot_ref=args.library_snapshot_ref,
+    )
+    print("\nAI Statistical Theory Lab Formalization Gap Planner Route-Replan Handoff")
+    print("=" * 72)
+    print(
+        f"rows={payload['n_ok']}/{payload['n_handoff_rows']} "
+        f"replan={payload['n_routes_requiring_replan']} "
+        f"seed_routes={payload['n_standalone_seed_routes']} "
+        f"residual_routes={payload['n_routes_with_residual_goals']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nroute-replan handoff manifest written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_route_replan_handoff_manifest.json').resolve()}"
+    )
+    print(
+        f"standalone replan seed written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_route_replan_standalone_seed.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formalization_gap_planner_route_replan_handoff_audit(args: argparse.Namespace) -> int:
+    payload = audit_formalization_gap_planner_route_replan_handoff(
+        Path(args.formalization_gap_planner_route_replan_handoff_dir),
+        Path(args.out),
+    )
+    print("\nAI Statistical Theory Lab Formalization Gap Planner Route-Replan Handoff Audit")
+    print("=" * 72)
+    print(
+        f"checks={payload['n_ok']}/{payload['n_checks']} "
+        f"failed={payload['n_failed']} "
+        f"rows={payload['n_handoff_rows']} "
+        f"seed_routes={payload['n_seed_routes']} "
+        f"roundtrip={payload['n_roundtrip_goal_plans']} "
+        f"roundtrip_ok={payload['roundtrip_all_ok']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nroute-replan handoff audit manifest written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_route_replan_handoff_audit_manifest.json').resolve()}"
+    )
+    print(
+        f"roundtrip planner manifest written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_route_replan_roundtrip_plan' / 'goal_conditioned_minimal_formalization_plan_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formalization_gap_planner_runtime_handoff_audit(args: argparse.Namespace) -> int:
+    payload = audit_formalization_gap_planner_runtime_handoffs(
+        Path(args.runtime_formalization_gap_planner_handoffs_jsonl),
+        Path(args.out),
+        run_smoke=not args.no_smoke,
+    )
+    print("\nAI Statistical Theory Lab Formalization Gap Planner Runtime Handoff Audit")
+    print("=" * 72)
+    print(
+        f"handoffs={payload['n_handoffs']} "
+        f"checks={payload['n_ok']}/{payload['n_checks']} "
+        f"failed={payload['n_failed']} "
+        f"cost_control={payload['n_cost_control_ok']} "
+        f"standalone_smoke={payload['n_standalone_smoke_ok']} "
+        f"llm_prompt_smoke={payload['n_llm_prompt_smoke_ok']} "
+        f"prompt_packets={payload['n_llm_prompt_packets']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nruntime handoff audit manifest written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_runtime_handoff_audit_manifest.json').resolve()}"
     )
     return 0 if payload["all_ok"] else 1
 
@@ -2171,6 +3220,352 @@ def _formalization_gap_planner_proof_state_triage(args: argparse.Namespace) -> i
     print(
         f"\nproof-state triage manifest written to "
         f"{(Path(args.out) / 'formalization_gap_planner_proof_state_triage_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formalization_gap_planner_publication_bundle(args: argparse.Namespace) -> int:
+    payload = export_formalization_gap_planner_publication_bundle(
+        Path(args.out),
+        ground_truth_path=Path(args.ground_truth) if args.ground_truth else None,
+        lean_rag_db_path=Path(args.lean_rag_db) if args.lean_rag_db else None,
+        paper_library_dir=Path(args.paper_library_dir)
+        if args.paper_library_dir
+        else None,
+        formalization_gap_planner_target_intake_dir=Path(
+            args.formalization_gap_planner_target_intake_dir
+        )
+        if args.formalization_gap_planner_target_intake_dir
+        else None,
+        formalization_gap_planner_llm_route_planner_dir=Path(
+            args.formalization_gap_planner_llm_route_planner_dir
+        )
+        if args.formalization_gap_planner_llm_route_planner_dir
+        else None,
+        formalization_gap_planner_feedback_llm_route_planner_dir=Path(
+            args.formalization_gap_planner_feedback_llm_route_planner_dir
+        )
+        if args.formalization_gap_planner_feedback_llm_route_planner_dir
+        else None,
+        goal_conditioned_minimal_formalization_plan_dir=Path(
+            args.goal_conditioned_minimal_formalization_plan_dir
+        )
+        if args.goal_conditioned_minimal_formalization_plan_dir
+        else None,
+        formalization_gap_planner_evaluation_dir=Path(
+            args.formalization_gap_planner_evaluation_dir
+        )
+        if args.formalization_gap_planner_evaluation_dir
+        else None,
+        formalization_gap_planner_ablation_study_dir=Path(
+            args.formalization_gap_planner_ablation_study_dir
+        )
+        if args.formalization_gap_planner_ablation_study_dir
+        else None,
+        formalization_gap_planner_portable_plan_audit_dir=Path(
+            args.formalization_gap_planner_portable_plan_audit_dir
+        )
+        if args.formalization_gap_planner_portable_plan_audit_dir
+        else None,
+        formalization_gap_planner_library_coverage_map_dir=Path(
+            args.formalization_gap_planner_library_coverage_map_dir
+        )
+        if args.formalization_gap_planner_library_coverage_map_dir
+        else None,
+        formalization_gap_planner_primitive_action_queue_dir=Path(
+            args.formalization_gap_planner_primitive_action_queue_dir
+        )
+        if args.formalization_gap_planner_primitive_action_queue_dir
+        else None,
+        formalization_gap_planner_action_resource_plan_dir=Path(
+            args.formalization_gap_planner_action_resource_plan_dir
+        )
+        if args.formalization_gap_planner_action_resource_plan_dir
+        else None,
+        formalization_gap_planner_resource_request_queue_dir=Path(
+            args.formalization_gap_planner_resource_request_queue_dir
+        )
+        if args.formalization_gap_planner_resource_request_queue_dir
+        else None,
+        formalization_gap_planner_resource_response_ledger_dir=Path(
+            args.formalization_gap_planner_resource_response_ledger_dir
+        )
+        if args.formalization_gap_planner_resource_response_ledger_dir
+        else None,
+        formalization_gap_planner_minimal_delta_audit_dir=Path(
+            args.formalization_gap_planner_minimal_delta_audit_dir
+        )
+        if args.formalization_gap_planner_minimal_delta_audit_dir
+        else None,
+        formalization_gap_planner_source_grounding_audit_dir=Path(
+            args.formalization_gap_planner_source_grounding_audit_dir
+        )
+        if args.formalization_gap_planner_source_grounding_audit_dir
+        else None,
+        formalization_gap_planner_refinement_queue_dir=Path(
+            args.formalization_gap_planner_refinement_queue_dir
+        )
+        if args.formalization_gap_planner_refinement_queue_dir
+        else None,
+        formalization_gap_planner_refinement_adapter_dir=Path(
+            args.formalization_gap_planner_refinement_adapter_dir
+        )
+        if args.formalization_gap_planner_refinement_adapter_dir
+        else None,
+        formalization_gap_planner_local_literature_adapter_dir=Path(
+            args.formalization_gap_planner_local_literature_adapter_dir
+        )
+        if args.formalization_gap_planner_local_literature_adapter_dir
+        else None,
+        formalization_gap_planner_local_formal_source_adapter_dir=Path(
+            args.formalization_gap_planner_local_formal_source_adapter_dir
+        )
+        if args.formalization_gap_planner_local_formal_source_adapter_dir
+        else None,
+        formalization_gap_planner_local_proof_state_adapter_dir=Path(
+            args.formalization_gap_planner_local_proof_state_adapter_dir
+        )
+        if args.formalization_gap_planner_local_proof_state_adapter_dir
+        else None,
+        formalization_gap_planner_refinement_evidence_dir=Path(
+            args.formalization_gap_planner_refinement_evidence_dir
+        )
+        if args.formalization_gap_planner_refinement_evidence_dir
+        else None,
+        formalization_gap_planner_route_revision_overlay_dir=Path(
+            args.formalization_gap_planner_route_revision_overlay_dir
+        )
+        if args.formalization_gap_planner_route_revision_overlay_dir
+        else None,
+        formalization_gap_planner_route_stability_audit_dir=Path(
+            args.formalization_gap_planner_route_stability_audit_dir
+        )
+        if args.formalization_gap_planner_route_stability_audit_dir
+        else None,
+        formalization_gap_planner_route_replan_handoff_dir=Path(
+            args.formalization_gap_planner_route_replan_handoff_dir
+        )
+        if args.formalization_gap_planner_route_replan_handoff_dir
+        else None,
+        formalization_gap_planner_route_replan_handoff_audit_dir=Path(
+            args.formalization_gap_planner_route_replan_handoff_audit_dir
+        )
+        if args.formalization_gap_planner_route_replan_handoff_audit_dir
+        else None,
+        formalization_gap_planner_runtime_handoff_audit_dir=Path(
+            args.formalization_gap_planner_runtime_handoff_audit_dir
+        )
+        if args.formalization_gap_planner_runtime_handoff_audit_dir
+        else None,
+        formalization_gap_planner_proof_state_triage_dir=Path(
+            args.formalization_gap_planner_proof_state_triage_dir
+        )
+        if args.formalization_gap_planner_proof_state_triage_dir
+        else None,
+        formalization_gap_planner_interactive_session_dir=Path(
+            args.formalization_gap_planner_interactive_session_dir
+        )
+        if args.formalization_gap_planner_interactive_session_dir
+        else None,
+        formalization_gap_planner_prover_adapter_contract_dir=Path(
+            args.formalization_gap_planner_prover_adapter_contract_dir
+        )
+        if args.formalization_gap_planner_prover_adapter_contract_dir
+        else None,
+        formalization_gap_planner_cross_prover_matrix_audit_dir=Path(
+            args.formalization_gap_planner_cross_prover_matrix_audit_dir
+        )
+        if args.formalization_gap_planner_cross_prover_matrix_audit_dir
+        else None,
+        formalization_gap_planner_adapter_registry_audit_dir=Path(
+            args.formalization_gap_planner_adapter_registry_audit_dir
+        )
+        if args.formalization_gap_planner_adapter_registry_audit_dir
+        else None,
+        formalization_gap_planner_component_resource_registry_audit_dir=Path(
+            args.formalization_gap_planner_component_resource_registry_audit_dir
+        )
+        if args.formalization_gap_planner_component_resource_registry_audit_dir
+        else None,
+        library_snapshot_ref=args.library_snapshot_ref,
+    )
+    print("\nAI Statistical Theory Lab Formalization Gap Planner Publication Bundle")
+    print("=" * 72)
+    print(
+        f"bundle={payload['bundle_id']} "
+        f"core={payload['n_core_artifacts_ok']}/{payload['n_core_artifacts']} "
+        f"optional_files={payload['n_optional_artifact_files_copied']} "
+        f"adapters={payload['adapter_registry_summary']['n_adapters']} "
+        f"routes={payload['benchmark_summary']['n_routes']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\npublication bundle manifest written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_publication_bundle_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formalization_gap_planner_prover_adapter_contract(args: argparse.Namespace) -> int:
+    payload = export_formalization_gap_planner_prover_adapter_contract(
+        Path(args.goal_conditioned_minimal_formalization_plan_dir),
+        Path(args.out),
+        target_prover_family=args.target_prover_family,
+        library_snapshot_ref=args.library_snapshot_ref,
+        adapter_response_jsonl=Path(args.adapter_response_jsonl)
+        if args.adapter_response_jsonl
+        else None,
+        max_packets=args.max_packets,
+    )
+    print("\nAI Statistical Theory Lab Formalization Gap Planner Prover Adapter Contract")
+    print("=" * 72)
+    print(
+        f"target={payload['target_prover_family']} "
+        f"packets={payload['n_packet_ok']}/{payload['n_packets']} "
+        f"responses={payload['n_response_present']}/{payload['n_packets']} "
+        f"contract={payload['n_response_contract_ok']} "
+        f"awaiting={payload['n_awaiting_adapter_mapping']} "
+        f"rejected={payload['n_rejected']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nprover adapter contract manifest written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_prover_adapter_contract_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formalization_gap_planner_cross_prover_matrix_audit(args: argparse.Namespace) -> int:
+    payload = audit_formalization_gap_planner_cross_prover_matrix(
+        Path(args.goal_conditioned_minimal_formalization_plan_dir),
+        Path(args.out),
+        target_prover_families=tuple(
+            args.target_prover_family or FORMALIZATION_GAP_PLANNER_REUSE_TARGETS
+        ),
+        library_snapshot_ref_prefix=args.library_snapshot_ref_prefix,
+        max_packets=args.max_packets,
+    )
+    print("\nAI Statistical Theory Lab Formalization Gap Planner Cross-Prover Matrix")
+    print("=" * 72)
+    print(
+        f"targets={payload['n_targets_ok']}/{payload['n_targets']} "
+        f"packets={payload['n_total_packet_ok']}/{payload['n_total_packets']} "
+        f"awaiting={payload['n_awaiting_adapter_mapping']} "
+        f"rejected={payload['n_rejected']} "
+        f"consistent={payload['packet_count_consistent']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\ncross-prover matrix manifest written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_cross_prover_matrix_audit_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formalization_gap_planner_publication_bundle_audit(args: argparse.Namespace) -> int:
+    payload = audit_formalization_gap_planner_publication_bundle(
+        Path(args.publication_bundle_dir),
+        Path(args.out),
+    )
+    print("\nAI Statistical Theory Lab Formalization Gap Planner Publication Bundle Audit")
+    print("=" * 72)
+    print(
+        f"checks={payload['n_ok']}/{payload['n_checks']} "
+        f"failed={payload['n_failed']} "
+        f"files={payload['n_bundle_files']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\npublication bundle audit manifest written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_publication_bundle_audit_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formalization_gap_planner_reuse_smoke(args: argparse.Namespace) -> int:
+    payload = run_formalization_gap_planner_reuse_smoke(
+        Path(args.input),
+        Path(args.out),
+        target_prover_family=args.target_prover_family,
+        target_library_snapshot_ref=args.target_library_snapshot_ref,
+        max_routes=args.max_routes,
+        ground_truth_path=Path(args.ground_truth) if args.ground_truth else None,
+        lean_rag_db_path=Path(args.lean_rag_db) if args.lean_rag_db else None,
+        paper_library_dir=Path(args.paper_library_dir)
+        if args.paper_library_dir
+        else None,
+        llm_route_planner_provider=args.llm_route_planner_provider,
+        llm_route_planner_model=args.llm_route_planner_model,
+        llm_route_planner_model_tier=args.llm_route_planner_model_tier,
+        llm_route_planner_max_tokens=args.llm_route_planner_max_tokens,
+        llm_route_planner_max_repair_attempts=(
+            args.llm_route_planner_max_repair_attempts
+        ),
+        llm_route_planner_temperature=args.llm_route_planner_temperature,
+        llm_route_planner_invoke_provider=args.llm_route_planner_invoke_provider,
+        llm_route_planner_response_json=(
+            Path(args.llm_route_planner_response_json)
+            if args.llm_route_planner_response_json
+            else None
+        ),
+        llm_route_planner_static_response_json=(
+            Path(args.llm_route_planner_static_response_file)
+            if args.llm_route_planner_static_response_file
+            else None
+        ),
+        feedback_llm_route_planner_provider=args.feedback_llm_route_planner_provider,
+        feedback_llm_route_planner_model=args.feedback_llm_route_planner_model,
+        feedback_llm_route_planner_model_tier=(
+            args.feedback_llm_route_planner_model_tier
+        ),
+        feedback_llm_route_planner_max_tokens=args.feedback_llm_route_planner_max_tokens,
+        feedback_llm_route_planner_max_repair_attempts=(
+            args.feedback_llm_route_planner_max_repair_attempts
+        ),
+        feedback_llm_route_planner_temperature=args.feedback_llm_route_planner_temperature,
+        feedback_llm_route_planner_invoke_provider=(
+            args.feedback_llm_route_planner_invoke_provider
+        ),
+        feedback_llm_route_planner_response_json=(
+            Path(args.feedback_llm_route_planner_response_json)
+            if args.feedback_llm_route_planner_response_json
+            else None
+        ),
+        feedback_llm_route_planner_static_response_json=(
+            Path(args.feedback_llm_route_planner_static_response_file)
+            if args.feedback_llm_route_planner_static_response_file
+            else None
+        ),
+    )
+    print("\nAI Statistical Theory Lab Formalization Gap Planner Reuse Smoke")
+    print("=" * 72)
+    print(
+        f"stages={payload['n_ok']}/{payload['n_stages']} "
+        f"target={payload['target_prover_family']} "
+        f"llm_accepted={payload['n_llm_route_planner_accepted_route_plans']} "
+        f"llm_awaiting={payload['n_llm_route_planner_awaiting']} "
+        f"feedback_llm_accepted={payload['n_feedback_llm_route_planner_accepted_route_plans']} "
+        f"feedback_llm_awaiting={payload['n_feedback_llm_route_planner_awaiting']} "
+        f"packets={payload['n_portable_work_packets']} "
+        f"awaiting_adapter={payload['n_awaiting_adapter_mapping']} "
+        f"registry_audit_failed={payload['n_adapter_registry_audit_failed']} "
+        f"resource_audit_failed={payload['n_component_resource_audit_failed']} "
+        f"minimal_failed={payload['n_minimal_delta_audit_failed']} "
+        f"source_unaccounted={payload['n_source_grounding_unaccounted']} "
+        f"cross_targets={payload['n_cross_prover_targets_ok']}/{payload['n_cross_prover_targets']} "
+        f"handoff_audit_failed={payload['n_route_replan_handoff_audit_failed']} "
+        f"handoff_roundtrip={payload['n_route_replan_roundtrip_goal_plans']} "
+        f"bundle_checks={payload['n_publication_bundle_audit_checks']} "
+        f"bundle_failed={payload['n_publication_bundle_audit_failed']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nreuse smoke manifest written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_reuse_smoke_manifest.json').resolve()}"
+    )
+    print(
+        f"publication bundle manifest written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_publication_bundle' / 'formalization_gap_planner_publication_bundle_manifest.json').resolve()}"
     )
     return 0 if payload["all_ok"] else 1
 
@@ -3679,6 +5074,8 @@ def _doctor(args: argparse.Namespace) -> int:
         print(f"required_ok={summary['required_ok']}")
         print(f"real_lean_ready={summary['real_lean_ready']}")
         print(f"llm_theory_ready={summary['llm_theory_ready']}")
+        print(f"llm_provider={summary['llm_provider']}")
+        print(f"llm_models={summary['llm_models']}")
         print(f"openprover_available={summary['openprover_available']}")
         print(f"registered: obligations={summary['n_obligations']} algorithms={summary['n_algorithms']}")
         for check in report["checks"]:
@@ -3943,6 +5340,32 @@ async def _research_loop(args: argparse.Namespace) -> int:
     questions = load_open_research_questions(Path(args.question_file))
     if args.max_questions:
         questions = questions[: args.max_questions]
+    repair_handlers = None
+    if getattr(args, "llm_theory_developer", False):
+        provider, provider_name = _build_theory_generator_backend(
+            provider_name=args.llm_theory_provider,
+            static_response_file=args.llm_theory_static_response_file,
+        )
+        model = _default_model_for_provider(
+            args.llm_theory_provider,
+            args.llm_theory_model,
+            model_tier="sonnet",
+        )
+        theory_developer = LLMTheoryDeveloperAgent(
+            provider=provider,
+            config=ResearchArchitectConfig(
+                model=model,
+                max_tokens=args.llm_theory_max_tokens,
+                temperature=args.llm_theory_temperature,
+                provider_name=provider_name,
+            ),
+        )
+        repair_handlers = {
+            "THEORY_OR_PROCEDURE_ISSUE": LLMTheoryDeveloperRepairHandler(
+                theory_developer=theory_developer,
+                out_dir=Path(args.out) / "llm_theory_developer_repairs",
+            )
+        }
     payload = await run_research_loop_benchmark(
         questions,
         Path(args.out),
@@ -3953,6 +5376,8 @@ async def _research_loop(args: argparse.Namespace) -> int:
             else None
         ),
         lean_rag_db_path=Path(args.lean_rag_db) if args.lean_rag_db else None,
+        repair_handlers=repair_handlers,
+        enable_default_theory_developer=not getattr(args, "disable_default_theory_developer", False),
         config=LoopConfig(
             max_rounds=args.max_rounds,
             n_runs=args.runs,
@@ -4350,6 +5775,7 @@ async def _research_system_audit(args: argparse.Namespace) -> int:
             verify_agentic_artifacts=args.verify_agentic_artifacts,
             adaptive_mc_rerun=not args.no_adaptive_mc_rerun,
             adaptive_mc_multiplier=args.adaptive_mc_multiplier,
+            research_agent_runtime_dir=args.research_agent_runtime_dir or None,
         ),
     )
     print("\nAI Statistical Theory Lab System Audit")
@@ -4368,6 +5794,8 @@ async def _research_system_audit(args: argparse.Namespace) -> int:
         f"formal_graph_cache={counts['formal_source_graph_cache_status']} "
         f"lean_rag_deps={counts['lean_rag_dependency_graph_enabled']} "
         f"lean_rag_package={counts['lean_rag_package_contract_ok']} "
+        f"agent_runtime={counts['research_agent_runtime_audit_all_ok']} "
+        f"agent_runtime_requested={counts['research_agent_runtime_audit_requested']} "
         f"research_cache={counts['research_benchmark_cache_status']} "
         f"intake_supported={counts['research_intake_supported_accepted']}/{counts['research_intake_supported']} "
         f"intake_unsupported={counts['research_intake_unsupported_rejected']}/{counts['research_intake_unsupported']} "
@@ -4396,6 +5824,177 @@ def _list(args: argparse.Namespace) -> int:
     return 0
 
 
+def _research_architect_theory_develop(args: argparse.Namespace) -> int:
+    _load_dotenv(Path(args.env_file))
+    questions = load_open_research_questions(Path(args.question_file))
+    if args.max_questions:
+        questions = questions[: args.max_questions]
+    provider, provider_name = _build_theory_generator_backend(
+        provider_name=args.provider,
+        static_response_file=args.static_response_file,
+    )
+    context: dict[str, object] = {}
+    if args.context_json:
+        context = json.loads(Path(args.context_json).read_text(encoding="utf-8"))
+    _attach_runtime_learning_memory(args, context)
+    model = _default_model_for_provider(args.provider, args.llm_model, model_tier="sonnet")
+    theory_developer = LLMTheoryDeveloperAgent(
+        provider=provider,
+        config=ResearchArchitectConfig(
+            model=model,
+            max_tokens=args.max_tokens,
+            temperature=args.temperature,
+            provider_name=provider_name,
+        ),
+    )
+    architect = ResearchArchitectAgent(
+        theory_developer=theory_developer,
+        out_dir=Path(args.out),
+    )
+    manifest = architect.run_theory_development(questions, architect_context=context)
+    print("\nAI Statistician Research Architect")
+    print("=" * 72)
+    print(
+        f"questions={manifest['n_questions']} "
+        f"theory_packets={manifest['n_theory_derivation_packets']} "
+        f"all_packets_ok={manifest['all_packets_ok']}"
+    )
+    print(f"proof_evidence_status={manifest['proof_evidence_status']}")
+    print(
+        "architect manifest written to "
+        f"{(Path(args.out) / 'research_architect_manifest.json').resolve()}"
+    )
+    return 0 if manifest["all_packets_ok"] else 1
+
+
+def _research_agent_runtime(args: argparse.Namespace) -> int:
+    _load_dotenv(Path(args.env_file))
+    verifier = _proof_verifier_from_args(args)
+    proof_state_provider = _proof_state_provider_from_args(args)
+    questions = load_open_research_questions(Path(args.question_file))
+    if args.max_questions:
+        questions = questions[: args.max_questions]
+    provider, provider_name = _build_theory_generator_backend(
+        provider_name=args.provider,
+        static_response_file=args.static_response_file,
+    )
+    context: dict[str, object] = {}
+    if args.context_json:
+        context = json.loads(Path(args.context_json).read_text(encoding="utf-8"))
+    _attach_runtime_learning_memory(args, context)
+    model = _default_model_for_provider(args.provider, args.llm_model, model_tier="sonnet")
+    theory_developer = LLMTheoryDeveloperAgent(
+        provider=provider,
+        config=ResearchArchitectConfig(
+            model=model,
+            max_tokens=args.max_tokens,
+            temperature=args.temperature,
+            provider_name=provider_name,
+        ),
+    )
+    architect_coordinator = _build_architect_coordinator_agent_from_args(args, default_model=model)
+    algorithm_engineer = _build_algorithm_engineer_agent_from_args(args, default_model=model)
+    simulation_engineer = _build_simulation_engineer_agent_from_args(args, default_model=model)
+    formalizer = _build_formalizer_agent_from_args(args, default_model=model)
+    critic_evaluator = _build_critic_evaluator_agent_from_args(args, default_model=model)
+    manifest = run_research_agent_runtime(
+        questions,
+        Path(args.out),
+        theory_developer=theory_developer,
+        architect_coordinator=architect_coordinator,
+        simulation_engineer=simulation_engineer,
+        algorithm_engineer=algorithm_engineer,
+        formalizer=formalizer,
+        critic_evaluator=critic_evaluator,
+        proof_verifier=verifier,
+        proof_state_provider=proof_state_provider,
+        architect_context=context,
+        config=ResearchAgentRuntimeConfig(
+            n_runs=args.runs,
+            seed=args.seed,
+            max_iterations=args.max_iterations,
+            max_critic_repair_rounds=args.max_critic_repair_rounds,
+            proof_obligation_ids=tuple(args.proof_obligation_id or ()),
+            max_proof_obligations=args.max_proof_obligations,
+        ),
+    )
+    print("\nAI Statistician Agent Runtime")
+    print("=" * 72)
+    print(
+        f"questions={manifest['n_questions']} "
+        f"status_counts={manifest['status_counts']}"
+    )
+    evidence = manifest["runtime_evidence_summary"]
+    proof_control = evidence["proof"].get("proof_obligation_control", {})
+    print(
+        f"kernel_verified_subclaims={evidence['proof']['n_kernel_verified_subclaims']} "
+        f"formal_gaps={evidence['proof']['n_formal_gaps']} "
+        f"registered_proof_obligation_candidates={proof_control.get('n_registered_proof_bank_obligation_candidates', 0)} "
+        f"selected_proof_obligations={proof_control.get('n_selected_proof_obligations', 0)} "
+        f"llm_requested_proof_obligations={len(proof_control.get('llm_requested_proof_obligation_ids', []) or [])} "
+        f"llm_off_catalog_proof_obligations={len(proof_control.get('llm_off_catalog_proof_obligation_ids', []) or [])} "
+        f"algorithm_sandbox_executed={evidence['algorithm']['n_algorithm_sandbox_executed']} "
+        f"generated_code_sandbox_executed={evidence['algorithm']['n_generated_code_sandbox_executed']}"
+    )
+    print(f"simulation_boundary={manifest['simulation_evidence_boundary']}")
+    print(
+        "runtime manifest written to "
+        f"{(Path(args.out) / 'research_agent_runtime_manifest.json').resolve()}"
+    )
+    return 0
+
+
+def _research_agent_runtime_audit(args: argparse.Namespace) -> int:
+    payload = audit_research_agent_runtime(Path(args.runtime_dir), Path(args.out))
+    print("\nAI Statistician Agent Runtime Audit")
+    print("=" * 72)
+    print(
+        f"results={payload['n_ok']}/{payload['n_results']} "
+        f"traces={payload['n_runtime_traces']} "
+        f"agenda={payload['n_runtime_next_action_items']} "
+        f"learning={payload['n_runtime_learning_rows']}"
+    )
+    print(
+        f"kernel_verified_subclaims={payload['n_kernel_verified_subclaims']} "
+        f"results_with_real_kernel_evidence={payload['n_results_with_real_kernel_evidence']} "
+        f"real_kernel_verified_subclaims={payload['n_real_kernel_verified_subclaims']} "
+        f"non_real_kernel_verified_subclaims={payload['n_non_real_kernel_verified_subclaims']} "
+        f"formal_gaps={payload['n_formal_gaps']} "
+        f"registered_proof_obligation_candidates={payload['n_registered_proof_bank_obligation_candidates']} "
+        f"memory_prioritized_proof_obligations={payload['n_memory_prioritized_proof_obligations']} "
+        f"memory_off_catalog_proof_obligations={payload['n_memory_off_catalog_proof_obligations']} "
+        f"memory_rejected_proof_obligations={payload['n_memory_rejected_proof_obligations']} "
+        f"llm_requested_proof_obligations={payload['n_llm_requested_proof_obligations']} "
+        f"llm_off_catalog_proof_obligations={payload['n_llm_off_catalog_proof_obligations']} "
+        f"llm_rejected_proof_obligations={payload['n_llm_rejected_proof_obligations']} "
+        f"full_frontier_theorem_proved={payload['n_full_frontier_theorem_proved']}"
+    )
+    print(
+        f"architect={payload['architect_coordinator_enabled']} "
+        f"topology_ok={payload['llm_topology_policy_ok']} "
+        f"unsupported_backends={payload['unsupported_generator_backends_enabled']} "
+        f"critic_reroutes={payload['n_critic_reroutes']}"
+    )
+    print(
+        f"algorithm_sandbox_executed={payload['n_algorithm_sandbox_executed']} "
+        f"generated_code_sandbox_executed={payload['n_generated_code_sandbox_executed']} "
+        f"unsafe_generated_code_rejected={payload['n_unsafe_generated_code_rejected']}"
+    )
+    print(
+        f"learning_memory_inputs={payload['n_results_with_runtime_learning_memory_input']} "
+        f"learning_memory_rows={payload['n_runtime_learning_memory_input_rows']} "
+        f"problem_analysis={payload['n_results_with_problem_analysis']} "
+        f"stat_knowledge_bank={payload['n_results_with_stat_knowledge_bank_plan']} "
+        f"fair_comparison={payload['n_results_with_literature_fair_comparison_plan']}"
+    )
+    print(f"all_ok={payload['all_ok']}")
+    print(
+        "runtime audit manifest written to "
+        f"{(Path(args.out) / 'research_agent_runtime_audit_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="AI Statistician production core")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -4404,9 +6003,12 @@ def build_parser() -> argparse.ArgumentParser:
     demo.add_argument("--question", action="append", choices=sorted(QUESTIONS), help="run one built-in question; repeatable")
     demo.add_argument("--question-file", help="run one or more external questions from JSON")
     demo.add_argument("--real-lean", action="store_true", help="use AXLE verify_proof instead of mock verifier")
-    demo.add_argument("--llm-theory", action="store_true", help="allow Haiku to classify supported estimator/DGP families during intake")
+    demo.add_argument("--llm-theory", action="store_true", help="allow a generator backend to classify supported estimator/DGP families during intake")
     demo.add_argument("--force-llm-theory", action="store_true", help="always ask the LLM for family classification")
-    demo.add_argument("--llm-model", default="claude-haiku-4-5")
+    demo.add_argument("--llm-provider", choices=LIVE_GENERATOR_PROVIDER_CHOICES, default=_default_live_generator_provider())
+    demo.add_argument("--llm-static-response-file", default="", help="JSON response to replay when --llm-provider static is used")
+    demo.add_argument("--llm-model", default="", help="model name for the intake generator; Anthropic defaults to Claude Haiku 4.5 for this light classifier")
+    demo.add_argument("--llm-max-tokens", type=int, default=700)
     demo.add_argument("--runs", type=int, default=1000, help="Monte Carlo replicates")
     demo.add_argument("--seed", type=int, default=20260528)
     demo.add_argument("--out", default="runs/latest", help="trace output directory")
@@ -4418,9 +6020,12 @@ def build_parser() -> argparse.ArgumentParser:
     eval_cmd.add_argument("--question", action="append", choices=sorted(QUESTIONS), help="run one built-in question; repeatable")
     eval_cmd.add_argument("--question-file", help="run one or more external questions from JSON")
     eval_cmd.add_argument("--real-lean", action="store_true", help="use AXLE verify_proof instead of mock verifier")
-    eval_cmd.add_argument("--llm-theory", action="store_true", help="allow Haiku to classify supported estimator/DGP families during intake")
+    eval_cmd.add_argument("--llm-theory", action="store_true", help="allow a generator backend to classify supported estimator/DGP families during intake")
     eval_cmd.add_argument("--force-llm-theory", action="store_true", help="always ask the LLM for family classification")
-    eval_cmd.add_argument("--llm-model", default="claude-haiku-4-5")
+    eval_cmd.add_argument("--llm-provider", choices=LIVE_GENERATOR_PROVIDER_CHOICES, default=_default_live_generator_provider())
+    eval_cmd.add_argument("--llm-static-response-file", default="", help="JSON response to replay when --llm-provider static is used")
+    eval_cmd.add_argument("--llm-model", default="", help="model name for the intake generator; Anthropic defaults to Claude Haiku 4.5 for this light classifier")
+    eval_cmd.add_argument("--llm-max-tokens", type=int, default=700)
     eval_cmd.add_argument("--runs", type=int, default=500, help="Monte Carlo replicates per trial")
     eval_cmd.add_argument("--n-seeds", type=int, default=3)
     eval_cmd.add_argument("--seed-start", type=int, default=20260528)
@@ -5584,6 +7189,505 @@ def build_parser() -> argparse.ArgumentParser:
         func=_goal_conditioned_minimal_formalization_plan
     )
 
+    formalization_gap_planner_target_intake = sub.add_parser(
+        "formalization-gap-planner-target-intake",
+        help="normalize a raw theorem request into portable gap-planner route seeds",
+    )
+    formalization_gap_planner_target_intake.add_argument(
+        "--input",
+        required=True,
+        help="target theorem request JSON, JSON list, or plain text file",
+    )
+    formalization_gap_planner_target_intake.add_argument(
+        "--out",
+        default="runs/formalization_gap_planner_target_intake",
+        help="target-intake output directory",
+    )
+    formalization_gap_planner_target_intake.set_defaults(
+        func=_formalization_gap_planner_target_intake
+    )
+
+    formalization_gap_planner_reuse_smoke = sub.add_parser(
+        "formalization-gap-planner-reuse-smoke",
+        help=(
+            "run target intake, standalone planning, audits, prover-adapter "
+            "contract, refinement loop, and publication-bundle audit as one reusable smoke test"
+        ),
+    )
+    formalization_gap_planner_reuse_smoke.add_argument(
+        "--input",
+        required=True,
+        help="target theorem request JSON, JSON list, or plain text file",
+    )
+    formalization_gap_planner_reuse_smoke.add_argument(
+        "--target-prover-family",
+        default="rocq",
+        choices=["lean4", "lean", "rocq", "coq", "isabelle", "isabelle/hol", "agda", "other"],
+        help="target prover ecosystem for public work-packet mapping smoke",
+    )
+    formalization_gap_planner_reuse_smoke.add_argument(
+        "--target-library-snapshot-ref",
+        default="",
+        help="target-prover library snapshot label written into adapter packets",
+    )
+    formalization_gap_planner_reuse_smoke.add_argument(
+        "--max-routes",
+        type=int,
+        default=20,
+        help="maximum number of standalone route plans to emit",
+    )
+    formalization_gap_planner_reuse_smoke.add_argument(
+        "--ground-truth",
+        help="optional route-truth JSON file for the bundled benchmark",
+    )
+    formalization_gap_planner_reuse_smoke.add_argument(
+        "--lean-rag-db",
+        help="optional Lean RAG dependency graph SQLite DB for adapter-registry readiness",
+    )
+    formalization_gap_planner_reuse_smoke.add_argument(
+        "--paper-library-dir",
+        help="optional local paper/text corpus directory for adapter-registry readiness",
+    )
+    formalization_gap_planner_reuse_smoke.add_argument(
+        "--llm-route-planner-provider",
+        default="anthropic",
+        choices=["prompt_only", "static", "anthropic", "openai"],
+        help=(
+            "LLM route-planner provider used inside the full reuse-smoke path; "
+            "Anthropic/Claude is staged by default and only called when --llm-route-planner-invoke-provider is set"
+        ),
+    )
+    formalization_gap_planner_reuse_smoke.add_argument(
+        "--llm-route-planner-model",
+        default="",
+        help="explicit model name for live LLM route-planner providers; overrides --llm-route-planner-model-tier",
+    )
+    formalization_gap_planner_reuse_smoke.add_argument(
+        "--llm-route-planner-model-tier",
+        default="auto",
+        choices=["auto", "haiku", "sonnet", "opus"],
+        help=(
+            "Claude tier policy for the primary route planner; auto uses Haiku "
+            "for small bounded routes and Sonnet for residual/bridge/source-port/new-theory routes"
+        ),
+    )
+    formalization_gap_planner_reuse_smoke.add_argument(
+        "--llm-route-planner-max-tokens",
+        type=int,
+        default=9000,
+        help="maximum output tokens for live LLM route-planner providers",
+    )
+    formalization_gap_planner_reuse_smoke.add_argument(
+        "--llm-route-planner-max-repair-attempts",
+        type=int,
+        default=1,
+        help=(
+            "maximum local-validator repair retries for primary LLM route-planner responses; "
+            "set 0 to avoid extra live provider calls"
+        ),
+    )
+    formalization_gap_planner_reuse_smoke.add_argument(
+        "--llm-route-planner-temperature",
+        type=float,
+        default=0.1,
+        help="temperature for live LLM route-planner providers",
+    )
+    formalization_gap_planner_reuse_smoke.add_argument(
+        "--llm-route-planner-invoke-provider",
+        action="store_true",
+        help=(
+            "invoke the selected LLM route-planner provider; without this, "
+            "reviewed response JSON is only validated"
+        ),
+    )
+    formalization_gap_planner_reuse_smoke.add_argument(
+        "--llm-route-planner-response-json",
+        help="optional reviewed LLM route-planner response JSON to validate and consume",
+    )
+    formalization_gap_planner_reuse_smoke.add_argument(
+        "--llm-route-planner-static-response-file",
+        help=(
+            "offline static response JSON for deterministic reviewed replay; "
+            "use with --llm-route-planner-invoke-provider to generate one response per request"
+        ),
+    )
+    formalization_gap_planner_reuse_smoke.add_argument(
+        "--feedback-llm-route-planner-provider",
+        default="anthropic",
+        choices=["prompt_only", "static", "anthropic", "openai"],
+        help=(
+            "feedback LLM route-planner provider for the route-replan seed; "
+            "Anthropic/Claude is staged by default and only called when --feedback-llm-route-planner-invoke-provider is set"
+        ),
+    )
+    formalization_gap_planner_reuse_smoke.add_argument(
+        "--feedback-llm-route-planner-model",
+        default="",
+        help="explicit model name for feedback LLM route-planner providers; overrides --feedback-llm-route-planner-model-tier",
+    )
+    formalization_gap_planner_reuse_smoke.add_argument(
+        "--feedback-llm-route-planner-model-tier",
+        default="auto",
+        choices=["auto", "haiku", "sonnet", "opus"],
+        help=(
+            "Claude tier policy for the feedback route planner; auto uses Haiku "
+            "for small bounded routes and Sonnet for residual/bridge/source-port/new-theory routes"
+        ),
+    )
+    formalization_gap_planner_reuse_smoke.add_argument(
+        "--feedback-llm-route-planner-max-tokens",
+        type=int,
+        default=9000,
+        help="maximum output tokens for feedback LLM route-planner providers",
+    )
+    formalization_gap_planner_reuse_smoke.add_argument(
+        "--feedback-llm-route-planner-max-repair-attempts",
+        type=int,
+        default=1,
+        help=(
+            "maximum local-validator repair retries for feedback LLM route-planner responses; "
+            "set 0 to avoid extra live provider calls"
+        ),
+    )
+    formalization_gap_planner_reuse_smoke.add_argument(
+        "--feedback-llm-route-planner-temperature",
+        type=float,
+        default=0.1,
+        help="temperature for feedback LLM route-planner providers",
+    )
+    formalization_gap_planner_reuse_smoke.add_argument(
+        "--feedback-llm-route-planner-invoke-provider",
+        action="store_true",
+        help=(
+            "invoke the selected feedback LLM route-planner provider after "
+            "prover residuals and interactive-session context are available"
+        ),
+    )
+    formalization_gap_planner_reuse_smoke.add_argument(
+        "--feedback-llm-route-planner-response-json",
+        help="optional reviewed feedback LLM route-planner response JSON to validate and consume",
+    )
+    formalization_gap_planner_reuse_smoke.add_argument(
+        "--feedback-llm-route-planner-static-response-file",
+        help=(
+            "offline static feedback response JSON for deterministic replay; "
+            "use with --feedback-llm-route-planner-invoke-provider to generate one response per request"
+        ),
+    )
+    formalization_gap_planner_reuse_smoke.add_argument(
+        "--out",
+        default="runs/formalization_gap_planner_reuse_smoke",
+        help="reuse-smoke output directory",
+    )
+    formalization_gap_planner_reuse_smoke.set_defaults(
+        func=_formalization_gap_planner_reuse_smoke
+    )
+
+    formalization_gap_planner_standalone_plan = sub.add_parser(
+        "formalization-gap-planner-standalone-plan",
+        help=(
+            "build a portable formalization-gap plan from standalone theorem, "
+            "route, and library-coverage JSON"
+        ),
+    )
+    formalization_gap_planner_standalone_plan.add_argument(
+        "--input",
+        required=True,
+        help="standalone theorem-route JSON input",
+    )
+    formalization_gap_planner_standalone_plan.add_argument(
+        "--max-routes",
+        type=int,
+        default=20,
+        help="maximum number of route plans to emit",
+    )
+    formalization_gap_planner_standalone_plan.add_argument(
+        "--out",
+        default="runs/formalization_gap_planner_standalone_plan",
+        help="standalone formalization-gap planner output directory",
+    )
+    formalization_gap_planner_standalone_plan.set_defaults(
+        func=_formalization_gap_planner_standalone_plan
+    )
+
+    formalization_gap_planner_llm_route_planner = sub.add_parser(
+        "formalization-gap-planner-llm-route-planner",
+        help=(
+            "stage or run the LLM-backed proof-route planner over standalone "
+            "formalization-gap input"
+        ),
+    )
+    formalization_gap_planner_llm_route_planner.add_argument(
+        "--input",
+        required=True,
+        help="standalone theorem-route JSON input",
+    )
+    formalization_gap_planner_llm_route_planner.add_argument(
+        "--provider",
+        default="anthropic",
+        choices=["prompt_only", "static", "anthropic", "openai"],
+        help=(
+            "LLM generator provider; Anthropic/Claude is staged by default, "
+            "and no provider is called unless --invoke-provider is set"
+        ),
+    )
+    formalization_gap_planner_llm_route_planner.add_argument(
+        "--model",
+        default="",
+        help="explicit model name for live provider calls or provenance metadata; overrides --model-tier",
+    )
+    formalization_gap_planner_llm_route_planner.add_argument(
+        "--model-tier",
+        default="auto",
+        choices=["auto", "haiku", "sonnet", "opus"],
+        help=(
+            "Claude tier policy for Anthropic calls; auto uses Haiku for small "
+            "bounded routes and Sonnet for residual/bridge/source-port/new-theory routes"
+        ),
+    )
+    formalization_gap_planner_llm_route_planner.add_argument(
+        "--max-tokens",
+        type=int,
+        default=9000,
+        help="maximum generator output tokens when --invoke-provider is set",
+    )
+    formalization_gap_planner_llm_route_planner.add_argument(
+        "--temperature",
+        type=float,
+        default=0.1,
+        help="generator temperature when --invoke-provider is set",
+    )
+    formalization_gap_planner_llm_route_planner.add_argument(
+        "--max-repair-attempts",
+        type=int,
+        default=1,
+        help=(
+            "maximum local-validator repair retries for invoked LLM responses; "
+            "set 0 to disable extra provider calls"
+        ),
+    )
+    formalization_gap_planner_llm_route_planner.add_argument(
+        "--invoke-provider",
+        action="store_true",
+        help="call the configured generator backend instead of only staging prompts",
+    )
+    formalization_gap_planner_llm_route_planner.add_argument(
+        "--response-json",
+        help="reviewed LLM route-planner response JSON to validate and apply",
+    )
+    formalization_gap_planner_llm_route_planner.add_argument(
+        "--static-response-file",
+        help=(
+            "static JSON payload; with --invoke-provider it is used as a fake "
+            "generator, otherwise it is validated as a reviewed response"
+        ),
+    )
+    formalization_gap_planner_llm_route_planner.add_argument(
+        "--goal-conditioned-minimal-formalization-plan-dir",
+        help="optional current plan directory for context packet construction",
+    )
+    formalization_gap_planner_llm_route_planner.add_argument(
+        "--formalization-gap-planner-library-coverage-map-dir",
+        help="optional library coverage map directory for context packet construction",
+    )
+    formalization_gap_planner_llm_route_planner.add_argument(
+        "--formalization-gap-planner-source-grounding-audit-dir",
+        help="optional source-grounding audit directory for context packet construction",
+    )
+    formalization_gap_planner_llm_route_planner.add_argument(
+        "--formalization-gap-planner-resource-request-queue-dir",
+        help="optional resource-request queue directory carrying pending local/frontier tool dispatch packets",
+    )
+    formalization_gap_planner_llm_route_planner.add_argument(
+        "--formalization-gap-planner-resource-response-ledger-dir",
+        help="optional resource-response ledger directory carrying prover residuals",
+    )
+    formalization_gap_planner_llm_route_planner.add_argument(
+        "--formalization-gap-planner-refinement-evidence-dir",
+        help="optional refinement-evidence directory carrying literature, library, and proof-state feedback",
+    )
+    formalization_gap_planner_llm_route_planner.add_argument(
+        "--formalization-gap-planner-route-revision-overlay-dir",
+        help="optional route-revision overlay directory carrying accepted route repairs",
+    )
+    formalization_gap_planner_llm_route_planner.add_argument(
+        "--formalization-gap-planner-interactive-session-dir",
+        help="optional interactive-session directory carrying next-action and decision-policy context",
+    )
+    formalization_gap_planner_llm_route_planner.add_argument(
+        "--formalization-gap-planner-component-resource-registry-dir",
+        help="optional component-resource registry directory carrying available tool/resource contracts",
+    )
+    formalization_gap_planner_llm_route_planner.add_argument(
+        "--out",
+        default="runs/formalization_gap_planner_llm_route_planner",
+        help="LLM route planner output directory",
+    )
+    formalization_gap_planner_llm_route_planner.set_defaults(
+        func=_formalization_gap_planner_llm_route_planner
+    )
+
+    formalization_gap_planner_portable_plan_audit = sub.add_parser(
+        "formalization-gap-planner-portable-plan-audit",
+        help="audit a portable formalization-gap plan manifest before reuse",
+    )
+    formalization_gap_planner_portable_plan_audit.add_argument(
+        "--goal-conditioned-minimal-formalization-plan-dir",
+        required=True,
+        help="directory containing goal_conditioned_minimal_formalization_plan_manifest.json",
+    )
+    formalization_gap_planner_portable_plan_audit.add_argument(
+        "--out",
+        default="runs/formalization_gap_planner_portable_plan_audit",
+        help="portable plan audit output directory",
+    )
+    formalization_gap_planner_portable_plan_audit.set_defaults(
+        func=_formalization_gap_planner_portable_plan_audit
+    )
+
+    formalization_gap_planner_library_coverage_map = sub.add_parser(
+        "formalization-gap-planner-library-coverage-map",
+        help="export per-primitive library coverage rows from a portable formalization-gap plan",
+    )
+    formalization_gap_planner_library_coverage_map.add_argument(
+        "--goal-conditioned-minimal-formalization-plan-dir",
+        required=True,
+        help="directory containing goal_conditioned_minimal_formalization_plan_manifest.json",
+    )
+    formalization_gap_planner_library_coverage_map.add_argument(
+        "--out",
+        default="runs/formalization_gap_planner_library_coverage_map",
+        help="library coverage map output directory",
+    )
+    formalization_gap_planner_library_coverage_map.set_defaults(
+        func=_formalization_gap_planner_library_coverage_map
+    )
+
+    formalization_gap_planner_primitive_action_queue = sub.add_parser(
+        "formalization-gap-planner-primitive-action-queue",
+        help="export executable primitive work orders from a library coverage map",
+    )
+    formalization_gap_planner_primitive_action_queue.add_argument(
+        "--formalization-gap-planner-library-coverage-map-dir",
+        required=True,
+        help="directory containing formalization_gap_planner_library_coverage_map_manifest.json",
+    )
+    formalization_gap_planner_primitive_action_queue.add_argument(
+        "--out",
+        default="runs/formalization_gap_planner_primitive_action_queue",
+        help="primitive action queue output directory",
+    )
+    formalization_gap_planner_primitive_action_queue.set_defaults(
+        func=_formalization_gap_planner_primitive_action_queue
+    )
+
+    formalization_gap_planner_action_resource_plan = sub.add_parser(
+        "formalization-gap-planner-action-resource-plan",
+        help="join primitive formalization actions to local/frontier resources and contracts",
+    )
+    formalization_gap_planner_action_resource_plan.add_argument(
+        "--formalization-gap-planner-primitive-action-queue-dir",
+        required=True,
+        help="directory containing formalization_gap_planner_primitive_action_queue_manifest.json",
+    )
+    formalization_gap_planner_action_resource_plan.add_argument(
+        "--formalization-gap-planner-component-resource-registry-dir",
+        required=True,
+        help="directory containing formalization_gap_planner_component_resource_registry_manifest.json",
+    )
+    formalization_gap_planner_action_resource_plan.add_argument(
+        "--out",
+        default="runs/formalization_gap_planner_action_resource_plan",
+        help="action resource plan output directory",
+    )
+    formalization_gap_planner_action_resource_plan.set_defaults(
+        func=_formalization_gap_planner_action_resource_plan
+    )
+
+    formalization_gap_planner_resource_request_queue = sub.add_parser(
+        "formalization-gap-planner-resource-request-queue",
+        help="expand action-resource plans into per-resource local/frontier request packets",
+    )
+    formalization_gap_planner_resource_request_queue.add_argument(
+        "--formalization-gap-planner-action-resource-plan-dir",
+        required=True,
+        help="directory containing formalization_gap_planner_action_resource_plan_manifest.json",
+    )
+    formalization_gap_planner_resource_request_queue.add_argument(
+        "--out",
+        default="runs/formalization_gap_planner_resource_request_queue",
+        help="resource request queue output directory",
+    )
+    formalization_gap_planner_resource_request_queue.set_defaults(
+        func=_formalization_gap_planner_resource_request_queue
+    )
+
+    formalization_gap_planner_resource_response_ledger = sub.add_parser(
+        "formalization-gap-planner-resource-response-ledger",
+        help="validate local/frontier resource responses against resource request packets",
+    )
+    formalization_gap_planner_resource_response_ledger.add_argument(
+        "--formalization-gap-planner-resource-request-queue-dir",
+        required=True,
+        help="directory containing formalization_gap_planner_resource_request_queue_manifest.json",
+    )
+    formalization_gap_planner_resource_response_ledger.add_argument(
+        "--response-jsonl",
+        help="optional JSONL of resource responses keyed by resource_request_id",
+    )
+    formalization_gap_planner_resource_response_ledger.add_argument(
+        "--out",
+        default="runs/formalization_gap_planner_resource_response_ledger",
+        help="resource response ledger output directory",
+    )
+    formalization_gap_planner_resource_response_ledger.set_defaults(
+        func=_formalization_gap_planner_resource_response_ledger
+    )
+
+    formalization_gap_planner_minimal_delta_audit = sub.add_parser(
+        "formalization-gap-planner-minimal-delta-audit",
+        help="audit costed route cuts for structural minimal Lean-delta discipline",
+    )
+    formalization_gap_planner_minimal_delta_audit.add_argument(
+        "--goal-conditioned-minimal-formalization-plan-dir",
+        required=True,
+        help="directory containing goal_conditioned_minimal_formalization_plan_manifest.json",
+    )
+    formalization_gap_planner_minimal_delta_audit.add_argument(
+        "--out",
+        default="runs/formalization_gap_planner_minimal_delta_audit",
+        help="minimal-delta audit output directory",
+    )
+    formalization_gap_planner_minimal_delta_audit.set_defaults(
+        func=_formalization_gap_planner_minimal_delta_audit
+    )
+
+    formalization_gap_planner_source_grounding_audit = sub.add_parser(
+        "formalization-gap-planner-source-grounding-audit",
+        help="audit informal route-DAG nodes for source refs or bounded literature-search obligations",
+    )
+    formalization_gap_planner_source_grounding_audit.add_argument(
+        "--goal-conditioned-minimal-formalization-plan-dir",
+        required=True,
+        help="directory containing goal_conditioned_minimal_formalization_plan_manifest.json",
+    )
+    formalization_gap_planner_source_grounding_audit.add_argument(
+        "--out",
+        default="runs/formalization_gap_planner_source_grounding_audit",
+        help="source-grounding audit output directory",
+    )
+    formalization_gap_planner_source_grounding_audit.add_argument(
+        "--formalization-gap-planner-refinement-evidence-dir",
+        help=(
+            "optional refinement evidence directory; when supplied, prover "
+            "residual goals are audited for source refs, bounded literature "
+            "search hooks, or explicit formal-gap boundaries"
+        ),
+    )
+    formalization_gap_planner_source_grounding_audit.set_defaults(
+        func=_formalization_gap_planner_source_grounding_audit
+    )
+
     formalization_gap_planner_benchmark = sub.add_parser(
         "formalization-gap-planner-benchmark",
         help="export reusable route-truth labels for formalization-gap planner evaluation",
@@ -5599,6 +7703,93 @@ def build_parser() -> argparse.ArgumentParser:
     )
     formalization_gap_planner_benchmark.set_defaults(
         func=_formalization_gap_planner_benchmark
+    )
+
+    formalization_gap_planner_benchmark_audit = sub.add_parser(
+        "formalization-gap-planner-benchmark-audit",
+        help="audit route-truth benchmark quality, splits, sources, and proof boundary",
+    )
+    formalization_gap_planner_benchmark_audit.add_argument(
+        "--formalization-gap-planner-benchmark-dir",
+        required=True,
+        help="directory containing formalization_gap_planner_benchmark_manifest.json",
+    )
+    formalization_gap_planner_benchmark_audit.add_argument(
+        "--out",
+        default="runs/formalization_gap_planner_benchmark_audit",
+        help="formalization-gap planner benchmark audit output directory",
+    )
+    formalization_gap_planner_benchmark_audit.set_defaults(
+        func=_formalization_gap_planner_benchmark_audit
+    )
+
+    formalization_gap_planner_ablation_study = sub.add_parser(
+        "formalization-gap-planner-ablation-study",
+        help="compare route-planner metrics under no-literature/no-Lean/no-proof-feedback baselines",
+    )
+    formalization_gap_planner_ablation_study.add_argument(
+        "--goal-conditioned-minimal-formalization-plan-dir",
+        required=True,
+        help="directory containing goal_conditioned_minimal_formalization_plan_manifest.json",
+    )
+    formalization_gap_planner_ablation_study.add_argument(
+        "--formalization-gap-planner-evaluation-dir",
+        required=True,
+        help="directory containing formalization_gap_planner_evaluation_manifest.json",
+    )
+    formalization_gap_planner_ablation_study.add_argument(
+        "--formalization-gap-planner-interactive-session-dir",
+        help="optional directory containing formalization_gap_planner_interactive_session_manifest.json",
+    )
+    formalization_gap_planner_ablation_study.add_argument(
+        "--out",
+        default="runs/formalization_gap_planner_ablation_study",
+        help="formalization-gap planner ablation study output directory",
+    )
+    formalization_gap_planner_ablation_study.set_defaults(
+        func=_formalization_gap_planner_ablation_study
+    )
+
+    formalization_gap_planner_interactive_session = sub.add_parser(
+        "formalization-gap-planner-interactive-session",
+        help="summarize the next bounded interaction for each planner route",
+    )
+    formalization_gap_planner_interactive_session.add_argument(
+        "--goal-conditioned-minimal-formalization-plan-dir",
+        required=True,
+        help="directory containing goal_conditioned_minimal_formalization_plan_manifest.json",
+    )
+    formalization_gap_planner_interactive_session.add_argument(
+        "--formalization-gap-planner-refinement-queue-dir",
+        help="optional directory containing formalization_gap_planner_refinement_queue_manifest.json",
+    )
+    formalization_gap_planner_interactive_session.add_argument(
+        "--formalization-gap-planner-refinement-evidence-dir",
+        help="optional directory containing formalization_gap_planner_refinement_evidence_manifest.json",
+    )
+    formalization_gap_planner_interactive_session.add_argument(
+        "--formalization-gap-planner-route-stability-audit-dir",
+        help="optional directory containing formalization_gap_planner_route_stability_audit_manifest.json",
+    )
+    formalization_gap_planner_interactive_session.add_argument(
+        "--formalization-gap-planner-route-replan-handoff-dir",
+        help="optional directory containing formalization_gap_planner_route_replan_handoff_manifest.json",
+    )
+    formalization_gap_planner_interactive_session.add_argument(
+        "--formalization-gap-planner-proof-state-triage-dir",
+        help="optional directory containing formalization_gap_planner_proof_state_triage_manifest.json",
+    )
+    formalization_gap_planner_interactive_session.add_argument(
+        "--formalization-gap-planner-component-resource-registry-dir",
+        help="optional directory containing formalization_gap_planner_component_resource_registry_manifest.json",
+    )
+    formalization_gap_planner_interactive_session.add_argument(
+        "--out",
+        default="runs/formalization_gap_planner_interactive_session",
+        help="formalization-gap planner interactive session output directory",
+    )
+    formalization_gap_planner_interactive_session.set_defaults(
+        func=_formalization_gap_planner_interactive_session
     )
 
     formalization_gap_planner_adapter_registry = sub.add_parser(
@@ -5620,6 +7811,59 @@ def build_parser() -> argparse.ArgumentParser:
     )
     formalization_gap_planner_adapter_registry.set_defaults(
         func=_formalization_gap_planner_adapter_registry
+    )
+
+    formalization_gap_planner_adapter_registry_audit = sub.add_parser(
+        "formalization-gap-planner-adapter-registry-audit",
+        help="audit adapter-registry coverage, response contracts, and proof boundary",
+    )
+    formalization_gap_planner_adapter_registry_audit.add_argument(
+        "--formalization-gap-planner-adapter-registry-dir",
+        required=True,
+        help="directory containing formalization_gap_planner_adapter_registry_manifest.json",
+    )
+    formalization_gap_planner_adapter_registry_audit.add_argument(
+        "--out",
+        default="runs/formalization_gap_planner_adapter_registry_audit",
+        help="formalization-gap planner adapter registry audit output directory",
+    )
+    formalization_gap_planner_adapter_registry_audit.set_defaults(
+        func=_formalization_gap_planner_adapter_registry_audit
+    )
+
+    formalization_gap_planner_component_resource_registry = sub.add_parser(
+        "formalization-gap-planner-component-resource-registry",
+        help="export component-to-resource coverage for the formalization-gap planner",
+    )
+    formalization_gap_planner_component_resource_registry.add_argument(
+        "--formalization-gap-planner-adapter-registry-dir",
+        help="optional adapter registry directory for adapter readiness annotations",
+    )
+    formalization_gap_planner_component_resource_registry.add_argument(
+        "--out",
+        default="runs/formalization_gap_planner_component_resource_registry",
+        help="formalization-gap planner component resource registry output directory",
+    )
+    formalization_gap_planner_component_resource_registry.set_defaults(
+        func=_formalization_gap_planner_component_resource_registry
+    )
+
+    formalization_gap_planner_component_resource_registry_audit = sub.add_parser(
+        "formalization-gap-planner-component-resource-registry-audit",
+        help="audit component-resource coverage, frontier tools, and proof boundary",
+    )
+    formalization_gap_planner_component_resource_registry_audit.add_argument(
+        "--formalization-gap-planner-component-resource-registry-dir",
+        required=True,
+        help="directory containing formalization_gap_planner_component_resource_registry_manifest.json",
+    )
+    formalization_gap_planner_component_resource_registry_audit.add_argument(
+        "--out",
+        default="runs/formalization_gap_planner_component_resource_registry_audit",
+        help="formalization-gap planner component resource registry audit output directory",
+    )
+    formalization_gap_planner_component_resource_registry_audit.set_defaults(
+        func=_formalization_gap_planner_component_resource_registry_audit
     )
 
     formalization_gap_planner_evaluation = sub.add_parser(
@@ -5881,12 +8125,129 @@ def build_parser() -> argparse.ArgumentParser:
         help="directory containing formalization_gap_planner_refinement_evidence_manifest.json",
     )
     formalization_gap_planner_route_revision_overlay.add_argument(
+        "--formalization-gap-planner-resource-response-ledger-dir",
+        help=(
+            "optional directory containing "
+            "formalization_gap_planner_resource_response_ledger_manifest.json; "
+            "accepted responses with route feedback are applied as overlay proposals"
+        ),
+    )
+    formalization_gap_planner_route_revision_overlay.add_argument(
         "--out",
         default="runs/formalization_gap_planner_route_revision_overlay",
         help="formalization-gap planner route revision overlay output directory",
     )
     formalization_gap_planner_route_revision_overlay.set_defaults(
         func=_formalization_gap_planner_route_revision_overlay
+    )
+
+    formalization_gap_planner_route_stability_audit = sub.add_parser(
+        "formalization-gap-planner-route-stability-audit",
+        help="decide whether each route has stabilized or needs bounded evidence expansion",
+    )
+    formalization_gap_planner_route_stability_audit.add_argument(
+        "--goal-conditioned-minimal-formalization-plan-dir",
+        required=True,
+        help="directory containing goal_conditioned_minimal_formalization_plan_manifest.json",
+    )
+    formalization_gap_planner_route_stability_audit.add_argument(
+        "--formalization-gap-planner-refinement-evidence-dir",
+        required=True,
+        help="directory containing formalization_gap_planner_refinement_evidence_manifest.json",
+    )
+    formalization_gap_planner_route_stability_audit.add_argument(
+        "--formalization-gap-planner-route-revision-overlay-dir",
+        required=True,
+        help="directory containing formalization_gap_planner_route_revision_overlay_manifest.json",
+    )
+    formalization_gap_planner_route_stability_audit.add_argument(
+        "--out",
+        default="runs/formalization_gap_planner_route_stability_audit",
+        help="formalization-gap planner route-stability audit output directory",
+    )
+    formalization_gap_planner_route_stability_audit.set_defaults(
+        func=_formalization_gap_planner_route_stability_audit
+    )
+
+    formalization_gap_planner_route_replan_handoff = sub.add_parser(
+        "formalization-gap-planner-route-replan-handoff",
+        help="write a replayable standalone seed from route-revision overlay rows",
+    )
+    formalization_gap_planner_route_replan_handoff.add_argument(
+        "--goal-conditioned-minimal-formalization-plan-dir",
+        required=True,
+        help="directory containing goal_conditioned_minimal_formalization_plan_manifest.json",
+    )
+    formalization_gap_planner_route_replan_handoff.add_argument(
+        "--formalization-gap-planner-route-revision-overlay-dir",
+        required=True,
+        help="directory containing formalization_gap_planner_route_revision_overlay_manifest.json",
+    )
+    formalization_gap_planner_route_replan_handoff.add_argument(
+        "--formalization-gap-planner-route-stability-audit-dir",
+        help="optional directory containing formalization_gap_planner_route_stability_audit_manifest.json",
+    )
+    formalization_gap_planner_route_replan_handoff.add_argument(
+        "--target-prover-family",
+        default="",
+        help="optional target prover family override for the standalone replan seed",
+    )
+    formalization_gap_planner_route_replan_handoff.add_argument(
+        "--library-snapshot-ref",
+        default="",
+        help="optional library snapshot ref override for the standalone replan seed",
+    )
+    formalization_gap_planner_route_replan_handoff.add_argument(
+        "--out",
+        default="runs/formalization_gap_planner_route_replan_handoff",
+        help="route-replan handoff output directory",
+    )
+    formalization_gap_planner_route_replan_handoff.set_defaults(
+        func=_formalization_gap_planner_route_replan_handoff
+    )
+
+    formalization_gap_planner_route_replan_handoff_audit = sub.add_parser(
+        "formalization-gap-planner-route-replan-handoff-audit",
+        help="audit a route-replan handoff and replay its standalone planner seed",
+    )
+    formalization_gap_planner_route_replan_handoff_audit.add_argument(
+        "--formalization-gap-planner-route-replan-handoff-dir",
+        required=True,
+        help="directory containing formalization_gap_planner_route_replan_handoff_manifest.json",
+    )
+    formalization_gap_planner_route_replan_handoff_audit.add_argument(
+        "--out",
+        default="runs/formalization_gap_planner_route_replan_handoff_audit",
+        help="route-replan handoff audit output directory",
+    )
+    formalization_gap_planner_route_replan_handoff_audit.set_defaults(
+        func=_formalization_gap_planner_route_replan_handoff_audit
+    )
+
+    formalization_gap_planner_runtime_handoff_audit = sub.add_parser(
+        "formalization-gap-planner-runtime-handoff-audit",
+        help=(
+            "audit AI Statistician runtime formalization-gap planner handoffs "
+            "and offline prompt-only LLM route-planner replay"
+        ),
+    )
+    formalization_gap_planner_runtime_handoff_audit.add_argument(
+        "--runtime-formalization-gap-planner-handoffs-jsonl",
+        required=True,
+        help="runtime_formalization_gap_planner_handoffs.jsonl emitted by research-agent-runtime",
+    )
+    formalization_gap_planner_runtime_handoff_audit.add_argument(
+        "--no-smoke",
+        action="store_true",
+        help="skip offline standalone and prompt-only LLM route-planner smoke replay",
+    )
+    formalization_gap_planner_runtime_handoff_audit.add_argument(
+        "--out",
+        default="runs/formalization_gap_planner_runtime_handoff_audit",
+        help="runtime handoff audit output directory",
+    )
+    formalization_gap_planner_runtime_handoff_audit.set_defaults(
+        func=_formalization_gap_planner_runtime_handoff_audit
     )
 
     formalization_gap_planner_proof_state_triage = sub.add_parser(
@@ -5905,6 +8266,252 @@ def build_parser() -> argparse.ArgumentParser:
     )
     formalization_gap_planner_proof_state_triage.set_defaults(
         func=_formalization_gap_planner_proof_state_triage
+    )
+
+    formalization_gap_planner_publication_bundle = sub.add_parser(
+        "formalization-gap-planner-publication-bundle",
+        help="write a reusable publication bundle for the library-aware formalization gap planner",
+    )
+    formalization_gap_planner_publication_bundle.add_argument(
+        "--ground-truth",
+        help="optional route-truth JSON file; defaults to the packaged benchmark file",
+    )
+    formalization_gap_planner_publication_bundle.add_argument(
+        "--lean-rag-db",
+        help="optional Lean RAG dependency graph SQLite DB for adapter-registry readiness",
+    )
+    formalization_gap_planner_publication_bundle.add_argument(
+        "--paper-library-dir",
+        help="optional local paper/text corpus directory for adapter-registry readiness",
+    )
+    formalization_gap_planner_publication_bundle.add_argument(
+        "--formalization-gap-planner-target-intake-dir",
+        help="optional target-intake directory to copy into the bundle",
+    )
+    formalization_gap_planner_publication_bundle.add_argument(
+        "--formalization-gap-planner-llm-route-planner-dir",
+        help="optional primary LLM route-planner directory to copy into the bundle",
+    )
+    formalization_gap_planner_publication_bundle.add_argument(
+        "--formalization-gap-planner-feedback-llm-route-planner-dir",
+        help="optional feedback LLM route-planner directory to copy into the bundle",
+    )
+    formalization_gap_planner_publication_bundle.add_argument(
+        "--goal-conditioned-minimal-formalization-plan-dir",
+        help="optional planner run directory to copy into the bundle",
+    )
+    formalization_gap_planner_publication_bundle.add_argument(
+        "--formalization-gap-planner-evaluation-dir",
+        help="optional planner evaluation directory to copy into the bundle",
+    )
+    formalization_gap_planner_publication_bundle.add_argument(
+        "--formalization-gap-planner-ablation-study-dir",
+        help="optional planner ablation-study directory to copy into the bundle",
+    )
+    formalization_gap_planner_publication_bundle.add_argument(
+        "--formalization-gap-planner-portable-plan-audit-dir",
+        help="optional portable plan audit directory to copy into the bundle",
+    )
+    formalization_gap_planner_publication_bundle.add_argument(
+        "--formalization-gap-planner-library-coverage-map-dir",
+        help="optional library coverage-map directory to copy into the bundle",
+    )
+    formalization_gap_planner_publication_bundle.add_argument(
+        "--formalization-gap-planner-primitive-action-queue-dir",
+        help="optional primitive action-queue directory to copy into the bundle",
+    )
+    formalization_gap_planner_publication_bundle.add_argument(
+        "--formalization-gap-planner-action-resource-plan-dir",
+        help="optional action-resource plan directory to copy into the bundle",
+    )
+    formalization_gap_planner_publication_bundle.add_argument(
+        "--formalization-gap-planner-resource-request-queue-dir",
+        help="optional resource request-queue directory to copy into the bundle",
+    )
+    formalization_gap_planner_publication_bundle.add_argument(
+        "--formalization-gap-planner-resource-response-ledger-dir",
+        help="optional resource response-ledger directory to copy into the bundle",
+    )
+    formalization_gap_planner_publication_bundle.add_argument(
+        "--formalization-gap-planner-minimal-delta-audit-dir",
+        help="optional minimal-delta audit directory to copy into the bundle",
+    )
+    formalization_gap_planner_publication_bundle.add_argument(
+        "--formalization-gap-planner-source-grounding-audit-dir",
+        help="optional source-grounding audit directory to copy into the bundle",
+    )
+    formalization_gap_planner_publication_bundle.add_argument(
+        "--formalization-gap-planner-refinement-queue-dir",
+        help="optional refinement queue directory to copy into the bundle",
+    )
+    formalization_gap_planner_publication_bundle.add_argument(
+        "--formalization-gap-planner-refinement-adapter-dir",
+        help="optional deterministic refinement-adapter response directory to copy into the bundle",
+    )
+    formalization_gap_planner_publication_bundle.add_argument(
+        "--formalization-gap-planner-local-literature-adapter-dir",
+        help="optional local literature-adapter response directory to copy into the bundle",
+    )
+    formalization_gap_planner_publication_bundle.add_argument(
+        "--formalization-gap-planner-local-formal-source-adapter-dir",
+        help="optional local formal-source-adapter response directory to copy into the bundle",
+    )
+    formalization_gap_planner_publication_bundle.add_argument(
+        "--formalization-gap-planner-local-proof-state-adapter-dir",
+        help="optional local proof-state-adapter response directory to copy into the bundle",
+    )
+    formalization_gap_planner_publication_bundle.add_argument(
+        "--formalization-gap-planner-refinement-evidence-dir",
+        help="optional refinement evidence directory to copy into the bundle",
+    )
+    formalization_gap_planner_publication_bundle.add_argument(
+        "--formalization-gap-planner-route-revision-overlay-dir",
+        help="optional route-revision overlay directory to copy into the bundle",
+    )
+    formalization_gap_planner_publication_bundle.add_argument(
+        "--formalization-gap-planner-route-stability-audit-dir",
+        help="optional route-stability audit directory to copy into the bundle",
+    )
+    formalization_gap_planner_publication_bundle.add_argument(
+        "--formalization-gap-planner-route-replan-handoff-dir",
+        help="optional route-replan handoff directory to copy into the bundle",
+    )
+    formalization_gap_planner_publication_bundle.add_argument(
+        "--formalization-gap-planner-route-replan-handoff-audit-dir",
+        help="optional route-replan handoff audit directory to copy into the bundle",
+    )
+    formalization_gap_planner_publication_bundle.add_argument(
+        "--formalization-gap-planner-runtime-handoff-audit-dir",
+        help="optional AI Statistician runtime handoff audit directory to copy into the bundle",
+    )
+    formalization_gap_planner_publication_bundle.add_argument(
+        "--formalization-gap-planner-proof-state-triage-dir",
+        help="optional proof-state triage directory to copy into the bundle",
+    )
+    formalization_gap_planner_publication_bundle.add_argument(
+        "--formalization-gap-planner-interactive-session-dir",
+        help="optional interactive-session directory to copy into the bundle",
+    )
+    formalization_gap_planner_publication_bundle.add_argument(
+        "--formalization-gap-planner-prover-adapter-contract-dir",
+        help="optional prover-adapter contract directory to copy into the bundle",
+    )
+    formalization_gap_planner_publication_bundle.add_argument(
+        "--formalization-gap-planner-cross-prover-matrix-audit-dir",
+        help="optional cross-prover matrix audit directory to copy into the bundle",
+    )
+    formalization_gap_planner_publication_bundle.add_argument(
+        "--formalization-gap-planner-adapter-registry-audit-dir",
+        help="optional adapter-registry audit directory to copy into the bundle",
+    )
+    formalization_gap_planner_publication_bundle.add_argument(
+        "--formalization-gap-planner-component-resource-registry-audit-dir",
+        help="optional component-resource-registry audit directory to copy into the bundle",
+    )
+    formalization_gap_planner_publication_bundle.add_argument(
+        "--library-snapshot-ref",
+        default="portable_publication_bundle",
+        help="library snapshot label written into the portable contract",
+    )
+    formalization_gap_planner_publication_bundle.add_argument(
+        "--out",
+        default="runs/formalization_gap_planner_publication_bundle",
+        help="publication bundle output directory",
+    )
+    formalization_gap_planner_publication_bundle.set_defaults(
+        func=_formalization_gap_planner_publication_bundle
+    )
+
+    formalization_gap_planner_publication_bundle_audit = sub.add_parser(
+        "formalization-gap-planner-publication-bundle-audit",
+        help="audit a formalization-gap planner publication bundle for reuse readiness",
+    )
+    formalization_gap_planner_publication_bundle_audit.add_argument(
+        "--publication-bundle-dir",
+        required=True,
+        help="directory containing formalization_gap_planner_publication_bundle_manifest.json",
+    )
+    formalization_gap_planner_publication_bundle_audit.add_argument(
+        "--out",
+        default="runs/formalization_gap_planner_publication_bundle_audit",
+        help="publication bundle audit output directory",
+    )
+    formalization_gap_planner_publication_bundle_audit.set_defaults(
+        func=_formalization_gap_planner_publication_bundle_audit
+    )
+
+    formalization_gap_planner_prover_adapter_contract = sub.add_parser(
+        "formalization-gap-planner-prover-adapter-contract",
+        help="export portable work-packet mappings and validate target-prover adapter responses",
+    )
+    formalization_gap_planner_prover_adapter_contract.add_argument(
+        "--goal-conditioned-minimal-formalization-plan-dir",
+        required=True,
+        help="directory containing goal_conditioned_minimal_formalization_plan_manifest.json",
+    )
+    formalization_gap_planner_prover_adapter_contract.add_argument(
+        "--target-prover-family",
+        default="other",
+        choices=["lean4", "lean", "rocq", "coq", "isabelle", "isabelle/hol", "agda", "other"],
+        help="target prover ecosystem for adapter mapping packets",
+    )
+    formalization_gap_planner_prover_adapter_contract.add_argument(
+        "--library-snapshot-ref",
+        default="",
+        help="target-prover library snapshot label written into adapter packets",
+    )
+    formalization_gap_planner_prover_adapter_contract.add_argument(
+        "--adapter-response-jsonl",
+        help="optional target-prover adapter response JSONL to validate",
+    )
+    formalization_gap_planner_prover_adapter_contract.add_argument(
+        "--max-packets",
+        type=int,
+        default=0,
+        help="limit exported portable work packets; 0 keeps all",
+    )
+    formalization_gap_planner_prover_adapter_contract.add_argument(
+        "--out",
+        default="runs/formalization_gap_planner_prover_adapter_contract",
+        help="prover adapter contract output directory",
+    )
+    formalization_gap_planner_prover_adapter_contract.set_defaults(
+        func=_formalization_gap_planner_prover_adapter_contract
+    )
+
+    formalization_gap_planner_cross_prover_matrix_audit = sub.add_parser(
+        "formalization-gap-planner-cross-prover-matrix-audit",
+        help="audit portable work-packet emission across Lean4, Rocq, Isabelle, and Agda",
+    )
+    formalization_gap_planner_cross_prover_matrix_audit.add_argument(
+        "--goal-conditioned-minimal-formalization-plan-dir",
+        required=True,
+        help="directory containing goal_conditioned_minimal_formalization_plan_manifest.json",
+    )
+    formalization_gap_planner_cross_prover_matrix_audit.add_argument(
+        "--target-prover-family",
+        action="append",
+        choices=["lean4", "lean", "rocq", "coq", "isabelle", "isabelle/hol", "agda"],
+        help="target prover family to include; repeatable, defaults to lean4/rocq/isabelle/agda",
+    )
+    formalization_gap_planner_cross_prover_matrix_audit.add_argument(
+        "--library-snapshot-ref-prefix",
+        default="cross_prover_matrix",
+        help="prefix for per-prover library snapshot labels",
+    )
+    formalization_gap_planner_cross_prover_matrix_audit.add_argument(
+        "--max-packets",
+        type=int,
+        default=0,
+        help="limit exported portable work packets per target; 0 keeps all",
+    )
+    formalization_gap_planner_cross_prover_matrix_audit.add_argument(
+        "--out",
+        default="runs/formalization_gap_planner_cross_prover_matrix_audit",
+        help="cross-prover matrix audit output directory",
+    )
+    formalization_gap_planner_cross_prover_matrix_audit.set_defaults(
+        func=_formalization_gap_planner_cross_prover_matrix_audit
     )
 
     formal_verifier_replay = sub.add_parser(
@@ -6792,12 +9399,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     stat_claim_certificate_readiness = sub.add_parser(
         "stat-claim-certificate-readiness",
-        help="overlay certificate-plan targets with checker-theorem readiness evidence",
+        help="overlay kernel-verified checker availability onto certificate-plan targets",
     )
     stat_claim_certificate_readiness.add_argument(
         "--certificate-plan-dir",
         required=True,
-        help="directory containing stat_claim_certificate_plan_manifest.json and targets JSONL",
+        help="directory containing stat_claim_certificate_plan_manifest.json",
     )
     stat_claim_certificate_readiness.add_argument(
         "--checker-audit-dir",
@@ -6807,7 +9414,7 @@ def build_parser() -> argparse.ArgumentParser:
     stat_claim_certificate_readiness.add_argument(
         "--out",
         default="runs/stat_claim_certificate_readiness",
-        help="certificate-readiness overlay output directory",
+        help="certificate readiness overlay output directory",
     )
     stat_claim_certificate_readiness.set_defaults(
         func=_stat_claim_certificate_readiness_overlay
@@ -6992,7 +9599,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     stat_claim_certificate_witness_validate = sub.add_parser(
         "stat-claim-certificate-witness-validate",
-        help="validate certificate witness drafts before checker execution",
+        help="validate materialized certificate witness drafts before checker execution",
     )
     stat_claim_certificate_witness_validate.add_argument(
         "--materializer-dir",
@@ -7122,9 +9729,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     theory_intake = sub.add_parser("theory-intake", help="normalize question JSON through deterministic or LLM-gated theory intake")
     theory_intake.add_argument("--question-file", required=True, help="question JSON file")
-    theory_intake.add_argument("--llm-theory", action="store_true", help="allow Haiku to classify supported estimator/DGP families during intake")
+    theory_intake.add_argument("--llm-theory", action="store_true", help="allow a generator backend to classify supported estimator/DGP families during intake")
     theory_intake.add_argument("--force-llm-theory", action="store_true", help="always ask the LLM for family classification")
-    theory_intake.add_argument("--llm-model", default="claude-haiku-4-5")
+    theory_intake.add_argument("--llm-provider", choices=LIVE_GENERATOR_PROVIDER_CHOICES, default=_default_live_generator_provider())
+    theory_intake.add_argument("--llm-static-response-file", default="", help="JSON response to replay when --llm-provider static is used")
+    theory_intake.add_argument("--llm-model", default="", help="model name for the intake generator; Anthropic defaults to Claude Haiku 4.5 for this light classifier")
+    theory_intake.add_argument("--llm-max-tokens", type=int, default=700)
     theory_intake.add_argument("--env-file", default=".env")
     theory_intake.set_defaults(func=_theory_intake)
 
@@ -7182,6 +9792,37 @@ def build_parser() -> argparse.ArgumentParser:
     research_loop.add_argument("--max-rounds", type=int, default=2)
     research_loop.add_argument("--mc-rerun-multiplier", type=int, default=3)
     research_loop.add_argument("--max-questions", type=int, default=0, help="optional cap for quick smoke runs")
+    research_loop.add_argument(
+        "--llm-theory-developer",
+        action="store_true",
+        help="use the LLM TheoryDeveloper live repair handler for theory/procedure simulation failures",
+    )
+    research_loop.add_argument(
+        "--llm-theory-provider",
+        choices=LIVE_GENERATOR_PROVIDER_CHOICES,
+        default=_default_live_generator_provider(),
+        help=(
+            "generator backend for --llm-theory-developer; defaults to Anthropic "
+            "Claude API"
+        ),
+    )
+    research_loop.add_argument(
+        "--llm-theory-static-response-file",
+        default="",
+        help="JSON response file for --llm-theory-provider static",
+    )
+    research_loop.add_argument(
+        "--llm-theory-model",
+        default="",
+        help="model name for the LLM TheoryDeveloper; Anthropic defaults to Claude Sonnet 4.6 for theory repair",
+    )
+    research_loop.add_argument("--llm-theory-max-tokens", type=int, default=9000)
+    research_loop.add_argument("--llm-theory-temperature", type=float, default=0.2)
+    research_loop.add_argument(
+        "--disable-default-theory-developer",
+        action="store_true",
+        help="disable the conservative DefaultTheoryDeveloper fallback",
+    )
     research_loop.add_argument(
         "--formal-source-backend",
         choices=("sqlite", "memory"),
@@ -7541,9 +10182,242 @@ def build_parser() -> argparse.ArgumentParser:
         default=5,
         help="multiplier for adaptive MC reruns in research benchmark and frontier smoke gates",
     )
+    research_system_audit.add_argument(
+        "--research-agent-runtime-dir",
+        default="",
+        help=(
+            "optional research-agent-runtime output directory to audit as an AgentRuntime "
+            "alignment overlay; when supplied, this overlay participates in gates"
+        ),
+    )
     research_system_audit.add_argument("--out", default="runs/research_system_audit", help="research system audit output directory")
     research_system_audit.add_argument("--env-file", default=".env")
     research_system_audit.set_defaults(func=lambda args: asyncio.run(_research_system_audit(args)))
+
+    research_architect_theory = sub.add_parser(
+        "research-architect-theory",
+        help="run Architect -> LLM TheoryDeveloper and persist typed derivation/evidence artifacts",
+    )
+    research_architect_theory.add_argument("--question-file", default="examples/research_questions.json")
+    research_architect_theory.add_argument("--max-questions", type=int, default=0, help="optional cap for quick runs")
+    research_architect_theory.add_argument(
+        "--provider",
+        choices=LIVE_GENERATOR_PROVIDER_CHOICES,
+        default=_default_live_generator_provider(),
+        help="generator backend; defaults to Anthropic Claude API",
+    )
+    research_architect_theory.add_argument(
+        "--static-response-file",
+        default="",
+        help="JSON response to replay when --provider static is used",
+    )
+    research_architect_theory.add_argument(
+        "--context-json",
+        default="",
+        help="optional Architect context JSON with retrieval/proof/simulation feedback",
+    )
+    research_architect_theory.add_argument(
+        "--learning-memory-jsonl",
+        action="append",
+        default=[],
+        help="prior runtime_learning_rows.jsonl to inject as bounded non-evidence prompt memory; repeatable",
+    )
+    research_architect_theory.add_argument("--max-learning-memory-rows", type=int, default=20)
+    research_architect_theory.add_argument(
+        "--llm-model",
+        default="",
+        help="model name for the TheoryDeveloper provider; Anthropic defaults to Claude Sonnet 4.6",
+    )
+    research_architect_theory.add_argument("--max-tokens", type=int, default=9000)
+    research_architect_theory.add_argument("--temperature", type=float, default=0.2)
+    research_architect_theory.add_argument("--out", default="runs/research_architect_theory")
+    research_architect_theory.add_argument("--env-file", default=".env")
+    research_architect_theory.set_defaults(func=_research_architect_theory_develop)
+
+    research_agent_runtime = sub.add_parser(
+        "research-agent-runtime",
+        help=(
+            "run the first AI Statistician AgentRuntime loop: "
+            "TheoryDeveloper -> SimulationEvaluator with blackboard/evidence traces"
+        ),
+    )
+    research_agent_runtime.add_argument("--question-file", default="examples/research_questions.json")
+    research_agent_runtime.add_argument("--max-questions", type=int, default=0, help="optional cap for quick runs")
+    research_agent_runtime.add_argument(
+        "--provider",
+        choices=LIVE_GENERATOR_PROVIDER_CHOICES,
+        default=_default_live_generator_provider(),
+        help="generator backend; defaults to Anthropic Claude API",
+    )
+    research_agent_runtime.add_argument(
+        "--static-response-file",
+        default="",
+        help="JSON response to replay when --provider static is used",
+    )
+    research_agent_runtime.add_argument(
+        "--context-json",
+        default="",
+        help="optional Architect context JSON with retrieval/proof/simulation feedback",
+    )
+    research_agent_runtime.add_argument(
+        "--learning-memory-jsonl",
+        action="append",
+        default=[],
+        help="prior runtime_learning_rows.jsonl to inject as bounded non-evidence prompt memory; repeatable",
+    )
+    research_agent_runtime.add_argument("--max-learning-memory-rows", type=int, default=20)
+    research_agent_runtime.add_argument(
+        "--llm-model",
+        default="",
+        help="model name for the TheoryDeveloper provider; Anthropic defaults to Claude Sonnet 4.6",
+    )
+    research_agent_runtime.add_argument("--max-tokens", type=int, default=9000)
+    research_agent_runtime.add_argument("--temperature", type=float, default=0.2)
+    research_agent_runtime.add_argument(
+        "--architect-coordinator-provider",
+        choices=SUBSYSTEM_GENERATOR_PROVIDER_CHOICES,
+        default="same",
+        help=(
+            "generator backend for top-level ArchitectCoordinator proposals; "
+            "same reuses the main live provider, while static requires "
+            "--architect-static-response-file"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--architect-static-response-file",
+        default="",
+        help="JSON ArchitectCoordinator response to replay when --architect-coordinator-provider static",
+    )
+    research_agent_runtime.add_argument(
+        "--architect-llm-model",
+        default="",
+        help="model name for ArchitectCoordinator proposals; Anthropic defaults to Claude Sonnet 4.6",
+    )
+    research_agent_runtime.add_argument("--architect-max-tokens", type=int, default=5000)
+    research_agent_runtime.add_argument("--architect-temperature", type=float, default=0.1)
+    research_agent_runtime.add_argument(
+        "--simulation-engineer-provider",
+        choices=SUBSYSTEM_GENERATOR_PROVIDER_CHOICES,
+        default="same",
+        help=(
+            "generator backend for SimulatorEngineer proposals; same reuses the "
+            "main live provider, while static requires --simulation-static-response-file"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--simulation-static-response-file",
+        default="",
+        help="JSON SimulatorEngineer response to replay when --simulation-engineer-provider static",
+    )
+    research_agent_runtime.add_argument(
+        "--simulation-llm-model",
+        default="",
+        help="model name for SimulatorEngineer proposals; Anthropic defaults to Claude Haiku 4.5",
+    )
+    research_agent_runtime.add_argument("--simulation-max-tokens", type=int, default=5000)
+    research_agent_runtime.add_argument("--simulation-temperature", type=float, default=0.1)
+    research_agent_runtime.add_argument(
+        "--algorithm-engineer-provider",
+        choices=SUBSYSTEM_GENERATOR_PROVIDER_CHOICES,
+        default="same",
+        help=(
+            "generator backend for AlgorithmEngineer proposals; same reuses the "
+            "main live provider, while static requires --algorithm-static-response-file"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--algorithm-static-response-file",
+        default="",
+        help="JSON AlgorithmEngineer response to replay when --algorithm-engineer-provider static",
+    )
+    research_agent_runtime.add_argument(
+        "--algorithm-llm-model",
+        default="",
+        help="model name for AlgorithmEngineer proposals; Anthropic defaults to Claude Haiku 4.5",
+    )
+    research_agent_runtime.add_argument("--algorithm-max-tokens", type=int, default=5000)
+    research_agent_runtime.add_argument("--algorithm-temperature", type=float, default=0.1)
+    research_agent_runtime.add_argument(
+        "--formalizer-provider",
+        choices=SUBSYSTEM_GENERATOR_PROVIDER_CHOICES,
+        default="same",
+        help=(
+            "generator backend for Formalizer/ProofEngineer proposals; same reuses "
+            "the main live provider, while static requires --formalizer-static-response-file"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--formalizer-static-response-file",
+        default="",
+        help="JSON Formalizer/ProofEngineer response to replay when --formalizer-provider static",
+    )
+    research_agent_runtime.add_argument(
+        "--formalizer-llm-model",
+        default="",
+        help="model name for Formalizer/ProofEngineer proposals; Anthropic defaults to Claude Sonnet 4.6",
+    )
+    research_agent_runtime.add_argument("--formalizer-max-tokens", type=int, default=6000)
+    research_agent_runtime.add_argument("--formalizer-temperature", type=float, default=0.1)
+    research_agent_runtime.add_argument(
+        "--critic-evaluator-provider",
+        choices=SUBSYSTEM_GENERATOR_PROVIDER_CHOICES,
+        default="same",
+        help=(
+            "generator backend for CriticEvaluator boundary-audit proposals; same "
+            "reuses the main live provider, while static requires --critic-static-response-file"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--critic-static-response-file",
+        default="",
+        help="JSON CriticEvaluator response to replay when --critic-evaluator-provider static",
+    )
+    research_agent_runtime.add_argument(
+        "--critic-llm-model",
+        default="",
+        help="model name for CriticEvaluator proposals; Anthropic defaults to Claude Haiku 4.5",
+    )
+    research_agent_runtime.add_argument("--critic-max-tokens", type=int, default=5000)
+    research_agent_runtime.add_argument("--critic-temperature", type=float, default=0.1)
+    research_agent_runtime.add_argument("--real-lean", action="store_true", help="use AXLE verify_proof for registered proof-bank subclaims")
+    research_agent_runtime.add_argument("--local-lean", action="store_true", help="use local lake env lean kernel verification for registered proof-bank subclaims")
+    research_agent_runtime.add_argument("--lean-project", default="", help="local Lake project used by --local-lean")
+    research_agent_runtime.add_argument("--lean-timeout", type=int, default=90, help="timeout seconds for each local Lean check")
+    research_agent_runtime.add_argument(
+        "--proof-obligation-id",
+        action="append",
+        default=[],
+        help=(
+            "limit registered proof-bank verification to this relevant obligation id; "
+            "repeatable. Formal gaps are still emitted."
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--max-proof-obligations",
+        type=int,
+        default=0,
+        help="optional cap on registered proof-bank obligations verified inside AgentRuntime; 0 means no cap",
+    )
+    research_agent_runtime.add_argument("--runs", type=int, default=100)
+    research_agent_runtime.add_argument("--seed", type=int, default=20260528)
+    research_agent_runtime.add_argument("--max-iterations", type=int, default=12)
+    research_agent_runtime.add_argument(
+        "--max-critic-repair-rounds",
+        type=int,
+        default=1,
+        help="bounded CriticEvaluator -> TheoryDeveloper repair loops before accepting remaining gaps",
+    )
+    research_agent_runtime.add_argument("--out", default="runs/research_agent_runtime")
+    research_agent_runtime.add_argument("--env-file", default=".env")
+    research_agent_runtime.set_defaults(func=_research_agent_runtime)
+
+    research_agent_runtime_audit = sub.add_parser(
+        "research-agent-runtime-audit",
+        help="audit AgentRuntime outputs, agenda/learning rows, and proof-boundary accounting",
+    )
+    research_agent_runtime_audit.add_argument("--runtime-dir", default="runs/research_agent_runtime")
+    research_agent_runtime_audit.add_argument("--out", default="runs/research_agent_runtime_audit")
+    research_agent_runtime_audit.set_defaults(func=_research_agent_runtime_audit)
 
     list_cmd = sub.add_parser("list", help="list registered questions and formal obligations")
     list_cmd.add_argument("--tag", action="append", help="filter obligations by tag")

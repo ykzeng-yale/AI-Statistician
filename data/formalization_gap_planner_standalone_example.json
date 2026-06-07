@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "component_name": "formalization_gap_planner_standalone_input",
+  "target_prover_family": "rocq",
+  "library_snapshot_ref": "example_rocq_probability_library_snapshot",
+  "background_primitives": [
+    "conditional_expectation",
+    "exchangeability",
+    "measurability_of_score",
+    "unrelated_empirical_process_chapter"
+  ],
+  "routes": [
+    {
+      "display_name": "split_conformal_finite_sample_coverage",
+      "theorem_statement": "For exchangeable calibration and test scores, split conformal prediction has finite-sample marginal coverage.",
+      "theorem_skeleton": "Theorem split_conformal_finite_sample_coverage : True.",
+      "source_refs": [
+        "vovk_gammerman_shafer_algorithmic_learning_in_random_world",
+        "lei_wasserman_distribution_free_prediction_sets"
+      ],
+      "import_cone_size": 18,
+      "dependency_graph_depth": 2,
+      "primitives": [
+        {
+          "primitive": "exchangeability",
+          "coverage_status": "exact_exists",
+          "candidate_declarations": [
+            "Probability.exchangeable"
+          ],
+          "cost": 1
+        },
+        {
+          "primitive": "rank_uniformity",
+          "coverage_status": "bridge_needed",
+          "expected_premises": [
+            "exchangeability"
+          ],
+          "cost": 5
+        },
+        {
+          "primitive": "conformal_quantile_index",
+          "coverage_status": "wrapper_needed",
+          "candidate_declarations": [
+            "Order.quantile"
+          ]
+        },
+        {
+          "primitive": "coverage_inequality",
+          "coverage_status": "source_port_needed",
+          "source_refs": [
+            "lei_wasserman_distribution_free_prediction_sets"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections import Counter
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -8,7 +9,15 @@ from pathlib import Path
 from typing import Any
 
 from .fingerprint import stable_hash
-from .formalization_gap_planner_contract import write_portable_gap_plan_schema
+from .formalization_gap_planner_contract import (
+    portable_gap_plan_row_json_schema,
+    route_alignment_edge_json_schema,
+    validate_portable_gap_plan_row,
+    validate_route_alignment_edge,
+    write_portable_gap_plan_schema,
+    write_portable_gap_plan_row_schema,
+    write_route_alignment_edge_schema,
+)
 
 
 GOAL_CONDITIONED_MINIMAL_FORMALIZATION_PLAN_SCHEMA_VERSION = 3
@@ -36,7 +45,7 @@ PROOF_EVIDENCE_STATUS = "GOAL_CONDITIONED_MINIMAL_FORMALIZATION_PLAN_NOT_PROOF_E
 PROOF_EVIDENCE_BOUNDARY = (
     "Goal-conditioned minimal formalization plans are route-selection and "
     "cost-planning artifacts, not theorem proof evidence. They identify a small "
-    "additional formalization cut for a target theorem, but only AXLE/local Lean "
+    "additional formalization cut for a target theorem, but only target-prover "
     "kernel verification can prove the target."
 )
 
@@ -86,6 +95,10 @@ class GoalConditionedMinimalFormalizationPlanRow:
     lean_realization_dag: dict[str, object]
     lean_realization_dag_nodes: tuple[dict[str, object], ...]
     lean_realization_dag_edges: tuple[dict[str, object], ...]
+    formal_realization_dag_nodes: tuple[dict[str, object], ...]
+    formal_realization_dag_edges: tuple[dict[str, object], ...]
+    route_alignment_edges: tuple[dict[str, object], ...]
+    standalone_input_trace: dict[str, object]
     route_revision_triggers: tuple[dict[str, object], ...]
     interactive_refinement_hooks: tuple[dict[str, object], ...]
     portable_work_packets: tuple[dict[str, object], ...]
@@ -132,6 +145,10 @@ def export_goal_conditioned_minimal_formalization_plan(
     queue_by_route = {
         str(row.get("route_id", "")): row for row in queue_rows if row.get("route_id")
     }
+    source_target_prover_family = _source_target_prover_family(
+        delta_payload,
+        queue_payload,
+    )
     all_primitives = tuple(
         sorted(
             {
@@ -150,6 +167,7 @@ def export_goal_conditioned_minimal_formalization_plan(
                 formalization_delta_plan_dir,
                 formal_verifier_queue_dir,
             ),
+            source_target_prover_family=source_target_prover_family,
         )
         for route in routes
     ]
@@ -163,12 +181,49 @@ def export_goal_conditioned_minimal_formalization_plan(
         ),
     )[: max(0, max_routes)]
     by_route_class = Counter(row.route_class for row in rows)
+    by_target = Counter(row.target_prover_family for row in rows)
+    target_prover_family = _manifest_target_prover_family(
+        rows,
+        source_target_prover_family=source_target_prover_family,
+    )
+    route_alignment_edge_schema = route_alignment_edge_json_schema()
+    route_alignment_edge_schema_errors = [
+        validate_route_alignment_edge(edge, route_alignment_edge_schema)
+        for row in rows
+        for edge in row.route_alignment_edges
+    ]
+    n_route_alignment_edge_schema_valid = sum(
+        1 for edge_errors in route_alignment_edge_schema_errors if not edge_errors
+    )
+    n_route_alignment_edge_schema_invalid = (
+        len(route_alignment_edge_schema_errors) - n_route_alignment_edge_schema_valid
+    )
+    row_dicts = [asdict(row) for row in rows]
+    goal_plan_row_schema = portable_gap_plan_row_json_schema()
+    goal_plan_row_schema_errors = [
+        validate_portable_gap_plan_row(
+            row_dict,
+            goal_plan_row_schema,
+            library_snapshot_ref=_library_snapshot_ref(
+                formalization_delta_plan_dir,
+                formal_verifier_queue_dir,
+            ),
+        )
+        for row_dict in row_dicts
+    ]
+    n_goal_plan_row_schema_valid = sum(
+        1 for row_errors in goal_plan_row_schema_errors if not row_errors
+    )
+    n_goal_plan_row_schema_invalid = (
+        len(goal_plan_row_schema_errors) - n_goal_plan_row_schema_valid
+    )
     payload: dict[str, object] = {
         "schema_version": GOAL_CONDITIONED_MINIMAL_FORMALIZATION_PLAN_SCHEMA_VERSION,
         "portable_schema_id": PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_ID,
         "portable_schema_version": PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_VERSION,
         "component_name": LIBRARY_AWARE_FORMALIZATION_GAP_PLANNER_NAME,
-        "target_prover_family": TARGET_PROVER_FAMILY,
+        "target_prover_family": target_prover_family,
+        "by_target_prover_family": dict(sorted(by_target.items())),
         "library_snapshot_ref": _library_snapshot_ref(
             formalization_delta_plan_dir,
             formal_verifier_queue_dir,
@@ -216,6 +271,13 @@ def export_goal_conditioned_minimal_formalization_plan(
         "n_lean_realization_dag_edges": sum(
             _graph_count(row.lean_realization_dag, "edges") for row in rows
         ),
+        "n_formal_realization_dag_nodes": sum(len(row.formal_realization_dag_nodes) for row in rows),
+        "n_formal_realization_dag_edges": sum(len(row.formal_realization_dag_edges) for row in rows),
+        "n_route_alignment_edges": sum(len(row.route_alignment_edges) for row in rows),
+        "n_route_alignment_edge_schema_valid": n_route_alignment_edge_schema_valid,
+        "n_route_alignment_edge_schema_invalid": n_route_alignment_edge_schema_invalid,
+        "n_goal_plan_row_schema_valid": n_goal_plan_row_schema_valid,
+        "n_goal_plan_row_schema_invalid": n_goal_plan_row_schema_invalid,
         "n_route_revision_triggers": sum(len(row.route_revision_triggers) for row in rows),
         "n_portable_work_packets": sum(len(row.portable_work_packets) for row in rows),
         "n_do_not_formalize_hints": sum(len(row.do_not_formalize_now) for row in rows),
@@ -223,16 +285,34 @@ def export_goal_conditioned_minimal_formalization_plan(
         "all_ok": not errors and bool(rows) and all(row.ok for row in rows),
         "errors": errors,
         "by_route_class": dict(sorted(by_route_class.items())),
-        "rows": [asdict(row) for row in rows],
-        "plan_fingerprint": stable_hash([asdict(row) for row in rows]),
+        "rows": row_dicts,
+        "goal_plan_row_schema": goal_plan_row_schema,
+        "goal_plan_row_schema_errors": goal_plan_row_schema_errors,
+        "route_alignment_edge_schema": route_alignment_edge_schema,
+        "plan_fingerprint": stable_hash(row_dicts),
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
         "limitations": [
             "minimal route cost is heuristic and goal-conditioned; it is not proof evidence",
             "do_not_formalize_now is a prioritization hint, not a semantic impossibility claim",
-            "AXLE/local Lean verification remains the only proof gate",
+            "target-prover kernel verification remains the only proof gate",
         ],
     }
+    if n_route_alignment_edge_schema_invalid:
+        payload["errors"] = [
+            *[str(error) for error in payload.get("errors", [])],
+            "route alignment edge schema validation failed",
+        ]
+    if n_goal_plan_row_schema_invalid:
+        payload["errors"] = [
+            *[str(error) for error in payload.get("errors", [])],
+            "goal plan row schema validation failed",
+        ]
+    payload["all_ok"] = (
+        bool(payload["all_ok"])
+        and n_route_alignment_edge_schema_invalid == 0
+        and n_goal_plan_row_schema_invalid == 0
+    )
     if out_dir is not None:
         out_dir.mkdir(parents=True, exist_ok=True)
         (out_dir / "goal_conditioned_minimal_formalization_plan_manifest.json").write_text(
@@ -249,6 +329,8 @@ def export_goal_conditioned_minimal_formalization_plan(
             encoding="utf-8",
         )
         write_portable_gap_plan_schema(out_dir)
+        write_portable_gap_plan_row_schema(out_dir)
+        write_route_alignment_edge_schema(out_dir)
     return payload
 
 
@@ -258,10 +340,16 @@ def _plan_row(
     all_primitives: tuple[str, ...],
     *,
     library_snapshot_ref: str,
+    source_target_prover_family: str,
 ) -> GoalConditionedMinimalFormalizationPlanRow:
     errors: list[str] = []
     route_id = str(route.get("route_id", ""))
     task_id = str(route.get("task_id", ""))
+    target_prover_family = _target_prover_family(
+        route,
+        queue_row,
+        source_target_prover_family=source_target_prover_family,
+    )
     actions = [
         action for action in route.get("actions", []) if isinstance(action, dict)
     ]
@@ -352,7 +440,7 @@ def _plan_row(
         "final_goal_conditioned_cost": goal_conditioned_cost,
         "source_trust_level": source_trust,
         "cost_model_boundary": (
-            "heuristic route-selection cost; not a Lean proof or proof-risk certificate"
+            "heuristic route-selection cost; not a target-prover proof or proof-risk certificate"
         ),
     }
     route_efficiency_score = max(0, 100 - goal_conditioned_cost + 2 * len(existing_reuse))
@@ -381,16 +469,26 @@ def _plan_row(
         first_principles=first_principles,
         blockers=blockers,
     )
-    next_packets = _next_packets(minimal_nodes or existing_reuse)
-    route_revision_triggers = _route_revision_triggers(
-        existing_reuse=existing_reuse,
-        wrappers=wrappers,
-        bridges=bridges,
-        source_discovery=source_discovery,
-        first_principles=first_principles,
-        blockers=blockers,
+    next_packets = _next_packets(
+        minimal_nodes or existing_reuse,
+        target_prover_family=target_prover_family,
     )
-    portable_work_packets = _portable_work_packets(next_packets)
+    route_revision_triggers = _merge_dict_rows(
+        _route_revision_triggers(
+            existing_reuse=existing_reuse,
+            wrappers=wrappers,
+            bridges=bridges,
+            source_discovery=source_discovery,
+            first_principles=first_principles,
+            blockers=blockers,
+        ),
+        _dict_tuple(route.get("route_revision_triggers", [])),
+        key_fields=("trigger_kind", "condition", "next_action"),
+    )
+    portable_work_packets = _portable_work_packets(
+        next_packets,
+        target_prover_family=target_prover_family,
+    )
     and_or_plan = _and_or_plan(
         route_id=route_id,
         display_name=str(route.get("display_name", "")),
@@ -402,6 +500,11 @@ def _plan_row(
         route_id=route_id,
         display_name=str(route.get("display_name", "")),
         selected_primitives=selected_primitives,
+        route_source_refs=_str_tuple(route.get("source_refs", [])),
+        informal_proof_steps=_str_tuple(route.get("informal_proof_steps", [])),
+        source_refs_by_primitive=_source_refs_by_primitive(
+            (*existing_reuse, *minimal_nodes)
+        ),
         blockers=blockers,
     )
     lean_realization_dag = _lean_realization_dag(
@@ -410,15 +513,26 @@ def _plan_row(
         existing_reuse=existing_reuse,
         minimal_nodes=minimal_nodes,
     )
-    interactive_refinement_hooks = _interactive_refinement_hooks(
-        display_name=str(route.get("display_name", "")),
-        theorem_skeleton=str(route.get("theorem_skeleton", "")),
-        theorem_statement=str(route.get("theorem_statement", "")),
-        selected_primitives=selected_primitives,
-        source_discovery=source_discovery,
-        first_principles=first_principles,
-        blockers=blockers,
-        route_revision_triggers=route_revision_triggers,
+    route_alignment_edges = _route_alignment_edges(
+        informal_knowledge_dag=informal_knowledge_dag,
+        lean_realization_dag=lean_realization_dag,
+    )
+    lean_realization_dag_nodes = tuple(lean_realization_dag.get("nodes", []))
+    lean_realization_dag_edges = tuple(lean_realization_dag.get("edges", []))
+    interactive_refinement_hooks = _merge_dict_rows(
+        _interactive_refinement_hooks(
+            display_name=str(route.get("display_name", "")),
+            theorem_skeleton=str(route.get("theorem_skeleton", "")),
+            theorem_statement=str(route.get("theorem_statement", "")),
+            selected_primitives=selected_primitives,
+            source_discovery=source_discovery,
+            first_principles=first_principles,
+            blockers=blockers,
+            route_revision_triggers=route_revision_triggers,
+            target_prover_family=target_prover_family,
+        ),
+        _dict_tuple(route.get("interactive_refinement_hooks", [])),
+        key_fields=("hook_kind", "queries", "acceptance_record"),
     )
     minimal_delta_summary = {
         **minimal_cut_summary,
@@ -450,7 +564,7 @@ def _plan_row(
         theorem_skeleton=str(route.get("theorem_skeleton", "")),
         theorem_statement=str(route.get("theorem_statement", "")),
         planner_component=LIBRARY_AWARE_FORMALIZATION_GAP_PLANNER_NAME,
-        target_prover_family=TARGET_PROVER_FAMILY,
+        target_prover_family=target_prover_family,
         library_snapshot_ref=library_snapshot_ref,
         formalization_delta_objective=FORMALIZATION_DELTA_OBJECTIVE,
         route_class=str(route.get("route_class", "")),
@@ -479,8 +593,12 @@ def _plan_row(
         informal_knowledge_dag_nodes=tuple(informal_knowledge_dag.get("nodes", [])),
         informal_knowledge_dag_edges=tuple(informal_knowledge_dag.get("edges", [])),
         lean_realization_dag=lean_realization_dag,
-        lean_realization_dag_nodes=tuple(lean_realization_dag.get("nodes", [])),
-        lean_realization_dag_edges=tuple(lean_realization_dag.get("edges", [])),
+        lean_realization_dag_nodes=lean_realization_dag_nodes,
+        lean_realization_dag_edges=lean_realization_dag_edges,
+        formal_realization_dag_nodes=lean_realization_dag_nodes,
+        formal_realization_dag_edges=lean_realization_dag_edges,
+        route_alignment_edges=route_alignment_edges,
+        standalone_input_trace=dict(route.get("standalone_input_trace", {})),
         route_revision_triggers=route_revision_triggers,
         interactive_refinement_hooks=interactive_refinement_hooks,
         portable_work_packets=portable_work_packets,
@@ -524,6 +642,8 @@ def _nodes_for_actions(
                     for item in action.get("candidate_declarations", []) or []
                     if str(item)
                 ][:6],
+                "source_refs": _source_refs_for_action(action),
+                "source_snippets": _source_snippets_for_action(action),
                 "next_step": str(action.get("next_step", "")),
             }
         )
@@ -536,6 +656,68 @@ def _primitive_names(nodes: tuple[dict[str, object], ...]) -> list[str]:
         for node in nodes
         if str(node.get("primitive", ""))
     ]
+
+
+def _source_refs_for_action(action: dict[str, Any]) -> list[str]:
+    refs: list[str] = []
+    for field_name in ("source_refs", "source_gap_ids", "source_task_ids"):
+        for item in action.get(field_name, []) or []:
+            if str(item):
+                refs.append(str(item))
+    return list(dict.fromkeys(refs))[:8]
+
+
+def _source_snippets_for_action(action: dict[str, Any]) -> list[dict[str, object]]:
+    snippets: list[dict[str, object]] = []
+    seen: set[str] = set()
+    for item in action.get("source_snippets", []) or []:
+        if not isinstance(item, dict):
+            continue
+        key = stable_hash(item)
+        if key in seen:
+            continue
+        seen.add(key)
+        snippets.append(dict(item))
+    return snippets[:8]
+
+
+def _str_tuple(value: Any) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    if isinstance(value, str):
+        return (value,) if value else ()
+    if isinstance(value, (list, tuple, set)):
+        return tuple(str(item) for item in value if str(item))
+    return (str(value),) if str(value) else ()
+
+
+def _dict_tuple(value: Any) -> tuple[dict[str, object], ...]:
+    if not isinstance(value, (list, tuple, set)):
+        return ()
+    return tuple(dict(item) for item in value if isinstance(item, dict))
+
+
+def _merge_dict_rows(
+    primary: tuple[dict[str, object], ...],
+    secondary: tuple[dict[str, object], ...],
+    *,
+    key_fields: tuple[str, ...],
+) -> tuple[dict[str, object], ...]:
+    merged: list[dict[str, object]] = []
+    seen: set[str] = set()
+    for row in (*primary, *secondary):
+        key = stable_hash(
+            [
+                str(row.get(field_name, ""))
+                for field_name in key_fields
+            ]
+            or [row]
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        merged.append(dict(row))
+    return tuple(merged)
 
 
 def _minimal_cut_summary(
@@ -587,8 +769,13 @@ def _route_dag_contract(
         "and_or_route_boundary": (
             "This route is a heuristic AND/OR cut derived from "
             "formalization_delta_plan actions and formal_verifier_queue costs; "
-            "it is not a complete proof-route DAG until Lean proof attempts "
+            "it is not a complete proof-route DAG until target-prover attempts "
             "materialize each missing node."
+        ),
+        "alignment_edge_contract": (
+            "Each selected informal semantic atom should align to an existing "
+            "reuse node or a selected delta candidate in the formal realization "
+            "DAG before downstream prover adapters consume the route."
         ),
         "blocking_status": "blocked" if blockers else "unblocked",
     }
@@ -615,6 +802,83 @@ def _library_snapshot_ref(
     )[:24]
 
 
+def _source_target_prover_family(
+    delta_payload: dict[str, Any],
+    queue_payload: dict[str, Any],
+) -> str:
+    for payload in (delta_payload, queue_payload):
+        value = str(
+            payload.get("target_prover_family")
+            or payload.get("target_prover")
+            or ""
+        ).strip()
+        if value:
+            return value
+    return TARGET_PROVER_FAMILY
+
+
+def _target_prover_family(
+    route: dict[str, Any],
+    queue_row: dict[str, Any],
+    *,
+    source_target_prover_family: str,
+) -> str:
+    return str(
+        route.get("target_prover_family")
+        or queue_row.get("target_prover_family")
+        or source_target_prover_family
+        or TARGET_PROVER_FAMILY
+    ).strip()
+
+
+def _manifest_target_prover_family(
+    rows: list[GoalConditionedMinimalFormalizationPlanRow],
+    *,
+    source_target_prover_family: str,
+) -> str:
+    targets = sorted({row.target_prover_family for row in rows if row.target_prover_family})
+    if len(targets) == 1:
+        return targets[0]
+    return source_target_prover_family or TARGET_PROVER_FAMILY
+
+
+def _prover_family_key(target_prover_family: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", str(target_prover_family).strip().lower()).strip("_")
+
+
+def _proof_state_tools_for_target_prover(target_prover_family: str) -> tuple[str, ...]:
+    target = _prover_family_key(target_prover_family)
+    if target in {"lean", "lean4", "lean4_adapter_with_portable_gap_schema"}:
+        return (
+            "lean-lsp-mcp",
+            "Lean LSP",
+            "lake build",
+        )
+    if target in {"rocq", "coq"}:
+        return (
+            "Rocq/coq-lsp proof-state adapter",
+            "SerAPI/sertop",
+            "rocq/coq build command",
+        )
+    if target in {"isabelle", "isabelle_hol", "hol"}:
+        return (
+            "Isabelle server proof-state adapter",
+            "find_theorems/Sledgehammer",
+            "isabelle build",
+        )
+    if target == "agda":
+        return (
+            "Agda interaction-mode proof-state adapter",
+            "agda --interaction-json",
+            "agda type-check command",
+        )
+    return (
+        "target-prover proof-state adapter",
+        "target-prover LSP/kernel diagnostics",
+        "target-prover build/check command",
+    )
+
+
 def _planner_contract(library_snapshot_ref: str) -> dict[str, object]:
     return {
         "component": LIBRARY_AWARE_FORMALIZATION_GAP_PLANNER_NAME,
@@ -637,15 +901,15 @@ def _interactive_route_synthesis_contract() -> dict[str, object]:
             "target_intake",
             "literature_evidence_search",
             "informal_route_dag",
-            "lean_coverage_mapping",
+            "formal_library_coverage_mapping",
             "minimal_delta_planning",
             "leaf_prover_attempts",
             "residual_feedback_revision",
         ],
         "bounded_expansion_policy": [
             "expand literature only until the proof route stabilizes",
-            "search Lean for every informal route node before proposing new formalization",
-            "let Lean diagnostics trigger focused route revision instead of field-wide formalization",
+            "search the target prover library for every informal route node before proposing new formalization",
+            "let target-prover diagnostics trigger focused route revision instead of field-wide formalization",
         ],
         "proof_boundary": PROOF_EVIDENCE_BOUNDARY,
     }
@@ -656,7 +920,7 @@ def _evaluation_protocol() -> dict[str, object]:
         "primary_metrics": [
             "route_recall",
             "delta_precision",
-            "lean_effort_new_declarations",
+            "target_prover_effort_new_declarations",
             "coverage_classification_accuracy",
             "downstream_kernel_verified_success",
         ],
@@ -675,6 +939,7 @@ def _portable_work_packet_contract() -> dict[str, object]:
             "expected_cost",
             "worker_packet_kind",
             "required_gate",
+            "target_prover_family",
         ],
         "acceptance_gate": (
             "kernel verification in the target prover plus no placeholder axioms/sorries"
@@ -792,7 +1057,7 @@ def _and_or_plan(
         "nodes": nodes,
         "edges": edges,
         "boundary": (
-            "Heuristic AND/OR route cut for planning. It is not a complete Lean "
+            "Heuristic AND/OR route cut for planning. It is not a complete target-prover "
             "proof dependency graph until each missing node is materialized and "
             "kernel checked."
         ),
@@ -804,6 +1069,9 @@ def _informal_knowledge_dag(
     route_id: str,
     display_name: str,
     selected_primitives: tuple[str, ...],
+    route_source_refs: tuple[str, ...],
+    informal_proof_steps: tuple[str, ...],
+    source_refs_by_primitive: dict[str, tuple[str, ...]],
     blockers: tuple[str, ...],
 ) -> dict[str, object]:
     target_id = _node_id("informal_target", route_id or display_name)
@@ -814,6 +1082,8 @@ def _informal_knowledge_dag(
             "node_type": "informal_target",
             "label": display_name,
             "evidence_status": PROOF_EVIDENCE_STATUS,
+            "source_refs": list(route_source_refs),
+            "informal_proof_steps": list(informal_proof_steps),
         }
     ]
     edges: list[dict[str, object]] = []
@@ -826,6 +1096,7 @@ def _informal_knowledge_dag(
                 "node_type": "semantic_atom",
                 "label": primitive,
                 "evidence_status": PROOF_EVIDENCE_STATUS,
+                "source_refs": list(source_refs_by_primitive.get(primitive, ())),
             }
         )
         edges.append(
@@ -845,6 +1116,7 @@ def _informal_knowledge_dag(
                 "node_type": "hidden_assumption_or_gap",
                 "label": blocker,
                 "evidence_status": PROOF_EVIDENCE_STATUS,
+                "source_refs": list(route_source_refs),
             }
         )
         edges.append(
@@ -865,6 +1137,24 @@ def _informal_knowledge_dag(
     }
 
 
+def _source_refs_by_primitive(
+    nodes: tuple[dict[str, object], ...],
+) -> dict[str, tuple[str, ...]]:
+    refs: dict[str, tuple[str, ...]] = {}
+    for node in nodes:
+        primitive = str(node.get("primitive", ""))
+        if not primitive:
+            continue
+        refs[primitive] = tuple(
+            dict.fromkeys(
+                str(item)
+                for item in node.get("source_refs", []) or []
+                if str(item)
+            )
+        )
+    return refs
+
+
 def _lean_realization_dag(
     *,
     route_id: str,
@@ -872,12 +1162,12 @@ def _lean_realization_dag(
     existing_reuse: tuple[dict[str, object], ...],
     minimal_nodes: tuple[dict[str, object], ...],
 ) -> dict[str, object]:
-    target_id = _node_id("lean_target", route_id or display_name)
+    target_id = _node_id("formal_target", route_id or display_name)
     nodes: list[dict[str, object]] = [
         {
             "node_id": target_id,
-            "kind": "lean_target_skeleton",
-            "node_type": "lean_target_skeleton",
+            "kind": "formal_target_skeleton",
+            "node_type": "formal_target_skeleton",
             "label": display_name,
             "evidence_status": PROOF_EVIDENCE_STATUS,
         }
@@ -903,12 +1193,12 @@ def _lean_realization_dag(
                 if str(item)
             ],
         ][:8]
-        node_id = _node_id("lean_realization", primitive + action_class)
+        node_id = _node_id("formal_realization", primitive + action_class)
         nodes.append(
             {
                 "node_id": node_id,
-                "kind": "lean_realization_candidate",
-                "node_type": "lean_realization_candidate",
+                "kind": "formal_realization_candidate",
+                "node_type": "formal_realization_candidate",
                 "label": primitive,
                 "evidence_status": PROOF_EVIDENCE_STATUS,
                 "action_class": action_class,
@@ -927,10 +1217,73 @@ def _lean_realization_dag(
         "nodes": nodes,
         "edges": edges,
         "boundary": (
-            "Lean realization candidates require replay or AXLE/local Lean "
+            "Formal realization candidates require target-prover replay and "
             "kernel verification before they count as proof evidence."
         ),
     }
+
+
+def _route_alignment_edges(
+    *,
+    informal_knowledge_dag: dict[str, object],
+    lean_realization_dag: dict[str, object],
+) -> tuple[dict[str, object], ...]:
+    informal_by_label = {
+        str(node.get("label", "")): node
+        for node in informal_knowledge_dag.get("nodes", [])
+        if isinstance(node, dict)
+        and str(node.get("node_type", node.get("kind", ""))) == "semantic_atom"
+        and str(node.get("label", ""))
+    }
+    edges: list[dict[str, object]] = []
+    for lean_node in lean_realization_dag.get("nodes", []):
+        if not isinstance(lean_node, dict):
+            continue
+        if str(lean_node.get("node_type", lean_node.get("kind", ""))) not in {
+            "formal_realization_candidate",
+            "lean_realization_candidate",
+        }:
+            continue
+        primitive = str(lean_node.get("label", ""))
+        informal_node = informal_by_label.get(primitive)
+        if not informal_node:
+            continue
+        action_class = str(lean_node.get("action_class", ""))
+        edges.append(
+            {
+                "source": str(informal_node.get("node_id", "")),
+                "target": str(lean_node.get("node_id", "")),
+                "kind": "aligned_to_formal_realization_candidate",
+                "edge_type": "informal_to_formal_alignment",
+                "primitive": primitive,
+                "action_class": action_class,
+                "alignment_status": _alignment_status(action_class),
+                "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            }
+        )
+    return tuple(
+        sorted(
+            edges,
+            key=lambda edge: (
+                str(edge.get("primitive", "")),
+                str(edge.get("action_class", "")),
+                str(edge.get("target", "")),
+            ),
+        )
+    )
+
+
+def _alignment_status(action_class: str) -> str:
+    return {
+        "reuse_exact_proof_bank_obligation": "exact_existing_reuse",
+        "compose_existing_bridge_chain": "composition_candidate",
+        "add_minimal_wrapper": "wrapper_delta",
+        "design_bridge_lemma": "bridge_delta",
+        "formalize_assumption_interface": "assumption_interface_delta",
+        "port_external_source": "source_port_delta",
+        "design_from_first_principles": "new_theory_delta",
+    }.get(action_class, "selected_delta_candidate")
 
 
 def _route_revision_triggers(
@@ -946,17 +1299,17 @@ def _route_revision_triggers(
     if not existing_reuse:
         triggers.append(
             {
-                "trigger_kind": "lean_leaf_attempt_required",
+                "trigger_kind": "formal_leaf_attempt_required",
                 "condition": "no existing reuse node found for the selected route",
-                "next_action": "search Lean/library candidates before adding new formalization",
+                "next_action": "search formal-library candidates before adding new formalization",
             }
         )
     if wrappers or bridges:
         triggers.append(
             {
-                "trigger_kind": "lean_leaf_attempt_required",
+                "trigger_kind": "formal_leaf_attempt_required",
                 "condition": "selected route contains wrappers or bridge lemmas",
-                "next_action": "probe the leaf goals with Lean LSP or local Lean before route promotion",
+                "next_action": "probe the leaf goals with target-prover feedback before route promotion",
             }
         )
     if source_discovery:
@@ -996,12 +1349,15 @@ def _route_revision_triggers(
 
 def _portable_work_packets(
     next_packets: tuple[dict[str, object], ...],
+    *,
+    target_prover_family: str,
 ) -> tuple[dict[str, object], ...]:
     packets: list[dict[str, object]] = []
     for packet in next_packets:
         packets.append(
             {
                 **packet,
+                "target_prover_family": target_prover_family,
                 "portable_contract": (
                     "Self-contained theorem-development packet. It may be "
                     "sent to a worker or another planning thread, but promotion "
@@ -1023,26 +1379,30 @@ def _interactive_refinement_hooks(
     first_principles: tuple[dict[str, object], ...],
     blockers: tuple[str, ...],
     route_revision_triggers: tuple[dict[str, object], ...],
+    target_prover_family: str,
 ) -> tuple[dict[str, object], ...]:
     primitive_query = " ".join(selected_primitives[:8])
     hooks: list[dict[str, object]] = [
         {
-            "hook_kind": "lean_library_grounding",
+            "hook_kind": "formal_library_grounding",
             "recommended_tools": [
-                "local Lean RAG DB",
-                "LeanSearch",
-                "LeanExplore",
-                "Loogle",
+                "local formal-source index",
+                "target prover library search",
+                "LeanSearch/Loogle/LeanExplore for Lean targets",
+                "Rocq/coq-lsp/SerAPI for Rocq targets",
+                "Isabelle find_theorems/Sledgehammer for Isabelle targets",
             ],
             "queries": [item for item in selected_primitives[:8] if item],
             "acceptance_record": (
-                "record exact, stronger, weaker, or bridgeable Lean declarations "
+                "record exact, stronger, weaker, or bridgeable formal declarations "
                 "before adding new formalization"
             ),
         },
         {
             "hook_kind": "proof_state_feedback",
-            "recommended_tools": ["lean-lsp-mcp", "Lean LSP", "lake build"],
+            "recommended_tools": list(
+                _proof_state_tools_for_target_prover(target_prover_family)
+            ),
             "queries": [
                 item
                 for item in (
@@ -1054,7 +1414,7 @@ def _interactive_refinement_hooks(
                 if item
             ],
             "acceptance_record": (
-                "record exact Lean goal state, diagnostics, and failed tactic signatures"
+                "record exact target-prover goal state, diagnostics, and failed tactic signatures"
             ),
         },
     ]
@@ -1080,7 +1440,7 @@ def _interactive_refinement_hooks(
                 ],
                 "acceptance_record": (
                     "record source-backed theorem variants and hidden assumptions "
-                    "before expanding the Lean delta"
+                    "before expanding the formalization delta"
                 ),
             }
         )
@@ -1090,7 +1450,7 @@ def _interactive_refinement_hooks(
                 "hook_kind": "route_revision",
                 "recommended_tools": [
                     "literature_discovery",
-                    "lean_library_grounding",
+                    "formal_library_grounding",
                     "proof_state_feedback",
                 ],
                 "queries": [
@@ -1099,7 +1459,7 @@ def _interactive_refinement_hooks(
                     if item
                 ],
                 "acceptance_record": (
-                    "revise the informal knowledge DAG, Lean realization DAG, and "
+                    "revise the informal knowledge DAG, formal realization DAG, and "
                     "selected delta before the next replay attempt"
                 ),
             }
@@ -1107,18 +1467,23 @@ def _interactive_refinement_hooks(
     return tuple(hooks)
 
 
-def _next_packets(nodes: tuple[dict[str, object], ...]) -> tuple[dict[str, object], ...]:
+def _next_packets(
+    nodes: tuple[dict[str, object], ...],
+    *,
+    target_prover_family: str,
+) -> tuple[dict[str, object], ...]:
     packets: list[dict[str, object]] = []
     for node in nodes[:8]:
         packets.append(
             {
                 "primitive": node.get("primitive", ""),
                 "action_class": node.get("action_class", ""),
+                "target_prover_family": target_prover_family,
                 "expected_cost": node.get("cost", 0),
                 "worker_packet_kind": _worker_packet_kind(str(node.get("action_class", ""))),
                 "required_gate": (
-                    "emit a Lean statement/proof candidate only after source "
-                    "support and local kernel checks are attached"
+                    "emit a target-prover statement/proof candidate only after "
+                    "source support and local kernel checks are attached"
                 ),
             }
         )
@@ -1186,9 +1551,15 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Minimal additional nodes: {payload.get('n_minimal_additional_formalization_nodes')}",
         f"- Minimal cuts: {payload.get('n_goal_plans_with_minimal_cut')}",
         f"- Cost-breakdown terms: {payload.get('n_route_cost_breakdown_terms')}",
+        f"- Target prover family: {payload.get('target_prover_family')}",
         f"- AND/OR plan graph: {payload.get('n_and_or_plan_nodes')} nodes / {payload.get('n_and_or_plan_edges')} edges",
         f"- Informal knowledge DAG: {payload.get('n_informal_knowledge_dag_nodes')} nodes / {payload.get('n_informal_knowledge_dag_edges')} edges",
-        f"- Lean realization DAG: {payload.get('n_lean_realization_dag_nodes')} nodes / {payload.get('n_lean_realization_dag_edges')} edges",
+        f"- Formal realization DAG: {payload.get('n_formal_realization_dag_nodes')} nodes / {payload.get('n_formal_realization_dag_edges')} edges",
+        (
+            f"- Route-alignment edge schema valid: "
+            f"{payload.get('n_route_alignment_edge_schema_valid')}/"
+            f"{payload.get('n_route_alignment_edges')}"
+        ),
         f"- Route revision triggers: {payload.get('n_route_revision_triggers')}",
         f"- Portable work packets: {payload.get('n_portable_work_packets')}",
         f"- All OK: {payload.get('all_ok')}",

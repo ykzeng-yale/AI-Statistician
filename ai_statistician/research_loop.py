@@ -554,6 +554,8 @@ async def run_research_loop_benchmark(
     formal_source_retriever: Any | None = None,
     formal_source_index_path: Path | None = None,
     lean_rag_db_path: Path | None = None,
+    repair_handlers: dict[str, LiveRepairHandler] | None = None,
+    enable_default_theory_developer: bool = True,
     config: LoopConfig = LoopConfig(),
 ) -> dict[str, Any]:
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -567,6 +569,8 @@ async def run_research_loop_benchmark(
         formal_source_retriever=formal_source_retriever,
         n_runs=config.n_runs,
         seed=config.seed,
+        repair_handlers=repair_handlers,
+        enable_default_theory_developer=enable_default_theory_developer,
     )
     results = [
         await coordinator.iterate(

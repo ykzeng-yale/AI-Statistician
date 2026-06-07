@@ -11,7 +11,11 @@ from pathlib import Path
 from typing import Any
 
 from .fingerprint import stable_hash
-from .formalization_gap_planner_refinement_evidence import PROOF_EVIDENCE_BOUNDARY
+from .formalization_gap_planner_refinement_evidence import (
+    PROOF_EVIDENCE_BOUNDARY,
+    refinement_tool_response_json_schema,
+    validate_refinement_tool_response_row,
+)
 
 
 FORMALIZATION_GAP_PLANNER_LOCAL_PROOF_STATE_ADAPTER_SCHEMA_VERSION = 1
@@ -19,6 +23,7 @@ PROOF_EVIDENCE_STATUS = (
     "FORMALIZATION_GAP_PLANNER_LOCAL_PROOF_STATE_ADAPTER_NOT_PROOF_EVIDENCE"
 )
 ADAPTER_TOOL_NAME = "local_lean_proof_state_adapter"
+TARGET_PROVER_FAMILY = "lean4"
 PLACEHOLDER_RE = re.compile(r"\b(sorry|admit|axiom)\b")
 FORMAL_GAP_PLACEHOLDER_RE = re.compile(
     r"\bFORMAL_GAP\b|\bh_frontier_missing[A-Za-z0-9_']*"
@@ -80,16 +85,39 @@ def export_formalization_gap_planner_local_proof_state_adapter_responses(
             str(row.get("refinement_item_id", "")),
         ),
     )
+    response_schema = refinement_tool_response_json_schema()
+    local_response_schema_errors = [
+        validate_refinement_tool_response_row(response, response_schema)
+        for response in responses
+    ]
+    merged_response_schema_errors = [
+        validate_refinement_tool_response_row(response, response_schema)
+        for response in merged_responses
+    ]
+    n_local_response_schema_valid = sum(
+        1 for row_errors in local_response_schema_errors if not row_errors
+    )
+    n_merged_response_schema_valid = sum(
+        1 for row_errors in merged_response_schema_errors if not row_errors
+    )
     by_attempt_status = Counter(str(row.get("attempt_status", "")) for row in responses)
+    by_attempt_class = Counter(
+        str(row.get("prover_attempt_class", "")) for row in responses
+    )
     payload: dict[str, object] = {
         "schema_version": FORMALIZATION_GAP_PLANNER_LOCAL_PROOF_STATE_ADAPTER_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "component_name": "formalization_gap_planner_local_proof_state_adapter",
+        "target_prover_family": TARGET_PROVER_FAMILY,
         "formalization_gap_planner_refinement_queue_dir": str(
             formalization_gap_planner_refinement_queue_dir
         ),
         "formalization_gap_planner_refinement_queue_manifest": str(queue_manifest_path),
         "base_response_jsonl": str(base_response_jsonl or ""),
+        "prover_project": str(lean_project or ""),
+        "prover_timeout": lean_timeout,
+        "prover_command": " ".join(lean_command) if lean_command else "",
+        "prover_command_available": bool(lean_command),
         "lean_project": str(lean_project or ""),
         "lean_timeout": lean_timeout,
         "lean_command": " ".join(lean_command) if lean_command else "",
@@ -99,6 +127,24 @@ def export_formalization_gap_planner_local_proof_state_adapter_responses(
         "n_base_responses": len(base_responses),
         "n_local_proof_state_responses": len(responses),
         "n_merged_responses": len(merged_responses),
+        "n_local_response_schema_valid": n_local_response_schema_valid,
+        "n_local_response_schema_invalid": len(local_response_schema_errors)
+        - n_local_response_schema_valid,
+        "n_merged_response_schema_valid": n_merged_response_schema_valid,
+        "n_merged_response_schema_invalid": len(merged_response_schema_errors)
+        - n_merged_response_schema_valid,
+        "local_response_schema_errors": local_response_schema_errors,
+        "merged_response_schema_errors": merged_response_schema_errors,
+        "n_target_prover_scaffold_accepted": by_attempt_class.get(
+            "target_prover_scaffold_accepted", 0
+        ),
+        "n_target_prover_failed": by_attempt_class.get("target_prover_failed", 0),
+        "n_target_prover_unavailable": by_attempt_class.get(
+            "target_prover_unavailable", 0
+        ),
+        "n_non_target_prover_skeleton": by_attempt_class.get(
+            "non_target_prover_skeleton", 0
+        ),
         "n_kernel_scaffold_accepted": by_attempt_status.get("local_lean_scaffold_accepted", 0),
         "n_local_lean_failed": by_attempt_status.get("local_lean_failed", 0),
         "n_local_lean_unavailable": by_attempt_status.get("local_lean_unavailable", 0),
@@ -108,10 +154,16 @@ def export_formalization_gap_planner_local_proof_state_adapter_responses(
         ),
         "n_non_lean_skeleton": by_attempt_status.get("non_lean_skeleton", 0),
         "n_missing_skeleton": by_attempt_status.get("missing_theorem_skeleton", 0),
-        "all_ok": not errors and bool(proof_rows) and len(responses) == len(proof_rows),
+        "all_ok": not errors
+        and bool(proof_rows)
+        and len(responses) == len(proof_rows)
+        and n_local_response_schema_valid == len(responses)
+        and n_merged_response_schema_valid == len(merged_responses),
         "errors": errors,
+        "by_prover_attempt_class": dict(sorted(by_attempt_class.items())),
         "by_attempt_status": dict(sorted(by_attempt_status.items())),
         "responses": responses,
+        "refinement_tool_response_schema": response_schema,
         "merged_response_ids": [
             str(row.get("refinement_item_id", "")) for row in merged_responses
         ],
@@ -122,8 +174,8 @@ def export_formalization_gap_planner_local_proof_state_adapter_responses(
         "limitations": [
             "local proof-state responses are refinement diagnostics, not target theorem proof evidence",
             "accepted temporary scaffolds still require verifier replay and calibration before promotion",
-            "placeholder skeletons are not sent to Lean because sorry/admit can mask missing proof work",
-            "FORMAL_GAP and h_frontier_missing skeletons are blocked before Lean because they are roadmap scaffolds, not theorem proof candidates",
+            "placeholder skeletons are not sent to the target prover because sorry/admit can mask missing proof work",
+            "FORMAL_GAP and h_frontier_missing skeletons are blocked before target-prover execution because they are roadmap scaffolds, not theorem proof candidates",
         ],
     }
     if out_dir is not None:
@@ -137,11 +189,19 @@ def export_formalization_gap_planner_local_proof_state_adapter_responses(
         local_responses_path = (
             out_dir / "formalization_gap_planner_local_proof_state_adapter_responses.jsonl"
         )
+        response_schema_path = (
+            out_dir / "formalization_gap_planner_refinement_tool_response.schema.json"
+        )
         payload["manifest_path"] = str(manifest_path)
         payload["responses_jsonl"] = str(responses_path)
         payload["local_responses_jsonl"] = str(local_responses_path)
+        payload["response_schema_path"] = str(response_schema_path)
         manifest_path.write_text(
             json.dumps(payload, indent=2, default=str),
+            encoding="utf-8",
+        )
+        response_schema_path.write_text(
+            json.dumps(response_schema, indent=2),
             encoding="utf-8",
         )
         responses_path.write_text(
@@ -228,13 +288,17 @@ def _proof_state_response(
         "local_lean_failed",
         "non_lean_skeleton",
     }
+    prover_attempt_class = _prover_attempt_class(attempt_status)
     return {
         "refinement_item_id": str(queue_row.get("refinement_item_id", "")),
         "route_id": str(queue_row.get("route_id", "")),
         "display_name": str(queue_row.get("display_name", "")),
         "evidence_kind": "prover_feedback",
         "tool_name": ADAPTER_TOOL_NAME,
+        "target_prover_family": TARGET_PROVER_FAMILY,
+        "prover_adapter_id": ADAPTER_TOOL_NAME,
         "attempt_status": attempt_status,
+        "prover_attempt_class": prover_attempt_class,
         "prover_diagnostics": tuple(diagnostics or ["no proof-state diagnostic emitted"]),
         "residual_goals": tuple(sorted(dict.fromkeys(residual_goals))),
         "route_revision_recommended": route_revision_recommended,
@@ -326,6 +390,18 @@ def _residuals_for_primitives(
     return [f"{primitive}: {reason}" for primitive in primitives] or [reason]
 
 
+def _prover_attempt_class(attempt_status: str) -> str:
+    return {
+        "local_lean_scaffold_accepted": "target_prover_scaffold_accepted",
+        "local_lean_failed": "target_prover_failed",
+        "local_lean_unavailable": "target_prover_unavailable",
+        "non_lean_skeleton": "non_target_prover_skeleton",
+        "placeholder_blocked": "placeholder_blocked",
+        "formal_gap_scaffold_blocked": "formal_gap_scaffold_blocked",
+        "missing_theorem_skeleton": "missing_theorem_skeleton",
+    }.get(attempt_status, attempt_status or "unknown_prover_attempt")
+
+
 def _diagnostic_lines(text: str) -> list[str]:
     if not text:
         return []
@@ -387,6 +463,12 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Proof-state rows: {payload.get('n_proof_state_feedback_rows')}",
         f"- Local responses: {payload.get('n_local_proof_state_responses')}",
         f"- Merged responses: {payload.get('n_merged_responses')}",
+        f"- Local response schema valid: {payload.get('n_local_response_schema_valid')}/{payload.get('n_local_proof_state_responses')}",
+        f"- Merged response schema valid: {payload.get('n_merged_response_schema_valid')}/{payload.get('n_merged_responses')}",
+        f"- Target prover scaffold accepted: {payload.get('n_target_prover_scaffold_accepted')}",
+        f"- Target prover failed: {payload.get('n_target_prover_failed')}",
+        f"- Target prover unavailable: {payload.get('n_target_prover_unavailable')}",
+        f"- Non-target-prover skeleton: {payload.get('n_non_target_prover_skeleton')}",
         f"- Scaffold accepted: {payload.get('n_kernel_scaffold_accepted')}",
         f"- Local Lean failed: {payload.get('n_local_lean_failed')}",
         f"- Local Lean unavailable: {payload.get('n_local_lean_unavailable')}",

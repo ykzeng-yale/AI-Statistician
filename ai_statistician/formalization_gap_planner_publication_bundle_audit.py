@@ -1,0 +1,11596 @@
+from __future__ import annotations
+
+import json
+import re
+from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+from .fingerprint import stable_hash
+from .formalization_gap_planner_adapter_registry import (
+    ADAPTER_REGISTRY_ROW_SCHEMA_ID,
+    validate_adapter_registry_row,
+)
+from .formalization_gap_planner_ablation_study import validate_ablation_study_row
+from .formalization_gap_planner_benchmark import validate_benchmark_route_row
+from .formalization_gap_planner_contract import (
+    LIBRARY_AWARE_FORMALIZATION_GAP_PLANNER_NAME,
+    PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_ID,
+    PORTABLE_FORMALIZATION_GAP_PLAN_ROW_SCHEMA_ID,
+    validate_portable_gap_plan_payload,
+    validate_portable_gap_plan_row,
+)
+from .formalization_gap_planner_component_resource_registry import (
+    validate_component_resource_contract_row,
+    validate_component_resource_registry_component_row,
+    validate_component_resource_registry_resource_row,
+    validate_component_resource_execution_plan_row,
+)
+from .formalization_gap_planner_cross_prover_matrix_audit import (
+    CROSS_PROVER_MATRIX_AUDIT_ROW_SCHEMA_ID,
+    CROSS_PROVER_TARGET_SUMMARY_SCHEMA_ID,
+    validate_cross_prover_matrix_audit_row,
+    validate_cross_prover_target_summary_payload,
+)
+from .formalization_gap_planner_evaluation import validate_evaluation_row
+from .formalization_gap_planner_interactive_session import (
+    validate_interactive_decision_policy_row,
+    validate_interactive_session_row,
+)
+from .formalization_gap_planner_minimal_delta_audit import (
+    MINIMAL_DELTA_DECISION_ROW_SCHEMA_ID,
+    validate_minimal_delta_decision_row,
+)
+from .formalization_gap_planner_library_coverage_map import (
+    LIBRARY_COVERAGE_MAP_ROW_SCHEMA_ID,
+    validate_library_coverage_map_row,
+)
+from .formalization_gap_planner_llm_route_planner import (
+    LLM_ROUTE_PLANNER_PLANNER_NEXT_ACTION_HOOK_ALIASES,
+    LLM_ROUTE_PLANNER_SEARCH_REQUEST_KIND_ALIASES,
+    LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID,
+    LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID,
+    LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
+    MINIMAL_DELTA_COST_POLICY_ID,
+    validate_llm_route_planner_request,
+    validate_llm_route_planner_row,
+)
+from .formalization_gap_planner_primitive_action_queue import (
+    PRIMITIVE_ACTION_QUEUE_ROW_SCHEMA_ID,
+    validate_primitive_action_queue_row,
+)
+from .formalization_gap_planner_action_resource_plan import (
+    ACTION_RESOURCE_PLAN_ROW_SCHEMA_ID,
+    validate_action_resource_plan_row,
+)
+from .formalization_gap_planner_resource_request_queue import (
+    RESOURCE_REQUEST_QUEUE_ROW_SCHEMA_ID,
+    validate_resource_request_queue_row,
+)
+from .formalization_gap_planner_resource_response_ledger import (
+    RESOURCE_RESPONSE_LEDGER_ROW_SCHEMA_ID,
+    RESOURCE_RESPONSE_SCHEMA_ID,
+    validate_resource_response_ledger_row,
+)
+from .formalization_gap_planner_portable_plan_audit import (
+    PORTABLE_PLAN_AUDIT_ROW_SCHEMA_ID,
+    validate_portable_plan_audit_row,
+)
+from .formalization_gap_planner_refinement_evidence import (
+    validate_refinement_evidence_row,
+    validate_refinement_tool_response_row,
+)
+from .formalization_gap_planner_refinement_queue import (
+    REFINEMENT_WORK_ITEM_SCHEMA_ID,
+    validate_refinement_work_item_row,
+)
+from .formalization_gap_planner_route_stability_audit import (
+    validate_route_stability_audit_row,
+)
+from .formalization_gap_planner_route_revision_overlay import (
+    validate_route_revision_overlay_row,
+)
+from .formalization_gap_planner_route_replan_handoff import (
+    validate_route_replan_handoff_row,
+)
+from .formalization_gap_planner_route_replan_handoff_audit import (
+    validate_route_replan_handoff_audit_row,
+)
+from .formalization_gap_planner_runtime_handoff_audit import (
+    validate_runtime_handoff_audit_row,
+)
+from .formalization_gap_planner_publication_bundle import (
+    FORMALIZATION_GAP_PLANNER_SCHEMA_CATALOG_SCHEMA_ID,
+    PUBLICATION_BUNDLE_COMPONENT_NAME,
+    SCHEMA_CATALOG_COMPONENT_NAME,
+    validate_schema_catalog_payload,
+)
+from .formalization_gap_planner_proof_state_triage import (
+    validate_proof_state_triage_row,
+)
+from .formalization_gap_planner_prover_adapter_contract import (
+    PROVER_ADAPTER_PACKET_SCHEMA_ID,
+    PROVER_ADAPTER_RESPONSE_SCHEMA_ID,
+    PROVER_ADAPTER_RESPONSE_VALIDATION_ROW_SCHEMA_ID,
+    validate_prover_adapter_response_validation_row,
+    validate_prover_adapter_packet_row,
+)
+from .formalization_gap_planner_standalone import (
+    FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_SCHEMA_ID,
+    validate_standalone_input_payload,
+)
+from .formalization_gap_planner_source_grounding_audit import (
+    SOURCE_GROUNDING_ROW_SCHEMA_ID,
+    validate_source_grounding_row,
+)
+from .formalization_gap_planner_target_intake import (
+    FORMALIZATION_GAP_PLANNER_TARGET_INTAKE_SCHEMA_ID,
+    FORMALIZATION_GAP_PLANNER_TARGET_INTAKE_ROW_SCHEMA_ID,
+    normalize_formalization_gap_planner_target_intake,
+    validate_target_intake_row,
+)
+
+
+FORMALIZATION_GAP_PLANNER_PUBLICATION_BUNDLE_AUDIT_SCHEMA_VERSION = 1
+PROOF_EVIDENCE_STATUS = (
+    "FORMALIZATION_GAP_PLANNER_PUBLICATION_BUNDLE_AUDIT_NOT_PROOF_EVIDENCE"
+)
+PROOF_EVIDENCE_BOUNDARY = (
+    "Publication bundle audit rows verify packaging, portability contracts, "
+    "and proof-boundary discipline. They are not theorem proof evidence."
+)
+REQUIRED_CORE_ARTIFACTS = (
+    "portable_contract",
+    "portable_schema",
+    "schema_catalog",
+    "schema_catalog_schema",
+    "portable_plan_row_schema",
+    "prover_adapter_packet_schema",
+    "prover_adapter_response_schema",
+    "prover_adapter_response_validation_row_schema",
+    "refinement_work_item_schema",
+    "refinement_tool_response_schema",
+    "refinement_evidence_row_schema",
+    "interactive_session_row_schema",
+    "interactive_decision_policy_row_schema",
+    "minimal_delta_decision_row_schema",
+    "portable_plan_audit_row_schema",
+    "library_coverage_map_row_schema",
+    "primitive_action_queue_row_schema",
+    "action_resource_plan_row_schema",
+    "resource_request_queue_row_schema",
+    "resource_response_schema",
+    "resource_response_ledger_row_schema",
+    "source_grounding_row_schema",
+    "llm_route_planner_request_schema",
+    "llm_route_planner_response_schema",
+    "llm_route_planner_row_schema",
+    "route_revision_overlay_row_schema",
+    "route_stability_audit_row_schema",
+    "route_replan_handoff_row_schema",
+    "route_replan_handoff_audit_row_schema",
+    "runtime_handoff_audit_row_schema",
+    "proof_state_triage_row_schema",
+    "ablation_study_row_schema",
+    "route_alignment_edge_schema",
+    "benchmark_route_schema",
+    "evaluation_row_schema",
+    "adapter_registry_row_schema",
+    "cross_prover_matrix_audit_row_schema",
+    "cross_prover_target_summary_schema",
+    "standalone_input_schema",
+    "target_intake_schema",
+    "target_intake_row_schema",
+    "component_execution_plan_schema",
+    "component_resource_resource_row_schema",
+    "component_resource_component_row_schema",
+    "component_resource_contract_row_schema",
+    "benchmark",
+    "benchmark_audit",
+    "adapter_registry",
+    "component_resource_registry",
+    "reproduction_manifest",
+    "example_inputs",
+)
+REQUIRED_ADAPTER_IDS = (
+    "local_literature_corpus",
+    "local_formal_source_index",
+    "local_lake_lean",
+    "route_revision_overlay",
+)
+REQUIRED_DOCS = (
+    "library_aware_formalization_gap_planner.md",
+    "evaluation_benchmark_strategy.md",
+)
+REQUIRED_REUSE_TARGETS = ("lean4", "rocq", "isabelle", "agda")
+REQUIRED_REPRODUCTION_ENTRYPOINTS = (
+    "formalization-gap-planner-standalone-plan",
+    "formalization-gap-planner-llm-route-planner",
+    "formalization-gap-planner-portable-plan-audit",
+    "formalization-gap-planner-library-coverage-map",
+    "formalization-gap-planner-primitive-action-queue",
+    "formalization-gap-planner-action-resource-plan",
+    "formalization-gap-planner-resource-request-queue",
+    "formalization-gap-planner-resource-response-ledger",
+    "formalization-gap-planner-target-intake",
+    "formalization-gap-planner-benchmark-audit",
+    "formalization-gap-planner-evaluation",
+    "formalization-gap-planner-adapter-registry-audit",
+    "formalization-gap-planner-ablation-study",
+    "formalization-gap-planner-component-resource-registry-audit",
+    "formalization-gap-planner-prover-adapter-contract",
+    "formalization-gap-planner-refinement-queue",
+    "formalization-gap-planner-refinement-adapter-responses",
+    "formalization-gap-planner-local-literature-adapter",
+    "formalization-gap-planner-local-formal-source-adapter",
+    "formalization-gap-planner-local-proof-state-adapter",
+    "formalization-gap-planner-refinement-evidence",
+    "formalization-gap-planner-route-revision-overlay",
+    "formalization-gap-planner-route-stability-audit",
+    "formalization-gap-planner-route-replan-handoff",
+    "formalization-gap-planner-route-replan-handoff-audit",
+    "formalization-gap-planner-runtime-handoff-audit",
+    "formalization-gap-planner-proof-state-triage",
+    "formalization-gap-planner-interactive-session",
+    "formalization-gap-planner-publication-bundle-audit",
+)
+REQUIRED_REPRODUCTION_COMMANDS = {
+    "audit_downloaded_bundle": "formalization-gap-planner-publication-bundle-audit",
+    "audit_adapter_registry": "formalization-gap-planner-adapter-registry-audit",
+    "audit_benchmark": "formalization-gap-planner-benchmark-audit",
+    "audit_component_resource_registry": (
+        "formalization-gap-planner-component-resource-registry-audit"
+    ),
+    "run_evaluation": "formalization-gap-planner-evaluation",
+    "run_ablation_study": "formalization-gap-planner-ablation-study",
+    "run_standalone_planner": "formalization-gap-planner-standalone-plan",
+    "run_llm_route_planner": "formalization-gap-planner-llm-route-planner",
+    "run_target_intake": "formalization-gap-planner-target-intake",
+    "audit_standalone_plan": "formalization-gap-planner-portable-plan-audit",
+    "export_library_coverage_map": "formalization-gap-planner-library-coverage-map",
+    "export_primitive_action_queue": (
+        "formalization-gap-planner-primitive-action-queue"
+    ),
+    "export_action_resource_plan": "formalization-gap-planner-action-resource-plan",
+    "export_resource_request_queue": (
+        "formalization-gap-planner-resource-request-queue"
+    ),
+    "export_resource_response_ledger": (
+        "formalization-gap-planner-resource-response-ledger"
+    ),
+    "export_target_prover_packets": "formalization-gap-planner-prover-adapter-contract",
+    "run_refinement_queue": "formalization-gap-planner-refinement-queue",
+    "run_refinement_adapter_responses": (
+        "formalization-gap-planner-refinement-adapter-responses"
+    ),
+    "run_local_literature_adapter": "formalization-gap-planner-local-literature-adapter",
+    "run_local_formal_source_adapter": (
+        "formalization-gap-planner-local-formal-source-adapter"
+    ),
+    "run_local_proof_state_adapter": (
+        "formalization-gap-planner-local-proof-state-adapter"
+    ),
+    "run_refinement_evidence": "formalization-gap-planner-refinement-evidence",
+    "run_route_revision_overlay": "formalization-gap-planner-route-revision-overlay",
+    "run_route_stability_audit": "formalization-gap-planner-route-stability-audit",
+    "run_route_replan_handoff": "formalization-gap-planner-route-replan-handoff",
+    "audit_route_replan_handoff": (
+        "formalization-gap-planner-route-replan-handoff-audit"
+    ),
+    "audit_runtime_handoff": "formalization-gap-planner-runtime-handoff-audit",
+    "run_proof_state_triage": "formalization-gap-planner-proof-state-triage",
+    "run_interactive_session": "formalization-gap-planner-interactive-session",
+    "run_feedback_llm_route_planner": "formalization-gap-planner-llm-route-planner",
+}
+REQUIRED_COMPONENT_RESOURCE_IDS = (
+    "target_theorem_intake",
+    "literature_grounded_route_synthesis",
+    "informal_route_dag_decomposition",
+    "formal_library_coverage_mapping",
+    "minimal_delta_and_or_planning",
+    "prover_feedback_refinement",
+    "route_revision_handoff",
+    "cross_prover_public_reuse",
+)
+
+
+@dataclass(frozen=True)
+class FormalizationGapPlannerPublicationBundleAuditCheck:
+    schema_version: int
+    check_id: str
+    check_name: str
+    category: str
+    expected: str
+    observed: str
+    ok: bool
+    severity: str
+    errors: tuple[str, ...] = ()
+
+
+def audit_formalization_gap_planner_publication_bundle(
+    publication_bundle_dir: Path,
+    out_dir: Path | None = None,
+) -> dict[str, object]:
+    """Audit a publication bundle for portable reuse and proof-boundary safety."""
+
+    errors: list[str] = []
+    bundle_dir = publication_bundle_dir
+    manifest_path = (
+        bundle_dir / "formalization_gap_planner_publication_bundle_manifest.json"
+    )
+    manifest = _read_json(manifest_path, errors)
+    checks: list[FormalizationGapPlannerPublicationBundleAuditCheck] = []
+    checks.extend(_manifest_checks(bundle_dir, manifest_path, manifest))
+    checks.extend(_contract_checks(bundle_dir))
+    checks.extend(_benchmark_checks(bundle_dir))
+    checks.extend(_benchmark_audit_checks(bundle_dir))
+    checks.extend(_adapter_registry_checks(bundle_dir))
+    checks.extend(_component_resource_registry_checks(bundle_dir))
+    checks.extend(_reproduction_checks(bundle_dir))
+    checks.extend(_example_input_checks(bundle_dir))
+    checks.extend(_doc_checks(bundle_dir))
+    checks.extend(_optional_artifact_checks(bundle_dir, manifest))
+    checks.extend(_bundle_boundary_checks(manifest))
+    bundle_files = _bundle_files(bundle_dir)
+    by_category: dict[str, int] = {}
+    for check in checks:
+        by_category[check.category] = by_category.get(check.category, 0) + 1
+    payload: dict[str, object] = {
+        "schema_version": FORMALIZATION_GAP_PLANNER_PUBLICATION_BUNDLE_AUDIT_SCHEMA_VERSION,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "component_name": "formalization_gap_planner_publication_bundle_audit",
+        "publication_bundle_dir": str(bundle_dir),
+        "publication_bundle_manifest": str(manifest_path),
+        "bundle_manifest_exists": manifest_path.exists(),
+        "bundle_id": str(manifest.get("bundle_id", "")),
+        "portable_schema_id": str(manifest.get("portable_schema_id", "")),
+        "n_checks": len(checks),
+        "n_ok": sum(1 for check in checks if check.ok),
+        "n_failed": sum(1 for check in checks if not check.ok),
+        "n_error_severity": sum(
+            1 for check in checks if not check.ok and check.severity == "error"
+        ),
+        "n_component_execution_plan_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith(
+                "component_resource_registry_execution_plan_row_"
+            )
+        ),
+        "n_component_execution_plan_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith(
+                "component_resource_registry_execution_plan_row_"
+            )
+            and check.ok
+        ),
+        "n_component_resource_component_row_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith(
+                "component_resource_registry_component_row_"
+            )
+        ),
+        "n_component_resource_component_row_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith(
+                "component_resource_registry_component_row_"
+            )
+            and check.ok
+        ),
+        "n_component_resource_resource_row_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith(
+                "component_resource_registry_resource_row_"
+            )
+        ),
+        "n_component_resource_resource_row_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith(
+                "component_resource_registry_resource_row_"
+            )
+            and check.ok
+        ),
+        "n_component_resource_contract_row_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith(
+                "component_resource_registry_contract_row_"
+            )
+        ),
+        "n_component_resource_contract_row_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith(
+                "component_resource_registry_contract_row_"
+            )
+            and check.ok
+        ),
+        "n_benchmark_route_row_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("benchmark_route_row_")
+        ),
+        "n_benchmark_route_row_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("benchmark_route_row_") and check.ok
+        ),
+        "n_adapter_registry_row_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("adapter_registry_row_")
+            and check.check_name.endswith("_schema_valid")
+        ),
+        "n_adapter_registry_row_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("adapter_registry_row_")
+            and check.check_name.endswith("_schema_valid")
+            and check.ok
+        ),
+        "n_optional_evaluation_row_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_evaluation_row_")
+            and check.check_name.endswith("_schema_valid")
+        ),
+        "n_optional_evaluation_row_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_evaluation_row_")
+            and check.check_name.endswith("_schema_valid")
+            and check.ok
+        ),
+        "n_optional_evaluation_ground_truth_file_checked": sum(
+            1
+            for check in checks
+            if check.check_name
+            in {
+                "optional_evaluation_ground_truth_copy",
+                "optional_evaluation_ground_truth_parse",
+            }
+        ),
+        "n_optional_evaluation_ground_truth_file_valid": sum(
+            1
+            for check in checks
+            if check.check_name
+            in {
+                "optional_evaluation_ground_truth_copy",
+                "optional_evaluation_ground_truth_parse",
+            }
+            and check.ok
+        ),
+        "n_optional_evaluation_ground_truth_match_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_evaluation_row_")
+            and check.check_name.endswith("_ground_truth_match")
+        ),
+        "n_optional_evaluation_ground_truth_match_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_evaluation_row_")
+            and check.check_name.endswith("_ground_truth_match")
+            and check.ok
+        ),
+        "n_optional_evaluation_ground_truth_primitive_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_evaluation_row_")
+            and check.check_name.endswith("_ground_truth_primitives")
+        ),
+        "n_optional_evaluation_ground_truth_primitive_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_evaluation_row_")
+            and check.check_name.endswith("_ground_truth_primitives")
+            and check.ok
+        ),
+        "n_optional_interactive_decision_policy_row_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_interactive_decision_policy_row_")
+            and check.check_name.endswith("_schema_valid")
+        ),
+        "n_optional_interactive_decision_policy_row_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_interactive_decision_policy_row_")
+            and check.check_name.endswith("_schema_valid")
+            and check.ok
+        ),
+        "n_optional_interactive_decision_policy_link_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_interactive_decision_policy_row_")
+            and (
+                check.check_name.endswith("_component_links")
+                or check.check_name.endswith("_resource_links")
+                or check.check_name.endswith("_resource_contract_links")
+                or check.check_name.endswith("_resource_contract_coverage")
+            )
+        ),
+        "n_optional_interactive_decision_policy_link_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_interactive_decision_policy_row_")
+            and (
+                check.check_name.endswith("_component_links")
+                or check.check_name.endswith("_resource_links")
+                or check.check_name.endswith("_resource_contract_links")
+                or check.check_name.endswith("_resource_contract_coverage")
+            )
+            and check.ok
+        ),
+        "n_optional_interactive_session_row_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_interactive_session_row_")
+            and check.check_name.endswith("_schema_valid")
+        ),
+        "n_optional_interactive_session_row_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_interactive_session_row_")
+            and check.check_name.endswith("_schema_valid")
+            and check.ok
+        ),
+        "n_optional_interactive_session_resource_response_status_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_interactive_session_row_")
+            and check.check_name.endswith("_resource_response_status_consistency")
+        ),
+        "n_optional_interactive_session_resource_response_status_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_interactive_session_row_")
+            and check.check_name.endswith("_resource_response_status_consistency")
+            and check.ok
+        ),
+        "n_optional_interactive_session_generic_prover_fields_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_interactive_session_row_")
+            and check.check_name.endswith("_generic_prover_fields")
+        ),
+        "n_optional_interactive_session_generic_prover_fields_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_interactive_session_row_")
+            and check.check_name.endswith("_generic_prover_fields")
+            and check.ok
+        ),
+        "n_optional_refinement_evidence_row_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_refinement_evidence_row_")
+            and check.check_name.endswith("_schema_valid")
+        ),
+        "n_optional_refinement_evidence_row_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_refinement_evidence_row_")
+            and check.check_name.endswith("_schema_valid")
+            and check.ok
+        ),
+        "n_optional_refinement_adapter_response_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_refinement_adapter_response_")
+            and check.check_name.endswith("_schema_valid")
+        ),
+        "n_optional_refinement_adapter_response_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_refinement_adapter_response_")
+            and check.check_name.endswith("_schema_valid")
+            and check.ok
+        ),
+        "n_optional_refinement_work_item_row_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_refinement_work_item_row_")
+            and check.check_name.endswith("_schema_valid")
+        ),
+        "n_optional_refinement_work_item_row_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_refinement_work_item_row_")
+            and check.check_name.endswith("_schema_valid")
+            and check.ok
+        ),
+        "n_optional_minimal_delta_decision_row_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_minimal_delta_decision_row_")
+            and check.check_name.endswith("_schema_valid")
+        ),
+        "n_optional_minimal_delta_decision_row_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_minimal_delta_decision_row_")
+            and check.check_name.endswith("_schema_valid")
+            and check.ok
+        ),
+        "n_optional_goal_plan_row_contract_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_goal_plan_row_")
+            and check.check_name.endswith("_contract_valid")
+        ),
+        "n_optional_goal_plan_row_contract_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_goal_plan_row_")
+            and check.check_name.endswith("_contract_valid")
+            and check.ok
+        ),
+        "n_optional_goal_plan_row_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_goal_plan_row_")
+            and check.check_name.endswith("_schema_valid")
+        ),
+        "n_optional_goal_plan_row_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_goal_plan_row_")
+            and check.check_name.endswith("_schema_valid")
+            and check.ok
+        ),
+        "n_optional_source_grounding_row_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_source_grounding_row_")
+            and check.check_name.endswith("_schema_valid")
+        ),
+        "n_optional_source_grounding_row_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_source_grounding_row_")
+            and check.check_name.endswith("_schema_valid")
+            and check.ok
+        ),
+        "n_optional_target_intake_row_contract_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_target_intake_row_")
+            and check.check_name.endswith("_contract_valid")
+        ),
+        "n_optional_target_intake_row_contract_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_target_intake_row_")
+            and check.check_name.endswith("_contract_valid")
+            and check.ok
+        ),
+        "n_optional_target_intake_row_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_target_intake_row_")
+            and check.check_name.endswith("_schema_valid")
+        ),
+        "n_optional_target_intake_row_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_target_intake_row_")
+            and check.check_name.endswith("_schema_valid")
+            and check.ok
+        ),
+        "n_optional_llm_route_planner_request_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_llm_route_planner_request_")
+            and check.check_name.endswith("_schema_valid")
+        ),
+        "n_optional_llm_route_planner_request_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_llm_route_planner_request_")
+            and check.check_name.endswith("_schema_valid")
+            and check.ok
+        ),
+        "n_optional_llm_route_planner_row_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_llm_route_planner_row_")
+            and check.check_name.endswith("_schema_valid")
+        ),
+        "n_optional_llm_route_planner_row_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_llm_route_planner_row_")
+            and check.check_name.endswith("_schema_valid")
+            and check.ok
+        ),
+        "n_optional_llm_route_planner_realization_witness_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_llm_route_planner_realization_coverage_witness_schema"
+        ),
+        "n_optional_llm_route_planner_realization_witness_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_llm_route_planner_realization_coverage_witness_schema"
+            and check.ok
+        ),
+        "n_optional_llm_route_planner_seed_provenance_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_llm_route_planner_row_")
+            and check.check_name.endswith("_seed_provenance")
+        ),
+        "n_optional_llm_route_planner_seed_provenance_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_llm_route_planner_row_")
+            and check.check_name.endswith("_seed_provenance")
+            and check.ok
+        ),
+        "n_optional_llm_route_planner_seed_realization_witness_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_llm_route_planner_row_")
+            and check.check_name.endswith("_seed_realization_witness_preservation")
+        ),
+        "n_optional_llm_route_planner_seed_realization_witness_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_llm_route_planner_row_")
+            and check.check_name.endswith("_seed_realization_witness_preservation")
+            and check.ok
+        ),
+        "n_optional_llm_route_planner_seed_alignment_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_llm_route_planner_row_")
+            and check.check_name.endswith("_seed_alignment_preservation")
+        ),
+        "n_optional_llm_route_planner_seed_alignment_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_llm_route_planner_row_")
+            and check.check_name.endswith("_seed_alignment_preservation")
+            and check.ok
+        ),
+        "n_optional_llm_route_planner_seed_dag_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_llm_route_planner_row_")
+            and check.check_name.endswith("_seed_dag_preservation")
+        ),
+        "n_optional_llm_route_planner_seed_dag_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_llm_route_planner_row_")
+            and check.check_name.endswith("_seed_dag_preservation")
+            and check.ok
+        ),
+        "n_optional_llm_route_planner_generic_formal_dag_checked": sum(
+            1
+            for check in checks
+            if check.check_name == "optional_llm_route_planner_generic_formal_dag_fields"
+        ),
+        "n_optional_llm_route_planner_generic_formal_dag_valid": sum(
+            1
+            for check in checks
+            if check.check_name == "optional_llm_route_planner_generic_formal_dag_fields"
+            and check.ok
+        ),
+        "n_optional_llm_route_planner_request_evidence_bound_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_llm_route_planner_row_")
+            and check.check_name.endswith("_request_evidence_bound")
+        ),
+        "n_optional_llm_route_planner_request_evidence_bound_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_llm_route_planner_row_")
+            and check.check_name.endswith("_request_evidence_bound")
+            and check.ok
+        ),
+        "n_optional_llm_route_planner_request_registry_context_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_llm_route_planner_request_")
+            and check.check_name.endswith("_registry_context")
+        ),
+        "n_optional_llm_route_planner_request_registry_context_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_llm_route_planner_request_")
+            and check.check_name.endswith("_registry_context")
+            and check.ok
+        ),
+        "n_optional_feedback_llm_route_planner_request_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_feedback_llm_route_planner_request_")
+            and check.check_name.endswith("_schema_valid")
+        ),
+        "n_optional_feedback_llm_route_planner_request_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_feedback_llm_route_planner_request_")
+            and check.check_name.endswith("_schema_valid")
+            and check.ok
+        ),
+        "n_optional_feedback_llm_route_planner_row_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_feedback_llm_route_planner_row_")
+            and check.check_name.endswith("_schema_valid")
+        ),
+        "n_optional_feedback_llm_route_planner_row_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_feedback_llm_route_planner_row_")
+            and check.check_name.endswith("_schema_valid")
+            and check.ok
+        ),
+        "n_optional_feedback_llm_route_planner_realization_witness_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_feedback_llm_route_planner_realization_coverage_witness_schema"
+        ),
+        "n_optional_feedback_llm_route_planner_realization_witness_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_feedback_llm_route_planner_realization_coverage_witness_schema"
+            and check.ok
+        ),
+        "n_optional_feedback_llm_route_planner_seed_provenance_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_feedback_llm_route_planner_row_")
+            and check.check_name.endswith("_seed_provenance")
+        ),
+        "n_optional_feedback_llm_route_planner_seed_provenance_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_feedback_llm_route_planner_row_")
+            and check.check_name.endswith("_seed_provenance")
+            and check.ok
+        ),
+        "n_optional_feedback_llm_route_planner_seed_realization_witness_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_feedback_llm_route_planner_row_")
+            and check.check_name.endswith("_seed_realization_witness_preservation")
+        ),
+        "n_optional_feedback_llm_route_planner_seed_realization_witness_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_feedback_llm_route_planner_row_")
+            and check.check_name.endswith("_seed_realization_witness_preservation")
+            and check.ok
+        ),
+        "n_optional_feedback_llm_route_planner_seed_alignment_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_feedback_llm_route_planner_row_")
+            and check.check_name.endswith("_seed_alignment_preservation")
+        ),
+        "n_optional_feedback_llm_route_planner_seed_alignment_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_feedback_llm_route_planner_row_")
+            and check.check_name.endswith("_seed_alignment_preservation")
+            and check.ok
+        ),
+        "n_optional_feedback_llm_route_planner_seed_dag_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_feedback_llm_route_planner_row_")
+            and check.check_name.endswith("_seed_dag_preservation")
+        ),
+        "n_optional_feedback_llm_route_planner_seed_dag_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_feedback_llm_route_planner_row_")
+            and check.check_name.endswith("_seed_dag_preservation")
+            and check.ok
+        ),
+        "n_optional_feedback_llm_route_planner_generic_formal_dag_checked": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_feedback_llm_route_planner_generic_formal_dag_fields"
+        ),
+        "n_optional_feedback_llm_route_planner_generic_formal_dag_valid": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_feedback_llm_route_planner_generic_formal_dag_fields"
+            and check.ok
+        ),
+        "n_optional_feedback_llm_route_planner_request_evidence_bound_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_feedback_llm_route_planner_row_")
+            and check.check_name.endswith("_request_evidence_bound")
+        ),
+        "n_optional_feedback_llm_route_planner_request_evidence_bound_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_feedback_llm_route_planner_row_")
+            and check.check_name.endswith("_request_evidence_bound")
+            and check.ok
+        ),
+        "n_optional_feedback_llm_route_planner_request_registry_context_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_feedback_llm_route_planner_request_")
+            and check.check_name.endswith("_registry_context")
+        ),
+        "n_optional_feedback_llm_route_planner_request_registry_context_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_feedback_llm_route_planner_request_")
+            and check.check_name.endswith("_registry_context")
+            and check.ok
+        ),
+        "n_optional_adapter_registry_audit_check_contract_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_adapter_registry_audit_check_")
+            and check.check_name.endswith("_contract_valid")
+        ),
+        "n_optional_adapter_registry_audit_check_contract_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_adapter_registry_audit_check_")
+            and check.check_name.endswith("_contract_valid")
+            and check.ok
+        ),
+        "n_optional_component_resource_registry_audit_check_contract_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith(
+                "optional_component_resource_registry_audit_check_"
+            )
+            and check.check_name.endswith("_contract_valid")
+        ),
+        "n_optional_component_resource_registry_audit_check_contract_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith(
+                "optional_component_resource_registry_audit_check_"
+            )
+            and check.check_name.endswith("_contract_valid")
+            and check.ok
+        ),
+        "n_optional_local_adapter_response_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_local_adapter_response_")
+            and check.check_name.endswith("_schema_valid")
+        ),
+        "n_optional_local_adapter_response_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_local_adapter_response_")
+            and check.check_name.endswith("_schema_valid")
+            and check.ok
+        ),
+        "n_optional_proof_state_triage_row_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_proof_state_triage_row_")
+            and check.check_name.endswith("_schema_valid")
+        ),
+        "n_optional_proof_state_triage_row_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_proof_state_triage_row_")
+            and check.check_name.endswith("_schema_valid")
+            and check.ok
+        ),
+        "n_optional_proof_state_triage_generic_prover_fields_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_proof_state_triage_row_")
+            and check.check_name.endswith("_generic_prover_fields")
+        ),
+        "n_optional_proof_state_triage_generic_prover_fields_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_proof_state_triage_row_")
+            and check.check_name.endswith("_generic_prover_fields")
+            and check.ok
+        ),
+        "n_optional_route_stability_audit_row_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_route_stability_audit_row_")
+            and check.check_name.endswith("_schema_valid")
+        ),
+        "n_optional_route_stability_audit_row_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_route_stability_audit_row_")
+            and check.check_name.endswith("_schema_valid")
+            and check.ok
+        ),
+        "n_optional_route_stability_resource_response_status_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_route_stability_audit_row_")
+            and check.check_name.endswith("_resource_response_status_consistency")
+        ),
+        "n_optional_route_stability_resource_response_status_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_route_stability_audit_row_")
+            and check.check_name.endswith("_resource_response_status_consistency")
+            and check.ok
+        ),
+        "n_optional_route_stability_generic_prover_fields_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_route_stability_audit_row_")
+            and check.check_name.endswith("_generic_prover_fields")
+        ),
+        "n_optional_route_stability_generic_prover_fields_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_route_stability_audit_row_")
+            and check.check_name.endswith("_generic_prover_fields")
+            and check.ok
+        ),
+        "n_optional_route_revision_overlay_row_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_route_revision_overlay_row_")
+            and check.check_name.endswith("_schema_valid")
+        ),
+        "n_optional_route_revision_overlay_row_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_route_revision_overlay_row_")
+            and check.check_name.endswith("_schema_valid")
+            and check.ok
+        ),
+        "n_optional_route_revision_resource_response_evidence_ref_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_route_revision_overlay_row_")
+            and check.check_name.endswith("_resource_response_evidence_refs")
+        ),
+        "n_optional_route_revision_resource_response_evidence_ref_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_route_revision_overlay_row_")
+            and check.check_name.endswith("_resource_response_evidence_refs")
+            and check.ok
+        ),
+        "n_optional_route_revision_resource_response_trace_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_route_revision_overlay_row_")
+            and check.check_name.endswith("_resource_response_traces")
+        ),
+        "n_optional_route_revision_resource_response_trace_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_route_revision_overlay_row_")
+            and check.check_name.endswith("_resource_response_traces")
+            and check.ok
+        ),
+        "n_optional_route_revision_resource_response_status_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_route_revision_overlay_row_")
+            and check.check_name.endswith("_resource_response_status_summary")
+        ),
+        "n_optional_route_revision_resource_response_status_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_route_revision_overlay_row_")
+            and check.check_name.endswith("_resource_response_status_summary")
+            and check.ok
+        ),
+        "n_optional_route_revision_generic_formal_dag_checked": sum(
+            1
+            for check in checks
+            if check.check_name == "optional_route_revision_overlay_generic_formal_dag_fields"
+        ),
+        "n_optional_route_revision_generic_formal_dag_valid": sum(
+            1
+            for check in checks
+            if check.check_name == "optional_route_revision_overlay_generic_formal_dag_fields"
+            and check.ok
+        ),
+        "n_optional_route_replan_handoff_row_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_route_replan_handoff_row_")
+            and check.check_name.endswith("_schema_valid")
+        ),
+        "n_optional_route_replan_handoff_row_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_route_replan_handoff_row_")
+            and check.check_name.endswith("_schema_valid")
+            and check.ok
+        ),
+        "n_optional_route_replan_handoff_seed_alignment_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_route_replan_handoff_row_")
+            and check.check_name.endswith("_seed_alignment_preservation")
+        ),
+        "n_optional_route_replan_handoff_seed_alignment_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_route_replan_handoff_row_")
+            and check.check_name.endswith("_seed_alignment_preservation")
+            and check.ok
+        ),
+        "n_optional_route_replan_handoff_seed_dag_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_route_replan_handoff_row_")
+            and check.check_name.endswith("_seed_dag_preservation")
+        ),
+        "n_optional_route_replan_handoff_seed_dag_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_route_replan_handoff_row_")
+            and check.check_name.endswith("_seed_dag_preservation")
+            and check.ok
+        ),
+        "n_optional_route_replan_handoff_generic_formal_dag_checked": sum(
+            1
+            for check in checks
+            if check.check_name == "optional_route_replan_handoff_generic_formal_dag_fields"
+        ),
+        "n_optional_route_replan_handoff_generic_formal_dag_valid": sum(
+            1
+            for check in checks
+            if check.check_name == "optional_route_replan_handoff_generic_formal_dag_fields"
+            and check.ok
+        ),
+        "n_optional_route_replan_handoff_audit_row_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_route_replan_handoff_audit_row_")
+            and check.check_name.endswith("_schema_valid")
+        ),
+        "n_optional_route_replan_handoff_audit_row_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_route_replan_handoff_audit_row_")
+            and check.check_name.endswith("_schema_valid")
+            and check.ok
+        ),
+        "n_optional_runtime_handoff_audit_row_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_runtime_handoff_audit_row_")
+            and check.check_name.endswith("_schema_valid")
+        ),
+        "n_optional_runtime_handoff_audit_row_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_runtime_handoff_audit_row_")
+            and check.check_name.endswith("_schema_valid")
+            and check.ok
+        ),
+        "n_optional_runtime_handoff_audit_cost_control_checked": sum(
+            1
+            for check in checks
+            if check.check_name
+            in {
+                "optional_runtime_handoff_audit_cost_control",
+                "optional_runtime_handoff_audit_prompt_smoke",
+                "optional_runtime_handoff_audit_standalone_smoke",
+                "optional_runtime_handoff_audit_no_failures",
+            }
+        ),
+        "n_optional_runtime_handoff_audit_cost_control_valid": sum(
+            1
+            for check in checks
+            if check.check_name
+            in {
+                "optional_runtime_handoff_audit_cost_control",
+                "optional_runtime_handoff_audit_prompt_smoke",
+                "optional_runtime_handoff_audit_standalone_smoke",
+                "optional_runtime_handoff_audit_no_failures",
+            }
+            and check.ok
+        ),
+        "n_optional_ablation_study_row_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_ablation_study_row_")
+            and check.check_name.endswith("_schema_valid")
+        ),
+        "n_optional_ablation_study_row_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_ablation_study_row_")
+            and check.check_name.endswith("_schema_valid")
+            and check.ok
+        ),
+        "n_optional_portable_plan_audit_row_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_portable_plan_audit_row_")
+            and check.check_name.endswith("_schema_valid")
+        ),
+        "n_optional_portable_plan_audit_row_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_portable_plan_audit_row_")
+            and check.check_name.endswith("_schema_valid")
+            and check.ok
+        ),
+        "n_optional_library_coverage_map_row_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_library_coverage_map_row_")
+            and check.check_name.endswith("_schema_valid")
+        ),
+        "n_optional_library_coverage_map_row_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_library_coverage_map_row_")
+            and check.check_name.endswith("_schema_valid")
+            and check.ok
+        ),
+        "n_optional_primitive_action_queue_row_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_primitive_action_queue_row_")
+            and check.check_name.endswith("_schema_valid")
+        ),
+        "n_optional_primitive_action_queue_row_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_primitive_action_queue_row_")
+            and check.check_name.endswith("_schema_valid")
+            and check.ok
+        ),
+        "n_optional_action_resource_plan_row_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_action_resource_plan_row_")
+            and check.check_name.endswith("_schema_valid")
+        ),
+        "n_optional_action_resource_plan_row_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_action_resource_plan_row_")
+            and check.check_name.endswith("_schema_valid")
+            and check.ok
+        ),
+        "n_optional_resource_request_queue_row_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_resource_request_queue_row_")
+            and check.check_name.endswith("_schema_valid")
+        ),
+        "n_optional_resource_request_queue_row_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_resource_request_queue_row_")
+            and check.check_name.endswith("_schema_valid")
+            and check.ok
+        ),
+        "n_optional_resource_request_contract_alignment_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_resource_request_queue_row_")
+            and check.check_name.endswith("_resource_contract_alignment")
+        ),
+        "n_optional_resource_request_contract_alignment_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_resource_request_queue_row_")
+            and check.check_name.endswith("_resource_contract_alignment")
+            and check.ok
+        ),
+        "n_optional_resource_request_action_plan_ref_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_resource_request_queue_row_")
+            and check.check_name.endswith("_action_resource_plan_ref")
+        ),
+        "n_optional_resource_request_action_plan_ref_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_resource_request_queue_row_")
+            and check.check_name.endswith("_action_resource_plan_ref")
+            and check.ok
+        ),
+        "n_optional_resource_request_payload_identity_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_resource_request_queue_row_")
+            and check.check_name.endswith("_request_payload_identity")
+        ),
+        "n_optional_resource_request_payload_identity_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_resource_request_queue_row_")
+            and check.check_name.endswith("_request_payload_identity")
+            and check.ok
+        ),
+        "n_optional_resource_request_dispatch_spec_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_resource_request_queue_row_")
+            and check.check_name.endswith("_dispatch_spec_identity")
+        ),
+        "n_optional_resource_request_dispatch_spec_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_resource_request_queue_row_")
+            and check.check_name.endswith("_dispatch_spec_identity")
+            and check.ok
+        ),
+        "n_optional_resource_response_ledger_row_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_resource_response_ledger_row_")
+            and check.check_name.endswith("_schema_valid")
+        ),
+        "n_optional_resource_response_ledger_row_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_resource_response_ledger_row_")
+            and check.check_name.endswith("_schema_valid")
+            and check.ok
+        ),
+        "n_optional_resource_response_request_ref_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_resource_response_ledger_row_")
+            and check.check_name.endswith("_request_ref")
+        ),
+        "n_optional_resource_response_request_ref_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_resource_response_ledger_row_")
+            and check.check_name.endswith("_request_ref")
+            and check.ok
+        ),
+        "n_optional_resource_response_contract_field_accounting_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_resource_response_ledger_row_")
+            and check.check_name.endswith("_contract_field_accounting")
+        ),
+        "n_optional_resource_response_contract_field_accounting_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_resource_response_ledger_row_")
+            and check.check_name.endswith("_contract_field_accounting")
+            and check.ok
+        ),
+        "n_prover_adapter_packet_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_prover_adapter_packet_row_")
+        ),
+        "n_prover_adapter_packet_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_prover_adapter_packet_row_")
+            and check.ok
+        ),
+        "n_prover_adapter_response_validation_row_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith(
+                "optional_prover_adapter_response_validation_row_"
+            )
+            and check.check_name.endswith("_schema_valid")
+        ),
+        "n_prover_adapter_response_validation_row_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith(
+                "optional_prover_adapter_response_validation_row_"
+            )
+            and check.check_name.endswith("_schema_valid")
+            and check.ok
+        ),
+        "n_optional_cross_prover_matrix_row_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_cross_prover_matrix_row_")
+            and check.check_name.endswith("_schema_valid")
+        ),
+        "n_optional_cross_prover_matrix_row_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_cross_prover_matrix_row_")
+            and check.check_name.endswith("_schema_valid")
+            and check.ok
+        ),
+        "n_optional_cross_prover_packet_row_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_cross_prover_packet_row_")
+            and check.check_name.endswith("_schema_valid")
+        ),
+        "n_optional_cross_prover_packet_row_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_cross_prover_packet_row_")
+            and check.check_name.endswith("_schema_valid")
+            and check.ok
+        ),
+        "n_optional_cross_prover_packet_trace_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_cross_prover_packet_row_")
+            and check.check_name.endswith("_standalone_input_trace")
+        ),
+        "n_optional_cross_prover_packet_trace_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_cross_prover_packet_row_")
+            and check.check_name.endswith("_standalone_input_trace")
+            and check.ok
+        ),
+        "n_optional_cross_prover_response_validation_row_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith(
+                "optional_cross_prover_response_validation_row_"
+            )
+            and check.check_name.endswith("_schema_valid")
+        ),
+        "n_optional_cross_prover_response_validation_row_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith(
+                "optional_cross_prover_response_validation_row_"
+            )
+            and check.check_name.endswith("_schema_valid")
+            and check.ok
+        ),
+        "by_category": dict(sorted(by_category.items())),
+        "n_bundle_files": len(bundle_files),
+        "bundle_files": tuple(str(path) for path in bundle_files),
+        "bundle_audit_fingerprint": stable_hash(
+            [
+                str(path.relative_to(bundle_dir))
+                + ":"
+                + stable_hash(path.read_text(encoding="utf-8", errors="replace"))
+                for path in bundle_files
+            ]
+        ),
+        "all_ok": not errors and bool(checks) and all(check.ok for check in checks),
+        "errors": errors,
+        "checks": [asdict(check) for check in checks],
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+        "limitations": [
+            "bundle audit validates packaging and contracts only",
+            "proof claims still require target-prover replay/calibration outside this audit",
+            "semantic adequacy of a route still depends on source review and downstream kernel attempts",
+        ],
+    }
+    if out_dir is not None:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (out_dir / "formalization_gap_planner_publication_bundle_audit_manifest.json").write_text(
+            json.dumps(payload, indent=2, default=str),
+            encoding="utf-8",
+        )
+        (out_dir / "formalization_gap_planner_publication_bundle_audit.jsonl").write_text(
+            "\n".join(json.dumps(asdict(check), sort_keys=True) for check in checks)
+            + ("\n" if checks else ""),
+            encoding="utf-8",
+        )
+        (out_dir / "formalization_gap_planner_publication_bundle_audit.md").write_text(
+            _markdown_report(payload),
+            encoding="utf-8",
+        )
+    return payload
+
+
+def _manifest_checks(
+    bundle_dir: Path,
+    manifest_path: Path,
+    manifest: dict[str, Any],
+) -> list[FormalizationGapPlannerPublicationBundleAuditCheck]:
+    core_names = {
+        str(row.get("artifact_name", ""))
+        for row in manifest.get("core_artifacts", [])
+        if isinstance(row, dict)
+    }
+    reuse_targets = set(_str_tuple(manifest.get("portable_reuse_targets", [])))
+    checks = [
+        _check(
+            "bundle_manifest_exists",
+            "manifest",
+            "manifest file exists",
+            str(manifest_path.exists()),
+            manifest_path.exists(),
+        ),
+        _check(
+            "bundle_component_name",
+            "manifest",
+            PUBLICATION_BUNDLE_COMPONENT_NAME,
+            str(manifest.get("component_name", "")),
+            manifest.get("component_name") == PUBLICATION_BUNDLE_COMPONENT_NAME,
+        ),
+        _check(
+            "packaged_component",
+            "manifest",
+            LIBRARY_AWARE_FORMALIZATION_GAP_PLANNER_NAME,
+            str(manifest.get("packaged_component", "")),
+            manifest.get("packaged_component") == LIBRARY_AWARE_FORMALIZATION_GAP_PLANNER_NAME,
+        ),
+        _check(
+            "portable_schema_id",
+            "manifest",
+            PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_ID,
+            str(manifest.get("portable_schema_id", "")),
+            manifest.get("portable_schema_id") == PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_ID,
+        ),
+        _check(
+            "core_artifacts_declared",
+            "manifest",
+            ",".join(REQUIRED_CORE_ARTIFACTS),
+            ",".join(sorted(core_names)),
+            set(REQUIRED_CORE_ARTIFACTS).issubset(core_names),
+        ),
+        _check(
+            "core_artifacts_ok",
+            "manifest",
+            "all required core artifacts ok",
+            f"{manifest.get('n_core_artifacts_ok')}/{manifest.get('n_core_artifacts')}",
+            int(manifest.get("n_core_artifacts_ok", 0) or 0)
+            >= len(REQUIRED_CORE_ARTIFACTS)
+            and bool(manifest.get("all_ok", False)),
+        ),
+        _check(
+            "portable_reuse_targets",
+            "manifest",
+            ",".join(REQUIRED_REUSE_TARGETS),
+            ",".join(sorted(reuse_targets)),
+            set(REQUIRED_REUSE_TARGETS).issubset(reuse_targets),
+        ),
+        _check(
+            "bundle_root_is_directory",
+            "manifest",
+            "bundle directory exists",
+            str(bundle_dir.exists()),
+            bundle_dir.is_dir(),
+        ),
+    ]
+    return checks
+
+
+def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicationBundleAuditCheck]:
+    contract_path = bundle_dir / "contract" / "formalization_gap_planner_portable_contract.json"
+    schema_path = bundle_dir / "contract" / "library_aware_formalization_gap_plan.schema.json"
+    portable_plan_row_schema_path = (
+        bundle_dir / "contract" / "library_aware_formalization_gap_plan_row.schema.json"
+    )
+    schema_catalog_path = (
+        bundle_dir / "contract" / "formalization_gap_planner_schema_catalog.json"
+    )
+    schema_catalog_schema_path = (
+        bundle_dir / "contract" / "formalization_gap_planner_schema_catalog.schema.json"
+    )
+    adapter_schema_path = (
+        bundle_dir / "contract" / "formalization_gap_planner_prover_adapter_response.schema.json"
+    )
+    adapter_packet_schema_path = (
+        bundle_dir / "contract" / "formalization_gap_planner_prover_adapter_packet.schema.json"
+    )
+    response_validation_row_schema_path = (
+        bundle_dir
+        / "contract"
+        / "formalization_gap_planner_prover_adapter_response_validation_row.schema.json"
+    )
+    refinement_tool_response_schema_path = (
+        bundle_dir / "contract" / "formalization_gap_planner_refinement_tool_response.schema.json"
+    )
+    refinement_work_item_schema_path = (
+        bundle_dir / "contract" / "formalization_gap_planner_refinement_work_item.schema.json"
+    )
+    refinement_evidence_row_schema_path = (
+        bundle_dir / "contract" / "formalization_gap_planner_refinement_evidence_row.schema.json"
+    )
+    interactive_session_row_schema_path = (
+        bundle_dir / "contract" / "formalization_gap_planner_interactive_session_row.schema.json"
+    )
+    interactive_decision_policy_row_schema_path = (
+        bundle_dir
+        / "contract"
+        / "formalization_gap_planner_interactive_decision_policy_row.schema.json"
+    )
+    minimal_delta_decision_row_schema_path = (
+        bundle_dir
+        / "contract"
+        / "formalization_gap_planner_minimal_delta_decision_row.schema.json"
+    )
+    portable_plan_audit_row_schema_path = (
+        bundle_dir
+        / "contract"
+        / "formalization_gap_planner_portable_plan_audit_row.schema.json"
+    )
+    library_coverage_map_row_schema_path = (
+        bundle_dir
+        / "contract"
+        / "formalization_gap_planner_library_coverage_map_row.schema.json"
+    )
+    primitive_action_queue_row_schema_path = (
+        bundle_dir
+        / "contract"
+        / "formalization_gap_planner_primitive_action_queue_row.schema.json"
+    )
+    action_resource_plan_row_schema_path = (
+        bundle_dir
+        / "contract"
+        / "formalization_gap_planner_action_resource_plan_row.schema.json"
+    )
+    resource_request_queue_row_schema_path = (
+        bundle_dir
+        / "contract"
+        / "formalization_gap_planner_resource_request_queue_row.schema.json"
+    )
+    resource_response_schema_path = (
+        bundle_dir
+        / "contract"
+        / "formalization_gap_planner_resource_response.schema.json"
+    )
+    resource_response_ledger_row_schema_path = (
+        bundle_dir
+        / "contract"
+        / "formalization_gap_planner_resource_response_ledger_row.schema.json"
+    )
+    source_grounding_row_schema_path = (
+        bundle_dir
+        / "contract"
+        / "formalization_gap_planner_source_grounding_row.schema.json"
+    )
+    llm_route_planner_request_schema_path = (
+        bundle_dir
+        / "contract"
+        / "formalization_gap_planner_llm_route_planner_request.schema.json"
+    )
+    llm_route_planner_response_schema_path = (
+        bundle_dir
+        / "contract"
+        / "formalization_gap_planner_llm_route_planner_response.schema.json"
+    )
+    llm_route_planner_row_schema_path = (
+        bundle_dir
+        / "contract"
+        / "formalization_gap_planner_llm_route_planner_row.schema.json"
+    )
+    route_revision_overlay_row_schema_path = (
+        bundle_dir
+        / "contract"
+        / "formalization_gap_planner_route_revision_overlay_row.schema.json"
+    )
+    route_stability_audit_row_schema_path = (
+        bundle_dir
+        / "contract"
+        / "formalization_gap_planner_route_stability_audit_row.schema.json"
+    )
+    route_replan_handoff_row_schema_path = (
+        bundle_dir
+        / "contract"
+        / "formalization_gap_planner_route_replan_handoff_row.schema.json"
+    )
+    route_replan_handoff_audit_row_schema_path = (
+        bundle_dir
+        / "contract"
+        / "formalization_gap_planner_route_replan_handoff_audit_row.schema.json"
+    )
+    proof_state_triage_row_schema_path = (
+        bundle_dir
+        / "contract"
+        / "formalization_gap_planner_proof_state_triage_row.schema.json"
+    )
+    ablation_study_row_schema_path = (
+        bundle_dir / "contract" / "formalization_gap_planner_ablation_study_row.schema.json"
+    )
+    route_alignment_edge_schema_path = (
+        bundle_dir
+        / "contract"
+        / "formalization_gap_planner_route_alignment_edge.schema.json"
+    )
+    benchmark_route_schema_path = (
+        bundle_dir / "contract" / "formalization_gap_planner_benchmark_route.schema.json"
+    )
+    evaluation_row_schema_path = (
+        bundle_dir / "contract" / "formalization_gap_planner_evaluation_row.schema.json"
+    )
+    adapter_registry_row_schema_path = (
+        bundle_dir / "contract" / "formalization_gap_planner_adapter_registry_row.schema.json"
+    )
+    cross_prover_matrix_audit_row_schema_path = (
+        bundle_dir
+        / "contract"
+        / "formalization_gap_planner_cross_prover_matrix_audit_row.schema.json"
+    )
+    cross_prover_target_summary_schema_path = (
+        bundle_dir
+        / "contract"
+        / "formalization_gap_planner_cross_prover_target_summary.schema.json"
+    )
+    standalone_schema_path = (
+        bundle_dir / "contract" / "formalization_gap_planner_standalone_input.schema.json"
+    )
+    target_intake_schema_path = (
+        bundle_dir / "contract" / "formalization_gap_planner_target_intake.schema.json"
+    )
+    target_intake_row_schema_path = (
+        bundle_dir
+        / "contract"
+        / "formalization_gap_planner_target_intake_row.schema.json"
+    )
+    component_execution_plan_schema_path = (
+        bundle_dir
+        / "contract"
+        / "formalization_gap_planner_component_resource_execution_plan.schema.json"
+    )
+    component_resource_resource_row_schema_path = (
+        bundle_dir
+        / "contract"
+        / "formalization_gap_planner_component_resource_resource_row.schema.json"
+    )
+    component_resource_component_row_schema_path = (
+        bundle_dir
+        / "contract"
+        / "formalization_gap_planner_component_resource_component_row.schema.json"
+    )
+    component_resource_contract_row_schema_path = (
+        bundle_dir
+        / "contract"
+        / "formalization_gap_planner_component_resource_contract_row.schema.json"
+    )
+    contract = _read_json_no_error(contract_path)
+    schema = _read_json_no_error(schema_path)
+    portable_plan_row_schema = _read_json_no_error(portable_plan_row_schema_path)
+    schema_catalog = _read_json_no_error(schema_catalog_path)
+    schema_catalog_schema = _read_json_no_error(schema_catalog_schema_path)
+    adapter_schema = _read_json_no_error(adapter_schema_path)
+    adapter_packet_schema = _read_json_no_error(adapter_packet_schema_path)
+    response_validation_row_schema = _read_json_no_error(
+        response_validation_row_schema_path
+    )
+    refinement_tool_response_schema = _read_json_no_error(
+        refinement_tool_response_schema_path
+    )
+    refinement_work_item_schema = _read_json_no_error(refinement_work_item_schema_path)
+    refinement_evidence_row_schema = _read_json_no_error(
+        refinement_evidence_row_schema_path
+    )
+    interactive_session_row_schema = _read_json_no_error(
+        interactive_session_row_schema_path
+    )
+    interactive_decision_policy_row_schema = _read_json_no_error(
+        interactive_decision_policy_row_schema_path
+    )
+    minimal_delta_decision_row_schema = _read_json_no_error(
+        minimal_delta_decision_row_schema_path
+    )
+    portable_plan_audit_row_schema = _read_json_no_error(
+        portable_plan_audit_row_schema_path
+    )
+    library_coverage_map_row_schema = _read_json_no_error(
+        library_coverage_map_row_schema_path
+    )
+    primitive_action_queue_row_schema = _read_json_no_error(
+        primitive_action_queue_row_schema_path
+    )
+    action_resource_plan_row_schema = _read_json_no_error(
+        action_resource_plan_row_schema_path
+    )
+    resource_request_queue_row_schema = _read_json_no_error(
+        resource_request_queue_row_schema_path
+    )
+    resource_response_schema = _read_json_no_error(resource_response_schema_path)
+    resource_response_ledger_row_schema = _read_json_no_error(
+        resource_response_ledger_row_schema_path
+    )
+    source_grounding_row_schema = _read_json_no_error(source_grounding_row_schema_path)
+    llm_route_planner_request_schema = _read_json_no_error(
+        llm_route_planner_request_schema_path
+    )
+    llm_route_planner_response_schema = _read_json_no_error(
+        llm_route_planner_response_schema_path
+    )
+    llm_route_planner_row_schema = _read_json_no_error(
+        llm_route_planner_row_schema_path
+    )
+    route_revision_overlay_row_schema = _read_json_no_error(
+        route_revision_overlay_row_schema_path
+    )
+    route_stability_audit_row_schema = _read_json_no_error(
+        route_stability_audit_row_schema_path
+    )
+    route_replan_handoff_row_schema = _read_json_no_error(
+        route_replan_handoff_row_schema_path
+    )
+    route_replan_handoff_audit_row_schema = _read_json_no_error(
+        route_replan_handoff_audit_row_schema_path
+    )
+    proof_state_triage_row_schema = _read_json_no_error(
+        proof_state_triage_row_schema_path
+    )
+    ablation_study_row_schema = _read_json_no_error(ablation_study_row_schema_path)
+    route_alignment_edge_schema = _read_json_no_error(route_alignment_edge_schema_path)
+    benchmark_route_schema = _read_json_no_error(benchmark_route_schema_path)
+    evaluation_row_schema = _read_json_no_error(evaluation_row_schema_path)
+    adapter_registry_row_schema = _read_json_no_error(
+        adapter_registry_row_schema_path
+    )
+    cross_prover_matrix_audit_row_schema = _read_json_no_error(
+        cross_prover_matrix_audit_row_schema_path
+    )
+    cross_prover_target_summary_schema = _read_json_no_error(
+        cross_prover_target_summary_schema_path
+    )
+    standalone_schema = _read_json_no_error(standalone_schema_path)
+    target_intake_schema = _read_json_no_error(target_intake_schema_path)
+    target_intake_row_schema = _read_json_no_error(target_intake_row_schema_path)
+    component_execution_plan_schema = _read_json_no_error(
+        component_execution_plan_schema_path
+    )
+    component_resource_resource_row_schema = _read_json_no_error(
+        component_resource_resource_row_schema_path
+    )
+    component_resource_component_row_schema = _read_json_no_error(
+        component_resource_component_row_schema_path
+    )
+    component_resource_contract_row_schema = _read_json_no_error(
+        component_resource_contract_row_schema_path
+    )
+    schema_catalog_entries = [
+        row
+        for row in schema_catalog.get("schema_entries", [])
+        if isinstance(row, dict)
+    ]
+    schema_catalog_entry_names = {
+        str(row.get("artifact_name", "")) for row in schema_catalog_entries
+    }
+    schema_catalog_entry_paths_ok = _schema_catalog_entry_paths_exist(
+        bundle_dir,
+        tuple(schema_catalog_entries),
+    )
+    schema_catalog_contract_errors = validate_schema_catalog_payload(
+        schema_catalog,
+        bundle_dir=bundle_dir,
+    )
+    return [
+        _check(
+            "portable_contract_file",
+            "contract",
+            "contract file exists",
+            str(contract_path.exists()),
+            contract_path.exists(),
+        ),
+        _check(
+            "portable_contract_schema_id",
+            "contract",
+            PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_ID,
+            str(contract.get("schema_id", "")),
+            contract.get("schema_id") == PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_ID,
+        ),
+        _check(
+            "portable_plan_row_schema_file",
+            "contract",
+            "portable gap-plan row schema exists",
+            str(portable_plan_row_schema_path.exists()),
+            portable_plan_row_schema_path.exists(),
+        ),
+        _check(
+            "portable_plan_row_schema_id",
+            "contract",
+            PORTABLE_FORMALIZATION_GAP_PLAN_ROW_SCHEMA_ID,
+            str(portable_plan_row_schema.get("$id", "")),
+            portable_plan_row_schema.get("$id")
+            == PORTABLE_FORMALIZATION_GAP_PLAN_ROW_SCHEMA_ID,
+        ),
+        _check(
+            "schema_catalog_schema_file",
+            "contract",
+            "schema catalog JSON schema exists",
+            str(schema_catalog_schema_path.exists()),
+            schema_catalog_schema_path.exists(),
+        ),
+        _check(
+            "schema_catalog_schema_id",
+            "contract",
+            FORMALIZATION_GAP_PLANNER_SCHEMA_CATALOG_SCHEMA_ID,
+            str(schema_catalog_schema.get("$id", "")),
+            schema_catalog_schema.get("$id")
+            == FORMALIZATION_GAP_PLANNER_SCHEMA_CATALOG_SCHEMA_ID,
+        ),
+        _check(
+            "schema_catalog_file",
+            "contract",
+            "schema catalog exists",
+            str(schema_catalog_path.exists()),
+            schema_catalog_path.exists(),
+        ),
+        _check(
+            "schema_catalog_component",
+            "contract",
+            SCHEMA_CATALOG_COMPONENT_NAME,
+            str(schema_catalog.get("component_name", "")),
+            schema_catalog.get("component_name") == SCHEMA_CATALOG_COMPONENT_NAME,
+        ),
+        _check(
+            "schema_catalog_payload_schema_id",
+            "contract",
+            FORMALIZATION_GAP_PLANNER_SCHEMA_CATALOG_SCHEMA_ID,
+            str(schema_catalog.get("schema_id", "")),
+            schema_catalog.get("schema_id")
+            == FORMALIZATION_GAP_PLANNER_SCHEMA_CATALOG_SCHEMA_ID,
+        ),
+        _check(
+            "schema_catalog_entries_present",
+            "contract",
+            "catalog includes reusable schema and contract entries",
+            str(len(schema_catalog_entries)),
+            len(schema_catalog_entries) >= 30,
+        ),
+        _check(
+            "schema_catalog_required_entries",
+            "contract",
+            "portable_contract, portable_schema, target_intake_row_schema, llm route planner schemas, portable_plan_row_schema",
+            ",".join(sorted(schema_catalog_entry_names)),
+            {
+                "portable_contract",
+                "portable_schema",
+                "target_intake_row_schema",
+                "llm_route_planner_request_schema",
+                "llm_route_planner_response_schema",
+                "llm_route_planner_row_schema",
+                "portable_plan_row_schema",
+            }.issubset(schema_catalog_entry_names),
+        ),
+        _check(
+            "schema_catalog_missing_schema_ids",
+            "contract",
+            "0",
+            str(schema_catalog.get("n_missing_schema_ids", "")),
+            schema_catalog.get("n_missing_schema_ids") == 0,
+        ),
+        _check(
+            "schema_catalog_missing_schema_files",
+            "contract",
+            "0",
+            str(schema_catalog.get("n_missing_schema_files", "")),
+            schema_catalog.get("n_missing_schema_files") == 0,
+        ),
+        _check(
+            "schema_catalog_entry_paths_resolve",
+            "contract",
+            "all catalog relative paths exist inside bundle",
+            str(schema_catalog_entry_paths_ok),
+            schema_catalog_entry_paths_ok,
+        ),
+        _check(
+            "schema_catalog_contract_valid",
+            "contract",
+            "schema catalog payload validates against public contract",
+            "; ".join(schema_catalog_contract_errors)
+            if schema_catalog_contract_errors
+            else "valid",
+            not schema_catalog_contract_errors,
+            errors=schema_catalog_contract_errors,
+        ),
+        _check(
+            "schema_catalog_all_ok",
+            "contract",
+            "all_ok true",
+            str(schema_catalog.get("all_ok", "")),
+            bool(schema_catalog.get("all_ok", False)),
+        ),
+        _check(
+            "schema_catalog_boundary",
+            "contract",
+            "not theorem proof evidence",
+            str(schema_catalog.get("proof_evidence_boundary", ""))[:120],
+            "not theorem proof evidence"
+            in str(schema_catalog.get("proof_evidence_boundary", "")),
+        ),
+        _check(
+            "portable_contract_has_work_packet_contract",
+            "contract",
+            "portable_work_packet_contract",
+            str("portable_work_packet_contract" in contract),
+            "portable_work_packet_contract" in contract,
+        ),
+        _check(
+            "portable_contract_has_schema_catalog_contract",
+            "contract",
+            "schema_catalog_contract",
+            str("schema_catalog_contract" in contract),
+            "schema_catalog_contract" in contract,
+        ),
+        _check(
+            "portable_contract_has_prover_adapter_contract",
+            "contract",
+            "prover_adapter_response_contract",
+            str("prover_adapter_response_contract" in contract),
+            "prover_adapter_response_contract" in contract,
+        ),
+        _check(
+            "portable_contract_has_prover_adapter_packet_contract",
+            "contract",
+            "prover_adapter_packet_contract",
+            str("prover_adapter_packet_contract" in contract),
+            "prover_adapter_packet_contract" in contract,
+        ),
+        _check(
+            "portable_contract_has_prover_adapter_response_validation_row_contract",
+            "contract",
+            "prover_adapter_response_validation_row_contract",
+            str("prover_adapter_response_validation_row_contract" in contract),
+            "prover_adapter_response_validation_row_contract" in contract,
+        ),
+        _check(
+            "portable_contract_has_refinement_tool_response_contract",
+            "contract",
+            "refinement_tool_response_contract",
+            str("refinement_tool_response_contract" in contract),
+            "refinement_tool_response_contract" in contract,
+        ),
+        _check(
+            "portable_contract_has_refinement_work_item_contract",
+            "contract",
+            "refinement_work_item_contract",
+            str("refinement_work_item_contract" in contract),
+            "refinement_work_item_contract" in contract,
+        ),
+        _check(
+            "portable_contract_has_refinement_evidence_row_contract",
+            "contract",
+            "refinement_evidence_row_contract",
+            str("refinement_evidence_row_contract" in contract),
+            "refinement_evidence_row_contract" in contract,
+        ),
+        _check(
+            "portable_contract_has_interactive_session_row_contract",
+            "contract",
+            "interactive_session_row_contract",
+            str("interactive_session_row_contract" in contract),
+            "interactive_session_row_contract" in contract,
+        ),
+        _check(
+            "portable_contract_has_interactive_decision_policy_row_contract",
+            "contract",
+            "interactive_decision_policy_row_contract",
+            str("interactive_decision_policy_row_contract" in contract),
+            "interactive_decision_policy_row_contract" in contract,
+        ),
+        _check(
+            "portable_contract_has_minimal_delta_decision_row_contract",
+            "contract",
+            "minimal_delta_decision_row_contract",
+            str("minimal_delta_decision_row_contract" in contract),
+            "minimal_delta_decision_row_contract" in contract,
+        ),
+        _check(
+            "portable_contract_has_portable_plan_audit_row_contract",
+            "contract",
+            "portable_plan_audit_row_contract",
+            str("portable_plan_audit_row_contract" in contract),
+            "portable_plan_audit_row_contract" in contract,
+        ),
+        _check(
+            "portable_contract_has_library_coverage_map_row_contract",
+            "contract",
+            "library_coverage_map_row_contract",
+            str("library_coverage_map_row_contract" in contract),
+            "library_coverage_map_row_contract" in contract,
+        ),
+        _check(
+            "portable_contract_has_primitive_action_queue_row_contract",
+            "contract",
+            "primitive_action_queue_row_contract",
+            str("primitive_action_queue_row_contract" in contract),
+            "primitive_action_queue_row_contract" in contract,
+        ),
+        _check(
+            "portable_contract_has_action_resource_plan_row_contract",
+            "contract",
+            "action_resource_plan_row_contract",
+            str("action_resource_plan_row_contract" in contract),
+            "action_resource_plan_row_contract" in contract,
+        ),
+        _check(
+            "portable_contract_has_resource_request_queue_row_contract",
+            "contract",
+            "resource_request_queue_row_contract",
+            str("resource_request_queue_row_contract" in contract),
+            "resource_request_queue_row_contract" in contract,
+        ),
+        _check(
+            "portable_contract_has_resource_response_contract",
+            "contract",
+            "resource_response_contract",
+            str("resource_response_contract" in contract),
+            "resource_response_contract" in contract,
+        ),
+        _check(
+            "portable_contract_has_resource_response_ledger_row_contract",
+            "contract",
+            "resource_response_ledger_row_contract",
+            str("resource_response_ledger_row_contract" in contract),
+            "resource_response_ledger_row_contract" in contract,
+        ),
+        _check(
+            "portable_contract_has_source_grounding_row_contract",
+            "contract",
+            "source_grounding_row_contract",
+            str("source_grounding_row_contract" in contract),
+            "source_grounding_row_contract" in contract,
+        ),
+        _check(
+            "portable_contract_has_llm_route_planner_request_contract",
+            "contract",
+            "llm_route_planner_request_contract",
+            str("llm_route_planner_request_contract" in contract),
+            "llm_route_planner_request_contract" in contract,
+        ),
+        _check(
+            "portable_contract_has_llm_route_planner_response_contract",
+            "contract",
+            "llm_route_planner_response_contract",
+            str("llm_route_planner_response_contract" in contract),
+            "llm_route_planner_response_contract" in contract,
+        ),
+        _check(
+            "portable_contract_has_llm_route_planner_row_contract",
+            "contract",
+            "llm_route_planner_row_contract",
+            str("llm_route_planner_row_contract" in contract),
+            "llm_route_planner_row_contract" in contract,
+        ),
+        _check(
+            "portable_contract_has_route_revision_overlay_row_contract",
+            "contract",
+            "route_revision_overlay_row_contract",
+            str("route_revision_overlay_row_contract" in contract),
+            "route_revision_overlay_row_contract" in contract,
+        ),
+        _check(
+            "portable_contract_has_route_stability_audit_row_contract",
+            "contract",
+            "route_stability_audit_row_contract",
+            str("route_stability_audit_row_contract" in contract),
+            "route_stability_audit_row_contract" in contract,
+        ),
+        _check(
+            "portable_contract_has_route_replan_handoff_row_contract",
+            "contract",
+            "route_replan_handoff_row_contract",
+            str("route_replan_handoff_row_contract" in contract),
+            "route_replan_handoff_row_contract" in contract,
+        ),
+        _check(
+            "portable_contract_has_route_replan_handoff_audit_row_contract",
+            "contract",
+            "route_replan_handoff_audit_row_contract",
+            str("route_replan_handoff_audit_row_contract" in contract),
+            "route_replan_handoff_audit_row_contract" in contract,
+        ),
+        _check(
+            "portable_contract_has_proof_state_triage_row_contract",
+            "contract",
+            "proof_state_triage_row_contract",
+            str("proof_state_triage_row_contract" in contract),
+            "proof_state_triage_row_contract" in contract,
+        ),
+        _check(
+            "portable_contract_has_ablation_study_row_contract",
+            "contract",
+            "ablation_study_row_contract",
+            str("ablation_study_row_contract" in contract),
+            "ablation_study_row_contract" in contract,
+        ),
+        _check(
+            "portable_contract_has_route_alignment_edge_contract",
+            "contract",
+            "route_alignment_edge_contract",
+            str("route_alignment_edge_contract" in contract),
+            "route_alignment_edge_contract" in contract,
+        ),
+        _check(
+            "portable_contract_has_portable_gap_plan_row_contract",
+            "contract",
+            "portable_gap_plan_row_contract",
+            str("portable_gap_plan_row_contract" in contract),
+            "portable_gap_plan_row_contract" in contract,
+        ),
+        _check(
+            "portable_contract_has_target_intake_contract",
+            "contract",
+            "target_intake_contract",
+            str("target_intake_contract" in contract),
+            "target_intake_contract" in contract,
+        ),
+        _check(
+            "portable_contract_has_target_intake_row_contract",
+            "contract",
+            "target_intake_row_contract",
+            str("target_intake_row_contract" in contract),
+            "target_intake_row_contract" in contract,
+        ),
+        _check(
+            "portable_contract_has_component_execution_plan_contract",
+            "contract",
+            "component_resource_execution_plan_contract",
+            str("component_resource_execution_plan_contract" in contract),
+            "component_resource_execution_plan_contract" in contract,
+        ),
+        _check(
+            "portable_contract_has_benchmark_route_contract",
+            "contract",
+            "benchmark_route_contract",
+            str("benchmark_route_contract" in contract),
+            "benchmark_route_contract" in contract,
+        ),
+        _check(
+            "portable_contract_has_evaluation_row_contract",
+            "contract",
+            "evaluation_row_contract",
+            str("evaluation_row_contract" in contract),
+            "evaluation_row_contract" in contract,
+        ),
+        _check(
+            "portable_contract_has_adapter_registry_row_contract",
+            "contract",
+            "adapter_registry_row_contract",
+            str("adapter_registry_row_contract" in contract),
+            "adapter_registry_row_contract" in contract,
+        ),
+        _check(
+            "portable_contract_has_cross_prover_matrix_audit_row_contract",
+            "contract",
+            "cross_prover_matrix_audit_row_contract",
+            str("cross_prover_matrix_audit_row_contract" in contract),
+            "cross_prover_matrix_audit_row_contract" in contract,
+        ),
+        _check(
+            "portable_contract_has_cross_prover_target_summary_contract",
+            "contract",
+            "cross_prover_target_summary_contract",
+            str("cross_prover_target_summary_contract" in contract),
+            "cross_prover_target_summary_contract" in contract,
+        ),
+        _check(
+            "portable_contract_has_component_resource_resource_row_contract",
+            "contract",
+            "component_resource_resource_row_contract",
+            str("component_resource_resource_row_contract" in contract),
+            "component_resource_resource_row_contract" in contract,
+        ),
+        _check(
+            "portable_contract_has_component_resource_component_row_contract",
+            "contract",
+            "component_resource_component_row_contract",
+            str("component_resource_component_row_contract" in contract),
+            "component_resource_component_row_contract" in contract,
+        ),
+        _check(
+            "portable_contract_has_component_resource_contract_row_contract",
+            "contract",
+            "component_resource_contract_row_contract",
+            str("component_resource_contract_row_contract" in contract),
+            "component_resource_contract_row_contract" in contract,
+        ),
+        _check(
+            "planner_schema_file",
+            "contract",
+            "schema file exists",
+            str(schema_path.exists()),
+            schema_path.exists(),
+        ),
+        _check(
+            "planner_schema_id",
+            "contract",
+            PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_ID,
+            str(schema.get("$id", "")),
+            schema.get("$id") == PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_ID,
+        ),
+        _check(
+            "prover_adapter_schema_file",
+            "contract",
+            "prover adapter response schema exists",
+            str(adapter_schema_path.exists()),
+            adapter_schema_path.exists(),
+        ),
+        _check(
+            "prover_adapter_schema_id",
+            "contract",
+            PROVER_ADAPTER_RESPONSE_SCHEMA_ID,
+            str(adapter_schema.get("$id", "")),
+            adapter_schema.get("$id") == PROVER_ADAPTER_RESPONSE_SCHEMA_ID,
+        ),
+        _check(
+            "prover_adapter_packet_schema_file",
+            "contract",
+            "prover adapter packet schema exists",
+            str(adapter_packet_schema_path.exists()),
+            adapter_packet_schema_path.exists(),
+        ),
+        _check(
+            "prover_adapter_packet_schema_id",
+            "contract",
+            PROVER_ADAPTER_PACKET_SCHEMA_ID,
+            str(adapter_packet_schema.get("$id", "")),
+            adapter_packet_schema.get("$id") == PROVER_ADAPTER_PACKET_SCHEMA_ID,
+        ),
+        _check(
+            "prover_adapter_response_validation_row_schema_file",
+            "contract",
+            "prover adapter response-validation row schema exists",
+            str(response_validation_row_schema_path.exists()),
+            response_validation_row_schema_path.exists(),
+        ),
+        _check(
+            "prover_adapter_response_validation_row_schema_id",
+            "contract",
+            PROVER_ADAPTER_RESPONSE_VALIDATION_ROW_SCHEMA_ID,
+            str(response_validation_row_schema.get("$id", "")),
+            response_validation_row_schema.get("$id")
+            == PROVER_ADAPTER_RESPONSE_VALIDATION_ROW_SCHEMA_ID,
+        ),
+        _check(
+            "prover_adapter_schema_rejects_kernel_claim",
+            "contract",
+            "kernel_verified const false",
+            json.dumps(adapter_schema.get("properties", {}).get("kernel_verified", {}), sort_keys=True),
+            adapter_schema.get("properties", {}).get("kernel_verified", {}).get("const")
+            is False,
+        ),
+        _check(
+            "refinement_tool_response_schema_file",
+            "contract",
+            "refinement tool response schema exists",
+            str(refinement_tool_response_schema_path.exists()),
+            refinement_tool_response_schema_path.exists(),
+        ),
+        _check(
+            "refinement_work_item_schema_file",
+            "contract",
+            "refinement work item schema exists",
+            str(refinement_work_item_schema_path.exists()),
+            refinement_work_item_schema_path.exists(),
+        ),
+        _check(
+            "refinement_work_item_schema_id",
+            "contract",
+            "urn:ai-statistician:schemas:formalization-gap-planner-refinement-work-item:1",
+            str(refinement_work_item_schema.get("$id", "")),
+            refinement_work_item_schema.get("$id")
+            == "urn:ai-statistician:schemas:formalization-gap-planner-refinement-work-item:1",
+        ),
+        _check(
+            "refinement_tool_response_schema_id",
+            "contract",
+            "urn:ai-statistician:schemas:formalization-gap-planner-refinement-tool-response:1",
+            str(refinement_tool_response_schema.get("$id", "")),
+            refinement_tool_response_schema.get("$id")
+            == "urn:ai-statistician:schemas:formalization-gap-planner-refinement-tool-response:1",
+        ),
+        _check(
+            "refinement_evidence_row_schema_file",
+            "contract",
+            "refinement evidence row schema exists",
+            str(refinement_evidence_row_schema_path.exists()),
+            refinement_evidence_row_schema_path.exists(),
+        ),
+        _check(
+            "refinement_evidence_row_schema_id",
+            "contract",
+            "urn:ai-statistician:schemas:formalization-gap-planner-refinement-evidence-row:1",
+            str(refinement_evidence_row_schema.get("$id", "")),
+            refinement_evidence_row_schema.get("$id")
+            == "urn:ai-statistician:schemas:formalization-gap-planner-refinement-evidence-row:1",
+        ),
+        _check(
+            "proof_state_triage_row_schema_file",
+            "contract",
+            "proof-state triage row schema exists",
+            str(proof_state_triage_row_schema_path.exists()),
+            proof_state_triage_row_schema_path.exists(),
+        ),
+        _check(
+            "proof_state_triage_row_schema_id",
+            "contract",
+            "urn:ai-statistician:schemas:formalization-gap-planner-proof-state-triage-row:1",
+            str(proof_state_triage_row_schema.get("$id", "")),
+            proof_state_triage_row_schema.get("$id")
+            == "urn:ai-statistician:schemas:formalization-gap-planner-proof-state-triage-row:1",
+        ),
+        _check(
+            "interactive_session_row_schema_file",
+            "contract",
+            "interactive session row schema exists",
+            str(interactive_session_row_schema_path.exists()),
+            interactive_session_row_schema_path.exists(),
+        ),
+        _check(
+            "interactive_session_row_schema_id",
+            "contract",
+            "urn:ai-statistician:schemas:formalization-gap-planner-interactive-session-row:1",
+            str(interactive_session_row_schema.get("$id", "")),
+            interactive_session_row_schema.get("$id")
+            == "urn:ai-statistician:schemas:formalization-gap-planner-interactive-session-row:1",
+        ),
+        _check(
+            "interactive_decision_policy_row_schema_file",
+            "contract",
+            "interactive decision-policy row schema exists",
+            str(interactive_decision_policy_row_schema_path.exists()),
+            interactive_decision_policy_row_schema_path.exists(),
+        ),
+        _check(
+            "interactive_decision_policy_row_schema_id",
+            "contract",
+            "urn:ai-statistician:schemas:formalization-gap-planner-interactive-decision-policy-row:1",
+            str(interactive_decision_policy_row_schema.get("$id", "")),
+            interactive_decision_policy_row_schema.get("$id")
+            == "urn:ai-statistician:schemas:formalization-gap-planner-interactive-decision-policy-row:1",
+        ),
+        _check(
+            "minimal_delta_decision_row_schema_file",
+            "contract",
+            "minimal delta decision row schema exists",
+            str(minimal_delta_decision_row_schema_path.exists()),
+            minimal_delta_decision_row_schema_path.exists(),
+        ),
+        _check(
+            "minimal_delta_decision_row_schema_id",
+            "contract",
+            "urn:ai-statistician:schemas:formalization-gap-planner-minimal-delta-decision-row:1",
+            str(minimal_delta_decision_row_schema.get("$id", "")),
+            minimal_delta_decision_row_schema.get("$id")
+            == "urn:ai-statistician:schemas:formalization-gap-planner-minimal-delta-decision-row:1",
+        ),
+        _check(
+            "portable_plan_audit_row_schema_file",
+            "contract",
+            "portable-plan audit row schema exists",
+            str(portable_plan_audit_row_schema_path.exists()),
+            portable_plan_audit_row_schema_path.exists(),
+        ),
+        _check(
+            "portable_plan_audit_row_schema_id",
+            "contract",
+            PORTABLE_PLAN_AUDIT_ROW_SCHEMA_ID,
+            str(portable_plan_audit_row_schema.get("$id", "")),
+            portable_plan_audit_row_schema.get("$id")
+            == PORTABLE_PLAN_AUDIT_ROW_SCHEMA_ID,
+        ),
+        _check(
+            "library_coverage_map_row_schema_file",
+            "contract",
+            "library-coverage map row schema exists",
+            str(library_coverage_map_row_schema_path.exists()),
+            library_coverage_map_row_schema_path.exists(),
+        ),
+        _check(
+            "library_coverage_map_row_schema_id",
+            "contract",
+            LIBRARY_COVERAGE_MAP_ROW_SCHEMA_ID,
+            str(library_coverage_map_row_schema.get("$id", "")),
+            library_coverage_map_row_schema.get("$id")
+            == LIBRARY_COVERAGE_MAP_ROW_SCHEMA_ID,
+        ),
+        _check(
+            "llm_route_planner_request_schema_file",
+            "contract",
+            "LLM route-planner request schema exists",
+            str(llm_route_planner_request_schema_path.exists()),
+            llm_route_planner_request_schema_path.exists(),
+        ),
+        _check(
+            "llm_route_planner_request_schema_id",
+            "contract",
+            LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID,
+            str(llm_route_planner_request_schema.get("$id", "")),
+            llm_route_planner_request_schema.get("$id")
+            == LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID,
+        ),
+        _check(
+            "llm_route_planner_response_schema_file",
+            "contract",
+            "LLM route-planner response schema exists",
+            str(llm_route_planner_response_schema_path.exists()),
+            llm_route_planner_response_schema_path.exists(),
+        ),
+        _check(
+            "llm_route_planner_response_schema_id",
+            "contract",
+            LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID,
+            str(llm_route_planner_response_schema.get("$id", "")),
+            llm_route_planner_response_schema.get("$id")
+            == LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID,
+        ),
+        _check(
+            "llm_route_planner_response_schema_rejects_kernel_claim",
+            "contract",
+            "kernel_verified const false",
+            json.dumps(
+                llm_route_planner_response_schema.get("properties", {}).get(
+                    "kernel_verified",
+                    {},
+                ),
+                sort_keys=True,
+            ),
+            llm_route_planner_response_schema.get("properties", {})
+            .get("kernel_verified", {})
+            .get("const")
+            is False,
+        ),
+        _check(
+            "llm_route_planner_row_schema_file",
+            "contract",
+            "LLM route-planner row schema exists",
+            str(llm_route_planner_row_schema_path.exists()),
+            llm_route_planner_row_schema_path.exists(),
+        ),
+        _check(
+            "llm_route_planner_row_schema_id",
+            "contract",
+            LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
+            str(llm_route_planner_row_schema.get("$id", "")),
+            llm_route_planner_row_schema.get("$id")
+            == LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
+        ),
+        _check(
+            "primitive_action_queue_row_schema_file",
+            "contract",
+            "primitive action-queue row schema exists",
+            str(primitive_action_queue_row_schema_path.exists()),
+            primitive_action_queue_row_schema_path.exists(),
+        ),
+        _check(
+            "primitive_action_queue_row_schema_id",
+            "contract",
+            PRIMITIVE_ACTION_QUEUE_ROW_SCHEMA_ID,
+            str(primitive_action_queue_row_schema.get("$id", "")),
+            primitive_action_queue_row_schema.get("$id")
+            == PRIMITIVE_ACTION_QUEUE_ROW_SCHEMA_ID,
+        ),
+        _check(
+            "action_resource_plan_row_schema_file",
+            "contract",
+            "action-resource plan row schema exists",
+            str(action_resource_plan_row_schema_path.exists()),
+            action_resource_plan_row_schema_path.exists(),
+        ),
+        _check(
+            "action_resource_plan_row_schema_id",
+            "contract",
+            ACTION_RESOURCE_PLAN_ROW_SCHEMA_ID,
+            str(action_resource_plan_row_schema.get("$id", "")),
+            action_resource_plan_row_schema.get("$id")
+            == ACTION_RESOURCE_PLAN_ROW_SCHEMA_ID,
+        ),
+        _check(
+            "resource_request_queue_row_schema_file",
+            "contract",
+            "resource request-queue row schema exists",
+            str(resource_request_queue_row_schema_path.exists()),
+            resource_request_queue_row_schema_path.exists(),
+        ),
+        _check(
+            "resource_request_queue_row_schema_id",
+            "contract",
+            RESOURCE_REQUEST_QUEUE_ROW_SCHEMA_ID,
+            str(resource_request_queue_row_schema.get("$id", "")),
+            resource_request_queue_row_schema.get("$id")
+            == RESOURCE_REQUEST_QUEUE_ROW_SCHEMA_ID,
+        ),
+        _check(
+            "resource_response_schema_file",
+            "contract",
+            "resource response schema exists",
+            str(resource_response_schema_path.exists()),
+            resource_response_schema_path.exists(),
+        ),
+        _check(
+            "resource_response_schema_id",
+            "contract",
+            RESOURCE_RESPONSE_SCHEMA_ID,
+            str(resource_response_schema.get("$id", "")),
+            resource_response_schema.get("$id") == RESOURCE_RESPONSE_SCHEMA_ID,
+        ),
+        _check(
+            "resource_response_schema_rejects_kernel_claim",
+            "contract",
+            "kernel_verified const false",
+            json.dumps(
+                resource_response_schema.get("properties", {}).get(
+                    "kernel_verified", {}
+                ),
+                sort_keys=True,
+            ),
+            resource_response_schema.get("properties", {})
+            .get("kernel_verified", {})
+            .get("const")
+            is False,
+        ),
+        _check(
+            "resource_response_ledger_row_schema_file",
+            "contract",
+            "resource response-ledger row schema exists",
+            str(resource_response_ledger_row_schema_path.exists()),
+            resource_response_ledger_row_schema_path.exists(),
+        ),
+        _check(
+            "resource_response_ledger_row_schema_id",
+            "contract",
+            RESOURCE_RESPONSE_LEDGER_ROW_SCHEMA_ID,
+            str(resource_response_ledger_row_schema.get("$id", "")),
+            resource_response_ledger_row_schema.get("$id")
+            == RESOURCE_RESPONSE_LEDGER_ROW_SCHEMA_ID,
+        ),
+        _check(
+            "source_grounding_row_schema_file",
+            "contract",
+            "source grounding row schema exists",
+            str(source_grounding_row_schema_path.exists()),
+            source_grounding_row_schema_path.exists(),
+        ),
+        _check(
+            "source_grounding_row_schema_id",
+            "contract",
+            "urn:ai-statistician:schemas:formalization-gap-planner-source-grounding-row:1",
+            str(source_grounding_row_schema.get("$id", "")),
+            source_grounding_row_schema.get("$id")
+            == "urn:ai-statistician:schemas:formalization-gap-planner-source-grounding-row:1",
+        ),
+        _check(
+            "route_stability_audit_row_schema_file",
+            "contract",
+            "route-stability audit row schema exists",
+            str(route_stability_audit_row_schema_path.exists()),
+            route_stability_audit_row_schema_path.exists(),
+        ),
+        _check(
+            "route_stability_audit_row_schema_id",
+            "contract",
+            "urn:ai-statistician:schemas:formalization-gap-planner-route-stability-audit-row:1",
+            str(route_stability_audit_row_schema.get("$id", "")),
+            route_stability_audit_row_schema.get("$id")
+            == "urn:ai-statistician:schemas:formalization-gap-planner-route-stability-audit-row:1",
+        ),
+        _check(
+            "route_revision_overlay_row_schema_file",
+            "contract",
+            "route revision overlay row schema exists",
+            str(route_revision_overlay_row_schema_path.exists()),
+            route_revision_overlay_row_schema_path.exists(),
+        ),
+        _check(
+            "route_revision_overlay_row_schema_id",
+            "contract",
+            "urn:ai-statistician:schemas:formalization-gap-planner-route-revision-overlay-row:1",
+            str(route_revision_overlay_row_schema.get("$id", "")),
+            route_revision_overlay_row_schema.get("$id")
+            == "urn:ai-statistician:schemas:formalization-gap-planner-route-revision-overlay-row:1",
+        ),
+        _check(
+            "route_replan_handoff_row_schema_file",
+            "contract",
+            "route replan handoff row schema exists",
+            str(route_replan_handoff_row_schema_path.exists()),
+            route_replan_handoff_row_schema_path.exists(),
+        ),
+        _check(
+            "route_replan_handoff_row_schema_id",
+            "contract",
+            "urn:ai-statistician:schemas:formalization-gap-planner-route-replan-handoff-row:1",
+            str(route_replan_handoff_row_schema.get("$id", "")),
+            route_replan_handoff_row_schema.get("$id")
+            == "urn:ai-statistician:schemas:formalization-gap-planner-route-replan-handoff-row:1",
+        ),
+        _check(
+            "route_replan_handoff_audit_row_schema_file",
+            "contract",
+            "route replan handoff audit row schema exists",
+            str(route_replan_handoff_audit_row_schema_path.exists()),
+            route_replan_handoff_audit_row_schema_path.exists(),
+        ),
+        _check(
+            "route_replan_handoff_audit_row_schema_id",
+            "contract",
+            "urn:ai-statistician:schemas:formalization-gap-planner-route-replan-handoff-audit-row:1",
+            str(route_replan_handoff_audit_row_schema.get("$id", "")),
+            route_replan_handoff_audit_row_schema.get("$id")
+            == "urn:ai-statistician:schemas:formalization-gap-planner-route-replan-handoff-audit-row:1",
+        ),
+        _check(
+            "ablation_study_row_schema_file",
+            "contract",
+            "ablation study row schema exists",
+            str(ablation_study_row_schema_path.exists()),
+            ablation_study_row_schema_path.exists(),
+        ),
+        _check(
+            "ablation_study_row_schema_id",
+            "contract",
+            "urn:ai-statistician:schemas:formalization-gap-planner-ablation-study-row:1",
+            str(ablation_study_row_schema.get("$id", "")),
+            ablation_study_row_schema.get("$id")
+            == "urn:ai-statistician:schemas:formalization-gap-planner-ablation-study-row:1",
+        ),
+        _check(
+            "route_alignment_edge_schema_file",
+            "contract",
+            "route alignment edge schema exists",
+            str(route_alignment_edge_schema_path.exists()),
+            route_alignment_edge_schema_path.exists(),
+        ),
+        _check(
+            "route_alignment_edge_schema_id",
+            "contract",
+            "urn:ai-statistician:schemas:formalization-gap-planner-route-alignment-edge:1",
+            str(route_alignment_edge_schema.get("$id", "")),
+            route_alignment_edge_schema.get("$id")
+            == "urn:ai-statistician:schemas:formalization-gap-planner-route-alignment-edge:1",
+        ),
+        _check(
+            "benchmark_route_schema_file",
+            "contract",
+            "benchmark route-row schema exists",
+            str(benchmark_route_schema_path.exists()),
+            benchmark_route_schema_path.exists(),
+        ),
+        _check(
+            "benchmark_route_schema_id",
+            "contract",
+            "urn:ai-statistician:schemas:formalization-gap-planner-benchmark-route-row:1",
+            str(benchmark_route_schema.get("$id", "")),
+            benchmark_route_schema.get("$id")
+            == "urn:ai-statistician:schemas:formalization-gap-planner-benchmark-route-row:1",
+        ),
+        _check(
+            "evaluation_row_schema_file",
+            "contract",
+            "evaluation row schema exists",
+            str(evaluation_row_schema_path.exists()),
+            evaluation_row_schema_path.exists(),
+        ),
+        _check(
+            "evaluation_row_schema_id",
+            "contract",
+            "urn:ai-statistician:schemas:formalization-gap-planner-evaluation-row:1",
+            str(evaluation_row_schema.get("$id", "")),
+            evaluation_row_schema.get("$id")
+            == "urn:ai-statistician:schemas:formalization-gap-planner-evaluation-row:1",
+        ),
+        _check(
+            "adapter_registry_row_schema_file",
+            "contract",
+            "adapter-registry row schema exists",
+            str(adapter_registry_row_schema_path.exists()),
+            adapter_registry_row_schema_path.exists(),
+        ),
+        _check(
+            "adapter_registry_row_schema_id",
+            "contract",
+            ADAPTER_REGISTRY_ROW_SCHEMA_ID,
+            str(adapter_registry_row_schema.get("$id", "")),
+            adapter_registry_row_schema.get("$id") == ADAPTER_REGISTRY_ROW_SCHEMA_ID,
+        ),
+        _check(
+            "cross_prover_matrix_audit_row_schema_file",
+            "contract",
+            "cross-prover matrix audit row schema exists",
+            str(cross_prover_matrix_audit_row_schema_path.exists()),
+            cross_prover_matrix_audit_row_schema_path.exists(),
+        ),
+        _check(
+            "cross_prover_matrix_audit_row_schema_id",
+            "contract",
+            CROSS_PROVER_MATRIX_AUDIT_ROW_SCHEMA_ID,
+            str(cross_prover_matrix_audit_row_schema.get("$id", "")),
+            cross_prover_matrix_audit_row_schema.get("$id")
+            == CROSS_PROVER_MATRIX_AUDIT_ROW_SCHEMA_ID,
+        ),
+        _check(
+            "cross_prover_target_summary_schema_file",
+            "contract",
+            "cross-prover target summary schema exists",
+            str(cross_prover_target_summary_schema_path.exists()),
+            cross_prover_target_summary_schema_path.exists(),
+        ),
+        _check(
+            "cross_prover_target_summary_schema_id",
+            "contract",
+            CROSS_PROVER_TARGET_SUMMARY_SCHEMA_ID,
+            str(cross_prover_target_summary_schema.get("$id", "")),
+            cross_prover_target_summary_schema.get("$id")
+            == CROSS_PROVER_TARGET_SUMMARY_SCHEMA_ID,
+        ),
+        _check(
+            "standalone_input_schema_file",
+            "contract",
+            "standalone input schema exists",
+            str(standalone_schema_path.exists()),
+            standalone_schema_path.exists(),
+        ),
+        _check(
+            "standalone_input_schema_id",
+            "contract",
+            FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_SCHEMA_ID,
+            str(standalone_schema.get("$id", "")),
+            standalone_schema.get("$id")
+            == FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_SCHEMA_ID,
+        ),
+        _check(
+            "target_intake_schema_file",
+            "contract",
+            "target intake schema exists",
+            str(target_intake_schema_path.exists()),
+            target_intake_schema_path.exists(),
+        ),
+        _check(
+            "target_intake_schema_id",
+            "contract",
+            FORMALIZATION_GAP_PLANNER_TARGET_INTAKE_SCHEMA_ID,
+            str(target_intake_schema.get("$id", "")),
+            target_intake_schema.get("$id")
+            == FORMALIZATION_GAP_PLANNER_TARGET_INTAKE_SCHEMA_ID,
+        ),
+        _check(
+            "target_intake_row_schema_file",
+            "contract",
+            "target intake row schema exists",
+            str(target_intake_row_schema_path.exists()),
+            target_intake_row_schema_path.exists(),
+        ),
+        _check(
+            "target_intake_row_schema_id",
+            "contract",
+            FORMALIZATION_GAP_PLANNER_TARGET_INTAKE_ROW_SCHEMA_ID,
+            str(target_intake_row_schema.get("$id", "")),
+            target_intake_row_schema.get("$id")
+            == FORMALIZATION_GAP_PLANNER_TARGET_INTAKE_ROW_SCHEMA_ID,
+        ),
+        _check(
+            "component_execution_plan_schema_file",
+            "contract",
+            "component execution-plan schema exists",
+            str(component_execution_plan_schema_path.exists()),
+            component_execution_plan_schema_path.exists(),
+        ),
+        _check(
+            "component_execution_plan_schema_id",
+            "contract",
+            "urn:ai-statistician:schemas:formalization-gap-planner-component-execution-plan:1",
+            str(component_execution_plan_schema.get("$id", "")),
+            component_execution_plan_schema.get("$id")
+            == "urn:ai-statistician:schemas:formalization-gap-planner-component-execution-plan:1",
+        ),
+        _check(
+            "component_resource_resource_row_schema_file",
+            "contract",
+            "component-resource resource-row schema exists",
+            str(component_resource_resource_row_schema_path.exists()),
+            component_resource_resource_row_schema_path.exists(),
+        ),
+        _check(
+            "component_resource_resource_row_schema_id",
+            "contract",
+            "urn:ai-statistician:schemas:formalization-gap-planner-component-resource-registry-resource-row:1",
+            str(component_resource_resource_row_schema.get("$id", "")),
+            component_resource_resource_row_schema.get("$id")
+            == "urn:ai-statistician:schemas:formalization-gap-planner-component-resource-registry-resource-row:1",
+        ),
+        _check(
+            "component_resource_component_row_schema_file",
+            "contract",
+            "component-resource component-row schema exists",
+            str(component_resource_component_row_schema_path.exists()),
+            component_resource_component_row_schema_path.exists(),
+        ),
+        _check(
+            "component_resource_component_row_schema_id",
+            "contract",
+            "urn:ai-statistician:schemas:formalization-gap-planner-component-resource-registry-component-row:1",
+            str(component_resource_component_row_schema.get("$id", "")),
+            component_resource_component_row_schema.get("$id")
+            == "urn:ai-statistician:schemas:formalization-gap-planner-component-resource-registry-component-row:1",
+        ),
+        _check(
+            "component_resource_contract_row_schema_file",
+            "contract",
+            "component-resource contract-row schema exists",
+            str(component_resource_contract_row_schema_path.exists()),
+            component_resource_contract_row_schema_path.exists(),
+        ),
+        _check(
+            "component_resource_contract_row_schema_id",
+            "contract",
+            "urn:ai-statistician:schemas:formalization-gap-planner-component-resource-contract-row:1",
+            str(component_resource_contract_row_schema.get("$id", "")),
+            component_resource_contract_row_schema.get("$id")
+            == "urn:ai-statistician:schemas:formalization-gap-planner-component-resource-contract-row:1",
+        ),
+    ]
+
+
+def _benchmark_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicationBundleAuditCheck]:
+    manifest_path = bundle_dir / "benchmark" / "formalization_gap_planner_benchmark_manifest.json"
+    routes_jsonl_path = bundle_dir / "benchmark" / "formalization_gap_planner_benchmark_routes.jsonl"
+    route_schema_path = bundle_dir / "benchmark" / "formalization_gap_planner_benchmark_route.schema.json"
+    manifest = _read_json_no_error(manifest_path)
+    route_rows, route_errors = _read_jsonl_dict_rows_no_error(routes_jsonl_path)
+    checks = [
+        _check(
+            "benchmark_manifest",
+            "benchmark",
+            "benchmark manifest exists",
+            str(manifest_path.exists()),
+            manifest_path.exists(),
+        ),
+        _check(
+            "benchmark_all_ok",
+            "benchmark",
+            "all_ok true",
+            str(manifest.get("all_ok", "")),
+            bool(manifest.get("all_ok", False)),
+        ),
+        _check(
+            "benchmark_routes_present",
+            "benchmark",
+            "at least one route",
+            str(manifest.get("n_routes", 0)),
+            int(manifest.get("n_routes", 0) or 0) > 0,
+        ),
+        _check(
+            "benchmark_route_schema",
+            "benchmark",
+            "benchmark route-row schema exists",
+            str(route_schema_path.exists()),
+            route_schema_path.exists(),
+        ),
+        _check(
+            "benchmark_route_jsonl",
+            "benchmark",
+            "benchmark route JSONL exists",
+            str(routes_jsonl_path.exists()),
+            routes_jsonl_path.exists(),
+        ),
+        _check(
+            "benchmark_route_jsonl_parse",
+            "benchmark",
+            "benchmark route JSONL parses into object rows",
+            "; ".join(route_errors) if route_errors else f"rows={len(route_rows)}",
+            not route_errors,
+            errors=route_errors,
+        ),
+        _check(
+            "benchmark_route_jsonl_row_count",
+            "benchmark",
+            "benchmark route JSONL rows match manifest count",
+            f"jsonl={len(route_rows)} manifest={manifest.get('n_routes', 0)}",
+            len(route_rows) == int(manifest.get("n_routes", 0) or 0),
+        ),
+        _check(
+            "benchmark_manifest_route_schema_valid_count",
+            "benchmark",
+            "benchmark manifest route-row schema-valid count matches route count",
+            (
+                f"{manifest.get('n_route_row_schema_valid', 0)}/"
+                f"{manifest.get('n_routes', 0)}; "
+                f"invalid={manifest.get('n_route_row_schema_invalid', 0)}"
+            ),
+            int(manifest.get("n_routes", 0) or 0) > 0
+            and int(manifest.get("n_route_row_schema_valid", 0) or 0)
+            == int(manifest.get("n_routes", 0) or 0)
+            and int(manifest.get("n_route_row_schema_invalid", 0) or 0) == 0,
+        ),
+        _check(
+            "benchmark_boundary",
+            "benchmark",
+            "not theorem proof evidence",
+            str(manifest.get("proof_evidence_boundary", ""))[:120],
+            "not theorem proof evidence"
+            in str(manifest.get("proof_evidence_boundary", "")),
+        ),
+    ]
+    for idx, row in enumerate(route_rows):
+        schema_errors = validate_benchmark_route_row(row)
+        checks.append(
+            _check(
+                f"benchmark_route_row_{idx}_schema_valid",
+                "benchmark",
+                "benchmark route row satisfies published schema",
+                "; ".join(schema_errors) if schema_errors else "ok",
+                not schema_errors,
+                errors=schema_errors,
+            )
+        )
+    return checks
+
+
+def _benchmark_audit_checks(
+    bundle_dir: Path,
+) -> list[FormalizationGapPlannerPublicationBundleAuditCheck]:
+    manifest_path = (
+        bundle_dir
+        / "benchmark_audit"
+        / "formalization_gap_planner_benchmark_audit_manifest.json"
+    )
+    jsonl_path = (
+        bundle_dir
+        / "benchmark_audit"
+        / "formalization_gap_planner_benchmark_audit.jsonl"
+    )
+    manifest = _read_json_no_error(manifest_path)
+    return [
+        _check(
+            "benchmark_audit_manifest",
+            "benchmark_audit",
+            "benchmark audit manifest exists",
+            str(manifest_path.exists()),
+            manifest_path.exists(),
+        ),
+        _check(
+            "benchmark_audit_all_ok",
+            "benchmark_audit",
+            "all_ok true",
+            str(manifest.get("all_ok", "")),
+            bool(manifest.get("all_ok", False)),
+        ),
+        _check(
+            "benchmark_audit_failed_zero",
+            "benchmark_audit",
+            "zero failed checks",
+            str(manifest.get("n_failed", "")),
+            int(manifest.get("n_failed", 0) or 0) == 0,
+        ),
+        _check(
+            "benchmark_audit_splits",
+            "benchmark_audit",
+            "derived evaluation splits present",
+            str(manifest.get("n_evaluation_splits", 0)),
+            int(manifest.get("n_evaluation_splits", 0) or 0) >= 2,
+        ),
+        _check(
+            "benchmark_audit_jsonl",
+            "benchmark_audit",
+            "split jsonl exists",
+            str(jsonl_path.exists()),
+            jsonl_path.exists(),
+        ),
+        _check(
+            "benchmark_audit_boundary",
+            "benchmark_audit",
+            "not theorem proof evidence",
+            str(manifest.get("proof_evidence_boundary", ""))[:120],
+            "not theorem proof evidence"
+            in str(manifest.get("proof_evidence_boundary", "")),
+        ),
+    ]
+
+
+def _adapter_registry_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicationBundleAuditCheck]:
+    manifest_path = (
+        bundle_dir
+        / "adapter_registry"
+        / "formalization_gap_planner_adapter_registry_manifest.json"
+    )
+    jsonl_path = (
+        bundle_dir
+        / "adapter_registry"
+        / "formalization_gap_planner_adapter_registry.jsonl"
+    )
+    row_schema_path = (
+        bundle_dir
+        / "adapter_registry"
+        / "formalization_gap_planner_adapter_registry_row.schema.json"
+    )
+    manifest = _read_json_no_error(manifest_path)
+    row_schema = _read_json_no_error(row_schema_path)
+    jsonl_rows, jsonl_errors = _read_jsonl_dict_rows_no_error(jsonl_path)
+    adapter_ids = {
+        str(row.get("adapter_id", ""))
+        for row in manifest.get("rows", [])
+        if isinstance(row, dict)
+    }
+    manifest_rows = [
+        row for row in manifest.get("rows", []) if isinstance(row, dict)
+    ]
+    checks = [
+        _check(
+            "adapter_registry_manifest",
+            "adapter_registry",
+            "adapter registry manifest exists",
+            str(manifest_path.exists()),
+            manifest_path.exists(),
+        ),
+        _check(
+            "adapter_registry_all_ok",
+            "adapter_registry",
+            "all_ok true",
+            str(manifest.get("all_ok", "")),
+            bool(manifest.get("all_ok", False)),
+        ),
+        _check(
+            "adapter_registry_required_ids",
+            "adapter_registry",
+            ",".join(REQUIRED_ADAPTER_IDS),
+            ",".join(sorted(adapter_ids)),
+            set(REQUIRED_ADAPTER_IDS).issubset(adapter_ids),
+        ),
+        _check(
+            "adapter_registry_boundary",
+            "adapter_registry",
+            "not theorem proof evidence",
+            str(manifest.get("proof_evidence_boundary", ""))[:120],
+            "not theorem proof evidence"
+            in str(manifest.get("proof_evidence_boundary", "")),
+        ),
+        _check(
+            "adapter_registry_jsonl_file",
+            "adapter_registry",
+            "adapter registry jsonl exists",
+            str(jsonl_path.exists()),
+            jsonl_path.exists(),
+        ),
+        _check(
+            "adapter_registry_row_schema_file",
+            "adapter_registry",
+            "adapter registry row schema exists",
+            str(row_schema_path.exists()),
+            row_schema_path.exists(),
+        ),
+        _check(
+            "adapter_registry_row_schema_id",
+            "adapter_registry",
+            ADAPTER_REGISTRY_ROW_SCHEMA_ID,
+            str(row_schema.get("$id", "")),
+            row_schema.get("$id") == ADAPTER_REGISTRY_ROW_SCHEMA_ID,
+        ),
+        _check(
+            "adapter_registry_jsonl_parse",
+            "adapter_registry",
+            "jsonl rows parse without errors",
+            "; ".join(jsonl_errors[:3]),
+            not jsonl_errors,
+        ),
+        _check(
+            "adapter_registry_jsonl_row_count",
+            "adapter_registry",
+            "jsonl rows match manifest rows",
+            f"{len(jsonl_rows)}/{len(manifest_rows)}",
+            len(jsonl_rows) == len(manifest_rows),
+        ),
+        _check(
+            "adapter_registry_manifest_schema_counts",
+            "adapter_registry",
+            "all manifest rows schema-valid",
+            (
+                f"{manifest.get('n_adapter_row_schema_valid', 0)}/"
+                f"{manifest.get('n_adapters', 0)} invalid="
+                f"{manifest.get('n_adapter_row_schema_invalid', 0)}"
+            ),
+            int(manifest.get("n_adapter_row_schema_valid", 0) or 0)
+            == len(manifest_rows)
+            and int(manifest.get("n_adapter_row_schema_invalid", 0) or 0) == 0,
+        ),
+    ]
+    for idx, row in enumerate(jsonl_rows):
+        row_errors = validate_adapter_registry_row(row, row_schema)
+        checks.append(
+            _check(
+                f"adapter_registry_row_{idx}_schema_valid",
+                "adapter_registry",
+                "adapter registry row validates against schema",
+                f"{row.get('adapter_id', idx)}: {'; '.join(row_errors[:3])}",
+                not row_errors,
+            )
+        )
+    return checks
+
+
+def _component_resource_registry_checks(
+    bundle_dir: Path,
+) -> list[FormalizationGapPlannerPublicationBundleAuditCheck]:
+    manifest_path = (
+        bundle_dir
+        / "component_resource_registry"
+        / "formalization_gap_planner_component_resource_registry_manifest.json"
+    )
+    execution_plan_jsonl_path = (
+        bundle_dir
+        / "component_resource_registry"
+        / "formalization_gap_planner_component_resource_execution_plans.jsonl"
+    )
+    component_jsonl_path = (
+        bundle_dir
+        / "component_resource_registry"
+        / "formalization_gap_planner_component_resource_registry.jsonl"
+    )
+    resource_jsonl_path = (
+        bundle_dir
+        / "component_resource_registry"
+        / "formalization_gap_planner_component_resource_resources.jsonl"
+    )
+    resource_contract_jsonl_path = (
+        bundle_dir
+        / "component_resource_registry"
+        / "formalization_gap_planner_component_resource_contracts.jsonl"
+    )
+    manifest = _read_json_no_error(manifest_path)
+    component_rows, component_jsonl_errors = _read_jsonl_dict_rows_no_error(
+        component_jsonl_path
+    )
+    resource_rows, resource_jsonl_errors = _read_jsonl_dict_rows_no_error(
+        resource_jsonl_path
+    )
+    resource_contract_rows, resource_contract_jsonl_errors = (
+        _read_jsonl_dict_rows_no_error(resource_contract_jsonl_path)
+    )
+    execution_plan_rows, execution_plan_jsonl_errors = _read_jsonl_dict_rows_no_error(
+        execution_plan_jsonl_path
+    )
+    component_ids = {
+        str(row.get("component_id", ""))
+        for row in manifest.get("component_rows", [])
+        if isinstance(row, dict)
+    }
+    checks = [
+        _check(
+            "component_resource_registry_manifest",
+            "component_resource_registry",
+            "component resource registry manifest exists",
+            str(manifest_path.exists()),
+            manifest_path.exists(),
+        ),
+        _check(
+            "component_resource_registry_all_ok",
+            "component_resource_registry",
+            "all_ok true",
+            str(manifest.get("all_ok", "")),
+            bool(manifest.get("all_ok", False)),
+        ),
+        _check(
+            "component_resource_registry_required_components",
+            "component_resource_registry",
+            ",".join(REQUIRED_COMPONENT_RESOURCE_IDS),
+            ",".join(sorted(component_ids)),
+            set(REQUIRED_COMPONENT_RESOURCE_IDS).issubset(component_ids),
+        ),
+        _check(
+            "component_resource_registry_execution_plans",
+            "component_resource_registry",
+            "one execution plan per component row",
+            f"{manifest.get('n_execution_plan_rows', 0)}/{manifest.get('n_component_rows', 0)}",
+            int(manifest.get("n_component_rows", 0) or 0) > 0
+            and int(manifest.get("n_execution_plan_rows", 0) or 0)
+            == int(manifest.get("n_component_rows", 0) or 0)
+            and int(manifest.get("n_execution_plan_rows_ok", 0) or 0)
+            == int(manifest.get("n_execution_plan_rows", 0) or 0),
+        ),
+        _check(
+            "component_resource_registry_execution_plan_jsonl",
+            "component_resource_registry",
+            "execution-plan JSONL exists",
+            str(execution_plan_jsonl_path.exists()),
+            execution_plan_jsonl_path.exists(),
+        ),
+        _check(
+            "component_resource_registry_component_jsonl",
+            "component_resource_registry",
+            "component-row JSONL exists",
+            str(component_jsonl_path.exists()),
+            component_jsonl_path.exists(),
+        ),
+        _check(
+            "component_resource_registry_component_jsonl_parse",
+            "component_resource_registry",
+            "component-row JSONL parses into object rows",
+            "; ".join(component_jsonl_errors)
+            if component_jsonl_errors
+            else f"rows={len(component_rows)}",
+            not component_jsonl_errors,
+            errors=component_jsonl_errors,
+        ),
+        _check(
+            "component_resource_registry_component_jsonl_row_count",
+            "component_resource_registry",
+            "component-row JSONL rows match manifest count",
+            f"jsonl={len(component_rows)} manifest={manifest.get('n_component_rows', 0)}",
+            len(component_rows) == int(manifest.get("n_component_rows", 0) or 0),
+        ),
+        _check(
+            "component_resource_registry_resource_jsonl",
+            "component_resource_registry",
+            "resource-row JSONL exists",
+            str(resource_jsonl_path.exists()),
+            resource_jsonl_path.exists(),
+        ),
+        _check(
+            "component_resource_registry_resource_jsonl_parse",
+            "component_resource_registry",
+            "resource-row JSONL parses into object rows",
+            "; ".join(resource_jsonl_errors)
+            if resource_jsonl_errors
+            else f"rows={len(resource_rows)}",
+            not resource_jsonl_errors,
+            errors=resource_jsonl_errors,
+        ),
+        _check(
+            "component_resource_registry_resource_jsonl_row_count",
+            "component_resource_registry",
+            "resource-row JSONL rows match manifest count",
+            f"jsonl={len(resource_rows)} manifest={manifest.get('n_resources', 0)}",
+            len(resource_rows) == int(manifest.get("n_resources", 0) or 0),
+        ),
+        _check(
+            "component_resource_registry_contract_jsonl",
+            "component_resource_registry",
+            "resource-contract JSONL exists",
+            str(resource_contract_jsonl_path.exists()),
+            resource_contract_jsonl_path.exists(),
+        ),
+        _check(
+            "component_resource_registry_contract_jsonl_parse",
+            "component_resource_registry",
+            "resource-contract JSONL parses into object rows",
+            "; ".join(resource_contract_jsonl_errors)
+            if resource_contract_jsonl_errors
+            else f"rows={len(resource_contract_rows)}",
+            not resource_contract_jsonl_errors,
+            errors=resource_contract_jsonl_errors,
+        ),
+        _check(
+            "component_resource_registry_contract_jsonl_row_count",
+            "component_resource_registry",
+            "resource-contract JSONL rows match manifest count",
+            (
+                f"jsonl={len(resource_contract_rows)} "
+                f"manifest={manifest.get('n_resource_contract_rows', 0)}"
+            ),
+            len(resource_contract_rows)
+            == int(manifest.get("n_resource_contract_rows", 0) or 0),
+        ),
+        _check(
+            "component_resource_registry_execution_plan_jsonl_parse",
+            "component_resource_registry",
+            "execution-plan JSONL parses into object rows",
+            "; ".join(execution_plan_jsonl_errors)
+            if execution_plan_jsonl_errors
+            else f"rows={len(execution_plan_rows)}",
+            not execution_plan_jsonl_errors,
+            errors=execution_plan_jsonl_errors,
+        ),
+        _check(
+            "component_resource_registry_execution_plan_jsonl_row_count",
+            "component_resource_registry",
+            "execution-plan JSONL rows match manifest count",
+            f"jsonl={len(execution_plan_rows)} manifest={manifest.get('n_execution_plan_rows', 0)}",
+            len(execution_plan_rows)
+            == int(manifest.get("n_execution_plan_rows", 0) or 0),
+        ),
+        _check(
+            "component_resource_registry_frontier_floor",
+            "component_resource_registry",
+            "frontier resources present",
+            str(manifest.get("n_frontier_resources", 0)),
+            int(manifest.get("n_frontier_resources", 0) or 0) >= 10,
+        ),
+        _check(
+            "component_resource_registry_mcp_cli_floor",
+            "component_resource_registry",
+            "MCP/CLI resources present",
+            str(manifest.get("n_mcp_or_cli_resources", 0)),
+            int(manifest.get("n_mcp_or_cli_resources", 0) or 0) >= 5,
+        ),
+        _check(
+            "component_resource_registry_boundary",
+            "component_resource_registry",
+            "not theorem proof evidence",
+            str(manifest.get("proof_evidence_boundary", ""))[:120],
+            "not theorem proof evidence"
+            in str(manifest.get("proof_evidence_boundary", "")),
+        ),
+    ]
+    for idx, row in enumerate(component_rows):
+        schema_errors = validate_component_resource_registry_component_row(row)
+        checks.append(
+            _check(
+                f"component_resource_registry_component_row_{idx}_schema_valid",
+                "component_resource_registry",
+                "component JSONL row satisfies published schema",
+                "; ".join(schema_errors) if schema_errors else "ok",
+                not schema_errors,
+                errors=schema_errors,
+            )
+        )
+    for idx, row in enumerate(resource_rows):
+        schema_errors = validate_component_resource_registry_resource_row(row)
+        checks.append(
+            _check(
+                f"component_resource_registry_resource_row_{idx}_schema_valid",
+                "component_resource_registry",
+                "resource JSONL row satisfies published schema",
+                "; ".join(schema_errors) if schema_errors else "ok",
+                not schema_errors,
+                errors=schema_errors,
+            )
+        )
+    for idx, row in enumerate(resource_contract_rows):
+        schema_errors = validate_component_resource_contract_row(row)
+        checks.append(
+            _check(
+                f"component_resource_registry_contract_row_{idx}_schema_valid",
+                "component_resource_registry",
+                "resource contract JSONL row satisfies published schema",
+                "; ".join(schema_errors) if schema_errors else "ok",
+                not schema_errors,
+                errors=schema_errors,
+            )
+        )
+    for idx, row in enumerate(execution_plan_rows):
+        schema_errors = validate_component_resource_execution_plan_row(row)
+        checks.append(
+            _check(
+                f"component_resource_registry_execution_plan_row_{idx}_schema_valid",
+                "component_resource_registry",
+                "execution-plan JSONL row satisfies published schema",
+                "; ".join(schema_errors) if schema_errors else "ok",
+                not schema_errors,
+                errors=schema_errors,
+            )
+        )
+    return checks
+
+
+def _reproduction_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicationBundleAuditCheck]:
+    manifest_path = (
+        bundle_dir
+        / "reproduce"
+        / "formalization_gap_planner_reproduction_manifest.json"
+    )
+    report_path = (
+        bundle_dir / "reproduce" / "formalization_gap_planner_reproduction.md"
+    )
+    manifest = _read_json_no_error(manifest_path)
+    entrypoints = {
+        str(row.get("entrypoint", ""))
+        for row in manifest.get("entrypoints", [])
+        if isinstance(row, dict)
+    }
+    commands = {
+        str(row.get("name", "")): str(row.get("command", ""))
+        for row in manifest.get("commands", [])
+        if isinstance(row, dict)
+    }
+    optional_evaluation_truth_path = (
+        bundle_dir
+        / "artifacts"
+        / "formalization_gap_planner_evaluation"
+        / "formalization_gap_planner_evaluation_ground_truth.json"
+    )
+    expected_evaluation_truth = (
+        "<bundle_dir>/artifacts/formalization_gap_planner_evaluation/"
+        "formalization_gap_planner_evaluation_ground_truth.json"
+        if optional_evaluation_truth_path.exists()
+        else "<bundle_dir>/benchmark/formalization_gap_planner_ground_truth.json"
+    )
+    artifacts = set(_str_tuple(manifest.get("bundle_relative_artifacts", [])))
+    required_command_names = set(REQUIRED_REPRODUCTION_COMMANDS)
+    command_names = set(commands)
+    required_commands_ok = all(
+        name in commands and snippet in commands.get(name, "")
+        for name, snippet in REQUIRED_REPRODUCTION_COMMANDS.items()
+    )
+    refinement_command_names = {
+        "run_refinement_queue",
+        "run_refinement_adapter_responses",
+        "run_refinement_evidence",
+        "run_route_revision_overlay",
+        "run_route_stability_audit",
+        "run_route_replan_handoff",
+        "audit_route_replan_handoff",
+        "run_proof_state_triage",
+        "run_interactive_session",
+    }
+    local_adapter_command_names = {
+        "run_local_literature_adapter",
+        "run_local_formal_source_adapter",
+        "run_local_proof_state_adapter",
+    }
+    return [
+        _check(
+            "reproduction_manifest",
+            "reproduction",
+            "reproduction manifest exists",
+            str(manifest_path.exists()),
+            manifest_path.exists(),
+        ),
+        _check(
+            "reproduction_report",
+            "reproduction",
+            "reproduction markdown exists",
+            str(report_path.exists()),
+            report_path.exists(),
+        ),
+        _check(
+            "reproduction_component",
+            "reproduction",
+            "formalization_gap_planner_reproduction_manifest",
+            str(manifest.get("component_name", "")),
+            manifest.get("component_name")
+            == "formalization_gap_planner_reproduction_manifest",
+        ),
+        _check(
+            "reproduction_required_entrypoints",
+            "reproduction",
+            ",".join(REQUIRED_REPRODUCTION_ENTRYPOINTS),
+            ",".join(sorted(entrypoints)),
+            set(REQUIRED_REPRODUCTION_ENTRYPOINTS).issubset(entrypoints),
+        ),
+        _check(
+            "reproduction_commands_present",
+            "reproduction",
+            "all required reproduction commands",
+            str(len(commands)),
+            len(commands) >= len(REQUIRED_REPRODUCTION_COMMANDS)
+            and required_command_names.issubset(command_names),
+        ),
+        _check(
+            "reproduction_required_commands",
+            "reproduction",
+            ",".join(sorted(REQUIRED_REPRODUCTION_COMMANDS)),
+            ",".join(sorted(commands)),
+            required_commands_ok,
+        ),
+        _check(
+            "reproduction_bundle_audit_command",
+            "reproduction",
+            "publication-bundle-audit command present",
+            commands.get("audit_downloaded_bundle", ""),
+            "formalization-gap-planner-publication-bundle-audit"
+            in commands.get("audit_downloaded_bundle", ""),
+        ),
+        _check(
+            "reproduction_standalone_command",
+            "reproduction",
+            "standalone-plan command present",
+            commands.get("run_standalone_planner", ""),
+            "formalization-gap-planner-standalone-plan"
+            in commands.get("run_standalone_planner", ""),
+        ),
+        _check(
+            "reproduction_benchmark_audit_command",
+            "reproduction",
+            "benchmark-audit command present",
+            commands.get("audit_benchmark", ""),
+            "formalization-gap-planner-benchmark-audit"
+            in commands.get("audit_benchmark", ""),
+        ),
+        _check(
+            "reproduction_evaluation_command",
+            "reproduction",
+            "evaluation command present",
+            commands.get("run_evaluation", ""),
+            "formalization-gap-planner-evaluation"
+            in commands.get("run_evaluation", ""),
+        ),
+        _check(
+            "reproduction_evaluation_ground_truth_source",
+            "reproduction",
+            "evaluation command uses bundled evaluation truth when available",
+            commands.get("run_evaluation", ""),
+            expected_evaluation_truth in commands.get("run_evaluation", ""),
+        ),
+        _check(
+            "reproduction_target_intake_command",
+            "reproduction",
+            "target-intake command present",
+            commands.get("run_target_intake", ""),
+            "formalization-gap-planner-target-intake"
+            in commands.get("run_target_intake", ""),
+        ),
+        _check(
+            "reproduction_llm_route_planner_command",
+            "reproduction",
+            "initial LLM route planner consumes target-intake seed and component-resource registry context",
+            commands.get("run_llm_route_planner", ""),
+            "formalization-gap-planner-llm-route-planner"
+            in commands.get("run_llm_route_planner", "")
+            and "formalization_gap_planner_target_intake_standalone_seed.json"
+            in commands.get("run_llm_route_planner", "")
+            and "--formalization-gap-planner-component-resource-registry-dir"
+            in commands.get("run_llm_route_planner", "")
+            and "component_resource_registry"
+            in commands.get("run_llm_route_planner", ""),
+        ),
+        _check(
+            "reproduction_component_resource_registry_command",
+            "reproduction",
+            "component-resource-registry-audit command present",
+            commands.get("audit_component_resource_registry", ""),
+            "formalization-gap-planner-component-resource-registry-audit"
+            in commands.get("audit_component_resource_registry", ""),
+        ),
+        _check(
+            "reproduction_action_resource_plan_command",
+            "reproduction",
+            "action-resource-plan command consumes primitive queue and component registry",
+            commands.get("export_action_resource_plan", ""),
+            "formalization-gap-planner-action-resource-plan"
+            in commands.get("export_action_resource_plan", "")
+            and "formalization_gap_planner_primitive_action_queue"
+            in commands.get("export_action_resource_plan", "")
+            and "component_resource_registry"
+            in commands.get("export_action_resource_plan", ""),
+        ),
+        _check(
+            "reproduction_resource_request_queue_command",
+            "reproduction",
+            "resource-request-queue command consumes action-resource plan output",
+            commands.get("export_resource_request_queue", ""),
+            "formalization-gap-planner-resource-request-queue"
+            in commands.get("export_resource_request_queue", "")
+            and "formalization_gap_planner_action_resource_plan"
+            in commands.get("export_resource_request_queue", ""),
+        ),
+        _check(
+            "reproduction_resource_response_ledger_command",
+            "reproduction",
+            "resource-response-ledger command consumes resource request-queue output",
+            commands.get("export_resource_response_ledger", ""),
+            "formalization-gap-planner-resource-response-ledger"
+            in commands.get("export_resource_response_ledger", "")
+            and "formalization_gap_planner_resource_request_queue"
+            in commands.get("export_resource_response_ledger", ""),
+        ),
+        _check(
+            "reproduction_route_revision_overlay_consumes_resource_response_ledger",
+            "reproduction",
+            "route-revision overlay command consumes validated resource-response ledger feedback",
+            commands.get("run_route_revision_overlay", ""),
+            "formalization-gap-planner-route-revision-overlay"
+            in commands.get("run_route_revision_overlay", "")
+            and "--formalization-gap-planner-resource-response-ledger-dir"
+            in commands.get("run_route_revision_overlay", "")
+            and "formalization_gap_planner_resource_response_ledger"
+            in commands.get("run_route_revision_overlay", ""),
+        ),
+        _check(
+            "reproduction_refinement_loop_commands",
+            "reproduction",
+            ",".join(sorted(refinement_command_names)),
+            ",".join(sorted(command_names.intersection(refinement_command_names))),
+            refinement_command_names.issubset(command_names)
+            and all(
+                "formalization_gap_planner_refinement_queue"
+                in commands.get(name, "")
+                for name in (
+                    "run_refinement_adapter_responses",
+                    "run_refinement_evidence",
+                    "run_interactive_session",
+                )
+            ),
+        ),
+        _check(
+            "reproduction_route_replan_commands",
+            "reproduction",
+            "handoff, handoff audit, triage, and interactive-session handoff inputs",
+            " | ".join(
+                commands.get(name, "")
+                for name in (
+                    "run_route_replan_handoff",
+                    "audit_route_replan_handoff",
+                    "run_proof_state_triage",
+                    "run_interactive_session",
+                )
+            ),
+            "formalization_gap_planner_route_revision_overlay"
+            in commands.get("run_route_replan_handoff", "")
+            and "formalization_gap_planner_route_stability_audit"
+            in commands.get("run_route_replan_handoff", "")
+            and "formalization_gap_planner_route_replan_handoff"
+            in commands.get("audit_route_replan_handoff", "")
+            and "formalization_gap_planner_route_revision_overlay"
+            in commands.get("run_proof_state_triage", "")
+            and "formalization_gap_planner_route_replan_handoff"
+            in commands.get("run_interactive_session", "")
+            and "formalization_gap_planner_proof_state_triage"
+            in commands.get("run_interactive_session", ""),
+        ),
+        _check(
+            "reproduction_feedback_llm_route_planner_command",
+            "reproduction",
+            "feedback LLM route planner consumes route-replan seed and interactive-session context",
+            commands.get("run_feedback_llm_route_planner", ""),
+            "formalization-gap-planner-llm-route-planner"
+            in commands.get("run_feedback_llm_route_planner", "")
+            and "formalization_gap_planner_route_replan_handoff/"
+            in commands.get("run_feedback_llm_route_planner", "")
+            and "--formalization-gap-planner-interactive-session-dir"
+            in commands.get("run_feedback_llm_route_planner", "")
+            and "formalization_gap_planner_interactive_session"
+            in commands.get("run_feedback_llm_route_planner", "")
+            and "--formalization-gap-planner-route-revision-overlay-dir"
+            in commands.get("run_feedback_llm_route_planner", "")
+            and "--formalization-gap-planner-resource-response-ledger-dir"
+            in commands.get("run_feedback_llm_route_planner", "")
+            and "--formalization-gap-planner-component-resource-registry-dir"
+            in commands.get("run_feedback_llm_route_planner", "")
+            and "component_resource_registry"
+            in commands.get("run_feedback_llm_route_planner", ""),
+        ),
+        _check(
+            "reproduction_local_adapter_chain_commands",
+            "reproduction",
+            ",".join(sorted(local_adapter_command_names)),
+            ",".join(sorted(command_names.intersection(local_adapter_command_names))),
+            local_adapter_command_names.issubset(command_names)
+            and "formalization_gap_planner_refinement_adapter/"
+            in commands.get("run_local_literature_adapter", "")
+            and "formalization_gap_planner_local_literature_adapter/"
+            in commands.get("run_local_formal_source_adapter", "")
+            and "formalization_gap_planner_local_formal_source_adapter/"
+            in commands.get("run_local_proof_state_adapter", ""),
+        ),
+        _check(
+            "reproduction_local_feedback_to_evidence_command",
+            "reproduction",
+            "refinement-evidence consumes merged local proof-state responses",
+            commands.get("run_refinement_evidence", ""),
+            "formalization_gap_planner_local_proof_state_adapter/"
+            in commands.get("run_refinement_evidence", "")
+            and "formalization_gap_planner_refinement_evidence_responses.jsonl"
+            in commands.get("run_refinement_evidence", ""),
+        ),
+        _check(
+            "reproduction_contract_artifacts",
+            "reproduction",
+            "contract, adapter/component registries, and examples listed",
+            ",".join(sorted(artifacts)),
+            {
+                "contract/formalization_gap_planner_portable_contract.json",
+                "contract/formalization_gap_planner_standalone_input.schema.json",
+                "contract/formalization_gap_planner_prover_adapter_packet.schema.json",
+                "contract/formalization_gap_planner_prover_adapter_response_validation_row.schema.json",
+                "contract/formalization_gap_planner_refinement_work_item.schema.json",
+                "contract/formalization_gap_planner_refinement_tool_response.schema.json",
+                "contract/formalization_gap_planner_refinement_evidence_row.schema.json",
+                "contract/formalization_gap_planner_interactive_session_row.schema.json",
+                "contract/formalization_gap_planner_interactive_decision_policy_row.schema.json",
+                "contract/formalization_gap_planner_minimal_delta_decision_row.schema.json",
+                "contract/formalization_gap_planner_portable_plan_audit_row.schema.json",
+                "contract/formalization_gap_planner_library_coverage_map_row.schema.json",
+                "contract/formalization_gap_planner_primitive_action_queue_row.schema.json",
+                "contract/formalization_gap_planner_action_resource_plan_row.schema.json",
+                "contract/formalization_gap_planner_resource_request_queue_row.schema.json",
+                "contract/formalization_gap_planner_resource_response.schema.json",
+                "contract/formalization_gap_planner_resource_response_ledger_row.schema.json",
+                "contract/formalization_gap_planner_source_grounding_row.schema.json",
+                "contract/formalization_gap_planner_route_revision_overlay_row.schema.json",
+                "contract/formalization_gap_planner_route_stability_audit_row.schema.json",
+                "contract/formalization_gap_planner_route_replan_handoff_row.schema.json",
+                "contract/formalization_gap_planner_route_replan_handoff_audit_row.schema.json",
+                "contract/formalization_gap_planner_proof_state_triage_row.schema.json",
+                "contract/formalization_gap_planner_ablation_study_row.schema.json",
+                "contract/formalization_gap_planner_route_alignment_edge.schema.json",
+                "contract/formalization_gap_planner_benchmark_route.schema.json",
+                "contract/formalization_gap_planner_evaluation_row.schema.json",
+                "contract/formalization_gap_planner_adapter_registry_row.schema.json",
+                "contract/formalization_gap_planner_cross_prover_matrix_audit_row.schema.json",
+                "contract/formalization_gap_planner_component_resource_resource_row.schema.json",
+                "contract/formalization_gap_planner_component_resource_component_row.schema.json",
+                "contract/formalization_gap_planner_component_resource_execution_plan.schema.json",
+                "contract/formalization_gap_planner_component_resource_contract_row.schema.json",
+                "benchmark/formalization_gap_planner_benchmark_routes.jsonl",
+                "benchmark/formalization_gap_planner_benchmark_route.schema.json",
+                "benchmark_audit/formalization_gap_planner_benchmark_audit_manifest.json",
+                "adapter_registry/formalization_gap_planner_adapter_registry_manifest.json",
+                "adapter_registry/formalization_gap_planner_adapter_registry.jsonl",
+                "adapter_registry/formalization_gap_planner_adapter_registry_row.schema.json",
+                "component_resource_registry/formalization_gap_planner_component_resource_registry_manifest.json",
+                "component_resource_registry/formalization_gap_planner_component_resource_registry.jsonl",
+                "component_resource_registry/formalization_gap_planner_component_resource_resources.jsonl",
+                "component_resource_registry/formalization_gap_planner_component_resource_execution_plans.jsonl",
+                "component_resource_registry/formalization_gap_planner_component_resource_contracts.jsonl",
+                "component_resource_registry/formalization_gap_planner_component_resource_resource_row.schema.json",
+                "component_resource_registry/formalization_gap_planner_component_resource_component_row.schema.json",
+                "component_resource_registry/formalization_gap_planner_component_resource_execution_plan.schema.json",
+                "component_resource_registry/formalization_gap_planner_component_resource_contract_row.schema.json",
+                "examples/formalization_gap_planner_standalone_example.json",
+                "examples/formalization_gap_planner_target_intake_example.json",
+            }.issubset(artifacts),
+        ),
+        _check(
+            "reproduction_reuse_targets",
+            "reproduction",
+            ",".join(REQUIRED_REUSE_TARGETS),
+            ",".join(sorted(_str_tuple(manifest.get("portable_reuse_targets", [])))),
+            set(REQUIRED_REUSE_TARGETS).issubset(
+                set(_str_tuple(manifest.get("portable_reuse_targets", [])))
+            ),
+        ),
+        _check(
+            "reproduction_boundary",
+            "proof_boundary",
+            "not theorem proof evidence",
+            str(manifest.get("proof_evidence_boundary", ""))[:160],
+            "not theorem proof evidence"
+            in str(manifest.get("proof_evidence_boundary", "")),
+        ),
+    ]
+
+
+def _example_input_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicationBundleAuditCheck]:
+    standalone_path = bundle_dir / "examples" / "formalization_gap_planner_standalone_example.json"
+    target_intake_path = (
+        bundle_dir / "examples" / "formalization_gap_planner_target_intake_example.json"
+    )
+    standalone_payload = _read_json_no_error(standalone_path)
+    standalone_errors = validate_standalone_input_payload(standalone_payload)
+    try:
+        target_payload = normalize_formalization_gap_planner_target_intake(
+            target_intake_path,
+            None,
+        )
+        target_errors = tuple(str(error) for error in target_payload.get("errors", []))
+        target_ok = bool(target_payload.get("all_ok", False))
+    except Exception as exc:  # pragma: no cover - defensive audit surface
+        target_errors = (f"{type(exc).__name__}: {exc}",)
+        target_ok = False
+    return [
+        _check(
+            "standalone_example_exists",
+            "examples",
+            "standalone example exists",
+            str(standalone_path.exists()),
+            standalone_path.exists(),
+        ),
+        _check(
+            "standalone_example_valid",
+            "examples",
+            "validate_standalone_input_payload has no errors",
+            "; ".join(standalone_errors),
+            not standalone_errors,
+        ),
+        _check(
+            "target_intake_example_exists",
+            "examples",
+            "target-intake example exists",
+            str(target_intake_path.exists()),
+            target_intake_path.exists(),
+        ),
+        _check(
+            "target_intake_example_normalizes",
+            "examples",
+            "target-intake example normalizes all_ok",
+            "; ".join(target_errors),
+            target_ok,
+        ),
+    ]
+
+
+def _doc_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicationBundleAuditCheck]:
+    checks = []
+    for filename in REQUIRED_DOCS:
+        path = bundle_dir / "docs" / filename
+        checks.append(
+            _check(
+                "doc_" + filename.replace(".", "_"),
+                "docs",
+                "doc exists",
+                str(path.exists()),
+                path.exists(),
+            )
+        )
+    return checks
+
+
+def _optional_artifact_checks(
+    bundle_dir: Path,
+    manifest: dict[str, Any],
+) -> list[FormalizationGapPlannerPublicationBundleAuditCheck]:
+    checks = []
+    for artifact in manifest.get("optional_artifacts", []):
+        if not isinstance(artifact, dict) or not artifact.get("requested"):
+            continue
+        copied_files = _str_tuple(artifact.get("copied_files", []))
+        missing_files = _str_tuple(artifact.get("missing_files", []))
+        files_exist = all(Path(path).exists() for path in copied_files)
+        inside_bundle = all(_is_inside(Path(path), bundle_dir) for path in copied_files)
+        checks.append(
+            _check(
+                "optional_" + str(artifact.get("artifact_name", "")),
+                "optional_artifacts",
+                "requested artifact files copied inside bundle",
+                f"copied={len(copied_files)} missing={len(missing_files)}",
+                bool(copied_files)
+                and not missing_files
+                and files_exist
+                and inside_bundle
+                and bool(artifact.get("ok", False)),
+            )
+        )
+        artifact_name = str(artifact.get("artifact_name", ""))
+        if artifact_name == "formalization_gap_planner_target_intake":
+            checks.extend(_target_intake_optional_checks(bundle_dir))
+        if artifact_name == "formalization_gap_planner_llm_route_planner":
+            checks.extend(
+                _llm_route_planner_optional_checks(
+                    bundle_dir,
+                    artifact_name="formalization_gap_planner_llm_route_planner",
+                    check_prefix="optional_llm_route_planner",
+                )
+            )
+        if artifact_name == "formalization_gap_planner_feedback_llm_route_planner":
+            checks.extend(
+                _llm_route_planner_optional_checks(
+                    bundle_dir,
+                    artifact_name="formalization_gap_planner_feedback_llm_route_planner",
+                    check_prefix="optional_feedback_llm_route_planner",
+                )
+            )
+        if artifact_name == "goal_conditioned_minimal_formalization_plan":
+            checks.extend(_goal_conditioned_plan_optional_checks(bundle_dir))
+        if artifact_name == "formalization_gap_planner_route_replan_handoff":
+            checks.extend(_route_replan_handoff_optional_checks(bundle_dir))
+        if artifact_name == "formalization_gap_planner_route_replan_handoff_audit":
+            checks.extend(_route_replan_handoff_audit_optional_checks(bundle_dir))
+        if artifact_name == "formalization_gap_planner_runtime_handoff_audit":
+            checks.extend(_runtime_handoff_audit_optional_checks(bundle_dir))
+        if artifact_name == "formalization_gap_planner_cross_prover_matrix_audit":
+            checks.extend(_cross_prover_matrix_optional_checks(bundle_dir))
+        if artifact_name == "formalization_gap_planner_adapter_registry_audit":
+            checks.extend(
+                _generic_audit_optional_checks(
+                    bundle_dir,
+                    artifact_name="formalization_gap_planner_adapter_registry_audit",
+                    manifest_filename=(
+                        "formalization_gap_planner_adapter_registry_audit_manifest.json"
+                    ),
+                    jsonl_filename="formalization_gap_planner_adapter_registry_audit.jsonl",
+                    check_prefix="optional_adapter_registry_audit_check",
+                )
+            )
+        if artifact_name == "formalization_gap_planner_component_resource_registry_audit":
+            checks.extend(
+                _generic_audit_optional_checks(
+                    bundle_dir,
+                    artifact_name=(
+                        "formalization_gap_planner_component_resource_registry_audit"
+                    ),
+                    manifest_filename=(
+                        "formalization_gap_planner_component_resource_registry_audit_manifest.json"
+                    ),
+                    jsonl_filename=(
+                        "formalization_gap_planner_component_resource_registry_audit.jsonl"
+                    ),
+                    check_prefix="optional_component_resource_registry_audit_check",
+                )
+            )
+        if artifact_name == "formalization_gap_planner_prover_adapter_contract":
+            checks.extend(_prover_adapter_contract_optional_checks(bundle_dir))
+        if artifact_name == "formalization_gap_planner_evaluation":
+            checks.extend(_evaluation_optional_checks(bundle_dir))
+        if artifact_name == "formalization_gap_planner_interactive_session":
+            checks.extend(_interactive_session_optional_checks(bundle_dir))
+        if artifact_name == "formalization_gap_planner_refinement_evidence":
+            checks.extend(_refinement_evidence_optional_checks(bundle_dir))
+        if artifact_name == "formalization_gap_planner_refinement_queue":
+            checks.extend(_refinement_queue_optional_checks(bundle_dir))
+        if artifact_name == "formalization_gap_planner_minimal_delta_audit":
+            checks.extend(_minimal_delta_audit_optional_checks(bundle_dir))
+        if artifact_name == "formalization_gap_planner_source_grounding_audit":
+            checks.extend(_source_grounding_audit_optional_checks(bundle_dir))
+        if artifact_name == "formalization_gap_planner_refinement_adapter":
+            checks.extend(_refinement_adapter_optional_checks(bundle_dir))
+        if artifact_name in {
+            "formalization_gap_planner_local_literature_adapter",
+            "formalization_gap_planner_local_formal_source_adapter",
+            "formalization_gap_planner_local_proof_state_adapter",
+        }:
+            checks.extend(_local_adapter_optional_checks(bundle_dir, artifact_name))
+        if artifact_name == "formalization_gap_planner_route_stability_audit":
+            checks.extend(_route_stability_audit_optional_checks(bundle_dir))
+        if artifact_name == "formalization_gap_planner_route_revision_overlay":
+            checks.extend(_route_revision_overlay_optional_checks(bundle_dir))
+        if artifact_name == "formalization_gap_planner_proof_state_triage":
+            checks.extend(_proof_state_triage_optional_checks(bundle_dir))
+        if artifact_name == "formalization_gap_planner_ablation_study":
+            checks.extend(_ablation_study_optional_checks(bundle_dir))
+        if artifact_name == "formalization_gap_planner_portable_plan_audit":
+            checks.extend(_portable_plan_audit_optional_checks(bundle_dir))
+        if artifact_name == "formalization_gap_planner_library_coverage_map":
+            checks.extend(_library_coverage_map_optional_checks(bundle_dir))
+        if artifact_name == "formalization_gap_planner_primitive_action_queue":
+            checks.extend(_primitive_action_queue_optional_checks(bundle_dir))
+        if artifact_name == "formalization_gap_planner_action_resource_plan":
+            checks.extend(_action_resource_plan_optional_checks(bundle_dir))
+        if artifact_name == "formalization_gap_planner_resource_request_queue":
+            checks.extend(_resource_request_queue_optional_checks(bundle_dir))
+        if artifact_name == "formalization_gap_planner_resource_response_ledger":
+            checks.extend(_resource_response_ledger_optional_checks(bundle_dir))
+    return checks
+
+
+def _target_intake_optional_checks(
+    bundle_dir: Path,
+) -> list[FormalizationGapPlannerPublicationBundleAuditCheck]:
+    artifact_dir = bundle_dir / "artifacts" / "formalization_gap_planner_target_intake"
+    manifest_path = artifact_dir / "formalization_gap_planner_target_intake_manifest.json"
+    rows_jsonl_path = artifact_dir / "formalization_gap_planner_target_intake.jsonl"
+    standalone_seed_path = (
+        artifact_dir / "formalization_gap_planner_target_intake_standalone_seed.json"
+    )
+    schema_path = artifact_dir / "formalization_gap_planner_target_intake.schema.json"
+    row_schema_path = (
+        artifact_dir / "formalization_gap_planner_target_intake_row.schema.json"
+    )
+    manifest = _read_json_no_error(manifest_path)
+    input_schema = _read_json_no_error(schema_path)
+    row_schema = _read_json_no_error(row_schema_path)
+    seed_payload = _read_json_no_error(standalone_seed_path)
+    rows, row_errors = _read_jsonl_dict_rows_no_error(rows_jsonl_path)
+    seed_errors = validate_standalone_input_payload(seed_payload)
+    checks = [
+        _check(
+            "optional_target_intake_all_ok",
+            "optional_artifacts",
+            "target-intake manifest all_ok",
+            str(manifest.get("all_ok", "")),
+            bool(manifest.get("all_ok", False)),
+        ),
+        _check(
+            "optional_target_intake_component",
+            "optional_artifacts",
+            "formalization_gap_planner_target_intake",
+            str(manifest.get("component_name", "")),
+            manifest.get("component_name") == "formalization_gap_planner_target_intake",
+        ),
+        _check(
+            "optional_target_intake_boundary",
+            "optional_artifacts",
+            "not theorem proof evidence",
+            str(manifest.get("proof_evidence_boundary", ""))[:160],
+            "not theorem proof evidence"
+            in str(manifest.get("proof_evidence_boundary", "")).lower(),
+        ),
+        _check(
+            "optional_target_intake_schema_file",
+            "optional_artifacts",
+            "optional target-intake input schema exists",
+            str(schema_path.exists()),
+            schema_path.exists(),
+        ),
+        _check(
+            "optional_target_intake_schema_id",
+            "optional_artifacts",
+            FORMALIZATION_GAP_PLANNER_TARGET_INTAKE_SCHEMA_ID,
+            str(input_schema.get("$id", "")),
+            input_schema.get("$id") == FORMALIZATION_GAP_PLANNER_TARGET_INTAKE_SCHEMA_ID,
+        ),
+        _check(
+            "optional_target_intake_row_schema_file",
+            "optional_artifacts",
+            "optional target-intake row schema exists",
+            str(row_schema_path.exists()),
+            row_schema_path.exists(),
+        ),
+        _check(
+            "optional_target_intake_row_schema_id",
+            "optional_artifacts",
+            FORMALIZATION_GAP_PLANNER_TARGET_INTAKE_ROW_SCHEMA_ID,
+            str(row_schema.get("$id", "")),
+            row_schema.get("$id")
+            == FORMALIZATION_GAP_PLANNER_TARGET_INTAKE_ROW_SCHEMA_ID,
+        ),
+        _check(
+            "optional_target_intake_jsonl_parse",
+            "optional_artifacts",
+            "target-intake JSONL parses into object rows",
+            "; ".join(row_errors) if row_errors else f"rows={len(rows)}",
+            not row_errors,
+            errors=row_errors,
+        ),
+        _check(
+            "optional_target_intake_jsonl_row_count",
+            "optional_artifacts",
+            "target-intake JSONL rows match manifest target count",
+            f"jsonl={len(rows)} manifest={manifest.get('n_targets', 0)}",
+            len(rows) == int(manifest.get("n_targets", 0) or 0),
+        ),
+        _check(
+            "optional_target_intake_standalone_seed_contract",
+            "optional_artifacts",
+            "standalone seed validates against public standalone-input contract",
+            "; ".join(seed_errors) if seed_errors else "ok",
+            not seed_errors,
+            errors=tuple(seed_errors),
+        ),
+    ]
+    for idx, row in enumerate(rows):
+        row_schema_errors = validate_target_intake_row(row, row_schema)
+        checks.append(
+            _check(
+                f"optional_target_intake_row_{idx}_schema_valid",
+                "optional_artifacts",
+                "target-intake row validates against public row schema",
+                "; ".join(row_schema_errors) if row_schema_errors else "ok",
+                not row_schema_errors,
+                errors=tuple(row_schema_errors),
+            )
+        )
+        contract_errors = _target_intake_row_contract_errors(row)
+        checks.append(
+            _check(
+                f"optional_target_intake_row_{idx}_contract_valid",
+                "optional_artifacts",
+                "target-intake row preserves public output contract",
+                "; ".join(contract_errors) if contract_errors else "ok",
+                not contract_errors,
+                errors=contract_errors,
+            )
+        )
+    return checks
+
+
+def _llm_route_planner_optional_checks(
+    bundle_dir: Path,
+    *,
+    artifact_name: str = "formalization_gap_planner_llm_route_planner",
+    check_prefix: str = "optional_llm_route_planner",
+) -> list[FormalizationGapPlannerPublicationBundleAuditCheck]:
+    artifact_dir = bundle_dir / "artifacts" / artifact_name
+    manifest_path = (
+        artifact_dir / "formalization_gap_planner_llm_route_planner_manifest.json"
+    )
+    requests_jsonl_path = (
+        artifact_dir / "formalization_gap_planner_llm_route_planner_requests.jsonl"
+    )
+    rows_jsonl_path = artifact_dir / "formalization_gap_planner_llm_route_planner.jsonl"
+    request_schema_path = (
+        artifact_dir / "formalization_gap_planner_llm_route_planner_request.schema.json"
+    )
+    response_schema_path = (
+        artifact_dir / "formalization_gap_planner_llm_route_planner_response.schema.json"
+    )
+    row_schema_path = (
+        artifact_dir / "formalization_gap_planner_llm_route_planner_row.schema.json"
+    )
+    standalone_seed_path = (
+        artifact_dir
+        / "formalization_gap_planner_llm_route_planner_standalone_seed.json"
+    )
+    manifest = _read_json_no_error(manifest_path)
+    request_schema = _read_json_no_error(request_schema_path)
+    response_schema = _read_json_no_error(response_schema_path)
+    row_schema = _read_json_no_error(row_schema_path)
+    seed_payload = _read_json_no_error(standalone_seed_path)
+    requests, request_errors = _read_jsonl_dict_rows_no_error(requests_jsonl_path)
+    rows, row_errors = _read_jsonl_dict_rows_no_error(rows_jsonl_path)
+    seed_errors = validate_standalone_input_payload(seed_payload)
+    checks = [
+        _check(
+            f"{check_prefix}_all_ok",
+            "optional_artifacts",
+            "LLM route-planner manifest all_ok",
+            str(manifest.get("all_ok", "")),
+            bool(manifest.get("all_ok", False)),
+        ),
+        _check(
+            f"{check_prefix}_component",
+            "optional_artifacts",
+            "formalization_gap_planner_llm_route_planner",
+            str(manifest.get("component_name", "")),
+            manifest.get("component_name")
+            == "formalization_gap_planner_llm_route_planner",
+        ),
+        _check(
+            f"{check_prefix}_boundary",
+            "optional_artifacts",
+            "not theorem proof evidence",
+            str(manifest.get("proof_evidence_boundary", ""))[:160],
+            "not theorem proof evidence"
+            in str(manifest.get("proof_evidence_boundary", "")).lower(),
+        ),
+        _check(
+            f"{check_prefix}_request_schema_file",
+            "optional_artifacts",
+            "LLM route-planner request schema exists",
+            str(request_schema_path.exists()),
+            request_schema_path.exists(),
+        ),
+        _check(
+            f"{check_prefix}_request_schema_id",
+            "optional_artifacts",
+            LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID,
+            str(request_schema.get("$id", "")),
+            request_schema.get("$id") == LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID,
+        ),
+        _check(
+            f"{check_prefix}_response_schema_file",
+            "optional_artifacts",
+            "LLM route-planner response schema exists",
+            str(response_schema_path.exists()),
+            response_schema_path.exists(),
+        ),
+        _check(
+            f"{check_prefix}_response_schema_id",
+            "optional_artifacts",
+            LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID,
+            str(response_schema.get("$id", "")),
+            response_schema.get("$id") == LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID,
+        ),
+        _check(
+            f"{check_prefix}_response_schema_rejects_kernel_claim",
+            "optional_artifacts",
+            "kernel_verified const false",
+            json.dumps(
+                response_schema.get("properties", {}).get("kernel_verified", {}),
+                sort_keys=True,
+            ),
+            response_schema.get("properties", {})
+            .get("kernel_verified", {})
+            .get("const")
+            is False,
+        ),
+        _check(
+            f"{check_prefix}_row_schema_file",
+            "optional_artifacts",
+            "LLM route-planner row schema exists",
+            str(row_schema_path.exists()),
+            row_schema_path.exists(),
+        ),
+        _check(
+            f"{check_prefix}_row_schema_id",
+            "optional_artifacts",
+            LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
+            str(row_schema.get("$id", "")),
+            row_schema.get("$id") == LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
+        ),
+        _check(
+            f"{check_prefix}_realization_coverage_witness_schema",
+            "optional_artifacts",
+            "LLM row schema publishes structured realization_coverage_witness",
+            _llm_realization_witness_schema_observed(row_schema),
+            not _llm_realization_witness_schema_errors(row_schema),
+            errors=_llm_realization_witness_schema_errors(row_schema),
+        ),
+        _check(
+            f"{check_prefix}_requests_parse",
+            "optional_artifacts",
+            "LLM route-planner requests JSONL parses into object rows",
+            "; ".join(request_errors) if request_errors else f"rows={len(requests)}",
+            not request_errors,
+            errors=request_errors,
+        ),
+        _check(
+            f"{check_prefix}_rows_parse",
+            "optional_artifacts",
+            "LLM route-planner rows JSONL parses into object rows",
+            "; ".join(row_errors) if row_errors else f"rows={len(rows)}",
+            not row_errors,
+            errors=row_errors,
+        ),
+        _check(
+            f"{check_prefix}_request_count",
+            "optional_artifacts",
+            "LLM route-planner requests match manifest count",
+            f"jsonl={len(requests)} manifest={manifest.get('n_request_packets', 0)}",
+            len(requests) == int(manifest.get("n_request_packets", 0) or 0),
+        ),
+        _check(
+            f"{check_prefix}_row_count",
+            "optional_artifacts",
+            "LLM route-planner rows match manifest count",
+            f"jsonl={len(rows)} manifest={manifest.get('n_rows', 0)}",
+            len(rows) == int(manifest.get("n_rows", 0) or 0),
+        ),
+        _check(
+            f"{check_prefix}_standalone_seed_contract",
+            "optional_artifacts",
+            "LLM route-planner standalone seed validates against standalone contract",
+            "; ".join(seed_errors) if seed_errors else "ok",
+            not seed_errors,
+            errors=tuple(seed_errors),
+        ),
+        _check(
+            f"{check_prefix}_generic_formal_dag_fields",
+            "optional_artifacts",
+            "accepted LLM route-planner rows and standalone seed publish prover-neutral formal-realization DAG fields",
+            _llm_generic_formal_dag_observed(rows, seed_payload, manifest),
+            not _llm_generic_formal_dag_errors(rows, seed_payload, manifest),
+            errors=_llm_generic_formal_dag_errors(rows, seed_payload, manifest),
+        ),
+    ]
+    for idx, request in enumerate(requests):
+        schema_errors = validate_llm_route_planner_request(request, request_schema)
+        checks.append(
+            _check(
+                f"{check_prefix}_request_{idx}_schema_valid",
+                "optional_artifacts",
+                "LLM route-planner request validates against public request schema",
+                "; ".join(schema_errors) if schema_errors else "ok",
+                not schema_errors,
+                errors=tuple(schema_errors),
+            )
+        )
+        registry_errors = _llm_request_registry_context_errors(request)
+        checks.append(
+            _check(
+                f"{check_prefix}_request_{idx}_registry_context",
+                "optional_artifacts",
+                "LLM route-planner request carries bounded component-resource registry context",
+                _llm_request_registry_context_observed(request),
+                not registry_errors,
+                errors=registry_errors,
+            )
+        )
+    for idx, row in enumerate(rows):
+        schema_errors = validate_llm_route_planner_row(row, row_schema)
+        checks.append(
+            _check(
+                f"{check_prefix}_row_{idx}_schema_valid",
+                "optional_artifacts",
+                "LLM route-planner row validates against public row schema",
+                "; ".join(schema_errors) if schema_errors else "ok",
+                not schema_errors,
+                errors=tuple(schema_errors),
+            )
+        )
+        if _llm_route_planner_row_accepted(row):
+            request = _llm_request_for_row(requests, row)
+            evidence_errors = _llm_row_request_evidence_errors(row, request)
+            checks.append(
+                _check(
+                    f"{check_prefix}_row_{idx}_request_evidence_bound",
+                    "optional_artifacts",
+                    "accepted LLM row source refs, declarations, and residuals are bounded by the request packet",
+                    _llm_row_request_evidence_observed(row, request),
+                    not evidence_errors,
+                    errors=evidence_errors,
+                )
+            )
+            seed_route = _llm_seed_route_for_row(seed_payload, row)
+            provenance_errors = _llm_seed_provenance_errors(row, seed_route)
+            checks.append(
+                _check(
+                    f"{check_prefix}_row_{idx}_seed_provenance",
+                    "optional_artifacts",
+                    "accepted LLM row provenance is preserved in standalone seed route metadata",
+                    _llm_seed_provenance_observed(row, seed_route),
+                    not provenance_errors,
+                    errors=provenance_errors,
+                )
+            )
+            witness_errors = _llm_seed_realization_witness_errors(row, seed_route)
+            checks.append(
+                _check(
+                    f"{check_prefix}_row_{idx}_seed_realization_witness_preservation",
+                    "optional_artifacts",
+                    "accepted LLM row realization coverage witness is preserved in standalone seed",
+                    _llm_seed_realization_witness_observed(row, seed_route),
+                    not witness_errors,
+                    errors=witness_errors,
+                )
+            )
+            alignment_errors = _llm_seed_alignment_errors(row, seed_route)
+            checks.append(
+                _check(
+                    f"{check_prefix}_row_{idx}_seed_alignment_preservation",
+                    "optional_artifacts",
+                    "accepted LLM row alignment edges are normalized and preserved in standalone seed",
+                    _llm_seed_alignment_observed(row, seed_route),
+                    not alignment_errors,
+                    errors=alignment_errors,
+                )
+            )
+            dag_errors = _llm_seed_dag_errors(row, seed_route)
+            checks.append(
+                _check(
+                    f"{check_prefix}_row_{idx}_seed_dag_preservation",
+                    "optional_artifacts",
+                    "accepted LLM row informal and formal-realization DAG nodes are preserved in standalone seed",
+                    _llm_seed_dag_observed(row, seed_route),
+                    not dag_errors,
+                    errors=dag_errors,
+                )
+            )
+    return checks
+
+
+def _llm_request_registry_context_errors(request: dict[str, Any]) -> tuple[str, ...]:
+    errors: list[str] = []
+    context = _dict_value(request, "context_packet")
+    registry_context = _dict_value(context, "component_resource_registry_context")
+    if not registry_context:
+        return ("component_resource_registry_context missing",)
+    component_rows = _dict_tuple(registry_context.get("component_rows", []))
+    resource_rows = _dict_tuple(registry_context.get("resource_rows", []))
+    contract_rows = _dict_tuple(registry_context.get("resource_contract_rows", []))
+    execution_plan_rows = _dict_tuple(registry_context.get("execution_plan_rows", []))
+    if not component_rows:
+        errors.append("component_resource_registry_context.component_rows empty")
+    if not resource_rows:
+        errors.append("component_resource_registry_context.resource_rows empty")
+    if not contract_rows:
+        errors.append("component_resource_registry_context.resource_contract_rows empty")
+    if not execution_plan_rows:
+        errors.append("component_resource_registry_context.execution_plan_rows empty")
+    if "not theorem proof evidence" not in str(
+        registry_context.get("proof_evidence_boundary", "")
+    ).lower():
+        errors.append("component_resource_registry_context proof boundary missing")
+    if len(component_rows) > 25:
+        errors.append("component_resource_registry_context.component_rows unbounded")
+    if len(resource_rows) > 50:
+        errors.append("component_resource_registry_context.resource_rows unbounded")
+    if len(contract_rows) > 50:
+        errors.append("component_resource_registry_context.resource_contract_rows unbounded")
+    if len(execution_plan_rows) > 25:
+        errors.append("component_resource_registry_context.execution_plan_rows unbounded")
+    resource_ids = {
+        str(row.get("resource_id", "")).strip()
+        for row in resource_rows
+        if str(row.get("resource_id", "")).strip()
+    }
+    contract_resource_ids = {
+        str(row.get("resource_id", "")).strip()
+        for row in contract_rows
+        if str(row.get("resource_id", "")).strip()
+    }
+    missing_contracts = sorted(resource_ids - contract_resource_ids)
+    if missing_contracts:
+        errors.append(
+            "component_resource_registry_context resources missing contracts: "
+            + ",".join(missing_contracts[:8])
+        )
+    component_ids = {
+        str(row.get("component_id", "")).strip()
+        for row in component_rows
+        if str(row.get("component_id", "")).strip()
+    }
+    expected_components = {
+        "literature_grounded_route_synthesis",
+        "formal_library_coverage_mapping",
+        "minimal_delta_and_or_planning",
+        "prover_feedback_refinement",
+    }
+    missing_components = sorted(expected_components - component_ids)
+    if missing_components:
+        errors.append(
+            "component_resource_registry_context missing planner components: "
+            + ",".join(missing_components)
+        )
+    prompt_user = _dict_value(request, "prompt_messages").get("user", "")
+    if "component_resource_registry_context" not in str(prompt_user):
+        errors.append("prompt does not expose component_resource_registry_context")
+    if "registry rows are not evidence" not in str(prompt_user):
+        errors.append("prompt does not preserve registry non-evidence boundary")
+    return tuple(errors)
+
+
+def _llm_request_registry_context_observed(request: dict[str, Any]) -> str:
+    context = _dict_value(request, "context_packet")
+    registry_context = _dict_value(context, "component_resource_registry_context")
+    component_rows = _dict_tuple(registry_context.get("component_rows", []))
+    resource_rows = _dict_tuple(registry_context.get("resource_rows", []))
+    contract_rows = _dict_tuple(registry_context.get("resource_contract_rows", []))
+    execution_plan_rows = _dict_tuple(registry_context.get("execution_plan_rows", []))
+    return (
+        f"components={len(component_rows)}; "
+        f"resources={len(resource_rows)}; "
+        f"contracts={len(contract_rows)}; "
+        f"execution_plans={len(execution_plan_rows)}"
+    )
+
+
+def _llm_route_planner_row_accepted(row: dict[str, Any]) -> bool:
+    return (
+        bool(row.get("response_contract_ok"))
+        and str(row.get("acceptance_status", "")).startswith("ACCEPTED_")
+        and isinstance(row.get("standalone_route", {}), dict)
+        and bool(row.get("standalone_route", {}))
+    )
+
+
+def _llm_request_for_row(
+    requests: list[dict[str, Any]],
+    row: dict[str, Any],
+) -> dict[str, Any]:
+    request_id = str(row.get("request_id", ""))
+    for request in requests:
+        if str(request.get("request_id", "")) == request_id:
+            return request
+    route_id = str(row.get("route_id", ""))
+    for request in requests:
+        if str(request.get("route_id", "")) == route_id:
+            return request
+    return {}
+
+
+def _llm_row_request_evidence_errors(
+    row: dict[str, Any],
+    request: dict[str, Any],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    if not request:
+        return ("matching request packet missing",)
+    available_sources = _llm_available_source_keys(request)
+    row_sources = _llm_row_source_keys(row)
+    missing_sources = sorted(row_sources - available_sources)
+    if missing_sources:
+        errors.append(
+            "row source_refs not present in request available_source_refs: "
+            + ",".join(missing_sources[:8])
+        )
+    available_declarations = _llm_available_declaration_keys(request)
+    row_declarations = _llm_row_candidate_declaration_keys(row)
+    missing_declarations = sorted(row_declarations - available_declarations)
+    if missing_declarations:
+        errors.append(
+            "row candidate_declarations not present in request available_formal_declarations: "
+            + ",".join(missing_declarations[:8])
+        )
+    request_residuals = _llm_request_residual_keys(request)
+    row_residuals = _llm_row_residual_keys(row)
+    if row_residuals and not request_residuals:
+        errors.append("row residual_interpretations present but request residual_goals empty")
+    invented_residuals = sorted(row_residuals - request_residuals)
+    if invented_residuals:
+        errors.append(
+            "row residual_interpretations not present in request residual_goals: "
+            + "; ".join(invented_residuals[:8])
+        )
+    missing_residuals = sorted(request_residuals - row_residuals)
+    if request_residuals and missing_residuals:
+        errors.append(
+            "row residual_interpretations missing request residual_goals: "
+            + "; ".join(missing_residuals[:8])
+        )
+    errors.extend(_llm_row_residual_source_grounding_errors(row))
+    errors.extend(_llm_row_search_request_contract_errors(row))
+    errors.extend(_llm_row_planner_next_action_contract_errors(row))
+    errors.extend(_llm_row_source_search_obligation_errors(row))
+    errors.extend(_llm_row_formal_search_obligation_errors(row))
+    errors.extend(_llm_row_minimal_delta_cost_errors(row))
+    errors.extend(_llm_row_alignment_reference_errors(row))
+    errors.extend(_llm_row_primitive_evidence_errors(row, request))
+    return tuple(errors)
+
+
+def _llm_row_request_evidence_observed(
+    row: dict[str, Any],
+    request: dict[str, Any],
+) -> str:
+    if not request:
+        return "matching_request=false"
+    available_sources = _llm_available_source_keys(request)
+    row_sources = _llm_row_source_keys(row)
+    available_declarations = _llm_available_declaration_keys(request)
+    row_declarations = _llm_row_candidate_declaration_keys(row)
+    request_residuals = _llm_request_residual_keys(request)
+    row_residuals = _llm_row_residual_keys(row)
+    available_primitives = _llm_available_primitive_keys(request)
+    row_primitives = _llm_row_selected_delta_primitive_keys(row)
+    return (
+        "matching_request=true; "
+        f"source_refs={len(row_sources - available_sources)}_missing/{len(row_sources)}; "
+        f"candidate_declarations={len(row_declarations - available_declarations)}_missing/{len(row_declarations)}; "
+        f"residuals={len(row_residuals.intersection(request_residuals))}/{len(request_residuals)}; "
+        f"introduced_primitives={len(row_primitives - available_primitives)}/{len(row_primitives)}"
+    )
+
+
+def _llm_row_residual_source_grounding_errors(row: dict[str, Any]) -> tuple[str, ...]:
+    errors: list[str] = []
+    search_requests = _dict_tuple(row.get("search_requests", []))
+    for index, interpretation in enumerate(
+        _dict_tuple(row.get("residual_interpretations", []))
+    ):
+        has_repair = bool(
+            str(interpretation.get("route_repair", "")).strip()
+            or str(interpretation.get("repair_action", "")).strip()
+        )
+        if not has_repair:
+            continue
+        if _llm_residual_interpretation_has_source_refs(interpretation):
+            continue
+        if _llm_residual_interpretation_has_formal_boundary(interpretation):
+            continue
+        if _llm_has_literature_search_request_for_residual_interpretation(
+            search_requests,
+            interpretation=interpretation,
+        ):
+            continue
+        errors.append(
+            "row residual_interpretations"
+            f"[{index}] route repair requires source_refs/source_snippets, "
+            "a matching literature/source search_request, or formal_gap_boundary"
+        )
+    return tuple(errors)
+
+
+def _llm_residual_interpretation_has_source_refs(
+    interpretation: dict[str, object],
+) -> bool:
+    refs = list(_str_tuple(interpretation.get("source_refs", [])))
+    for snippet in _dict_tuple(interpretation.get("source_snippets", [])):
+        refs.extend(_llm_source_ref_values(snippet))
+    return bool(_str_tuple(refs))
+
+
+def _llm_residual_interpretation_has_formal_boundary(
+    interpretation: dict[str, object],
+) -> bool:
+    if str(interpretation.get("formal_gap_boundary", "")).strip():
+        return True
+    return _llm_source_ref_key(interpretation.get("source_search_status", "")) in {
+        "formal_gap_boundary",
+        "formal_boundary_declared",
+    }
+
+
+def _llm_has_literature_search_request_for_residual_interpretation(
+    search_requests: tuple[dict[str, object], ...],
+    *,
+    interpretation: dict[str, object],
+) -> bool:
+    primitives = _llm_residual_interpretation_search_primitives(interpretation)
+    if primitives and _llm_has_literature_search_request_for_obligation(
+        search_requests,
+        primitives=primitives,
+    ):
+        return True
+    residual_tokens = _llm_residual_interpretation_search_tokens(interpretation)
+    if not residual_tokens:
+        return False
+    literature_kind_keys = ("literature", "source", "paper", "textbook")
+    for request in search_requests:
+        kind_key = _llm_primitive_key(request.get("request_kind", ""))
+        if not any(key in kind_key for key in literature_kind_keys):
+            continue
+        request_tokens = _llm_search_text_tokens(
+            " ".join(
+                str(request.get(field_name, ""))
+                for field_name in ("query", "reason", "action", "description")
+            )
+        )
+        if residual_tokens & request_tokens:
+            return True
+    return False
+
+
+def _llm_residual_interpretation_search_primitives(
+    interpretation: dict[str, object],
+) -> tuple[str, ...]:
+    primitives: list[str] = []
+    primitives.extend(_str_tuple(interpretation.get("target_primitives", [])))
+    primitives.extend(_str_tuple(interpretation.get("residual_primitives", [])))
+    primitives.extend(_str_tuple(interpretation.get("primitive", [])))
+    primitives.extend(_str_tuple(interpretation.get("primitives", [])))
+    residual_goal = str(interpretation.get("residual_goal", "")).strip()
+    if ":" in residual_goal:
+        primitives.append(residual_goal.split(":", 1)[0])
+    return tuple(
+        dict.fromkeys(
+            primitive
+            for primitive in (_llm_primitive_key(value) for value in primitives)
+            if primitive
+        )
+    )
+
+
+def _llm_residual_interpretation_search_tokens(
+    interpretation: dict[str, object],
+) -> set[str]:
+    return _llm_search_text_tokens(
+        " ".join(
+            str(interpretation.get(field_name, ""))
+            for field_name in (
+                "residual_goal",
+                "interpretation",
+                "route_repair",
+                "repair_action",
+            )
+        )
+    )
+
+
+def _llm_search_text_tokens(text: str) -> set[str]:
+    return {
+        token
+        for token in re.findall(r"[a-z0-9_]+", _llm_source_ref_key(text))
+        if len(token) >= 4
+        and token
+        not in {
+            "with",
+            "from",
+            "that",
+            "this",
+            "into",
+            "before",
+            "after",
+            "route",
+            "repair",
+            "condition",
+            "residual",
+            "source",
+            "search",
+        }
+    }
+
+
+def _llm_row_search_request_contract_errors(row: dict[str, Any]) -> tuple[str, ...]:
+    errors: list[str] = []
+    for index, request in enumerate(_dict_tuple(row.get("search_requests", []))):
+        request_kind = _llm_source_ref_key(request.get("request_kind", ""))
+        if not request_kind:
+            errors.append(f"row search_requests[{index}].request_kind missing")
+        elif request_kind not in LLM_ROUTE_PLANNER_SEARCH_REQUEST_KIND_ALIASES:
+            errors.append(
+                "row search_requests"
+                f"[{index}].request_kind unsupported: {request.get('request_kind')}"
+            )
+        if not str(request.get("query", "")).strip():
+            errors.append(f"row search_requests[{index}].query missing")
+        if not str(request.get("reason", "")).strip():
+            errors.append(f"row search_requests[{index}].reason missing")
+    return tuple(errors)
+
+
+def _llm_row_planner_next_action_contract_errors(row: dict[str, Any]) -> tuple[str, ...]:
+    errors: list[str] = []
+    for index, action in enumerate(_dict_tuple(row.get("planner_next_actions", []))):
+        if not str(action.get("owner", "")).strip():
+            errors.append(f"row planner_next_actions[{index}].owner missing")
+        if not str(action.get("action", "")).strip():
+            errors.append(f"row planner_next_actions[{index}].action missing")
+        if not _llm_planner_next_action_has_supported_hook(action):
+            errors.append(
+                "row planner_next_actions"
+                f"[{index}] does not resolve to a supported hook family"
+            )
+    return tuple(errors)
+
+
+def _llm_planner_next_action_has_supported_hook(action: dict[str, Any]) -> bool:
+    text_key = _llm_source_ref_key(
+        " ".join(
+            [
+                *_llm_planner_action_queries(action),
+                *_llm_planner_action_resource_refs(action),
+            ]
+        )
+    )
+    return any(
+        _llm_text_key_contains_alias(text_key, alias)
+        for alias in LLM_ROUTE_PLANNER_PLANNER_NEXT_ACTION_HOOK_ALIASES
+    )
+
+
+def _llm_planner_action_queries(action: dict[str, Any]) -> tuple[str, ...]:
+    queries: list[str] = []
+    for field_name in (
+        "query",
+        "queries",
+        "reason",
+        "rationale",
+        "action",
+        "next_action",
+        "description",
+    ):
+        queries.extend(_str_tuple(action.get(field_name, [])))
+    return _str_tuple(queries)
+
+
+def _llm_planner_action_resource_refs(action: dict[str, Any]) -> tuple[str, ...]:
+    refs: list[str] = []
+    _llm_collect_planner_action_resource_refs(action, refs)
+    return _str_tuple(refs)
+
+
+def _llm_collect_planner_action_resource_refs(value: Any, refs: list[str]) -> None:
+    if isinstance(value, dict):
+        for key, item in value.items():
+            key_text = _llm_primitive_key(key)
+            if key_text in {
+                "resource_request_id",
+                "resource_request_ids",
+                "resource_id",
+                "resource_ids",
+                "resource",
+                "resources",
+                "adapter_id",
+                "adapter_ids",
+                "mcp_or_cli_hint",
+                "owner",
+                "tool",
+                "tools",
+                "tool_name",
+                "tool_names",
+                "recommended_tool",
+                "recommended_tools",
+            }:
+                refs.extend(_str_tuple(item))
+            _llm_collect_planner_action_resource_refs(item, refs)
+    elif isinstance(value, (list, tuple, set)):
+        for item in value:
+            _llm_collect_planner_action_resource_refs(item, refs)
+
+
+def _llm_text_key_contains_alias(text_key: str, alias: str) -> bool:
+    return f"_{alias}_" in f"_{text_key}_"
+
+
+def _llm_row_source_search_obligation_errors(row: dict[str, Any]) -> tuple[str, ...]:
+    errors: list[str] = []
+    search_requests = _dict_tuple(row.get("search_requests", []))
+    for index, node in enumerate(
+        _dict_tuple(row.get("informal_knowledge_dag_nodes", []))
+    ):
+        status = _llm_source_ref_key(node.get("source_search_status", ""))
+        if not _llm_source_search_status_requires_request(status):
+            continue
+        primitives = _llm_informal_node_search_primitives(node)
+        if not _llm_has_literature_search_request_for_obligation(
+            search_requests,
+            primitives=primitives,
+        ):
+            errors.append(
+                "row informal_knowledge_dag_nodes"
+                f"[{index}] SEARCH_REQUESTED requires a matching literature/source search_request"
+            )
+    route = _dict_value(row, "standalone_route")
+    for index, primitive_row in enumerate(_dict_tuple(route.get("primitives", []))):
+        status = _llm_source_ref_key(primitive_row.get("source_search_status", ""))
+        if not _llm_source_search_status_requires_request(status):
+            continue
+        primitives = _str_tuple(
+            [
+                *_str_tuple(primitive_row.get("target_primitives", [])),
+                *_str_tuple(primitive_row.get("primitive", "")),
+            ]
+        )
+        if not _llm_has_literature_search_request_for_obligation(
+            search_requests,
+            primitives=tuple(_llm_primitive_key(primitive) for primitive in primitives),
+        ):
+            errors.append(
+                "row standalone_route.primitives"
+                f"[{index}] SEARCH_REQUESTED requires a matching literature/source search_request"
+            )
+    return tuple(errors)
+
+
+def _llm_source_search_status_requires_request(status: str) -> bool:
+    return status in {
+        "search_requested",
+        "source_search_requested",
+        "source_search_pending",
+        "literature_search_requested",
+        "literature_search_pending",
+    }
+
+
+def _llm_informal_node_search_primitives(node: dict[str, object]) -> tuple[str, ...]:
+    primitives: list[str] = []
+    primitives.extend(_str_tuple(node.get("target_primitives", [])))
+    primitives.extend(_str_tuple(node.get("primitive", [])))
+    primitives.extend(_str_tuple(node.get("primitives", [])))
+    for snippet in _dict_tuple(node.get("source_snippets", [])):
+        primitives.extend(_str_tuple(snippet.get("target_primitives", [])))
+    node_id = str(node.get("node_id", "")).strip()
+    if ":" in node_id:
+        primitives.append(node_id.rsplit(":", 1)[-1])
+    return tuple(
+        dict.fromkeys(
+            primitive
+            for primitive in (_llm_primitive_key(value) for value in primitives)
+            if primitive
+        )
+    )
+
+
+def _llm_has_literature_search_request_for_obligation(
+    search_requests: tuple[dict[str, object], ...],
+    *,
+    primitives: tuple[str, ...],
+) -> bool:
+    literature_kind_keys = ("literature", "source", "paper", "textbook")
+    if primitives:
+        return any(
+            _llm_has_search_request_for_primitive(
+                search_requests,
+                primitive=primitive,
+                request_kind_keys=literature_kind_keys,
+            )
+            for primitive in primitives
+        )
+    return any(
+        any(
+            key in _llm_primitive_key(request.get("request_kind", ""))
+            for key in literature_kind_keys
+        )
+        and bool(
+            str(
+                request.get("query")
+                or request.get("reason")
+                or request.get("description")
+                or ""
+            ).strip()
+        )
+        for request in search_requests
+    )
+
+
+def _llm_row_formal_search_obligation_errors(row: dict[str, Any]) -> tuple[str, ...]:
+    errors: list[str] = []
+    search_requests = _dict_tuple(row.get("search_requests", []))
+    for index, node in enumerate(_llm_formal_realization_nodes(row)):
+        if not _llm_formal_node_requires_library_search(node):
+            continue
+        primitives = _llm_formal_node_search_primitives(node)
+        if not _llm_has_formal_library_search_request_for_obligation(
+            search_requests,
+            primitives=primitives,
+        ):
+            errors.append(
+                "row formal_realization_dag_nodes"
+                f"[{index}] unknown/formal-library-search-pending coverage requires a matching formal_library/library search_request"
+            )
+    route = _dict_value(row, "standalone_route")
+    for index, primitive_row in enumerate(_dict_tuple(route.get("primitives", []))):
+        if not _llm_formal_node_requires_library_search(primitive_row):
+            continue
+        primitives = _str_tuple(
+            [
+                *_str_tuple(primitive_row.get("target_primitives", [])),
+                *_str_tuple(primitive_row.get("primitive", "")),
+            ]
+        )
+        if not _llm_has_formal_library_search_request_for_obligation(
+            search_requests,
+            primitives=tuple(_llm_primitive_key(primitive) for primitive in primitives),
+        ):
+            errors.append(
+                "row standalone_route.primitives"
+                f"[{index}] unknown/formal-library-search-pending coverage requires a matching formal_library/library search_request"
+            )
+    return tuple(errors)
+
+
+def _llm_formal_node_requires_library_search(node: dict[str, object]) -> bool:
+    if _str_tuple(node.get("candidate_declarations", [])):
+        return False
+    if str(node.get("formal_gap_boundary", "")).strip():
+        return False
+    markers = (
+        node.get("coverage_bucket", ""),
+        node.get("coverage_status", ""),
+        node.get("formalization_action", ""),
+        node.get("alignment_status", ""),
+        node.get("formal_search_status", ""),
+        node.get("library_search_status", ""),
+    )
+    if any(_llm_delta_formalization_marker(marker) for marker in markers):
+        return False
+    return any(_llm_formal_library_search_marker(marker) for marker in markers)
+
+
+def _llm_formal_library_search_marker(value: object) -> bool:
+    return _llm_primitive_key(value) in {
+        "unknown",
+        "coverage_unknown",
+        "declaration_unknown",
+        "formal_search_requested",
+        "formal_search_pending",
+        "formal_library_search_requested",
+        "formal_library_search_pending",
+        "library_search_requested",
+        "library_search_pending",
+        "declaration_search_requested",
+        "declaration_search_pending",
+    }
+
+
+def _llm_formal_node_search_primitives(node: dict[str, object]) -> tuple[str, ...]:
+    primitives: list[str] = []
+    primitives.extend(_str_tuple(node.get("target_primitives", [])))
+    primitives.extend(_str_tuple(node.get("primitive", "")))
+    primitives.extend(_str_tuple(node.get("primitives", [])))
+    node_id = str(node.get("node_id", "")).strip()
+    if ":" in node_id:
+        primitives.append(node_id.rsplit(":", 1)[-1])
+    return tuple(
+        dict.fromkeys(
+            primitive
+            for primitive in (_llm_primitive_key(value) for value in primitives)
+            if primitive
+        )
+    )
+
+
+def _llm_has_formal_library_search_request_for_obligation(
+    search_requests: tuple[dict[str, object], ...],
+    *,
+    primitives: tuple[str, ...],
+) -> bool:
+    formal_kind_keys = (
+        "formal_library",
+        "formal_source",
+        "library",
+        "lean_search",
+        "loogle",
+        "declaration",
+    )
+    if primitives:
+        return any(
+            _llm_has_search_request_for_primitive(
+                search_requests,
+                primitive=primitive,
+                request_kind_keys=formal_kind_keys,
+            )
+            for primitive in primitives
+        )
+    return any(
+        any(
+            key in _llm_primitive_key(request.get("request_kind", ""))
+            for key in formal_kind_keys
+        )
+        and bool(
+            str(
+                request.get("query")
+                or request.get("reason")
+                or request.get("description")
+                or ""
+            ).strip()
+        )
+        for request in search_requests
+    )
+
+
+def _llm_row_minimal_delta_cost_errors(row: dict[str, Any]) -> tuple[str, ...]:
+    errors: list[str] = []
+    minimal_delta = _dict_value(row, "minimal_delta_plan")
+    if str(minimal_delta.get("cost_model_version", "")).strip() != MINIMAL_DELTA_COST_POLICY_ID:
+        errors.append(
+            "row minimal_delta_plan.cost_model_version must equal "
+            + MINIMAL_DELTA_COST_POLICY_ID
+        )
+    if not _nonnegative_number(minimal_delta.get("route_cost")):
+        errors.append("row minimal_delta_plan.route_cost must be a nonnegative number")
+    selected = {
+        _llm_primitive_key(primitive)
+        for primitive in _str_tuple(minimal_delta.get("selected_primitives", []))
+        if _llm_primitive_key(primitive)
+    }
+    primitive_costs = _dict_tuple(minimal_delta.get("primitive_costs", []))
+    if not primitive_costs:
+        errors.append("row minimal_delta_plan.primitive_costs must be non-empty")
+    if primitive_costs:
+        cost_rows_by_primitive: dict[str, list[dict[str, object]]] = {}
+        for index, cost_row in enumerate(primitive_costs):
+            primitive = _llm_primitive_key(cost_row.get("primitive", ""))
+            if not primitive:
+                errors.append(
+                    f"row minimal_delta_plan.primitive_costs[{index}].primitive missing"
+                )
+                continue
+            cost_rows_by_primitive.setdefault(primitive, []).append(cost_row)
+            if not _nonnegative_number(cost_row.get("total_cost")):
+                errors.append(
+                    "row minimal_delta_plan."
+                    f"primitive_costs[{index}].total_cost must be a nonnegative number"
+                )
+            cost_dimension_error = _llm_row_primitive_cost_dimension_error(cost_row)
+            if cost_dimension_error:
+                errors.append(
+                    "row minimal_delta_plan."
+                    f"primitive_costs[{index}].{cost_dimension_error}"
+                )
+            if not str(cost_row.get("cost_rationale", "")).strip():
+                errors.append(
+                    f"row minimal_delta_plan.primitive_costs[{index}].cost_rationale missing"
+                )
+        missing = sorted(selected - set(cost_rows_by_primitive))
+        if missing:
+            errors.append(
+                "row minimal_delta_plan.primitive_costs missing selected primitives: "
+                + ", ".join(missing[:8])
+            )
+        duplicate = sorted(
+            primitive
+            for primitive in selected
+            if len(cost_rows_by_primitive.get(primitive, [])) != 1
+        )
+        if duplicate:
+            errors.append(
+                "row minimal_delta_plan.primitive_costs must contain exactly one row per selected primitive: "
+                + ", ".join(duplicate[:8])
+            )
+        route_cost_error = _llm_row_route_cost_selected_primitive_error(
+            minimal_delta,
+            selected=selected,
+            cost_rows_by_primitive=cost_rows_by_primitive,
+        )
+        if route_cost_error:
+            errors.append(route_cost_error)
+    errors.extend(
+        _llm_row_and_or_cost_graph_errors(
+            minimal_delta,
+            selected=selected,
+        )
+    )
+    return tuple(errors)
+
+
+def _llm_row_primitive_cost_dimension_error(cost_row: dict[str, object]) -> str:
+    dimension_fields = (
+        "base_cost",
+        "proof_difficulty_cost",
+        "import_cone_cost",
+        "definition_or_typeclass_cost",
+        "semantic_risk_cost",
+        "reuse_credit",
+    )
+    missing = [field_name for field_name in dimension_fields if field_name not in cost_row]
+    if missing:
+        return "cost dimension fields missing: " + ", ".join(missing)
+    nonnumeric = [
+        field_name
+        for field_name in dimension_fields
+        if not _nonnegative_number(cost_row.get(field_name))
+    ]
+    if nonnumeric:
+        return "cost dimension fields must be nonnegative numbers: " + ", ".join(
+            nonnumeric
+        )
+    if not _nonnegative_number(cost_row.get("total_cost")):
+        return ""
+    accounted = (
+        float(cost_row.get("base_cost", 0) or 0)
+        + float(cost_row.get("proof_difficulty_cost", 0) or 0)
+        + float(cost_row.get("import_cone_cost", 0) or 0)
+        + float(cost_row.get("definition_or_typeclass_cost", 0) or 0)
+        + float(cost_row.get("semantic_risk_cost", 0) or 0)
+        - float(cost_row.get("reuse_credit", 0) or 0)
+    )
+    if abs(accounted - float(cost_row.get("total_cost", 0))) > 1e-9:
+        return (
+            "total_cost must equal base_cost + proof_difficulty_cost + "
+            "import_cone_cost + definition_or_typeclass_cost + "
+            "semantic_risk_cost - reuse_credit"
+        )
+    return ""
+
+
+def _llm_row_route_cost_selected_primitive_error(
+    minimal_delta: dict[str, Any],
+    *,
+    selected: set[str],
+    cost_rows_by_primitive: dict[str, list[dict[str, object]]],
+) -> str:
+    route_cost = minimal_delta.get("route_cost")
+    if not selected or not _nonnegative_number(route_cost):
+        return ""
+    selected_rows: list[dict[str, object]] = []
+    for primitive in sorted(selected):
+        rows = cost_rows_by_primitive.get(primitive, [])
+        if len(rows) != 1 or not _nonnegative_number(rows[0].get("total_cost")):
+            return ""
+        selected_rows.append(rows[0])
+    primitive_total = sum(float(row.get("total_cost", 0) or 0) for row in selected_rows)
+    if abs(primitive_total - float(route_cost)) > 1e-9:
+        return (
+            "row minimal_delta_plan.route_cost must equal the sum of selected "
+            "primitive_costs total_cost values"
+        )
+    return ""
+
+
+def _llm_row_and_or_cost_graph_errors(
+    minimal_delta: dict[str, Any],
+    *,
+    selected: set[str],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    graph = _dict_value(minimal_delta, "and_or_cost_graph")
+    if not graph:
+        return ("row minimal_delta_plan.and_or_cost_graph must be non-empty",)
+    if str(graph.get("graph_kind", "")).strip() != "AND_OR_ROUTE_COST_GRAPH":
+        errors.append(
+            "row minimal_delta_plan.and_or_cost_graph.graph_kind must equal "
+            "AND_OR_ROUTE_COST_GRAPH"
+        )
+    selected_route_option_id = str(
+        graph.get("selected_route_option_id", "")
+    ).strip()
+    if not selected_route_option_id:
+        errors.append(
+            "row minimal_delta_plan.and_or_cost_graph.selected_route_option_id missing"
+        )
+    route_options = _dict_tuple(graph.get("route_options", []))
+    if not route_options:
+        errors.append(
+            "row minimal_delta_plan.and_or_cost_graph.route_options must be non-empty"
+        )
+        return tuple(errors)
+    selected_options: list[dict[str, object]] = []
+    selected_option_cost: float | None = None
+    route_option_ids: set[str] = set()
+    route_option_primitives: set[str] = set()
+    for index, option in enumerate(route_options):
+        option_id = str(option.get("route_option_id", "")).strip()
+        if not option_id:
+            errors.append(
+                "row minimal_delta_plan.and_or_cost_graph."
+                f"route_options[{index}].route_option_id missing"
+            )
+        else:
+            route_option_ids.add(option_id)
+        option_cost = option.get("route_cost")
+        if not _nonnegative_number(option_cost):
+            errors.append(
+                "row minimal_delta_plan.and_or_cost_graph."
+                f"route_options[{index}].route_cost must be a nonnegative number"
+            )
+        if not str(option.get("cost_rationale", "")).strip():
+            errors.append(
+                "row minimal_delta_plan.and_or_cost_graph."
+                f"route_options[{index}].cost_rationale missing"
+            )
+        option_primitives = {
+            _llm_primitive_key(primitive)
+            for primitive in _str_tuple(option.get("selected_primitives", []))
+            if _llm_primitive_key(primitive)
+        }
+        route_option_primitives.update(option_primitives)
+        if not option_primitives:
+            errors.append(
+                "row minimal_delta_plan.and_or_cost_graph."
+                f"route_options[{index}].selected_primitives must be non-empty"
+            )
+        if bool(option.get("selected", False)):
+            selected_options.append(option)
+            if selected_route_option_id and option_id != selected_route_option_id:
+                errors.append(
+                    "row minimal_delta_plan.and_or_cost_graph selected option id "
+                    "does not match selected_route_option_id"
+                )
+            if _nonnegative_number(option_cost):
+                selected_option_cost = float(option_cost)
+            if option_primitives != selected:
+                errors.append(
+                    "row minimal_delta_plan.and_or_cost_graph selected route option "
+                    "selected_primitives must match selected_primitives"
+                )
+    errors.extend(
+        _llm_row_and_or_cost_graph_structure_errors(
+            graph,
+            route_option_ids=route_option_ids,
+            route_option_primitives=route_option_primitives,
+        )
+    )
+    if len(selected_options) != 1:
+        errors.append(
+            "row minimal_delta_plan.and_or_cost_graph must mark exactly one selected route option"
+        )
+    route_cost = minimal_delta.get("route_cost")
+    if selected_option_cost is not None and _nonnegative_number(route_cost):
+        if abs(selected_option_cost - float(route_cost)) > 1e-9:
+            errors.append(
+                "row minimal_delta_plan.and_or_cost_graph selected route_cost must equal route_cost"
+            )
+        cheaper = [
+            str(option.get("route_option_id", "")).strip() or f"route_options[{index}]"
+            for index, option in enumerate(route_options)
+            if _nonnegative_number(option.get("route_cost"))
+            and float(option.get("route_cost", 0)) + 1e-9 < selected_option_cost
+        ]
+        if cheaper:
+            errors.append(
+                "row minimal_delta_plan.and_or_cost_graph selected route option is not minimal; "
+                "cheaper options: "
+                + ", ".join(cheaper[:8])
+            )
+    return tuple(errors)
+
+
+def _llm_row_and_or_cost_graph_structure_errors(
+    graph: dict[str, Any],
+    *,
+    route_option_ids: set[str],
+    route_option_primitives: set[str],
+) -> list[str]:
+    prefix = "row minimal_delta_plan.and_or_cost_graph"
+    errors: list[str] = []
+    or_nodes = _dict_tuple(graph.get("or_nodes", []))
+    if not or_nodes:
+        errors.append(f"{prefix}.or_nodes must be non-empty")
+    for index, node in enumerate(or_nodes):
+        if not str(node.get("node_id", "")).strip():
+            errors.append(f"{prefix}.or_nodes[{index}].node_id missing")
+        choices = _str_tuple(node.get("choices", []))
+        if not choices:
+            errors.append(f"{prefix}.or_nodes[{index}].choices must be non-empty")
+        unknown_choices = [
+            choice
+            for choice in choices
+            if choice not in route_option_ids
+            and _llm_primitive_key(choice) not in route_option_primitives
+        ]
+        if unknown_choices:
+            errors.append(
+                f"{prefix}.or_nodes[{index}].choices reference unknown route options or primitives: "
+                + ", ".join(unknown_choices[:8])
+            )
+        if not str(node.get("selection_rationale", "")).strip():
+            errors.append(f"{prefix}.or_nodes[{index}].selection_rationale missing")
+    and_edges = _dict_tuple(graph.get("and_edges", []))
+    if not and_edges:
+        errors.append(f"{prefix}.and_edges must be non-empty")
+    for index, edge in enumerate(and_edges):
+        option_id = str(edge.get("route_option_id", "")).strip()
+        if not option_id:
+            errors.append(f"{prefix}.and_edges[{index}].route_option_id missing")
+        elif option_id not in route_option_ids:
+            errors.append(
+                f"{prefix}.and_edges[{index}].route_option_id references unknown route option: "
+                + option_id
+            )
+        requires = _str_tuple(edge.get("requires", []))
+        if not requires:
+            errors.append(f"{prefix}.and_edges[{index}].requires must be non-empty")
+        unknown_requires = [
+            primitive
+            for primitive in requires
+            if _llm_primitive_key(primitive) not in route_option_primitives
+        ]
+        if unknown_requires:
+            errors.append(
+                f"{prefix}.and_edges[{index}].requires reference unknown primitives: "
+                + ", ".join(unknown_requires[:8])
+            )
+    return errors
+
+
+def _nonnegative_number(value: object) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and value >= 0
+
+
+def _llm_available_source_keys(request: dict[str, Any]) -> set[str]:
+    context = _dict_value(request, "context_packet")
+    refs = list(_str_tuple(context.get("available_source_refs", [])))
+    if not refs:
+        _llm_collect_source_refs(request.get("target_route", {}), refs)
+        _llm_collect_source_refs(context, refs)
+    return {_llm_source_ref_key(ref) for ref in refs if _llm_source_ref_key(ref)}
+
+
+def _llm_row_source_keys(row: dict[str, Any]) -> set[str]:
+    refs: list[str] = []
+    refs.extend(_str_tuple(row.get("source_refs", [])))
+    for node in _dict_tuple(row.get("informal_knowledge_dag_nodes", [])):
+        refs.extend(_str_tuple(node.get("source_refs", [])))
+    for residual in _dict_tuple(row.get("residual_interpretations", [])):
+        refs.extend(_str_tuple(residual.get("source_refs", [])))
+    route = _dict_value(row, "standalone_route")
+    refs.extend(_str_tuple(route.get("source_refs", [])))
+    for primitive in _dict_tuple(route.get("primitives", [])):
+        refs.extend(_str_tuple(primitive.get("source_refs", [])))
+    return {_llm_source_ref_key(ref) for ref in refs if _llm_source_ref_key(ref)}
+
+
+def _llm_collect_source_refs(value: Any, refs: list[str]) -> None:
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if str(key) in {
+                "source_ref",
+                "source_refs",
+                "source_id",
+                "source_ids",
+                "known_proof_source",
+                "known_proof_sources",
+                "citation_key",
+                "citation_keys",
+                "paper_id",
+                "paper_ids",
+            }:
+                refs.extend(_llm_source_ref_values(item))
+            _llm_collect_source_refs(item, refs)
+    elif isinstance(value, (list, tuple, set)):
+        for item in value:
+            _llm_collect_source_refs(item, refs)
+
+
+def _llm_source_ref_values(value: Any) -> tuple[str, ...]:
+    if isinstance(value, str):
+        return (value,) if value.strip() else tuple()
+    if isinstance(value, dict):
+        refs: list[str] = []
+        for key in ("source_ref", "source_id", "citation_key", "paper_id", "id"):
+            if key in value:
+                refs.extend(_llm_source_ref_values(value.get(key)))
+        return _str_tuple(refs)
+    if isinstance(value, (list, tuple, set)):
+        refs: list[str] = []
+        for item in value:
+            refs.extend(_llm_source_ref_values(item))
+        return _str_tuple(refs)
+    return tuple()
+
+
+def _llm_source_ref_key(value: object) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", str(value or "").strip().lower()).strip("_")
+
+
+def _llm_available_declaration_keys(request: dict[str, Any]) -> set[str]:
+    context = _dict_value(request, "context_packet")
+    declarations = list(
+        _llm_declaration_values(context.get("available_formal_declarations", []))
+    )
+    if not declarations:
+        _llm_collect_declarations(request.get("target_route", {}), declarations)
+        _llm_collect_declarations(context, declarations)
+    return {
+        _llm_declaration_key(declaration)
+        for declaration in declarations
+        if _llm_declaration_key(declaration)
+    }
+
+
+def _llm_row_candidate_declaration_keys(row: dict[str, Any]) -> set[str]:
+    declarations: list[str] = []
+    for node in _llm_formal_realization_nodes(row):
+        declarations.extend(_llm_declaration_values(node.get("candidate_declarations", [])))
+    route = _dict_value(row, "standalone_route")
+    for primitive in _dict_tuple(route.get("primitives", [])):
+        declarations.extend(
+            _llm_declaration_values(primitive.get("candidate_declarations", []))
+        )
+    return {
+        _llm_declaration_key(declaration)
+        for declaration in declarations
+        if _llm_declaration_key(declaration)
+    }
+
+
+def _llm_collect_declarations(value: Any, declarations: list[str]) -> None:
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if str(key) in {
+                "candidate_declaration",
+                "candidate_declarations",
+                "declaration",
+                "declaration_name",
+                "declaration_names",
+                "lean_declaration",
+                "lean_declarations",
+                "lean_declaration_hits",
+            }:
+                declarations.extend(_llm_declaration_values(item))
+            _llm_collect_declarations(item, declarations)
+    elif isinstance(value, (list, tuple, set)):
+        for item in value:
+            _llm_collect_declarations(item, declarations)
+
+
+def _llm_declaration_values(value: Any) -> tuple[str, ...]:
+    if isinstance(value, str):
+        return (value,) if value.strip() else tuple()
+    if isinstance(value, dict):
+        declarations: list[str] = []
+        for key in (
+            "declaration",
+            "declaration_name",
+            "candidate_declaration",
+            "lean_declaration",
+            "name",
+            "full_name",
+        ):
+            if key in value:
+                declarations.extend(_llm_declaration_values(value.get(key)))
+        return _str_tuple(declarations)
+    if isinstance(value, (list, tuple, set)):
+        declarations: list[str] = []
+        for item in value:
+            declarations.extend(_llm_declaration_values(item))
+        return _str_tuple(declarations)
+    return tuple()
+
+
+def _llm_declaration_key(value: object) -> str:
+    return re.sub(r"[^a-z0-9_'.]+", "_", str(value or "").strip().lower()).strip("_")
+
+
+def _llm_formal_realization_nodes(row: dict[str, Any]) -> tuple[dict[str, object], ...]:
+    nodes = _dict_tuple(row.get("formal_realization_dag_nodes", []))
+    if nodes:
+        return nodes
+    return _dict_tuple(row.get("lean_realization_dag_nodes", []))
+
+
+def _llm_revised_formal_realization_nodes(row: dict[str, Any]) -> tuple[dict[str, object], ...]:
+    nodes = _dict_tuple(row.get("revised_formal_realization_dag_nodes", []))
+    if nodes:
+        return nodes
+    return _dict_tuple(row.get("revised_lean_realization_dag_nodes", []))
+
+
+def _llm_request_residual_keys(request: dict[str, Any]) -> set[str]:
+    return {
+        _llm_residual_key(residual)
+        for residual in _str_tuple(request.get("residual_goals", []))
+        if _llm_residual_key(residual)
+    }
+
+
+def _llm_row_residual_keys(row: dict[str, Any]) -> set[str]:
+    return {
+        _llm_residual_key(residual.get("residual_goal", ""))
+        for residual in _dict_tuple(row.get("residual_interpretations", []))
+        if _llm_residual_key(residual.get("residual_goal", ""))
+    }
+
+
+def _llm_residual_key(value: object) -> str:
+    return re.sub(r"\s+", " ", str(value or "").strip().lower())
+
+
+def _llm_row_primitive_evidence_errors(
+    row: dict[str, Any],
+    request: dict[str, Any],
+) -> tuple[str, ...]:
+    selected, delta_primitives = _llm_row_selected_and_delta_primitive_keys(row)
+    introduced = sorted((selected | delta_primitives) - _llm_available_primitive_keys(request))
+    if not introduced:
+        return tuple()
+    errors: list[str] = []
+    informal_by_node_id = {
+        str(node.get("node_id", "")): node
+        for node in _dict_tuple(row.get("informal_knowledge_dag_nodes", []))
+        if str(node.get("node_id", "")).strip()
+    }
+    formal_by_node_id = {
+        str(node.get("node_id", "")): node
+        for node in _llm_formal_realization_nodes(row)
+        if str(node.get("node_id", "")).strip()
+    }
+    alignment_edges_by_primitive = _llm_alignment_edges_by_primitive(row)
+    search_requests = _dict_tuple(row.get("search_requests", []))
+    missing_selected_alignment = sorted(
+        primitive
+        for primitive in introduced
+        if primitive in selected and primitive not in alignment_edges_by_primitive
+    )
+    if missing_selected_alignment:
+        errors.append(
+            "introduced selected primitives missing route_alignment_edges: "
+            + ",".join(missing_selected_alignment[:8])
+        )
+    for primitive in introduced:
+        edges = alignment_edges_by_primitive.get(primitive, [])
+        if not edges:
+            errors.append(
+                "introduced selected/delta primitive missing route_alignment_edges: "
+                + primitive
+            )
+            continue
+        informal_nodes = [
+            informal_by_node_id[node_id]
+            for node_id in _llm_aligned_node_ids(edges, "informal_node_id", "source")
+            if node_id in informal_by_node_id
+        ]
+        formal_nodes = [
+            formal_by_node_id[node_id]
+            for node_id in _llm_aligned_node_ids(edges, "formal_node_id", "target")
+            if node_id in formal_by_node_id
+        ]
+        if not any(
+            _llm_informal_node_supports_introduced_primitive(
+                node,
+                primitive=primitive,
+                search_requests=search_requests,
+            )
+            for node in informal_nodes
+        ):
+            errors.append(
+                "introduced primitive requires aligned informal evidence: "
+                + primitive
+            )
+        if not any(
+            _llm_formal_node_supports_introduced_primitive(
+                node,
+                primitive=primitive,
+                search_requests=search_requests,
+            )
+            for node in formal_nodes
+        ):
+            errors.append(
+                "introduced primitive requires aligned formal realization evidence: "
+                + primitive
+            )
+    return tuple(errors)
+
+
+def _llm_row_alignment_reference_errors(row: dict[str, Any]) -> tuple[str, ...]:
+    errors: list[str] = []
+    informal_node_ids = {
+        str(node.get("node_id", "")).strip()
+        for node in _dict_tuple(row.get("informal_knowledge_dag_nodes", []))
+        if str(node.get("node_id", "")).strip()
+    }
+    formal_node_ids = {
+        str(node.get("node_id", "")).strip()
+        for node in _llm_formal_realization_nodes(row)
+        if str(node.get("node_id", "")).strip()
+    }
+    for index, edge in enumerate(_dict_tuple(row.get("route_alignment_edges", []))):
+        informal_node_id = str(
+            edge.get("informal_node_id") or edge.get("source") or ""
+        ).strip()
+        formal_node_id = str(
+            edge.get("formal_node_id") or edge.get("target") or ""
+        ).strip()
+        if not informal_node_id:
+            errors.append(f"row route_alignment_edges[{index}].informal_node_id missing")
+        elif informal_node_id not in informal_node_ids:
+            errors.append(
+                "row route_alignment_edges"
+                f"[{index}] references unknown informal_node_id: {informal_node_id}"
+            )
+        if not formal_node_id:
+            errors.append(f"row route_alignment_edges[{index}].formal_node_id missing")
+        elif formal_node_id not in formal_node_ids:
+            errors.append(
+                "row route_alignment_edges"
+                f"[{index}] references unknown formal_node_id: {formal_node_id}"
+            )
+    return tuple(errors)
+
+
+def _llm_available_primitive_keys(request: dict[str, Any]) -> set[str]:
+    primitives: list[str] = []
+    _llm_collect_primitives(request.get("target_route", {}), primitives)
+    _llm_collect_primitives(_dict_value(request, "context_packet"), primitives)
+    return {
+        primitive
+        for primitive in (_llm_primitive_key(value) for value in primitives)
+        if primitive
+    }
+
+
+def _llm_row_selected_delta_primitive_keys(row: dict[str, Any]) -> set[str]:
+    selected, delta_primitives = _llm_row_selected_and_delta_primitive_keys(row)
+    return selected | delta_primitives
+
+
+def _llm_row_selected_and_delta_primitive_keys(
+    row: dict[str, Any],
+) -> tuple[set[str], set[str]]:
+    minimal_delta = _dict_value(row, "minimal_delta_plan")
+    selected = {
+        _llm_primitive_key(primitive)
+        for primitive in _str_tuple(minimal_delta.get("selected_primitives", []))
+        if _llm_primitive_key(primitive)
+    }
+    explicit: set[str] = set()
+    for field_name in (
+        "wrapper_lemmas",
+        "bridge_lemmas",
+        "source_port_lemmas",
+        "new_definitions",
+        "new_theory_primitives",
+        "first_principles_primitives",
+    ):
+        explicit.update(
+            _llm_primitive_key(primitive)
+            for primitive in _str_tuple(minimal_delta.get(field_name, []))
+            if _llm_primitive_key(primitive)
+        )
+    return selected, explicit or set(selected)
+
+
+def _llm_alignment_edges_by_primitive(
+    row: dict[str, Any],
+) -> dict[str, list[dict[str, object]]]:
+    formal_primitive_by_node_id = {
+        str(node.get("node_id", "")): _llm_primitive_key(node.get("primitive", ""))
+        for node in _llm_formal_realization_nodes(row)
+        if str(node.get("node_id", "")).strip()
+    }
+    by_primitive: dict[str, list[dict[str, object]]] = {}
+    for edge in _dict_tuple(row.get("route_alignment_edges", [])):
+        formal_node_id = str(edge.get("formal_node_id") or edge.get("target") or "").strip()
+        primitive = _llm_primitive_key(edge.get("primitive", ""))
+        if not primitive:
+            primitive = formal_primitive_by_node_id.get(formal_node_id, "")
+        if primitive:
+            by_primitive.setdefault(primitive, []).append(edge)
+    return by_primitive
+
+
+def _llm_aligned_node_ids(
+    edges: list[dict[str, object]],
+    primary_field: str,
+    fallback_field: str,
+) -> tuple[str, ...]:
+    return _str_tuple(
+        [
+            str(edge.get(primary_field) or edge.get(fallback_field) or "").strip()
+            for edge in edges
+        ]
+    )
+
+
+def _llm_informal_node_supports_introduced_primitive(
+    node: dict[str, object],
+    *,
+    primitive: str,
+    search_requests: tuple[dict[str, object], ...],
+) -> bool:
+    if _str_tuple(node.get("source_refs", [])):
+        return True
+    if str(node.get("formal_gap_boundary", "")).strip():
+        return True
+    status = _llm_source_ref_key(node.get("source_search_status", ""))
+    if status in {"formal_gap_boundary", "formal_boundary_declared"}:
+        return True
+    if status in {
+        "search_requested",
+        "source_search_requested",
+        "source_search_pending",
+        "literature_search_requested",
+        "literature_search_pending",
+    }:
+        return _llm_has_search_request_for_primitive(
+            search_requests,
+            primitive=primitive,
+            request_kind_keys=("literature", "source", "paper", "textbook"),
+        )
+    return False
+
+
+def _llm_formal_node_supports_introduced_primitive(
+    node: dict[str, object],
+    *,
+    primitive: str,
+    search_requests: tuple[dict[str, object], ...],
+) -> bool:
+    if _llm_primitive_key(node.get("primitive", "")) != primitive:
+        return False
+    if _llm_formal_node_claims_existing_library(node):
+        return bool(_str_tuple(node.get("candidate_declarations", [])))
+    if str(node.get("formal_gap_boundary", "")).strip():
+        return True
+    markers = (
+        node.get("coverage_bucket", ""),
+        node.get("coverage_status", ""),
+        node.get("formalization_action", ""),
+        node.get("alignment_status", ""),
+    )
+    if any(_llm_delta_formalization_marker(marker) for marker in markers):
+        return True
+    return _llm_has_search_request_for_primitive(
+        search_requests,
+        primitive=primitive,
+        request_kind_keys=("formal_library", "library", "prover_feedback"),
+    )
+
+
+def _llm_formal_node_claims_existing_library(node: dict[str, object]) -> bool:
+    markers = (
+        node.get("coverage_bucket", ""),
+        node.get("coverage_status", ""),
+        node.get("formalization_action", ""),
+        node.get("alignment_status", ""),
+    )
+    return any(_llm_existing_library_marker(marker) for marker in markers)
+
+
+def _llm_existing_library_marker(value: object) -> bool:
+    return _llm_primitive_key(value) in {
+        "already_exists",
+        "exact_exists",
+        "exact",
+        "near_exists",
+        "near",
+        "different_formulation",
+        "reuse",
+        "compose",
+        "compose_existing_declarations",
+        "target_prover_replay",
+    }
+
+
+def _llm_delta_formalization_marker(value: object) -> bool:
+    return _llm_primitive_key(value) in {
+        "wrapper",
+        "wrapper_needed",
+        "write_wrapper",
+        "bridge",
+        "bridge_needed",
+        "prove_bridge",
+        "source_port",
+        "source_port_needed",
+        "port_external_source",
+        "define_new",
+        "new_definition",
+        "new_definitions",
+        "definition_missing",
+        "definition_or_theory_missing",
+        "new_theory",
+        "new_theory_needed",
+        "first_principles",
+        "design_from_first_principles",
+        "missing",
+        "theory_missing",
+    }
+
+
+def _llm_has_search_request_for_primitive(
+    search_requests: tuple[dict[str, object], ...],
+    *,
+    primitive: str,
+    request_kind_keys: tuple[str, ...],
+) -> bool:
+    primitive_key = _llm_primitive_key(primitive)
+    if not primitive_key:
+        return False
+    for request in search_requests:
+        kind_key = _llm_primitive_key(request.get("request_kind", ""))
+        if request_kind_keys and not any(key in kind_key for key in request_kind_keys):
+            continue
+        text_key = _llm_primitive_key(
+            " ".join(
+                str(request.get(field_name, ""))
+                for field_name in ("query", "reason", "action", "description")
+            )
+        )
+        if primitive_key in text_key:
+            return True
+    return False
+
+
+def _llm_collect_primitives(value: Any, primitives: list[str]) -> None:
+    if isinstance(value, dict):
+        for key, item in value.items():
+            key_text = str(key)
+            if key_text == "coverage_updates" and isinstance(item, dict):
+                primitives.extend(str(primitive) for primitive in item.keys())
+            if key_text in {
+                "primitive",
+                "primitives",
+                "selected_primitives",
+                "required_primitives",
+                "delta_primitives",
+                "original_selected_primitives",
+                "revised_selected_primitives",
+                "revised_delta_primitives",
+                "added_primitives",
+                "added_delta_primitives",
+                "alignment_edge_primitives",
+                "wrapper_lemmas",
+                "bridge_lemmas",
+                "source_port_lemmas",
+                "new_definitions",
+                "new_theory_primitives",
+                "first_principles_primitives",
+                "add_bridge_lemmas",
+                "add_first_principles",
+            }:
+                primitives.extend(_llm_primitive_values(item))
+            _llm_collect_primitives(item, primitives)
+    elif isinstance(value, (list, tuple, set)):
+        for item in value:
+            _llm_collect_primitives(item, primitives)
+
+
+def _llm_primitive_values(value: Any) -> tuple[str, ...]:
+    if isinstance(value, str):
+        return (value,) if value.strip() else tuple()
+    if isinstance(value, dict):
+        values: list[str] = []
+        for key in ("primitive", "name", "id"):
+            if key in value:
+                values.extend(_llm_primitive_values(value.get(key)))
+        return _str_tuple(values)
+    if isinstance(value, (list, tuple, set)):
+        values: list[str] = []
+        for item in value:
+            values.extend(_llm_primitive_values(item))
+        return _str_tuple(values)
+    return tuple()
+
+
+def _llm_primitive_key(value: object) -> str:
+    return str(value or "").strip().lower().replace(" ", "_").replace("-", "_")
+
+
+def _llm_seed_route_for_row(
+    seed: dict[str, Any],
+    row: dict[str, Any],
+) -> dict[str, Any]:
+    row_id = str(row.get("llm_route_planner_row_id", ""))
+    for route in _seed_route_index(seed).values():
+        metadata = route.get("replan_metadata", {})
+        metadata = metadata if isinstance(metadata, dict) else {}
+        if str(route.get("llm_route_planner_row_id", "")) == row_id:
+            return route
+        if str(metadata.get("llm_route_planner_row_id", "")) == row_id:
+            return route
+    standalone_route = row.get("standalone_route", {})
+    if isinstance(standalone_route, dict):
+        route_id = str(standalone_route.get("route_id", ""))
+        route = _seed_route_index(seed).get(route_id, {})
+        if route:
+            return route
+    return _seed_route_index(seed).get(str(row.get("route_id", "")), {})
+
+
+def _llm_seed_provenance_errors(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    metadata = _seed_route_metadata(seed_route)
+    if not seed_route:
+        errors.append("seed route missing")
+    if not isinstance(metadata, dict):
+        errors.append("seed route replan_metadata missing")
+        return tuple(errors)
+    row_id = str(row.get("llm_route_planner_row_id", ""))
+    if str(seed_route.get("llm_route_planner_row_id", "")) != row_id:
+        errors.append("seed route llm_route_planner_row_id mismatch")
+    if str(metadata.get("llm_route_planner_row_id", "")) != row_id:
+        errors.append("seed metadata llm_route_planner_row_id mismatch")
+    expected_fields = (
+        ("request_id", "llm_route_planner_request_id"),
+        ("provider_name", "llm_route_planner_provider"),
+        ("model", "llm_route_planner_model"),
+        ("acceptance_status", "llm_route_planner_acceptance_status"),
+    )
+    for row_field, metadata_field in expected_fields:
+        if str(metadata.get(metadata_field, "")) != str(row.get(row_field, "")):
+            errors.append(f"seed metadata {metadata_field} mismatch")
+    if str(seed_route.get("llm_route_planner_acceptance_status", "")) != str(
+        row.get("acceptance_status", "")
+    ):
+        errors.append("seed route llm_route_planner_acceptance_status mismatch")
+    if "llm_route_planner" not in _str_tuple(metadata.get("applied_hook_kinds", [])):
+        errors.append("seed metadata applied_hook_kinds missing llm_route_planner")
+    if row_id not in _str_tuple(metadata.get("applied_proposal_ids", [])):
+        errors.append("seed metadata applied_proposal_ids missing LLM row id")
+    if _object_hashes([row.get("minimal_delta_plan", {})]) != _object_hashes(
+        [metadata.get("llm_route_planner_minimal_delta_plan", {})]
+    ):
+        errors.append("seed metadata minimal delta plan mismatch")
+    row_cost_graph = _dict_value(_dict_value(row, "minimal_delta_plan"), "and_or_cost_graph")
+    if not row_cost_graph:
+        errors.append("accepted LLM row minimal_delta_plan.and_or_cost_graph missing")
+    if _object_hashes([row_cost_graph]) != _object_hashes(
+        [seed_route.get("minimal_delta_and_or_cost_graph", {})]
+    ):
+        errors.append("seed route minimal_delta_and_or_cost_graph mismatch")
+    if _object_hashes([row_cost_graph]) != _object_hashes(
+        [metadata.get("minimal_delta_and_or_cost_graph", {})]
+    ):
+        errors.append("seed metadata minimal_delta_and_or_cost_graph mismatch")
+    if not str(
+        _dict_value(row, "minimal_delta_plan").get("minimality_rationale", "")
+    ).strip():
+        errors.append("accepted LLM row minimality_rationale missing")
+    row_sources = set(_str_tuple(row.get("source_refs", [])))
+    route_sources = set(_str_tuple(seed_route.get("source_refs", [])))
+    metadata_sources = set(_str_tuple(metadata.get("source_refs", [])))
+    if not row_sources.issubset(route_sources):
+        errors.append("seed route source_refs do not include LLM row source_refs")
+    if not row_sources.issubset(metadata_sources):
+        errors.append("seed metadata source_refs do not include LLM row source_refs")
+    if str(metadata.get("proof_evidence_boundary", "")).lower().find(
+        "not theorem proof evidence"
+    ) < 0:
+        errors.append("seed metadata proof_evidence_boundary missing")
+    return tuple(errors)
+
+
+def _llm_seed_provenance_observed(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+) -> str:
+    metadata = _seed_route_metadata(seed_route)
+    metadata = metadata if isinstance(metadata, dict) else {}
+    row_sources = set(_str_tuple(row.get("source_refs", [])))
+    route_sources = set(_str_tuple(seed_route.get("source_refs", [])))
+    metadata_sources = set(_str_tuple(metadata.get("source_refs", [])))
+    return (
+        f"matched_seed_route={bool(seed_route)}; "
+        f"row_id={row.get('llm_route_planner_row_id', '')}; "
+        f"metadata_row_id={metadata.get('llm_route_planner_row_id', '')}; "
+        f"source_refs_route={len(row_sources.intersection(route_sources))}/{len(row_sources)}; "
+        f"source_refs_metadata={len(row_sources.intersection(metadata_sources))}/{len(row_sources)}; "
+        f"has_cost_graph={bool(_dict_value(_dict_value(row, 'minimal_delta_plan'), 'and_or_cost_graph'))}"
+    )
+
+
+def _llm_seed_realization_witness_errors(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    metadata = _seed_route_metadata(seed_route)
+    if not seed_route:
+        errors.append("seed route missing")
+    if not isinstance(metadata, dict):
+        errors.append("seed route replan_metadata missing")
+        return tuple(errors)
+    row_witness = _dict_value(row, "realization_coverage_witness")
+    route_witness = _dict_value(seed_route, "realization_coverage_witness")
+    metadata_witness = _dict_value(
+        metadata,
+        "llm_route_planner_realization_coverage_witness",
+    )
+    if not row_witness:
+        errors.append("accepted LLM row realization_coverage_witness missing")
+    if not route_witness:
+        errors.append("seed route realization_coverage_witness missing")
+    if not metadata_witness:
+        errors.append("seed metadata llm_route_planner_realization_coverage_witness missing")
+    if row_witness and bool(row_witness.get("realization_coverage_complete", False)) is not True:
+        errors.append("accepted LLM row realization_coverage_complete is not true")
+    if route_witness and bool(route_witness.get("realization_coverage_complete", False)) is not True:
+        errors.append("seed route realization_coverage_complete is not true")
+    if metadata_witness and bool(metadata_witness.get("realization_coverage_complete", False)) is not True:
+        errors.append("seed metadata realization_coverage_complete is not true")
+    if row_witness and route_witness and _object_hashes([row_witness]) != _object_hashes(
+        [route_witness]
+    ):
+        errors.append("seed route realization_coverage_witness mismatch")
+    if row_witness and metadata_witness and _object_hashes([row_witness]) != _object_hashes(
+        [metadata_witness]
+    ):
+        errors.append("seed metadata realization_coverage_witness mismatch")
+    return tuple(errors)
+
+
+def _llm_seed_realization_witness_observed(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+) -> str:
+    metadata = _seed_route_metadata(seed_route)
+    metadata = metadata if isinstance(metadata, dict) else {}
+    row_witness = _dict_value(row, "realization_coverage_witness")
+    route_witness = _dict_value(seed_route, "realization_coverage_witness")
+    metadata_witness = _dict_value(
+        metadata,
+        "llm_route_planner_realization_coverage_witness",
+    )
+    return (
+        f"row_complete={bool(row_witness.get('realization_coverage_complete', False))}; "
+        f"seed_route_complete={bool(route_witness.get('realization_coverage_complete', False))}; "
+        f"metadata_complete={bool(metadata_witness.get('realization_coverage_complete', False))}; "
+        f"row_hash={','.join(_object_hashes([row_witness]))}; "
+        f"seed_route_hash={','.join(_object_hashes([route_witness]))}; "
+        f"metadata_hash={','.join(_object_hashes([metadata_witness]))}"
+    )
+
+
+def _llm_seed_alignment_errors(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    metadata = _seed_route_metadata(seed_route)
+    if not seed_route:
+        errors.append("seed route missing")
+    if not isinstance(metadata, dict):
+        errors.append("seed route replan_metadata missing")
+        return tuple(errors)
+    row_triples = _llm_row_alignment_triples(row)
+    route_triples = _llm_seed_alignment_triples(
+        seed_route.get("revised_route_alignment_edges", [])
+    )
+    metadata_triples = _llm_seed_alignment_triples(
+        metadata.get("revised_route_alignment_edges", [])
+    )
+    if not row_triples:
+        errors.append("accepted LLM row route_alignment_edges empty")
+    if row_triples != route_triples:
+        errors.append("seed route revised_route_alignment_edges mismatch")
+    if row_triples != metadata_triples:
+        errors.append("seed metadata revised_route_alignment_edges mismatch")
+    if _object_hashes(seed_route.get("revised_route_alignment_edges", [])) != _object_hashes(
+        metadata.get("revised_route_alignment_edges", [])
+    ):
+        errors.append("seed route and metadata revised_route_alignment_edges differ")
+    delta_primitives = _llm_delta_primitives(row)
+    aligned_primitives = _alignment_primitives(
+        seed_route.get("revised_route_alignment_edges", [])
+    )
+    missing_delta = sorted(delta_primitives - aligned_primitives)
+    if missing_delta:
+        errors.append(
+            "seed revised_route_alignment_edges miss delta primitives: "
+            + ",".join(missing_delta)
+        )
+    return tuple(errors)
+
+
+def _llm_seed_alignment_observed(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+) -> str:
+    metadata = _seed_route_metadata(seed_route)
+    metadata = metadata if isinstance(metadata, dict) else {}
+    delta_primitives = _llm_delta_primitives(row)
+    aligned_primitives = _alignment_primitives(
+        seed_route.get("revised_route_alignment_edges", [])
+    )
+    missing_delta = sorted(delta_primitives - aligned_primitives)
+    return (
+        f"row_edges={len(_llm_row_alignment_triples(row))}; "
+        f"seed_route_edges={len(_llm_seed_alignment_triples(seed_route.get('revised_route_alignment_edges', [])))}; "
+        f"metadata_edges={len(_llm_seed_alignment_triples(metadata.get('revised_route_alignment_edges', [])))}; "
+        f"missing_delta={','.join(missing_delta)}"
+    )
+
+
+def _llm_seed_dag_errors(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    metadata = _seed_route_metadata(seed_route)
+    if not seed_route:
+        errors.append("seed route missing")
+    if not isinstance(metadata, dict):
+        errors.append("seed route replan_metadata missing")
+        return tuple(errors)
+    row_informal = _node_ids(row.get("informal_knowledge_dag_nodes", []))
+    route_informal = _node_ids(seed_route.get("revised_informal_knowledge_dag_nodes", []))
+    metadata_informal = _node_ids(
+        metadata.get("revised_informal_knowledge_dag_nodes", [])
+    )
+    if not row_informal:
+        errors.append("accepted LLM row informal_knowledge_dag_nodes empty")
+    if row_informal != route_informal:
+        errors.append("seed route revised_informal_knowledge_dag_nodes mismatch")
+    if row_informal != metadata_informal:
+        errors.append("seed metadata revised_informal_knowledge_dag_nodes mismatch")
+    for node in _dict_tuple(seed_route.get("revised_informal_knowledge_dag_nodes", [])):
+        if str(node.get("node_source", "")) != "llm_route_planner_revised_informal_dag":
+            errors.append("seed informal DAG node_source mismatch")
+            break
+    row_formal = _primitive_ids(_llm_formal_realization_nodes(row))
+    route_formal = _primitive_ids(_llm_revised_formal_realization_nodes(seed_route))
+    metadata_formal = _primitive_ids(
+        _llm_revised_formal_realization_nodes(metadata)
+    )
+    if not row_formal:
+        errors.append("accepted LLM row formal_realization_dag_nodes empty")
+    if row_formal != route_formal:
+        errors.append("seed route revised_formal_realization_dag_nodes mismatch")
+    if row_formal != metadata_formal:
+        errors.append("seed metadata revised_formal_realization_dag_nodes mismatch")
+    if _object_hashes(
+        seed_route.get("revised_informal_knowledge_dag_nodes", [])
+    ) != _object_hashes(metadata.get("revised_informal_knowledge_dag_nodes", [])):
+        errors.append("seed route and metadata revised informal DAG nodes differ")
+    if _object_hashes(
+        _llm_revised_formal_realization_nodes(seed_route)
+    ) != _object_hashes(_llm_revised_formal_realization_nodes(metadata)):
+        errors.append("seed route and metadata revised formal-realization DAG nodes differ")
+    legacy_route = _dict_tuple(seed_route.get("revised_lean_realization_dag_nodes", []))
+    legacy_metadata = _dict_tuple(metadata.get("revised_lean_realization_dag_nodes", []))
+    if legacy_route and _object_hashes(legacy_route) != _object_hashes(
+        _llm_revised_formal_realization_nodes(seed_route)
+    ):
+        errors.append("seed route legacy revised Lean DAG alias differs from formal DAG")
+    if legacy_metadata and _object_hashes(legacy_metadata) != _object_hashes(
+        _llm_revised_formal_realization_nodes(metadata)
+    ):
+        errors.append("seed metadata legacy revised Lean DAG alias differs from formal DAG")
+    return tuple(errors)
+
+
+def _llm_seed_dag_observed(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+) -> str:
+    metadata = _seed_route_metadata(seed_route)
+    metadata = metadata if isinstance(metadata, dict) else {}
+    return (
+        f"informal:row={len(_node_ids(row.get('informal_knowledge_dag_nodes', [])))}"
+        f",seed_route={len(_node_ids(seed_route.get('revised_informal_knowledge_dag_nodes', [])))}"
+        f",metadata={len(_node_ids(metadata.get('revised_informal_knowledge_dag_nodes', [])))}; "
+        f"formal:row={len(_primitive_ids(_llm_formal_realization_nodes(row)))}"
+        f",seed_route={len(_primitive_ids(_llm_revised_formal_realization_nodes(seed_route)))}"
+        f",metadata={len(_primitive_ids(_llm_revised_formal_realization_nodes(metadata)))}"
+    )
+
+
+def _llm_realization_witness_schema_errors(schema: dict[str, Any]) -> tuple[str, ...]:
+    errors: list[str] = []
+    props = _dict_value(schema, "properties")
+    witness_prop = _dict_value(props, "realization_coverage_witness")
+    if witness_prop.get("$ref") != "#/$defs/realization_coverage_witness":
+        errors.append("realization_coverage_witness must reference $defs")
+    defs = _dict_value(schema, "$defs")
+    witness = _dict_value(defs, "realization_coverage_witness")
+    if not witness:
+        errors.append("$defs.realization_coverage_witness missing")
+        return tuple(errors)
+    required = set(_str_tuple(witness.get("required", [])))
+    expected_required = {
+        "selected_primitives",
+        "delta_primitives",
+        "introduced_primitives",
+        "aligned_primitives",
+        "selected_primitives_with_standalone_route_node",
+        "selected_primitives_missing_standalone_route_node",
+        "selected_primitives_with_formal_realization_node",
+        "selected_primitives_missing_formal_realization_node",
+        "delta_primitives_with_route_alignment_edge",
+        "delta_primitives_missing_route_alignment_edge",
+        "introduced_primitives_with_route_alignment_edge",
+        "introduced_primitives_missing_route_alignment_edge",
+        "selected_route_coverage_complete",
+        "selected_formal_coverage_complete",
+        "delta_alignment_complete",
+        "introduced_alignment_complete",
+        "realization_coverage_complete",
+    }
+    missing = sorted(expected_required - required)
+    if missing:
+        errors.append(
+            "$defs.realization_coverage_witness.required missing: "
+            + ",".join(missing)
+        )
+    witness_props = _dict_value(witness, "properties")
+    for field_name in sorted(
+        field for field in expected_required if field.endswith("_complete")
+    ):
+        if _dict_value(witness_props, field_name).get("type") != "boolean":
+            errors.append(f"{field_name} must be boolean")
+    for field_name in sorted(
+        field for field in expected_required if not field.endswith("_complete")
+    ):
+        field_schema = _dict_value(witness_props, field_name)
+        if field_schema.get("type") != "array":
+            errors.append(f"{field_name} must be array")
+        if _dict_value(field_schema, "items").get("type") != "string":
+            errors.append(f"{field_name} items must be string")
+    return tuple(errors)
+
+
+def _llm_realization_witness_schema_observed(schema: dict[str, Any]) -> str:
+    witness_prop = _dict_value(
+        _dict_value(schema, "properties"),
+        "realization_coverage_witness",
+    )
+    witness = _dict_value(
+        _dict_value(schema, "$defs"),
+        "realization_coverage_witness",
+    )
+    required = _str_tuple(witness.get("required", []))
+    return (
+        f"ref={witness_prop.get('$ref', '')}; "
+        f"required={len(required)}; "
+        f"has_complete={bool(_dict_value(witness.get('properties', {}), 'realization_coverage_complete'))}"
+    )
+
+
+def _llm_generic_formal_dag_errors(
+    rows: list[dict[str, Any]],
+    seed_payload: dict[str, Any],
+    manifest: dict[str, Any],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    expected = sum(
+        len(_object_hashes(row.get("formal_realization_dag_nodes", [])))
+        for row in rows
+    )
+    if "n_formal_realization_dag_nodes" not in manifest:
+        errors.append("manifest n_formal_realization_dag_nodes missing")
+    elif int(manifest.get("n_formal_realization_dag_nodes", 0) or 0) != expected:
+        errors.append("manifest n_formal_realization_dag_nodes mismatch")
+    seed_routes = _seed_route_index(seed_payload)
+    for idx, row in enumerate(rows):
+        if not _llm_route_planner_row_accepted(row):
+            continue
+        errors.extend(_generic_formal_dag_field_errors(f"row {idx}", row))
+        seed_route = _llm_seed_route_for_row(seed_payload, row)
+        seed_route_id = str(seed_route.get("route_id", "")) if seed_route else ""
+        if not seed_route:
+            errors.append(f"seed route for row {idx} missing")
+            continue
+        if seed_route_id and seed_route_id not in seed_routes:
+            errors.append(f"seed route {seed_route_id} missing from seed index")
+        errors.extend(
+            _generic_revised_formal_dag_field_errors(
+                f"seed route {seed_route_id or idx}",
+                seed_route,
+            )
+        )
+        metadata = _seed_route_metadata(seed_route)
+        if not isinstance(metadata, dict):
+            errors.append(f"seed metadata {seed_route_id or idx} missing")
+            continue
+        errors.extend(
+            _generic_revised_formal_dag_field_errors(
+                f"seed metadata {seed_route_id or idx}",
+                metadata,
+            )
+        )
+    return tuple(errors)
+
+
+def _llm_generic_formal_dag_observed(
+    rows: list[dict[str, Any]],
+    seed_payload: dict[str, Any],
+    manifest: dict[str, Any],
+) -> str:
+    accepted = [row for row in rows if _llm_route_planner_row_accepted(row)]
+    row_generic = sum(
+        len(_object_hashes(row.get("formal_realization_dag_nodes", [])))
+        for row in accepted
+    )
+    row_legacy = sum(
+        len(_object_hashes(row.get("lean_realization_dag_nodes", [])))
+        for row in accepted
+    )
+    seed_generic = 0
+    metadata_generic = 0
+    for row in accepted:
+        seed_route = _llm_seed_route_for_row(seed_payload, row)
+        seed_generic += len(
+            _object_hashes(seed_route.get("revised_formal_realization_dag_nodes", []))
+        )
+        metadata = _seed_route_metadata(seed_route)
+        metadata = metadata if isinstance(metadata, dict) else {}
+        metadata_generic += len(
+            _object_hashes(metadata.get("revised_formal_realization_dag_nodes", []))
+        )
+    return (
+        f"accepted={len(accepted)}; row_generic={row_generic}; row_legacy={row_legacy}; "
+        f"seed_generic={seed_generic}; metadata_generic={metadata_generic}; "
+        f"manifest={manifest.get('n_formal_realization_dag_nodes', 'missing')}"
+    )
+
+
+def _generic_formal_dag_field_errors(
+    label: str,
+    row: dict[str, Any],
+) -> tuple[str, ...]:
+    generic = _object_hashes(row.get("formal_realization_dag_nodes", []))
+    legacy = _object_hashes(row.get("lean_realization_dag_nodes", []))
+    errors: list[str] = []
+    if not generic:
+        errors.append(f"{label} formal_realization_dag_nodes missing")
+    if legacy and generic and legacy != generic:
+        errors.append(f"{label} lean_realization_dag_nodes differs from formal DAG")
+    return tuple(errors)
+
+
+def _llm_row_alignment_triples(row: dict[str, Any]) -> set[str]:
+    formal_primitive_by_node_id = {
+        str(node.get("node_id", "")): str(node.get("primitive") or node.get("label") or "")
+        for node in _llm_formal_realization_nodes(row)
+        if str(node.get("node_id", "")).strip()
+    }
+    fallback_primitives = _str_tuple(
+        _dict_value(row, "minimal_delta_plan").get("selected_primitives", [])
+    )
+    triples: set[str] = set()
+    for index, edge in enumerate(_dict_tuple(row.get("route_alignment_edges", []))):
+        source = str(edge.get("source") or edge.get("informal_node_id") or "").strip()
+        target = str(edge.get("target") or edge.get("formal_node_id") or "").strip()
+        primitive = str(
+            edge.get("primitive") or formal_primitive_by_node_id.get(target, "")
+        ).strip()
+        if not primitive and len(fallback_primitives) == 1:
+            primitive = fallback_primitives[0]
+        if not primitive:
+            primitive = f"llm_alignment_edge_{index + 1}"
+        triples.add(stable_hash([source, target, primitive]))
+    return triples
+
+
+def _llm_seed_alignment_triples(edges: Any) -> set[str]:
+    return {
+        stable_hash(
+            [
+                str(edge.get("source", "")).strip(),
+                str(edge.get("target", "")).strip(),
+                str(edge.get("primitive", "")).strip(),
+            ]
+        )
+        for edge in _dict_tuple(edges)
+    }
+
+
+def _llm_delta_primitives(row: dict[str, Any]) -> set[str]:
+    minimal_delta = _dict_value(row, "minimal_delta_plan")
+    fields = (
+        "wrapper_lemmas",
+        "bridge_lemmas",
+        "source_port_lemmas",
+        "new_definitions",
+        "new_theory_primitives",
+        "first_principles_primitives",
+    )
+    return {
+        primitive.strip()
+        for field_name in fields
+        for primitive in _str_tuple(minimal_delta.get(field_name, []))
+        if primitive.strip()
+    }
+
+
+def _node_ids(values: Any) -> set[str]:
+    return {
+        str(value.get("node_id", "")).strip()
+        for value in _dict_tuple(values)
+        if str(value.get("node_id", "")).strip()
+    }
+
+
+def _primitive_ids(values: Any) -> set[str]:
+    return {
+        str(value.get("primitive") or value.get("label") or value.get("node_id") or "").strip()
+        for value in _dict_tuple(values)
+        if str(value.get("primitive") or value.get("label") or value.get("node_id") or "").strip()
+    }
+
+
+def _goal_conditioned_plan_optional_checks(
+    bundle_dir: Path,
+) -> list[FormalizationGapPlannerPublicationBundleAuditCheck]:
+    artifact_dir = (
+        bundle_dir / "artifacts" / "goal_conditioned_minimal_formalization_plan"
+    )
+    manifest_path = (
+        artifact_dir / "goal_conditioned_minimal_formalization_plan_manifest.json"
+    )
+    rows_jsonl_path = artifact_dir / "goal_conditioned_minimal_formalization_plan.jsonl"
+    row_schema_path = artifact_dir / "library_aware_formalization_gap_plan_row.schema.json"
+    manifest = _read_json_no_error(manifest_path)
+    row_schema = _read_json_no_error(row_schema_path)
+    rows, row_errors = _read_jsonl_dict_rows_no_error(rows_jsonl_path)
+    contract_errors = validate_portable_gap_plan_payload(manifest)
+    manifest_rows = [
+        row for row in manifest.get("rows", []) if isinstance(row, dict)
+    ]
+    checks = [
+        _check(
+            "optional_goal_plan_all_ok",
+            "optional_artifacts",
+            "goal-conditioned plan manifest all_ok",
+            str(manifest.get("all_ok", "")),
+            bool(manifest.get("all_ok", False)),
+        ),
+        _check(
+            "optional_goal_plan_portable_contract",
+            "optional_artifacts",
+            "goal-conditioned plan manifest validates against portable gap-plan contract",
+            "; ".join(contract_errors) if contract_errors else "ok",
+            not contract_errors,
+            errors=tuple(contract_errors),
+        ),
+        _check(
+            "optional_goal_plan_boundary",
+            "optional_artifacts",
+            "not theorem proof evidence",
+            str(manifest.get("proof_evidence_boundary", ""))[:160],
+            "not theorem proof evidence"
+            in str(manifest.get("proof_evidence_boundary", "")).lower(),
+        ),
+        _check(
+            "optional_goal_plan_row_schema_file",
+            "optional_artifacts",
+            "goal-conditioned plan row schema exists",
+            str(row_schema_path.exists()),
+            row_schema_path.exists(),
+        ),
+        _check(
+            "optional_goal_plan_row_schema_id",
+            "optional_artifacts",
+            PORTABLE_FORMALIZATION_GAP_PLAN_ROW_SCHEMA_ID,
+            str(row_schema.get("$id", "")),
+            row_schema.get("$id") == PORTABLE_FORMALIZATION_GAP_PLAN_ROW_SCHEMA_ID,
+        ),
+        _check(
+            "optional_goal_plan_jsonl_parse",
+            "optional_artifacts",
+            "goal-conditioned plan JSONL parses into object rows",
+            "; ".join(row_errors) if row_errors else f"rows={len(rows)}",
+            not row_errors,
+            errors=row_errors,
+        ),
+        _check(
+            "optional_goal_plan_jsonl_row_count",
+            "optional_artifacts",
+            "goal-conditioned plan JSONL rows match manifest plan count",
+            f"jsonl={len(rows)} manifest={manifest.get('n_goal_plans', 0)}",
+            len(rows) == int(manifest.get("n_goal_plans", 0) or 0),
+        ),
+        _check(
+            "optional_goal_plan_jsonl_manifest_row_count",
+            "optional_artifacts",
+            "goal-conditioned plan JSONL rows match embedded manifest rows",
+            f"jsonl={len(rows)} manifest_rows={len(manifest_rows)}",
+            len(rows) == len(manifest_rows),
+        ),
+    ]
+    manifest_row_ids = {
+        str(row.get("goal_plan_id", "")) for row in manifest_rows if row.get("goal_plan_id")
+    }
+    snapshot_ref = str(manifest.get("library_snapshot_ref", ""))
+    for idx, row in enumerate(rows):
+        row_schema_errors = validate_portable_gap_plan_row(
+            row,
+            row_schema,
+            library_snapshot_ref=snapshot_ref,
+        )
+        checks.append(
+            _check(
+                f"optional_goal_plan_row_{idx}_schema_valid",
+                "optional_artifacts",
+                "goal-conditioned plan row validates against public row schema",
+                "; ".join(row_schema_errors) if row_schema_errors else "ok",
+                not row_schema_errors,
+                errors=tuple(row_schema_errors),
+            )
+        )
+        contract_errors = _goal_plan_row_contract_errors(row, manifest_row_ids)
+        checks.append(
+            _check(
+                f"optional_goal_plan_row_{idx}_contract_valid",
+                "optional_artifacts",
+                "goal-conditioned plan row preserves portable route contract",
+                "; ".join(contract_errors) if contract_errors else "ok",
+                not contract_errors,
+                errors=contract_errors,
+            )
+        )
+    return checks
+
+
+def _generic_audit_optional_checks(
+    bundle_dir: Path,
+    *,
+    artifact_name: str,
+    manifest_filename: str,
+    jsonl_filename: str,
+    check_prefix: str,
+) -> list[FormalizationGapPlannerPublicationBundleAuditCheck]:
+    artifact_dir = bundle_dir / "artifacts" / artifact_name
+    manifest_path = artifact_dir / manifest_filename
+    rows_jsonl_path = artifact_dir / jsonl_filename
+    manifest = _read_json_no_error(manifest_path)
+    rows, row_errors = _read_jsonl_dict_rows_no_error(rows_jsonl_path)
+    check_label = artifact_name.replace("formalization_gap_planner_", "")
+    checks = [
+        _check(
+            f"{check_prefix}_all_ok",
+            "optional_artifacts",
+            f"{check_label} manifest all_ok",
+            str(manifest.get("all_ok", "")),
+            bool(manifest.get("all_ok", False)),
+        ),
+        _check(
+            f"{check_prefix}_component",
+            "optional_artifacts",
+            artifact_name,
+            str(manifest.get("component_name", "")),
+            manifest.get("component_name") == artifact_name,
+        ),
+        _check(
+            f"{check_prefix}_failed_count",
+            "optional_artifacts",
+            f"{check_label} manifest has zero failed checks",
+            str(manifest.get("n_failed", "")),
+            int(manifest.get("n_failed", 0) or 0) == 0,
+        ),
+        _check(
+            f"{check_prefix}_boundary",
+            "optional_artifacts",
+            "not theorem proof evidence",
+            str(manifest.get("proof_evidence_boundary", ""))[:160],
+            "not theorem proof evidence"
+            in str(manifest.get("proof_evidence_boundary", "")).lower(),
+        ),
+        _check(
+            f"{check_prefix}_jsonl_parse",
+            "optional_artifacts",
+            f"{check_label} JSONL parses into object rows",
+            "; ".join(row_errors) if row_errors else f"rows={len(rows)}",
+            not row_errors,
+            errors=row_errors,
+        ),
+        _check(
+            f"{check_prefix}_jsonl_row_count",
+            "optional_artifacts",
+            f"{check_label} JSONL rows match manifest check count",
+            f"jsonl={len(rows)} manifest={manifest.get('n_checks', 0)}",
+            len(rows) == int(manifest.get("n_checks", 0) or 0),
+        ),
+    ]
+    for idx, row in enumerate(rows):
+        contract_errors = _audit_check_row_contract_errors(row)
+        checks.append(
+            _check(
+                f"{check_prefix}_{idx}_contract_valid",
+                "optional_artifacts",
+                f"{check_label} check row preserves audit-row contract",
+                "; ".join(contract_errors) if contract_errors else "ok",
+                not contract_errors,
+                errors=contract_errors,
+            )
+        )
+    return checks
+
+
+def _minimal_delta_audit_optional_checks(
+    bundle_dir: Path,
+) -> list[FormalizationGapPlannerPublicationBundleAuditCheck]:
+    artifact_dir = (
+        bundle_dir / "artifacts" / "formalization_gap_planner_minimal_delta_audit"
+    )
+    manifest_path = (
+        artifact_dir
+        / "formalization_gap_planner_minimal_delta_audit_manifest.json"
+    )
+    rows_jsonl_path = (
+        artifact_dir / "formalization_gap_planner_minimal_delta_decisions.jsonl"
+    )
+    row_schema_path = (
+        artifact_dir
+        / "formalization_gap_planner_minimal_delta_decision_row.schema.json"
+    )
+    manifest = _read_json_no_error(manifest_path)
+    row_schema = _read_json_no_error(row_schema_path)
+    rows, row_errors = _read_jsonl_dict_rows_no_error(rows_jsonl_path)
+    checks = [
+        _check(
+            "optional_minimal_delta_audit_all_ok",
+            "optional_artifacts",
+            "minimal-delta audit manifest all_ok",
+            str(manifest.get("all_ok", "")),
+            bool(manifest.get("all_ok", False)),
+        ),
+        _check(
+            "optional_minimal_delta_audit_boundary",
+            "optional_artifacts",
+            "not theorem proof evidence",
+            str(manifest.get("proof_evidence_boundary", ""))[:160],
+            "not theorem proof evidence"
+            in str(manifest.get("proof_evidence_boundary", "")).lower(),
+        ),
+        _check(
+            "optional_minimal_delta_decision_row_schema_file",
+            "optional_artifacts",
+            "optional minimal-delta decision row schema exists",
+            str(row_schema_path.exists()),
+            row_schema_path.exists(),
+        ),
+        _check(
+            "optional_minimal_delta_decision_row_schema_id",
+            "optional_artifacts",
+            MINIMAL_DELTA_DECISION_ROW_SCHEMA_ID,
+            str(row_schema.get("$id", "")),
+            row_schema.get("$id") == MINIMAL_DELTA_DECISION_ROW_SCHEMA_ID,
+        ),
+        _check(
+            "optional_minimal_delta_decision_manifest_schema_valid_count",
+            "optional_artifacts",
+            "minimal-delta manifest decision-row schema-valid count matches row count",
+            (
+                f"{manifest.get('n_minimal_delta_decision_row_schema_valid', 0)}/"
+                f"{manifest.get('n_minimal_delta_decision_rows', 0)}; "
+                f"invalid={manifest.get('n_minimal_delta_decision_row_schema_invalid', 0)}"
+            ),
+            int(manifest.get("n_minimal_delta_decision_rows", 0) or 0) > 0
+            and int(
+                manifest.get("n_minimal_delta_decision_row_schema_valid", 0) or 0
+            )
+            == int(manifest.get("n_minimal_delta_decision_rows", 0) or 0)
+            and int(
+                manifest.get("n_minimal_delta_decision_row_schema_invalid", 0) or 0
+            )
+            == 0,
+        ),
+        _check(
+            "optional_minimal_delta_decision_jsonl_parse",
+            "optional_artifacts",
+            "minimal-delta decision JSONL parses into object rows",
+            "; ".join(row_errors) if row_errors else f"rows={len(rows)}",
+            not row_errors,
+            errors=row_errors,
+        ),
+        _check(
+            "optional_minimal_delta_decision_jsonl_row_count",
+            "optional_artifacts",
+            "minimal-delta decision JSONL rows match manifest decision count",
+            (
+                f"jsonl={len(rows)} "
+                f"manifest={manifest.get('n_minimal_delta_decision_rows', 0)}"
+            ),
+            len(rows)
+            == int(manifest.get("n_minimal_delta_decision_rows", 0) or 0),
+        ),
+    ]
+    for idx, row in enumerate(rows):
+        schema_errors = validate_minimal_delta_decision_row(row)
+        checks.append(
+            _check(
+                f"optional_minimal_delta_decision_row_{idx}_schema_valid",
+                "optional_artifacts",
+                "minimal-delta decision row satisfies published schema",
+                "; ".join(schema_errors) if schema_errors else "ok",
+                not schema_errors,
+                errors=tuple(schema_errors),
+            )
+        )
+    return checks
+
+
+def _source_grounding_audit_optional_checks(
+    bundle_dir: Path,
+) -> list[FormalizationGapPlannerPublicationBundleAuditCheck]:
+    artifact_dir = (
+        bundle_dir / "artifacts" / "formalization_gap_planner_source_grounding_audit"
+    )
+    manifest_path = (
+        artifact_dir
+        / "formalization_gap_planner_source_grounding_audit_manifest.json"
+    )
+    rows_jsonl_path = (
+        artifact_dir / "formalization_gap_planner_source_grounding_audit.jsonl"
+    )
+    row_schema_path = (
+        artifact_dir / "formalization_gap_planner_source_grounding_row.schema.json"
+    )
+    manifest = _read_json_no_error(manifest_path)
+    row_schema = _read_json_no_error(row_schema_path)
+    rows, row_errors = _read_jsonl_dict_rows_no_error(rows_jsonl_path)
+    checks = [
+        _check(
+            "optional_source_grounding_audit_all_ok",
+            "optional_artifacts",
+            "source-grounding audit manifest all_ok",
+            str(manifest.get("all_ok", "")),
+            bool(manifest.get("all_ok", False)),
+        ),
+        _check(
+            "optional_source_grounding_audit_boundary",
+            "optional_artifacts",
+            "not theorem proof evidence",
+            str(manifest.get("proof_evidence_boundary", ""))[:160],
+            "not theorem proof evidence"
+            in str(manifest.get("proof_evidence_boundary", "")).lower(),
+        ),
+        _check(
+            "optional_source_grounding_row_schema_file",
+            "optional_artifacts",
+            "optional source-grounding row schema exists",
+            str(row_schema_path.exists()),
+            row_schema_path.exists(),
+        ),
+        _check(
+            "optional_source_grounding_row_schema_id",
+            "optional_artifacts",
+            SOURCE_GROUNDING_ROW_SCHEMA_ID,
+            str(row_schema.get("$id", "")),
+            row_schema.get("$id") == SOURCE_GROUNDING_ROW_SCHEMA_ID,
+        ),
+        _check(
+            "optional_source_grounding_manifest_schema_valid_count",
+            "optional_artifacts",
+            "source-grounding manifest row schema-valid count matches row count",
+            (
+                f"{manifest.get('n_row_schema_valid', 0)}/"
+                f"{manifest.get('n_source_grounding_rows', 0)}; "
+                f"invalid={manifest.get('n_row_schema_invalid', 0)}"
+            ),
+            int(manifest.get("n_source_grounding_rows", 0) or 0) > 0
+            and int(manifest.get("n_row_schema_valid", 0) or 0)
+            == int(manifest.get("n_source_grounding_rows", 0) or 0)
+            and int(manifest.get("n_row_schema_invalid", 0) or 0) == 0,
+        ),
+        _check(
+            "optional_source_grounding_jsonl_parse",
+            "optional_artifacts",
+            "source-grounding JSONL parses into object rows",
+            "; ".join(row_errors) if row_errors else f"rows={len(rows)}",
+            not row_errors,
+            errors=row_errors,
+        ),
+        _check(
+            "optional_source_grounding_jsonl_row_count",
+            "optional_artifacts",
+            "source-grounding JSONL rows match manifest count",
+            f"jsonl={len(rows)} manifest={manifest.get('n_source_grounding_rows', 0)}",
+            len(rows) == int(manifest.get("n_source_grounding_rows", 0) or 0),
+        ),
+        _check(
+            "optional_source_grounding_residual_source_status",
+            "optional_artifacts",
+            "residual rows are source-backed, pending, or boundary-declared",
+            (
+                f"residual_rows={manifest.get('n_residual_grounding_rows', 0)} "
+                f"unaccounted={manifest.get('n_residual_unaccounted', 0)} "
+                f"ok={manifest.get('residual_source_grounding_ok', True)}"
+            ),
+            bool(manifest.get("residual_source_grounding_ok", True))
+            and int(manifest.get("n_residual_unaccounted", 0) or 0) == 0,
+        ),
+    ]
+    for idx, row in enumerate(rows):
+        schema_errors = validate_source_grounding_row(row)
+        checks.append(
+            _check(
+                f"optional_source_grounding_row_{idx}_schema_valid",
+                "optional_artifacts",
+                "source-grounding row satisfies published schema",
+                "; ".join(schema_errors) if schema_errors else "ok",
+                not schema_errors,
+                errors=tuple(schema_errors),
+            )
+        )
+    return checks
+
+
+def _refinement_queue_optional_checks(
+    bundle_dir: Path,
+) -> list[FormalizationGapPlannerPublicationBundleAuditCheck]:
+    artifact_dir = bundle_dir / "artifacts" / "formalization_gap_planner_refinement_queue"
+    manifest_path = artifact_dir / "formalization_gap_planner_refinement_queue_manifest.json"
+    rows_jsonl_path = artifact_dir / "formalization_gap_planner_refinement_queue.jsonl"
+    row_schema_path = artifact_dir / "formalization_gap_planner_refinement_work_item.schema.json"
+    manifest = _read_json_no_error(manifest_path)
+    row_schema = _read_json_no_error(row_schema_path)
+    rows, row_errors = _read_jsonl_dict_rows_no_error(rows_jsonl_path)
+    checks = [
+        _check(
+            "optional_refinement_queue_all_ok",
+            "optional_artifacts",
+            "refinement queue manifest all_ok",
+            str(manifest.get("all_ok", "")),
+            bool(manifest.get("all_ok", False)),
+        ),
+        _check(
+            "optional_refinement_queue_boundary",
+            "optional_artifacts",
+            "not theorem proof evidence",
+            str(manifest.get("proof_evidence_boundary", ""))[:160],
+            "not theorem proof evidence"
+            in str(manifest.get("proof_evidence_boundary", "")).lower(),
+        ),
+        _check(
+            "optional_refinement_work_item_row_schema_file",
+            "optional_artifacts",
+            "optional refinement work-item schema exists",
+            str(row_schema_path.exists()),
+            row_schema_path.exists(),
+        ),
+        _check(
+            "optional_refinement_work_item_row_schema_id",
+            "optional_artifacts",
+            REFINEMENT_WORK_ITEM_SCHEMA_ID,
+            str(row_schema.get("$id", "")),
+            row_schema.get("$id") == REFINEMENT_WORK_ITEM_SCHEMA_ID,
+        ),
+        _check(
+            "optional_refinement_work_item_manifest_schema_valid_count",
+            "optional_artifacts",
+            "refinement manifest work-item schema-valid count matches row count",
+            (
+                f"{manifest.get('n_item_schema_valid', 0)}/"
+                f"{manifest.get('n_refinement_items', 0)}; "
+                f"invalid={manifest.get('n_item_schema_invalid', 0)}"
+            ),
+            int(manifest.get("n_refinement_items", 0) or 0) > 0
+            and int(manifest.get("n_item_schema_valid", 0) or 0)
+            == int(manifest.get("n_refinement_items", 0) or 0)
+            and int(manifest.get("n_item_schema_invalid", 0) or 0) == 0,
+        ),
+        _check(
+            "optional_refinement_work_item_jsonl_parse",
+            "optional_artifacts",
+            "refinement work-item JSONL parses into object rows",
+            "; ".join(row_errors) if row_errors else f"rows={len(rows)}",
+            not row_errors,
+            errors=row_errors,
+        ),
+        _check(
+            "optional_refinement_work_item_jsonl_row_count",
+            "optional_artifacts",
+            "refinement work-item JSONL rows match manifest count",
+            f"jsonl={len(rows)} manifest={manifest.get('n_refinement_items', 0)}",
+            len(rows) == int(manifest.get("n_refinement_items", 0) or 0),
+        ),
+    ]
+    for idx, row in enumerate(rows):
+        schema_errors = validate_refinement_work_item_row(row)
+        checks.append(
+            _check(
+                f"optional_refinement_work_item_row_{idx}_schema_valid",
+                "optional_artifacts",
+                "refinement work-item row satisfies published schema",
+                "; ".join(schema_errors) if schema_errors else "ok",
+                not schema_errors,
+                errors=tuple(schema_errors),
+            )
+        )
+    return checks
+
+
+def _library_coverage_map_optional_checks(
+    bundle_dir: Path,
+) -> list[FormalizationGapPlannerPublicationBundleAuditCheck]:
+    artifact_dir = (
+        bundle_dir / "artifacts" / "formalization_gap_planner_library_coverage_map"
+    )
+    manifest_path = (
+        artifact_dir / "formalization_gap_planner_library_coverage_map_manifest.json"
+    )
+    rows_jsonl_path = (
+        artifact_dir / "formalization_gap_planner_library_coverage_map.jsonl"
+    )
+    row_schema_path = (
+        artifact_dir / "formalization_gap_planner_library_coverage_map_row.schema.json"
+    )
+    manifest = _read_json_no_error(manifest_path)
+    row_schema = _read_json_no_error(row_schema_path)
+    rows, row_errors = _read_jsonl_dict_rows_no_error(rows_jsonl_path)
+    checks = [
+        _check(
+            "optional_library_coverage_map_row_schema_file",
+            "optional_artifacts",
+            "optional library-coverage map row schema exists",
+            str(row_schema_path.exists()),
+            row_schema_path.exists(),
+        ),
+        _check(
+            "optional_library_coverage_map_row_schema_id",
+            "optional_artifacts",
+            LIBRARY_COVERAGE_MAP_ROW_SCHEMA_ID,
+            str(row_schema.get("$id", "")),
+            row_schema.get("$id") == LIBRARY_COVERAGE_MAP_ROW_SCHEMA_ID,
+        ),
+        _check(
+            "optional_library_coverage_map_manifest_schema_valid_count",
+            "optional_artifacts",
+            "library-coverage map manifest row schema-valid count matches row count",
+            (
+                f"{manifest.get('n_row_schema_valid', 0)}/"
+                f"{manifest.get('n_coverage_rows', 0)}; "
+                f"invalid={manifest.get('n_row_schema_invalid', 0)}"
+            ),
+            int(manifest.get("n_coverage_rows", 0) or 0) > 0
+            and int(manifest.get("n_row_schema_valid", 0) or 0)
+            == int(manifest.get("n_coverage_rows", 0) or 0)
+            and int(manifest.get("n_row_schema_invalid", 0) or 0) == 0,
+        ),
+        _check(
+            "optional_library_coverage_map_jsonl_parse",
+            "optional_artifacts",
+            "library-coverage map JSONL parses into object rows",
+            "; ".join(row_errors) if row_errors else f"rows={len(rows)}",
+            not row_errors,
+            errors=row_errors,
+        ),
+        _check(
+            "optional_library_coverage_map_jsonl_row_count",
+            "optional_artifacts",
+            "library-coverage map JSONL rows match manifest coverage-row count",
+            f"jsonl={len(rows)} manifest={manifest.get('n_coverage_rows', 0)}",
+            len(rows) == int(manifest.get("n_coverage_rows", 0) or 0),
+        ),
+    ]
+    for idx, row in enumerate(rows):
+        schema_errors = validate_library_coverage_map_row(row)
+        checks.append(
+            _check(
+                f"optional_library_coverage_map_row_{idx}_schema_valid",
+                "optional_artifacts",
+                "library-coverage map row satisfies published schema",
+                "; ".join(schema_errors) if schema_errors else "ok",
+                not schema_errors,
+                errors=schema_errors,
+            )
+        )
+    return checks
+
+
+def _primitive_action_queue_optional_checks(
+    bundle_dir: Path,
+) -> list[FormalizationGapPlannerPublicationBundleAuditCheck]:
+    artifact_dir = (
+        bundle_dir / "artifacts" / "formalization_gap_planner_primitive_action_queue"
+    )
+    manifest_path = (
+        artifact_dir
+        / "formalization_gap_planner_primitive_action_queue_manifest.json"
+    )
+    rows_jsonl_path = (
+        artifact_dir / "formalization_gap_planner_primitive_action_queue.jsonl"
+    )
+    row_schema_path = (
+        artifact_dir
+        / "formalization_gap_planner_primitive_action_queue_row.schema.json"
+    )
+    manifest = _read_json_no_error(manifest_path)
+    row_schema = _read_json_no_error(row_schema_path)
+    rows, row_errors = _read_jsonl_dict_rows_no_error(rows_jsonl_path)
+    checks = [
+        _check(
+            "optional_primitive_action_queue_row_schema_file",
+            "optional_artifacts",
+            "optional primitive action-queue row schema exists",
+            str(row_schema_path.exists()),
+            row_schema_path.exists(),
+        ),
+        _check(
+            "optional_primitive_action_queue_row_schema_id",
+            "optional_artifacts",
+            PRIMITIVE_ACTION_QUEUE_ROW_SCHEMA_ID,
+            str(row_schema.get("$id", "")),
+            row_schema.get("$id") == PRIMITIVE_ACTION_QUEUE_ROW_SCHEMA_ID,
+        ),
+        _check(
+            "optional_primitive_action_queue_manifest_schema_valid_count",
+            "optional_artifacts",
+            "primitive action-queue manifest row schema-valid count matches item count",
+            (
+                f"{manifest.get('n_row_schema_valid', 0)}/"
+                f"{manifest.get('n_action_items', 0)}; "
+                f"invalid={manifest.get('n_row_schema_invalid', 0)}"
+            ),
+            int(manifest.get("n_action_items", 0) or 0) > 0
+            and int(manifest.get("n_row_schema_valid", 0) or 0)
+            == int(manifest.get("n_action_items", 0) or 0)
+            and int(manifest.get("n_row_schema_invalid", 0) or 0) == 0,
+        ),
+        _check(
+            "optional_primitive_action_queue_jsonl_parse",
+            "optional_artifacts",
+            "primitive action-queue JSONL parses into object rows",
+            "; ".join(row_errors) if row_errors else f"rows={len(rows)}",
+            not row_errors,
+            errors=row_errors,
+        ),
+        _check(
+            "optional_primitive_action_queue_jsonl_row_count",
+            "optional_artifacts",
+            "primitive action-queue JSONL rows match manifest action-item count",
+            f"jsonl={len(rows)} manifest={manifest.get('n_action_items', 0)}",
+            len(rows) == int(manifest.get("n_action_items", 0) or 0),
+        ),
+    ]
+    for idx, row in enumerate(rows):
+        schema_errors = validate_primitive_action_queue_row(row)
+        checks.append(
+            _check(
+                f"optional_primitive_action_queue_row_{idx}_schema_valid",
+                "optional_artifacts",
+                "primitive action-queue row satisfies published schema",
+                "; ".join(schema_errors) if schema_errors else "ok",
+                not schema_errors,
+                errors=schema_errors,
+            )
+        )
+    return checks
+
+
+def _action_resource_plan_optional_checks(
+    bundle_dir: Path,
+) -> list[FormalizationGapPlannerPublicationBundleAuditCheck]:
+    artifact_dir = (
+        bundle_dir / "artifacts" / "formalization_gap_planner_action_resource_plan"
+    )
+    manifest_path = (
+        artifact_dir
+        / "formalization_gap_planner_action_resource_plan_manifest.json"
+    )
+    rows_jsonl_path = (
+        artifact_dir / "formalization_gap_planner_action_resource_plan.jsonl"
+    )
+    row_schema_path = (
+        artifact_dir
+        / "formalization_gap_planner_action_resource_plan_row.schema.json"
+    )
+    manifest = _read_json_no_error(manifest_path)
+    row_schema = _read_json_no_error(row_schema_path)
+    rows, row_errors = _read_jsonl_dict_rows_no_error(rows_jsonl_path)
+    checks = [
+        _check(
+            "optional_action_resource_plan_row_schema_file",
+            "optional_artifacts",
+            "optional action-resource plan row schema exists",
+            str(row_schema_path.exists()),
+            row_schema_path.exists(),
+        ),
+        _check(
+            "optional_action_resource_plan_row_schema_id",
+            "optional_artifacts",
+            ACTION_RESOURCE_PLAN_ROW_SCHEMA_ID,
+            str(row_schema.get("$id", "")),
+            row_schema.get("$id") == ACTION_RESOURCE_PLAN_ROW_SCHEMA_ID,
+        ),
+        _check(
+            "optional_action_resource_plan_manifest_schema_valid_count",
+            "optional_artifacts",
+            "action-resource plan manifest row schema-valid count matches plan count",
+            (
+                f"{manifest.get('n_row_schema_valid', 0)}/"
+                f"{manifest.get('n_resource_plan_rows', 0)}; "
+                f"invalid={manifest.get('n_row_schema_invalid', 0)}"
+            ),
+            int(manifest.get("n_resource_plan_rows", 0) or 0) > 0
+            and int(manifest.get("n_row_schema_valid", 0) or 0)
+            == int(manifest.get("n_resource_plan_rows", 0) or 0)
+            and int(manifest.get("n_row_schema_invalid", 0) or 0) == 0,
+        ),
+        _check(
+            "optional_action_resource_plan_jsonl_parse",
+            "optional_artifacts",
+            "action-resource plan JSONL parses into object rows",
+            "; ".join(row_errors) if row_errors else f"rows={len(rows)}",
+            not row_errors,
+            errors=row_errors,
+        ),
+        _check(
+            "optional_action_resource_plan_jsonl_row_count",
+            "optional_artifacts",
+            "action-resource plan JSONL rows match manifest resource-plan count",
+            f"jsonl={len(rows)} manifest={manifest.get('n_resource_plan_rows', 0)}",
+            len(rows) == int(manifest.get("n_resource_plan_rows", 0) or 0),
+        ),
+    ]
+    for idx, row in enumerate(rows):
+        schema_errors = validate_action_resource_plan_row(row)
+        checks.append(
+            _check(
+                f"optional_action_resource_plan_row_{idx}_schema_valid",
+                "optional_artifacts",
+                "action-resource plan row satisfies published schema",
+                "; ".join(schema_errors) if schema_errors else "ok",
+                not schema_errors,
+                errors=schema_errors,
+            )
+        )
+    return checks
+
+
+def _resource_request_queue_optional_checks(
+    bundle_dir: Path,
+) -> list[FormalizationGapPlannerPublicationBundleAuditCheck]:
+    artifact_dir = (
+        bundle_dir / "artifacts" / "formalization_gap_planner_resource_request_queue"
+    )
+    manifest_path = (
+        artifact_dir
+        / "formalization_gap_planner_resource_request_queue_manifest.json"
+    )
+    rows_jsonl_path = (
+        artifact_dir / "formalization_gap_planner_resource_request_queue.jsonl"
+    )
+    row_schema_path = (
+        artifact_dir
+        / "formalization_gap_planner_resource_request_queue_row.schema.json"
+    )
+    action_rows_jsonl_path = (
+        bundle_dir
+        / "artifacts"
+        / "formalization_gap_planner_action_resource_plan"
+        / "formalization_gap_planner_action_resource_plan.jsonl"
+    )
+    manifest = _read_json_no_error(manifest_path)
+    row_schema = _read_json_no_error(row_schema_path)
+    rows, row_errors = _read_jsonl_dict_rows_no_error(rows_jsonl_path)
+    action_rows, action_row_errors = _read_jsonl_dict_rows_no_error(
+        action_rows_jsonl_path
+    )
+    action_plan_index = _action_resource_plan_index(action_rows)
+    checks = [
+        _check(
+            "optional_resource_request_queue_row_schema_file",
+            "optional_artifacts",
+            "optional resource request-queue row schema exists",
+            str(row_schema_path.exists()),
+            row_schema_path.exists(),
+        ),
+        _check(
+            "optional_resource_request_queue_row_schema_id",
+            "optional_artifacts",
+            RESOURCE_REQUEST_QUEUE_ROW_SCHEMA_ID,
+            str(row_schema.get("$id", "")),
+            row_schema.get("$id") == RESOURCE_REQUEST_QUEUE_ROW_SCHEMA_ID,
+        ),
+        _check(
+            "optional_resource_request_queue_manifest_schema_valid_count",
+            "optional_artifacts",
+            "resource request-queue manifest row schema-valid count matches request count",
+            (
+                f"{manifest.get('n_row_schema_valid', 0)}/"
+                f"{manifest.get('n_resource_request_rows', 0)}; "
+                f"invalid={manifest.get('n_row_schema_invalid', 0)}"
+            ),
+            int(manifest.get("n_resource_request_rows", 0) or 0) > 0
+            and int(manifest.get("n_row_schema_valid", 0) or 0)
+            == int(manifest.get("n_resource_request_rows", 0) or 0)
+            and int(manifest.get("n_row_schema_invalid", 0) or 0) == 0,
+        ),
+        _check(
+            "optional_resource_request_queue_jsonl_parse",
+            "optional_artifacts",
+            "resource request-queue JSONL parses into object rows",
+            "; ".join(row_errors) if row_errors else f"rows={len(rows)}",
+            not row_errors,
+            errors=row_errors,
+        ),
+        _check(
+            "optional_resource_request_queue_jsonl_row_count",
+            "optional_artifacts",
+            "resource request-queue JSONL rows match manifest request count",
+            f"jsonl={len(rows)} manifest={manifest.get('n_resource_request_rows', 0)}",
+            len(rows) == int(manifest.get("n_resource_request_rows", 0) or 0),
+        ),
+        _check(
+            "optional_resource_request_queue_action_resource_plan_jsonl_parse",
+            "optional_artifacts",
+            "bundled action-resource plan JSONL parses for request alignment",
+            (
+                "; ".join(action_row_errors)
+                if action_row_errors
+                else f"rows={len(action_rows)}"
+            ),
+            not action_row_errors and bool(action_rows),
+            errors=action_row_errors,
+        ),
+    ]
+    for idx, row in enumerate(rows):
+        schema_errors = validate_resource_request_queue_row(row)
+        action_resource_plan_id = str(row.get("action_resource_plan_id", ""))
+        action_row = action_plan_index.get(action_resource_plan_id)
+        payload_identity_errors = _resource_request_payload_identity_errors(row)
+        dispatch_spec_errors = _resource_request_dispatch_spec_errors(row)
+        alignment_errors = _resource_request_contract_alignment_errors(
+            row,
+            action_row,
+        )
+        checks.append(
+            _check(
+                f"optional_resource_request_queue_row_{idx}_schema_valid",
+                "optional_artifacts",
+                "resource request-queue row satisfies published schema",
+                "; ".join(schema_errors) if schema_errors else "ok",
+                not schema_errors,
+                errors=schema_errors,
+            )
+        )
+        checks.append(
+            _check(
+                f"optional_resource_request_queue_row_{idx}_action_resource_plan_ref",
+                "optional_artifacts",
+                "resource request resolves to a bundled action-resource plan",
+                action_resource_plan_id,
+                action_row is not None,
+                errors=()
+                if action_row is not None
+                else (
+                    "missing bundled action-resource plan: "
+                    + action_resource_plan_id,
+                ),
+            )
+        )
+        checks.append(
+            _check(
+                f"optional_resource_request_queue_row_{idx}_request_payload_identity",
+                "optional_artifacts",
+                "resource request payload carries matching response-correlation fields",
+                (
+                    "; ".join(payload_identity_errors)
+                    if payload_identity_errors
+                    else "ok"
+                ),
+                not payload_identity_errors,
+                errors=payload_identity_errors,
+            )
+        )
+        checks.append(
+            _check(
+                f"optional_resource_request_queue_row_{idx}_resource_contract_alignment",
+                "optional_artifacts",
+                "resource request uses the selected resource's action-plan contract map",
+                "; ".join(alignment_errors) if alignment_errors else "ok",
+                not alignment_errors,
+                errors=alignment_errors,
+            )
+        )
+        checks.append(
+            _check(
+                f"optional_resource_request_queue_row_{idx}_dispatch_spec_identity",
+                "optional_artifacts",
+                "resource request dispatch spec matches row and nested payload",
+                "; ".join(dispatch_spec_errors) if dispatch_spec_errors else "ok",
+                not dispatch_spec_errors,
+                errors=dispatch_spec_errors,
+            )
+        )
+    return checks
+
+
+def _action_resource_plan_index(
+    rows: list[dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    return {
+        str(row.get("action_resource_plan_id", "")): row
+        for row in rows
+        if row.get("action_resource_plan_id")
+    }
+
+
+def _resource_request_contract_alignment_errors(
+    row: dict[str, Any],
+    action_row: dict[str, Any] | None,
+) -> tuple[str, ...]:
+    if action_row is None:
+        return ("resource request action_resource_plan_id does not resolve",)
+    resource_id = str(row.get("resource_id", ""))
+    errors: list[str] = []
+    comparisons = (
+        (
+            "resource_contract_ids",
+            _resource_map_values(
+                action_row,
+                "resource_contracts_by_resource",
+                resource_id,
+            ),
+        ),
+        (
+            "request_contract_fields",
+            _resource_map_values(
+                action_row,
+                "request_contract_fields_by_resource",
+                resource_id,
+            ),
+        ),
+        (
+            "response_contract_fields",
+            _resource_map_values(
+                action_row,
+                "response_contract_fields_by_resource",
+                resource_id,
+            ),
+        ),
+    )
+    request_payload = row.get("request_payload", {})
+    for field_name, expected in comparisons:
+        observed = _str_tuple(row.get(field_name, []))
+        payload_observed = (
+            _str_tuple(request_payload.get(field_name, []))
+            if isinstance(request_payload, dict)
+            else tuple()
+        )
+        if not expected:
+            errors.append(f"{field_name} missing map entry for {resource_id}")
+            continue
+        if set(observed) != set(expected):
+            errors.append(
+                f"{field_name} mismatch for {resource_id}: "
+                f"observed={sorted(observed)} expected={sorted(expected)}"
+            )
+        if set(payload_observed) != set(expected):
+            errors.append(
+                f"request_payload.{field_name} mismatch for {resource_id}: "
+                f"observed={sorted(payload_observed)} expected={sorted(expected)}"
+            )
+    return tuple(errors)
+
+
+def _resource_request_payload_identity_errors(row: dict[str, Any]) -> tuple[str, ...]:
+    request_payload = row.get("request_payload", {})
+    if not isinstance(request_payload, dict):
+        return ("request_payload must be object",)
+    errors: list[str] = []
+    for field_name in (
+        "resource_request_id",
+        "action_resource_plan_id",
+        "primitive_action_id",
+        "coverage_map_id",
+        "goal_plan_id",
+        "route_id",
+        "primitive",
+        "coverage_bucket",
+        "queue_action_kind",
+        "target_prover_family",
+        "library_snapshot_ref",
+        "resource_id",
+        "request_phase",
+        "expected_response_artifact",
+    ):
+        if request_payload.get(field_name) != row.get(field_name):
+            errors.append(f"request_payload.{field_name} must match row.{field_name}")
+    if request_payload.get("request_rank") != row.get("request_rank"):
+        errors.append("request_payload.request_rank must match row.request_rank")
+    return tuple(errors)
+
+
+def _resource_request_dispatch_spec_errors(row: dict[str, Any]) -> tuple[str, ...]:
+    dispatch_spec = row.get("dispatch_spec", {})
+    if not isinstance(dispatch_spec, dict):
+        return ("dispatch_spec must be object",)
+    request_payload = row.get("request_payload", {})
+    payload_dispatch_spec = (
+        request_payload.get("dispatch_spec")
+        if isinstance(request_payload, dict)
+        else None
+    )
+    errors: list[str] = []
+    expected_values = {
+        "resource_id": str(row.get("resource_id", "")),
+        "request_phase": str(row.get("request_phase", "")),
+        "target_prover_family": str(row.get("target_prover_family", "")),
+        "execution_command": str(row.get("execution_command", "")),
+        "mcp_or_cli_hint": str(row.get("mcp_or_cli_hint", "")),
+        "expected_response_artifact": str(row.get("expected_response_artifact", "")),
+        "response_jsonl_contract": "formalization_gap_planner_resource_responses.jsonl",
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY_RESOURCE_REQUEST,
+        "dispatch_kind": _resource_request_dispatch_kind(
+            str(row.get("resource_id", "")),
+            str(row.get("request_phase", "")),
+        ),
+        "adapter_surface": _resource_request_adapter_surface(
+            str(row.get("resource_id", "")),
+            str(row.get("request_phase", "")),
+        ),
+    }
+    for field_name, expected in expected_values.items():
+        if dispatch_spec.get(field_name) != expected:
+            errors.append(f"dispatch_spec.{field_name} mismatch")
+    if not isinstance(payload_dispatch_spec, dict):
+        errors.append("request_payload.dispatch_spec must be object")
+    elif payload_dispatch_spec != dispatch_spec:
+        errors.append("request_payload.dispatch_spec must match row.dispatch_spec")
+    return tuple(errors)
+
+
+PROOF_EVIDENCE_BOUNDARY_RESOURCE_REQUEST = (
+    "Formalization gap planner resource-request queue rows are executable "
+    "dispatch packets for local-first resources, frontier MCP or CLI tools, "
+    "and prover feedback adapters. They record what evidence should be "
+    "requested and how responses should be accepted, but they are not "
+    "theorem proof evidence."
+)
+
+
+def _resource_request_dispatch_kind(resource_id: str, phase: str) -> str:
+    resource = resource_id.lower()
+    if phase == "local_first":
+        return "local_cli"
+    if "mcp" in resource or any(
+        token in resource
+        for token in (
+            "lsp",
+            "loogle",
+            "leansearch",
+            "leanexplore",
+            "paperclip",
+            "serapi",
+            "sledgehammer",
+            "agda",
+        )
+    ):
+        return "frontier_mcp_or_cli"
+    if any(token in resource for token in ("paperqa", "openscholar", "semantic")):
+        return "frontier_literature_service"
+    if any(token in resource for token in ("agentic", "reprover", "dependency_graph")):
+        return "frontier_prover_orchestration"
+    return "resource_specific_adapter"
+
+
+def _resource_request_adapter_surface(resource_id: str, phase: str) -> str:
+    if phase == "local_first":
+        return "ai_statistician_cli"
+    resource = resource_id.lower()
+    if "paperclip" in resource:
+        return "paperclip_mcp_cli"
+    if "paperqa" in resource:
+        return "paperqa_api_or_cli"
+    if "openscholar" in resource or "semantic" in resource:
+        return "openscholar_semantic_scholar_api"
+    if "loogle" in resource:
+        return "loogle_api"
+    if "leansearch" in resource:
+        return "leansearch_api"
+    if "leanexplore" in resource:
+        return "leanexplore_mcp"
+    if "lsp" in resource:
+        return "target_prover_lsp_mcp"
+    if "serapi" in resource:
+        return "rocq_serapi"
+    if "sledgehammer" in resource:
+        return "isabelle_sledgehammer"
+    if "agda" in resource:
+        return "agda_search_or_automation"
+    if "reprover" in resource:
+        return "reprover_or_leandojo"
+    if "agentic" in resource:
+        return "agentic_prover_service"
+    return "resource_specific_adapter"
+
+
+def _resource_map_values(
+    action_row: dict[str, Any],
+    map_field_name: str,
+    resource_id: str,
+) -> tuple[str, ...]:
+    value = action_row.get(map_field_name, {})
+    if not isinstance(value, dict):
+        return tuple()
+    return _str_tuple(value.get(resource_id, []))
+
+
+def _resource_response_ledger_optional_checks(
+    bundle_dir: Path,
+) -> list[FormalizationGapPlannerPublicationBundleAuditCheck]:
+    artifact_dir = (
+        bundle_dir / "artifacts" / "formalization_gap_planner_resource_response_ledger"
+    )
+    manifest_path = (
+        artifact_dir
+        / "formalization_gap_planner_resource_response_ledger_manifest.json"
+    )
+    rows_jsonl_path = (
+        artifact_dir / "formalization_gap_planner_resource_response_ledger.jsonl"
+    )
+    response_schema_path = (
+        artifact_dir / "formalization_gap_planner_resource_response.schema.json"
+    )
+    row_schema_path = (
+        artifact_dir
+        / "formalization_gap_planner_resource_response_ledger_row.schema.json"
+    )
+    request_rows_jsonl_path = (
+        bundle_dir
+        / "artifacts"
+        / "formalization_gap_planner_resource_request_queue"
+        / "formalization_gap_planner_resource_request_queue.jsonl"
+    )
+    manifest = _read_json_no_error(manifest_path)
+    response_schema = _read_json_no_error(response_schema_path)
+    row_schema = _read_json_no_error(row_schema_path)
+    rows, row_errors = _read_jsonl_dict_rows_no_error(rows_jsonl_path)
+    request_rows, request_row_errors = _read_jsonl_dict_rows_no_error(
+        request_rows_jsonl_path
+    )
+    request_index = _resource_request_queue_index(request_rows)
+    checks = [
+        _check(
+            "optional_resource_response_schema_file",
+            "optional_artifacts",
+            "optional resource response schema exists",
+            str(response_schema_path.exists()),
+            response_schema_path.exists(),
+        ),
+        _check(
+            "optional_resource_response_schema_id",
+            "optional_artifacts",
+            RESOURCE_RESPONSE_SCHEMA_ID,
+            str(response_schema.get("$id", "")),
+            response_schema.get("$id") == RESOURCE_RESPONSE_SCHEMA_ID,
+        ),
+        _check(
+            "optional_resource_response_ledger_row_schema_file",
+            "optional_artifacts",
+            "optional resource response-ledger row schema exists",
+            str(row_schema_path.exists()),
+            row_schema_path.exists(),
+        ),
+        _check(
+            "optional_resource_response_ledger_row_schema_id",
+            "optional_artifacts",
+            RESOURCE_RESPONSE_LEDGER_ROW_SCHEMA_ID,
+            str(row_schema.get("$id", "")),
+            row_schema.get("$id") == RESOURCE_RESPONSE_LEDGER_ROW_SCHEMA_ID,
+        ),
+        _check(
+            "optional_resource_response_ledger_manifest_schema_valid_count",
+            "optional_artifacts",
+            "resource response-ledger manifest row schema-valid count matches ledger-row count",
+            (
+                f"{manifest.get('n_ledger_row_schema_valid', 0)}/"
+                f"{manifest.get('n_ledger_rows', 0)}; "
+                f"invalid={manifest.get('n_ledger_row_schema_invalid', 0)}"
+            ),
+            int(manifest.get("n_ledger_rows", 0) or 0) > 0
+            and int(manifest.get("n_ledger_row_schema_valid", 0) or 0)
+            == int(manifest.get("n_ledger_rows", 0) or 0)
+            and int(manifest.get("n_ledger_row_schema_invalid", 0) or 0) == 0,
+        ),
+        _check(
+            "optional_resource_response_ledger_jsonl_parse",
+            "optional_artifacts",
+            "resource response-ledger JSONL parses into object rows",
+            "; ".join(row_errors) if row_errors else f"rows={len(rows)}",
+            not row_errors,
+            errors=row_errors,
+        ),
+        _check(
+            "optional_resource_response_ledger_jsonl_row_count",
+            "optional_artifacts",
+            "resource response-ledger JSONL rows match manifest ledger-row count",
+            f"jsonl={len(rows)} manifest={manifest.get('n_ledger_rows', 0)}",
+            len(rows) == int(manifest.get("n_ledger_rows", 0) or 0),
+        ),
+        _check(
+            "optional_resource_response_ledger_request_queue_jsonl_parse",
+            "optional_artifacts",
+            "bundled resource request-queue JSONL parses for ledger alignment",
+            (
+                "; ".join(request_row_errors)
+                if request_row_errors
+                else f"rows={len(request_rows)}"
+            ),
+            not request_row_errors and bool(request_rows),
+            errors=request_row_errors,
+        ),
+    ]
+    for idx, row in enumerate(rows):
+        schema_errors = validate_resource_response_ledger_row(row)
+        resource_request_id = str(row.get("resource_request_id", ""))
+        request_row = request_index.get(resource_request_id)
+        accounting_errors = _resource_response_contract_field_accounting_errors(
+            row,
+            request_row,
+        )
+        checks.append(
+            _check(
+                f"optional_resource_response_ledger_row_{idx}_schema_valid",
+                "optional_artifacts",
+                "resource response-ledger row satisfies published schema",
+                "; ".join(schema_errors) if schema_errors else "ok",
+                not schema_errors,
+                errors=schema_errors,
+            )
+        )
+        checks.append(
+            _check(
+                f"optional_resource_response_ledger_row_{idx}_request_ref",
+                "optional_artifacts",
+                "resource response-ledger row resolves to a bundled resource request",
+                resource_request_id,
+                request_row is not None,
+                errors=()
+                if request_row is not None
+                else (
+                    "missing bundled resource request: "
+                    + resource_request_id,
+                ),
+            )
+        )
+        checks.append(
+            _check(
+                f"optional_resource_response_ledger_row_{idx}_contract_field_accounting",
+                "optional_artifacts",
+                "matched and missing response fields account for the request contract",
+                "; ".join(accounting_errors) if accounting_errors else "ok",
+                not accounting_errors,
+                errors=accounting_errors,
+            )
+        )
+    return checks
+
+
+def _resource_request_queue_index(
+    rows: list[dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    return {
+        str(row.get("resource_request_id", "")): row
+        for row in rows
+        if row.get("resource_request_id")
+    }
+
+
+def _resource_response_contract_field_accounting_errors(
+    row: dict[str, Any],
+    request_row: dict[str, Any] | None,
+) -> tuple[str, ...]:
+    if request_row is None:
+        return ("resource response-ledger resource_request_id does not resolve",)
+    errors: list[str] = []
+    field_comparisons = (
+        "action_resource_plan_id",
+        "primitive_action_id",
+        "coverage_map_id",
+        "goal_plan_id",
+        "route_id",
+        "resource_id",
+        "expected_response_artifact",
+    )
+    for field_name in field_comparisons:
+        observed = str(row.get(field_name, ""))
+        expected = str(request_row.get(field_name, ""))
+        if observed != expected:
+            errors.append(
+                f"{field_name} mismatch: observed={observed!r} expected={expected!r}"
+            )
+    if _dict_value(row, "dispatch_spec") != _dict_value(request_row, "dispatch_spec"):
+        errors.append("dispatch_spec mismatch between ledger row and request row")
+    if _candidate_declaration_rows(
+        row.get("candidate_declaration_rows", [])
+    ) != _candidate_declaration_rows(request_row.get("candidate_declaration_rows", [])):
+        errors.append(
+            "candidate_declaration_rows mismatch between ledger row and request row"
+        )
+    expected_fields = set(_str_tuple(request_row.get("response_contract_fields", [])))
+    row_response_contract_fields = set(
+        _str_tuple(row.get("response_contract_fields", []))
+    )
+    matched_fields = set(_str_tuple(row.get("matched_response_contract_fields", [])))
+    missing_fields = set(_str_tuple(row.get("missing_response_contract_fields", [])))
+    accounted_fields = matched_fields | missing_fields
+    overlap = matched_fields & missing_fields
+    response_contract_minimum_met = bool(row.get("response_contract_minimum_met", False))
+    response_contract_ok = bool(row.get("response_contract_ok", False))
+    acceptance_status = str(row.get("acceptance_status", ""))
+    if row_response_contract_fields and row_response_contract_fields != expected_fields:
+        errors.append(
+            "ledger response_contract_fields mismatch request: "
+            f"observed={sorted(row_response_contract_fields)} "
+            f"expected={sorted(expected_fields)}"
+        )
+    if accounted_fields != expected_fields:
+        errors.append(
+            "response contract field accounting mismatch: "
+            f"accounted={sorted(accounted_fields)} expected={sorted(expected_fields)}"
+        )
+    if overlap:
+        errors.append(
+            "response contract fields are both matched and missing: "
+            + ",".join(sorted(overlap))
+        )
+    if response_contract_minimum_met != bool(matched_fields):
+        errors.append(
+            "response_contract_minimum_met must equal whether matched contract fields are non-empty"
+        )
+    if response_contract_ok and not response_contract_minimum_met:
+        errors.append("response_contract_ok requires response_contract_minimum_met")
+    if acceptance_status.startswith("ACCEPTED_") and not response_contract_minimum_met:
+        errors.append("accepted resource response requires response_contract_minimum_met")
+    return tuple(errors)
+
+
+def _portable_plan_audit_optional_checks(
+    bundle_dir: Path,
+) -> list[FormalizationGapPlannerPublicationBundleAuditCheck]:
+    artifact_dir = bundle_dir / "artifacts" / "formalization_gap_planner_portable_plan_audit"
+    manifest_path = artifact_dir / "formalization_gap_planner_portable_plan_audit_manifest.json"
+    rows_jsonl_path = artifact_dir / "formalization_gap_planner_portable_plan_audit.jsonl"
+    row_schema_path = (
+        artifact_dir / "formalization_gap_planner_portable_plan_audit_row.schema.json"
+    )
+    manifest = _read_json_no_error(manifest_path)
+    row_schema = _read_json_no_error(row_schema_path)
+    rows, row_errors = _read_jsonl_dict_rows_no_error(rows_jsonl_path)
+    checks = [
+        _check(
+            "optional_portable_plan_audit_row_schema_file",
+            "optional_artifacts",
+            "optional portable-plan audit row schema exists",
+            str(row_schema_path.exists()),
+            row_schema_path.exists(),
+        ),
+        _check(
+            "optional_portable_plan_audit_row_schema_id",
+            "optional_artifacts",
+            PORTABLE_PLAN_AUDIT_ROW_SCHEMA_ID,
+            str(row_schema.get("$id", "")),
+            row_schema.get("$id") == PORTABLE_PLAN_AUDIT_ROW_SCHEMA_ID,
+        ),
+        _check(
+            "optional_portable_plan_audit_manifest_schema_valid_count",
+            "optional_artifacts",
+            "portable-plan audit manifest row schema-valid count matches check count",
+            (
+                f"{manifest.get('n_row_schema_valid', 0)}/"
+                f"{manifest.get('n_checks', 0)}; "
+                f"invalid={manifest.get('n_row_schema_invalid', 0)}"
+            ),
+            int(manifest.get("n_checks", 0) or 0) > 0
+            and int(manifest.get("n_row_schema_valid", 0) or 0)
+            == int(manifest.get("n_checks", 0) or 0)
+            and int(manifest.get("n_row_schema_invalid", 0) or 0) == 0,
+        ),
+        _check(
+            "optional_portable_plan_audit_jsonl_parse",
+            "optional_artifacts",
+            "portable-plan audit JSONL parses into object rows",
+            "; ".join(row_errors) if row_errors else f"rows={len(rows)}",
+            not row_errors,
+            errors=row_errors,
+        ),
+        _check(
+            "optional_portable_plan_audit_jsonl_row_count",
+            "optional_artifacts",
+            "portable-plan audit JSONL rows match manifest check count",
+            f"jsonl={len(rows)} manifest={manifest.get('n_checks', 0)}",
+            len(rows) == int(manifest.get("n_checks", 0) or 0),
+        ),
+    ]
+    for idx, row in enumerate(rows):
+        schema_errors = validate_portable_plan_audit_row(row)
+        checks.append(
+            _check(
+                f"optional_portable_plan_audit_row_{idx}_schema_valid",
+                "optional_artifacts",
+                "portable-plan audit row satisfies published schema",
+                "; ".join(schema_errors) if schema_errors else "ok",
+                not schema_errors,
+                errors=schema_errors,
+            )
+        )
+    return checks
+
+
+def _refinement_adapter_optional_checks(
+    bundle_dir: Path,
+) -> list[FormalizationGapPlannerPublicationBundleAuditCheck]:
+    artifact_dir = bundle_dir / "artifacts" / "formalization_gap_planner_refinement_adapter"
+    manifest_path = artifact_dir / "formalization_gap_planner_refinement_adapter_manifest.json"
+    rows_jsonl_path = artifact_dir / "formalization_gap_planner_refinement_evidence_responses.jsonl"
+    response_schema_path = (
+        artifact_dir / "formalization_gap_planner_refinement_tool_response.schema.json"
+    )
+    manifest = _read_json_no_error(manifest_path)
+    response_schema = _read_json_no_error(response_schema_path)
+    rows, row_errors = _read_jsonl_dict_rows_no_error(rows_jsonl_path)
+    checks = [
+        _check(
+            "optional_refinement_adapter_response_schema_file",
+            "optional_artifacts",
+            "optional refinement adapter response schema exists",
+            str(response_schema_path.exists()),
+            response_schema_path.exists(),
+        ),
+        _check(
+            "optional_refinement_adapter_response_schema_id",
+            "optional_artifacts",
+            "urn:ai-statistician:schemas:formalization-gap-planner-refinement-tool-response:1",
+            str(response_schema.get("$id", "")),
+            response_schema.get("$id")
+            == "urn:ai-statistician:schemas:formalization-gap-planner-refinement-tool-response:1",
+        ),
+        _check(
+            "optional_refinement_adapter_manifest_schema_valid_count",
+            "optional_artifacts",
+            "refinement adapter manifest response schema-valid count matches response count",
+            (
+                f"{manifest.get('n_response_schema_valid', 0)}/"
+                f"{manifest.get('n_responses', 0)}; "
+                f"invalid={manifest.get('n_response_schema_invalid', 0)}"
+            ),
+            int(manifest.get("n_responses", 0) or 0) > 0
+            and int(manifest.get("n_response_schema_valid", 0) or 0)
+            == int(manifest.get("n_responses", 0) or 0)
+            and int(manifest.get("n_response_schema_invalid", 0) or 0) == 0,
+        ),
+        _check(
+            "optional_refinement_adapter_jsonl_parse",
+            "optional_artifacts",
+            "refinement adapter response JSONL parses into object rows",
+            "; ".join(row_errors) if row_errors else f"rows={len(rows)}",
+            not row_errors,
+            errors=row_errors,
+        ),
+        _check(
+            "optional_refinement_adapter_jsonl_row_count",
+            "optional_artifacts",
+            "refinement adapter response JSONL rows match manifest response count",
+            f"jsonl={len(rows)} manifest={manifest.get('n_responses', 0)}",
+            len(rows) == int(manifest.get("n_responses", 0) or 0),
+        ),
+    ]
+    for idx, row in enumerate(rows):
+        schema_errors = validate_refinement_tool_response_row(row)
+        checks.append(
+            _check(
+                f"optional_refinement_adapter_response_row_{idx}_schema_valid",
+                "optional_artifacts",
+                "refinement adapter response row satisfies published refinement-tool schema",
+                "; ".join(schema_errors) if schema_errors else "ok",
+                not schema_errors,
+                errors=schema_errors,
+            )
+        )
+    return checks
+
+
+def _local_adapter_optional_checks(
+    bundle_dir: Path,
+    artifact_name: str,
+) -> list[FormalizationGapPlannerPublicationBundleAuditCheck]:
+    local_count_fields = {
+        "formalization_gap_planner_local_literature_adapter": (
+            "n_local_literature_responses"
+        ),
+        "formalization_gap_planner_local_formal_source_adapter": (
+            "n_local_formal_source_responses"
+        ),
+        "formalization_gap_planner_local_proof_state_adapter": (
+            "n_local_proof_state_responses"
+        ),
+    }
+    local_count_field = local_count_fields.get(artifact_name, "n_local_responses")
+    artifact_dir = bundle_dir / "artifacts" / artifact_name
+    slug = artifact_name.replace("formalization_gap_planner_", "")
+    manifest_path = artifact_dir / f"{artifact_name}_manifest.json"
+    local_rows_jsonl_path = artifact_dir / f"{artifact_name}_responses.jsonl"
+    merged_rows_jsonl_path = (
+        artifact_dir / "formalization_gap_planner_refinement_evidence_responses.jsonl"
+    )
+    response_schema_path = (
+        artifact_dir / "formalization_gap_planner_refinement_tool_response.schema.json"
+    )
+    manifest = _read_json_no_error(manifest_path)
+    response_schema = _read_json_no_error(response_schema_path)
+    local_rows, local_row_errors = _read_jsonl_dict_rows_no_error(local_rows_jsonl_path)
+    merged_rows, merged_row_errors = _read_jsonl_dict_rows_no_error(
+        merged_rows_jsonl_path
+    )
+    checks = [
+        _check(
+            f"optional_{slug}_response_schema_file",
+            "optional_artifacts",
+            "optional local adapter response schema exists",
+            str(response_schema_path.exists()),
+            response_schema_path.exists(),
+        ),
+        _check(
+            f"optional_{slug}_response_schema_id",
+            "optional_artifacts",
+            "urn:ai-statistician:schemas:formalization-gap-planner-refinement-tool-response:1",
+            str(response_schema.get("$id", "")),
+            response_schema.get("$id")
+            == "urn:ai-statistician:schemas:formalization-gap-planner-refinement-tool-response:1",
+        ),
+        _check(
+            f"optional_{slug}_local_manifest_schema_valid_count",
+            "optional_artifacts",
+            "local adapter manifest local response schema-valid count matches local response count",
+            (
+                f"{manifest.get('n_local_response_schema_valid', 0)}/"
+                f"{manifest.get(local_count_field, 0)}; "
+                f"invalid={manifest.get('n_local_response_schema_invalid', 0)}"
+            ),
+            int(manifest.get(local_count_field, 0) or 0) > 0
+            and int(manifest.get("n_local_response_schema_valid", 0) or 0)
+            == int(manifest.get(local_count_field, 0) or 0)
+            and int(manifest.get("n_local_response_schema_invalid", 0) or 0) == 0,
+        ),
+        _check(
+            f"optional_{slug}_merged_manifest_schema_valid_count",
+            "optional_artifacts",
+            "local adapter manifest merged response schema-valid count matches merged response count",
+            (
+                f"{manifest.get('n_merged_response_schema_valid', 0)}/"
+                f"{manifest.get('n_merged_responses', 0)}; "
+                f"invalid={manifest.get('n_merged_response_schema_invalid', 0)}"
+            ),
+            int(manifest.get("n_merged_responses", 0) or 0) > 0
+            and int(manifest.get("n_merged_response_schema_valid", 0) or 0)
+            == int(manifest.get("n_merged_responses", 0) or 0)
+            and int(manifest.get("n_merged_response_schema_invalid", 0) or 0) == 0,
+        ),
+        _check(
+            f"optional_{slug}_local_jsonl_parse",
+            "optional_artifacts",
+            "local adapter response JSONL parses into object rows",
+            "; ".join(local_row_errors) if local_row_errors else f"rows={len(local_rows)}",
+            not local_row_errors,
+            errors=local_row_errors,
+        ),
+        _check(
+            f"optional_{slug}_local_jsonl_row_count",
+            "optional_artifacts",
+            "local adapter response JSONL rows match manifest local response count",
+            f"jsonl={len(local_rows)} manifest={manifest.get(local_count_field, 0)}",
+            len(local_rows) == int(manifest.get(local_count_field, 0) or 0),
+        ),
+        _check(
+            f"optional_{slug}_merged_jsonl_parse",
+            "optional_artifacts",
+            "local adapter merged response JSONL parses into object rows",
+            "; ".join(merged_row_errors)
+            if merged_row_errors
+            else f"rows={len(merged_rows)}",
+            not merged_row_errors,
+            errors=merged_row_errors,
+        ),
+        _check(
+            f"optional_{slug}_merged_jsonl_row_count",
+            "optional_artifacts",
+            "local adapter merged response JSONL rows match manifest merged response count",
+            f"jsonl={len(merged_rows)} manifest={manifest.get('n_merged_responses', 0)}",
+            len(merged_rows) == int(manifest.get("n_merged_responses", 0) or 0),
+        ),
+    ]
+    for scope, rows in (("local", local_rows), ("merged", merged_rows)):
+        for idx, row in enumerate(rows):
+            schema_errors = validate_refinement_tool_response_row(row)
+            checks.append(
+                _check(
+                    f"optional_local_adapter_response_{slug}_{scope}_row_{idx}_schema_valid",
+                    "optional_artifacts",
+                    "local adapter response row satisfies published refinement-tool schema",
+                    "; ".join(schema_errors) if schema_errors else "ok",
+                    not schema_errors,
+                    errors=schema_errors,
+                )
+            )
+    return checks
+
+
+def _ablation_study_optional_checks(
+    bundle_dir: Path,
+) -> list[FormalizationGapPlannerPublicationBundleAuditCheck]:
+    artifact_dir = bundle_dir / "artifacts" / "formalization_gap_planner_ablation_study"
+    manifest_path = artifact_dir / "formalization_gap_planner_ablation_study_manifest.json"
+    rows_jsonl_path = artifact_dir / "formalization_gap_planner_ablation_study.jsonl"
+    row_schema_path = artifact_dir / "formalization_gap_planner_ablation_study_row.schema.json"
+    manifest = _read_json_no_error(manifest_path)
+    rows, row_errors = _read_jsonl_dict_rows_no_error(rows_jsonl_path)
+    checks = [
+        _check(
+            "optional_ablation_study_row_schema_file",
+            "optional_artifacts",
+            "optional ablation study row schema exists",
+            str(row_schema_path.exists()),
+            row_schema_path.exists(),
+        ),
+        _check(
+            "optional_ablation_study_manifest_schema_valid_count",
+            "optional_artifacts",
+            "ablation study manifest schema-valid count matches row count",
+            (
+                f"{manifest.get('n_row_schema_valid', 0)}/"
+                f"{manifest.get('n_ablation_variants', 0)}; "
+                f"invalid={manifest.get('n_row_schema_invalid', 0)}"
+            ),
+            int(manifest.get("n_ablation_variants", 0) or 0) > 0
+            and int(manifest.get("n_row_schema_valid", 0) or 0)
+            == int(manifest.get("n_ablation_variants", 0) or 0)
+            and int(manifest.get("n_row_schema_invalid", 0) or 0) == 0,
+        ),
+        _check(
+            "optional_ablation_study_jsonl_parse",
+            "optional_artifacts",
+            "ablation study JSONL parses into object rows",
+            "; ".join(row_errors) if row_errors else f"rows={len(rows)}",
+            not row_errors,
+            errors=row_errors,
+        ),
+        _check(
+            "optional_ablation_study_jsonl_row_count",
+            "optional_artifacts",
+            "ablation study JSONL rows match manifest variant count",
+            f"jsonl={len(rows)} manifest={manifest.get('n_ablation_variants', 0)}",
+            len(rows) == int(manifest.get("n_ablation_variants", 0) or 0),
+        ),
+    ]
+    for idx, row in enumerate(rows):
+        schema_errors = validate_ablation_study_row(row)
+        checks.append(
+            _check(
+                f"optional_ablation_study_row_{idx}_schema_valid",
+                "optional_artifacts",
+                "ablation study row satisfies published schema",
+                "; ".join(schema_errors) if schema_errors else "ok",
+                not schema_errors,
+                errors=schema_errors,
+            )
+        )
+    return checks
+
+
+def _route_stability_audit_optional_checks(
+    bundle_dir: Path,
+) -> list[FormalizationGapPlannerPublicationBundleAuditCheck]:
+    artifact_dir = bundle_dir / "artifacts" / "formalization_gap_planner_route_stability_audit"
+    manifest_path = artifact_dir / "formalization_gap_planner_route_stability_audit_manifest.json"
+    rows_jsonl_path = artifact_dir / "formalization_gap_planner_route_stability_audit.jsonl"
+    row_schema_path = artifact_dir / "formalization_gap_planner_route_stability_audit_row.schema.json"
+    overlay_rows_jsonl_path = (
+        bundle_dir
+        / "artifacts"
+        / "formalization_gap_planner_route_revision_overlay"
+        / "formalization_gap_planner_route_revision_overlay.jsonl"
+    )
+    manifest = _read_json_no_error(manifest_path)
+    rows, row_errors = _read_jsonl_dict_rows_no_error(rows_jsonl_path)
+    overlay_rows, overlay_row_errors = (
+        _read_jsonl_dict_rows_no_error(overlay_rows_jsonl_path)
+        if overlay_rows_jsonl_path.exists()
+        else ([], tuple())
+    )
+    overlay_index = _route_identity_row_index(overlay_rows)
+    overlay_status_present = any(
+        _route_revision_row_has_resource_response_status(row) for row in overlay_rows
+    )
+    checks = [
+        _check(
+            "optional_route_stability_audit_row_schema_file",
+            "optional_artifacts",
+            "optional route-stability audit row schema exists",
+            str(row_schema_path.exists()),
+            row_schema_path.exists(),
+        ),
+        _check(
+            "optional_route_stability_audit_manifest_schema_valid_count",
+            "optional_artifacts",
+            "route-stability manifest schema-valid count matches row count",
+            (
+                f"{manifest.get('n_row_schema_valid', 0)}/"
+                f"{manifest.get('n_stability_rows', 0)}; "
+                f"invalid={manifest.get('n_row_schema_invalid', 0)}"
+            ),
+            int(manifest.get("n_stability_rows", 0) or 0) > 0
+            and int(manifest.get("n_row_schema_valid", 0) or 0)
+            == int(manifest.get("n_stability_rows", 0) or 0)
+            and int(manifest.get("n_row_schema_invalid", 0) or 0) == 0,
+        ),
+        _check(
+            "optional_route_stability_audit_jsonl_parse",
+            "optional_artifacts",
+            "route-stability audit JSONL parses into object rows",
+            "; ".join(row_errors) if row_errors else f"rows={len(rows)}",
+            not row_errors,
+            errors=row_errors,
+        ),
+        _check(
+            "optional_route_stability_audit_jsonl_row_count",
+            "optional_artifacts",
+            "route-stability audit JSONL rows match manifest count",
+            f"jsonl={len(rows)} manifest={manifest.get('n_stability_rows', 0)}",
+            len(rows) == int(manifest.get("n_stability_rows", 0) or 0),
+        ),
+    ]
+    if overlay_status_present:
+        checks.append(
+            _check(
+                "optional_route_stability_audit_overlay_jsonl_parse",
+                "optional_artifacts",
+                "bundled route-revision overlay JSONL parses for stability/status consistency",
+                (
+                    "; ".join(overlay_row_errors)
+                    if overlay_row_errors
+                    else f"rows={len(overlay_rows)}"
+                ),
+                not overlay_row_errors and bool(overlay_rows),
+                errors=overlay_row_errors,
+            )
+        )
+    for idx, row in enumerate(rows):
+        schema_errors = validate_route_stability_audit_row(row)
+        overlay_row = _first_identity_match(row, overlay_index)
+        status_errors = _route_stability_resource_response_status_errors(
+            row,
+            overlay_row,
+        )
+        generic_prover_errors = _route_stability_generic_prover_field_errors(row)
+        checks.append(
+            _check(
+                f"optional_route_stability_audit_row_{idx}_schema_valid",
+                "optional_artifacts",
+                "route-stability audit row satisfies published schema",
+                "; ".join(schema_errors) if schema_errors else "ok",
+                not schema_errors,
+                errors=schema_errors,
+            )
+        )
+        if _route_stability_generic_prover_fields_observed(row):
+            checks.append(
+                _check(
+                    f"optional_route_stability_audit_row_{idx}_generic_prover_fields",
+                    "optional_artifacts",
+                    "route-stability proof-state feedback preserves generic prover class/family fields",
+                    "; ".join(generic_prover_errors) if generic_prover_errors else "ok",
+                    not generic_prover_errors,
+                    errors=generic_prover_errors,
+                )
+            )
+        if overlay_status_present:
+            checks.append(
+                _check(
+                    f"optional_route_stability_audit_row_{idx}_resource_response_status_consistency",
+                    "optional_artifacts",
+                    "route-stability decision reflects overlay resource-response status",
+                    "; ".join(status_errors) if status_errors else "ok",
+                    not status_errors,
+                    errors=status_errors,
+                )
+            )
+    return checks
+
+
+def _route_revision_overlay_optional_checks(
+    bundle_dir: Path,
+) -> list[FormalizationGapPlannerPublicationBundleAuditCheck]:
+    artifact_dir = (
+        bundle_dir / "artifacts" / "formalization_gap_planner_route_revision_overlay"
+    )
+    manifest_path = (
+        artifact_dir / "formalization_gap_planner_route_revision_overlay_manifest.json"
+    )
+    rows_jsonl_path = artifact_dir / "formalization_gap_planner_route_revision_overlay.jsonl"
+    row_schema_path = artifact_dir / "formalization_gap_planner_route_revision_overlay_row.schema.json"
+    resource_response_ledger_jsonl_path = (
+        bundle_dir
+        / "artifacts"
+        / "formalization_gap_planner_resource_response_ledger"
+        / "formalization_gap_planner_resource_response_ledger.jsonl"
+    )
+    manifest = _read_json_no_error(manifest_path)
+    rows, row_errors = _read_jsonl_dict_rows_no_error(rows_jsonl_path)
+    resource_response_ledger_artifact_present = (
+        resource_response_ledger_jsonl_path.exists()
+    )
+    resource_response_ledger_rows, resource_response_ledger_errors = (
+        _read_jsonl_dict_rows_no_error(resource_response_ledger_jsonl_path)
+        if resource_response_ledger_artifact_present
+        else ([], tuple())
+    )
+    resource_response_ledger_index = _resource_response_ledger_index(
+        resource_response_ledger_rows
+    )
+    resource_response_ledger_route_index = _resource_response_ledger_route_index(
+        resource_response_ledger_rows
+    )
+    n_rows = int(manifest.get("n_overlay_rows", 0) or 0)
+    n_unaligned = int(manifest.get("n_unaligned_primitives", 0) or 0)
+    status_summary_manifest_present = any(
+        key in manifest
+        for key in (
+            "n_resource_response_ledger_status_rows",
+            "n_resource_response_ledger_awaiting",
+            "n_resource_response_ledger_rejected",
+        )
+    )
+    resource_ledger_hooks = sum(
+        1
+        for row in rows
+        for hook_kind in _str_tuple(row.get("applied_hook_kinds", []))
+        if hook_kind == "resource_response_ledger"
+    )
+    checks = [
+        _check(
+            "optional_route_revision_overlay_row_schema_file",
+            "optional_artifacts",
+            "optional route-revision overlay row schema exists",
+            str(row_schema_path.exists()),
+            row_schema_path.exists(),
+        ),
+        _check(
+            "optional_route_revision_overlay_manifest_schema_valid_count",
+            "optional_artifacts",
+            "route-revision overlay manifest schema-valid count matches row count",
+            (
+                f"{manifest.get('n_row_schema_valid', 0)}/"
+                f"{manifest.get('n_overlay_rows', 0)}; "
+                f"invalid={manifest.get('n_row_schema_invalid', 0)}"
+            ),
+            n_rows > 0
+            and int(manifest.get("n_row_schema_valid", 0) or 0) == n_rows
+            and int(manifest.get("n_row_schema_invalid", 0) or 0) == 0,
+        ),
+        _check(
+            "optional_route_revision_overlay_jsonl_parse",
+            "optional_artifacts",
+            "route-revision overlay JSONL parses into object rows",
+            "; ".join(row_errors) if row_errors else f"rows={len(rows)}",
+            not row_errors,
+            errors=row_errors,
+        ),
+        _check(
+            "optional_route_revision_overlay_jsonl_row_count",
+            "optional_artifacts",
+            "route-revision overlay JSONL rows match manifest row count",
+            f"jsonl={len(rows)} manifest={n_rows}",
+            len(rows) == n_rows,
+        ),
+        _check(
+            "optional_route_revision_overlay_no_unaligned_primitives",
+            "optional_artifacts",
+            "route-revision overlay has zero unaligned revised primitives",
+            str(n_unaligned),
+            n_unaligned == 0
+            and all(not row.get("unaligned_primitives") for row in rows),
+        ),
+        _check(
+            "optional_route_revision_overlay_alignment_contract",
+            "optional_artifacts",
+            "every overlay row satisfies revised route-alignment contract",
+            (
+                f"{manifest.get('n_rows_with_alignment_contract', 0)}/"
+                f"{manifest.get('n_overlay_rows', 0)}"
+            ),
+            n_rows > 0
+            and int(manifest.get("n_rows_with_alignment_contract", 0) or 0)
+            == n_rows,
+        ),
+        _check(
+            "optional_route_revision_overlay_generic_formal_dag_fields",
+            "optional_artifacts",
+            "route-revision overlay publishes prover-neutral revised formal-realization DAG fields",
+            _route_revision_overlay_generic_formal_dag_observed(rows, manifest),
+            not _route_revision_overlay_generic_formal_dag_errors(rows, manifest),
+            errors=_route_revision_overlay_generic_formal_dag_errors(rows, manifest),
+        ),
+        _check(
+            "optional_route_revision_overlay_resource_response_ledger_proposals",
+            "optional_artifacts",
+            "resource-response-ledger proposal count matches applied overlay hooks",
+            (
+                f"hooks={resource_ledger_hooks}; "
+                f"manifest={manifest.get('n_resource_response_ledger_route_revision_proposals', 0)}"
+            ),
+            resource_ledger_hooks
+            == int(
+                manifest.get("n_resource_response_ledger_route_revision_proposals", 0)
+                or 0
+            ),
+        ),
+    ]
+    if resource_ledger_hooks and resource_response_ledger_artifact_present:
+        checks.append(
+            _check(
+                "optional_route_revision_overlay_resource_response_ledger_jsonl_parse",
+                "optional_artifacts",
+                "bundled resource-response ledger JSONL parses for overlay provenance",
+                (
+                    "; ".join(resource_response_ledger_errors)
+                    if resource_response_ledger_errors
+                    else f"rows={len(resource_response_ledger_rows)}"
+                ),
+                not resource_response_ledger_errors
+                and bool(resource_response_ledger_rows),
+                errors=resource_response_ledger_errors,
+            )
+        )
+    for idx, row in enumerate(rows):
+        schema_errors = validate_route_revision_overlay_row(row)
+        evidence_ref_errors = _route_revision_resource_response_evidence_errors(
+            row,
+            resource_response_ledger_index,
+        )
+        trace_errors = _route_revision_resource_response_trace_errors(
+            row,
+            resource_response_ledger_index,
+        )
+        status_errors = _route_revision_resource_response_status_errors(
+            row,
+            _matched_resource_response_ledger_route_rows(
+                row,
+                resource_response_ledger_route_index,
+            ),
+        )
+        checks.append(
+            _check(
+                f"optional_route_revision_overlay_row_{idx}_schema_valid",
+                "optional_artifacts",
+                "route-revision overlay row satisfies published schema",
+                "; ".join(schema_errors) if schema_errors else "ok",
+                not schema_errors,
+                errors=schema_errors,
+            )
+        )
+        if resource_response_ledger_artifact_present and "resource_response_ledger" in _str_tuple(
+            row.get("applied_hook_kinds", [])
+        ):
+            checks.append(
+                _check(
+                    f"optional_route_revision_overlay_row_{idx}_resource_response_evidence_refs",
+                    "optional_artifacts",
+                    "resource-response overlay evidence ids resolve to accepted ledger rows",
+                    "; ".join(evidence_ref_errors) if evidence_ref_errors else "ok",
+                    not evidence_ref_errors,
+                    errors=evidence_ref_errors,
+                )
+            )
+            checks.append(
+                _check(
+                    f"optional_route_revision_overlay_row_{idx}_resource_response_traces",
+                    "optional_artifacts",
+                    "resource-response traces match bundled ledger rows",
+                    "; ".join(trace_errors) if trace_errors else "ok",
+                    not trace_errors,
+                    errors=trace_errors,
+                )
+            )
+        if (
+            resource_response_ledger_artifact_present
+            and (
+                status_summary_manifest_present
+                or _route_revision_row_has_resource_response_status(row)
+            )
+        ):
+            checks.append(
+                _check(
+                    f"optional_route_revision_overlay_row_{idx}_resource_response_status_summary",
+                    "optional_artifacts",
+                    "resource-response status summary matches bundled ledger rows for the route",
+                    "; ".join(status_errors) if status_errors else "ok",
+                    not status_errors,
+                    errors=status_errors,
+                )
+            )
+    return checks
+
+
+def _resource_response_ledger_index(
+    rows: list[dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    return {
+        str(row.get("resource_response_ledger_id", "")): row
+        for row in rows
+        if row.get("resource_response_ledger_id")
+    }
+
+
+def _route_identity_row_index(
+    rows: list[dict[str, Any]],
+) -> dict[str, list[dict[str, Any]]]:
+    index: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        for key in _route_identity_keys(row):
+            index.setdefault(key, []).append(row)
+    return index
+
+
+def _first_identity_match(
+    row: dict[str, Any],
+    index: dict[str, list[dict[str, Any]]],
+) -> dict[str, Any] | None:
+    seen: set[str] = set()
+    matches: list[dict[str, Any]] = []
+    for key in _route_identity_keys(row):
+        for candidate in index.get(key, []):
+            candidate_hash = stable_hash(candidate)
+            if candidate_hash in seen:
+                continue
+            seen.add(candidate_hash)
+            matches.append(candidate)
+    if not matches:
+        return None
+    return sorted(
+        matches,
+        key=lambda candidate: (
+            str(candidate.get("revision_status", "")) == "ORPHAN_ROUTE_REVISION_PROPOSAL",
+            str(candidate.get("route_id", "")),
+            str(candidate.get("goal_plan_id", "")),
+            str(candidate.get("display_name", "")),
+        ),
+    )[0]
+
+
+def _route_stability_resource_response_status_errors(
+    stability_row: dict[str, Any],
+    overlay_row: dict[str, Any] | None,
+) -> tuple[str, ...]:
+    if overlay_row is None:
+        return ("route-stability row has no matching route-revision overlay row",)
+    if not _route_revision_row_has_resource_response_status(overlay_row):
+        return tuple()
+    awaiting_ids = _str_tuple(
+        overlay_row.get("resource_response_awaiting_request_ids", [])
+    )
+    rejected_ids = _str_tuple(
+        overlay_row.get("resource_response_rejected_request_ids", [])
+    )
+    stability_awaiting_ids = _str_tuple(
+        stability_row.get("resource_response_awaiting_request_ids", [])
+    )
+    stability_rejected_ids = _str_tuple(
+        stability_row.get("resource_response_rejected_request_ids", [])
+    )
+    if not awaiting_ids and not rejected_ids:
+        return tuple()
+    decision = str(stability_row.get("stability_decision", ""))
+    awaiting_hooks = _str_tuple(stability_row.get("awaiting_hook_kinds", []))
+    rejected_hooks = _str_tuple(stability_row.get("rejected_hook_kinds", []))
+    summary_by_hook = _dict_value(stability_row, "response_summary_by_hook")
+    resource_summary = (
+        summary_by_hook.get("resource_response_ledger", {})
+        if isinstance(summary_by_hook.get("resource_response_ledger", {}), dict)
+        else {}
+    )
+    errors: list[str] = []
+    if awaiting_ids:
+        if stability_awaiting_ids != awaiting_ids:
+            errors.append(
+                "resource_response_awaiting_request_ids mismatch: "
+                + f"{stability_awaiting_ids}!={awaiting_ids}"
+            )
+        if decision != "AWAITING_REFINEMENT_RESPONSES":
+            errors.append(
+                "awaiting resource responses require AWAITING_REFINEMENT_RESPONSES"
+            )
+        if "resource_response_ledger" not in awaiting_hooks:
+            errors.append(
+                "awaiting_hook_kinds missing resource_response_ledger"
+            )
+        awaiting_count = _integer_count(resource_summary, "awaiting")
+        if awaiting_count is None:
+            errors.append("response_summary_by_hook resource awaiting count is not integer")
+        elif awaiting_count < len(awaiting_ids):
+            errors.append("response_summary_by_hook resource awaiting count is stale")
+        return tuple(errors)
+    if rejected_ids:
+        if stability_rejected_ids != rejected_ids:
+            errors.append(
+                "resource_response_rejected_request_ids mismatch: "
+                + f"{stability_rejected_ids}!={rejected_ids}"
+            )
+        if decision != "REPAIR_REFINEMENT_RESPONSE_CONTRACT":
+            errors.append(
+                "rejected resource responses require REPAIR_REFINEMENT_RESPONSE_CONTRACT"
+            )
+        if "resource_response_ledger" not in rejected_hooks:
+            errors.append(
+                "rejected_hook_kinds missing resource_response_ledger"
+            )
+        rejected_count = _integer_count(resource_summary, "rejected")
+        if rejected_count is None:
+            errors.append("response_summary_by_hook resource rejected count is not integer")
+        elif rejected_count < len(rejected_ids):
+            errors.append("response_summary_by_hook resource rejected count is stale")
+    return tuple(errors)
+
+
+def _route_stability_row_has_resource_response_status(row: dict[str, Any]) -> bool:
+    return bool(
+        _str_tuple(row.get("resource_response_awaiting_request_ids", []))
+        or _str_tuple(row.get("resource_response_rejected_request_ids", []))
+    )
+
+
+def _interactive_session_rows_have_resource_status(
+    rows: list[dict[str, Any]],
+) -> bool:
+    return any(_interactive_session_row_has_resource_status(row) for row in rows)
+
+
+def _interactive_session_row_has_resource_status(row: dict[str, Any]) -> bool:
+    return bool(
+        _str_tuple(row.get("resource_response_awaiting_request_ids", []))
+        or _str_tuple(row.get("resource_response_rejected_request_ids", []))
+    )
+
+
+def _interactive_session_resource_response_status_errors(
+    session_row: dict[str, Any],
+    stability_row: dict[str, Any] | None,
+) -> tuple[str, ...]:
+    session_awaiting = _str_tuple(
+        session_row.get("resource_response_awaiting_request_ids", [])
+    )
+    session_rejected = _str_tuple(
+        session_row.get("resource_response_rejected_request_ids", [])
+    )
+    if stability_row is None:
+        if session_awaiting or session_rejected:
+            return ("interactive-session row has no matching route-stability row",)
+        return tuple()
+    stability_awaiting = _str_tuple(
+        stability_row.get("resource_response_awaiting_request_ids", [])
+    )
+    stability_rejected = _str_tuple(
+        stability_row.get("resource_response_rejected_request_ids", [])
+    )
+    errors: list[str] = []
+    if session_awaiting != stability_awaiting:
+        errors.append(
+            "resource_response_awaiting_request_ids mismatch: "
+            + f"{session_awaiting}!={stability_awaiting}"
+        )
+    if session_rejected != stability_rejected:
+        errors.append(
+            "resource_response_rejected_request_ids mismatch: "
+            + f"{session_rejected}!={stability_rejected}"
+        )
+    if stability_awaiting or stability_rejected:
+        if str(session_row.get("next_interaction_kind", "")) != "await_refinement_response":
+            errors.append(
+                "resource response status requires await_refinement_response next interaction"
+            )
+        if "resource_response_ledger" not in _str_tuple(session_row.get("next_tools", [])):
+            errors.append("next_tools missing resource_response_ledger")
+        commands = tuple(str(command) for command in session_row.get("next_commands", []))
+        for request_id in (*stability_awaiting, *stability_rejected):
+            if not any(f"resource_request_id={request_id}" in command for command in commands):
+                errors.append(f"next_commands missing resource_request_id={request_id}")
+    return tuple(errors)
+
+
+def _integer_count(row: dict[str, Any], key: str) -> int | None:
+    value = row.get(key, 0)
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    return value
+
+
+def _resource_response_ledger_route_index(
+    rows: list[dict[str, Any]],
+) -> dict[str, list[dict[str, Any]]]:
+    return _route_identity_row_index(rows)
+
+
+def _matched_resource_response_ledger_route_rows(
+    row: dict[str, Any],
+    route_index: dict[str, list[dict[str, Any]]],
+) -> list[dict[str, Any]]:
+    matched: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for key in _route_identity_keys(row):
+        for ledger_row in route_index.get(key, []):
+            ledger_id = str(ledger_row.get("resource_response_ledger_id", "")) or stable_hash(
+                ledger_row
+            )
+            if ledger_id in seen:
+                continue
+            seen.add(ledger_id)
+            matched.append(ledger_row)
+    return sorted(
+        matched,
+        key=lambda ledger_row: (
+            str(ledger_row.get("acceptance_status", "")),
+            str(ledger_row.get("resource_request_id", "")),
+            str(ledger_row.get("resource_response_ledger_id", "")),
+        ),
+    )
+
+
+def _route_identity_keys(row: dict[str, Any]) -> tuple[str, ...]:
+    keys = []
+    for field_name in ("route_id", "goal_plan_id", "display_name"):
+        value = str(row.get(field_name, ""))
+        if value:
+            keys.append(f"{field_name}:{value}")
+    return tuple(keys)
+
+
+def _route_revision_row_has_resource_response_status(row: dict[str, Any]) -> bool:
+    return any(
+        field_name in row
+        for field_name in (
+            "resource_response_summary",
+            "resource_response_summary_by_acceptance_status",
+            "resource_response_awaiting_request_ids",
+            "resource_response_rejected_request_ids",
+        )
+    )
+
+
+def _route_revision_resource_response_status_errors(
+    row: dict[str, Any],
+    ledger_rows: list[dict[str, Any]],
+) -> tuple[str, ...]:
+    if not _route_revision_row_has_resource_response_status(row):
+        return tuple()
+    expected_summary = _resource_response_status_summary(ledger_rows)
+    expected_by_status = _resource_response_summary_by_acceptance_status(ledger_rows)
+    expected_awaiting = _resource_response_request_ids_by_status(
+        ledger_rows,
+        awaiting=True,
+    )
+    expected_rejected = _resource_response_request_ids_by_status(
+        ledger_rows,
+        rejected=True,
+    )
+    errors: list[str] = []
+    actual_summary = _dict_value(row, "resource_response_summary")
+    for key, expected_value in expected_summary.items():
+        actual_value = actual_summary.get(key, 0)
+        if not isinstance(actual_value, int) or isinstance(actual_value, bool):
+            errors.append(f"resource_response_summary.{key} must be integer")
+            continue
+        if actual_value != expected_value:
+            errors.append(
+                f"resource_response_summary.{key} mismatch: "
+                f"{actual_value}!={expected_value}"
+            )
+    actual_by_status = _dict_value(
+        row,
+        "resource_response_summary_by_acceptance_status",
+    )
+    normalized_actual_by_status = {
+        str(key): value
+        for key, value in actual_by_status.items()
+        if isinstance(value, int) and not isinstance(value, bool)
+    }
+    if normalized_actual_by_status != expected_by_status:
+        errors.append(
+            "resource_response_summary_by_acceptance_status mismatch: "
+            + f"{normalized_actual_by_status}!={expected_by_status}"
+        )
+    actual_awaiting = _str_tuple(row.get("resource_response_awaiting_request_ids", []))
+    actual_rejected = _str_tuple(row.get("resource_response_rejected_request_ids", []))
+    if actual_awaiting != expected_awaiting:
+        errors.append(
+            "resource_response_awaiting_request_ids mismatch: "
+            + f"{actual_awaiting}!={expected_awaiting}"
+        )
+    if actual_rejected != expected_rejected:
+        errors.append(
+            "resource_response_rejected_request_ids mismatch: "
+            + f"{actual_rejected}!={expected_rejected}"
+        )
+    return tuple(errors)
+
+
+def _resource_response_status_summary(
+    rows: list[dict[str, Any]],
+) -> dict[str, int]:
+    summary = {
+        "queued": 0,
+        "responded": 0,
+        "contract_ok": 0,
+        "awaiting": 0,
+        "rejected": 0,
+        "accepted": 0,
+        "route_revision_recommended": 0,
+    }
+    for row in rows:
+        status = str(row.get("acceptance_status", ""))
+        summary["queued"] += 1
+        if bool(row.get("response_present", False)) or (
+            bool(status) and status != "AWAITING_RESOURCE_RESPONSE"
+        ):
+            summary["responded"] += 1
+        if bool(row.get("response_contract_ok", False)) or status.startswith("ACCEPTED_"):
+            summary["contract_ok"] += 1
+        if status == "AWAITING_RESOURCE_RESPONSE":
+            summary["awaiting"] += 1
+        if status.startswith("REJECTED_"):
+            summary["rejected"] += 1
+        if status.startswith("ACCEPTED_"):
+            summary["accepted"] += 1
+        if bool(row.get("route_revision_recommended", False)):
+            summary["route_revision_recommended"] += 1
+    return summary
+
+
+def _resource_response_summary_by_acceptance_status(
+    rows: list[dict[str, Any]],
+) -> dict[str, int]:
+    statuses: dict[str, int] = {}
+    for row in rows:
+        status = str(row.get("acceptance_status", ""))
+        if not status:
+            continue
+        statuses[status] = statuses.get(status, 0) + 1
+    return dict(sorted(statuses.items()))
+
+
+def _resource_response_request_ids_by_status(
+    rows: list[dict[str, Any]],
+    *,
+    awaiting: bool = False,
+    rejected: bool = False,
+) -> tuple[str, ...]:
+    request_ids: list[str] = []
+    for row in rows:
+        status = str(row.get("acceptance_status", ""))
+        if awaiting and status != "AWAITING_RESOURCE_RESPONSE":
+            continue
+        if rejected and not status.startswith("REJECTED_"):
+            continue
+        if not awaiting and not rejected:
+            continue
+        request_id = str(row.get("resource_request_id", "")) or str(
+            row.get("resource_response_ledger_id", "")
+        )
+        if request_id:
+            request_ids.append(request_id)
+    return _str_tuple(request_ids)
+
+
+def _route_revision_resource_response_evidence_errors(
+    row: dict[str, Any],
+    ledger_index: dict[str, dict[str, Any]],
+) -> tuple[str, ...]:
+    evidence_ids = tuple(
+        evidence_id
+        for evidence_id in _str_tuple(row.get("applied_refinement_evidence_ids", []))
+        if evidence_id.startswith("resource_response_ledger:")
+    )
+    if not evidence_ids:
+        return ("resource_response_ledger hook has no resource_response_ledger evidence id",)
+    errors: list[str] = []
+    for evidence_id in evidence_ids:
+        ledger_id = evidence_id.removeprefix("resource_response_ledger:")
+        ledger_row = ledger_index.get(ledger_id)
+        if ledger_row is None:
+            errors.append(f"missing resource response-ledger row: {ledger_id}")
+            continue
+        acceptance_status = str(ledger_row.get("acceptance_status", ""))
+        if not bool(ledger_row.get("ok", False)):
+            errors.append(f"ledger row is not ok: {ledger_id}")
+        if not bool(ledger_row.get("response_present", False)):
+            errors.append(f"ledger row has no response: {ledger_id}")
+        if not bool(ledger_row.get("response_contract_ok", False)):
+            errors.append(f"ledger row contract is not ok: {ledger_id}")
+        if not bool(ledger_row.get("response_contract_minimum_met", False)):
+            errors.append(f"ledger row contract minimum is not met: {ledger_id}")
+        if acceptance_status.startswith("REJECTED_"):
+            errors.append(f"ledger row is rejected: {ledger_id}")
+        if acceptance_status == "AWAITING_RESOURCE_RESPONSE":
+            errors.append(f"ledger row is awaiting response: {ledger_id}")
+        if "not theorem proof evidence" not in str(
+            ledger_row.get("proof_evidence_boundary", "")
+        ).lower():
+            errors.append(f"ledger row proof boundary is missing: {ledger_id}")
+    return tuple(errors)
+
+
+_RESOURCE_RESPONSE_TRACE_STRING_FIELDS = (
+    "resource_request_id",
+    "action_resource_plan_id",
+    "primitive_action_id",
+    "coverage_map_id",
+    "goal_plan_id",
+    "route_id",
+    "primitive",
+    "resource_id",
+    "request_phase",
+    "expected_response_artifact",
+    "acceptance_gate",
+    "acceptance_status",
+    "prover_attempt_status",
+    "prover_diagnostic_signature",
+    "proof_evidence_status",
+)
+_RESOURCE_RESPONSE_TRACE_STRING_ARRAY_FIELDS = (
+    "response_contract_fields",
+    "matched_response_contract_fields",
+    "missing_response_contract_fields",
+    "response_artifacts",
+)
+_RESOURCE_RESPONSE_TRACE_BOOLEAN_FIELDS = (
+    "response_present",
+    "response_contract_minimum_met",
+    "response_contract_ok",
+    "route_revision_recommended",
+)
+
+
+def _route_revision_resource_response_trace_errors(
+    row: dict[str, Any],
+    ledger_index: dict[str, dict[str, Any]],
+) -> tuple[str, ...]:
+    traces = tuple(
+        trace
+        for trace in row.get("applied_resource_response_traces", []) or []
+        if isinstance(trace, dict)
+    )
+    evidence_ledger_ids = {
+        evidence_id.removeprefix("resource_response_ledger:")
+        for evidence_id in _str_tuple(row.get("applied_refinement_evidence_ids", []))
+        if evidence_id.startswith("resource_response_ledger:")
+    }
+    if not traces:
+        return ("resource_response_ledger hook has no applied_resource_response_traces",)
+
+    errors: list[str] = []
+    trace_ledger_ids: set[str] = set()
+    for trace_index, trace in enumerate(traces):
+        ledger_id = str(trace.get("resource_response_ledger_id", ""))
+        if not ledger_id:
+            errors.append(f"trace {trace_index} missing resource_response_ledger_id")
+            continue
+        trace_ledger_ids.add(ledger_id)
+        ledger_row = ledger_index.get(ledger_id)
+        if ledger_row is None:
+            errors.append(f"trace references missing resource response-ledger row: {ledger_id}")
+            continue
+        for field_name in _RESOURCE_RESPONSE_TRACE_STRING_FIELDS:
+            if str(trace.get(field_name, "")) != str(ledger_row.get(field_name, "")):
+                errors.append(f"trace {ledger_id} {field_name} mismatch")
+        for field_name in _RESOURCE_RESPONSE_TRACE_STRING_ARRAY_FIELDS:
+            if set(_str_tuple(trace.get(field_name, []))) != set(
+                _str_tuple(ledger_row.get(field_name, []))
+            ):
+                errors.append(f"trace {ledger_id} {field_name} mismatch")
+        for field_name in _RESOURCE_RESPONSE_TRACE_BOOLEAN_FIELDS:
+            if bool(trace.get(field_name, False)) != bool(
+                ledger_row.get(field_name, False)
+            ):
+                errors.append(f"trace {ledger_id} {field_name} mismatch")
+        if _dict_value(trace, "dispatch_spec") != _dict_value(
+            ledger_row,
+            "dispatch_spec",
+        ):
+            errors.append(f"trace {ledger_id} dispatch_spec mismatch")
+        if _candidate_declaration_rows(
+            trace.get("candidate_declaration_rows", [])
+        ) != _candidate_declaration_rows(
+            ledger_row.get("candidate_declaration_rows", [])
+        ):
+            errors.append(f"trace {ledger_id} candidate_declaration_rows mismatch")
+        if "not theorem proof evidence" not in str(
+            trace.get("proof_evidence_boundary", "")
+        ).lower():
+            errors.append(f"trace {ledger_id} proof boundary is missing")
+
+    missing_trace_ids = sorted(evidence_ledger_ids - trace_ledger_ids)
+    extra_trace_ids = sorted(trace_ledger_ids - evidence_ledger_ids)
+    if missing_trace_ids:
+        errors.append(
+            "resource_response_ledger evidence ids missing from traces: "
+            + ",".join(missing_trace_ids)
+        )
+    if extra_trace_ids:
+        errors.append(
+            "applied_resource_response_traces include non-evidence ledger ids: "
+            + ",".join(extra_trace_ids)
+        )
+    return tuple(errors)
+
+
+def _proof_state_triage_optional_checks(
+    bundle_dir: Path,
+) -> list[FormalizationGapPlannerPublicationBundleAuditCheck]:
+    artifact_dir = bundle_dir / "artifacts" / "formalization_gap_planner_proof_state_triage"
+    manifest_path = artifact_dir / "formalization_gap_planner_proof_state_triage_manifest.json"
+    rows_jsonl_path = artifact_dir / "formalization_gap_planner_proof_state_triage.jsonl"
+    row_schema_path = artifact_dir / "formalization_gap_planner_proof_state_triage_row.schema.json"
+    manifest = _read_json_no_error(manifest_path)
+    rows, row_errors = _read_jsonl_dict_rows_no_error(rows_jsonl_path)
+    checks = [
+        _check(
+            "optional_proof_state_triage_row_schema_file",
+            "optional_artifacts",
+            "optional proof-state triage row schema exists",
+            str(row_schema_path.exists()),
+            row_schema_path.exists(),
+        ),
+        _check(
+            "optional_proof_state_triage_manifest_schema_valid_count",
+            "optional_artifacts",
+            "proof-state triage manifest schema-valid count matches row count",
+            (
+                f"{manifest.get('n_row_schema_valid', 0)}/"
+                f"{manifest.get('n_triage_items', 0)}; "
+                f"invalid={manifest.get('n_row_schema_invalid', 0)}"
+            ),
+            int(manifest.get("n_triage_items", 0) or 0) > 0
+            and int(manifest.get("n_row_schema_valid", 0) or 0)
+            == int(manifest.get("n_triage_items", 0) or 0)
+            and int(manifest.get("n_row_schema_invalid", 0) or 0) == 0,
+        ),
+        _check(
+            "optional_proof_state_triage_jsonl_parse",
+            "optional_artifacts",
+            "proof-state triage JSONL parses into object rows",
+            "; ".join(row_errors) if row_errors else f"rows={len(rows)}",
+            not row_errors,
+            errors=row_errors,
+        ),
+        _check(
+            "optional_proof_state_triage_jsonl_row_count",
+            "optional_artifacts",
+            "proof-state triage JSONL rows match manifest count",
+            f"jsonl={len(rows)} manifest={manifest.get('n_triage_items', 0)}",
+            len(rows) == int(manifest.get("n_triage_items", 0) or 0),
+        ),
+    ]
+    for idx, row in enumerate(rows):
+        schema_errors = validate_proof_state_triage_row(row)
+        generic_prover_errors = _proof_state_triage_generic_prover_field_errors(row)
+        checks.append(
+            _check(
+                f"optional_proof_state_triage_row_{idx}_schema_valid",
+                "optional_artifacts",
+                "proof-state triage row satisfies published schema",
+                "; ".join(schema_errors) if schema_errors else "ok",
+                not schema_errors,
+                errors=schema_errors,
+            )
+        )
+        if _proof_state_triage_generic_prover_fields_observed(row):
+            checks.append(
+                _check(
+                    f"optional_proof_state_triage_row_{idx}_generic_prover_fields",
+                    "optional_artifacts",
+                    "proof-state triage preserves generic prover triage/class/family fields",
+                    "; ".join(generic_prover_errors) if generic_prover_errors else "ok",
+                    not generic_prover_errors,
+                    errors=generic_prover_errors,
+                )
+            )
+    return checks
+
+
+def _refinement_evidence_optional_checks(
+    bundle_dir: Path,
+) -> list[FormalizationGapPlannerPublicationBundleAuditCheck]:
+    artifact_dir = bundle_dir / "artifacts" / "formalization_gap_planner_refinement_evidence"
+    manifest_path = artifact_dir / "formalization_gap_planner_refinement_evidence_manifest.json"
+    rows_jsonl_path = artifact_dir / "formalization_gap_planner_refinement_evidence.jsonl"
+    row_schema_path = artifact_dir / "formalization_gap_planner_refinement_evidence_row.schema.json"
+    manifest = _read_json_no_error(manifest_path)
+    rows, row_errors = _read_jsonl_dict_rows_no_error(rows_jsonl_path)
+    checks = [
+        _check(
+            "optional_refinement_evidence_row_schema_file",
+            "optional_artifacts",
+            "optional refinement evidence row schema exists",
+            str(row_schema_path.exists()),
+            row_schema_path.exists(),
+        ),
+        _check(
+            "optional_refinement_evidence_manifest_schema_valid_count",
+            "optional_artifacts",
+            "refinement-evidence manifest schema-valid count matches row count",
+            (
+                f"{manifest.get('n_evidence_row_schema_valid', 0)}/"
+                f"{manifest.get('n_evidence_rows', 0)}; "
+                f"invalid={manifest.get('n_evidence_row_schema_invalid', 0)}"
+            ),
+            int(manifest.get("n_evidence_rows", 0) or 0) > 0
+            and int(manifest.get("n_evidence_row_schema_valid", 0) or 0)
+            == int(manifest.get("n_evidence_rows", 0) or 0)
+            and int(manifest.get("n_evidence_row_schema_invalid", 0) or 0) == 0,
+        ),
+        _check(
+            "optional_refinement_evidence_jsonl_parse",
+            "optional_artifacts",
+            "refinement evidence JSONL parses into object rows",
+            "; ".join(row_errors) if row_errors else f"rows={len(rows)}",
+            not row_errors,
+            errors=row_errors,
+        ),
+        _check(
+            "optional_refinement_evidence_jsonl_row_count",
+            "optional_artifacts",
+            "refinement evidence JSONL rows match manifest count",
+            f"jsonl={len(rows)} manifest={manifest.get('n_evidence_rows', 0)}",
+            len(rows) == int(manifest.get("n_evidence_rows", 0) or 0),
+        ),
+    ]
+    for idx, row in enumerate(rows):
+        schema_errors = validate_refinement_evidence_row(row)
+        checks.append(
+            _check(
+                f"optional_refinement_evidence_row_{idx}_schema_valid",
+                "optional_artifacts",
+                "refinement evidence row satisfies published schema",
+                "; ".join(schema_errors) if schema_errors else "ok",
+                not schema_errors,
+                errors=schema_errors,
+            )
+        )
+    return checks
+
+
+def _interactive_session_optional_checks(
+    bundle_dir: Path,
+) -> list[FormalizationGapPlannerPublicationBundleAuditCheck]:
+    artifact_dir = bundle_dir / "artifacts" / "formalization_gap_planner_interactive_session"
+    manifest_path = artifact_dir / "formalization_gap_planner_interactive_session_manifest.json"
+    session_rows_jsonl_path = (
+        artifact_dir / "formalization_gap_planner_interactive_session.jsonl"
+    )
+    session_row_schema_path = (
+        artifact_dir / "formalization_gap_planner_interactive_session_row.schema.json"
+    )
+    rows_jsonl_path = (
+        artifact_dir / "formalization_gap_planner_interactive_decision_policy.jsonl"
+    )
+    row_schema_path = (
+        artifact_dir
+        / "formalization_gap_planner_interactive_decision_policy_row.schema.json"
+    )
+    stability_rows_jsonl_path = (
+        bundle_dir
+        / "artifacts"
+        / "formalization_gap_planner_route_stability_audit"
+        / "formalization_gap_planner_route_stability_audit.jsonl"
+    )
+    component_jsonl_path = (
+        bundle_dir
+        / "component_resource_registry"
+        / "formalization_gap_planner_component_resource_registry.jsonl"
+    )
+    resource_jsonl_path = (
+        bundle_dir
+        / "component_resource_registry"
+        / "formalization_gap_planner_component_resource_resources.jsonl"
+    )
+    resource_contract_jsonl_path = (
+        bundle_dir
+        / "component_resource_registry"
+        / "formalization_gap_planner_component_resource_contracts.jsonl"
+    )
+    manifest = _read_json_no_error(manifest_path)
+    session_rows, session_row_errors = _read_jsonl_dict_rows_no_error(
+        session_rows_jsonl_path
+    )
+    rows, row_errors = _read_jsonl_dict_rows_no_error(rows_jsonl_path)
+    stability_rows, stability_row_errors = (
+        _read_jsonl_dict_rows_no_error(stability_rows_jsonl_path)
+        if stability_rows_jsonl_path.exists()
+        else ([], tuple())
+    )
+    stability_index = _route_identity_row_index(stability_rows)
+    session_artifact_present = "n_session_rows" in manifest or bool(session_rows)
+    component_rows, _component_errors = _read_jsonl_dict_rows_no_error(
+        component_jsonl_path
+    )
+    resource_rows, _resource_errors = _read_jsonl_dict_rows_no_error(
+        resource_jsonl_path
+    )
+    resource_contract_rows, _contract_errors = _read_jsonl_dict_rows_no_error(
+        resource_contract_jsonl_path
+    )
+    component_ids = {
+        str(row.get("component_id", ""))
+        for row in component_rows
+        if row.get("component_id")
+    }
+    resource_ids = {
+        str(row.get("resource_id", ""))
+        for row in resource_rows
+        if row.get("resource_id")
+    }
+    contract_resource_by_id = {
+        str(row.get("resource_contract_id", "")): str(row.get("resource_id", ""))
+        for row in resource_contract_rows
+        if row.get("resource_contract_id")
+    }
+    resource_contract_ids = set(contract_resource_by_id)
+    checks = [
+        _check(
+            "optional_interactive_decision_policy_row_schema_file",
+            "optional_artifacts",
+            "optional interactive decision-policy row schema exists",
+            str(row_schema_path.exists()),
+            row_schema_path.exists(),
+        ),
+        _check(
+            "optional_interactive_decision_policy_manifest_schema_valid_count",
+            "optional_artifacts",
+            "decision-policy manifest schema-valid count matches row count",
+            (
+                f"{manifest.get('n_decision_policy_row_schema_valid', 0)}/"
+                f"{manifest.get('n_decision_policy_rows', 0)}; "
+                f"invalid={manifest.get('n_decision_policy_row_schema_invalid', 0)}"
+            ),
+            int(manifest.get("n_decision_policy_rows", 0) or 0) > 0
+            and int(manifest.get("n_decision_policy_row_schema_valid", 0) or 0)
+            == int(manifest.get("n_decision_policy_rows", 0) or 0)
+            and int(manifest.get("n_decision_policy_row_schema_invalid", 0) or 0)
+            == 0,
+        ),
+        _check(
+            "optional_interactive_decision_policy_jsonl_parse",
+            "optional_artifacts",
+            "decision-policy JSONL parses into object rows",
+            "; ".join(row_errors) if row_errors else f"rows={len(rows)}",
+            not row_errors,
+            errors=row_errors,
+        ),
+        _check(
+            "optional_interactive_decision_policy_jsonl_row_count",
+            "optional_artifacts",
+            "decision-policy JSONL rows match manifest count",
+            f"jsonl={len(rows)} manifest={manifest.get('n_decision_policy_rows', 0)}",
+            len(rows) == int(manifest.get("n_decision_policy_rows", 0) or 0),
+        ),
+    ]
+    if session_artifact_present:
+        checks.extend(
+            [
+                _check(
+                    "optional_interactive_session_row_schema_file",
+                    "optional_artifacts",
+                    "optional interactive session row schema exists",
+                    str(session_row_schema_path.exists()),
+                    session_row_schema_path.exists(),
+                ),
+                _check(
+                    "optional_interactive_session_manifest_schema_valid_count",
+                    "optional_artifacts",
+                    "interactive-session manifest schema-valid count matches row count",
+                    (
+                        f"{manifest.get('n_row_schema_valid', 0)}/"
+                        f"{manifest.get('n_session_rows', 0)}; "
+                        f"invalid={manifest.get('n_row_schema_invalid', 0)}"
+                    ),
+                    int(manifest.get("n_session_rows", 0) or 0) > 0
+                    and int(manifest.get("n_row_schema_valid", 0) or 0)
+                    == int(manifest.get("n_session_rows", 0) or 0)
+                    and int(manifest.get("n_row_schema_invalid", 0) or 0) == 0,
+                ),
+                _check(
+                    "optional_interactive_session_jsonl_parse",
+                    "optional_artifacts",
+                    "interactive-session JSONL parses into object rows",
+                    (
+                        "; ".join(session_row_errors)
+                        if session_row_errors
+                        else f"rows={len(session_rows)}"
+                    ),
+                    not session_row_errors,
+                    errors=session_row_errors,
+                ),
+                _check(
+                    "optional_interactive_session_jsonl_row_count",
+                    "optional_artifacts",
+                    "interactive-session JSONL rows match manifest count",
+                    f"jsonl={len(session_rows)} manifest={manifest.get('n_session_rows', 0)}",
+                    len(session_rows) == int(manifest.get("n_session_rows", 0) or 0),
+                ),
+            ]
+        )
+    if session_artifact_present and _interactive_session_rows_have_resource_status(
+        session_rows
+    ):
+        checks.append(
+            _check(
+                "optional_interactive_session_route_stability_jsonl_parse",
+                "optional_artifacts",
+                "bundled route-stability JSONL parses for interactive/resource-status consistency",
+                (
+                    "; ".join(stability_row_errors)
+                    if stability_row_errors
+                    else f"rows={len(stability_rows)}"
+                ),
+                not stability_row_errors and bool(stability_rows),
+                errors=stability_row_errors,
+            )
+        )
+    for idx, row in enumerate(session_rows if session_artifact_present else []):
+        schema_errors = validate_interactive_session_row(row)
+        stability_row = _first_identity_match(row, stability_index)
+        status_errors = _interactive_session_resource_response_status_errors(
+            row,
+            stability_row,
+        )
+        generic_prover_errors = _interactive_session_generic_prover_field_errors(row)
+        checks.append(
+            _check(
+                f"optional_interactive_session_row_{idx}_schema_valid",
+                "optional_artifacts",
+                "interactive-session row satisfies published schema",
+                "; ".join(schema_errors) if schema_errors else "ok",
+                not schema_errors,
+                errors=schema_errors,
+            )
+        )
+        if _interactive_session_generic_prover_fields_observed(row):
+            checks.append(
+                _check(
+                    f"optional_interactive_session_row_{idx}_generic_prover_fields",
+                    "optional_artifacts",
+                    "interactive-session proof-state routing preserves generic prover triage/class/family fields",
+                    "; ".join(generic_prover_errors) if generic_prover_errors else "ok",
+                    not generic_prover_errors,
+                    errors=generic_prover_errors,
+                )
+            )
+        if _interactive_session_row_has_resource_status(row) or (
+            stability_row is not None
+            and _route_stability_row_has_resource_response_status(stability_row)
+        ):
+            checks.append(
+                _check(
+                    f"optional_interactive_session_row_{idx}_resource_response_status_consistency",
+                    "optional_artifacts",
+                    "interactive-session resource-response request ids match route-stability rows",
+                    "; ".join(status_errors) if status_errors else "ok",
+                    not status_errors,
+                    errors=status_errors,
+                )
+            )
+    for idx, row in enumerate(rows):
+        schema_errors = validate_interactive_decision_policy_row(row)
+        checks.append(
+            _check(
+                f"optional_interactive_decision_policy_row_{idx}_schema_valid",
+                "optional_artifacts",
+                "interactive decision-policy row satisfies published schema",
+                "; ".join(schema_errors) if schema_errors else "ok",
+                not schema_errors,
+                errors=schema_errors,
+            )
+        )
+        row_component_ids = _str_tuple(row.get("component_ids", []))
+        row_local_resource_ids = _str_tuple(row.get("local_first_resource_ids", []))
+        row_frontier_resource_ids = _str_tuple(
+            row.get("frontier_escalation_resource_ids", [])
+        )
+        row_resource_ids = _str_tuple(
+            [*row_local_resource_ids, *row_frontier_resource_ids]
+        )
+        row_contract_ids = _str_tuple(row.get("resource_contract_ids", []))
+        missing_components = tuple(
+            component_id
+            for component_id in row_component_ids
+            if component_id not in component_ids
+        )
+        missing_resources = tuple(
+            resource_id for resource_id in row_resource_ids if resource_id not in resource_ids
+        )
+        missing_contracts = tuple(
+            contract_id
+            for contract_id in row_contract_ids
+            if contract_id not in resource_contract_ids
+        )
+        covered_resource_ids = {
+            contract_resource_by_id.get(contract_id, "")
+            for contract_id in row_contract_ids
+            if contract_id in contract_resource_by_id
+        }
+        uncovered_resources = tuple(
+            resource_id
+            for resource_id in row_resource_ids
+            if resource_id not in covered_resource_ids
+        )
+        extra_contract_resources = tuple(
+            resource_id
+            for resource_id in sorted(covered_resource_ids)
+            if resource_id and resource_id not in row_resource_ids
+        )
+        checks.extend(
+            [
+                _check(
+                    f"optional_interactive_decision_policy_row_{idx}_component_links",
+                    "optional_artifacts",
+                    "all provided component ids resolve to bundled component-resource rows",
+                    "; ".join(missing_components)
+                    if missing_components
+                    else f"components={len(row_component_ids)}",
+                    not missing_components,
+                    errors=missing_components,
+                ),
+                _check(
+                    f"optional_interactive_decision_policy_row_{idx}_resource_links",
+                    "optional_artifacts",
+                    "all provided local/frontier resource ids resolve to bundled resource rows",
+                    "; ".join(missing_resources)
+                    if missing_resources
+                    else f"resources={len(row_resource_ids)}",
+                    not missing_resources,
+                    errors=missing_resources,
+                ),
+                _check(
+                    f"optional_interactive_decision_policy_row_{idx}_resource_contract_links",
+                    "optional_artifacts",
+                    "all provided resource contract ids resolve to bundled contract rows",
+                    "; ".join(missing_contracts)
+                    if missing_contracts
+                    else f"contracts={len(row_contract_ids)}",
+                    not missing_contracts,
+                    errors=missing_contracts,
+                ),
+                _check(
+                    f"optional_interactive_decision_policy_row_{idx}_resource_contract_coverage",
+                    "optional_artifacts",
+                    "provided resource contracts cover the provided local/frontier resources",
+                    (
+                        "uncovered="
+                        + ",".join(uncovered_resources)
+                        + "; extra="
+                        + ",".join(extra_contract_resources)
+                    )
+                    if uncovered_resources or extra_contract_resources
+                    else f"covered={len(row_resource_ids)}",
+                    not uncovered_resources and not extra_contract_resources,
+                    errors=tuple([*uncovered_resources, *extra_contract_resources]),
+                ),
+            ]
+        )
+    return checks
+
+
+def _evaluation_optional_checks(
+    bundle_dir: Path,
+) -> list[FormalizationGapPlannerPublicationBundleAuditCheck]:
+    artifact_dir = bundle_dir / "artifacts" / "formalization_gap_planner_evaluation"
+    manifest_path = artifact_dir / "formalization_gap_planner_evaluation_manifest.json"
+    rows_jsonl_path = artifact_dir / "formalization_gap_planner_evaluation.jsonl"
+    row_schema_path = artifact_dir / "formalization_gap_planner_evaluation_row.schema.json"
+    ground_truth_filename = "formalization_gap_planner_evaluation_ground_truth.json"
+    ground_truth_path = artifact_dir / ground_truth_filename
+    manifest = _read_json_no_error(manifest_path)
+    rows, row_errors = _read_jsonl_dict_rows_no_error(rows_jsonl_path)
+    ground_truth_payload = _read_json_no_error(ground_truth_path)
+    ground_truth_rows = _evaluation_ground_truth_rows(ground_truth_payload)
+    ground_truth_index = _evaluation_ground_truth_index(ground_truth_rows)
+    checks = [
+        _check(
+            "optional_evaluation_row_schema_file",
+            "optional_artifacts",
+            "optional evaluation row schema exists",
+            str(row_schema_path.exists()),
+            row_schema_path.exists(),
+        ),
+        _check(
+            "optional_evaluation_ground_truth_copy",
+            "optional_artifacts",
+            "optional evaluation carries its exact route-truth input",
+            str(ground_truth_path.exists()),
+            ground_truth_path.exists()
+            and str(
+                manifest.get(
+                    "bundled_ground_truth_filename",
+                    ground_truth_filename,
+                )
+            )
+            == ground_truth_filename,
+        ),
+        _check(
+            "optional_evaluation_ground_truth_parse",
+            "optional_artifacts",
+            "copied evaluation ground truth parses into route rows",
+            f"rows={len(ground_truth_rows)}",
+            bool(ground_truth_rows),
+        ),
+        _check(
+            "optional_evaluation_manifest_schema_valid_count",
+            "optional_artifacts",
+            "evaluation manifest row schema-valid count matches row count",
+            (
+                f"{manifest.get('n_evaluation_row_schema_valid', 0)}/"
+                f"{manifest.get('n_evaluation_rows', 0)}; "
+                f"invalid={manifest.get('n_evaluation_row_schema_invalid', 0)}"
+            ),
+            int(manifest.get("n_evaluation_rows", 0) or 0) > 0
+            and int(manifest.get("n_evaluation_row_schema_valid", 0) or 0)
+            == int(manifest.get("n_evaluation_rows", 0) or 0)
+            and int(manifest.get("n_evaluation_row_schema_invalid", 0) or 0) == 0,
+        ),
+        _check(
+            "optional_evaluation_jsonl_parse",
+            "optional_artifacts",
+            "evaluation JSONL parses into object rows",
+            "; ".join(row_errors) if row_errors else f"rows={len(rows)}",
+            not row_errors,
+            errors=row_errors,
+        ),
+        _check(
+            "optional_evaluation_jsonl_row_count",
+            "optional_artifacts",
+            "evaluation JSONL rows match manifest count",
+            f"jsonl={len(rows)} manifest={manifest.get('n_evaluation_rows', 0)}",
+            len(rows) == int(manifest.get("n_evaluation_rows", 0) or 0),
+        ),
+    ]
+    for idx, row in enumerate(rows):
+        schema_errors = validate_evaluation_row(row)
+        matched = bool(row.get("matched_ground_truth", False))
+        match_key = str(row.get("match_key", ""))
+        matched_truth = ground_truth_index.get(match_key) if match_key else None
+        match_resolves = (not matched) or matched_truth is not None
+        truth_errors = _evaluation_ground_truth_consistency_errors(
+            row,
+            matched_truth,
+        )
+        checks.append(
+            _check(
+                f"optional_evaluation_row_{idx}_schema_valid",
+                "optional_artifacts",
+                "evaluation row satisfies published schema",
+                "; ".join(schema_errors) if schema_errors else "ok",
+                not schema_errors,
+                errors=schema_errors,
+            )
+        )
+        checks.append(
+            _check(
+                f"optional_evaluation_row_{idx}_ground_truth_match",
+                "optional_artifacts",
+                "matched evaluation row resolves against copied route truth",
+                match_key or "unmatched",
+                match_resolves,
+                errors=()
+                if match_resolves
+                else (f"missing copied route truth match: {match_key}",),
+            )
+        )
+        checks.append(
+            _check(
+                f"optional_evaluation_row_{idx}_ground_truth_primitives",
+                "optional_artifacts",
+                "evaluation ground-truth primitive fields match copied route truth",
+                "; ".join(truth_errors) if truth_errors else "ok",
+                not truth_errors,
+                errors=truth_errors,
+            )
+        )
+    return checks
+
+
+def _evaluation_ground_truth_rows(payload: dict[str, Any]) -> tuple[dict[str, Any], ...]:
+    for field_name in ("routes", "rows", "ground_truth_routes"):
+        rows = payload.get(field_name, [])
+        if isinstance(rows, list):
+            return tuple(row for row in rows if isinstance(row, dict))
+    return tuple()
+
+
+def _evaluation_ground_truth_index(
+    rows: tuple[dict[str, Any], ...],
+) -> dict[str, dict[str, Any]]:
+    index: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        for field_name in ("goal_plan_id", "route_id", "display_name"):
+            value = str(row.get(field_name, ""))
+            if value:
+                index[f"{field_name}:{value}"] = row
+    return index
+
+
+def _evaluation_ground_truth_consistency_errors(
+    row: dict[str, Any],
+    truth_row: dict[str, Any] | None,
+) -> tuple[str, ...]:
+    if not bool(row.get("matched_ground_truth", False)):
+        return tuple()
+    if truth_row is None:
+        return ("matched evaluation row has no copied route-truth row",)
+    errors: list[str] = []
+    comparisons = (
+        (
+            "ground_truth_route_primitives",
+            _truth_route_primitives_for_evaluation_audit(truth_row),
+        ),
+        (
+            "ground_truth_delta_primitives",
+            _truth_delta_primitives_for_evaluation_audit(truth_row),
+        ),
+        (
+            "ground_truth_residual_primitives",
+            _truth_residual_primitives_for_evaluation_audit(truth_row),
+        ),
+        (
+            "ground_truth_existing_reuse_primitives",
+            _str_tuple(truth_row.get("actual_existing_reuse_primitives", [])),
+        ),
+    )
+    for field_name, expected in comparisons:
+        observed = _str_tuple(row.get(field_name, []))
+        if set(observed) != set(expected):
+            errors.append(
+                f"{field_name} mismatch: observed={sorted(observed)} "
+                f"expected={sorted(expected)}"
+            )
+    return tuple(errors)
+
+
+def _truth_route_primitives_for_evaluation_audit(
+    truth_row: dict[str, Any],
+) -> tuple[str, ...]:
+    for field_name in ("required_primitives", "actual_dependencies", "route_primitives"):
+        values = _str_tuple(truth_row.get(field_name, []))
+        if values:
+            return values
+    return tuple()
+
+
+def _truth_delta_primitives_for_evaluation_audit(
+    truth_row: dict[str, Any],
+) -> tuple[str, ...]:
+    explicit = _str_tuple(truth_row.get("actual_delta_primitives", []))
+    if explicit:
+        return explicit
+    route = set(_truth_route_primitives_for_evaluation_audit(truth_row))
+    existing = set(_str_tuple(truth_row.get("actual_existing_reuse_primitives", [])))
+    return tuple(sorted(route - existing))
+
+
+def _truth_residual_primitives_for_evaluation_audit(
+    truth_row: dict[str, Any],
+) -> tuple[str, ...]:
+    for field_name in (
+        "expected_residual_primitives",
+        "actual_residual_primitives",
+        "residual_primitives",
+        "expected_side_condition_primitives",
+    ):
+        values = _str_tuple(truth_row.get(field_name, []))
+        if values:
+            return values
+    return tuple()
+
+
+def _prover_adapter_contract_optional_checks(
+    bundle_dir: Path,
+) -> list[FormalizationGapPlannerPublicationBundleAuditCheck]:
+    artifact_dir = bundle_dir / "artifacts" / "formalization_gap_planner_prover_adapter_contract"
+    manifest_path = artifact_dir / "formalization_gap_planner_prover_adapter_contract_manifest.json"
+    packet_jsonl_path = artifact_dir / "formalization_gap_planner_prover_adapter_packets.jsonl"
+    packet_schema_path = artifact_dir / "formalization_gap_planner_prover_adapter_packet.schema.json"
+    response_validation_jsonl_path = (
+        artifact_dir / "formalization_gap_planner_prover_adapter_response_validation.jsonl"
+    )
+    response_validation_row_schema_path = (
+        artifact_dir
+        / "formalization_gap_planner_prover_adapter_response_validation_row.schema.json"
+    )
+    manifest = _read_json_no_error(manifest_path)
+    packet_rows, packet_errors = _read_jsonl_dict_rows_no_error(packet_jsonl_path)
+    response_validation_rows, response_validation_errors = (
+        _read_jsonl_dict_rows_no_error(response_validation_jsonl_path)
+    )
+    checks = [
+        _check(
+            "optional_prover_adapter_packet_schema_file",
+            "optional_artifacts",
+            "optional prover-adapter packet schema exists",
+            str(packet_schema_path.exists()),
+            packet_schema_path.exists(),
+        ),
+        _check(
+            "optional_prover_adapter_packet_manifest_schema_valid_count",
+            "optional_artifacts",
+            "prover-adapter manifest packet schema-valid count matches packet count",
+            f"{manifest.get('n_packet_schema_valid', 0)}/{manifest.get('n_packets', 0)}",
+            int(manifest.get("n_packets", 0) or 0) > 0
+            and int(manifest.get("n_packet_schema_valid", 0) or 0)
+            == int(manifest.get("n_packets", 0) or 0),
+        ),
+        _check(
+            "optional_prover_adapter_packet_jsonl_parse",
+            "optional_artifacts",
+            "prover-adapter packet JSONL parses into object rows",
+            "; ".join(packet_errors) if packet_errors else f"rows={len(packet_rows)}",
+            not packet_errors,
+            errors=packet_errors,
+        ),
+        _check(
+            "optional_prover_adapter_packet_jsonl_row_count",
+            "optional_artifacts",
+            "packet JSONL rows match manifest count",
+            f"jsonl={len(packet_rows)} manifest={manifest.get('n_packets', 0)}",
+            len(packet_rows) == int(manifest.get("n_packets", 0) or 0),
+        ),
+        _check(
+            "optional_prover_adapter_response_validation_row_schema_file",
+            "optional_artifacts",
+            "optional prover-adapter response-validation row schema exists",
+            str(response_validation_row_schema_path.exists()),
+            response_validation_row_schema_path.exists(),
+        ),
+        _check(
+            "optional_prover_adapter_response_validation_manifest_schema_valid_count",
+            "optional_artifacts",
+            "prover-adapter response-validation schema-valid count matches row count",
+            (
+                f"{manifest.get('n_response_validation_row_schema_valid', 0)}/"
+                f"{manifest.get('n_packets', 0)}; invalid="
+                f"{manifest.get('n_response_validation_row_schema_invalid', 0)}"
+            ),
+            int(manifest.get("n_packets", 0) or 0) > 0
+            and int(manifest.get("n_response_validation_row_schema_valid", 0) or 0)
+            == int(manifest.get("n_packets", 0) or 0)
+            and int(manifest.get("n_response_validation_row_schema_invalid", 0) or 0)
+            == 0,
+        ),
+        _check(
+            "optional_prover_adapter_response_validation_jsonl_parse",
+            "optional_artifacts",
+            "response-validation JSONL parses into object rows",
+            (
+                "; ".join(response_validation_errors)
+                if response_validation_errors
+                else f"rows={len(response_validation_rows)}"
+            ),
+            not response_validation_errors,
+            errors=response_validation_errors,
+        ),
+        _check(
+            "optional_prover_adapter_response_validation_jsonl_row_count",
+            "optional_artifacts",
+            "response-validation JSONL rows match manifest packet count",
+            f"jsonl={len(response_validation_rows)} manifest={manifest.get('n_packets', 0)}",
+            len(response_validation_rows) == int(manifest.get("n_packets", 0) or 0),
+        ),
+    ]
+    for idx, row in enumerate(packet_rows):
+        schema_errors = validate_prover_adapter_packet_row(row)
+        checks.append(
+            _check(
+                f"optional_prover_adapter_packet_row_{idx}_schema_valid",
+                "optional_artifacts",
+                "prover-adapter packet row satisfies published schema",
+                "; ".join(schema_errors) if schema_errors else "ok",
+                not schema_errors,
+                errors=schema_errors,
+            )
+        )
+    for idx, row in enumerate(response_validation_rows):
+        schema_errors = validate_prover_adapter_response_validation_row(row)
+        checks.append(
+            _check(
+                f"optional_prover_adapter_response_validation_row_{idx}_schema_valid",
+                "optional_artifacts",
+                "prover-adapter response-validation row satisfies published schema",
+                "; ".join(schema_errors) if schema_errors else "ok",
+                not schema_errors,
+                errors=schema_errors,
+            )
+        )
+    return checks
+
+
+def _cross_prover_matrix_optional_checks(
+    bundle_dir: Path,
+) -> list[FormalizationGapPlannerPublicationBundleAuditCheck]:
+    artifact_dir = (
+        bundle_dir
+        / "artifacts"
+        / "formalization_gap_planner_cross_prover_matrix_audit"
+    )
+    manifest_path = artifact_dir / "formalization_gap_planner_cross_prover_matrix_audit_manifest.json"
+    matrix_jsonl_path = artifact_dir / "formalization_gap_planner_cross_prover_matrix_audit.jsonl"
+    matrix_row_schema_path = (
+        artifact_dir / "formalization_gap_planner_cross_prover_matrix_audit_row.schema.json"
+    )
+    target_summary_path = (
+        artifact_dir / "formalization_gap_planner_cross_prover_target_summary.json"
+    )
+    target_summary_schema_path = (
+        artifact_dir
+        / "formalization_gap_planner_cross_prover_target_summary.schema.json"
+    )
+    packet_jsonl_path = artifact_dir / "formalization_gap_planner_cross_prover_packets.jsonl"
+    packet_schema_path = artifact_dir / "formalization_gap_planner_prover_adapter_packet.schema.json"
+    response_validation_jsonl_path = (
+        artifact_dir / "formalization_gap_planner_cross_prover_response_validation.jsonl"
+    )
+    response_validation_row_schema_path = (
+        artifact_dir
+        / "formalization_gap_planner_prover_adapter_response_validation_row.schema.json"
+    )
+    manifest = _read_json_no_error(manifest_path)
+    target_summary = _read_json_no_error(target_summary_path)
+    target_summary_schema = _read_json_no_error(target_summary_schema_path)
+    target_summary_errors = validate_cross_prover_target_summary_payload(
+        target_summary,
+        target_summary_schema or None,
+    )
+    matrix_rows, matrix_errors = _read_jsonl_dict_rows_no_error(matrix_jsonl_path)
+    packet_rows, packet_errors = _read_jsonl_dict_rows_no_error(packet_jsonl_path)
+    response_validation_rows, response_validation_errors = (
+        _read_jsonl_dict_rows_no_error(response_validation_jsonl_path)
+    )
+    n_targets = int(manifest.get("n_targets", 0) or 0)
+    n_targets_ok = int(manifest.get("n_targets_ok", 0) or 0)
+    n_packets = int(manifest.get("n_total_packets", 0) or 0)
+    n_schema_valid = int(manifest.get("n_total_packet_schema_valid", 0) or 0)
+    n_schema_invalid = int(manifest.get("n_total_packets_schema_invalid", 0) or 0)
+    n_aligned = int(manifest.get("n_total_packets_with_alignment", 0) or 0)
+    n_missing_alignment = int(
+        manifest.get("n_total_packets_missing_alignment", 0) or 0
+    )
+    n_trace = int(
+        manifest.get("n_total_packets_with_standalone_input_trace", 0) or 0
+    )
+    n_missing_trace = int(
+        manifest.get("n_total_packets_missing_standalone_input_trace", 0) or 0
+    )
+    n_replan_trace = int(
+        manifest.get("n_total_packets_with_replan_metadata_trace", 0) or 0
+    )
+    n_jsonl_trace = sum(
+        1
+        for row in packet_rows
+        if isinstance(row.get("standalone_input_trace"), dict)
+        and row.get("standalone_input_trace")
+    )
+    n_jsonl_replan_trace = sum(
+        1
+        for row in packet_rows
+        if isinstance(row.get("standalone_input_trace"), dict)
+        and row["standalone_input_trace"].get("has_replan_metadata")
+    )
+    checks = [
+        _check(
+            "optional_cross_prover_targets_ok",
+            "optional_artifacts",
+            "all cross-prover target exports ok",
+            f"{n_targets_ok}/{n_targets}",
+            n_targets > 0 and n_targets_ok == n_targets,
+        ),
+        _check(
+            "optional_cross_prover_packet_schema_valid",
+            "optional_artifacts",
+            "every cross-prover packet satisfies the prover-adapter packet schema",
+            f"schema_valid={n_schema_valid}; packets={n_packets}; invalid={n_schema_invalid}",
+            n_packets > 0 and n_schema_valid == n_packets and n_schema_invalid == 0,
+        ),
+        _check(
+            "optional_cross_prover_alignment_packets",
+            "optional_artifacts",
+            "every cross-prover packet carries route-alignment evidence",
+            f"aligned={n_aligned}; packets={n_packets}; missing={n_missing_alignment}",
+            n_packets > 0 and n_aligned == n_packets and n_missing_alignment == 0,
+        ),
+        _check(
+            "optional_cross_prover_alignment_count_consistent",
+            "optional_artifacts",
+            "alignment packet counts are consistent across target provers",
+            str(manifest.get("alignment_packet_count_consistent", "")),
+            bool(manifest.get("alignment_packet_count_consistent", False)),
+        ),
+        _check(
+            "optional_cross_prover_standalone_trace_packets",
+            "optional_artifacts",
+            "every cross-prover packet carries standalone input trace provenance",
+            f"trace={n_trace}; packets={n_packets}; missing={n_missing_trace}",
+            n_packets > 0 and n_trace == n_packets and n_missing_trace == 0,
+        ),
+        _check(
+            "optional_cross_prover_standalone_trace_count_consistent",
+            "optional_artifacts",
+            "standalone input trace packet counts are consistent across target provers",
+            str(manifest.get("standalone_input_trace_packet_count_consistent", "")),
+            bool(
+                manifest.get(
+                    "standalone_input_trace_packet_count_consistent",
+                    False,
+                )
+            ),
+        ),
+        _check(
+            "optional_cross_prover_standalone_trace_jsonl_count_consistent",
+            "optional_artifacts",
+            "manifest standalone input trace counts match cross-prover packet JSONL",
+            (
+                f"manifest_trace={n_trace}; jsonl_trace={n_jsonl_trace}; "
+                f"manifest_replan_trace={n_replan_trace}; "
+                f"jsonl_replan_trace={n_jsonl_replan_trace}"
+            ),
+            n_trace == n_jsonl_trace
+            and n_replan_trace == n_jsonl_replan_trace
+            and n_missing_trace == max(0, len(packet_rows) - n_jsonl_trace),
+        ),
+        _check(
+            "optional_cross_prover_matrix_row_schema_file",
+            "optional_artifacts",
+            "cross-prover matrix row schema exists",
+            str(matrix_row_schema_path.exists()),
+            matrix_row_schema_path.exists(),
+        ),
+        _check(
+            "optional_cross_prover_target_summary_file",
+            "optional_artifacts",
+            "cross-prover target summary exists",
+            str(target_summary_path.exists()),
+            target_summary_path.exists(),
+        ),
+        _check(
+            "optional_cross_prover_target_summary_schema_file",
+            "optional_artifacts",
+            "cross-prover target summary schema exists",
+            str(target_summary_schema_path.exists()),
+            target_summary_schema_path.exists(),
+        ),
+        _check(
+            "optional_cross_prover_target_summary_schema_id",
+            "optional_artifacts",
+            CROSS_PROVER_TARGET_SUMMARY_SCHEMA_ID,
+            str(target_summary_schema.get("$id", "")),
+            target_summary_schema.get("$id") == CROSS_PROVER_TARGET_SUMMARY_SCHEMA_ID,
+        ),
+        _check(
+            "optional_cross_prover_target_summary_contract_valid",
+            "optional_artifacts",
+            "cross-prover target summary validates against public schema",
+            "; ".join(target_summary_errors) if target_summary_errors else "valid",
+            not target_summary_errors,
+            errors=target_summary_errors,
+        ),
+        _check(
+            "optional_cross_prover_packet_schema_file",
+            "optional_artifacts",
+            "cross-prover packet schema exists",
+            str(packet_schema_path.exists()),
+            packet_schema_path.exists(),
+        ),
+        _check(
+            "optional_cross_prover_response_validation_row_schema_file",
+            "optional_artifacts",
+            "cross-prover response-validation row schema exists",
+            str(response_validation_row_schema_path.exists()),
+            response_validation_row_schema_path.exists(),
+        ),
+        _check(
+            "optional_cross_prover_matrix_manifest_schema_valid_count",
+            "optional_artifacts",
+            "matrix manifest row schema-valid count matches target count",
+            (
+                f"{manifest.get('n_matrix_row_schema_valid', 0)}/{n_targets}; "
+                f"invalid={manifest.get('n_matrix_row_schema_invalid', 0)}"
+            ),
+            n_targets > 0
+            and int(manifest.get("n_matrix_row_schema_valid", 0) or 0) == n_targets
+            and int(manifest.get("n_matrix_row_schema_invalid", 0) or 0) == 0,
+        ),
+        _check(
+            "optional_cross_prover_packet_manifest_schema_valid_count",
+            "optional_artifacts",
+            "matrix manifest packet row schema-valid count matches packet count",
+            (
+                f"{manifest.get('n_packet_row_schema_valid', 0)}/{n_packets}; "
+                f"invalid={manifest.get('n_packet_row_schema_invalid', 0)}"
+            ),
+            n_packets > 0
+            and int(manifest.get("n_packet_row_schema_valid", 0) or 0) == n_packets
+            and int(manifest.get("n_packet_row_schema_invalid", 0) or 0) == 0,
+        ),
+        _check(
+            "optional_cross_prover_response_validation_manifest_schema_valid_count",
+            "optional_artifacts",
+            "matrix manifest response-validation schema-valid count matches packet count",
+            (
+                f"{manifest.get('n_response_validation_row_schema_valid', 0)}/"
+                f"{n_packets}; invalid="
+                f"{manifest.get('n_response_validation_row_schema_invalid', 0)}"
+            ),
+            n_packets > 0
+            and int(manifest.get("n_response_validation_row_schema_valid", 0) or 0)
+            == n_packets
+            and int(
+                manifest.get("n_response_validation_row_schema_invalid", 0) or 0
+            )
+            == 0,
+        ),
+        _check(
+            "optional_cross_prover_matrix_jsonl_parse",
+            "optional_artifacts",
+            "matrix JSONL parses into object rows",
+            "; ".join(matrix_errors) if matrix_errors else f"rows={len(matrix_rows)}",
+            not matrix_errors,
+            errors=matrix_errors,
+        ),
+        _check(
+            "optional_cross_prover_matrix_jsonl_row_count",
+            "optional_artifacts",
+            "matrix JSONL rows match target count",
+            f"jsonl={len(matrix_rows)} targets={n_targets}",
+            len(matrix_rows) == n_targets,
+        ),
+        _check(
+            "optional_cross_prover_packet_jsonl_parse",
+            "optional_artifacts",
+            "cross-prover packet JSONL parses into object rows",
+            "; ".join(packet_errors) if packet_errors else f"rows={len(packet_rows)}",
+            not packet_errors,
+            errors=packet_errors,
+        ),
+        _check(
+            "optional_cross_prover_packet_jsonl_row_count",
+            "optional_artifacts",
+            "cross-prover packet JSONL rows match manifest count",
+            f"jsonl={len(packet_rows)} packets={n_packets}",
+            len(packet_rows) == n_packets,
+        ),
+        _check(
+            "optional_cross_prover_response_validation_jsonl_parse",
+            "optional_artifacts",
+            "cross-prover response-validation JSONL parses into object rows",
+            (
+                "; ".join(response_validation_errors)
+                if response_validation_errors
+                else f"rows={len(response_validation_rows)}"
+            ),
+            not response_validation_errors,
+            errors=response_validation_errors,
+        ),
+        _check(
+            "optional_cross_prover_response_validation_jsonl_row_count",
+            "optional_artifacts",
+            "cross-prover response-validation JSONL rows match packet count",
+            f"jsonl={len(response_validation_rows)} packets={n_packets}",
+            len(response_validation_rows) == n_packets,
+        ),
+    ]
+    for idx, row in enumerate(matrix_rows):
+        schema_errors = validate_cross_prover_matrix_audit_row(row)
+        checks.append(
+            _check(
+                f"optional_cross_prover_matrix_row_{idx}_schema_valid",
+                "optional_artifacts",
+                "cross-prover matrix row satisfies published schema",
+                "; ".join(schema_errors) if schema_errors else "ok",
+                not schema_errors,
+                errors=schema_errors,
+            )
+        )
+    for idx, row in enumerate(packet_rows):
+        schema_errors = validate_prover_adapter_packet_row(row)
+        standalone_input_trace = row.get("standalone_input_trace")
+        checks.append(
+            _check(
+                f"optional_cross_prover_packet_row_{idx}_schema_valid",
+                "optional_artifacts",
+                "cross-prover packet row satisfies published schema",
+                "; ".join(schema_errors) if schema_errors else "ok",
+                not schema_errors,
+                errors=schema_errors,
+            )
+        )
+        checks.append(
+            _check(
+                f"optional_cross_prover_packet_row_{idx}_standalone_input_trace",
+                "optional_artifacts",
+                "cross-prover packet row carries standalone input trace provenance",
+                (
+                    "present"
+                    if isinstance(standalone_input_trace, dict)
+                    and bool(standalone_input_trace)
+                    else "missing"
+                ),
+                isinstance(standalone_input_trace, dict)
+                and bool(standalone_input_trace),
+            )
+        )
+    for idx, row in enumerate(response_validation_rows):
+        schema_errors = validate_prover_adapter_response_validation_row(row)
+        checks.append(
+            _check(
+                f"optional_cross_prover_response_validation_row_{idx}_schema_valid",
+                "optional_artifacts",
+                "cross-prover response-validation row satisfies published schema",
+                "; ".join(schema_errors) if schema_errors else "ok",
+                not schema_errors,
+                errors=schema_errors,
+            )
+        )
+    return checks
+
+
+def _route_replan_handoff_optional_checks(
+    bundle_dir: Path,
+) -> list[FormalizationGapPlannerPublicationBundleAuditCheck]:
+    artifact_dir = (
+        bundle_dir / "artifacts" / "formalization_gap_planner_route_replan_handoff"
+    )
+    manifest_path = (
+        artifact_dir
+        / "formalization_gap_planner_route_replan_handoff_manifest.json"
+    )
+    seed_path = artifact_dir / "formalization_gap_planner_route_replan_standalone_seed.json"
+    seed_schema_path = (
+        artifact_dir
+        / "formalization_gap_planner_route_replan_standalone_seed.schema.json"
+    )
+    rows_jsonl_path = artifact_dir / "formalization_gap_planner_route_replan_handoff.jsonl"
+    manifest = _read_json_no_error(manifest_path)
+    seed = _read_json_no_error(seed_path)
+    seed_schema = _read_json_no_error(seed_schema_path)
+    jsonl_rows, row_errors = _read_jsonl_dict_rows_no_error(rows_jsonl_path)
+    rows = [row for row in manifest.get("rows", []) if isinstance(row, dict)]
+    n_rows = int(manifest.get("n_handoff_rows", 0) or 0)
+    n_edges = int(manifest.get("n_route_alignment_edges", 0) or 0)
+    n_unaligned = int(manifest.get("n_unaligned_primitives", 0) or 0)
+    resource_feedback_rows = sum(
+        1
+        for row in rows
+        if "resource_response_ledger" in _str_tuple(row.get("applied_hook_kinds", []))
+    )
+    seed_resource_feedback_rows = _seed_resource_feedback_route_count(seed)
+    row_signatures = _distinct_row_signatures(rows)
+    checks = [
+        _check(
+            "optional_route_replan_handoff_alignment_edges",
+            "optional_artifacts",
+            "route-replan handoff preserves at least one alignment edge per row",
+            f"edges={n_edges}; rows={n_rows}",
+            n_rows > 0 and n_edges >= n_rows,
+        ),
+        _check(
+            "optional_route_replan_handoff_no_unaligned_primitives",
+            "optional_artifacts",
+            "zero unaligned revised primitives",
+            str(n_unaligned),
+            n_unaligned == 0
+            and all(not row.get("unaligned_primitives") for row in rows),
+        ),
+        _check(
+            "optional_route_replan_handoff_row_alignment_edges",
+            "optional_artifacts",
+            "every handoff row carries revised route alignment edges",
+            f"{sum(1 for row in rows if row.get('revised_route_alignment_edges'))}/{len(rows)}",
+            bool(rows)
+            and all(bool(row.get("revised_route_alignment_edges")) for row in rows),
+        ),
+        _check(
+            "optional_route_replan_handoff_jsonl_parse",
+            "optional_artifacts",
+            "route-replan handoff JSONL parses into object rows",
+            "; ".join(row_errors) if row_errors else f"rows={len(jsonl_rows)}",
+            not row_errors,
+            errors=row_errors,
+        ),
+        _check(
+            "optional_route_replan_handoff_jsonl_row_count",
+            "optional_artifacts",
+            "route-replan handoff JSONL rows match manifest row count",
+            f"jsonl={len(jsonl_rows)} manifest={n_rows}",
+            len(jsonl_rows) == n_rows,
+        ),
+        _check(
+            "optional_route_replan_handoff_seed_provenance_metadata",
+            "optional_artifacts",
+            "seed route replan metadata preserves handoff-row provenance fields",
+            _handoff_seed_provenance_observed(rows, seed),
+            bool(rows) and _handoff_seed_provenance_ok(rows, seed),
+        ),
+        _check(
+            "optional_route_replan_handoff_seed_schema_file",
+            "optional_artifacts",
+            "route-replan standalone seed schema exists",
+            str(seed_schema_path.exists()),
+            seed_schema_path.exists(),
+        ),
+        _check(
+            "optional_route_replan_handoff_seed_schema_id",
+            "optional_artifacts",
+            FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_SCHEMA_ID,
+            str(seed_schema.get("$id", "")),
+            seed_schema.get("$id")
+            == FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_SCHEMA_ID,
+        ),
+        _check(
+            "optional_route_replan_handoff_seed_schema_replan_metadata",
+            "optional_artifacts",
+            "standalone seed schema publishes replan DAG/alignment metadata fields",
+            _standalone_seed_schema_replan_metadata_observed(seed_schema),
+            _standalone_seed_schema_replan_metadata_ok(seed_schema),
+        ),
+        _check(
+            "optional_route_replan_handoff_generic_formal_dag_fields",
+            "optional_artifacts",
+            "route-replan handoff rows and standalone seed publish prover-neutral revised formal-realization DAG fields",
+            _handoff_generic_formal_dag_observed(rows, seed, manifest),
+            not _handoff_generic_formal_dag_errors(rows, seed, manifest),
+            errors=_handoff_generic_formal_dag_errors(rows, seed, manifest),
+        ),
+        _check(
+            "optional_route_replan_handoff_resource_feedback_count",
+            "optional_artifacts",
+            "resource-response-ledger handoff rows match manifest and seed metadata",
+            (
+                f"rows={resource_feedback_rows}; seed={seed_resource_feedback_rows}; "
+                f"manifest={manifest.get('n_routes_with_resource_response_ledger_feedback', 0)}"
+            ),
+            resource_feedback_rows
+            == int(
+                manifest.get("n_routes_with_resource_response_ledger_feedback", 0)
+                or 0
+            )
+            == seed_resource_feedback_rows,
+        ),
+        _check(
+            "optional_route_replan_handoff_prover_diagnostic_signature_count",
+            "optional_artifacts",
+            "distinct prover diagnostic signatures match handoff manifest",
+            (
+                f"rows={len(row_signatures)}; "
+                f"manifest={manifest.get('n_distinct_prover_diagnostic_signatures', 0)}"
+            ),
+            len(row_signatures)
+            == int(manifest.get("n_distinct_prover_diagnostic_signatures", 0) or 0),
+        ),
+    ]
+    seed_routes = _seed_route_index(seed)
+    for idx, row in enumerate(rows):
+        seed_route = seed_routes.get(str(row.get("standalone_route_id", "")), {})
+        alignment_errors = _handoff_seed_alignment_errors(row, seed_route)
+        checks.append(
+            _check(
+                f"optional_route_replan_handoff_row_{idx}_seed_alignment_preservation",
+                "optional_artifacts",
+                "seed route and replan metadata exactly preserve revised alignment edges",
+                _handoff_seed_alignment_observed(row, seed_route),
+                not alignment_errors,
+                errors=alignment_errors,
+            )
+        )
+        dag_errors = _handoff_seed_dag_errors(row, seed_route)
+        checks.append(
+            _check(
+                f"optional_route_replan_handoff_row_{idx}_seed_dag_preservation",
+                "optional_artifacts",
+                "seed route and replan metadata preserve revised informal and Lean DAG nodes",
+                _handoff_seed_dag_observed(row, seed_route),
+                not dag_errors,
+                errors=dag_errors,
+            )
+        )
+    for idx, row in enumerate(jsonl_rows):
+        schema_errors = validate_route_replan_handoff_row(row)
+        checks.append(
+            _check(
+                f"optional_route_replan_handoff_row_{idx}_schema_valid",
+                "optional_artifacts",
+                "route-replan handoff row satisfies published schema",
+                "; ".join(schema_errors) if schema_errors else "ok",
+                not schema_errors,
+                errors=schema_errors,
+            )
+        )
+    return checks
+
+
+def _route_replan_handoff_audit_optional_checks(
+    bundle_dir: Path,
+) -> list[FormalizationGapPlannerPublicationBundleAuditCheck]:
+    artifact_dir = (
+        bundle_dir / "artifacts" / "formalization_gap_planner_route_replan_handoff_audit"
+    )
+    manifest_path = artifact_dir / "formalization_gap_planner_route_replan_handoff_audit_manifest.json"
+    rows_jsonl_path = artifact_dir / "formalization_gap_planner_route_replan_handoff_audit.jsonl"
+    row_schema_path = (
+        artifact_dir / "formalization_gap_planner_route_replan_handoff_audit_row.schema.json"
+    )
+    manifest = _read_json_no_error(manifest_path)
+    rows, row_errors = _read_jsonl_dict_rows_no_error(rows_jsonl_path)
+    n_seed_routes = int(manifest.get("n_seed_routes", 0) or 0)
+    n_roundtrip_routes = int(manifest.get("n_roundtrip_goal_plans", 0) or 0)
+    n_roundtrip_edges = int(manifest.get("n_roundtrip_route_alignment_edges", 0) or 0)
+    ok_check_names = {
+        str(row.get("check_name", ""))
+        for row in manifest.get("checks", [])
+        if isinstance(row, dict) and row.get("ok")
+    }
+    required_alignment_checks = {
+        "handoff_alignment_edges_present",
+        "handoff_no_unaligned_primitives",
+        "roundtrip_alignment_edges",
+        "roundtrip_alignment_contract",
+    }
+    required_trace_checks = {
+        "roundtrip_standalone_input_trace",
+    }
+    provenance_check_names = {
+        check_name
+        for check_name in ok_check_names
+        if check_name.endswith("_seed_route_provenance_metadata")
+    }
+    checks = [
+        _check(
+            "optional_route_replan_handoff_audit_row_schema_file",
+            "optional_artifacts",
+            "optional route-replan handoff audit row schema exists",
+            str(row_schema_path.exists()),
+            row_schema_path.exists(),
+        ),
+        _check(
+            "optional_route_replan_handoff_audit_manifest_schema_valid_count",
+            "optional_artifacts",
+            "route-replan handoff audit manifest schema-valid count matches row count",
+            (
+                f"{manifest.get('n_row_schema_valid', 0)}/"
+                f"{manifest.get('n_checks', 0)}; "
+                f"invalid={manifest.get('n_row_schema_invalid', 0)}"
+            ),
+            int(manifest.get("n_checks", 0) or 0) > 0
+            and int(manifest.get("n_row_schema_valid", 0) or 0)
+            == int(manifest.get("n_checks", 0) or 0)
+            and int(manifest.get("n_row_schema_invalid", 0) or 0) == 0,
+        ),
+        _check(
+            "optional_route_replan_handoff_audit_jsonl_parse",
+            "optional_artifacts",
+            "route-replan handoff audit JSONL parses into object rows",
+            "; ".join(row_errors) if row_errors else f"rows={len(rows)}",
+            not row_errors,
+            errors=row_errors,
+        ),
+        _check(
+            "optional_route_replan_handoff_audit_jsonl_row_count",
+            "optional_artifacts",
+            "route-replan handoff audit JSONL rows match manifest check count",
+            f"jsonl={len(rows)} manifest={manifest.get('n_checks', 0)}",
+            len(rows) == int(manifest.get("n_checks", 0) or 0),
+        ),
+        _check(
+            "optional_route_replan_handoff_audit_roundtrip_alignment_edges",
+            "optional_artifacts",
+            "roundtrip regenerates at least one alignment edge per seed route",
+            f"edges={n_roundtrip_edges}; seed_routes={n_seed_routes}",
+            n_seed_routes > 0 and n_roundtrip_edges >= n_seed_routes,
+        ),
+        _check(
+            "optional_route_replan_handoff_audit_roundtrip_routes",
+            "optional_artifacts",
+            "roundtrip route count matches seed route count",
+            f"roundtrip={n_roundtrip_routes}; seed={n_seed_routes}",
+            n_seed_routes > 0 and n_roundtrip_routes == n_seed_routes,
+        ),
+        _check(
+            "optional_route_replan_handoff_audit_alignment_checks",
+            "optional_artifacts",
+            "handoff and roundtrip alignment checks passed",
+            ",".join(sorted(required_alignment_checks.intersection(ok_check_names))),
+            required_alignment_checks.issubset(ok_check_names),
+        ),
+        _check(
+            "optional_route_replan_handoff_audit_provenance_checks",
+            "optional_artifacts",
+            "handoff audit includes at least one passing row-to-seed provenance check",
+            ",".join(sorted(provenance_check_names)),
+            bool(provenance_check_names),
+        ),
+        _check(
+            "optional_route_replan_handoff_audit_roundtrip_trace_checks",
+            "optional_artifacts",
+            "handoff audit includes passing roundtrip standalone-input trace check",
+            ",".join(sorted(required_trace_checks.intersection(ok_check_names))),
+            required_trace_checks.issubset(ok_check_names),
+        ),
+    ]
+    for idx, row in enumerate(rows):
+        schema_errors = validate_route_replan_handoff_audit_row(row)
+        checks.append(
+            _check(
+                f"optional_route_replan_handoff_audit_row_{idx}_schema_valid",
+                "optional_artifacts",
+                "route-replan handoff audit row satisfies published schema",
+                "; ".join(schema_errors) if schema_errors else "ok",
+                not schema_errors,
+                errors=schema_errors,
+            )
+        )
+    return checks
+
+
+def _runtime_handoff_audit_optional_checks(
+    bundle_dir: Path,
+) -> list[FormalizationGapPlannerPublicationBundleAuditCheck]:
+    artifact_dir = (
+        bundle_dir / "artifacts" / "formalization_gap_planner_runtime_handoff_audit"
+    )
+    manifest_path = (
+        artifact_dir / "formalization_gap_planner_runtime_handoff_audit_manifest.json"
+    )
+    rows_jsonl_path = artifact_dir / "formalization_gap_planner_runtime_handoff_audit.jsonl"
+    row_schema_path = (
+        artifact_dir / "formalization_gap_planner_runtime_handoff_audit_row.schema.json"
+    )
+    manifest = _read_json_no_error(manifest_path)
+    rows, row_errors = _read_jsonl_dict_rows_no_error(rows_jsonl_path)
+    n_handoffs = int(manifest.get("n_handoffs", 0) or 0)
+    n_checks = int(manifest.get("n_checks", 0) or 0)
+    checks = [
+        _check(
+            "optional_runtime_handoff_audit_row_schema_file",
+            "optional_artifacts",
+            "optional runtime handoff audit row schema exists",
+            str(row_schema_path.exists()),
+            row_schema_path.exists(),
+        ),
+        _check(
+            "optional_runtime_handoff_audit_manifest_schema_valid_count",
+            "optional_artifacts",
+            "runtime handoff audit manifest schema-valid count matches row count",
+            (
+                f"{manifest.get('n_row_schema_valid', 0)}/"
+                f"{manifest.get('n_checks', 0)}; "
+                f"invalid={manifest.get('n_row_schema_invalid', 0)}"
+            ),
+            n_checks > 0
+            and int(manifest.get("n_row_schema_valid", 0) or 0) == n_checks
+            and int(manifest.get("n_row_schema_invalid", 0) or 0) == 0,
+        ),
+        _check(
+            "optional_runtime_handoff_audit_jsonl_parse",
+            "optional_artifacts",
+            "runtime handoff audit JSONL parses into object rows",
+            "; ".join(row_errors) if row_errors else f"rows={len(rows)}",
+            not row_errors,
+            errors=row_errors,
+        ),
+        _check(
+            "optional_runtime_handoff_audit_jsonl_row_count",
+            "optional_artifacts",
+            "runtime handoff audit JSONL rows match manifest check count",
+            f"jsonl={len(rows)} manifest={n_checks}",
+            len(rows) == n_checks,
+        ),
+        _check(
+            "optional_runtime_handoff_audit_cost_control",
+            "optional_artifacts",
+            "all runtime handoffs preserve prompt-only cost control",
+            (
+                f"cost={manifest.get('n_cost_control_ok', 0)}/"
+                f"{n_handoffs}; live={manifest.get('n_live_explicit_ok', 0)}/"
+                f"{n_handoffs}"
+            ),
+            n_handoffs > 0
+            and int(manifest.get("n_cost_control_ok", 0) or 0) == n_handoffs
+            and int(manifest.get("n_live_explicit_ok", 0) or 0) == n_handoffs,
+        ),
+        _check(
+            "optional_runtime_handoff_audit_prompt_smoke",
+            "optional_artifacts",
+            "prompt-only route-planner smoke staged requests without provider invocation",
+            (
+                f"prompt_smoke={manifest.get('n_llm_prompt_smoke_ok', 0)}/"
+                f"{n_handoffs}; packets={manifest.get('n_llm_prompt_packets', 0)}"
+            ),
+            n_handoffs > 0
+            and int(manifest.get("n_llm_prompt_smoke_ok", 0) or 0) == n_handoffs
+            and int(manifest.get("n_llm_prompt_packets", 0) or 0) >= n_handoffs,
+        ),
+        _check(
+            "optional_runtime_handoff_audit_standalone_smoke",
+            "optional_artifacts",
+            "standalone planner smoke passed for each runtime handoff seed",
+            f"{manifest.get('n_standalone_smoke_ok', 0)}/{n_handoffs}",
+            n_handoffs > 0
+            and int(manifest.get("n_standalone_smoke_ok", 0) or 0) == n_handoffs,
+        ),
+        _check(
+            "optional_runtime_handoff_audit_no_failures",
+            "optional_artifacts",
+            "runtime handoff audit manifest reports no failed checks",
+            f"failed={manifest.get('n_failed', 0)} all_ok={manifest.get('all_ok')}",
+            int(manifest.get("n_failed", 0) or 0) == 0
+            and bool(manifest.get("all_ok", False)),
+        ),
+    ]
+    for idx, row in enumerate(rows):
+        schema_errors = validate_runtime_handoff_audit_row(row)
+        checks.append(
+            _check(
+                f"optional_runtime_handoff_audit_row_{idx}_schema_valid",
+                "optional_artifacts",
+                "runtime handoff audit row satisfies published schema",
+                "; ".join(schema_errors) if schema_errors else "ok",
+                not schema_errors,
+                errors=tuple(schema_errors),
+            )
+        )
+    return checks
+
+
+_HANDOFF_PROVENANCE_STRING_FIELDS = (
+    "applied_proposal_ids",
+    "applied_refinement_evidence_ids",
+    "applied_hook_kinds",
+    "resource_response_awaiting_request_ids",
+    "resource_response_rejected_request_ids",
+    "applied_prover_attempt_statuses",
+    "applied_prover_diagnostic_signatures",
+    "route_revision_reasons",
+    "route_revision_summaries",
+    "residual_goals",
+    "source_refs",
+)
+_HANDOFF_REVISED_DAG_FIELD_GROUPS = (
+    ("revised_informal_knowledge_dag_nodes",),
+    ("revised_formal_realization_dag_nodes", "revised_lean_realization_dag_nodes"),
+)
+_HANDOFF_SEED_SCHEMA_REVISED_DAG_FIELDS = (
+    "revised_informal_knowledge_dag_nodes",
+    "revised_formal_realization_dag_nodes",
+    "revised_lean_realization_dag_nodes",
+)
+_HANDOFF_SEED_SCHEMA_ROUTE_FIELDS = (
+    *_HANDOFF_SEED_SCHEMA_REVISED_DAG_FIELDS,
+    "revised_route_alignment_edges",
+    "minimal_delta_and_or_cost_graph",
+    "replan_metadata",
+)
+_HANDOFF_SEED_SCHEMA_METADATA_FIELDS = (
+    "applied_proposal_ids",
+    "applied_refinement_evidence_ids",
+    "applied_hook_kinds",
+    "applied_resource_response_traces",
+    "resource_response_awaiting_request_ids",
+    "resource_response_rejected_request_ids",
+    "applied_prover_attempt_statuses",
+    "applied_prover_diagnostic_signatures",
+    "route_revision_reasons",
+    "route_revision_summaries",
+    "residual_goals",
+    "source_refs",
+    "formal_declaration_hits",
+    "lean_declaration_hits",
+    *_HANDOFF_SEED_SCHEMA_REVISED_DAG_FIELDS,
+    "revised_route_alignment_edges",
+    "minimal_delta_and_or_cost_graph",
+    "alignment_edge_primitives",
+)
+
+
+def _handoff_seed_provenance_ok(
+    rows: list[dict[str, Any]],
+    seed: dict[str, Any],
+) -> bool:
+    seed_routes = _seed_route_index(seed)
+    if not seed_routes:
+        return False
+    for row in rows:
+        seed_route_id = str(row.get("standalone_route_id", ""))
+        seed_route = seed_routes.get(seed_route_id, {})
+        metadata = (
+            seed_route.get("replan_metadata", {})
+            if isinstance(seed_route, dict)
+            else {}
+        )
+        if not isinstance(metadata, dict):
+            return False
+        for field_name in _HANDOFF_PROVENANCE_STRING_FIELDS:
+            if _str_tuple(row.get(field_name, [])) != _str_tuple(
+                metadata.get(field_name, [])
+            ):
+                return False
+        if _declaration_set(
+            row.get("formal_declaration_hits", row.get("lean_declaration_hits", []))
+        ) != _declaration_set(
+            metadata.get(
+                "formal_declaration_hits",
+                metadata.get("lean_declaration_hits", []),
+            )
+        ):
+            return False
+        if _object_hashes(row.get("applied_resource_response_traces", [])) != _object_hashes(
+            metadata.get("applied_resource_response_traces", [])
+        ):
+            return False
+    return True
+
+
+def _handoff_seed_provenance_observed(
+    rows: list[dict[str, Any]],
+    seed: dict[str, Any],
+) -> str:
+    seed_routes = _seed_route_index(seed)
+    matched = sum(
+        1 for row in rows if str(row.get("standalone_route_id", "")) in seed_routes
+    )
+    resource_rows = sum(
+        1
+        for row in rows
+        if "resource_response_ledger" in _str_tuple(row.get("applied_hook_kinds", []))
+    )
+    return (
+        f"matched_seed_routes={matched}/{len(rows)}; "
+        f"resource_feedback_rows={resource_rows}; "
+        f"diagnostic_signatures={len(_distinct_row_signatures(rows))}"
+    )
+
+
+def _standalone_seed_schema_replan_metadata_ok(schema: dict[str, Any]) -> bool:
+    route_props, metadata_props = _standalone_seed_schema_replan_metadata_props(schema)
+    if not route_props or not metadata_props:
+        return False
+    if not set(_HANDOFF_SEED_SCHEMA_ROUTE_FIELDS).issubset(route_props):
+        return False
+    if not set(_HANDOFF_SEED_SCHEMA_METADATA_FIELDS).issubset(metadata_props):
+        return False
+    return (
+        _schema_ref(
+            route_props.get("revised_informal_knowledge_dag_nodes", {}),
+            "items",
+        )
+        == "#/$defs/dag_node"
+        and _schema_ref(
+            route_props.get("revised_route_alignment_edges", {}),
+            "items",
+        )
+        == "#/$defs/route_alignment_edge"
+        and _schema_ref(
+            route_props.get("revised_formal_realization_dag_nodes", {}),
+            "items",
+        )
+        == "#/$defs/dag_node"
+        and _schema_ref(
+            route_props.get("minimal_delta_and_or_cost_graph", {}),
+        )
+        == "#/$defs/minimal_delta_and_or_cost_graph"
+        and _schema_ref(
+            metadata_props.get("formal_declaration_hits", {}),
+            "items",
+        )
+        == "#/$defs/formal_declaration_hit"
+        and _schema_ref(
+            metadata_props.get("lean_declaration_hits", {}),
+            "items",
+        )
+        == "#/$defs/lean_declaration_hit"
+        and _schema_ref(
+            metadata_props.get("revised_formal_realization_dag_nodes", {}),
+            "items",
+        )
+        == "#/$defs/dag_node"
+        and _schema_ref(
+            metadata_props.get("revised_route_alignment_edges", {}),
+            "items",
+        )
+        == "#/$defs/route_alignment_edge"
+        and _schema_ref(
+            metadata_props.get("minimal_delta_and_or_cost_graph", {}),
+        )
+        == "#/$defs/minimal_delta_and_or_cost_graph"
+    )
+
+
+def _standalone_seed_schema_replan_metadata_observed(schema: dict[str, Any]) -> str:
+    route_props, metadata_props = _standalone_seed_schema_replan_metadata_props(schema)
+    route_fields = set(route_props)
+    metadata_fields = set(metadata_props)
+    missing_route = sorted(set(_HANDOFF_SEED_SCHEMA_ROUTE_FIELDS) - route_fields)
+    missing_metadata = sorted(
+        set(_HANDOFF_SEED_SCHEMA_METADATA_FIELDS) - metadata_fields
+    )
+    return (
+        f"missing_route={','.join(missing_route)}; "
+        f"missing_metadata={','.join(missing_metadata)}"
+    )
+
+
+def _standalone_seed_schema_replan_metadata_props(
+    schema: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    defs = schema.get("$defs", {})
+    if not isinstance(defs, dict):
+        return {}, {}
+    route = defs.get("route", {})
+    metadata = defs.get("replan_metadata", {})
+    route_props = route.get("properties", {}) if isinstance(route, dict) else {}
+    metadata_props = (
+        metadata.get("properties", {}) if isinstance(metadata, dict) else {}
+    )
+    return (
+        route_props if isinstance(route_props, dict) else {},
+        metadata_props if isinstance(metadata_props, dict) else {},
+    )
+
+
+def _route_revision_overlay_generic_formal_dag_errors(
+    rows: list[dict[str, Any]],
+    manifest: dict[str, Any],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    if not rows:
+        errors.append("no overlay rows")
+    expected = sum(
+        len(_object_hashes(row.get("revised_formal_realization_dag_nodes", [])))
+        for row in rows
+    )
+    if "n_formal_realization_dag_nodes" not in manifest:
+        errors.append("manifest n_formal_realization_dag_nodes missing")
+    elif int(manifest.get("n_formal_realization_dag_nodes", 0) or 0) != expected:
+        errors.append("manifest n_formal_realization_dag_nodes mismatch")
+    for idx, row in enumerate(rows):
+        errors.extend(_generic_revised_formal_dag_field_errors(f"row {idx}", row))
+    return tuple(errors)
+
+
+def _route_revision_overlay_generic_formal_dag_observed(
+    rows: list[dict[str, Any]],
+    manifest: dict[str, Any],
+) -> str:
+    generic = sum(
+        len(_object_hashes(row.get("revised_formal_realization_dag_nodes", [])))
+        for row in rows
+    )
+    legacy = sum(
+        len(_object_hashes(row.get("revised_lean_realization_dag_nodes", [])))
+        for row in rows
+    )
+    return (
+        f"rows={len(rows)}; generic={generic}; legacy={legacy}; "
+        f"manifest={manifest.get('n_formal_realization_dag_nodes', 'missing')}"
+    )
+
+
+def _handoff_generic_formal_dag_errors(
+    rows: list[dict[str, Any]],
+    seed: dict[str, Any],
+    manifest: dict[str, Any],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    if not rows:
+        errors.append("no handoff rows")
+    expected = sum(
+        len(_object_hashes(row.get("revised_formal_realization_dag_nodes", [])))
+        for row in rows
+    )
+    if "n_revised_formal_realization_dag_nodes" not in manifest:
+        errors.append("manifest n_revised_formal_realization_dag_nodes missing")
+    elif int(manifest.get("n_revised_formal_realization_dag_nodes", 0) or 0) != expected:
+        errors.append("manifest n_revised_formal_realization_dag_nodes mismatch")
+    seed_routes = _seed_route_index(seed)
+    for idx, row in enumerate(rows):
+        errors.extend(_generic_revised_formal_dag_field_errors(f"row {idx}", row))
+        seed_route_id = str(row.get("standalone_route_id", ""))
+        seed_route = seed_routes.get(seed_route_id, {})
+        if not seed_route:
+            errors.append(f"seed route {seed_route_id} missing")
+            continue
+        errors.extend(
+            _generic_revised_formal_dag_field_errors(
+                f"seed route {seed_route_id}",
+                seed_route,
+            )
+        )
+        metadata = _seed_route_metadata(seed_route)
+        if not isinstance(metadata, dict):
+            errors.append(f"seed metadata {seed_route_id} missing")
+            continue
+        errors.extend(
+            _generic_revised_formal_dag_field_errors(
+                f"seed metadata {seed_route_id}",
+                metadata,
+            )
+        )
+    return tuple(errors)
+
+
+def _handoff_generic_formal_dag_observed(
+    rows: list[dict[str, Any]],
+    seed: dict[str, Any],
+    manifest: dict[str, Any],
+) -> str:
+    seed_routes = _seed_route_index(seed)
+    seed_generic = 0
+    metadata_generic = 0
+    for row in rows:
+        seed_route = seed_routes.get(str(row.get("standalone_route_id", "")), {})
+        seed_generic += len(
+            _object_hashes(seed_route.get("revised_formal_realization_dag_nodes", []))
+        )
+        metadata = _seed_route_metadata(seed_route)
+        metadata = metadata if isinstance(metadata, dict) else {}
+        metadata_generic += len(
+            _object_hashes(metadata.get("revised_formal_realization_dag_nodes", []))
+        )
+    row_generic = sum(
+        len(_object_hashes(row.get("revised_formal_realization_dag_nodes", [])))
+        for row in rows
+    )
+    row_legacy = sum(
+        len(_object_hashes(row.get("revised_lean_realization_dag_nodes", [])))
+        for row in rows
+    )
+    return (
+        f"rows={len(rows)}; row_generic={row_generic}; row_legacy={row_legacy}; "
+        f"seed_generic={seed_generic}; metadata_generic={metadata_generic}; "
+        f"manifest={manifest.get('n_revised_formal_realization_dag_nodes', 'missing')}"
+    )
+
+
+def _generic_revised_formal_dag_field_errors(
+    label: str,
+    row: dict[str, Any],
+) -> tuple[str, ...]:
+    generic = _object_hashes(row.get("revised_formal_realization_dag_nodes", []))
+    legacy = _object_hashes(row.get("revised_lean_realization_dag_nodes", []))
+    errors: list[str] = []
+    if not generic:
+        errors.append(f"{label} revised_formal_realization_dag_nodes missing")
+    if legacy and generic and legacy != generic:
+        errors.append(
+            f"{label} revised_lean_realization_dag_nodes differs from formal DAG"
+        )
+    return tuple(errors)
+
+
+def _schema_ref(schema: Any, field_name: str = "") -> str:
+    if not isinstance(schema, dict):
+        return ""
+    if not field_name:
+        return str(schema.get("$ref", ""))
+    field = schema.get(field_name, {})
+    if not isinstance(field, dict):
+        return ""
+    return str(field.get("$ref", ""))
+
+
+def _handoff_seed_alignment_errors(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    metadata = _seed_route_metadata(seed_route)
+    if not seed_route:
+        errors.append("seed route missing")
+    if not isinstance(metadata, dict):
+        errors.append("seed route replan_metadata missing")
+        return tuple(errors)
+    if "revised_route_alignment_edges" not in row:
+        errors.append("row revised_route_alignment_edges missing")
+    if "revised_route_alignment_edges" not in seed_route:
+        errors.append("seed route revised_route_alignment_edges missing")
+    if "revised_route_alignment_edges" not in metadata:
+        errors.append("seed metadata revised_route_alignment_edges missing")
+    row_hashes = _object_hashes(row.get("revised_route_alignment_edges", []))
+    metadata_hashes = _object_hashes(metadata.get("revised_route_alignment_edges", []))
+    route_hashes = _object_hashes(seed_route.get("revised_route_alignment_edges", []))
+    if not row_hashes:
+        errors.append("row revised_route_alignment_edges empty")
+    if row_hashes != metadata_hashes:
+        errors.append("seed metadata revised_route_alignment_edges mismatch")
+    if row_hashes != route_hashes:
+        errors.append("seed route revised_route_alignment_edges mismatch")
+    selected = set(_str_tuple(row.get("revised_selected_primitives", [])))
+    aligned = _alignment_primitives(row.get("revised_route_alignment_edges", []))
+    missing = sorted(selected - aligned)
+    if missing:
+        errors.append(
+            "row revised_route_alignment_edges miss selected primitives: "
+            + ",".join(missing)
+        )
+    return tuple(errors)
+
+
+def _handoff_seed_alignment_observed(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+) -> str:
+    metadata = _seed_route_metadata(seed_route)
+    metadata = metadata if isinstance(metadata, dict) else {}
+    selected = set(_str_tuple(row.get("revised_selected_primitives", [])))
+    aligned = _alignment_primitives(row.get("revised_route_alignment_edges", []))
+    missing = sorted(selected - aligned)
+    return (
+        f"row_edges={len(_object_hashes(row.get('revised_route_alignment_edges', [])))}; "
+        f"metadata_edges={len(_object_hashes(metadata.get('revised_route_alignment_edges', [])))}; "
+        f"seed_route_edges={len(_object_hashes(seed_route.get('revised_route_alignment_edges', [])))}; "
+        f"missing_selected={','.join(missing)}"
+    )
+
+
+def _handoff_seed_dag_errors(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    metadata = _seed_route_metadata(seed_route)
+    if not seed_route:
+        errors.append("seed route missing")
+    if not isinstance(metadata, dict):
+        errors.append("seed route replan_metadata missing")
+        return tuple(errors)
+    for field_names in _HANDOFF_REVISED_DAG_FIELD_GROUPS:
+        field_label = field_names[0]
+        row_hashes = _first_field_object_hashes(row, field_names)
+        seed_hashes = _first_field_object_hashes(seed_route, field_names)
+        metadata_hashes = _first_field_object_hashes(metadata, field_names)
+        if not row_hashes:
+            errors.append(f"row {field_label} missing")
+        if not seed_hashes:
+            errors.append(f"seed route {field_label} missing")
+        if not metadata_hashes:
+            errors.append(f"seed metadata {field_label} missing")
+        if row_hashes != seed_hashes:
+            errors.append(f"seed route {field_label} mismatch")
+        if row_hashes != metadata_hashes:
+            errors.append(f"seed metadata {field_label} mismatch")
+    return tuple(errors)
+
+
+def _handoff_seed_dag_observed(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+) -> str:
+    metadata = _seed_route_metadata(seed_route)
+    metadata = metadata if isinstance(metadata, dict) else {}
+    parts = []
+    for field_names in _HANDOFF_REVISED_DAG_FIELD_GROUPS:
+        field_name = field_names[0]
+        parts.append(
+            f"{field_name}:row={len(_first_field_object_hashes(row, field_names))}"
+            f",metadata={len(_first_field_object_hashes(metadata, field_names))}"
+            f",seed_route={len(_first_field_object_hashes(seed_route, field_names))}"
+        )
+    return "; ".join(parts)
+
+
+def _seed_route_metadata(seed_route: dict[str, Any]) -> dict[str, Any] | None:
+    if not isinstance(seed_route, dict):
+        return None
+    metadata = seed_route.get("replan_metadata", {})
+    return metadata if isinstance(metadata, dict) else None
+
+
+def _seed_resource_feedback_route_count(seed: dict[str, Any]) -> int:
+    count = 0
+    for seed_route in _seed_route_index(seed).values():
+        metadata = seed_route.get("replan_metadata", {})
+        if not isinstance(metadata, dict):
+            continue
+        if "resource_response_ledger" in _str_tuple(metadata.get("applied_hook_kinds", [])):
+            count += 1
+    return count
+
+
+def _seed_route_index(seed: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    routes = seed.get("routes", [])
+    if not isinstance(routes, list):
+        return {}
+    return {
+        str(route.get("route_id", "")): route
+        for route in routes
+        if isinstance(route, dict) and str(route.get("route_id", ""))
+    }
+
+
+def _distinct_row_signatures(rows: list[dict[str, Any]]) -> set[str]:
+    return {
+        signature
+        for row in rows
+        for signature in _str_tuple(row.get("applied_prover_diagnostic_signatures", []))
+    }
+
+
+def _object_hashes(values: Any) -> set[str]:
+    if not isinstance(values, (list, tuple, set)):
+        return set()
+    return {stable_hash(value) for value in values if isinstance(value, dict)}
+
+
+def _first_field_object_hashes(
+    row: dict[str, Any],
+    field_names: tuple[str, ...],
+) -> set[str]:
+    for field_name in field_names:
+        hashes = _object_hashes(row.get(field_name, []))
+        if hashes:
+            return hashes
+    return set()
+
+
+def _alignment_primitives(edges: Any) -> set[str]:
+    if not isinstance(edges, (list, tuple, set)):
+        return set()
+    return {
+        str(edge.get("primitive", "")).strip()
+        for edge in edges
+        if isinstance(edge, dict)
+        and str(edge.get("kind", "")) == "aligned_to_formal_realization_candidate"
+        and str(edge.get("source", "")).strip()
+        and str(edge.get("target", "")).strip()
+        and str(edge.get("primitive", "")).strip()
+    }
+
+
+def _declaration_set(values: Any) -> set[str]:
+    if not isinstance(values, (list, tuple, set)):
+        return set()
+    declarations: set[str] = set()
+    for value in values:
+        if not isinstance(value, dict):
+            continue
+        declaration = str(
+            value.get("declaration", "")
+            or value.get("declaration_name", "")
+            or value.get("name", "")
+        ).strip()
+        if declaration:
+            declarations.add(declaration)
+    return declarations
+
+
+def _bundle_boundary_checks(
+    manifest: dict[str, Any],
+) -> list[FormalizationGapPlannerPublicationBundleAuditCheck]:
+    boundary = str(manifest.get("proof_evidence_boundary", ""))
+    status = str(manifest.get("proof_evidence_status", ""))
+    return [
+        _check(
+            "bundle_boundary_text",
+            "proof_boundary",
+            "not theorem proof evidence",
+            boundary[:160],
+            "not theorem proof evidence" in boundary,
+        ),
+        _check(
+            "bundle_evidence_status",
+            "proof_boundary",
+            "not proof evidence status",
+            status,
+            "NOT_PROOF_EVIDENCE" in status,
+        ),
+    ]
+
+
+def _target_intake_row_contract_errors(row: dict[str, Any]) -> tuple[str, ...]:
+    errors: list[str] = []
+    required_fields = (
+        "schema_version",
+        "target_intake_id",
+        "target_id",
+        "display_name",
+        "target_prover_family",
+        "library_snapshot_ref",
+        "theorem_statement",
+        "standalone_route_id",
+        "primitive_seed_rows",
+        "literature_queries",
+        "lean_grounding_queries",
+        "proof_evidence_status",
+        "proof_evidence_boundary",
+        "ok",
+    )
+    for field_name in required_fields:
+        if field_name not in row:
+            errors.append(f"{field_name} required")
+    for field_name in (
+        "target_intake_id",
+        "target_id",
+        "display_name",
+        "target_prover_family",
+        "library_snapshot_ref",
+        "theorem_statement",
+        "standalone_route_id",
+    ):
+        if field_name in row and not str(row.get(field_name, "")).strip():
+            errors.append(f"{field_name} must be non-empty")
+    for field_name in (
+        "primitive_seed_rows",
+        "literature_queries",
+        "lean_grounding_queries",
+    ):
+        if field_name in row and not isinstance(row.get(field_name), list):
+            errors.append(f"{field_name} must be an array")
+    if row.get("primitive_seed_rows") == []:
+        errors.append("primitive_seed_rows must not be empty")
+    if "NOT_PROOF_EVIDENCE" not in str(row.get("proof_evidence_status", "")):
+        errors.append("proof_evidence_status must preserve non-proof boundary")
+    if "not theorem proof evidence" not in str(
+        row.get("proof_evidence_boundary", "")
+    ).lower():
+        errors.append("proof_evidence_boundary must say not theorem proof evidence")
+    if not isinstance(row.get("ok", False), bool):
+        errors.append("ok must be boolean")
+    return tuple(errors)
+
+
+def _goal_plan_row_contract_errors(
+    row: dict[str, Any],
+    manifest_row_ids: set[str],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    required_fields = (
+        "schema_version",
+        "planner_component",
+        "target_prover_family",
+        "library_snapshot_ref",
+        "goal_plan_id",
+        "route_id",
+        "display_name",
+        "selected_primitives",
+        "and_or_plan_nodes",
+        "and_or_plan_edges",
+        "informal_knowledge_dag_nodes",
+        "formal_realization_dag_nodes",
+        "route_alignment_edges",
+        "interactive_refinement_hooks",
+        "portable_work_packet_contract",
+        "proof_evidence_status",
+        "proof_evidence_boundary",
+        "ok",
+    )
+    for field_name in required_fields:
+        if field_name not in row:
+            errors.append(f"{field_name} required")
+    goal_plan_id = str(row.get("goal_plan_id", ""))
+    if not goal_plan_id:
+        errors.append("goal_plan_id must be non-empty")
+    elif manifest_row_ids and goal_plan_id not in manifest_row_ids:
+        errors.append("goal_plan_id not present in embedded manifest rows")
+    if row.get("planner_component") != LIBRARY_AWARE_FORMALIZATION_GAP_PLANNER_NAME:
+        errors.append("planner_component is not library_aware_formalization_gap_planner")
+    for field_name in (
+        "selected_primitives",
+        "and_or_plan_nodes",
+        "and_or_plan_edges",
+        "informal_knowledge_dag_nodes",
+        "formal_realization_dag_nodes",
+        "lean_realization_dag_nodes",
+        "route_alignment_edges",
+        "interactive_refinement_hooks",
+    ):
+        if field_name in row and not isinstance(row.get(field_name), list):
+            errors.append(f"{field_name} must be an array")
+    if row.get("selected_primitives") == []:
+        errors.append("selected_primitives must not be empty")
+    if row.get("route_alignment_edges") == []:
+        errors.append("route_alignment_edges must not be empty")
+    if "NOT_PROOF_EVIDENCE" not in str(row.get("proof_evidence_status", "")):
+        errors.append("proof_evidence_status must preserve non-proof boundary")
+    if "not theorem proof evidence" not in str(
+        row.get("proof_evidence_boundary", "")
+    ).lower():
+        errors.append("proof_evidence_boundary must say not theorem proof evidence")
+    if not isinstance(row.get("ok", False), bool):
+        errors.append("ok must be boolean")
+    return tuple(errors)
+
+
+def _audit_check_row_contract_errors(row: dict[str, Any]) -> tuple[str, ...]:
+    errors: list[str] = []
+    required_fields = (
+        "schema_version",
+        "check_id",
+        "check_name",
+        "category",
+        "expected",
+        "observed",
+        "ok",
+        "severity",
+        "errors",
+    )
+    for field_name in required_fields:
+        if field_name not in row:
+            errors.append(f"{field_name} required")
+    for field_name in ("check_id", "check_name", "category", "expected"):
+        if field_name in row and not str(row.get(field_name, "")).strip():
+            errors.append(f"{field_name} must be non-empty")
+    if "schema_version" in row and (
+        not isinstance(row.get("schema_version"), int)
+        or isinstance(row.get("schema_version"), bool)
+    ):
+        errors.append("schema_version must be integer")
+    if "ok" in row and not isinstance(row.get("ok"), bool):
+        errors.append("ok must be boolean")
+    if row.get("severity") not in {"error", "warning", "info"}:
+        errors.append("severity must be error, warning, or info")
+    if "errors" in row and not isinstance(row.get("errors"), list):
+        errors.append("errors must be an array")
+    if row.get("ok") is True and row.get("errors") not in ([], None):
+        errors.append("ok rows must not carry errors")
+    return tuple(errors)
+
+
+def _route_stability_generic_prover_fields_observed(row: dict[str, Any]) -> bool:
+    return bool(
+        _str_tuple(row.get("prover_attempt_statuses", []))
+        or _str_tuple(row.get("prover_attempt_classes", []))
+        or _str_tuple(row.get("target_prover_families", []))
+        or _str_tuple(row.get("residual_goals", []))
+        or row.get("needs_more_proof_state_feedback") is True
+    )
+
+
+def _route_stability_generic_prover_field_errors(
+    row: dict[str, Any],
+) -> tuple[str, ...]:
+    statuses = _str_tuple(row.get("prover_attempt_statuses", []))
+    classes = _str_tuple(row.get("prover_attempt_classes", []))
+    families = _str_tuple(row.get("target_prover_families", []))
+    errors: list[str] = []
+    if statuses and not classes:
+        errors.append("prover_attempt_statuses present but prover_attempt_classes empty")
+    errors.extend(_generic_prover_class_legacy_errors("prover_attempt_classes", classes))
+    if _prover_classes_require_target_family(classes) and not families:
+        errors.append("target prover attempt classes present but target_prover_families empty")
+    return tuple(errors)
+
+
+def _proof_state_triage_generic_prover_fields_observed(row: dict[str, Any]) -> bool:
+    return bool(
+        str(row.get("triage_class", "")).strip()
+        or str(row.get("prover_triage_class", "")).strip()
+        or _str_tuple(row.get("applied_prover_attempt_statuses", []))
+        or _str_tuple(row.get("applied_prover_attempt_classes", []))
+        or _str_tuple(row.get("target_prover_families", []))
+    )
+
+
+def _proof_state_triage_generic_prover_field_errors(
+    row: dict[str, Any],
+) -> tuple[str, ...]:
+    triage_class = str(row.get("triage_class", "")).strip()
+    prover_triage_class = str(row.get("prover_triage_class", "")).strip()
+    statuses = _str_tuple(row.get("applied_prover_attempt_statuses", []))
+    classes = _str_tuple(row.get("applied_prover_attempt_classes", []))
+    families = _str_tuple(row.get("target_prover_families", []))
+    errors: list[str] = []
+    if triage_class and not prover_triage_class:
+        errors.append("triage_class present but prover_triage_class empty")
+    if statuses and not classes:
+        errors.append(
+            "applied_prover_attempt_statuses present but applied_prover_attempt_classes empty"
+        )
+    errors.extend(
+        _generic_prover_triage_legacy_errors(
+            "prover_triage_class",
+            prover_triage_class,
+        )
+    )
+    errors.extend(
+        _generic_prover_class_legacy_errors(
+            "applied_prover_attempt_classes",
+            classes,
+        )
+    )
+    if _prover_classes_require_target_family(classes) and not families:
+        errors.append(
+            "target prover attempt classes present but target_prover_families empty"
+        )
+    return tuple(errors)
+
+
+def _interactive_session_generic_prover_fields_observed(row: dict[str, Any]) -> bool:
+    return bool(
+        str(row.get("triage_class", "")).strip()
+        or str(row.get("prover_triage_class", "")).strip()
+        or _str_tuple(row.get("applied_prover_attempt_classes", []))
+        or _str_tuple(row.get("target_prover_families", []))
+        or _str_tuple(row.get("residual_goals", []))
+        or row.get("needs_more_proof_state_feedback") is True
+        or str(row.get("next_interaction_kind", "")).strip() == "proof_state_feedback"
+    )
+
+
+def _interactive_session_generic_prover_field_errors(
+    row: dict[str, Any],
+) -> tuple[str, ...]:
+    triage_class = str(row.get("triage_class", "")).strip()
+    prover_triage_class = str(row.get("prover_triage_class", "")).strip()
+    classes = _str_tuple(row.get("applied_prover_attempt_classes", []))
+    families = _str_tuple(row.get("target_prover_families", []))
+    errors: list[str] = []
+    if triage_class and not prover_triage_class:
+        errors.append("triage_class present but prover_triage_class empty")
+    if classes and not prover_triage_class:
+        errors.append(
+            "applied_prover_attempt_classes present but prover_triage_class empty"
+        )
+    errors.extend(
+        _generic_prover_triage_legacy_errors(
+            "prover_triage_class",
+            prover_triage_class,
+        )
+    )
+    errors.extend(
+        _generic_prover_class_legacy_errors(
+            "applied_prover_attempt_classes",
+            classes,
+        )
+    )
+    if _prover_classes_require_target_family(classes) and not families:
+        errors.append(
+            "target prover attempt classes present but target_prover_families empty"
+        )
+    return tuple(errors)
+
+
+def _prover_classes_require_target_family(classes: tuple[str, ...]) -> bool:
+    return any(
+        attempt_class.startswith("target_prover_")
+        or "target_prover" in attempt_class
+        for attempt_class in classes
+    )
+
+
+def _generic_prover_class_legacy_errors(
+    field_name: str,
+    classes: tuple[str, ...],
+) -> tuple[str, ...]:
+    return tuple(
+        f"{field_name} contains legacy local-Lean class {attempt_class}"
+        for attempt_class in classes
+        if "local_lean" in attempt_class
+    )
+
+
+def _generic_prover_triage_legacy_errors(
+    field_name: str,
+    triage_class: str,
+) -> tuple[str, ...]:
+    legacy = (
+        "repair_local_lean_proof_state",
+        "materialize_lean_command",
+        "configure_local_lean_environment",
+    )
+    if triage_class in legacy or "local_lean" in triage_class:
+        return (f"{field_name} contains legacy local-Lean triage {triage_class}",)
+    return tuple()
+
+
+def _schema_catalog_entry_paths_exist(
+    bundle_dir: Path,
+    entries: tuple[dict[str, Any], ...],
+) -> bool:
+    if not entries:
+        return False
+    try:
+        bundle_root = bundle_dir.resolve()
+    except Exception:
+        return False
+    for entry in entries:
+        relative_path = str(entry.get("relative_path", ""))
+        if not relative_path:
+            return False
+        entry_path = Path(relative_path)
+        if entry_path.is_absolute():
+            return False
+        candidate = (bundle_dir / entry_path).resolve()
+        try:
+            candidate.relative_to(bundle_root)
+        except ValueError:
+            return False
+        if not candidate.exists():
+            return False
+    return True
+
+
+def _check(
+    check_name: str,
+    category: str,
+    expected: str,
+    observed: str,
+    ok: bool,
+    *,
+    severity: str = "error",
+    errors: tuple[str, ...] = (),
+) -> FormalizationGapPlannerPublicationBundleAuditCheck:
+    return FormalizationGapPlannerPublicationBundleAuditCheck(
+        schema_version=FORMALIZATION_GAP_PLANNER_PUBLICATION_BUNDLE_AUDIT_SCHEMA_VERSION,
+        check_id="formalization_gap_planner_publication_bundle_audit:"
+        + stable_hash([check_name, category, expected])[:16],
+        check_name=check_name,
+        category=category,
+        expected=expected,
+        observed=observed,
+        ok=ok,
+        severity=severity,
+        errors=errors if not ok else (),
+    )
+
+
+def _read_json(path: Path, errors: list[str]) -> dict[str, Any]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        errors.append(f"missing JSON file: {path}")
+        return {}
+    except Exception as exc:
+        errors.append(f"failed to parse {path}: {type(exc).__name__}: {exc}")
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _read_json_no_error(path: Path) -> dict[str, Any]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _read_jsonl_dict_rows_no_error(path: Path) -> tuple[list[dict[str, Any]], tuple[str, ...]]:
+    rows: list[dict[str, Any]] = []
+    errors: list[str] = []
+    try:
+        text = path.read_text(encoding="utf-8")
+    except Exception as exc:
+        return [], (f"failed to read JSONL: {type(exc).__name__}: {exc}",)
+    for lineno, line in enumerate(text.splitlines(), start=1):
+        if not line.strip():
+            continue
+        try:
+            payload = json.loads(line)
+        except Exception as exc:
+            errors.append(f"line {lineno}: {type(exc).__name__}: {exc}")
+            continue
+        if isinstance(payload, dict):
+            rows.append(payload)
+        else:
+            errors.append(f"line {lineno}: row is not an object")
+    return rows, tuple(errors)
+
+
+def _bundle_files(bundle_dir: Path) -> tuple[Path, ...]:
+    if not bundle_dir.exists():
+        return tuple()
+    return tuple(sorted(path for path in bundle_dir.rglob("*") if path.is_file()))
+
+
+def _is_inside(path: Path, root: Path) -> bool:
+    try:
+        path.resolve().relative_to(root.resolve())
+    except Exception:
+        return False
+    return True
+
+
+def _str_tuple(values: Any) -> tuple[str, ...]:
+    if isinstance(values, str):
+        return (values,) if values else tuple()
+    if not isinstance(values, (list, tuple, set)):
+        return tuple()
+    return tuple(dict.fromkeys(str(item) for item in values if str(item)))
+
+
+def _dict_tuple(values: Any) -> tuple[dict[str, Any], ...]:
+    if isinstance(values, dict):
+        return (values,)
+    if not isinstance(values, (list, tuple, set)):
+        return tuple()
+    return tuple(value for value in values if isinstance(value, dict))
+
+
+def _candidate_declaration_rows(values: Any) -> tuple[dict[str, object], ...]:
+    rows: list[dict[str, object]] = []
+    seen: set[tuple[str, str]] = set()
+    for item in _dict_tuple(values):
+        declaration = str(
+            item.get("declaration")
+            or item.get("declaration_name")
+            or item.get("lean_declaration")
+            or ""
+        ).strip()
+        if not declaration:
+            continue
+        target = str(
+            item.get("target_prover_family", "") or item.get("target_prover", "")
+        ).strip()
+        key = (_declaration_key(declaration), _target_prover_key(target))
+        if key in seen:
+            continue
+        seen.add(key)
+        rows.append(
+            {
+                "declaration": declaration,
+                "target_prover_family": target,
+                "source_field": str(
+                    item.get("source_field", "") or "candidate_declaration_rows"
+                ).strip(),
+            }
+        )
+    return tuple(rows)
+
+
+def _declaration_key(value: object) -> str:
+    return re.sub(r"\s+", " ", str(value).strip()).lower()
+
+
+def _target_prover_key(value: object) -> str:
+    key = str(value).strip().lower().replace("-", "_")
+    aliases = {
+        "coq": "rocq",
+        "coq8": "rocq",
+        "lean": "lean4",
+        "lean_4": "lean4",
+        "isabelle_hol": "isabelle",
+    }
+    return aliases.get(key, key)
+
+
+def _dict_value(row: dict[str, Any], key: str) -> dict[str, Any]:
+    value = row.get(key, {})
+    return value if isinstance(value, dict) else {}
+
+
+def _markdown_report(payload: dict[str, object]) -> str:
+    lines = [
+        "# Formalization Gap Planner Publication Bundle Audit",
+        "",
+        f"- Bundle: `{payload.get('bundle_id')}`",
+        f"- Checks: {payload.get('n_ok')}/{payload.get('n_checks')}",
+        f"- Failed: {payload.get('n_failed')}",
+        f"- Component-resource component schema valid: {payload.get('n_component_resource_component_row_schema_valid')}/{payload.get('n_component_resource_component_row_schema_checked')}",
+        f"- Component-resource resource schema valid: {payload.get('n_component_resource_resource_row_schema_valid')}/{payload.get('n_component_resource_resource_row_schema_checked')}",
+        f"- Component-resource contract schema valid: {payload.get('n_component_resource_contract_row_schema_valid')}/{payload.get('n_component_resource_contract_row_schema_checked')}",
+        f"- Component execution-plan schema valid: {payload.get('n_component_execution_plan_schema_valid')}/{payload.get('n_component_execution_plan_schema_checked')}",
+        f"- Benchmark route-row schema valid: {payload.get('n_benchmark_route_row_schema_valid')}/{payload.get('n_benchmark_route_row_schema_checked')}",
+        f"- Optional evaluation-row schema valid: {payload.get('n_optional_evaluation_row_schema_valid')}/{payload.get('n_optional_evaluation_row_schema_checked')}",
+        f"- Optional LLM route-planner requests valid: {payload.get('n_optional_llm_route_planner_request_schema_valid')}/{payload.get('n_optional_llm_route_planner_request_schema_checked')}",
+        f"- Optional LLM route-planner rows valid: {payload.get('n_optional_llm_route_planner_row_schema_valid')}/{payload.get('n_optional_llm_route_planner_row_schema_checked')}",
+        f"- Optional LLM route-planner seed provenance preserved: {payload.get('n_optional_llm_route_planner_seed_provenance_valid')}/{payload.get('n_optional_llm_route_planner_seed_provenance_checked')}",
+        f"- Optional LLM route-planner seed realization witness preserved: {payload.get('n_optional_llm_route_planner_seed_realization_witness_valid')}/{payload.get('n_optional_llm_route_planner_seed_realization_witness_checked')}",
+        f"- Optional LLM route-planner seed alignment preserved: {payload.get('n_optional_llm_route_planner_seed_alignment_valid')}/{payload.get('n_optional_llm_route_planner_seed_alignment_checked')}",
+        f"- Optional LLM route-planner seed DAG preserved: {payload.get('n_optional_llm_route_planner_seed_dag_valid')}/{payload.get('n_optional_llm_route_planner_seed_dag_checked')}",
+        f"- Optional LLM route-planner request evidence bounds valid: {payload.get('n_optional_llm_route_planner_request_evidence_bound_valid')}/{payload.get('n_optional_llm_route_planner_request_evidence_bound_checked')}",
+        f"- Optional LLM route-planner request registry context valid: {payload.get('n_optional_llm_route_planner_request_registry_context_valid')}/{payload.get('n_optional_llm_route_planner_request_registry_context_checked')}",
+        f"- Optional feedback LLM route-planner requests valid: {payload.get('n_optional_feedback_llm_route_planner_request_schema_valid')}/{payload.get('n_optional_feedback_llm_route_planner_request_schema_checked')}",
+        f"- Optional feedback LLM route-planner rows valid: {payload.get('n_optional_feedback_llm_route_planner_row_schema_valid')}/{payload.get('n_optional_feedback_llm_route_planner_row_schema_checked')}",
+        f"- Optional feedback LLM route-planner seed provenance preserved: {payload.get('n_optional_feedback_llm_route_planner_seed_provenance_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_provenance_checked')}",
+        f"- Optional feedback LLM route-planner seed realization witness preserved: {payload.get('n_optional_feedback_llm_route_planner_seed_realization_witness_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_realization_witness_checked')}",
+        f"- Optional feedback LLM route-planner seed alignment preserved: {payload.get('n_optional_feedback_llm_route_planner_seed_alignment_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_alignment_checked')}",
+        f"- Optional feedback LLM route-planner seed DAG preserved: {payload.get('n_optional_feedback_llm_route_planner_seed_dag_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_dag_checked')}",
+        f"- Optional feedback LLM route-planner request evidence bounds valid: {payload.get('n_optional_feedback_llm_route_planner_request_evidence_bound_valid')}/{payload.get('n_optional_feedback_llm_route_planner_request_evidence_bound_checked')}",
+        f"- Optional feedback LLM route-planner request registry context valid: {payload.get('n_optional_feedback_llm_route_planner_request_registry_context_valid')}/{payload.get('n_optional_feedback_llm_route_planner_request_registry_context_checked')}",
+        f"- Optional interactive-session schema valid: {payload.get('n_optional_interactive_session_row_schema_valid')}/{payload.get('n_optional_interactive_session_row_schema_checked')}",
+        f"- Optional interactive-session resource-response status consistent: {payload.get('n_optional_interactive_session_resource_response_status_valid')}/{payload.get('n_optional_interactive_session_resource_response_status_checked')}",
+        f"- Optional interactive-session generic prover fields valid: {payload.get('n_optional_interactive_session_generic_prover_fields_valid')}/{payload.get('n_optional_interactive_session_generic_prover_fields_checked')}",
+        f"- Optional interactive decision-policy schema valid: {payload.get('n_optional_interactive_decision_policy_row_schema_valid')}/{payload.get('n_optional_interactive_decision_policy_row_schema_checked')}",
+        f"- Optional refinement-evidence schema valid: {payload.get('n_optional_refinement_evidence_row_schema_valid')}/{payload.get('n_optional_refinement_evidence_row_schema_checked')}",
+        f"- Optional refinement-adapter response schema valid: {payload.get('n_optional_refinement_adapter_response_schema_valid')}/{payload.get('n_optional_refinement_adapter_response_schema_checked')}",
+        f"- Optional local-adapter response schema valid: {payload.get('n_optional_local_adapter_response_schema_valid')}/{payload.get('n_optional_local_adapter_response_schema_checked')}",
+        f"- Optional route-stability schema valid: {payload.get('n_optional_route_stability_audit_row_schema_valid')}/{payload.get('n_optional_route_stability_audit_row_schema_checked')}",
+        f"- Optional route-stability resource-response status consistent: {payload.get('n_optional_route_stability_resource_response_status_valid')}/{payload.get('n_optional_route_stability_resource_response_status_checked')}",
+        f"- Optional route-stability generic prover fields valid: {payload.get('n_optional_route_stability_generic_prover_fields_valid')}/{payload.get('n_optional_route_stability_generic_prover_fields_checked')}",
+        f"- Optional route-revision resource-response evidence refs valid: {payload.get('n_optional_route_revision_resource_response_evidence_ref_valid')}/{payload.get('n_optional_route_revision_resource_response_evidence_ref_checked')}",
+        f"- Optional route-revision resource-response traces valid: {payload.get('n_optional_route_revision_resource_response_trace_valid')}/{payload.get('n_optional_route_revision_resource_response_trace_checked')}",
+        f"- Optional route-revision resource-response status summaries valid: {payload.get('n_optional_route_revision_resource_response_status_valid')}/{payload.get('n_optional_route_revision_resource_response_status_checked')}",
+        f"- Optional route-revision generic formal DAG valid: {payload.get('n_optional_route_revision_generic_formal_dag_valid')}/{payload.get('n_optional_route_revision_generic_formal_dag_checked')}",
+        f"- Optional route-replan handoff seed alignment preserved: {payload.get('n_optional_route_replan_handoff_seed_alignment_valid')}/{payload.get('n_optional_route_replan_handoff_seed_alignment_checked')}",
+        f"- Optional route-replan handoff seed DAG preserved: {payload.get('n_optional_route_replan_handoff_seed_dag_valid')}/{payload.get('n_optional_route_replan_handoff_seed_dag_checked')}",
+        f"- Optional route-replan handoff generic formal DAG valid: {payload.get('n_optional_route_replan_handoff_generic_formal_dag_valid')}/{payload.get('n_optional_route_replan_handoff_generic_formal_dag_checked')}",
+        f"- Optional route-replan handoff-audit schema valid: {payload.get('n_optional_route_replan_handoff_audit_row_schema_valid')}/{payload.get('n_optional_route_replan_handoff_audit_row_schema_checked')}",
+        f"- Optional runtime handoff-audit schema valid: {payload.get('n_optional_runtime_handoff_audit_row_schema_valid')}/{payload.get('n_optional_runtime_handoff_audit_row_schema_checked')}",
+        f"- Optional runtime handoff-audit cost controls valid: {payload.get('n_optional_runtime_handoff_audit_cost_control_valid')}/{payload.get('n_optional_runtime_handoff_audit_cost_control_checked')}",
+        f"- Optional ablation-study schema valid: {payload.get('n_optional_ablation_study_row_schema_valid')}/{payload.get('n_optional_ablation_study_row_schema_checked')}",
+        f"- Optional portable-plan audit schema valid: {payload.get('n_optional_portable_plan_audit_row_schema_valid')}/{payload.get('n_optional_portable_plan_audit_row_schema_checked')}",
+        f"- Optional library-coverage map schema valid: {payload.get('n_optional_library_coverage_map_row_schema_valid')}/{payload.get('n_optional_library_coverage_map_row_schema_checked')}",
+        f"- Optional primitive action-queue schema valid: {payload.get('n_optional_primitive_action_queue_row_schema_valid')}/{payload.get('n_optional_primitive_action_queue_row_schema_checked')}",
+        f"- Optional action-resource plan schema valid: {payload.get('n_optional_action_resource_plan_row_schema_valid')}/{payload.get('n_optional_action_resource_plan_row_schema_checked')}",
+        f"- Optional resource request-queue schema valid: {payload.get('n_optional_resource_request_queue_row_schema_valid')}/{payload.get('n_optional_resource_request_queue_row_schema_checked')}",
+        f"- Optional resource request action-plan refs valid: {payload.get('n_optional_resource_request_action_plan_ref_valid')}/{payload.get('n_optional_resource_request_action_plan_ref_checked')}",
+        f"- Optional resource request payload identity valid: {payload.get('n_optional_resource_request_payload_identity_valid')}/{payload.get('n_optional_resource_request_payload_identity_checked')}",
+        f"- Optional resource request dispatch specs valid: {payload.get('n_optional_resource_request_dispatch_spec_valid')}/{payload.get('n_optional_resource_request_dispatch_spec_checked')}",
+        f"- Optional resource request contract alignment valid: {payload.get('n_optional_resource_request_contract_alignment_valid')}/{payload.get('n_optional_resource_request_contract_alignment_checked')}",
+        f"- Optional resource response-ledger schema valid: {payload.get('n_optional_resource_response_ledger_row_schema_valid')}/{payload.get('n_optional_resource_response_ledger_row_schema_checked')}",
+        f"- Optional resource response request refs valid: {payload.get('n_optional_resource_response_request_ref_valid')}/{payload.get('n_optional_resource_response_request_ref_checked')}",
+        f"- Optional resource response contract accounting valid: {payload.get('n_optional_resource_response_contract_field_accounting_valid')}/{payload.get('n_optional_resource_response_contract_field_accounting_checked')}",
+        f"- Optional proof-state triage schema valid: {payload.get('n_optional_proof_state_triage_row_schema_valid')}/{payload.get('n_optional_proof_state_triage_row_schema_checked')}",
+        f"- Optional proof-state triage generic prover fields valid: {payload.get('n_optional_proof_state_triage_generic_prover_fields_valid')}/{payload.get('n_optional_proof_state_triage_generic_prover_fields_checked')}",
+        f"- Prover-adapter packet schema valid: {payload.get('n_prover_adapter_packet_schema_valid')}/{payload.get('n_prover_adapter_packet_schema_checked')}",
+        f"- Prover-adapter response-validation schema valid: {payload.get('n_prover_adapter_response_validation_row_schema_valid')}/{payload.get('n_prover_adapter_response_validation_row_schema_checked')}",
+        f"- Optional cross-prover matrix schema valid: {payload.get('n_optional_cross_prover_matrix_row_schema_valid')}/{payload.get('n_optional_cross_prover_matrix_row_schema_checked')}",
+        f"- Optional cross-prover packet schema valid: {payload.get('n_optional_cross_prover_packet_row_schema_valid')}/{payload.get('n_optional_cross_prover_packet_row_schema_checked')}",
+        f"- Optional cross-prover packet trace valid: {payload.get('n_optional_cross_prover_packet_trace_valid')}/{payload.get('n_optional_cross_prover_packet_trace_checked')}",
+        f"- Optional cross-prover response-validation schema valid: {payload.get('n_optional_cross_prover_response_validation_row_schema_valid')}/{payload.get('n_optional_cross_prover_response_validation_row_schema_checked')}",
+        f"- Bundle files: {payload.get('n_bundle_files')}",
+        f"- All OK: {payload.get('all_ok')}",
+        "",
+        "## Boundary",
+        "",
+        str(payload.get("proof_evidence_boundary", PROOF_EVIDENCE_BOUNDARY)),
+        "",
+        "## Failed Checks",
+        "",
+    ]
+    failed = [
+        check
+        for check in payload.get("checks", [])
+        if isinstance(check, dict) and not check.get("ok")
+    ]
+    if not failed:
+        lines.append("- None")
+    for check in failed:
+        lines.append(
+            f"- `{check.get('check_name')}` expected={check.get('expected')} "
+            f"observed={check.get('observed')}"
+        )
+    return "\n".join(lines) + "\n"

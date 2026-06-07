@@ -9,6 +9,10 @@ from ai_statistician.formalization_gap_planner_local_literature_adapter import (
 )
 from ai_statistician.formalization_gap_planner_refinement_evidence import (
     export_formalization_gap_planner_refinement_evidence,
+    refinement_evidence_row_json_schema,
+    refinement_tool_response_json_schema,
+    validate_refinement_evidence_row,
+    validate_refinement_tool_response_row,
 )
 
 
@@ -98,10 +102,23 @@ def test_local_literature_adapter_emits_source_backed_route_evidence() -> None:
     assert payload["all_ok"]
     assert payload["n_local_literature_responses"] == 1
     assert payload["n_merged_responses"] == 2
+    assert payload["n_local_response_schema_valid"] == 1
+    assert payload["n_local_response_schema_invalid"] == 0
+    assert payload["n_merged_response_schema_valid"] == 2
+    assert payload["n_merged_response_schema_invalid"] == 0
+    assert (
+        payload["refinement_tool_response_schema"]["$id"]
+        == refinement_tool_response_json_schema()["$id"]
+    )
     assert payload["n_source_hits"] == 1
+    assert payload["n_source_snippets"] == 1
+    assert payload["n_local_literature_responses_with_source_snippets"] == 1
     response = payload["responses"][0]
     assert response["evidence_kind"] == "literature_route_evidence"
     assert response["source_refs"]
+    assert response["source_snippets"][0]["source_ref"] == response["source_refs"][0]
+    assert "conditional" in response["source_snippets"][0]["matched_terms"]
+    assert "conditional" in response["source_snippets"][0]["excerpt"]
     assert response["route_evidence_nodes"][0]["kind"] == "source_ref"
     assert "conditional" in response["route_evidence_nodes"][0]["matched_terms"]
     assert not response["route_revision_recommended"]
@@ -112,6 +129,68 @@ def test_local_literature_adapter_emits_source_backed_route_evidence() -> None:
         response_jsonl=adapter_dir / "formalization_gap_planner_refinement_evidence_responses.jsonl",
     )
     assert evidence_payload["all_ok"]
+    assert evidence_payload["n_response_schema_valid"] == evidence_payload["n_responses"] == 2
+    assert evidence_payload["n_response_schema_invalid"] == 0
+    assert evidence_payload["n_evidence_row_schema_valid"] == evidence_payload["n_evidence_rows"]
+    assert evidence_payload["n_evidence_row_schema_invalid"] == 0
     assert evidence_payload["n_contract_ok"] == 2
     assert evidence_payload["n_literature_evidence"] == 1
+    assert evidence_payload["n_source_snippets"] == 1
+    assert evidence_payload["n_literature_rows_with_source_snippets"] == 1
     assert evidence_payload["n_awaiting_tool_response"] == 0
+    assert (
+        evidence_payload["refinement_tool_response_schema"]["$id"]
+        == "urn:ai-statistician:schemas:formalization-gap-planner-refinement-tool-response:1"
+    )
+    assert (
+        evidence_payload["refinement_evidence_row_schema"]["$id"]
+        == "urn:ai-statistician:schemas:formalization-gap-planner-refinement-evidence-row:1"
+    )
+    evidence_schema = refinement_evidence_row_json_schema()
+    assert "source_snippets" in refinement_tool_response_json_schema()["properties"]
+    assert "source_snippets" in evidence_schema["properties"]
+    assert "source_snippets" not in evidence_schema["required"]
+    assert "formal_declaration_hits" in evidence_schema["required"]
+    assert "lean_declaration_hits" not in evidence_schema["required"]
+    assert "revised_formal_realization_dag_nodes" in evidence_schema["required"]
+    assert "revised_lean_realization_dag_nodes" not in evidence_schema["required"]
+    assert evidence_payload["rows"][0]["source_snippets"][0]["source_ref"] == (
+        response["source_refs"][0]
+    )
+    assert evidence_payload["rows"][0]["formal_declaration_hits"] == (
+        evidence_payload["rows"][0]["lean_declaration_hits"]
+    )
+    legacy_free_evidence_row = dict(evidence_payload["rows"][0])
+    legacy_free_evidence_row.pop("revised_lean_realization_dag_nodes", None)
+    legacy_free_evidence_row.pop("lean_declaration_hits", None)
+    assert validate_refinement_evidence_row(
+        legacy_free_evidence_row,
+        evidence_schema,
+    ) == ()
+    missing_generic_evidence_row = dict(evidence_payload["rows"][0])
+    missing_generic_evidence_row.pop("revised_formal_realization_dag_nodes", None)
+    assert "revised_formal_realization_dag_nodes required" in validate_refinement_evidence_row(
+        missing_generic_evidence_row,
+        evidence_schema,
+    )
+    bad_evidence_row = dict(evidence_payload["rows"][0])
+    bad_evidence_row.pop("acceptance_status")
+    assert "acceptance_status required" in validate_refinement_evidence_row(
+        bad_evidence_row,
+        refinement_evidence_row_json_schema(),
+    )
+    bad_response = dict(response)
+    bad_response.pop("tool_name")
+    assert "tool_name required" in validate_refinement_tool_response_row(
+        bad_response,
+        refinement_tool_response_json_schema(),
+    )
+    assert (
+        evidence_dir / "formalization_gap_planner_refinement_tool_response.schema.json"
+    ).exists()
+    assert (
+        adapter_dir / "formalization_gap_planner_refinement_tool_response.schema.json"
+    ).exists()
+    assert (
+        evidence_dir / "formalization_gap_planner_refinement_evidence_row.schema.json"
+    ).exists()

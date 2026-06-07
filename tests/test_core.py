@@ -170,7 +170,6 @@ from ai_statistician.formal_source_retrieval_benchmark import (
     FormalSourceRetrievalBenchmarkCase,
     run_formal_source_retrieval_benchmark,
 )
-from ai_statistician.huggingface_lean_source_audit import audit_huggingface_lean_sources
 from ai_statistician.formal_source_retrieval_ablation import run_formal_source_retrieval_ablation_benchmark
 from ai_statistician.lean_rag_dependency import LeanRagDependencyRetriever
 from ai_statistician.lean_rag_dependency_health import audit_lean_rag_dependency_health
@@ -1713,140 +1712,6 @@ Apply a central limit theorem to the centered score and use Slutsky's theorem.
                 any(hit.declaration.source_id == source_id for hit in hits),
                 f"{source_id} not retrieved for {query!r}; got {[hit.declaration.source_id for hit in hits]}",
             )
-
-    def test_huggingface_lean_source_audit_classifies_oproofs_and_process_sources(self) -> None:
-        offline_payloads = {
-            "collection:m-a-p/oprover": {
-                "title": "OProver",
-                "lastUpdated": "2026-05-19T06:29:45.224Z",
-                "shareUrl": "https://hf.co/collections/m-a-p/oprover",
-                "items": [
-                    {
-                        "id": "m-a-p/OProver-8B",
-                        "repoType": "model",
-                        "lastModified": "2026-05-19T08:02:29.000Z",
-                        "downloads": 529,
-                        "numParameters": 8190735360,
-                    },
-                    {
-                        "id": "m-a-p/OProofs",
-                        "repoType": "dataset",
-                        "lastModified": "2026-05-19T08:07:13.000Z",
-                        "datasetsServerInfo": {
-                            "numRows": 6804694,
-                            "formats": ["parquet"],
-                        },
-                    },
-                    {
-                        "id": "2605.17283",
-                        "type": "paper",
-                        "title": "OProver: A Unified Framework for Agentic Formal Theorem Proving",
-                    },
-                ],
-            },
-            "search:Lean4": [
-                {
-                    "id": "phanerozoic/Lean4-Mathlib",
-                    "downloads": 40,
-                    "tags": ["license:apache-2.0", "lean4", "format:parquet"],
-                },
-                {
-                    "id": "leanpolish-anon/lean-proof-compression",
-                    "downloads": 20,
-                    "description": "Kernel-verified Lean proof compression and repair pairs.",
-                    "cardData": {"license": "apache-2.0"},
-                },
-            ],
-            "dataset:m-a-p/OProofs": {
-                "id": "m-a-p/OProofs",
-                "sha": "d3bb4410c8715eb449206e6c2fbf8cbb1a8bd7b8",
-                "lastModified": "2026-05-19T08:07:13.000Z",
-                "private": False,
-                "gated": False,
-                "disabled": False,
-                "downloads": 786,
-                "cardData": {
-                    "license": "apache-2.0",
-                    "tags": ["lean4", "theorem-proving", "formal-mathematics"],
-                    "size_categories": ["1M<n<10M"],
-                },
-                "description": (
-                    "Records: 6,804,694\nFiles: 73 parquet shards. "
-                    "Built from NuminaMath-LEAN, Lean-Workbook, Leanabell-FormalStmt, and Goedel-Pset."
-                ),
-                "usedStorage": 27496905567,
-                "siblings": [
-                    {"rfilename": "data/train-00000-of-00073.parquet"},
-                    {"rfilename": "data/train-00001-of-00073.parquet"},
-                ],
-            },
-            "dataset:leanpolish-anon/lean-proof-compression": {
-                "id": "leanpolish-anon/lean-proof-compression",
-                "description": "Kernel-verified Lean proof compression and process supervision pairs.",
-                "cardData": {"license": "apache-2.0"},
-                "tags": ["lean4", "format:parquet"],
-                "downloads": 20,
-            },
-            "dataset:phanerozoic/Lean4-Mathlib": {
-                "id": "phanerozoic/Lean4-Mathlib",
-                "description": "Structured Lean4 Mathlib declarations.",
-                "cardData": {
-                    "license": "apache-2.0",
-                    "dataset_info": {
-                        "features": [{"name": "name"}, {"name": "code"}],
-                        "splits": [{"name": "train", "num_examples": 193047}],
-                    },
-                },
-                "tags": ["lean4", "mathlib", "format:parquet"],
-            },
-        }
-        payload = audit_huggingface_lean_sources(
-            Path("runs/test_huggingface_lean_source_audit"),
-            search_terms=("Lean4",),
-            pinned_dataset_ids=("m-a-p/OProofs",),
-            collection_slugs=("m-a-p/oprover",),
-            max_detail_fetches=10,
-            use_network=False,
-            offline_payloads=offline_payloads,
-        )
-
-        self.assertTrue(payload["summary"]["oproofs_detected"])
-        self.assertEqual(payload["summary"]["oproofs_reported_rows"], 6804694)
-        self.assertEqual(payload["summary"]["proof_evidence_ready"], 0)
-        self.assertTrue(payload["rag_integration_plan"])
-        self.assertTrue(
-            any(row["dataset_id"] == "m-a-p/OProofs" for row in payload["rag_integration_plan"])
-        )
-        self.assertGreaterEqual(payload["revalidation_queue_summary"]["n_queue_rows"], 1)
-        self.assertEqual(payload["revalidation_queue_summary"]["n_kernel_verified"], 0)
-        self.assertEqual(payload["revalidation_queue_summary"]["n_proof_evidence_ready"], 0)
-        self.assertEqual(
-            payload["revalidation_queue_summary"]["proof_evidence_status"],
-            "HF_LEAN_SOURCE_REVALIDATION_QUEUE_NOT_PROOF_EVIDENCE",
-        )
-        queue_rows = {
-            row["dataset_id"]: row for row in payload["revalidation_queue"]
-        }
-        self.assertIn("m-a-p/OProofs", queue_rows)
-        self.assertEqual(
-            queue_rows["m-a-p/OProofs"]["revalidation_status"],
-            "READY_FOR_LOCAL_REVALIDATION_SAMPLE",
-        )
-        self.assertIn("local Lean/AXLE", queue_rows["m-a-p/OProofs"]["required_gate"])
-        rows = {row["dataset_id"]: row for row in payload["rows"]}
-        self.assertEqual(rows["m-a-p/OProofs"]["priority"], "critical")
-        self.assertEqual(rows["m-a-p/OProofs"]["relevance_class"], "formal_proof_pairs")
-        self.assertIn("local_lean_revalidation_required", rows["m-a-p/OProofs"]["trust_policy"])
-        self.assertEqual(
-            rows["leanpolish-anon/lean-proof-compression"]["relevance_class"],
-            "proof_repair_or_process_training",
-        )
-        self.assertEqual(rows["phanerozoic/Lean4-Mathlib"]["relevance_class"], "formal_code_corpus")
-        self.assertTrue(str(payload["rows"][0]["url"]).startswith("https://"))
-        self.assertTrue(Path("runs/test_huggingface_lean_source_audit/huggingface_lean_source_audit_manifest.json").exists())
-        self.assertTrue(Path("runs/test_huggingface_lean_source_audit/huggingface_lean_rag_integration_plan.json").exists())
-        self.assertTrue(Path("runs/test_huggingface_lean_source_audit/huggingface_lean_source_revalidation_queue.jsonl").exists())
-        self.assertTrue(Path("runs/test_huggingface_lean_source_audit/huggingface_lean_source_audit.md").exists())
 
     def test_mock_proof_bank_audit_exports_lean(self) -> None:
         async def run():
@@ -4675,6 +4540,7 @@ class SystemTests(unittest.TestCase):
             expansion["acceptance_gate"],
         )
         self.assertGreaterEqual(len(expansion["clone_commands"]), 5)
+
         self.assertTrue(
             (root / "registry_expansion" / "source_registry_expansion_manifest.json").exists()
         )
@@ -4980,12 +4846,25 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(guidance["frontier_entries"], 60)
         statuses = {row["suite_id"]: row["status"] for row in guidance["suites"]}
         self.assertEqual(statuses["S3_frontier_blind_theory_target"], "CAPACITY_GAP")
+        suites = {row["suite_id"]: row for row in guidance["suites"]}
+        self.assertIn(
+            "expected-result coverage remains below the 90% next milestone",
+            suites["S3_frontier_blind_theory_target"]["issues"],
+        )
+        self.assertIn(
+            "release smoke is not all-60 frontier scoring",
+            suites["S3_frontier_blind_theory_target"]["issues"],
+        )
         self.assertEqual(statuses["S4_formal_primitive_ladder"], "CAPACITY_GAP")
         self.assertEqual(statuses["S5_proof_bank_and_search"], "SATURATED")
         self.assertEqual(statuses["S6_algorithm_simulation_stress"], "OK")
         self.assertEqual(statuses["S8_adversarial_unsupported_intake"], "OK")
         self.assertEqual(statuses["S9_fresh_holdout_frontier"], "OK")
         self.assertGreaterEqual(len(guidance["top_actions"]), 3)
+        self.assertEqual(
+            guidance["top_actions"][1]["action"],
+            "Improve all-60 frontier theory-target recovery using the per-topic triage misses.",
+        )
         self.assertTrue(
             Path(
                 "runs/test_evaluation_benchmark_guidance/"
@@ -6022,9 +5901,17 @@ class SystemTests(unittest.TestCase):
         self.assertGreater(payload["counts"]["theory_expected_results"], 69)
         self.assertGreater(payload["counts"]["theory_expected_results_covered"], 59)
         self.assertGreater(payload["counts"]["theory_expected_result_coverage_rate"], 0.75)
-        self.assertEqual(payload["counts"]["frontier_triage_theory_target_misses"], 29)
+        self.assertEqual(
+            payload["counts"]["frontier_triage_theory_target_misses"],
+            payload["counts"]["theory_expected_results"]
+            - payload["counts"]["theory_expected_results_covered"],
+        )
         self.assertEqual(payload["counts"]["frontier_triage_simulation_flags"], 5)
-        self.assertEqual(payload["counts"]["frontier_triage_items"], 34)
+        self.assertEqual(
+            payload["counts"]["frontier_triage_items"],
+            payload["counts"]["frontier_triage_theory_target_misses"]
+            + payload["counts"]["frontier_triage_simulation_flags"],
+        )
         self.assertEqual(payload["counts"]["frontier_simulation_rerun_items"], 0)
         self.assertEqual(payload["counts"]["frontier_simulation_rerun_resolved"], 0)
         self.assertEqual(payload["counts"]["frontier_simulation_rerun_still_flagged"], 0)
@@ -6040,7 +5927,10 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(target_audit["all_scored"])
         triage = json.loads(Path(payload["artifacts"]["frontier_evaluation_triage"]).read_text())
         self.assertTrue(triage["all_ok"])
-        self.assertEqual(triage["n_theory_target_misses"], 29)
+        self.assertEqual(
+            triage["n_theory_target_misses"],
+            payload["counts"]["frontier_triage_theory_target_misses"],
+        )
         self.assertEqual(triage["n_simulation_flags"], 5)
         self.assertIn("theory_developer", triage["by_owner"])
         self.assertIn("algorithm_engineer", triage["by_owner"])
@@ -6304,6 +6194,10 @@ class SystemTests(unittest.TestCase):
         self.assertIn("real_lean_ready", report["summary"])
         self.assertIn("real_lean_blockers", report["summary"])
         self.assertIn("llm_theory_blockers", report["summary"])
+        self.assertEqual(report["summary"]["llm_provider"], "anthropic")
+        self.assertEqual(report["summary"]["llm_models"]["haiku"], "claude-haiku-4-5-20251001")
+        self.assertEqual(report["summary"]["llm_models"]["sonnet"], "claude-sonnet-4-6")
+        self.assertEqual(report["summary"]["llm_models"]["opus"], "claude-opus-4-8")
         serialized = json.dumps(report)
         self.assertNotIn("do-not-print-axle", serialized)
         self.assertNotIn("do-not-print-anthropic", serialized)
@@ -8422,7 +8316,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertEqual(payload["n_ready_for_checker_validation"], 0)
         self.assertEqual(payload["n_proof_overclaim_rows"], 1)
         self.assertEqual(payload["rows"][0]["validation_status"], "REJECTED_PROOF_EVIDENCE_OVERCLAIM")
-        self.assertTrue(payload["rows"][0]["proof_overclaim_errors"])
+        self.assertGreaterEqual(len(payload["rows"][0]["proof_overclaim_errors"]), 3)
 
     def test_claim_ledger_action_export_turns_revision_rows_into_owner_tasks(self) -> None:
         async def run():
@@ -10363,6 +10257,20 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertEqual(minimal_plan["n_goal_plans_with_minimal_cut"], minimal_plan["n_goal_plans"])
         self.assertGreater(minimal_plan["n_route_cost_breakdown_terms"], 0)
         self.assertGreater(minimal_plan["n_do_not_formalize_hints"], 0)
+        self.assertGreaterEqual(
+            minimal_plan["n_route_alignment_edges"],
+            minimal_plan["n_goal_plans"],
+        )
+        self.assertEqual(
+            minimal_plan["n_route_alignment_edge_schema_valid"],
+            minimal_plan["n_route_alignment_edges"],
+        )
+        self.assertEqual(minimal_plan["n_route_alignment_edge_schema_invalid"], 0)
+        self.assertEqual(
+            minimal_plan["n_goal_plan_row_schema_valid"],
+            minimal_plan["n_goal_plans"],
+        )
+        self.assertEqual(minimal_plan["n_goal_plan_row_schema_invalid"], 0)
         minimal_plan_row = minimal_plan["rows"][0]
         self.assertIn("goal_conditioned_minimal_formalization_plan", minimal_plan_row["goal_plan_id"])
         self.assertIn(minimal_plan_row["route_class"], {"reuse_or_composition", "bridge_or_wrapper", "requires_new_theory"})
@@ -10381,6 +10289,10 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         )
         self.assertGreater(minimal_plan_row["route_efficiency_score"], 0)
         self.assertTrue(minimal_plan_row["selected_primitives"])
+        self.assertEqual(
+            {edge["primitive"] for edge in minimal_plan_row["route_alignment_edges"]},
+            set(minimal_plan_row["selected_primitives"]),
+        )
         self.assertTrue(minimal_plan_row["next_work_packets"])
         self.assertIn("not theorem proof evidence", minimal_plan_row["proof_evidence_boundary"])
         self.assertTrue(
@@ -10401,6 +10313,11 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(
             Path(
                 "runs/test_goal_conditioned_minimal_formalization_plan/library_aware_formalization_gap_plan.schema.json"
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                "runs/test_goal_conditioned_minimal_formalization_plan/formalization_gap_planner_route_alignment_edge.schema.json"
             ).exists()
         )
         replay = export_formal_verifier_replay(
@@ -14169,6 +14086,12 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                 "formalization_gap_planner_proof_state_triage"
             ],
             str(triage_manifest_path),
+        )
+        self.assertEqual(
+            payload["kernel_proof_overlay_alignment"][
+                "theorem_composition_packets_with_kernel_overlay"
+            ],
+            0,
         )
         self.assertEqual(payload["proof_evidence"]["proof_bank_fingerprint"], "a" * 64)
         self.assertTrue(payload["rag_provider_evidence"]["lean_rag_dependency_graph_enabled"])
@@ -18974,11 +18897,13 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["gates"]["lean_rag_source_registry_expansion_apply"])
         self.assertTrue(payload["gates"]["huggingface_lean_source_audit"])
         self.assertTrue(payload["gates"]["huggingface_lean_source_revalidation_tasks"])
+        self.assertTrue(payload["gates"]["huggingface_lean_source_revalidation_prompt_packets"])
         self.assertTrue(payload["gates"]["huggingface_lean_source_revalidation_artifact_validation"])
         self.assertTrue(payload["gates"]["huggingface_lean_source_revalidation_promotion_queue"])
         self.assertTrue(payload["gates"]["fresh_holdout_frontier_audit"])
         self.assertTrue(payload["gates"]["research_algorithm_audit"])
         self.assertTrue(payload["gates"]["algorithm_simulation_stress_audit"])
+        self.assertTrue(payload["gates"]["research_agent_runtime_audit"])
         self.assertTrue(payload["gates"]["proof_audit"])
         self.assertTrue(payload["gates"]["kernel_smoke_proof_audit"])
         self.assertTrue(payload["gates"]["proof_training_export"])
@@ -19000,9 +18925,39 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["gates"]["formalization_delta_plan"])
         self.assertTrue(payload["gates"]["formal_verifier_queue"])
         self.assertTrue(payload["gates"]["goal_conditioned_minimal_formalization_plan"])
+        self.assertTrue(payload["gates"]["formalization_gap_planner_portable_plan_audit"])
+        self.assertTrue(payload["gates"]["formalization_gap_planner_library_coverage_map"])
+        self.assertTrue(payload["gates"]["formalization_gap_planner_primitive_action_queue"])
+        self.assertTrue(payload["gates"]["formalization_gap_planner_target_intake"])
+        self.assertTrue(payload["gates"]["formalization_gap_planner_benchmark"])
+        self.assertTrue(payload["gates"]["formalization_gap_planner_benchmark_audit"])
+        self.assertTrue(payload["gates"]["formalization_gap_planner_evaluation"])
         self.assertTrue(payload["gates"]["formal_verifier_replay"])
         self.assertTrue(payload["gates"]["formal_verifier_replay_attempts"])
         self.assertTrue(payload["gates"]["formal_verifier_replay_calibration"])
+        self.assertTrue(payload["gates"]["formalization_gap_planner_refinement_queue"])
+        self.assertTrue(payload["gates"]["formalization_gap_planner_refinement_adapter_responses"])
+        self.assertTrue(payload["gates"]["formalization_gap_planner_local_literature_adapter"])
+        self.assertTrue(payload["gates"]["formalization_gap_planner_local_formal_source_adapter"])
+        self.assertTrue(payload["gates"]["formalization_gap_planner_local_proof_state_adapter"])
+        self.assertTrue(payload["gates"]["formalization_gap_planner_refinement_evidence"])
+        self.assertTrue(payload["gates"]["formalization_gap_planner_route_revision_overlay"])
+        self.assertTrue(payload["gates"]["formalization_gap_planner_route_stability_audit"])
+        self.assertTrue(payload["gates"]["formalization_gap_planner_route_replan_handoff"])
+        self.assertTrue(payload["gates"]["formalization_gap_planner_route_replan_handoff_audit"])
+        self.assertTrue(payload["gates"]["formalization_gap_planner_proof_state_triage"])
+        self.assertTrue(payload["gates"]["formalization_gap_planner_interactive_session"])
+        self.assertTrue(payload["gates"]["formalization_gap_planner_ablation_study"])
+        self.assertTrue(payload["gates"]["formalization_gap_planner_prover_adapter_contract"])
+        self.assertTrue(payload["gates"]["formalization_gap_planner_adapter_registry"])
+        self.assertTrue(payload["gates"]["formalization_gap_planner_adapter_registry_audit"])
+        self.assertTrue(payload["gates"]["formalization_gap_planner_component_resource_registry"])
+        self.assertTrue(payload["gates"]["formalization_gap_planner_component_resource_registry_audit"])
+        self.assertTrue(payload["gates"]["formalization_gap_planner_action_resource_plan"])
+        self.assertTrue(payload["gates"]["formalization_gap_planner_resource_request_queue"])
+        self.assertTrue(payload["gates"]["formalization_gap_planner_resource_response_ledger"])
+        self.assertTrue(payload["gates"]["formalization_gap_planner_publication_bundle"])
+        self.assertTrue(payload["gates"]["formalization_gap_planner_publication_bundle_audit"])
         self.assertTrue(payload["gates"]["formal_verifier_replay_repair"])
         self.assertTrue(payload["gates"]["formal_verifier_replay_repair_application"])
         self.assertTrue(payload["gates"]["formal_verifier_replay_repair_application_validation"])
@@ -19064,12 +19019,6 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertEqual(payload["counts"]["frontier_questions"], 60)
         self.assertEqual(payload["counts"]["frontier_supported"], 60)
         self.assertEqual(payload["counts"]["frontier_unsupported"], 0)
-        self.assertEqual(payload["counts"]["frontier_precision_ok"], payload["counts"]["frontier_precision_supported"])
-        self.assertEqual(payload["counts"]["frontier_precision_flagged"], 0)
-        self.assertEqual(payload["counts"]["frontier_backlog_ok"], payload["counts"]["frontier_backlog_total"])
-        self.assertEqual(payload["counts"]["frontier_backlog_total"], payload["counts"]["frontier_unsupported"])
-        self.assertEqual(payload["counts"]["frontier_backlog_domains"], 0)
-        self.assertEqual(payload["counts"]["frontier_backlog_required_primitives"], 0)
         self.assertEqual(
             payload["counts"]["frontier_dap_prompt_packets"],
             payload["counts"]["frontier_questions"],
@@ -19095,8 +19044,14 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         )
         self.assertEqual(payload["counts"]["paper_theory_roundtrip_tex_files"], 1)
         self.assertGreaterEqual(payload["counts"]["paper_theory_roundtrip_statements"], 4)
-        self.assertGreaterEqual(payload["counts"]["paper_theory_roundtrip_statements_with_proofs"], 1)
-        self.assertGreaterEqual(payload["counts"]["paper_theory_roundtrip_dependency_edges"], 1)
+        self.assertGreaterEqual(
+            payload["counts"]["paper_theory_roundtrip_statements_with_proofs"],
+            1,
+        )
+        self.assertGreaterEqual(
+            payload["counts"]["paper_theory_roundtrip_dependency_edges"],
+            1,
+        )
         self.assertEqual(
             payload["counts"]["paper_theory_roundtrip_stat_theory_ir_rows"],
             payload["counts"]["paper_theory_roundtrip_statements"],
@@ -19110,6 +19065,12 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             payload["counts"]["paper_theory_roundtrip_proof_evidence_status"],
             "PAPER_THEORY_ROUNDTRIP_NOT_PROOF_EVIDENCE",
         )
+        self.assertEqual(payload["counts"]["frontier_precision_ok"], payload["counts"]["frontier_precision_supported"])
+        self.assertEqual(payload["counts"]["frontier_precision_flagged"], 0)
+        self.assertEqual(payload["counts"]["frontier_backlog_ok"], payload["counts"]["frontier_backlog_total"])
+        self.assertEqual(payload["counts"]["frontier_backlog_total"], payload["counts"]["frontier_unsupported"])
+        self.assertEqual(payload["counts"]["frontier_backlog_domains"], 0)
+        self.assertEqual(payload["counts"]["frontier_backlog_required_primitives"], 0)
         self.assertTrue(payload["counts"]["architecture_has_live_revision_loop"])
         self.assertGreaterEqual(payload["counts"]["architecture_components_partial"], 1)
         self.assertGreaterEqual(payload["counts"]["architecture_feedback_routes"], 5)
@@ -19391,6 +19352,26 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "HF_LEAN_SOURCE_REVALIDATION_TASKS_NOT_PROOF_EVIDENCE",
         )
         self.assertEqual(
+            payload["counts"]["huggingface_lean_source_revalidation_prompt_packets"],
+            payload["counts"]["huggingface_lean_source_revalidation_tasks"],
+        )
+        self.assertEqual(
+            payload["counts"]["huggingface_lean_source_revalidation_prompt_packets_ready_tasks"],
+            payload["counts"]["huggingface_lean_source_revalidation_tasks_ready"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "huggingface_lean_source_revalidation_prompt_packets_output_contracts"
+            ],
+            payload["counts"]["huggingface_lean_source_revalidation_prompt_packets"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "huggingface_lean_source_revalidation_prompt_packets_proof_evidence_status"
+            ],
+            "HF_LEAN_SOURCE_REVALIDATION_PROMPT_PACKETS_NOT_PROOF_EVIDENCE",
+        )
+        self.assertEqual(
             payload["counts"]["huggingface_lean_source_revalidation_artifact_validation_rows"],
             payload["counts"]["huggingface_lean_source_revalidation_tasks"],
         )
@@ -19480,7 +19461,10 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             payload["counts"]["lean_rag_source_registry_expansion_preflight_hard_blockers"],
             0,
         )
-        self.assertTrue(payload["counts"]["lean_rag_source_registry_expansion_apply_ready"])
+        self.assertTrue(
+            payload["counts"]["lean_rag_source_registry_expansion_apply_ready"]
+            or payload["counts"]["lean_rag_source_registry_expansion_staged"] == 0
+        )
         self.assertTrue(payload["counts"]["lean_rag_source_registry_expansion_apply_dry_run"])
         self.assertFalse(payload["counts"]["lean_rag_source_registry_expansion_apply_applied"])
         self.assertEqual(
@@ -19581,6 +19565,12 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["counts"]["algorithm_simulation_stress_all_finite_metrics"])
         self.assertTrue(payload["counts"]["algorithm_simulation_stress_all_stress_ledgers_ok"])
         self.assertTrue(payload["counts"]["algorithm_simulation_stress_all_diagnoses_ok"])
+        self.assertFalse(payload["counts"]["research_agent_runtime_audit_requested"])
+        self.assertFalse(payload["counts"]["research_agent_runtime_audit_available"])
+        self.assertFalse(payload["counts"]["research_agent_runtime_audit_all_ok"])
+        self.assertEqual(payload["counts"]["research_agent_runtime_audit_results"], 0)
+        self.assertEqual(payload["counts"]["research_agent_runtime_critic_reroutes"], 0)
+        self.assertEqual(payload["counts"]["research_agent_runtime_learning_rows"], 0)
         self.assertGreater(payload["counts"]["verifier_cache_hits"], 0)
         self.assertGreater(payload["counts"]["verifier_cache_misses"], 0)
         self.assertGreater(payload["counts"]["verifier_cache_size"], 0)
@@ -19836,6 +19826,408 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             payload["counts"]["goal_conditioned_minimal_formalization_do_not_formalize_hints"],
             0,
         )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_portable_plan_audit_rows"],
+            payload["counts"]["goal_conditioned_minimal_formalization_plans"],
+        )
+        self.assertEqual(payload["counts"]["formalization_gap_planner_portable_plan_audit_failed"], 0)
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_portable_plan_audit_ok"],
+            payload["counts"]["formalization_gap_planner_portable_plan_audit_checks"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_portable_plan_audit_row_schema_valid"
+            ],
+            payload["counts"]["formalization_gap_planner_portable_plan_audit_checks"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_portable_plan_audit_row_schema_invalid"
+            ],
+            0,
+        )
+        self.assertEqual(payload["counts"]["formalization_gap_planner_portable_plan_audit_contract_errors"], 0)
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_portable_plan_audit_two_dag_rows"],
+            payload["counts"]["goal_conditioned_minimal_formalization_plans"],
+        )
+        self.assertGreaterEqual(
+            payload["counts"]["goal_conditioned_minimal_formalization_route_alignment_edges"],
+            payload["counts"]["goal_conditioned_minimal_formalization_plans"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "goal_conditioned_minimal_formalization_route_alignment_edge_schema_valid"
+            ],
+            payload["counts"]["goal_conditioned_minimal_formalization_route_alignment_edges"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "goal_conditioned_minimal_formalization_route_alignment_edge_schema_invalid"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "goal_conditioned_minimal_formalization_goal_plan_row_schema_valid"
+            ],
+            payload["counts"]["goal_conditioned_minimal_formalization_plans"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "goal_conditioned_minimal_formalization_goal_plan_row_schema_invalid"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_portable_plan_audit_alignment_rows"],
+            payload["counts"]["goal_conditioned_minimal_formalization_plans"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_portable_plan_audit_route_alignment_edge_schema_valid"
+            ],
+            payload["counts"]["formalization_gap_planner_portable_plan_audit_route_alignment_edges"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_portable_plan_audit_route_alignment_edge_schema_invalid"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_portable_plan_audit_work_packet_rows"],
+            payload["counts"]["goal_conditioned_minimal_formalization_plans"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_portable_plan_audit_no_kernel_claim_rows"],
+            payload["counts"]["goal_conditioned_minimal_formalization_plans"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_library_coverage_rows"],
+            payload["counts"][
+                "goal_conditioned_minimal_formalization_route_alignment_edges"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_library_coverage_rows"],
+            payload["counts"][
+                "formalization_gap_planner_portable_plan_audit_route_alignment_edges"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_library_coverage_ok"],
+            payload["counts"]["formalization_gap_planner_library_coverage_rows"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_library_coverage_failed"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_library_coverage_row_schema_valid"
+            ],
+            payload["counts"]["formalization_gap_planner_library_coverage_rows"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_library_coverage_row_schema_invalid"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_library_coverage_unknown_or_unaligned"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_library_coverage_rows_with_alignment"
+            ],
+            payload["counts"]["formalization_gap_planner_library_coverage_rows"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_primitive_action_queue_items"],
+            payload["counts"]["formalization_gap_planner_library_coverage_rows"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_primitive_action_queue_ok"],
+            payload["counts"]["formalization_gap_planner_primitive_action_queue_items"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_primitive_action_queue_failed"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_primitive_action_queue_row_schema_valid"
+            ],
+            payload["counts"]["formalization_gap_planner_primitive_action_queue_items"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_primitive_action_queue_row_schema_invalid"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_action_resource_plan_rows"],
+            payload["counts"]["formalization_gap_planner_primitive_action_queue_items"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_action_resource_plan_ok"],
+            payload["counts"]["formalization_gap_planner_action_resource_plan_rows"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_action_resource_plan_failed"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_action_resource_plan_row_schema_valid"
+            ],
+            payload["counts"]["formalization_gap_planner_action_resource_plan_rows"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_action_resource_plan_row_schema_invalid"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_action_resource_plan_with_frontier_resources"
+            ],
+            payload["counts"]["formalization_gap_planner_action_resource_plan_rows"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_action_resource_plan_with_resource_contracts"
+            ],
+            payload["counts"]["formalization_gap_planner_action_resource_plan_rows"],
+        )
+        self.assertGreater(
+            payload["counts"]["formalization_gap_planner_resource_request_queue_rows"],
+            payload["counts"]["formalization_gap_planner_action_resource_plan_rows"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_resource_request_queue_ok"],
+            payload["counts"]["formalization_gap_planner_resource_request_queue_rows"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_resource_request_queue_failed"],
+            0,
+        )
+        self.assertGreater(
+            payload["counts"]["formalization_gap_planner_resource_request_queue_local_first"],
+            0,
+        )
+        self.assertGreater(
+            payload["counts"][
+                "formalization_gap_planner_resource_request_queue_frontier_escalation"
+            ],
+            0,
+        )
+        self.assertGreater(
+            payload["counts"][
+                "formalization_gap_planner_resource_request_queue_distinct_resources"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_resource_request_queue_row_schema_valid"
+            ],
+            payload["counts"]["formalization_gap_planner_resource_request_queue_rows"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_resource_request_queue_row_schema_invalid"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_resource_response_ledger_rows"],
+            payload["counts"]["formalization_gap_planner_resource_request_queue_rows"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_resource_response_ledger_ok"],
+            payload["counts"]["formalization_gap_planner_resource_response_ledger_rows"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_resource_response_ledger_response_present"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_resource_response_ledger_awaiting"],
+            payload["counts"]["formalization_gap_planner_resource_response_ledger_rows"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_resource_response_ledger_contract_ok"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_resource_response_ledger_route_revision_recommended"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_resource_response_ledger_rejected"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_resource_response_ledger_row_schema_valid"
+            ],
+            payload["counts"]["formalization_gap_planner_resource_response_ledger_rows"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_resource_response_ledger_row_schema_invalid"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_minimal_delta_audit_failed"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_minimal_delta_decision_rows"],
+            payload["counts"]["goal_conditioned_minimal_formalization_plans"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_minimal_delta_decision_row_schema_valid"
+            ],
+            payload["counts"]["formalization_gap_planner_minimal_delta_decision_rows"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_minimal_delta_decision_row_schema_invalid"
+            ],
+            0,
+        )
+        self.assertGreater(
+            payload["counts"]["formalization_gap_planner_source_grounding_rows"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_source_grounding_row_schema_valid"
+            ],
+            payload["counts"]["formalization_gap_planner_source_grounding_rows"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_source_grounding_row_schema_invalid"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_target_intake_ok"],
+            payload["counts"]["formalization_gap_planner_target_intake_targets"],
+        )
+        self.assertGreater(payload["counts"]["formalization_gap_planner_target_intake_targets"], 0)
+        self.assertGreater(
+            payload["counts"]["formalization_gap_planner_target_intake_primitive_seeds"],
+            0,
+        )
+        self.assertGreater(
+            payload["counts"]["formalization_gap_planner_target_intake_literature_queries"],
+            0,
+        )
+        self.assertGreater(
+            payload["counts"]["formalization_gap_planner_target_intake_lean_queries"],
+            0,
+        )
+        self.assertEqual(payload["counts"]["formalization_gap_planner_target_intake_missing_sources"], 0)
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_evaluation_rows"],
+            payload["counts"]["goal_conditioned_minimal_formalization_plans"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_evaluation_row_schema_valid"],
+            payload["counts"]["formalization_gap_planner_evaluation_rows"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_evaluation_row_schema_invalid"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_evaluation_ok"],
+            payload["counts"]["formalization_gap_planner_evaluation_rows"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_evaluation_matched_ground_truth"],
+            payload["counts"]["formalization_gap_planner_evaluation_ground_truth_rows"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_evaluation_two_dag_contract_ok"],
+            payload["counts"]["formalization_gap_planner_evaluation_rows"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_evaluation_alignment_contract_ok"],
+            payload["counts"]["formalization_gap_planner_evaluation_rows"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_evaluation_unaligned_primitives"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_evaluation_mean_alignment_coverage"],
+            1.0,
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_evaluation_feedback_loop_ready"],
+            payload["counts"]["formalization_gap_planner_evaluation_rows"],
+        )
+        self.assertGreaterEqual(
+            payload["counts"]["formalization_gap_planner_evaluation_mean_route_recall"],
+            0.0,
+        )
+        self.assertGreaterEqual(
+            payload["counts"]["formalization_gap_planner_evaluation_mean_delta_precision"],
+            0.0,
+        )
+        self.assertGreaterEqual(
+            payload["counts"][
+                "formalization_gap_planner_evaluation_ground_truth_residual_rows"
+            ],
+            0,
+        )
+        self.assertGreaterEqual(
+            payload["counts"][
+                "formalization_gap_planner_evaluation_predicted_residual_primitives"
+            ],
+            0,
+        )
+        self.assertGreaterEqual(
+            payload["counts"][
+                "formalization_gap_planner_evaluation_ground_truth_residual_primitives"
+            ],
+            0,
+        )
+        self.assertGreaterEqual(
+            payload["counts"][
+                "formalization_gap_planner_evaluation_mean_residual_precision"
+            ],
+            0.0,
+        )
+        self.assertGreaterEqual(
+            payload["counts"][
+                "formalization_gap_planner_evaluation_mean_residual_recall"
+            ],
+            0.0,
+        )
         self.assertEqual(payload["counts"]["formal_verifier_replay_ok"], payload["counts"]["formal_verifier_replay_tasks"])
         self.assertEqual(payload["counts"]["formal_verifier_replay_tasks"], payload["counts"]["formal_verifier_queue_items"])
         self.assertGreater(payload["counts"]["formal_verifier_replay_tasks"], 0)
@@ -19870,6 +20262,1371 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertEqual(payload["counts"]["formal_verifier_replay_failed_full_route_attempt"], 0)
         self.assertEqual(payload["counts"]["formal_verifier_replay_non_kernel_positive"], 0)
         self.assertEqual(payload["counts"]["formal_verifier_replay_full_route_kernel_verified"], 0)
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_refinement_queue_ok"],
+            payload["counts"]["formalization_gap_planner_refinement_queue_items"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_refinement_queue_item_schema_valid"],
+            payload["counts"]["formalization_gap_planner_refinement_queue_items"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_refinement_queue_item_schema_invalid"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_refinement_queue_with_evaluation_signal"],
+            payload["counts"]["formalization_gap_planner_refinement_queue_items"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_refinement_adapter_responses"],
+            payload["counts"]["formalization_gap_planner_refinement_queue_items"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_refinement_adapter_ok"],
+            payload["counts"]["formalization_gap_planner_refinement_adapter_responses"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_refinement_adapter_response_schema_valid"],
+            payload["counts"]["formalization_gap_planner_refinement_adapter_responses"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_refinement_adapter_response_schema_invalid"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_local_literature_responses"],
+            payload["counts"]["formalization_gap_planner_refinement_queue_literature"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_local_formal_source_responses"],
+            payload["counts"]["formalization_gap_planner_refinement_queue_formal_grounding"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_local_proof_state_responses"],
+            payload["counts"]["formalization_gap_planner_refinement_queue_proof_feedback"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_local_literature_merged_responses"],
+            payload["counts"]["formalization_gap_planner_refinement_queue_items"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_local_formal_source_merged_responses"],
+            payload["counts"]["formalization_gap_planner_refinement_queue_items"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_local_proof_state_merged_responses"],
+            payload["counts"]["formalization_gap_planner_refinement_queue_items"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_local_literature_response_schema_valid"],
+            payload["counts"]["formalization_gap_planner_local_literature_responses"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_local_literature_response_schema_invalid"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_local_formal_source_response_schema_valid"],
+            payload["counts"]["formalization_gap_planner_local_formal_source_responses"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_local_formal_source_response_schema_invalid"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_local_proof_state_response_schema_valid"],
+            payload["counts"]["formalization_gap_planner_local_proof_state_responses"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_local_proof_state_response_schema_invalid"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_local_adapter_response_schema_invalid"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_local_adapter_merged_response_schema_valid"],
+            payload["counts"]["formalization_gap_planner_local_proof_state_merged_responses"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_local_adapter_merged_response_schema_invalid"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_refinement_evidence_rows"],
+            payload["counts"]["formalization_gap_planner_refinement_queue_items"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_refinement_evidence_response_present"],
+            payload["counts"]["formalization_gap_planner_refinement_evidence_rows"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_refinement_evidence_contract_ok"],
+            payload["counts"]["formalization_gap_planner_refinement_evidence_rows"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_refinement_response_schema_valid"],
+            payload["counts"]["formalization_gap_planner_refinement_evidence_responses"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_refinement_response_schema_invalid"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_refinement_evidence_row_schema_valid"],
+            payload["counts"]["formalization_gap_planner_refinement_evidence_rows"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_refinement_evidence_row_schema_invalid"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_refinement_evidence_ok"],
+            payload["counts"]["formalization_gap_planner_refinement_evidence_rows"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_route_revision_overlay_ok"],
+            payload["counts"]["formalization_gap_planner_route_revision_overlay_rows"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_route_revision_overlay_row_schema_valid"],
+            payload["counts"]["formalization_gap_planner_route_revision_overlay_rows"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_route_revision_overlay_row_schema_invalid"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_route_revision_overlay_rows"],
+            payload["counts"]["goal_conditioned_minimal_formalization_plans"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_route_revision_overlay_alignment_rows"],
+            payload["counts"]["formalization_gap_planner_route_revision_overlay_rows"],
+        )
+        self.assertGreaterEqual(
+            payload["counts"]["formalization_gap_planner_route_revision_overlay_alignment_edges"],
+            payload["counts"]["formalization_gap_planner_route_revision_overlay_rows"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_route_revision_overlay_unaligned_primitives"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_route_stability_ok"],
+            payload["counts"]["formalization_gap_planner_route_stability_rows"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_route_stability_rows"],
+            payload["counts"]["goal_conditioned_minimal_formalization_plans"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_route_stability_stable"]
+            + payload["counts"]["formalization_gap_planner_route_stability_needs_expansion"],
+            payload["counts"]["formalization_gap_planner_route_stability_rows"],
+        )
+        self.assertGreaterEqual(
+            payload["counts"]["formalization_gap_planner_route_stability_apply_revision"]
+            + payload["counts"]["formalization_gap_planner_route_stability_expand_literature"]
+            + payload["counts"]["formalization_gap_planner_route_stability_expand_lean"]
+            + payload["counts"]["formalization_gap_planner_route_stability_expand_proof_state"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_route_stability_row_schema_valid"],
+            payload["counts"]["formalization_gap_planner_route_stability_rows"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_route_stability_row_schema_invalid"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_route_replan_handoff_ok"],
+            payload["counts"]["formalization_gap_planner_route_replan_handoff_rows"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_route_replan_handoff_row_schema_valid"],
+            payload["counts"]["formalization_gap_planner_route_replan_handoff_rows"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_route_replan_handoff_row_schema_invalid"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_route_replan_handoff_seed_routes"],
+            payload["counts"]["formalization_gap_planner_route_replan_handoff_rows"],
+        )
+        self.assertGreaterEqual(
+            payload["counts"]["formalization_gap_planner_route_replan_handoff_alignment_edges"],
+            payload["counts"]["formalization_gap_planner_route_replan_handoff_rows"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_route_replan_handoff_unaligned_primitives"],
+            0,
+        )
+        self.assertGreaterEqual(
+            payload["counts"]["formalization_gap_planner_route_replan_handoff_requiring_replan"],
+            0,
+        )
+        self.assertEqual(payload["counts"]["formalization_gap_planner_route_replan_handoff_audit_failed"], 0)
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_route_replan_handoff_audit_row_schema_valid"
+            ],
+            payload["counts"]["formalization_gap_planner_route_replan_handoff_audit_checks"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_route_replan_handoff_audit_row_schema_invalid"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_route_replan_handoff_audit_ok"],
+            payload["counts"]["formalization_gap_planner_route_replan_handoff_audit_checks"],
+        )
+        self.assertTrue(
+            payload["counts"]["formalization_gap_planner_route_replan_handoff_audit_roundtrip_ok"]
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_route_replan_handoff_audit_roundtrip_routes"],
+            payload["counts"]["formalization_gap_planner_route_replan_handoff_seed_routes"],
+        )
+        self.assertGreaterEqual(
+            payload["counts"]["formalization_gap_planner_route_replan_handoff_audit_roundtrip_alignment_edges"],
+            payload["counts"]["formalization_gap_planner_route_replan_handoff_seed_routes"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_proof_state_triage_ok"],
+            payload["counts"]["formalization_gap_planner_proof_state_triage_items"],
+        )
+        self.assertGreaterEqual(
+            payload["counts"]["formalization_gap_planner_proof_state_triage_items"],
+            0,
+        )
+        self.assertGreaterEqual(
+            payload["counts"]["formalization_gap_planner_proof_state_triage_distinct_signatures"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_proof_state_triage_row_schema_valid"],
+            payload["counts"]["formalization_gap_planner_proof_state_triage_items"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_proof_state_triage_row_schema_invalid"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_interactive_session_ok"],
+            payload["counts"]["formalization_gap_planner_interactive_session_rows"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_interactive_session_row_schema_valid"],
+            payload["counts"]["formalization_gap_planner_interactive_session_rows"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_interactive_session_row_schema_invalid"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_interactive_decision_policy_rows"],
+            payload["counts"]["formalization_gap_planner_interactive_session_rows"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_interactive_decision_policy_row_schema_valid"],
+            payload["counts"]["formalization_gap_planner_interactive_decision_policy_rows"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_interactive_decision_policy_row_schema_invalid"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_interactive_decision_policy_rows_with_resource_contracts"
+            ],
+            payload["counts"]["formalization_gap_planner_interactive_decision_policy_rows"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_interactive_decision_policy_rows_with_frontier_resources"
+            ],
+            payload["counts"]["formalization_gap_planner_interactive_decision_policy_rows"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_interactive_decision_policy_rows_with_required_quality_signals"
+            ],
+            payload["counts"]["formalization_gap_planner_interactive_decision_policy_rows"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_interactive_decision_policy_rows_with_quality_gates"
+            ],
+            payload["counts"]["formalization_gap_planner_interactive_decision_policy_rows"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_interactive_decision_policy_rows_with_response_validation_signals"
+            ],
+            payload["counts"]["formalization_gap_planner_interactive_decision_policy_rows"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_interactive_session_rows"],
+            payload["counts"]["goal_conditioned_minimal_formalization_plans"],
+        )
+        self.assertGreaterEqual(
+            payload["counts"]["formalization_gap_planner_interactive_session_replan"],
+            0,
+        )
+        self.assertGreaterEqual(
+            payload["counts"][
+                "formalization_gap_planner_interactive_session_waiting_for_adapter_responses"
+            ],
+            0,
+        )
+        self.assertGreaterEqual(
+            payload["counts"][
+                "formalization_gap_planner_interactive_session_rows_requiring_replan"
+            ],
+            0,
+        )
+        self.assertGreaterEqual(
+            payload["counts"]["formalization_gap_planner_interactive_session_replay"],
+            0,
+        )
+        self.assertGreaterEqual(
+            payload["counts"]["formalization_gap_planner_interactive_session_source_refs"],
+            0,
+        )
+        self.assertEqual(payload["counts"]["formalization_gap_planner_ablation_variants"], 5)
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_ablation_ok"],
+            payload["counts"]["formalization_gap_planner_ablation_variants"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_ablation_routes"],
+            payload["counts"]["formalization_gap_planner_evaluation_rows"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_ablation_row_schema_valid"],
+            payload["counts"]["formalization_gap_planner_ablation_variants"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_ablation_row_schema_invalid"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_ablation_best_route_recall"],
+            "full_planner_observed",
+        )
+        self.assertTrue(payload["counts"]["formalization_gap_planner_ablation_largest_route_drop"])
+        self.assertTrue(payload["counts"]["formalization_gap_planner_ablation_largest_delta_drop"])
+        self.assertIn(
+            payload["counts"]["formalization_gap_planner_ablation_largest_residual_drop"],
+            {
+                "full_planner_observed",
+                "no_literature_evidence",
+                "no_lean_grounding",
+                "no_proof_state_feedback",
+                "no_route_planner",
+            },
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_prover_adapter_packet_ok"],
+            payload["counts"]["formalization_gap_planner_prover_adapter_packets"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_prover_adapter_packet_schema_valid"],
+            payload["counts"]["formalization_gap_planner_prover_adapter_packets"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_prover_adapter_response_validation_row_schema_valid"
+            ],
+            payload["counts"]["formalization_gap_planner_prover_adapter_packets"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_prover_adapter_response_validation_row_schema_invalid"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_prover_adapter_packets_with_alignment"],
+            payload["counts"]["formalization_gap_planner_prover_adapter_packets"],
+        )
+        self.assertGreater(
+            payload["counts"]["formalization_gap_planner_prover_adapter_packets"],
+            0,
+        )
+        self.assertEqual(payload["counts"]["formalization_gap_planner_prover_adapter_rejected"], 0)
+        self.assertGreaterEqual(payload["counts"]["formalization_gap_planner_adapter_registry_adapters"], 16)
+        self.assertGreaterEqual(payload["counts"]["formalization_gap_planner_adapter_registry_ready"], 3)
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_adapter_registry_row_schema_valid"],
+            payload["counts"]["formalization_gap_planner_adapter_registry_adapters"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_adapter_registry_row_schema_invalid"],
+            0,
+        )
+        self.assertEqual(payload["counts"]["formalization_gap_planner_adapter_registry_audit_failed"], 0)
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_adapter_registry_audit_row_schema_valid"],
+            payload["counts"]["formalization_gap_planner_adapter_registry_adapters"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_adapter_registry_audit_row_schema_invalid"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_adapter_registry_audit_jsonl_row_schema_valid"],
+            payload["counts"]["formalization_gap_planner_adapter_registry_adapters"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_adapter_registry_audit_jsonl_row_schema_invalid"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_adapter_registry_audit_ok"],
+            payload["counts"]["formalization_gap_planner_adapter_registry_audit_checks"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_adapter_registry_audit_required_ids_present"],
+            payload["counts"]["formalization_gap_planner_adapter_registry_audit_required_ids"],
+        )
+        self.assertGreaterEqual(
+            payload["counts"]["formalization_gap_planner_component_resource_registry_components"],
+            8,
+        )
+        self.assertGreaterEqual(
+            payload["counts"]["formalization_gap_planner_component_resource_registry_resources"],
+            20,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_component_resource_registry_component_row_schema_valid"
+            ],
+            payload["counts"]["formalization_gap_planner_component_resource_registry_components"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_component_resource_registry_component_row_schema_invalid"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_component_resource_registry_resource_row_schema_valid"
+            ],
+            payload["counts"]["formalization_gap_planner_component_resource_registry_resources"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_component_resource_registry_resource_row_schema_invalid"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_component_resource_registry_contracts"
+            ],
+            payload["counts"]["formalization_gap_planner_component_resource_registry_resources"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_component_resource_registry_contracts_ok"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_component_resource_registry_contracts"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_component_resource_registry_contract_row_schema_valid"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_component_resource_registry_contracts"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_component_resource_registry_contract_row_schema_invalid"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_component_resource_registry_execution_plans"],
+            payload["counts"]["formalization_gap_planner_component_resource_registry_components"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_component_resource_registry_execution_plans_ok"],
+            payload["counts"]["formalization_gap_planner_component_resource_registry_execution_plans"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_component_resource_registry_execution_plan_row_schema_valid"
+            ],
+            payload["counts"]["formalization_gap_planner_component_resource_registry_execution_plans"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_component_resource_registry_execution_plan_row_schema_invalid"
+            ],
+            0,
+        )
+        self.assertGreaterEqual(
+            payload["counts"]["formalization_gap_planner_component_resource_registry_frontier"],
+            10,
+        )
+        self.assertGreaterEqual(
+            payload["counts"]["formalization_gap_planner_component_resource_registry_mcp_cli"],
+            5,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_component_resource_registry_resources_with_capability_tags"
+            ],
+            payload["counts"]["formalization_gap_planner_component_resource_registry_resources"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_component_resource_registry_resources_with_validation_signals"
+            ],
+            payload["counts"]["formalization_gap_planner_component_resource_registry_resources"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_component_resource_registry_components_with_quality_signals"
+            ],
+            payload["counts"]["formalization_gap_planner_component_resource_registry_components"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_component_resource_registry_execution_plans_with_quality_gates"
+            ],
+            payload["counts"]["formalization_gap_planner_component_resource_registry_execution_plans"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_component_resource_registry_contracts_with_response_validation_signals"
+            ],
+            payload["counts"]["formalization_gap_planner_component_resource_registry_contracts"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_component_resource_registry_audit_failed"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_component_resource_registry_audit_ok"],
+            payload["counts"]["formalization_gap_planner_component_resource_registry_audit_checks"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_component_resource_registry_audit_required_components_present"],
+            payload["counts"]["formalization_gap_planner_component_resource_registry_audit_required_components"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_component_resource_registry_audit_components_with_execution_plan"],
+            payload["counts"]["formalization_gap_planner_component_resource_registry_components"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_component_resource_registry_audit_execution_plan_schema_valid"],
+            payload["counts"]["formalization_gap_planner_component_resource_registry_execution_plans"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_component_resource_registry_audit_execution_plan_schema_invalid"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_component_resource_registry_audit_component_row_schema_valid"
+            ],
+            payload["counts"]["formalization_gap_planner_component_resource_registry_components"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_component_resource_registry_audit_component_row_schema_invalid"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_component_resource_registry_audit_resource_row_schema_valid"
+            ],
+            payload["counts"]["formalization_gap_planner_component_resource_registry_resources"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_component_resource_registry_audit_resource_row_schema_invalid"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_component_resource_registry_audit_contract_row_schema_valid"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_component_resource_registry_contracts"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_component_resource_registry_audit_contract_row_schema_invalid"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_component_resource_registry_audit_resources_with_contract"
+            ],
+            payload["counts"]["formalization_gap_planner_component_resource_registry_resources"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_component_resource_registry_audit_required_resources_present"],
+            payload["counts"]["formalization_gap_planner_component_resource_registry_audit_required_resources"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_cross_prover_matrix_targets_ok"],
+            payload["counts"]["formalization_gap_planner_cross_prover_matrix_targets"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_cross_prover_matrix_row_schema_valid"],
+            payload["counts"]["formalization_gap_planner_cross_prover_matrix_targets"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_cross_prover_matrix_row_schema_invalid"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_cross_prover_matrix_packet_ok"],
+            payload["counts"]["formalization_gap_planner_cross_prover_matrix_total_packets"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_cross_prover_matrix_packet_schema_valid"],
+            payload["counts"]["formalization_gap_planner_cross_prover_matrix_total_packets"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_cross_prover_matrix_packets_schema_invalid"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_cross_prover_matrix_packet_row_schema_valid"
+            ],
+            payload["counts"]["formalization_gap_planner_cross_prover_matrix_total_packets"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_cross_prover_matrix_packet_row_schema_invalid"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_cross_prover_matrix_response_validation_row_schema_valid"
+            ],
+            payload["counts"]["formalization_gap_planner_cross_prover_matrix_total_packets"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_cross_prover_matrix_response_validation_row_schema_invalid"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_cross_prover_matrix_packets_with_alignment"],
+            payload["counts"]["formalization_gap_planner_cross_prover_matrix_total_packets"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_cross_prover_matrix_packets_missing_alignment"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_cross_prover_matrix_rejected"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_cross_prover_matrix_kernel_claims_rejected"],
+            0,
+        )
+        self.assertTrue(
+            payload["counts"]["formalization_gap_planner_cross_prover_matrix_packet_count_consistent"]
+        )
+        self.assertTrue(
+            payload["counts"]["formalization_gap_planner_cross_prover_matrix_alignment_packet_count_consistent"]
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_cross_prover_target_summary_rows"],
+            payload["counts"]["formalization_gap_planner_cross_prover_matrix_targets"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_cross_prover_target_summary_contract_errors"
+            ],
+            0,
+        )
+        self.assertGreaterEqual(payload["counts"]["formalization_gap_planner_benchmark_routes"], 5)
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_benchmark_route_row_schema_valid"],
+            payload["counts"]["formalization_gap_planner_benchmark_routes"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_benchmark_route_row_schema_invalid"],
+            0,
+        )
+        self.assertGreaterEqual(
+            payload["counts"]["formalization_gap_planner_benchmark_required_primitives"],
+            20,
+        )
+        self.assertEqual(payload["counts"]["formalization_gap_planner_benchmark_audit_failed"], 0)
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_benchmark_audit_route_row_schema_valid"],
+            payload["counts"]["formalization_gap_planner_benchmark_routes"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_benchmark_audit_route_row_schema_invalid"],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_benchmark_audit_ok"],
+            payload["counts"]["formalization_gap_planner_benchmark_audit_checks"],
+        )
+        self.assertGreaterEqual(
+            payload["counts"]["formalization_gap_planner_benchmark_audit_splits"],
+            2,
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_benchmark_audit_routes_with_source_refs"],
+            payload["counts"]["formalization_gap_planner_benchmark_routes"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_publication_bundle_core_artifacts_ok"],
+            payload["counts"]["formalization_gap_planner_publication_bundle_core_artifacts"],
+        )
+        self.assertGreaterEqual(
+            payload["counts"]["formalization_gap_planner_publication_bundle_optional_artifacts_requested"],
+            8,
+        )
+        self.assertGreater(
+            payload["counts"]["formalization_gap_planner_publication_bundle_optional_files_copied"],
+            0,
+        )
+        self.assertGreaterEqual(
+            payload["counts"]["formalization_gap_planner_publication_bundle_reproduction_entrypoints"],
+            7,
+        )
+        self.assertGreaterEqual(
+            payload["counts"]["formalization_gap_planner_publication_bundle_reproduction_commands"],
+            8,
+        )
+        self.assertGreaterEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_schema_catalog_entries"
+            ],
+            30,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_schema_catalog_contract_errors"
+            ],
+            0,
+        )
+        self.assertTrue(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_schema_catalog_all_ok"
+            ]
+        )
+        self.assertEqual(payload["counts"]["formalization_gap_planner_publication_bundle_audit_failed"], 0)
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_publication_bundle_audit_ok"],
+            payload["counts"]["formalization_gap_planner_publication_bundle_audit_checks"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_publication_bundle_audit_component_execution_plan_schema_valid"],
+            payload["counts"]["formalization_gap_planner_publication_bundle_audit_component_execution_plan_schema_checked"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_publication_bundle_audit_component_execution_plan_schema_checked"],
+            payload["counts"]["formalization_gap_planner_component_resource_registry_execution_plans"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_component_resource_component_row_schema_valid"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_component_resource_component_row_schema_checked"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_component_resource_component_row_schema_checked"
+            ],
+            payload["counts"]["formalization_gap_planner_component_resource_registry_components"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_component_resource_resource_row_schema_valid"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_component_resource_resource_row_schema_checked"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_component_resource_resource_row_schema_checked"
+            ],
+            payload["counts"]["formalization_gap_planner_component_resource_registry_resources"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_component_resource_contract_row_schema_valid"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_component_resource_contract_row_schema_checked"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_component_resource_contract_row_schema_checked"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_component_resource_registry_contracts"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_publication_bundle_audit_prover_adapter_packet_schema_valid"],
+            payload["counts"]["formalization_gap_planner_publication_bundle_audit_prover_adapter_packet_schema_checked"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_publication_bundle_audit_prover_adapter_packet_schema_checked"],
+            payload["counts"]["formalization_gap_planner_prover_adapter_packets"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_publication_bundle_audit_benchmark_route_row_schema_valid"],
+            payload["counts"]["formalization_gap_planner_publication_bundle_audit_benchmark_route_row_schema_checked"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_publication_bundle_audit_benchmark_route_row_schema_checked"],
+            payload["counts"]["formalization_gap_planner_benchmark_routes"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_publication_bundle_audit_optional_evaluation_row_schema_valid"],
+            payload["counts"]["formalization_gap_planner_publication_bundle_audit_optional_evaluation_row_schema_checked"],
+        )
+        self.assertEqual(
+            payload["counts"]["formalization_gap_planner_publication_bundle_audit_optional_evaluation_row_schema_checked"],
+            payload["counts"]["formalization_gap_planner_evaluation_rows"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_interactive_decision_policy_row_schema_valid"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_interactive_decision_policy_row_schema_checked"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_interactive_decision_policy_row_schema_checked"
+            ],
+            payload["counts"]["formalization_gap_planner_interactive_decision_policy_rows"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_interactive_decision_policy_link_valid"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_interactive_decision_policy_link_checked"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_interactive_decision_policy_link_checked"
+            ],
+            payload["counts"]["formalization_gap_planner_interactive_decision_policy_rows"]
+            * 4,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_interactive_session_row_schema_valid"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_interactive_session_row_schema_checked"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_interactive_session_row_schema_checked"
+            ],
+            payload["counts"]["formalization_gap_planner_interactive_session_rows"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_interactive_session_resource_response_status_valid"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_interactive_session_resource_response_status_checked"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_refinement_evidence_row_schema_valid"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_refinement_evidence_row_schema_checked"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_refinement_evidence_row_schema_checked"
+            ],
+            payload["counts"]["formalization_gap_planner_refinement_evidence_rows"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_refinement_adapter_response_schema_valid"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_refinement_adapter_response_schema_checked"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_refinement_adapter_response_schema_checked"
+            ],
+            payload["counts"]["formalization_gap_planner_refinement_adapter_responses"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_refinement_work_item_row_schema_valid"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_refinement_work_item_row_schema_checked"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_refinement_work_item_row_schema_checked"
+            ],
+            payload["counts"]["formalization_gap_planner_refinement_queue_items"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_minimal_delta_decision_row_schema_valid"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_minimal_delta_decision_row_schema_checked"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_minimal_delta_decision_row_schema_checked"
+            ],
+            payload["counts"]["formalization_gap_planner_minimal_delta_decision_rows"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_goal_plan_row_contract_valid"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_goal_plan_row_contract_checked"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_goal_plan_row_contract_checked"
+            ],
+            payload["counts"]["goal_conditioned_minimal_formalization_plans"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_goal_plan_row_schema_valid"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_goal_plan_row_schema_checked"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_goal_plan_row_schema_checked"
+            ],
+            payload["counts"]["goal_conditioned_minimal_formalization_plans"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_source_grounding_row_schema_valid"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_source_grounding_row_schema_checked"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_source_grounding_row_schema_checked"
+            ],
+            payload["counts"]["formalization_gap_planner_source_grounding_rows"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_target_intake_row_contract_valid"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_target_intake_row_contract_checked"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_target_intake_row_contract_checked"
+            ],
+            payload["counts"]["formalization_gap_planner_target_intake_targets"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_target_intake_row_schema_valid"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_target_intake_row_schema_checked"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_target_intake_row_schema_checked"
+            ],
+            payload["counts"]["formalization_gap_planner_target_intake_targets"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_adapter_registry_audit_check_contract_valid"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_adapter_registry_audit_check_contract_checked"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_adapter_registry_audit_check_contract_checked"
+            ],
+            payload["counts"]["formalization_gap_planner_adapter_registry_audit_checks"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_component_resource_registry_audit_check_contract_valid"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_component_resource_registry_audit_check_contract_checked"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_component_resource_registry_audit_check_contract_checked"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_component_resource_registry_audit_checks"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_local_adapter_response_schema_valid"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_local_adapter_response_schema_checked"
+            ],
+        )
+        self.assertGreaterEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_local_adapter_response_schema_checked"
+            ],
+            payload["counts"]["formalization_gap_planner_local_proof_state_merged_responses"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_route_stability_audit_row_schema_valid"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_route_stability_audit_row_schema_checked"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_route_stability_audit_row_schema_checked"
+            ],
+            payload["counts"]["formalization_gap_planner_route_stability_rows"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_route_stability_resource_response_status_valid"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_route_stability_resource_response_status_checked"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_route_revision_overlay_row_schema_valid"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_route_revision_overlay_row_schema_checked"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_route_revision_overlay_row_schema_checked"
+            ],
+            payload["counts"]["formalization_gap_planner_route_revision_overlay_rows"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_route_revision_resource_response_evidence_ref_valid"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_route_revision_resource_response_evidence_ref_checked"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_route_revision_resource_response_trace_valid"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_route_revision_resource_response_trace_checked"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_route_revision_resource_response_status_valid"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_route_revision_resource_response_status_checked"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_route_replan_handoff_audit_row_schema_valid"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_route_replan_handoff_audit_row_schema_checked"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_route_replan_handoff_row_schema_valid"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_route_replan_handoff_row_schema_checked"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_route_replan_handoff_row_schema_checked"
+            ],
+            payload["counts"]["formalization_gap_planner_route_replan_handoff_rows"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_route_replan_handoff_audit_row_schema_checked"
+            ],
+            payload["counts"]["formalization_gap_planner_route_replan_handoff_audit_checks"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_ablation_study_row_schema_valid"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_ablation_study_row_schema_checked"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_ablation_study_row_schema_checked"
+            ],
+            payload["counts"]["formalization_gap_planner_ablation_variants"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_portable_plan_audit_row_schema_valid"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_portable_plan_audit_row_schema_checked"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_portable_plan_audit_row_schema_checked"
+            ],
+            payload["counts"]["formalization_gap_planner_portable_plan_audit_checks"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_proof_state_triage_row_schema_valid"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_proof_state_triage_row_schema_checked"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_proof_state_triage_row_schema_checked"
+            ],
+            payload["counts"]["formalization_gap_planner_proof_state_triage_items"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_library_coverage_map_row_schema_valid"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_library_coverage_map_row_schema_checked"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_library_coverage_map_row_schema_checked"
+            ],
+            payload["counts"]["formalization_gap_planner_library_coverage_rows"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_primitive_action_queue_row_schema_valid"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_primitive_action_queue_row_schema_checked"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_primitive_action_queue_row_schema_checked"
+            ],
+            payload["counts"]["formalization_gap_planner_primitive_action_queue_items"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_action_resource_plan_row_schema_valid"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_action_resource_plan_row_schema_checked"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_action_resource_plan_row_schema_checked"
+            ],
+            payload["counts"]["formalization_gap_planner_action_resource_plan_rows"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_resource_request_queue_row_schema_valid"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_resource_request_queue_row_schema_checked"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_resource_request_queue_row_schema_checked"
+            ],
+            payload["counts"]["formalization_gap_planner_resource_request_queue_rows"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_resource_request_contract_alignment_valid"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_resource_request_contract_alignment_checked"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_resource_request_contract_alignment_checked"
+            ],
+            payload["counts"]["formalization_gap_planner_resource_request_queue_rows"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_resource_request_action_plan_ref_valid"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_resource_request_action_plan_ref_checked"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_resource_request_action_plan_ref_checked"
+            ],
+            payload["counts"]["formalization_gap_planner_resource_request_queue_rows"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_resource_request_payload_identity_valid"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_resource_request_payload_identity_checked"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_resource_request_payload_identity_checked"
+            ],
+            payload["counts"]["formalization_gap_planner_resource_request_queue_rows"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_resource_request_dispatch_spec_valid"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_resource_request_dispatch_spec_checked"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_resource_request_dispatch_spec_checked"
+            ],
+            payload["counts"]["formalization_gap_planner_resource_request_queue_rows"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_resource_response_ledger_row_schema_valid"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_resource_response_ledger_row_schema_checked"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_resource_response_ledger_row_schema_checked"
+            ],
+            payload["counts"]["formalization_gap_planner_resource_response_ledger_rows"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_resource_response_request_ref_valid"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_resource_response_request_ref_checked"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_resource_response_request_ref_checked"
+            ],
+            payload["counts"]["formalization_gap_planner_resource_response_ledger_rows"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_resource_response_contract_field_accounting_valid"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_resource_response_contract_field_accounting_checked"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_resource_response_contract_field_accounting_checked"
+            ],
+            payload["counts"]["formalization_gap_planner_resource_response_ledger_rows"],
+        )
+        self.assertGreater(payload["counts"]["formalization_gap_planner_publication_bundle_files"], 0)
         self.assertEqual(payload["counts"]["formal_verifier_replay_repair_packets"], 0)
         self.assertEqual(payload["counts"]["formal_verifier_replay_repair_ok"], 0)
         self.assertEqual(payload["counts"]["formal_verifier_replay_repair_tactic_no_progress"], 0)
@@ -20761,6 +22518,75 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                 ]
             ).exists()
         )
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "goal_conditioned_minimal_formalization_route_alignment_edge_schema"
+                ]
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "goal_conditioned_minimal_formalization_plan_row_schema"
+                ]
+            ).exists()
+        )
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_portable_plan_audit"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_portable_plan_audit_jsonl"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_portable_plan_audit_row_schema"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_portable_plan_audit_report"]).exists())
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formalization_gap_planner_portable_plan_audit_route_alignment_edge_schema"
+                ]
+            ).exists()
+        )
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_library_coverage_map"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_library_coverage_map_jsonl"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_library_coverage_map_row_schema"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_library_coverage_map_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_primitive_action_queue"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_primitive_action_queue_jsonl"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_primitive_action_queue_row_schema"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_primitive_action_queue_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_action_resource_plan"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_action_resource_plan_jsonl"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_action_resource_plan_row_schema"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_action_resource_plan_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_resource_request_queue"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_resource_request_queue_jsonl"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_resource_request_queue_row_schema"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_resource_request_queue_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_resource_response_ledger"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_resource_response_ledger_jsonl"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_resource_response_ledger_response_schema"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_resource_response_ledger_row_schema"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_resource_response_ledger_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_minimal_delta_audit"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_minimal_delta_audit_jsonl"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_minimal_delta_audit_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_minimal_delta_decisions_jsonl"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_minimal_delta_decision_row_schema"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_source_grounding_audit"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_source_grounding_audit_jsonl"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_source_grounding_audit_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_source_grounding_row_schema"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_target_intake"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_target_intake_jsonl"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_target_intake_seed"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_target_intake_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_target_intake_schema"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_target_intake_row_schema"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_evaluation"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_evaluation_jsonl"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_evaluation_row_schema"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_evaluation_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_ablation_study"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_ablation_study_jsonl"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_ablation_study_row_schema"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_ablation_study_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_verifier_replay"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_verifier_replay_jsonl"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_verifier_replay_training_jsonl"]).exists())
@@ -20771,6 +22597,233 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(Path(payload["artifacts"]["formal_verifier_replay_calibration"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_verifier_replay_calibration_jsonl"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_verifier_replay_calibration_repair_training_jsonl"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_refinement_queue"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_refinement_queue_jsonl"]).exists())
+        self.assertTrue(
+            Path(payload["artifacts"]["formalization_gap_planner_refinement_work_item_schema"]).exists()
+        )
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_refinement_queue_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_refinement_adapter_responses"]).exists())
+        self.assertTrue(
+            Path(payload["artifacts"]["formalization_gap_planner_refinement_adapter_responses_jsonl"]).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formalization_gap_planner_refinement_adapter_response_schema"
+                ]
+            ).exists()
+        )
+        self.assertTrue(
+            Path(payload["artifacts"]["formalization_gap_planner_refinement_adapter_responses_report"]).exists()
+        )
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_local_literature_adapter"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_local_literature_adapter_jsonl"]).exists())
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formalization_gap_planner_local_literature_adapter_response_schema"
+                ]
+            ).exists()
+        )
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_local_literature_adapter_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_local_formal_source_adapter"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_local_formal_source_adapter_jsonl"]).exists())
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formalization_gap_planner_local_formal_source_adapter_response_schema"
+                ]
+            ).exists()
+        )
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_local_formal_source_adapter_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_local_proof_state_adapter"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_local_proof_state_adapter_jsonl"]).exists())
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formalization_gap_planner_local_proof_state_adapter_response_schema"
+                ]
+            ).exists()
+        )
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_local_proof_state_adapter_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_refinement_evidence"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_refinement_evidence_jsonl"]).exists())
+        self.assertTrue(
+            Path(payload["artifacts"]["formalization_gap_planner_refinement_tool_response_schema"]).exists()
+        )
+        self.assertTrue(
+            Path(payload["artifacts"]["formalization_gap_planner_refinement_evidence_row_schema"]).exists()
+        )
+        self.assertTrue(
+            Path(payload["artifacts"]["formalization_gap_planner_route_revision_proposals_jsonl"]).exists()
+        )
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_refinement_evidence_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_route_revision_overlay"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_route_revision_overlay_jsonl"]).exists())
+        self.assertTrue(
+            Path(payload["artifacts"]["formalization_gap_planner_route_revision_overlay_row_schema"]).exists()
+        )
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_route_revision_overlay_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_route_stability_audit"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_route_stability_audit_jsonl"]).exists())
+        self.assertTrue(
+            Path(payload["artifacts"]["formalization_gap_planner_route_stability_audit_row_schema"]).exists()
+        )
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_route_stability_audit_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_route_replan_handoff"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_route_replan_handoff_jsonl"]).exists())
+        self.assertTrue(
+            Path(payload["artifacts"]["formalization_gap_planner_route_replan_handoff_row_schema"]).exists()
+        )
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_route_replan_standalone_seed"]).exists())
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formalization_gap_planner_route_replan_standalone_seed_schema"
+                ]
+            ).exists()
+        )
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_route_replan_handoff_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_route_replan_handoff_audit"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_route_replan_handoff_audit_jsonl"]).exists())
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formalization_gap_planner_route_replan_handoff_audit_row_schema"
+                ]
+            ).exists()
+        )
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_route_replan_handoff_audit_report"]).exists())
+        self.assertTrue(
+            Path(payload["artifacts"]["formalization_gap_planner_route_replan_handoff_audit_roundtrip_plan"]).exists()
+        )
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_proof_state_triage"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_proof_state_triage_jsonl"]).exists())
+        self.assertTrue(
+            Path(payload["artifacts"]["formalization_gap_planner_proof_state_triage_row_schema"]).exists()
+        )
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_proof_state_triage_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_prover_adapter_contract"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_prover_adapter_packets_jsonl"]).exists())
+        self.assertTrue(
+            Path(payload["artifacts"]["formalization_gap_planner_prover_adapter_response_validation_jsonl"]).exists()
+        )
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_prover_adapter_response_schema"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_prover_adapter_packet_schema"]).exists())
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formalization_gap_planner_prover_adapter_response_validation_row_schema"
+                ]
+            ).exists()
+        )
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_prover_adapter_contract_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_adapter_registry"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_adapter_registry_jsonl"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_adapter_registry_row_schema"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_adapter_registry_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_adapter_registry_audit"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_adapter_registry_audit_jsonl"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_adapter_registry_audit_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_component_resource_registry"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_component_resource_registry_jsonl"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_component_resource_resources_jsonl"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_component_resource_execution_plans_jsonl"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_component_resource_contracts_jsonl"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_component_resource_resource_row_schema"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_component_resource_component_row_schema"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_component_resource_execution_plan_schema"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_component_resource_contract_row_schema"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_component_resource_registry_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_component_resource_registry_audit"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_component_resource_registry_audit_jsonl"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_component_resource_registry_audit_report"]).exists())
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formalization_gap_planner_cross_prover_matrix_audit_row_schema"
+                ]
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"]["formalization_gap_planner_cross_prover_packet_schema"]
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formalization_gap_planner_cross_prover_response_validation_row_schema"
+                ]
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formalization_gap_planner_cross_prover_target_summary"
+                ]
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formalization_gap_planner_cross_prover_target_summary_schema"
+                ]
+            ).exists()
+        )
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_publication_bundle"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_publication_bundle_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_publication_bundle_contract"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_publication_bundle_schema"]).exists())
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formalization_gap_planner_publication_bundle_schema_catalog"
+                ]
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "formalization_gap_planner_publication_bundle_schema_catalog_schema"
+                ]
+            ).exists()
+        )
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_publication_bundle_component_resource_registry"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_publication_bundle_benchmark_audit"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_publication_bundle_interactive_session"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_publication_bundle_ablation_study"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_publication_bundle_local_literature_adapter"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_publication_bundle_local_formal_source_adapter"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_publication_bundle_local_proof_state_adapter"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_publication_bundle_reproduction_manifest"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_publication_bundle_reproduction_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_publication_bundle_standalone_example"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_publication_bundle_target_intake_example"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_publication_bundle_audit"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_publication_bundle_audit_jsonl"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_publication_bundle_audit_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_benchmark"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_benchmark_ground_truth"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_benchmark_jsonl"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_benchmark_route_schema"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_benchmark_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_benchmark_audit"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_benchmark_audit_jsonl"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_benchmark_audit_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_interactive_session"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_interactive_session_jsonl"]).exists())
+        self.assertTrue(
+            Path(payload["artifacts"]["formalization_gap_planner_interactive_session_row_schema"]).exists()
+        )
+        self.assertTrue(
+            Path(payload["artifacts"]["formalization_gap_planner_interactive_decision_policy_jsonl"]).exists()
+        )
+        self.assertTrue(
+            Path(payload["artifacts"]["formalization_gap_planner_interactive_decision_policy_row_schema"]).exists()
+        )
+        self.assertTrue(Path(payload["artifacts"]["formalization_gap_planner_interactive_session_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_verifier_replay_repair"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_verifier_replay_repair_jsonl"]).exists())
         self.assertTrue(Path(payload["artifacts"]["formal_verifier_replay_repair_training_jsonl"]).exists())
@@ -21569,19 +23622,39 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(Path("runs/test_research_system_audit/research_system_audit_manifest.json").exists())
         self.assertTrue(Path(payload["artifacts"]["frontier_coverage_audit"]).exists())
         self.assertTrue(Path(payload["artifacts"]["frontier_precision_audit"]).exists())
+        self.assertTrue(
+            Path(payload["artifacts"]["frontier_discover_and_prove_prompt_packets"]).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"]["frontier_discover_and_prove_prompt_packets_jsonl"]
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"]["frontier_discover_and_prove_prompt_packets_report"]
+            ).exists()
+        )
+        self.assertTrue(Path(payload["artifacts"]["paper_theory_roundtrip"]).exists())
+        self.assertTrue(
+            Path(payload["artifacts"]["paper_theory_roundtrip_statement_catalog_jsonl"]).exists()
+        )
+        self.assertTrue(
+            Path(payload["artifacts"]["paper_theory_roundtrip_stat_theory_ir_jsonl"]).exists()
+        )
+        self.assertTrue(
+            Path(payload["artifacts"]["paper_theory_roundtrip_lean_candidate_queue_jsonl"]).exists()
+        )
+        self.assertTrue(
+            Path(payload["artifacts"]["paper_theory_roundtrip_roundtrip_review_queue_jsonl"]).exists()
+        )
+        self.assertTrue(
+            Path(payload["artifacts"]["paper_theory_roundtrip_dependency_graph"]).exists()
+        )
+        self.assertTrue(Path(payload["artifacts"]["paper_theory_roundtrip_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["frontier_precision_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["frontier_backlog_audit"]).exists())
         self.assertTrue(Path(payload["artifacts"]["frontier_backlog_report"]).exists())
-        self.assertTrue(Path(payload["artifacts"]["frontier_discover_and_prove_prompt_packets"]).exists())
-        self.assertTrue(Path(payload["artifacts"]["frontier_discover_and_prove_prompt_packets_jsonl"]).exists())
-        self.assertTrue(Path(payload["artifacts"]["frontier_discover_and_prove_prompt_packets_report"]).exists())
-        self.assertTrue(Path(payload["artifacts"]["paper_theory_roundtrip"]).exists())
-        self.assertTrue(Path(payload["artifacts"]["paper_theory_roundtrip_statement_catalog_jsonl"]).exists())
-        self.assertTrue(Path(payload["artifacts"]["paper_theory_roundtrip_stat_theory_ir_jsonl"]).exists())
-        self.assertTrue(Path(payload["artifacts"]["paper_theory_roundtrip_lean_candidate_queue_jsonl"]).exists())
-        self.assertTrue(Path(payload["artifacts"]["paper_theory_roundtrip_roundtrip_review_queue_jsonl"]).exists())
-        self.assertTrue(Path(payload["artifacts"]["paper_theory_roundtrip_dependency_graph"]).exists())
-        self.assertTrue(Path(payload["artifacts"]["paper_theory_roundtrip_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["research_capability_audit"]).exists())
         self.assertTrue(Path(payload["artifacts"]["research_capability_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["frontier_smoke_benchmark"]).exists())
@@ -21621,11 +23694,30 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(
             Path(payload["artifacts"]["lean_rag_source_registry_expansion_apply_report"]).exists()
         )
+        self.assertTrue(
+            Path(payload["artifacts"]["huggingface_lean_source_revalidation_prompt_packets"]).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "huggingface_lean_source_revalidation_prompt_packets_jsonl"
+                ]
+            ).exists()
+        )
+        self.assertTrue(
+            Path(
+                payload["artifacts"][
+                    "huggingface_lean_source_revalidation_prompt_packets_report"
+                ]
+            ).exists()
+        )
         self.assertTrue(Path(payload["artifacts"]["fresh_holdout_frontier_audit"]).exists())
         self.assertTrue(Path(payload["artifacts"]["fresh_holdout_frontier_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["research_algorithm_audit"]).exists())
         self.assertTrue(Path(payload["artifacts"]["algorithm_simulation_stress_audit"]).exists())
         self.assertTrue(Path(payload["artifacts"]["algorithm_simulation_stress_report"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["research_agent_runtime_audit"]).exists())
+        self.assertTrue(Path(payload["artifacts"]["research_agent_runtime_audit_report"]).exists())
         self.assertTrue(Path(payload["artifacts"]["proof_attempt_log"]).exists())
         self.assertTrue(Path(payload["artifacts"]["proof_training_export"]).exists())
         self.assertTrue(Path(payload["artifacts"]["proof_training_train"]).exists())

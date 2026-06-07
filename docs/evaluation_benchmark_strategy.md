@@ -60,6 +60,32 @@ Pass criteria:
 - `research-system-audit` gates the `claim-ledger` export so typed
   problem/procedure/theorem/proof/simulation/revision rows exist without
   collapsing simulation or retrieval support into proof evidence
+- component-resource registry and publication-bundle audits validate planner
+  execution-plan rows and resource request/response contract rows against the
+  published reusable JSON Schemas, so local-first/frontier escalation contracts
+  and frontier-tool/prover-resource contracts cannot silently drift from the
+  publication bundle
+- `research-system-audit` exposes the planner's reusable handoff contracts in
+  its artifact map, including the route-replan standalone seed schema, the
+  cross-prover target summary and schema, and the publication-bundle schema
+  catalog and schema; its counts also report target-summary contract errors and
+  schema-catalog validity so these reusable contracts can be release-gated
+- action-resource plans validate one local-first/frontier-escalation resource
+  plan per primitive action, so release audits can see which concrete
+  literature, formal-library, MCP/LSP, prover-feedback, and cross-prover
+  resources each primitive work order is allowed to use
+- resource-request queues validate one dispatch packet per selected
+  local-first or frontier resource, so release audits can see which executable
+  request, contract fields, acceptance gate, and adapter/MCP hint will be used
+  before any tool response is treated as evidence
+- resource-response ledgers validate local/frontier tool outputs against those
+  request packets, record missing responses as awaiting work, and reject
+  malformed responses or `kernel_verified=true` claims before feedback can
+  revise a route
+- the planner library-coverage map validates one row per selected route
+  primitive against a published schema, so release audits can see whether the
+  current library coverage is exact reuse, near reuse, wrapper work, bridge
+  work, source-port work, new theory, or unknown alignment
 - claim-ledger proof statuses report whether kernel evidence came from the trace
   verifier or from a matching `proof_audit_manifest.json` overlay
 - claim-ledger formal gaps can also be upgraded by a matching
@@ -479,14 +505,181 @@ but it is still route-selection metadata rather than theorem proof evidence.
 The `formalization-gap-planner-evaluation` gate scores those route selections
 against held-out or curated route truth with route recall/precision,
 Lean-delta precision/recall, existing-reuse precision/recall, coverage-label
-accuracy, two-DAG readiness, and feedback-loop readiness. These are planner
-benchmark scores; they do not replace kernel verification.
+accuracy, residual/side-condition primitive precision/recall, two-DAG
+readiness, and feedback-loop readiness. Route-truth files may provide
+`expected_residual_primitives` and `expected_residual_goals` so proof-state
+feedback can be scored as a bounded oracle signal rather than treated as a
+binary success flag. It publishes an evaluation-row JSON Schema and row
+schema-valid counts so these diagnostics can be compared outside the AI
+Statistician codebase. These are planner benchmark scores; they do not replace
+kernel verification.
+The `formalization-gap-planner-benchmark-audit` gate validates the route-truth
+benchmark before it is used as publication evidence: it checks source-reference
+coverage, theorem-family diversity, primitive accounting, coverage labels,
+public/held-out split metadata, route-row schema validity, and proof-boundary
+text. It is dataset-quality evidence for the planner benchmark, not theorem
+proof evidence.
+The `formalization-gap-planner-ablation-study` gate compares the full recorded
+planner against no-literature, no-Lean-grounding, no-proof-state-feedback, and
+no-route-planner counterfactuals. It reports route/delta recall drops, reuse
+loss, residual-recall loss, and feedback readiness loss as planner diagnostics;
+it does not prove any theorem.
+The `formalization-gap-planner-target-intake` command is the public first
+stage for raw theorem requests: it normalizes objects, assumptions, procedure,
+claim, theorem shape, source refs, primitive seeds, and literature/Lean queries
+before standalone planning. The emitted JSONL rows have a published
+target-intake row schema for external validation, but they are route seeds only;
+they must be upgraded through literature evidence, library grounding, and
+prover feedback before any proof-route claim.
+The `formalization-gap-planner-llm-route-planner` gate is the explicit
+LLM/agent intelligence path for that upgrade. It builds a target theorem
+context packet containing the current route, optional source-grounding rows,
+library-coverage rows, resource-response/prover residuals, the required JSON
+output contract, and the proof boundary. Prompt-only runs are valid staging
+artifacts. Reviewed/static or live-provider responses are accepted only when
+they include source-grounded informal DAG nodes, Lean/formal realization DAG
+nodes, informal-to-formal alignment rationales, minimal-delta rationale,
+bounded search requests or uncertainty flags when evidence is weak, and an
+explicit `not theorem proof evidence` boundary. Any `kernel_verified=true`
+claim is rejected before the response can become a standalone route seed.
+The `formalization-gap-planner-portable-plan-audit` gate validates the plan
+contract before any scoring or target-prover mapping: schema identity, library
+snapshot consistency, two-DAG and AND/OR structure, work-packet gates,
+interactive hooks, and the absence of kernel-proof claims in the planning
+layer. It also reports audit-row schema-valid counts and writes
+`formalization_gap_planner_portable_plan_audit_row.schema.json`, so a benchmark
+consumer can reject malformed audit JSONL before using the diagnostics.
+The `formalization-gap-planner-library-coverage-map` gate exports the compact
+per-primitive library coverage view from the same portable plan. It records
+which selected route primitives are exact current-library reuse, near reuse,
+wrapper work, bridge lemmas, source ports, new theory, or unknown/unaligned,
+and validates those rows against
+`formalization_gap_planner_library_coverage_map_row.schema.json`. This is a
+library-alignment planning artifact, not proof evidence.
+The `formalization-gap-planner-primitive-action-queue` gate consumes that
+coverage map and emits one executable primitive work order per selected route
+primitive. Its row schema records the action kind, owner, priority, required
+inputs, expected outputs, recommended tools, acceptance gate, and reproduction
+commands for target-prover replay, composition, wrappers, bridge lemmas, source
+ports, new theory fragments, or rerunning library alignment. This is the
+planner's primitive-level work queue and remains not proof evidence.
+The `formalization-gap-planner-action-resource-plan` gate joins those primitive
+work orders to the component-resource registry. It validates that each queued
+action has planner component ids, local-first resources, frontier escalation
+resources, adapter ids, resource-contract ids, request/response contract
+fields, escalation triggers, stop conditions, and reproduction commands under
+`formalization_gap_planner_action_resource_plan_row.schema.json`. This is the
+resource-aware execution surface for frontier tools and MCP/prover adapters; it
+is not theorem proof evidence.
+The `formalization-gap-planner-resource-request-queue` gate expands each
+action-resource plan into per-resource request rows. It validates request
+phase, resource id, action/route identifiers, contract fields, request payload,
+expected response artifact, execution hint, structured dispatch spec, and
+proof-boundary discipline under
+`formalization_gap_planner_resource_request_queue_row.schema.json`. This is the
+adapter dispatch surface for literature, formal-library, prover-feedback,
+route-revision, and cross-prover resources; the nested `request_payload`
+includes the generated `resource_request_id`, request rank, expected response
+artifact, response-contract fields, and dispatch spec needed for an external
+MCP/CLI adapter to emit a valid response row. It is not theorem proof evidence.
+The `formalization-gap-planner-resource-response-ledger` gate validates
+local-first and frontier responses keyed by those request rows. It records
+matched/missing response-contract fields, source refs, Lean declaration hits,
+coverage updates, prover diagnostics, residual goals, and route-revision
+recommendations under
+`formalization_gap_planner_resource_response_ledger_row.schema.json`. Missing
+responses are `AWAITING_RESOURCE_RESPONSE`, not a failed gate, while malformed
+responses and `kernel_verified=true` claims are rejected in this non-proof
+layer. Ledger rows retain the request `dispatch_spec`, so downstream feedback
+can still be audited against the exact adapter surface that was requested.
+Responses that echo a different resource, expected artifact, or dispatch spec
+are rejected as request mismatches rather than accepted as planner feedback.
+Accepted ledger rows with source, library, coverage, residual-goal, or
+diagnostic feedback are consumed by `formalization-gap-planner-route-revision-overlay`
+as conservative non-proof proposals. The overlay also records compact
+`applied_resource_response_traces`, including that dispatch context, so the
+accepted response row can be audited after it becomes route-revision state,
+while missing and rejected responses remain explicit capacity or contract gaps
+through per-route resource-response status summaries.
+The `formalization-gap-planner-minimal-delta-audit` gate separately checks the
+planner's minimal Lean-delta discipline: cost arithmetic, selected cut versus
+work packets, `do_not_formalize_now` exclusions, AND/OR connectivity for delta
+nodes, route ordering, and obvious same-target dominance. It is a structural
+minimality proxy, not a proof of true semantic optimality. It also exports a
+minimal-delta decision JSONL and schema so paper supplements can expose the
+costed cut, excluded primitives, dominance status, and proof-boundary state per
+route without requiring AI Statistician internals.
+The `formalization-gap-planner-source-grounding-audit` gate checks every
+informal route-DAG node for attached source refs, an explicit formal-gap
+boundary, or a bounded literature-discovery obligation. It is source-discipline
+evidence, not proof evidence. It also exports a source-grounding row schema and
+schema-valid counts for those per-node grounding rows. After proof-state
+feedback is available, the same gate can consume the refinement-evidence
+manifest and add residual-source rows for prover residual goals. This makes
+side conditions learned from Lean measurable as source-backed,
+source-search-pending, formal-boundary-declared, or unaccounted before they are
+allowed to drive route repair.
+The `formalization-gap-planner-reuse-smoke` gate composes the public path for
+independent reuse: target intake, standalone planning, portable-plan audit,
+library-coverage map, minimal-delta audit, source-grounding audit,
+prover-adapter contract export, adapter-registry export/audit,
+component-resource registry/audit,
+deterministic refinement responses, local literature/formal-source/proof-state
+adapter fallbacks, evidence/overlay/stability/replan/triage exercise,
+cross-prover matrix audit, publication bundle with its route-truth benchmark
+audit, and bundle audit. It is a reproduction/packaging smoke test for paper
+supplements and non-Lean prover adapters, not proof evidence. Its manifest
+also reports source-registry and packaged-bundle component-resource component
+row, resource row, execution-plan row, adapter-registry row, source and packaged
+prover-adapter packet schema-valid counts, and refinement work-item,
+deterministic refinement-adapter response, refinement tool-response,
+refinement evidence row, proof-state triage row, local-adapter response,
+route-alignment edge, interactive next-action row,
+interactive decision-policy row, source-grounding row, benchmark route row,
+optional evaluation row, route-revision overlay row, route-stability audit row,
+route-replan handoff row, handoff-audit row, ablation-study row,
+component-resource contract row, prover-adapter response schema artifact path,
+prover-adapter response-validation row,
+library-coverage map row, cross-prover matrix row, cross-prover packet row, and
+cross-prover response-validation row schema-valid counts, plus cross-prover
+target-summary contract errors, target-summary artifact paths, publication
+bundle schema-catalog entry counts, schema-catalog contract errors, and
+schema-catalog artifact paths,
+and the bundle audit revalidates packaged optional target-intake rows against
+the published target-intake row schema, standalone seeds, goal-plan rows against
+the published gap-plan row schema, minimal-delta decision rows,
+source-grounding rows, refinement work-item rows, adapter-registry audit
+checks, and component-resource-registry audit checks against their public
+contracts or schemas,
+so external users can see whether the local-first/frontier-escalation contract,
+frontier-tool request/response contracts, two-DAG alignment contract,
+interactive route-action contract, route-revision/replan contracts, and
+target-prover packet and response-validation contracts survived the full public
+path.
 The `formalization-gap-planner-adapter-registry` gate records the intended
 frontier adapters for each refinement hook and their local readiness:
 Paperclip/PaperQA/OpenScholar-style literature search, LeanSearch/Loogle/
 LeanExplore/local Lean RAG grounding, Lean/LSP and LeanDojo-style proof-state
 feedback, and the built-in route-revision overlay. Missing commands,
 credentials, or configured paths are capacity gaps, not proof failures.
+The `formalization-gap-planner-adapter-registry-audit` gate makes that inventory
+testable for publication: it checks required frontier adapters, hook coverage,
+response fields, resource links, prover-family portability, adapter-row JSONL
+schema conformance, and proof-boundary discipline.
+The `formalization-gap-planner-component-resource-registry` gate records the
+architecture-level mapping from planner components to local fallbacks and
+frontier resources/MCPs: Paperclip/PaperQA/OpenScholar for literature,
+dependency-graph/blueprint methods for informal DAGs, LeanSearch/Loogle/
+LeanExplore/local Lean RAG for library grounding, Lean/LSP/LeanDojo and
+cross-prover Rocq/Isabelle/Agda interfaces for proof feedback, and publication
+bundle/cross-prover audits for reuse. Its audit verifies that every component
+has coverage, contract fields, resource links, and proof-boundary discipline.
+It also validates per-resource `capability_tags` and `validation_signals`,
+per-component `required_quality_signals`, per-execution-plan `quality_gates`,
+and per-resource-contract `response_validation_signals`. These are the
+evaluation-facing checks that decide whether local evidence is good enough or
+whether a Paperclip/PaperQA/OpenScholar, LeanSearch/Loogle/LeanExplore,
+Lean/LSP, or cross-prover resource should be escalated.
 The `formalization-gap-planner-local-literature-adapter` gate is the
 live-local literature fallback behind that registry: it replaces offline
 `literature_discovery` rows with source refs and route-evidence nodes from a
@@ -516,10 +709,233 @@ interface can be regression-tested without live MCP credentials. Its JSONL
 responses are then validated by `formalization-gap-planner-refinement-evidence`;
 they remain route-revision evidence, not theorem proof evidence.
 The `formalization-gap-planner-route-revision-overlay` gate then applies those
-accepted proposals back to the current route plan as a non-mutating overlay,
-making the reflect-and-revise step inspectable before rerunning planning and
-replay. The overlay records changed primitives and DAG nodes, but it still does
-not close any proof obligation.
+accepted proposals, plus accepted resource-response ledger feedback when a
+ledger directory is supplied, back to the current route plan as a non-mutating
+overlay. This makes the reflect-and-revise step inspectable before rerunning
+planning and replay. The overlay records changed primitives and DAG nodes, and
+also carries compact resource-response status summaries so awaiting or rejected
+resource outputs can affect stop/expand decisions without being accepted as
+route-revision proposals. It still does not close any proof obligation.
+The `formalization-gap-planner-route-stability-audit` gate consumes the plan,
+refinement evidence, and route overlay to decide whether each route has
+stabilized under the current evidence bound or should expand literature search,
+Lean-library grounding, proof-state feedback, resource-response execution or
+repair, or route replanning. Awaiting and rejected resource-response request
+ids are preserved on the stability rows so interactive sessions can name the
+specific external adapter requests to run or repair. A route that needs
+expansion can still be a valid audit row; stability is a stop/expand planning
+decision, not theorem proof evidence.
+The `formalization-gap-planner-route-replan-handoff` gate converts route
+overlays and stability decisions into a replayable standalone seed for the next
+planner round. It preserves revised informal DAG nodes, revised
+Lean-realization DAG nodes, and exact revised route-alignment edges in the
+handoff rows, each seed route, and the seed route metadata so a downloaded
+bundle can audit continuity from informal route nodes to formal realization
+candidates. It also preserves applied proposal ids, evidence ids, hook kinds,
+compact resource-response traces, pending or rejected resource-response
+request ids, prover-attempt statuses, diagnostic signatures, residual goals,
+source refs, and Lean declaration hits so resource-response-ledger feedback
+reaches the next route synthesis pass. It
+also writes the standalone-input schema beside the seed so the replan handoff
+is a self-describing input contract for external planner reruns; that schema
+publishes the optional replan metadata fields for revised DAG nodes, alignment
+edges, applied feedback ids, applied response traces, diagnostics, source refs,
+and Lean declaration hits. The standalone planner copies that seed
+provenance into roundtrip goal-plan rows as `standalone_input_trace`, giving
+external prover queues a stable way to recover overlay/resource/prover-feedback
+context after replanning. It is a
+feedback-loop handoff, not proof evidence.
+The `formalization-gap-planner-route-replan-handoff-audit` gate validates that
+handoff after export or download, checks that the standalone seed has no
+promoted kernel-proof claim, verifies the standalone seed schema id, verifies
+preserved selected-primitive alignment, checks exact row-to-seed preservation
+of revised DAG and alignment payloads, checks row-to-seed provenance
+continuity, and reruns the standalone planner on the seed to ensure alignment
+is regenerated and `standalone_input_trace` survives. It is replayability
+evidence, not theorem proof evidence.
+The `formalization-gap-planner-proof-state-triage` gate ranks route-overlay
+prover statuses into next work items such as non-placeholder theorem
+materialization, local Lean repair, or environment configuration. It is an
+operational proof-worker handoff, not proof evidence.
+The `formalization-gap-planner-interactive-session` gate then joins the current
+plan, refinement queue, evidence rows, stability decisions, replan handoff, and
+proof-state triage into one per-route next-action ledger. It tells the
+orchestrator whether to run bounded literature search, Lean grounding,
+proof-state feedback, route replanning, or target-prover replay next. It also
+emits decision-policy rows that record trigger signals, evidence inputs,
+required tool contracts, component/resource ids, required quality signals,
+quality gates, response-validation signals, stop conditions, and fallback
+actions for each next action; these are session orchestration evidence only.
+The ablation study can consume that session ledger to quantify what is lost
+when proof-state feedback is unavailable, while keeping route-quality evidence
+separate from kernel proof status.
+The `formalization-gap-planner-prover-adapter-contract` gate turns portable
+work packets into target-prover mapping tasks for Lean, Rocq/Coq, Isabelle,
+Agda, or another prover family. It validates translated statements, imports,
+verifier commands, library snapshot refs, and residual translation gaps, but it
+rejects `kernel_verified=true` claims because proof status belongs to a
+separate target-prover replay/calibration gate. It exports schema-valid counts
+for both packet rows and response-validation rows. Adapter packet provenance is
+target-aware: every generated `standalone_input_trace` records the source prover
+family, the source route target family, the adapter target prover family, and
+the target library snapshot; packet validation rejects trace/packet target
+mismatches.
+The `formalization-gap-planner-cross-prover-matrix-audit` gate reruns that
+packet export for Lean4, Rocq, Isabelle, and Agda from the same portable plan,
+checks packet-count consistency, verifies that every target packet still carries
+route-alignment evidence and nonempty `standalone_input_trace` provenance,
+checks rejection counts, and writes aggregate packet/validation JSONL for
+external prover teams. It also validates matrix rows, aggregated packet rows,
+aggregated response-validation rows, and a target-summary JSON artifact against
+published schemas. The target summary tells a downstream prover team which
+filter value to use in the aggregate packet and validation JSONL for its prover
+family, and exposes standalone-trace and replan-metadata trace counts. It is
+portability evidence, not proof evidence.
+The `formalization-gap-planner-publication-bundle` gate packages the portable
+schema, contract, benchmark, benchmark audit, adapter registry, docs, and
+optional run artifacts, including the source-grounding row schema contract,
+component-resource component/resource row contracts, benchmark route-row
+contract, evaluation row contract, refinement tool-response contract,
+refinement evidence-row contract, route-stability audit-row contract,
+route-replan handoff-audit row contract, portable-plan audit-row contract,
+library-coverage map row contract, primitive-action queue row contract,
+action-resource plan row contract, resource-request queue row contract,
+resource-response contract, resource-response-ledger row contract,
+ablation-study row contract,
+proof-state triage-row contract,
+prover-adapter response-validation row
+contract, cross-prover matrix-row contract, cross-prover target-summary
+contract, component-resource resource-contract row contract, and execution-plan
+contract into a reusable supplement. This is the artifact to
+cite or hand to a
+non-Lean prover adapter. It includes a `reproduce/` manifest listing
+bundle-relative artifacts and commands for auditing the bundle, running the
+standalone planner, auditing a plan, exporting target-prover work packets,
+running the refinement loop, rerunning route-replan handoff, auditing that
+handoff, and triaging proof-state feedback; it also includes runnable
+standalone and target-intake example JSON files. It also includes
+`contract/formalization_gap_planner_schema_catalog.json`, a machine-readable
+index of the reusable schema and contract files, with a reusable
+`validate_schema_catalog_payload()` contract validator. It is not theorem proof
+evidence.
+The `formalization-gap-planner-publication-bundle-audit` gate validates that
+supplement after export or download: required files exist, schema ids match,
+the benchmark, benchmark audit, adapter registry, reproduction manifest, and
+example inputs are usable, benchmark route rows satisfy the published route-row
+schema, optional evaluation rows satisfy the published evaluation-row schema,
+optional refinement evidence rows satisfy the published evidence-row schema,
+optional deterministic refinement-adapter responses satisfy the shared
+refinement-tool response schema,
+optional local literature/formal-source/proof-state adapter responses satisfy
+the shared refinement-tool response schema,
+optional route-revision overlay rows satisfy the published overlay-row schema
+and preserve alignment/resource-response-ledger proposal counts plus
+ledger-derived resource-response status summaries,
+optional route-stability rows satisfy the published stability-row schema and
+their awaiting/rejected resource-response decisions agree with the packaged
+overlay status summaries,
+optional route-replan handoff rows satisfy the published handoff-row schema,
+optional route-replan handoff-audit rows satisfy the published audit-row
+schema, optional route-replan standalone seed schemas carry the published
+standalone-input schema id, optional route-replan standalone seeds exactly
+preserve revised alignment edges and revised informal/Lean DAG nodes from the
+packaged handoff rows, optional route-replan standalone seed schemas expose
+the replan metadata contract, optional handoff-audit rows include a passing
+roundtrip standalone-input trace check, optional portable-plan audit rows satisfy the
+published audit-row schema, optional library-coverage map rows satisfy the published coverage-map
+row schema, optional primitive action-queue rows satisfy the published work-queue
+schema, optional action-resource plan rows satisfy the published resource-plan
+schema, optional resource-request queue rows satisfy the published request
+schema, optional resource-response ledger rows satisfy the published
+response-ledger row schema, optional ablation-study rows satisfy the published
+ablation-row schema,
+optional proof-state triage rows satisfy the published triage-row schema,
+prover-adapter response schemas carry the published schema id,
+optional prover-adapter response-validation and cross-prover matrix rows
+satisfy their published schemas,
+the schema catalog has the expected schema id and resolves to bundle-local
+contract/schema files,
+optional artifacts stay inside the bundle, optional route-replan handoff
+artifacts preserve and roundtrip alignment edges, packaged handoff rows preserve
+revised DAG/alignment payloads, pending or rejected resource-response request
+ids, and applied-hook/evidence/prover/source/declaration provenance into the
+standalone seed metadata, packaged handoff audits include a passing row-to-seed
+provenance check, and proof-boundary text remains intact.
+
+The `formalization-gap-planner-component-resource-registry` gate is also a
+reproducibility surface: beyond listing resources, it emits one execution-plan
+row per planner component with local-first resources, frontier escalation
+resources, adapter ids, evidence inputs, expected outputs, escalation triggers,
+and stop conditions. It also emits one resource-contract row per local
+fallback, frontier tool, MCP surface, or prover resource with request fields,
+response fields, deployment requirements, output artifact kind, escalation
+policy, and acceptance gate. The corresponding audit requires those execution
+plans and resource contracts to resolve to known resources and preserve
+proof-boundary discipline. Publication bundles include JSON Schemas for the
+execution-plan and resource-contract row formats so external systems can
+validate this local-first/frontier-escalation and tool-contract surface.
+The action-resource plan gate then materializes that surface per primitive
+work order, which lets evaluations count whether bridge lemmas, source ports,
+wrappers, and target-prover replay actions all have concrete local-first,
+frontier-escalation, and resource-contract coverage.
+The resource-request queue gate then materializes one executable request row
+per selected resource, which lets evaluations count whether each primitive
+action has concrete local/frontier literature, formal-library, proof-feedback,
+route-revision, or cross-prover dispatch packets with declared contract fields
+and acceptance gates. The request rows use the selected resource's own
+contract id and request/response fields, so frontier literature tools are not
+audited with prover-feedback fields and prover-feedback adapters are not
+audited with literature-response fields. Publication-bundle audits recheck this
+cross-artifact alignment by resolving every request row back to the bundled
+action-resource row and comparing the selected resource's contract map. They
+also validate the row and nested-payload `dispatch_spec`, so stale command,
+MCP/CLI hint, expected artifact, or adapter-surface data cannot silently pass
+as a reusable request packet.
+The resource-response ledger gate then materializes the other side of that
+interface, so evaluations can count responses present, awaiting, contract-valid,
+route-revising, or rejected without treating adapter feedback as theorem proof.
+Publication-bundle audits also resolve every ledger row back to the bundled
+request row and check that matched plus missing response fields exactly cover
+the request's resource-specific response contract. When route-revision overlay
+artifacts are bundled with the ledger, audits also verify that
+`resource_response_ledger:*` overlay evidence ids resolve only to accepted,
+response-present, contract-valid ledger rows and that
+`applied_resource_response_traces` match those ledger rows, including compact
+dispatch context, without carrying the full response payload. Overlay rows also
+expose compact awaiting/rejected resource-response status counts for the
+route-stability audit; bundle audits recompute those summaries and
+awaiting/rejected request-id lists from the bundled ledger rows before
+accepting them as reusable planning signals. Bundled stability rows are also
+checked against those overlay request-id lists, and interactive-session rows
+carry the same ids into their next-command guidance. Bundle audits compare
+interactive rows back to stability rows so stale UI/orchestration state cannot
+hide awaiting or rejected resource-response work. The integrated
+`research-system-audit` republishes these bundle-audit counters, including
+resource request payload/dispatch checks, route-revision traces,
+route-stability status consistency, and interactive-session status consistency,
+so AI Statistician release runs expose the same reusable-component invariants.
+They are not proof evidence.
+The adapter registry similarly publishes a row JSON Schema for the frontier
+tool/MCP inventory so external deployments can validate readiness metadata and
+response-contract fields before wiring live tools into the route-revision loop.
+The prover-adapter contract similarly publishes a packet JSON Schema for
+incoming target-prover work items, alongside response and response-validation
+row schemas, so external Rocq/Isabelle/Agda adapters can validate both sides of
+the mapping interface before any kernel replay claim is considered.
+The portable plan and publication bundle also publish the route-alignment edge
+JSON Schema, validating the source informal-DAG node, formal realization
+candidate, primitive, action class, alignment status, and proof-boundary fields
+that target-prover packets preserve.
+They also publish the minimal-delta decision-row JSON Schema, validating the
+per-route costed cut and structural minimality proxy separately from theorem
+proof evidence.
+The benchmark route-row and evaluation-row JSON Schemas validate route-truth
+labels and row-level diagnostic scores separately from theorem proof evidence.
+The cross-prover matrix audit aggregates that same packet-schema validity
+across Lean4, Rocq, Isabelle, and Agda exports; it also publishes matrix-row
+and response-validation-row validity counts. Publication-bundle audits fail
+copied matrix artifacts if any target-family packet, matrix row, or
+response-validation row is schema-invalid.
 
 `formal-verifier-queue` is the handoff from that diagnostic to theorem work:
 it records whether hard-mode dependency-graph RAG increased the candidate

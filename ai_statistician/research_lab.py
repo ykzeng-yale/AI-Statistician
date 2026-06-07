@@ -3636,7 +3636,7 @@ class TheoryPlanner:
                         "effect, and evaluate RMSE, 95% coverage, and shadow-imputation accuracy."
                     ),
                     limitations=(
-                        "v0 uses a linear shadow-imputation and residual-confounding correction surrogate rather than a nonparametric sieve inverse problem",
+                    "v0 uses a linear shadow-imputation and residual-confounding correction surrogate rather than a nonparametric sieve inverse problem",
                         "semiparametric efficiency and asymptotic distribution under nonignorable missingness remain gaps",
                     ),
                 ),
@@ -5149,38 +5149,150 @@ class FormalSubclaimProver:
         verifier: ProofVerifier | None = None,
         retriever: ProofBankRetriever | None = None,
         formal_source_retriever: Any | None = None,
+        proof_obligation_ids: tuple[str, ...] = (),
+        prioritized_proof_obligation_ids: tuple[str, ...] = (),
+        max_proof_obligations: int = 0,
     ) -> None:
         self.verifier = verifier or MockProofVerifier()
         self.retriever = retriever or ProofBankRetriever()
         self._formal_source_retriever = formal_source_retriever
+        self.proof_obligation_ids = tuple(
+            dict.fromkeys(str(row).strip() for row in proof_obligation_ids if str(row).strip())
+        )
+        self.prioritized_proof_obligation_ids = tuple(
+            dict.fromkeys(str(row).strip() for row in prioritized_proof_obligation_ids if str(row).strip())
+        )
+        self.max_proof_obligations = max(0, int(max_proof_obligations or 0))
+        self._last_candidate_obligation_ids: tuple[str, ...] = ()
+        self._last_selected_obligation_ids: tuple[str, ...] = ()
+        self._last_prioritized_obligation_ids: tuple[str, ...] = ()
+        self._last_selected_priority_obligation_ids: tuple[str, ...] = ()
 
     def formal_source_retriever(self) -> Any:
         if self._formal_source_retriever is None:
             self._formal_source_retriever = FormalSourceRetriever()
         return self._formal_source_retriever
 
-    async def prove(self, problem: ResearchProblemSpec, theorem_goals: list[TheoremGoal]) -> list[FormalSubclaim]:
+    def proof_obligation_control(self) -> dict[str, Any]:
+        return {
+            "configured_proof_obligation_ids": list(self.proof_obligation_ids),
+            "requested_proof_obligation_ids": list(self.proof_obligation_ids),
+            "prioritized_proof_obligation_ids": list(self._last_prioritized_obligation_ids),
+            "max_proof_obligations": self.max_proof_obligations,
+            "candidate_proof_obligation_ids": list(self._last_candidate_obligation_ids),
+            "selected_proof_obligation_ids": list(self._last_selected_obligation_ids),
+            "selected_priority_proof_obligation_ids": list(self._last_selected_priority_obligation_ids),
+            "n_candidate_proof_obligations": len(self._last_candidate_obligation_ids),
+            "n_selected_proof_obligations": len(self._last_selected_obligation_ids),
+            "selection_boundary": (
+                "Proof-obligation controls limit registered proof-bank subclaim verification only. "
+                "They do not remove frontier formal gaps and do not prove the full theorem."
+            ),
+        }
+
+    def candidate_proof_obligation_ids(
+        self,
+        problem: ResearchProblemSpec,
+        theorem_goals: list[TheoremGoal],
+    ) -> tuple[str, ...]:
+        return _candidate_proof_obligation_ids(problem, theorem_goals)
+
+    def proof_obligation_catalog(
+        self,
+        problem: ResearchProblemSpec,
+        theorem_goals: list[TheoremGoal],
+        *,
+        limit: int = 80,
+    ) -> list[dict[str, Any]]:
+        theorem_goal_sources: dict[str, list[str]] = {}
+        for goal in theorem_goals:
+            for obligation_id in goal.proof_obligations:
+                if _is_registered_obligation(obligation_id):
+                    theorem_goal_sources.setdefault(obligation_id, []).append(goal.id)
+        problem_class_ids = set(PROVABLE_SUBCLAIMS.get(problem.problem_class, ()))
+        candidate_ids = self.candidate_proof_obligation_ids(problem, theorem_goals)
+        if limit > 0:
+            candidate_ids = candidate_ids[:limit]
+        rows: list[dict[str, Any]] = []
+        for idx, obligation_id in enumerate(candidate_ids, start=1):
+            obligation = get_obligation(obligation_id)
+            sources: list[str] = []
+            if obligation_id in problem_class_ids:
+                sources.append(f"problem_class:{problem.problem_class}")
+            sources.extend(f"theorem_goal:{goal_id}" for goal_id in theorem_goal_sources.get(obligation_id, []))
+            rows.append(
+                {
+                    "obligation_id": obligation.id,
+                    "candidate_rank": idx,
+                    "title": obligation.title,
+                    "english": obligation.english,
+                    "tags": list(obligation.tags),
+                    "expected_lemmas": list(obligation.expected_lemmas),
+                    "depends_on": list(obligation.depends_on),
+                    "candidate_sources": sources or ["registered_proof_bank"],
+                    "catalog_scope": "registered_current_candidate",
+                    "proof_evidence_boundary": (
+                        "Catalog rows are proof-target selection context only. "
+                        "They are not Lean proof evidence until AgentRuntime runs AXLE/local Lean/kernel verification."
+                    ),
+                }
+            )
+        return rows
+
+    async def prove(
+        self,
+        problem: ResearchProblemSpec,
+        theorem_goals: list[TheoremGoal],
+        *,
+        prioritized_proof_obligation_ids: tuple[str, ...] = (),
+    ) -> list[FormalSubclaim]:
         subclaims: list[FormalSubclaim] = []
-        obligation_ids = tuple(
+        candidate_obligation_ids = self.candidate_proof_obligation_ids(problem, theorem_goals)
+        self._last_candidate_obligation_ids = candidate_obligation_ids
+        obligation_ids = candidate_obligation_ids
+        if self.proof_obligation_ids:
+            requested = set(self.proof_obligation_ids)
+            obligation_ids = tuple(row for row in obligation_ids if row in requested)
+        priority_ids = tuple(
             dict.fromkeys(
                 (
-                    *PROVABLE_SUBCLAIMS.get(problem.problem_class, ()),
-                    *(
-                        obligation_id
-                        for goal in theorem_goals
-                        for obligation_id in goal.proof_obligations
-                        if _is_registered_obligation(obligation_id)
-                    ),
+                    *self.prioritized_proof_obligation_ids,
+                    *(str(row).strip() for row in prioritized_proof_obligation_ids if str(row).strip()),
                 )
             )
         )
+        self._last_prioritized_obligation_ids = priority_ids
+        if priority_ids:
+            priority_set = set(priority_ids)
+            prioritized = tuple(row for row in priority_ids if row in obligation_ids)
+            remaining = tuple(row for row in obligation_ids if row not in priority_set)
+            obligation_ids = (*prioritized, *remaining)
+        if self.max_proof_obligations:
+            obligation_ids = obligation_ids[: self.max_proof_obligations]
+        self._last_selected_obligation_ids = obligation_ids
+        self._last_selected_priority_obligation_ids = tuple(row for row in obligation_ids if row in set(priority_ids))
+        proof_items = []
         for obligation_id in obligation_ids:
             obligation = get_obligation(obligation_id)
             hits = self.retriever.retrieve(
                 RetrievalQuery(obligation.english, tags=obligation.tags),
                 candidates=all_obligations(),
             )
-            check = await self.verifier.verify(obligation, obligation.proof_body, hits)
+            proof_items.append((obligation, hits))
+        verifier_many = getattr(self.verifier, "verify_many", None)
+        if callable(verifier_many):
+            checks = await verifier_many(
+                [
+                    (obligation, obligation.proof_body, hits)
+                    for obligation, hits in proof_items
+                ]
+            )
+        else:
+            checks = [
+                await self.verifier.verify(obligation, obligation.proof_body, hits)
+                for obligation, hits in proof_items
+            ]
+        for (obligation, _hits), check in zip(proof_items, checks, strict=True):
             subclaims.append(
                 FormalSubclaim(
                     id=f"{problem.question_id}:{obligation.id}",
@@ -5240,6 +5352,25 @@ class FormalSubclaimProver:
                     )
                 )
         return subclaims
+
+
+def _candidate_proof_obligation_ids(
+    problem: ResearchProblemSpec,
+    theorem_goals: list[TheoremGoal],
+) -> tuple[str, ...]:
+    return tuple(
+        dict.fromkeys(
+            (
+                *PROVABLE_SUBCLAIMS.get(problem.problem_class, ()),
+                *(
+                    obligation_id
+                    for goal in theorem_goals
+                    for obligation_id in goal.proof_obligations
+                    if _is_registered_obligation(obligation_id)
+                ),
+            )
+        )
+    )
 
 
 class ResearchSimulator:

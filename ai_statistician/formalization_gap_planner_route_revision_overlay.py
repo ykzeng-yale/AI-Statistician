@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections import Counter
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -17,6 +18,15 @@ PROOF_EVIDENCE_BOUNDARY = (
     "evidence back to route plans as planning state. They are not theorem proof "
     "evidence. Only target-prover kernel verification can prove a theorem or "
     "bridge lemma."
+)
+ROUTE_REVISION_OVERLAY_ROW_SCHEMA_ID = (
+    "urn:ai-statistician:schemas:"
+    "formalization-gap-planner-route-revision-overlay-row:1"
+)
+ROUTE_REVISION_STATUSES = (
+    "ROUTE_REVISION_APPLIED",
+    "NO_ROUTE_REVISION_PROPOSAL",
+    "ORPHAN_ROUTE_REVISION_PROPOSAL",
 )
 
 
@@ -38,15 +48,28 @@ class FormalizationGapPlannerRouteRevisionOverlayRow:
     applied_proposal_ids: tuple[str, ...]
     applied_refinement_evidence_ids: tuple[str, ...]
     applied_hook_kinds: tuple[str, ...]
+    applied_resource_response_traces: tuple[dict[str, object], ...]
+    applied_llm_route_planner_hook_traces: tuple[dict[str, object], ...]
+    resource_response_summary: dict[str, int]
+    resource_response_summary_by_acceptance_status: dict[str, int]
+    resource_response_awaiting_request_ids: tuple[str, ...]
+    resource_response_rejected_request_ids: tuple[str, ...]
     route_revision_reasons: tuple[str, ...]
     route_revision_summaries: tuple[str, ...]
     source_refs: tuple[str, ...]
+    source_snippets: tuple[dict[str, object], ...]
+    formal_declaration_hits: tuple[dict[str, object], ...]
     lean_declaration_hits: tuple[dict[str, object], ...]
     residual_goals: tuple[str, ...]
     applied_prover_attempt_statuses: tuple[str, ...]
+    applied_prover_attempt_classes: tuple[str, ...]
+    target_prover_families: tuple[str, ...]
     applied_prover_diagnostic_signatures: tuple[str, ...]
     revised_informal_knowledge_dag_nodes: tuple[dict[str, object], ...]
+    revised_formal_realization_dag_nodes: tuple[dict[str, object], ...]
     revised_lean_realization_dag_nodes: tuple[dict[str, object], ...]
+    revised_route_alignment_edges: tuple[dict[str, object], ...]
+    unaligned_primitives: tuple[str, ...]
     next_required_gate: str
     proof_evidence_status: str
     proof_evidence_boundary: str
@@ -58,6 +81,8 @@ def export_formalization_gap_planner_route_revision_overlay(
     goal_conditioned_minimal_formalization_plan_dir: Path,
     formalization_gap_planner_refinement_evidence_dir: Path,
     out_dir: Path | None = None,
+    *,
+    formalization_gap_planner_resource_response_ledger_dir: Path | None = None,
 ) -> dict[str, object]:
     """Apply accepted refinement evidence as a route-plan overlay."""
 
@@ -73,18 +98,73 @@ def export_formalization_gap_planner_route_revision_overlay(
     plan_payload = _read_json(plan_manifest_path, errors)
     evidence_payload = _read_json(evidence_manifest_path, errors)
     plan_rows = [row for row in plan_payload.get("rows", []) if isinstance(row, dict)]
-    proposals = [
+    refinement_evidence_rows = [
+        row for row in evidence_payload.get("rows", []) if isinstance(row, dict)
+    ]
+    all_refinement_evidence_proposals = [
         row
         for row in evidence_payload.get("route_revision_proposals", [])
         if isinstance(row, dict)
     ]
+    usable_refinement_evidence_ids = _usable_refinement_evidence_ids(
+        refinement_evidence_rows
+    )
+    has_refinement_evidence_rows = bool(refinement_evidence_rows)
+    refinement_evidence_proposals = [
+        proposal
+        for proposal in all_refinement_evidence_proposals
+        if _refinement_evidence_proposal_is_usable(
+            proposal,
+            usable_refinement_evidence_ids,
+            has_refinement_evidence_rows=has_refinement_evidence_rows,
+        )
+    ]
+    rejected_refinement_evidence_proposals = [
+        proposal
+        for proposal in all_refinement_evidence_proposals
+        if proposal not in refinement_evidence_proposals
+    ]
+    resource_response_ledger_manifest_path: Path | None = None
+    resource_response_ledger_payload: dict[str, Any] = {}
+    resource_response_ledger_rows: list[dict[str, Any]] = []
+    resource_response_ledger_proposals: list[dict[str, object]] = []
+    if formalization_gap_planner_resource_response_ledger_dir is not None:
+        resource_response_ledger_manifest_path = (
+            formalization_gap_planner_resource_response_ledger_dir
+            / "formalization_gap_planner_resource_response_ledger_manifest.json"
+        )
+        resource_response_ledger_payload = _read_json(
+            resource_response_ledger_manifest_path,
+            errors,
+        )
+        resource_response_ledger_rows = [
+            row
+            for row in resource_response_ledger_payload.get("rows", [])
+            if isinstance(row, dict)
+        ]
+        resource_response_ledger_proposals = _resource_response_ledger_proposals(
+            resource_response_ledger_rows
+        )
+    proposals = refinement_evidence_proposals + resource_response_ledger_proposals
     proposal_index = _proposal_index(proposals)
+    resource_response_ledger_index = _resource_response_ledger_index(
+        resource_response_ledger_rows
+    )
     matched_proposal_ids: set[str] = set()
     rows: list[FormalizationGapPlannerRouteRevisionOverlayRow] = []
     for plan_row in plan_rows:
         matched = _match_proposals(plan_row, proposal_index)
         matched_proposal_ids.update(str(row.get("proposal_id", "")) for row in matched)
-        rows.append(_overlay_row(plan_row, matched))
+        rows.append(
+            _overlay_row(
+                plan_row,
+                matched,
+                _match_resource_response_ledger_rows(
+                    plan_row,
+                    resource_response_ledger_index,
+                ),
+            )
+        )
 
     orphan_proposals = [
         proposal
@@ -98,6 +178,19 @@ def export_formalization_gap_planner_route_revision_overlay(
     by_prover_attempt_status = Counter(
         status for row in rows for status in row.applied_prover_attempt_statuses
     )
+    by_prover_attempt_class = Counter(
+        attempt_class
+        for row in rows
+        for attempt_class in row.applied_prover_attempt_classes
+    )
+    row_dicts = [asdict(row) for row in rows]
+    overlay_row_schema = route_revision_overlay_row_json_schema()
+    row_schema_errors = [
+        validate_route_revision_overlay_row(row_dict, overlay_row_schema)
+        for row_dict in row_dicts
+    ]
+    n_row_schema_valid = sum(1 for row_errors in row_schema_errors if not row_errors)
+    n_row_schema_invalid = len(row_schema_errors) - n_row_schema_valid
     payload: dict[str, object] = {
         "schema_version": FORMALIZATION_GAP_PLANNER_ROUTE_REVISION_OVERLAY_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -112,7 +205,62 @@ def export_formalization_gap_planner_route_revision_overlay(
         "formalization_gap_planner_refinement_evidence_manifest": str(
             evidence_manifest_path
         ),
+        "formalization_gap_planner_resource_response_ledger_dir": (
+            str(formalization_gap_planner_resource_response_ledger_dir)
+            if formalization_gap_planner_resource_response_ledger_dir is not None
+            else ""
+        ),
+        "formalization_gap_planner_resource_response_ledger_manifest": (
+            str(resource_response_ledger_manifest_path)
+            if resource_response_ledger_manifest_path is not None
+            else ""
+        ),
         "n_plan_rows": len(plan_rows),
+        "n_refinement_evidence_rows": len(refinement_evidence_rows),
+        "n_refinement_evidence_usable_rows": len(usable_refinement_evidence_ids),
+        "n_refinement_evidence_route_revision_proposals_total": len(
+            all_refinement_evidence_proposals
+        ),
+        "n_refinement_evidence_route_revision_proposals": len(
+            refinement_evidence_proposals
+        ),
+        "n_refinement_evidence_route_revision_proposals_status_only": len(
+            rejected_refinement_evidence_proposals
+        ),
+        "n_resource_response_ledger_rows": len(resource_response_ledger_rows),
+        "n_resource_response_ledger_route_revision_proposals": len(
+            resource_response_ledger_proposals
+        ),
+        "n_applied_resource_response_traces": sum(
+            len(row.applied_resource_response_traces) for row in rows
+        ),
+        "n_applied_llm_route_planner_hook_traces": sum(
+            len(row.applied_llm_route_planner_hook_traces) for row in rows
+        ),
+        "n_routes_with_llm_route_planner_hook_trace": sum(
+            1 for row in rows if row.applied_llm_route_planner_hook_traces
+        ),
+        "n_routes_with_resource_response_trace": sum(
+            1 for row in rows if row.applied_resource_response_traces
+        ),
+        "n_routes_with_resource_response_status": sum(
+            1 for row in rows if row.resource_response_summary.get("queued", 0)
+        ),
+        "n_resource_response_ledger_status_rows": sum(
+            row.resource_response_summary.get("queued", 0) for row in rows
+        ),
+        "n_resource_response_ledger_awaiting": sum(
+            row.resource_response_summary.get("awaiting", 0) for row in rows
+        ),
+        "n_resource_response_ledger_rejected": sum(
+            row.resource_response_summary.get("rejected", 0) for row in rows
+        ),
+        "n_routes_with_resource_response_awaiting": sum(
+            1 for row in rows if row.resource_response_awaiting_request_ids
+        ),
+        "n_routes_with_resource_response_rejected": sum(
+            1 for row in rows if row.resource_response_rejected_request_ids
+        ),
         "n_route_revision_proposals": len(proposals),
         "n_orphan_route_revision_proposals": len(orphan_proposals),
         "n_overlay_rows": len(rows),
@@ -121,8 +269,16 @@ def export_formalization_gap_planner_route_revision_overlay(
         "n_orphan_rows": by_revision_status.get("ORPHAN_ROUTE_REVISION_PROPOSAL", 0),
         "n_added_primitives": sum(len(row.added_primitives) for row in rows),
         "n_added_delta_primitives": sum(len(row.added_delta_primitives) for row in rows),
+        "n_source_snippets": sum(len(row.source_snippets) for row in rows),
+        "n_routes_with_source_snippets": sum(1 for row in rows if row.source_snippets),
         "n_routes_with_prover_attempt_status": sum(
             1 for row in rows if row.applied_prover_attempt_statuses
+        ),
+        "n_routes_with_prover_attempt_class": sum(
+            1 for row in rows if row.applied_prover_attempt_classes
+        ),
+        "target_prover_families": _str_tuple(
+            family for row in rows for family in row.target_prover_families
         ),
         "n_distinct_prover_diagnostic_signatures": len(
             {
@@ -138,13 +294,37 @@ def export_formalization_gap_planner_route_revision_overlay(
         "n_lean_realization_dag_nodes": sum(
             len(row.revised_lean_realization_dag_nodes) for row in rows
         ),
+        "n_formal_realization_dag_nodes": sum(
+            len(row.revised_formal_realization_dag_nodes) for row in rows
+        ),
+        "n_route_alignment_edges": sum(
+            len(row.revised_route_alignment_edges) for row in rows
+        ),
+        "n_rows_with_alignment_contract": sum(
+            1 for row in rows if not row.unaligned_primitives
+        ),
+        "n_unaligned_primitives": sum(len(row.unaligned_primitives) for row in rows),
+        "n_row_schema_valid": n_row_schema_valid,
+        "n_row_schema_invalid": n_row_schema_invalid,
+        "route_revision_overlay_row_schema": overlay_row_schema,
         "n_ok": sum(1 for row in rows if row.ok),
-        "all_ok": not errors and bool(rows) and all(row.ok for row in rows),
+        "all_ok": (
+            not errors
+            and bool(rows)
+            and all(row.ok for row in rows)
+            and n_row_schema_invalid == 0
+            and all(
+                "resource_response_ledger" not in row.applied_hook_kinds
+                or bool(row.applied_resource_response_traces)
+                for row in rows
+            )
+        ),
         "errors": errors,
         "by_revision_status": dict(sorted(by_revision_status.items())),
         "by_prover_attempt_status": dict(sorted(by_prover_attempt_status.items())),
-        "rows": [asdict(row) for row in rows],
-        "route_revision_overlay_fingerprint": stable_hash([asdict(row) for row in rows]),
+        "by_prover_attempt_class": dict(sorted(by_prover_attempt_class.items())),
+        "rows": row_dicts,
+        "route_revision_overlay_fingerprint": stable_hash(row_dicts),
         "next_required_gate": (
             "rerun goal-conditioned minimal formalization planning, refinement "
             "queue generation, and verifier replay before any proof claim"
@@ -162,6 +342,9 @@ def export_formalization_gap_planner_route_revision_overlay(
         (
             out_dir / "formalization_gap_planner_route_revision_overlay_manifest.json"
         ).write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
+        (
+            out_dir / "formalization_gap_planner_route_revision_overlay_row.schema.json"
+        ).write_text(json.dumps(overlay_row_schema, indent=2), encoding="utf-8")
         (out_dir / "formalization_gap_planner_route_revision_overlay.jsonl").write_text(
             "\n".join(json.dumps(asdict(row), sort_keys=True) for row in rows)
             + ("\n" if rows else ""),
@@ -174,9 +357,192 @@ def export_formalization_gap_planner_route_revision_overlay(
     return payload
 
 
+def route_revision_overlay_row_json_schema() -> dict[str, object]:
+    """JSON Schema for route-revision overlay rows."""
+
+    string_array = {"type": "array", "items": {"type": "string"}}
+    object_array = {"type": "array", "items": {"type": "object"}}
+    return {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": ROUTE_REVISION_OVERLAY_ROW_SCHEMA_ID,
+        "title": "Formalization Gap Planner Route-Revision Overlay Row",
+        "description": (
+            "Contract for applying accepted refinement evidence back to the "
+            "informal route DAG, formal realization DAG, selected primitives, "
+            "and alignment edges. Rows are not theorem proof evidence."
+        ),
+        "type": "object",
+        "additionalProperties": True,
+        "required": [
+            "schema_version",
+            "route_revision_overlay_id",
+            "goal_plan_id",
+            "route_id",
+            "display_name",
+            "revision_status",
+            "original_selected_primitives",
+            "revised_selected_primitives",
+            "original_delta_primitives",
+            "revised_delta_primitives",
+            "applied_resource_response_traces",
+            "revised_informal_knowledge_dag_nodes",
+            "revised_formal_realization_dag_nodes",
+            "revised_route_alignment_edges",
+            "unaligned_primitives",
+            "next_required_gate",
+            "proof_evidence_status",
+            "proof_evidence_boundary",
+            "ok",
+        ],
+        "properties": {
+            "schema_version": {
+                "type": "integer",
+                "const": FORMALIZATION_GAP_PLANNER_ROUTE_REVISION_OVERLAY_SCHEMA_VERSION,
+            },
+            "route_revision_overlay_id": {"type": "string", "minLength": 1},
+            "goal_plan_id": {"type": "string", "minLength": 1},
+            "route_id": {"type": "string", "minLength": 1},
+            "display_name": {"type": "string", "minLength": 1},
+            "revision_status": {"enum": list(ROUTE_REVISION_STATUSES)},
+            "original_selected_primitives": string_array,
+            "revised_selected_primitives": string_array,
+            "added_primitives": string_array,
+            "removed_primitives": string_array,
+            "original_delta_primitives": string_array,
+            "revised_delta_primitives": string_array,
+            "added_delta_primitives": string_array,
+            "applied_proposal_ids": string_array,
+            "applied_refinement_evidence_ids": string_array,
+            "applied_hook_kinds": string_array,
+            "applied_resource_response_traces": object_array,
+            "applied_llm_route_planner_hook_traces": object_array,
+            "resource_response_summary": {"type": "object"},
+            "resource_response_summary_by_acceptance_status": {"type": "object"},
+            "resource_response_awaiting_request_ids": string_array,
+            "resource_response_rejected_request_ids": string_array,
+            "route_revision_reasons": string_array,
+            "route_revision_summaries": string_array,
+            "source_refs": string_array,
+            "source_snippets": object_array,
+            "formal_declaration_hits": object_array,
+            "lean_declaration_hits": object_array,
+            "residual_goals": string_array,
+            "applied_prover_attempt_statuses": string_array,
+            "applied_prover_attempt_classes": string_array,
+            "target_prover_families": string_array,
+            "applied_prover_diagnostic_signatures": string_array,
+            "revised_informal_knowledge_dag_nodes": object_array,
+            "revised_formal_realization_dag_nodes": object_array,
+            "revised_lean_realization_dag_nodes": object_array,
+            "revised_route_alignment_edges": object_array,
+            "unaligned_primitives": string_array,
+            "next_required_gate": {"type": "string", "minLength": 1},
+            "proof_evidence_status": {
+                "type": "string",
+                "pattern": "NOT_PROOF_EVIDENCE",
+            },
+            "proof_evidence_boundary": {
+                "type": "string",
+                "pattern": "not theorem proof evidence",
+            },
+            "ok": {"type": "boolean"},
+            "errors": string_array,
+        },
+    }
+
+
+def validate_route_revision_overlay_row(
+    row: dict[str, Any],
+    schema: dict[str, object] | None = None,
+) -> tuple[str, ...]:
+    """Validate a route-revision overlay row against the published schema."""
+
+    overlay_row_schema = schema or route_revision_overlay_row_json_schema()
+    errors: list[str] = []
+    required = overlay_row_schema.get("required", [])
+    if isinstance(required, list):
+        for field_name in required:
+            if isinstance(field_name, str) and field_name not in row:
+                errors.append(f"{field_name} required")
+    properties = overlay_row_schema.get("properties", {})
+    if isinstance(properties, dict):
+        for field_name, field_schema in properties.items():
+            if not isinstance(field_name, str) or field_name not in row:
+                continue
+            if isinstance(field_schema, dict):
+                errors.extend(
+                    _schema_property_errors(field_name, row[field_name], field_schema)
+                )
+    if (
+        "resource_response_ledger" in _str_tuple(row.get("applied_hook_kinds", []))
+        and not _dict_tuple(row.get("applied_resource_response_traces", []))
+    ):
+        errors.append("resource_response_ledger hook missing applied_resource_response_traces")
+    return tuple(errors)
+
+
+def _schema_property_errors(
+    field_name: str,
+    value: Any,
+    field_schema: dict[str, Any],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    expected_type = field_schema.get("type")
+    if expected_type == "integer":
+        if not isinstance(value, int) or isinstance(value, bool):
+            errors.append(f"{field_name} must be integer")
+    elif expected_type == "string":
+        if not isinstance(value, str):
+            errors.append(f"{field_name} must be string")
+        elif field_schema.get("minLength") and len(value) < int(
+            field_schema["minLength"]
+        ):
+            errors.append(f"{field_name} must be non-empty")
+    elif expected_type == "boolean":
+        if not isinstance(value, bool):
+            errors.append(f"{field_name} must be boolean")
+    elif expected_type == "object":
+        if not isinstance(value, dict):
+            errors.append(f"{field_name} must be object")
+    elif expected_type == "array":
+        if not isinstance(value, (list, tuple)):
+            errors.append(f"{field_name} must be array")
+        else:
+            item_schema = field_schema.get("items", {})
+            if isinstance(item_schema, dict) and item_schema.get("type") == "string":
+                bad_indexes = [
+                    idx for idx, item in enumerate(value) if not isinstance(item, str)
+                ]
+                if bad_indexes:
+                    errors.append(
+                        f"{field_name} items must be string at indexes "
+                        + ",".join(str(idx) for idx in bad_indexes)
+                    )
+            if isinstance(item_schema, dict) and item_schema.get("type") == "object":
+                bad_indexes = [
+                    idx for idx, item in enumerate(value) if not isinstance(item, dict)
+                ]
+                if bad_indexes:
+                    errors.append(
+                        f"{field_name} items must be object at indexes "
+                        + ",".join(str(idx) for idx in bad_indexes)
+                    )
+    if "const" in field_schema and value != field_schema["const"]:
+        errors.append(f"{field_name} must equal {field_schema['const']!r}")
+    enum_values = field_schema.get("enum")
+    if isinstance(enum_values, list) and value not in enum_values:
+        errors.append(f"{field_name} must be one of {','.join(map(str, enum_values))}")
+    pattern = field_schema.get("pattern")
+    if isinstance(pattern, str) and isinstance(value, str):
+        if re.search(pattern, value) is None:
+            errors.append(f"{field_name} must match /{pattern}/")
+    return tuple(errors)
+
+
 def _overlay_row(
     plan_row: dict[str, Any],
     proposals: list[dict[str, Any]],
+    resource_response_rows: list[dict[str, Any]],
 ) -> FormalizationGapPlannerRouteRevisionOverlayRow:
     original_selected = _str_tuple(plan_row.get("selected_primitives", []))
     original_delta = _str_tuple(
@@ -184,7 +550,27 @@ def _overlay_row(
         for node in plan_row.get("minimal_additional_formalization_nodes", [])
         if isinstance(node, dict)
     )
+    resource_response_summary = _resource_response_summary(resource_response_rows)
+    resource_response_summary_by_status = (
+        _resource_response_summary_by_acceptance_status(resource_response_rows)
+    )
+    resource_response_awaiting_request_ids = _resource_response_request_ids_by_status(
+        resource_response_rows,
+        awaiting=True,
+    )
+    resource_response_rejected_request_ids = _resource_response_request_ids_by_status(
+        resource_response_rows,
+        rejected=True,
+    )
     if not proposals:
+        informal_nodes = _existing_graph_nodes(plan_row.get("informal_knowledge_dag", {}))
+        lean_nodes = _existing_graph_nodes(plan_row.get("lean_realization_dag", {}))
+        formal_nodes = _existing_formal_realization_nodes(plan_row, lean_nodes)
+        alignment_edges, unaligned = _route_alignment_edges(
+            selected_primitives=original_selected,
+            informal_nodes=informal_nodes,
+            lean_nodes=formal_nodes,
+        )
         return FormalizationGapPlannerRouteRevisionOverlayRow(
             schema_version=FORMALIZATION_GAP_PLANNER_ROUTE_REVISION_OVERLAY_SCHEMA_VERSION,
             route_revision_overlay_id=_overlay_id(plan_row, proposals),
@@ -202,24 +588,43 @@ def _overlay_row(
             applied_proposal_ids=(),
             applied_refinement_evidence_ids=(),
             applied_hook_kinds=(),
+            applied_resource_response_traces=(),
+            applied_llm_route_planner_hook_traces=(),
+            resource_response_summary=resource_response_summary,
+            resource_response_summary_by_acceptance_status=(
+                resource_response_summary_by_status
+            ),
+            resource_response_awaiting_request_ids=(
+                resource_response_awaiting_request_ids
+            ),
+            resource_response_rejected_request_ids=(
+                resource_response_rejected_request_ids
+            ),
             route_revision_reasons=(),
             route_revision_summaries=(),
             source_refs=(),
+            source_snippets=(),
+            formal_declaration_hits=(),
             lean_declaration_hits=(),
             residual_goals=(),
             applied_prover_attempt_statuses=(),
+            applied_prover_attempt_classes=(),
+            target_prover_families=(),
             applied_prover_diagnostic_signatures=(),
-            revised_informal_knowledge_dag_nodes=_existing_graph_nodes(
-                plan_row.get("informal_knowledge_dag", {})
-            ),
-            revised_lean_realization_dag_nodes=_existing_graph_nodes(
-                plan_row.get("lean_realization_dag", {})
-            ),
+            revised_informal_knowledge_dag_nodes=informal_nodes,
+            revised_formal_realization_dag_nodes=formal_nodes,
+            revised_lean_realization_dag_nodes=lean_nodes,
+            revised_route_alignment_edges=alignment_edges,
+            unaligned_primitives=unaligned,
             next_required_gate="no route revision proposal recorded",
             proof_evidence_status=PROOF_EVIDENCE_STATUS,
             proof_evidence_boundary=PROOF_EVIDENCE_BOUNDARY,
-            ok=True,
-            errors=(),
+            ok=not unaligned,
+            errors=(
+                ("unaligned revised primitives: " + ",".join(unaligned),)
+                if unaligned
+                else ()
+            ),
         )
 
     selected_candidates = _nonempty_tuples(
@@ -237,12 +642,34 @@ def _overlay_row(
             for proposal in proposals
         ),
     )
-    lean_nodes = _merge_nodes(
-        _existing_graph_nodes(plan_row.get("lean_realization_dag", {})),
+    existing_lean_nodes = _existing_graph_nodes(plan_row.get("lean_realization_dag", {}))
+    existing_formal_nodes = _existing_formal_realization_nodes(
+        plan_row,
+        existing_lean_nodes,
+    )
+    formal_nodes = _merge_nodes(
+        existing_formal_nodes,
         *(
-            _dict_tuple(proposal.get("revised_lean_realization_dag_nodes", []))
+            _proposal_formal_realization_dag_nodes(proposal)
             for proposal in proposals
         ),
+    )
+    lean_nodes = _merge_nodes(
+        existing_lean_nodes,
+        *(
+            _dict_tuple(
+                proposal.get(
+                    "revised_lean_realization_dag_nodes",
+                    proposal.get("revised_formal_realization_dag_nodes", []),
+                )
+            )
+            for proposal in proposals
+        ),
+    )
+    alignment_edges, unaligned = _route_alignment_edges(
+        selected_primitives=revised_selected,
+        informal_nodes=informal_nodes,
+        lean_nodes=formal_nodes,
     )
     return FormalizationGapPlannerRouteRevisionOverlayRow(
         schema_version=FORMALIZATION_GAP_PLANNER_ROUTE_REVISION_OVERLAY_SCHEMA_VERSION,
@@ -265,6 +692,18 @@ def _overlay_row(
             proposal.get("refinement_evidence_id", "") for proposal in proposals
         ),
         applied_hook_kinds=_str_tuple(proposal.get("hook_kind", "") for proposal in proposals),
+        applied_resource_response_traces=_merge_dicts(
+            *(_proposal_resource_response_traces(proposal) for proposal in proposals)
+        ),
+        applied_llm_route_planner_hook_traces=_merge_dicts(
+            *(_proposal_llm_route_planner_hook_traces(proposal) for proposal in proposals)
+        ),
+        resource_response_summary=resource_response_summary,
+        resource_response_summary_by_acceptance_status=(
+            resource_response_summary_by_status
+        ),
+        resource_response_awaiting_request_ids=resource_response_awaiting_request_ids,
+        resource_response_rejected_request_ids=resource_response_rejected_request_ids,
         route_revision_reasons=_str_tuple(
             reason
             for proposal in proposals
@@ -278,8 +717,30 @@ def _overlay_row(
             for proposal in proposals
             for source_ref in proposal.get("source_refs", [])
         ),
+        source_snippets=_merge_dicts(
+            *(_dict_tuple(proposal.get("source_snippets", [])) for proposal in proposals)
+        ),
+        formal_declaration_hits=_merge_nodes(
+            *(
+                _dict_tuple(
+                    proposal.get(
+                        "formal_declaration_hits",
+                        proposal.get("lean_declaration_hits", []),
+                    )
+                )
+                for proposal in proposals
+            )
+        ),
         lean_declaration_hits=_merge_nodes(
-            *(_dict_tuple(proposal.get("lean_declaration_hits", [])) for proposal in proposals)
+            *(
+                _dict_tuple(
+                    proposal.get(
+                        "lean_declaration_hits",
+                        proposal.get("formal_declaration_hits", []),
+                    )
+                )
+                for proposal in proposals
+            )
         ),
         residual_goals=_str_tuple(
             residual
@@ -289,19 +750,36 @@ def _overlay_row(
         applied_prover_attempt_statuses=_str_tuple(
             proposal.get("prover_attempt_status", "") for proposal in proposals
         ),
+        applied_prover_attempt_classes=_str_tuple(
+            proposal.get(
+                "prover_attempt_class",
+                _prover_attempt_class(str(proposal.get("prover_attempt_status", ""))),
+            )
+            for proposal in proposals
+        ),
+        target_prover_families=_str_tuple(
+            proposal.get("target_prover_family", "") for proposal in proposals
+        ),
         applied_prover_diagnostic_signatures=_str_tuple(
             proposal.get("prover_diagnostic_signature", "") for proposal in proposals
         ),
         revised_informal_knowledge_dag_nodes=informal_nodes,
+        revised_formal_realization_dag_nodes=formal_nodes,
         revised_lean_realization_dag_nodes=lean_nodes,
+        revised_route_alignment_edges=alignment_edges,
+        unaligned_primitives=unaligned,
         next_required_gate=(
             "rerun goal-conditioned minimal formalization planning and verifier "
             "replay on the revised route overlay"
         ),
         proof_evidence_status=PROOF_EVIDENCE_STATUS,
         proof_evidence_boundary=PROOF_EVIDENCE_BOUNDARY,
-        ok=True,
-        errors=(),
+        ok=not unaligned,
+        errors=(
+            ("unaligned revised primitives: " + ",".join(unaligned),)
+            if unaligned
+            else ()
+        ),
     )
 
 
@@ -309,6 +787,8 @@ def _orphan_overlay_row(
     proposal: dict[str, Any],
 ) -> FormalizationGapPlannerRouteRevisionOverlayRow:
     errors = ("route revision proposal did not match any current plan row",)
+    resource_response_traces = _proposal_resource_response_traces(proposal)
+    resource_response_summary = _resource_response_summary(resource_response_traces)
     return FormalizationGapPlannerRouteRevisionOverlayRow(
         schema_version=FORMALIZATION_GAP_PLANNER_ROUTE_REVISION_OVERLAY_SCHEMA_VERSION,
         route_revision_overlay_id="formalization_gap_planner_route_revision_overlay:"
@@ -329,29 +809,591 @@ def _orphan_overlay_row(
             [proposal.get("refinement_evidence_id", "")]
         ),
         applied_hook_kinds=_str_tuple([proposal.get("hook_kind", "")]),
+        applied_resource_response_traces=_merge_dicts(
+            resource_response_traces
+        ),
+        applied_llm_route_planner_hook_traces=_merge_dicts(
+            _proposal_llm_route_planner_hook_traces(proposal)
+        ),
+        resource_response_summary=resource_response_summary,
+        resource_response_summary_by_acceptance_status=(
+            _resource_response_summary_by_acceptance_status(resource_response_traces)
+        ),
+        resource_response_awaiting_request_ids=_resource_response_request_ids_by_status(
+            resource_response_traces,
+            awaiting=True,
+        ),
+        resource_response_rejected_request_ids=_resource_response_request_ids_by_status(
+            resource_response_traces,
+            rejected=True,
+        ),
         route_revision_reasons=_str_tuple(proposal.get("route_revision_reasons", [])),
         route_revision_summaries=_str_tuple([proposal.get("route_revision_summary", "")]),
         source_refs=_str_tuple(proposal.get("source_refs", [])),
-        lean_declaration_hits=_dict_tuple(proposal.get("lean_declaration_hits", [])),
+        source_snippets=_dict_tuple(proposal.get("source_snippets", [])),
+        formal_declaration_hits=_dict_tuple(
+            proposal.get(
+                "formal_declaration_hits",
+                proposal.get("lean_declaration_hits", []),
+            )
+        ),
+        lean_declaration_hits=_dict_tuple(
+            proposal.get(
+                "lean_declaration_hits",
+                proposal.get("formal_declaration_hits", []),
+            )
+        ),
         residual_goals=_str_tuple(proposal.get("residual_goals", [])),
         applied_prover_attempt_statuses=_str_tuple(
             [proposal.get("prover_attempt_status", "")]
         ),
+        applied_prover_attempt_classes=_str_tuple(
+            [
+                proposal.get(
+                    "prover_attempt_class",
+                    _prover_attempt_class(
+                        str(proposal.get("prover_attempt_status", ""))
+                    ),
+                )
+            ]
+        ),
+        target_prover_families=_str_tuple([proposal.get("target_prover_family", "")]),
         applied_prover_diagnostic_signatures=_str_tuple(
             [proposal.get("prover_diagnostic_signature", "")]
         ),
         revised_informal_knowledge_dag_nodes=_dict_tuple(
             proposal.get("revised_informal_knowledge_dag_nodes", [])
         ),
-        revised_lean_realization_dag_nodes=_dict_tuple(
-            proposal.get("revised_lean_realization_dag_nodes", [])
+        revised_formal_realization_dag_nodes=_proposal_formal_realization_dag_nodes(
+            proposal
         ),
+        revised_lean_realization_dag_nodes=_dict_tuple(
+            proposal.get(
+                "revised_lean_realization_dag_nodes",
+                proposal.get("revised_formal_realization_dag_nodes", []),
+            )
+        ),
+        revised_route_alignment_edges=(),
+        unaligned_primitives=_str_tuple(proposal.get("revised_selected_primitives", [])),
         next_required_gate="match proposal to an active route plan before replay",
         proof_evidence_status=PROOF_EVIDENCE_STATUS,
         proof_evidence_boundary=PROOF_EVIDENCE_BOUNDARY,
         ok=False,
         errors=errors,
     )
+
+
+def _resource_response_ledger_proposals(
+    rows: list[dict[str, Any]],
+) -> list[dict[str, object]]:
+    proposals: list[dict[str, object]] = []
+    for row in rows:
+        if not _ledger_row_is_usable_feedback(row):
+            continue
+        proposal = _resource_response_ledger_proposal(row)
+        if proposal is not None:
+            proposals.append(proposal)
+    return proposals
+
+
+def _resource_response_ledger_index(
+    rows: list[dict[str, Any]],
+) -> dict[str, list[dict[str, Any]]]:
+    index: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        for key in _proposal_keys(row):
+            index.setdefault(key, []).append(row)
+    return index
+
+
+def _match_resource_response_ledger_rows(
+    plan_row: dict[str, Any],
+    ledger_index: dict[str, list[dict[str, Any]]],
+) -> list[dict[str, Any]]:
+    seen: set[str] = set()
+    matched: list[dict[str, Any]] = []
+    for key in _plan_keys(plan_row):
+        for row in ledger_index.get(key, []):
+            row_id = str(row.get("resource_response_ledger_id", "")) or stable_hash(row)
+            if row_id in seen:
+                continue
+            seen.add(row_id)
+            matched.append(row)
+    return sorted(
+        matched,
+        key=lambda row: (
+            str(row.get("acceptance_status", "")),
+            str(row.get("resource_request_id", "")),
+            str(row.get("resource_response_ledger_id", "")),
+        ),
+    )
+
+
+def _resource_response_summary(
+    rows: tuple[dict[str, object], ...] | list[dict[str, Any]],
+) -> dict[str, int]:
+    summary = {
+        "queued": 0,
+        "responded": 0,
+        "contract_ok": 0,
+        "awaiting": 0,
+        "rejected": 0,
+        "accepted": 0,
+        "route_revision_recommended": 0,
+    }
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        status = str(row.get("acceptance_status", ""))
+        summary["queued"] += 1
+        if bool(row.get("response_present", False)) or (
+            bool(status) and status != "AWAITING_RESOURCE_RESPONSE"
+        ):
+            summary["responded"] += 1
+        if bool(row.get("response_contract_ok", False)) or status.startswith("ACCEPTED_"):
+            summary["contract_ok"] += 1
+        if status == "AWAITING_RESOURCE_RESPONSE":
+            summary["awaiting"] += 1
+        if status.startswith("REJECTED_"):
+            summary["rejected"] += 1
+        if status.startswith("ACCEPTED_"):
+            summary["accepted"] += 1
+        if bool(row.get("route_revision_recommended", False)):
+            summary["route_revision_recommended"] += 1
+    return summary
+
+
+def _resource_response_summary_by_acceptance_status(
+    rows: tuple[dict[str, object], ...] | list[dict[str, Any]],
+) -> dict[str, int]:
+    statuses = Counter(
+        str(row.get("acceptance_status", ""))
+        for row in rows
+        if isinstance(row, dict) and str(row.get("acceptance_status", ""))
+    )
+    return dict(sorted(statuses.items()))
+
+
+def _resource_response_request_ids_by_status(
+    rows: tuple[dict[str, object], ...] | list[dict[str, Any]],
+    *,
+    awaiting: bool = False,
+    rejected: bool = False,
+) -> tuple[str, ...]:
+    ids: list[str] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        status = str(row.get("acceptance_status", ""))
+        if awaiting and status != "AWAITING_RESOURCE_RESPONSE":
+            continue
+        if rejected and not status.startswith("REJECTED_"):
+            continue
+        if not awaiting and not rejected:
+            continue
+        row_id = str(row.get("resource_request_id", "")) or str(
+            row.get("resource_response_ledger_id", "")
+        )
+        if row_id:
+            ids.append(row_id)
+    return _str_tuple(ids)
+
+
+def _ledger_row_is_usable_feedback(row: dict[str, Any]) -> bool:
+    acceptance_status = str(row.get("acceptance_status", ""))
+    if acceptance_status.startswith("REJECTED_"):
+        return False
+    if not row.get("ok", False):
+        return False
+    if not row.get("response_present", False):
+        return False
+    if not row.get("response_contract_ok", False):
+        return False
+    if str(row.get("goal_plan_id", "")) and str(row.get("route_id", "")):
+        return _ledger_row_has_actionable_feedback(row)
+    return False
+
+
+def _ledger_row_has_actionable_feedback(row: dict[str, Any]) -> bool:
+    return any(
+        (
+            bool(row.get("route_revision_recommended", False)),
+            bool(_str_tuple(row.get("source_refs", []))),
+            bool(_dict_tuple(row.get("route_evidence_nodes", []))),
+            bool(
+                _dict_tuple(
+                    row.get("formal_declaration_hits", row.get("lean_declaration_hits", []))
+                )
+            ),
+            bool(_dict_value(row, "coverage_updates")),
+            bool(_str_tuple(row.get("residual_goals", []))),
+            bool(str(row.get("prover_attempt_status", ""))),
+            bool(str(row.get("prover_diagnostic_signature", ""))),
+            bool(_str_tuple(row.get("route_revision_reasons", []))),
+        )
+    )
+
+
+def _resource_response_ledger_proposal(
+    row: dict[str, Any],
+) -> dict[str, object] | None:
+    resource_response_ledger_id = str(row.get("resource_response_ledger_id", ""))
+    resource_request_id = str(row.get("resource_request_id", ""))
+    primitive = str(row.get("primitive", ""))
+    if not resource_response_ledger_id or not resource_request_id or not primitive:
+        return None
+    response_payload = _dict_value(row, "response_payload")
+    revised_selected_primitives = _str_tuple(
+        response_payload.get("revised_selected_primitives", [])
+    )
+    revised_delta_primitives = _str_tuple(
+        response_payload.get("revised_delta_primitives", [])
+    )
+    informal_nodes = _resource_response_informal_nodes(row)
+    lean_nodes = _resource_response_lean_nodes(row)
+    route_revision_reasons = _resource_response_route_revision_reasons(row)
+    route_revision_summary = str(row.get("response_summary", "")) or (
+        f"resource response feedback for {primitive}"
+    )
+    return {
+        "proposal_id": "formalization_gap_planner_resource_response_route_revision:"
+        + stable_hash(
+            [
+                resource_response_ledger_id,
+                resource_request_id,
+                str(row.get("resource_id", "")),
+                route_revision_reasons,
+            ]
+        )[:16],
+        "refinement_evidence_id": (
+            "resource_response_ledger:" + resource_response_ledger_id
+        ),
+        "refinement_item_id": resource_request_id,
+        "goal_plan_id": str(row.get("goal_plan_id", "")),
+        "route_id": str(row.get("route_id", "")),
+        "display_name": str(row.get("display_name", "")),
+        "hook_kind": "resource_response_ledger",
+        "resource_response_trace": _resource_response_trace(row),
+        "route_revision_summary": route_revision_summary,
+        "route_revision_reasons": route_revision_reasons,
+        "revised_selected_primitives": revised_selected_primitives,
+        "revised_delta_primitives": revised_delta_primitives,
+        "revised_informal_knowledge_dag_nodes": informal_nodes,
+        "revised_formal_realization_dag_nodes": lean_nodes,
+        "revised_lean_realization_dag_nodes": lean_nodes,
+        "source_refs": _str_tuple(row.get("source_refs", [])),
+        "source_snippets": _resource_response_source_snippets(row),
+        "formal_declaration_hits": _dict_tuple(
+            row.get("formal_declaration_hits", row.get("lean_declaration_hits", []))
+        ),
+        "lean_declaration_hits": _dict_tuple(
+            row.get("lean_declaration_hits", row.get("formal_declaration_hits", []))
+        ),
+        "residual_goals": _str_tuple(row.get("residual_goals", [])),
+        "prover_attempt_status": str(row.get("prover_attempt_status", "")),
+        "prover_attempt_class": str(
+            row.get(
+                "prover_attempt_class",
+                _prover_attempt_class(str(row.get("prover_attempt_status", ""))),
+            )
+        ),
+        "target_prover_family": str(row.get("target_prover_family", "")),
+        "prover_diagnostic_signature": str(
+            row.get("prover_diagnostic_signature", "")
+        ),
+        "required_gate": (
+            "rerun route planning and target-prover replay after applying "
+            "resource-response feedback"
+        ),
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
+
+
+def _resource_response_source_snippets(
+    row: dict[str, Any],
+) -> tuple[dict[str, object], ...]:
+    response_payload = _dict_value(row, "response_payload")
+    snippets = _dict_tuple(row.get("source_snippets", []))
+    if response_payload:
+        snippets = _merge_dicts(
+            snippets,
+            _dict_tuple(response_payload.get("source_snippets", [])),
+        )
+    if snippets:
+        return snippets
+    derived: list[dict[str, object]] = []
+    for index, node in enumerate(_dict_tuple(row.get("route_evidence_nodes", []))):
+        source_ref = str(node.get("source_ref", "")).strip()
+        if not source_ref:
+            source_ref = (_str_tuple(node.get("source_refs", [])) or ("",))[0]
+        claim = str(node.get("claim", "") or node.get("label", "")).strip()
+        excerpt = str(node.get("excerpt", "")).strip()
+        if not source_ref or not (claim or excerpt):
+            continue
+        derived.append(
+            {
+                "source_ref": source_ref,
+                "claim": claim,
+                "excerpt": excerpt,
+                "evidence_role": str(
+                    node.get("evidence_role", "source-backed informal route evidence")
+                ),
+                "target_primitives": _str_tuple(node.get("target_primitives", [])),
+                "snippet_id": "resource_response_source_snippet:"
+                + stable_hash(
+                    [
+                        row.get("resource_response_ledger_id", ""),
+                        index,
+                        source_ref,
+                        claim,
+                        excerpt,
+                    ]
+                )[:16],
+            }
+        )
+    return tuple(derived)
+
+
+def _resource_response_trace(row: dict[str, Any]) -> dict[str, object]:
+    return {
+        "resource_response_ledger_id": str(row.get("resource_response_ledger_id", "")),
+        "resource_request_id": str(row.get("resource_request_id", "")),
+        "action_resource_plan_id": str(row.get("action_resource_plan_id", "")),
+        "primitive_action_id": str(row.get("primitive_action_id", "")),
+        "coverage_map_id": str(row.get("coverage_map_id", "")),
+        "goal_plan_id": str(row.get("goal_plan_id", "")),
+        "route_id": str(row.get("route_id", "")),
+        "primitive": str(row.get("primitive", "")),
+        "resource_id": str(row.get("resource_id", "")),
+        "request_phase": str(row.get("request_phase", "")),
+        "expected_response_artifact": str(row.get("expected_response_artifact", "")),
+        "acceptance_gate": str(row.get("acceptance_gate", "")),
+        "dispatch_spec": _dict_value(row, "dispatch_spec"),
+        "candidate_declaration_rows": _dict_tuple(
+            row.get("candidate_declaration_rows", [])
+        ),
+        "response_present": bool(row.get("response_present", False)),
+        "response_contract_fields": _str_tuple(
+            row.get("response_contract_fields", [])
+        ),
+        "response_contract_minimum_met": bool(
+            row.get("response_contract_minimum_met", False)
+        ),
+        "response_contract_ok": bool(row.get("response_contract_ok", False)),
+        "acceptance_status": str(row.get("acceptance_status", "")),
+        "matched_response_contract_fields": _str_tuple(
+            row.get("matched_response_contract_fields", [])
+        ),
+        "missing_response_contract_fields": _str_tuple(
+            row.get("missing_response_contract_fields", [])
+        ),
+        "response_artifacts": _str_tuple(row.get("response_artifacts", [])),
+        "route_revision_recommended": bool(
+            row.get("route_revision_recommended", False)
+        ),
+        "prover_attempt_status": str(row.get("prover_attempt_status", "")),
+        "prover_attempt_class": str(
+            row.get(
+                "prover_attempt_class",
+                _prover_attempt_class(str(row.get("prover_attempt_status", ""))),
+            )
+        ),
+        "target_prover_family": str(row.get("target_prover_family", "")),
+        "prover_diagnostic_signature": str(
+            row.get("prover_diagnostic_signature", "")
+        ),
+        "proof_evidence_status": str(row.get("proof_evidence_status", "")),
+        "proof_evidence_boundary": str(row.get("proof_evidence_boundary", "")),
+    }
+
+
+def _proposal_resource_response_traces(
+    proposal: dict[str, Any],
+) -> tuple[dict[str, object], ...]:
+    traces = _dict_tuple(proposal.get("resource_response_traces", []))
+    single = proposal.get("resource_response_trace")
+    if isinstance(single, dict):
+        traces = (*traces, single)
+    return traces
+
+
+def _proposal_llm_route_planner_hook_traces(
+    proposal: dict[str, Any],
+) -> tuple[dict[str, object], ...]:
+    traces = tuple(
+        trace
+        for trace in _dict_tuple(proposal.get("llm_route_planner_hook_traces", []))
+        if trace
+    )
+    single = proposal.get("llm_route_planner_hook_trace")
+    if isinstance(single, dict) and single:
+        traces = (*traces, single)
+    return traces
+
+
+def _proposal_formal_realization_dag_nodes(
+    proposal: dict[str, Any],
+) -> tuple[dict[str, object], ...]:
+    return _dict_tuple(
+        proposal.get(
+            "revised_formal_realization_dag_nodes",
+            proposal.get("revised_lean_realization_dag_nodes", []),
+        )
+    )
+
+
+def _usable_refinement_evidence_ids(
+    rows: list[dict[str, Any]],
+) -> set[str]:
+    ids: set[str] = set()
+    for row in rows:
+        if not _refinement_evidence_row_is_usable_feedback(row):
+            continue
+        for field_name in ("refinement_evidence_id", "refinement_item_id"):
+            value = str(row.get(field_name, "")).strip()
+            if value:
+                ids.add(value)
+    return ids
+
+
+def _refinement_evidence_row_is_usable_feedback(row: dict[str, Any]) -> bool:
+    status = str(row.get("acceptance_status", "")).strip()
+    if status.startswith("AWAITING_") or status.startswith("REJECTED_"):
+        return False
+    if "response_present" in row and not bool(row.get("response_present", False)):
+        return False
+    if "response_contract_ok" in row and not bool(row.get("response_contract_ok", False)):
+        return False
+    if "ok" in row and not bool(row.get("ok", False)):
+        return False
+    return True
+
+
+def _refinement_evidence_proposal_is_usable(
+    proposal: dict[str, Any],
+    usable_refinement_evidence_ids: set[str],
+    *,
+    has_refinement_evidence_rows: bool,
+) -> bool:
+    if not has_refinement_evidence_rows:
+        return True
+    proposal_ids = {
+        str(proposal.get("refinement_evidence_id", "")).strip(),
+        str(proposal.get("refinement_item_id", "")).strip(),
+    }
+    return bool(proposal_ids.intersection(usable_refinement_evidence_ids))
+
+
+def _resource_response_route_revision_reasons(
+    row: dict[str, Any],
+) -> tuple[str, ...]:
+    reasons = list(_str_tuple(row.get("route_revision_reasons", [])))
+    if row.get("route_revision_recommended", False) and not reasons:
+        reasons.append("resource response recommended route revision")
+    if _str_tuple(row.get("residual_goals", [])):
+        reasons.append("resource response preserved residual prover goals")
+    if _dict_value(row, "coverage_updates"):
+        reasons.append("resource response updated library coverage status")
+    if _dict_tuple(
+        row.get("formal_declaration_hits", row.get("lean_declaration_hits", []))
+    ):
+        reasons.append("resource response identified reusable formal declarations")
+    if _str_tuple(row.get("source_refs", [])) or _dict_tuple(
+        row.get("route_evidence_nodes", [])
+    ):
+        reasons.append("resource response supplied source-backed route evidence")
+    if str(row.get("prover_diagnostic_signature", "")):
+        reasons.append("resource response supplied prover diagnostic signature")
+    return _str_tuple(reasons)
+
+
+def _resource_response_informal_nodes(
+    row: dict[str, Any],
+) -> tuple[dict[str, object], ...]:
+    primitive = str(row.get("primitive", ""))
+    ledger_id = str(row.get("resource_response_ledger_id", ""))
+    nodes: list[dict[str, object]] = []
+    for index, node in enumerate(_dict_tuple(row.get("route_evidence_nodes", []))):
+        normalized = dict(node)
+        normalized.setdefault(
+            "node_id",
+            "resource_response_informal:"
+            + stable_hash([ledger_id, "route_evidence", index, node])[:16],
+        )
+        normalized.setdefault("kind", "resource_response_route_evidence")
+        normalized.setdefault("label", primitive)
+        normalized.setdefault("primitive", primitive)
+        normalized.setdefault("resource_response_ledger_id", ledger_id)
+        normalized.setdefault("resource_id", str(row.get("resource_id", "")))
+        nodes.append(normalized)
+    if _str_tuple(row.get("source_refs", [])) and not nodes:
+        nodes.append(
+            {
+                "node_id": "resource_response_informal:"
+                + stable_hash([ledger_id, primitive, row.get("source_refs", [])])[:16],
+                "kind": "resource_response_source_evidence",
+                "label": primitive,
+                "primitive": primitive,
+                "resource_response_ledger_id": ledger_id,
+                "resource_id": str(row.get("resource_id", "")),
+                "source_refs": _str_tuple(row.get("source_refs", [])),
+                "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            }
+        )
+    return _merge_nodes(tuple(nodes))
+
+
+def _resource_response_lean_nodes(
+    row: dict[str, Any],
+) -> tuple[dict[str, object], ...]:
+    primitive = str(row.get("primitive", ""))
+    ledger_id = str(row.get("resource_response_ledger_id", ""))
+    coverage_updates = _dict_value(row, "coverage_updates")
+    nodes: list[dict[str, object]] = []
+    hits = row.get("formal_declaration_hits", row.get("lean_declaration_hits", []))
+    for index, hit in enumerate(_dict_tuple(hits)):
+        declaration = str(
+            hit.get("declaration", "")
+            or hit.get("declaration_name", "")
+            or hit.get("name", "")
+        )
+        normalized = dict(hit)
+        normalized.setdefault(
+            "node_id",
+            "resource_response_lean:"
+            + stable_hash([ledger_id, "lean_hit", index, hit])[:16],
+        )
+        normalized.setdefault("kind", "resource_response_lean_declaration_hit")
+        normalized.setdefault("label", primitive)
+        normalized.setdefault("primitive", primitive)
+        normalized.setdefault("declaration", declaration)
+        normalized.setdefault("resource_response_ledger_id", ledger_id)
+        normalized.setdefault("resource_id", str(row.get("resource_id", "")))
+        if primitive in coverage_updates:
+            normalized.setdefault("coverage_status", str(coverage_updates[primitive]))
+        nodes.append(normalized)
+    for coverage_primitive, coverage_status in coverage_updates.items():
+        coverage_primitive_str = str(coverage_primitive)
+        coverage_status_str = str(coverage_status)
+        nodes.append(
+            {
+                "node_id": "resource_response_coverage_update:"
+                + stable_hash([ledger_id, coverage_primitive_str, coverage_status_str])[
+                    :16
+                ],
+                "kind": "resource_response_coverage_update",
+                "label": coverage_primitive_str,
+                "primitive": coverage_primitive_str,
+                "coverage_status": coverage_status_str,
+                "resource_response_ledger_id": ledger_id,
+                "resource_id": str(row.get("resource_id", "")),
+                "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            }
+        )
+    return _merge_nodes(tuple(nodes))
 
 
 def _proposal_index(proposals: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
@@ -431,6 +1473,19 @@ def _existing_graph_nodes(graph: Any) -> tuple[dict[str, object], ...]:
     return _dict_tuple(graph.get("nodes", []))
 
 
+def _existing_formal_realization_nodes(
+    plan_row: dict[str, Any],
+    fallback_lean_nodes: tuple[dict[str, object], ...],
+) -> tuple[dict[str, object], ...]:
+    formal_nodes = _dict_tuple(plan_row.get("formal_realization_dag_nodes", []))
+    if formal_nodes:
+        return formal_nodes
+    graph_nodes = _existing_graph_nodes(plan_row.get("formal_realization_dag", {}))
+    if graph_nodes:
+        return graph_nodes
+    return fallback_lean_nodes
+
+
 def _merge_nodes(*node_groups: tuple[dict[str, object], ...]) -> tuple[dict[str, object], ...]:
     merged: dict[str, dict[str, object]] = {}
     fallback_index = 0
@@ -442,6 +1497,83 @@ def _merge_nodes(*node_groups: tuple[dict[str, object], ...]) -> tuple[dict[str,
                 fallback_index += 1
             merged[key] = dict(node)
     return tuple(merged[key] for key in sorted(merged))
+
+
+def _merge_dicts(*groups: tuple[dict[str, object], ...]) -> tuple[dict[str, object], ...]:
+    merged: dict[str, dict[str, object]] = {}
+    fallback_index = 0
+    for group in groups:
+        for item in group:
+            key = (
+                str(item.get("resource_response_ledger_id", ""))
+                or str(item.get("resource_request_id", ""))
+            )
+            if not key:
+                key = "dict:" + stable_hash([fallback_index, item])[:12]
+                fallback_index += 1
+            merged[key] = dict(item)
+    return tuple(merged[key] for key in sorted(merged))
+
+
+def _route_alignment_edges(
+    *,
+    selected_primitives: tuple[str, ...],
+    informal_nodes: tuple[dict[str, object], ...],
+    lean_nodes: tuple[dict[str, object], ...],
+) -> tuple[tuple[dict[str, object], ...], tuple[str, ...]]:
+    informal_by_label = _nodes_by_label(informal_nodes)
+    lean_by_label = _nodes_by_label(lean_nodes)
+    edges: list[dict[str, object]] = []
+    unaligned: list[str] = []
+    for primitive in selected_primitives:
+        informal_node = informal_by_label.get(primitive)
+        lean_node = lean_by_label.get(primitive)
+        if not informal_node or not lean_node:
+            unaligned.append(primitive)
+            continue
+        edge = {
+            "source": str(informal_node.get("node_id", "")),
+            "target": str(lean_node.get("node_id", "")),
+            "kind": "aligned_to_formal_realization_candidate",
+            "edge_type": "revised_informal_to_formal_alignment",
+            "primitive": primitive,
+            "alignment_status": _alignment_status(lean_node),
+            "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+            "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+        }
+        edges.append(edge)
+    return (
+        tuple(
+            sorted(
+                edges,
+                key=lambda edge: (
+                    str(edge.get("primitive", "")),
+                    str(edge.get("target", "")),
+                ),
+            )
+        ),
+        tuple(sorted(dict.fromkeys(unaligned))),
+    )
+
+
+def _nodes_by_label(
+    nodes: tuple[dict[str, object], ...],
+) -> dict[str, dict[str, object]]:
+    by_label: dict[str, dict[str, object]] = {}
+    for node in nodes:
+        label = str(node.get("label", "") or node.get("primitive", ""))
+        node_id = str(node.get("node_id", ""))
+        if label and node_id and label not in by_label:
+            by_label[label] = node
+    return by_label
+
+
+def _alignment_status(node: dict[str, object]) -> str:
+    for field_name in ("alignment_status", "coverage_status", "planned_action", "kind"):
+        value = str(node.get(field_name, ""))
+        if value:
+            return value
+    return "revised_realization_candidate"
 
 
 def _nonempty_tuples(values: Any) -> tuple[tuple[str, ...], ...]:
@@ -463,6 +1595,24 @@ def _dict_tuple(values: Any) -> tuple[dict[str, object], ...]:
     if not isinstance(values, (list, tuple)):
         return tuple()
     return tuple(item for item in values if isinstance(item, dict))
+
+
+def _dict_value(row: dict[str, Any], key: str) -> dict[str, Any]:
+    value = row.get(key, {})
+    return value if isinstance(value, dict) else {}
+
+
+def _prover_attempt_class(attempt_status: str) -> str:
+    return {
+        "local_lean_scaffold_accepted": "target_prover_scaffold_accepted",
+        "local_lean_failed": "target_prover_failed",
+        "local_lean_unavailable": "target_prover_unavailable",
+        "non_lean_skeleton": "non_target_prover_skeleton",
+        "failed_with_residual_goals": "target_prover_failed",
+        "placeholder_blocked": "placeholder_blocked",
+        "formal_gap_scaffold_blocked": "formal_gap_scaffold_blocked",
+        "missing_theorem_skeleton": "missing_theorem_skeleton",
+    }.get(attempt_status, attempt_status)
 
 
 def _str_tuple(values: Any) -> tuple[str, ...]:
@@ -494,10 +1644,23 @@ def _markdown_report(payload: dict[str, object]) -> str:
         "",
         f"- Plan rows: {payload.get('n_plan_rows')}",
         f"- Proposals: {payload.get('n_route_revision_proposals')}",
+        f"- Refinement evidence proposals: {payload.get('n_refinement_evidence_route_revision_proposals')}",
+        f"- Refinement evidence proposals total: {payload.get('n_refinement_evidence_route_revision_proposals_total')}",
+        f"- Refinement evidence proposals status-only: {payload.get('n_refinement_evidence_route_revision_proposals_status_only')}",
+        f"- Resource-response ledger proposals: {payload.get('n_resource_response_ledger_route_revision_proposals')}",
+        f"- Applied resource-response traces: {payload.get('n_applied_resource_response_traces')}",
+        f"- Applied LLM route-planner hook traces: {payload.get('n_applied_llm_route_planner_hook_traces')}",
+        f"- Source snippets: {payload.get('n_source_snippets')}",
+        f"- Resource-response status rows: {payload.get('n_resource_response_ledger_status_rows')}",
+        f"- Resource responses awaiting: {payload.get('n_resource_response_ledger_awaiting')}",
+        f"- Resource responses rejected: {payload.get('n_resource_response_ledger_rejected')}",
         f"- Routes revised: {payload.get('n_routes_with_revision')}",
         f"- Routes without revision: {payload.get('n_routes_without_revision')}",
         f"- Orphan proposals: {payload.get('n_orphan_route_revision_proposals')}",
         f"- Prover attempt statuses: {payload.get('by_prover_attempt_status')}",
+        f"- Alignment edges: {payload.get('n_route_alignment_edges')}",
+        f"- Unaligned primitives: {payload.get('n_unaligned_primitives')}",
+        f"- Row schema valid: {payload.get('n_row_schema_valid')}/{payload.get('n_overlay_rows')}",
         f"- All OK: {payload.get('all_ok')}",
         "",
         "## Boundary",

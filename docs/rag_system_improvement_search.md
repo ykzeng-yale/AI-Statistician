@@ -145,7 +145,7 @@ candidate-frontier/search evidence instead of being hidden by gold proof-bank
 shortcuts. Those rows remain retrieval/search evidence unless AXLE or local
 Lean kernel verification is enabled for the proof-search run.
 
-The Hugging Face Lean-source discovery pass now has a repeatable audit command:
+The Hugging Face Lean-source discovery pass has a repeatable audit command:
 
 ```bash
 python3 -m ai_statistician.cli huggingface-lean-source-audit \
@@ -164,7 +164,9 @@ dataset URL, role, ingestion mode, license/provenance policy, dedupe keys, and
 the local Lean validation gate. The revalidation queue turns critical/high rows
 into deterministic work orders for sampling records, reconstructing Lean
 artifacts, and running local Lean/AXLE before any proof-bank or proof-search
-promotion. The audit ranks each dataset by RAG/training role:
+promotion. Every row remains candidate retrieval/training evidence until a
+concrete statement/proof is reconstructed or imported and verified under the
+local target Lean toolchain.
 
 The worker-facing task packet export is:
 
@@ -209,28 +211,6 @@ companions. Awaiting worker outputs remain explicit no-op rows. Ready rows still
 do not mutate the proof bank, source registry, or claim ledger; they require
 review, deduplication, local Lean/AXLE evidence, and a rerun of proof-bank,
 proof-search, and system-audit gates before any source reuse promotion.
-
-- `formal_proof_pairs`: streamed retrieval memory and proof-pair SFT candidates.
-- `tactic_state_training`: proof-state-aware premise/tactic retrieval candidates.
-- `proof_repair_or_process_training`: repair, trajectory, or proof-compression
-  supervision candidates.
-- `formal_code_corpus`: declaration/code-context retrieval candidates.
-- `benchmark_eval`: holdout or calibration corpora, not default training data.
-
-OProver/OProofs is treated as a critical source because the upstream paper and
-Hugging Face metadata describe a large Lean 4 corpus with theorem statements,
-compiler-verified proofs, retrieved context, failed attempts, compiler feedback,
-and repairs. The current Hugging Face `m-a-p/OProofs` dataset is Apache-2.0 and
-large enough that the correct local integration is streamed/sample indexing and
-deduplication, not vendoring parquet shards into this repository. Every row
-remains candidate retrieval/training evidence until a concrete statement/proof is
-reconstructed or imported and verified under the local target Lean toolchain.
-The OProver GitHub codebase is also Apache-2.0 and should be considered a
-runtime-backend/design source for future work: its useful surfaces are iterative
-feedback inference, the Kimina Lean server verification wrapper, retrieval
-database management, pass@k tooling, and SFT/RL/CPT recipes. Those components
-are not vendored here; reuse should go through a narrow adapter or benchmarked
-backend experiment.
 
 The audit now also exports `formal_verifier_queue` after the
 `formalization_delta_plan`. This queue joins theorem-level formalization
@@ -601,12 +581,73 @@ improve the route generator while preserving this artifact contract. The output
 is planning evidence only; Lean proof status still comes from replay attempts
 and kernel verification.
 
+For independent reuse outside the AI Statistician pipeline, the same portable
+manifest can be generated from a normalized target-intake seed:
+
+```bash
+python3 -m ai_statistician.cli formalization-gap-planner-target-intake \
+  --input data/formalization_gap_planner_target_intake_example.json \
+  --out runs/current/formalization_gap_planner_target_intake
+
+python3 -m ai_statistician.cli formalization-gap-planner-standalone-plan \
+  --input runs/current/formalization_gap_planner_target_intake/formalization_gap_planner_target_intake_standalone_seed.json \
+  --out runs/current/formalization_gap_planner_standalone_plan
+
+python3 -m ai_statistician.cli formalization-gap-planner-portable-plan-audit \
+  --goal-conditioned-minimal-formalization-plan-dir runs/current/formalization_gap_planner_standalone_plan \
+  --out runs/current/formalization_gap_planner_portable_plan_audit
+
+python3 -m ai_statistician.cli formalization-gap-planner-minimal-delta-audit \
+  --goal-conditioned-minimal-formalization-plan-dir runs/current/formalization_gap_planner_standalone_plan \
+  --out runs/current/formalization_gap_planner_minimal_delta_audit
+
+python3 -m ai_statistician.cli formalization-gap-planner-source-grounding-audit \
+  --goal-conditioned-minimal-formalization-plan-dir runs/current/formalization_gap_planner_standalone_plan \
+  --out runs/current/formalization_gap_planner_source_grounding_audit
+
+python3 -m ai_statistician.cli formalization-gap-planner-benchmark \
+  --out runs/current/formalization_gap_planner_benchmark
+
+python3 -m ai_statistician.cli formalization-gap-planner-benchmark-audit \
+  --formalization-gap-planner-benchmark-dir runs/current/formalization_gap_planner_benchmark \
+  --out runs/current/formalization_gap_planner_benchmark_audit
+```
+
+This is the publication/reuse input surface for another prover ecosystem:
+provide a theorem request with target prover family, library snapshot, objects,
+assumptions, claim, and source refs; target intake emits primitive/query seeds,
+publishes a target-intake row schema for the JSONL seed rows, then standalone
+planning and the portable-plan audit produce the downstream artifact consumed
+by refinement/evaluation/prover-adapter commands below.
+For a compact external reproduction path, `formalization-gap-planner-reuse-smoke`
+runs that intake-to-plan path, checks the minimal-delta structure and source
+grounding, exports target-prover work-packet mappings, exercises the
+adapter-registry/component-resource-registry audits, runs deterministic
+refinement responses followed by local literature/formal-source/proof-state
+adapter fallbacks, validates evidence/overlay/stability/replan/triage,
+exports an interactive session ledger, packages a publication bundle with a
+route-truth benchmark audit, and audits the bundle under one output directory.
+This checks artifact interoperability for reuse; proof status still belongs to
+target-prover replay/calibration.
+
 The refinement layer turns those route plans into a tool-facing loop:
 
 ```bash
 python3 -m ai_statistician.cli formalization-gap-planner-adapter-registry \
   --lean-rag-db runs/current_status_lean_rag_dependency_graph/stat_inference.sqlite \
   --out runs/current/formalization_gap_planner_adapter_registry
+
+python3 -m ai_statistician.cli formalization-gap-planner-adapter-registry-audit \
+  --formalization-gap-planner-adapter-registry-dir runs/current/formalization_gap_planner_adapter_registry \
+  --out runs/current/formalization_gap_planner_adapter_registry_audit
+
+python3 -m ai_statistician.cli formalization-gap-planner-component-resource-registry \
+  --formalization-gap-planner-adapter-registry-dir runs/current/formalization_gap_planner_adapter_registry \
+  --out runs/current/formalization_gap_planner_component_resource_registry
+
+python3 -m ai_statistician.cli formalization-gap-planner-component-resource-registry-audit \
+  --formalization-gap-planner-component-resource-registry-dir runs/current/formalization_gap_planner_component_resource_registry \
+  --out runs/current/formalization_gap_planner_component_resource_registry_audit
 
 python3 -m ai_statistician.cli formalization-gap-planner-refinement-queue \
   --goal-conditioned-minimal-formalization-plan-dir runs/current/goal_conditioned_minimal_formalization_plan \
@@ -644,28 +685,108 @@ python3 -m ai_statistician.cli formalization-gap-planner-refinement-evidence \
 python3 -m ai_statistician.cli formalization-gap-planner-route-revision-overlay \
   --goal-conditioned-minimal-formalization-plan-dir runs/current/goal_conditioned_minimal_formalization_plan \
   --formalization-gap-planner-refinement-evidence-dir runs/current/formalization_gap_planner_refinement_evidence \
+  --formalization-gap-planner-resource-response-ledger-dir runs/current/formalization_gap_planner_resource_response_ledger \
   --out runs/current/formalization_gap_planner_route_revision_overlay
+
+python3 -m ai_statistician.cli formalization-gap-planner-route-stability-audit \
+  --goal-conditioned-minimal-formalization-plan-dir runs/current/goal_conditioned_minimal_formalization_plan \
+  --formalization-gap-planner-refinement-evidence-dir runs/current/formalization_gap_planner_refinement_evidence \
+  --formalization-gap-planner-route-revision-overlay-dir runs/current/formalization_gap_planner_route_revision_overlay \
+  --out runs/current/formalization_gap_planner_route_stability_audit
+
+python3 -m ai_statistician.cli formalization-gap-planner-route-replan-handoff \
+  --goal-conditioned-minimal-formalization-plan-dir runs/current/goal_conditioned_minimal_formalization_plan \
+  --formalization-gap-planner-route-revision-overlay-dir runs/current/formalization_gap_planner_route_revision_overlay \
+  --formalization-gap-planner-route-stability-audit-dir runs/current/formalization_gap_planner_route_stability_audit \
+  --out runs/current/formalization_gap_planner_route_replan_handoff
+
+python3 -m ai_statistician.cli formalization-gap-planner-route-replan-handoff-audit \
+  --formalization-gap-planner-route-replan-handoff-dir runs/current/formalization_gap_planner_route_replan_handoff \
+  --out runs/current/formalization_gap_planner_route_replan_handoff_audit
+
+python3 -m ai_statistician.cli formalization-gap-planner-proof-state-triage \
+  --formalization-gap-planner-route-revision-overlay-dir runs/current/formalization_gap_planner_route_revision_overlay \
+  --out runs/current/formalization_gap_planner_proof_state_triage
+
+python3 -m ai_statistician.cli formalization-gap-planner-interactive-session \
+  --goal-conditioned-minimal-formalization-plan-dir runs/current/goal_conditioned_minimal_formalization_plan \
+  --formalization-gap-planner-refinement-queue-dir runs/current/formalization_gap_planner_refinement_queue \
+  --formalization-gap-planner-refinement-evidence-dir runs/current/formalization_gap_planner_refinement_evidence \
+  --formalization-gap-planner-route-stability-audit-dir runs/current/formalization_gap_planner_route_stability_audit \
+  --formalization-gap-planner-route-replan-handoff-dir runs/current/formalization_gap_planner_route_replan_handoff \
+  --formalization-gap-planner-proof-state-triage-dir runs/current/formalization_gap_planner_proof_state_triage \
+  --out runs/current/formalization_gap_planner_interactive_session
+
+python3 -m ai_statistician.cli formalization-gap-planner-ablation-study \
+  --goal-conditioned-minimal-formalization-plan-dir runs/current/goal_conditioned_minimal_formalization_plan \
+  --formalization-gap-planner-evaluation-dir runs/current/formalization_gap_planner_evaluation \
+  --formalization-gap-planner-interactive-session-dir runs/current/formalization_gap_planner_interactive_session \
+  --out runs/current/formalization_gap_planner_ablation_study
+
+python3 -m ai_statistician.cli formalization-gap-planner-prover-adapter-contract \
+  --goal-conditioned-minimal-formalization-plan-dir runs/current/goal_conditioned_minimal_formalization_plan \
+  --target-prover-family rocq \
+  --library-snapshot-ref rocq_snapshot_identifier \
+  --out runs/current/formalization_gap_planner_prover_adapter_contract
+
+python3 -m ai_statistician.cli formalization-gap-planner-cross-prover-matrix-audit \
+  --goal-conditioned-minimal-formalization-plan-dir runs/current/goal_conditioned_minimal_formalization_plan \
+  --out runs/current/formalization_gap_planner_cross_prover_matrix_audit
+
+python3 -m ai_statistician.cli formalization-gap-planner-publication-bundle \
+  --paper-library-dir /path/to/local/paper_or_text_corpus \
+  --lean-rag-db runs/current_status_lean_rag_dependency_graph/stat_inference.sqlite \
+  --formalization-gap-planner-target-intake-dir runs/current/formalization_gap_planner_target_intake \
+  --goal-conditioned-minimal-formalization-plan-dir runs/current/goal_conditioned_minimal_formalization_plan \
+  --formalization-gap-planner-evaluation-dir runs/current/formalization_gap_planner_evaluation \
+  --formalization-gap-planner-ablation-study-dir runs/current/formalization_gap_planner_ablation_study \
+  --formalization-gap-planner-portable-plan-audit-dir runs/current/formalization_gap_planner_portable_plan_audit \
+  --formalization-gap-planner-minimal-delta-audit-dir runs/current/formalization_gap_planner_minimal_delta_audit \
+  --formalization-gap-planner-source-grounding-audit-dir runs/current/formalization_gap_planner_source_grounding_audit \
+  --formalization-gap-planner-refinement-queue-dir runs/current/formalization_gap_planner_refinement_queue \
+  --formalization-gap-planner-refinement-adapter-dir runs/current/formalization_gap_planner_refinement_adapter \
+  --formalization-gap-planner-local-literature-adapter-dir runs/current/formalization_gap_planner_local_literature_adapter \
+  --formalization-gap-planner-local-formal-source-adapter-dir runs/current/formalization_gap_planner_local_formal_source_adapter \
+  --formalization-gap-planner-local-proof-state-adapter-dir runs/current/formalization_gap_planner_local_proof_state_adapter \
+  --formalization-gap-planner-refinement-evidence-dir runs/current/formalization_gap_planner_refinement_evidence \
+  --formalization-gap-planner-route-revision-overlay-dir runs/current/formalization_gap_planner_route_revision_overlay \
+  --formalization-gap-planner-route-stability-audit-dir runs/current/formalization_gap_planner_route_stability_audit \
+  --formalization-gap-planner-route-replan-handoff-dir runs/current/formalization_gap_planner_route_replan_handoff \
+  --formalization-gap-planner-route-replan-handoff-audit-dir runs/current/formalization_gap_planner_route_replan_handoff_audit \
+  --formalization-gap-planner-proof-state-triage-dir runs/current/formalization_gap_planner_proof_state_triage \
+  --formalization-gap-planner-interactive-session-dir runs/current/formalization_gap_planner_interactive_session \
+  --formalization-gap-planner-prover-adapter-contract-dir runs/current/formalization_gap_planner_prover_adapter_contract \
+  --formalization-gap-planner-cross-prover-matrix-audit-dir runs/current/formalization_gap_planner_cross_prover_matrix_audit \
+  --formalization-gap-planner-adapter-registry-audit-dir runs/current/formalization_gap_planner_adapter_registry_audit \
+  --formalization-gap-planner-component-resource-registry-audit-dir runs/current/formalization_gap_planner_component_resource_registry_audit \
+  --out runs/current/formalization_gap_planner_publication_bundle
+
+python3 -m ai_statistician.cli formalization-gap-planner-publication-bundle-audit \
+  --publication-bundle-dir runs/current/formalization_gap_planner_publication_bundle \
+  --out runs/current/formalization_gap_planner_publication_bundle_audit
 ```
 
 The adapter registry is the stable inventory for Paperclip/PaperQA/OpenScholar
 literature search, LeanSearch/Loogle/LeanExplore/local Lean RAG grounding, and
 Lean/LSP or LeanDojo proof-state feedback. The queue is the work-order contract
-for those adapters. The adapter command is the offline regression producer: it
+for those adapters. The adapter-registry audit checks required frontier-tool
+coverage, output fields, resource links, prover-family portability, and proof
+boundaries. The component-resource registry sits above adapters and records
+which local fallback and frontier resource/MCP each planner component should
+consult, including Paperclip/PaperQA/OpenScholar for literature, dependency
+graph/blueprint methods for route DAGs, LeanSearch/Loogle/LeanExplore/local
+Lean RAG for library grounding, Lean/LSP/LeanDojo for proof feedback, and
+Rocq/Isabelle/Agda resources for cross-prover reuse. The adapter command is
+the offline regression producer: it
 emits the same response JSONL using packaged route-truth labels so the evidence
 validator and route-revision proposal path can be exercised without live MCP
 credentials. The local literature adapter is the first live-local replacement
-stage: it searches local text/markdown/json corpora for literature-discovery
-rows and merges source evidence or focused literature-gap nodes into the same
-JSONL. The local formal-source adapter then searches indexed declarations for
-Lean-grounding rows and merges those results into the same evidence JSONL. The
-local proof-state adapter is the next live-local replacement stage: it runs or
-records local Lean proof-state checks for queued skeletons, blocks
-`sorry`/`admit`/`axiom` probes, classifies name-only non-Lean skeletons as
-statement-materialization gaps, and merges prover diagnostics and residual
-goals into that JSONL. The overlay command writes accepted proposals back
-against the route plan as an inspectable revised-route artifact. These rows are
-route evidence only.
-
+stage; the source-grounding audit records which informal route nodes already
+have source refs and which must be resolved by that bounded literature search.
+The ablation study reports how route/delta recall, exact-reuse signals, and
+feedback-loop readiness change when literature, Lean grounding, proof-state
+feedback, or the route planner itself is removed from the recorded artifacts.
+Those rows are planning diagnostics, not proof evidence.
 LeanBlueprint is now a first-class knowledge-base integration for future route
 DAG visualization:
 
@@ -684,6 +805,53 @@ nodes, prerequisite edges, Lean declaration links, proof/readiness status,
 issue links, and Mathlib-reuse status. These fields are planning and
 visualization metadata only; proof status still changes only after local Lean
 verification of the linked declarations.
+
+The local literature adapter searches local text/markdown/json corpora for
+literature-discovery rows and merges source evidence or focused literature-gap
+nodes into the same JSONL. The local formal-source adapter then searches
+indexed declarations for
+Lean-grounding rows and merges those results into the same evidence JSONL. The
+local proof-state adapter is the next live-local replacement stage: it runs or
+records local Lean proof-state checks for queued skeletons, blocks
+`sorry`/`admit`/`axiom` probes, classifies name-only non-Lean skeletons as
+statement-materialization gaps, and merges prover diagnostics and residual
+goals into that JSONL. The overlay command writes accepted proposals back
+against the route plan as an inspectable revised-route artifact. The replan
+handoff command converts that revised route into a standalone seed for the next
+planner round and writes the standalone-input schema beside that seed. The
+replan handoff audit validates the seed schema id, validates the seed, rejects
+accidental proof-status promotion, and reruns the standalone planner as a
+replayability check. The proof-state triage command ranks overlay-level prover
+statuses into materialization, local Lean repair, and environment-configuration
+work items. The interactive-session command then summarizes, per route, whether
+the next bounded action is literature search, Lean grounding, proof-state
+feedback, route replanning, or target-prover replay. These rows are route
+evidence only. The prover-adapter contract command maps portable work
+packets into target-prover mapping tasks and validates target-prover responses
+without accepting proof claims in the mapping layer. The cross-prover matrix
+audit repeats packet export across Lean4, Rocq, Isabelle, and Agda and writes
+aggregate packet/validation JSONL plus a target-summary artifact for external
+prover teams to find their packet rows inside those aggregate files. The
+publication-bundle command packages the portable contract, schema,
+prover-adapter response schema, benchmark, benchmark audit, adapter registry,
+docs, and optional run artifacts for paper supplements or reuse by non-Lean
+prover adapters without changing the proof boundary. It also writes a
+schema catalog under `contract/` for downstream consumers to discover reusable
+planner schemas, a reusable `validate_schema_catalog_payload()` API for that
+catalog, a `reproduce/` manifest with bundle-relative artifacts and commands
+for downstream users, plus runnable standalone and target-intake example JSON
+files.
+The bundle audit is the independent reuse gate: it checks required files,
+schema ids, benchmark/benchmark-audit/registry/reproduction/example usability,
+schema-catalog entry resolution, optional artifact containment, and
+proof-boundary text after export or download.
+When target-intake, goal-plan, minimal-delta, source-grounding,
+refinement-queue, adapter-registry-audit, or component-resource-registry-audit
+artifacts are packaged, it also parses their JSONL rows, checks manifest
+counts, validates standalone seeds, and validates target-intake JSONL rows
+against their published row schema, goal-plan JSONL rows against the published
+gap-plan row schema, and the remaining rows against their public contracts or
+schemas instead of relying on file presence alone.
 
 ```bash
 python3 -m ai_statistician.cli formal-verifier-replay-export \

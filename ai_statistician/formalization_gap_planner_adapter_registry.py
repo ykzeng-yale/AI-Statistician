@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import re
 import shutil
 from collections import Counter
 from dataclasses import asdict, dataclass
@@ -17,6 +18,10 @@ from .formalization_gap_planner_benchmark import (
 
 
 FORMALIZATION_GAP_PLANNER_ADAPTER_REGISTRY_SCHEMA_VERSION = 1
+ADAPTER_REGISTRY_ROW_SCHEMA_ID = (
+    "urn:ai-statistician:schemas:"
+    "formalization-gap-planner-adapter-registry-row:1"
+)
 PROOF_EVIDENCE_STATUS = "FORMALIZATION_GAP_PLANNER_ADAPTER_REGISTRY_NOT_PROOF_EVIDENCE"
 PROOF_EVIDENCE_BOUNDARY = (
     "Formalization gap planner adapter registry rows describe tool readiness "
@@ -70,6 +75,14 @@ def export_formalization_gap_planner_adapter_registry(
         paper_library_dir=paper_library_dir,
     )
     rows = tuple(_registry_row(spec) for spec in adapter_specs)
+    row_dicts = [asdict(row) for row in rows]
+    adapter_row_schema = adapter_registry_row_json_schema()
+    adapter_row_schema_errors = [
+        validate_adapter_registry_row(row, adapter_row_schema) for row in row_dicts
+    ]
+    n_adapter_row_schema_valid = sum(
+        1 for row_errors in adapter_row_schema_errors if not row_errors
+    )
     by_component = Counter(row.component_kind for row in rows)
     by_hook = Counter(row.hook_kind for row in rows)
     by_status = Counter(row.readiness_status for row in rows)
@@ -88,12 +101,19 @@ def export_formalization_gap_planner_adapter_registry(
         "n_needs_credentials": by_status.get("NEEDS_CREDENTIALS", 0),
         "n_needs_configuration": by_status.get("NEEDS_CONFIGURATION", 0),
         "n_ok": sum(1 for row in rows if row.ok),
-        "all_ok": bool(rows) and all(row.ok for row in rows),
+        "n_adapter_row_schema_valid": n_adapter_row_schema_valid,
+        "n_adapter_row_schema_invalid": len(adapter_row_schema_errors)
+        - n_adapter_row_schema_valid,
+        "adapter_row_schema_errors": adapter_row_schema_errors,
+        "adapter_row_schema": adapter_row_schema,
+        "all_ok": bool(rows)
+        and all(row.ok for row in rows)
+        and len(adapter_row_schema_errors) == n_adapter_row_schema_valid,
         "by_component_kind": dict(sorted(by_component.items())),
         "by_hook_kind": dict(sorted(by_hook.items())),
         "by_readiness_status": dict(sorted(by_status.items())),
-        "rows": [asdict(row) for row in rows],
-        "adapter_registry_fingerprint": stable_hash([asdict(row) for row in rows]),
+        "rows": row_dicts,
+        "adapter_registry_fingerprint": stable_hash(row_dicts),
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
         "usage_order": [
@@ -115,8 +135,14 @@ def export_formalization_gap_planner_adapter_registry(
             encoding="utf-8",
         )
         (out_dir / "formalization_gap_planner_adapter_registry.jsonl").write_text(
-            "\n".join(json.dumps(asdict(row), sort_keys=True) for row in rows)
-            + ("\n" if rows else ""),
+            "\n".join(json.dumps(row, sort_keys=True) for row in row_dicts)
+            + ("\n" if row_dicts else ""),
+            encoding="utf-8",
+        )
+        (
+            out_dir / "formalization_gap_planner_adapter_registry_row.schema.json"
+        ).write_text(
+            json.dumps(adapter_row_schema, indent=2),
             encoding="utf-8",
         )
         (out_dir / "formalization_gap_planner_adapter_registry.md").write_text(
@@ -124,6 +150,188 @@ def export_formalization_gap_planner_adapter_registry(
             encoding="utf-8",
         )
     return payload
+
+
+def adapter_registry_row_json_schema() -> dict[str, object]:
+    """JSON Schema for reusable frontier-tool adapter registry rows."""
+
+    string_array = {"type": "array", "items": {"type": "string"}}
+    bool_map = {"type": "object", "additionalProperties": {"type": "boolean"}}
+    return {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": ADAPTER_REGISTRY_ROW_SCHEMA_ID,
+        "title": "Formalization Gap Planner Adapter Registry Row",
+        "description": (
+            "Reusable row describing one local, frontier, MCP, CLI, or API "
+            "adapter that can answer a formalization-gap planner refinement "
+            "hook. Rows are integration metadata and response contracts, not "
+            "theorem proof evidence."
+        ),
+        "type": "object",
+        "additionalProperties": True,
+        "required": [
+            "schema_version",
+            "adapter_id",
+            "adapter_name",
+            "component_kind",
+            "hook_kind",
+            "evidence_kind",
+            "adapter_surface",
+            "role",
+            "output_contract_fields",
+            "required_commands",
+            "required_python_packages",
+            "required_env_vars",
+            "optional_paths",
+            "detected_commands",
+            "detected_python_packages",
+            "detected_env_vars",
+            "detected_paths",
+            "readiness_status",
+            "readiness_reasons",
+            "install_hint",
+            "resource_urls",
+            "online_dependency",
+            "portable_to_prover_families",
+            "response_contract_boundary",
+            "proof_evidence_status",
+            "proof_evidence_boundary",
+            "ok",
+            "errors",
+        ],
+        "properties": {
+            "schema_version": {
+                "type": "integer",
+                "const": FORMALIZATION_GAP_PLANNER_ADAPTER_REGISTRY_SCHEMA_VERSION,
+            },
+            "adapter_id": {"type": "string", "minLength": 1},
+            "adapter_name": {"type": "string", "minLength": 1},
+            "component_kind": {"type": "string", "minLength": 1},
+            "hook_kind": {"type": "string", "minLength": 1},
+            "evidence_kind": {"type": "string", "minLength": 1},
+            "adapter_surface": {"type": "string", "minLength": 1},
+            "role": {"type": "string", "minLength": 1},
+            "output_contract_fields": string_array,
+            "required_commands": string_array,
+            "required_python_packages": string_array,
+            "required_env_vars": string_array,
+            "optional_paths": string_array,
+            "detected_commands": bool_map,
+            "detected_python_packages": bool_map,
+            "detected_env_vars": bool_map,
+            "detected_paths": bool_map,
+            "readiness_status": {"type": "string", "minLength": 1},
+            "readiness_reasons": string_array,
+            "install_hint": {"type": "string"},
+            "resource_urls": string_array,
+            "online_dependency": {"type": "boolean"},
+            "portable_to_prover_families": string_array,
+            "response_contract_boundary": {
+                "type": "string",
+                "pattern": "formalization_gap_planner_refinement_evidence",
+            },
+            "proof_evidence_status": {
+                "type": "string",
+                "pattern": "NOT_PROOF_EVIDENCE",
+            },
+            "proof_evidence_boundary": {
+                "type": "string",
+                "pattern": "not theorem proof evidence",
+            },
+            "ok": {"type": "boolean"},
+            "errors": string_array,
+        },
+    }
+
+
+def validate_adapter_registry_row(
+    row: dict[str, Any],
+    schema: dict[str, object] | None = None,
+) -> tuple[str, ...]:
+    """Validate an adapter-registry row against the published reusable schema."""
+
+    return _validate_schema_row(row, schema or adapter_registry_row_json_schema())
+
+
+def _validate_schema_row(
+    row: dict[str, Any],
+    row_schema: dict[str, object],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    if not isinstance(row, dict):
+        return ("row must be object",)
+    required = row_schema.get("required", [])
+    if isinstance(required, list):
+        for field_name in required:
+            if isinstance(field_name, str) and field_name not in row:
+                errors.append(f"{field_name} required")
+    properties = row_schema.get("properties", {})
+    if isinstance(properties, dict):
+        for field_name, field_schema in properties.items():
+            if not isinstance(field_name, str) or field_name not in row:
+                continue
+            if isinstance(field_schema, dict):
+                errors.extend(
+                    _schema_property_errors(field_name, row[field_name], field_schema)
+                )
+    return tuple(errors)
+
+
+def _schema_property_errors(
+    field_name: str,
+    value: Any,
+    field_schema: dict[str, Any],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    expected_type = field_schema.get("type")
+    if expected_type == "integer":
+        if not isinstance(value, int) or isinstance(value, bool):
+            errors.append(f"{field_name} must be integer")
+    elif expected_type == "string":
+        if not isinstance(value, str):
+            errors.append(f"{field_name} must be string")
+        elif field_schema.get("minLength") and len(value) < int(
+            field_schema["minLength"]
+        ):
+            errors.append(f"{field_name} must be non-empty")
+    elif expected_type == "boolean":
+        if not isinstance(value, bool):
+            errors.append(f"{field_name} must be boolean")
+    elif expected_type == "array":
+        if not isinstance(value, (list, tuple)):
+            errors.append(f"{field_name} must be array")
+        else:
+            item_schema = field_schema.get("items", {})
+            if isinstance(item_schema, dict) and item_schema.get("type") == "string":
+                non_strings = [
+                    idx for idx, item in enumerate(value) if not isinstance(item, str)
+                ]
+                if non_strings:
+                    errors.append(
+                        f"{field_name} items must be string at indexes "
+                        + ",".join(str(idx) for idx in non_strings)
+                    )
+    elif expected_type == "object":
+        if not isinstance(value, dict):
+            errors.append(f"{field_name} must be object")
+        else:
+            additional = field_schema.get("additionalProperties")
+            if isinstance(additional, dict) and additional.get("type") == "boolean":
+                non_bool_keys = [
+                    key for key, item in value.items() if not isinstance(item, bool)
+                ]
+                if non_bool_keys:
+                    errors.append(
+                        f"{field_name} values must be boolean for keys "
+                        + ",".join(str(key) for key in sorted(non_bool_keys))
+                    )
+    if "const" in field_schema and value != field_schema["const"]:
+        errors.append(f"{field_name} must equal {field_schema['const']!r}")
+    pattern = field_schema.get("pattern")
+    if isinstance(pattern, str) and isinstance(value, str):
+        if re.search(pattern, value) is None:
+            errors.append(f"{field_name} must match /{pattern}/")
+    return tuple(errors)
 
 
 def _registry_row(spec: dict[str, Any]) -> FormalizationGapPlannerAdapterRegistryRow:
@@ -350,6 +558,7 @@ def _adapter_specs(
             "output_contract_fields": (
                 "route_revision_summary",
                 "revised_informal_knowledge_dag_nodes",
+                "revised_formal_realization_dag_nodes",
                 "revised_lean_realization_dag_nodes",
             ),
             "online_dependency": True,
@@ -365,12 +574,16 @@ def _adapter_specs(
         {
             "adapter_id": "local_formal_source_index",
             "adapter_name": "AI Statistician local formal-source index",
-            "component_kind": "lean_library_grounding",
-            "hook_kind": "lean_library_grounding",
-            "evidence_kind": "lean_library_grounding",
+            "component_kind": "formal_library_grounding",
+            "hook_kind": "formal_library_grounding",
+            "evidence_kind": "formal_library_grounding",
             "adapter_surface": "python_module",
             "role": "local declaration search over indexed Lean/source roots",
-            "output_contract_fields": ("lean_declaration_hits", "coverage_updates"),
+            "output_contract_fields": (
+                "formal_declaration_hits",
+                "lean_declaration_hits",
+                "coverage_updates",
+            ),
             "builtin_ready": True,
             "resource_urls": (),
             "install_hint": "included in ai_statistician.formal_source_index",
@@ -378,12 +591,16 @@ def _adapter_specs(
         {
             "adapter_id": "local_lean_rag_dependency_graph",
             "adapter_name": "Local Lean RAG dependency graph adapter",
-            "component_kind": "lean_library_grounding",
-            "hook_kind": "lean_library_grounding",
-            "evidence_kind": "lean_library_grounding",
+            "component_kind": "formal_library_grounding",
+            "hook_kind": "formal_library_grounding",
+            "evidence_kind": "formal_library_grounding",
             "adapter_surface": "sqlite_dependency_graph",
             "role": "reuse declaration dependency metadata, FTS signatures, and graph neighborhoods for coverage updates",
-            "output_contract_fields": ("lean_declaration_hits", "coverage_updates"),
+            "output_contract_fields": (
+                "formal_declaration_hits",
+                "lean_declaration_hits",
+                "coverage_updates",
+            ),
             "optional_paths": lean_rag_paths,
             "resource_urls": (),
             "install_hint": "pass --lean-rag-db or set AI_STATISTICIAN_LEAN_RAG_DB to a stat_inference.sqlite graph",
@@ -391,12 +608,16 @@ def _adapter_specs(
         {
             "adapter_id": "loogle_leansearchclient",
             "adapter_name": "Loogle/LeanSearchClient adapter",
-            "component_kind": "lean_library_grounding",
-            "hook_kind": "lean_library_grounding",
-            "evidence_kind": "lean_library_grounding",
+            "component_kind": "formal_library_grounding",
+            "hook_kind": "formal_library_grounding",
+            "evidence_kind": "formal_library_grounding",
             "adapter_surface": "lean_command_or_cli",
             "role": "query Lean/Mathlib declarations by constant, name, expression shape, or conclusion shape",
-            "output_contract_fields": ("lean_declaration_hits", "coverage_updates"),
+            "output_contract_fields": (
+                "formal_declaration_hits",
+                "lean_declaration_hits",
+                "coverage_updates",
+            ),
             "required_commands": ("lake",),
             "online_dependency": True,
             "contract_only": True,
@@ -410,12 +631,16 @@ def _adapter_specs(
         {
             "adapter_id": "leanexplore_mcp",
             "adapter_name": "LeanExplore MCP/API adapter",
-            "component_kind": "lean_library_grounding",
-            "hook_kind": "lean_library_grounding",
-            "evidence_kind": "lean_library_grounding",
+            "component_kind": "formal_library_grounding",
+            "hook_kind": "formal_library_grounding",
+            "evidence_kind": "formal_library_grounding",
             "adapter_surface": "mcp_or_python_api",
             "role": "semantic and lexical declaration retrieval for theorem-proving agents",
-            "output_contract_fields": ("lean_declaration_hits", "coverage_updates"),
+            "output_contract_fields": (
+                "formal_declaration_hits",
+                "lean_declaration_hits",
+                "coverage_updates",
+            ),
             "required_python_packages": ("lean_explore",),
             "online_dependency": True,
             "resource_urls": ("https://arxiv.org/abs/2506.11085",),
@@ -535,6 +760,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Needs install: {payload.get('n_needs_install')}",
         f"- Needs credentials: {payload.get('n_needs_credentials')}",
         f"- Needs configuration: {payload.get('n_needs_configuration')}",
+        f"- Adapter row schema valid: {payload.get('n_adapter_row_schema_valid')}/{payload.get('n_adapters')}",
         f"- All OK: {payload.get('all_ok')}",
         "",
         "## Boundary",

@@ -13,7 +13,11 @@ from .formal_source_index import (
     FormalSourceRoot,
     build_formal_source_search_backend,
 )
-from .formalization_gap_planner_refinement_evidence import PROOF_EVIDENCE_BOUNDARY
+from .formalization_gap_planner_refinement_evidence import (
+    PROOF_EVIDENCE_BOUNDARY,
+    refinement_tool_response_json_schema,
+    validate_refinement_tool_response_row,
+)
 
 
 FORMALIZATION_GAP_PLANNER_LOCAL_FORMAL_SOURCE_ADAPTER_SCHEMA_VERSION = 1
@@ -36,11 +40,12 @@ def export_formalization_gap_planner_local_formal_source_adapter_responses(
     max_items: int = 0,
     k: int = 5,
 ) -> dict[str, object]:
-    """Emit Lean-library-grounding responses from local formal-source search.
+    """Emit formal-library-grounding responses from local formal-source search.
 
-    The adapter only answers `lean_library_grounding` queue rows. When
-    `base_response_jsonl` is provided, non-Lean responses are carried through
-    and Lean-grounding responses are replaced by this adapter's local search
+    The adapter answers generic `formal_library_grounding` rows and legacy
+    `lean_library_grounding` rows. When `base_response_jsonl` is provided,
+    non-grounding responses are carried through and grounding responses are
+    replaced by this adapter's local search
     results, producing one merged response JSONL for the evidence validator.
     """
 
@@ -55,8 +60,8 @@ def export_formalization_gap_planner_local_formal_source_adapter_responses(
     ]
     if max_items > 0:
         queue_rows = queue_rows[:max_items]
-    lean_rows = [
-        row for row in queue_rows if str(row.get("hook_kind", "")) == "lean_library_grounding"
+    formal_grounding_rows = [
+        row for row in queue_rows if _is_formal_library_grounding_hook(row)
     ]
 
     base_responses = _read_jsonl(base_response_jsonl, errors) if base_response_jsonl else []
@@ -79,7 +84,7 @@ def export_formalization_gap_planner_local_formal_source_adapter_responses(
     )
     responses = [
         _lean_grounding_response(row, retriever, k=max(1, k))
-        for row in lean_rows
+        for row in formal_grounding_rows
     ]
     merged_by_item = dict(base_by_item)
     for response in responses:
@@ -91,6 +96,21 @@ def export_formalization_gap_planner_local_formal_source_adapter_responses(
             str(row.get("evidence_kind", "")),
             str(row.get("refinement_item_id", "")),
         ),
+    )
+    response_schema = refinement_tool_response_json_schema()
+    local_response_schema_errors = [
+        validate_refinement_tool_response_row(response, response_schema)
+        for response in responses
+    ]
+    merged_response_schema_errors = [
+        validate_refinement_tool_response_row(response, response_schema)
+        for response in merged_responses
+    ]
+    n_local_response_schema_valid = sum(
+        1 for row_errors in local_response_schema_errors if not row_errors
+    )
+    n_merged_response_schema_valid = sum(
+        1 for row_errors in merged_response_schema_errors if not row_errors
     )
 
     by_coverage_status = Counter(
@@ -119,21 +139,39 @@ def export_formalization_gap_planner_local_formal_source_adapter_responses(
             getattr(retriever, "lean_rag_dependency_graph_path", "")
         ),
         "n_queue_rows": len(queue_rows),
-        "n_lean_library_grounding_rows": len(lean_rows),
+        "n_formal_library_grounding_rows": len(formal_grounding_rows),
+        "n_lean_library_grounding_rows": sum(
+            1
+            for row in formal_grounding_rows
+            if str(row.get("hook_kind", "")) == "lean_library_grounding"
+        ),
         "n_base_responses": len(base_responses),
         "n_local_formal_source_responses": len(responses),
         "n_merged_responses": len(merged_responses),
+        "n_local_response_schema_valid": n_local_response_schema_valid,
+        "n_local_response_schema_invalid": len(local_response_schema_errors)
+        - n_local_response_schema_valid,
+        "n_merged_response_schema_valid": n_merged_response_schema_valid,
+        "n_merged_response_schema_invalid": len(merged_response_schema_errors)
+        - n_merged_response_schema_valid,
+        "local_response_schema_errors": local_response_schema_errors,
+        "merged_response_schema_errors": merged_response_schema_errors,
         "n_exact_exists": by_coverage_status.get("exact_exists", 0),
         "n_wrapper_needed": by_coverage_status.get("wrapper_needed", 0),
         "n_source_discovery_needed": by_coverage_status.get("source_discovery_needed", 0),
         "n_hits": sum(
-            len(response.get("lean_declaration_hits", [])) for response in responses
+            len(response.get("formal_declaration_hits", [])) for response in responses
         ),
         "k": k,
-        "all_ok": not errors and bool(lean_rows) and len(responses) == len(lean_rows),
+        "all_ok": not errors
+        and bool(formal_grounding_rows)
+        and len(responses) == len(formal_grounding_rows)
+        and n_local_response_schema_valid == len(responses)
+        and n_merged_response_schema_valid == len(merged_responses),
         "errors": errors,
         "by_coverage_status": dict(sorted(by_coverage_status.items())),
         "responses": responses,
+        "refinement_tool_response_schema": response_schema,
         "merged_response_ids": [
             str(row.get("refinement_item_id", "")) for row in merged_responses
         ],
@@ -143,8 +181,8 @@ def export_formalization_gap_planner_local_formal_source_adapter_responses(
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
         "limitations": [
             "local formal-source hits are declaration-grounding evidence, not theorem proof evidence",
-            "coverage labels are heuristic and must be verified by Lean replay before promotion",
-            "this adapter answers Lean-library grounding rows only; use other adapters for literature and prover feedback",
+            "coverage labels are heuristic and must be verified by target-prover replay before promotion",
+            "this adapter answers formal-library grounding rows only; use other adapters for literature and prover feedback",
         ],
     }
     if out_dir is not None:
@@ -159,11 +197,19 @@ def export_formalization_gap_planner_local_formal_source_adapter_responses(
             out_dir
             / "formalization_gap_planner_local_formal_source_adapter_responses.jsonl"
         )
+        response_schema_path = (
+            out_dir / "formalization_gap_planner_refinement_tool_response.schema.json"
+        )
         payload["manifest_path"] = str(manifest_path)
         payload["responses_jsonl"] = str(responses_path)
         payload["local_responses_jsonl"] = str(local_responses_path)
+        payload["response_schema_path"] = str(response_schema_path)
         manifest_path.write_text(
             json.dumps(payload, indent=2, default=str),
+            encoding="utf-8",
+        )
+        response_schema_path.write_text(
+            json.dumps(response_schema, indent=2),
             encoding="utf-8",
         )
         responses_path.write_text(
@@ -208,8 +254,9 @@ def _lean_grounding_response(
         "refinement_item_id": str(queue_row.get("refinement_item_id", "")),
         "route_id": str(queue_row.get("route_id", "")),
         "display_name": str(queue_row.get("display_name", "")),
-        "evidence_kind": "lean_library_grounding",
+        "evidence_kind": "formal_library_grounding",
         "tool_name": ADAPTER_TOOL_NAME,
+        "formal_declaration_hits": declaration_hits,
         "lean_declaration_hits": declaration_hits,
         "coverage_updates": coverage_updates,
         "route_revision_recommended": bool(revision_reasons),
@@ -285,6 +332,13 @@ def _default_roots_marker() -> tuple[FormalSourceRoot, ...]:
     return DEFAULT_FORMAL_SOURCE_ROOTS
 
 
+def _is_formal_library_grounding_hook(row: dict[str, Any]) -> bool:
+    return str(row.get("hook_kind", "")) in {
+        "formal_library_grounding",
+        "lean_library_grounding",
+    }
+
+
 def _tokens(text: str) -> set[str]:
     return {
         token
@@ -340,9 +394,12 @@ def _markdown_report(payload: dict[str, object]) -> str:
         "# Formalization Gap Planner Local Formal-Source Adapter",
         "",
         f"- Queue rows: {payload.get('n_queue_rows')}",
+        f"- Formal-grounding rows: {payload.get('n_formal_library_grounding_rows')}",
         f"- Lean-grounding rows: {payload.get('n_lean_library_grounding_rows')}",
         f"- Local responses: {payload.get('n_local_formal_source_responses')}",
         f"- Merged responses: {payload.get('n_merged_responses')}",
+        f"- Local response schema valid: {payload.get('n_local_response_schema_valid')}/{payload.get('n_local_formal_source_responses')}",
+        f"- Merged response schema valid: {payload.get('n_merged_response_schema_valid')}/{payload.get('n_merged_responses')}",
         f"- Hits: {payload.get('n_hits')}",
         f"- Exact exists: {payload.get('n_exact_exists')}",
         f"- Wrapper needed: {payload.get('n_wrapper_needed')}",

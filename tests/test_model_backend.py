@@ -1,0 +1,182 @@
+from __future__ import annotations
+
+import sys
+from types import SimpleNamespace
+
+import pytest
+
+from ai_statistician.model_backend import (
+    ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
+    ANTHROPIC_MODEL_ID_VERSIONING_POLICY,
+    AnthropicGeneratorBackend,
+    GeneratorRequest,
+    StaticJSONGeneratorBackend,
+    default_generator_model,
+    default_generator_provider,
+)
+
+
+def _request() -> GeneratorRequest:
+    return GeneratorRequest(
+        system_prompt="Return JSON.",
+        user_prompt="Produce a theory packet.",
+        model="test-model",
+        max_tokens=128,
+        temperature=0.0,
+        schema={"type": "object", "properties": {"ok": {"type": "boolean"}}},
+    )
+
+
+def test_static_json_generator_backend_returns_text_without_tools() -> None:
+    response = StaticJSONGeneratorBackend({"ok": True}).generate(_request())
+
+    assert response.provider == "static"
+    assert response.model == "test-model"
+    assert '"ok": true' in response.text
+    assert response.metadata["generator_only"] is True
+    assert response.metadata["tools_available"] is False
+
+
+def test_anthropic_generator_backend_calls_messages_api_without_tools(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    class FakeMessages:
+        def create(self, **kwargs):
+            captured["kwargs"] = kwargs
+            return SimpleNamespace(
+                content=[SimpleNamespace(text='{"ok": true}')],
+            )
+
+    class FakeAnthropicClient:
+        def __init__(self, *, api_key: str) -> None:
+            captured["api_key"] = api_key
+            self.messages = FakeMessages()
+
+    fake_anthropic_module = SimpleNamespace(Anthropic=FakeAnthropicClient)
+    monkeypatch.setitem(sys.modules, "anthropic", fake_anthropic_module)
+
+    response = AnthropicGeneratorBackend(api_key="test-anthropic-key").generate(
+        _request()
+    )
+
+    assert captured["api_key"] == "test-anthropic-key"
+    kwargs = captured["kwargs"]
+    assert kwargs["model"] == "test-model"
+    assert kwargs["max_tokens"] == 128
+    assert kwargs["temperature"] == 0.0
+    assert kwargs["system"] == "Return JSON."
+    assert kwargs["messages"] == [
+        {"role": "user", "content": "Produce a theory packet."}
+    ]
+    assert "tools" not in kwargs
+    assert response.text == '{"ok": true}'
+    assert response.provider == "anthropic"
+    assert response.metadata["generator_only"] is True
+    assert response.metadata["tools_available"] is False
+    assert response.metadata["schema_supplied"] is True
+    assert response.metadata["retry_count"] == 0
+
+
+def test_anthropic_generator_backend_retries_transient_connection_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AI_STATISTICIAN_LLM_MAX_RETRIES", "2")
+    monkeypatch.setenv("AI_STATISTICIAN_LLM_RETRY_BACKOFF_SECONDS", "0")
+    calls = {"count": 0}
+
+    class APIConnectionError(Exception):
+        pass
+
+    class FakeMessages:
+        def create(self, **kwargs):
+            calls["count"] += 1
+            if calls["count"] == 1:
+                raise APIConnectionError("Connection error.")
+            return SimpleNamespace(content=[SimpleNamespace(text='{"ok": true}')])
+
+    class FakeAnthropicClient:
+        def __init__(self, *, api_key: str) -> None:
+            self.messages = FakeMessages()
+
+    monkeypatch.setitem(sys.modules, "anthropic", SimpleNamespace(Anthropic=FakeAnthropicClient))
+
+    response = AnthropicGeneratorBackend(api_key="test-anthropic-key").generate(_request())
+
+    assert calls["count"] == 2
+    assert response.text == '{"ok": true}'
+    assert response.metadata["retry_count"] == 1
+
+
+def test_anthropic_generator_backend_does_not_retry_non_transport_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AI_STATISTICIAN_LLM_MAX_RETRIES", "2")
+    calls = {"count": 0}
+
+    class FakeMessages:
+        def create(self, **kwargs):
+            calls["count"] += 1
+            raise ValueError("invalid request shape")
+
+    class FakeAnthropicClient:
+        def __init__(self, *, api_key: str) -> None:
+            self.messages = FakeMessages()
+
+    monkeypatch.setitem(sys.modules, "anthropic", SimpleNamespace(Anthropic=FakeAnthropicClient))
+
+    with pytest.raises(ValueError, match="invalid request shape"):
+        AnthropicGeneratorBackend(api_key="test-anthropic-key").generate(_request())
+
+    assert calls["count"] == 1
+
+
+def test_live_generator_defaults_to_anthropic_cost_aware_tiers(monkeypatch: pytest.MonkeyPatch) -> None:
+    for key in (
+        "AI_STATISTICIAN_LLM_PROVIDER",
+        "AI_STATISTICIAN_LLM_MODEL",
+        "AI_STATISTICIAN_ANTHROPIC_MODEL",
+        "AI_STATISTICIAN_CLAUDE_HAIKU_MODEL",
+        "AI_STATISTICIAN_ANTHROPIC_HAIKU_MODEL",
+        "AI_STATISTICIAN_CLAUDE_SONNET_MODEL",
+        "AI_STATISTICIAN_ANTHROPIC_SONNET_MODEL",
+        "AI_STATISTICIAN_CLAUDE_OPUS_MODEL",
+        "AI_STATISTICIAN_ANTHROPIC_OPUS_MODEL",
+        "AI_STATISTICIAN_OPENAI_MODEL",
+        "AI_STATISTICIAN_THEORY_MODEL",
+        "OPENAI_MODEL",
+    ):
+        monkeypatch.delenv(key, raising=False)
+
+    assert default_generator_provider() == "anthropic"
+    assert default_generator_model("anthropic") == "claude-sonnet-4-6"
+    assert default_generator_model("anthropic", model_tier="haiku") == "claude-haiku-4-5-20251001"
+    assert default_generator_model("anthropic", model_tier="sonnet") == "claude-sonnet-4-6"
+    assert default_generator_model("anthropic", model_tier="opus") == "claude-opus-4-8"
+    assert ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY["models_by_tier"] == {
+        "haiku": "claude-haiku-4-5-20251001",
+        "sonnet": "claude-sonnet-4-6",
+        "opus": "claude-opus-4-8",
+    }
+    assert "pinned snapshots" in ANTHROPIC_MODEL_ID_VERSIONING_POLICY
+    assert "not evergreen aliases" in ANTHROPIC_MODEL_ID_VERSIONING_POLICY
+    assert default_generator_model("static") == "static"
+
+    monkeypatch.setenv("AI_STATISTICIAN_LLM_PROVIDER", "codex_exec")
+    assert default_generator_provider() == "anthropic"
+    assert default_generator_model("codex") == ""
+    assert default_generator_model("codex_exec") == ""
+
+    monkeypatch.setenv("AI_STATISTICIAN_LLM_PROVIDER", "anthropic")
+    monkeypatch.setenv("AI_STATISTICIAN_ANTHROPIC_MODEL", "claude-test")
+    assert default_generator_provider() == "anthropic"
+    assert default_generator_model("anthropic") == "claude-test"
+
+    monkeypatch.delenv("AI_STATISTICIAN_ANTHROPIC_MODEL", raising=False)
+    monkeypatch.setenv("AI_STATISTICIAN_CLAUDE_HAIKU_MODEL", "claude-haiku-test")
+    monkeypatch.setenv("AI_STATISTICIAN_CLAUDE_SONNET_MODEL", "claude-sonnet-test")
+    monkeypatch.setenv("AI_STATISTICIAN_CLAUDE_OPUS_MODEL", "claude-opus-test")
+    assert default_generator_model("anthropic", model_tier="haiku") == "claude-haiku-test"
+    assert default_generator_model("anthropic", model_tier="sonnet") == "claude-sonnet-test"
+    assert default_generator_model("anthropic", model_tier="opus") == "claude-opus-test"

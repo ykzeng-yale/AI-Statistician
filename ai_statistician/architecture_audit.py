@@ -23,7 +23,7 @@ from .algorithm_repair_sandbox_rerun import rerun_algorithm_repair_sandbox_appli
 from .proof_engineer import DefaultProofEngineer
 from .proof_search import BestFirstWholeProofSearchController
 from .theory_developer import DefaultTheoryDeveloper
-from .theory_proposal import AnthropicTheoryProposer
+from .theory_proposal import GeneratorTheoryProposer
 
 
 @dataclass(frozen=True)
@@ -88,7 +88,7 @@ def audit_architecture(out_dir: Path | None = None) -> dict[str, object]:
         ArchitectureComponent(
             component="llm_theory_developer",
             status="PARTIAL",
-            evidence=(f"{AnthropicTheoryProposer.__module__}.{AnthropicTheoryProposer.__name__}", "optional gated intake/classification before deterministic execution"),
+            evidence=(f"{GeneratorTheoryProposer.__module__}.{GeneratorTheoryProposer.__name__}", "optional gated generator-backed intake/classification before deterministic execution"),
             limitation="Current LLM proposer is gated by supported families and is not the main theorem-development engine.",
             target_delta="Promote to a live TheoryDeveloper with verifier/simulator feedback and strict registry/sandbox acceptance gates.",
         ),
@@ -219,7 +219,7 @@ def audit_architecture(out_dir: Path | None = None) -> dict[str, object]:
         {
             "requirement": "LLM informal statistical theory development before formalization",
             "status": "PARTIAL",
-            "current_evidence": "TheoryPlanner emits derivation text; AnthropicTheoryProposer is optional/gated.",
+            "current_evidence": "TheoryPlanner emits derivation text; GeneratorTheoryProposer is optional/gated.",
             "missing": "Free-form theorem/estimator invention with revision from proof and simulation failures.",
         },
         {

@@ -46,6 +46,7 @@ from .stat_claim_certificate_witness_context_packets import (
 from .stat_claim_certificate_witness_context_triage import (
     export_stat_claim_certificate_witness_context_triage,
 )
+from .stat_claim_certificate_witness_queue import export_stat_claim_certificate_witness_queue
 from .stat_claim_certificate_witness_prompt_packets import (
     export_stat_claim_certificate_witness_prompt_packets,
 )
@@ -58,12 +59,106 @@ from .stat_claim_certificate_witness_response_validation import (
 from .stat_claim_certificate_witness_validator import (
     validate_stat_claim_certificate_witness_drafts,
 )
-from .stat_claim_certificate_witness_queue import export_stat_claim_certificate_witness_queue
 from .evaluation_benchmark_guidance import build_evaluation_benchmark_guidance
 from .formal_gap_task_export import export_formal_gap_lean_tasks
 from .formalization_delta_plan import build_formalization_delta_plan
 from .formalization_gap_planner_refinement_queue import (
     export_formalization_gap_planner_refinement_queue,
+)
+from .formalization_gap_planner_adapter_registry import (
+    export_formalization_gap_planner_adapter_registry,
+)
+from .formalization_gap_planner_adapter_registry_audit import (
+    audit_formalization_gap_planner_adapter_registry,
+)
+from .formalization_gap_planner_component_resource_registry import (
+    export_formalization_gap_planner_component_resource_registry,
+)
+from .formalization_gap_planner_component_resource_registry_audit import (
+    audit_formalization_gap_planner_component_resource_registry,
+)
+from .formalization_gap_planner_benchmark import (
+    default_formalization_gap_planner_ground_truth_path,
+    export_formalization_gap_planner_benchmark,
+)
+from .formalization_gap_planner_benchmark_audit import (
+    audit_formalization_gap_planner_benchmark,
+)
+from .formalization_gap_planner_ablation_study import (
+    export_formalization_gap_planner_ablation_study,
+)
+from .formalization_gap_planner_evaluation import evaluate_formalization_gap_planner
+from .formalization_gap_planner_cross_prover_matrix_audit import (
+    audit_formalization_gap_planner_cross_prover_matrix,
+)
+from .formalization_gap_planner_refinement_adapters import (
+    export_formalization_gap_planner_refinement_adapter_responses,
+)
+from .formalization_gap_planner_local_formal_source_adapter import (
+    export_formalization_gap_planner_local_formal_source_adapter_responses,
+)
+from .formalization_gap_planner_local_literature_adapter import (
+    export_formalization_gap_planner_local_literature_adapter_responses,
+)
+from .formalization_gap_planner_local_proof_state_adapter import (
+    export_formalization_gap_planner_local_proof_state_adapter_responses,
+)
+from .formalization_gap_planner_refinement_evidence import (
+    export_formalization_gap_planner_refinement_evidence,
+)
+from .formalization_gap_planner_route_revision_overlay import (
+    export_formalization_gap_planner_route_revision_overlay,
+)
+from .formalization_gap_planner_route_stability_audit import (
+    audit_formalization_gap_planner_route_stability,
+)
+from .formalization_gap_planner_route_replan_handoff import (
+    export_formalization_gap_planner_route_replan_handoff,
+)
+from .formalization_gap_planner_route_replan_handoff_audit import (
+    audit_formalization_gap_planner_route_replan_handoff,
+)
+from .formalization_gap_planner_source_grounding_audit import (
+    audit_formalization_gap_planner_source_grounding,
+)
+from .formalization_gap_planner_target_intake import (
+    normalize_formalization_gap_planner_target_intake,
+)
+from .formalization_gap_planner_prover_adapter_contract import (
+    export_formalization_gap_planner_prover_adapter_contract,
+)
+from .formalization_gap_planner_portable_plan_audit import (
+    audit_formalization_gap_planner_portable_plan,
+)
+from .formalization_gap_planner_library_coverage_map import (
+    export_formalization_gap_planner_library_coverage_map,
+)
+from .formalization_gap_planner_primitive_action_queue import (
+    export_formalization_gap_planner_primitive_action_queue,
+)
+from .formalization_gap_planner_action_resource_plan import (
+    export_formalization_gap_planner_action_resource_plan,
+)
+from .formalization_gap_planner_resource_request_queue import (
+    export_formalization_gap_planner_resource_request_queue,
+)
+from .formalization_gap_planner_resource_response_ledger import (
+    export_formalization_gap_planner_resource_response_ledger,
+)
+from .formalization_gap_planner_minimal_delta_audit import (
+    audit_formalization_gap_planner_minimal_delta,
+)
+from .formalization_gap_planner_publication_bundle import (
+    export_formalization_gap_planner_publication_bundle,
+)
+from .formalization_gap_planner_publication_bundle_audit import (
+    audit_formalization_gap_planner_publication_bundle,
+)
+from .formalization_gap_planner_proof_state_triage import (
+    export_formalization_gap_planner_proof_state_triage,
+)
+from .formalization_gap_planner_interactive_session import (
+    export_formalization_gap_planner_interactive_session,
 )
 from .formalization_target_audit import audit_formalization_targets
 from .formal_verifier_queue import export_formal_verifier_queue
@@ -213,6 +308,7 @@ from .research_report import build_research_markdown_report
 from .research_schema import OpenResearchQuestion
 from .research_trace_audit import audit_research_traces
 from .research_training_export import export_research_training_dataset
+from .research_agent_runtime_audit import audit_research_agent_runtime
 from .retrieval import audit_proof_bank_retrieval
 from .theorem_composition_export import export_theorem_composition_packets
 from .verifier import AxleProofVerifier, CachingProofVerifier, LocalLeanProofVerifier, MockProofVerifier, ProofVerifier
@@ -244,6 +340,7 @@ class ResearchSystemAuditConfig:
     verify_agentic_artifacts: bool = False
     adaptive_mc_rerun: bool = True
     adaptive_mc_multiplier: int = 5
+    research_agent_runtime_dir: str | None = None
 
 
 async def run_research_system_audit(
@@ -792,6 +889,185 @@ async def run_research_system_audit(
         "goal_conditioned_minimal_formalization_plan",
         stage_start,
     )
+    formalization_gap_planner_portable_plan_audit_manifest = (
+        audit_formalization_gap_planner_portable_plan(
+            out_dir / "goal_conditioned_minimal_formalization_plan",
+            out_dir / "formalization_gap_planner_portable_plan_audit",
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "formalization_gap_planner_portable_plan_audit",
+        stage_start,
+    )
+    formalization_gap_planner_library_coverage_map_manifest = (
+        export_formalization_gap_planner_library_coverage_map(
+            out_dir / "goal_conditioned_minimal_formalization_plan",
+            out_dir / "formalization_gap_planner_library_coverage_map",
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "formalization_gap_planner_library_coverage_map",
+        stage_start,
+    )
+    formalization_gap_planner_primitive_action_queue_manifest = (
+        export_formalization_gap_planner_primitive_action_queue(
+            out_dir / "formalization_gap_planner_library_coverage_map",
+            out_dir / "formalization_gap_planner_primitive_action_queue",
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "formalization_gap_planner_primitive_action_queue",
+        stage_start,
+    )
+    formalization_gap_planner_adapter_registry_manifest = (
+        export_formalization_gap_planner_adapter_registry(
+            out_dir / "formalization_gap_planner_adapter_registry",
+            lean_rag_db_path=Path(config.lean_rag_db) if config.lean_rag_db else None,
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "formalization_gap_planner_adapter_registry",
+        stage_start,
+    )
+    formalization_gap_planner_adapter_registry_audit_manifest = (
+        audit_formalization_gap_planner_adapter_registry(
+            out_dir / "formalization_gap_planner_adapter_registry",
+            out_dir / "formalization_gap_planner_adapter_registry_audit",
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "formalization_gap_planner_adapter_registry_audit",
+        stage_start,
+    )
+    formalization_gap_planner_component_resource_registry_manifest = (
+        export_formalization_gap_planner_component_resource_registry(
+            out_dir / "formalization_gap_planner_component_resource_registry",
+            formalization_gap_planner_adapter_registry_dir=out_dir
+            / "formalization_gap_planner_adapter_registry",
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "formalization_gap_planner_component_resource_registry",
+        stage_start,
+    )
+    formalization_gap_planner_component_resource_registry_audit_manifest = (
+        audit_formalization_gap_planner_component_resource_registry(
+            out_dir / "formalization_gap_planner_component_resource_registry",
+            out_dir / "formalization_gap_planner_component_resource_registry_audit",
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "formalization_gap_planner_component_resource_registry_audit",
+        stage_start,
+    )
+    formalization_gap_planner_action_resource_plan_manifest = (
+        export_formalization_gap_planner_action_resource_plan(
+            out_dir / "formalization_gap_planner_primitive_action_queue",
+            out_dir / "formalization_gap_planner_component_resource_registry",
+            out_dir / "formalization_gap_planner_action_resource_plan",
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "formalization_gap_planner_action_resource_plan",
+        stage_start,
+    )
+    formalization_gap_planner_resource_request_queue_manifest = (
+        export_formalization_gap_planner_resource_request_queue(
+            out_dir / "formalization_gap_planner_action_resource_plan",
+            out_dir / "formalization_gap_planner_resource_request_queue",
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "formalization_gap_planner_resource_request_queue",
+        stage_start,
+    )
+    formalization_gap_planner_resource_response_ledger_manifest = (
+        export_formalization_gap_planner_resource_response_ledger(
+            out_dir / "formalization_gap_planner_resource_request_queue",
+            out_dir / "formalization_gap_planner_resource_response_ledger",
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "formalization_gap_planner_resource_response_ledger",
+        stage_start,
+    )
+    formalization_gap_planner_minimal_delta_audit_manifest = (
+        audit_formalization_gap_planner_minimal_delta(
+            out_dir / "goal_conditioned_minimal_formalization_plan",
+            out_dir / "formalization_gap_planner_minimal_delta_audit",
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "formalization_gap_planner_minimal_delta_audit",
+        stage_start,
+    )
+    formalization_gap_planner_source_grounding_audit_manifest = (
+        audit_formalization_gap_planner_source_grounding(
+            out_dir / "goal_conditioned_minimal_formalization_plan",
+            out_dir / "formalization_gap_planner_source_grounding_audit",
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "formalization_gap_planner_source_grounding_audit",
+        stage_start,
+    )
+    formalization_gap_planner_target_intake_manifest = (
+        normalize_formalization_gap_planner_target_intake(
+            Path("data/formalization_gap_planner_target_intake_example.json"),
+            out_dir / "formalization_gap_planner_target_intake",
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "formalization_gap_planner_target_intake",
+        stage_start,
+    )
+    formalization_gap_planner_benchmark_manifest = (
+        export_formalization_gap_planner_benchmark(
+            out_dir / "formalization_gap_planner_benchmark",
+            ground_truth_path=default_formalization_gap_planner_ground_truth_path(),
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "formalization_gap_planner_benchmark",
+        stage_start,
+    )
+    formalization_gap_planner_benchmark_audit_manifest = (
+        audit_formalization_gap_planner_benchmark(
+            out_dir / "formalization_gap_planner_benchmark",
+            out_dir / "formalization_gap_planner_benchmark_audit",
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "formalization_gap_planner_benchmark_audit",
+        stage_start,
+    )
+    formalization_gap_planner_evaluation_manifest = evaluate_formalization_gap_planner(
+        out_dir / "goal_conditioned_minimal_formalization_plan",
+        out_dir
+        / "formalization_gap_planner_benchmark"
+        / "formalization_gap_planner_ground_truth.json",
+        out_dir / "formalization_gap_planner_evaluation",
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "formalization_gap_planner_evaluation",
+        stage_start,
+    )
     formal_verifier_replay_manifest = export_formal_verifier_replay(
         out_dir / "formal_verifier_queue",
         out_dir / "formal_verifier_replay",
@@ -826,6 +1102,8 @@ async def run_research_system_audit(
         export_formalization_gap_planner_refinement_queue(
             out_dir / "goal_conditioned_minimal_formalization_plan",
             out_dir / "formalization_gap_planner_refinement_queue",
+            formalization_gap_planner_evaluation_dir=out_dir
+            / "formalization_gap_planner_evaluation",
             formal_verifier_replay_calibration_dir=out_dir
             / "formal_verifier_replay_calibration",
         )
@@ -833,6 +1111,290 @@ async def run_research_system_audit(
     stage_start = _record_stage(
         stage_timings,
         "formalization_gap_planner_refinement_queue",
+        stage_start,
+    )
+    formalization_gap_planner_refinement_adapter_manifest = (
+        export_formalization_gap_planner_refinement_adapter_responses(
+            out_dir / "formalization_gap_planner_refinement_queue",
+            out_dir / "formalization_gap_planner_refinement_adapter_responses",
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "formalization_gap_planner_refinement_adapter_responses",
+        stage_start,
+    )
+    formalization_gap_planner_local_literature_adapter_manifest = (
+        export_formalization_gap_planner_local_literature_adapter_responses(
+            out_dir / "formalization_gap_planner_refinement_queue",
+            out_dir / "formalization_gap_planner_local_literature_adapter",
+            base_response_jsonl=out_dir
+            / "formalization_gap_planner_refinement_adapter_responses"
+            / "formalization_gap_planner_refinement_evidence_responses.jsonl",
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "formalization_gap_planner_local_literature_adapter",
+        stage_start,
+    )
+    formalization_gap_planner_local_formal_source_adapter_manifest = (
+        export_formalization_gap_planner_local_formal_source_adapter_responses(
+            out_dir / "formalization_gap_planner_refinement_queue",
+            out_dir / "formalization_gap_planner_local_formal_source_adapter",
+            lean_rag_db_path=Path(config.lean_rag_db) if config.lean_rag_db else None,
+            base_response_jsonl=out_dir
+            / "formalization_gap_planner_local_literature_adapter"
+            / "formalization_gap_planner_refinement_evidence_responses.jsonl",
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "formalization_gap_planner_local_formal_source_adapter",
+        stage_start,
+    )
+    formalization_gap_planner_local_proof_state_adapter_manifest = (
+        export_formalization_gap_planner_local_proof_state_adapter_responses(
+            out_dir / "formalization_gap_planner_refinement_queue",
+            out_dir / "formalization_gap_planner_local_proof_state_adapter",
+            lean_project=config.local_lean_project,
+            lean_timeout=config.local_lean_timeout,
+            base_response_jsonl=out_dir
+            / "formalization_gap_planner_local_formal_source_adapter"
+            / "formalization_gap_planner_refinement_evidence_responses.jsonl",
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "formalization_gap_planner_local_proof_state_adapter",
+        stage_start,
+    )
+    formalization_gap_planner_refinement_evidence_manifest = (
+        export_formalization_gap_planner_refinement_evidence(
+            out_dir / "formalization_gap_planner_refinement_queue",
+            out_dir / "formalization_gap_planner_refinement_evidence",
+            response_jsonl=out_dir
+            / "formalization_gap_planner_local_proof_state_adapter"
+            / "formalization_gap_planner_refinement_evidence_responses.jsonl",
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "formalization_gap_planner_refinement_evidence",
+        stage_start,
+    )
+    formalization_gap_planner_route_revision_overlay_manifest = (
+        export_formalization_gap_planner_route_revision_overlay(
+            out_dir / "goal_conditioned_minimal_formalization_plan",
+            out_dir / "formalization_gap_planner_refinement_evidence",
+            out_dir / "formalization_gap_planner_route_revision_overlay",
+            formalization_gap_planner_resource_response_ledger_dir=out_dir
+            / "formalization_gap_planner_resource_response_ledger",
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "formalization_gap_planner_route_revision_overlay",
+        stage_start,
+    )
+    formalization_gap_planner_route_stability_audit_manifest = (
+        audit_formalization_gap_planner_route_stability(
+            out_dir / "goal_conditioned_minimal_formalization_plan",
+            out_dir / "formalization_gap_planner_refinement_evidence",
+            out_dir / "formalization_gap_planner_route_revision_overlay",
+            out_dir / "formalization_gap_planner_route_stability_audit",
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "formalization_gap_planner_route_stability_audit",
+        stage_start,
+    )
+    formalization_gap_planner_route_replan_handoff_manifest = (
+        export_formalization_gap_planner_route_replan_handoff(
+            out_dir / "goal_conditioned_minimal_formalization_plan",
+            out_dir / "formalization_gap_planner_route_revision_overlay",
+            out_dir / "formalization_gap_planner_route_replan_handoff",
+            formalization_gap_planner_route_stability_audit_dir=out_dir
+            / "formalization_gap_planner_route_stability_audit",
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "formalization_gap_planner_route_replan_handoff",
+        stage_start,
+    )
+    formalization_gap_planner_route_replan_handoff_audit_manifest = (
+        audit_formalization_gap_planner_route_replan_handoff(
+            out_dir / "formalization_gap_planner_route_replan_handoff",
+            out_dir / "formalization_gap_planner_route_replan_handoff_audit",
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "formalization_gap_planner_route_replan_handoff_audit",
+        stage_start,
+    )
+    formalization_gap_planner_proof_state_triage_manifest = (
+        export_formalization_gap_planner_proof_state_triage(
+            out_dir / "formalization_gap_planner_route_revision_overlay",
+            out_dir / "formalization_gap_planner_proof_state_triage",
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "formalization_gap_planner_proof_state_triage",
+        stage_start,
+    )
+    formalization_gap_planner_interactive_session_manifest = (
+        export_formalization_gap_planner_interactive_session(
+            out_dir / "goal_conditioned_minimal_formalization_plan",
+            out_dir / "formalization_gap_planner_interactive_session",
+            formalization_gap_planner_refinement_queue_dir=out_dir
+            / "formalization_gap_planner_refinement_queue",
+            formalization_gap_planner_refinement_evidence_dir=out_dir
+            / "formalization_gap_planner_refinement_evidence",
+            formalization_gap_planner_route_stability_audit_dir=out_dir
+            / "formalization_gap_planner_route_stability_audit",
+            formalization_gap_planner_route_replan_handoff_dir=out_dir
+            / "formalization_gap_planner_route_replan_handoff",
+            formalization_gap_planner_proof_state_triage_dir=out_dir
+            / "formalization_gap_planner_proof_state_triage",
+            formalization_gap_planner_component_resource_registry_dir=out_dir
+            / "formalization_gap_planner_component_resource_registry",
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "formalization_gap_planner_interactive_session",
+        stage_start,
+    )
+    formalization_gap_planner_ablation_study_manifest = (
+        export_formalization_gap_planner_ablation_study(
+            out_dir / "goal_conditioned_minimal_formalization_plan",
+            out_dir / "formalization_gap_planner_evaluation",
+            out_dir / "formalization_gap_planner_ablation_study",
+            formalization_gap_planner_interactive_session_dir=out_dir
+            / "formalization_gap_planner_interactive_session",
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "formalization_gap_planner_ablation_study",
+        stage_start,
+    )
+    formalization_gap_planner_library_snapshot_ref = (
+        "research_system_audit_formal_source_index:"
+        + stable_hash(
+            [
+                str(formal_source_index_path),
+                str(config.lean_rag_db or ""),
+                len(formal_source_declarations),
+            ]
+        )[:12]
+    )
+    formalization_gap_planner_prover_adapter_contract_manifest = (
+        export_formalization_gap_planner_prover_adapter_contract(
+            out_dir / "goal_conditioned_minimal_formalization_plan",
+            out_dir / "formalization_gap_planner_prover_adapter_contract",
+            target_prover_family="other",
+            library_snapshot_ref=formalization_gap_planner_library_snapshot_ref,
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "formalization_gap_planner_prover_adapter_contract",
+        stage_start,
+    )
+    formalization_gap_planner_cross_prover_matrix_audit_manifest = (
+        audit_formalization_gap_planner_cross_prover_matrix(
+            out_dir / "goal_conditioned_minimal_formalization_plan",
+            out_dir / "formalization_gap_planner_cross_prover_matrix_audit",
+            library_snapshot_ref_prefix=formalization_gap_planner_library_snapshot_ref,
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "formalization_gap_planner_cross_prover_matrix_audit",
+        stage_start,
+    )
+    formalization_gap_planner_publication_bundle_manifest = (
+        export_formalization_gap_planner_publication_bundle(
+            out_dir / "formalization_gap_planner_publication_bundle",
+            lean_rag_db_path=Path(config.lean_rag_db) if config.lean_rag_db else None,
+            goal_conditioned_minimal_formalization_plan_dir=out_dir
+            / "goal_conditioned_minimal_formalization_plan",
+            formalization_gap_planner_evaluation_dir=out_dir
+            / "formalization_gap_planner_evaluation",
+            formalization_gap_planner_ablation_study_dir=out_dir
+            / "formalization_gap_planner_ablation_study",
+            formalization_gap_planner_portable_plan_audit_dir=out_dir
+            / "formalization_gap_planner_portable_plan_audit",
+            formalization_gap_planner_library_coverage_map_dir=out_dir
+            / "formalization_gap_planner_library_coverage_map",
+            formalization_gap_planner_primitive_action_queue_dir=out_dir
+            / "formalization_gap_planner_primitive_action_queue",
+            formalization_gap_planner_action_resource_plan_dir=out_dir
+            / "formalization_gap_planner_action_resource_plan",
+            formalization_gap_planner_resource_request_queue_dir=out_dir
+            / "formalization_gap_planner_resource_request_queue",
+            formalization_gap_planner_resource_response_ledger_dir=out_dir
+            / "formalization_gap_planner_resource_response_ledger",
+            formalization_gap_planner_minimal_delta_audit_dir=out_dir
+            / "formalization_gap_planner_minimal_delta_audit",
+            formalization_gap_planner_source_grounding_audit_dir=out_dir
+            / "formalization_gap_planner_source_grounding_audit",
+            formalization_gap_planner_target_intake_dir=out_dir
+            / "formalization_gap_planner_target_intake",
+            formalization_gap_planner_refinement_queue_dir=out_dir
+            / "formalization_gap_planner_refinement_queue",
+            formalization_gap_planner_refinement_adapter_dir=out_dir
+            / "formalization_gap_planner_refinement_adapter_responses",
+            formalization_gap_planner_local_literature_adapter_dir=out_dir
+            / "formalization_gap_planner_local_literature_adapter",
+            formalization_gap_planner_local_formal_source_adapter_dir=out_dir
+            / "formalization_gap_planner_local_formal_source_adapter",
+            formalization_gap_planner_local_proof_state_adapter_dir=out_dir
+            / "formalization_gap_planner_local_proof_state_adapter",
+            formalization_gap_planner_refinement_evidence_dir=out_dir
+            / "formalization_gap_planner_refinement_evidence",
+            formalization_gap_planner_route_revision_overlay_dir=out_dir
+            / "formalization_gap_planner_route_revision_overlay",
+            formalization_gap_planner_route_stability_audit_dir=out_dir
+            / "formalization_gap_planner_route_stability_audit",
+            formalization_gap_planner_route_replan_handoff_dir=out_dir
+            / "formalization_gap_planner_route_replan_handoff",
+            formalization_gap_planner_route_replan_handoff_audit_dir=out_dir
+            / "formalization_gap_planner_route_replan_handoff_audit",
+            formalization_gap_planner_proof_state_triage_dir=out_dir
+            / "formalization_gap_planner_proof_state_triage",
+            formalization_gap_planner_interactive_session_dir=out_dir
+            / "formalization_gap_planner_interactive_session",
+            formalization_gap_planner_prover_adapter_contract_dir=out_dir
+            / "formalization_gap_planner_prover_adapter_contract",
+            formalization_gap_planner_cross_prover_matrix_audit_dir=out_dir
+            / "formalization_gap_planner_cross_prover_matrix_audit",
+            formalization_gap_planner_adapter_registry_audit_dir=out_dir
+            / "formalization_gap_planner_adapter_registry_audit",
+            formalization_gap_planner_component_resource_registry_audit_dir=out_dir
+            / "formalization_gap_planner_component_resource_registry_audit",
+            library_snapshot_ref=formalization_gap_planner_library_snapshot_ref,
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "formalization_gap_planner_publication_bundle",
+        stage_start,
+    )
+    formalization_gap_planner_publication_bundle_audit_manifest = (
+        audit_formalization_gap_planner_publication_bundle(
+            out_dir / "formalization_gap_planner_publication_bundle",
+            out_dir / "formalization_gap_planner_publication_bundle_audit",
+        )
+    )
+    stage_start = _record_stage(
+        stage_timings,
+        "formalization_gap_planner_publication_bundle_audit",
         stage_start,
     )
     formal_verifier_replay_repair_manifest = export_formal_verifier_replay_repair_packets(
@@ -1342,6 +1904,11 @@ async def run_research_system_audit(
         seed=config.seed + 23,
     )
     stage_start = _record_stage(stage_timings, "algorithm_repair_pipeline", stage_start)
+    research_agent_runtime_audit_manifest = _research_agent_runtime_audit_overlay(
+        out_dir,
+        configured_runtime_dir=config.research_agent_runtime_dir,
+    )
+    stage_start = _record_stage(stage_timings, "research_agent_runtime_audit_overlay", stage_start)
 
     benchmark_gate_ok = (
         int(benchmark_manifest["n_questions"]) == len(questions)
@@ -1429,6 +1996,11 @@ async def run_research_system_audit(
         "fresh_holdout_frontier_audit": bool(fresh_holdout_manifest["all_ok"]),
         "research_algorithm_audit": bool(algorithm_manifest["all_ok"]),
         "algorithm_simulation_stress_audit": bool(algorithm_simulation_stress_manifest["all_ok"]),
+        "research_agent_runtime_audit": (
+            bool(research_agent_runtime_audit_manifest["all_ok"])
+            if research_agent_runtime_audit_manifest["requested"]
+            else True
+        ),
         "proof_audit": bool(proof_manifest["all_verified"])
         and bool(proof_manifest["dependency_graph"]["all_ok"])
         and (
@@ -1490,6 +2062,33 @@ async def run_research_system_audit(
         "goal_conditioned_minimal_formalization_plan": bool(
             goal_conditioned_minimal_formalization_plan_manifest["all_ok"]
         ),
+        "formalization_gap_planner_portable_plan_audit": bool(
+            formalization_gap_planner_portable_plan_audit_manifest["all_ok"]
+        ),
+        "formalization_gap_planner_library_coverage_map": bool(
+            formalization_gap_planner_library_coverage_map_manifest["all_ok"]
+        ),
+        "formalization_gap_planner_primitive_action_queue": bool(
+            formalization_gap_planner_primitive_action_queue_manifest["all_ok"]
+        ),
+        "formalization_gap_planner_minimal_delta_audit": bool(
+            formalization_gap_planner_minimal_delta_audit_manifest["all_ok"]
+        ),
+        "formalization_gap_planner_source_grounding_audit": bool(
+            formalization_gap_planner_source_grounding_audit_manifest["all_ok"]
+        ),
+        "formalization_gap_planner_target_intake": bool(
+            formalization_gap_planner_target_intake_manifest["all_ok"]
+        ),
+        "formalization_gap_planner_benchmark": bool(
+            formalization_gap_planner_benchmark_manifest["all_ok"]
+        ),
+        "formalization_gap_planner_benchmark_audit": bool(
+            formalization_gap_planner_benchmark_audit_manifest["all_ok"]
+        ),
+        "formalization_gap_planner_evaluation": bool(
+            formalization_gap_planner_evaluation_manifest["all_ok"]
+        ),
         "formal_verifier_replay": bool(formal_verifier_replay_manifest["all_ok"]),
         "formal_verifier_replay_attempts": bool(formal_verifier_replay_attempt_manifest["all_ok"]),
         "formal_verifier_replay_calibration": bool(
@@ -1497,6 +2096,77 @@ async def run_research_system_audit(
         ),
         "formalization_gap_planner_refinement_queue": bool(
             formalization_gap_planner_refinement_queue_manifest["all_ok"]
+        ),
+        "formalization_gap_planner_refinement_adapter_responses": bool(
+            formalization_gap_planner_refinement_adapter_manifest["all_ok"]
+        ),
+        "formalization_gap_planner_local_literature_adapter": bool(
+            formalization_gap_planner_local_literature_adapter_manifest["all_ok"]
+        ),
+        "formalization_gap_planner_local_formal_source_adapter": bool(
+            formalization_gap_planner_local_formal_source_adapter_manifest["all_ok"]
+        ),
+        "formalization_gap_planner_local_proof_state_adapter": bool(
+            formalization_gap_planner_local_proof_state_adapter_manifest["all_ok"]
+        ),
+        "formalization_gap_planner_refinement_evidence": bool(
+            formalization_gap_planner_refinement_evidence_manifest["all_ok"]
+        ),
+        "formalization_gap_planner_route_revision_overlay": bool(
+            formalization_gap_planner_route_revision_overlay_manifest["all_ok"]
+        ),
+        "formalization_gap_planner_route_stability_audit": bool(
+            formalization_gap_planner_route_stability_audit_manifest["all_ok"]
+        ),
+        "formalization_gap_planner_route_replan_handoff": bool(
+            formalization_gap_planner_route_replan_handoff_manifest["all_ok"]
+        ),
+        "formalization_gap_planner_route_replan_handoff_audit": bool(
+            formalization_gap_planner_route_replan_handoff_audit_manifest["all_ok"]
+        ),
+        "formalization_gap_planner_proof_state_triage": bool(
+            formalization_gap_planner_proof_state_triage_manifest["all_ok"]
+        ),
+        "formalization_gap_planner_interactive_session": bool(
+            formalization_gap_planner_interactive_session_manifest["all_ok"]
+        ),
+        "formalization_gap_planner_ablation_study": bool(
+            formalization_gap_planner_ablation_study_manifest["all_ok"]
+        ),
+        "formalization_gap_planner_prover_adapter_contract": bool(
+            formalization_gap_planner_prover_adapter_contract_manifest["all_ok"]
+        ),
+        "formalization_gap_planner_adapter_registry": bool(
+            formalization_gap_planner_adapter_registry_manifest["all_ok"]
+        ),
+        "formalization_gap_planner_adapter_registry_audit": bool(
+            formalization_gap_planner_adapter_registry_audit_manifest["all_ok"]
+        ),
+        "formalization_gap_planner_component_resource_registry": bool(
+            formalization_gap_planner_component_resource_registry_manifest["all_ok"]
+        ),
+        "formalization_gap_planner_component_resource_registry_audit": bool(
+            formalization_gap_planner_component_resource_registry_audit_manifest[
+                "all_ok"
+            ]
+        ),
+        "formalization_gap_planner_action_resource_plan": bool(
+            formalization_gap_planner_action_resource_plan_manifest["all_ok"]
+        ),
+        "formalization_gap_planner_resource_request_queue": bool(
+            formalization_gap_planner_resource_request_queue_manifest["all_ok"]
+        ),
+        "formalization_gap_planner_resource_response_ledger": bool(
+            formalization_gap_planner_resource_response_ledger_manifest["all_ok"]
+        ),
+        "formalization_gap_planner_cross_prover_matrix_audit": bool(
+            formalization_gap_planner_cross_prover_matrix_audit_manifest["all_ok"]
+        ),
+        "formalization_gap_planner_publication_bundle": bool(
+            formalization_gap_planner_publication_bundle_manifest["all_ok"]
+        ),
+        "formalization_gap_planner_publication_bundle_audit": bool(
+            formalization_gap_planner_publication_bundle_audit_manifest["all_ok"]
         ),
         "formal_verifier_replay_repair": bool(formal_verifier_replay_repair_manifest["all_ok"]),
         "formal_verifier_replay_repair_application": bool(
@@ -1646,10 +2316,39 @@ async def run_research_system_audit(
         "proof_bank_action_export",
         "formal_verifier_queue",
         "goal_conditioned_minimal_formalization_plan",
+        "formalization_gap_planner_portable_plan_audit",
+        "formalization_gap_planner_library_coverage_map",
+        "formalization_gap_planner_primitive_action_queue",
+        "formalization_gap_planner_target_intake",
+        "formalization_gap_planner_benchmark",
+        "formalization_gap_planner_benchmark_audit",
+        "formalization_gap_planner_evaluation",
         "formal_verifier_replay",
         "formal_verifier_replay_attempts",
         "formal_verifier_replay_calibration",
         "formalization_gap_planner_refinement_queue",
+        "formalization_gap_planner_refinement_adapter_responses",
+        "formalization_gap_planner_local_literature_adapter",
+        "formalization_gap_planner_local_formal_source_adapter",
+        "formalization_gap_planner_local_proof_state_adapter",
+        "formalization_gap_planner_refinement_evidence",
+        "formalization_gap_planner_route_revision_overlay",
+        "formalization_gap_planner_route_stability_audit",
+        "formalization_gap_planner_route_replan_handoff",
+        "formalization_gap_planner_route_replan_handoff_audit",
+        "formalization_gap_planner_proof_state_triage",
+        "formalization_gap_planner_interactive_session",
+        "formalization_gap_planner_ablation_study",
+        "formalization_gap_planner_prover_adapter_contract",
+        "formalization_gap_planner_adapter_registry",
+        "formalization_gap_planner_adapter_registry_audit",
+        "formalization_gap_planner_component_resource_registry",
+        "formalization_gap_planner_component_resource_registry_audit",
+        "formalization_gap_planner_action_resource_plan",
+        "formalization_gap_planner_resource_request_queue",
+        "formalization_gap_planner_resource_response_ledger",
+        "formalization_gap_planner_publication_bundle",
+        "formalization_gap_planner_publication_bundle_audit",
         "formal_verifier_replay_repair",
         "formal_verifier_replay_repair_application",
         "formal_verifier_replay_repair_application_validation",
@@ -1734,6 +2433,7 @@ async def run_research_system_audit(
             "verify_agentic_artifacts": config.verify_agentic_artifacts,
             "adaptive_mc_rerun": config.adaptive_mc_rerun,
             "adaptive_mc_multiplier": config.adaptive_mc_multiplier,
+            "research_agent_runtime_dir": config.research_agent_runtime_dir or "",
             "question_file": str(question_file or Path("examples/research_questions.json")),
         },
         "all_gates_passed": all(gates.values()),
@@ -2295,6 +2995,100 @@ async def run_research_system_audit(
             "algorithm_simulation_stress_flags": algorithm_simulation_stress_manifest[
                 "n_stress_flags"
             ],
+            "research_agent_runtime_audit_requested": research_agent_runtime_audit_manifest[
+                "requested"
+            ],
+            "research_agent_runtime_audit_available": research_agent_runtime_audit_manifest[
+                "available"
+            ],
+            "research_agent_runtime_audit_all_ok": research_agent_runtime_audit_manifest[
+                "all_ok"
+            ],
+            "research_agent_runtime_audit_results": research_agent_runtime_audit_manifest[
+                "n_results"
+            ],
+            "research_agent_runtime_audit_ok": research_agent_runtime_audit_manifest["n_ok"],
+            "research_agent_runtime_architect_enabled": research_agent_runtime_audit_manifest[
+                "architect_coordinator_enabled"
+            ],
+            "research_agent_runtime_topology_ok": research_agent_runtime_audit_manifest[
+                "llm_topology_policy_ok"
+            ],
+            "research_agent_runtime_unsupported_generator_backends": research_agent_runtime_audit_manifest[
+                "unsupported_generator_backends_enabled"
+            ],
+            "research_agent_runtime_critic_reroutes": research_agent_runtime_audit_manifest[
+                "n_critic_reroutes"
+            ],
+            "research_agent_runtime_algorithm_sandbox_executed": research_agent_runtime_audit_manifest[
+                "n_algorithm_sandbox_executed"
+            ],
+            "research_agent_runtime_generated_code_sandbox_executed": research_agent_runtime_audit_manifest[
+                "n_generated_code_sandbox_executed"
+            ],
+            "research_agent_runtime_unsafe_generated_code_rejected": research_agent_runtime_audit_manifest[
+                "n_unsafe_generated_code_rejected"
+            ],
+            "research_agent_runtime_learning_rows": research_agent_runtime_audit_manifest[
+                "n_runtime_learning_rows"
+            ],
+            "research_agent_runtime_learning_memory_inputs": research_agent_runtime_audit_manifest[
+                "n_results_with_runtime_learning_memory_input"
+            ],
+            "research_agent_runtime_learning_memory_input_rows": research_agent_runtime_audit_manifest[
+                "n_runtime_learning_memory_input_rows"
+            ],
+            "research_agent_runtime_problem_analysis": research_agent_runtime_audit_manifest[
+                "n_results_with_problem_analysis"
+            ],
+            "research_agent_runtime_stat_knowledge_bank": research_agent_runtime_audit_manifest[
+                "n_results_with_stat_knowledge_bank_plan"
+            ],
+            "research_agent_runtime_literature_fair_comparison": research_agent_runtime_audit_manifest[
+                "n_results_with_literature_fair_comparison_plan"
+            ],
+            "research_agent_runtime_kernel_verified_subclaims": research_agent_runtime_audit_manifest[
+                "n_kernel_verified_subclaims"
+            ],
+            "research_agent_runtime_has_real_kernel_evidence": research_agent_runtime_audit_manifest[
+                "has_real_kernel_evidence"
+            ],
+            "research_agent_runtime_results_with_real_kernel_evidence": research_agent_runtime_audit_manifest[
+                "n_results_with_real_kernel_evidence"
+            ],
+            "research_agent_runtime_real_kernel_verified_subclaims": research_agent_runtime_audit_manifest[
+                "n_real_kernel_verified_subclaims"
+            ],
+            "research_agent_runtime_non_real_kernel_verified_subclaims": research_agent_runtime_audit_manifest[
+                "n_non_real_kernel_verified_subclaims"
+            ],
+            "research_agent_runtime_kernel_verified_verifiers": research_agent_runtime_audit_manifest[
+                "kernel_verified_verifiers"
+            ],
+            "research_agent_runtime_formal_gaps": research_agent_runtime_audit_manifest[
+                "n_formal_gaps"
+            ],
+            "research_agent_runtime_registered_proof_bank_obligation_candidates": research_agent_runtime_audit_manifest[
+                "n_registered_proof_bank_obligation_candidates"
+            ],
+            "research_agent_runtime_memory_prioritized_proof_obligations": research_agent_runtime_audit_manifest[
+                "n_memory_prioritized_proof_obligations"
+            ],
+            "research_agent_runtime_memory_off_catalog_proof_obligations": research_agent_runtime_audit_manifest[
+                "n_memory_off_catalog_proof_obligations"
+            ],
+            "research_agent_runtime_memory_rejected_proof_obligations": research_agent_runtime_audit_manifest[
+                "n_memory_rejected_proof_obligations"
+            ],
+            "research_agent_runtime_llm_requested_proof_obligations": research_agent_runtime_audit_manifest[
+                "n_llm_requested_proof_obligations"
+            ],
+            "research_agent_runtime_llm_off_catalog_proof_obligations": research_agent_runtime_audit_manifest[
+                "n_llm_off_catalog_proof_obligations"
+            ],
+            "research_agent_runtime_llm_rejected_proof_obligations": research_agent_runtime_audit_manifest[
+                "n_llm_rejected_proof_obligations"
+            ],
             "proofs_verified": proof_manifest["n_verified"],
             "proofs_kernel_verified": proof_manifest["n_kernel_verified"],
             "proofs_non_kernel_verified": proof_manifest["n_non_kernel_verified"],
@@ -2756,6 +3550,21 @@ async def run_research_system_audit(
             "goal_conditioned_minimal_formalization_lean_realization_dag_edges": goal_conditioned_minimal_formalization_plan_manifest[
                 "n_lean_realization_dag_edges"
             ],
+            "goal_conditioned_minimal_formalization_route_alignment_edges": goal_conditioned_minimal_formalization_plan_manifest[
+                "n_route_alignment_edges"
+            ],
+            "goal_conditioned_minimal_formalization_route_alignment_edge_schema_valid": goal_conditioned_minimal_formalization_plan_manifest[
+                "n_route_alignment_edge_schema_valid"
+            ],
+            "goal_conditioned_minimal_formalization_route_alignment_edge_schema_invalid": goal_conditioned_minimal_formalization_plan_manifest[
+                "n_route_alignment_edge_schema_invalid"
+            ],
+            "goal_conditioned_minimal_formalization_goal_plan_row_schema_valid": goal_conditioned_minimal_formalization_plan_manifest[
+                "n_goal_plan_row_schema_valid"
+            ],
+            "goal_conditioned_minimal_formalization_goal_plan_row_schema_invalid": goal_conditioned_minimal_formalization_plan_manifest[
+                "n_goal_plan_row_schema_invalid"
+            ],
             "goal_conditioned_minimal_formalization_route_revision_triggers": goal_conditioned_minimal_formalization_plan_manifest[
                 "n_route_revision_triggers"
             ],
@@ -2764,6 +3573,374 @@ async def run_research_system_audit(
             ],
             "goal_conditioned_minimal_formalization_ok": goal_conditioned_minimal_formalization_plan_manifest[
                 "n_ok"
+            ],
+            "formalization_gap_planner_portable_plan_audit_checks": formalization_gap_planner_portable_plan_audit_manifest[
+                "n_checks"
+            ],
+            "formalization_gap_planner_portable_plan_audit_ok": formalization_gap_planner_portable_plan_audit_manifest[
+                "n_ok"
+            ],
+            "formalization_gap_planner_portable_plan_audit_failed": formalization_gap_planner_portable_plan_audit_manifest[
+                "n_failed"
+            ],
+            "formalization_gap_planner_portable_plan_audit_row_schema_valid": formalization_gap_planner_portable_plan_audit_manifest[
+                "n_row_schema_valid"
+            ],
+            "formalization_gap_planner_portable_plan_audit_row_schema_invalid": formalization_gap_planner_portable_plan_audit_manifest[
+                "n_row_schema_invalid"
+            ],
+            "formalization_gap_planner_portable_plan_audit_rows": formalization_gap_planner_portable_plan_audit_manifest[
+                "n_plan_rows"
+            ],
+            "formalization_gap_planner_portable_plan_audit_contract_errors": formalization_gap_planner_portable_plan_audit_manifest[
+                "n_contract_errors"
+            ],
+            "formalization_gap_planner_portable_plan_audit_two_dag_rows": formalization_gap_planner_portable_plan_audit_manifest[
+                "n_rows_with_two_dag"
+            ],
+            "formalization_gap_planner_portable_plan_audit_alignment_rows": formalization_gap_planner_portable_plan_audit_manifest[
+                "n_rows_with_alignment_edges"
+            ],
+            "formalization_gap_planner_portable_plan_audit_route_alignment_edges": formalization_gap_planner_portable_plan_audit_manifest[
+                "n_route_alignment_edges"
+            ],
+            "formalization_gap_planner_portable_plan_audit_route_alignment_edge_schema_valid": formalization_gap_planner_portable_plan_audit_manifest[
+                "n_route_alignment_edge_schema_valid"
+            ],
+            "formalization_gap_planner_portable_plan_audit_route_alignment_edge_schema_invalid": formalization_gap_planner_portable_plan_audit_manifest[
+                "n_route_alignment_edge_schema_invalid"
+            ],
+            "formalization_gap_planner_portable_plan_audit_work_packet_rows": formalization_gap_planner_portable_plan_audit_manifest[
+                "n_rows_with_work_packets"
+            ],
+            "formalization_gap_planner_portable_plan_audit_no_kernel_claim_rows": formalization_gap_planner_portable_plan_audit_manifest[
+                "n_rows_without_kernel_claims"
+            ],
+            "formalization_gap_planner_library_coverage_rows": formalization_gap_planner_library_coverage_map_manifest[
+                "n_coverage_rows"
+            ],
+            "formalization_gap_planner_library_coverage_ok": formalization_gap_planner_library_coverage_map_manifest[
+                "n_ok"
+            ],
+            "formalization_gap_planner_library_coverage_failed": formalization_gap_planner_library_coverage_map_manifest[
+                "n_failed"
+            ],
+            "formalization_gap_planner_library_coverage_exact_exists": formalization_gap_planner_library_coverage_map_manifest[
+                "n_exact_exists"
+            ],
+            "formalization_gap_planner_library_coverage_near_exists": formalization_gap_planner_library_coverage_map_manifest[
+                "n_near_exists"
+            ],
+            "formalization_gap_planner_library_coverage_wrapper_needed": formalization_gap_planner_library_coverage_map_manifest[
+                "n_wrapper_needed"
+            ],
+            "formalization_gap_planner_library_coverage_bridge_needed": formalization_gap_planner_library_coverage_map_manifest[
+                "n_bridge_needed"
+            ],
+            "formalization_gap_planner_library_coverage_source_port_needed": formalization_gap_planner_library_coverage_map_manifest[
+                "n_source_port_needed"
+            ],
+            "formalization_gap_planner_library_coverage_definition_or_theory_missing": formalization_gap_planner_library_coverage_map_manifest[
+                "n_definition_or_theory_missing"
+            ],
+            "formalization_gap_planner_library_coverage_unknown_or_unaligned": formalization_gap_planner_library_coverage_map_manifest[
+                "n_unknown_or_unaligned"
+            ],
+            "formalization_gap_planner_library_coverage_rows_with_alignment": formalization_gap_planner_library_coverage_map_manifest[
+                "n_rows_with_alignment"
+            ],
+            "formalization_gap_planner_library_coverage_row_schema_valid": formalization_gap_planner_library_coverage_map_manifest[
+                "n_row_schema_valid"
+            ],
+            "formalization_gap_planner_library_coverage_row_schema_invalid": formalization_gap_planner_library_coverage_map_manifest[
+                "n_row_schema_invalid"
+            ],
+            "formalization_gap_planner_primitive_action_queue_items": formalization_gap_planner_primitive_action_queue_manifest[
+                "n_action_items"
+            ],
+            "formalization_gap_planner_primitive_action_queue_ok": formalization_gap_planner_primitive_action_queue_manifest[
+                "n_ok"
+            ],
+            "formalization_gap_planner_primitive_action_queue_failed": formalization_gap_planner_primitive_action_queue_manifest[
+                "n_failed"
+            ],
+            "formalization_gap_planner_primitive_action_queue_target_prover_replay": formalization_gap_planner_primitive_action_queue_manifest[
+                "n_target_prover_replay"
+            ],
+            "formalization_gap_planner_primitive_action_queue_compose_existing_declarations": formalization_gap_planner_primitive_action_queue_manifest[
+                "n_compose_existing_declarations"
+            ],
+            "formalization_gap_planner_primitive_action_queue_write_wrapper": formalization_gap_planner_primitive_action_queue_manifest[
+                "n_write_wrapper"
+            ],
+            "formalization_gap_planner_primitive_action_queue_prove_bridge_lemma": formalization_gap_planner_primitive_action_queue_manifest[
+                "n_prove_bridge_lemma"
+            ],
+            "formalization_gap_planner_primitive_action_queue_source_port": formalization_gap_planner_primitive_action_queue_manifest[
+                "n_source_port"
+            ],
+            "formalization_gap_planner_primitive_action_queue_design_new_theory_fragment": formalization_gap_planner_primitive_action_queue_manifest[
+                "n_design_new_theory_fragment"
+            ],
+            "formalization_gap_planner_primitive_action_queue_rerun_library_alignment": formalization_gap_planner_primitive_action_queue_manifest[
+                "n_rerun_library_alignment"
+            ],
+            "formalization_gap_planner_primitive_action_queue_row_schema_valid": formalization_gap_planner_primitive_action_queue_manifest[
+                "n_row_schema_valid"
+            ],
+            "formalization_gap_planner_primitive_action_queue_row_schema_invalid": formalization_gap_planner_primitive_action_queue_manifest[
+                "n_row_schema_invalid"
+            ],
+            "formalization_gap_planner_action_resource_plan_rows": formalization_gap_planner_action_resource_plan_manifest[
+                "n_resource_plan_rows"
+            ],
+            "formalization_gap_planner_action_resource_plan_ok": formalization_gap_planner_action_resource_plan_manifest[
+                "n_ok"
+            ],
+            "formalization_gap_planner_action_resource_plan_failed": formalization_gap_planner_action_resource_plan_manifest[
+                "n_failed"
+            ],
+            "formalization_gap_planner_action_resource_plan_row_schema_valid": formalization_gap_planner_action_resource_plan_manifest[
+                "n_row_schema_valid"
+            ],
+            "formalization_gap_planner_action_resource_plan_row_schema_invalid": formalization_gap_planner_action_resource_plan_manifest[
+                "n_row_schema_invalid"
+            ],
+            "formalization_gap_planner_action_resource_plan_with_local_first_resources": formalization_gap_planner_action_resource_plan_manifest[
+                "n_with_local_first_resources"
+            ],
+            "formalization_gap_planner_action_resource_plan_with_frontier_resources": formalization_gap_planner_action_resource_plan_manifest[
+                "n_with_frontier_escalation_resources"
+            ],
+            "formalization_gap_planner_action_resource_plan_with_resource_contracts": formalization_gap_planner_action_resource_plan_manifest[
+                "n_with_resource_contracts"
+            ],
+            "formalization_gap_planner_resource_request_queue_rows": formalization_gap_planner_resource_request_queue_manifest[
+                "n_resource_request_rows"
+            ],
+            "formalization_gap_planner_resource_request_queue_ok": formalization_gap_planner_resource_request_queue_manifest[
+                "n_ok"
+            ],
+            "formalization_gap_planner_resource_request_queue_failed": formalization_gap_planner_resource_request_queue_manifest[
+                "n_failed"
+            ],
+            "formalization_gap_planner_resource_request_queue_local_first": formalization_gap_planner_resource_request_queue_manifest[
+                "n_local_first_requests"
+            ],
+            "formalization_gap_planner_resource_request_queue_frontier_escalation": formalization_gap_planner_resource_request_queue_manifest[
+                "n_frontier_escalation_requests"
+            ],
+            "formalization_gap_planner_resource_request_queue_distinct_resources": formalization_gap_planner_resource_request_queue_manifest[
+                "n_distinct_resources"
+            ],
+            "formalization_gap_planner_resource_request_queue_row_schema_valid": formalization_gap_planner_resource_request_queue_manifest[
+                "n_row_schema_valid"
+            ],
+            "formalization_gap_planner_resource_request_queue_row_schema_invalid": formalization_gap_planner_resource_request_queue_manifest[
+                "n_row_schema_invalid"
+            ],
+            "formalization_gap_planner_resource_response_ledger_rows": formalization_gap_planner_resource_response_ledger_manifest[
+                "n_ledger_rows"
+            ],
+            "formalization_gap_planner_resource_response_ledger_ok": formalization_gap_planner_resource_response_ledger_manifest[
+                "n_ok"
+            ],
+            "formalization_gap_planner_resource_response_ledger_response_present": formalization_gap_planner_resource_response_ledger_manifest[
+                "n_response_present"
+            ],
+            "formalization_gap_planner_resource_response_ledger_awaiting": formalization_gap_planner_resource_response_ledger_manifest[
+                "n_awaiting_response"
+            ],
+            "formalization_gap_planner_resource_response_ledger_contract_ok": formalization_gap_planner_resource_response_ledger_manifest[
+                "n_response_contract_ok"
+            ],
+            "formalization_gap_planner_resource_response_ledger_route_revision_recommended": formalization_gap_planner_resource_response_ledger_manifest[
+                "n_route_revision_recommended"
+            ],
+            "formalization_gap_planner_resource_response_ledger_rejected": formalization_gap_planner_resource_response_ledger_manifest[
+                "n_rejected"
+            ],
+            "formalization_gap_planner_resource_response_ledger_row_schema_valid": formalization_gap_planner_resource_response_ledger_manifest[
+                "n_ledger_row_schema_valid"
+            ],
+            "formalization_gap_planner_resource_response_ledger_row_schema_invalid": formalization_gap_planner_resource_response_ledger_manifest[
+                "n_ledger_row_schema_invalid"
+            ],
+            "formalization_gap_planner_minimal_delta_audit_checks": formalization_gap_planner_minimal_delta_audit_manifest[
+                "n_checks"
+            ],
+            "formalization_gap_planner_minimal_delta_audit_ok": formalization_gap_planner_minimal_delta_audit_manifest[
+                "n_ok"
+            ],
+            "formalization_gap_planner_minimal_delta_audit_failed": formalization_gap_planner_minimal_delta_audit_manifest[
+                "n_failed"
+            ],
+            "formalization_gap_planner_minimal_delta_audit_cost_formula_rows": formalization_gap_planner_minimal_delta_audit_manifest[
+                "n_rows_with_cost_formula_ok"
+            ],
+            "formalization_gap_planner_minimal_delta_audit_work_packet_rows": formalization_gap_planner_minimal_delta_audit_manifest[
+                "n_rows_with_work_packet_cut_ok"
+            ],
+            "formalization_gap_planner_minimal_delta_audit_dominated_routes": formalization_gap_planner_minimal_delta_audit_manifest[
+                "n_dominated_route_witnesses"
+            ],
+            "formalization_gap_planner_minimal_delta_decision_rows": formalization_gap_planner_minimal_delta_audit_manifest[
+                "n_minimal_delta_decision_rows"
+            ],
+            "formalization_gap_planner_minimal_delta_decision_row_schema_valid": formalization_gap_planner_minimal_delta_audit_manifest[
+                "n_minimal_delta_decision_row_schema_valid"
+            ],
+            "formalization_gap_planner_minimal_delta_decision_row_schema_invalid": formalization_gap_planner_minimal_delta_audit_manifest[
+                "n_minimal_delta_decision_row_schema_invalid"
+            ],
+            "formalization_gap_planner_source_grounding_rows": formalization_gap_planner_source_grounding_audit_manifest[
+                "n_source_grounding_rows"
+            ],
+            "formalization_gap_planner_source_grounding_informal_route_rows": formalization_gap_planner_source_grounding_audit_manifest[
+                "n_informal_route_grounding_rows"
+            ],
+            "formalization_gap_planner_source_grounding_residual_rows": formalization_gap_planner_source_grounding_audit_manifest[
+                "n_residual_grounding_rows"
+            ],
+            "formalization_gap_planner_source_grounding_residual_goals": formalization_gap_planner_source_grounding_audit_manifest[
+                "n_residual_goals"
+            ],
+            "formalization_gap_planner_source_grounding_residual_primitives": formalization_gap_planner_source_grounding_audit_manifest[
+                "n_residual_primitives"
+            ],
+            "formalization_gap_planner_source_grounding_residual_unaccounted": formalization_gap_planner_source_grounding_audit_manifest[
+                "n_residual_unaccounted"
+            ],
+            "formalization_gap_planner_source_grounding_source_backed": formalization_gap_planner_source_grounding_audit_manifest[
+                "n_source_backed"
+            ],
+            "formalization_gap_planner_source_grounding_pending": formalization_gap_planner_source_grounding_audit_manifest[
+                "n_source_search_pending"
+            ],
+            "formalization_gap_planner_source_grounding_formal_boundary": formalization_gap_planner_source_grounding_audit_manifest[
+                "n_formal_boundary_declared"
+            ],
+            "formalization_gap_planner_source_grounding_unaccounted": formalization_gap_planner_source_grounding_audit_manifest[
+                "n_unaccounted"
+            ],
+            "formalization_gap_planner_source_grounding_row_schema_valid": formalization_gap_planner_source_grounding_audit_manifest[
+                "n_row_schema_valid"
+            ],
+            "formalization_gap_planner_source_grounding_row_schema_invalid": formalization_gap_planner_source_grounding_audit_manifest[
+                "n_row_schema_invalid"
+            ],
+            "formalization_gap_planner_target_intake_targets": formalization_gap_planner_target_intake_manifest[
+                "n_targets"
+            ],
+            "formalization_gap_planner_target_intake_ok": formalization_gap_planner_target_intake_manifest[
+                "n_ok"
+            ],
+            "formalization_gap_planner_target_intake_primitive_seeds": formalization_gap_planner_target_intake_manifest[
+                "n_primitive_seed_rows"
+            ],
+            "formalization_gap_planner_target_intake_literature_queries": formalization_gap_planner_target_intake_manifest[
+                "n_literature_queries"
+            ],
+            "formalization_gap_planner_target_intake_lean_queries": formalization_gap_planner_target_intake_manifest[
+                "n_lean_grounding_queries"
+            ],
+            "formalization_gap_planner_target_intake_missing_sources": formalization_gap_planner_target_intake_manifest[
+                "n_missing_proof_sources"
+            ],
+            "formalization_gap_planner_benchmark_routes": formalization_gap_planner_benchmark_manifest[
+                "n_routes"
+            ],
+            "formalization_gap_planner_benchmark_required_primitives": formalization_gap_planner_benchmark_manifest[
+                "n_required_primitives"
+            ],
+            "formalization_gap_planner_benchmark_kernel_verified_routes": formalization_gap_planner_benchmark_manifest[
+                "n_kernel_verified_routes"
+            ],
+            "formalization_gap_planner_benchmark_route_row_schema_valid": formalization_gap_planner_benchmark_manifest[
+                "n_route_row_schema_valid"
+            ],
+            "formalization_gap_planner_benchmark_route_row_schema_invalid": formalization_gap_planner_benchmark_manifest[
+                "n_route_row_schema_invalid"
+            ],
+            "formalization_gap_planner_benchmark_audit_checks": formalization_gap_planner_benchmark_audit_manifest[
+                "n_checks"
+            ],
+            "formalization_gap_planner_benchmark_audit_ok": formalization_gap_planner_benchmark_audit_manifest[
+                "n_ok"
+            ],
+            "formalization_gap_planner_benchmark_audit_failed": formalization_gap_planner_benchmark_audit_manifest[
+                "n_failed"
+            ],
+            "formalization_gap_planner_benchmark_audit_splits": formalization_gap_planner_benchmark_audit_manifest[
+                "n_evaluation_splits"
+            ],
+            "formalization_gap_planner_benchmark_audit_routes_with_source_refs": formalization_gap_planner_benchmark_audit_manifest[
+                "n_routes_with_source_refs"
+            ],
+            "formalization_gap_planner_benchmark_audit_route_row_schema_valid": formalization_gap_planner_benchmark_audit_manifest[
+                "n_route_row_schema_valid"
+            ],
+            "formalization_gap_planner_benchmark_audit_route_row_schema_invalid": formalization_gap_planner_benchmark_audit_manifest[
+                "n_route_row_schema_invalid"
+            ],
+            "formalization_gap_planner_evaluation_rows": formalization_gap_planner_evaluation_manifest[
+                "n_evaluation_rows"
+            ],
+            "formalization_gap_planner_evaluation_row_schema_valid": formalization_gap_planner_evaluation_manifest[
+                "n_evaluation_row_schema_valid"
+            ],
+            "formalization_gap_planner_evaluation_row_schema_invalid": formalization_gap_planner_evaluation_manifest[
+                "n_evaluation_row_schema_invalid"
+            ],
+            "formalization_gap_planner_evaluation_matched_ground_truth": formalization_gap_planner_evaluation_manifest[
+                "n_matched_ground_truth"
+            ],
+            "formalization_gap_planner_evaluation_ground_truth_rows": formalization_gap_planner_evaluation_manifest[
+                "n_ground_truth_rows"
+            ],
+            "formalization_gap_planner_evaluation_ok": formalization_gap_planner_evaluation_manifest[
+                "n_ok"
+            ],
+            "formalization_gap_planner_evaluation_two_dag_contract_ok": formalization_gap_planner_evaluation_manifest[
+                "n_two_dag_contract_ok"
+            ],
+            "formalization_gap_planner_evaluation_alignment_contract_ok": formalization_gap_planner_evaluation_manifest[
+                "n_alignment_contract_ok"
+            ],
+            "formalization_gap_planner_evaluation_unaligned_primitives": formalization_gap_planner_evaluation_manifest[
+                "n_unaligned_primitives"
+            ],
+            "formalization_gap_planner_evaluation_feedback_loop_ready": formalization_gap_planner_evaluation_manifest[
+                "n_feedback_loop_ready"
+            ],
+            "formalization_gap_planner_evaluation_ground_truth_residual_rows": formalization_gap_planner_evaluation_manifest.get(
+                "n_ground_truth_residual_rows",
+                0,
+            ),
+            "formalization_gap_planner_evaluation_predicted_residual_primitives": formalization_gap_planner_evaluation_manifest.get(
+                "n_predicted_residual_primitives",
+                0,
+            ),
+            "formalization_gap_planner_evaluation_ground_truth_residual_primitives": formalization_gap_planner_evaluation_manifest.get(
+                "n_ground_truth_residual_primitives",
+                0,
+            ),
+            "formalization_gap_planner_evaluation_mean_route_recall": formalization_gap_planner_evaluation_manifest[
+                "mean_route_recall"
+            ],
+            "formalization_gap_planner_evaluation_mean_delta_precision": formalization_gap_planner_evaluation_manifest[
+                "mean_delta_precision"
+            ],
+            "formalization_gap_planner_evaluation_mean_residual_precision": formalization_gap_planner_evaluation_manifest.get(
+                "mean_residual_precision",
+                0.0,
+            ),
+            "formalization_gap_planner_evaluation_mean_residual_recall": formalization_gap_planner_evaluation_manifest.get(
+                "mean_residual_recall",
+                0.0,
+            ),
+            "formalization_gap_planner_evaluation_mean_alignment_coverage": formalization_gap_planner_evaluation_manifest[
+                "mean_alignment_coverage"
             ],
             "formal_verifier_replay_tasks": formal_verifier_replay_manifest["n_replay_tasks"],
             "formal_verifier_replay_ok": formal_verifier_replay_manifest["n_ok"],
@@ -2842,11 +4019,20 @@ async def run_research_system_audit(
             "formalization_gap_planner_refinement_queue_ready": formalization_gap_planner_refinement_queue_manifest[
                 "n_ready"
             ],
+            "formalization_gap_planner_refinement_queue_item_schema_valid": formalization_gap_planner_refinement_queue_manifest[
+                "n_item_schema_valid"
+            ],
+            "formalization_gap_planner_refinement_queue_item_schema_invalid": formalization_gap_planner_refinement_queue_manifest[
+                "n_item_schema_invalid"
+            ],
             "formalization_gap_planner_refinement_queue_blocked": formalization_gap_planner_refinement_queue_manifest[
                 "n_blocked"
             ],
             "formalization_gap_planner_refinement_queue_literature": formalization_gap_planner_refinement_queue_manifest[
                 "n_literature_discovery_items"
+            ],
+            "formalization_gap_planner_refinement_queue_formal_grounding": formalization_gap_planner_refinement_queue_manifest[
+                "n_formal_library_grounding_items"
             ],
             "formalization_gap_planner_refinement_queue_lean_grounding": formalization_gap_planner_refinement_queue_manifest[
                 "n_lean_library_grounding_items"
@@ -2868,6 +4054,1029 @@ async def run_research_system_audit(
             ],
             "formalization_gap_planner_refinement_queue_ok": formalization_gap_planner_refinement_queue_manifest[
                 "n_ok"
+            ],
+            "formalization_gap_planner_refinement_adapter_responses": formalization_gap_planner_refinement_adapter_manifest[
+                "n_responses"
+            ],
+            "formalization_gap_planner_refinement_adapter_ground_truth_matched": formalization_gap_planner_refinement_adapter_manifest[
+                "n_ground_truth_matched"
+            ],
+            "formalization_gap_planner_refinement_adapter_literature_responses": formalization_gap_planner_refinement_adapter_manifest[
+                "n_literature_responses"
+            ],
+            "formalization_gap_planner_refinement_adapter_formal_grounding_responses": formalization_gap_planner_refinement_adapter_manifest[
+                "n_formal_grounding_responses"
+            ],
+            "formalization_gap_planner_refinement_adapter_lean_grounding_responses": formalization_gap_planner_refinement_adapter_manifest[
+                "n_lean_grounding_responses"
+            ],
+            "formalization_gap_planner_refinement_adapter_prover_feedback_responses": formalization_gap_planner_refinement_adapter_manifest[
+                "n_prover_feedback_responses"
+            ],
+            "formalization_gap_planner_refinement_adapter_route_revision_responses": formalization_gap_planner_refinement_adapter_manifest[
+                "n_route_revision_responses"
+            ],
+            "formalization_gap_planner_refinement_adapter_route_revision_recommended": formalization_gap_planner_refinement_adapter_manifest[
+                "n_route_revision_recommended"
+            ],
+            "formalization_gap_planner_refinement_adapter_response_schema_valid": formalization_gap_planner_refinement_adapter_manifest[
+                "n_response_schema_valid"
+            ],
+            "formalization_gap_planner_refinement_adapter_response_schema_invalid": formalization_gap_planner_refinement_adapter_manifest[
+                "n_response_schema_invalid"
+            ],
+            "formalization_gap_planner_refinement_adapter_ok": formalization_gap_planner_refinement_adapter_manifest[
+                "n_ok"
+            ],
+            "formalization_gap_planner_local_literature_responses": formalization_gap_planner_local_literature_adapter_manifest[
+                "n_local_literature_responses"
+            ],
+            "formalization_gap_planner_local_literature_source_hits": formalization_gap_planner_local_literature_adapter_manifest[
+                "n_source_hits"
+            ],
+            "formalization_gap_planner_local_literature_gap_responses": formalization_gap_planner_local_literature_adapter_manifest[
+                "n_literature_gap_responses"
+            ],
+            "formalization_gap_planner_local_literature_merged_responses": formalization_gap_planner_local_literature_adapter_manifest[
+                "n_merged_responses"
+            ],
+            "formalization_gap_planner_local_literature_response_schema_valid": formalization_gap_planner_local_literature_adapter_manifest[
+                "n_local_response_schema_valid"
+            ],
+            "formalization_gap_planner_local_literature_response_schema_invalid": formalization_gap_planner_local_literature_adapter_manifest[
+                "n_local_response_schema_invalid"
+            ],
+            "formalization_gap_planner_local_formal_source_responses": formalization_gap_planner_local_formal_source_adapter_manifest[
+                "n_local_formal_source_responses"
+            ],
+            "formalization_gap_planner_local_formal_source_hits": formalization_gap_planner_local_formal_source_adapter_manifest[
+                "n_hits"
+            ],
+            "formalization_gap_planner_local_formal_source_exact_exists": formalization_gap_planner_local_formal_source_adapter_manifest[
+                "n_exact_exists"
+            ],
+            "formalization_gap_planner_local_formal_source_merged_responses": formalization_gap_planner_local_formal_source_adapter_manifest[
+                "n_merged_responses"
+            ],
+            "formalization_gap_planner_local_formal_source_response_schema_valid": formalization_gap_planner_local_formal_source_adapter_manifest[
+                "n_local_response_schema_valid"
+            ],
+            "formalization_gap_planner_local_formal_source_response_schema_invalid": formalization_gap_planner_local_formal_source_adapter_manifest[
+                "n_local_response_schema_invalid"
+            ],
+            "formalization_gap_planner_local_proof_state_responses": formalization_gap_planner_local_proof_state_adapter_manifest[
+                "n_local_proof_state_responses"
+            ],
+            "formalization_gap_planner_local_proof_state_unavailable": formalization_gap_planner_local_proof_state_adapter_manifest[
+                "n_local_lean_unavailable"
+            ],
+            "formalization_gap_planner_local_proof_state_formal_gap_scaffold_blocked": formalization_gap_planner_local_proof_state_adapter_manifest[
+                "n_formal_gap_scaffold_blocked"
+            ],
+            "formalization_gap_planner_local_proof_state_merged_responses": formalization_gap_planner_local_proof_state_adapter_manifest[
+                "n_merged_responses"
+            ],
+            "formalization_gap_planner_local_proof_state_response_schema_valid": formalization_gap_planner_local_proof_state_adapter_manifest[
+                "n_local_response_schema_valid"
+            ],
+            "formalization_gap_planner_local_proof_state_response_schema_invalid": formalization_gap_planner_local_proof_state_adapter_manifest[
+                "n_local_response_schema_invalid"
+            ],
+            "formalization_gap_planner_local_adapter_response_schema_valid": sum(
+                int(payload.get("n_local_response_schema_valid", 0) or 0)
+                for payload in (
+                    formalization_gap_planner_local_literature_adapter_manifest,
+                    formalization_gap_planner_local_formal_source_adapter_manifest,
+                    formalization_gap_planner_local_proof_state_adapter_manifest,
+                )
+            ),
+            "formalization_gap_planner_local_adapter_response_schema_invalid": sum(
+                int(payload.get("n_local_response_schema_invalid", 0) or 0)
+                for payload in (
+                    formalization_gap_planner_local_literature_adapter_manifest,
+                    formalization_gap_planner_local_formal_source_adapter_manifest,
+                    formalization_gap_planner_local_proof_state_adapter_manifest,
+                )
+            ),
+            "formalization_gap_planner_local_adapter_merged_response_schema_valid": formalization_gap_planner_local_proof_state_adapter_manifest[
+                "n_merged_response_schema_valid"
+            ],
+            "formalization_gap_planner_local_adapter_merged_response_schema_invalid": formalization_gap_planner_local_proof_state_adapter_manifest[
+                "n_merged_response_schema_invalid"
+            ],
+            "formalization_gap_planner_refinement_evidence_rows": formalization_gap_planner_refinement_evidence_manifest[
+                "n_evidence_rows"
+            ],
+            "formalization_gap_planner_refinement_evidence_responses": formalization_gap_planner_refinement_evidence_manifest[
+                "n_responses"
+            ],
+            "formalization_gap_planner_refinement_evidence_response_present": formalization_gap_planner_refinement_evidence_manifest[
+                "n_response_present"
+            ],
+            "formalization_gap_planner_refinement_evidence_awaiting_tool_response": formalization_gap_planner_refinement_evidence_manifest[
+                "n_awaiting_tool_response"
+            ],
+            "formalization_gap_planner_refinement_evidence_contract_ok": formalization_gap_planner_refinement_evidence_manifest[
+                "n_contract_ok"
+            ],
+            "formalization_gap_planner_refinement_response_schema_valid": formalization_gap_planner_refinement_evidence_manifest[
+                "n_response_schema_valid"
+            ],
+            "formalization_gap_planner_refinement_response_schema_invalid": formalization_gap_planner_refinement_evidence_manifest[
+                "n_response_schema_invalid"
+            ],
+            "formalization_gap_planner_refinement_evidence_row_schema_valid": formalization_gap_planner_refinement_evidence_manifest[
+                "n_evidence_row_schema_valid"
+            ],
+            "formalization_gap_planner_refinement_evidence_row_schema_invalid": formalization_gap_planner_refinement_evidence_manifest[
+                "n_evidence_row_schema_invalid"
+            ],
+            "formalization_gap_planner_refinement_evidence_literature": formalization_gap_planner_refinement_evidence_manifest[
+                "n_literature_evidence"
+            ],
+            "formalization_gap_planner_refinement_evidence_lean_grounding": formalization_gap_planner_refinement_evidence_manifest[
+                "n_lean_grounding_evidence"
+            ],
+            "formalization_gap_planner_refinement_evidence_prover_feedback": formalization_gap_planner_refinement_evidence_manifest[
+                "n_prover_feedback_evidence"
+            ],
+            "formalization_gap_planner_refinement_evidence_route_revision": formalization_gap_planner_refinement_evidence_manifest[
+                "n_route_revision_evidence"
+            ],
+            "formalization_gap_planner_refinement_evidence_route_revision_recommended": formalization_gap_planner_refinement_evidence_manifest[
+                "n_route_revision_recommended"
+            ],
+            "formalization_gap_planner_refinement_evidence_route_revision_proposals": formalization_gap_planner_refinement_evidence_manifest[
+                "n_route_revision_proposals"
+            ],
+            "formalization_gap_planner_refinement_evidence_rejected": formalization_gap_planner_refinement_evidence_manifest[
+                "n_rejected"
+            ],
+            "formalization_gap_planner_refinement_evidence_ok": formalization_gap_planner_refinement_evidence_manifest[
+                "n_ok"
+            ],
+            "formalization_gap_planner_route_revision_overlay_rows": formalization_gap_planner_route_revision_overlay_manifest[
+                "n_overlay_rows"
+            ],
+            "formalization_gap_planner_route_revision_overlay_refinement_evidence_proposals": formalization_gap_planner_route_revision_overlay_manifest[
+                "n_refinement_evidence_route_revision_proposals"
+            ],
+            "formalization_gap_planner_route_revision_overlay_resource_response_ledger_proposals": formalization_gap_planner_route_revision_overlay_manifest[
+                "n_resource_response_ledger_route_revision_proposals"
+            ],
+            "formalization_gap_planner_route_revision_overlay_row_schema_valid": formalization_gap_planner_route_revision_overlay_manifest[
+                "n_row_schema_valid"
+            ],
+            "formalization_gap_planner_route_revision_overlay_row_schema_invalid": formalization_gap_planner_route_revision_overlay_manifest[
+                "n_row_schema_invalid"
+            ],
+            "formalization_gap_planner_route_revision_overlay_routes_with_revision": formalization_gap_planner_route_revision_overlay_manifest[
+                "n_routes_with_revision"
+            ],
+            "formalization_gap_planner_route_revision_overlay_routes_without_revision": formalization_gap_planner_route_revision_overlay_manifest[
+                "n_routes_without_revision"
+            ],
+            "formalization_gap_planner_route_revision_overlay_added_primitives": formalization_gap_planner_route_revision_overlay_manifest[
+                "n_added_primitives"
+            ],
+            "formalization_gap_planner_route_revision_overlay_added_delta_primitives": formalization_gap_planner_route_revision_overlay_manifest[
+                "n_added_delta_primitives"
+            ],
+            "formalization_gap_planner_route_revision_overlay_alignment_rows": formalization_gap_planner_route_revision_overlay_manifest[
+                "n_rows_with_alignment_contract"
+            ],
+            "formalization_gap_planner_route_revision_overlay_alignment_edges": formalization_gap_planner_route_revision_overlay_manifest[
+                "n_route_alignment_edges"
+            ],
+            "formalization_gap_planner_route_revision_overlay_unaligned_primitives": formalization_gap_planner_route_revision_overlay_manifest[
+                "n_unaligned_primitives"
+            ],
+            "formalization_gap_planner_route_revision_overlay_ok": formalization_gap_planner_route_revision_overlay_manifest[
+                "n_ok"
+            ],
+            "formalization_gap_planner_route_stability_rows": formalization_gap_planner_route_stability_audit_manifest[
+                "n_stability_rows"
+            ],
+            "formalization_gap_planner_route_stability_stable": formalization_gap_planner_route_stability_audit_manifest[
+                "n_stable"
+            ],
+            "formalization_gap_planner_route_stability_needs_expansion": formalization_gap_planner_route_stability_audit_manifest[
+                "n_needs_expansion"
+            ],
+            "formalization_gap_planner_route_stability_apply_revision": formalization_gap_planner_route_stability_audit_manifest[
+                "n_apply_route_revision"
+            ],
+            "formalization_gap_planner_route_stability_expand_literature": formalization_gap_planner_route_stability_audit_manifest[
+                "n_expand_literature"
+            ],
+            "formalization_gap_planner_route_stability_expand_lean": formalization_gap_planner_route_stability_audit_manifest[
+                "n_expand_lean_grounding"
+            ],
+            "formalization_gap_planner_route_stability_expand_proof_state": formalization_gap_planner_route_stability_audit_manifest[
+                "n_expand_proof_state"
+            ],
+            "formalization_gap_planner_route_stability_new_primitives": formalization_gap_planner_route_stability_audit_manifest[
+                "n_new_primitives_since_plan"
+            ],
+            "formalization_gap_planner_route_stability_row_schema_valid": formalization_gap_planner_route_stability_audit_manifest[
+                "n_row_schema_valid"
+            ],
+            "formalization_gap_planner_route_stability_row_schema_invalid": formalization_gap_planner_route_stability_audit_manifest[
+                "n_row_schema_invalid"
+            ],
+            "formalization_gap_planner_route_stability_ok": formalization_gap_planner_route_stability_audit_manifest[
+                "n_ok"
+            ],
+            "formalization_gap_planner_route_replan_handoff_rows": formalization_gap_planner_route_replan_handoff_manifest[
+                "n_handoff_rows"
+            ],
+            "formalization_gap_planner_route_replan_handoff_row_schema_valid": formalization_gap_planner_route_replan_handoff_manifest[
+                "n_row_schema_valid"
+            ],
+            "formalization_gap_planner_route_replan_handoff_row_schema_invalid": formalization_gap_planner_route_replan_handoff_manifest[
+                "n_row_schema_invalid"
+            ],
+            "formalization_gap_planner_route_replan_handoff_requiring_replan": formalization_gap_planner_route_replan_handoff_manifest[
+                "n_routes_requiring_replan"
+            ],
+            "formalization_gap_planner_route_replan_handoff_seed_routes": formalization_gap_planner_route_replan_handoff_manifest[
+                "n_standalone_seed_routes"
+            ],
+            "formalization_gap_planner_route_replan_handoff_alignment_edges": formalization_gap_planner_route_replan_handoff_manifest[
+                "n_route_alignment_edges"
+            ],
+            "formalization_gap_planner_route_replan_handoff_unaligned_primitives": formalization_gap_planner_route_replan_handoff_manifest[
+                "n_unaligned_primitives"
+            ],
+            "formalization_gap_planner_route_replan_handoff_residual_routes": formalization_gap_planner_route_replan_handoff_manifest[
+                "n_routes_with_residual_goals"
+            ],
+            "formalization_gap_planner_route_replan_handoff_resource_response_ledger_feedback": formalization_gap_planner_route_replan_handoff_manifest[
+                "n_routes_with_resource_response_ledger_feedback"
+            ],
+            "formalization_gap_planner_route_replan_handoff_distinct_prover_diagnostic_signatures": formalization_gap_planner_route_replan_handoff_manifest[
+                "n_distinct_prover_diagnostic_signatures"
+            ],
+            "formalization_gap_planner_route_replan_handoff_ok": formalization_gap_planner_route_replan_handoff_manifest[
+                "n_ok"
+            ],
+            "formalization_gap_planner_route_replan_handoff_audit_checks": formalization_gap_planner_route_replan_handoff_audit_manifest[
+                "n_checks"
+            ],
+            "formalization_gap_planner_route_replan_handoff_audit_ok": formalization_gap_planner_route_replan_handoff_audit_manifest[
+                "n_ok"
+            ],
+            "formalization_gap_planner_route_replan_handoff_audit_failed": formalization_gap_planner_route_replan_handoff_audit_manifest[
+                "n_failed"
+            ],
+            "formalization_gap_planner_route_replan_handoff_audit_row_schema_valid": formalization_gap_planner_route_replan_handoff_audit_manifest[
+                "n_row_schema_valid"
+            ],
+            "formalization_gap_planner_route_replan_handoff_audit_row_schema_invalid": formalization_gap_planner_route_replan_handoff_audit_manifest[
+                "n_row_schema_invalid"
+            ],
+            "formalization_gap_planner_route_replan_handoff_audit_roundtrip_ok": formalization_gap_planner_route_replan_handoff_audit_manifest[
+                "roundtrip_all_ok"
+            ],
+            "formalization_gap_planner_route_replan_handoff_audit_roundtrip_routes": formalization_gap_planner_route_replan_handoff_audit_manifest[
+                "n_roundtrip_goal_plans"
+            ],
+            "formalization_gap_planner_route_replan_handoff_audit_roundtrip_alignment_edges": formalization_gap_planner_route_replan_handoff_audit_manifest[
+                "n_roundtrip_route_alignment_edges"
+            ],
+            "formalization_gap_planner_proof_state_triage_items": formalization_gap_planner_proof_state_triage_manifest[
+                "n_triage_items"
+            ],
+            "formalization_gap_planner_proof_state_triage_formal_gap_scaffold_items": formalization_gap_planner_proof_state_triage_manifest[
+                "n_formal_gap_scaffold_items"
+            ],
+            "formalization_gap_planner_proof_state_triage_local_lean_failed_items": formalization_gap_planner_proof_state_triage_manifest[
+                "n_local_lean_failed_items"
+            ],
+            "formalization_gap_planner_proof_state_triage_non_lean_skeleton_items": formalization_gap_planner_proof_state_triage_manifest[
+                "n_non_lean_skeleton_items"
+            ],
+            "formalization_gap_planner_proof_state_triage_distinct_signatures": formalization_gap_planner_proof_state_triage_manifest[
+                "n_distinct_diagnostic_signatures"
+            ],
+            "formalization_gap_planner_proof_state_triage_row_schema_valid": formalization_gap_planner_proof_state_triage_manifest[
+                "n_row_schema_valid"
+            ],
+            "formalization_gap_planner_proof_state_triage_row_schema_invalid": formalization_gap_planner_proof_state_triage_manifest[
+                "n_row_schema_invalid"
+            ],
+            "formalization_gap_planner_proof_state_triage_ok": formalization_gap_planner_proof_state_triage_manifest[
+                "n_ok"
+            ],
+            "formalization_gap_planner_interactive_session_rows": formalization_gap_planner_interactive_session_manifest[
+                "n_session_rows"
+            ],
+            "formalization_gap_planner_interactive_session_row_schema_valid": formalization_gap_planner_interactive_session_manifest[
+                "n_row_schema_valid"
+            ],
+            "formalization_gap_planner_interactive_session_row_schema_invalid": formalization_gap_planner_interactive_session_manifest[
+                "n_row_schema_invalid"
+            ],
+            "formalization_gap_planner_interactive_decision_policy_rows": formalization_gap_planner_interactive_session_manifest[
+                "n_decision_policy_rows"
+            ],
+            "formalization_gap_planner_interactive_decision_policy_row_schema_valid": formalization_gap_planner_interactive_session_manifest[
+                "n_decision_policy_row_schema_valid"
+            ],
+            "formalization_gap_planner_interactive_decision_policy_row_schema_invalid": formalization_gap_planner_interactive_session_manifest[
+                "n_decision_policy_row_schema_invalid"
+            ],
+            "formalization_gap_planner_interactive_decision_policy_rows_with_resource_contracts": formalization_gap_planner_interactive_session_manifest[
+                "n_decision_policy_rows_with_resource_contracts"
+            ],
+            "formalization_gap_planner_interactive_decision_policy_rows_with_frontier_resources": formalization_gap_planner_interactive_session_manifest[
+                "n_decision_policy_rows_with_frontier_resources"
+            ],
+            "formalization_gap_planner_interactive_decision_policy_rows_with_required_quality_signals": formalization_gap_planner_interactive_session_manifest[
+                "n_decision_policy_rows_with_required_quality_signals"
+            ],
+            "formalization_gap_planner_interactive_decision_policy_rows_with_quality_gates": formalization_gap_planner_interactive_session_manifest[
+                "n_decision_policy_rows_with_quality_gates"
+            ],
+            "formalization_gap_planner_interactive_decision_policy_rows_with_response_validation_signals": formalization_gap_planner_interactive_session_manifest[
+                "n_decision_policy_rows_with_response_validation_signals"
+            ],
+            "formalization_gap_planner_interactive_session_ok": formalization_gap_planner_interactive_session_manifest[
+                "n_ok"
+            ],
+            "formalization_gap_planner_interactive_session_replan": formalization_gap_planner_interactive_session_manifest[
+                "n_run_route_replan"
+            ],
+            "formalization_gap_planner_interactive_session_waiting_for_adapter_responses": formalization_gap_planner_interactive_session_manifest[
+                "n_waiting_for_adapter_responses"
+            ],
+            "formalization_gap_planner_interactive_session_rows_requiring_replan": formalization_gap_planner_interactive_session_manifest[
+                "n_rows_requiring_replan"
+            ],
+            "formalization_gap_planner_interactive_session_replay": formalization_gap_planner_interactive_session_manifest[
+                "n_run_target_prover_replay"
+            ],
+            "formalization_gap_planner_interactive_session_source_refs": formalization_gap_planner_interactive_session_manifest[
+                "n_rows_with_source_refs"
+            ],
+            "formalization_gap_planner_interactive_session_residual_goals": formalization_gap_planner_interactive_session_manifest[
+                "n_rows_with_residual_goals"
+            ],
+            "formalization_gap_planner_ablation_variants": formalization_gap_planner_ablation_study_manifest[
+                "n_ablation_variants"
+            ],
+            "formalization_gap_planner_ablation_ok": formalization_gap_planner_ablation_study_manifest[
+                "n_ok"
+            ],
+            "formalization_gap_planner_ablation_routes": formalization_gap_planner_ablation_study_manifest[
+                "n_evaluation_rows"
+            ],
+            "formalization_gap_planner_ablation_row_schema_valid": formalization_gap_planner_ablation_study_manifest[
+                "n_row_schema_valid"
+            ],
+            "formalization_gap_planner_ablation_row_schema_invalid": formalization_gap_planner_ablation_study_manifest[
+                "n_row_schema_invalid"
+            ],
+            "formalization_gap_planner_ablation_best_route_recall": formalization_gap_planner_ablation_study_manifest[
+                "best_variant_by_route_recall"
+            ],
+            "formalization_gap_planner_ablation_largest_route_drop": formalization_gap_planner_ablation_study_manifest[
+                "largest_route_recall_drop_variant"
+            ],
+            "formalization_gap_planner_ablation_largest_delta_drop": formalization_gap_planner_ablation_study_manifest[
+                "largest_delta_recall_drop_variant"
+            ],
+            "formalization_gap_planner_ablation_largest_residual_drop": formalization_gap_planner_ablation_study_manifest.get(
+                "largest_residual_recall_drop_variant",
+                "",
+            ),
+            "formalization_gap_planner_prover_adapter_packets": formalization_gap_planner_prover_adapter_contract_manifest[
+                "n_packets"
+            ],
+            "formalization_gap_planner_prover_adapter_packet_ok": formalization_gap_planner_prover_adapter_contract_manifest[
+                "n_packet_ok"
+            ],
+            "formalization_gap_planner_prover_adapter_packet_schema_valid": formalization_gap_planner_prover_adapter_contract_manifest[
+                "n_packet_schema_valid"
+            ],
+            "formalization_gap_planner_prover_adapter_packets_with_alignment": formalization_gap_planner_prover_adapter_contract_manifest[
+                "n_packets_with_alignment"
+            ],
+            "formalization_gap_planner_prover_adapter_responses": formalization_gap_planner_prover_adapter_contract_manifest[
+                "n_responses"
+            ],
+            "formalization_gap_planner_prover_adapter_awaiting_mapping": formalization_gap_planner_prover_adapter_contract_manifest[
+                "n_awaiting_adapter_mapping"
+            ],
+            "formalization_gap_planner_prover_adapter_response_contract_ok": formalization_gap_planner_prover_adapter_contract_manifest[
+                "n_response_contract_ok"
+            ],
+            "formalization_gap_planner_prover_adapter_response_validation_row_schema_valid": formalization_gap_planner_prover_adapter_contract_manifest[
+                "n_response_validation_row_schema_valid"
+            ],
+            "formalization_gap_planner_prover_adapter_response_validation_row_schema_invalid": formalization_gap_planner_prover_adapter_contract_manifest[
+                "n_response_validation_row_schema_invalid"
+            ],
+            "formalization_gap_planner_prover_adapter_rejected": formalization_gap_planner_prover_adapter_contract_manifest[
+                "n_rejected"
+            ],
+            "formalization_gap_planner_prover_adapter_kernel_claims_rejected": formalization_gap_planner_prover_adapter_contract_manifest[
+                "n_kernel_verified_claims_rejected"
+            ],
+            "formalization_gap_planner_adapter_registry_adapters": formalization_gap_planner_adapter_registry_manifest[
+                "n_adapters"
+            ],
+            "formalization_gap_planner_adapter_registry_row_schema_valid": formalization_gap_planner_adapter_registry_manifest[
+                "n_adapter_row_schema_valid"
+            ],
+            "formalization_gap_planner_adapter_registry_row_schema_invalid": formalization_gap_planner_adapter_registry_manifest[
+                "n_adapter_row_schema_invalid"
+            ],
+            "formalization_gap_planner_adapter_registry_ready": formalization_gap_planner_adapter_registry_manifest[
+                "n_ready_local_or_configured"
+            ],
+            "formalization_gap_planner_adapter_registry_contract_only": formalization_gap_planner_adapter_registry_manifest[
+                "n_contract_only"
+            ],
+            "formalization_gap_planner_adapter_registry_audit_checks": formalization_gap_planner_adapter_registry_audit_manifest[
+                "n_checks"
+            ],
+            "formalization_gap_planner_adapter_registry_audit_ok": formalization_gap_planner_adapter_registry_audit_manifest[
+                "n_ok"
+            ],
+            "formalization_gap_planner_adapter_registry_audit_failed": formalization_gap_planner_adapter_registry_audit_manifest[
+                "n_failed"
+            ],
+            "formalization_gap_planner_adapter_registry_audit_row_schema_valid": formalization_gap_planner_adapter_registry_audit_manifest[
+                "n_adapter_row_schema_valid"
+            ],
+            "formalization_gap_planner_adapter_registry_audit_row_schema_invalid": formalization_gap_planner_adapter_registry_audit_manifest[
+                "n_adapter_row_schema_invalid"
+            ],
+            "formalization_gap_planner_adapter_registry_audit_jsonl_row_schema_valid": formalization_gap_planner_adapter_registry_audit_manifest[
+                "n_adapter_jsonl_row_schema_valid"
+            ],
+            "formalization_gap_planner_adapter_registry_audit_jsonl_row_schema_invalid": formalization_gap_planner_adapter_registry_audit_manifest[
+                "n_adapter_jsonl_row_schema_invalid"
+            ],
+            "formalization_gap_planner_adapter_registry_audit_required_ids_present": formalization_gap_planner_adapter_registry_audit_manifest[
+                "n_required_adapter_ids_present"
+            ],
+            "formalization_gap_planner_adapter_registry_audit_required_ids": formalization_gap_planner_adapter_registry_audit_manifest[
+                "n_required_adapter_ids"
+            ],
+            "formalization_gap_planner_component_resource_registry_components": formalization_gap_planner_component_resource_registry_manifest[
+                "n_component_rows"
+            ],
+            "formalization_gap_planner_component_resource_registry_resources": formalization_gap_planner_component_resource_registry_manifest[
+                "n_resources"
+            ],
+            "formalization_gap_planner_component_resource_registry_component_row_schema_valid": formalization_gap_planner_component_resource_registry_manifest[
+                "n_component_row_schema_valid"
+            ],
+            "formalization_gap_planner_component_resource_registry_component_row_schema_invalid": formalization_gap_planner_component_resource_registry_manifest[
+                "n_component_row_schema_invalid"
+            ],
+            "formalization_gap_planner_component_resource_registry_resource_row_schema_valid": formalization_gap_planner_component_resource_registry_manifest[
+                "n_resource_row_schema_valid"
+            ],
+            "formalization_gap_planner_component_resource_registry_resource_row_schema_invalid": formalization_gap_planner_component_resource_registry_manifest[
+                "n_resource_row_schema_invalid"
+            ],
+            "formalization_gap_planner_component_resource_registry_contracts": formalization_gap_planner_component_resource_registry_manifest[
+                "n_resource_contract_rows"
+            ],
+            "formalization_gap_planner_component_resource_registry_contracts_ok": formalization_gap_planner_component_resource_registry_manifest[
+                "n_resource_contract_rows_ok"
+            ],
+            "formalization_gap_planner_component_resource_registry_contract_row_schema_valid": formalization_gap_planner_component_resource_registry_manifest[
+                "n_resource_contract_row_schema_valid"
+            ],
+            "formalization_gap_planner_component_resource_registry_contract_row_schema_invalid": formalization_gap_planner_component_resource_registry_manifest[
+                "n_resource_contract_row_schema_invalid"
+            ],
+            "formalization_gap_planner_component_resource_registry_execution_plans": formalization_gap_planner_component_resource_registry_manifest[
+                "n_execution_plan_rows"
+            ],
+            "formalization_gap_planner_component_resource_registry_execution_plans_ok": formalization_gap_planner_component_resource_registry_manifest[
+                "n_execution_plan_rows_ok"
+            ],
+            "formalization_gap_planner_component_resource_registry_execution_plan_row_schema_valid": formalization_gap_planner_component_resource_registry_manifest[
+                "n_execution_plan_row_schema_valid"
+            ],
+            "formalization_gap_planner_component_resource_registry_execution_plan_row_schema_invalid": formalization_gap_planner_component_resource_registry_manifest[
+                "n_execution_plan_row_schema_invalid"
+            ],
+            "formalization_gap_planner_component_resource_registry_frontier": formalization_gap_planner_component_resource_registry_manifest[
+                "n_frontier_resources"
+            ],
+            "formalization_gap_planner_component_resource_registry_mcp_cli": formalization_gap_planner_component_resource_registry_manifest[
+                "n_mcp_or_cli_resources"
+            ],
+            "formalization_gap_planner_component_resource_registry_resources_with_capability_tags": formalization_gap_planner_component_resource_registry_manifest[
+                "n_resources_with_capability_tags"
+            ],
+            "formalization_gap_planner_component_resource_registry_resources_with_validation_signals": formalization_gap_planner_component_resource_registry_manifest[
+                "n_resources_with_validation_signals"
+            ],
+            "formalization_gap_planner_component_resource_registry_components_with_quality_signals": formalization_gap_planner_component_resource_registry_manifest[
+                "n_component_rows_with_required_quality_signals"
+            ],
+            "formalization_gap_planner_component_resource_registry_execution_plans_with_quality_gates": formalization_gap_planner_component_resource_registry_manifest[
+                "n_execution_plans_with_quality_gates"
+            ],
+            "formalization_gap_planner_component_resource_registry_contracts_with_response_validation_signals": formalization_gap_planner_component_resource_registry_manifest[
+                "n_resource_contracts_with_response_validation_signals"
+            ],
+            "formalization_gap_planner_component_resource_registry_audit_checks": formalization_gap_planner_component_resource_registry_audit_manifest[
+                "n_checks"
+            ],
+            "formalization_gap_planner_component_resource_registry_audit_ok": formalization_gap_planner_component_resource_registry_audit_manifest[
+                "n_ok"
+            ],
+            "formalization_gap_planner_component_resource_registry_audit_failed": formalization_gap_planner_component_resource_registry_audit_manifest[
+                "n_failed"
+            ],
+            "formalization_gap_planner_component_resource_registry_audit_required_components_present": formalization_gap_planner_component_resource_registry_audit_manifest[
+                "n_required_component_ids_present"
+            ],
+            "formalization_gap_planner_component_resource_registry_audit_components_with_execution_plan": formalization_gap_planner_component_resource_registry_audit_manifest[
+                "n_components_with_execution_plan"
+            ],
+            "formalization_gap_planner_component_resource_registry_audit_execution_plan_schema_valid": formalization_gap_planner_component_resource_registry_audit_manifest[
+                "n_execution_plan_schema_valid"
+            ],
+            "formalization_gap_planner_component_resource_registry_audit_execution_plan_schema_invalid": formalization_gap_planner_component_resource_registry_audit_manifest[
+                "n_execution_plan_schema_invalid"
+            ],
+            "formalization_gap_planner_component_resource_registry_audit_component_row_schema_valid": formalization_gap_planner_component_resource_registry_audit_manifest[
+                "n_component_row_schema_valid"
+            ],
+            "formalization_gap_planner_component_resource_registry_audit_component_row_schema_invalid": formalization_gap_planner_component_resource_registry_audit_manifest[
+                "n_component_row_schema_invalid"
+            ],
+            "formalization_gap_planner_component_resource_registry_audit_resource_row_schema_valid": formalization_gap_planner_component_resource_registry_audit_manifest[
+                "n_resource_row_schema_valid"
+            ],
+            "formalization_gap_planner_component_resource_registry_audit_resource_row_schema_invalid": formalization_gap_planner_component_resource_registry_audit_manifest[
+                "n_resource_row_schema_invalid"
+            ],
+            "formalization_gap_planner_component_resource_registry_audit_contract_row_schema_valid": formalization_gap_planner_component_resource_registry_audit_manifest[
+                "n_resource_contract_row_schema_valid"
+            ],
+            "formalization_gap_planner_component_resource_registry_audit_contract_row_schema_invalid": formalization_gap_planner_component_resource_registry_audit_manifest[
+                "n_resource_contract_row_schema_invalid"
+            ],
+            "formalization_gap_planner_component_resource_registry_audit_resources_with_contract": formalization_gap_planner_component_resource_registry_audit_manifest[
+                "n_resources_with_contract"
+            ],
+            "formalization_gap_planner_component_resource_registry_audit_required_components": formalization_gap_planner_component_resource_registry_audit_manifest[
+                "n_required_component_ids"
+            ],
+            "formalization_gap_planner_component_resource_registry_audit_required_resources_present": formalization_gap_planner_component_resource_registry_audit_manifest[
+                "n_required_resource_ids_present"
+            ],
+            "formalization_gap_planner_component_resource_registry_audit_required_resources": formalization_gap_planner_component_resource_registry_audit_manifest[
+                "n_required_resource_ids"
+            ],
+            "formalization_gap_planner_cross_prover_matrix_targets": formalization_gap_planner_cross_prover_matrix_audit_manifest[
+                "n_targets"
+            ],
+            "formalization_gap_planner_cross_prover_matrix_targets_ok": formalization_gap_planner_cross_prover_matrix_audit_manifest[
+                "n_targets_ok"
+            ],
+            "formalization_gap_planner_cross_prover_matrix_row_schema_valid": formalization_gap_planner_cross_prover_matrix_audit_manifest[
+                "n_matrix_row_schema_valid"
+            ],
+            "formalization_gap_planner_cross_prover_matrix_row_schema_invalid": formalization_gap_planner_cross_prover_matrix_audit_manifest[
+                "n_matrix_row_schema_invalid"
+            ],
+            "formalization_gap_planner_cross_prover_matrix_total_packets": formalization_gap_planner_cross_prover_matrix_audit_manifest[
+                "n_total_packets"
+            ],
+            "formalization_gap_planner_cross_prover_matrix_packet_ok": formalization_gap_planner_cross_prover_matrix_audit_manifest[
+                "n_total_packet_ok"
+            ],
+            "formalization_gap_planner_cross_prover_matrix_packet_schema_valid": formalization_gap_planner_cross_prover_matrix_audit_manifest[
+                "n_total_packet_schema_valid"
+            ],
+            "formalization_gap_planner_cross_prover_matrix_packets_schema_invalid": formalization_gap_planner_cross_prover_matrix_audit_manifest[
+                "n_total_packets_schema_invalid"
+            ],
+            "formalization_gap_planner_cross_prover_matrix_packet_row_schema_valid": formalization_gap_planner_cross_prover_matrix_audit_manifest[
+                "n_packet_row_schema_valid"
+            ],
+            "formalization_gap_planner_cross_prover_matrix_packet_row_schema_invalid": formalization_gap_planner_cross_prover_matrix_audit_manifest[
+                "n_packet_row_schema_invalid"
+            ],
+            "formalization_gap_planner_cross_prover_matrix_response_validation_row_schema_valid": formalization_gap_planner_cross_prover_matrix_audit_manifest[
+                "n_response_validation_row_schema_valid"
+            ],
+            "formalization_gap_planner_cross_prover_matrix_response_validation_row_schema_invalid": formalization_gap_planner_cross_prover_matrix_audit_manifest[
+                "n_response_validation_row_schema_invalid"
+            ],
+            "formalization_gap_planner_cross_prover_matrix_packets_with_alignment": formalization_gap_planner_cross_prover_matrix_audit_manifest[
+                "n_total_packets_with_alignment"
+            ],
+            "formalization_gap_planner_cross_prover_matrix_packets_missing_alignment": formalization_gap_planner_cross_prover_matrix_audit_manifest[
+                "n_total_packets_missing_alignment"
+            ],
+            "formalization_gap_planner_cross_prover_matrix_rejected": formalization_gap_planner_cross_prover_matrix_audit_manifest[
+                "n_rejected"
+            ],
+            "formalization_gap_planner_cross_prover_matrix_kernel_claims_rejected": formalization_gap_planner_cross_prover_matrix_audit_manifest[
+                "n_kernel_verified_claims_rejected"
+            ],
+            "formalization_gap_planner_cross_prover_matrix_packet_count_consistent": formalization_gap_planner_cross_prover_matrix_audit_manifest[
+                "packet_count_consistent"
+            ],
+            "formalization_gap_planner_cross_prover_matrix_alignment_packet_count_consistent": formalization_gap_planner_cross_prover_matrix_audit_manifest[
+                "alignment_packet_count_consistent"
+            ],
+            "formalization_gap_planner_cross_prover_target_summary_rows": (
+                formalization_gap_planner_cross_prover_matrix_audit_manifest.get(
+                    "target_summary",
+                    {},
+                ).get("n_target_rows", 0)
+                if isinstance(
+                    formalization_gap_planner_cross_prover_matrix_audit_manifest.get(
+                        "target_summary"
+                    ),
+                    dict,
+                )
+                else 0
+            ),
+            "formalization_gap_planner_cross_prover_target_summary_contract_errors": formalization_gap_planner_cross_prover_matrix_audit_manifest.get(
+                "n_target_summary_contract_errors",
+                0,
+            ),
+            "formalization_gap_planner_publication_bundle_core_artifacts": formalization_gap_planner_publication_bundle_manifest[
+                "n_core_artifacts"
+            ],
+            "formalization_gap_planner_publication_bundle_core_artifacts_ok": formalization_gap_planner_publication_bundle_manifest[
+                "n_core_artifacts_ok"
+            ],
+            "formalization_gap_planner_publication_bundle_optional_artifacts_requested": formalization_gap_planner_publication_bundle_manifest[
+                "n_optional_artifacts_requested"
+            ],
+            "formalization_gap_planner_publication_bundle_optional_files_copied": formalization_gap_planner_publication_bundle_manifest[
+                "n_optional_artifact_files_copied"
+            ],
+            "formalization_gap_planner_publication_bundle_docs_copied": formalization_gap_planner_publication_bundle_manifest[
+                "n_docs_copied"
+            ],
+            "formalization_gap_planner_publication_bundle_reproduction_entrypoints": formalization_gap_planner_publication_bundle_manifest[
+                "reproduction_summary"
+            ]["n_entrypoints"],
+            "formalization_gap_planner_publication_bundle_reproduction_commands": formalization_gap_planner_publication_bundle_manifest[
+                "reproduction_summary"
+            ]["n_commands"],
+            "formalization_gap_planner_publication_bundle_schema_catalog_entries": (
+                formalization_gap_planner_publication_bundle_manifest.get(
+                    "schema_catalog_summary",
+                    {},
+                ).get("n_schema_entries", 0)
+                if isinstance(
+                    formalization_gap_planner_publication_bundle_manifest.get(
+                        "schema_catalog_summary"
+                    ),
+                    dict,
+                )
+                else 0
+            ),
+            "formalization_gap_planner_publication_bundle_schema_catalog_contract_errors": (
+                formalization_gap_planner_publication_bundle_manifest.get(
+                    "schema_catalog_summary",
+                    {},
+                ).get("n_schema_catalog_contract_errors", 0)
+                if isinstance(
+                    formalization_gap_planner_publication_bundle_manifest.get(
+                        "schema_catalog_summary"
+                    ),
+                    dict,
+                )
+                else 0
+            ),
+            "formalization_gap_planner_publication_bundle_schema_catalog_all_ok": (
+                bool(
+                    formalization_gap_planner_publication_bundle_manifest.get(
+                        "schema_catalog_summary",
+                        {},
+                    ).get("all_ok", False)
+                )
+                if isinstance(
+                    formalization_gap_planner_publication_bundle_manifest.get(
+                        "schema_catalog_summary"
+                    ),
+                    dict,
+                )
+                else False
+            ),
+            "formalization_gap_planner_publication_bundle_audit_checks": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_checks"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_ok": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_ok"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_failed": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_failed"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_component_execution_plan_schema_checked": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_component_execution_plan_schema_checked"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_component_execution_plan_schema_valid": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_component_execution_plan_schema_valid"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_component_resource_component_row_schema_checked": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_component_resource_component_row_schema_checked"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_component_resource_component_row_schema_valid": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_component_resource_component_row_schema_valid"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_component_resource_resource_row_schema_checked": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_component_resource_resource_row_schema_checked"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_component_resource_resource_row_schema_valid": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_component_resource_resource_row_schema_valid"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_component_resource_contract_row_schema_checked": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_component_resource_contract_row_schema_checked"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_component_resource_contract_row_schema_valid": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_component_resource_contract_row_schema_valid"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_prover_adapter_packet_schema_checked": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_prover_adapter_packet_schema_checked"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_prover_adapter_packet_schema_valid": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_prover_adapter_packet_schema_valid"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_benchmark_route_row_schema_checked": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_benchmark_route_row_schema_checked"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_benchmark_route_row_schema_valid": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_benchmark_route_row_schema_valid"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_evaluation_row_schema_checked": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_evaluation_row_schema_checked"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_evaluation_row_schema_valid": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_evaluation_row_schema_valid"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_interactive_decision_policy_row_schema_checked": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_interactive_decision_policy_row_schema_checked"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_interactive_decision_policy_row_schema_valid": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_interactive_decision_policy_row_schema_valid"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_interactive_decision_policy_link_checked": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_interactive_decision_policy_link_checked"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_interactive_decision_policy_link_valid": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_interactive_decision_policy_link_valid"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_interactive_session_row_schema_checked": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_interactive_session_row_schema_checked"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_interactive_session_row_schema_valid": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_interactive_session_row_schema_valid"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_interactive_session_resource_response_status_checked": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_interactive_session_resource_response_status_checked"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_interactive_session_resource_response_status_valid": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_interactive_session_resource_response_status_valid"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_interactive_session_generic_prover_fields_checked": formalization_gap_planner_publication_bundle_audit_manifest.get(
+                "n_optional_interactive_session_generic_prover_fields_checked",
+                0,
+            ),
+            "formalization_gap_planner_publication_bundle_audit_optional_interactive_session_generic_prover_fields_valid": formalization_gap_planner_publication_bundle_audit_manifest.get(
+                "n_optional_interactive_session_generic_prover_fields_valid",
+                0,
+            ),
+            "formalization_gap_planner_publication_bundle_audit_optional_refinement_evidence_row_schema_checked": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_refinement_evidence_row_schema_checked"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_refinement_evidence_row_schema_valid": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_refinement_evidence_row_schema_valid"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_refinement_adapter_response_schema_checked": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_refinement_adapter_response_schema_checked"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_refinement_adapter_response_schema_valid": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_refinement_adapter_response_schema_valid"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_refinement_work_item_row_schema_checked": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_refinement_work_item_row_schema_checked"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_refinement_work_item_row_schema_valid": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_refinement_work_item_row_schema_valid"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_minimal_delta_decision_row_schema_checked": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_minimal_delta_decision_row_schema_checked"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_minimal_delta_decision_row_schema_valid": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_minimal_delta_decision_row_schema_valid"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_goal_plan_row_contract_checked": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_goal_plan_row_contract_checked"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_goal_plan_row_contract_valid": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_goal_plan_row_contract_valid"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_goal_plan_row_schema_checked": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_goal_plan_row_schema_checked"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_goal_plan_row_schema_valid": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_goal_plan_row_schema_valid"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_source_grounding_row_schema_checked": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_source_grounding_row_schema_checked"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_source_grounding_row_schema_valid": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_source_grounding_row_schema_valid"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_target_intake_row_contract_checked": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_target_intake_row_contract_checked"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_target_intake_row_contract_valid": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_target_intake_row_contract_valid"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_target_intake_row_schema_checked": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_target_intake_row_schema_checked"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_target_intake_row_schema_valid": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_target_intake_row_schema_valid"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_adapter_registry_audit_check_contract_checked": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_adapter_registry_audit_check_contract_checked"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_adapter_registry_audit_check_contract_valid": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_adapter_registry_audit_check_contract_valid"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_component_resource_registry_audit_check_contract_checked": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_component_resource_registry_audit_check_contract_checked"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_component_resource_registry_audit_check_contract_valid": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_component_resource_registry_audit_check_contract_valid"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_local_adapter_response_schema_checked": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_local_adapter_response_schema_checked"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_local_adapter_response_schema_valid": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_local_adapter_response_schema_valid"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_route_stability_audit_row_schema_checked": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_route_stability_audit_row_schema_checked"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_route_stability_audit_row_schema_valid": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_route_stability_audit_row_schema_valid"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_route_stability_resource_response_status_checked": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_route_stability_resource_response_status_checked"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_route_stability_resource_response_status_valid": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_route_stability_resource_response_status_valid"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_route_stability_generic_prover_fields_checked": formalization_gap_planner_publication_bundle_audit_manifest.get(
+                "n_optional_route_stability_generic_prover_fields_checked",
+                0,
+            ),
+            "formalization_gap_planner_publication_bundle_audit_optional_route_stability_generic_prover_fields_valid": formalization_gap_planner_publication_bundle_audit_manifest.get(
+                "n_optional_route_stability_generic_prover_fields_valid",
+                0,
+            ),
+            "formalization_gap_planner_publication_bundle_audit_optional_route_revision_overlay_row_schema_checked": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_route_revision_overlay_row_schema_checked"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_route_revision_overlay_row_schema_valid": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_route_revision_overlay_row_schema_valid"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_route_revision_resource_response_evidence_ref_checked": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_route_revision_resource_response_evidence_ref_checked"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_route_revision_resource_response_evidence_ref_valid": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_route_revision_resource_response_evidence_ref_valid"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_route_revision_resource_response_trace_checked": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_route_revision_resource_response_trace_checked"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_route_revision_resource_response_trace_valid": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_route_revision_resource_response_trace_valid"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_route_revision_resource_response_status_checked": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_route_revision_resource_response_status_checked"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_route_revision_resource_response_status_valid": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_route_revision_resource_response_status_valid"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_route_replan_handoff_row_schema_checked": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_route_replan_handoff_row_schema_checked"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_route_replan_handoff_row_schema_valid": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_route_replan_handoff_row_schema_valid"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_route_replan_handoff_audit_row_schema_checked": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_route_replan_handoff_audit_row_schema_checked"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_route_replan_handoff_audit_row_schema_valid": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_route_replan_handoff_audit_row_schema_valid"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_ablation_study_row_schema_checked": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_ablation_study_row_schema_checked"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_ablation_study_row_schema_valid": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_ablation_study_row_schema_valid"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_portable_plan_audit_row_schema_checked": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_portable_plan_audit_row_schema_checked"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_portable_plan_audit_row_schema_valid": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_portable_plan_audit_row_schema_valid"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_proof_state_triage_row_schema_checked": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_proof_state_triage_row_schema_checked"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_proof_state_triage_row_schema_valid": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_proof_state_triage_row_schema_valid"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_proof_state_triage_generic_prover_fields_checked": formalization_gap_planner_publication_bundle_audit_manifest.get(
+                "n_optional_proof_state_triage_generic_prover_fields_checked",
+                0,
+            ),
+            "formalization_gap_planner_publication_bundle_audit_optional_proof_state_triage_generic_prover_fields_valid": formalization_gap_planner_publication_bundle_audit_manifest.get(
+                "n_optional_proof_state_triage_generic_prover_fields_valid",
+                0,
+            ),
+            "formalization_gap_planner_publication_bundle_audit_optional_library_coverage_map_row_schema_checked": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_library_coverage_map_row_schema_checked"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_library_coverage_map_row_schema_valid": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_library_coverage_map_row_schema_valid"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_primitive_action_queue_row_schema_checked": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_primitive_action_queue_row_schema_checked"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_primitive_action_queue_row_schema_valid": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_primitive_action_queue_row_schema_valid"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_action_resource_plan_row_schema_checked": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_action_resource_plan_row_schema_checked"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_action_resource_plan_row_schema_valid": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_action_resource_plan_row_schema_valid"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_resource_request_queue_row_schema_checked": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_resource_request_queue_row_schema_checked"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_resource_request_queue_row_schema_valid": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_resource_request_queue_row_schema_valid"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_resource_request_contract_alignment_checked": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_resource_request_contract_alignment_checked"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_resource_request_contract_alignment_valid": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_resource_request_contract_alignment_valid"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_resource_request_action_plan_ref_checked": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_resource_request_action_plan_ref_checked"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_resource_request_action_plan_ref_valid": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_resource_request_action_plan_ref_valid"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_resource_request_payload_identity_checked": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_resource_request_payload_identity_checked"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_resource_request_payload_identity_valid": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_resource_request_payload_identity_valid"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_resource_request_dispatch_spec_checked": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_resource_request_dispatch_spec_checked"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_resource_request_dispatch_spec_valid": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_resource_request_dispatch_spec_valid"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_resource_response_ledger_row_schema_checked": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_resource_response_ledger_row_schema_checked"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_resource_response_ledger_row_schema_valid": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_resource_response_ledger_row_schema_valid"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_resource_response_request_ref_checked": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_resource_response_request_ref_checked"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_resource_response_request_ref_valid": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_resource_response_request_ref_valid"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_resource_response_contract_field_accounting_checked": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_resource_response_contract_field_accounting_checked"
+            ],
+            "formalization_gap_planner_publication_bundle_audit_optional_resource_response_contract_field_accounting_valid": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_optional_resource_response_contract_field_accounting_valid"
+            ],
+            "formalization_gap_planner_publication_bundle_files": formalization_gap_planner_publication_bundle_audit_manifest[
+                "n_bundle_files"
             ],
             "formal_verifier_replay_repair_packets": formal_verifier_replay_repair_manifest[
                 "n_repair_packets"
@@ -4270,6 +6479,31 @@ async def run_research_system_audit(
                 / "lean_rag_source_registry_expansion_apply"
                 / "source_registry_expansion_apply.md"
             ),
+            "fresh_holdout_frontier_audit": str(
+                out_dir / "fresh_holdout_frontier_audit" / "fresh_holdout_frontier_manifest.json"
+            ),
+            "fresh_holdout_frontier_report": str(
+                out_dir / "fresh_holdout_frontier_audit" / "fresh_holdout_frontier.md"
+            ),
+            "research_algorithm_audit": str(
+                out_dir / "research_algorithm_audit" / "research_algorithm_audit_manifest.json"
+            ),
+            "algorithm_simulation_stress_audit": str(
+                out_dir
+                / "algorithm_simulation_stress_audit"
+                / "algorithm_simulation_stress_manifest.json"
+            ),
+            "algorithm_simulation_stress_report": str(
+                out_dir / "algorithm_simulation_stress_audit" / "algorithm_simulation_stress.md"
+            ),
+            "research_agent_runtime_audit": str(
+                out_dir
+                / "research_agent_runtime_audit"
+                / "research_agent_runtime_audit_manifest.json"
+            ),
+            "research_agent_runtime_audit_report": str(
+                out_dir / "research_agent_runtime_audit" / "research_agent_runtime_audit.md"
+            ),
             "huggingface_lean_source_audit": str(
                 out_dir
                 / "huggingface_lean_source_audit"
@@ -4349,23 +6583,6 @@ async def run_research_system_audit(
                 out_dir
                 / "huggingface_lean_source_audit"
                 / "huggingface_lean_source_audit.md"
-            ),
-            "fresh_holdout_frontier_audit": str(
-                out_dir / "fresh_holdout_frontier_audit" / "fresh_holdout_frontier_manifest.json"
-            ),
-            "fresh_holdout_frontier_report": str(
-                out_dir / "fresh_holdout_frontier_audit" / "fresh_holdout_frontier.md"
-            ),
-            "research_algorithm_audit": str(
-                out_dir / "research_algorithm_audit" / "research_algorithm_audit_manifest.json"
-            ),
-            "algorithm_simulation_stress_audit": str(
-                out_dir
-                / "algorithm_simulation_stress_audit"
-                / "algorithm_simulation_stress_manifest.json"
-            ),
-            "algorithm_simulation_stress_report": str(
-                out_dir / "algorithm_simulation_stress_audit" / "algorithm_simulation_stress.md"
             ),
             "proof_audit": str(out_dir / "proof_audit" / "proof_audit_manifest.json"),
             "proof_attempt_log": str(out_dir / "proof_audit" / "proof_attempts.jsonl"),
@@ -4540,6 +6757,301 @@ async def run_research_system_audit(
                 / "goal_conditioned_minimal_formalization_plan"
                 / "goal_conditioned_minimal_formalization_plan.md"
             ),
+            "goal_conditioned_minimal_formalization_route_alignment_edge_schema": str(
+                out_dir
+                / "goal_conditioned_minimal_formalization_plan"
+                / "formalization_gap_planner_route_alignment_edge.schema.json"
+            ),
+            "goal_conditioned_minimal_formalization_plan_row_schema": str(
+                out_dir
+                / "goal_conditioned_minimal_formalization_plan"
+                / "library_aware_formalization_gap_plan_row.schema.json"
+            ),
+            "formalization_gap_planner_portable_plan_audit": str(
+                out_dir
+                / "formalization_gap_planner_portable_plan_audit"
+                / "formalization_gap_planner_portable_plan_audit_manifest.json"
+            ),
+            "formalization_gap_planner_portable_plan_audit_jsonl": str(
+                out_dir
+                / "formalization_gap_planner_portable_plan_audit"
+                / "formalization_gap_planner_portable_plan_audit.jsonl"
+            ),
+            "formalization_gap_planner_portable_plan_audit_row_schema": str(
+                out_dir
+                / "formalization_gap_planner_portable_plan_audit"
+                / "formalization_gap_planner_portable_plan_audit_row.schema.json"
+            ),
+            "formalization_gap_planner_portable_plan_audit_report": str(
+                out_dir
+                / "formalization_gap_planner_portable_plan_audit"
+                / "formalization_gap_planner_portable_plan_audit.md"
+            ),
+            "formalization_gap_planner_portable_plan_audit_route_alignment_edge_schema": str(
+                out_dir
+                / "formalization_gap_planner_portable_plan_audit"
+                / "formalization_gap_planner_route_alignment_edge.schema.json"
+            ),
+            "formalization_gap_planner_library_coverage_map": str(
+                out_dir
+                / "formalization_gap_planner_library_coverage_map"
+                / "formalization_gap_planner_library_coverage_map_manifest.json"
+            ),
+            "formalization_gap_planner_library_coverage_map_jsonl": str(
+                out_dir
+                / "formalization_gap_planner_library_coverage_map"
+                / "formalization_gap_planner_library_coverage_map.jsonl"
+            ),
+            "formalization_gap_planner_library_coverage_map_row_schema": str(
+                out_dir
+                / "formalization_gap_planner_library_coverage_map"
+                / "formalization_gap_planner_library_coverage_map_row.schema.json"
+            ),
+            "formalization_gap_planner_library_coverage_map_report": str(
+                out_dir
+                / "formalization_gap_planner_library_coverage_map"
+                / "formalization_gap_planner_library_coverage_map.md"
+            ),
+            "formalization_gap_planner_primitive_action_queue": str(
+                out_dir
+                / "formalization_gap_planner_primitive_action_queue"
+                / "formalization_gap_planner_primitive_action_queue_manifest.json"
+            ),
+            "formalization_gap_planner_primitive_action_queue_jsonl": str(
+                out_dir
+                / "formalization_gap_planner_primitive_action_queue"
+                / "formalization_gap_planner_primitive_action_queue.jsonl"
+            ),
+            "formalization_gap_planner_primitive_action_queue_row_schema": str(
+                out_dir
+                / "formalization_gap_planner_primitive_action_queue"
+                / "formalization_gap_planner_primitive_action_queue_row.schema.json"
+            ),
+            "formalization_gap_planner_primitive_action_queue_report": str(
+                out_dir
+                / "formalization_gap_planner_primitive_action_queue"
+                / "formalization_gap_planner_primitive_action_queue.md"
+            ),
+            "formalization_gap_planner_action_resource_plan": str(
+                out_dir
+                / "formalization_gap_planner_action_resource_plan"
+                / "formalization_gap_planner_action_resource_plan_manifest.json"
+            ),
+            "formalization_gap_planner_action_resource_plan_jsonl": str(
+                out_dir
+                / "formalization_gap_planner_action_resource_plan"
+                / "formalization_gap_planner_action_resource_plan.jsonl"
+            ),
+            "formalization_gap_planner_action_resource_plan_row_schema": str(
+                out_dir
+                / "formalization_gap_planner_action_resource_plan"
+                / "formalization_gap_planner_action_resource_plan_row.schema.json"
+            ),
+            "formalization_gap_planner_action_resource_plan_report": str(
+                out_dir
+                / "formalization_gap_planner_action_resource_plan"
+                / "formalization_gap_planner_action_resource_plan.md"
+            ),
+            "formalization_gap_planner_resource_request_queue": str(
+                out_dir
+                / "formalization_gap_planner_resource_request_queue"
+                / "formalization_gap_planner_resource_request_queue_manifest.json"
+            ),
+            "formalization_gap_planner_resource_request_queue_jsonl": str(
+                out_dir
+                / "formalization_gap_planner_resource_request_queue"
+                / "formalization_gap_planner_resource_request_queue.jsonl"
+            ),
+            "formalization_gap_planner_resource_request_queue_row_schema": str(
+                out_dir
+                / "formalization_gap_planner_resource_request_queue"
+                / "formalization_gap_planner_resource_request_queue_row.schema.json"
+            ),
+            "formalization_gap_planner_resource_request_queue_report": str(
+                out_dir
+                / "formalization_gap_planner_resource_request_queue"
+                / "formalization_gap_planner_resource_request_queue.md"
+            ),
+            "formalization_gap_planner_resource_response_ledger": str(
+                out_dir
+                / "formalization_gap_planner_resource_response_ledger"
+                / "formalization_gap_planner_resource_response_ledger_manifest.json"
+            ),
+            "formalization_gap_planner_resource_response_ledger_jsonl": str(
+                out_dir
+                / "formalization_gap_planner_resource_response_ledger"
+                / "formalization_gap_planner_resource_response_ledger.jsonl"
+            ),
+            "formalization_gap_planner_resource_response_ledger_response_schema": str(
+                out_dir
+                / "formalization_gap_planner_resource_response_ledger"
+                / "formalization_gap_planner_resource_response.schema.json"
+            ),
+            "formalization_gap_planner_resource_response_ledger_row_schema": str(
+                out_dir
+                / "formalization_gap_planner_resource_response_ledger"
+                / "formalization_gap_planner_resource_response_ledger_row.schema.json"
+            ),
+            "formalization_gap_planner_resource_response_ledger_report": str(
+                out_dir
+                / "formalization_gap_planner_resource_response_ledger"
+                / "formalization_gap_planner_resource_response_ledger.md"
+            ),
+            "formalization_gap_planner_minimal_delta_audit": str(
+                out_dir
+                / "formalization_gap_planner_minimal_delta_audit"
+                / "formalization_gap_planner_minimal_delta_audit_manifest.json"
+            ),
+            "formalization_gap_planner_minimal_delta_audit_jsonl": str(
+                out_dir
+                / "formalization_gap_planner_minimal_delta_audit"
+                / "formalization_gap_planner_minimal_delta_audit.jsonl"
+            ),
+            "formalization_gap_planner_minimal_delta_audit_report": str(
+                out_dir
+                / "formalization_gap_planner_minimal_delta_audit"
+                / "formalization_gap_planner_minimal_delta_audit.md"
+            ),
+            "formalization_gap_planner_minimal_delta_decisions_jsonl": str(
+                out_dir
+                / "formalization_gap_planner_minimal_delta_audit"
+                / "formalization_gap_planner_minimal_delta_decisions.jsonl"
+            ),
+            "formalization_gap_planner_minimal_delta_decision_row_schema": str(
+                out_dir
+                / "formalization_gap_planner_minimal_delta_audit"
+                / "formalization_gap_planner_minimal_delta_decision_row.schema.json"
+            ),
+            "formalization_gap_planner_source_grounding_audit": str(
+                out_dir
+                / "formalization_gap_planner_source_grounding_audit"
+                / "formalization_gap_planner_source_grounding_audit_manifest.json"
+            ),
+            "formalization_gap_planner_source_grounding_audit_jsonl": str(
+                out_dir
+                / "formalization_gap_planner_source_grounding_audit"
+                / "formalization_gap_planner_source_grounding_audit.jsonl"
+            ),
+            "formalization_gap_planner_source_grounding_audit_report": str(
+                out_dir
+                / "formalization_gap_planner_source_grounding_audit"
+                / "formalization_gap_planner_source_grounding_audit.md"
+            ),
+            "formalization_gap_planner_source_grounding_row_schema": str(
+                out_dir
+                / "formalization_gap_planner_source_grounding_audit"
+                / "formalization_gap_planner_source_grounding_row.schema.json"
+            ),
+            "formalization_gap_planner_target_intake": str(
+                out_dir
+                / "formalization_gap_planner_target_intake"
+                / "formalization_gap_planner_target_intake_manifest.json"
+            ),
+            "formalization_gap_planner_target_intake_jsonl": str(
+                out_dir
+                / "formalization_gap_planner_target_intake"
+                / "formalization_gap_planner_target_intake.jsonl"
+            ),
+            "formalization_gap_planner_target_intake_seed": str(
+                out_dir
+                / "formalization_gap_planner_target_intake"
+                / "formalization_gap_planner_target_intake_standalone_seed.json"
+            ),
+            "formalization_gap_planner_target_intake_report": str(
+                out_dir
+                / "formalization_gap_planner_target_intake"
+                / "formalization_gap_planner_target_intake.md"
+            ),
+            "formalization_gap_planner_target_intake_schema": str(
+                out_dir
+                / "formalization_gap_planner_target_intake"
+                / "formalization_gap_planner_target_intake.schema.json"
+            ),
+            "formalization_gap_planner_target_intake_row_schema": str(
+                out_dir
+                / "formalization_gap_planner_target_intake"
+                / "formalization_gap_planner_target_intake_row.schema.json"
+            ),
+            "formalization_gap_planner_benchmark": str(
+                out_dir
+                / "formalization_gap_planner_benchmark"
+                / "formalization_gap_planner_benchmark_manifest.json"
+            ),
+            "formalization_gap_planner_benchmark_ground_truth": str(
+                out_dir
+                / "formalization_gap_planner_benchmark"
+                / "formalization_gap_planner_ground_truth.json"
+            ),
+            "formalization_gap_planner_benchmark_jsonl": str(
+                out_dir
+                / "formalization_gap_planner_benchmark"
+                / "formalization_gap_planner_benchmark_routes.jsonl"
+            ),
+            "formalization_gap_planner_benchmark_route_schema": str(
+                out_dir
+                / "formalization_gap_planner_benchmark"
+                / "formalization_gap_planner_benchmark_route.schema.json"
+            ),
+            "formalization_gap_planner_benchmark_report": str(
+                out_dir
+                / "formalization_gap_planner_benchmark"
+                / "formalization_gap_planner_benchmark.md"
+            ),
+            "formalization_gap_planner_benchmark_audit": str(
+                out_dir
+                / "formalization_gap_planner_benchmark_audit"
+                / "formalization_gap_planner_benchmark_audit_manifest.json"
+            ),
+            "formalization_gap_planner_benchmark_audit_jsonl": str(
+                out_dir
+                / "formalization_gap_planner_benchmark_audit"
+                / "formalization_gap_planner_benchmark_audit.jsonl"
+            ),
+            "formalization_gap_planner_benchmark_audit_report": str(
+                out_dir
+                / "formalization_gap_planner_benchmark_audit"
+                / "formalization_gap_planner_benchmark_audit.md"
+            ),
+            "formalization_gap_planner_evaluation": str(
+                out_dir
+                / "formalization_gap_planner_evaluation"
+                / "formalization_gap_planner_evaluation_manifest.json"
+            ),
+            "formalization_gap_planner_evaluation_jsonl": str(
+                out_dir
+                / "formalization_gap_planner_evaluation"
+                / "formalization_gap_planner_evaluation.jsonl"
+            ),
+            "formalization_gap_planner_evaluation_row_schema": str(
+                out_dir
+                / "formalization_gap_planner_evaluation"
+                / "formalization_gap_planner_evaluation_row.schema.json"
+            ),
+            "formalization_gap_planner_evaluation_report": str(
+                out_dir
+                / "formalization_gap_planner_evaluation"
+                / "formalization_gap_planner_evaluation.md"
+            ),
+            "formalization_gap_planner_ablation_study": str(
+                out_dir
+                / "formalization_gap_planner_ablation_study"
+                / "formalization_gap_planner_ablation_study_manifest.json"
+            ),
+            "formalization_gap_planner_ablation_study_jsonl": str(
+                out_dir
+                / "formalization_gap_planner_ablation_study"
+                / "formalization_gap_planner_ablation_study.jsonl"
+            ),
+            "formalization_gap_planner_ablation_study_row_schema": str(
+                out_dir
+                / "formalization_gap_planner_ablation_study"
+                / "formalization_gap_planner_ablation_study_row.schema.json"
+            ),
+            "formalization_gap_planner_ablation_study_report": str(
+                out_dir
+                / "formalization_gap_planner_ablation_study"
+                / "formalization_gap_planner_ablation_study.md"
+            ),
             "formal_verifier_replay": str(
                 out_dir / "formal_verifier_replay" / "formal_verifier_replay_manifest.json"
             ),
@@ -4597,10 +7109,576 @@ async def run_research_system_audit(
                 / "formalization_gap_planner_refinement_queue"
                 / "formalization_gap_planner_refinement_queue.jsonl"
             ),
+            "formalization_gap_planner_refinement_work_item_schema": str(
+                out_dir
+                / "formalization_gap_planner_refinement_queue"
+                / "formalization_gap_planner_refinement_work_item.schema.json"
+            ),
             "formalization_gap_planner_refinement_queue_report": str(
                 out_dir
                 / "formalization_gap_planner_refinement_queue"
                 / "formalization_gap_planner_refinement_queue.md"
+            ),
+            "formalization_gap_planner_refinement_adapter_responses": str(
+                out_dir
+                / "formalization_gap_planner_refinement_adapter_responses"
+                / "formalization_gap_planner_refinement_adapter_manifest.json"
+            ),
+            "formalization_gap_planner_refinement_adapter_responses_jsonl": str(
+                out_dir
+                / "formalization_gap_planner_refinement_adapter_responses"
+                / "formalization_gap_planner_refinement_evidence_responses.jsonl"
+            ),
+            "formalization_gap_planner_refinement_adapter_response_schema": str(
+                out_dir
+                / "formalization_gap_planner_refinement_adapter_responses"
+                / "formalization_gap_planner_refinement_tool_response.schema.json"
+            ),
+            "formalization_gap_planner_refinement_adapter_responses_report": str(
+                out_dir
+                / "formalization_gap_planner_refinement_adapter_responses"
+                / "formalization_gap_planner_refinement_adapter.md"
+            ),
+            "formalization_gap_planner_local_literature_adapter": str(
+                out_dir
+                / "formalization_gap_planner_local_literature_adapter"
+                / "formalization_gap_planner_local_literature_adapter_manifest.json"
+            ),
+            "formalization_gap_planner_local_literature_adapter_jsonl": str(
+                out_dir
+                / "formalization_gap_planner_local_literature_adapter"
+                / "formalization_gap_planner_local_literature_adapter_responses.jsonl"
+            ),
+            "formalization_gap_planner_local_literature_adapter_response_schema": str(
+                out_dir
+                / "formalization_gap_planner_local_literature_adapter"
+                / "formalization_gap_planner_refinement_tool_response.schema.json"
+            ),
+            "formalization_gap_planner_local_literature_adapter_report": str(
+                out_dir
+                / "formalization_gap_planner_local_literature_adapter"
+                / "formalization_gap_planner_local_literature_adapter.md"
+            ),
+            "formalization_gap_planner_local_formal_source_adapter": str(
+                out_dir
+                / "formalization_gap_planner_local_formal_source_adapter"
+                / "formalization_gap_planner_local_formal_source_adapter_manifest.json"
+            ),
+            "formalization_gap_planner_local_formal_source_adapter_jsonl": str(
+                out_dir
+                / "formalization_gap_planner_local_formal_source_adapter"
+                / "formalization_gap_planner_local_formal_source_adapter_responses.jsonl"
+            ),
+            "formalization_gap_planner_local_formal_source_adapter_response_schema": str(
+                out_dir
+                / "formalization_gap_planner_local_formal_source_adapter"
+                / "formalization_gap_planner_refinement_tool_response.schema.json"
+            ),
+            "formalization_gap_planner_local_formal_source_adapter_report": str(
+                out_dir
+                / "formalization_gap_planner_local_formal_source_adapter"
+                / "formalization_gap_planner_local_formal_source_adapter.md"
+            ),
+            "formalization_gap_planner_local_proof_state_adapter": str(
+                out_dir
+                / "formalization_gap_planner_local_proof_state_adapter"
+                / "formalization_gap_planner_local_proof_state_adapter_manifest.json"
+            ),
+            "formalization_gap_planner_local_proof_state_adapter_jsonl": str(
+                out_dir
+                / "formalization_gap_planner_local_proof_state_adapter"
+                / "formalization_gap_planner_local_proof_state_adapter_responses.jsonl"
+            ),
+            "formalization_gap_planner_local_proof_state_adapter_response_schema": str(
+                out_dir
+                / "formalization_gap_planner_local_proof_state_adapter"
+                / "formalization_gap_planner_refinement_tool_response.schema.json"
+            ),
+            "formalization_gap_planner_local_proof_state_adapter_report": str(
+                out_dir
+                / "formalization_gap_planner_local_proof_state_adapter"
+                / "formalization_gap_planner_local_proof_state_adapter.md"
+            ),
+            "formalization_gap_planner_refinement_evidence": str(
+                out_dir
+                / "formalization_gap_planner_refinement_evidence"
+                / "formalization_gap_planner_refinement_evidence_manifest.json"
+            ),
+            "formalization_gap_planner_refinement_evidence_jsonl": str(
+                out_dir
+                / "formalization_gap_planner_refinement_evidence"
+                / "formalization_gap_planner_refinement_evidence.jsonl"
+            ),
+            "formalization_gap_planner_refinement_tool_response_schema": str(
+                out_dir
+                / "formalization_gap_planner_refinement_evidence"
+                / "formalization_gap_planner_refinement_tool_response.schema.json"
+            ),
+            "formalization_gap_planner_refinement_evidence_row_schema": str(
+                out_dir
+                / "formalization_gap_planner_refinement_evidence"
+                / "formalization_gap_planner_refinement_evidence_row.schema.json"
+            ),
+            "formalization_gap_planner_route_revision_proposals_jsonl": str(
+                out_dir
+                / "formalization_gap_planner_refinement_evidence"
+                / "formalization_gap_planner_route_revision_proposals.jsonl"
+            ),
+            "formalization_gap_planner_refinement_evidence_report": str(
+                out_dir
+                / "formalization_gap_planner_refinement_evidence"
+                / "formalization_gap_planner_refinement_evidence.md"
+            ),
+            "formalization_gap_planner_route_revision_overlay": str(
+                out_dir
+                / "formalization_gap_planner_route_revision_overlay"
+                / "formalization_gap_planner_route_revision_overlay_manifest.json"
+            ),
+            "formalization_gap_planner_route_revision_overlay_jsonl": str(
+                out_dir
+                / "formalization_gap_planner_route_revision_overlay"
+                / "formalization_gap_planner_route_revision_overlay.jsonl"
+            ),
+            "formalization_gap_planner_route_revision_overlay_row_schema": str(
+                out_dir
+                / "formalization_gap_planner_route_revision_overlay"
+                / "formalization_gap_planner_route_revision_overlay_row.schema.json"
+            ),
+            "formalization_gap_planner_route_revision_overlay_report": str(
+                out_dir
+                / "formalization_gap_planner_route_revision_overlay"
+                / "formalization_gap_planner_route_revision_overlay.md"
+            ),
+            "formalization_gap_planner_route_stability_audit": str(
+                out_dir
+                / "formalization_gap_planner_route_stability_audit"
+                / "formalization_gap_planner_route_stability_audit_manifest.json"
+            ),
+            "formalization_gap_planner_route_stability_audit_jsonl": str(
+                out_dir
+                / "formalization_gap_planner_route_stability_audit"
+                / "formalization_gap_planner_route_stability_audit.jsonl"
+            ),
+            "formalization_gap_planner_route_stability_audit_row_schema": str(
+                out_dir
+                / "formalization_gap_planner_route_stability_audit"
+                / "formalization_gap_planner_route_stability_audit_row.schema.json"
+            ),
+            "formalization_gap_planner_route_stability_audit_report": str(
+                out_dir
+                / "formalization_gap_planner_route_stability_audit"
+                / "formalization_gap_planner_route_stability_audit.md"
+            ),
+            "formalization_gap_planner_route_replan_handoff": str(
+                out_dir
+                / "formalization_gap_planner_route_replan_handoff"
+                / "formalization_gap_planner_route_replan_handoff_manifest.json"
+            ),
+            "formalization_gap_planner_route_replan_handoff_jsonl": str(
+                out_dir
+                / "formalization_gap_planner_route_replan_handoff"
+                / "formalization_gap_planner_route_replan_handoff.jsonl"
+            ),
+            "formalization_gap_planner_route_replan_handoff_row_schema": str(
+                out_dir
+                / "formalization_gap_planner_route_replan_handoff"
+                / "formalization_gap_planner_route_replan_handoff_row.schema.json"
+            ),
+            "formalization_gap_planner_route_replan_standalone_seed": str(
+                out_dir
+                / "formalization_gap_planner_route_replan_handoff"
+                / "formalization_gap_planner_route_replan_standalone_seed.json"
+            ),
+            "formalization_gap_planner_route_replan_standalone_seed_schema": str(
+                out_dir
+                / "formalization_gap_planner_route_replan_handoff"
+                / "formalization_gap_planner_route_replan_standalone_seed.schema.json"
+            ),
+            "formalization_gap_planner_route_replan_handoff_report": str(
+                out_dir
+                / "formalization_gap_planner_route_replan_handoff"
+                / "formalization_gap_planner_route_replan_handoff.md"
+            ),
+            "formalization_gap_planner_route_replan_handoff_audit": str(
+                out_dir
+                / "formalization_gap_planner_route_replan_handoff_audit"
+                / "formalization_gap_planner_route_replan_handoff_audit_manifest.json"
+            ),
+            "formalization_gap_planner_route_replan_handoff_audit_jsonl": str(
+                out_dir
+                / "formalization_gap_planner_route_replan_handoff_audit"
+                / "formalization_gap_planner_route_replan_handoff_audit.jsonl"
+            ),
+            "formalization_gap_planner_route_replan_handoff_audit_row_schema": str(
+                out_dir
+                / "formalization_gap_planner_route_replan_handoff_audit"
+                / "formalization_gap_planner_route_replan_handoff_audit_row.schema.json"
+            ),
+            "formalization_gap_planner_route_replan_handoff_audit_report": str(
+                out_dir
+                / "formalization_gap_planner_route_replan_handoff_audit"
+                / "formalization_gap_planner_route_replan_handoff_audit.md"
+            ),
+            "formalization_gap_planner_route_replan_handoff_audit_roundtrip_plan": str(
+                out_dir
+                / "formalization_gap_planner_route_replan_handoff_audit"
+                / "formalization_gap_planner_route_replan_roundtrip_plan"
+                / "goal_conditioned_minimal_formalization_plan_manifest.json"
+            ),
+            "formalization_gap_planner_proof_state_triage": str(
+                out_dir
+                / "formalization_gap_planner_proof_state_triage"
+                / "formalization_gap_planner_proof_state_triage_manifest.json"
+            ),
+            "formalization_gap_planner_proof_state_triage_jsonl": str(
+                out_dir
+                / "formalization_gap_planner_proof_state_triage"
+                / "formalization_gap_planner_proof_state_triage.jsonl"
+            ),
+            "formalization_gap_planner_proof_state_triage_row_schema": str(
+                out_dir
+                / "formalization_gap_planner_proof_state_triage"
+                / "formalization_gap_planner_proof_state_triage_row.schema.json"
+            ),
+            "formalization_gap_planner_proof_state_triage_report": str(
+                out_dir
+                / "formalization_gap_planner_proof_state_triage"
+                / "formalization_gap_planner_proof_state_triage.md"
+            ),
+            "formalization_gap_planner_interactive_session": str(
+                out_dir
+                / "formalization_gap_planner_interactive_session"
+                / "formalization_gap_planner_interactive_session_manifest.json"
+            ),
+            "formalization_gap_planner_interactive_session_jsonl": str(
+                out_dir
+                / "formalization_gap_planner_interactive_session"
+                / "formalization_gap_planner_interactive_session.jsonl"
+            ),
+            "formalization_gap_planner_interactive_session_row_schema": str(
+                out_dir
+                / "formalization_gap_planner_interactive_session"
+                / "formalization_gap_planner_interactive_session_row.schema.json"
+            ),
+            "formalization_gap_planner_interactive_decision_policy_jsonl": str(
+                out_dir
+                / "formalization_gap_planner_interactive_session"
+                / "formalization_gap_planner_interactive_decision_policy.jsonl"
+            ),
+            "formalization_gap_planner_interactive_decision_policy_row_schema": str(
+                out_dir
+                / "formalization_gap_planner_interactive_session"
+                / "formalization_gap_planner_interactive_decision_policy_row.schema.json"
+            ),
+            "formalization_gap_planner_interactive_session_report": str(
+                out_dir
+                / "formalization_gap_planner_interactive_session"
+                / "formalization_gap_planner_interactive_session.md"
+            ),
+            "formalization_gap_planner_prover_adapter_contract": str(
+                out_dir
+                / "formalization_gap_planner_prover_adapter_contract"
+                / "formalization_gap_planner_prover_adapter_contract_manifest.json"
+            ),
+            "formalization_gap_planner_prover_adapter_packets_jsonl": str(
+                out_dir
+                / "formalization_gap_planner_prover_adapter_contract"
+                / "formalization_gap_planner_prover_adapter_packets.jsonl"
+            ),
+            "formalization_gap_planner_prover_adapter_response_validation_jsonl": str(
+                out_dir
+                / "formalization_gap_planner_prover_adapter_contract"
+                / "formalization_gap_planner_prover_adapter_response_validation.jsonl"
+            ),
+            "formalization_gap_planner_prover_adapter_response_schema": str(
+                out_dir
+                / "formalization_gap_planner_prover_adapter_contract"
+                / "formalization_gap_planner_prover_adapter_response.schema.json"
+            ),
+            "formalization_gap_planner_prover_adapter_response_validation_row_schema": str(
+                out_dir
+                / "formalization_gap_planner_prover_adapter_contract"
+                / "formalization_gap_planner_prover_adapter_response_validation_row.schema.json"
+            ),
+            "formalization_gap_planner_prover_adapter_packet_schema": str(
+                out_dir
+                / "formalization_gap_planner_prover_adapter_contract"
+                / "formalization_gap_planner_prover_adapter_packet.schema.json"
+            ),
+            "formalization_gap_planner_prover_adapter_contract_report": str(
+                out_dir
+                / "formalization_gap_planner_prover_adapter_contract"
+                / "formalization_gap_planner_prover_adapter_contract.md"
+            ),
+            "formalization_gap_planner_adapter_registry": str(
+                out_dir
+                / "formalization_gap_planner_adapter_registry"
+                / "formalization_gap_planner_adapter_registry_manifest.json"
+            ),
+            "formalization_gap_planner_adapter_registry_jsonl": str(
+                out_dir
+                / "formalization_gap_planner_adapter_registry"
+                / "formalization_gap_planner_adapter_registry.jsonl"
+            ),
+            "formalization_gap_planner_adapter_registry_row_schema": str(
+                out_dir
+                / "formalization_gap_planner_adapter_registry"
+                / "formalization_gap_planner_adapter_registry_row.schema.json"
+            ),
+            "formalization_gap_planner_adapter_registry_report": str(
+                out_dir
+                / "formalization_gap_planner_adapter_registry"
+                / "formalization_gap_planner_adapter_registry.md"
+            ),
+            "formalization_gap_planner_adapter_registry_audit": str(
+                out_dir
+                / "formalization_gap_planner_adapter_registry_audit"
+                / "formalization_gap_planner_adapter_registry_audit_manifest.json"
+            ),
+            "formalization_gap_planner_adapter_registry_audit_jsonl": str(
+                out_dir
+                / "formalization_gap_planner_adapter_registry_audit"
+                / "formalization_gap_planner_adapter_registry_audit.jsonl"
+            ),
+            "formalization_gap_planner_adapter_registry_audit_report": str(
+                out_dir
+                / "formalization_gap_planner_adapter_registry_audit"
+                / "formalization_gap_planner_adapter_registry_audit.md"
+            ),
+            "formalization_gap_planner_component_resource_registry": str(
+                out_dir
+                / "formalization_gap_planner_component_resource_registry"
+                / "formalization_gap_planner_component_resource_registry_manifest.json"
+            ),
+            "formalization_gap_planner_component_resource_registry_jsonl": str(
+                out_dir
+                / "formalization_gap_planner_component_resource_registry"
+                / "formalization_gap_planner_component_resource_registry.jsonl"
+            ),
+            "formalization_gap_planner_component_resource_resources_jsonl": str(
+                out_dir
+                / "formalization_gap_planner_component_resource_registry"
+                / "formalization_gap_planner_component_resource_resources.jsonl"
+            ),
+            "formalization_gap_planner_component_resource_execution_plans_jsonl": str(
+                out_dir
+                / "formalization_gap_planner_component_resource_registry"
+                / "formalization_gap_planner_component_resource_execution_plans.jsonl"
+            ),
+            "formalization_gap_planner_component_resource_contracts_jsonl": str(
+                out_dir
+                / "formalization_gap_planner_component_resource_registry"
+                / "formalization_gap_planner_component_resource_contracts.jsonl"
+            ),
+            "formalization_gap_planner_component_resource_resource_row_schema": str(
+                out_dir
+                / "formalization_gap_planner_component_resource_registry"
+                / "formalization_gap_planner_component_resource_resource_row.schema.json"
+            ),
+            "formalization_gap_planner_component_resource_component_row_schema": str(
+                out_dir
+                / "formalization_gap_planner_component_resource_registry"
+                / "formalization_gap_planner_component_resource_component_row.schema.json"
+            ),
+            "formalization_gap_planner_component_resource_execution_plan_schema": str(
+                out_dir
+                / "formalization_gap_planner_component_resource_registry"
+                / "formalization_gap_planner_component_resource_execution_plan.schema.json"
+            ),
+            "formalization_gap_planner_component_resource_contract_row_schema": str(
+                out_dir
+                / "formalization_gap_planner_component_resource_registry"
+                / "formalization_gap_planner_component_resource_contract_row.schema.json"
+            ),
+            "formalization_gap_planner_component_resource_registry_report": str(
+                out_dir
+                / "formalization_gap_planner_component_resource_registry"
+                / "formalization_gap_planner_component_resource_registry.md"
+            ),
+            "formalization_gap_planner_component_resource_registry_audit": str(
+                out_dir
+                / "formalization_gap_planner_component_resource_registry_audit"
+                / "formalization_gap_planner_component_resource_registry_audit_manifest.json"
+            ),
+            "formalization_gap_planner_component_resource_registry_audit_jsonl": str(
+                out_dir
+                / "formalization_gap_planner_component_resource_registry_audit"
+                / "formalization_gap_planner_component_resource_registry_audit.jsonl"
+            ),
+            "formalization_gap_planner_component_resource_registry_audit_report": str(
+                out_dir
+                / "formalization_gap_planner_component_resource_registry_audit"
+                / "formalization_gap_planner_component_resource_registry_audit.md"
+            ),
+            "formalization_gap_planner_cross_prover_matrix_audit": str(
+                out_dir
+                / "formalization_gap_planner_cross_prover_matrix_audit"
+                / "formalization_gap_planner_cross_prover_matrix_audit_manifest.json"
+            ),
+            "formalization_gap_planner_cross_prover_matrix_audit_jsonl": str(
+                out_dir
+                / "formalization_gap_planner_cross_prover_matrix_audit"
+                / "formalization_gap_planner_cross_prover_matrix_audit.jsonl"
+            ),
+            "formalization_gap_planner_cross_prover_matrix_audit_row_schema": str(
+                out_dir
+                / "formalization_gap_planner_cross_prover_matrix_audit"
+                / "formalization_gap_planner_cross_prover_matrix_audit_row.schema.json"
+            ),
+            "formalization_gap_planner_cross_prover_packets_jsonl": str(
+                out_dir
+                / "formalization_gap_planner_cross_prover_matrix_audit"
+                / "formalization_gap_planner_cross_prover_packets.jsonl"
+            ),
+            "formalization_gap_planner_cross_prover_packet_schema": str(
+                out_dir
+                / "formalization_gap_planner_cross_prover_matrix_audit"
+                / "formalization_gap_planner_prover_adapter_packet.schema.json"
+            ),
+            "formalization_gap_planner_cross_prover_response_validation_jsonl": str(
+                out_dir
+                / "formalization_gap_planner_cross_prover_matrix_audit"
+                / "formalization_gap_planner_cross_prover_response_validation.jsonl"
+            ),
+            "formalization_gap_planner_cross_prover_response_validation_row_schema": str(
+                out_dir
+                / "formalization_gap_planner_cross_prover_matrix_audit"
+                / "formalization_gap_planner_prover_adapter_response_validation_row.schema.json"
+            ),
+            "formalization_gap_planner_cross_prover_target_summary": str(
+                out_dir
+                / "formalization_gap_planner_cross_prover_matrix_audit"
+                / "formalization_gap_planner_cross_prover_target_summary.json"
+            ),
+            "formalization_gap_planner_cross_prover_target_summary_schema": str(
+                out_dir
+                / "formalization_gap_planner_cross_prover_matrix_audit"
+                / "formalization_gap_planner_cross_prover_target_summary.schema.json"
+            ),
+            "formalization_gap_planner_cross_prover_matrix_audit_report": str(
+                out_dir
+                / "formalization_gap_planner_cross_prover_matrix_audit"
+                / "formalization_gap_planner_cross_prover_matrix_audit.md"
+            ),
+            "formalization_gap_planner_publication_bundle": str(
+                out_dir
+                / "formalization_gap_planner_publication_bundle"
+                / "formalization_gap_planner_publication_bundle_manifest.json"
+            ),
+            "formalization_gap_planner_publication_bundle_report": str(
+                out_dir
+                / "formalization_gap_planner_publication_bundle"
+                / "formalization_gap_planner_publication_bundle.md"
+            ),
+            "formalization_gap_planner_publication_bundle_contract": str(
+                out_dir
+                / "formalization_gap_planner_publication_bundle"
+                / "contract"
+                / "formalization_gap_planner_portable_contract.json"
+            ),
+            "formalization_gap_planner_publication_bundle_schema": str(
+                out_dir
+                / "formalization_gap_planner_publication_bundle"
+                / "contract"
+                / "library_aware_formalization_gap_plan.schema.json"
+            ),
+            "formalization_gap_planner_publication_bundle_schema_catalog": str(
+                out_dir
+                / "formalization_gap_planner_publication_bundle"
+                / "contract"
+                / "formalization_gap_planner_schema_catalog.json"
+            ),
+            "formalization_gap_planner_publication_bundle_schema_catalog_schema": str(
+                out_dir
+                / "formalization_gap_planner_publication_bundle"
+                / "contract"
+                / "formalization_gap_planner_schema_catalog.schema.json"
+            ),
+            "formalization_gap_planner_publication_bundle_component_resource_registry": str(
+                out_dir
+                / "formalization_gap_planner_publication_bundle"
+                / "component_resource_registry"
+                / "formalization_gap_planner_component_resource_registry_manifest.json"
+            ),
+            "formalization_gap_planner_publication_bundle_benchmark_audit": str(
+                out_dir
+                / "formalization_gap_planner_publication_bundle"
+                / "benchmark_audit"
+                / "formalization_gap_planner_benchmark_audit_manifest.json"
+            ),
+            "formalization_gap_planner_publication_bundle_interactive_session": str(
+                out_dir
+                / "formalization_gap_planner_publication_bundle"
+                / "artifacts"
+                / "formalization_gap_planner_interactive_session"
+                / "formalization_gap_planner_interactive_session_manifest.json"
+            ),
+            "formalization_gap_planner_publication_bundle_ablation_study": str(
+                out_dir
+                / "formalization_gap_planner_publication_bundle"
+                / "artifacts"
+                / "formalization_gap_planner_ablation_study"
+                / "formalization_gap_planner_ablation_study_manifest.json"
+            ),
+            "formalization_gap_planner_publication_bundle_local_literature_adapter": str(
+                out_dir
+                / "formalization_gap_planner_publication_bundle"
+                / "artifacts"
+                / "formalization_gap_planner_local_literature_adapter"
+                / "formalization_gap_planner_local_literature_adapter_manifest.json"
+            ),
+            "formalization_gap_planner_publication_bundle_local_formal_source_adapter": str(
+                out_dir
+                / "formalization_gap_planner_publication_bundle"
+                / "artifacts"
+                / "formalization_gap_planner_local_formal_source_adapter"
+                / "formalization_gap_planner_local_formal_source_adapter_manifest.json"
+            ),
+            "formalization_gap_planner_publication_bundle_local_proof_state_adapter": str(
+                out_dir
+                / "formalization_gap_planner_publication_bundle"
+                / "artifacts"
+                / "formalization_gap_planner_local_proof_state_adapter"
+                / "formalization_gap_planner_local_proof_state_adapter_manifest.json"
+            ),
+            "formalization_gap_planner_publication_bundle_reproduction_manifest": str(
+                out_dir
+                / "formalization_gap_planner_publication_bundle"
+                / "reproduce"
+                / "formalization_gap_planner_reproduction_manifest.json"
+            ),
+            "formalization_gap_planner_publication_bundle_reproduction_report": str(
+                out_dir
+                / "formalization_gap_planner_publication_bundle"
+                / "reproduce"
+                / "formalization_gap_planner_reproduction.md"
+            ),
+            "formalization_gap_planner_publication_bundle_standalone_example": str(
+                out_dir
+                / "formalization_gap_planner_publication_bundle"
+                / "examples"
+                / "formalization_gap_planner_standalone_example.json"
+            ),
+            "formalization_gap_planner_publication_bundle_target_intake_example": str(
+                out_dir
+                / "formalization_gap_planner_publication_bundle"
+                / "examples"
+                / "formalization_gap_planner_target_intake_example.json"
+            ),
+            "formalization_gap_planner_publication_bundle_audit": str(
+                out_dir
+                / "formalization_gap_planner_publication_bundle_audit"
+                / "formalization_gap_planner_publication_bundle_audit_manifest.json"
+            ),
+            "formalization_gap_planner_publication_bundle_audit_jsonl": str(
+                out_dir
+                / "formalization_gap_planner_publication_bundle_audit"
+                / "formalization_gap_planner_publication_bundle_audit.jsonl"
+            ),
+            "formalization_gap_planner_publication_bundle_audit_report": str(
+                out_dir
+                / "formalization_gap_planner_publication_bundle_audit"
+                / "formalization_gap_planner_publication_bundle_audit.md"
             ),
             "formal_verifier_replay_repair": str(
                 out_dir
@@ -5419,6 +8497,94 @@ def _proof_search_kernel_rerun_local_lean_overlay(out_dir: Path) -> dict[str, ob
             payload.get("all_kernel_verified_if_verifier_requires_kernel", False)
         ),
     }
+
+
+def _research_agent_runtime_audit_overlay(
+    out_dir: Path,
+    *,
+    configured_runtime_dir: str | None,
+) -> dict[str, object]:
+    audit_out = out_dir / "research_agent_runtime_audit"
+    runtime_dir = Path(configured_runtime_dir) if configured_runtime_dir else None
+    if runtime_dir is not None:
+        payload = audit_research_agent_runtime(runtime_dir, audit_out)
+        payload["requested"] = True
+        payload["available"] = bool((runtime_dir / "research_agent_runtime_manifest.json").exists())
+        payload["runtime_dir"] = str(runtime_dir)
+        payload["manifest_path"] = str(audit_out / "research_agent_runtime_audit_manifest.json")
+        payload["report_path"] = str(audit_out / "research_agent_runtime_audit.md")
+        (audit_out / "research_agent_runtime_audit_manifest.json").write_text(
+            json.dumps(payload, indent=2, default=str),
+            encoding="utf-8",
+        )
+        return payload
+
+    audit_out.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema_version": 1,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "requested": False,
+        "available": False,
+        "all_ok": False,
+        "errors": [],
+        "runtime_dir": "",
+        "manifest_path": str(audit_out / "research_agent_runtime_audit_manifest.json"),
+        "report_path": str(audit_out / "research_agent_runtime_audit.md"),
+        "n_results": 0,
+        "n_ok": 0,
+        "n_runtime_traces": 0,
+        "n_runtime_next_action_items": 0,
+        "n_runtime_learning_rows": 0,
+        "has_real_kernel_evidence": False,
+        "n_results_with_real_kernel_evidence": 0,
+        "n_kernel_verified_subclaims": 0,
+        "n_real_kernel_verified_subclaims": 0,
+        "n_non_real_kernel_verified_subclaims": 0,
+        "kernel_verified_verifiers": [],
+        "n_formal_gaps": 0,
+        "n_registered_proof_bank_obligation_candidates": 0,
+        "n_memory_prioritized_proof_obligations": 0,
+        "n_memory_off_catalog_proof_obligations": 0,
+        "n_memory_rejected_proof_obligations": 0,
+        "n_llm_requested_proof_obligations": 0,
+        "n_llm_off_catalog_proof_obligations": 0,
+        "n_llm_rejected_proof_obligations": 0,
+        "n_full_frontier_theorem_proved": 0,
+        "architect_coordinator_enabled": False,
+        "llm_topology_policy_ok": False,
+        "unsupported_generator_backends_enabled": 0,
+        "n_critic_reroutes": 0,
+        "n_algorithm_sandbox_executed": 0,
+        "n_generated_code_sandbox_executed": 0,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_results_with_runtime_learning_memory_input": 0,
+        "n_runtime_learning_memory_input_rows": 0,
+        "n_results_with_problem_analysis": 0,
+        "n_results_with_stat_knowledge_bank_plan": 0,
+        "n_results_with_literature_fair_comparison_plan": 0,
+        "limitations": [
+            "research-agent-runtime audit was not requested for this system audit run",
+            "pass --research-agent-runtime-dir to include AgentRuntime alignment in the gate",
+        ],
+    }
+    (audit_out / "research_agent_runtime_audit_manifest.json").write_text(
+        json.dumps(payload, indent=2, default=str),
+        encoding="utf-8",
+    )
+    (audit_out / "research_agent_runtime_audit.md").write_text(
+        "\n".join(
+            [
+                "# Research Agent Runtime Audit",
+                "",
+                "- requested: False",
+                "- available: False",
+                "- pass `--research-agent-runtime-dir <dir>` to include AgentRuntime alignment in the gate",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    return payload
 
 
 def _record_stage(

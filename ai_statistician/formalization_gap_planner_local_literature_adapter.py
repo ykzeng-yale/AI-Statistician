@@ -8,7 +8,11 @@ from pathlib import Path
 from typing import Any
 
 from .fingerprint import stable_hash
-from .formalization_gap_planner_refinement_evidence import PROOF_EVIDENCE_BOUNDARY
+from .formalization_gap_planner_refinement_evidence import (
+    PROOF_EVIDENCE_BOUNDARY,
+    refinement_tool_response_json_schema,
+    validate_refinement_tool_response_row,
+)
 
 
 FORMALIZATION_GAP_PLANNER_LOCAL_LITERATURE_ADAPTER_SCHEMA_VERSION = 1
@@ -110,6 +114,21 @@ def export_formalization_gap_planner_local_literature_adapter_responses(
             str(row.get("refinement_item_id", "")),
         ),
     )
+    response_schema = refinement_tool_response_json_schema()
+    local_response_schema_errors = [
+        validate_refinement_tool_response_row(response, response_schema)
+        for response in responses
+    ]
+    merged_response_schema_errors = [
+        validate_refinement_tool_response_row(response, response_schema)
+        for response in merged_responses
+    ]
+    n_local_response_schema_valid = sum(
+        1 for row_errors in local_response_schema_errors if not row_errors
+    )
+    n_merged_response_schema_valid = sum(
+        1 for row_errors in merged_response_schema_errors if not row_errors
+    )
     by_node_kind = Counter(
         str(node.get("kind", ""))
         for response in responses
@@ -134,11 +153,33 @@ def export_formalization_gap_planner_local_literature_adapter_responses(
         "n_base_responses": len(base_responses),
         "n_local_literature_responses": len(responses),
         "n_merged_responses": len(merged_responses),
+        "n_local_response_schema_valid": n_local_response_schema_valid,
+        "n_local_response_schema_invalid": len(local_response_schema_errors)
+        - n_local_response_schema_valid,
+        "n_merged_response_schema_valid": n_merged_response_schema_valid,
+        "n_merged_response_schema_invalid": len(merged_response_schema_errors)
+        - n_merged_response_schema_valid,
+        "local_response_schema_errors": local_response_schema_errors,
+        "merged_response_schema_errors": merged_response_schema_errors,
         "n_source_hits": sum(
             1
             for response in responses
             for node in response.get("route_evidence_nodes", [])
             if isinstance(node, dict) and node.get("kind") == "source_ref"
+        ),
+        "n_source_snippets": sum(
+            1
+            for response in responses
+            for snippet in response.get("source_snippets", [])
+            if isinstance(snippet, dict)
+        ),
+        "n_local_literature_responses_with_source_snippets": sum(
+            1
+            for response in responses
+            if any(
+                isinstance(snippet, dict)
+                for snippet in response.get("source_snippets", [])
+            )
         ),
         "n_literature_gap_responses": sum(
             1
@@ -151,10 +192,15 @@ def export_formalization_gap_planner_local_literature_adapter_responses(
         "n_route_revision_recommended": sum(
             1 for response in responses if response.get("route_revision_recommended")
         ),
-        "all_ok": not errors and bool(literature_rows) and len(responses) == len(literature_rows),
+        "all_ok": not errors
+        and bool(literature_rows)
+        and len(responses) == len(literature_rows)
+        and n_local_response_schema_valid == len(responses)
+        and n_merged_response_schema_valid == len(merged_responses),
         "errors": errors,
         "by_route_evidence_node_kind": dict(sorted(by_node_kind.items())),
         "responses": responses,
+        "refinement_tool_response_schema": response_schema,
         "merged_response_ids": [
             str(row.get("refinement_item_id", "")) for row in merged_responses
         ],
@@ -179,11 +225,19 @@ def export_formalization_gap_planner_local_literature_adapter_responses(
         local_responses_path = (
             out_dir / "formalization_gap_planner_local_literature_adapter_responses.jsonl"
         )
+        response_schema_path = (
+            out_dir / "formalization_gap_planner_refinement_tool_response.schema.json"
+        )
         payload["manifest_path"] = str(manifest_path)
         payload["responses_jsonl"] = str(responses_path)
         payload["local_responses_jsonl"] = str(local_responses_path)
+        payload["response_schema_path"] = str(response_schema_path)
         manifest_path.write_text(
             json.dumps(payload, indent=2, default=str),
+            encoding="utf-8",
+        )
+        response_schema_path.write_text(
+            json.dumps(response_schema, indent=2),
             encoding="utf-8",
         )
         responses_path.write_text(
@@ -229,6 +283,7 @@ def _literature_response(
         query_terms=query_terms,
         target_primitives=target_primitives,
     )
+    source_snippets = _source_snippets_from_route_nodes(route_nodes)
     return {
         "refinement_item_id": str(queue_row.get("refinement_item_id", "")),
         "route_id": str(queue_row.get("route_id", "")),
@@ -236,6 +291,7 @@ def _literature_response(
         "evidence_kind": "literature_route_evidence",
         "tool_name": ADAPTER_TOOL_NAME,
         "source_refs": tuple(source_refs),
+        "source_snippets": tuple(source_snippets),
         "route_evidence_nodes": tuple(route_nodes),
         "route_revision_recommended": bool(revision_reasons),
         "route_revision_reasons": tuple(sorted(dict.fromkeys(revision_reasons))),
@@ -484,6 +540,37 @@ def _route_evidence_nodes(
     return nodes
 
 
+def _source_snippets_from_route_nodes(
+    route_nodes: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    snippets: list[dict[str, object]] = []
+    for node in route_nodes:
+        if node.get("kind") != "source_ref":
+            continue
+        source_ref = str(node.get("source_ref", "")).strip()
+        excerpt = str(node.get("excerpt", "")).strip()
+        if not source_ref or not excerpt:
+            continue
+        snippets.append(
+            {
+                "snippet_id": "local_literature_source_snippet:"
+                + stable_hash([node.get("node_id", ""), source_ref, excerpt])[:16],
+                "source_ref": source_ref,
+                "source_path": str(node.get("source_path", "")).strip(),
+                "rank": int(node.get("rank", 0) or 0),
+                "claim": str(node.get("label", "")).strip(),
+                "excerpt": excerpt,
+                "matched_terms": _str_tuple(node.get("matched_terms", [])),
+                "matched_primitive_phrases": _str_tuple(
+                    node.get("matched_primitive_phrases", [])
+                ),
+                "target_primitives": _str_tuple(node.get("target_primitives", [])),
+                "evidence_role": "source-backed informal route evidence",
+            }
+        )
+    return snippets
+
+
 def _excerpt(text: str, matched_terms: tuple[str, ...]) -> str:
     compact = re.sub(r"\s+", " ", text).strip()
     if not compact:
@@ -549,7 +636,10 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Documents indexed: {payload.get('n_documents_indexed')}",
         f"- Local responses: {payload.get('n_local_literature_responses')}",
         f"- Merged responses: {payload.get('n_merged_responses')}",
+        f"- Local response schema valid: {payload.get('n_local_response_schema_valid')}/{payload.get('n_local_literature_responses')}",
+        f"- Merged response schema valid: {payload.get('n_merged_response_schema_valid')}/{payload.get('n_merged_responses')}",
         f"- Source hits: {payload.get('n_source_hits')}",
+        f"- Source snippets: {payload.get('n_source_snippets')}",
         f"- Literature gaps: {payload.get('n_literature_gap_responses')}",
         f"- Route revision recommended: {payload.get('n_route_revision_recommended')}",
         f"- All OK: {payload.get('all_ok')}",

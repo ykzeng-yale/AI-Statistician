@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import shutil
 import sys
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -10,6 +11,7 @@ from pathlib import Path
 from typing import Mapping
 
 from .algorithms import all_algorithms
+from .model_backend import default_generator_model, default_generator_provider
 from .proof_bank import all_obligations
 
 
@@ -50,22 +52,21 @@ def build_doctor_report(
     dotenv_values = _read_dotenv(env_path)
 
     axle_key = _env_presence("AXLE_API_KEY", env, dotenv_values)["present"]
-    anthropic_key = _env_presence("ANTHROPIC_API_KEY", env, dotenv_values)["present"]
     axle_importable = _has_module("axle")
-    anthropic_importable = _has_module("anthropic")
+    llm_env = {**dotenv_values, **env}
+    llm_provider = default_generator_provider(llm_env)
+    llm_models = _llm_model_tiers(provider=llm_provider, env=llm_env)
+    llm_theory_blockers = _llm_runtime_blockers(
+        provider=llm_provider,
+        env=env,
+        dotenv_values=dotenv_values,
+    )
     real_lean_blockers = _runtime_blockers(
         key_present=bool(axle_key),
         module_present=axle_importable,
         key_name="AXLE_API_KEY",
         package_name="axle",
         install_extra="proof",
-    )
-    llm_theory_blockers = _runtime_blockers(
-        key_present=bool(anthropic_key),
-        module_present=anthropic_importable,
-        key_name="ANTHROPIC_API_KEY",
-        package_name="anthropic",
-        install_extra="llm",
     )
     checks = [
         _python_check(),
@@ -78,8 +79,9 @@ def build_doctor_report(
         _key_check("AXLE_API_KEY", env, dotenv_values, label="AXLE key"),
         _import_check("axle", required=False, label="optional package: axle"),
         _runtime_check("real Lean / AXLE runtime", real_lean_blockers),
-        _key_check("ANTHROPIC_API_KEY", env, dotenv_values, label="Anthropic key"),
-        _import_check("anthropic", required=False, label="optional package: anthropic"),
+        DoctorCheck("LLM generator provider", "OK", False, f"default provider: {llm_provider}"),
+        DoctorCheck("LLM generator models", "OK", False, _llm_models_detail(llm_models)),
+        *_llm_provider_checks(llm_provider, env=env, dotenv_values=dotenv_values),
         _runtime_check("LLM theory runtime", llm_theory_blockers),
         _openprover_check(env),
         _path_check(
@@ -123,6 +125,8 @@ def build_doctor_report(
             "real_lean_blockers": real_lean_blockers,
             "llm_theory_ready": not llm_theory_blockers,
             "llm_theory_blockers": llm_theory_blockers,
+            "llm_provider": llm_provider,
+            "llm_models": llm_models,
             "openprover_available": _openprover_path(env).exists(),
             "n_obligations": len(all_obligations()),
             "n_algorithms": len(all_algorithms()),
@@ -210,6 +214,67 @@ def _runtime_blockers(
     return blockers
 
 
+def _llm_provider_checks(
+    provider: str,
+    *,
+    env: Mapping[str, str],
+    dotenv_values: Mapping[str, str],
+) -> list[DoctorCheck]:
+    if provider == "anthropic":
+        return [
+            _key_check("ANTHROPIC_API_KEY", env, dotenv_values, label="Anthropic key"),
+            _import_check("anthropic", required=False, label="optional package: anthropic"),
+        ]
+    if provider == "openai":
+        return [
+            _key_check("OPENAI_API_KEY", env, dotenv_values, label="OpenAI key"),
+            _import_check("openai", required=False, label="optional package: openai"),
+        ]
+    if provider == "static":
+        return [DoctorCheck("static LLM replay", "OK", False, "no live model runtime required")]
+    return [DoctorCheck("LLM provider", "WARN", False, f"unknown provider {provider!r}")]
+
+
+def _llm_model_tiers(*, provider: str, env: Mapping[str, str]) -> dict[str, str]:
+    return {
+        "default": default_generator_model(provider, env=env),
+        "haiku": default_generator_model(provider, env=env, model_tier="haiku"),
+        "sonnet": default_generator_model(provider, env=env, model_tier="sonnet"),
+        "opus": default_generator_model(provider, env=env, model_tier="opus"),
+    }
+
+
+def _llm_models_detail(models: Mapping[str, str]) -> str:
+    return ", ".join(f"{key}={value or '<unset>'}" for key, value in models.items())
+
+
+def _llm_runtime_blockers(
+    *,
+    provider: str,
+    env: Mapping[str, str],
+    dotenv_values: Mapping[str, str],
+) -> list[str]:
+    if provider == "anthropic":
+        return _runtime_blockers(
+            key_present=bool(_env_presence("ANTHROPIC_API_KEY", env, dotenv_values)["present"]),
+            module_present=_has_module("anthropic"),
+            key_name="ANTHROPIC_API_KEY",
+            package_name="anthropic",
+            install_extra="llm",
+        )
+    if provider == "openai":
+        return _runtime_blockers(
+            key_present=bool(_env_presence("OPENAI_API_KEY", env, dotenv_values)["present"]),
+            module_present=_has_module("openai"),
+            key_name="OPENAI_API_KEY",
+            package_name="openai",
+            install_extra="llm",
+        )
+    if provider == "static":
+        return []
+    return [f"unknown LLM provider {provider!r}"]
+
+
 def _runtime_check(label: str, blockers: list[str]) -> DoctorCheck:
     if not blockers:
         return DoctorCheck(label, "OK", False, "ready")
@@ -221,6 +286,19 @@ def _path_check(path: Path, *, required: bool, label: str) -> DoctorCheck:
         return DoctorCheck(label, "OK", required, str(path.resolve()))
     status = "FAIL" if required else "WARN"
     return DoctorCheck(label, status, required, f"missing: {path.resolve()}")
+
+
+def _binary_check(command: str, *, label: str) -> DoctorCheck:
+    if _binary_available(command):
+        return DoctorCheck(label, "OK", False, f"{command!r} is available")
+    return DoctorCheck(label, "WARN", False, f"{command!r} not found on PATH")
+
+
+def _binary_available(command: str) -> bool:
+    path = Path(command).expanduser()
+    if path.is_absolute() or "/" in command:
+        return path.exists()
+    return shutil.which(command) is not None
 
 
 def _registry_check(label: str, count: int) -> DoctorCheck:

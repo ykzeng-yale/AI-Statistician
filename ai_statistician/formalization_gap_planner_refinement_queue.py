@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections import Counter
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -20,9 +21,24 @@ PROOF_EVIDENCE_STATUS = "FORMALIZATION_GAP_PLANNER_REFINEMENT_QUEUE_NOT_PROOF_EV
 PROOF_EVIDENCE_BOUNDARY = (
     "Formalization gap planner refinement rows are interactive search, "
     "library-grounding, and prover-feedback work orders. They revise route "
-    "evidence and the planned Lean delta, but they are not theorem proof "
+    "evidence and the planned formalization delta, but they are not theorem proof "
     "evidence. Only target-prover kernel verification can prove a theorem or "
     "bridge lemma."
+)
+REFINEMENT_WORK_ITEM_SCHEMA_ID = (
+    "urn:ai-statistician:schemas:"
+    "formalization-gap-planner-refinement-work-item:1"
+)
+REFINEMENT_HOOK_KINDS = (
+    "literature_discovery",
+    "formal_library_grounding",
+    "lean_library_grounding",
+    "proof_state_feedback",
+    "route_revision",
+)
+REFINEMENT_QUEUE_STATUSES = (
+    "READY_FOR_INTERACTIVE_REFINEMENT",
+    "BLOCKED_INTERACTIVE_REFINEMENT_INPUT",
 )
 
 
@@ -40,6 +56,7 @@ class FormalizationGapPlannerRefinementQueueRow:
     hook_kind: str
     refinement_stage: str
     owner_agent: str
+    target_prover_family: str
     target_primitives: tuple[str, ...]
     trigger_kinds: tuple[str, ...]
     trigger_conditions: tuple[str, ...]
@@ -47,6 +64,10 @@ class FormalizationGapPlannerRefinementQueueRow:
     queries: tuple[str, ...]
     recommended_tools: tuple[str, ...]
     frontier_resource_adapters: tuple[str, ...]
+    resource_request_ids: tuple[str, ...]
+    resource_ids: tuple[str, ...]
+    resource_request_bindings: tuple[dict[str, object], ...]
+    llm_route_planner_hook_trace: dict[str, object]
     evaluation_signal: str
     evaluation_route_missing_primitives: tuple[str, ...]
     evaluation_delta_missing_primitives: tuple[str, ...]
@@ -79,7 +100,7 @@ def export_formalization_gap_planner_refinement_queue(
 
     This queue turns the planner's `interactive_refinement_hooks` and
     `route_revision_triggers` into concrete, auditable work orders for
-    literature discovery, Lean-library grounding, proof-state feedback, and
+    literature discovery, formal-library grounding, proof-state feedback, and
     route revision. Optional evaluator and replay-calibration manifests add
     held-out truth errors and prover residuals as prioritization signals.
     """
@@ -140,9 +161,18 @@ def export_formalization_gap_planner_refinement_queue(
         rows = ranked_rows[:max_items]
     else:
         rows = ranked_rows
+    row_dicts = [asdict(row) for row in rows]
+    work_item_schema = refinement_work_item_json_schema()
+    row_schema_errors = [
+        validate_refinement_work_item_row(row_dict, work_item_schema)
+        for row_dict in row_dicts
+    ]
+    n_item_schema_valid = sum(1 for row_errors in row_schema_errors if not row_errors)
+    n_item_schema_invalid = len(row_schema_errors) - n_item_schema_valid
     by_hook_kind = Counter(row.hook_kind for row in rows)
     by_stage = Counter(row.refinement_stage for row in rows)
     by_owner = Counter(row.owner_agent for row in rows)
+    by_target = Counter(row.target_prover_family for row in rows)
     by_status = Counter(row.status for row in rows)
     payload: dict[str, object] = {
         "schema_version": FORMALIZATION_GAP_PLANNER_REFINEMENT_QUEUE_SCHEMA_VERSION,
@@ -180,6 +210,10 @@ def export_formalization_gap_planner_refinement_queue(
             count for status, count in by_status.items() if status.startswith("BLOCKED_")
         ),
         "n_literature_discovery_items": by_hook_kind.get("literature_discovery", 0),
+        "n_formal_library_grounding_items": (
+            by_hook_kind.get("formal_library_grounding", 0)
+            + by_hook_kind.get("lean_library_grounding", 0)
+        ),
         "n_lean_library_grounding_items": by_hook_kind.get("lean_library_grounding", 0),
         "n_proof_state_feedback_items": by_hook_kind.get("proof_state_feedback", 0),
         "n_route_revision_items": by_hook_kind.get("route_revision", 0),
@@ -197,23 +231,32 @@ def export_formalization_gap_planner_refinement_queue(
             for row in rows
             if _is_failed_prover_feedback(row.prover_feedback_status)
         ),
+        "n_item_schema_valid": n_item_schema_valid,
+        "n_item_schema_invalid": n_item_schema_invalid,
+        "refinement_work_item_schema": work_item_schema,
         "n_ok": sum(1 for row in rows if row.ok),
-        "all_ok": not errors and bool(rows) and all(row.ok for row in rows),
+        "all_ok": (
+            not errors
+            and bool(rows)
+            and all(row.ok for row in rows)
+            and n_item_schema_invalid == 0
+        ),
         "errors": errors,
         "by_hook_kind": dict(sorted(by_hook_kind.items())),
         "by_refinement_stage": dict(sorted(by_stage.items())),
         "by_owner_agent": dict(sorted(by_owner.items())),
+        "by_target_prover_family": dict(sorted(by_target.items())),
         "by_status": dict(sorted(by_status.items())),
-        "rows": [asdict(row) for row in rows],
-        "refinement_queue_fingerprint": stable_hash([asdict(row) for row in rows]),
+        "rows": row_dicts,
+        "refinement_queue_fingerprint": stable_hash(row_dicts),
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
         "planner_proof_evidence_boundary": PLANNER_PROOF_EVIDENCE_BOUNDARY,
         "limitations": [
             "refinement queue rows are operational work items, not theorem proof evidence",
-            "literature and Lean-search outputs must be recorded as route evidence until a prover verifies a theorem",
+            "literature and formal-library search outputs must be recorded as route evidence until a prover verifies a theorem",
             "prover failures are diagnostic feedback for route revision, not disproofs of the informal theorem",
-            "route revisions should be written back into the informal knowledge DAG and Lean realization DAG before replay",
+            "route revisions should be written back into the informal knowledge DAG and formal realization DAG before replay",
         ],
     }
     if out_dir is not None:
@@ -221,6 +264,9 @@ def export_formalization_gap_planner_refinement_queue(
         (
             out_dir / "formalization_gap_planner_refinement_queue_manifest.json"
         ).write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
+        (
+            out_dir / "formalization_gap_planner_refinement_work_item.schema.json"
+        ).write_text(json.dumps(work_item_schema, indent=2), encoding="utf-8")
         (out_dir / "formalization_gap_planner_refinement_queue.jsonl").write_text(
             "\n".join(json.dumps(asdict(row), sort_keys=True) for row in rows)
             + ("\n" if rows else ""),
@@ -231,6 +277,181 @@ def export_formalization_gap_planner_refinement_queue(
             encoding="utf-8",
         )
     return payload
+
+
+def refinement_work_item_json_schema() -> dict[str, object]:
+    """JSON Schema for public refinement work-request rows."""
+
+    string_array = {"type": "array", "items": {"type": "string"}}
+    object_array = {"type": "array", "items": {"type": "object"}}
+    return {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": REFINEMENT_WORK_ITEM_SCHEMA_ID,
+        "title": "Formalization Gap Planner Refinement Work Item",
+        "description": (
+            "Tool-facing work-request contract for bounded literature search, "
+            "formal-library grounding, proof-state feedback, and route revision. "
+            "Rows are not theorem proof evidence."
+        ),
+        "type": "object",
+        "additionalProperties": True,
+        "required": [
+            "schema_version",
+            "refinement_item_id",
+            "goal_plan_id",
+            "route_id",
+            "display_name",
+            "hook_kind",
+            "refinement_stage",
+            "owner_agent",
+            "target_primitives",
+            "queries",
+            "recommended_tools",
+            "frontier_resource_adapters",
+            "expected_artifacts",
+            "execution_commands",
+            "required_gate",
+            "status",
+            "priority_score",
+            "rank",
+            "proof_evidence_status",
+            "proof_evidence_boundary",
+            "ok",
+        ],
+        "properties": {
+            "schema_version": {
+                "type": "integer",
+                "const": FORMALIZATION_GAP_PLANNER_REFINEMENT_QUEUE_SCHEMA_VERSION,
+            },
+            "refinement_item_id": {"type": "string", "minLength": 1},
+            "goal_plan_id": {"type": "string", "minLength": 1},
+            "route_id": {"type": "string", "minLength": 1},
+            "display_name": {"type": "string", "minLength": 1},
+            "theorem_skeleton": {"type": "string"},
+            "theorem_statement": {"type": "string"},
+            "route_class": {"type": "string"},
+            "pareto_profile": {"type": "string"},
+            "hook_kind": {"enum": list(REFINEMENT_HOOK_KINDS)},
+            "refinement_stage": {"type": "string", "minLength": 1},
+            "owner_agent": {"type": "string", "minLength": 1},
+            "target_prover_family": {"type": "string"},
+            "target_primitives": string_array,
+            "trigger_kinds": string_array,
+            "trigger_conditions": string_array,
+            "trigger_next_actions": string_array,
+            "queries": string_array,
+            "recommended_tools": string_array,
+            "frontier_resource_adapters": string_array,
+            "resource_request_ids": string_array,
+            "resource_ids": string_array,
+            "resource_request_bindings": object_array,
+            "llm_route_planner_hook_trace": {"type": "object"},
+            "evaluation_signal": {"type": "string"},
+            "evaluation_route_missing_primitives": string_array,
+            "evaluation_delta_missing_primitives": string_array,
+            "evaluation_coverage_confusions": object_array,
+            "prover_feedback_status": {"type": "string"},
+            "prover_feedback_error_category": {"type": "string"},
+            "prover_feedback_first_error": {"type": "string"},
+            "acceptance_record": {"type": "string"},
+            "expected_artifacts": string_array,
+            "execution_commands": string_array,
+            "required_gate": {"type": "string", "minLength": 1},
+            "status": {"enum": list(REFINEMENT_QUEUE_STATUSES)},
+            "priority_score": {"type": "integer"},
+            "rank": {"type": "integer"},
+            "proof_evidence_status": {
+                "type": "string",
+                "pattern": "NOT_PROOF_EVIDENCE",
+            },
+            "proof_evidence_boundary": {
+                "type": "string",
+                "pattern": "not theorem proof evidence",
+            },
+            "ok": {"type": "boolean"},
+            "errors": string_array,
+        },
+    }
+
+
+def validate_refinement_work_item_row(
+    row: dict[str, Any],
+    schema: dict[str, object] | None = None,
+) -> tuple[str, ...]:
+    """Validate a refinement work item against the published schema."""
+
+    work_item_schema = schema or refinement_work_item_json_schema()
+    errors: list[str] = []
+    required = work_item_schema.get("required", [])
+    if isinstance(required, list):
+        for field_name in required:
+            if isinstance(field_name, str) and field_name not in row:
+                errors.append(f"{field_name} required")
+    properties = work_item_schema.get("properties", {})
+    if isinstance(properties, dict):
+        for field_name, field_schema in properties.items():
+            if not isinstance(field_name, str) or field_name not in row:
+                continue
+            if isinstance(field_schema, dict):
+                errors.extend(
+                    _schema_property_errors(field_name, row[field_name], field_schema)
+                )
+    return tuple(errors)
+
+
+def _schema_property_errors(
+    field_name: str,
+    value: Any,
+    field_schema: dict[str, Any],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    expected_type = field_schema.get("type")
+    if expected_type == "integer":
+        if not isinstance(value, int) or isinstance(value, bool):
+            errors.append(f"{field_name} must be integer")
+    elif expected_type == "string":
+        if not isinstance(value, str):
+            errors.append(f"{field_name} must be string")
+        elif field_schema.get("minLength") and len(value) < int(
+            field_schema["minLength"]
+        ):
+            errors.append(f"{field_name} must be non-empty")
+    elif expected_type == "boolean":
+        if not isinstance(value, bool):
+            errors.append(f"{field_name} must be boolean")
+    elif expected_type == "array":
+        if not isinstance(value, (list, tuple)):
+            errors.append(f"{field_name} must be array")
+        else:
+            item_schema = field_schema.get("items", {})
+            if isinstance(item_schema, dict) and item_schema.get("type") == "string":
+                bad_indexes = [
+                    idx for idx, item in enumerate(value) if not isinstance(item, str)
+                ]
+                if bad_indexes:
+                    errors.append(
+                        f"{field_name} items must be string at indexes "
+                        + ",".join(str(idx) for idx in bad_indexes)
+                    )
+            if isinstance(item_schema, dict) and item_schema.get("type") == "object":
+                bad_indexes = [
+                    idx for idx, item in enumerate(value) if not isinstance(item, dict)
+                ]
+                if bad_indexes:
+                    errors.append(
+                        f"{field_name} items must be object at indexes "
+                        + ",".join(str(idx) for idx in bad_indexes)
+                    )
+    if "const" in field_schema and value != field_schema["const"]:
+        errors.append(f"{field_name} must equal {field_schema['const']!r}")
+    enum_values = field_schema.get("enum")
+    if isinstance(enum_values, list) and value not in enum_values:
+        errors.append(f"{field_name} must be one of {','.join(map(str, enum_values))}")
+    pattern = field_schema.get("pattern")
+    if isinstance(pattern, str) and isinstance(value, str):
+        if re.search(pattern, value) is None:
+            errors.append(f"{field_name} must match /{pattern}/")
+    return tuple(errors)
 
 
 def _refinement_row(
@@ -245,12 +466,26 @@ def _refinement_row(
     route_id = str(plan_row.get("route_id", ""))
     display_name = str(plan_row.get("display_name", ""))
     hook_kind = str(hook.get("hook_kind", ""))
+    target_prover_family = _target_prover_family(plan_row, hook)
     stage = _refinement_stage(hook_kind)
     target_primitives = _target_primitives(plan_row, hook_kind, evaluation_row)
     triggers = _triggers_for_hook(plan_row, hook_kind, evaluation_row, calibration_row)
     queries = _queries_for_hook(plan_row, hook, hook_kind, evaluation_row, calibration_row)
-    recommended_tools = _recommended_tools(hook, hook_kind)
-    adapters = _frontier_resource_adapters(hook_kind)
+    recommended_tools = _recommended_tools(
+        hook,
+        hook_kind,
+        target_prover_family=target_prover_family,
+    )
+    adapters = _frontier_resource_adapters(
+        hook_kind,
+        target_prover_family=target_prover_family,
+    )
+    resource_request_ids = _str_tuple(hook.get("resource_request_ids", []))
+    resource_ids = _str_tuple(hook.get("resource_ids", []))
+    resource_request_bindings = _dict_tuple(
+        hook.get("resource_request_bindings", [])
+    )
+    llm_route_planner_hook_trace = _llm_route_planner_hook_trace(hook)
     evaluation_signal = _evaluation_signal(evaluation_row)
     prover_status = _prover_feedback_status(calibration_row)
     acceptance_record = str(hook.get("acceptance_record", "")) or _acceptance_record(
@@ -270,6 +505,7 @@ def _refinement_row(
             errors.append(f"{field_name} missing")
     if hook_kind not in {
         "literature_discovery",
+        "formal_library_grounding",
         "lean_library_grounding",
         "proof_state_feedback",
         "route_revision",
@@ -305,6 +541,7 @@ def _refinement_row(
         hook_kind=hook_kind,
         refinement_stage=stage,
         owner_agent=_owner_agent(hook_kind),
+        target_prover_family=target_prover_family,
         target_primitives=target_primitives,
         trigger_kinds=_str_tuple(item.get("trigger_kind", "") for item in triggers),
         trigger_conditions=_str_tuple(item.get("condition", "") for item in triggers),
@@ -312,6 +549,10 @@ def _refinement_row(
         queries=queries,
         recommended_tools=recommended_tools,
         frontier_resource_adapters=adapters,
+        resource_request_ids=resource_request_ids,
+        resource_ids=resource_ids,
+        resource_request_bindings=resource_request_bindings,
+        llm_route_planner_hook_trace=llm_route_planner_hook_trace,
         evaluation_signal=evaluation_signal,
         evaluation_route_missing_primitives=_str_tuple(
             evaluation_row.get("route_missing_primitives", [])
@@ -325,7 +566,10 @@ def _refinement_row(
         prover_feedback_first_error=str(calibration_row.get("first_error", "")),
         acceptance_record=acceptance_record,
         expected_artifacts=_expected_artifacts(hook_kind),
-        execution_commands=_execution_commands(hook_kind),
+        execution_commands=_execution_commands(
+            hook_kind,
+            target_prover_family=target_prover_family,
+        ),
         required_gate=_required_gate(hook_kind),
         status=status,
         priority_score=_priority_score(
@@ -361,12 +605,12 @@ def _hooks_for_plan_row(
                 "hook_kind": "route_revision",
                 "recommended_tools": [
                     "literature_discovery",
-                    "lean_library_grounding",
+                    "formal_library_grounding",
                     "proof_state_feedback",
                 ],
                 "queries": list(_str_tuple(plan_row.get("selected_primitives", [])))[:8],
                 "acceptance_record": (
-                    "revise the informal knowledge DAG, Lean realization DAG, and "
+                    "revise the informal knowledge DAG, formal realization DAG, and "
                     "selected delta before the next replay attempt"
                 ),
             }
@@ -428,7 +672,7 @@ def _triggers_for_hook(
                 ),
                 "next_action": (
                     "feed residual goals or verifier diagnostics back into the "
-                    "route plan before expanding the Lean delta"
+                    "route plan before expanding the formalization delta"
                 ),
             }
         )
@@ -443,6 +687,23 @@ def _triggers_for_hook(
     return tuple(selected)
 
 
+def _is_formal_library_grounding_hook(hook_kind: str) -> bool:
+    return hook_kind in {"formal_library_grounding", "lean_library_grounding"}
+
+
+def _target_prover_family(plan_row: dict[str, Any], hook: dict[str, Any]) -> str:
+    return str(
+        hook.get("target_prover_family")
+        or plan_row.get("target_prover_family")
+        or plan_row.get("target_prover")
+        or "lean4"
+    ).strip()
+
+
+def _prover_family_key(target_prover_family: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", str(target_prover_family).strip().lower()).strip("_")
+
+
 def _trigger_matches_hook(trigger_kind: str, hook_kind: str) -> bool:
     if hook_kind == "literature_discovery":
         return trigger_kind in {
@@ -450,8 +711,10 @@ def _trigger_matches_hook(trigger_kind: str, hook_kind: str) -> bool:
             "source_port_or_external_declaration_needed",
             "new_theory_risk_review",
         }
-    if hook_kind == "lean_library_grounding":
+    if _is_formal_library_grounding_hook(hook_kind):
         return trigger_kind in {
+            "formal_library_grounding_required",
+            "formal_leaf_attempt_required",
             "lean_leaf_attempt_required",
             "source_port_or_external_declaration_needed",
             "blocked_by_formal_side_condition",
@@ -465,6 +728,24 @@ def _trigger_matches_hook(trigger_kind: str, hook_kind: str) -> bool:
     if hook_kind == "route_revision":
         return True
     return False
+
+
+def _llm_route_planner_hook_trace(hook: dict[str, Any]) -> dict[str, object]:
+    trace: dict[str, object] = {
+        "trace_kind": "llm_route_planner_hook_trace",
+    }
+    for field_name in (
+        "llm_route_planner_search_request_index",
+        "llm_route_planner_search_request",
+        "planner_next_actions",
+        "llm_route_planner_planner_next_action_index",
+        "llm_route_planner_planner_next_action",
+    ):
+        if field_name in hook:
+            trace[field_name] = hook[field_name]
+    if len(trace) == 1:
+        return {}
+    return trace
 
 
 def _queries_for_hook(
@@ -500,7 +781,7 @@ def _queries_for_hook(
             )
             if item.strip()
         )
-    elif hook_kind == "lean_library_grounding":
+    elif _is_formal_library_grounding_hook(hook_kind):
         queries.extend((*selected_primitives[:8], *missing, *confused))
     elif hook_kind == "proof_state_feedback":
         queries.extend(
@@ -543,7 +824,7 @@ def _target_primitives(
         source = _node_primitives(plan_row.get("source_discovery_nodes", []))
         first = _node_primitives(plan_row.get("first_principles_nodes", []))
         return _str_tuple([*source, *first, *missing, *selected[:6]])
-    if hook_kind == "lean_library_grounding":
+    if _is_formal_library_grounding_hook(hook_kind):
         return _str_tuple([*missing, *selected])
     if hook_kind == "proof_state_feedback":
         minimal = _node_primitives(plan_row.get("minimal_additional_formalization_nodes", []))
@@ -553,14 +834,30 @@ def _target_primitives(
     return selected
 
 
-def _recommended_tools(hook: dict[str, Any], hook_kind: str) -> tuple[str, ...]:
+def _recommended_tools(
+    hook: dict[str, Any],
+    hook_kind: str,
+    *,
+    target_prover_family: str,
+) -> tuple[str, ...]:
     tools = _str_tuple(hook.get("recommended_tools", []))
     if tools:
         return tools
-    return _frontier_resource_adapters(hook_kind)
+    return _frontier_resource_adapters(
+        hook_kind,
+        target_prover_family=target_prover_family,
+    )
 
 
-def _frontier_resource_adapters(hook_kind: str) -> tuple[str, ...]:
+def _frontier_resource_adapters(
+    hook_kind: str,
+    *,
+    target_prover_family: str = "",
+) -> tuple[str, ...]:
+    if hook_kind == "proof_state_feedback":
+        return _proof_state_tools_for_target_prover(target_prover_family)
+    if hook_kind == "route_revision":
+        return _route_revision_tools_for_target_prover(target_prover_family)
     return {
         "literature_discovery": (
             "Paperclip MCP/CLI",
@@ -574,6 +871,14 @@ def _frontier_resource_adapters(hook_kind: str) -> tuple[str, ...]:
             "olmOCR",
             "Marker",
         ),
+        "formal_library_grounding": (
+            "local formal-source index",
+            "target prover library search",
+            "LeanSearch/Loogle/LeanExplore for Lean targets",
+            "Rocq/coq-lsp/SerAPI search for Rocq targets",
+            "Isabelle find_theorems/Sledgehammer for Isabelle targets",
+            "Agda standard-library search for Agda targets",
+        ),
         "lean_library_grounding": (
             "local Lean RAG DB",
             "LeanSearch",
@@ -581,34 +886,61 @@ def _frontier_resource_adapters(hook_kind: str) -> tuple[str, ...]:
             "Loogle",
             "lake env lean",
         ),
-        "proof_state_feedback": (
+    }.get(hook_kind, tuple())
+
+
+def _route_revision_tools_for_target_prover(
+    target_prover_family: str,
+) -> tuple[str, ...]:
+    tools = (
+        "Paperclip MCP/CLI",
+        "PaperQA2",
+        "OpenScholar",
+        "local formal-source index",
+        "target-prover library search/RAG",
+    )
+    return _str_tuple(
+        [*tools, *_proof_state_tools_for_target_prover(target_prover_family)]
+    )
+
+
+def _proof_state_tools_for_target_prover(target_prover_family: str) -> tuple[str, ...]:
+    target = _prover_family_key(target_prover_family)
+    if target in {"lean", "lean4"}:
+        return (
             "lean-lsp-mcp",
             "Lean LSP",
             "lake build",
-            "LeanDojo/ReProver",
-            "LeanHammer",
-            "aesop",
-            "simp",
-            "exact?",
-            "apply?",
-        ),
-        "route_revision": (
-            "Paperclip MCP/CLI",
-            "PaperQA2",
-            "OpenScholar",
-            "local Lean RAG DB",
-            "LeanSearch",
-            "LeanExplore",
-            "Loogle",
-            "lean-lsp-mcp",
-            "lake build",
-        ),
-    }.get(hook_kind, tuple())
+        )
+    if target in {"rocq", "coq"}:
+        return (
+            "Rocq/coq-lsp proof-state adapter",
+            "SerAPI/sertop",
+            "rocq/coq build command",
+        )
+    if target in {"isabelle", "isabelle_hol", "hol"}:
+        return (
+            "Isabelle server proof-state adapter",
+            "find_theorems/Sledgehammer",
+            "isabelle build",
+        )
+    if target == "agda":
+        return (
+            "Agda interaction-mode proof-state adapter",
+            "agda --interaction-json",
+            "agda type-check command",
+        )
+    return (
+        "target-prover proof-state adapter",
+        "target-prover LSP/kernel diagnostics",
+        "target-prover build/check command",
+    )
 
 
 def _refinement_stage(hook_kind: str) -> str:
     return {
         "literature_discovery": "literature_evidence_search",
+        "formal_library_grounding": "formal_library_coverage_mapping",
         "lean_library_grounding": "lean_coverage_mapping",
         "proof_state_feedback": "leaf_prover_attempts",
         "route_revision": "residual_feedback_revision",
@@ -618,6 +950,7 @@ def _refinement_stage(hook_kind: str) -> str:
 def _owner_agent(hook_kind: str) -> str:
     return {
         "literature_discovery": "rag_retrieval",
+        "formal_library_grounding": "formal_retrieval",
         "lean_library_grounding": "formal_retrieval",
         "proof_state_feedback": "formal_verifier",
         "route_revision": "planner",
@@ -630,6 +963,10 @@ def _acceptance_record(hook_kind: str) -> str:
             "record theorem variants, assumptions, proof-step citations, and "
             "source passages as route evidence only"
         ),
+        "formal_library_grounding": (
+            "classify each informal node as exact_exists, near_exists, "
+            "wrapper_needed, bridge_needed, definition_missing, or theory_missing"
+        ),
         "lean_library_grounding": (
             "classify each informal node as exact_exists, near_exists, "
             "wrapper_needed, bridge_needed, definition_missing, or theory_missing"
@@ -639,7 +976,7 @@ def _acceptance_record(hook_kind: str) -> str:
             "and diagnostics as route-revision evidence"
         ),
         "route_revision": (
-            "update the informal knowledge DAG, Lean realization DAG, selected "
+            "update the informal knowledge DAG, formal realization DAG, selected "
             "delta, and do-not-formalize hints"
         ),
     }.get(hook_kind, "")
@@ -651,6 +988,11 @@ def _expected_artifacts(hook_kind: str) -> tuple[str, ...]:
             "source-backed route evidence JSONL",
             "paper/source identifiers and cited theorem variants",
             "updated informal knowledge DAG nodes",
+        ),
+        "formal_library_grounding": (
+            "formal declaration search hits",
+            "coverage classification updates",
+            "updated formal realization DAG nodes",
         ),
         "lean_library_grounding": (
             "Lean declaration search hits",
@@ -665,28 +1007,41 @@ def _expected_artifacts(hook_kind: str) -> tuple[str, ...]:
         "route_revision": (
             "revised route plan manifest",
             "revised informal knowledge DAG",
-            "revised Lean realization DAG",
+            "revised formal realization DAG",
             "rerun-ready formal verifier queue or replay task",
         ),
     }.get(hook_kind, tuple())
 
 
-def _execution_commands(hook_kind: str) -> tuple[str, ...]:
+def _execution_commands(
+    hook_kind: str,
+    *,
+    target_prover_family: str = "",
+) -> tuple[str, ...]:
+    target = target_prover_family or "target prover"
+    proof_state_attempt = (
+        f"attempt selected theorem skeleton or bridge leaves with {target} "
+        "proof-state and kernel-check tools"
+    )
     return {
         "literature_discovery": (
             "run bounded literature search for the listed queries and attach source passages to route nodes",
             "rerun primitive-source coverage after accepting source evidence",
+        ),
+        "formal_library_grounding": (
+            "query local formal-source indexes and target-prover library search for each target primitive",
+            "update coverage labels before proposing new definitions or bridge lemmas",
         ),
         "lean_library_grounding": (
             "query local Lean RAG DB, LeanSearch, LeanExplore, and Loogle for each target primitive",
             "update coverage labels before proposing new definitions or bridge lemmas",
         ),
         "proof_state_feedback": (
-            "attempt selected theorem skeleton or bridge leaves with Lean/LSP/prover tools",
+            proof_state_attempt,
             "record residual goals, diagnostics, and missing side conditions as route feedback",
         ),
         "route_revision": (
-            "revise the route DAG alignment using source, Lean-search, and prover-feedback evidence",
+            "revise the route DAG alignment using source, formal-library, and prover-feedback evidence",
             "rerun goal-conditioned minimal formalization planning before replay",
         ),
     }.get(hook_kind, tuple())
@@ -698,6 +1053,10 @@ def _required_gate(hook_kind: str) -> str:
             "accepted only as source evidence after citations are attached to "
             "informal route DAG nodes"
         ),
+        "formal_library_grounding": (
+            "accepted only after every searched primitive receives a coverage "
+            "classification and candidate declaration reference"
+        ),
         "lean_library_grounding": (
             "accepted only after every searched primitive receives a coverage "
             "classification and candidate declaration reference"
@@ -707,7 +1066,7 @@ def _required_gate(hook_kind: str) -> str:
             "verifies the theorem or bridge lemma"
         ),
         "route_revision": (
-            "accepted only after the informal knowledge DAG, Lean realization DAG, "
+            "accepted only after the informal knowledge DAG, formal realization DAG, "
             "selected delta, and next work packets are regenerated"
         ),
     }.get(hook_kind, "")
@@ -722,6 +1081,7 @@ def _priority_score(
 ) -> int:
     base = {
         "proof_state_feedback": 75,
+        "formal_library_grounding": 70,
         "lean_library_grounding": 70,
         "literature_discovery": 65,
         "route_revision": 60,
@@ -850,6 +1210,12 @@ def _str_tuple(values: Any) -> tuple[str, ...]:
     return tuple(sorted(dict.fromkeys(items)))
 
 
+def _dict_tuple(values: Any) -> tuple[dict[str, object], ...]:
+    if not isinstance(values, (list, tuple)):
+        return tuple()
+    return tuple(dict(value) for value in values if isinstance(value, dict))
+
+
 def _read_json(path: Path | None, errors: list[str]) -> dict[str, Any]:
     if path is None:
         return {}
@@ -872,11 +1238,14 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Refinement items: {payload.get('n_refinement_items')}",
         f"- Ready: {payload.get('n_ready')}",
         f"- Literature discovery: {payload.get('n_literature_discovery_items')}",
+        f"- Formal library grounding: {payload.get('n_formal_library_grounding_items')}",
         f"- Lean library grounding: {payload.get('n_lean_library_grounding_items')}",
         f"- Proof-state feedback: {payload.get('n_proof_state_feedback_items')}",
         f"- Route revision: {payload.get('n_route_revision_items')}",
+        f"- Target prover families: {payload.get('by_target_prover_family')}",
         f"- Evaluation signals: {payload.get('n_with_evaluation_signal')}",
         f"- Prover feedback signals: {payload.get('n_with_prover_feedback')}",
+        f"- Work-item schema valid: {payload.get('n_item_schema_valid')}/{payload.get('n_refinement_items')}",
         f"- All OK: {payload.get('all_ok')}",
         "",
         "## Boundary",
@@ -891,7 +1260,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
             continue
         lines.append(
             f"- #{row.get('rank')} `{row.get('display_name')}` "
-            f"{row.get('hook_kind')} priority={row.get('priority_score')} "
+            f"{row.get('hook_kind')} target={row.get('target_prover_family')} "
+            f"priority={row.get('priority_score')} "
             f"status={row.get('status')}"
         )
         if row.get("target_primitives"):

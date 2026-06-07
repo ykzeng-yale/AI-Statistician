@@ -1,10 +1,16 @@
 from __future__ import annotations
 
+import sqlite3
 from collections import defaultdict
 from dataclasses import dataclass
 
 from .formal_source_graph import FormalSourceGraphRetriever
-from .formal_source_index import FormalDeclaration, FormalSourceHit, FormalSourceSqliteIndex
+from .formal_source_index import (
+    FormalDeclaration,
+    FormalSourceHit,
+    FormalSourceRetriever,
+    FormalSourceSqliteIndex,
+)
 
 
 @dataclass(frozen=True)
@@ -36,6 +42,7 @@ class FormalSourceHybridRetriever:
         self.declarations = declarations
         self.sqlite_index = sqlite_index
         self.dependency_retriever = dependency_retriever
+        self.fallback_retriever = FormalSourceRetriever(declarations)
         setattr(self, "lean_rag_dependency_graph_enabled", dependency_retriever is not None)
         setattr(
             self,
@@ -62,11 +69,25 @@ class FormalSourceHybridRetriever:
 
     def search(self, query: str, *, k: int = 10) -> list[FormalSourceHit]:
         sqlite_candidate_k = max(k * 5, 20)
-        sqlite_hits = self.sqlite_index.search(query, k=sqlite_candidate_k)
+        try:
+            sqlite_hits = self.sqlite_index.search(query, k=sqlite_candidate_k)
+            sqlite_error = ""
+        except sqlite3.DatabaseError as exc:
+            sqlite_hits = self.fallback_retriever.search(query, k=sqlite_candidate_k)
+            sqlite_error = f"{type(exc).__name__}: {exc}"
+            setattr(self, "last_sqlite_search_error", sqlite_error)
         # The graph retriever expands its own seeds internally. Keep this leg
         # to top-level gap lookups; primitive-level searches ask for k=3 in the
         # research loop and should stay on the faster FTS/shape path.
-        graph_hits = self.graph_retriever.search(query, k=max(k * 2, 10)) if k >= 5 else []
+        try:
+            graph_hits = (
+                self.graph_retriever.search(query, k=max(k * 2, 10))
+                if k >= 5 and not sqlite_error
+                else []
+            )
+        except sqlite3.DatabaseError as exc:
+            graph_hits = []
+            setattr(self, "last_graph_search_error", f"{type(exc).__name__}: {exc}")
         dependency_hits = []
         if self.dependency_retriever is not None:
             search = getattr(self.dependency_retriever, "search", None)

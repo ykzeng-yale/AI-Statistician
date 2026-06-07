@@ -1,8 +1,30 @@
 # AI Statistician Production Design
 
 This folder is the production-oriented successor to `Preliminary Attempt/`.
-The goal is not to make a bigger interview demo. The goal is a system whose
-claims are auditable:
+It documents the current bounded implementation and verification substrate. The
+canonical project target is broader: a full AI Statistician coding-agent runtime
+with its own planning, environment iteration, blackboard, subsystem registry,
+tool adapters, validators, memory/RAG, and evidence ledger. Codex, Claude,
+OpenAI, Gemini, or other coding agents should be replaceable model backends
+inside that runtime, not the architecture itself. See
+[`architect_llm_agent_goal.md`](architect_llm_agent_goal.md).
+
+The current implementation exists to make claims auditable while the runtime
+and its Architect, TheoryDeveloper, Formalizer, ProofEngineer, AlgorithmEngineer,
+SimulatorDesigner, PaperTheoryExtractor, RAG/SearchMemory, and Critic/Evaluator
+subsystems are built. It should not be mistaken for the final autonomous
+statistical research environment.
+
+The live LLM default is Anthropic Claude API, with a cost-aware tier split:
+Sonnet for Architect/TheoryDeveloper/Formalizer and formalization route planning,
+Haiku for lower-cost intake, simulation-design, algorithm-planning, and critic
+packets. Runtime topology validation records provider/model provenance and
+rejects recognized Anthropic family mismatches, so a Haiku-designated helper does
+not silently run on Sonnet or Opus unless the topology policy is intentionally
+changed. As of the 2026-06-07 model-source check, the pinned default Claude API
+IDs are Haiku `claude-haiku-4-5-20251001`, Sonnet `claude-sonnet-4-6`, and Opus
+`claude-opus-4-8`; Claude 4.6+ dateless IDs are treated as pinned snapshots, not
+evergreen aliases.
 
 1. The theory layer emits only estimator families with registered formal
    obligations.
@@ -14,6 +36,26 @@ claims are auditable:
    treated as a hard-coded lemma lookup.
 6. Every run writes a JSON trace that can be used for debugging, evaluation,
    and future training.
+
+The next aligned architecture work is to promote the LLM agent loop and
+environment iteration into the main runtime:
+
+```text
+AgentRuntime / Blackboard
+  -> Architect subsystem
+  -> ProblemFormalizer subsystem
+  -> TheoryDeveloper subsystem
+  -> AlgorithmEngineer / SimulatorDesigner / SymbolicDeriver subsystems
+  -> PaperTheoryExtractor and RAG/SearchMemory subsystems
+  -> Formalizer / ProofEngineer / LeanProver subsystems
+  -> Critics, validators, and EvidenceLedger
+  -> AgentRuntime observes failures and dispatches revised tasks
+```
+
+Release audits, RAG package checks, frontier static coverage, and deterministic
+implementation traces are supporting evidence. They are not substitutes for a
+live coding-agent environment loop, deductive theory development, executable
+simulation/algorithm feedback, or kernel-verified theorem proving.
 
 ## Current Implemented Architecture
 
@@ -135,6 +177,38 @@ planner work: better theorem parsing, semantic coverage classification, route
 search, or MCP/Lean declaration probes should improve this route artifact while
 promotion still depends on replay attempts and AXLE/local Lean kernel
 verification.
+The planner loop now also has a refinement queue, deterministic local adapter
+responses, evidence validation, and a route-revision overlay. The new adapter
+registry records which live/offline tool should satisfy each refinement hook,
+what response fields it must emit, and whether local commands, Python packages,
+credentials, or configured paths are present. The overlay writes accepted
+literature, Lean-grounding, and prover-feedback proposals back against matching
+route plans as non-mutating revised-route state. These contracts cover
+Paperclip/PaperQA/OpenScholar, LeanSearch/Loogle/LeanExplore/local Lean RAG,
+Lean/LSP, and LeanDojo-style adapters; none of these artifacts are proof
+evidence until replay and kernel calibration accept the revised route.
+The local literature adapter now implements the source-evidence side of that
+contract for available local corpora: it searches text/markdown/json paper
+notes, emits source refs and route-evidence nodes for literature-discovery
+items, and records focused literature gaps when the local corpus has no match.
+The local formal-source adapter now implements the Lean-grounding side of that
+contract for available local sources: it searches the existing formal-source
+retriever, can fuse the Lean RAG dependency graph, and merges declaration hits
+back into the same refinement-evidence response JSONL used by the validator.
+The local proof-state adapter implements the first live-local prover-feedback
+side of the same contract: it runs queued skeleton probes through local Lean
+when available, blocks `sorry`/`admit`/`axiom` probes, classifies non-Lean
+skeletons as statement-materialization gaps, and merges diagnostics and
+residual goals into the validator JSONL without treating them as proof evidence.
+The prover-adapter contract exports those portable work packets as target-prover
+mapping tasks for Lean, Rocq/Coq, Isabelle, Agda, or another prover family and
+validates adapter responses without accepting kernel-proof claims.
+The publication bundle packages the portable schema, contract, route-truth
+benchmark, adapter registry, docs, and optional run artifacts as the reusable
+research-output boundary for external prover adapters and paper supplements.
+The publication-bundle audit validates that packaged boundary for downstream
+reuse by checking required files, schema ids, registry/benchmark usability,
+optional artifact containment, and proof-boundary discipline.
 
 Repair-task audit and training export:
 
@@ -810,8 +884,9 @@ research knowledge-source audit, research algorithm audit, proof verification,
 proof-training export, the proof-policy baseline, prover-component audit, the
 frontier research benchmark, frontier theory-target grading, the research trace
 audit, formal-gap backlog, formalization target queue, formal-gap Lean task
-export, formal-source graph, next-iteration queue, and the human-readable
-research report, then writes
+export, formal-source graph, the library-aware formalization gap planner
+evaluation/refinement/bundle-audit path, next-iteration queue, and the
+human-readable research report, then writes
 `research_system_audit_manifest.json` with gates and artifact paths. The
 training, baseline, and theory-target gates check
 artifact integrity and scoring coverage, not model quality: they make
@@ -1959,8 +2034,9 @@ python3 -m ai_statistician.cli doctor --out runs/doctor
 The doctor command is the operator preflight. It checks required runtime pieces
 such as Python, `numpy`, the package directory, examples, non-empty proof and
 algorithm registries, and optional production integrations such as `AXLE_API_KEY`,
-the `axle` package, `ANTHROPIC_API_KEY`, the `anthropic` package, OpenProver, and
-the latest run manifests. Secret values are never printed. The command writes
+the `axle` package, provider-aware LLM runtime readiness (`ANTHROPIC_API_KEY`
+for the default Anthropic Claude API runtime, `OPENAI_API_KEY` for explicit
+OpenAI selection), OpenProver, and the latest run manifests. Secret values are never printed. The command writes
 `doctor_manifest.json` so environment readiness can be archived next to proof,
 algorithm, retrieval, and system-audit manifests.
 

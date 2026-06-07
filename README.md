@@ -1,13 +1,35 @@
 # AI Statistician
 
-Production-oriented AI statistician system with three auditable pieces:
+AI Statistician is intended to become a full coding-agent statistical research
+system, not a thin wrapper around Codex or any other complete external agent.
+The target runtime should own planning, tool use, environment interaction,
+artifact tracking, memory/RAG, validation, and iterative failure recovery, while
+using Codex, Claude, OpenAI, Gemini, or future coding agents as replaceable
+model backends.
 
-- formal Lean proof obligations for estimator facts,
-- vetted estimator implementations,
-- Monte Carlo simulation feedback with persisted traces.
+The system should take open JASA/AOAS/frontier-style research questions or
+papers, have specialized subsystems derive estimands, estimators, theorem
+candidates, proof plans, simulations, code, and Lean obligations, then use
+Lean/AXLE, retrieval, executable simulation, critics, and an evidence ledger to
+accept, reject, or revise those artifacts through repeated
+plan-act-observe-revise loops.
 
-The old interview/demo exploration is archived in `Preliminary Attempt/`. The
-new code lives in `ai_statistician/`.
+The canonical goal boundary is
+[`docs/architect_llm_agent_goal.md`](docs/architect_llm_agent_goal.md).
+
+The current production code is a partial implementation and verification
+substrate, not the finished AI Statistician runtime. It provides:
+
+- formal Lean proof obligations and explicit formal gaps,
+- vetted estimator and algorithm registries,
+- retrieval over papers, Mathlib, StatInference, Lean RAG, and proof banks,
+- Monte Carlo simulation feedback with persisted traces,
+- release audits that preserve the boundary between routing, simulation,
+  retrieval, LLM proposals, and kernel proof evidence.
+
+The old interview/demo exploration is archived in `Preliminary Attempt/`; those
+files show the original Claude/AXLE multi-agent loop shape. The current code
+lives in `ai_statistician/`.
 
 ## Quick Start
 
@@ -42,6 +64,8 @@ python3 -m ai_statistician.cli prover-component-audit --out runs/prover_componen
 python3 -m ai_statistician.cli system-audit --include-partial-examples --runs 300 --out runs/system_audit
 python3 -m ai_statistician.cli release-bundle --include-partial-examples --runs 300 --out runs/release_bundle
 python3 -m ai_statistician.cli research-benchmark --runs 100 --out runs/research_benchmark
+python3 -m ai_statistician.cli research-agent-runtime --max-questions 1 --runs 100 --out runs/research_agent_runtime
+python3 -m ai_statistician.cli research-agent-runtime --max-questions 1 --runs 100 --local-lean --lean-project /Users/yukang/LeanProjects/LeanPractice --out runs/research_agent_runtime_local_lean
 python3 -m ai_statistician.cli research-benchmark --question-file examples/research_paper_abstracts.md --runs 100 --out runs/research_paper_benchmark
 python3 -m ai_statistician.cli research-report --run-dir runs/research_benchmark --out runs/research_report
 python3 -m ai_statistician.cli research-eval --n-seeds 3 --runs 80 --out runs/research_eval

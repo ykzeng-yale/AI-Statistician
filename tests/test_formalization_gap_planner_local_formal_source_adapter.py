@@ -13,7 +13,7 @@ from ai_statistician.formalization_gap_planner_refinement_evidence import (
 )
 
 
-def test_local_formal_source_adapter_emits_lean_grounding_responses() -> None:
+def test_local_formal_source_adapter_emits_formal_grounding_responses() -> None:
     root = Path("runs/test_formalization_gap_planner_local_formal_source_adapter")
     queue_dir = root / "queue"
     source_dir = root / "lean_src"
@@ -48,15 +48,15 @@ def test_local_formal_source_adapter_emits_lean_grounding_responses() -> None:
             "queries": ["conditional mean residual zero AIPW"],
         },
         {
-            "refinement_item_id": "refinement:lean",
+            "refinement_item_id": "refinement:formal",
             "goal_plan_id": "goal:test",
             "route_id": "route:test",
             "display_name": display_name,
-            "hook_kind": "lean_library_grounding",
-            "refinement_stage": "lean",
-            "owner_agent": "lean",
+            "hook_kind": "formal_library_grounding",
+            "refinement_stage": "formal_library_coverage_mapping",
+            "owner_agent": "formal_retrieval",
             "target_primitives": ["conditional_mean_residual_zero"],
-            "queries": ["conditional mean residual zero Lean theorem"],
+            "queries": ["conditional mean residual zero formal theorem"],
         },
     ]
     (queue_dir / "formalization_gap_planner_refinement_queue_manifest.json").write_text(
@@ -95,11 +95,23 @@ def test_local_formal_source_adapter_emits_lean_grounding_responses() -> None:
     )
 
     assert payload["all_ok"]
+    assert payload["n_formal_library_grounding_rows"] == 1
+    assert payload["n_lean_library_grounding_rows"] == 0
     assert payload["n_local_formal_source_responses"] == 1
     assert payload["n_merged_responses"] == 2
+    assert payload["n_local_response_schema_valid"] == 1
+    assert payload["n_local_response_schema_invalid"] == 0
+    assert payload["n_merged_response_schema_valid"] == 2
+    assert payload["n_merged_response_schema_invalid"] == 0
+    assert (
+        payload["refinement_tool_response_schema"]["$id"]
+        == "urn:ai-statistician:schemas:formalization-gap-planner-refinement-tool-response:1"
+    )
     assert payload["n_hits"] >= 1
     response = payload["responses"][0]
+    assert response["evidence_kind"] == "formal_library_grounding"
     assert response["coverage_updates"]["conditional_mean_residual_zero"] == "exact_exists"
+    assert response["formal_declaration_hits"] == response["lean_declaration_hits"]
     assert response["lean_declaration_hits"][0]["declaration"].endswith(
         "conditional_mean_residual_zero"
     )
@@ -112,3 +124,11 @@ def test_local_formal_source_adapter_emits_lean_grounding_responses() -> None:
     assert evidence_payload["all_ok"]
     assert evidence_payload["n_contract_ok"] == 2
     assert evidence_payload["n_awaiting_tool_response"] == 0
+    assert evidence_payload["n_evidence_row_schema_valid"] == evidence_payload["n_evidence_rows"]
+    assert evidence_payload["n_evidence_row_schema_invalid"] == 0
+    assert (
+        evidence_dir / "formalization_gap_planner_refinement_evidence_row.schema.json"
+    ).exists()
+    assert (
+        adapter_dir / "formalization_gap_planner_refinement_tool_response.schema.json"
+    ).exists()

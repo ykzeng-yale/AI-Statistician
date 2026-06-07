@@ -16,7 +16,7 @@ from .schema import SimulationMetrics
 from .simulation import SAMPLERS
 from .system import AIStatisticianSystem, write_run_manifest, write_trace
 from .system_audit import run_system_audit
-from .theory_proposal import AnthropicTheoryProposer
+from .theory_proposal import GeneratorTheoryProposer
 from .verifier import AxleProofVerifier
 
 
@@ -87,7 +87,7 @@ def build_capability_audit(*, root: Path | None = None, max_manifests: int = 12)
             evidence=(
                 f"{len(ESTIMATOR_FAMILIES)} estimator families registered",
                 f"{TheoryDeveloperAgent.__module__}.{TheoryDeveloperAgent.__name__}",
-                f"{AnthropicTheoryProposer.__module__}.{AnthropicTheoryProposer.__name__} for optional gated LLM intake",
+                f"{GeneratorTheoryProposer.__module__}.{GeneratorTheoryProposer.__name__} for optional generator-backed LLM intake",
             ),
             limitations=(
                 "Production estimator selection is registry-gated; LLM proposals only classify into supported families.",
