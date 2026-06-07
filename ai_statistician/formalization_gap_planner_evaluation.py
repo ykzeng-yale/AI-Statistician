@@ -78,6 +78,15 @@ class FormalizationGapPlannerEvaluationRow:
     realization_coverage_complete: bool
     realization_missing_selected_formal_primitives: tuple[str, ...]
     realization_missing_delta_alignment_primitives: tuple[str, ...]
+    llm_route_planner_trace_present: bool
+    llm_route_planner_row_id: str
+    llm_route_planner_provider: str
+    llm_route_planner_model: str
+    llm_route_planner_model_tier: str
+    llm_route_planner_acceptance_status: str
+    llm_route_planner_model_selection_rationale: str
+    llm_route_planner_has_generator_metadata: bool
+    llm_route_planner_generator_metadata_keys: tuple[str, ...]
     portable_schema_id: str
     proof_evidence_boundary_ok: bool
     kernel_verified_ground_truth: bool
@@ -133,6 +142,7 @@ def evaluate_formalization_gap_planner(
     by_ok = {True: 0, False: 0}
     for row in evaluation_rows:
         by_ok[row.ok] = by_ok.get(row.ok, 0) + 1
+    by_llm_model_tier = _llm_model_tier_summary(evaluation_rows)
     payload: dict[str, object] = {
         "schema_version": FORMALIZATION_GAP_PLANNER_EVALUATION_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -173,6 +183,18 @@ def evaluate_formalization_gap_planner(
         "n_rows_with_complete_realization_coverage": sum(
             1 for row in evaluation_rows if row.realization_coverage_complete
         ),
+        "n_rows_with_llm_route_planner_trace": sum(
+            1 for row in evaluation_rows if row.llm_route_planner_trace_present
+        ),
+        "n_rows_with_llm_route_planner_model_tier": sum(
+            1 for row in evaluation_rows if row.llm_route_planner_model_tier
+        ),
+        "n_rows_with_llm_route_planner_generator_metadata": sum(
+            1
+            for row in evaluation_rows
+            if row.llm_route_planner_has_generator_metadata
+        ),
+        "evaluation_by_llm_model_tier": by_llm_model_tier,
         "n_realization_missing_selected_formal_primitives": sum(
             len(row.realization_missing_selected_formal_primitives)
             for row in evaluation_rows
@@ -346,6 +368,15 @@ def evaluation_row_json_schema() -> dict[str, object]:
             "realization_coverage_complete",
             "realization_missing_selected_formal_primitives",
             "realization_missing_delta_alignment_primitives",
+            "llm_route_planner_trace_present",
+            "llm_route_planner_row_id",
+            "llm_route_planner_provider",
+            "llm_route_planner_model",
+            "llm_route_planner_model_tier",
+            "llm_route_planner_acceptance_status",
+            "llm_route_planner_model_selection_rationale",
+            "llm_route_planner_has_generator_metadata",
+            "llm_route_planner_generator_metadata_keys",
             "portable_schema_id",
             "proof_evidence_boundary_ok",
             "kernel_verified_ground_truth",
@@ -408,6 +439,15 @@ def evaluation_row_json_schema() -> dict[str, object]:
             "realization_coverage_complete": {"type": "boolean"},
             "realization_missing_selected_formal_primitives": string_array,
             "realization_missing_delta_alignment_primitives": string_array,
+            "llm_route_planner_trace_present": {"type": "boolean"},
+            "llm_route_planner_row_id": {"type": "string"},
+            "llm_route_planner_provider": {"type": "string"},
+            "llm_route_planner_model": {"type": "string"},
+            "llm_route_planner_model_tier": {"type": "string"},
+            "llm_route_planner_acceptance_status": {"type": "string"},
+            "llm_route_planner_model_selection_rationale": {"type": "string"},
+            "llm_route_planner_has_generator_metadata": {"type": "boolean"},
+            "llm_route_planner_generator_metadata_keys": string_array,
             "portable_schema_id": {"type": "string", "minLength": 1},
             "proof_evidence_boundary_ok": {"type": "boolean"},
             "kernel_verified_ground_truth": {"type": "boolean"},
@@ -492,6 +532,7 @@ def _evaluate_row(
     feedback_ready = _feedback_loop_ready(row)
     cost_graph_trace = _minimal_delta_cost_graph_trace(row)
     realization_trace = _realization_coverage_witness_trace(row)
+    llm_trace = _llm_route_planner_trace(row)
     portable_schema_id = str(plan_payload.get("portable_schema_id", ""))
     proof_boundary_ok = "not theorem proof evidence" in str(
         row.get("proof_evidence_boundary", "")
@@ -585,6 +626,21 @@ def _evaluate_row(
         ),
         realization_missing_delta_alignment_primitives=_str_tuple(
             realization_trace["missing_delta_alignment_primitives"]
+        ),
+        llm_route_planner_trace_present=bool(llm_trace["trace_present"]),
+        llm_route_planner_row_id=str(llm_trace["row_id"]),
+        llm_route_planner_provider=str(llm_trace["provider"]),
+        llm_route_planner_model=str(llm_trace["model"]),
+        llm_route_planner_model_tier=str(llm_trace["model_tier"]),
+        llm_route_planner_acceptance_status=str(llm_trace["acceptance_status"]),
+        llm_route_planner_model_selection_rationale=str(
+            llm_trace["model_selection_rationale"]
+        ),
+        llm_route_planner_has_generator_metadata=bool(
+            llm_trace["has_generator_metadata"]
+        ),
+        llm_route_planner_generator_metadata_keys=_str_tuple(
+            llm_trace["generator_metadata_keys"]
         ),
         portable_schema_id=portable_schema_id,
         proof_evidence_boundary_ok=proof_boundary_ok,
@@ -875,6 +931,77 @@ def _realization_coverage_witness_trace(row: dict[str, Any]) -> dict[str, object
     }
 
 
+def _llm_route_planner_trace(row: dict[str, Any]) -> dict[str, object]:
+    trace = row.get("standalone_input_trace", {})
+    trace = trace if isinstance(trace, dict) else {}
+    generator_metadata = trace.get("llm_route_planner_generator_metadata", {})
+    generator_metadata = generator_metadata if isinstance(generator_metadata, dict) else {}
+    generator_keys = _str_tuple(
+        trace.get("llm_route_planner_generator_metadata_keys", [])
+    )
+    if not generator_keys:
+        generator_keys = tuple(sorted(str(key) for key in generator_metadata))
+    row_id = str(trace.get("llm_route_planner_row_id", "")).strip()
+    provider = str(trace.get("llm_route_planner_provider", "")).strip()
+    model = str(trace.get("llm_route_planner_model", "")).strip()
+    model_tier = str(trace.get("llm_route_planner_model_tier", "")).strip()
+    return {
+        "trace_present": bool(row_id or provider or model or model_tier),
+        "row_id": row_id,
+        "provider": provider,
+        "model": model,
+        "model_tier": model_tier,
+        "acceptance_status": str(
+            trace.get("llm_route_planner_acceptance_status", "")
+        ).strip(),
+        "model_selection_rationale": str(
+            trace.get("llm_route_planner_model_selection_rationale", "")
+        ).strip(),
+        "has_generator_metadata": bool(
+            trace.get("llm_route_planner_has_generator_metadata", False)
+            or generator_metadata
+        ),
+        "generator_metadata_keys": generator_keys,
+    }
+
+
+def _llm_model_tier_summary(
+    rows: list[FormalizationGapPlannerEvaluationRow],
+) -> dict[str, dict[str, object]]:
+    tiers = sorted(
+        {
+            row.llm_route_planner_model_tier
+            for row in rows
+            if row.llm_route_planner_model_tier
+        }
+    )
+    return {
+        tier: {
+            "n_rows": len(tier_rows),
+            "n_ok": sum(1 for row in tier_rows if row.ok),
+            "n_matched_ground_truth": sum(
+                1 for row in tier_rows if row.matched_ground_truth
+            ),
+            "mean_route_recall": _mean(
+                row.route_recall for row in tier_rows if row.matched_ground_truth
+            ),
+            "mean_delta_precision": _mean(
+                row.delta_precision for row in tier_rows if row.matched_ground_truth
+            ),
+            "mean_alignment_coverage": _mean(
+                row.alignment_coverage for row in tier_rows
+            ),
+            "n_rows_with_generator_metadata": sum(
+                1 for row in tier_rows if row.llm_route_planner_has_generator_metadata
+            ),
+        }
+        for tier in tiers
+        for tier_rows in [
+            [row for row in rows if row.llm_route_planner_model_tier == tier]
+        ]
+    }
+
+
 def _alignment_contract(row: dict[str, Any]) -> tuple[bool, float, tuple[str, ...], tuple[str, ...]]:
     selected = set(_str_tuple(row.get("selected_primitives", [])))
     edges = row.get("route_alignment_edges", [])
@@ -1098,6 +1225,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Rows with minimal-delta cost graph: {payload.get('n_rows_with_minimal_delta_cost_graph')}",
         f"- Rows with realization coverage witness: {payload.get('n_rows_with_realization_coverage_witness')}",
         f"- Rows with complete realization coverage: {payload.get('n_rows_with_complete_realization_coverage')}",
+        f"- Rows with LLM route-planner trace: {payload.get('n_rows_with_llm_route_planner_trace')}",
+        f"- Evaluation by LLM model tier: {payload.get('evaluation_by_llm_model_tier')}",
         f"- Mean selected route-option cost: {payload.get('mean_minimal_delta_selected_route_cost')}",
         f"- All OK: {payload.get('all_ok')}",
         "",
@@ -1114,7 +1243,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         lines.append(
             f"- `{row.get('display_name')}` recall={row.get('route_recall')} "
             f"precision={row.get('route_precision')} delta_precision={row.get('delta_precision')} "
-            f"delta_recall={row.get('delta_recall')} ok={row.get('ok')}"
+            f"delta_recall={row.get('delta_recall')} "
+            f"llm_tier={row.get('llm_route_planner_model_tier')} ok={row.get('ok')}"
         )
         if row.get("route_missing_primitives"):
             lines.append(

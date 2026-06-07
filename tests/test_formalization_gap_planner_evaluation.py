@@ -182,6 +182,24 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
                         "minimal_delta_and_or_cost_graph": cost_graph,
                         "realization_coverage_witness": realization_witness,
                         "replan_metadata": {
+                            "llm_route_planner_row_id": "llm-route-row:rank",
+                            "llm_route_planner_provider": "anthropic",
+                            "llm_route_planner_model": "claude-sonnet-4-6",
+                            "llm_route_planner_model_tier": "sonnet",
+                            "llm_route_planner_acceptance_status": (
+                                "ACCEPTED_SOURCE_GROUNDED_ROUTE_PLAN"
+                            ),
+                            "llm_route_planner_model_selection_rationale": (
+                                "auto selected Sonnet because the route needs a bridge"
+                            ),
+                            "llm_route_planner_generator_metadata": {
+                                "generator_only": True,
+                                "retry_count": 0,
+                            },
+                            "llm_route_planner_generator_metadata_keys": [
+                                "generator_only",
+                                "retry_count",
+                            ],
                             "minimal_delta_and_or_cost_graph": cost_graph,
                             "llm_route_planner_realization_coverage_witness": (
                                 realization_witness
@@ -246,6 +264,20 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
     assert payload["n_rows_with_minimal_delta_cost_graph"] == 1
     assert payload["n_rows_with_realization_coverage_witness"] == 1
     assert payload["n_rows_with_complete_realization_coverage"] == 1
+    assert payload["n_rows_with_llm_route_planner_trace"] == 1
+    assert payload["n_rows_with_llm_route_planner_model_tier"] == 1
+    assert payload["n_rows_with_llm_route_planner_generator_metadata"] == 1
+    assert payload["evaluation_by_llm_model_tier"] == {
+        "sonnet": {
+            "n_rows": 1,
+            "n_ok": 0,
+            "n_matched_ground_truth": 1,
+            "mean_route_recall": 1.0,
+            "mean_delta_precision": 1.0,
+            "mean_alignment_coverage": 1.0,
+            "n_rows_with_generator_metadata": 1,
+        }
+    }
     assert payload["n_realization_missing_selected_formal_primitives"] == 0
     assert payload["n_realization_missing_delta_alignment_primitives"] == 0
     assert payload["n_minimal_delta_route_options"] == 2
@@ -259,6 +291,16 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
     assert row["realization_coverage_complete"] is True
     assert row["realization_missing_selected_formal_primitives"] == ()
     assert row["realization_missing_delta_alignment_primitives"] == ()
+    assert row["llm_route_planner_trace_present"] is True
+    assert row["llm_route_planner_row_id"] == "llm-route-row:rank"
+    assert row["llm_route_planner_provider"] == "anthropic"
+    assert row["llm_route_planner_model"] == "claude-sonnet-4-6"
+    assert row["llm_route_planner_model_tier"] == "sonnet"
+    assert row["llm_route_planner_has_generator_metadata"] is True
+    assert row["llm_route_planner_generator_metadata_keys"] == (
+        "generator_only",
+        "retry_count",
+    )
     assert validate_evaluation_row(row) == ()
 
 

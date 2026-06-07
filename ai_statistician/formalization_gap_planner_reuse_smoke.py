@@ -2230,6 +2230,22 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_unaligned_primitives",
             0,
         ),
+        "n_evaluation_rows_with_llm_route_planner_trace": evaluation_payload.get(
+            "n_rows_with_llm_route_planner_trace",
+            0,
+        ),
+        "n_evaluation_rows_with_llm_route_planner_model_tier": evaluation_payload.get(
+            "n_rows_with_llm_route_planner_model_tier",
+            0,
+        ),
+        "n_evaluation_rows_with_llm_route_planner_generator_metadata": evaluation_payload.get(
+            "n_rows_with_llm_route_planner_generator_metadata",
+            0,
+        ),
+        "evaluation_by_llm_model_tier": evaluation_payload.get(
+            "evaluation_by_llm_model_tier",
+            {},
+        ),
         "mean_evaluation_route_recall": evaluation_payload.get(
             "mean_route_recall",
             0.0,
@@ -4436,6 +4452,13 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_publication_bundle_optional_evaluation_ground_truth_primitive_checked')}"
         ),
         f"- Evaluation alignment ready: {payload.get('n_evaluation_alignment_contract_ok')}/{payload.get('n_evaluation_rows')}",
+        (
+            f"- Evaluation LLM trace/model-tier/generator-metadata: "
+            f"{payload.get('n_evaluation_rows_with_llm_route_planner_trace')}/"
+            f"{payload.get('n_evaluation_rows_with_llm_route_planner_model_tier')}/"
+            f"{payload.get('n_evaluation_rows_with_llm_route_planner_generator_metadata')} "
+            f"tiers={payload.get('evaluation_by_llm_model_tier')}"
+        ),
         f"- Evaluation mean route recall: {payload.get('mean_evaluation_route_recall')}",
         f"- Evaluation mean alignment coverage: {payload.get('mean_evaluation_alignment_coverage')}",
         (

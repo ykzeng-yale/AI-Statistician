@@ -930,6 +930,10 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert payload["n_evaluation_alignment_contract_ok"] == payload["n_evaluation_rows"]
     assert payload["n_evaluation_feedback_loop_ready"] == payload["n_evaluation_rows"]
     assert payload["n_evaluation_unaligned_primitives"] == 0
+    assert payload["n_evaluation_rows_with_llm_route_planner_trace"] == 0
+    assert payload["n_evaluation_rows_with_llm_route_planner_model_tier"] == 0
+    assert payload["n_evaluation_rows_with_llm_route_planner_generator_metadata"] == 0
+    assert payload["evaluation_by_llm_model_tier"] == {}
     assert payload["mean_evaluation_route_recall"] == 1.0
     assert payload["mean_evaluation_alignment_coverage"] == 1.0
     assert (
@@ -1726,6 +1730,14 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         ]
         == 1
     )
+    assert payload["n_evaluation_rows_with_llm_route_planner_trace"] == 1
+    assert payload["n_evaluation_rows_with_llm_route_planner_model_tier"] == 1
+    assert payload["n_evaluation_rows_with_llm_route_planner_generator_metadata"] == 1
+    sonnet_evaluation = payload["evaluation_by_llm_model_tier"]["sonnet"]
+    assert sonnet_evaluation["n_rows"] == 1
+    assert sonnet_evaluation["n_matched_ground_truth"] == 1
+    assert sonnet_evaluation["mean_route_recall"] == 1.0
+    assert sonnet_evaluation["n_rows_with_generator_metadata"] == 1
     assert payload["n_llm_route_planner_provider_failures"] == 0
     assert payload["n_llm_route_planner_rows_with_generator_metadata"] == 1
     assert payload["n_llm_route_planner_rows_with_generation_errors"] == 0
