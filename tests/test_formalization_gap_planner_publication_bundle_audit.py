@@ -374,6 +374,7 @@ def _write_accepted_llm_route_planner_artifact(root: Path) -> Path:
         input_json,
         out_dir,
         provider_name="static",
+        invoke_provider=True,
         static_response_json=response_json,
         formalization_gap_planner_component_resource_registry_dir=(
             component_resource_registry_dir
@@ -381,6 +382,7 @@ def _write_accepted_llm_route_planner_artifact(root: Path) -> Path:
     )
     assert payload["all_ok"]
     assert payload["n_accepted_route_plans"] == 1
+    assert payload["n_rows_with_generator_metadata"] == 1
     return out_dir
 
 
@@ -4605,6 +4607,18 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     assert audit_payload["n_optional_llm_route_planner_seed_provenance_valid"] == 1
     assert (
         audit_payload[
+            "n_optional_llm_route_planner_seed_model_provenance_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_seed_model_provenance_valid"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
             "n_optional_llm_route_planner_seed_realization_witness_checked"
         ]
         == 1
@@ -4666,6 +4680,18 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     assert (
         audit_payload[
             "n_optional_feedback_llm_route_planner_seed_provenance_valid"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_feedback_llm_route_planner_seed_model_provenance_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_feedback_llm_route_planner_seed_model_provenance_valid"
         ]
         == 1
     )
@@ -4749,6 +4775,11 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         for row in audit_payload["checks"]
     )
     assert any(
+        row["check_name"] == "optional_llm_route_planner_row_0_seed_model_provenance"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
         row["check_name"]
         == "optional_llm_route_planner_row_0_seed_realization_witness_preservation"
         and row["ok"]
@@ -4762,6 +4793,12 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     assert any(
         row["check_name"]
         == "optional_feedback_llm_route_planner_row_0_seed_provenance"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "optional_feedback_llm_route_planner_row_0_seed_model_provenance"
         and row["ok"]
         for row in audit_payload["checks"]
     )
@@ -5395,6 +5432,38 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     assert (
         rejected_generic_payload[
             "n_optional_llm_route_planner_generic_formal_dag_valid"
+        ]
+        == 0
+    )
+    seed_path.write_text(json.dumps(seed_payload, indent=2), encoding="utf-8")
+
+    model_corrupted_seed = json.loads(json.dumps(seed_payload))
+    model_corrupted_metadata = model_corrupted_seed["routes"][0]["replan_metadata"]
+    model_corrupted_metadata["llm_route_planner_model_tier"] = "haiku"
+    model_corrupted_metadata["llm_route_planner_generator_metadata"] = {}
+    model_corrupted_metadata["llm_route_planner_generator_metadata_keys"] = []
+    seed_path.write_text(
+        json.dumps(model_corrupted_seed, indent=2),
+        encoding="utf-8",
+    )
+    rejected_model_payload = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        root / "audit_rejects_llm_seed_model_provenance_loss",
+    )
+    model_provenance_checks = [
+        row
+        for row in rejected_model_payload["checks"]
+        if row["check_name"] == "optional_llm_route_planner_row_0_seed_model_provenance"
+    ]
+    assert model_provenance_checks
+    assert not model_provenance_checks[0]["ok"]
+    assert any("model_tier" in error for error in model_provenance_checks[0]["errors"])
+    assert any(
+        "generator_metadata" in error for error in model_provenance_checks[0]["errors"]
+    )
+    assert (
+        rejected_model_payload[
+            "n_optional_llm_route_planner_seed_model_provenance_valid"
         ]
         == 0
     )

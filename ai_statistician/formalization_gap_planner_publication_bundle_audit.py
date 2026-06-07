@@ -736,6 +736,19 @@ def audit_formalization_gap_planner_publication_bundle(
             and check.check_name.endswith("_seed_provenance")
             and check.ok
         ),
+        "n_optional_llm_route_planner_seed_model_provenance_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_llm_route_planner_row_")
+            and check.check_name.endswith("_seed_model_provenance")
+        ),
+        "n_optional_llm_route_planner_seed_model_provenance_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_llm_route_planner_row_")
+            and check.check_name.endswith("_seed_model_provenance")
+            and check.ok
+        ),
         "n_optional_llm_route_planner_seed_realization_witness_checked": sum(
             1
             for check in checks
@@ -862,6 +875,19 @@ def audit_formalization_gap_planner_publication_bundle(
             for check in checks
             if check.check_name.startswith("optional_feedback_llm_route_planner_row_")
             and check.check_name.endswith("_seed_provenance")
+            and check.ok
+        ),
+        "n_optional_feedback_llm_route_planner_seed_model_provenance_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_feedback_llm_route_planner_row_")
+            and check.check_name.endswith("_seed_model_provenance")
+        ),
+        "n_optional_feedback_llm_route_planner_seed_model_provenance_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_feedback_llm_route_planner_row_")
+            and check.check_name.endswith("_seed_model_provenance")
             and check.ok
         ),
         "n_optional_feedback_llm_route_planner_seed_realization_witness_checked": sum(
@@ -4385,6 +4411,20 @@ def _llm_route_planner_optional_checks(
                     errors=provenance_errors,
                 )
             )
+            model_provenance_errors = _llm_seed_model_provenance_errors(
+                row,
+                seed_route,
+            )
+            checks.append(
+                _check(
+                    f"{check_prefix}_row_{idx}_seed_model_provenance",
+                    "optional_artifacts",
+                    "accepted LLM row model tier, selection rationale, and generator metadata are preserved in standalone seed route metadata",
+                    _llm_seed_model_provenance_observed(row, seed_route),
+                    not model_provenance_errors,
+                    errors=model_provenance_errors,
+                )
+            )
             witness_errors = _llm_seed_realization_witness_errors(row, seed_route)
             checks.append(
                 _check(
@@ -6033,6 +6073,65 @@ def _llm_seed_provenance_observed(
         f"source_refs_route={len(row_sources.intersection(route_sources))}/{len(row_sources)}; "
         f"source_refs_metadata={len(row_sources.intersection(metadata_sources))}/{len(row_sources)}; "
         f"has_cost_graph={bool(_dict_value(_dict_value(row, 'minimal_delta_plan'), 'and_or_cost_graph'))}"
+    )
+
+
+def _llm_seed_model_provenance_errors(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    metadata = _seed_route_metadata(seed_route)
+    if not seed_route:
+        errors.append("seed route missing")
+    if not isinstance(metadata, dict):
+        errors.append("seed route replan_metadata missing")
+        return tuple(errors)
+    expected_fields = (
+        ("model_tier", "llm_route_planner_model_tier"),
+        ("model_selection_rationale", "llm_route_planner_model_selection_rationale"),
+    )
+    for row_field, metadata_field in expected_fields:
+        if str(metadata.get(metadata_field, "")) != str(row.get(row_field, "")):
+            errors.append(f"seed metadata {metadata_field} mismatch")
+    row_generator_metadata = _dict_value(row, "generator_metadata")
+    seed_generator_metadata = metadata.get("llm_route_planner_generator_metadata", {})
+    if not isinstance(seed_generator_metadata, dict):
+        errors.append("seed metadata llm_route_planner_generator_metadata is not an object")
+        seed_generator_metadata = {}
+    if _object_hashes([row_generator_metadata]) != _object_hashes(
+        [seed_generator_metadata]
+    ):
+        errors.append("seed metadata llm_route_planner_generator_metadata mismatch")
+    row_generator_keys = sorted(str(key) for key in row_generator_metadata)
+    seed_generator_keys = sorted(
+        _str_tuple(metadata.get("llm_route_planner_generator_metadata_keys", []))
+    )
+    if row_generator_keys != seed_generator_keys:
+        errors.append("seed metadata llm_route_planner_generator_metadata_keys mismatch")
+    return tuple(errors)
+
+
+def _llm_seed_model_provenance_observed(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+) -> str:
+    metadata = _seed_route_metadata(seed_route)
+    metadata = metadata if isinstance(metadata, dict) else {}
+    row_generator_metadata = _dict_value(row, "generator_metadata")
+    seed_generator_metadata = metadata.get("llm_route_planner_generator_metadata", {})
+    seed_generator_metadata = (
+        seed_generator_metadata if isinstance(seed_generator_metadata, dict) else {}
+    )
+    row_keys = sorted(str(key) for key in row_generator_metadata)
+    seed_keys = sorted(
+        _str_tuple(metadata.get("llm_route_planner_generator_metadata_keys", []))
+    )
+    return (
+        f"row_model_tier={row.get('model_tier', '')}; "
+        f"seed_model_tier={metadata.get('llm_route_planner_model_tier', '')}; "
+        f"generator_metadata_keys={len(set(row_keys).intersection(seed_keys))}/{len(row_keys)}; "
+        f"generator_metadata_preserved={_object_hashes([row_generator_metadata]) == _object_hashes([seed_generator_metadata])}"
     )
 
 
