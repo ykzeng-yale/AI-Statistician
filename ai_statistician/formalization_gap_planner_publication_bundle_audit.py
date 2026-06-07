@@ -3875,7 +3875,13 @@ def _example_input_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPubli
         bundle_dir / "examples" / "formalization_gap_planner_target_intake_example.json"
     )
     standalone_payload = _read_json_no_error(standalone_path)
+    target_intake_raw_payload = _read_json_no_error(target_intake_path)
     standalone_errors = validate_standalone_input_payload(standalone_payload)
+    example_target_provers = {
+        _target_prover_key(standalone_payload.get("target_prover_family", "")),
+        _target_prover_key(target_intake_raw_payload.get("target_prover_family", "")),
+    }
+    example_target_provers.discard("")
     try:
         target_payload = normalize_formalization_gap_planner_target_intake(
             target_intake_path,
@@ -3914,6 +3920,14 @@ def _example_input_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPubli
             "target-intake example normalizes all_ok",
             "; ".join(target_errors),
             target_ok,
+        ),
+        _check(
+            "example_target_prover_coverage",
+            "examples",
+            "examples include lean4 and at least one non-Lean prover target",
+            ",".join(sorted(example_target_provers)),
+            "lean4" in example_target_provers
+            and any(prover != "lean4" for prover in example_target_provers),
         ),
     ]
 

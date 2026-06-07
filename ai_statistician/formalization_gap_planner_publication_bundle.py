@@ -1390,6 +1390,7 @@ def export_formalization_gap_planner_publication_bundle(
             and not schema_catalog_contract_errors,
         },
     )
+    example_target_prover_families = _example_target_prover_families(copied_examples)
     payload: dict[str, object] = {
         "schema_version": FORMALIZATION_GAP_PLANNER_PUBLICATION_BUNDLE_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -1414,6 +1415,11 @@ def export_formalization_gap_planner_publication_bundle(
         ),
         "n_docs_copied": len(copied_docs),
         "n_example_inputs_copied": len(copied_examples),
+        "example_target_prover_families": example_target_prover_families,
+        "n_example_target_prover_families": len(example_target_prover_families),
+        "has_non_lean_example_input": any(
+            family != "lean4" for family in example_target_prover_families
+        ),
         "core_artifacts": core_artifacts,
         "optional_artifacts": optional_artifacts,
         "copied_docs": copied_docs,
@@ -2984,16 +2990,42 @@ def _copy_example_inputs(examples_dir: Path, errors: list[str]) -> tuple[dict[st
             errors.append(f"missing publication example source: {source}")
             continue
         shutil.copy2(source, dest)
+        target_prover_family = ""
+        try:
+            source_payload = json.loads(dest.read_text(encoding="utf-8"))
+            if isinstance(source_payload, dict):
+                target_prover_family = str(
+                    source_payload.get("target_prover_family", "")
+                ).strip()
+        except Exception as exc:  # pragma: no cover - defensive bundle metadata
+            errors.append(
+                f"could not inspect publication example target prover: {dest}: {exc}"
+            )
         copied.append(
             {
                 "example_name": example_name,
                 "path": str(dest),
                 "bundle_relative_path": str(dest.relative_to(examples_dir.parent)),
                 "purpose": purpose,
+                "target_prover_family": target_prover_family,
                 "ok": dest.exists(),
             }
         )
     return tuple(copied)
+
+
+def _example_target_prover_families(
+    copied_examples: tuple[dict[str, object], ...],
+) -> tuple[str, ...]:
+    return tuple(
+        sorted(
+            {
+                str(row.get("target_prover_family", "")).strip().lower()
+                for row in copied_examples
+                if str(row.get("target_prover_family", "")).strip()
+            }
+        )
+    )
 
 
 def _markdown_report(payload: dict[str, object]) -> str:
@@ -3007,6 +3039,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Optional artifact files copied: {payload.get('n_optional_artifact_files_copied')}",
         f"- Docs copied: {payload.get('n_docs_copied')}",
         f"- Example inputs copied: {payload.get('n_example_inputs_copied')}",
+        f"- Example target provers: {payload.get('example_target_prover_families')}",
         f"- Reproduction commands: {payload.get('reproduction_summary', {}).get('n_commands')}",
         f"- Benchmark-audit checks: {payload.get('benchmark_audit_summary', {}).get('n_checks')}",
         (

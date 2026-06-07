@@ -3128,6 +3128,10 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         row["check_name"] == "target_intake_example_normalizes" and row["ok"]
         for row in audit_payload["checks"]
     )
+    assert any(
+        row["check_name"] == "example_target_prover_coverage" and row["ok"]
+        for row in audit_payload["checks"]
+    )
     assert "not theorem proof evidence" in audit_payload["proof_evidence_boundary"]
     assert (
         audit_dir

@@ -2261,6 +2261,18 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     assert (
         out_dir / "examples" / "formalization_gap_planner_target_intake_example.json"
     ).exists()
+    assert payload["example_target_prover_families"] == ("lean4", "rocq")
+    assert payload["n_example_target_prover_families"] == 2
+    assert payload["has_non_lean_example_input"] is True
+    copied_example_by_name = {
+        str(row["example_name"]): row for row in payload["copied_examples"]
+    }
+    assert copied_example_by_name["standalone_input_example"][
+        "target_prover_family"
+    ] == "rocq"
+    assert copied_example_by_name["target_intake_example"][
+        "target_prover_family"
+    ] == "lean4"
     assert (
         out_dir
         / "artifacts"
