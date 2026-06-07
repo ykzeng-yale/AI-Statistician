@@ -223,6 +223,7 @@ class AgentRuntime:
                                 payload={
                                     "exception_type": exc.__class__.__name__,
                                     "exception_module": exc.__class__.__module__,
+                                    **_exception_debug_payload(exc),
                                     "retry_attempt": attempt + 1,
                                     "max_retries": max_retries,
                                     "retryable": True,
@@ -246,6 +247,7 @@ class AgentRuntime:
                                 payload={
                                     "exception_type": exc.__class__.__name__,
                                     "exception_module": exc.__class__.__module__,
+                                    **_exception_debug_payload(exc),
                                     "retryable": retryable,
                                     "retry_attempts": len(retry_observations),
                                 },
@@ -310,3 +312,26 @@ def _is_transient_subsystem_exception(exc: Exception) -> bool:
         "overloaded",
     )
     return any(marker in haystack for marker in retry_markers)
+
+
+def _exception_debug_payload(exc: Exception) -> dict[str, str]:
+    """Compact exception diagnostics for traces without prompts or secrets."""
+
+    payload = {"exception_repr": _truncate_debug_text(repr(exc), 500)}
+    cause = exc.__cause__
+    context = exc.__context__
+    if cause is not None:
+        payload["cause_type"] = cause.__class__.__name__
+        payload["cause_module"] = cause.__class__.__module__
+        payload["cause_summary"] = _truncate_debug_text(str(cause), 500)
+        payload["cause_repr"] = _truncate_debug_text(repr(cause), 500)
+    if context is not None and context is not cause:
+        payload["context_type"] = context.__class__.__name__
+        payload["context_module"] = context.__class__.__module__
+        payload["context_summary"] = _truncate_debug_text(str(context), 500)
+        payload["context_repr"] = _truncate_debug_text(repr(context), 500)
+    return payload
+
+
+def _truncate_debug_text(value: str, limit: int) -> str:
+    return value if len(value) <= limit else value[: max(0, limit - 3)] + "..."
