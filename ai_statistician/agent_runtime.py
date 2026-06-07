@@ -165,10 +165,17 @@ class AgentRuntime:
         self.subsystems = dict(subsystems)
         self.blackboard = blackboard
 
-    def run(self, initial_task: AgentTask, *, max_iterations: int = 4) -> AgentRuntimeResult:
+    def run(
+        self,
+        initial_task: AgentTask,
+        *,
+        max_iterations: int = 4,
+        max_transient_subsystem_retries: int = 0,
+    ) -> AgentRuntimeResult:
         task = initial_task
         traces: list[RuntimeIterationTrace] = []
         final_status: RuntimeStatus = "MAX_ITERATIONS_REACHED"
+        max_retries = max(0, int(max_transient_subsystem_retries))
 
         for iteration in range(1, max_iterations + 1):
             subsystem = self.subsystems.get(task.owner_subsystem)
@@ -187,20 +194,66 @@ class AgentRuntime:
                 final_status = "BLOCKED"
                 break
 
-            try:
-                result = subsystem.run(task, self.blackboard)
-            except Exception as exc:  # pragma: no cover - defensive runtime boundary
-                result = AgentStepResult(
-                    status="FAILED",
-                    rationale=f"subsystem raised {exc.__class__.__name__}: {exc}",
-                    observations=(
-                        EnvironmentObservation(
-                            observation_type="subsystem_exception",
-                            summary=str(exc),
+            retry_observations: list[EnvironmentObservation] = []
+            for attempt in range(max_retries + 1):
+                try:
+                    result = subsystem.run(task, self.blackboard)
+                    if retry_observations:
+                        result = AgentStepResult(
+                            status=result.status,
+                            rationale=result.rationale,
+                            produced_artifacts=result.produced_artifacts,
+                            observations=tuple(retry_observations) + result.observations,
+                            tool_calls=result.tool_calls,
+                            evidence_entries=result.evidence_entries,
+                            next_task=result.next_task,
+                            failure_classification=result.failure_classification,
+                        )
+                    break
+                except Exception as exc:  # pragma: no cover - defensive runtime boundary
+                    retryable = _is_transient_subsystem_exception(exc)
+                    if retryable and attempt < max_retries:
+                        retry_observations.append(
+                            EnvironmentObservation(
+                                observation_type="subsystem_exception_retry",
+                                summary=(
+                                    f"{exc.__class__.__name__}: {exc}; "
+                                    f"retrying subsystem attempt {attempt + 1}/{max_retries}"
+                                ),
+                                payload={
+                                    "exception_type": exc.__class__.__name__,
+                                    "exception_module": exc.__class__.__module__,
+                                    "retry_attempt": attempt + 1,
+                                    "max_retries": max_retries,
+                                    "retryable": True,
+                                },
+                            )
+                        )
+                        continue
+                    failure_classification = (
+                        "transient_subsystem_exception_exhausted"
+                        if retry_observations and retryable
+                        else "subsystem_exception"
+                    )
+                    result = AgentStepResult(
+                        status="FAILED",
+                        rationale=f"subsystem raised {exc.__class__.__name__}: {exc}",
+                        observations=tuple(retry_observations)
+                        + (
+                            EnvironmentObservation(
+                                observation_type="subsystem_exception",
+                                summary=str(exc),
+                                payload={
+                                    "exception_type": exc.__class__.__name__,
+                                    "exception_module": exc.__class__.__module__,
+                                    "retryable": retryable,
+                                    "retry_attempts": len(retry_observations),
+                                },
+                            ),
                         ),
-                    ),
-                    failure_classification="subsystem_exception",
-                )
+                        failure_classification=failure_classification,
+                    )
+                    break
 
             self.blackboard.artifacts.update(result.produced_artifacts)
             self.blackboard.evidence_ledger.extend(result.evidence_entries)
@@ -238,3 +291,22 @@ class AgentRuntime:
             blackboard=self.blackboard,
             traces=tuple(traces),
         )
+
+
+def _is_transient_subsystem_exception(exc: Exception) -> bool:
+    name = type(exc).__name__.lower()
+    module = type(exc).__module__.lower()
+    text = str(exc).lower()
+    haystack = f"{module}.{name} {text}"
+    retry_markers = (
+        "apiconnectionerror",
+        "api_connection_error",
+        "ratelimiterror",
+        "rate_limit_error",
+        "timeout",
+        "connection",
+        "temporarily unavailable",
+        "server error",
+        "overloaded",
+    )
+    return any(marker in haystack for marker in retry_markers)

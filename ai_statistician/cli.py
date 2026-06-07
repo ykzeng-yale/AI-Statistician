@@ -5913,6 +5913,7 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
             n_runs=args.runs,
             seed=args.seed,
             max_iterations=args.max_iterations,
+            max_subsystem_retries=args.max_subsystem_retries,
             max_critic_repair_rounds=args.max_critic_repair_rounds,
             proof_obligation_ids=tuple(args.proof_obligation_id or ()),
             max_proof_obligations=args.max_proof_obligations,
@@ -10401,6 +10402,15 @@ def build_parser() -> argparse.ArgumentParser:
     research_agent_runtime.add_argument("--runs", type=int, default=100)
     research_agent_runtime.add_argument("--seed", type=int, default=20260528)
     research_agent_runtime.add_argument("--max-iterations", type=int, default=12)
+    research_agent_runtime.add_argument(
+        "--max-subsystem-retries",
+        type=int,
+        default=1,
+        help=(
+            "runtime-level retries for transient provider/subsystem exceptions "
+            "such as API connection errors; retry observations are recorded in traces"
+        ),
+    )
     research_agent_runtime.add_argument(
         "--max-critic-repair-rounds",
         type=int,

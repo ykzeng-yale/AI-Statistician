@@ -73,6 +73,33 @@ class SimulatorSubsystem:
         )
 
 
+class APIConnectionError(Exception):
+    pass
+
+
+class FlakySubsystem:
+    name = "FlakyLLMSubsystem"
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def run(self, task: AgentTask, blackboard: BlackboardState) -> AgentStepResult:
+        self.calls += 1
+        if self.calls == 1:
+            raise APIConnectionError("Connection error.")
+        return AgentStepResult(
+            status="ACCEPTED",
+            rationale="subsystem succeeded after transient provider retry",
+            produced_artifacts={"llm_packet:q1": {"ok": True}},
+            observations=(
+                EnvironmentObservation(
+                    observation_type="llm_packet",
+                    summary="validated packet returned after retry",
+                ),
+            ),
+        )
+
+
 def test_agent_runtime_dispatches_subsystems_and_records_observations() -> None:
     blackboard = BlackboardState(project_id="runtime-test")
     runtime = AgentRuntime(
@@ -103,6 +130,28 @@ def test_agent_runtime_dispatches_subsystems_and_records_observations() -> None:
     assert result.blackboard.evidence_ledger[0].boundary == "empirical support, not theorem proof"
     payload = result.to_json()
     assert payload["traces"][1]["observations"][0]["observation_type"] == "simulation_result"
+
+
+def test_agent_runtime_retries_transient_subsystem_exception() -> None:
+    subsystem = FlakySubsystem()
+    result = AgentRuntime(
+        subsystems={"FlakyLLMSubsystem": subsystem},
+        blackboard=BlackboardState(project_id="runtime-test"),
+    ).run(
+        AgentTask(
+            task_id="llm:q1",
+            owner_subsystem="FlakyLLMSubsystem",
+            objective="call live provider-backed subsystem",
+        ),
+        max_transient_subsystem_retries=1,
+    )
+
+    assert result.status == "ACCEPTED"
+    assert subsystem.calls == 2
+    assert "llm_packet:q1" in result.blackboard.artifacts
+    assert result.traces[0].observations[0].observation_type == "subsystem_exception_retry"
+    assert result.traces[0].observations[0].payload["retryable"] is True
+    assert result.traces[0].observations[1].observation_type == "llm_packet"
 
 
 def test_agent_runtime_blocks_missing_subsystem() -> None:

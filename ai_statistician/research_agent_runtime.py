@@ -104,6 +104,7 @@ class ResearchAgentRuntimeConfig:
     n_runs: int = 100
     seed: int = 20260528
     max_iterations: int = 12
+    max_subsystem_retries: int = 1
     max_critic_repair_rounds: int = 1
     proof_obligation_ids: tuple[str, ...] = ()
     max_proof_obligations: int = 0
@@ -1636,6 +1637,7 @@ def run_research_agent_runtime(
         result = runtime.run(
             initial_task,
             max_iterations=config.max_iterations,
+            max_transient_subsystem_retries=config.max_subsystem_retries,
         )
         result_json = result.to_json()
         result_path = out_dir / f"{_safe_identifier(question.id)}_runtime_result.json"
