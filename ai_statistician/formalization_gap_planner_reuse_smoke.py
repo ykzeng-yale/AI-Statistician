@@ -231,6 +231,8 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_needs_source_search",
         "n_needs_new_definition_or_theory",
         "n_rows_with_candidate_declarations",
+        "n_rows_with_candidate_declaration_rows",
+        "n_candidate_declaration_rows",
         "n_rows_with_alignment",
         "n_row_schema_valid",
         "n_row_schema_invalid",
@@ -247,6 +249,8 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_design_new_theory_fragment",
         "n_rerun_library_alignment",
         "n_with_candidate_declarations",
+        "n_with_candidate_declaration_rows",
+        "n_candidate_declaration_rows",
         "n_with_source_refs",
         "n_with_bridge_obligations",
         "n_row_schema_valid",
@@ -370,6 +374,8 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_with_local_first_resources",
         "n_with_frontier_escalation_resources",
         "n_with_resource_contracts",
+        "n_with_candidate_declaration_rows",
+        "n_candidate_declaration_rows",
         "n_row_schema_valid",
         "n_row_schema_invalid",
         "n_prove_bridge_lemma",
@@ -383,6 +389,8 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_frontier_escalation_requests",
         "n_distinct_resources",
         "n_with_mcp_or_cli_hint",
+        "n_with_candidate_declaration_rows",
+        "n_candidate_declaration_rows",
         "n_row_schema_valid",
         "n_row_schema_invalid",
     ),
@@ -2499,6 +2507,14 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_rows_with_alignment",
             0,
         ),
+        "n_library_coverage_rows_with_candidate_declaration_rows": library_coverage_map_payload.get(
+            "n_rows_with_candidate_declaration_rows",
+            0,
+        ),
+        "n_library_coverage_candidate_declaration_rows": library_coverage_map_payload.get(
+            "n_candidate_declaration_rows",
+            0,
+        ),
         "n_library_coverage_row_schema_valid": library_coverage_map_payload.get(
             "n_row_schema_valid",
             0,
@@ -2544,6 +2560,14 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_rerun_library_alignment",
             0,
         ),
+        "n_primitive_action_queue_with_candidate_declaration_rows": primitive_action_queue_payload.get(
+            "n_with_candidate_declaration_rows",
+            0,
+        ),
+        "n_primitive_action_queue_candidate_declaration_rows": primitive_action_queue_payload.get(
+            "n_candidate_declaration_rows",
+            0,
+        ),
         "n_primitive_action_queue_row_schema_valid": primitive_action_queue_payload.get(
             "n_row_schema_valid",
             0,
@@ -2579,6 +2603,14 @@ def run_formalization_gap_planner_reuse_smoke(
         ),
         "n_action_resource_plan_with_resource_contracts": action_resource_plan_payload.get(
             "n_with_resource_contracts",
+            0,
+        ),
+        "n_action_resource_plan_with_candidate_declaration_rows": action_resource_plan_payload.get(
+            "n_with_candidate_declaration_rows",
+            0,
+        ),
+        "n_action_resource_plan_candidate_declaration_rows": action_resource_plan_payload.get(
+            "n_candidate_declaration_rows",
             0,
         ),
         "n_resource_request_rows": resource_request_queue_payload.get(
@@ -2617,6 +2649,14 @@ def run_formalization_gap_planner_reuse_smoke(
         ),
         "n_resource_request_dispatch_spec_identity_mismatches": resource_request_queue_payload.get(
             "n_dispatch_spec_identity_mismatches",
+            0,
+        ),
+        "n_resource_request_with_candidate_declaration_rows": resource_request_queue_payload.get(
+            "n_with_candidate_declaration_rows",
+            0,
+        ),
+        "n_resource_request_candidate_declaration_rows": resource_request_queue_payload.get(
+            "n_candidate_declaration_rows",
             0,
         ),
         "n_resource_request_row_schema_valid": resource_request_queue_payload.get(
@@ -4210,6 +4250,12 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"- Library-coverage map rows valid: "
             f"{payload.get('n_library_coverage_row_schema_valid')}/"
             f"{payload.get('n_library_coverage_rows')}"
+        ),
+        (
+            f"- Structured candidate declaration rows: "
+            f"coverage={payload.get('n_library_coverage_candidate_declaration_rows')} "
+            f"actions={payload.get('n_primitive_action_queue_candidate_declaration_rows')} "
+            f"resources={payload.get('n_resource_request_candidate_declaration_rows')}"
         ),
         (
             f"- Library-coverage unknown or unaligned: "

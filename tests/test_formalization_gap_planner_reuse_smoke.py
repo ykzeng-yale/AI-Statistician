@@ -38,7 +38,13 @@ def _reviewed_llm_route_response_payload() -> dict[str, object]:
                 "node_id": "formal:exchangeability",
                 "primitive": "exchangeability",
                 "coverage_bucket": "already_exists",
-                "candidate_declarations": ["Probability.exchangeable"],
+                "candidate_declaration_rows": [
+                    {
+                        "declaration": "Probability.exchangeable",
+                        "target_prover_family": "lean4",
+                        "source_field": "llm_candidate_declaration_rows",
+                    }
+                ],
                 "formalization_action": "reuse",
             },
             {
@@ -188,7 +194,13 @@ def _reviewed_llm_route_response_payload() -> dict[str, object]:
                 {
                     "primitive": "exchangeability",
                     "coverage_status": "exact_exists",
-                    "candidate_declarations": ["Probability.exchangeable"],
+                    "candidate_declaration_rows": [
+                        {
+                            "declaration": "Probability.exchangeable",
+                            "target_prover_family": "lean4",
+                            "source_field": "llm_candidate_declaration_rows",
+                        }
+                    ],
                     "source_refs": ["conformal_prediction_textbook"],
                 },
                 {
@@ -1671,6 +1683,39 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     assert payload["n_feedback_llm_route_planner_search_requests"] == 1
     assert payload["n_llm_route_planner_feedback_loop_realization_witnesses"] == 0
     assert payload["n_feedback_llm_route_planner_feedback_loop_realization_witnesses"] == 1
+    assert payload["n_library_coverage_rows_with_candidate_declaration_rows"] > 0
+    assert payload["n_library_coverage_candidate_declaration_rows"] > 0
+    assert payload["n_primitive_action_queue_with_candidate_declaration_rows"] > 0
+    assert payload["n_primitive_action_queue_candidate_declaration_rows"] > 0
+    assert payload["n_action_resource_plan_with_candidate_declaration_rows"] > 0
+    assert payload["n_action_resource_plan_candidate_declaration_rows"] > 0
+    assert payload["n_resource_request_with_candidate_declaration_rows"] > 0
+    assert payload["n_resource_request_candidate_declaration_rows"] > 0
+    stage_by_name = {stage["stage_name"]: stage for stage in payload["stages"]}
+    coverage_summary = stage_by_name[
+        "formalization_gap_planner_library_coverage_map"
+    ]["summary"]
+    action_summary = stage_by_name[
+        "formalization_gap_planner_primitive_action_queue"
+    ]["summary"]
+    resource_plan_summary = stage_by_name[
+        "formalization_gap_planner_action_resource_plan"
+    ]["summary"]
+    resource_request_summary = stage_by_name[
+        "formalization_gap_planner_resource_request_queue"
+    ]["summary"]
+    assert coverage_summary["n_candidate_declaration_rows"] == payload[
+        "n_library_coverage_candidate_declaration_rows"
+    ]
+    assert action_summary["n_candidate_declaration_rows"] == payload[
+        "n_primitive_action_queue_candidate_declaration_rows"
+    ]
+    assert resource_plan_summary["n_candidate_declaration_rows"] == payload[
+        "n_action_resource_plan_candidate_declaration_rows"
+    ]
+    assert resource_request_summary["n_candidate_declaration_rows"] == payload[
+        "n_resource_request_candidate_declaration_rows"
+    ]
     assert (
         payload[
             "n_feedback_llm_route_planner_feedback_loop_incomplete_realization_coverage"
@@ -1716,6 +1761,15 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         ).read_text(encoding="utf-8")
     )
     assert seed_payload["routes"][0]["display_name"] == "llm_reviewed_rank_route"
+    seed_primitive = seed_payload["routes"][0]["primitives"][0]
+    assert seed_primitive["candidate_declaration_rows"] == [
+        {
+            "declaration": "Probability.exchangeable",
+            "target_prover_family": "lean4",
+            "source_field": "llm_candidate_declaration_rows",
+        }
+    ]
+    assert seed_primitive["candidate_declarations"] == ["Probability.exchangeable"]
     plan_rows = [
         json.loads(line)
         for line in (
@@ -1731,6 +1785,17 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         "exchangeability",
         "rank_uniformity",
     ]
+    assert plan_rows[0]["existing_reuse_nodes"][0]["candidate_declaration_rows"] == [
+        {
+            "declaration": "Probability.exchangeable",
+            "target_prover_family": "lean4",
+            "source_field": "llm_candidate_declaration_rows",
+        }
+    ]
+    report_text = (
+        out_dir / "formalization_gap_planner_reuse_smoke.md"
+    ).read_text(encoding="utf-8")
+    assert "Structured candidate declaration rows:" in report_text
     feedback_seed_payload = json.loads(
         (
             out_dir
