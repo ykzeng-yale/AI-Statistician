@@ -825,6 +825,19 @@ def audit_formalization_gap_planner_publication_bundle(
             and check.check_name.endswith("_registry_context")
             and check.ok
         ),
+        "n_optional_llm_route_planner_request_model_tier_mismatch_checked": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_llm_route_planner_request_model_tier_mismatch_policy"
+        ),
+        "n_optional_llm_route_planner_request_model_tier_mismatch_valid": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_llm_route_planner_request_model_tier_mismatch_policy"
+            and check.ok
+        ),
         "n_optional_feedback_llm_route_planner_request_schema_checked": sum(
             1
             for check in checks
@@ -966,6 +979,19 @@ def audit_formalization_gap_planner_publication_bundle(
             for check in checks
             if check.check_name.startswith("optional_feedback_llm_route_planner_request_")
             and check.check_name.endswith("_registry_context")
+            and check.ok
+        ),
+        "n_optional_feedback_llm_route_planner_request_model_tier_mismatch_checked": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_feedback_llm_route_planner_request_model_tier_mismatch_policy"
+        ),
+        "n_optional_feedback_llm_route_planner_request_model_tier_mismatch_valid": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_feedback_llm_route_planner_request_model_tier_mismatch_policy"
             and check.ok
         ),
         "n_optional_adapter_registry_audit_check_contract_checked": sum(
@@ -4342,6 +4368,14 @@ def _llm_route_planner_optional_checks(
             len(requests) == int(manifest.get("n_request_packets", 0) or 0),
         ),
         _check(
+            f"{check_prefix}_request_model_tier_mismatch_policy",
+            "optional_artifacts",
+            "LLM route-planner manifest reports no Claude request model-tier mismatches",
+            _llm_request_model_tier_mismatch_observed(manifest),
+            not _llm_request_model_tier_mismatch_errors(manifest),
+            errors=_llm_request_model_tier_mismatch_errors(manifest),
+        ),
+        _check(
             f"{check_prefix}_row_count",
             "optional_artifacts",
             "LLM route-planner rows match manifest count",
@@ -4473,6 +4507,41 @@ def _llm_route_planner_optional_checks(
                 )
             )
     return checks
+
+
+def _llm_request_model_tier_mismatch_errors(
+    manifest: dict[str, Any],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    raw_count = manifest.get("n_request_model_tier_mismatches", 0)
+    try:
+        mismatch_count = int(raw_count or 0)
+    except (TypeError, ValueError):
+        errors.append("n_request_model_tier_mismatches is not an integer")
+        mismatch_count = -1
+    mismatch_rows = manifest.get("request_model_tier_mismatches", [])
+    if not isinstance(mismatch_rows, list):
+        errors.append("request_model_tier_mismatches is not a list")
+        mismatch_rows = []
+    if mismatch_count != len(mismatch_rows):
+        errors.append(
+            "request_model_tier_mismatches count/list length mismatch: "
+            f"count={mismatch_count} rows={len(mismatch_rows)}"
+        )
+    if mismatch_count:
+        errors.append(
+            f"manifest reports {mismatch_count} request model-tier mismatch(es)"
+        )
+    return tuple(errors)
+
+
+def _llm_request_model_tier_mismatch_observed(manifest: dict[str, Any]) -> str:
+    mismatch_rows = manifest.get("request_model_tier_mismatches", [])
+    mismatch_rows = mismatch_rows if isinstance(mismatch_rows, list) else []
+    return (
+        f"count={manifest.get('n_request_model_tier_mismatches', 0)}; "
+        f"rows={len(mismatch_rows)}"
+    )
 
 
 def _llm_request_registry_context_errors(request: dict[str, Any]) -> tuple[str, ...]:
@@ -11635,6 +11704,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Optional LLM route-planner seed DAG preserved: {payload.get('n_optional_llm_route_planner_seed_dag_valid')}/{payload.get('n_optional_llm_route_planner_seed_dag_checked')}",
         f"- Optional LLM route-planner request evidence bounds valid: {payload.get('n_optional_llm_route_planner_request_evidence_bound_valid')}/{payload.get('n_optional_llm_route_planner_request_evidence_bound_checked')}",
         f"- Optional LLM route-planner request registry context valid: {payload.get('n_optional_llm_route_planner_request_registry_context_valid')}/{payload.get('n_optional_llm_route_planner_request_registry_context_checked')}",
+        f"- Optional LLM route-planner request model-tier mismatch policy valid: {payload.get('n_optional_llm_route_planner_request_model_tier_mismatch_valid')}/{payload.get('n_optional_llm_route_planner_request_model_tier_mismatch_checked')}",
         f"- Optional feedback LLM route-planner requests valid: {payload.get('n_optional_feedback_llm_route_planner_request_schema_valid')}/{payload.get('n_optional_feedback_llm_route_planner_request_schema_checked')}",
         f"- Optional feedback LLM route-planner rows valid: {payload.get('n_optional_feedback_llm_route_planner_row_schema_valid')}/{payload.get('n_optional_feedback_llm_route_planner_row_schema_checked')}",
         f"- Optional feedback LLM route-planner seed provenance preserved: {payload.get('n_optional_feedback_llm_route_planner_seed_provenance_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_provenance_checked')}",
@@ -11643,6 +11713,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Optional feedback LLM route-planner seed DAG preserved: {payload.get('n_optional_feedback_llm_route_planner_seed_dag_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_dag_checked')}",
         f"- Optional feedback LLM route-planner request evidence bounds valid: {payload.get('n_optional_feedback_llm_route_planner_request_evidence_bound_valid')}/{payload.get('n_optional_feedback_llm_route_planner_request_evidence_bound_checked')}",
         f"- Optional feedback LLM route-planner request registry context valid: {payload.get('n_optional_feedback_llm_route_planner_request_registry_context_valid')}/{payload.get('n_optional_feedback_llm_route_planner_request_registry_context_checked')}",
+        f"- Optional feedback LLM route-planner request model-tier mismatch policy valid: {payload.get('n_optional_feedback_llm_route_planner_request_model_tier_mismatch_valid')}/{payload.get('n_optional_feedback_llm_route_planner_request_model_tier_mismatch_checked')}",
         f"- Optional interactive-session schema valid: {payload.get('n_optional_interactive_session_row_schema_valid')}/{payload.get('n_optional_interactive_session_row_schema_checked')}",
         f"- Optional interactive-session resource-response status consistent: {payload.get('n_optional_interactive_session_resource_response_status_valid')}/{payload.get('n_optional_interactive_session_resource_response_status_checked')}",
         f"- Optional interactive-session generic prover fields valid: {payload.get('n_optional_interactive_session_generic_prover_fields_valid')}/{payload.get('n_optional_interactive_session_generic_prover_fields_checked')}",

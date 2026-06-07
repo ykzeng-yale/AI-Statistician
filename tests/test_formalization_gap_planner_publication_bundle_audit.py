@@ -4686,6 +4686,18 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     )
     assert (
         audit_payload[
+            "n_optional_llm_route_planner_request_model_tier_mismatch_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_request_model_tier_mismatch_valid"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
             "n_optional_feedback_llm_route_planner_seed_provenance_checked"
         ]
         == 1
@@ -4782,6 +4794,18 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         ]
         == 1
     )
+    assert (
+        audit_payload[
+            "n_optional_feedback_llm_route_planner_request_model_tier_mismatch_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_feedback_llm_route_planner_request_model_tier_mismatch_valid"
+        ]
+        == 1
+    )
     assert any(
         row["check_name"] == "optional_llm_route_planner_row_0_seed_provenance"
         and row["ok"]
@@ -4827,6 +4851,47 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         and row["ok"]
         for row in audit_payload["checks"]
     )
+
+    manifest_path = (
+        bundle_dir
+        / "artifacts"
+        / "formalization_gap_planner_llm_route_planner"
+        / "formalization_gap_planner_llm_route_planner_manifest.json"
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    mismatch_manifest = json.loads(json.dumps(manifest))
+    mismatch_manifest["n_request_model_tier_mismatches"] = 1
+    mismatch_manifest["request_model_tier_mismatches"] = [
+        {
+            "request_id": "formalization_gap_planner_llm_route_request:bad",
+            "route_id": "rank_route",
+            "provider_name": "anthropic",
+            "model": "claude-sonnet-4-6",
+            "model_tier": "haiku",
+            "error": "expected Claude haiku tier but is configured with claude-sonnet-4-6",
+        }
+    ]
+    manifest_path.write_text(json.dumps(mismatch_manifest, indent=2), encoding="utf-8")
+    rejected_tier_payload = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        root / "audit_rejects_llm_route_planner_model_tier_mismatch",
+    )
+    tier_checks = [
+        row
+        for row in rejected_tier_payload["checks"]
+        if row["check_name"]
+        == "optional_llm_route_planner_request_model_tier_mismatch_policy"
+    ]
+    assert tier_checks
+    assert not tier_checks[0]["ok"]
+    assert any("model-tier mismatch" in error for error in tier_checks[0]["errors"])
+    assert (
+        rejected_tier_payload[
+            "n_optional_llm_route_planner_request_model_tier_mismatch_valid"
+        ]
+        == 0
+    )
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
     rows_path = (
         bundle_dir
