@@ -1834,6 +1834,14 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_optional_llm_route_planner_request_schema_valid",
             0,
         ),
+        "n_publication_bundle_optional_llm_route_planner_request_model_tier_mismatch_checked": publication_bundle_audit_payload.get(
+            "n_optional_llm_route_planner_request_model_tier_mismatch_checked",
+            0,
+        ),
+        "n_publication_bundle_optional_llm_route_planner_request_model_tier_mismatch_valid": publication_bundle_audit_payload.get(
+            "n_optional_llm_route_planner_request_model_tier_mismatch_valid",
+            0,
+        ),
         "n_publication_bundle_optional_llm_route_planner_row_schema_checked": publication_bundle_audit_payload.get(
             "n_optional_llm_route_planner_row_schema_checked",
             0,
@@ -1872,6 +1880,14 @@ def run_formalization_gap_planner_reuse_smoke(
         ),
         "n_publication_bundle_optional_feedback_llm_route_planner_request_schema_valid": publication_bundle_audit_payload.get(
             "n_optional_feedback_llm_route_planner_request_schema_valid",
+            0,
+        ),
+        "n_publication_bundle_optional_feedback_llm_route_planner_request_model_tier_mismatch_checked": publication_bundle_audit_payload.get(
+            "n_optional_feedback_llm_route_planner_request_model_tier_mismatch_checked",
+            0,
+        ),
+        "n_publication_bundle_optional_feedback_llm_route_planner_request_model_tier_mismatch_valid": publication_bundle_audit_payload.get(
+            "n_optional_feedback_llm_route_planner_request_model_tier_mismatch_valid",
             0,
         ),
         "n_publication_bundle_optional_feedback_llm_route_planner_row_schema_checked": publication_bundle_audit_payload.get(
@@ -4330,6 +4346,13 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_publication_bundle_optional_feedback_llm_route_planner_request_schema_checked')} "
             f"rows={payload.get('n_publication_bundle_optional_feedback_llm_route_planner_row_schema_valid')}/"
             f"{payload.get('n_publication_bundle_optional_feedback_llm_route_planner_row_schema_checked')}"
+        ),
+        (
+            f"- Bundle LLM route planner model-tier mismatch policy valid: "
+            f"{payload.get('n_publication_bundle_optional_llm_route_planner_request_model_tier_mismatch_valid')}/"
+            f"{payload.get('n_publication_bundle_optional_llm_route_planner_request_model_tier_mismatch_checked')} "
+            f"feedback={payload.get('n_publication_bundle_optional_feedback_llm_route_planner_request_model_tier_mismatch_valid')}/"
+            f"{payload.get('n_publication_bundle_optional_feedback_llm_route_planner_request_model_tier_mismatch_checked')}"
         ),
         (
             f"- Feedback LLM route planner requests valid: "
