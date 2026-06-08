@@ -3761,6 +3761,10 @@ def test_publication_bundle_audit_rejects_stale_resource_request_contract_maps()
     ]
     rows[0]["response_contract_fields"] = ["stale_response_field"]
     rows[0]["request_payload"]["response_contract_fields"] = ["stale_response_field"]
+    rows[0]["request_playbook"]["expected_response_fields"] = [
+        "stale_response_field"
+    ]
+    rows[0]["request_payload"]["request_playbook"] = rows[0]["request_playbook"]
     request_jsonl.write_text(
         "\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n",
         encoding="utf-8",

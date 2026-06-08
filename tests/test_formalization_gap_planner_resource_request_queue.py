@@ -113,6 +113,12 @@ def test_resource_request_queue_expands_action_resources_to_dispatch_packets() -
         == payload["n_resource_request_rows"]
     )
     assert payload["n_request_payload_identity_mismatches"] == 0
+    assert payload["n_with_request_playbooks"] == payload["n_resource_request_rows"]
+    assert (
+        payload["n_request_playbook_identity_valid"]
+        == payload["n_resource_request_rows"]
+    )
+    assert payload["n_request_playbook_identity_mismatches"] == 0
     assert payload["n_with_candidate_declaration_rows"] > 0
     assert payload["n_candidate_declaration_rows"] == payload[
         "n_with_candidate_declaration_rows"
@@ -173,6 +179,24 @@ def test_resource_request_queue_expands_action_resources_to_dispatch_packets() -
         lean_lsp_row["request_payload"]["dispatch_spec"]
         == lean_lsp_row["dispatch_spec"]
     )
+    assert (
+        lean_lsp_row["request_payload"]["request_playbook"]
+        == lean_lsp_row["request_playbook"]
+    )
+    assert (
+        lean_lsp_row["request_playbook"]["resource_request_id"]
+        == lean_lsp_row["resource_request_id"]
+    )
+    assert (
+        lean_lsp_row["request_playbook"]["expected_response_artifact"]
+        == lean_lsp_row["expected_response_artifact"]
+    )
+    assert "rank_uniformity" in lean_lsp_row["request_playbook"]["operator_prompt"]
+    assert (
+        "prover_diagnostics"
+        in lean_lsp_row["request_playbook"]["expected_response_fields"]
+    )
+    assert lean_lsp_row["request_playbook"]["acceptance_checklist"]
     assert (
         "not theorem proof evidence"
         in lean_lsp_row["request_payload"]["proof_evidence_boundary"]
@@ -272,6 +296,22 @@ def test_resource_request_queue_expands_action_resources_to_dispatch_packets() -
     malformed["dispatch_spec"]["adapter_surface"] = "stale_adapter"
     assert (
         "dispatch_spec.adapter_surface must match resource_id/request_phase"
+        in validate_resource_request_queue_row(
+            malformed,
+            resource_request_queue_row_json_schema(),
+        )
+    )
+    malformed = dict(lean_lsp_row)
+    malformed.pop("request_playbook")
+    assert "request_playbook required" in validate_resource_request_queue_row(
+        malformed,
+        resource_request_queue_row_json_schema(),
+    )
+    malformed = dict(lean_lsp_row)
+    malformed["request_playbook"] = dict(lean_lsp_row["request_playbook"])
+    malformed["request_playbook"]["expected_response_fields"] = ["stale_field"]
+    assert (
+        "request_playbook.expected_response_fields must match row.response_contract_fields"
         in validate_resource_request_queue_row(
             malformed,
             resource_request_queue_row_json_schema(),
