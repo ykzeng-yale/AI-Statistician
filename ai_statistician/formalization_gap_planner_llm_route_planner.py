@@ -431,7 +431,7 @@ LLM_ROUTE_PLANNER_OUTPUT_CONTRACT: dict[str, object] = {
         "bridge_lemmas": ["bridge lemmas to prove"],
         "source_port_lemmas": ["source-backed lemmas to port"],
         "do_not_formalize_now": ["out-of-cut theory fragments"],
-        "minimality_rationale": "why this route minimizes new Lean/prover effort",
+        "minimality_rationale": "why this route minimizes new target-prover effort",
     },
     "residual_interpretations": [
         {

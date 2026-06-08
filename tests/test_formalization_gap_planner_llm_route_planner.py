@@ -1140,6 +1140,8 @@ def test_llm_route_planner_filters_registry_context_for_rocq_target() -> None:
     prompt_text = request["prompt_messages"]["user"]
     assert "target-prover realization DAG" in prompt_text
     assert "Lean/prover realization DAG" not in prompt_text
+    assert "target-prover effort" in prompt_text
+    assert "Lean/prover effort" not in prompt_text
     for lean_only_id in lean_only_adapter_ids:
         assert lean_only_id not in prompt_text
 
