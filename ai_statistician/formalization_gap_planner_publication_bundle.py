@@ -57,13 +57,21 @@ from .formalization_gap_planner_library_coverage_map import (
 )
 from .formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID,
+    LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_MANIFEST_SCHEMA_ID,
+    LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID,
     LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
+    ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_ID,
     llm_route_planner_request_json_schema,
+    llm_route_planner_response_payload_validation_manifest_json_schema,
+    llm_route_planner_response_payload_validation_row_json_schema,
     llm_route_planner_response_payload_schema,
     llm_route_planner_response_json_schema,
     llm_route_planner_row_json_schema,
+    route_adoption_blocker_taxonomy_json_schema,
+    route_adoption_blocker_taxonomy_payload,
+    validate_route_adoption_blocker_taxonomy_payload,
 )
 from .formalization_gap_planner_primitive_action_queue import (
     primitive_action_queue_row_json_schema,
@@ -126,11 +134,20 @@ from .formalization_gap_planner_target_intake import (
     target_intake_json_schema,
     target_intake_row_json_schema,
 )
+from .model_backend import (
+    ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
+    ANTHROPIC_MODEL_SOURCE_CHECKED_DATE,
+    DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+    DEFAULT_CLAUDE_OPUS_GENERATOR_MODEL,
+    DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
+    DEFAULT_LIVE_GENERATOR_PROVIDER,
+)
 
 
 FORMALIZATION_GAP_PLANNER_PUBLICATION_BUNDLE_SCHEMA_VERSION = 1
 PUBLICATION_BUNDLE_COMPONENT_NAME = "formalization_gap_planner_publication_bundle"
 SCHEMA_CATALOG_COMPONENT_NAME = "formalization_gap_planner_schema_catalog"
+LLM_MODEL_POLICY_COMPONENT_NAME = "ai_statistician_llm_model_policy"
 FORMALIZATION_GAP_PLANNER_SCHEMA_CATALOG_SCHEMA_ID = (
     "urn:ai-statistician:schemas:formalization-gap-planner-schema-catalog:1"
 )
@@ -150,6 +167,8 @@ OPTIONAL_ARTIFACT_FILES = {
         "formalization_gap_planner_llm_route_planner_request.schema.json",
         "formalization_gap_planner_llm_route_planner_response.schema.json",
         "formalization_gap_planner_llm_route_planner_response_payload.schema.json",
+        "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.schema.json",
+        "formalization_gap_planner_llm_route_planner_response_payload_validation_row.schema.json",
         "formalization_gap_planner_llm_route_planner_row.schema.json",
         "formalization_gap_planner_llm_route_planner_standalone_seed.json",
         "formalization_gap_planner_llm_route_planner_standalone_seed.schema.json",
@@ -162,10 +181,19 @@ OPTIONAL_ARTIFACT_FILES = {
         "formalization_gap_planner_llm_route_planner_request.schema.json",
         "formalization_gap_planner_llm_route_planner_response.schema.json",
         "formalization_gap_planner_llm_route_planner_response_payload.schema.json",
+        "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.schema.json",
+        "formalization_gap_planner_llm_route_planner_response_payload_validation_row.schema.json",
         "formalization_gap_planner_llm_route_planner_row.schema.json",
         "formalization_gap_planner_llm_route_planner_standalone_seed.json",
         "formalization_gap_planner_llm_route_planner_standalone_seed.schema.json",
         "formalization_gap_planner_llm_route_planner.md",
+    ),
+    "formalization_gap_planner_llm_route_planner_response_payload_validation": (
+        "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.json",
+        "formalization_gap_planner_llm_route_planner_response_payload_validation.jsonl",
+        "formalization_gap_planner_llm_route_planner_response_payload.schema.json",
+        "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.schema.json",
+        "formalization_gap_planner_llm_route_planner_response_payload_validation_row.schema.json",
     ),
     "goal_conditioned_minimal_formalization_plan": (
         "goal_conditioned_minimal_formalization_plan_manifest.json",
@@ -232,6 +260,13 @@ OPTIONAL_ARTIFACT_FILES = {
         "formalization_gap_planner_minimal_delta_decision_row.schema.json",
         "formalization_gap_planner_minimal_delta_audit.md",
     ),
+    "formalization_gap_planner_minimal_delta_audit_feedback_adapter": (
+        "formalization_gap_planner_minimal_delta_audit_feedback_adapter_manifest.json",
+        "formalization_gap_planner_refinement_evidence_responses.jsonl",
+        "formalization_gap_planner_minimal_delta_audit_feedback_responses.jsonl",
+        "formalization_gap_planner_refinement_tool_response.schema.json",
+        "formalization_gap_planner_minimal_delta_audit_feedback_adapter.md",
+    ),
     "formalization_gap_planner_source_grounding_audit": (
         "formalization_gap_planner_source_grounding_audit_manifest.json",
         "formalization_gap_planner_source_grounding_audit.jsonl",
@@ -270,6 +305,13 @@ OPTIONAL_ARTIFACT_FILES = {
         "formalization_gap_planner_local_proof_state_adapter_responses.jsonl",
         "formalization_gap_planner_refinement_tool_response.schema.json",
         "formalization_gap_planner_local_proof_state_adapter.md",
+    ),
+    "formalization_gap_planner_prover_adapter_feedback_adapter": (
+        "formalization_gap_planner_prover_adapter_feedback_adapter_manifest.json",
+        "formalization_gap_planner_refinement_evidence_responses.jsonl",
+        "formalization_gap_planner_prover_adapter_feedback_responses.jsonl",
+        "formalization_gap_planner_refinement_tool_response.schema.json",
+        "formalization_gap_planner_prover_adapter_feedback_adapter.md",
     ),
     "formalization_gap_planner_refinement_evidence": (
         "formalization_gap_planner_refinement_evidence_manifest.json",
@@ -368,6 +410,8 @@ def export_formalization_gap_planner_publication_bundle(
     formalization_gap_planner_target_intake_dir: Path | None = None,
     formalization_gap_planner_llm_route_planner_dir: Path | None = None,
     formalization_gap_planner_feedback_llm_route_planner_dir: Path | None = None,
+    formalization_gap_planner_llm_route_planner_response_payload_validation_dir: Path
+    | None = None,
     goal_conditioned_minimal_formalization_plan_dir: Path | None = None,
     formalization_gap_planner_evaluation_dir: Path | None = None,
     formalization_gap_planner_ablation_study_dir: Path | None = None,
@@ -378,12 +422,15 @@ def export_formalization_gap_planner_publication_bundle(
     formalization_gap_planner_resource_request_queue_dir: Path | None = None,
     formalization_gap_planner_resource_response_ledger_dir: Path | None = None,
     formalization_gap_planner_minimal_delta_audit_dir: Path | None = None,
+    formalization_gap_planner_minimal_delta_audit_feedback_adapter_dir: Path
+    | None = None,
     formalization_gap_planner_source_grounding_audit_dir: Path | None = None,
     formalization_gap_planner_refinement_queue_dir: Path | None = None,
     formalization_gap_planner_refinement_adapter_dir: Path | None = None,
     formalization_gap_planner_local_literature_adapter_dir: Path | None = None,
     formalization_gap_planner_local_formal_source_adapter_dir: Path | None = None,
     formalization_gap_planner_local_proof_state_adapter_dir: Path | None = None,
+    formalization_gap_planner_prover_adapter_feedback_adapter_dir: Path | None = None,
     formalization_gap_planner_refinement_evidence_dir: Path | None = None,
     formalization_gap_planner_route_revision_overlay_dir: Path | None = None,
     formalization_gap_planner_route_stability_audit_dir: Path | None = None,
@@ -434,6 +481,12 @@ def export_formalization_gap_planner_publication_bundle(
     llm_route_planner_response_payload_schema_payload = (
         llm_route_planner_response_payload_schema()
     )
+    llm_route_planner_response_payload_validation_manifest_schema = (
+        llm_route_planner_response_payload_validation_manifest_json_schema()
+    )
+    llm_route_planner_response_payload_validation_row_schema = (
+        llm_route_planner_response_payload_validation_row_json_schema()
+    )
     llm_route_planner_row_schema = llm_route_planner_row_json_schema()
     primitive_action_queue_row_schema = primitive_action_queue_row_json_schema()
     action_resource_plan_row_schema = action_resource_plan_row_json_schema()
@@ -469,6 +522,13 @@ def export_formalization_gap_planner_publication_bundle(
         component_resource_contract_row_json_schema()
     )
     contract_payload = _contract_payload(library_snapshot_ref)
+    llm_model_policy_payload = _llm_model_policy_payload()
+    route_adoption_blocker_taxonomy_schema = (
+        route_adoption_blocker_taxonomy_json_schema()
+    )
+    route_adoption_blocker_taxonomy_contract = (
+        route_adoption_blocker_taxonomy_payload()
+    )
     schema_path = contract_dir / "library_aware_formalization_gap_plan.schema.json"
     prover_adapter_schema_path = (
         contract_dir / "formalization_gap_planner_prover_adapter_response.schema.json"
@@ -520,9 +580,25 @@ def export_formalization_gap_planner_publication_bundle(
         contract_dir
         / "formalization_gap_planner_llm_route_planner_response_payload.schema.json"
     )
+    llm_route_planner_response_payload_validation_manifest_schema_path = (
+        contract_dir
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.schema.json"
+    )
+    llm_route_planner_response_payload_validation_row_schema_path = (
+        contract_dir
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation_row.schema.json"
+    )
     llm_route_planner_row_schema_path = (
         contract_dir
         / "formalization_gap_planner_llm_route_planner_row.schema.json"
+    )
+    route_adoption_blocker_taxonomy_schema_path = (
+        contract_dir
+        / "formalization_gap_planner_route_adoption_blocker_taxonomy.schema.json"
+    )
+    route_adoption_blocker_taxonomy_path = (
+        contract_dir
+        / "formalization_gap_planner_route_adoption_blocker_taxonomy.json"
     )
     primitive_action_queue_row_schema_path = (
         contract_dir
@@ -587,6 +663,8 @@ def export_formalization_gap_planner_publication_bundle(
         contract_dir / "formalization_gap_planner_schema_catalog.schema.json"
     )
     contract_path = contract_dir / "formalization_gap_planner_portable_contract.json"
+    llm_model_policy_path = contract_dir / "ai_statistician_llm_model_policy.json"
+    llm_model_policy_report_path = contract_dir / "ai_statistician_llm_model_policy.md"
     standalone_schema_path = (
         contract_dir / "formalization_gap_planner_standalone_input.schema.json"
     )
@@ -682,8 +760,30 @@ def export_formalization_gap_planner_publication_bundle(
         json.dumps(llm_route_planner_response_payload_schema_payload, indent=2),
         encoding="utf-8",
     )
+    llm_route_planner_response_payload_validation_manifest_schema_path.write_text(
+        json.dumps(
+            llm_route_planner_response_payload_validation_manifest_schema,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    llm_route_planner_response_payload_validation_row_schema_path.write_text(
+        json.dumps(
+            llm_route_planner_response_payload_validation_row_schema,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
     llm_route_planner_row_schema_path.write_text(
         json.dumps(llm_route_planner_row_schema, indent=2),
+        encoding="utf-8",
+    )
+    route_adoption_blocker_taxonomy_schema_path.write_text(
+        json.dumps(route_adoption_blocker_taxonomy_schema, indent=2),
+        encoding="utf-8",
+    )
+    route_adoption_blocker_taxonomy_path.write_text(
+        json.dumps(route_adoption_blocker_taxonomy_contract, indent=2),
         encoding="utf-8",
     )
     primitive_action_queue_row_schema_path.write_text(
@@ -802,6 +902,14 @@ def export_formalization_gap_planner_publication_bundle(
         json.dumps(cross_prover_target_summary_schema, indent=2),
         encoding="utf-8",
     )
+    llm_model_policy_path.write_text(
+        json.dumps(llm_model_policy_payload, indent=2, default=str),
+        encoding="utf-8",
+    )
+    llm_model_policy_report_path.write_text(
+        _llm_model_policy_markdown(llm_model_policy_payload),
+        encoding="utf-8",
+    )
     contract_path.write_text(json.dumps(contract_payload, indent=2), encoding="utf-8")
 
     benchmark_payload = export_formalization_gap_planner_benchmark(
@@ -839,6 +947,10 @@ def export_formalization_gap_planner_publication_bundle(
         (
             "formalization_gap_planner_feedback_llm_route_planner",
             formalization_gap_planner_feedback_llm_route_planner_dir,
+        ),
+        (
+            "formalization_gap_planner_llm_route_planner_response_payload_validation",
+            formalization_gap_planner_llm_route_planner_response_payload_validation_dir,
         ),
         (
             "goal_conditioned_minimal_formalization_plan",
@@ -881,6 +993,10 @@ def export_formalization_gap_planner_publication_bundle(
             formalization_gap_planner_minimal_delta_audit_dir,
         ),
         (
+            "formalization_gap_planner_minimal_delta_audit_feedback_adapter",
+            formalization_gap_planner_minimal_delta_audit_feedback_adapter_dir,
+        ),
+        (
             "formalization_gap_planner_source_grounding_audit",
             formalization_gap_planner_source_grounding_audit_dir,
         ),
@@ -903,6 +1019,10 @@ def export_formalization_gap_planner_publication_bundle(
         (
             "formalization_gap_planner_local_proof_state_adapter",
             formalization_gap_planner_local_proof_state_adapter_dir,
+        ),
+        (
+            "formalization_gap_planner_prover_adapter_feedback_adapter",
+            formalization_gap_planner_prover_adapter_feedback_adapter_dir,
         ),
         (
             "formalization_gap_planner_refinement_evidence",
@@ -1031,6 +1151,21 @@ def export_formalization_gap_planner_publication_bundle(
             "ok": contract_payload["schema_id"] == PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_ID,
         },
         {
+            "artifact_name": "llm_model_policy",
+            "path": str(llm_model_policy_path),
+            "required": True,
+            "ok": bool(llm_model_policy_payload.get("all_ok")),
+        },
+        {
+            "artifact_name": "llm_model_policy_report",
+            "path": str(llm_model_policy_report_path),
+            "required": True,
+            "ok": llm_model_policy_report_path.exists()
+            and "Claude Haiku" in llm_model_policy_report_path.read_text(
+                encoding="utf-8"
+            ),
+        },
+        {
             "artifact_name": "portable_schema",
             "path": str(schema_path),
             "required": True,
@@ -1149,11 +1284,46 @@ def export_formalization_gap_planner_publication_bundle(
             == LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
         },
         {
+            "artifact_name": (
+                "llm_route_planner_response_payload_validation_manifest_schema"
+            ),
+            "path": str(
+                llm_route_planner_response_payload_validation_manifest_schema_path
+            ),
+            "required": True,
+            "ok": llm_route_planner_response_payload_validation_manifest_schema.get(
+                "$id"
+            )
+            == LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_MANIFEST_SCHEMA_ID,
+        },
+        {
+            "artifact_name": "llm_route_planner_response_payload_validation_row_schema",
+            "path": str(llm_route_planner_response_payload_validation_row_schema_path),
+            "required": True,
+            "ok": llm_route_planner_response_payload_validation_row_schema.get("$id")
+            == LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID,
+        },
+        {
             "artifact_name": "llm_route_planner_row_schema",
             "path": str(llm_route_planner_row_schema_path),
             "required": True,
             "ok": llm_route_planner_row_schema.get("$id")
             == LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
+        },
+        {
+            "artifact_name": "route_adoption_blocker_taxonomy_schema",
+            "path": str(route_adoption_blocker_taxonomy_schema_path),
+            "required": True,
+            "ok": route_adoption_blocker_taxonomy_schema.get("$id")
+            == ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_ID,
+        },
+        {
+            "artifact_name": "route_adoption_blocker_taxonomy_contract",
+            "path": str(route_adoption_blocker_taxonomy_path),
+            "required": True,
+            "ok": not validate_route_adoption_blocker_taxonomy_payload(
+                route_adoption_blocker_taxonomy_contract
+            ),
         },
         {
             "artifact_name": "primitive_action_queue_row_schema",
@@ -2064,6 +2234,101 @@ def _schema_artifact_kind(
     return "contract_json"
 
 
+def _llm_model_policy_payload() -> dict[str, object]:
+    models_by_tier = dict(
+        ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY.get("models_by_tier", {})
+    )
+    supported_providers = ("anthropic", "openai", "static")
+    prohibited_providers = ("codex", "codex_exec")
+    all_ok = (
+        DEFAULT_LIVE_GENERATOR_PROVIDER == "anthropic"
+        and models_by_tier
+        == {
+            "haiku": DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            "sonnet": DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
+            "opus": DEFAULT_CLAUDE_OPUS_GENERATOR_MODEL,
+        }
+        and not set(prohibited_providers).intersection(supported_providers)
+    )
+    return {
+        "schema_version": FORMALIZATION_GAP_PLANNER_PUBLICATION_BUNDLE_SCHEMA_VERSION,
+        "component_name": LLM_MODEL_POLICY_COMPONENT_NAME,
+        "policy_kind": "cost_aware_generator_only_llm_policy",
+        "source_checked_date": ANTHROPIC_MODEL_SOURCE_CHECKED_DATE,
+        "default_live_generator_provider": DEFAULT_LIVE_GENERATOR_PROVIDER,
+        "supported_live_generator_providers": supported_providers,
+        "prohibited_generator_providers": prohibited_providers,
+        "claude_model_selection": ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
+        "latest_claude_models_by_tier": models_by_tier,
+        "cost_aware_runtime_tiers": {
+            "sonnet": (
+                "ArchitectCoordinator",
+                "TheoryDeveloper",
+                "FormalizerProofEngineer",
+                "formalization_gap_planner_route_synthesis",
+            ),
+            "haiku": (
+                "theory_intake",
+                "SimulationEngineer",
+                "AlgorithmEngineer",
+                "CriticEvaluator",
+                "bounded_route_triage",
+            ),
+            "opus": ("operator_explicit_only",),
+        },
+        "generator_boundary": (
+            "Claude/OpenAI/static providers are generator-only backends. "
+            "Agent loops, retrieval, tool calls, filesystem writes, tests, "
+            "Lean/prover execution, validation, and route repair remain owned "
+            "by AI Statistician runtime components."
+        ),
+        "codex_policy": (
+            "Codex is not accepted as a normal live LLM provider because it "
+            "cannot be made a stable pure-generator API boundary in this system."
+        ),
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": (
+            "LLM model policy artifacts document generator routing only. They "
+            "are not theorem proof evidence."
+        ),
+        "all_ok": all_ok,
+        "errors": ()
+        if all_ok
+        else ("Claude generator model policy constants are inconsistent",),
+    }
+
+
+def _llm_model_policy_markdown(payload: dict[str, object]) -> str:
+    policy = dict(payload.get("claude_model_selection", {}) or {})
+    models = dict(payload.get("latest_claude_models_by_tier", {}) or {})
+    lines = [
+        "# AI Statistician LLM Model Policy",
+        "",
+        f"- Default live provider: `{payload.get('default_live_generator_provider')}`",
+        f"- Source checked date: `{payload.get('source_checked_date')}`",
+        f"- Supported live providers: {', '.join(str(item) for item in payload.get('supported_live_generator_providers', []))}",
+        f"- Prohibited generator providers: {', '.join(str(item) for item in payload.get('prohibited_generator_providers', []))}",
+        "",
+        "## Claude Tiers",
+        "",
+        f"- Claude Haiku: `{models.get('haiku', '')}`",
+        f"- Claude Sonnet: `{models.get('sonnet', '')}`",
+        f"- Claude Opus: `{models.get('opus', '')}`",
+        "",
+        "## Source",
+        "",
+        f"- Models overview: {policy.get('models_overview_url', '')}",
+        f"- Model IDs and versioning: {policy.get('model_ids_and_versioning_url', '')}",
+        "",
+        "## Boundary",
+        "",
+        str(payload.get("generator_boundary", "")),
+        "",
+        str(payload.get("proof_evidence_boundary", "")),
+    ]
+    return "\n".join(lines) + "\n"
+
+
 def _contract_payload(library_snapshot_ref: str) -> dict[str, object]:
     return {
         "component": LIBRARY_AWARE_FORMALIZATION_GAP_PLANNER_NAME,
@@ -2072,6 +2337,7 @@ def _contract_payload(library_snapshot_ref: str) -> dict[str, object]:
         "library_snapshot_ref": library_snapshot_ref,
         "planner_contract": planner_contract(library_snapshot_ref),
         "schema_catalog_contract": schema_catalog_json_schema(),
+        "llm_model_policy_contract": _llm_model_policy_payload(),
         "portable_work_packet_contract": portable_work_packet_contract(),
         "prover_adapter_packet_contract": prover_adapter_packet_json_schema(),
         "prover_adapter_response_contract": prover_adapter_response_json_schema(),
@@ -2093,7 +2359,16 @@ def _contract_payload(library_snapshot_ref: str) -> dict[str, object]:
         "llm_route_planner_response_payload_contract": (
             llm_route_planner_response_payload_schema()
         ),
+        "llm_route_planner_response_payload_validation_manifest_contract": (
+            llm_route_planner_response_payload_validation_manifest_json_schema()
+        ),
+        "llm_route_planner_response_payload_validation_row_contract": (
+            llm_route_planner_response_payload_validation_row_json_schema()
+        ),
         "llm_route_planner_row_contract": llm_route_planner_row_json_schema(),
+        "route_adoption_blocker_taxonomy_contract": (
+            route_adoption_blocker_taxonomy_payload()
+        ),
         "primitive_action_queue_row_contract": primitive_action_queue_row_json_schema(),
         "action_resource_plan_row_contract": action_resource_plan_row_json_schema(),
         "resource_request_queue_row_contract": resource_request_queue_row_json_schema(),
@@ -2195,6 +2470,12 @@ def _reproduction_payload(
             "primary_output": "formalization_gap_planner_llm_route_planner_manifest.json",
         },
         {
+            "entrypoint": "formalization-gap-planner-llm-route-planner-response-payload-validate",
+            "purpose": "preflight reviewed LLM route-planner response payloads against the public schema and staged request context",
+            "required_input": "reviewed LLM route payload JSON plus the matching staged LLM route-planner request directory",
+            "primary_output": "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.json",
+        },
+        {
             "entrypoint": "formalization-gap-planner-portable-plan-audit",
             "purpose": "validate a portable planner manifest before downstream reuse",
             "required_input": "directory containing goal_conditioned_minimal_formalization_plan_manifest.json",
@@ -2211,6 +2492,12 @@ def _reproduction_payload(
             "purpose": "turn library coverage rows into executable primitive formalization work orders",
             "required_input": "directory containing formalization_gap_planner_library_coverage_map_manifest.json",
             "primary_output": "formalization_gap_planner_primitive_action_queue_manifest.json",
+        },
+        {
+            "entrypoint": "formalization-gap-planner-minimal-delta-audit",
+            "purpose": "audit AND/OR route-option costs and selected primitive deltas before repair feedback",
+            "required_input": "directory containing goal_conditioned_minimal_formalization_plan_manifest.json",
+            "primary_output": "formalization_gap_planner_minimal_delta_audit_manifest.json",
         },
         {
             "entrypoint": "formalization-gap-planner-action-resource-plan",
@@ -2255,8 +2542,21 @@ def _reproduction_payload(
             "primary_output": "formalization_gap_planner_target_intake_manifest.json",
         },
         {
+            "entrypoint": "formalization-gap-planner-reuse-smoke",
+            "purpose": (
+                "run the full public planner path from target intake through "
+                "LLM prompt staging, local adapters, route revision, prover "
+                "adapter contracts, and publication-bundle audit"
+            ),
+            "required_input": (
+                "target theorem request JSON or AI Statistician runtime "
+                "target-intake JSON emitted by research-agent-runtime"
+            ),
+            "primary_output": "formalization_gap_planner_reuse_smoke_manifest.json",
+        },
+        {
             "entrypoint": "formalization-gap-planner-ablation-study",
-            "purpose": "compare recorded planner metrics against no-literature, no-Lean, no-proof-feedback, and no-route-planner baselines",
+            "purpose": "compare recorded planner metrics against no-literature, no-formal-grounding, no-proof-feedback, and no-route-planner baselines",
             "required_input": "planner, evaluation, and optional interactive-session artifact directories",
             "primary_output": "formalization_gap_planner_ablation_study_manifest.json",
         },
@@ -2285,6 +2585,12 @@ def _reproduction_payload(
             "primary_output": "formalization_gap_planner_refinement_adapter_manifest.json",
         },
         {
+            "entrypoint": "formalization-gap-planner-minimal-delta-audit-feedback",
+            "purpose": "merge failed minimal-delta audit decisions into route-revision refinement responses",
+            "required_input": "refinement queue directory, minimal-delta audit directory, and optional base response JSONL",
+            "primary_output": "formalization_gap_planner_minimal_delta_audit_feedback_adapter_manifest.json",
+        },
+        {
             "entrypoint": "formalization-gap-planner-local-literature-adapter",
             "purpose": "merge local corpus hits into refinement responses for literature-discovery items",
             "required_input": "refinement queue directory, optional base response JSONL, and local text/markdown/json corpus roots",
@@ -2301,6 +2607,12 @@ def _reproduction_payload(
             "purpose": "merge local Lean proof-state probes into refinement responses for prover-feedback items",
             "required_input": "refinement queue directory, optional base response JSONL, and optional Lake project",
             "primary_output": "formalization_gap_planner_local_proof_state_adapter_manifest.json",
+        },
+        {
+            "entrypoint": "formalization-gap-planner-prover-adapter-feedback",
+            "purpose": "merge target-prover adapter validation rows into refinement prover-feedback responses",
+            "required_input": "refinement queue directory plus prover-adapter contract or cross-prover matrix audit output",
+            "primary_output": "formalization_gap_planner_prover_adapter_feedback_adapter_manifest.json",
         },
         {
             "entrypoint": "formalization-gap-planner-refinement-evidence",
@@ -2448,9 +2760,21 @@ def _reproduction_payload(
                 "--provider anthropic "
                 "--model-tier auto "
                 "--max-repair-attempts 1 "
+                "--formalization-gap-planner-target-intake-dir "
+                "<work_dir>/formalization_gap_planner_target_intake "
                 "--formalization-gap-planner-component-resource-registry-dir "
                 "<bundle_dir>/component_resource_registry "
                 "--out <work_dir>/formalization_gap_planner_llm_route_planner"
+            ),
+        },
+        {
+            "name": "validate_llm_route_payloads",
+            "command": (
+                "python3 -m ai_statistician.cli "
+                "formalization-gap-planner-llm-route-planner-response-payload-validate "
+                "--input <reviewed_llm_route_payload_json> "
+                "--request-context <work_dir>/formalization_gap_planner_llm_route_planner "
+                "--out <work_dir>/formalization_gap_planner_llm_route_planner_response_payload_validation"
             ),
         },
         {
@@ -2460,6 +2784,42 @@ def _reproduction_payload(
                 "formalization-gap-planner-target-intake "
                 "--input <bundle_dir>/examples/formalization_gap_planner_target_intake_example.json "
                 "--out <work_dir>/formalization_gap_planner_target_intake"
+            ),
+        },
+        {
+            "name": "run_reuse_smoke",
+            "command": (
+                "python3 -m ai_statistician.cli "
+                "formalization-gap-planner-reuse-smoke "
+                "--input <bundle_dir>/examples/formalization_gap_planner_target_intake_example.json "
+                "--target-prover-family rocq "
+                f"--target-library-snapshot-ref {library_snapshot_ref} "
+                "--llm-route-planner-provider anthropic "
+                "--llm-route-planner-model-tier auto "
+                "--llm-route-planner-max-repair-attempts 1 "
+                "--feedback-llm-route-planner-provider anthropic "
+                "--feedback-llm-route-planner-model-tier auto "
+                "--feedback-llm-route-planner-max-repair-attempts 1 "
+                "--out <work_dir>/formalization_gap_planner_reuse_smoke"
+            ),
+        },
+        {
+            "name": "run_runtime_handoff_reuse_smoke",
+            "command": (
+                "python3 -m ai_statistician.cli "
+                "formalization-gap-planner-reuse-smoke "
+                "--input "
+                "<ai_statistician_runtime_dir>/runtime_formalization_gap_planner_target_intake/"
+                "<runtime_target_intake_json> "
+                "--target-prover-family <lean4|rocq|isabelle|agda|other> "
+                "--target-library-snapshot-ref <runtime-library-snapshot-ref> "
+                "--llm-route-planner-provider anthropic "
+                "--llm-route-planner-model-tier auto "
+                "--llm-route-planner-max-repair-attempts 1 "
+                "--feedback-llm-route-planner-provider anthropic "
+                "--feedback-llm-route-planner-model-tier auto "
+                "--feedback-llm-route-planner-max-repair-attempts 1 "
+                "--out <work_dir>/formalization_gap_planner_runtime_reuse_smoke"
             ),
         },
         {
@@ -2490,6 +2850,16 @@ def _reproduction_payload(
                 "--formalization-gap-planner-library-coverage-map-dir "
                 "<work_dir>/formalization_gap_planner_library_coverage_map "
                 "--out <work_dir>/formalization_gap_planner_primitive_action_queue"
+            ),
+        },
+        {
+            "name": "run_minimal_delta_audit",
+            "command": (
+                "python3 -m ai_statistician.cli "
+                "formalization-gap-planner-minimal-delta-audit "
+                "--goal-conditioned-minimal-formalization-plan-dir "
+                "<work_dir>/goal_conditioned_minimal_formalization_plan "
+                "--out <work_dir>/formalization_gap_planner_minimal_delta_audit"
             ),
         },
         {
@@ -2558,6 +2928,21 @@ def _reproduction_payload(
             ),
         },
         {
+            "name": "run_minimal_delta_audit_feedback",
+            "command": (
+                "python3 -m ai_statistician.cli "
+                "formalization-gap-planner-minimal-delta-audit-feedback "
+                "--formalization-gap-planner-refinement-queue-dir "
+                "<work_dir>/formalization_gap_planner_refinement_queue "
+                "--formalization-gap-planner-minimal-delta-audit-dir "
+                "<work_dir>/formalization_gap_planner_minimal_delta_audit "
+                "--base-response-jsonl "
+                "<work_dir>/formalization_gap_planner_refinement_adapter/"
+                "formalization_gap_planner_refinement_evidence_responses.jsonl "
+                "--out <work_dir>/formalization_gap_planner_minimal_delta_audit_feedback_adapter"
+            ),
+        },
+        {
             "name": "run_local_literature_adapter",
             "command": (
                 "python3 -m ai_statistician.cli "
@@ -2565,7 +2950,7 @@ def _reproduction_payload(
                 "--formalization-gap-planner-refinement-queue-dir "
                 "<work_dir>/formalization_gap_planner_refinement_queue "
                 "--base-response-jsonl "
-                "<work_dir>/formalization_gap_planner_refinement_adapter/"
+                "<work_dir>/formalization_gap_planner_minimal_delta_audit_feedback_adapter/"
                 "formalization_gap_planner_refinement_evidence_responses.jsonl "
                 "--literature-root <local-paper-or-text-corpus-root> "
                 "--out <work_dir>/formalization_gap_planner_local_literature_adapter"
@@ -2601,6 +2986,23 @@ def _reproduction_payload(
             ),
         },
         {
+            "name": "run_prover_adapter_feedback",
+            "command": (
+                "python3 -m ai_statistician.cli "
+                "formalization-gap-planner-prover-adapter-feedback "
+                "--formalization-gap-planner-refinement-queue-dir "
+                "<work_dir>/formalization_gap_planner_refinement_queue "
+                "--base-response-jsonl "
+                "<work_dir>/formalization_gap_planner_local_proof_state_adapter/"
+                "formalization_gap_planner_refinement_evidence_responses.jsonl "
+                "--formalization-gap-planner-prover-adapter-contract-dir "
+                "<work_dir>/formalization_gap_planner_prover_adapter_contract "
+                "--formalization-gap-planner-cross-prover-matrix-audit-dir "
+                "<work_dir>/formalization_gap_planner_cross_prover_matrix_audit "
+                "--out <work_dir>/formalization_gap_planner_prover_adapter_feedback_adapter"
+            ),
+        },
+        {
             "name": "run_refinement_evidence",
             "command": (
                 "python3 -m ai_statistician.cli "
@@ -2608,7 +3010,7 @@ def _reproduction_payload(
                 "--formalization-gap-planner-refinement-queue-dir "
                 "<work_dir>/formalization_gap_planner_refinement_queue "
                 "--response-jsonl "
-                "<work_dir>/formalization_gap_planner_local_proof_state_adapter/"
+                "<work_dir>/formalization_gap_planner_prover_adapter_feedback_adapter/"
                 "formalization_gap_planner_refinement_evidence_responses.jsonl "
                 "--out <work_dir>/formalization_gap_planner_refinement_evidence"
             ),
@@ -2717,6 +3119,8 @@ def _reproduction_payload(
                 "--provider anthropic "
                 "--model-tier auto "
                 "--max-repair-attempts 1 "
+                "--formalization-gap-planner-target-intake-dir "
+                "<work_dir>/formalization_gap_planner_target_intake "
                 "--goal-conditioned-minimal-formalization-plan-dir "
                 "<work_dir>/goal_conditioned_minimal_formalization_plan "
                 "--formalization-gap-planner-library-coverage-map-dir "
@@ -2736,9 +3140,21 @@ def _reproduction_payload(
                 "--out <work_dir>/formalization_gap_planner_feedback_llm_route_planner"
             ),
         },
+        {
+            "name": "validate_feedback_llm_route_payloads",
+            "command": (
+                "python3 -m ai_statistician.cli "
+                "formalization-gap-planner-llm-route-planner-response-payload-validate "
+                "--input <reviewed_feedback_llm_route_payload_json> "
+                "--request-context <work_dir>/formalization_gap_planner_feedback_llm_route_planner "
+                "--out <work_dir>/formalization_gap_planner_feedback_llm_route_planner_response_payload_validation"
+            ),
+        },
     )
     bundle_relative_artifacts = (
         "contract/formalization_gap_planner_portable_contract.json",
+        "contract/ai_statistician_llm_model_policy.json",
+        "contract/ai_statistician_llm_model_policy.md",
         "contract/formalization_gap_planner_schema_catalog.json",
         "contract/formalization_gap_planner_schema_catalog.schema.json",
         "contract/library_aware_formalization_gap_plan.schema.json",
@@ -2748,7 +3164,11 @@ def _reproduction_payload(
         "contract/formalization_gap_planner_llm_route_planner_request.schema.json",
         "contract/formalization_gap_planner_llm_route_planner_response.schema.json",
         "contract/formalization_gap_planner_llm_route_planner_response_payload.schema.json",
+        "contract/formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.schema.json",
+        "contract/formalization_gap_planner_llm_route_planner_response_payload_validation_row.schema.json",
         "contract/formalization_gap_planner_llm_route_planner_row.schema.json",
+        "contract/formalization_gap_planner_route_adoption_blocker_taxonomy.schema.json",
+        "contract/formalization_gap_planner_route_adoption_blocker_taxonomy.json",
         "contract/formalization_gap_planner_prover_adapter_packet.schema.json",
         "contract/formalization_gap_planner_prover_adapter_response.schema.json",
         "contract/formalization_gap_planner_prover_adapter_response_validation_row.schema.json",

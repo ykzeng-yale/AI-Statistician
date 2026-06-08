@@ -113,6 +113,12 @@ def test_resource_request_queue_expands_action_resources_to_dispatch_packets() -
         == payload["n_resource_request_rows"]
     )
     assert payload["n_request_payload_identity_mismatches"] == 0
+    assert payload["n_with_request_playbooks"] == payload["n_resource_request_rows"]
+    assert (
+        payload["n_request_playbook_identity_valid"]
+        == payload["n_resource_request_rows"]
+    )
+    assert payload["n_request_playbook_identity_mismatches"] == 0
     assert payload["n_with_candidate_declaration_rows"] > 0
     assert payload["n_candidate_declaration_rows"] == payload[
         "n_with_candidate_declaration_rows"
@@ -173,6 +179,24 @@ def test_resource_request_queue_expands_action_resources_to_dispatch_packets() -
         lean_lsp_row["request_payload"]["dispatch_spec"]
         == lean_lsp_row["dispatch_spec"]
     )
+    assert (
+        lean_lsp_row["request_payload"]["request_playbook"]
+        == lean_lsp_row["request_playbook"]
+    )
+    assert (
+        lean_lsp_row["request_playbook"]["resource_request_id"]
+        == lean_lsp_row["resource_request_id"]
+    )
+    assert (
+        lean_lsp_row["request_playbook"]["expected_response_artifact"]
+        == lean_lsp_row["expected_response_artifact"]
+    )
+    assert "rank_uniformity" in lean_lsp_row["request_playbook"]["operator_prompt"]
+    assert (
+        "prover_diagnostics"
+        in lean_lsp_row["request_playbook"]["expected_response_fields"]
+    )
+    assert lean_lsp_row["request_playbook"]["acceptance_checklist"]
     assert (
         "not theorem proof evidence"
         in lean_lsp_row["request_payload"]["proof_evidence_boundary"]
@@ -277,6 +301,22 @@ def test_resource_request_queue_expands_action_resources_to_dispatch_packets() -
             resource_request_queue_row_json_schema(),
         )
     )
+    malformed = dict(lean_lsp_row)
+    malformed.pop("request_playbook")
+    assert "request_playbook required" in validate_resource_request_queue_row(
+        malformed,
+        resource_request_queue_row_json_schema(),
+    )
+    malformed = dict(lean_lsp_row)
+    malformed["request_playbook"] = dict(lean_lsp_row["request_playbook"])
+    malformed["request_playbook"]["expected_response_fields"] = ["stale_field"]
+    assert (
+        "request_playbook.expected_response_fields must match row.response_contract_fields"
+        in validate_resource_request_queue_row(
+            malformed,
+            resource_request_queue_row_json_schema(),
+        )
+    )
     assert (
         request_queue_dir
         / "formalization_gap_planner_resource_request_queue_manifest.json"
@@ -291,6 +331,88 @@ def test_resource_request_queue_expands_action_resources_to_dispatch_packets() -
     assert (
         request_queue_dir / "formalization_gap_planner_resource_request_queue.md"
     ).exists()
+
+
+def test_resource_request_queue_dispatches_rocq_bridge_without_lean_resources() -> None:
+    root = Path("runs/test_formalization_gap_planner_resource_request_queue_rocq")
+    input_json = root / "standalone_input.json"
+    plan_dir = root / "plan"
+    coverage_dir = root / "coverage"
+    action_queue_dir = root / "action_queue"
+    component_resource_registry_dir = root / "component_resource_registry"
+    action_resource_plan_dir = root / "action_resource_plan"
+    request_queue_dir = root / "request_queue"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "component_name": "formalization_gap_planner_standalone_input",
+                "target_prover_family": "rocq",
+                "library_snapshot_ref": "rocq_conformal_snapshot",
+                "routes": [
+                    {
+                        "route_id": "rocq_rank_route",
+                        "display_name": "rocq_rank_route",
+                        "theorem_statement": "A Rocq rank route.",
+                        "primitives": [
+                            {
+                                "primitive": "rank_uniformity",
+                                "coverage_status": "bridge_needed",
+                                "expected_premises": ["exchangeability"],
+                            }
+                        ],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    export_formalization_gap_planner_standalone_plan(input_json, plan_dir)
+    export_formalization_gap_planner_library_coverage_map(plan_dir, coverage_dir)
+    export_formalization_gap_planner_primitive_action_queue(
+        coverage_dir,
+        action_queue_dir,
+    )
+    export_formalization_gap_planner_component_resource_registry(
+        component_resource_registry_dir
+    )
+    export_formalization_gap_planner_action_resource_plan(
+        action_queue_dir,
+        component_resource_registry_dir,
+        action_resource_plan_dir,
+    )
+
+    payload = export_formalization_gap_planner_resource_request_queue(
+        action_resource_plan_dir,
+        request_queue_dir,
+    )
+
+    assert payload["all_ok"]
+    resource_ids = {row["resource_id"] for row in payload["rows"]}
+    assert "rocq_lsp_serapi" in resource_ids
+    assert "local_target_formal_source_index" in resource_ids
+    assert not resource_ids.intersection(
+        {
+            "local_formal_source_index",
+            "local_lean_rag_dependency_graph",
+            "loogle_leansearch",
+            "leanexplore_mcp",
+            "lean_blueprint_leanarchitect",
+            "local_lake_lean",
+            "lean_lsp_mcp",
+            "leandojo_reprover",
+        }
+    )
+    rocq_request = next(row for row in payload["rows"] if row["resource_id"] == "rocq_lsp_serapi")
+    assert rocq_request["target_prover_family"] == "rocq"
+    assert rocq_request["dispatch_spec"]["adapter_surface"] == "rocq_serapi"
+    assert rocq_request["mcp_or_cli_hint"] == "Rocq SerAPI/LSP adapter"
+    assert "dispatch rocq proof-state request" in rocq_request["execution_command"]
+    assert "prover_diagnostics" in rocq_request["response_contract_fields"]
+    assert "residual_goals" in rocq_request["response_contract_fields"]
 
 
 def test_resource_request_queue_marks_missing_action_plan_as_blocker() -> None:

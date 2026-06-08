@@ -25,6 +25,7 @@ from ai_statistician.formalization_gap_planner_library_coverage_map import (
 from ai_statistician.formalization_gap_planner_llm_route_planner import (
     PROOF_EVIDENCE_BOUNDARY as LLM_ROUTE_PLANNER_PROOF_EVIDENCE_BOUNDARY,
     export_formalization_gap_planner_llm_route_planner,
+    validate_formalization_gap_planner_llm_route_planner_response_payloads,
 )
 from ai_statistician.formalization_gap_planner_primitive_action_queue import (
     PROOF_EVIDENCE_STATUS as PRIMITIVE_ACTION_QUEUE_PROOF_EVIDENCE_STATUS,
@@ -64,7 +65,11 @@ from ai_statistician.formalization_gap_planner_publication_bundle import (
     schema_catalog_json_schema,
 )
 from ai_statistician.formalization_gap_planner_publication_bundle_audit import (
+    _runtime_handoff_audit_optional_checks,
     audit_formalization_gap_planner_publication_bundle,
+)
+from ai_statistician.formalization_gap_planner_runtime_handoff_audit import (
+    runtime_handoff_audit_row_json_schema,
 )
 from ai_statistician.formalization_gap_planner_portable_plan_audit import (
     portable_plan_audit_row_json_schema,
@@ -111,6 +116,86 @@ from ai_statistician.formalization_gap_planner_proof_state_triage import (
 )
 
 
+def test_publication_bundle_audit_checks_runtime_handoff_registry_context() -> None:
+    root = Path("runs/test_publication_bundle_audit_runtime_handoff_registry")
+    shutil.rmtree(root, ignore_errors=True)
+    artifact_dir = (
+        root
+        / "bundle"
+        / "artifacts"
+        / "formalization_gap_planner_runtime_handoff_audit"
+    )
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+    row = {
+        "schema_version": 1,
+        "check_id": "runtime_handoff_audit:registry_context",
+        "check_name": "row_llm_prompt_has_component_resource_registry_context",
+        "category": "component_resource_registry",
+        "handoff_id": "runtime_formalization_gap_planner_handoff:fixture",
+        "bridge_id": "runtime_formalization_gap_planner_bridge:fixture",
+        "expected": "prompt packets include component/resource/contract rows",
+        "observed": "registry_components=2 registry_resources=3 registry_contracts=3",
+        "ok": True,
+        "severity": "error",
+        "errors": [],
+    }
+    (artifact_dir / "formalization_gap_planner_runtime_handoff_audit_manifest.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "component_name": "formalization_gap_planner_runtime_handoff_audit",
+                "n_handoffs": 1,
+                "n_checks": 1,
+                "n_ok": 1,
+                "n_failed": 0,
+                "n_row_schema_valid": 1,
+                "n_row_schema_invalid": 0,
+                "n_cost_control_ok": 1,
+                "n_live_explicit_ok": 1,
+                "n_standalone_smoke_ok": 1,
+                "n_llm_prompt_smoke_ok": 1,
+                "n_llm_prompt_packets": 1,
+                "n_component_resource_registry_smoke_ok": 1,
+                "n_component_resource_registry_components_in_prompt": 2,
+                "n_component_resource_registry_resources_in_prompt": 3,
+                "n_component_resource_registry_contracts_in_prompt": 3,
+                "all_ok": True,
+                "checks": [row],
+                "proof_evidence_status": (
+                    "FORMALIZATION_GAP_PLANNER_RUNTIME_HANDOFF_AUDIT_NOT_PROOF_EVIDENCE"
+                ),
+                "proof_evidence_boundary": "not theorem proof evidence",
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    (artifact_dir / "formalization_gap_planner_runtime_handoff_audit.jsonl").write_text(
+        json.dumps(row, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    (
+        artifact_dir
+        / "formalization_gap_planner_runtime_handoff_audit_row.schema.json"
+    ).write_text(
+        json.dumps(runtime_handoff_audit_row_json_schema(), indent=2),
+        encoding="utf-8",
+    )
+
+    checks = _runtime_handoff_audit_optional_checks(root / "bundle")
+    by_name = {check.check_name: check for check in checks}
+
+    assert by_name["optional_runtime_handoff_audit_cost_control"].ok
+    assert by_name["optional_runtime_handoff_audit_prompt_smoke"].ok
+    assert by_name[
+        "optional_runtime_handoff_audit_component_resource_registry_smoke"
+    ].ok
+    assert by_name[
+        "optional_runtime_handoff_audit_registry_context_in_prompt"
+    ].ok
+    assert by_name["optional_runtime_handoff_audit_row_0_schema_valid"].ok
+
+
 def _fixture_prover_adapter_packet() -> dict[str, object]:
     return {
         "schema_version": 1,
@@ -139,10 +224,24 @@ def _fixture_prover_adapter_packet() -> dict[str, object]:
             "target_prover_family": "rocq",
             "target_library_snapshot_ref": "rocq_fixture",
             "trace_target_projection": "target_prover_adapter_contract",
+            "llm_route_planner_route_adoption_status": (
+                "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+            ),
+            "llm_route_planner_route_adoption_blockers": [
+                "search_requests_pending_evidence",
+                "uncertainty_flags_require_review",
+            ],
             "has_replan_metadata": True,
             "replan_metadata": {"revision_reason": "fixture route revision"},
             "applied_hook_kinds": ["resource_response_ledger"],
         },
+        "llm_route_planner_route_adoption_status": (
+            "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+        ),
+        "llm_route_planner_route_adoption_blockers": [
+            "search_requests_pending_evidence",
+            "uncertainty_flags_require_review",
+        ],
         "route_alignment_edge": {
             "source": "informal:rank_uniformity",
             "target": "formal:rank_uniformity",
@@ -210,35 +309,40 @@ def _fixture_prover_adapter_response_validation_row(
 
 def _write_accepted_llm_route_planner_artifact(root: Path) -> Path:
     root.mkdir(parents=True, exist_ok=True)
-    input_json = root / "standalone_input.json"
-    input_json.write_text(
+    target_intake_dir = root / "target_intake"
+    raw_target_json = root / "target_intake_request.json"
+    raw_target_json.write_text(
         json.dumps(
             {
                 "schema_version": 1,
-                "component_name": "formalization_gap_planner_standalone_input",
+                "component_name": "formalization_gap_planner_target_intake",
                 "target_prover_family": "lean4",
                 "library_snapshot_ref": "lean_mathlib_snapshot",
-                "routes": [
+                "target_id": "rank_route",
+                "title": "distribution_free_rank_bound",
+                "theorem_statement": (
+                    "A source-backed rank-uniformity bridge closes the "
+                    "distribution-free rank route."
+                ),
+                "known_proof_sources": ["fixture_source"],
+                "candidate_primitives": [
                     {
-                        "route_id": "rank_route",
-                        "display_name": "distribution_free_rank_bound",
-                        "theorem_statement": (
-                            "A source-backed rank-uniformity bridge closes the "
-                            "distribution-free rank route."
-                        ),
-                        "source_refs": ["fixture_source"],
-                        "primitives": [
-                            {
-                                "primitive": "rank_uniformity",
-                                "coverage_status": "bridge_needed",
-                            }
-                        ],
+                        "primitive": "rank_uniformity",
+                        "coverage_status": "bridge_needed",
                     }
                 ],
             },
             indent=2,
         ),
         encoding="utf-8",
+    )
+    normalize_formalization_gap_planner_target_intake(
+        raw_target_json,
+        target_intake_dir,
+    )
+    input_json = (
+        target_intake_dir
+        / "formalization_gap_planner_target_intake_standalone_seed.json"
     )
     response_json = root / "llm_response.json"
     response_json.write_text(
@@ -386,6 +490,7 @@ def _write_accepted_llm_route_planner_artifact(root: Path) -> Path:
         provider_name="static",
         invoke_provider=True,
         static_response_json=response_json,
+        formalization_gap_planner_target_intake_dir=target_intake_dir,
         formalization_gap_planner_component_resource_registry_dir=(
             component_resource_registry_dir
         ),
@@ -393,6 +498,32 @@ def _write_accepted_llm_route_planner_artifact(root: Path) -> Path:
     assert payload["all_ok"]
     assert payload["n_accepted_route_plans"] == 1
     assert payload["n_rows_with_generator_metadata"] == 1
+    return out_dir
+
+
+def _write_llm_payload_validation_from_route_planner_artifact(
+    llm_route_planner_dir: Path,
+    root: Path,
+) -> Path:
+    root.mkdir(parents=True, exist_ok=True)
+    response_json = root / "response_payloads.json"
+    raw_response_json = llm_route_planner_dir.parent / "llm_response.json"
+    response_json.write_text(
+        json.dumps(
+            {"responses": [json.loads(raw_response_json.read_text(encoding="utf-8"))]},
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    out_dir = root / "payload_validation"
+    payload = validate_formalization_gap_planner_llm_route_planner_response_payloads(
+        response_json,
+        out_dir,
+        request_context_json=llm_route_planner_dir,
+    )
+    assert payload["all_ok"]
+    assert payload["n_valid_payloads"] == 1
+    assert payload["n_request_bound_payloads"] == 1
     return out_dir
 
 
@@ -419,6 +550,15 @@ def _fixture_cross_prover_matrix_row(
         "n_packets_with_standalone_input_trace": 1,
         "n_packets_missing_standalone_input_trace": 0,
         "n_packets_with_replan_metadata_trace": 1,
+        "n_packets_with_llm_route_adoption_status": 1,
+        "n_packets_llm_route_adoption_ready": 0,
+        "n_packets_llm_route_adoption_pending_refinement": 1,
+        "n_packets_llm_route_adoption_rejected": 0,
+        "n_packets_llm_route_adoption_awaiting_response": 0,
+        "n_packet_llm_route_adoption_blockers": 2,
+        "by_packet_llm_route_adoption_status": {
+            "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
+        },
         "n_response_present": 0,
         "n_awaiting_adapter_mapping": 1,
         "n_response_contract_ok": 0,
@@ -448,6 +588,15 @@ def _fixture_cross_prover_target_summary(
         "n_total_packets_with_standalone_input_trace": 1,
         "n_total_packets_missing_standalone_input_trace": 0,
         "n_total_packets_with_replan_metadata_trace": 1,
+        "n_total_packets_with_llm_route_adoption_status": 1,
+        "n_total_packets_llm_route_adoption_ready": 0,
+        "n_total_packets_llm_route_adoption_pending_refinement": 1,
+        "n_total_packets_llm_route_adoption_rejected": 0,
+        "n_total_packets_llm_route_adoption_awaiting_response": 0,
+        "n_total_packet_llm_route_adoption_blockers": 2,
+        "by_total_packet_llm_route_adoption_status": {
+            "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
+        },
         "target_rows": [
             {
                 "target_prover_family": target,
@@ -457,6 +606,15 @@ def _fixture_cross_prover_target_summary(
                 "n_packets_with_standalone_input_trace": 1,
                 "n_packets_missing_standalone_input_trace": 0,
                 "n_packets_with_replan_metadata_trace": 1,
+                "n_packets_with_llm_route_adoption_status": 1,
+                "n_packets_llm_route_adoption_ready": 0,
+                "n_packets_llm_route_adoption_pending_refinement": 1,
+                "n_packets_llm_route_adoption_rejected": 0,
+                "n_packets_llm_route_adoption_awaiting_response": 0,
+                "n_packet_llm_route_adoption_blockers": 2,
+                "by_packet_llm_route_adoption_status": {
+                    "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
+                },
                 "n_response_validation_rows": 1,
                 "aggregate_packet_jsonl_path": (
                     "formalization_gap_planner_cross_prover_packets.jsonl"
@@ -790,14 +948,25 @@ def _fixture_action_resource_plan_row() -> dict[str, object]:
             ],
         },
         "response_contract_fields_by_resource": {
-            "local_formal_source_index": ["lean_declaration_hits"],
+            "local_formal_source_index": [
+                "formal_declaration_hits",
+                "lean_declaration_hits",
+            ],
             "local_lean_rag_dependency_graph": [
                 "declaration_hits",
                 "dependency_neighbors",
             ],
             "local_lake_lean": ["prover_diagnostics", "residual_goals"],
-            "loogle_leansearch": ["lean_declaration_hits", "premise_candidates"],
-            "leanexplore_mcp": ["lean_declaration_hits", "semantic_match_scores"],
+            "loogle_leansearch": [
+                "formal_declaration_hits",
+                "lean_declaration_hits",
+                "premise_candidates",
+            ],
+            "leanexplore_mcp": [
+                "formal_declaration_hits",
+                "lean_declaration_hits",
+                "semantic_match_scores",
+            ],
             "lean_lsp_mcp": ["prover_diagnostics", "residual_goals"],
         },
         "request_contract_fields": [
@@ -810,6 +979,7 @@ def _fixture_action_resource_plan_row() -> dict[str, object]:
             "mcp_tool_call",
         ],
         "response_contract_fields": [
+            "formal_declaration_hits",
             "lean_declaration_hits",
             "declaration_hits",
             "dependency_neighbors",
@@ -1072,6 +1242,15 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                 "n_total_packets_with_standalone_input_trace": 1,
                 "n_total_packets_missing_standalone_input_trace": 0,
                 "n_total_packets_with_replan_metadata_trace": 1,
+                "n_total_packets_with_llm_route_adoption_status": 1,
+                "n_total_packets_llm_route_adoption_ready": 0,
+                "n_total_packets_llm_route_adoption_pending_refinement": 1,
+                "n_total_packets_llm_route_adoption_rejected": 0,
+                "n_total_packets_llm_route_adoption_awaiting_response": 0,
+                "n_total_packet_llm_route_adoption_blockers": 2,
+                "by_total_packet_llm_route_adoption_status": {
+                    "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
+                },
                 "packet_count_consistent": True,
                 "alignment_packet_count_consistent": True,
                 "standalone_input_trace_packet_count_consistent": True,
@@ -1428,6 +1607,11 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
             "base_route_cost": 5,
             "final_goal_conditioned_cost": 5,
         },
+        "has_minimal_delta_and_or_cost_graph": False,
+        "minimal_delta_route_option_count": 0,
+        "minimal_delta_selected_route_option_id": "",
+        "minimal_delta_selected_route_cost": 0.0,
+        "minimal_delta_rejected_route_options": [],
         "selected_primitives": ["rank_uniformity"],
         "existing_reuse_primitives": [],
         "minimal_delta_primitives": ["rank_uniformity"],
@@ -1438,6 +1622,7 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         "work_packet_cut_ok": True,
         "do_not_formalize_disjoint": True,
         "delta_nodes_connected": True,
+        "cost_graph_selection_ok": True,
         "dominated_by_goal_plan_ids": [],
         "dominance_status": "NON_DOMINATED_UNDER_CURRENT_STRUCTURAL_PROXY",
         "minimality_evidence_status": (
@@ -2491,6 +2676,33 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     assert audit_payload["n_optional_primitive_action_queue_row_schema_valid"] == 1
     assert audit_payload["n_optional_action_resource_plan_row_schema_checked"] == 1
     assert audit_payload["n_optional_action_resource_plan_row_schema_valid"] == 1
+    bundled_action_plan_rows = [
+        json.loads(line)
+        for line in (
+            bundle_dir
+            / "artifacts"
+            / "formalization_gap_planner_action_resource_plan"
+            / "formalization_gap_planner_action_resource_plan.jsonl"
+        ).read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    bundled_action_plan_row = bundled_action_plan_rows[0]
+    assert "formal_declaration_hits" in bundled_action_plan_row[
+        "response_contract_fields"
+    ]
+    assert "lean_declaration_hits" in bundled_action_plan_row[
+        "response_contract_fields"
+    ]
+    for resource_id in (
+        "local_formal_source_index",
+        "loogle_leansearch",
+        "leanexplore_mcp",
+    ):
+        resource_fields = bundled_action_plan_row[
+            "response_contract_fields_by_resource"
+        ][resource_id]
+        assert "formal_declaration_hits" in resource_fields
+        assert "lean_declaration_hits" in resource_fields
     assert audit_payload["n_optional_minimal_delta_decision_row_schema_checked"] == 1
     assert audit_payload["n_optional_minimal_delta_decision_row_schema_valid"] == 1
     assert audit_payload["n_optional_source_grounding_row_schema_checked"] == 1
@@ -2570,6 +2782,40 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         for row in audit_payload["checks"]
     )
     assert any(
+        row["check_name"] == "route_adoption_blocker_taxonomy_schema_id"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"] == "route_adoption_blocker_taxonomy_payload"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "portable_contract_has_route_adoption_blocker_taxonomy_contract"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "portable_contract_route_adoption_blocker_taxonomy_valid"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "llm_route_planner_row_schema_route_adoption_status_enum_matches_taxonomy"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "llm_route_planner_row_schema_route_adoption_blocker_enum_matches_taxonomy"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
         row["check_name"] == "optional_goal_plan_row_schema_id"
         and row["observed"] == portable_gap_plan_row_json_schema()["$id"]
         and row["ok"]
@@ -2582,6 +2828,27 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     )
     assert any(
         row["check_name"] == "portable_contract_has_schema_catalog_contract"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"] == "llm_model_policy_default_provider"
+        and row["observed"] == "anthropic"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"] == "llm_model_policy_latest_claude_tiers"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"] == "llm_model_policy_rejects_codex"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"] == "portable_contract_has_llm_model_policy_contract"
         and row["ok"]
         for row in audit_payload["checks"]
     )
@@ -3067,6 +3334,15 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         for row in audit_payload["checks"]
     )
     assert any(
+        row["check_name"] == "reproduction_reuse_smoke_command" and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"] == "reproduction_runtime_handoff_reuse_smoke_command"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
         row["check_name"] == "reproduction_component_resource_registry_command"
         and row["ok"]
         for row in audit_payload["checks"]
@@ -3110,6 +3386,11 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         for row in audit_payload["checks"]
     )
     assert any(
+        row["check_name"] == "reproduction_prover_adapter_feedback_to_evidence_command"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
         row["check_name"] == "reproduction_route_replan_commands" and row["ok"]
         for row in audit_payload["checks"]
     )
@@ -3118,7 +3399,18 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         for row in audit_payload["checks"]
     )
     assert any(
+        row["check_name"] == "reproduction_llm_route_payload_validation_command"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
         row["check_name"] == "reproduction_feedback_llm_route_planner_command"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "reproduction_feedback_llm_route_payload_validation_command"
         and row["ok"]
         for row in audit_payload["checks"]
     )
@@ -3433,6 +3725,139 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         encoding="utf-8",
     )
 
+    evaluation_rows_path = (
+        bundle_dir
+        / "artifacts"
+        / "formalization_gap_planner_evaluation"
+        / "formalization_gap_planner_evaluation.jsonl"
+    )
+    evaluation_rows_payload = [
+        json.loads(line)
+        for line in evaluation_rows_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    corrupted_route_adoption_rows = json.loads(json.dumps(evaluation_rows_payload))
+    corrupted_route_adoption_rows[0][
+        "llm_route_planner_route_adoption_blockers"
+    ] = [
+        "search_requests_pending_evidence",
+        "invented_route_adoption_blocker",
+    ]
+    corrupted_route_adoption_manifest = json.loads(
+        json.dumps(evaluation_manifest_payload)
+    )
+    corrupted_route_adoption_manifest["llm_route_adoption_blockers"] = [
+        "search_requests_pending_evidence",
+        "invented_route_adoption_blocker",
+    ]
+    corrupted_route_adoption_manifest["rows"] = corrupted_route_adoption_rows
+    evaluation_rows_path.write_text(
+        "\n".join(
+            json.dumps(row, sort_keys=True)
+            for row in corrupted_route_adoption_rows
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    evaluation_manifest_path.write_text(
+        json.dumps(corrupted_route_adoption_manifest, indent=2),
+        encoding="utf-8",
+    )
+    rejected_route_adoption_blocker_payload = (
+        audit_formalization_gap_planner_publication_bundle(
+            bundle_dir,
+            root / "audit_rejects_unknown_route_adoption_blocker",
+        )
+    )
+    route_adoption_blocker_failed_names = {
+        row["check_name"]
+        for row in rejected_route_adoption_blocker_payload["checks"]
+        if not row["ok"]
+    }
+    route_adoption_blocker_row_check = next(
+        row
+        for row in rejected_route_adoption_blocker_payload["checks"]
+        if row["check_name"] == "optional_evaluation_row_0_route_adoption_fields"
+    )
+    assert not rejected_route_adoption_blocker_payload["all_ok"]
+    assert (
+        "optional_evaluation_row_0_route_adoption_fields"
+        in route_adoption_blocker_failed_names
+    )
+    assert (
+        "optional_evaluation_route_adoption_manifest"
+        not in route_adoption_blocker_failed_names
+    )
+    assert (
+        rejected_route_adoption_blocker_payload[
+            "n_optional_evaluation_route_adoption_row_valid"
+        ]
+        == 0
+    )
+    assert (
+        rejected_route_adoption_blocker_payload[
+            "n_optional_evaluation_route_adoption_manifest_valid"
+        ]
+        == 1
+    )
+    assert any(
+        "unknown llm route-adoption blockers: invented_route_adoption_blocker"
+        in error
+        for error in route_adoption_blocker_row_check["errors"]
+    )
+    evaluation_rows_path.write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in evaluation_rows_payload)
+        + "\n",
+        encoding="utf-8",
+    )
+    evaluation_manifest_path.write_text(
+        json.dumps(evaluation_manifest_payload, indent=2),
+        encoding="utf-8",
+    )
+
+    route_adoption_taxonomy_path = (
+        bundle_dir
+        / "contract"
+        / "formalization_gap_planner_route_adoption_blocker_taxonomy.json"
+    )
+    route_adoption_taxonomy_payload = json.loads(
+        route_adoption_taxonomy_path.read_text(encoding="utf-8")
+    )
+    corrupted_route_adoption_taxonomy = json.loads(
+        json.dumps(route_adoption_taxonomy_payload)
+    )
+    corrupted_route_adoption_taxonomy["blocker_values"] = [
+        "search_requests_pending_evidence",
+        "invented_route_adoption_blocker",
+    ]
+    corrupted_route_adoption_taxonomy["blocker_definitions"] = {
+        "search_requests_pending_evidence": "fixture definition",
+        "invented_route_adoption_blocker": "fixture definition",
+    }
+    route_adoption_taxonomy_path.write_text(
+        json.dumps(corrupted_route_adoption_taxonomy, indent=2),
+        encoding="utf-8",
+    )
+    rejected_taxonomy_payload = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        root / "audit_rejects_stale_route_adoption_taxonomy",
+    )
+    taxonomy_failed_names = {
+        row["check_name"]
+        for row in rejected_taxonomy_payload["checks"]
+        if not row["ok"]
+    }
+    assert not rejected_taxonomy_payload["all_ok"]
+    assert "route_adoption_blocker_taxonomy_payload" in taxonomy_failed_names
+    assert (
+        "llm_route_planner_row_schema_route_adoption_blocker_enum_matches_taxonomy"
+        in taxonomy_failed_names
+    )
+    route_adoption_taxonomy_path.write_text(
+        json.dumps(route_adoption_taxonomy_payload, indent=2),
+        encoding="utf-8",
+    )
+
     seed_path = (
         bundle_dir
         / "artifacts"
@@ -3645,6 +4070,10 @@ def test_publication_bundle_audit_rejects_stale_resource_request_contract_maps()
     ]
     rows[0]["response_contract_fields"] = ["stale_response_field"]
     rows[0]["request_payload"]["response_contract_fields"] = ["stale_response_field"]
+    rows[0]["request_playbook"]["expected_response_fields"] = [
+        "stale_response_field"
+    ]
+    rows[0]["request_payload"]["request_playbook"] = rows[0]["request_playbook"]
     request_jsonl.write_text(
         "\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n",
         encoding="utf-8",
@@ -3802,6 +4231,125 @@ def test_publication_bundle_audit_rejects_stale_resource_response_contract_accou
     )
     assert "dispatch_spec mismatch" in "; ".join(accounting_check["errors"])
     assert "response_contract_minimum_met" in "; ".join(accounting_check["errors"])
+
+
+def test_publication_bundle_audit_rejects_accepted_resource_response_without_playbook_grounding() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_publication_bundle_audit_resource_response_playbook_grounding"
+    )
+    input_json = root / "standalone_input.json"
+    plan_dir = root / "plan"
+    coverage_dir = root / "coverage"
+    action_queue_dir = root / "action_queue"
+    component_resource_registry_dir = root / "component_resource_registry"
+    action_resource_plan_dir = root / "action_resource_plan"
+    request_queue_dir = root / "request_queue"
+    response_ledger_dir = root / "response_ledger"
+    bundle_dir = root / "bundle"
+    audit_dir = root / "audit"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json.write_text(
+        json.dumps(
+            {
+                "target_prover_family": "lean4",
+                "library_snapshot_ref": "mathlib4:fixture",
+                "routes": [
+                    {
+                        "display_name": "rank route",
+                        "primitives": [
+                            {
+                                "primitive": "rank_uniformity",
+                                "coverage_status": "bridge_needed",
+                                "expected_premises": ["exchangeability"],
+                            }
+                        ],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    export_formalization_gap_planner_standalone_plan(input_json, plan_dir)
+    export_formalization_gap_planner_library_coverage_map(plan_dir, coverage_dir)
+    export_formalization_gap_planner_primitive_action_queue(
+        coverage_dir,
+        action_queue_dir,
+    )
+    export_formalization_gap_planner_component_resource_registry(
+        component_resource_registry_dir,
+    )
+    export_formalization_gap_planner_action_resource_plan(
+        action_queue_dir,
+        component_resource_registry_dir,
+        action_resource_plan_dir,
+    )
+    export_formalization_gap_planner_resource_request_queue(
+        action_resource_plan_dir,
+        request_queue_dir,
+    )
+    export_formalization_gap_planner_resource_response_ledger(
+        request_queue_dir,
+        response_ledger_dir,
+    )
+    export_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        formalization_gap_planner_resource_request_queue_dir=request_queue_dir,
+        formalization_gap_planner_resource_response_ledger_dir=response_ledger_dir,
+    )
+    ledger_jsonl = (
+        bundle_dir
+        / "artifacts"
+        / "formalization_gap_planner_resource_response_ledger"
+        / "formalization_gap_planner_resource_response_ledger.jsonl"
+    )
+    rows = [
+        json.loads(line)
+        for line in ledger_jsonl.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    response_contract_fields = list(rows[0]["response_contract_fields"])
+    assert response_contract_fields
+    rows[0]["response_present"] = True
+    rows[0]["response_contract_minimum_met"] = True
+    rows[0]["response_contract_ok"] = True
+    rows[0]["matched_response_contract_fields"] = [response_contract_fields[0]]
+    rows[0]["missing_response_contract_fields"] = response_contract_fields[1:]
+    rows[0]["acceptance_status"] = "ACCEPTED_RESOURCE_RESPONSE"
+    rows[0]["request_playbook_present"] = True
+    rows[0]["response_playbook_grounded"] = False
+    rows[0]["response_playbook_grounding_terms"] = []
+    ledger_jsonl.write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
+    payload = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        audit_dir,
+    )
+
+    failed_names = {row["check_name"] for row in payload["checks"] if not row["ok"]}
+    assert not payload["all_ok"]
+    assert payload["n_optional_resource_response_ledger_row_schema_valid"] == payload[
+        "n_optional_resource_response_ledger_row_schema_checked"
+    ]
+    assert (
+        "optional_resource_response_ledger_row_0_contract_field_accounting"
+        in failed_names
+    )
+    accounting_check = next(
+        row
+        for row in payload["checks"]
+        if row["check_name"]
+        == "optional_resource_response_ledger_row_0_contract_field_accounting"
+    )
+    accounting_errors = "; ".join(accounting_check["errors"])
+    assert "response_contract_ok requires response_playbook_grounded" in accounting_errors
+    assert "accepted resource response requires response_playbook_grounded" in (
+        accounting_errors
+    )
 
 
 def test_publication_bundle_audit_rejects_unaccepted_route_revision_ledger_feedback() -> None:
@@ -4890,11 +5438,18 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     shutil.rmtree(root, ignore_errors=True)
     primary_llm_dir = _write_accepted_llm_route_planner_artifact(root / "primary_llm")
     feedback_llm_dir = _write_accepted_llm_route_planner_artifact(root / "feedback_llm")
+    payload_validation_dir = _write_llm_payload_validation_from_route_planner_artifact(
+        primary_llm_dir,
+        root / "payload_validation",
+    )
 
     export_formalization_gap_planner_publication_bundle(
         bundle_dir,
         formalization_gap_planner_llm_route_planner_dir=primary_llm_dir,
         formalization_gap_planner_feedback_llm_route_planner_dir=feedback_llm_dir,
+        formalization_gap_planner_llm_route_planner_response_payload_validation_dir=(
+            payload_validation_dir
+        ),
     )
     audit_payload = audit_formalization_gap_planner_publication_bundle(
         bundle_dir,
@@ -4909,12 +5464,114 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     )
     assert any(
         row["check_name"]
+        == "optional_llm_route_planner_response_payload_validation_manifest_schema_id"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "optional_llm_route_planner_response_payload_validation_row_schema_id"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "llm_route_planner_response_payload_validation_manifest_schema_id"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "llm_route_planner_response_payload_validation_row_schema_id"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
         == "optional_feedback_llm_route_planner_response_payload_schema_id"
         and row["ok"]
         for row in audit_payload["checks"]
     )
     assert audit_payload["n_optional_llm_route_planner_seed_provenance_checked"] == 1
     assert audit_payload["n_optional_llm_route_planner_seed_provenance_valid"] == 1
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_response_payload_validation_manifest_contract_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_response_payload_validation_manifest_contract_valid"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_response_payload_validation_count_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_response_payload_validation_count_valid"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_response_payload_validation_request_bound_accounting_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_response_payload_validation_request_bound_accounting_valid"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_response_payload_validation_request_bound_coverage_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_response_payload_validation_request_bound_coverage_valid"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_response_payload_validation_row_schema_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_response_payload_validation_row_schema_valid"
+        ]
+        == 1
+    )
+    assert any(
+        row["check_name"]
+        == "optional_llm_route_planner_response_payload_validation_manifest_schema_valid"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "optional_llm_route_planner_response_payload_validation_row_0_payload_schema_id"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "optional_llm_route_planner_response_payload_validation_request_bound_coverage"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
     assert (
         audit_payload[
             "n_optional_llm_route_planner_seed_model_provenance_checked"
@@ -4992,6 +5649,18 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     assert (
         audit_payload[
             "n_optional_llm_route_planner_request_registry_context_valid"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_request_target_intake_context_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_request_target_intake_context_valid"
         ]
         == 1
     )
@@ -5126,6 +5795,18 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     assert (
         audit_payload[
             "n_optional_feedback_llm_route_planner_request_registry_context_valid"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_feedback_llm_route_planner_request_target_intake_context_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_feedback_llm_route_planner_request_target_intake_context_valid"
         ]
         == 1
     )
@@ -5648,6 +6329,50 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         encoding="utf-8",
     )
 
+    target_intake_corrupted_requests = json.loads(json.dumps(requests))
+    target_intake_corrupted_requests[0]["context_packet"].pop(
+        "target_intake_rows",
+        None,
+    )
+    requests_path.write_text(
+        "\n".join(
+            json.dumps(row, sort_keys=True)
+            for row in target_intake_corrupted_requests
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    rejected_target_intake_payload = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        root / "audit_rejects_llm_target_intake_context_loss",
+    )
+    failed_target_intake_names = {
+        row["check_name"]
+        for row in rejected_target_intake_payload["checks"]
+        if not row["ok"]
+    }
+    assert not rejected_target_intake_payload["all_ok"]
+    assert (
+        "optional_llm_route_planner_request_0_target_intake_context"
+        in failed_target_intake_names
+    )
+    assert (
+        rejected_target_intake_payload[
+            "n_optional_llm_route_planner_request_target_intake_context_valid"
+        ]
+        == 0
+    )
+    assert (
+        rejected_target_intake_payload[
+            "n_optional_feedback_llm_route_planner_request_target_intake_context_valid"
+        ]
+        == 1
+    )
+    requests_path.write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in requests) + "\n",
+        encoding="utf-8",
+    )
+
     dangling_alignment_rows = json.loads(json.dumps(rows))
     dangling_alignment_rows[0]["route_alignment_edges"][0][
         "formal_node_id"
@@ -6137,3 +6862,102 @@ def test_publication_bundle_audit_rejects_llm_reproduction_without_registry_cont
     assert not audit_payload["all_ok"]
     assert "reproduction_llm_route_planner_command" in failed_names
     assert "reproduction_feedback_llm_route_planner_command" in failed_names
+
+
+def test_publication_bundle_audit_rejects_llm_reproduction_without_target_intake_context() -> None:
+    root = Path(
+        "runs/"
+        "test_formalization_gap_planner_publication_bundle_audit_rejects_llm_repro_target_intake"
+    )
+    bundle_dir = root / "bundle"
+    audit_dir = root / "audit"
+    shutil.rmtree(root, ignore_errors=True)
+    export_formalization_gap_planner_publication_bundle(bundle_dir)
+
+    manifest_path = (
+        bundle_dir
+        / "reproduce"
+        / "formalization_gap_planner_reproduction_manifest.json"
+    )
+    reproduction_payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    target_intake_flag = "--formalization-gap-planner-target-intake-dir"
+
+    def _without_flag_value(command: str, flag: str) -> str:
+        tokens = command.split()
+        rewritten: list[str] = []
+        skip_next = False
+        for token in tokens:
+            if skip_next:
+                skip_next = False
+                continue
+            if token == flag:
+                skip_next = True
+                continue
+            rewritten.append(token)
+        return " ".join(rewritten)
+
+    corrupted_command_names = {
+        "run_llm_route_planner",
+        "run_feedback_llm_route_planner",
+    }
+    for row in reproduction_payload["commands"]:
+        if row["name"] in corrupted_command_names:
+            row["command"] = _without_flag_value(row["command"], target_intake_flag)
+            assert target_intake_flag not in row["command"]
+
+    manifest_path.write_text(
+        json.dumps(reproduction_payload, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+
+    audit_payload = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        audit_dir,
+    )
+    failed_names = {
+        row["check_name"] for row in audit_payload["checks"] if not row["ok"]
+    }
+
+    assert not audit_payload["all_ok"]
+    assert "reproduction_llm_route_planner_command" in failed_names
+    assert "reproduction_feedback_llm_route_planner_command" in failed_names
+
+
+def test_publication_bundle_audit_rejects_live_reuse_smoke_reproduction_commands() -> None:
+    root = Path(
+        "runs/"
+        "test_formalization_gap_planner_publication_bundle_audit_rejects_live_reuse_smoke"
+    )
+    bundle_dir = root / "bundle"
+    audit_dir = root / "audit"
+    shutil.rmtree(root, ignore_errors=True)
+    export_formalization_gap_planner_publication_bundle(bundle_dir)
+
+    manifest_path = (
+        bundle_dir
+        / "reproduce"
+        / "formalization_gap_planner_reproduction_manifest.json"
+    )
+    reproduction_payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    for row in reproduction_payload["commands"]:
+        if row["name"] == "run_reuse_smoke":
+            row["command"] += " --llm-route-planner-invoke-provider"
+        if row["name"] == "run_runtime_handoff_reuse_smoke":
+            row["command"] += " --feedback-llm-route-planner-invoke-provider"
+
+    manifest_path.write_text(
+        json.dumps(reproduction_payload, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+
+    audit_payload = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        audit_dir,
+    )
+    failed_names = {
+        row["check_name"] for row in audit_payload["checks"] if not row["ok"]
+    }
+
+    assert not audit_payload["all_ok"]
+    assert "reproduction_reuse_smoke_command" in failed_names
+    assert "reproduction_runtime_handoff_reuse_smoke_command" in failed_names

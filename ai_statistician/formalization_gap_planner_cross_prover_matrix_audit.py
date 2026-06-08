@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections import Counter
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -58,6 +59,13 @@ class FormalizationGapPlannerCrossProverMatrixRow:
     n_packets_with_standalone_input_trace: int
     n_packets_missing_standalone_input_trace: int
     n_packets_with_replan_metadata_trace: int
+    n_packets_with_llm_route_adoption_status: int
+    n_packets_llm_route_adoption_ready: int
+    n_packets_llm_route_adoption_pending_refinement: int
+    n_packets_llm_route_adoption_rejected: int
+    n_packets_llm_route_adoption_awaiting_response: int
+    n_packet_llm_route_adoption_blockers: int
+    by_packet_llm_route_adoption_status: dict[str, int]
     n_response_present: int
     n_awaiting_adapter_mapping: int
     n_response_contract_ok: int
@@ -124,6 +132,12 @@ def audit_formalization_gap_planner_cross_prover_matrix(
     packet_counts = {row.n_packets for row in rows}
     packet_alignment_counts = {row.n_packets_with_alignment for row in rows}
     packet_trace_counts = {row.n_packets_with_standalone_input_trace for row in rows}
+    route_adoption_status_counts = Counter(
+        status
+        for row in rows
+        for status, count in row.by_packet_llm_route_adoption_status.items()
+        for _ in range(count)
+    )
     matrix_row_dicts = [asdict(row) for row in rows]
     matrix_row_schema = cross_prover_matrix_audit_row_json_schema()
     packet_row_schema = prover_adapter_packet_json_schema()
@@ -211,6 +225,27 @@ def audit_formalization_gap_planner_cross_prover_matrix(
         ),
         "n_total_packets_with_replan_metadata_trace": sum(
             row.n_packets_with_replan_metadata_trace for row in rows
+        ),
+        "n_total_packets_with_llm_route_adoption_status": sum(
+            row.n_packets_with_llm_route_adoption_status for row in rows
+        ),
+        "n_total_packets_llm_route_adoption_ready": sum(
+            row.n_packets_llm_route_adoption_ready for row in rows
+        ),
+        "n_total_packets_llm_route_adoption_pending_refinement": sum(
+            row.n_packets_llm_route_adoption_pending_refinement for row in rows
+        ),
+        "n_total_packets_llm_route_adoption_rejected": sum(
+            row.n_packets_llm_route_adoption_rejected for row in rows
+        ),
+        "n_total_packets_llm_route_adoption_awaiting_response": sum(
+            row.n_packets_llm_route_adoption_awaiting_response for row in rows
+        ),
+        "n_total_packet_llm_route_adoption_blockers": sum(
+            row.n_packet_llm_route_adoption_blockers for row in rows
+        ),
+        "by_total_packet_llm_route_adoption_status": dict(
+            sorted(route_adoption_status_counts.items())
         ),
         "n_response_present": sum(row.n_response_present for row in rows),
         "n_awaiting_adapter_mapping": sum(
@@ -383,6 +418,13 @@ def cross_prover_target_summary_json_schema() -> dict[str, object]:
             "n_total_packets_with_standalone_input_trace",
             "n_total_packets_missing_standalone_input_trace",
             "n_total_packets_with_replan_metadata_trace",
+            "n_total_packets_with_llm_route_adoption_status",
+            "n_total_packets_llm_route_adoption_ready",
+            "n_total_packets_llm_route_adoption_pending_refinement",
+            "n_total_packets_llm_route_adoption_rejected",
+            "n_total_packets_llm_route_adoption_awaiting_response",
+            "n_total_packet_llm_route_adoption_blockers",
+            "by_total_packet_llm_route_adoption_status",
             "proof_evidence_status",
             "proof_evidence_boundary",
             "all_ok",
@@ -404,6 +446,17 @@ def cross_prover_target_summary_json_schema() -> dict[str, object]:
             "n_total_packets_with_standalone_input_trace": {"type": "integer"},
             "n_total_packets_missing_standalone_input_trace": {"type": "integer"},
             "n_total_packets_with_replan_metadata_trace": {"type": "integer"},
+            "n_total_packets_with_llm_route_adoption_status": {"type": "integer"},
+            "n_total_packets_llm_route_adoption_ready": {"type": "integer"},
+            "n_total_packets_llm_route_adoption_pending_refinement": {
+                "type": "integer"
+            },
+            "n_total_packets_llm_route_adoption_rejected": {"type": "integer"},
+            "n_total_packets_llm_route_adoption_awaiting_response": {
+                "type": "integer"
+            },
+            "n_total_packet_llm_route_adoption_blockers": {"type": "integer"},
+            "by_total_packet_llm_route_adoption_status": {"type": "object"},
             "n_unmatched_adapter_responses": {"type": "integer"},
             "target_rows": {
                 "type": "array",
@@ -429,6 +482,13 @@ def cross_prover_target_summary_json_schema() -> dict[str, object]:
                     "n_packets_with_standalone_input_trace",
                     "n_packets_missing_standalone_input_trace",
                     "n_packets_with_replan_metadata_trace",
+                    "n_packets_with_llm_route_adoption_status",
+                    "n_packets_llm_route_adoption_ready",
+                    "n_packets_llm_route_adoption_pending_refinement",
+                    "n_packets_llm_route_adoption_rejected",
+                    "n_packets_llm_route_adoption_awaiting_response",
+                    "n_packet_llm_route_adoption_blockers",
+                    "by_packet_llm_route_adoption_status",
                     "aggregate_packet_jsonl_path",
                     "aggregate_response_validation_jsonl_path",
                     "packet_filter_field",
@@ -449,6 +509,17 @@ def cross_prover_target_summary_json_schema() -> dict[str, object]:
                     "n_packets_with_standalone_input_trace": {"type": "integer"},
                     "n_packets_missing_standalone_input_trace": {"type": "integer"},
                     "n_packets_with_replan_metadata_trace": {"type": "integer"},
+                    "n_packets_with_llm_route_adoption_status": {"type": "integer"},
+                    "n_packets_llm_route_adoption_ready": {"type": "integer"},
+                    "n_packets_llm_route_adoption_pending_refinement": {
+                        "type": "integer"
+                    },
+                    "n_packets_llm_route_adoption_rejected": {"type": "integer"},
+                    "n_packets_llm_route_adoption_awaiting_response": {
+                        "type": "integer"
+                    },
+                    "n_packet_llm_route_adoption_blockers": {"type": "integer"},
+                    "by_packet_llm_route_adoption_status": {"type": "object"},
                     "n_response_validation_rows": {"type": "integer"},
                     "n_unmatched_adapter_responses": {"type": "integer"},
                     "aggregate_packet_jsonl_path": {
@@ -588,6 +659,55 @@ def validate_cross_prover_target_summary_payload(
         errors.append(
             "n_total_packets_with_replan_metadata_trace must equal target replan metadata trace total"
         )
+    if payload.get("n_total_packets_with_llm_route_adoption_status") != sum(
+        _int(row.get("n_packets_with_llm_route_adoption_status")) for row in rows
+    ):
+        errors.append(
+            "n_total_packets_with_llm_route_adoption_status must equal target route-adoption status total"
+        )
+    if payload.get("n_total_packets_llm_route_adoption_ready") != sum(
+        _int(row.get("n_packets_llm_route_adoption_ready")) for row in rows
+    ):
+        errors.append(
+            "n_total_packets_llm_route_adoption_ready must equal target route-adoption ready total"
+        )
+    if payload.get("n_total_packets_llm_route_adoption_pending_refinement") != sum(
+        _int(row.get("n_packets_llm_route_adoption_pending_refinement"))
+        for row in rows
+    ):
+        errors.append(
+            "n_total_packets_llm_route_adoption_pending_refinement must equal target route-adoption pending total"
+        )
+    if payload.get("n_total_packets_llm_route_adoption_rejected") != sum(
+        _int(row.get("n_packets_llm_route_adoption_rejected")) for row in rows
+    ):
+        errors.append(
+            "n_total_packets_llm_route_adoption_rejected must equal target route-adoption rejected total"
+        )
+    if payload.get("n_total_packets_llm_route_adoption_awaiting_response") != sum(
+        _int(row.get("n_packets_llm_route_adoption_awaiting_response"))
+        for row in rows
+    ):
+        errors.append(
+            "n_total_packets_llm_route_adoption_awaiting_response must equal target route-adoption awaiting-response total"
+        )
+    if payload.get("n_total_packet_llm_route_adoption_blockers") != sum(
+        _int(row.get("n_packet_llm_route_adoption_blockers")) for row in rows
+    ):
+        errors.append(
+            "n_total_packet_llm_route_adoption_blockers must equal target route-adoption blocker total"
+        )
+    expected_status_counts = _sum_route_adoption_status_counts(rows)
+    raw_status_counts = payload.get("by_total_packet_llm_route_adoption_status", {})
+    observed_status_counts = (
+        {str(status): _int(count) for status, count in raw_status_counts.items()}
+        if isinstance(raw_status_counts, dict)
+        else {}
+    )
+    if observed_status_counts != expected_status_counts:
+        errors.append(
+            "by_total_packet_llm_route_adoption_status must equal target status counts"
+        )
     if "n_unmatched_adapter_responses" in payload and payload.get(
         "n_unmatched_adapter_responses"
     ) != sum(_int(row.get("n_unmatched_adapter_responses")) for row in rows):
@@ -641,6 +761,13 @@ def cross_prover_matrix_audit_row_json_schema() -> dict[str, object]:
             "n_packets_with_standalone_input_trace",
             "n_packets_missing_standalone_input_trace",
             "n_packets_with_replan_metadata_trace",
+            "n_packets_with_llm_route_adoption_status",
+            "n_packets_llm_route_adoption_ready",
+            "n_packets_llm_route_adoption_pending_refinement",
+            "n_packets_llm_route_adoption_rejected",
+            "n_packets_llm_route_adoption_awaiting_response",
+            "n_packet_llm_route_adoption_blockers",
+            "by_packet_llm_route_adoption_status",
             "n_response_present",
             "n_awaiting_adapter_mapping",
             "n_response_contract_ok",
@@ -675,6 +802,13 @@ def cross_prover_matrix_audit_row_json_schema() -> dict[str, object]:
             "n_packets_with_standalone_input_trace": {"type": "integer"},
             "n_packets_missing_standalone_input_trace": {"type": "integer"},
             "n_packets_with_replan_metadata_trace": {"type": "integer"},
+            "n_packets_with_llm_route_adoption_status": {"type": "integer"},
+            "n_packets_llm_route_adoption_ready": {"type": "integer"},
+            "n_packets_llm_route_adoption_pending_refinement": {"type": "integer"},
+            "n_packets_llm_route_adoption_rejected": {"type": "integer"},
+            "n_packets_llm_route_adoption_awaiting_response": {"type": "integer"},
+            "n_packet_llm_route_adoption_blockers": {"type": "integer"},
+            "by_packet_llm_route_adoption_status": {"type": "object"},
             "n_response_present": {"type": "integer"},
             "n_awaiting_adapter_mapping": {"type": "integer"},
             "n_response_contract_ok": {"type": "integer"},
@@ -772,6 +906,31 @@ def _matrix_row(
         n_packets_with_replan_metadata_trace=_int(
             contract_payload.get("n_packets_with_replan_metadata_trace")
         ),
+        n_packets_with_llm_route_adoption_status=_int(
+            contract_payload.get("n_packets_with_llm_route_adoption_status")
+        ),
+        n_packets_llm_route_adoption_ready=_int(
+            contract_payload.get("n_packets_llm_route_adoption_ready")
+        ),
+        n_packets_llm_route_adoption_pending_refinement=_int(
+            contract_payload.get("n_packets_llm_route_adoption_pending_refinement")
+        ),
+        n_packets_llm_route_adoption_rejected=_int(
+            contract_payload.get("n_packets_llm_route_adoption_rejected")
+        ),
+        n_packets_llm_route_adoption_awaiting_response=_int(
+            contract_payload.get("n_packets_llm_route_adoption_awaiting_response")
+        ),
+        n_packet_llm_route_adoption_blockers=_int(
+            contract_payload.get("n_packet_llm_route_adoption_blockers")
+        ),
+        by_packet_llm_route_adoption_status={
+            str(status): _int(count)
+            for status, count in dict(
+                contract_payload.get("by_packet_llm_route_adoption_status", {})
+                or {}
+            ).items()
+        },
         n_response_present=_int(contract_payload.get("n_response_present")),
         n_awaiting_adapter_mapping=_int(
             contract_payload.get("n_awaiting_adapter_mapping")
@@ -828,6 +987,11 @@ def _target_summary_payload(
             if isinstance(packet.get("standalone_input_trace"), dict)
             and packet.get("standalone_input_trace")
         )
+        route_adoption_status_counts = Counter(
+            str(packet.get("llm_route_planner_route_adoption_status", ""))
+            for packet in target_packet_rows
+            if str(packet.get("llm_route_planner_route_adoption_status", ""))
+        )
         target_rows.append(
             {
                 "target_prover_family": target,
@@ -849,6 +1013,42 @@ def _target_summary_payload(
                     for packet in target_packet_rows
                     if isinstance(packet.get("standalone_input_trace"), dict)
                     and packet["standalone_input_trace"].get("has_replan_metadata")
+                ),
+                "n_packets_with_llm_route_adoption_status": sum(
+                    route_adoption_status_counts.values()
+                ),
+                "n_packets_llm_route_adoption_ready": route_adoption_status_counts.get(
+                    "READY_FOR_STANDALONE_REPLAY",
+                    0,
+                ),
+                "n_packets_llm_route_adoption_pending_refinement": (
+                    route_adoption_status_counts.get(
+                        "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION",
+                        0,
+                    )
+                ),
+                "n_packets_llm_route_adoption_rejected": (
+                    route_adoption_status_counts.get("REJECTED_LLM_ROUTE_PLAN", 0)
+                ),
+                "n_packets_llm_route_adoption_awaiting_response": (
+                    route_adoption_status_counts.get(
+                        "AWAITING_LLM_ROUTE_PLANNER_RESPONSE",
+                        0,
+                    )
+                ),
+                "n_packet_llm_route_adoption_blockers": sum(
+                    len(
+                        _str_tuple(
+                            packet.get(
+                                "llm_route_planner_route_adoption_blockers",
+                                [],
+                            )
+                        )
+                    )
+                    for packet in target_packet_rows
+                ),
+                "by_packet_llm_route_adoption_status": dict(
+                    sorted(route_adoption_status_counts.items())
                 ),
                 "n_response_validation_rows": len(target_response_rows),
                 "n_unmatched_adapter_responses": row.n_unmatched_adapter_responses,
@@ -900,6 +1100,32 @@ def _target_summary_payload(
             _int(row["n_packets_with_replan_metadata_trace"])
             for row in target_rows
         ),
+        "n_total_packets_with_llm_route_adoption_status": sum(
+            _int(row["n_packets_with_llm_route_adoption_status"])
+            for row in target_rows
+        ),
+        "n_total_packets_llm_route_adoption_ready": sum(
+            _int(row["n_packets_llm_route_adoption_ready"]) for row in target_rows
+        ),
+        "n_total_packets_llm_route_adoption_pending_refinement": sum(
+            _int(row["n_packets_llm_route_adoption_pending_refinement"])
+            for row in target_rows
+        ),
+        "n_total_packets_llm_route_adoption_rejected": sum(
+            _int(row["n_packets_llm_route_adoption_rejected"])
+            for row in target_rows
+        ),
+        "n_total_packets_llm_route_adoption_awaiting_response": sum(
+            _int(row["n_packets_llm_route_adoption_awaiting_response"])
+            for row in target_rows
+        ),
+        "n_total_packet_llm_route_adoption_blockers": sum(
+            _int(row["n_packet_llm_route_adoption_blockers"])
+            for row in target_rows
+        ),
+        "by_total_packet_llm_route_adoption_status": (
+            _sum_route_adoption_status_counts(target_rows)
+        ),
         "n_unmatched_adapter_responses": sum(
             _int(row.get("n_unmatched_adapter_responses")) for row in target_rows
         ),
@@ -945,6 +1171,21 @@ def _target_families(
     return tuple(targets)
 
 
+def _sum_route_adoption_status_counts(
+    rows: list[dict[str, Any]],
+) -> dict[str, int]:
+    counts: Counter[str] = Counter()
+    for row in rows:
+        raw_counts = row.get("by_packet_llm_route_adoption_status", {})
+        if not isinstance(raw_counts, dict):
+            continue
+        for status, count in raw_counts.items():
+            status_text = str(status)
+            if status_text:
+                counts[status_text] += _int(count)
+    return dict(sorted(counts.items()))
+
+
 def _normalize_target(raw_target: str) -> str:
     normalized = str(raw_target).strip().lower()
     aliases = {
@@ -958,6 +1199,18 @@ def _normalize_target(raw_target: str) -> str:
         "other": "other",
     }
     return aliases.get(normalized, normalized)
+
+
+def _str_tuple(value: Any) -> tuple[str, ...]:
+    if value is None:
+        return tuple()
+    if isinstance(value, str):
+        return (value,) if value else tuple()
+    if isinstance(value, dict):
+        return tuple()
+    if isinstance(value, (list, tuple, set)):
+        return tuple(str(item) for item in value if str(item))
+    return (str(value),) if str(value) else tuple()
 
 
 def _int(value: Any) -> int:
@@ -1030,6 +1283,10 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Packets with alignment: {payload.get('n_total_packets_with_alignment')}/{payload.get('n_total_packets')}",
         f"- Packets with standalone trace: {payload.get('n_total_packets_with_standalone_input_trace')}/{payload.get('n_total_packets')}",
         f"- Packets with replan metadata trace: {payload.get('n_total_packets_with_replan_metadata_trace')}/{payload.get('n_total_packets')}",
+        f"- Packets with LLM route-adoption status: {payload.get('n_total_packets_with_llm_route_adoption_status')}/{payload.get('n_total_packets')}",
+        f"- LLM route-adoption ready packets: {payload.get('n_total_packets_llm_route_adoption_ready')}",
+        f"- LLM route-adoption pending packets: {payload.get('n_total_packets_llm_route_adoption_pending_refinement')}",
+        f"- LLM route-adoption blockers: {payload.get('n_total_packet_llm_route_adoption_blockers')}",
         f"- Awaiting adapter mappings: {payload.get('n_awaiting_adapter_mapping')}",
         f"- Rejected mappings: {payload.get('n_rejected')}",
         f"- Packet count consistent: {payload.get('packet_count_consistent')}",
@@ -1053,6 +1310,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"schema={row.get('n_packet_schema_valid')}/{row.get('n_packets')} "
             f"aligned={row.get('n_packets_with_alignment')}/{row.get('n_packets')} "
             f"trace={row.get('n_packets_with_standalone_input_trace')}/{row.get('n_packets')} "
+            f"llm_status={row.get('n_packets_with_llm_route_adoption_status')} "
             f"awaiting={row.get('n_awaiting_adapter_mapping')} "
             f"ok={row.get('ok')}"
         )

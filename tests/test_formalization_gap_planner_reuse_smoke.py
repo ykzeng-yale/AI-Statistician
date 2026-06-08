@@ -42,7 +42,7 @@ def _reviewed_llm_route_response_payload() -> dict[str, object]:
                     {
                         "declaration": "Probability.exchangeable",
                         "target_prover_family": "lean4",
-                        "source_field": "llm_candidate_declaration_rows",
+                        "source_field": "available_formal_declaration_rows",
                     }
                 ],
                 "formalization_action": "reuse",
@@ -198,7 +198,7 @@ def _reviewed_llm_route_response_payload() -> dict[str, object]:
                         {
                             "declaration": "Probability.exchangeable",
                             "target_prover_family": "lean4",
-                            "source_field": "llm_candidate_declaration_rows",
+                            "source_field": "available_formal_declaration_rows",
                         }
                     ],
                     "source_refs": ["conformal_prediction_textbook"],
@@ -264,11 +264,13 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
 
     assert payload["all_ok"]
     assert payload["component_name"] == FORMALIZATION_GAP_PLANNER_REUSE_SMOKE_COMPONENT
-    assert payload["n_stages"] == 34
+    assert payload["n_stages"] == 36
     assert payload["n_failed"] == 0
     assert payload["n_proof_boundary_ok"] == payload["n_stages"]
     assert payload["target_prover_family"] == "rocq"
     assert payload["source_target_prover_family"] == "lean4"
+    assert payload["n_source_target_prover_families"] == 1
+    assert payload["source_by_target_prover_family"] == {"lean4": 1}
     assert (
         payload[
             "n_goal_plan_standalone_input_traces_with_llm_route_planner_metadata"
@@ -306,6 +308,16 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     )
     assert payload["n_llm_route_planner_request_schema_invalid"] == 0
     assert payload["n_llm_route_planner_response_present"] == 0
+    assert not payload["has_llm_route_planner_response_payload_validation"]
+    assert payload["n_llm_route_planner_response_payload_validation_payloads"] == 0
+    assert (
+        payload["n_llm_route_planner_response_payload_validation_valid_payloads"]
+        == 0
+    )
+    assert (
+        payload["n_llm_route_planner_response_payload_validation_invalid_payloads"]
+        == 0
+    )
     assert payload["n_llm_route_planner_provider_failures"] == 0
     assert payload["n_llm_route_planner_rows_with_generator_metadata"] == 0
     assert payload["n_llm_route_planner_rows_with_generation_errors"] == 0
@@ -319,6 +331,11 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         == payload["n_llm_route_planner_request_packets"]
     )
     assert payload["n_llm_route_planner_row_schema_invalid"] == 0
+    report_text = (
+        out_dir / "formalization_gap_planner_reuse_smoke.md"
+    ).read_text(encoding="utf-8")
+    assert "Source prover targets: `lean4` families=1 by={'lean4': 1}" in report_text
+
     assert (
         payload["n_llm_route_planner_rows_with_realization_coverage_witness"]
         == payload["n_llm_route_planner_request_packets"]
@@ -388,6 +405,10 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert payload["llm_route_planner_provider"] == "anthropic"
     assert payload["feedback_llm_route_planner_provider"] == "anthropic"
     stage_by_name = {stage["stage_name"]: stage for stage in payload["stages"]}
+    assert (
+        "formalization_gap_planner_llm_route_planner_response_payload_validation"
+        not in stage_by_name
+    )
     llm_stage_summary = stage_by_name[
         "formalization_gap_planner_llm_route_planner"
     ]["summary"]
@@ -615,6 +636,18 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         ]
         == payload["n_feedback_llm_route_planner_request_packets"]
     )
+    assert (
+        payload[
+            "n_publication_bundle_optional_llm_route_planner_response_payload_validation_manifest_contract_checked"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_publication_bundle_optional_llm_route_planner_response_payload_validation_row_schema_checked"
+        ]
+        == 0
+    )
     assert payload["n_portable_work_packets"] > 0
     assert payload["n_route_alignment_edges"] >= payload["n_portable_work_packets"]
     assert (
@@ -787,6 +820,12 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         == payload["n_resource_response_ledger_rows"]
     )
     assert payload["n_resource_response_ledger_contract_ok"] == 0
+    assert (
+        payload["n_resource_response_ledger_request_playbook_present"]
+        == payload["n_resource_response_ledger_rows"]
+    )
+    assert payload["n_resource_response_ledger_playbook_grounded"] == 0
+    assert payload["n_resource_response_ledger_playbook_grounding_failures"] == 0
     assert payload["n_resource_response_ledger_request_mismatches"] == 0
     assert payload["n_resource_response_ledger_route_revision_recommended"] == 0
     assert payload["n_resource_response_ledger_rejected"] == 0
@@ -1163,6 +1202,11 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         == payload["n_minimal_delta_decision_rows"]
     )
     assert payload["n_minimal_delta_decision_row_schema_invalid"] == 0
+    assert (
+        payload["n_minimal_delta_audit_feedback_merged_response_schema_valid"]
+        == payload["n_minimal_delta_audit_feedback_merged_responses"]
+    )
+    assert payload["n_minimal_delta_audit_feedback_merged_response_schema_invalid"] == 0
     assert payload["n_source_grounding_unaccounted"] == 0
     assert payload["n_source_grounding_source_backed"] > 0
     assert payload["n_source_grounding_row_schema_valid"] == payload["n_source_grounding_rows"]
@@ -1173,6 +1217,24 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         == payload["n_portable_work_packets"]
     )
     assert payload["n_prover_adapter_response_validation_row_schema_invalid"] == 0
+    assert payload["n_prover_adapter_feedback_generated_responses"] > 0
+    assert (
+        payload["n_prover_adapter_feedback_merged_response_schema_valid"]
+        == payload["n_prover_adapter_feedback_merged_responses"]
+    )
+    assert payload["n_prover_adapter_feedback_merged_response_schema_invalid"] == 0
+    assert (
+        payload[
+            "n_publication_bundle_optional_prover_adapter_feedback_response_schema_valid"
+        ]
+        == payload[
+            "n_publication_bundle_optional_prover_adapter_feedback_response_schema_checked"
+        ]
+        == (
+            payload["n_prover_adapter_feedback_generated_responses"]
+            + payload["n_prover_adapter_feedback_merged_responses"]
+        )
+    )
     assert payload["n_cross_prover_targets_ok"] == payload["n_cross_prover_targets"] == 4
     assert payload["n_cross_prover_total_packets"] == 4 * payload["n_portable_work_packets"]
     assert payload["n_cross_prover_total_packet_schema_valid"] == payload["n_cross_prover_total_packets"]
@@ -1215,7 +1277,13 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert payload["n_refinement_ready"] == payload["n_refinement_items"]
     assert payload["n_refinement_item_schema_valid"] == payload["n_refinement_items"]
     assert payload["n_refinement_item_schema_invalid"] == 0
+    assert payload["n_refinement_formal_library_grounding_items"] > 0
+    assert payload["n_refinement_lean_library_grounding_items"] == 0
     assert payload["n_refinement_responses"] == payload["n_refinement_items"]
+    assert payload["n_refinement_adapter_formal_grounding_responses"] == payload[
+        "n_refinement_formal_library_grounding_items"
+    ]
+    assert payload["n_refinement_adapter_lean_grounding_responses"] == 0
     assert (
         payload["n_refinement_adapter_response_schema_valid"]
         == payload["n_refinement_responses"]
@@ -1223,7 +1291,24 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert payload["n_refinement_adapter_response_schema_invalid"] == 0
     assert payload["n_local_literature_responses"] > 0
     assert payload["n_local_formal_source_responses"] > 0
+    assert payload["n_local_formal_source_formal_grounding_rows"] == payload[
+        "n_local_formal_source_responses"
+    ]
+    assert payload["n_local_formal_source_legacy_lean_grounding_rows"] == 0
     assert payload["n_local_proof_state_responses"] > 0
+    assert (
+        payload["n_local_proof_state_target_prover_scaffold_accepted"]
+        + payload["n_local_proof_state_target_prover_failed"]
+        + payload["n_local_proof_state_target_prover_unavailable"]
+        + payload["n_local_proof_state_non_target_prover_skeleton"]
+        + payload["n_local_proof_state_placeholder_blocked"]
+        + payload["n_local_proof_state_formal_gap_scaffold_blocked"]
+        + payload["n_local_proof_state_missing_skeleton"]
+        == payload["n_local_proof_state_responses"]
+    )
+    assert payload["n_local_proof_state_target_prover_unavailable"] == payload[
+        "n_local_proof_state_unavailable"
+    ]
     assert (
         payload["n_local_literature_response_schema_valid"]
         == payload["n_local_literature_responses"]
@@ -1253,6 +1338,10 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         "n_refinement_evidence_rows"
     ]
     assert payload["n_refinement_evidence_row_schema_invalid"] == 0
+    assert payload["n_refinement_evidence_formal_grounding"] == payload[
+        "n_refinement_formal_library_grounding_items"
+    ]
+    assert payload["n_refinement_evidence_lean_grounding"] == 0
     assert payload["n_routes_with_revision"] > 0
     assert payload["n_route_revision_overlay_row_schema_valid"] >= payload["n_routes_with_revision"]
     assert payload["n_route_revision_overlay_row_schema_invalid"] == 0
@@ -1279,9 +1368,16 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         >= payload["n_route_replan_handoff_rows"]
     )
     assert (
+        payload["n_route_replan_revised_formal_realization_dag_nodes"]
+        >= payload["n_route_replan_handoff_rows"]
+    )
+    assert (
         payload["n_route_replan_revised_lean_realization_dag_nodes"]
         >= payload["n_route_replan_handoff_rows"]
     )
+    assert payload["n_route_replan_revised_formal_realization_dag_nodes"] == payload[
+        "n_route_replan_revised_lean_realization_dag_nodes"
+    ]
     assert payload["n_route_replan_unaligned_primitives"] == 0
     assert payload["n_route_replan_roundtrip_alignment_edges"] >= payload["n_replan_seed_routes"]
     assert (
@@ -1299,6 +1395,12 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         "n_proof_state_triage_items"
     ]
     assert payload["n_proof_state_triage_row_schema_invalid"] == 0
+    assert payload["n_proof_state_triage_target_prover_failed_items"] >= payload[
+        "n_proof_state_triage_local_lean_failed_items"
+    ]
+    assert payload["n_proof_state_triage_non_target_prover_skeleton_items"] >= payload[
+        "n_proof_state_triage_non_lean_skeleton_items"
+    ]
     assert payload["n_interactive_session_rows"] > 0
     assert payload["n_interactive_session_row_schema_valid"] == payload["n_interactive_session_rows"]
     assert payload["n_interactive_session_row_schema_invalid"] == 0
@@ -1329,6 +1431,8 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         == payload["n_interactive_decision_policy_rows"]
     )
     assert payload["n_interactive_session_replan"] == 0
+    assert payload["n_interactive_session_run_formal_grounding"] >= 0
+    assert payload["n_interactive_session_run_lean_grounding"] == 0
     assert payload["n_interactive_session_waiting_for_adapter_responses"] > 0
     assert payload["n_interactive_session_rows_requiring_replan"] > 0
     assert payload["n_ablation_variants"] == 5
@@ -1364,9 +1468,11 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         "formalization_gap_planner_resource_response_ledger",
         "formalization_gap_planner_refinement_queue",
         "formalization_gap_planner_refinement_adapter_responses",
+        "formalization_gap_planner_minimal_delta_audit_feedback_adapter",
         "formalization_gap_planner_local_literature_adapter",
         "formalization_gap_planner_local_formal_source_adapter",
         "formalization_gap_planner_local_proof_state_adapter",
+        "formalization_gap_planner_prover_adapter_feedback_adapter",
         "formalization_gap_planner_refinement_evidence",
         "formalization_gap_planner_route_revision_overlay",
         "formalization_gap_planner_route_stability_audit",
@@ -1381,6 +1487,82 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         "formalization_gap_planner_publication_bundle_audit",
     }
     assert all(stage["proof_boundary_ok"] for stage in payload["stages"])
+    stage_by_name = {stage["stage_name"]: stage for stage in payload["stages"]}
+    refinement_queue_summary = stage_by_name[
+        "formalization_gap_planner_refinement_queue"
+    ]["summary"]
+    refinement_adapter_summary = stage_by_name[
+        "formalization_gap_planner_refinement_adapter_responses"
+    ]["summary"]
+    refinement_evidence_summary = stage_by_name[
+        "formalization_gap_planner_refinement_evidence"
+    ]["summary"]
+    local_proof_state_summary = stage_by_name[
+        "formalization_gap_planner_local_proof_state_adapter"
+    ]["summary"]
+    proof_state_triage_summary = stage_by_name[
+        "formalization_gap_planner_proof_state_triage"
+    ]["summary"]
+    interactive_summary = stage_by_name["formalization_gap_planner_interactive_session"][
+        "summary"
+    ]
+    handoff_summary = stage_by_name["formalization_gap_planner_route_replan_handoff"][
+        "summary"
+    ]
+    assert handoff_summary["n_revised_formal_realization_dag_nodes"] == payload[
+        "n_route_replan_revised_formal_realization_dag_nodes"
+    ]
+    assert handoff_summary["n_revised_lean_realization_dag_nodes"] == payload[
+        "n_route_replan_revised_lean_realization_dag_nodes"
+    ]
+    assert refinement_queue_summary["n_formal_library_grounding_items"] == payload[
+        "n_refinement_formal_library_grounding_items"
+    ]
+    assert refinement_queue_summary["n_lean_library_grounding_items"] == payload[
+        "n_refinement_lean_library_grounding_items"
+    ]
+    assert refinement_adapter_summary["n_formal_grounding_responses"] == payload[
+        "n_refinement_adapter_formal_grounding_responses"
+    ]
+    assert refinement_adapter_summary["n_lean_grounding_responses"] == payload[
+        "n_refinement_adapter_lean_grounding_responses"
+    ]
+    assert refinement_evidence_summary["n_formal_grounding_evidence"] == payload[
+        "n_refinement_evidence_formal_grounding"
+    ]
+    assert refinement_evidence_summary["n_lean_grounding_evidence"] == payload[
+        "n_refinement_evidence_lean_grounding"
+    ]
+    assert local_proof_state_summary["n_target_prover_failed"] == payload[
+        "n_local_proof_state_target_prover_failed"
+    ]
+    assert local_proof_state_summary["n_target_prover_unavailable"] == payload[
+        "n_local_proof_state_target_prover_unavailable"
+    ]
+    assert local_proof_state_summary["n_non_target_prover_skeleton"] == payload[
+        "n_local_proof_state_non_target_prover_skeleton"
+    ]
+    assert local_proof_state_summary["n_local_lean_unavailable"] == payload[
+        "n_local_proof_state_unavailable"
+    ]
+    assert proof_state_triage_summary["n_target_prover_failed_items"] == payload[
+        "n_proof_state_triage_target_prover_failed_items"
+    ]
+    assert proof_state_triage_summary["n_non_target_prover_skeleton_items"] == payload[
+        "n_proof_state_triage_non_target_prover_skeleton_items"
+    ]
+    assert proof_state_triage_summary["n_local_lean_failed_items"] == payload[
+        "n_proof_state_triage_local_lean_failed_items"
+    ]
+    assert proof_state_triage_summary["n_non_lean_skeleton_items"] == payload[
+        "n_proof_state_triage_non_lean_skeleton_items"
+    ]
+    assert interactive_summary["n_run_formal_grounding"] == payload[
+        "n_interactive_session_run_formal_grounding"
+    ]
+    assert interactive_summary["n_run_lean_grounding"] == payload[
+        "n_interactive_session_run_lean_grounding"
+    ]
     assert (
         out_dir / "formalization_gap_planner_reuse_smoke_manifest.json"
     ).exists()
@@ -1475,6 +1657,12 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert Path(payload["artifacts"]["local_literature_response_schema"]).exists()
     assert Path(payload["artifacts"]["local_formal_source_response_schema"]).exists()
     assert Path(payload["artifacts"]["local_proof_state_response_schema"]).exists()
+    assert Path(payload["artifacts"]["prover_adapter_feedback_adapter_manifest"]).exists()
+    assert Path(payload["artifacts"]["prover_adapter_feedback_responses_jsonl"]).exists()
+    assert Path(
+        payload["artifacts"]["prover_adapter_feedback_merged_responses_jsonl"]
+    ).exists()
+    assert Path(payload["artifacts"]["prover_adapter_feedback_response_schema"]).exists()
     assert (
         out_dir
         / "formalization_gap_planner_source_grounding_audit"
@@ -1695,6 +1883,96 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     ).exists()
 
 
+def test_reuse_smoke_surfaces_mixed_source_target_distribution() -> None:
+    root = Path("runs/test_formalization_gap_planner_reuse_smoke_mixed_targets")
+    input_path = root / "target_request.json"
+    out_dir = root / "reuse_smoke"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "component_name": "formalization_gap_planner_target_intake",
+                "library_snapshot_ref": "portable:probability-snapshots",
+                "domain": "distribution-free prediction",
+                "targets": [
+                    {
+                        "target_prover_family": "lean4",
+                        "target_id": "lean_rank_bound",
+                        "title": "Lean finite-rank route",
+                        "theorem_statement": (
+                            "Exchangeability implies a finite-rank coverage bound."
+                        ),
+                        "desired_theorem_shape": "finite-rank coverage bound",
+                        "known_proof_sources": ["conformal prediction textbook"],
+                        "candidate_primitives": [
+                            {
+                                "primitive": "exchangeability",
+                                "coverage_status": "exact_exists",
+                                "candidate_declarations": [
+                                    "Probability.exchangeable"
+                                ],
+                            }
+                        ],
+                    },
+                    {
+                        "target_prover_family": "rocq",
+                        "target_id": "rocq_rank_bound",
+                        "title": "Rocq finite-rank route",
+                        "theorem_statement": (
+                            "Exchangeability implies a finite-rank coverage bound."
+                        ),
+                        "desired_theorem_shape": "finite-rank coverage bound",
+                        "known_proof_sources": ["conformal prediction textbook"],
+                        "candidate_primitives": [
+                            {
+                                "primitive": "exchangeability",
+                                "coverage_status": "exact_exists",
+                                "candidate_declarations": [
+                                    "Rocq.Probability.exchangeable"
+                                ],
+                            }
+                        ],
+                    },
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = run_formalization_gap_planner_reuse_smoke(
+        input_path,
+        out_dir,
+        target_prover_family="rocq",
+        target_library_snapshot_ref="rocq:reuse-smoke-mixed",
+    )
+
+    assert payload["all_ok"]
+    assert payload["source_target_prover_family"] == "mixed:lean4,rocq"
+    assert payload["n_source_target_prover_families"] == 2
+    assert payload["source_by_target_prover_family"] == {"lean4": 1, "rocq": 1}
+    goal_plan_stage = next(
+        stage
+        for stage in payload["stages"]
+        if stage["stage_name"] == "goal_conditioned_minimal_formalization_plan"
+    )
+    assert goal_plan_stage["summary"]["target_prover_family"] == "mixed:lean4,rocq"
+    assert goal_plan_stage["summary"]["n_target_prover_families"] == 2
+    assert goal_plan_stage["summary"]["by_target_prover_family"] == {
+        "lean4": 1,
+        "rocq": 1,
+    }
+    report_text = (
+        out_dir / "formalization_gap_planner_reuse_smoke.md"
+    ).read_text(encoding="utf-8")
+    assert (
+        "Source prover targets: `mixed:lean4,rocq` families=2 "
+        "by={'lean4': 1, 'rocq': 1}"
+    ) in report_text
+
+
 def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     root = Path("runs/test_formalization_gap_planner_reuse_smoke_llm_static")
     input_path = root / "target_request.json"
@@ -1748,8 +2026,23 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         json.dumps(initial_response, indent=2),
         encoding="utf-8",
     )
+    feedback_response = _reviewed_llm_route_response_payload()
+    feedback_response["residual_interpretations"] = [
+        {
+            "residual_goal": "rocq:rank_uniformity: awaiting prover adapter mapping",
+            "interpretation": (
+                "The target Rocq route still needs a prover-adapter mapping for "
+                "rank_uniformity before any kernel replay can be claimed."
+            ),
+            "repair_action": "run target-prover adapter mapping for rank_uniformity",
+            "formal_gap_boundary": (
+                "Awaiting Rocq adapter mapping is target-prover feedback, not "
+                "source evidence or theorem proof evidence."
+            ),
+        }
+    ]
     feedback_response_path.write_text(
-        json.dumps(_reviewed_llm_route_response_payload(), indent=2),
+        json.dumps(feedback_response, indent=2),
         encoding="utf-8",
     )
 
@@ -1767,6 +2060,34 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     )
 
     assert payload["n_llm_route_planner_response_present"] == 1
+    assert payload["has_llm_route_planner_response_payload_validation"]
+    assert payload["n_llm_route_planner_response_payload_validation_payloads"] == 2
+    assert (
+        payload["n_llm_route_planner_response_payload_validation_valid_payloads"]
+        == 2
+    )
+    assert (
+        payload["n_llm_route_planner_response_payload_validation_invalid_payloads"]
+        == 0
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_request_context_packets"
+        ]
+        == 2
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_request_bound_payloads"
+        ]
+        == 2
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_request_context_errors"
+        ]
+        == 0
+    )
     assert (
         payload[
             "n_goal_plan_standalone_input_traces_with_llm_route_planner_metadata"
@@ -1829,6 +2150,21 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     assert payload["n_llm_route_planner_route_adoption_ready"] == 0
     assert payload["n_llm_route_planner_route_adoption_pending_refinement"] == 1
     assert payload["n_llm_route_planner_route_adoption_pending_search_request_blockers"] == 1
+    assert payload["n_llm_route_planner_route_adoption_pending_feedback_action_blockers"] == 0
+    assert (
+        payload[
+            "n_llm_route_planner_route_adoption_pending_resource_playbook_redispatch_blockers"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_route_adoption_pending_resource_request_queue_blockers"
+        ]
+        == 0
+    )
+    assert payload["n_llm_route_planner_route_adoption_pending_feedback_replan_blockers"] == 0
+    assert payload["n_llm_route_planner_route_adoption_pending_realization_coverage_blockers"] == 0
     assert payload["n_llm_route_planner_awaiting"] == 0
     assert payload["n_llm_route_planner_search_requests"] == 1
     assert payload["n_feedback_llm_route_planner_response_present"] == 1
@@ -1850,6 +2186,36 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         ]
         == 1
     )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_route_adoption_pending_feedback_action_blockers"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_route_adoption_pending_resource_playbook_redispatch_blockers"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_route_adoption_pending_resource_request_queue_blockers"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_route_adoption_pending_feedback_replan_blockers"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_route_adoption_pending_realization_coverage_blockers"
+        ]
+        == 0
+    )
     assert payload["n_feedback_llm_route_planner_awaiting"] == 0
     assert payload["n_feedback_llm_route_planner_search_requests"] == 1
     assert payload["n_llm_route_planner_feedback_loop_realization_witnesses"] == 0
@@ -1863,6 +2229,12 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     assert payload["n_resource_request_with_candidate_declaration_rows"] > 0
     assert payload["n_resource_request_candidate_declaration_rows"] > 0
     stage_by_name = {stage["stage_name"]: stage for stage in payload["stages"]}
+    validation_summary = stage_by_name[
+        "formalization_gap_planner_llm_route_planner_response_payload_validation"
+    ]["summary"]
+    assert validation_summary["n_payloads"] == 2
+    assert validation_summary["n_valid_payloads"] == 2
+    assert validation_summary["n_invalid_payloads"] == 0
     coverage_summary = stage_by_name[
         "formalization_gap_planner_library_coverage_map"
     ]["summary"]
@@ -1978,6 +2350,63 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         ]
         == 1
     )
+    assert (
+        payload[
+            "n_publication_bundle_optional_llm_route_planner_response_payload_validation_manifest_contract_valid"
+        ]
+        == payload[
+            "n_publication_bundle_optional_llm_route_planner_response_payload_validation_manifest_contract_checked"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_optional_llm_route_planner_response_payload_validation_count_valid"
+        ]
+        == payload[
+            "n_publication_bundle_optional_llm_route_planner_response_payload_validation_count_checked"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_optional_llm_route_planner_response_payload_validation_request_bound_accounting_valid"
+        ]
+        == payload[
+            "n_publication_bundle_optional_llm_route_planner_response_payload_validation_request_bound_accounting_checked"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_optional_llm_route_planner_response_payload_validation_request_bound_coverage_valid"
+        ]
+        == payload[
+            "n_publication_bundle_optional_llm_route_planner_response_payload_validation_request_bound_coverage_checked"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_optional_llm_route_planner_response_payload_validation_row_schema_valid"
+        ]
+        == payload[
+            "n_publication_bundle_optional_llm_route_planner_response_payload_validation_row_schema_checked"
+        ]
+        == 2
+    )
+    assert Path(
+        payload["artifacts"][
+            "llm_route_planner_response_payload_validation_manifest"
+        ]
+    ).exists()
+    assert (
+        out_dir
+        / "formalization_gap_planner_publication_bundle"
+        / "artifacts"
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation"
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.json"
+    ).exists()
     seed_payload = json.loads(
         (
             out_dir
@@ -1991,7 +2420,7 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         {
             "declaration": "Probability.exchangeable",
             "target_prover_family": "lean4",
-            "source_field": "llm_candidate_declaration_rows",
+            "source_field": "available_formal_declaration_rows",
         }
     ]
     assert seed_primitive["candidate_declarations"] == ["Probability.exchangeable"]
@@ -2014,7 +2443,7 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         {
             "declaration": "Probability.exchangeable",
             "target_prover_family": "lean4",
-            "source_field": "llm_candidate_declaration_rows",
+            "source_field": "available_formal_declaration_rows",
         }
     ]
     standalone_trace = plan_rows[0]["standalone_input_trace"]
@@ -2031,6 +2460,7 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         out_dir / "formalization_gap_planner_reuse_smoke.md"
     ).read_text(encoding="utf-8")
     assert "Structured candidate declaration rows:" in report_text
+    assert "LLM route payload validation payloads valid/invalid: 2/0" in report_text
     feedback_seed_payload = json.loads(
         (
             out_dir

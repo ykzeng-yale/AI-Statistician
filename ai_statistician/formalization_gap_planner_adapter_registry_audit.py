@@ -71,7 +71,10 @@ REQUIRED_FIELDS_BY_EVIDENCE_KIND = {
     "formal_library_grounding": ("formal_declaration_hits", "coverage_updates"),
     "lean_library_grounding": ("lean_declaration_hits", "coverage_updates"),
     "prover_feedback": ("prover_diagnostics", "residual_goals"),
-    "route_revision_proposal": ("route_revision_summary",),
+    "route_revision_proposal": (
+        "route_revision_summary",
+        "revised_formal_realization_dag_nodes",
+    ),
 }
 
 

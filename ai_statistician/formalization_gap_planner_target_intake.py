@@ -97,6 +97,7 @@ class FormalizationGapPlannerTargetIntakeRow:
     background_primitives: tuple[str, ...]
     standalone_route_id: str
     literature_queries: tuple[str, ...]
+    formal_library_grounding_queries: tuple[str, ...]
     lean_grounding_queries: tuple[str, ...]
     proof_state_probe_required: bool
     missing_required_fields: tuple[str, ...]
@@ -148,6 +149,9 @@ def normalize_formalization_gap_planner_target_intake(
         ),
         "n_primitive_seed_rows": sum(len(row.primitive_seed_rows) for row in rows),
         "n_literature_queries": sum(len(row.literature_queries) for row in rows),
+        "n_formal_library_grounding_queries": sum(
+            len(row.formal_library_grounding_queries) for row in rows
+        ),
         "n_lean_grounding_queries": sum(len(row.lean_grounding_queries) for row in rows),
         "all_ok": (
             not errors
@@ -317,6 +321,7 @@ def target_intake_row_json_schema() -> dict[str, object]:
             "background_primitives": string_array,
             "standalone_route_id": {"type": "string", "minLength": 1},
             "literature_queries": string_array,
+            "formal_library_grounding_queries": string_array,
             "lean_grounding_queries": string_array,
             "proof_state_probe_required": {"type": "boolean"},
             "missing_required_fields": string_array,
@@ -406,7 +411,7 @@ def _target_intake_row(target: dict[str, Any]) -> FormalizationGapPlannerTargetI
         claim=claim,
         primitives=primitive_names,
     )
-    lean_queries = _lean_grounding_queries(
+    formal_library_queries = _formal_library_grounding_queries(
         theorem_shape=desired_shape,
         primitives=primitive_names,
         objects=objects,
@@ -451,7 +456,8 @@ def _target_intake_row(target: dict[str, Any]) -> FormalizationGapPlannerTargetI
         background_primitives=background,
         standalone_route_id=route_id,
         literature_queries=literature_queries,
-        lean_grounding_queries=lean_queries,
+        formal_library_grounding_queries=formal_library_queries,
+        lean_grounding_queries=formal_library_queries,
         proof_state_probe_required=bool(theorem_skeleton),
         missing_required_fields=tuple(missing_required),
         review_flags=tuple(review_flags),
@@ -466,30 +472,40 @@ def _standalone_seed(
     input_payload: dict[str, Any],
     rows: list[FormalizationGapPlannerTargetIntakeRow],
 ) -> dict[str, object]:
-    first_row = rows[0] if rows else None
-    target_family = (
-        str(input_payload.get("target_prover_family", "")).strip()
-        or (first_row.target_prover_family if first_row else DEFAULT_TARGET_PROVER_FAMILY)
+    route_target_families = tuple(
+        row.target_prover_family.strip()
+        for row in rows
+        if row.target_prover_family.strip()
     )
+    route_target_keys = {
+        _target_prover_key(target) for target in route_target_families if target
+    }
+    if "" in route_target_keys:
+        route_target_keys.remove("")
+    top_level_target_family = str(input_payload.get("target_prover_family", "")).strip()
+    if not top_level_target_family and len(route_target_keys) == 1:
+        top_level_target_family = route_target_families[0]
+    elif len(route_target_keys) > 1:
+        top_level_target_family = ""
     snapshot = (
         str(input_payload.get("library_snapshot_ref", "")).strip()
-        or (first_row.library_snapshot_ref if first_row else "")
+        or (rows[0].library_snapshot_ref if rows else "")
     )
     background = _str_tuple(
         primitive
         for row in rows
         for primitive in row.background_primitives
     )
-    return {
+    seed: dict[str, object] = {
         "schema_version": FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_SCHEMA_VERSION,
         "component_name": FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_COMPONENT,
-        "target_prover_family": target_family,
         "library_snapshot_ref": snapshot,
         "background_primitives": background,
         "routes": [
             {
                 "route_id": row.standalone_route_id,
                 "display_name": row.display_name,
+                "target_prover_family": row.target_prover_family,
                 "theorem_statement": row.theorem_statement,
                 "theorem_skeleton": row.theorem_skeleton,
                 "source_refs": row.proof_source_refs,
@@ -507,6 +523,9 @@ def _standalone_seed(
             for row in rows
         ],
     }
+    if top_level_target_family:
+        seed["target_prover_family"] = top_level_target_family
+    return seed
 
 
 def _primitive_seed_rows(
@@ -595,7 +614,7 @@ def _literature_queries(
     )
 
 
-def _lean_grounding_queries(
+def _formal_library_grounding_queries(
     *,
     theorem_shape: str,
     primitives: tuple[str, ...],
@@ -645,6 +664,18 @@ def _target_records(payload: dict[str, Any]) -> list[dict[str, Any]]:
             if isinstance(target, dict)
         ]
     return [payload] if payload else []
+
+
+def _target_prover_key(value: object) -> str:
+    target = str(value or "").strip().lower()
+    aliases = {
+        "lean": "lean4",
+        "lean_4": "lean4",
+        "coq": "rocq",
+        "coq8": "rocq",
+        "isabelle_hol": "isabelle",
+    }
+    return aliases.get(target, target)
 
 
 def _first_text(row: dict[str, Any], *field_names: str) -> str:
@@ -760,6 +791,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         "",
         f"- Targets: {payload.get('n_ok')}/{payload.get('n_targets')}",
         f"- Primitive seeds: {payload.get('n_primitive_seed_rows')}",
+        f"- Literature queries: {payload.get('n_literature_queries')}",
+        f"- Formal-library queries: {payload.get('n_formal_library_grounding_queries')}",
         f"- Missing proof sources: {payload.get('n_missing_proof_sources')}",
         f"- Missing theorem skeletons: {payload.get('n_missing_theorem_skeleton')}",
         f"- All OK: {payload.get('all_ok')}",

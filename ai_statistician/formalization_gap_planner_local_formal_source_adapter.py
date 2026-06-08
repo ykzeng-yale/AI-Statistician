@@ -236,6 +236,7 @@ def _lean_grounding_response(
     k: int,
 ) -> dict[str, object]:
     primitives = _str_tuple(queue_row.get("target_primitives", []))
+    target_prover_family = _target_prover_family(queue_row)
     coverage_updates: dict[str, str] = {}
     declaration_hits: list[dict[str, object]] = []
     revision_reasons: list[str] = []
@@ -249,15 +250,28 @@ def _lean_grounding_response(
         if not hits:
             revision_reasons.append(f"{primitive} had no local declaration hits")
         for rank, hit in enumerate(hits, start=1):
-            declaration_hits.append(_hit_payload(primitive, query, rank, hit, status))
+            declaration_hits.append(
+                _hit_payload(
+                    primitive,
+                    query,
+                    rank,
+                    hit,
+                    status,
+                    target_prover_family=target_prover_family,
+                )
+            )
+    lean_declaration_hits = (
+        declaration_hits if _is_lean_target_prover(target_prover_family) else []
+    )
     return {
         "refinement_item_id": str(queue_row.get("refinement_item_id", "")),
         "route_id": str(queue_row.get("route_id", "")),
         "display_name": str(queue_row.get("display_name", "")),
         "evidence_kind": "formal_library_grounding",
         "tool_name": ADAPTER_TOOL_NAME,
+        "target_prover_family": target_prover_family,
         "formal_declaration_hits": declaration_hits,
-        "lean_declaration_hits": declaration_hits,
+        "lean_declaration_hits": lean_declaration_hits,
         "coverage_updates": coverage_updates,
         "route_revision_recommended": bool(revision_reasons),
         "route_revision_reasons": tuple(sorted(dict.fromkeys(revision_reasons))),
@@ -304,6 +318,8 @@ def _hit_payload(
     rank: int,
     hit: FormalSourceHit,
     coverage_status: str,
+    *,
+    target_prover_family: str,
 ) -> dict[str, object]:
     declaration = hit.declaration
     return {
@@ -319,6 +335,7 @@ def _hit_payload(
         "line": declaration.line,
         "namespace": declaration.namespace,
         "signature": declaration.signature,
+        "target_prover_family": target_prover_family,
         "score": hit.score,
         "matched_terms": hit.matched_terms,
         "is_kernel_verified_declaration_hit": False,
@@ -337,6 +354,31 @@ def _is_formal_library_grounding_hook(row: dict[str, Any]) -> bool:
         "formal_library_grounding",
         "lean_library_grounding",
     }
+
+
+def _target_prover_family(row: dict[str, Any]) -> str:
+    for field_name in ("target_prover_family", "target_prover"):
+        text = str(row.get(field_name, "") or "").strip()
+        if text:
+            return text
+    trace = row.get("llm_route_planner_hook_trace", {})
+    if isinstance(trace, dict):
+        for field_name in ("target_prover_family", "target_prover"):
+            text = str(trace.get(field_name, "") or "").strip()
+            if text:
+                return text
+    return "lean4"
+
+
+def _is_lean_target_prover(target_prover_family: str) -> bool:
+    key = re.sub(
+        r"[^a-z0-9]+",
+        "_",
+        str(target_prover_family).strip().lower(),
+    ).strip("_")
+    return key in {"lean", "lean4", "lean_4"} or key.startswith(
+        ("lean4_", "lean_4_", "lean_")
+    )
 
 
 def _tokens(text: str) -> set[str]:

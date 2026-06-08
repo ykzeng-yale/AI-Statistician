@@ -97,7 +97,11 @@ def export_formalization_gap_planner_route_revision_overlay(
     )
     plan_payload = _read_json(plan_manifest_path, errors)
     evidence_payload = _read_json(evidence_manifest_path, errors)
-    plan_rows = [row for row in plan_payload.get("rows", []) if isinstance(row, dict)]
+    plan_rows = [
+        _plan_row_with_manifest_context(row, plan_payload)
+        for row in plan_payload.get("rows", [])
+        if isinstance(row, dict)
+    ]
     refinement_evidence_rows = [
         row for row in evidence_payload.get("rows", []) if isinstance(row, dict)
     ]
@@ -539,6 +543,19 @@ def _schema_property_errors(
     return tuple(errors)
 
 
+def _plan_row_with_manifest_context(
+    row: dict[str, Any],
+    manifest: dict[str, Any],
+) -> dict[str, Any]:
+    contextualized = dict(row)
+    for field_name in ("target_prover_family", "library_snapshot_ref"):
+        if not str(contextualized.get(field_name, "") or "").strip():
+            value = str(manifest.get(field_name, "") or "").strip()
+            if value:
+                contextualized[field_name] = value
+    return contextualized
+
+
 def _overlay_row(
     plan_row: dict[str, Any],
     proposals: list[dict[str, Any]],
@@ -563,9 +580,15 @@ def _overlay_row(
         rejected=True,
     )
     if not proposals:
+        target_prover_family = _target_prover_family_for_overlay(plan_row, ())
         informal_nodes = _existing_graph_nodes(plan_row.get("informal_knowledge_dag", {}))
-        lean_nodes = _existing_graph_nodes(plan_row.get("lean_realization_dag", {}))
-        formal_nodes = _existing_formal_realization_nodes(plan_row, lean_nodes)
+        legacy_lean_nodes = _existing_graph_nodes(plan_row.get("lean_realization_dag", {}))
+        formal_nodes = _existing_formal_realization_nodes(plan_row, legacy_lean_nodes)
+        lean_nodes = _lean_alias_nodes_for_target(
+            target_prover_family,
+            legacy_lean_nodes,
+            fallback_nodes=formal_nodes,
+        )
         alignment_edges, unaligned = _route_alignment_edges(
             selected_primitives=original_selected,
             informal_nodes=informal_nodes,
@@ -642,10 +665,14 @@ def _overlay_row(
             for proposal in proposals
         ),
     )
-    existing_lean_nodes = _existing_graph_nodes(plan_row.get("lean_realization_dag", {}))
+    target_prover_family = _target_prover_family_for_overlay(plan_row, proposals)
+    existing_lean_nodes = _lean_alias_nodes_for_target(
+        target_prover_family,
+        _existing_graph_nodes(plan_row.get("lean_realization_dag", {})),
+    )
     existing_formal_nodes = _existing_formal_realization_nodes(
         plan_row,
-        existing_lean_nodes,
+        _existing_graph_nodes(plan_row.get("lean_realization_dag", {})),
     )
     formal_nodes = _merge_nodes(
         existing_formal_nodes,
@@ -657,11 +684,9 @@ def _overlay_row(
     lean_nodes = _merge_nodes(
         existing_lean_nodes,
         *(
-            _dict_tuple(
-                proposal.get(
-                    "revised_lean_realization_dag_nodes",
-                    proposal.get("revised_formal_realization_dag_nodes", []),
-                )
+            _proposal_lean_realization_dag_nodes(
+                proposal,
+                target_prover_family=target_prover_family,
             )
             for proposal in proposals
         ),
@@ -789,6 +814,12 @@ def _orphan_overlay_row(
     errors = ("route revision proposal did not match any current plan row",)
     resource_response_traces = _proposal_resource_response_traces(proposal)
     resource_response_summary = _resource_response_summary(resource_response_traces)
+    target_prover_family = _target_prover_family_for_overlay({}, (proposal,))
+    formal_nodes = _proposal_formal_realization_dag_nodes(proposal)
+    lean_nodes = _proposal_lean_realization_dag_nodes(
+        proposal,
+        target_prover_family=target_prover_family,
+    )
     return FormalizationGapPlannerRouteRevisionOverlayRow(
         schema_version=FORMALIZATION_GAP_PLANNER_ROUTE_REVISION_OVERLAY_SCHEMA_VERSION,
         route_revision_overlay_id="formalization_gap_planner_route_revision_overlay:"
@@ -864,15 +895,8 @@ def _orphan_overlay_row(
         revised_informal_knowledge_dag_nodes=_dict_tuple(
             proposal.get("revised_informal_knowledge_dag_nodes", [])
         ),
-        revised_formal_realization_dag_nodes=_proposal_formal_realization_dag_nodes(
-            proposal
-        ),
-        revised_lean_realization_dag_nodes=_dict_tuple(
-            proposal.get(
-                "revised_lean_realization_dag_nodes",
-                proposal.get("revised_formal_realization_dag_nodes", []),
-            )
-        ),
+        revised_formal_realization_dag_nodes=formal_nodes,
+        revised_lean_realization_dag_nodes=lean_nodes,
         revised_route_alignment_edges=(),
         unaligned_primitives=_str_tuple(proposal.get("revised_selected_primitives", [])),
         next_required_gate="match proposal to an active route plan before replay",
@@ -1050,7 +1074,12 @@ def _resource_response_ledger_proposal(
         response_payload.get("revised_delta_primitives", [])
     )
     informal_nodes = _resource_response_informal_nodes(row)
-    lean_nodes = _resource_response_lean_nodes(row)
+    formal_nodes = _resource_response_lean_nodes(row)
+    target_prover_family = str(row.get("target_prover_family", ""))
+    lean_nodes = _lean_alias_nodes_for_target(
+        target_prover_family,
+        formal_nodes,
+    )
     route_revision_reasons = _resource_response_route_revision_reasons(row)
     route_revision_summary = str(row.get("response_summary", "")) or (
         f"resource response feedback for {primitive}"
@@ -1079,7 +1108,7 @@ def _resource_response_ledger_proposal(
         "revised_selected_primitives": revised_selected_primitives,
         "revised_delta_primitives": revised_delta_primitives,
         "revised_informal_knowledge_dag_nodes": informal_nodes,
-        "revised_formal_realization_dag_nodes": lean_nodes,
+        "revised_formal_realization_dag_nodes": formal_nodes,
         "revised_lean_realization_dag_nodes": lean_nodes,
         "source_refs": _str_tuple(row.get("source_refs", [])),
         "source_snippets": _resource_response_source_snippets(row),
@@ -1097,7 +1126,7 @@ def _resource_response_ledger_proposal(
                 _prover_attempt_class(str(row.get("prover_attempt_status", ""))),
             )
         ),
-        "target_prover_family": str(row.get("target_prover_family", "")),
+        "target_prover_family": target_prover_family,
         "prover_diagnostic_signature": str(
             row.get("prover_diagnostic_signature", "")
         ),
@@ -1240,6 +1269,91 @@ def _proposal_formal_realization_dag_nodes(
             "revised_formal_realization_dag_nodes",
             proposal.get("revised_lean_realization_dag_nodes", []),
         )
+    )
+
+
+def _proposal_lean_realization_dag_nodes(
+    proposal: dict[str, Any],
+    *,
+    target_prover_family: str,
+) -> tuple[dict[str, object], ...]:
+    if not _is_lean_target_prover(target_prover_family):
+        return tuple()
+    return _dict_tuple(
+        proposal.get(
+            "revised_lean_realization_dag_nodes",
+            proposal.get("revised_formal_realization_dag_nodes", []),
+        )
+    )
+
+
+def _lean_alias_nodes_for_target(
+    target_prover_family: str,
+    nodes: tuple[dict[str, object], ...],
+    *,
+    fallback_nodes: tuple[dict[str, object], ...] = (),
+) -> tuple[dict[str, object], ...]:
+    if not _is_lean_target_prover(target_prover_family):
+        return tuple()
+    return nodes or fallback_nodes
+
+
+def _target_prover_family_for_overlay(
+    plan_row: dict[str, Any],
+    proposals: tuple[dict[str, Any], ...],
+) -> str:
+    plan_metadata = _dict_value(plan_row, "standalone_input_trace")
+    replan_metadata = _dict_value(plan_row, "replan_metadata")
+    route_summary = _dict_value(plan_row, "route_summary")
+    values = [
+        plan_row.get("target_prover_family", ""),
+        plan_metadata.get("target_prover_family", ""),
+        replan_metadata.get("target_prover_family", ""),
+        route_summary.get("target_prover_family", ""),
+        *(
+            value
+            for proposal in proposals
+            for value in _target_prover_family_values_from_proposal(proposal)
+        ),
+    ]
+    for value in values:
+        text = str(value or "").strip()
+        if text:
+            return text
+    return "lean4"
+
+
+def _target_prover_family_values_from_proposal(
+    proposal: dict[str, Any],
+) -> tuple[object, ...]:
+    route_summary = _dict_value(proposal, "route_summary")
+    replan_metadata = _dict_value(proposal, "replan_metadata")
+    values: list[object] = [
+        proposal.get("target_prover_family", ""),
+        route_summary.get("target_prover_family", ""),
+        replan_metadata.get("target_prover_family", ""),
+    ]
+    for field_name in (
+        "revised_formal_realization_dag_nodes",
+        "revised_lean_realization_dag_nodes",
+        "formal_declaration_hits",
+        "lean_declaration_hits",
+    ):
+        values.extend(
+            node.get("target_prover_family", "")
+            for node in _dict_tuple(proposal.get(field_name, []))
+        )
+    return tuple(values)
+
+
+def _is_lean_target_prover(target_prover_family: str) -> bool:
+    key = re.sub(
+        r"[^a-z0-9]+",
+        "_",
+        str(target_prover_family).strip().lower(),
+    ).strip("_")
+    return key in {"lean", "lean4", "lean_4"} or key.startswith(
+        ("lean4_", "lean_4_", "lean_")
     )
 
 

@@ -43,6 +43,7 @@ from .formalization_gap_planner_library_coverage_map import (
 )
 from .formalization_gap_planner_llm_route_planner import (
     export_formalization_gap_planner_llm_route_planner,
+    validate_formalization_gap_planner_llm_route_planner_response_payloads,
 )
 from .formalization_gap_planner_primitive_action_queue import (
     export_formalization_gap_planner_primitive_action_queue,
@@ -66,6 +67,9 @@ from .formalization_gap_planner_cross_prover_matrix_audit import (
 from .formalization_gap_planner_minimal_delta_audit import (
     audit_formalization_gap_planner_minimal_delta,
 )
+from .formalization_gap_planner_minimal_delta_audit_feedback_adapter import (
+    export_formalization_gap_planner_minimal_delta_audit_feedback_responses,
+)
 from .formalization_gap_planner_source_grounding_audit import (
     audit_formalization_gap_planner_source_grounding,
 )
@@ -80,6 +84,9 @@ from .formalization_gap_planner_publication_bundle_audit import (
 )
 from .formalization_gap_planner_proof_state_triage import (
     export_formalization_gap_planner_proof_state_triage,
+)
+from .formalization_gap_planner_prover_adapter_feedback_adapter import (
+    export_formalization_gap_planner_prover_adapter_feedback_responses,
 )
 from .formalization_gap_planner_refinement_adapters import (
     export_formalization_gap_planner_refinement_adapter_responses,
@@ -126,6 +133,7 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_ok",
         "n_primitive_seed_rows",
         "n_literature_queries",
+        "n_formal_library_grounding_queries",
         "n_lean_grounding_queries",
         "n_missing_proof_sources",
         "n_missing_theorem_skeleton",
@@ -155,6 +163,11 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_route_adoption_pending_planner_next_action_blockers",
         "n_route_adoption_pending_uncertainty_blockers",
         "n_route_adoption_pending_residual_repair_blockers",
+        "n_route_adoption_pending_feedback_action_blockers",
+        "n_route_adoption_pending_resource_playbook_redispatch_blockers",
+        "n_route_adoption_pending_resource_request_queue_blockers",
+        "n_route_adoption_pending_feedback_replan_blockers",
+        "n_route_adoption_pending_realization_coverage_blockers",
         "n_rejected",
         "n_informal_knowledge_dag_nodes",
         "n_lean_realization_dag_nodes",
@@ -196,6 +209,11 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_route_adoption_pending_planner_next_action_blockers",
         "n_route_adoption_pending_uncertainty_blockers",
         "n_route_adoption_pending_residual_repair_blockers",
+        "n_route_adoption_pending_feedback_action_blockers",
+        "n_route_adoption_pending_resource_playbook_redispatch_blockers",
+        "n_route_adoption_pending_resource_request_queue_blockers",
+        "n_route_adoption_pending_feedback_replan_blockers",
+        "n_route_adoption_pending_realization_coverage_blockers",
         "n_rejected",
         "n_informal_knowledge_dag_nodes",
         "n_lean_realization_dag_nodes",
@@ -212,10 +230,18 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_row_schema_valid",
         "n_row_schema_invalid",
     ),
+    "formalization_gap_planner_llm_route_planner_response_payload_validation": (
+        "n_payloads",
+        "n_valid_payloads",
+        "n_invalid_payloads",
+        "all_ok",
+    ),
     "goal_conditioned_minimal_formalization_plan": (
         "n_goal_plans",
         "n_ok",
         "target_prover_family",
+        "n_target_prover_families",
+        "by_target_prover_family",
         "library_snapshot_ref",
         "n_standalone_input_traces_with_llm_route_adoption_status",
         "n_standalone_input_traces_ready_for_route_adoption",
@@ -444,6 +470,7 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_ready",
         "n_blocked",
         "n_literature_discovery_items",
+        "n_formal_library_grounding_items",
         "n_lean_library_grounding_items",
         "n_proof_state_feedback_items",
         "n_route_revision_items",
@@ -453,9 +480,26 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_responses",
         "n_ground_truth_matched",
         "n_ground_truth_unmatched",
+        "n_formal_grounding_responses",
+        "n_lean_grounding_responses",
         "n_route_revision_recommended",
         "n_response_schema_valid",
         "n_response_schema_invalid",
+    ),
+    "formalization_gap_planner_minimal_delta_audit_feedback_adapter": (
+        "n_queue_rows",
+        "n_route_revision_rows",
+        "n_minimal_delta_decision_rows",
+        "n_failed_minimal_delta_decision_rows",
+        "n_generated_feedback_responses",
+        "n_merged_responses",
+        "n_matched_route_revision_rows",
+        "n_unmatched_route_revision_rows",
+        "n_route_revision_recommended",
+        "n_response_schema_valid",
+        "n_response_schema_invalid",
+        "n_merged_response_schema_valid",
+        "n_merged_response_schema_invalid",
     ),
     "formalization_gap_planner_local_literature_adapter": (
         "n_queue_rows",
@@ -472,6 +516,7 @@ SUMMARY_KEYS_BY_STAGE = {
     ),
     "formalization_gap_planner_local_formal_source_adapter": (
         "n_queue_rows",
+        "n_formal_library_grounding_rows",
         "n_lean_library_grounding_rows",
         "search_backend",
         "lean_rag_dependency_graph_enabled",
@@ -489,12 +534,35 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_proof_state_feedback_rows",
         "lean_command_available",
         "n_local_proof_state_responses",
+        "n_target_prover_scaffold_accepted",
+        "n_target_prover_failed",
+        "n_target_prover_unavailable",
+        "n_non_target_prover_skeleton",
         "n_local_lean_unavailable",
+        "n_placeholder_blocked",
         "n_formal_gap_scaffold_blocked",
         "n_non_lean_skeleton",
+        "n_missing_skeleton",
         "n_merged_responses",
         "n_local_response_schema_valid",
         "n_local_response_schema_invalid",
+        "n_merged_response_schema_valid",
+        "n_merged_response_schema_invalid",
+    ),
+    "formalization_gap_planner_prover_adapter_feedback_adapter": (
+        "n_queue_rows",
+        "n_proof_state_feedback_rows",
+        "n_validation_sources",
+        "n_validation_rows",
+        "n_validation_rows_with_response",
+        "n_validation_rows_contract_ok",
+        "n_generated_feedback_responses",
+        "n_merged_responses",
+        "n_matched_proof_state_feedback_rows",
+        "n_unmatched_proof_state_feedback_rows",
+        "n_route_revision_recommended",
+        "n_response_schema_valid",
+        "n_response_schema_invalid",
         "n_merged_response_schema_valid",
         "n_merged_response_schema_invalid",
     ),
@@ -505,6 +573,8 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_response_schema_valid",
         "n_response_schema_invalid",
         "n_awaiting_tool_response",
+        "n_formal_grounding_evidence",
+        "n_lean_grounding_evidence",
         "n_route_revision_recommended",
         "n_rejected",
     ),
@@ -535,6 +605,7 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_standalone_seed_routes",
         "n_route_alignment_edges",
         "n_revised_informal_knowledge_dag_nodes",
+        "n_revised_formal_realization_dag_nodes",
         "n_revised_lean_realization_dag_nodes",
         "n_unaligned_primitives",
         "n_routes_with_residual_goals",
@@ -557,7 +628,11 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_overlay_rows",
         "n_triage_items",
         "n_formal_gap_scaffold_items",
+        "n_target_prover_failed_items",
+        "n_target_prover_unavailable_items",
+        "n_non_target_prover_skeleton_items",
         "n_local_lean_failed_items",
+        "n_non_lean_skeleton_items",
         "n_with_residual_goals",
     ),
     "formalization_gap_planner_interactive_session": (
@@ -570,6 +645,7 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_decision_policy_row_schema_valid",
         "n_decision_policy_row_schema_invalid",
         "n_run_literature_search",
+        "n_run_formal_grounding",
         "n_run_lean_grounding",
         "n_run_proof_state_feedback",
         "n_run_route_replan",
@@ -664,6 +740,12 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_optional_route_revision_resource_response_status_valid",
         "n_optional_route_replan_handoff_audit_row_schema_checked",
         "n_optional_route_replan_handoff_audit_row_schema_valid",
+        "n_optional_llm_route_planner_response_payload_validation_manifest_contract_checked",
+        "n_optional_llm_route_planner_response_payload_validation_manifest_contract_valid",
+        "n_optional_llm_route_planner_response_payload_validation_count_checked",
+        "n_optional_llm_route_planner_response_payload_validation_count_valid",
+        "n_optional_llm_route_planner_response_payload_validation_row_schema_checked",
+        "n_optional_llm_route_planner_response_payload_validation_row_schema_valid",
         "n_optional_ablation_study_row_schema_checked",
         "n_optional_ablation_study_row_schema_valid",
         "n_optional_proof_state_triage_row_schema_checked",
@@ -782,6 +864,9 @@ def run_formalization_gap_planner_reuse_smoke(
     )
     refinement_queue_dir = out_dir / "formalization_gap_planner_refinement_queue"
     refinement_adapter_dir = out_dir / "formalization_gap_planner_refinement_adapter"
+    minimal_delta_audit_feedback_adapter_dir = (
+        out_dir / "formalization_gap_planner_minimal_delta_audit_feedback_adapter"
+    )
     local_literature_adapter_dir = (
         out_dir / "formalization_gap_planner_local_literature_adapter"
     )
@@ -790,6 +875,9 @@ def run_formalization_gap_planner_reuse_smoke(
     )
     local_proof_state_adapter_dir = (
         out_dir / "formalization_gap_planner_local_proof_state_adapter"
+    )
+    prover_adapter_feedback_adapter_dir = (
+        out_dir / "formalization_gap_planner_prover_adapter_feedback_adapter"
     )
     refinement_evidence_dir = out_dir / "formalization_gap_planner_refinement_evidence"
     route_revision_overlay_dir = (
@@ -818,6 +906,10 @@ def run_formalization_gap_planner_reuse_smoke(
     publication_bundle_dir = out_dir / "formalization_gap_planner_publication_bundle"
     publication_bundle_audit_dir = (
         out_dir / "formalization_gap_planner_publication_bundle_audit"
+    )
+    llm_response_payload_validation_dir = (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation"
     )
 
     adapter_registry_payload = export_formalization_gap_planner_adapter_registry(
@@ -861,6 +953,7 @@ def run_formalization_gap_planner_reuse_smoke(
         invoke_provider=llm_route_planner_invoke_provider,
         response_json=llm_route_planner_response_json,
         static_response_json=llm_route_planner_static_response_json,
+        formalization_gap_planner_target_intake_dir=target_intake_dir,
         formalization_gap_planner_component_resource_registry_dir=(
             component_resource_registry_dir
         ),
@@ -922,6 +1015,12 @@ def run_formalization_gap_planner_reuse_smoke(
             library_snapshot_ref=adapter_snapshot_ref,
         )
     )
+    cross_prover_matrix_payload = audit_formalization_gap_planner_cross_prover_matrix(
+        plan_dir,
+        cross_prover_matrix_audit_dir,
+        target_prover_families=DEFAULT_REUSE_TARGETS,
+        library_snapshot_ref_prefix="formalization_gap_planner_reuse_smoke",
+    )
     action_resource_plan_payload = (
         export_formalization_gap_planner_action_resource_plan(
             primitive_action_queue_dir,
@@ -956,12 +1055,24 @@ def run_formalization_gap_planner_reuse_smoke(
         refinement_adapter_dir
         / "formalization_gap_planner_refinement_evidence_responses.jsonl"
     )
+    minimal_delta_audit_feedback_adapter_payload = (
+        export_formalization_gap_planner_minimal_delta_audit_feedback_responses(
+            refinement_queue_dir,
+            minimal_delta_audit_dir,
+            minimal_delta_audit_feedback_adapter_dir,
+            base_response_jsonl=refinement_response_jsonl,
+        )
+    )
+    minimal_delta_audit_feedback_response_jsonl = (
+        minimal_delta_audit_feedback_adapter_dir
+        / "formalization_gap_planner_refinement_evidence_responses.jsonl"
+    )
     local_literature_adapter_payload = (
         export_formalization_gap_planner_local_literature_adapter_responses(
             refinement_queue_dir,
             local_literature_adapter_dir,
             literature_roots=(paper_library_dir,) if paper_library_dir else tuple(),
-            base_response_jsonl=refinement_response_jsonl,
+            base_response_jsonl=minimal_delta_audit_feedback_response_jsonl,
         )
     )
     local_literature_response_jsonl = (
@@ -991,10 +1102,28 @@ def run_formalization_gap_planner_reuse_smoke(
         local_proof_state_adapter_dir
         / "formalization_gap_planner_refinement_evidence_responses.jsonl"
     )
+    prover_adapter_feedback_payload = (
+        export_formalization_gap_planner_prover_adapter_feedback_responses(
+            refinement_queue_dir,
+            prover_adapter_feedback_adapter_dir,
+            formalization_gap_planner_prover_adapter_contract_dir=(
+                prover_adapter_contract_dir
+            ),
+            formalization_gap_planner_cross_prover_matrix_audit_dir=(
+                cross_prover_matrix_audit_dir
+            ),
+            base_response_jsonl=local_proof_state_response_jsonl,
+            target_prover_family=target_prover_family,
+        )
+    )
+    prover_adapter_feedback_response_jsonl = (
+        prover_adapter_feedback_adapter_dir
+        / "formalization_gap_planner_refinement_evidence_responses.jsonl"
+    )
     refinement_evidence_payload = export_formalization_gap_planner_refinement_evidence(
         refinement_queue_dir,
         refinement_evidence_dir,
-        response_jsonl=local_proof_state_response_jsonl,
+        response_jsonl=prover_adapter_feedback_response_jsonl,
     )
     route_revision_overlay_payload = (
         export_formalization_gap_planner_route_revision_overlay(
@@ -1059,6 +1188,7 @@ def run_formalization_gap_planner_reuse_smoke(
             invoke_provider=feedback_llm_route_planner_invoke_provider,
             response_json=feedback_llm_route_planner_response_json,
             static_response_json=feedback_llm_route_planner_static_response_json,
+            formalization_gap_planner_target_intake_dir=target_intake_dir,
             goal_conditioned_minimal_formalization_plan_dir=plan_dir,
             formalization_gap_planner_library_coverage_map_dir=library_coverage_map_dir,
             formalization_gap_planner_source_grounding_audit_dir=source_grounding_audit_dir,
@@ -1072,17 +1202,17 @@ def run_formalization_gap_planner_reuse_smoke(
             ),
         )
     )
+    llm_response_payload_validation_payload = (
+        _maybe_validate_llm_route_planner_response_payloads(
+            (llm_route_planner_payload, feedback_llm_route_planner_payload),
+            llm_response_payload_validation_dir,
+        )
+    )
     ablation_study_payload = export_formalization_gap_planner_ablation_study(
         plan_dir,
         evaluation_dir,
         ablation_study_dir,
         formalization_gap_planner_interactive_session_dir=interactive_session_dir,
-    )
-    cross_prover_matrix_payload = audit_formalization_gap_planner_cross_prover_matrix(
-        plan_dir,
-        cross_prover_matrix_audit_dir,
-        target_prover_families=DEFAULT_REUSE_TARGETS,
-        library_snapshot_ref_prefix="formalization_gap_planner_reuse_smoke",
     )
     publication_snapshot_ref = (
         str(plan_payload.get("library_snapshot_ref", "")).strip()
@@ -1099,6 +1229,11 @@ def run_formalization_gap_planner_reuse_smoke(
         formalization_gap_planner_feedback_llm_route_planner_dir=(
             feedback_llm_route_planner_dir
         ),
+        formalization_gap_planner_llm_route_planner_response_payload_validation_dir=(
+            llm_response_payload_validation_dir
+            if llm_response_payload_validation_payload is not None
+            else None
+        ),
         goal_conditioned_minimal_formalization_plan_dir=plan_dir,
         formalization_gap_planner_portable_plan_audit_dir=portable_plan_audit_dir,
         formalization_gap_planner_library_coverage_map_dir=library_coverage_map_dir,
@@ -1107,6 +1242,9 @@ def run_formalization_gap_planner_reuse_smoke(
         formalization_gap_planner_resource_request_queue_dir=resource_request_queue_dir,
         formalization_gap_planner_resource_response_ledger_dir=resource_response_ledger_dir,
         formalization_gap_planner_minimal_delta_audit_dir=minimal_delta_audit_dir,
+        formalization_gap_planner_minimal_delta_audit_feedback_adapter_dir=(
+            minimal_delta_audit_feedback_adapter_dir
+        ),
         formalization_gap_planner_source_grounding_audit_dir=source_grounding_audit_dir,
         formalization_gap_planner_evaluation_dir=evaluation_dir,
         formalization_gap_planner_refinement_queue_dir=refinement_queue_dir,
@@ -1114,6 +1252,9 @@ def run_formalization_gap_planner_reuse_smoke(
         formalization_gap_planner_local_literature_adapter_dir=local_literature_adapter_dir,
         formalization_gap_planner_local_formal_source_adapter_dir=local_formal_source_adapter_dir,
         formalization_gap_planner_local_proof_state_adapter_dir=local_proof_state_adapter_dir,
+        formalization_gap_planner_prover_adapter_feedback_adapter_dir=(
+            prover_adapter_feedback_adapter_dir
+        ),
         formalization_gap_planner_refinement_evidence_dir=refinement_evidence_dir,
         formalization_gap_planner_route_revision_overlay_dir=route_revision_overlay_dir,
         formalization_gap_planner_route_stability_audit_dir=route_stability_audit_dir,
@@ -1265,6 +1406,13 @@ def run_formalization_gap_planner_reuse_smoke(
             refinement_adapter_payload,
         ),
         _stage_row(
+            "formalization_gap_planner_minimal_delta_audit_feedback_adapter",
+            minimal_delta_audit_feedback_adapter_dir,
+            minimal_delta_audit_feedback_adapter_dir
+            / "formalization_gap_planner_minimal_delta_audit_feedback_adapter_manifest.json",
+            minimal_delta_audit_feedback_adapter_payload,
+        ),
+        _stage_row(
             "formalization_gap_planner_local_literature_adapter",
             local_literature_adapter_dir,
             local_literature_adapter_dir
@@ -1284,6 +1432,13 @@ def run_formalization_gap_planner_reuse_smoke(
             local_proof_state_adapter_dir
             / "formalization_gap_planner_local_proof_state_adapter_manifest.json",
             local_proof_state_adapter_payload,
+        ),
+        _stage_row(
+            "formalization_gap_planner_prover_adapter_feedback_adapter",
+            prover_adapter_feedback_adapter_dir,
+            prover_adapter_feedback_adapter_dir
+            / "formalization_gap_planner_prover_adapter_feedback_adapter_manifest.json",
+            prover_adapter_feedback_payload,
         ),
         _stage_row(
             "formalization_gap_planner_refinement_evidence",
@@ -1326,6 +1481,19 @@ def run_formalization_gap_planner_reuse_smoke(
             feedback_llm_route_planner_dir
             / "formalization_gap_planner_llm_route_planner_manifest.json",
             feedback_llm_route_planner_payload,
+        ),
+        *(
+            (
+                _stage_row(
+                    "formalization_gap_planner_llm_route_planner_response_payload_validation",
+                    llm_response_payload_validation_dir,
+                    llm_response_payload_validation_dir
+                    / "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.json",
+                    llm_response_payload_validation_payload,
+                ),
+            )
+            if llm_response_payload_validation_payload is not None
+            else ()
         ),
         _stage_row(
             "formalization_gap_planner_proof_state_triage",
@@ -1389,6 +1557,14 @@ def run_formalization_gap_planner_reuse_smoke(
         ),
         "source_target_prover_family": str(
             plan_payload.get("target_prover_family", "")
+        ),
+        "n_source_target_prover_families": plan_payload.get(
+            "n_target_prover_families",
+            0,
+        ),
+        "source_by_target_prover_family": plan_payload.get(
+            "by_target_prover_family",
+            {},
         ),
         "source_library_snapshot_ref": str(plan_payload.get("library_snapshot_ref", "")),
         "target_library_snapshot_ref": adapter_snapshot_ref,
@@ -1474,6 +1650,51 @@ def run_formalization_gap_planner_reuse_smoke(
                 feedback_llm_route_planner_payload,
                 provider_name=feedback_llm_route_planner_provider,
                 invoke_provider=feedback_llm_route_planner_invoke_provider,
+            )
+        ),
+        "has_llm_route_planner_response_payload_validation": (
+            llm_response_payload_validation_payload is not None
+        ),
+        "n_llm_route_planner_response_payload_validation_payloads": (
+            _optional_int(
+                llm_response_payload_validation_payload,
+                "n_payloads",
+            )
+        ),
+        "n_llm_route_planner_response_payload_validation_valid_payloads": (
+            _optional_int(
+                llm_response_payload_validation_payload,
+                "n_valid_payloads",
+            )
+        ),
+        "n_llm_route_planner_response_payload_validation_invalid_payloads": (
+            _optional_int(
+                llm_response_payload_validation_payload,
+                "n_invalid_payloads",
+            )
+        ),
+        "n_llm_route_planner_response_payload_validation_request_context_packets": (
+            _optional_int(
+                llm_response_payload_validation_payload,
+                "n_request_context_packets",
+            )
+        ),
+        "n_llm_route_planner_response_payload_validation_request_bound_payloads": (
+            _optional_int(
+                llm_response_payload_validation_payload,
+                "n_request_bound_payloads",
+            )
+        ),
+        "n_llm_route_planner_response_payload_validation_schema_errors": (
+            _optional_int(
+                llm_response_payload_validation_payload,
+                "n_schema_errors",
+            )
+        ),
+        "n_llm_route_planner_response_payload_validation_request_context_errors": (
+            _optional_int(
+                llm_response_payload_validation_payload,
+                "n_request_context_errors",
             )
         ),
         "n_total_llm_route_planner_live_provider_calls_requested": (
@@ -1655,6 +1876,36 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_llm_route_planner_route_adoption_pending_residual_repair_blockers": (
             llm_route_planner_payload.get(
                 "n_route_adoption_pending_residual_repair_blockers",
+                0,
+            )
+        ),
+        "n_llm_route_planner_route_adoption_pending_feedback_action_blockers": (
+            llm_route_planner_payload.get(
+                "n_route_adoption_pending_feedback_action_blockers",
+                0,
+            )
+        ),
+        "n_llm_route_planner_route_adoption_pending_resource_playbook_redispatch_blockers": (
+            llm_route_planner_payload.get(
+                "n_route_adoption_pending_resource_playbook_redispatch_blockers",
+                0,
+            )
+        ),
+        "n_llm_route_planner_route_adoption_pending_resource_request_queue_blockers": (
+            llm_route_planner_payload.get(
+                "n_route_adoption_pending_resource_request_queue_blockers",
+                0,
+            )
+        ),
+        "n_llm_route_planner_route_adoption_pending_feedback_replan_blockers": (
+            llm_route_planner_payload.get(
+                "n_route_adoption_pending_feedback_replan_blockers",
+                0,
+            )
+        ),
+        "n_llm_route_planner_route_adoption_pending_realization_coverage_blockers": (
+            llm_route_planner_payload.get(
+                "n_route_adoption_pending_realization_coverage_blockers",
                 0,
             )
         ),
@@ -1879,6 +2130,36 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_feedback_llm_route_planner_route_adoption_pending_residual_repair_blockers": (
             feedback_llm_route_planner_payload.get(
                 "n_route_adoption_pending_residual_repair_blockers",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_route_adoption_pending_feedback_action_blockers": (
+            feedback_llm_route_planner_payload.get(
+                "n_route_adoption_pending_feedback_action_blockers",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_route_adoption_pending_resource_playbook_redispatch_blockers": (
+            feedback_llm_route_planner_payload.get(
+                "n_route_adoption_pending_resource_playbook_redispatch_blockers",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_route_adoption_pending_resource_request_queue_blockers": (
+            feedback_llm_route_planner_payload.get(
+                "n_route_adoption_pending_resource_request_queue_blockers",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_route_adoption_pending_feedback_replan_blockers": (
+            feedback_llm_route_planner_payload.get(
+                "n_route_adoption_pending_feedback_replan_blockers",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_route_adoption_pending_realization_coverage_blockers": (
+            feedback_llm_route_planner_payload.get(
+                "n_route_adoption_pending_realization_coverage_blockers",
                 0,
             )
         ),
@@ -2110,6 +2391,46 @@ def run_formalization_gap_planner_reuse_smoke(
         ),
         "n_publication_bundle_optional_feedback_llm_route_planner_seed_route_adoption_readiness_valid": publication_bundle_audit_payload.get(
             "n_optional_feedback_llm_route_planner_seed_route_adoption_readiness_valid",
+            0,
+        ),
+        "n_publication_bundle_optional_llm_route_planner_response_payload_validation_manifest_contract_checked": publication_bundle_audit_payload.get(
+            "n_optional_llm_route_planner_response_payload_validation_manifest_contract_checked",
+            0,
+        ),
+        "n_publication_bundle_optional_llm_route_planner_response_payload_validation_manifest_contract_valid": publication_bundle_audit_payload.get(
+            "n_optional_llm_route_planner_response_payload_validation_manifest_contract_valid",
+            0,
+        ),
+        "n_publication_bundle_optional_llm_route_planner_response_payload_validation_count_checked": publication_bundle_audit_payload.get(
+            "n_optional_llm_route_planner_response_payload_validation_count_checked",
+            0,
+        ),
+        "n_publication_bundle_optional_llm_route_planner_response_payload_validation_count_valid": publication_bundle_audit_payload.get(
+            "n_optional_llm_route_planner_response_payload_validation_count_valid",
+            0,
+        ),
+        "n_publication_bundle_optional_llm_route_planner_response_payload_validation_request_bound_accounting_checked": publication_bundle_audit_payload.get(
+            "n_optional_llm_route_planner_response_payload_validation_request_bound_accounting_checked",
+            0,
+        ),
+        "n_publication_bundle_optional_llm_route_planner_response_payload_validation_request_bound_accounting_valid": publication_bundle_audit_payload.get(
+            "n_optional_llm_route_planner_response_payload_validation_request_bound_accounting_valid",
+            0,
+        ),
+        "n_publication_bundle_optional_llm_route_planner_response_payload_validation_request_bound_coverage_checked": publication_bundle_audit_payload.get(
+            "n_optional_llm_route_planner_response_payload_validation_request_bound_coverage_checked",
+            0,
+        ),
+        "n_publication_bundle_optional_llm_route_planner_response_payload_validation_request_bound_coverage_valid": publication_bundle_audit_payload.get(
+            "n_optional_llm_route_planner_response_payload_validation_request_bound_coverage_valid",
+            0,
+        ),
+        "n_publication_bundle_optional_llm_route_planner_response_payload_validation_row_schema_checked": publication_bundle_audit_payload.get(
+            "n_optional_llm_route_planner_response_payload_validation_row_schema_checked",
+            0,
+        ),
+        "n_publication_bundle_optional_llm_route_planner_response_payload_validation_row_schema_valid": publication_bundle_audit_payload.get(
+            "n_optional_llm_route_planner_response_payload_validation_row_schema_valid",
             0,
         ),
         "n_minimal_delta_audit_failed": minimal_delta_audit_payload.get("n_failed", 0),
@@ -2592,6 +2913,22 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_optional_refinement_adapter_response_schema_valid",
             0,
         ),
+        "n_publication_bundle_optional_minimal_delta_audit_feedback_response_schema_checked": publication_bundle_audit_payload.get(
+            "n_optional_minimal_delta_audit_feedback_response_schema_checked",
+            0,
+        ),
+        "n_publication_bundle_optional_minimal_delta_audit_feedback_response_schema_valid": publication_bundle_audit_payload.get(
+            "n_optional_minimal_delta_audit_feedback_response_schema_valid",
+            0,
+        ),
+        "n_publication_bundle_optional_prover_adapter_feedback_response_schema_checked": publication_bundle_audit_payload.get(
+            "n_optional_prover_adapter_feedback_response_schema_checked",
+            0,
+        ),
+        "n_publication_bundle_optional_prover_adapter_feedback_response_schema_valid": publication_bundle_audit_payload.get(
+            "n_optional_prover_adapter_feedback_response_schema_valid",
+            0,
+        ),
         "n_publication_bundle_optional_local_adapter_response_schema_checked": publication_bundle_audit_payload.get(
             "n_optional_local_adapter_response_schema_checked",
             0,
@@ -3051,6 +3388,18 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_response_contract_ok",
             0,
         ),
+        "n_resource_response_ledger_request_playbook_present": resource_response_ledger_payload.get(
+            "n_request_playbook_present",
+            0,
+        ),
+        "n_resource_response_ledger_playbook_grounded": resource_response_ledger_payload.get(
+            "n_response_playbook_grounded",
+            0,
+        ),
+        "n_resource_response_ledger_playbook_grounding_failures": resource_response_ledger_payload.get(
+            "n_response_playbook_grounding_failures",
+            0,
+        ),
         "n_resource_response_ledger_request_mismatches": resource_response_ledger_payload.get(
             "n_response_request_mismatches",
             0,
@@ -3110,7 +3459,19 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_item_schema_invalid",
             0,
         ),
+        "n_refinement_formal_library_grounding_items": (
+            refinement_queue_payload.get("n_formal_library_grounding_items", 0)
+        ),
+        "n_refinement_lean_library_grounding_items": (
+            refinement_queue_payload.get("n_lean_library_grounding_items", 0)
+        ),
         "n_refinement_responses": refinement_adapter_payload.get("n_responses", 0),
+        "n_refinement_adapter_formal_grounding_responses": (
+            refinement_adapter_payload.get("n_formal_grounding_responses", 0)
+        ),
+        "n_refinement_adapter_lean_grounding_responses": (
+            refinement_adapter_payload.get("n_lean_grounding_responses", 0)
+        ),
         "n_refinement_adapter_response_schema_valid": refinement_adapter_payload.get(
             "n_response_schema_valid",
             0,
@@ -3118,6 +3479,39 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_refinement_adapter_response_schema_invalid": refinement_adapter_payload.get(
             "n_response_schema_invalid",
             0,
+        ),
+        "n_minimal_delta_audit_feedback_generated_responses": (
+            minimal_delta_audit_feedback_adapter_payload.get(
+                "n_generated_feedback_responses",
+                0,
+            )
+        ),
+        "n_minimal_delta_audit_feedback_merged_responses": (
+            minimal_delta_audit_feedback_adapter_payload.get("n_merged_responses", 0)
+        ),
+        "n_minimal_delta_audit_feedback_response_schema_valid": (
+            minimal_delta_audit_feedback_adapter_payload.get(
+                "n_response_schema_valid",
+                0,
+            )
+        ),
+        "n_minimal_delta_audit_feedback_response_schema_invalid": (
+            minimal_delta_audit_feedback_adapter_payload.get(
+                "n_response_schema_invalid",
+                0,
+            )
+        ),
+        "n_minimal_delta_audit_feedback_merged_response_schema_valid": (
+            minimal_delta_audit_feedback_adapter_payload.get(
+                "n_merged_response_schema_valid",
+                0,
+            )
+        ),
+        "n_minimal_delta_audit_feedback_merged_response_schema_invalid": (
+            minimal_delta_audit_feedback_adapter_payload.get(
+                "n_merged_response_schema_invalid",
+                0,
+            )
         ),
         "n_local_literature_responses": local_literature_adapter_payload.get(
             "n_local_literature_responses",
@@ -3139,6 +3533,18 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_local_formal_source_responses",
             0,
         ),
+        "n_local_formal_source_formal_grounding_rows": (
+            local_formal_source_adapter_payload.get(
+                "n_formal_library_grounding_rows",
+                0,
+            )
+        ),
+        "n_local_formal_source_legacy_lean_grounding_rows": (
+            local_formal_source_adapter_payload.get(
+                "n_lean_library_grounding_rows",
+                0,
+            )
+        ),
         "n_local_formal_source_hits": local_formal_source_adapter_payload.get(
             "n_hits",
             0,
@@ -3155,9 +3561,30 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_local_proof_state_responses",
             0,
         ),
+        "n_local_proof_state_target_prover_scaffold_accepted": (
+            local_proof_state_adapter_payload.get("n_target_prover_scaffold_accepted", 0)
+        ),
+        "n_local_proof_state_target_prover_failed": (
+            local_proof_state_adapter_payload.get("n_target_prover_failed", 0)
+        ),
+        "n_local_proof_state_target_prover_unavailable": (
+            local_proof_state_adapter_payload.get("n_target_prover_unavailable", 0)
+        ),
+        "n_local_proof_state_non_target_prover_skeleton": (
+            local_proof_state_adapter_payload.get("n_non_target_prover_skeleton", 0)
+        ),
         "n_local_proof_state_unavailable": local_proof_state_adapter_payload.get(
             "n_local_lean_unavailable",
             0,
+        ),
+        "n_local_proof_state_placeholder_blocked": (
+            local_proof_state_adapter_payload.get("n_placeholder_blocked", 0)
+        ),
+        "n_local_proof_state_formal_gap_scaffold_blocked": (
+            local_proof_state_adapter_payload.get("n_formal_gap_scaffold_blocked", 0)
+        ),
+        "n_local_proof_state_missing_skeleton": (
+            local_proof_state_adapter_payload.get("n_missing_skeleton", 0)
         ),
         "n_local_adapter_merged_responses": local_proof_state_adapter_payload.get(
             "n_merged_responses",
@@ -3195,6 +3622,36 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_merged_response_schema_invalid",
             0,
         ),
+        "n_prover_adapter_feedback_generated_responses": (
+            prover_adapter_feedback_payload.get("n_generated_feedback_responses", 0)
+        ),
+        "n_prover_adapter_feedback_merged_responses": (
+            prover_adapter_feedback_payload.get("n_merged_responses", 0)
+        ),
+        "n_prover_adapter_feedback_validation_sources": (
+            prover_adapter_feedback_payload.get("n_validation_sources", 0)
+        ),
+        "n_prover_adapter_feedback_validation_rows": (
+            prover_adapter_feedback_payload.get("n_validation_rows", 0)
+        ),
+        "n_prover_adapter_feedback_matched_rows": (
+            prover_adapter_feedback_payload.get("n_matched_proof_state_feedback_rows", 0)
+        ),
+        "n_prover_adapter_feedback_route_revision_recommended": (
+            prover_adapter_feedback_payload.get("n_route_revision_recommended", 0)
+        ),
+        "n_prover_adapter_feedback_response_schema_valid": (
+            prover_adapter_feedback_payload.get("n_response_schema_valid", 0)
+        ),
+        "n_prover_adapter_feedback_response_schema_invalid": (
+            prover_adapter_feedback_payload.get("n_response_schema_invalid", 0)
+        ),
+        "n_prover_adapter_feedback_merged_response_schema_valid": (
+            prover_adapter_feedback_payload.get("n_merged_response_schema_valid", 0)
+        ),
+        "n_prover_adapter_feedback_merged_response_schema_invalid": (
+            prover_adapter_feedback_payload.get("n_merged_response_schema_invalid", 0)
+        ),
         "n_refinement_contract_ok": refinement_evidence_payload.get(
             "n_contract_ok",
             0,
@@ -3210,6 +3667,12 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_refinement_evidence_rows": refinement_evidence_payload.get(
             "n_evidence_rows",
             0,
+        ),
+        "n_refinement_evidence_formal_grounding": (
+            refinement_evidence_payload.get("n_formal_grounding_evidence", 0)
+        ),
+        "n_refinement_evidence_lean_grounding": (
+            refinement_evidence_payload.get("n_lean_grounding_evidence", 0)
         ),
         "n_refinement_evidence_row_schema_valid": refinement_evidence_payload.get(
             "n_evidence_row_schema_valid",
@@ -3292,6 +3755,10 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_revised_informal_knowledge_dag_nodes",
             0,
         ),
+        "n_route_replan_revised_formal_realization_dag_nodes": route_replan_handoff_payload.get(
+            "n_revised_formal_realization_dag_nodes",
+            0,
+        ),
         "n_route_replan_revised_lean_realization_dag_nodes": route_replan_handoff_payload.get(
             "n_revised_lean_realization_dag_nodes",
             0,
@@ -3352,6 +3819,21 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_triage_items",
             0,
         ),
+        "n_proof_state_triage_target_prover_failed_items": (
+            proof_state_triage_payload.get("n_target_prover_failed_items", 0)
+        ),
+        "n_proof_state_triage_target_prover_unavailable_items": (
+            proof_state_triage_payload.get("n_target_prover_unavailable_items", 0)
+        ),
+        "n_proof_state_triage_non_target_prover_skeleton_items": (
+            proof_state_triage_payload.get("n_non_target_prover_skeleton_items", 0)
+        ),
+        "n_proof_state_triage_local_lean_failed_items": (
+            proof_state_triage_payload.get("n_local_lean_failed_items", 0)
+        ),
+        "n_proof_state_triage_non_lean_skeleton_items": (
+            proof_state_triage_payload.get("n_non_lean_skeleton_items", 0)
+        ),
         "n_proof_state_triage_row_schema_valid": proof_state_triage_payload.get(
             "n_row_schema_valid",
             0,
@@ -3406,6 +3888,14 @@ def run_formalization_gap_planner_reuse_smoke(
         ),
         "n_interactive_session_replan": interactive_session_payload.get(
             "n_run_route_replan",
+            0,
+        ),
+        "n_interactive_session_run_formal_grounding": interactive_session_payload.get(
+            "n_run_formal_grounding",
+            0,
+        ),
+        "n_interactive_session_run_lean_grounding": interactive_session_payload.get(
+            "n_run_lean_grounding",
             0,
         ),
         "n_interactive_session_waiting_for_adapter_responses": interactive_session_payload.get(
@@ -3582,6 +4072,115 @@ def run_formalization_gap_planner_reuse_smoke(
     )
     report_path.write_text(_markdown_report(payload), encoding="utf-8")
     return payload
+
+
+def _maybe_validate_llm_route_planner_response_payloads(
+    planner_payloads: tuple[dict[str, Any], ...],
+    out_dir: Path,
+) -> dict[str, object] | None:
+    responses: list[dict[str, object]] = []
+    request_contexts: list[dict[str, object]] = []
+    for planner_payload in planner_payloads:
+        for request in planner_payload.get("request_packets", []):
+            if isinstance(request, dict):
+                request_contexts.append(dict(request))
+        for row in planner_payload.get("rows", []):
+            if not isinstance(row, dict):
+                continue
+            if not row.get("response_present"):
+                continue
+            response_payload = _llm_route_planner_response_payload_from_row(row)
+            if not response_payload:
+                continue
+            responses.append(
+                {
+                    "request_id": str(row.get("request_id", "")),
+                    "route_id": str(row.get("route_id", "")),
+                    "response_payload": response_payload,
+                    "proof_evidence_boundary": str(
+                        row.get(
+                            "proof_evidence_boundary",
+                            "not theorem proof evidence",
+                        )
+                    ),
+                }
+            )
+    if not responses:
+        return None
+    out_dir.mkdir(parents=True, exist_ok=True)
+    input_path = (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation_input.json"
+    )
+    input_path.write_text(
+        json.dumps({"responses": responses}, indent=2, default=str),
+        encoding="utf-8",
+    )
+    request_context_path: Path | None = None
+    if request_contexts:
+        request_context_path = (
+            out_dir
+            / "formalization_gap_planner_llm_route_planner_response_payload_validation_request_context.json"
+        )
+        request_context_path.write_text(
+            json.dumps(
+                {"request_packets": request_contexts},
+                indent=2,
+                default=str,
+            ),
+            encoding="utf-8",
+        )
+    return validate_formalization_gap_planner_llm_route_planner_response_payloads(
+        input_path,
+        out_dir,
+        request_context_json=request_context_path,
+    )
+
+
+def _llm_route_planner_response_payload_from_row(row: dict[str, Any]) -> dict[str, Any]:
+    response_payload = row.get("response_payload", {})
+    if isinstance(response_payload, dict) and response_payload:
+        return response_payload
+
+    raw_response_text = str(row.get("raw_response_text", "")).strip()
+    if raw_response_text:
+        try:
+            raw_response_payload = json.loads(raw_response_text)
+        except json.JSONDecodeError:
+            raw_response_payload = {}
+        if isinstance(raw_response_payload, dict):
+            nested_payload = raw_response_payload.get("response_payload", {})
+            if isinstance(nested_payload, dict) and nested_payload:
+                return nested_payload
+            if raw_response_payload:
+                return raw_response_payload
+
+    payload_keys = (
+        "informal_knowledge_dag_nodes",
+        "formal_realization_dag_nodes",
+        "lean_realization_dag_nodes",
+        "route_alignment_edges",
+        "minimal_delta_plan",
+        "residual_interpretations",
+        "search_requests",
+        "uncertainty_flags",
+        "semantic_alignment_risks",
+        "planner_next_actions",
+        "standalone_route",
+        "source_snippets",
+        "proof_evidence_boundary",
+    )
+    return {
+        key: row[key]
+        for key in payload_keys
+        if key in row
+    }
+
+
+def _optional_int(payload: dict[str, object] | None, key: str) -> int:
+    if payload is None:
+        return 0
+    return int(payload.get(key, 0) or 0)
 
 
 def _evaluation_ground_truth_path(
@@ -3848,6 +4447,21 @@ def _artifact_paths(out_dir: Path) -> dict[str, str]:
             / "formalization_gap_planner_feedback_llm_route_planner"
             / "formalization_gap_planner_llm_route_planner_standalone_seed.json"
         ),
+        "llm_route_planner_response_payload_validation_manifest": str(
+            out_dir
+            / "formalization_gap_planner_llm_route_planner_response_payload_validation"
+            / "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.json"
+        ),
+        "llm_route_planner_response_payload_validation_jsonl": str(
+            out_dir
+            / "formalization_gap_planner_llm_route_planner_response_payload_validation"
+            / "formalization_gap_planner_llm_route_planner_response_payload_validation.jsonl"
+        ),
+        "llm_route_planner_response_payload_validation_row_schema": str(
+            out_dir
+            / "formalization_gap_planner_llm_route_planner_response_payload_validation"
+            / "formalization_gap_planner_llm_route_planner_response_payload_validation_row.schema.json"
+        ),
         "standalone_plan_manifest": str(
             out_dir
             / "goal_conditioned_minimal_formalization_plan"
@@ -4056,6 +4670,26 @@ def _artifact_paths(out_dir: Path) -> dict[str, str]:
             / "formalization_gap_planner_refinement_adapter"
             / "formalization_gap_planner_refinement_tool_response.schema.json"
         ),
+        "minimal_delta_audit_feedback_adapter_manifest": str(
+            out_dir
+            / "formalization_gap_planner_minimal_delta_audit_feedback_adapter"
+            / "formalization_gap_planner_minimal_delta_audit_feedback_adapter_manifest.json"
+        ),
+        "minimal_delta_audit_feedback_responses_jsonl": str(
+            out_dir
+            / "formalization_gap_planner_minimal_delta_audit_feedback_adapter"
+            / "formalization_gap_planner_minimal_delta_audit_feedback_responses.jsonl"
+        ),
+        "minimal_delta_audit_feedback_merged_responses_jsonl": str(
+            out_dir
+            / "formalization_gap_planner_minimal_delta_audit_feedback_adapter"
+            / "formalization_gap_planner_refinement_evidence_responses.jsonl"
+        ),
+        "minimal_delta_audit_feedback_response_schema": str(
+            out_dir
+            / "formalization_gap_planner_minimal_delta_audit_feedback_adapter"
+            / "formalization_gap_planner_refinement_tool_response.schema.json"
+        ),
         "local_literature_adapter_manifest": str(
             out_dir
             / "formalization_gap_planner_local_literature_adapter"
@@ -4099,6 +4733,26 @@ def _artifact_paths(out_dir: Path) -> dict[str, str]:
         "local_proof_state_response_schema": str(
             out_dir
             / "formalization_gap_planner_local_proof_state_adapter"
+            / "formalization_gap_planner_refinement_tool_response.schema.json"
+        ),
+        "prover_adapter_feedback_adapter_manifest": str(
+            out_dir
+            / "formalization_gap_planner_prover_adapter_feedback_adapter"
+            / "formalization_gap_planner_prover_adapter_feedback_adapter_manifest.json"
+        ),
+        "prover_adapter_feedback_responses_jsonl": str(
+            out_dir
+            / "formalization_gap_planner_prover_adapter_feedback_adapter"
+            / "formalization_gap_planner_prover_adapter_feedback_responses.jsonl"
+        ),
+        "prover_adapter_feedback_merged_responses_jsonl": str(
+            out_dir
+            / "formalization_gap_planner_prover_adapter_feedback_adapter"
+            / "formalization_gap_planner_refinement_evidence_responses.jsonl"
+        ),
+        "prover_adapter_feedback_response_schema": str(
+            out_dir
+            / "formalization_gap_planner_prover_adapter_feedback_adapter"
             / "formalization_gap_planner_refinement_tool_response.schema.json"
         ),
         "refinement_evidence_manifest": str(
@@ -4544,6 +5198,11 @@ def _markdown_report(payload: dict[str, object]) -> str:
         "# Formalization Gap Planner Reuse Smoke",
         "",
         f"- Target prover: `{payload.get('target_prover_family')}`",
+        (
+            f"- Source prover targets: `{payload.get('source_target_prover_family')}` "
+            f"families={payload.get('n_source_target_prover_families')} "
+            f"by={payload.get('source_by_target_prover_family')}"
+        ),
         f"- Stages: {payload.get('n_ok')}/{payload.get('n_stages')}",
         f"- Proof-boundary checks: {payload.get('n_proof_boundary_ok')}/{payload.get('n_stages')}",
         f"- Work packets: {payload.get('n_portable_work_packets')}",
@@ -4578,7 +5237,12 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_llm_route_planner_route_adoption_ready')}/"
             f"{payload.get('n_llm_route_planner_route_adoption_pending_refinement')}/"
             f"{payload.get('n_llm_route_planner_route_adoption_pending_search_request_blockers')}/"
-            f"{payload.get('n_llm_route_planner_route_adoption_pending_planner_next_action_blockers')}"
+            f"{payload.get('n_llm_route_planner_route_adoption_pending_planner_next_action_blockers')} "
+            f"feedback_actions={payload.get('n_llm_route_planner_route_adoption_pending_feedback_action_blockers')} "
+            f"playbook_redispatch={payload.get('n_llm_route_planner_route_adoption_pending_resource_playbook_redispatch_blockers')} "
+            f"resource_queue={payload.get('n_llm_route_planner_route_adoption_pending_resource_request_queue_blockers')} "
+            f"replan={payload.get('n_llm_route_planner_route_adoption_pending_feedback_replan_blockers')} "
+            f"realization={payload.get('n_llm_route_planner_route_adoption_pending_realization_coverage_blockers')}"
         ),
         (
             f"- LLM route planner resource registry context/resources/contracts: "
@@ -4641,6 +5305,25 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_publication_bundle_optional_feedback_llm_route_planner_request_model_tier_mismatch_checked')}"
         ),
         (
+            f"- LLM route payload validation payloads valid/invalid: "
+            f"{payload.get('n_llm_route_planner_response_payload_validation_valid_payloads')}/"
+            f"{payload.get('n_llm_route_planner_response_payload_validation_invalid_payloads')} "
+            f"request_bound={payload.get('n_llm_route_planner_response_payload_validation_request_bound_payloads')}/"
+            f"{payload.get('n_llm_route_planner_response_payload_validation_payloads')} "
+            f"present={payload.get('has_llm_route_planner_response_payload_validation')}"
+        ),
+        (
+            f"- Bundle LLM route payload validation manifest/count/rows valid: "
+            f"{payload.get('n_publication_bundle_optional_llm_route_planner_response_payload_validation_manifest_contract_valid')}/"
+            f"{payload.get('n_publication_bundle_optional_llm_route_planner_response_payload_validation_manifest_contract_checked')} "
+            f"count={payload.get('n_publication_bundle_optional_llm_route_planner_response_payload_validation_count_valid')}/"
+            f"{payload.get('n_publication_bundle_optional_llm_route_planner_response_payload_validation_count_checked')} "
+            f"bound={payload.get('n_publication_bundle_optional_llm_route_planner_response_payload_validation_request_bound_coverage_valid')}/"
+            f"{payload.get('n_publication_bundle_optional_llm_route_planner_response_payload_validation_request_bound_coverage_checked')} "
+            f"rows={payload.get('n_publication_bundle_optional_llm_route_planner_response_payload_validation_row_schema_valid')}/"
+            f"{payload.get('n_publication_bundle_optional_llm_route_planner_response_payload_validation_row_schema_checked')}"
+        ),
+        (
             f"- Feedback LLM route planner requests valid: "
             f"{payload.get('n_feedback_llm_route_planner_request_schema_valid')}/"
             f"{payload.get('n_feedback_llm_route_planner_request_packets')} "
@@ -4658,7 +5341,12 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_feedback_llm_route_planner_route_adoption_ready')}/"
             f"{payload.get('n_feedback_llm_route_planner_route_adoption_pending_refinement')}/"
             f"{payload.get('n_feedback_llm_route_planner_route_adoption_pending_search_request_blockers')}/"
-            f"{payload.get('n_feedback_llm_route_planner_route_adoption_pending_planner_next_action_blockers')}"
+            f"{payload.get('n_feedback_llm_route_planner_route_adoption_pending_planner_next_action_blockers')} "
+            f"feedback_actions={payload.get('n_feedback_llm_route_planner_route_adoption_pending_feedback_action_blockers')} "
+            f"playbook_redispatch={payload.get('n_feedback_llm_route_planner_route_adoption_pending_resource_playbook_redispatch_blockers')} "
+            f"resource_queue={payload.get('n_feedback_llm_route_planner_route_adoption_pending_resource_request_queue_blockers')} "
+            f"replan={payload.get('n_feedback_llm_route_planner_route_adoption_pending_feedback_replan_blockers')} "
+            f"realization={payload.get('n_feedback_llm_route_planner_route_adoption_pending_realization_coverage_blockers')}"
         ),
         (
             f"- Feedback LLM route planner context coverage/source/request_queue/response_ledger/refinement/overlay/session/policy: "
@@ -4754,6 +5442,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_resource_response_ledger_row_schema_valid')}/"
             f"{payload.get('n_resource_response_ledger_rows')} "
             f"awaiting={payload.get('n_resource_response_ledger_awaiting')} "
+            f"playbook_present={payload.get('n_resource_response_ledger_request_playbook_present')} "
+            f"playbook_grounded={payload.get('n_resource_response_ledger_playbook_grounded')} "
+            f"playbook_failures={payload.get('n_resource_response_ledger_playbook_grounding_failures')} "
             f"request_mismatch={payload.get('n_resource_response_ledger_request_mismatches')}"
         ),
         (
@@ -4764,6 +5455,12 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Resource request queue: local={payload.get('n_resource_request_local_first')} frontier={payload.get('n_resource_request_frontier_escalation')}",
         f"- Awaiting adapter mappings: {payload.get('n_awaiting_adapter_mapping')}",
         f"- Prover-adapter response-validation row schema valid: {payload.get('n_prover_adapter_response_validation_row_schema_valid')}/{payload.get('n_portable_work_packets')}",
+        (
+            f"- Prover-adapter feedback generated/merged/schema-valid: "
+            f"{payload.get('n_prover_adapter_feedback_generated_responses')}/"
+            f"{payload.get('n_prover_adapter_feedback_merged_responses')}/"
+            f"{payload.get('n_prover_adapter_feedback_merged_response_schema_valid')}"
+        ),
         f"- Adapter registry: {payload.get('n_adapter_registry_ready')}/{payload.get('n_adapter_registry_adapters')}",
         (
             f"- Adapter registry row schema valid: "
@@ -4776,6 +5473,12 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"- Minimal-delta decision schema valid: "
             f"{payload.get('n_minimal_delta_decision_row_schema_valid')}/"
             f"{payload.get('n_minimal_delta_decision_rows')}"
+        ),
+        (
+            f"- Minimal-delta audit feedback generated/merged/schema-valid: "
+            f"{payload.get('n_minimal_delta_audit_feedback_generated_responses')}/"
+            f"{payload.get('n_minimal_delta_audit_feedback_merged_responses')}/"
+            f"{payload.get('n_minimal_delta_audit_feedback_merged_response_schema_valid')}"
         ),
         f"- Source-grounding unaccounted: {payload.get('n_source_grounding_unaccounted')}",
         (

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 from collections import Counter
+from copy import deepcopy
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -40,9 +41,21 @@ LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
     "formalization-gap-planner-llm-route-planner-response-payload:1"
 )
+LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_MANIFEST_SCHEMA_ID = (
+    "urn:ai-statistician:schemas:"
+    "formalization-gap-planner-llm-route-planner-response-payload-validation-manifest:1"
+)
+LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID = (
+    "urn:ai-statistician:schemas:"
+    "formalization-gap-planner-llm-route-planner-response-payload-validation-row:1"
+)
 LLM_ROUTE_PLANNER_ROW_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
     "formalization-gap-planner-llm-route-planner-row:1"
+)
+ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_ID = (
+    "urn:ai-statistician:schemas:"
+    "formalization-gap-planner-route-adoption-blocker-taxonomy:1"
 )
 PROOF_EVIDENCE_STATUS = (
     "FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_NOT_PROOF_EVIDENCE"
@@ -58,9 +71,110 @@ ROUTE_ADOPTION_READY_STATUS = "READY_FOR_STANDALONE_REPLAY"
 ROUTE_ADOPTION_PENDING_STATUS = "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
 ROUTE_ADOPTION_AWAITING_STATUS = "AWAITING_LLM_ROUTE_PLANNER_RESPONSE"
 ROUTE_ADOPTION_REJECTED_STATUS = "REJECTED_LLM_ROUTE_PLAN"
+ROUTE_ADOPTION_STATUSES = (
+    ROUTE_ADOPTION_READY_STATUS,
+    ROUTE_ADOPTION_PENDING_STATUS,
+    ROUTE_ADOPTION_AWAITING_STATUS,
+    ROUTE_ADOPTION_REJECTED_STATUS,
+)
+ROUTE_ADOPTION_BLOCKER_RESPONSE_NOT_ACCEPTED = "response_not_accepted"
+ROUTE_ADOPTION_BLOCKER_RESPONSE_MISSING = "llm_route_planner_response_missing"
+ROUTE_ADOPTION_BLOCKER_SEARCH_REQUESTS = "search_requests_pending_evidence"
+ROUTE_ADOPTION_BLOCKER_PLANNER_NEXT_ACTIONS = (
+    "planner_next_actions_pending_evidence"
+)
+ROUTE_ADOPTION_BLOCKER_UNCERTAINTY_FLAGS = "uncertainty_flags_require_review"
+ROUTE_ADOPTION_BLOCKER_SEMANTIC_ALIGNMENT_RISKS = (
+    "semantic_alignment_risks_require_review"
+)
+ROUTE_ADOPTION_BLOCKER_RESIDUAL_INTERPRETATIONS = (
+    "residual_interpretations_require_route_replay"
+)
+ROUTE_ADOPTION_BLOCKER_FEEDBACK_ACTIONS = (
+    "feedback_summary_actions_pending_resolution"
+)
+ROUTE_ADOPTION_BLOCKER_RESOURCE_PLAYBOOK_REDISPATCH = (
+    "resource_response_playbook_redispatch_pending"
+)
+ROUTE_ADOPTION_BLOCKER_RESOURCE_REQUEST_QUEUE = (
+    "resource_request_queue_pending_response"
+)
+ROUTE_ADOPTION_BLOCKER_FEEDBACK_REPLAN = "feedback_loop_replan_required"
+ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE = "realization_coverage_incomplete"
+ROUTE_ADOPTION_BLOCKER_VALUES = (
+    ROUTE_ADOPTION_BLOCKER_RESPONSE_NOT_ACCEPTED,
+    ROUTE_ADOPTION_BLOCKER_RESPONSE_MISSING,
+    ROUTE_ADOPTION_BLOCKER_SEARCH_REQUESTS,
+    ROUTE_ADOPTION_BLOCKER_PLANNER_NEXT_ACTIONS,
+    ROUTE_ADOPTION_BLOCKER_UNCERTAINTY_FLAGS,
+    ROUTE_ADOPTION_BLOCKER_SEMANTIC_ALIGNMENT_RISKS,
+    ROUTE_ADOPTION_BLOCKER_RESIDUAL_INTERPRETATIONS,
+    ROUTE_ADOPTION_BLOCKER_FEEDBACK_ACTIONS,
+    ROUTE_ADOPTION_BLOCKER_RESOURCE_PLAYBOOK_REDISPATCH,
+    ROUTE_ADOPTION_BLOCKER_RESOURCE_REQUEST_QUEUE,
+    ROUTE_ADOPTION_BLOCKER_FEEDBACK_REPLAN,
+    ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE,
+)
+ROUTE_ADOPTION_BLOCKER_TAXONOMY_ID = (
+    "formalization_gap_planner_route_adoption_blocker_taxonomy:1"
+)
+ROUTE_ADOPTION_BLOCKER_TAXONOMY_COMPONENT = (
+    "formalization_gap_planner_route_adoption_blocker_taxonomy"
+)
+ROUTE_ADOPTION_BLOCKER_DEFINITIONS = {
+    ROUTE_ADOPTION_BLOCKER_RESPONSE_NOT_ACCEPTED: (
+        "The LLM route-planner response was rejected or failed response "
+        "contract validation."
+    ),
+    ROUTE_ADOPTION_BLOCKER_RESPONSE_MISSING: (
+        "The route has no LLM route-planner response yet."
+    ),
+    ROUTE_ADOPTION_BLOCKER_SEARCH_REQUESTS: (
+        "The accepted route asks for additional literature, source, library, "
+        "or prover search evidence before adoption."
+    ),
+    ROUTE_ADOPTION_BLOCKER_PLANNER_NEXT_ACTIONS: (
+        "The accepted route carries unresolved planner next-action hooks."
+    ),
+    ROUTE_ADOPTION_BLOCKER_UNCERTAINTY_FLAGS: (
+        "The accepted route carries uncertainty flags requiring review."
+    ),
+    ROUTE_ADOPTION_BLOCKER_SEMANTIC_ALIGNMENT_RISKS: (
+        "The accepted route carries semantic-alignment risks requiring review."
+    ),
+    ROUTE_ADOPTION_BLOCKER_RESIDUAL_INTERPRETATIONS: (
+        "The accepted route interpreted prover residual goals and must be "
+        "replayed through route repair before standalone adoption."
+    ),
+    ROUTE_ADOPTION_BLOCKER_FEEDBACK_ACTIONS: (
+        "The feedback-loop summary recommends unresolved follow-up actions."
+    ),
+    ROUTE_ADOPTION_BLOCKER_RESOURCE_PLAYBOOK_REDISPATCH: (
+        "A resource response must be redispatched with its request playbook "
+        "before the route can use it."
+    ),
+    ROUTE_ADOPTION_BLOCKER_RESOURCE_REQUEST_QUEUE: (
+        "The resource request queue still has pending responses."
+    ),
+    ROUTE_ADOPTION_BLOCKER_FEEDBACK_REPLAN: (
+        "The feedback loop explicitly requires route replanning."
+    ),
+    ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE: (
+        "The formal-realization coverage witness is incomplete."
+    ),
+}
 LLM_ROUTE_PLANNER_COMPONENT = "formalization_gap_planner_llm_route_planner"
+LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATOR_COMPONENT = (
+    "formalization_gap_planner_llm_route_planner_response_payload_validator"
+)
 PROMPT_ONLY_PROVIDER = "prompt_only"
 DEFAULT_LLM_ROUTE_PLANNER_PROVIDER = "anthropic"
+LLM_ROUTE_PLANNER_PROVIDER_NAMES = (
+    PROMPT_ONLY_PROVIDER,
+    "static",
+    "anthropic",
+    "openai",
+)
 MINIMAL_DELTA_COST_POLICY_ID = (
     "formalization_gap_planner_minimal_delta_cost_policy:1"
 )
@@ -160,6 +274,7 @@ LLM_ROUTE_PLANNER_MODEL_TIER_POLICY: dict[str, object] = {
     "auto_tier_rules": [
         "Use haiku for small routes whose primitives are already-exists, exact, near, wrapper, or different-formulation coverage and have no residual goals.",
         "Use sonnet when prover residual goals, feedback-loop replan signals, or incomplete realization-coverage witnesses are present.",
+        "Use sonnet when target-intake rows expose missing proof sources, library-search requirements, proof-state probes, complex theorem shape, or large normalized theorem context.",
         "Use sonnet when any primitive needs a bridge, source port, new definition, new theory, or has unknown/missing coverage.",
         "Use sonnet for routes with more than four primitives, many source refs, or long theorem statements.",
         "Use opus only when explicitly requested by the operator; auto mode never selects opus.",
@@ -317,7 +432,7 @@ LLM_ROUTE_PLANNER_OUTPUT_CONTRACT: dict[str, object] = {
         "bridge_lemmas": ["bridge lemmas to prove"],
         "source_port_lemmas": ["source-backed lemmas to port"],
         "do_not_formalize_now": ["out-of-cut theory fragments"],
-        "minimality_rationale": "why this route minimizes new Lean/prover effort",
+        "minimality_rationale": "why this route minimizes new target-prover effort",
     },
     "residual_interpretations": [
         {
@@ -448,6 +563,7 @@ def export_formalization_gap_planner_llm_route_planner(
     response_json: Path | None = None,
     static_response_json: Path | None = None,
     generator_backend: GeneratorBackend | None = None,
+    formalization_gap_planner_target_intake_dir: Path | None = None,
     goal_conditioned_minimal_formalization_plan_dir: Path | None = None,
     formalization_gap_planner_library_coverage_map_dir: Path | None = None,
     formalization_gap_planner_source_grounding_audit_dir: Path | None = None,
@@ -465,6 +581,9 @@ def export_formalization_gap_planner_llm_route_planner(
     errors.extend(validate_standalone_input_payload(input_payload))
     context_payloads = _context_payloads(
         errors,
+        formalization_gap_planner_target_intake_dir=(
+            formalization_gap_planner_target_intake_dir
+        ),
         goal_conditioned_minimal_formalization_plan_dir=(
             goal_conditioned_minimal_formalization_plan_dir
         ),
@@ -494,7 +613,7 @@ def export_formalization_gap_planner_llm_route_planner(
         ),
     )
     routes = _routes(input_payload)
-    provider = provider_name or DEFAULT_LLM_ROUTE_PLANNER_PROVIDER
+    provider = _normalize_provider_name(provider_name)
     normalized_model_tier = _normalize_model_tier(model_tier)
     request_packets = tuple(
         _request_packet(
@@ -590,6 +709,24 @@ def export_formalization_gap_planner_llm_route_planner(
             len(_dict_value(packet, "context_packet").get("available_source_snippets", []))
             for packet in request_packets
         ),
+        "n_requests_with_target_intake_rows": sum(
+            1
+            for packet in request_packets
+            if _dict_tuple(
+                _dict_value(packet, "context_packet").get("target_intake_rows", [])
+            )
+        ),
+        "n_request_target_intake_rows": sum(
+            len(
+                _dict_tuple(
+                    _dict_value(packet, "context_packet").get(
+                        "target_intake_rows",
+                        [],
+                    )
+                )
+            )
+            for packet in request_packets
+        ),
         "n_request_model_tier_haiku": by_model_tier.get("haiku", 0),
         "n_request_model_tier_sonnet": by_model_tier.get("sonnet", 0),
         "n_request_model_tier_opus": by_model_tier.get("opus", 0),
@@ -639,6 +776,27 @@ def export_formalization_gap_planner_llm_route_planner(
                 _dict_tuple(
                     _dict_value(packet, "context_packet").get(
                         "resource_request_queue_rows",
+                        [],
+                    )
+                )
+            )
+            for packet in request_packets
+        ),
+        "n_requests_with_resource_request_playbooks": sum(
+            1
+            for packet in request_packets
+            if _dict_tuple(
+                _dict_value(packet, "context_packet").get(
+                    "resource_request_playbooks",
+                    [],
+                )
+            )
+        ),
+        "n_request_resource_request_playbooks": sum(
+            len(
+                _dict_tuple(
+                    _dict_value(packet, "context_packet").get(
+                        "resource_request_playbooks",
                         [],
                     )
                 )
@@ -700,6 +858,16 @@ def export_formalization_gap_planner_llm_route_planner(
                     "feedback_loop_summary",
                 ).get("replan_required", False)
             )
+        ),
+        "n_feedback_loop_summary_resource_request_playbooks": sum(
+            int(
+                _dict_value(
+                    _dict_value(packet, "context_packet"),
+                    "feedback_loop_summary",
+                ).get("resource_request_playbook_count", 0)
+                or 0
+            )
+            for packet in request_packets
         ),
         "n_feedback_loop_summary_resource_response_admissible": sum(
             int(
@@ -914,26 +1082,58 @@ def export_formalization_gap_planner_llm_route_planner(
             ROUTE_ADOPTION_REJECTED_STATUS,
             0,
         ),
+        "route_adoption_blocker_taxonomy_id": ROUTE_ADOPTION_BLOCKER_TAXONOMY_ID,
+        "route_adoption_blocker_values": list(ROUTE_ADOPTION_BLOCKER_VALUES),
         "by_route_adoption_status": dict(sorted(by_route_adoption_status.items())),
         "n_route_adoption_pending_search_request_blockers": sum(
             1
             for row in rows
-            if "search_requests_pending_evidence" in row.route_adoption_blockers
+            if ROUTE_ADOPTION_BLOCKER_SEARCH_REQUESTS in row.route_adoption_blockers
         ),
         "n_route_adoption_pending_planner_next_action_blockers": sum(
             1
             for row in rows
-            if "planner_next_actions_pending_evidence" in row.route_adoption_blockers
+            if ROUTE_ADOPTION_BLOCKER_PLANNER_NEXT_ACTIONS
+            in row.route_adoption_blockers
         ),
         "n_route_adoption_pending_uncertainty_blockers": sum(
             1
             for row in rows
-            if "uncertainty_flags_require_review" in row.route_adoption_blockers
+            if ROUTE_ADOPTION_BLOCKER_UNCERTAINTY_FLAGS
+            in row.route_adoption_blockers
         ),
         "n_route_adoption_pending_residual_repair_blockers": sum(
             1
             for row in rows
-            if "residual_interpretations_require_route_replay"
+            if ROUTE_ADOPTION_BLOCKER_RESIDUAL_INTERPRETATIONS
+            in row.route_adoption_blockers
+        ),
+        "n_route_adoption_pending_feedback_action_blockers": sum(
+            1
+            for row in rows
+            if ROUTE_ADOPTION_BLOCKER_FEEDBACK_ACTIONS in row.route_adoption_blockers
+        ),
+        "n_route_adoption_pending_resource_playbook_redispatch_blockers": sum(
+            1
+            for row in rows
+            if ROUTE_ADOPTION_BLOCKER_RESOURCE_PLAYBOOK_REDISPATCH
+            in row.route_adoption_blockers
+        ),
+        "n_route_adoption_pending_resource_request_queue_blockers": sum(
+            1
+            for row in rows
+            if ROUTE_ADOPTION_BLOCKER_RESOURCE_REQUEST_QUEUE
+            in row.route_adoption_blockers
+        ),
+        "n_route_adoption_pending_feedback_replan_blockers": sum(
+            1
+            for row in rows
+            if ROUTE_ADOPTION_BLOCKER_FEEDBACK_REPLAN in row.route_adoption_blockers
+        ),
+        "n_route_adoption_pending_realization_coverage_blockers": sum(
+            1
+            for row in rows
+            if ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE
             in row.route_adoption_blockers
         ),
         "n_rejected": sum(
@@ -1051,6 +1251,157 @@ def export_formalization_gap_planner_llm_route_planner(
     return payload
 
 
+def validate_formalization_gap_planner_llm_route_planner_response_payloads(
+    response_json: Path,
+    out_dir: Path | None = None,
+    *,
+    request_context_json: Path | None = None,
+) -> dict[str, object]:
+    """Validate raw LLM route-planner payload JSON.
+
+    This is the public, reusable validation surface for external prover
+    integrations. Without ``request_context_json`` it performs schema-only
+    validation. With a staged request packet, request JSONL, manifest, or route
+    planner output directory, it also performs the same request-bound grounding
+    and theorem/prover consistency checks used by the full route planner.
+    """
+
+    errors: list[str] = []
+    response_inputs = _read_response_payload_validation_inputs(response_json, errors)
+    request_contexts = _read_response_payload_validation_request_contexts(
+        request_context_json,
+        errors,
+    )
+    request_schema = llm_route_planner_request_json_schema()
+    request_schema_errors_by_id = _request_context_schema_errors_by_id(
+        request_contexts,
+        request_schema,
+    )
+    response_payload_schema = llm_route_planner_response_payload_schema()
+    validation_manifest_schema = (
+        llm_route_planner_response_payload_validation_manifest_json_schema()
+    )
+    validation_row_schema = (
+        llm_route_planner_response_payload_validation_row_json_schema()
+    )
+    rows: list[dict[str, object]] = []
+    for index, response_input in enumerate(response_inputs):
+        response = response_input["response"]
+        payload = _response_payload(response)
+        schema_errors = validate_llm_route_planner_response_payload(
+            payload,
+            response_payload_schema,
+        )
+        request_context, request_context_errors = (
+            _response_payload_validation_request_context_for_response(
+                response,
+                payload_index=index,
+                request_contexts=request_contexts,
+            )
+        )
+        if request_context:
+            request_id = str(request_context.get("request_id", ""))
+            request_context_errors = [
+                *request_schema_errors_by_id.get(request_id, []),
+                *request_context_errors,
+                *_response_contract_errors(payload, request_context),
+            ]
+            request_context_validation_mode = "request_bound"
+            request_context_id = request_id
+            request_context_route_id = str(request_context.get("route_id", ""))
+        elif request_context_json is not None:
+            request_context_validation_mode = "request_context_unmatched"
+            request_context_id = ""
+            request_context_route_id = ""
+        else:
+            request_context_validation_mode = "schema_only"
+            request_context_id = ""
+            request_context_route_id = ""
+        row_errors = sorted(set([*schema_errors, *request_context_errors]))
+        rows.append(
+            {
+                "validation_id": (
+                    "formalization_gap_planner_llm_route_planner_response_payload_validation:"
+                    + stable_hash([str(response_json), index, payload])[:20]
+                ),
+                "schema_version": (
+                    FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SCHEMA_VERSION
+                ),
+                "payload_index": index,
+                "input_path": str(response_json),
+                "input_shape": str(response_input.get("input_shape", "")),
+                "response_wrapper_present": bool(
+                    response_input.get("response_wrapper_present", False)
+                ),
+                "request_id": str(response.get("request_id", "")),
+                "route_id": str(response.get("route_id", "")),
+                "payload_schema_id": LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
+                "payload_fingerprint": stable_hash(payload),
+                "request_context_path": (
+                    str(request_context_json) if request_context_json is not None else ""
+                ),
+                "request_context_validation_mode": request_context_validation_mode,
+                "request_context_id": request_context_id,
+                "request_context_route_id": request_context_route_id,
+                "n_schema_errors": len(schema_errors),
+                "n_request_context_errors": len(request_context_errors),
+                "n_errors": len(row_errors),
+                "ok": not row_errors,
+                "errors": row_errors,
+                "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            }
+        )
+    n_valid = sum(1 for row in rows if row["ok"])
+    payload: dict[str, object] = {
+        "schema_version": FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SCHEMA_VERSION,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "component_name": LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATOR_COMPONENT,
+        "input_path": str(response_json),
+        "request_context_path": (
+            str(request_context_json) if request_context_json is not None else ""
+        ),
+        "response_payload_schema_id": LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
+        "response_payload_validation_manifest_schema_id": (
+            LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_MANIFEST_SCHEMA_ID
+        ),
+        "response_payload_validation_row_schema_id": (
+            LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID
+        ),
+        "response_payload_schema": response_payload_schema,
+        "response_payload_validation_manifest_schema": validation_manifest_schema,
+        "response_payload_validation_row_schema": validation_row_schema,
+        "n_payloads": len(rows),
+        "n_valid_payloads": n_valid,
+        "n_invalid_payloads": len(rows) - n_valid,
+        "n_request_context_packets": len(request_contexts),
+        "n_request_bound_payloads": sum(
+            1
+            for row in rows
+            if row["request_context_validation_mode"] == "request_bound"
+        ),
+        "n_schema_errors": sum(int(row["n_schema_errors"]) for row in rows),
+        "n_request_context_errors": sum(
+            int(row["n_request_context_errors"]) for row in rows
+        ),
+        "rows": rows,
+        "all_ok": not errors and bool(rows) and all(bool(row["ok"]) for row in rows),
+        "errors": errors,
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+        "limitations": [
+            "Schema-only payload validation does not prove source grounding.",
+            "Schema-only payload validation does not prove formal-library declaration provenance.",
+            "Schema-only payload validation does not prove target-prover kernel verification.",
+            "Request-bound payload validation is still planning preflight, not theorem proof evidence.",
+            "Use the full LLM route planner or a target prover kernel for route adoption and proof evidence.",
+        ],
+    }
+    if out_dir is not None:
+        _write_response_payload_validation_outputs(out_dir, payload)
+    return payload
+
+
 def llm_route_planner_request_json_schema() -> dict[str, object]:
     string_array = {"type": "array", "items": {"type": "string"}}
     return {
@@ -1107,6 +1458,7 @@ def llm_route_planner_request_json_schema() -> dict[str, object]:
 
 
 def llm_route_planner_response_json_schema() -> dict[str, object]:
+    response_payload_schema = llm_route_planner_response_payload_schema()
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID,
@@ -1119,13 +1471,14 @@ def llm_route_planner_response_json_schema() -> dict[str, object]:
             "route_id": {"type": "string"},
             "provider_name": {"type": "string"},
             "model": {"type": "string"},
-            "response_payload": {"type": "object"},
+            "response_payload": {"$ref": "#/$defs/response_payload"},
             "kernel_verified": {"type": "boolean", "const": False},
             "proof_evidence_boundary": {
                 "type": "string",
                 "pattern": "not theorem proof evidence",
             },
         },
+        "$defs": {"response_payload": response_payload_schema},
     }
 
 
@@ -1222,8 +1575,17 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
             "repair_error_history": object_array,
             "generation_errors": string_array,
             "acceptance_status": {"type": "string", "minLength": 1},
-            "route_adoption_status": {"type": "string", "minLength": 1},
-            "route_adoption_blockers": string_array,
+            "route_adoption_status": {
+                "type": "string",
+                "enum": list(ROUTE_ADOPTION_STATUSES),
+            },
+            "route_adoption_blockers": {
+                "type": "array",
+                "items": {
+                    "type": "string",
+                    "enum": list(ROUTE_ADOPTION_BLOCKER_VALUES),
+                },
+            },
             "proof_evidence_status": {"type": "string", "const": PROOF_EVIDENCE_STATUS},
             "proof_evidence_boundary": {
                 "type": "string",
@@ -1279,11 +1641,149 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
     }
 
 
+def route_adoption_blocker_taxonomy_json_schema() -> dict[str, object]:
+    string_array = {"type": "array", "items": {"type": "string"}}
+    return {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_ID,
+        "title": "Formalization Gap Planner Route Adoption Blocker Taxonomy",
+        "description": (
+            "Portable vocabulary for explaining why an LLM route-planner row "
+            "is not yet ready for standalone route replay."
+        ),
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "schema_version",
+            "schema_id",
+            "component_name",
+            "taxonomy_id",
+            "status_values",
+            "blocker_values",
+            "blocker_definitions",
+            "proof_evidence_status",
+            "proof_evidence_boundary",
+            "all_ok",
+            "errors",
+        ],
+        "properties": {
+            "schema_version": {
+                "type": "integer",
+                "const": FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SCHEMA_VERSION,
+            },
+            "schema_id": {"const": ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_ID},
+            "component_name": {"const": ROUTE_ADOPTION_BLOCKER_TAXONOMY_COMPONENT},
+            "taxonomy_id": {"const": ROUTE_ADOPTION_BLOCKER_TAXONOMY_ID},
+            "status_values": {
+                "type": "array",
+                "items": {"type": "string", "enum": list(ROUTE_ADOPTION_STATUSES)},
+            },
+            "blocker_values": {
+                "type": "array",
+                "items": {
+                    "type": "string",
+                    "enum": list(ROUTE_ADOPTION_BLOCKER_VALUES),
+                },
+            },
+            "blocker_definitions": {
+                "type": "object",
+                "additionalProperties": {"type": "string"},
+            },
+            "proof_evidence_status": {"const": PROOF_EVIDENCE_STATUS},
+            "proof_evidence_boundary": {
+                "type": "string",
+                "pattern": "not theorem proof evidence",
+            },
+            "all_ok": {"type": "boolean"},
+            "errors": string_array,
+        },
+    }
+
+
+def route_adoption_blocker_taxonomy_payload() -> dict[str, object]:
+    return {
+        "schema_version": FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SCHEMA_VERSION,
+        "schema_id": ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_ID,
+        "component_name": ROUTE_ADOPTION_BLOCKER_TAXONOMY_COMPONENT,
+        "taxonomy_id": ROUTE_ADOPTION_BLOCKER_TAXONOMY_ID,
+        "status_values": list(ROUTE_ADOPTION_STATUSES),
+        "blocker_values": list(ROUTE_ADOPTION_BLOCKER_VALUES),
+        "blocker_definitions": dict(ROUTE_ADOPTION_BLOCKER_DEFINITIONS),
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": (
+            "Route-adoption blocker taxonomy artifacts define reusable planner "
+            "readiness vocabulary only. They are not theorem proof evidence."
+        ),
+        "all_ok": True,
+        "errors": [],
+    }
+
+
+def validate_route_adoption_blocker_taxonomy_payload(
+    payload: Mapping[str, Any],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    required = route_adoption_blocker_taxonomy_json_schema().get("required", [])
+    if isinstance(required, list):
+        for field_name in required:
+            if isinstance(field_name, str) and field_name not in payload:
+                errors.append(f"{field_name} required")
+    if payload.get("schema_version") != (
+        FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SCHEMA_VERSION
+    ):
+        errors.append("schema_version mismatch")
+    if payload.get("schema_id") != ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_ID:
+        errors.append("schema_id mismatch")
+    if payload.get("component_name") != ROUTE_ADOPTION_BLOCKER_TAXONOMY_COMPONENT:
+        errors.append("component_name mismatch")
+    if payload.get("taxonomy_id") != ROUTE_ADOPTION_BLOCKER_TAXONOMY_ID:
+        errors.append("taxonomy_id mismatch")
+    if _str_tuple(payload.get("status_values", [])) != ROUTE_ADOPTION_STATUSES:
+        errors.append("status_values must match route adoption status constants")
+    if _str_tuple(payload.get("blocker_values", [])) != ROUTE_ADOPTION_BLOCKER_VALUES:
+        errors.append("blocker_values must match route adoption blocker constants")
+    definitions = payload.get("blocker_definitions", {})
+    if not isinstance(definitions, Mapping):
+        errors.append("blocker_definitions must be object")
+    else:
+        definition_keys = tuple(str(key) for key in definitions.keys())
+        if set(definition_keys) != set(ROUTE_ADOPTION_BLOCKER_VALUES):
+            errors.append("blocker_definitions keys must match blocker_values")
+        empty_definitions = [
+            key
+            for key, value in definitions.items()
+            if not isinstance(value, str) or not value.strip()
+        ]
+        if empty_definitions:
+            errors.append(
+                "blocker_definitions must be non-empty strings for: "
+                + ", ".join(sorted(str(key) for key in empty_definitions))
+            )
+    if payload.get("proof_evidence_status") != PROOF_EVIDENCE_STATUS:
+        errors.append("proof_evidence_status mismatch")
+    if "not theorem proof evidence" not in str(
+        payload.get("proof_evidence_boundary", "")
+    ).lower():
+        errors.append("proof_evidence_boundary must say not theorem proof evidence")
+    payload_errors = payload.get("errors", [])
+    if payload.get("all_ok") is True and payload_errors not in ([], (), None):
+        errors.append("all_ok taxonomy payload must not carry errors")
+    if payload.get("all_ok") is False and not payload_errors:
+        errors.append("non-ok taxonomy payload must carry errors")
+    return tuple(errors)
+
+
 def validate_llm_route_planner_request(
     row: Mapping[str, object],
     schema: Mapping[str, object] | None = None,
 ) -> list[str]:
     errors = _validate_with_schema(row, schema or llm_route_planner_request_json_schema())
+    provider = str(row.get("provider_name", "") or "").strip().lower()
+    if provider and provider not in LLM_ROUTE_PLANNER_PROVIDER_NAMES:
+        errors.append(
+            "provider_name must be one of "
+            + ", ".join(LLM_ROUTE_PLANNER_PROVIDER_NAMES)
+        )
     prompt = row.get("prompt_messages", {})
     if not isinstance(prompt, Mapping):
         errors.append("prompt_messages must be object")
@@ -1319,7 +1819,50 @@ def validate_llm_route_planner_response(
     payload = row.get("response_payload", {})
     if isinstance(payload, Mapping) and bool(payload.get("kernel_verified", False)):
         errors.append("LLM response payload cannot claim kernel_verified=true")
+    if isinstance(payload, Mapping) and not bool(row.get("provider_failure", False)):
+        errors.extend(validate_llm_route_planner_response_payload(payload))
     return sorted(set(errors))
+
+
+def validate_llm_route_planner_response_payload(
+    payload: Mapping[str, object],
+    schema: Mapping[str, object] | None = None,
+) -> list[str]:
+    """Validate the reusable raw LLM route-planner response payload contract."""
+
+    errors = _validate_with_schema_deep(
+        payload,
+        schema or llm_route_planner_response_payload_schema(),
+        path="response_payload",
+    )
+    if bool(payload.get("kernel_verified", False)):
+        errors.append("response_payload cannot claim kernel_verified=true")
+    errors.extend(_response_payload_realization_field_contract_errors(payload))
+    return sorted(set(errors))
+
+
+def validate_llm_route_planner_response_payload_validation_manifest(
+    manifest: Mapping[str, object],
+    schema: Mapping[str, object] | None = None,
+) -> list[str]:
+    """Validate the reusable response-payload validation manifest contract."""
+
+    return _validate_with_schema(
+        manifest,
+        schema or llm_route_planner_response_payload_validation_manifest_json_schema(),
+    )
+
+
+def validate_llm_route_planner_response_payload_validation_row(
+    row: Mapping[str, object],
+    schema: Mapping[str, object] | None = None,
+) -> list[str]:
+    """Validate a response-payload validation JSONL row."""
+
+    return _validate_with_schema(
+        row,
+        schema or llm_route_planner_response_payload_validation_row_json_schema(),
+    )
 
 
 def validate_llm_route_planner_row(
@@ -1327,6 +1870,9 @@ def validate_llm_route_planner_row(
     schema: Mapping[str, object] | None = None,
 ) -> list[str]:
     errors = _validate_with_schema(row, schema or llm_route_planner_row_json_schema())
+    model_tier_mismatch = _row_model_tier_mismatch_error(row)
+    if model_tier_mismatch:
+        errors.append(model_tier_mismatch)
     if int(row.get("repair_attempts", 0) or 0) < len(
         _dict_tuple(row.get("repair_error_history", []))
     ):
@@ -1374,8 +1920,10 @@ def _request_packet(
     )
     display_name = str(route.get("display_name") or route_id)
     route_match_ids = _route_match_ids(route, route_id)
-    target_prover_family = _target_prover_family(input_payload)
-    library_snapshot_ref = str(input_payload.get("library_snapshot_ref", ""))
+    target_prover_family = _route_target_prover_family(input_payload, route)
+    library_snapshot_ref = str(
+        route.get("library_snapshot_ref") or input_payload.get("library_snapshot_ref", "")
+    )
     residual_goals = _residual_goals_for_route(route_match_ids, context_payloads)
     context_packet = {
         "standalone_input_component": str(input_payload.get("component_name", "")),
@@ -1384,6 +1932,10 @@ def _request_packet(
         "current_route": dict(route),
         "route_match_ids": route_match_ids,
         "replan_metadata": _dict_value(route, "replan_metadata"),
+        "target_intake_rows": _rows_for_route(
+            context_payloads.get("target_intake", {}),
+            route_match_ids,
+        ),
         "library_coverage_rows": _rows_for_route(
             context_payloads.get("library_coverage_map", {}),
             route_match_ids,
@@ -1428,6 +1980,9 @@ def _request_packet(
         "residual_goals": residual_goals,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
     }
+    context_packet["resource_request_playbooks"] = [
+        dict(row) for row in _resource_request_playbooks_for_context(context_packet)
+    ]
     context_packet["available_source_refs"] = list(
         _available_source_refs_for_context(route, context_packet)
     )
@@ -1466,6 +2021,9 @@ def _request_packet(
         requested_model=model,
         model_tier=selected_model_tier,
     )
+    required_output_contract = _output_contract_for_target_prover(
+        target_prover_family
+    )
     request_id = "formalization_gap_planner_llm_route_request:" + stable_hash(
         [route_id, display_name, target_prover_family, library_snapshot_ref, context_packet]
     )[:20]
@@ -1474,7 +2032,7 @@ def _request_packet(
         "user": _user_prompt(
             target_route=route,
             context_packet=context_packet,
-            required_output_contract=LLM_ROUTE_PLANNER_OUTPUT_CONTRACT,
+            required_output_contract=required_output_contract,
         ),
     }
     return {
@@ -1492,12 +2050,19 @@ def _request_packet(
         "context_packet": context_packet,
         "residual_goals": residual_goals,
         "minimal_delta_cost_policy": MINIMAL_DELTA_COST_POLICY,
-        "required_output_contract": LLM_ROUTE_PLANNER_OUTPUT_CONTRACT,
+        "required_output_contract": required_output_contract,
         "prompt_messages": prompt_messages,
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
         "prompt_fingerprint": stable_hash(prompt_messages),
     }
+
+
+def _output_contract_for_target_prover(target_prover_family: str) -> dict[str, object]:
+    contract = deepcopy(LLM_ROUTE_PLANNER_OUTPUT_CONTRACT)
+    if _target_prover_key(target_prover_family) != "lean4":
+        contract.pop("lean_realization_dag_nodes", None)
+    return contract
 
 
 def _user_prompt(
@@ -1506,6 +2071,30 @@ def _user_prompt(
     context_packet: Mapping[str, Any],
     required_output_contract: Mapping[str, Any],
 ) -> str:
+    target_prover_key = _target_prover_key(
+        context_packet.get("target_prover_family", "")
+    )
+    target_intake_requirement = (
+        "When context_packet.target_intake_rows is present, use its "
+        "normalized_objects, normalized_assumptions, normalized_procedure, "
+        "normalized_claim, desired_theorem_shape, literature_queries, and "
+        "formal_library_grounding_queries as the target theorem context for "
+        "route synthesis; target intake is not proof evidence."
+    )
+    formal_realization_requirement = (
+        "Use formal_realization_dag_nodes for the target-prover realization DAG."
+    )
+    if target_prover_key == "lean4":
+        target_intake_requirement = (
+            target_intake_requirement
+            + " lean_grounding_queries is a legacy alias only."
+        )
+        formal_realization_requirement = (
+            "Use formal_realization_dag_nodes for all target provers; "
+            "lean_realization_dag_nodes is accepted only as a Lean legacy "
+            "alias and must not be used for non-Lean target_prover_family "
+            "values."
+        )
     payload = {
         "task": (
             "Synthesize or revise a library-aware formalization proof route. "
@@ -1518,6 +2107,8 @@ def _user_prompt(
         "required_output_contract": dict(required_output_contract),
         "hard_requirements": [
             "Return only JSON.",
+            target_intake_requirement,
+            "standalone_route.theorem_statement must preserve the requested target theorem identity; route repairs may add explicit side-condition notes but must not switch to a different theorem.",
             "Every informal DAG node must have source_refs, a source_search_status, or a formal_gap_boundary.",
             "SOURCE_BACKED claims may cite only source_refs listed in context_packet.available_source_refs.",
             "When context_packet.available_source_snippets contains relevant excerpts, reuse those source_snippets in informal DAG nodes or standalone_route primitives instead of paraphrasing unsupported evidence.",
@@ -1538,15 +2129,19 @@ def _user_prompt(
             "Every residual_interpretations row that proposes route repair must have source_refs/source_snippets, a matching literature/source search_request, or a formal_gap_boundary; prover residuals alone are not source evidence for new mathematical side conditions.",
             "Every alignment edge must include an alignment_rationale.",
             "Every alignment edge informal_node_id/formal_node_id must reference nodes present in the returned informal and formal DAGs.",
+            formal_realization_requirement,
             "Minimal delta must include selected_primitives, cost_model_version, route_cost, primitive_costs, and_or_cost_graph, and minimality_rationale.",
             "Use minimal_delta_cost_policy as the AND/OR graph cost surface; pick the route with the lowest current formalization delta cost.",
             "Every selected primitive must have exactly one primitive_costs row with base_cost, proof_difficulty_cost, import_cone_cost, definition_or_typeclass_cost, semantic_risk_cost, reuse_credit, total_cost, and cost_rationale.",
+            "Every primitive_costs coverage_bucket must be listed in minimal_delta_cost_policy.coverage_bucket_base_cost, and base_cost must equal that bucket base cost.",
+            "A primitive_costs coverage_bucket/base_cost must not be cheaper than the explicit coverage_bucket, coverage_status, or formalization_action markers on the corresponding formal_realization_dag_nodes or standalone_route.primitives.",
             "Every primitive_costs row must satisfy total_cost = base_cost + proof_difficulty_cost + import_cone_cost + definition_or_typeclass_cost + semantic_risk_cost - reuse_credit; route_cost must equal the sum of selected primitive total_cost values.",
             "and_or_cost_graph must enumerate route_options, non-empty or_nodes, and non-empty and_edges; it must mark exactly one selected route option and no listed alternative may have lower route_cost.",
             "Every selected primitive must appear in standalone_route.primitives and formal_realization_dag_nodes.",
             "Every wrapper, bridge, source-port, new-definition, or first-principles delta primitive must have a route_alignment_edge.",
             "New selected or delta primitives not already present in the target route or context packet must be justified by an aligned informal node with grounded source_refs, a matching literature search_request, or a formal_gap_boundary.",
             "When context_packet.resource_request_queue_rows is present, evidence-gathering search_requests and planner_next_actions should reference queued resource_request_id or resource_id entries instead of inventing new tool dispatches.",
+            "When context_packet.resource_request_playbooks is present, use each playbook's operator_prompt, expected_response_fields, and acceptance_checklist as the bounded ask for search_requests and planner_next_actions.",
             "Do not claim kernel verification or theorem proof evidence.",
         ],
     }
@@ -1580,6 +2175,7 @@ def _generate_responses(
             request_model = _generator_model_for_request(
                 generator_backend,
                 model or str(packet.get("model", "")),
+                model_tier=str(packet.get("model_tier", "")),
             )
             try:
                 generated = generator_backend.generate(
@@ -1589,7 +2185,11 @@ def _generate_responses(
                         model=request_model,
                         max_tokens=max_tokens,
                         temperature=temperature,
-                        schema=llm_route_planner_response_payload_schema(),
+                        schema=llm_route_planner_response_payload_schema(
+                            target_prover_family=str(
+                                packet.get("target_prover_family", "")
+                            )
+                        ),
                         metadata={
                             "component": LLM_ROUTE_PLANNER_COMPONENT,
                             "request_id": str(packet.get("request_id", "")),
@@ -1740,6 +2340,7 @@ def _repair_user_prompt(
             "Prefer candidate_declaration_rows so target_prover_family provenance is preserved.",
             "If evidence is missing, emit search_requests instead of inventing facts.",
             "When the original request has resource_request_queue_rows, align search_requests and planner_next_actions to queued resource_request_id/resource_id values.",
+            "When the original request has resource_request_playbooks, keep repaired search_requests and planner_next_actions aligned to those playbook operator prompts and acceptance checklists.",
             "Include a complete minimal_delta_plan with selected_primitives, primitive_costs, and and_or_cost_graph.",
         ],
     }
@@ -1753,8 +2354,195 @@ def _extract_json_object_or_text(text: str) -> object:
         return text[:12000]
 
 
-def llm_route_planner_response_payload_schema() -> dict[str, object]:
-    return {
+def llm_route_planner_response_payload_schema(
+    *, target_prover_family: str = ""
+) -> dict[str, object]:
+    string_array = {"type": "array", "items": {"type": "string"}}
+    source_snippet = {
+        "type": "object",
+        "additionalProperties": True,
+        "required": ["source_ref", "excerpt"],
+        "properties": {
+            "source_ref": {"type": "string", "minLength": 1},
+            "source_refs": string_array,
+            "claim": {"type": "string"},
+            "excerpt": {"type": "string", "minLength": 1},
+            "target_primitives": string_array,
+        },
+    }
+    candidate_declaration_row = {
+        "type": "object",
+        "additionalProperties": True,
+        "required": ["declaration", "target_prover_family", "source_field"],
+        "properties": {
+            "declaration": {"type": "string", "minLength": 1},
+            "target_prover_family": {"type": "string", "minLength": 1},
+            "source_field": {"type": "string", "minLength": 1},
+        },
+    }
+    formal_realization_node = {
+        "type": "object",
+        "additionalProperties": True,
+        "required": ["node_id", "primitive", "coverage_bucket", "formalization_action"],
+        "properties": {
+            "node_id": {"type": "string", "minLength": 1},
+            "primitive": {"type": "string", "minLength": 1},
+            "coverage_bucket": {"type": "string", "minLength": 1},
+            "candidate_declarations": string_array,
+            "candidate_declaration_rows": {
+                "type": "array",
+                "items": {"$ref": "#/$defs/candidate_declaration_row"},
+            },
+            "formalization_action": {"type": "string", "minLength": 1},
+            "target_prover_family": {"type": "string"},
+        },
+    }
+    primitive_cost = {
+        "type": "object",
+        "additionalProperties": True,
+        "required": [
+            "primitive",
+            "coverage_bucket",
+            "base_cost",
+            "proof_difficulty_cost",
+            "import_cone_cost",
+            "definition_or_typeclass_cost",
+            "semantic_risk_cost",
+            "reuse_credit",
+            "total_cost",
+            "cost_rationale",
+        ],
+        "properties": {
+            "primitive": {"type": "string", "minLength": 1},
+            "coverage_bucket": {"type": "string", "minLength": 1},
+            "base_cost": {"type": "number"},
+            "proof_difficulty_cost": {"type": "number"},
+            "import_cone_cost": {"type": "number"},
+            "definition_or_typeclass_cost": {"type": "number"},
+            "semantic_risk_cost": {"type": "number"},
+            "reuse_credit": {"type": "number"},
+            "total_cost": {"type": "number"},
+            "cost_rationale": {"type": "string", "minLength": 1},
+        },
+    }
+    route_option = {
+        "type": "object",
+        "additionalProperties": True,
+        "required": [
+            "route_option_id",
+            "selected",
+            "selected_primitives",
+            "route_cost",
+            "cost_rationale",
+        ],
+        "properties": {
+            "route_option_id": {"type": "string", "minLength": 1},
+            "selected": {"type": "boolean"},
+            "selected_primitives": string_array,
+            "route_cost": {"type": "number"},
+            "cost_rationale": {"type": "string", "minLength": 1},
+        },
+    }
+    and_or_cost_graph = {
+        "type": "object",
+        "additionalProperties": True,
+        "required": [
+            "graph_kind",
+            "selected_route_option_id",
+            "route_options",
+            "or_nodes",
+            "and_edges",
+        ],
+        "properties": {
+            "graph_kind": {"type": "string", "const": "AND_OR_ROUTE_COST_GRAPH"},
+            "selected_route_option_id": {"type": "string", "minLength": 1},
+            "route_options": {
+                "type": "array",
+                "minItems": 1,
+                "items": {"$ref": "#/$defs/route_option"},
+            },
+            "or_nodes": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                    "type": "object",
+                    "additionalProperties": True,
+                    "required": ["node_id", "choices", "selection_rationale"],
+                    "properties": {
+                        "node_id": {"type": "string", "minLength": 1},
+                        "choices": string_array,
+                        "selection_rationale": {"type": "string", "minLength": 1},
+                    },
+                },
+            },
+            "and_edges": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                    "type": "object",
+                    "additionalProperties": True,
+                    "required": ["route_option_id", "requires"],
+                    "properties": {
+                        "route_option_id": {"type": "string", "minLength": 1},
+                        "requires": string_array,
+                    },
+                },
+            },
+        },
+    }
+    minimal_delta_plan = {
+        "type": "object",
+        "additionalProperties": True,
+        "required": [
+            "selected_primitives",
+            "cost_model_version",
+            "route_cost",
+            "primitive_costs",
+            "and_or_cost_graph",
+            "minimality_rationale",
+        ],
+        "properties": {
+            "selected_primitives": string_array,
+            "cost_model_version": {
+                "type": "string",
+                "const": MINIMAL_DELTA_COST_POLICY_ID,
+            },
+            "route_cost": {"type": "number"},
+            "primitive_costs": {
+                "type": "array",
+                "minItems": 1,
+                "items": {"$ref": "#/$defs/primitive_cost"},
+            },
+            "and_or_cost_graph": {"$ref": "#/$defs/and_or_cost_graph"},
+            "new_definitions": string_array,
+            "wrapper_lemmas": string_array,
+            "bridge_lemmas": string_array,
+            "source_port_lemmas": string_array,
+            "do_not_formalize_now": string_array,
+            "minimality_rationale": {"type": "string", "minLength": 1},
+        },
+    }
+    standalone_primitive = {
+        "type": "object",
+        "additionalProperties": True,
+        "required": ["primitive", "coverage_status", "source_refs"],
+        "properties": {
+            "primitive": {"type": "string", "minLength": 1},
+            "coverage_status": {"type": "string", "minLength": 1},
+            "candidate_declarations": string_array,
+            "candidate_declaration_rows": {
+                "type": "array",
+                "items": {"$ref": "#/$defs/candidate_declaration_row"},
+            },
+            "source_refs": string_array,
+            "source_snippets": {
+                "type": "array",
+                "items": {"$ref": "#/$defs/source_snippet"},
+            },
+            "formal_gap_boundary": {"type": "string"},
+        },
+    }
+    schema: dict[str, object] = {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
         "title": "Formalization Gap Planner LLM Route Planner Response Payload",
@@ -1762,30 +2550,340 @@ def llm_route_planner_response_payload_schema() -> dict[str, object]:
         "additionalProperties": True,
         "required": [
             "informal_knowledge_dag_nodes",
-            "formal_realization_dag_nodes",
             "route_alignment_edges",
             "minimal_delta_plan",
             "standalone_route",
             "proof_evidence_boundary",
         ],
+        "anyOf": [
+            {"required": ["formal_realization_dag_nodes"]},
+            {"required": ["lean_realization_dag_nodes"]},
+        ],
         "properties": {
-            "informal_knowledge_dag_nodes": {"type": "array"},
-            "formal_realization_dag_nodes": {"type": "array"},
-            "lean_realization_dag_nodes": {"type": "array"},
-            "route_alignment_edges": {"type": "array"},
-            "minimal_delta_plan": {"type": "object"},
-            "residual_interpretations": {"type": "array"},
-            "search_requests": {"type": "array"},
-            "uncertainty_flags": {"type": "array"},
-            "semantic_alignment_risks": {"type": "array"},
-            "planner_next_actions": {"type": "array"},
-            "standalone_route": {"type": "object"},
-            "source_refs": {"type": "array"},
-            "source_snippets": {"type": "array"},
+            "informal_knowledge_dag_nodes": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                    "type": "object",
+                    "additionalProperties": True,
+                    "required": [
+                        "node_id",
+                        "claim",
+                        "depends_on",
+                        "source_refs",
+                        "source_search_status",
+                    ],
+                    "properties": {
+                        "node_id": {"type": "string", "minLength": 1},
+                        "claim": {"type": "string", "minLength": 1},
+                        "depends_on": string_array,
+                        "source_refs": string_array,
+                        "source_snippets": {
+                            "type": "array",
+                            "items": {"$ref": "#/$defs/source_snippet"},
+                        },
+                        "source_search_status": {"type": "string", "minLength": 1},
+                        "semantic_role": {"type": "string"},
+                        "formal_gap_boundary": {"type": "string"},
+                    },
+                },
+            },
+            "formal_realization_dag_nodes": {
+                "type": "array",
+                "minItems": 1,
+                "items": {"$ref": "#/$defs/formal_realization_node"},
+            },
+            "lean_realization_dag_nodes": {
+                "type": "array",
+                "minItems": 1,
+                "items": {"$ref": "#/$defs/formal_realization_node"},
+            },
+            "route_alignment_edges": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                    "type": "object",
+                    "additionalProperties": True,
+                    "required": [
+                        "informal_node_id",
+                        "formal_node_id",
+                        "alignment_status",
+                        "alignment_rationale",
+                    ],
+                    "properties": {
+                        "informal_node_id": {"type": "string", "minLength": 1},
+                        "formal_node_id": {"type": "string", "minLength": 1},
+                        "alignment_status": {"type": "string", "minLength": 1},
+                        "alignment_rationale": {"type": "string", "minLength": 1},
+                    },
+                },
+            },
+            "minimal_delta_plan": {"$ref": "#/$defs/minimal_delta_plan"},
+            "residual_interpretations": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": True,
+                    "required": ["residual_goal", "interpretation"],
+                    "properties": {
+                        "residual_goal": {"type": "string", "minLength": 1},
+                        "interpretation": {"type": "string", "minLength": 1},
+                        "route_repair": {"type": "string"},
+                        "repair_action": {"type": "string"},
+                        "source_refs": string_array,
+                        "source_snippets": {
+                            "type": "array",
+                            "items": {"$ref": "#/$defs/source_snippet"},
+                        },
+                        "source_search_status": {"type": "string", "minLength": 1},
+                        "formal_gap_boundary": {"type": "string"},
+                    },
+                },
+            },
+            "search_requests": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": True,
+                    "required": ["request_kind", "query", "reason"],
+                    "properties": {
+                        "request_kind": {"type": "string", "minLength": 1},
+                        "query": {"type": "string", "minLength": 1},
+                        "reason": {"type": "string", "minLength": 1},
+                        "resource_request_id": {"type": "string"},
+                        "resource_id": {"type": "string"},
+                    },
+                },
+            },
+            "uncertainty_flags": string_array,
+            "semantic_alignment_risks": string_array,
+            "planner_next_actions": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": True,
+                    "required": ["owner", "action"],
+                    "properties": {
+                        "owner": {"type": "string", "minLength": 1},
+                        "action": {"type": "string", "minLength": 1},
+                        "resource_request_id": {"type": "string"},
+                        "resource_id": {"type": "string"},
+                    },
+                },
+            },
+            "standalone_route": {
+                "type": "object",
+                "additionalProperties": True,
+                "required": [
+                    "display_name",
+                    "theorem_statement",
+                    "source_refs",
+                    "primitives",
+                ],
+                "properties": {
+                    "route_id": {"type": "string"},
+                    "display_name": {"type": "string", "minLength": 1},
+                    "theorem_statement": {"type": "string", "minLength": 1},
+                    "target_prover_family": {"type": "string"},
+                    "source_refs": string_array,
+                    "source_snippets": {
+                        "type": "array",
+                        "items": {"$ref": "#/$defs/source_snippet"},
+                    },
+                    "primitives": {
+                        "type": "array",
+                        "minItems": 1,
+                        "items": {"$ref": "#/$defs/standalone_primitive"},
+                    },
+                },
+            },
+            "source_refs": string_array,
+            "source_snippets": {
+                "type": "array",
+                "items": {"$ref": "#/$defs/source_snippet"},
+            },
             "proof_evidence_boundary": {
                 "type": "string",
                 "pattern": "not theorem proof evidence",
             },
+        },
+        "$defs": {
+            "source_snippet": source_snippet,
+            "candidate_declaration_row": candidate_declaration_row,
+            "formal_realization_node": formal_realization_node,
+            "primitive_cost": primitive_cost,
+            "route_option": route_option,
+            "and_or_cost_graph": and_or_cost_graph,
+            "minimal_delta_plan": minimal_delta_plan,
+            "standalone_primitive": standalone_primitive,
+        },
+    }
+    if target_prover_family and _target_prover_key(target_prover_family) != "lean4":
+        schema["anyOf"] = [{"required": ["formal_realization_dag_nodes"]}]
+        properties = schema.get("properties", {})
+        if isinstance(properties, dict):
+            properties.pop("lean_realization_dag_nodes", None)
+    return schema
+
+
+def llm_route_planner_response_payload_validation_row_json_schema() -> dict[str, object]:
+    string_array = {"type": "array", "items": {"type": "string"}}
+    return {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID,
+        "title": (
+            "Formalization Gap Planner LLM Route Planner Response Payload "
+            "Validation Row"
+        ),
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "validation_id",
+            "schema_version",
+            "payload_index",
+            "input_path",
+            "input_shape",
+            "response_wrapper_present",
+            "request_id",
+            "route_id",
+            "payload_schema_id",
+            "payload_fingerprint",
+            "request_context_path",
+            "request_context_validation_mode",
+            "request_context_id",
+            "request_context_route_id",
+            "n_schema_errors",
+            "n_request_context_errors",
+            "n_errors",
+            "ok",
+            "errors",
+            "proof_evidence_status",
+            "proof_evidence_boundary",
+        ],
+        "properties": {
+            "validation_id": {"type": "string", "minLength": 1},
+            "schema_version": {
+                "type": "integer",
+                "const": FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SCHEMA_VERSION,
+            },
+            "payload_index": {"type": "integer"},
+            "input_path": {"type": "string", "minLength": 1},
+            "input_shape": {"type": "string", "minLength": 1},
+            "response_wrapper_present": {"type": "boolean"},
+            "request_id": {"type": "string"},
+            "route_id": {"type": "string"},
+            "payload_schema_id": {
+                "type": "string",
+                "const": LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
+            },
+            "payload_fingerprint": {"type": "string", "minLength": 1},
+            "request_context_path": {"type": "string"},
+            "request_context_validation_mode": {
+                "type": "string",
+                "minLength": 1,
+            },
+            "request_context_id": {"type": "string"},
+            "request_context_route_id": {"type": "string"},
+            "n_schema_errors": {"type": "integer"},
+            "n_request_context_errors": {"type": "integer"},
+            "n_errors": {"type": "integer"},
+            "ok": {"type": "boolean"},
+            "errors": string_array,
+            "proof_evidence_status": {
+                "type": "string",
+                "const": PROOF_EVIDENCE_STATUS,
+            },
+            "proof_evidence_boundary": {
+                "type": "string",
+                "pattern": "not theorem proof evidence",
+            },
+        },
+    }
+
+
+def llm_route_planner_response_payload_validation_manifest_json_schema() -> dict[str, object]:
+    string_array = {"type": "array", "items": {"type": "string"}}
+    return {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_MANIFEST_SCHEMA_ID,
+        "title": (
+            "Formalization Gap Planner LLM Route Planner Response Payload "
+            "Validation Manifest"
+        ),
+        "type": "object",
+        "additionalProperties": True,
+        "required": [
+            "schema_version",
+            "created_at",
+            "component_name",
+            "input_path",
+            "response_payload_schema_id",
+            "response_payload_validation_manifest_schema_id",
+            "response_payload_validation_row_schema_id",
+            "n_payloads",
+            "n_valid_payloads",
+            "n_invalid_payloads",
+            "rows",
+            "all_ok",
+            "errors",
+            "proof_evidence_status",
+            "proof_evidence_boundary",
+        ],
+        "properties": {
+            "schema_version": {
+                "type": "integer",
+                "const": FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SCHEMA_VERSION,
+            },
+            "created_at": {"type": "string", "minLength": 1},
+            "component_name": {
+                "type": "string",
+                "const": LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATOR_COMPONENT,
+            },
+            "input_path": {"type": "string", "minLength": 1},
+            "request_context_path": {"type": "string"},
+            "response_payload_schema_id": {
+                "type": "string",
+                "const": LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
+            },
+            "response_payload_validation_manifest_schema_id": {
+                "type": "string",
+                "const": LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_MANIFEST_SCHEMA_ID,
+            },
+            "response_payload_validation_row_schema_id": {
+                "type": "string",
+                "const": LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID,
+            },
+            "response_payload_schema": {"type": "object"},
+            "response_payload_validation_manifest_schema": {"type": "object"},
+            "response_payload_validation_row_schema": {"type": "object"},
+            "n_payloads": {"type": "integer"},
+            "n_valid_payloads": {"type": "integer"},
+            "n_invalid_payloads": {"type": "integer"},
+            "n_request_context_packets": {"type": "integer"},
+            "n_request_bound_payloads": {"type": "integer"},
+            "n_schema_errors": {"type": "integer"},
+            "n_request_context_errors": {"type": "integer"},
+            "rows": {
+                "type": "array",
+                "items": {
+                    "$ref": "#/$defs/response_payload_validation_row",
+                },
+            },
+            "all_ok": {"type": "boolean"},
+            "errors": string_array,
+            "proof_evidence_status": {
+                "type": "string",
+                "const": PROOF_EVIDENCE_STATUS,
+            },
+            "proof_evidence_boundary": {
+                "type": "string",
+                "pattern": "not theorem proof evidence",
+            },
+        },
+        "$defs": {
+            "response_payload_validation_row": (
+                llm_route_planner_response_payload_validation_row_json_schema()
+            ),
         },
     }
 
@@ -1800,6 +2898,17 @@ def _provider_backend(provider_name: str) -> GeneratorBackend:
         "invoke_provider requires provider_name in {anthropic, openai} "
         "or a supplied generator_backend/static_response_json"
     )
+
+
+def _normalize_provider_name(provider_name: str) -> str:
+    provider = str(provider_name or DEFAULT_LLM_ROUTE_PLANNER_PROVIDER).strip().lower()
+    if provider not in LLM_ROUTE_PLANNER_PROVIDER_NAMES:
+        raise ValueError(
+            "provider_name must be one of "
+            + ", ".join(LLM_ROUTE_PLANNER_PROVIDER_NAMES)
+            + "; Codex/Codex exec are not accepted as pure LLM route-planner providers"
+        )
+    return provider
 
 
 def _normalize_model_tier(model_tier: str) -> str:
@@ -1864,6 +2973,19 @@ def _request_model_tier_mismatch(
     }
 
 
+def _row_model_tier_mismatch_error(row: Mapping[str, object]) -> str:
+    provider = str(row.get("provider_name", "") or "").strip().lower()
+    if provider != "anthropic":
+        return ""
+    model = str(row.get("model", "") or "").strip()
+    model_tier = str(row.get("model_tier", "") or "").strip().lower()
+    return claude_model_tier_mismatch(
+        model,
+        model_tier,
+        subject=f"LLM route planner row {row.get('request_id', '')}".strip(),
+    )
+
+
 def _llm_route_planner_model_tier_decision(
     route: Mapping[str, Any],
     context_packet: Mapping[str, Any],
@@ -1916,6 +3038,7 @@ def _llm_route_planner_model_tier_decision(
         sonnet_reasons.append("incomplete realization-coverage witness")
     if bool(feedback_summary.get("replan_required", False)):
         sonnet_reasons.append("feedback-loop summary requires route repair")
+    sonnet_reasons.extend(_target_intake_sonnet_reasons(context_packet))
     hard_markers = sorted(route_markers & complex_markers)
     if hard_markers:
         sonnet_reasons.append(
@@ -1941,6 +3064,87 @@ def _llm_route_planner_model_tier_decision(
     )
 
 
+def _target_intake_sonnet_reasons(
+    context_packet: Mapping[str, Any],
+) -> list[str]:
+    rows = _dict_tuple(context_packet.get("target_intake_rows", []))
+    if not rows:
+        return []
+    reasons: list[str] = []
+    for row in rows:
+        missing = _str_tuple(row.get("missing_required_fields", []))
+        if missing:
+            reasons.append(
+                "target intake missing required field(s): "
+                + ", ".join(missing[:4])
+            )
+        review_flags = set(_str_tuple(row.get("review_flags", [])))
+        hard_flags = sorted(
+            review_flags
+            & {
+                "proof_source_refs_missing",
+                "library_coverage_search_required",
+            }
+        )
+        if hard_flags:
+            reasons.append(
+                "target intake review flag(s): " + ", ".join(hard_flags[:4])
+            )
+        if bool(row.get("proof_state_probe_required", False)):
+            reasons.append("target intake requires proof-state probe")
+        assumptions = _str_tuple(row.get("normalized_assumptions", []))
+        objects = _str_tuple(row.get("normalized_objects", []))
+        primitives = _str_tuple(row.get("extracted_primitive_candidates", []))
+        literature_queries = _str_tuple(row.get("literature_queries", []))
+        formal_library_queries = _formal_library_grounding_queries_from_intake_row(row)
+        theorem_statement = str(row.get("theorem_statement", "") or "")
+        desired_shape = _primitive_key(row.get("desired_theorem_shape", ""))
+        complex_shape_markers = {
+            "asymptotic_normality",
+            "central_limit_theorem",
+            "empirical_process",
+            "martingale",
+            "conditional_expectation",
+            "measurability",
+            "integrability",
+            "uniform_convergence",
+            "minimax",
+            "semiparametric",
+        }
+        if desired_shape in complex_shape_markers:
+            reasons.append(f"complex target theorem shape: {desired_shape}")
+        if len(primitives) > 4:
+            reasons.append(
+                f"target intake has {len(primitives)} primitive candidate(s)"
+            )
+        if len(assumptions) > 4:
+            reasons.append(
+                f"target intake has {len(assumptions)} normalized assumption(s)"
+            )
+        if len(objects) > 6:
+            reasons.append(f"target intake has {len(objects)} normalized object(s)")
+        if len(literature_queries) > 6:
+            reasons.append(
+                f"target intake has {len(literature_queries)} literature query(s)"
+            )
+        if len(formal_library_queries) > 8:
+            reasons.append(
+                "target intake has "
+                f"{len(formal_library_queries)} formal-library grounding query(s)"
+            )
+        if len(theorem_statement) > 600:
+            reasons.append("long target-intake theorem statement")
+    return list(dict.fromkeys(reasons))
+
+
+def _formal_library_grounding_queries_from_intake_row(
+    row: Mapping[str, Any],
+) -> tuple[str, ...]:
+    generic = _str_tuple(row.get("formal_library_grounding_queries", []))
+    legacy = _str_tuple(row.get("lean_grounding_queries", []))
+    return tuple(dict.fromkeys([*generic, *legacy]))
+
+
 def _route_and_primitive_source_refs(route: Mapping[str, Any]) -> tuple[str, ...]:
     refs: list[str] = [*_str_tuple(route.get("source_refs", []))]
     for primitive in _dict_tuple(route.get("primitives", [])):
@@ -1951,10 +3155,16 @@ def _route_and_primitive_source_refs(route: Mapping[str, Any]) -> tuple[str, ...
 def _generator_model_for_request(
     generator_backend: GeneratorBackend,
     requested_model: str,
+    *,
+    model_tier: str,
 ) -> str:
     provider_name = str(getattr(generator_backend, "provider_name", ""))
     if provider_name == "anthropic":
-        return default_generator_model("anthropic", requested_model, model_tier="sonnet")
+        return default_generator_model(
+            "anthropic",
+            requested_model,
+            model_tier=model_tier or "sonnet",
+        )
     return default_generator_model(provider_name, requested_model)
 
 
@@ -1973,23 +3183,42 @@ def _row_for_request(
     contract_errors = (
         _response_contract_errors(payload, request) if response_present else []
     )
+    response_model_tier_errors = (
+        _str_tuple(
+            _row_model_tier_mismatch_error(
+                {
+                    "request_id": request.get("request_id", ""),
+                    "provider_name": (
+                        (response or {}).get("provider_name")
+                        or request.get("provider_name", "")
+                    ),
+                    "model": (response or {}).get("model") or request.get("model", ""),
+                    "model_tier": request.get("model_tier", ""),
+                }
+            )
+        )
+        if response_present
+        else tuple()
+    )
     all_errors = [
         *request_errors,
         *response_errors,
         *contract_errors,
+        *response_model_tier_errors,
         *generation_errors,
     ]
     response_contract_ok = (
         response_present
         and not response_errors
         and not contract_errors
+        and not response_model_tier_errors
         and not generation_errors
     )
     if provider_failure:
         acceptance_status = "REJECTED_LLM_ROUTE_PLANNER_PROVIDER_FAILURE"
     elif not response_present:
         acceptance_status = "AWAITING_LLM_ROUTE_PLANNER_RESPONSE"
-    elif response_errors or contract_errors:
+    elif response_errors or contract_errors or response_model_tier_errors:
         acceptance_status = "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
     elif _dict_tuple(payload.get("search_requests", [])):
         acceptance_status = "ACCEPTED_WITH_SEARCH_REQUESTS"
@@ -2003,6 +3232,11 @@ def _row_for_request(
     target_prover_family = str(request.get("target_prover_family", ""))
     formal_nodes = _formal_realization_nodes_from_payload(
         payload,
+        target_prover_family=target_prover_family,
+    )
+    lean_legacy_nodes = _lean_legacy_realization_nodes_for_target(
+        payload,
+        formal_nodes=formal_nodes,
         target_prover_family=target_prover_family,
     )
     standalone_route = _standalone_route_from_payload(
@@ -2023,6 +3257,10 @@ def _row_for_request(
         ),
         residual_interpretations=_dict_tuple(
             payload.get("residual_interpretations", [])
+        ),
+        feedback_summary=_dict_value(
+            _dict_value(request, "context_packet"),
+            "feedback_loop_summary",
         ),
     )
     return FormalizationGapPlannerLLMRoutePlannerRow(
@@ -2045,7 +3283,7 @@ def _row_for_request(
             payload.get("informal_knowledge_dag_nodes", [])
         ),
         formal_realization_dag_nodes=formal_nodes,
-        lean_realization_dag_nodes=formal_nodes,
+        lean_realization_dag_nodes=lean_legacy_nodes,
         route_alignment_edges=route_alignment_edges,
         minimal_delta_plan=minimal_delta_plan,
         residual_interpretations=_dict_tuple(
@@ -2099,26 +3337,49 @@ def _route_adoption_readiness(
     uncertainty_flags: tuple[str, ...],
     semantic_alignment_risks: tuple[str, ...],
     residual_interpretations: tuple[dict[str, object], ...],
+    feedback_summary: Mapping[str, object],
 ) -> tuple[str, tuple[str, ...]]:
     if provider_failure or (response_present and not response_contract_ok):
-        return (ROUTE_ADOPTION_REJECTED_STATUS, ("response_not_accepted",))
+        return (
+            ROUTE_ADOPTION_REJECTED_STATUS,
+            (ROUTE_ADOPTION_BLOCKER_RESPONSE_NOT_ACCEPTED,),
+        )
     if not response_present:
         return (
             ROUTE_ADOPTION_AWAITING_STATUS,
-            ("llm_route_planner_response_missing",),
+            (ROUTE_ADOPTION_BLOCKER_RESPONSE_MISSING,),
         )
 
     blockers: list[str] = []
     if search_requests:
-        blockers.append("search_requests_pending_evidence")
+        blockers.append(ROUTE_ADOPTION_BLOCKER_SEARCH_REQUESTS)
     if planner_next_actions:
-        blockers.append("planner_next_actions_pending_evidence")
+        blockers.append(ROUTE_ADOPTION_BLOCKER_PLANNER_NEXT_ACTIONS)
     if uncertainty_flags:
-        blockers.append("uncertainty_flags_require_review")
+        blockers.append(ROUTE_ADOPTION_BLOCKER_UNCERTAINTY_FLAGS)
     if semantic_alignment_risks:
-        blockers.append("semantic_alignment_risks_require_review")
+        blockers.append(ROUTE_ADOPTION_BLOCKER_SEMANTIC_ALIGNMENT_RISKS)
     if residual_interpretations:
-        blockers.append("residual_interpretations_require_route_replay")
+        blockers.append(ROUTE_ADOPTION_BLOCKER_RESIDUAL_INTERPRETATIONS)
+    feedback_actions = _dict_tuple(feedback_summary.get("recommended_next_actions", []))
+    if feedback_actions:
+        blockers.append(ROUTE_ADOPTION_BLOCKER_FEEDBACK_ACTIONS)
+    if any(
+        str(action.get("action", "")).strip()
+        == "redispatch_resource_response_with_request_playbook"
+        for action in feedback_actions
+    ):
+        blockers.append(ROUTE_ADOPTION_BLOCKER_RESOURCE_PLAYBOOK_REDISPATCH)
+    if any(
+        str(action.get("source", "")).strip() == "resource_request_queue"
+        for action in feedback_actions
+    ):
+        blockers.append(ROUTE_ADOPTION_BLOCKER_RESOURCE_REQUEST_QUEUE)
+    if _truthy(feedback_summary.get("replan_required")):
+        blockers.append(ROUTE_ADOPTION_BLOCKER_FEEDBACK_REPLAN)
+    realization_coverage = _dict_value(feedback_summary, "realization_coverage")
+    if realization_coverage.get("complete") is False:
+        blockers.append(ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE)
     blockers = list(dict.fromkeys(blockers))
     if blockers:
         return (ROUTE_ADOPTION_PENDING_STATUS, tuple(blockers))
@@ -2149,6 +3410,7 @@ def _response_contract_errors(
         errors.append(
             "formal_realization_dag_nodes or lean_realization_dag_nodes must be non-empty"
         )
+    errors.extend(_response_realization_field_contract_errors(payload, request))
     if not alignment_edges:
         errors.append("route_alignment_edges must be non-empty")
     for index, node in enumerate(informal_nodes):
@@ -2165,6 +3427,7 @@ def _response_contract_errors(
                 f"[{index}] needs source_refs, source_search_status, or formal_gap_boundary"
             )
     errors.extend(_response_source_ref_grounding_errors(payload, request))
+    errors.extend(_response_target_theorem_identity_errors(payload, request))
     errors.extend(_response_target_prover_consistency_errors(payload, request))
     errors.extend(_response_search_request_contract_errors(payload))
     errors.extend(_response_planner_next_action_contract_errors(payload))
@@ -2223,6 +3486,76 @@ def _response_contract_errors(
     return errors
 
 
+def _response_realization_field_contract_errors(
+    payload: Mapping[str, Any],
+    request: Mapping[str, Any],
+) -> list[str]:
+    target_prover_key = _target_prover_key(request.get("target_prover_family", ""))
+    legacy_nodes = _dict_tuple(payload.get("lean_realization_dag_nodes", []))
+    if target_prover_key and target_prover_key != "lean4" and legacy_nodes:
+        return [
+            "lean_realization_dag_nodes is a Lean-only legacy alias; "
+            "non-Lean target prover responses must use "
+            "formal_realization_dag_nodes only"
+        ]
+    return []
+
+
+def _response_payload_realization_field_contract_errors(
+    payload: Mapping[str, Any],
+) -> list[str]:
+    target_prover_key = _target_prover_key(
+        _declared_payload_target_prover_family(payload)
+    )
+    legacy_nodes = _dict_tuple(payload.get("lean_realization_dag_nodes", []))
+    if target_prover_key and target_prover_key != "lean4" and legacy_nodes:
+        return [
+            "lean_realization_dag_nodes is a Lean-only legacy alias; "
+            "non-Lean target prover responses must use "
+            "formal_realization_dag_nodes only"
+        ]
+    return []
+
+
+def _declared_payload_target_prover_family(payload: Mapping[str, Any]) -> str:
+    direct_values = [
+        payload.get("target_prover_family", ""),
+        payload.get("target_prover", ""),
+    ]
+    route = _dict_value(payload, "standalone_route")
+    metadata = _dict_value(route, "replan_metadata")
+    direct_values.extend(
+        [
+            route.get("target_prover_family", ""),
+            route.get("target_prover", ""),
+            metadata.get("target_prover_family", ""),
+            metadata.get("target_prover", ""),
+        ]
+    )
+    for value in direct_values:
+        text = str(value or "").strip()
+        if text:
+            return text
+
+    for node in (
+        *_dict_tuple(payload.get("formal_realization_dag_nodes", [])),
+        *_dict_tuple(payload.get("lean_realization_dag_nodes", [])),
+        *_dict_tuple(route.get("primitives", [])),
+    ):
+        for field_name in ("target_prover_family", "target_prover"):
+            text = str(node.get(field_name, "") or "").strip()
+            if text:
+                return text
+        for declaration_row in _dict_tuple(node.get("candidate_declaration_rows", [])):
+            text = str(
+                declaration_row.get("target_prover_family", "")
+                or declaration_row.get("target_prover", "")
+            ).strip()
+            if text:
+                return text
+    return ""
+
+
 def _minimal_delta_cost_witness_errors(
     minimal_delta: Mapping[str, Any],
     *,
@@ -2261,6 +3594,12 @@ def _minimal_delta_cost_witness_errors(
                 errors.append(
                     f"minimal_delta_plan.primitive_costs[{index}].{dimension_error}"
                 )
+            base_cost_policy_error = _primitive_cost_base_cost_policy_error(row)
+            if base_cost_policy_error:
+                errors.append(
+                    f"minimal_delta_plan.primitive_costs[{index}]."
+                    + base_cost_policy_error
+                )
             if not str(row.get("cost_rationale", "")).strip():
                 errors.append(
                     f"minimal_delta_plan.primitive_costs[{index}].cost_rationale missing"
@@ -2295,6 +3634,34 @@ def _minimal_delta_cost_witness_errors(
         )
     )
     return errors
+
+
+def _primitive_cost_base_cost_policy_error(
+    row: Mapping[str, object],
+) -> str:
+    bucket = _primitive_key(row.get("coverage_bucket", ""))
+    if not bucket:
+        return "coverage_bucket missing"
+    policy = MINIMAL_DELTA_COST_POLICY.get("coverage_bucket_base_cost", {})
+    if not isinstance(policy, Mapping):
+        return "coverage_bucket_base_cost policy missing"
+    if bucket not in policy:
+        return (
+            "coverage_bucket must be listed in "
+            "minimal_delta_cost_policy.coverage_bucket_base_cost: "
+            + bucket
+        )
+    expected = policy.get(bucket)
+    if not _is_nonnegative_number(expected) or not _is_nonnegative_number(
+        row.get("base_cost")
+    ):
+        return ""
+    if abs(float(row.get("base_cost", 0) or 0) - float(expected)) > 1e-9:
+        return (
+            "base_cost must equal minimal_delta_cost_policy."
+            f"coverage_bucket_base_cost[{bucket!r}]={expected}"
+        )
+    return ""
 
 
 def _primitive_cost_dimension_accounting_error(
@@ -2765,6 +4132,9 @@ def _response_formal_declaration_grounding_errors(
             "response candidate_declarations must be drawn from request/context "
             f"formal-library evidence; ungrounded candidate_declarations: {preview}"
         )
+    errors.extend(
+        _response_candidate_declaration_row_provenance_errors(payload, request)
+    )
     for index, node in enumerate(
         _formal_realization_nodes_from_payload(
             payload,
@@ -2791,6 +4161,160 @@ def _response_formal_declaration_grounding_errors(
                 f"[{index}] existing-library coverage requires grounded candidate_declarations"
             )
     return errors
+
+
+def _response_candidate_declaration_row_provenance_errors(
+    payload: Mapping[str, Any],
+    request: Mapping[str, Any],
+) -> list[str]:
+    available = _available_formal_declaration_row_provenance_for_request(request)
+    if not available:
+        return []
+    errors: list[str] = []
+    unsupported: list[str] = []
+    for location, row in _response_candidate_declaration_row_locations(
+        payload,
+        target_prover_family=str(request.get("target_prover_family", "")),
+    ):
+        declaration_key = _formal_declaration_key(row.get("declaration", ""))
+        target_key = _target_prover_key(row.get("target_prover_family", ""))
+        source_field_key = _formal_declaration_source_field_key(
+            row.get("source_field", "")
+        )
+        if not declaration_key:
+            continue
+        allowed_sources = available.get((declaration_key, target_key), set())
+        if not allowed_sources:
+            unsupported.append(
+                f"{location}={row.get('declaration', '')}"
+                f"@{row.get('target_prover_family', '')}"
+            )
+            continue
+        if source_field_key not in allowed_sources:
+            unsupported.append(
+                f"{location}={row.get('declaration', '')}"
+                f" source_field={row.get('source_field', '')}"
+            )
+    if unsupported:
+        errors.append(
+            "response candidate_declaration_rows must preserve request/context "
+            "formal-library provenance; unsupported rows: "
+            + "; ".join(unsupported[:8])
+        )
+    return errors
+
+
+TARGET_THEOREM_IDENTITY_STOPWORDS = {
+    "a",
+    "an",
+    "and",
+    "are",
+    "as",
+    "at",
+    "be",
+    "by",
+    "can",
+    "existing",
+    "fact",
+    "facts",
+    "follow",
+    "following",
+    "follows",
+    "for",
+    "from",
+    "given",
+    "has",
+    "have",
+    "imply",
+    "implies",
+    "in",
+    "into",
+    "is",
+    "lemma",
+    "lemmas",
+    "of",
+    "on",
+    "or",
+    "that",
+    "the",
+    "then",
+    "there",
+    "theorem",
+    "theorems",
+    "this",
+    "to",
+    "under",
+    "using",
+    "with",
+}
+
+
+def _response_target_theorem_identity_errors(
+    payload: Mapping[str, Any],
+    request: Mapping[str, Any],
+) -> list[str]:
+    route = _dict_value(payload, "standalone_route")
+    response_statement = str(route.get("theorem_statement", "") or "").strip()
+    if not response_statement:
+        return []
+    anchors = _target_theorem_identity_anchors(request)
+    if not anchors:
+        return []
+    if any(
+        _target_theorem_identity_overlap_ok(anchor, response_statement)
+        for anchor in anchors
+    ):
+        return []
+    request_route = _dict_value(request, "target_route")
+    return [
+        "standalone_route.theorem_statement appears to target a different theorem "
+        "than the request/target-intake context; preserve target theorem identity "
+        "and represent repairs as added assumptions, primitives, or route-repair "
+        "metadata. "
+        f"request_route_id={request.get('route_id', '')}; "
+        f"request_display_name={request_route.get('display_name', '')}"
+    ]
+
+
+def _target_theorem_identity_anchors(
+    request: Mapping[str, Any],
+) -> tuple[str, ...]:
+    request_route = _dict_value(request, "target_route")
+    context_packet = _dict_value(request, "context_packet")
+    statement_anchors = _str_tuple(
+        [
+            request_route.get("theorem_statement", ""),
+            *[
+                row.get("theorem_statement", "")
+                for row in _dict_tuple(context_packet.get("target_intake_rows", []))
+            ],
+        ]
+    )
+    if statement_anchors:
+        return statement_anchors
+    return _str_tuple(
+        row.get("normalized_claim", "")
+        for row in _dict_tuple(context_packet.get("target_intake_rows", []))
+    )
+
+
+def _target_theorem_identity_overlap_ok(anchor: str, response: str) -> bool:
+    anchor_tokens = _target_theorem_identity_tokens(anchor)
+    response_tokens = _target_theorem_identity_tokens(response)
+    if not anchor_tokens or not response_tokens:
+        return True
+    shared = anchor_tokens & response_tokens
+    if len(anchor_tokens) <= 3:
+        return len(shared) >= max(1, len(anchor_tokens) - 1)
+    return len(shared) >= 2 and (len(shared) / len(anchor_tokens)) >= 0.35
+
+
+def _target_theorem_identity_tokens(text: str) -> set[str]:
+    return {
+        token
+        for token in re.findall(r"[a-z0-9]+", str(text or "").lower())
+        if len(token) >= 3 and token not in TARGET_THEOREM_IDENTITY_STOPWORDS
+    }
 
 
 def _response_target_prover_consistency_errors(
@@ -3036,9 +4560,16 @@ def _node_candidate_declarations(node: Mapping[str, Any]) -> tuple[str, ...]:
 
 def _response_candidate_declaration_row_locations(
     payload: Mapping[str, Any],
+    *,
+    target_prover_family: str = "",
 ) -> tuple[tuple[str, dict[str, object]], ...]:
     rows: list[tuple[str, dict[str, object]]] = []
-    for index, node in enumerate(_formal_realization_nodes_from_payload(payload)):
+    for index, node in enumerate(
+        _formal_realization_nodes_from_payload(
+            payload,
+            target_prover_family=target_prover_family,
+        )
+    ):
         rows.extend(
             (
                 f"formal_realization_dag_nodes[{index}].candidate_declaration_rows[{row_index}]",
@@ -3055,7 +4586,10 @@ def _response_candidate_declaration_row_locations(
                 )
             )
         )
-    route = _dict_value(payload, "standalone_route")
+    route = _standalone_route_from_payload(
+        payload,
+        target_prover_family=target_prover_family,
+    )
     for index, primitive in enumerate(_dict_tuple(route.get("primitives", []))):
         rows.extend(
             (
@@ -3215,6 +4749,47 @@ def _available_formal_declaration_keys_for_request(
     }
 
 
+def _available_formal_declaration_row_provenance_for_request(
+    request: Mapping[str, Any],
+) -> dict[tuple[str, str], set[str]]:
+    context_packet = _dict_value(request, "context_packet")
+    structured_rows = _dict_tuple(
+        context_packet.get("available_formal_declaration_rows", [])
+    )
+    provenance: dict[tuple[str, str], set[str]] = {}
+    target_prover_family = str(request.get("target_prover_family", ""))
+    for row in _target_compatible_formal_declaration_rows(
+        structured_rows,
+        target_prover_family=target_prover_family,
+    ):
+        declaration_key = _formal_declaration_key(row.get("declaration", ""))
+        target_key = _target_prover_key(
+            row.get("target_prover_family", "") or target_prover_family
+        )
+        if not declaration_key:
+            continue
+        source_fields = {
+            _formal_declaration_source_field_key(row.get("source_field", "")),
+            "available_formal_declaration_rows",
+        }
+        source_fields.discard("")
+        provenance.setdefault((declaration_key, target_key), set()).update(
+            source_fields
+        )
+
+    flat_declarations = _str_tuple(
+        context_packet.get("available_formal_declarations", [])
+    )
+    for declaration in flat_declarations:
+        declaration_key = _formal_declaration_key(declaration)
+        target_key = _target_prover_key(target_prover_family)
+        if declaration_key:
+            provenance.setdefault((declaration_key, target_key), set()).add(
+                "available_formal_declarations"
+            )
+    return provenance
+
+
 def _collect_formal_declaration_rows(
     value: Any,
     rows: list[dict[str, object]],
@@ -3350,6 +4925,17 @@ def _formal_declaration_values(value: Any) -> tuple[str, ...]:
 
 def _formal_declaration_key(value: object) -> str:
     return re.sub(r"[^a-z0-9_'.]+", "_", str(value or "").strip().lower()).strip("_")
+
+
+def _formal_declaration_source_field_key(value: object) -> str:
+    key = _primitive_key(value)
+    aliases = {
+        "available_declaration_rows": "available_formal_declaration_rows",
+        "formal_declaration_rows": "available_formal_declaration_rows",
+        "available_declarations": "available_formal_declarations",
+        "formal_declarations": "available_formal_declarations",
+    }
+    return aliases.get(key, key)
 
 
 def _response_source_ref_grounding_errors(
@@ -3832,9 +5418,16 @@ def _response_resource_request_alignment_errors(
         for row in queue_rows
         if _resource_ref_key(row.get("resource_id", ""))
     }
+    playbooks_by_request_id, playbooks_by_resource_id = (
+        _resource_request_playbook_indexes(context_packet)
+    )
     registry_context = _dict_value(
         context_packet,
         "component_resource_registry_context",
+    )
+    allowed_resource_contract_ids = _resource_contract_ids_for_request_context(
+        context_packet,
+        registry_context=registry_context,
     )
     has_registry_context = any(
         _dict_tuple(registry_context.get(row_key, []))
@@ -3845,7 +5438,8 @@ def _response_resource_request_alignment_errors(
             "execution_plan_rows",
         )
     )
-    if not queue_rows and not has_registry_context:
+    has_resource_id_context = bool(queue_rows or has_registry_context)
+    if not has_resource_id_context and not allowed_resource_contract_ids:
         return []
 
     allowed_resource_ids = set(queued_resource_ids)
@@ -3862,6 +5456,7 @@ def _response_resource_request_alignment_errors(
                 "frontier_resource_ids",
                 "local_first_resource_ids",
                 "frontier_escalation_resource_ids",
+                "adapter_ids",
             ):
                 allowed_resource_ids.update(
                     _resource_ref_key(value)
@@ -3897,6 +5492,11 @@ def _response_resource_request_alignment_errors(
             for value in refs["resource_ids"]
             if _resource_ref_key(value)
         }
+        resource_contract_ids = {
+            _resource_ref_key(value)
+            for value in refs["resource_contract_ids"]
+            if _resource_ref_key(value)
+        }
         tool_owner_ids = {
             _resource_ref_key(value)
             for value in refs["tool_owner_ids"]
@@ -3908,18 +5508,36 @@ def _response_resource_request_alignment_errors(
                 f"{collection_name}[{index}] references unknown resource_request_id(s): "
                 + ", ".join(unknown_request_ids[:8])
             )
-        unknown_resource_ids = sorted(resource_ids - allowed_resource_ids)
+        unknown_resource_ids = (
+            sorted(resource_ids - allowed_resource_ids)
+            if has_resource_id_context
+            else []
+        )
         if unknown_resource_ids:
             errors.append(
                 f"{collection_name}[{index}] references resource_id(s) not present "
                 "in request queue or registry context: "
                 + ", ".join(unknown_resource_ids[:8])
             )
-        unknown_tool_owners = sorted(
-            tool_id
-            for tool_id in tool_owner_ids
-            if tool_id not in allowed_resource_ids
-            and _resource_owner_looks_like_tool(tool_id)
+        unknown_resource_contract_ids = sorted(
+            resource_contract_ids - allowed_resource_contract_ids
+        )
+        if unknown_resource_contract_ids:
+            errors.append(
+                f"{collection_name}[{index}] references resource_contract_id(s) "
+                "not present in request queue, interactive policy, feedback "
+                "summary, or registry context: "
+                + ", ".join(unknown_resource_contract_ids[:8])
+            )
+        unknown_tool_owners = (
+            sorted(
+                tool_id
+                for tool_id in tool_owner_ids
+                if tool_id not in allowed_resource_ids
+                and _resource_owner_looks_like_tool(tool_id)
+            )
+            if has_resource_id_context
+            else []
         )
         if unknown_tool_owners:
             errors.append(
@@ -3931,6 +5549,17 @@ def _response_resource_request_alignment_errors(
             aligned_to_queue = True
         if tool_owner_ids & queued_resource_ids:
             aligned_to_queue = True
+        errors.extend(
+            _resource_request_playbook_grounding_errors(
+                collection_name,
+                index,
+                row,
+                request_ids=request_ids,
+                resource_ids=resource_ids | (tool_owner_ids & queued_resource_ids),
+                playbooks_by_request_id=playbooks_by_request_id,
+                playbooks_by_resource_id=playbooks_by_resource_id,
+            )
+        )
     if queue_rows and not aligned_to_queue:
         errors.append(
             "when context_packet.resource_request_queue_rows is present, at least "
@@ -3940,10 +5569,187 @@ def _response_resource_request_alignment_errors(
     return errors
 
 
+def _resource_contract_ids_for_request_context(
+    context_packet: Mapping[str, Any],
+    *,
+    registry_context: Mapping[str, Any],
+) -> set[str]:
+    ids: set[str] = set()
+    for row_key in (
+        "resource_request_queue_rows",
+        "interactive_decision_policy_rows",
+    ):
+        ids.update(
+            _resource_contract_ids_for_rows(
+                _dict_tuple(context_packet.get(row_key, []))
+            )
+        )
+    feedback_summary = _dict_value(context_packet, "feedback_loop_summary")
+    ids.update(
+        _resource_contract_ids_for_rows(
+            _dict_tuple(feedback_summary.get("recommended_next_actions", []))
+        )
+    )
+    for row_key in (
+        "resource_rows",
+        "resource_contract_rows",
+        "component_rows",
+        "execution_plan_rows",
+    ):
+        ids.update(
+            _resource_contract_ids_for_rows(
+                _dict_tuple(registry_context.get(row_key, []))
+            )
+        )
+    return ids
+
+
+def _resource_contract_ids_for_rows(
+    rows: tuple[dict[str, object], ...] | list[dict[str, object]],
+) -> set[str]:
+    ids: set[str] = set()
+    for row in rows:
+        for field_name in (
+            "resource_contract_id",
+            "resource_contract_ids",
+            "resource_contract",
+            "resource_contracts",
+        ):
+            ids.update(
+                _resource_ref_key(value)
+                for value in _str_tuple(row.get(field_name, []))
+                if _resource_ref_key(value)
+            )
+    return ids
+
+
+def _resource_request_playbook_indexes(
+    context_packet: Mapping[str, Any],
+) -> tuple[dict[str, list[dict[str, object]]], dict[str, list[dict[str, object]]]]:
+    playbooks = _dict_tuple(context_packet.get("resource_request_playbooks", []))
+    if not playbooks:
+        playbooks = tuple(
+            _dict_value(row, "request_playbook")
+            for row in _dict_tuple(context_packet.get("resource_request_queue_rows", []))
+            if _dict_value(row, "request_playbook")
+        )
+    by_request_id: dict[str, list[dict[str, object]]] = {}
+    by_resource_id: dict[str, list[dict[str, object]]] = {}
+    for playbook in playbooks:
+        request_id = _resource_ref_key(playbook.get("resource_request_id", ""))
+        resource_id = _resource_ref_key(playbook.get("resource_id", ""))
+        if request_id:
+            by_request_id.setdefault(request_id, []).append(dict(playbook))
+        if resource_id:
+            by_resource_id.setdefault(resource_id, []).append(dict(playbook))
+    return by_request_id, by_resource_id
+
+
+def _resource_request_playbook_grounding_errors(
+    collection_name: str,
+    index: int,
+    row: Mapping[str, Any],
+    *,
+    request_ids: set[str],
+    resource_ids: set[str],
+    playbooks_by_request_id: Mapping[str, list[dict[str, object]]],
+    playbooks_by_resource_id: Mapping[str, list[dict[str, object]]],
+) -> list[str]:
+    matched_playbooks: list[dict[str, object]] = []
+    for request_id in sorted(request_ids):
+        matched_playbooks.extend(playbooks_by_request_id.get(request_id, []))
+    if not matched_playbooks:
+        for resource_id in sorted(resource_ids):
+            matched_playbooks.extend(playbooks_by_resource_id.get(resource_id, []))
+    if not matched_playbooks:
+        return []
+
+    content_tokens = _planner_action_content_tokens(row)
+    if not content_tokens:
+        return [
+            f"{collection_name}[{index}] has no substantive query/action terms "
+            "to ground against the queued request_playbook"
+        ]
+    for playbook in matched_playbooks:
+        if content_tokens & _playbook_grounding_tokens(playbook):
+            return []
+    return [
+        f"{collection_name}[{index}] is not grounded in the queued request_playbook "
+        "operator_prompt, input_summary, expected_response_fields, or acceptance_checklist"
+    ]
+
+
+def _planner_action_content_tokens(row: Mapping[str, Any]) -> set[str]:
+    text_parts = [
+        str(row.get(field_name, ""))
+        for field_name in (
+            "query",
+            "reason",
+            "action",
+            "rationale",
+            "description",
+            "route_repair",
+            "repair_action",
+        )
+    ]
+    return _grounding_tokens(" ".join(text_parts))
+
+
+def _playbook_grounding_tokens(playbook: Mapping[str, Any]) -> set[str]:
+    text_parts = [
+        str(playbook.get("operator_prompt", "")),
+        str(playbook.get("expected_response_artifact", "")),
+        " ".join(_str_tuple(playbook.get("required_inputs", []))),
+        " ".join(_str_tuple(playbook.get("expected_response_fields", []))),
+        " ".join(_str_tuple(playbook.get("acceptance_checklist", []))),
+        " ".join(_str_tuple(playbook.get("rejection_triggers", []))),
+        " ".join(_str_tuple(playbook.get("stop_conditions", []))),
+        json.dumps(_dict_value(playbook, "input_summary"), default=str),
+    ]
+    return _grounding_tokens(" ".join(text_parts))
+
+
+def _grounding_tokens(text: str) -> set[str]:
+    stopwords = {
+        "action",
+        "adapter",
+        "artifact",
+        "check",
+        "contract",
+        "dispatch",
+        "evidence",
+        "expected",
+        "field",
+        "fields",
+        "find",
+        "gate",
+        "grounded",
+        "literature",
+        "planner",
+        "prompt",
+        "query",
+        "queued",
+        "request",
+        "response",
+        "resource",
+        "route",
+        "search",
+        "source",
+        "theorem",
+        "tool",
+    }
+    return {
+        token
+        for token in re.findall(r"[a-z0-9_]+", str(text or "").lower())
+        if len(token) >= 4 and token not in stopwords
+    }
+
+
 def _structured_resource_refs(row: Mapping[str, Any]) -> dict[str, list[str]]:
     refs = {
         "resource_request_ids": [],
         "resource_ids": [],
+        "resource_contract_ids": [],
         "tool_owner_ids": [],
     }
 
@@ -3963,6 +5769,13 @@ def _structured_resource_refs(row: Mapping[str, Any]) -> dict[str, list[str]]:
                     "mcp_or_cli_hint",
                 }:
                     refs["resource_ids"].extend(_str_tuple(item))
+                elif key_text in {
+                    "resource_contract_id",
+                    "resource_contract_ids",
+                    "resource_contract",
+                    "resource_contracts",
+                }:
+                    refs["resource_contract_ids"].extend(_str_tuple(item))
                 elif key_text in {
                     "owner",
                     "tool",
@@ -4103,7 +5916,129 @@ def _response_primitive_coherence_errors(
             search_requests=search_requests,
         )
     )
+    errors.extend(
+        _primitive_cost_coverage_evidence_errors(
+            minimal_delta=minimal_delta,
+            formal_nodes=formal_nodes,
+            standalone_primitives=standalone_primitives,
+        )
+    )
     return errors
+
+
+def _primitive_cost_coverage_evidence_errors(
+    *,
+    minimal_delta: Mapping[str, Any],
+    formal_nodes: tuple[dict[str, object], ...],
+    standalone_primitives: tuple[dict[str, object], ...],
+) -> list[str]:
+    errors: list[str] = []
+    formal_by_primitive: dict[str, list[dict[str, object]]] = {}
+    for node in formal_nodes:
+        primitive = _primitive_key(node.get("primitive", ""))
+        if primitive:
+            formal_by_primitive.setdefault(primitive, []).append(node)
+    standalone_by_primitive: dict[str, list[dict[str, object]]] = {}
+    for row in standalone_primitives:
+        primitive = _primitive_key(row.get("primitive", ""))
+        if primitive:
+            standalone_by_primitive.setdefault(primitive, []).append(row)
+    for index, row in enumerate(_dict_tuple(minimal_delta.get("primitive_costs", []))):
+        primitive = _primitive_key(row.get("primitive", ""))
+        if not primitive:
+            continue
+        bucket = _primitive_key(row.get("coverage_bucket", ""))
+        bucket_cost = _coverage_bucket_base_cost(bucket)
+        if bucket_cost is None:
+            continue
+        evidence_rows = [
+            *formal_by_primitive.get(primitive, []),
+            *standalone_by_primitive.get(primitive, []),
+        ]
+        evidence = _coverage_evidence_base_cost(evidence_rows)
+        if evidence is None:
+            continue
+        evidence_cost, evidence_marker = evidence
+        if bucket_cost + 1e-9 < evidence_cost:
+            errors.append(
+                "minimal_delta_plan.primitive_costs"
+                f"[{index}].coverage_bucket/base_cost underprices "
+                "formal/standalone coverage evidence for primitive "
+                f"{primitive}: coverage_bucket={bucket} base_cost={bucket_cost:g} "
+                f"but evidence marker {evidence_marker} requires at least "
+                f"{evidence_cost:g}"
+            )
+    return errors
+
+
+def _coverage_evidence_base_cost(
+    rows: list[dict[str, object]],
+) -> tuple[float, str] | None:
+    best: tuple[float, str] | None = None
+    for row in rows:
+        for field_name in (
+            "coverage_bucket",
+            "coverage_status",
+            "formalization_action",
+            "alignment_status",
+        ):
+            marker = _primitive_key(row.get(field_name, ""))
+            bucket = _coverage_marker_policy_bucket(marker)
+            if not bucket:
+                continue
+            cost = _coverage_bucket_base_cost(bucket)
+            if cost is None:
+                continue
+            label = f"{field_name}={marker}"
+            if best is None or cost > best[0]:
+                best = (cost, label)
+    return best
+
+
+def _coverage_bucket_base_cost(bucket: str) -> float | None:
+    policy = MINIMAL_DELTA_COST_POLICY.get("coverage_bucket_base_cost", {})
+    if not isinstance(policy, Mapping):
+        return None
+    value = policy.get(bucket)
+    if not _is_nonnegative_number(value):
+        return None
+    return float(value)
+
+
+def _coverage_marker_policy_bucket(marker: str) -> str:
+    aliases = {
+        "already_exists": "already_exists",
+        "exact_exists": "exact_exists",
+        "exact": "exact_exists",
+        "reuse": "already_exists",
+        "compose": "already_exists",
+        "compose_existing_declarations": "already_exists",
+        "target_prover_replay": "already_exists",
+        "different_formulation": "different_formulation",
+        "near_exists": "near_exists",
+        "near": "near_exists",
+        "wrapper": "wrapper",
+        "wrapper_needed": "wrapper_needed",
+        "write_wrapper": "wrapper",
+        "bridge": "bridge",
+        "bridge_needed": "bridge_needed",
+        "prove_bridge": "bridge",
+        "source_port": "source_port",
+        "source_port_needed": "source_port_needed",
+        "port_external_source": "source_port",
+        "new_definition": "new_definition",
+        "new_definition_needed": "new_definition",
+        "define_new": "new_definition",
+        "new_theory": "new_theory",
+        "new_theory_needed": "new_theory_needed",
+        "first_principles": "new_theory",
+        "design_from_first_principles": "new_theory",
+        "theory_missing": "new_theory",
+        "unknown": "unknown",
+        "coverage_unknown": "unknown",
+        "declaration_unknown": "unknown",
+    }
+    return aliases.get(marker, "")
 
 
 def _realization_coverage_witness(
@@ -4485,6 +6420,7 @@ def _primitive_key(value: object) -> str:
 def _context_payloads(
     errors: list[str],
     *,
+    formalization_gap_planner_target_intake_dir: Path | None,
     goal_conditioned_minimal_formalization_plan_dir: Path | None,
     formalization_gap_planner_library_coverage_map_dir: Path | None,
     formalization_gap_planner_source_grounding_audit_dir: Path | None,
@@ -4496,6 +6432,11 @@ def _context_payloads(
     formalization_gap_planner_component_resource_registry_dir: Path | None,
 ) -> dict[str, Any]:
     return {
+        "target_intake": _optional_manifest(
+            formalization_gap_planner_target_intake_dir,
+            "formalization_gap_planner_target_intake_manifest.json",
+            errors,
+        ),
         "goal_plan": _optional_manifest(
             goal_conditioned_minimal_formalization_plan_dir,
             "goal_conditioned_minimal_formalization_plan_manifest.json",
@@ -4588,31 +6529,50 @@ def _component_resource_registry_context(
     if not isinstance(payload, Mapping):
         return {}
     target = str(target_prover_family or "").strip().lower()
+    all_resource_rows = tuple(_dict_tuple(payload.get("resource_rows", [])))
+    resource_row_by_id = {
+        str(row.get("resource_id", "")).strip(): row
+        for row in all_resource_rows
+        if str(row.get("resource_id", "")).strip()
+    }
     resource_rows = [
         _compact_row(row)
-        for row in _dict_tuple(payload.get("resource_rows", []))
+        for row in all_resource_rows
         if _resource_targets_match(row, target)
     ][:40]
-    resource_ids = {
+    compatible_resource_ids = {
         str(row.get("resource_id", "")).strip()
         for row in resource_rows
         if str(row.get("resource_id", "")).strip()
     }
     component_rows = [
-        _compact_row(row)
+        _target_filtered_registry_row(
+            _compact_row(row),
+            compatible_resource_ids=compatible_resource_ids,
+            resource_row_by_id=resource_row_by_id,
+            target_prover_family=target,
+        )
         for row in _dict_tuple(payload.get("component_rows", []))
     ][:20]
     execution_plan_rows = [
-        _compact_row(row)
+        _target_filtered_registry_row(
+            _compact_row(row),
+            compatible_resource_ids=compatible_resource_ids,
+            resource_row_by_id=resource_row_by_id,
+            target_prover_family=target,
+        )
         for row in _dict_tuple(payload.get("execution_plan_rows", []))
     ][:20]
-    resource_ids.update(_resource_ids_for_registry_context(component_rows))
-    resource_ids.update(_resource_ids_for_registry_context(execution_plan_rows))
+    referenced_resource_ids = set(compatible_resource_ids)
+    referenced_resource_ids.update(_resource_ids_for_registry_context(component_rows))
+    referenced_resource_ids.update(
+        _resource_ids_for_registry_context(execution_plan_rows)
+    )
     resource_contract_rows = [
         _compact_row(row)
         for row in _dict_tuple(payload.get("resource_contract_rows", []))
         if (
-            str(row.get("resource_id", "")).strip() in resource_ids
+            str(row.get("resource_id", "")).strip() in referenced_resource_ids
             and _resource_targets_match(row, target)
         )
     ][:40]
@@ -4631,6 +6591,79 @@ def _component_resource_registry_context(
         "resource_contract_rows": tuple(resource_contract_rows),
     }
     return context if any(context[key] for key in ("component_rows", "resource_rows")) else {}
+
+
+def _target_filtered_registry_row(
+    row: dict[str, object],
+    *,
+    compatible_resource_ids: set[str],
+    resource_row_by_id: Mapping[str, Mapping[str, object]],
+    target_prover_family: str,
+) -> dict[str, object]:
+    filtered = dict(row)
+    for field_name in (
+        "local_fallback_resource_ids",
+        "frontier_resource_ids",
+        "local_first_resource_ids",
+        "frontier_escalation_resource_ids",
+        "resource_ids",
+    ):
+        if field_name not in filtered:
+            continue
+        filtered[field_name] = tuple(
+            resource_id
+            for resource_id in _str_tuple(filtered.get(field_name, []))
+            if resource_id in compatible_resource_ids
+        )
+    if "adapter_ids" in filtered:
+        adapter_ids = tuple(
+            adapter_id
+            for adapter_id in _str_tuple(filtered.get("adapter_ids", []))
+            if _adapter_targets_match(
+                adapter_id,
+                target_prover_family=target_prover_family,
+                compatible_resource_ids=compatible_resource_ids,
+                resource_row_by_id=resource_row_by_id,
+            )
+        )
+        filtered["adapter_ids"] = adapter_ids
+        statuses = filtered.get("detected_adapter_statuses", {})
+        if isinstance(statuses, Mapping):
+            filtered["detected_adapter_statuses"] = {
+                adapter_id: statuses[adapter_id]
+                for adapter_id in adapter_ids
+                if adapter_id in statuses
+            }
+    return filtered
+
+
+def _adapter_targets_match(
+    adapter_id: str,
+    *,
+    target_prover_family: str,
+    compatible_resource_ids: set[str],
+    resource_row_by_id: Mapping[str, Mapping[str, object]],
+) -> bool:
+    adapter = str(adapter_id or "").strip()
+    if not adapter:
+        return False
+    if adapter in compatible_resource_ids:
+        return True
+    target = _target_prover_key(target_prover_family)
+    resource_row = resource_row_by_id.get(adapter)
+    if resource_row is not None:
+        return _resource_targets_match(resource_row, target)
+    key = _resource_ref_key(adapter)
+    target_specific_tokens = {
+        "lean4": ("lean", "lake", "loogle", "mathlib", "leandojo"),
+        "rocq": ("rocq", "coq", "serapi"),
+        "isabelle": ("isabelle", "sledgehammer", "afp"),
+        "agda": ("agda",),
+    }
+    for prover_key, tokens in target_specific_tokens.items():
+        if any(token in key for token in tokens):
+            return target == prover_key
+    return True
 
 
 def _component_resource_context_from_request(
@@ -4704,7 +6737,7 @@ def _feedback_loop_summary(
         ]
     )
     recommended_next_actions = _feedback_next_actions(
-        actionable_rows_by_field,
+        rows_by_field,
         residual_goals=residual_goals,
     )
     realization_coverage = _realization_feedback_summary(
@@ -4794,6 +6827,12 @@ def _feedback_loop_summary(
         ),
         "recommended_next_actions": recommended_next_actions,
     }
+    resource_request_playbooks = _dict_tuple(
+        context_packet.get("resource_request_playbooks", [])
+    )
+    if resource_request_playbooks:
+        summary["resource_request_playbook_count"] = len(resource_request_playbooks)
+        summary["resource_request_playbooks"] = resource_request_playbooks[:12]
     if realization_coverage:
         summary["realization_coverage"] = realization_coverage
     if replan_metadata:
@@ -4958,11 +6997,26 @@ def _resource_response_admissibility_summary(
     awaiting_ids: list[str] = []
     absent_response_ids: list[str] = []
     failed_contract_ids: list[str] = []
+    playbook_present_ids: list[str] = []
+    playbook_grounded_ids: list[str] = []
+    playbook_grounding_failed_ids: list[str] = []
     for row in rows:
         request_id = str(row.get("resource_request_id", "")).strip()
         if not request_id:
             request_id = str(row.get("resource_response_ledger_id", "")).strip()
         status = str(row.get("acceptance_status", "")).strip()
+        request_playbook_present = _truthy(row.get("request_playbook_present"))
+        response_playbook_grounded = _truthy(row.get("response_playbook_grounded"))
+        if request_playbook_present:
+            playbook_present_ids.append(request_id)
+        if request_playbook_present and response_playbook_grounded:
+            playbook_grounded_ids.append(request_id)
+        if (
+            request_playbook_present
+            and _truthy(row.get("response_present"))
+            and not response_playbook_grounded
+        ):
+            playbook_grounding_failed_ids.append(request_id)
         if _resource_response_row_is_admissible_feedback(row):
             admissible_ids.append(request_id)
             continue
@@ -4991,6 +7045,15 @@ def _resource_response_admissibility_summary(
         "awaiting_request_ids": list(_unique_strings(awaiting_ids)[:20]),
         "absent_response_request_ids": list(_unique_strings(absent_response_ids)[:20]),
         "failed_contract_request_ids": list(_unique_strings(failed_contract_ids)[:20]),
+        "request_playbook_present_count": len(playbook_present_ids),
+        "playbook_grounded_count": len(playbook_grounded_ids),
+        "playbook_grounding_failed_count": len(playbook_grounding_failed_ids),
+        "playbook_grounded_request_ids": list(
+            _unique_strings(playbook_grounded_ids)[:20]
+        ),
+        "playbook_grounding_failed_request_ids": list(
+            _unique_strings(playbook_grounding_failed_ids)[:20]
+        ),
     }
 
 
@@ -5086,6 +7149,7 @@ def _feedback_next_actions(
             or str(row.get("mcp_or_cli_hint", "")).strip()
         ):
             continue
+        request_playbook = _dict_value(row, "request_playbook")
         actions.append(
             {
                 "source": "resource_request_queue",
@@ -5113,9 +7177,55 @@ def _feedback_next_actions(
                 "stop_conditions": list(
                     _str_tuple(row.get("stop_conditions", []))[:8]
                 ),
+                "request_playbook_present": bool(request_playbook),
+                "operator_prompt": str(
+                    request_playbook.get("operator_prompt", "")
+                ).strip(),
+                "acceptance_checklist": list(
+                    _str_tuple(request_playbook.get("acceptance_checklist", []))[:8]
+                ),
+                "rejection_triggers": list(
+                    _str_tuple(request_playbook.get("rejection_triggers", []))[:8]
+                ),
             }
         )
     for row in rows_by_field.get("resource_response_ledger_rows", ()):
+        if (
+            _truthy(row.get("request_playbook_present"))
+            and _truthy(row.get("response_present"))
+            and not _truthy(row.get("response_playbook_grounded"))
+        ):
+            actions.append(
+                {
+                    "source": "resource_response_ledger",
+                    "owner": str(row.get("resource_id", "")).strip(),
+                    "action": "redispatch_resource_response_with_request_playbook",
+                    "resource_request_id": str(
+                        row.get("resource_request_id", "")
+                    ).strip(),
+                    "acceptance_status": str(
+                        row.get("acceptance_status", "")
+                    ).strip(),
+                    "reason": (
+                        "response_present but not grounded in queued "
+                        "request_playbook"
+                    ),
+                    "response_contract_fields": list(
+                        _str_tuple(row.get("response_contract_fields", []))[:8]
+                    ),
+                    "matched_response_contract_fields": list(
+                        _str_tuple(row.get("matched_response_contract_fields", []))[
+                            :8
+                        ]
+                    ),
+                    "missing_response_contract_fields": list(
+                        _str_tuple(row.get("missing_response_contract_fields", []))[
+                            :8
+                        ]
+                    ),
+                }
+            )
+            continue
         if not _resource_response_row_is_admissible_feedback(row):
             continue
         if not (
@@ -5174,6 +7284,87 @@ def _collect_source_snippets(
     for row in rows:
         candidates.extend(_row_source_snippet_candidates(row))
     return _compact_source_snippets(candidates)
+
+
+def _resource_request_playbooks_for_context(
+    context_packet: Mapping[str, Any],
+) -> tuple[dict[str, object], ...]:
+    playbooks: list[dict[str, object]] = []
+    for row in _dict_tuple(context_packet.get("resource_request_queue_rows", [])):
+        request_playbook = _dict_value(row, "request_playbook")
+        if not request_playbook:
+            continue
+        playbook = {
+            "resource_request_id": str(
+                request_playbook.get("resource_request_id")
+                or row.get("resource_request_id", "")
+            ).strip(),
+            "resource_id": str(
+                request_playbook.get("resource_id") or row.get("resource_id", "")
+            ).strip(),
+            "request_phase": str(
+                request_playbook.get("request_phase") or row.get("request_phase", "")
+            ).strip(),
+            "target_prover_family": str(
+                request_playbook.get("target_prover_family")
+                or row.get("target_prover_family", "")
+            ).strip(),
+            "operator_prompt": str(
+                request_playbook.get("operator_prompt", "")
+            ).strip(),
+            "input_summary": _dict_value(request_playbook, "input_summary"),
+            "required_inputs": list(
+                _str_tuple(
+                    request_playbook.get(
+                        "required_inputs",
+                        row.get("request_contract_fields", []),
+                    )
+                )
+            ),
+            "expected_response_fields": list(
+                _str_tuple(
+                    request_playbook.get(
+                        "expected_response_fields",
+                        row.get("response_contract_fields", []),
+                    )
+                )
+            ),
+            "expected_response_artifact": str(
+                request_playbook.get("expected_response_artifact")
+                or row.get("expected_response_artifact", "")
+            ).strip(),
+            "acceptance_checklist": list(
+                _str_tuple(request_playbook.get("acceptance_checklist", []))
+            ),
+            "rejection_triggers": list(
+                _str_tuple(request_playbook.get("rejection_triggers", []))
+            ),
+            "stop_conditions": list(
+                _str_tuple(
+                    request_playbook.get(
+                        "stop_conditions",
+                        row.get("stop_conditions", []),
+                    )
+                )
+            ),
+            "execution_command": str(
+                request_playbook.get("execution_command")
+                or row.get("execution_command", "")
+            ).strip(),
+            "mcp_or_cli_hint": str(
+                request_playbook.get("mcp_or_cli_hint")
+                or row.get("mcp_or_cli_hint", "")
+            ).strip(),
+            "proof_evidence_boundary": str(
+                request_playbook.get(
+                    "proof_evidence_boundary",
+                    PROOF_EVIDENCE_BOUNDARY,
+                )
+            ),
+        }
+        if playbook["resource_request_id"] or playbook["operator_prompt"]:
+            playbooks.append(playbook)
+    return tuple(playbooks[:25])
 
 
 def _collect_source_snippets_from_value(
@@ -5326,9 +7517,36 @@ def _compact_row(row: Mapping[str, Any]) -> dict[str, object]:
     keep = (
         "goal_plan_id",
         "route_id",
+        "target_intake_id",
+        "target_id",
+        "standalone_route_id",
         "refinement_evidence_id",
         "refinement_item_id",
         "display_name",
+        "domain",
+        "target_prover_family",
+        "library_snapshot_ref",
+        "theorem_statement",
+        "theorem_skeleton",
+        "normalized_objects",
+        "normalized_assumptions",
+        "normalized_procedure",
+        "normalized_claim",
+        "desired_theorem_shape",
+        "proof_source_refs",
+        "primitive_seed_rows",
+        "extracted_primitive_candidates",
+        "background_primitives",
+        "literature_queries",
+        "formal_library_grounding_queries",
+        "lean_grounding_queries",
+        "proof_state_probe_required",
+        "missing_required_fields",
+        "review_flags",
+        "proof_evidence_status",
+        "proof_evidence_boundary",
+        "ok",
+        "errors",
         "primitive",
         "component_id",
         "component_name",
@@ -5353,12 +7571,16 @@ def _compact_row(row: Mapping[str, Any]) -> dict[str, object]:
         "response_present",
         "response_contract_minimum_met",
         "response_contract_ok",
+        "request_playbook_present",
+        "response_playbook_grounded",
+        "response_playbook_grounding_terms",
         "response_summary",
         "response_payload",
         "response_artifacts",
         "coverage_bucket",
         "coverage_status",
         "candidate_declarations",
+        "candidate_declaration_rows",
         "source_refs",
         "source_snippets",
         "source_grounding_status",
@@ -5440,6 +7662,7 @@ def _compact_row(row: Mapping[str, Any]) -> dict[str, object]:
         "execution_command",
         "mcp_or_cli_hint",
         "dispatch_spec",
+        "request_playbook",
         "request_payload",
     )
     compact: dict[str, object] = {}
@@ -5452,6 +7675,15 @@ def _compact_row(row: Mapping[str, Any]) -> dict[str, object]:
                 compact[key] = trace
             continue
         compact[key] = row[key]
+    compact_target = _target_prover_key(compact.get("target_prover_family", ""))
+    if compact_target and compact_target != "lean4":
+        for lean_legacy_key in (
+            "lean_grounding_queries",
+            "lean_declaration_hits",
+            "revised_lean_realization_dag_nodes",
+            "needs_more_lean_grounding",
+        ):
+            compact.pop(lean_legacy_key, None)
     return compact
 
 
@@ -5621,16 +7853,19 @@ def _standalone_seed(
         if row.response_contract_ok and row.standalone_route
     ]
     routes = accepted_routes or [dict(route) for route in _routes(input_payload)]
-    return {
+    seed: dict[str, object] = {
         "schema_version": FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_SCHEMA_VERSION,
         "component_name": FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_COMPONENT,
-        "target_prover_family": _target_prover_family(input_payload),
         "library_snapshot_ref": str(input_payload.get("library_snapshot_ref", "")),
         "routes": routes,
         "llm_route_planner_source": LLM_ROUTE_PLANNER_COMPONENT,
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
     }
+    seed_target = _single_seed_target_prover_family(input_payload, routes)
+    if seed_target:
+        seed["target_prover_family"] = seed_target
+    return seed
 
 
 def _accepted_route_for_seed(
@@ -5659,6 +7894,9 @@ def _accepted_route_for_seed(
     )
     revised_formal_nodes = tuple(
         _llm_formal_node_for_seed(node) for node in row.formal_realization_dag_nodes
+    )
+    revised_lean_nodes = tuple(
+        _llm_formal_node_for_seed(node) for node in row.lean_realization_dag_nodes
     )
     revised_alignment_edges = tuple(_llm_alignment_edges_for_seed(row))
     metadata = _dict_value(route, "replan_metadata")
@@ -5769,7 +8007,6 @@ def _accepted_route_for_seed(
         "source_snippets": [dict(snippet) for snippet in source_snippets],
         "revised_informal_knowledge_dag_nodes": [dict(node) for node in revised_informal_nodes],
         "revised_formal_realization_dag_nodes": [dict(node) for node in revised_formal_nodes],
-        "revised_lean_realization_dag_nodes": [dict(node) for node in revised_formal_nodes],
         "revised_route_alignment_edges": [dict(edge) for edge in revised_alignment_edges],
         "alignment_edge_primitives": list(
             dict.fromkeys(
@@ -5789,6 +8026,12 @@ def _accepted_route_for_seed(
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
     }
+    if revised_lean_nodes:
+        metadata["revised_lean_realization_dag_nodes"] = [
+            dict(node) for node in revised_lean_nodes
+        ]
+    else:
+        metadata.pop("revised_lean_realization_dag_nodes", None)
     route["replan_metadata"] = metadata
     route["interactive_refinement_hooks"] = [
         dict(item) for item in route_refinement_hooks
@@ -5802,9 +8045,12 @@ def _accepted_route_for_seed(
     route["revised_formal_realization_dag_nodes"] = [
         dict(node) for node in revised_formal_nodes
     ]
-    route["revised_lean_realization_dag_nodes"] = [
-        dict(node) for node in revised_formal_nodes
-    ]
+    if revised_lean_nodes:
+        route["revised_lean_realization_dag_nodes"] = [
+            dict(node) for node in revised_lean_nodes
+        ]
+    else:
+        route.pop("revised_lean_realization_dag_nodes", None)
     route["revised_route_alignment_edges"] = [
         dict(edge) for edge in revised_alignment_edges
     ]
@@ -6360,6 +8606,38 @@ def _target_prover_family(payload: Mapping[str, Any]) -> str:
     return str(payload.get("target_prover_family") or payload.get("target_prover") or "lean4")
 
 
+def _route_target_prover_family(
+    payload: Mapping[str, Any],
+    route: Mapping[str, Any],
+) -> str:
+    metadata = _dict_value(route, "replan_metadata")
+    return str(
+        route.get("target_prover_family")
+        or route.get("target_prover")
+        or metadata.get("target_prover_family")
+        or metadata.get("target_prover")
+        or _target_prover_family(payload)
+    )
+
+
+def _single_seed_target_prover_family(
+    input_payload: Mapping[str, Any],
+    routes: list[dict[str, object]],
+) -> str:
+    targets: list[str] = []
+    seen: set[str] = set()
+    for route in routes:
+        target = _route_target_prover_family(input_payload, route).strip()
+        key = _target_prover_key(target)
+        if not target or not key or key in seen:
+            continue
+        seen.add(key)
+        targets.append(target)
+    if len(targets) == 1:
+        return targets[0]
+    return ""
+
+
 def _formal_realization_nodes_from_payload(
     payload: Mapping[str, Any],
     *,
@@ -6380,6 +8658,27 @@ def _formal_realization_nodes_from_payload(
             inherited_target_prover_family=inherited_target,
         )
         for node in formal_nodes
+    )
+
+
+def _lean_legacy_realization_nodes_for_target(
+    payload: Mapping[str, Any],
+    *,
+    formal_nodes: tuple[dict[str, object], ...],
+    target_prover_family: str,
+) -> tuple[dict[str, object], ...]:
+    target_key = _target_prover_key(target_prover_family)
+    if target_key != "lean4":
+        return tuple()
+    legacy_nodes = _dict_tuple(payload.get("lean_realization_dag_nodes", []))
+    if not legacy_nodes:
+        return formal_nodes
+    return tuple(
+        _normalize_candidate_declaration_fields(
+            node,
+            inherited_target_prover_family=target_prover_family,
+        )
+        for node in legacy_nodes
     )
 
 
@@ -6508,11 +8807,13 @@ def _route_source_refs(payload: Mapping[str, Any]) -> tuple[str, ...]:
         refs.extend(_str_tuple(node.get("source_refs", [])))
         refs.extend(_source_refs_from_snippets(node.get("source_snippets", [])))
     for residual in _dict_tuple(payload.get("residual_interpretations", [])):
+        refs.extend(_str_tuple(residual.get("source_refs", [])))
         refs.extend(_source_refs_from_snippets(residual.get("source_snippets", [])))
     route = _dict_value(payload, "standalone_route")
     refs.extend(_str_tuple(route.get("source_refs", [])))
     refs.extend(_source_refs_from_snippets(route.get("source_snippets", [])))
     for primitive in _dict_tuple(route.get("primitives", [])):
+        refs.extend(_str_tuple(primitive.get("source_refs", [])))
         refs.extend(_source_refs_from_snippets(primitive.get("source_snippets", [])))
     return _str_tuple(refs)
 
@@ -6562,6 +8863,200 @@ def _read_response_json(path: Path, errors: list[str]) -> list[dict[str, Any]]:
         return [_normalize_response_object(row) for row in payload if isinstance(row, dict)]
     errors.append(f"unsupported LLM response JSON shape: {path}")
     return []
+
+
+def _read_response_payload_validation_inputs(
+    path: Path,
+    errors: list[str],
+) -> list[dict[str, Any]]:
+    payload = _read_json(path, errors)
+    if not payload:
+        return []
+    if isinstance(payload, dict) and isinstance(payload.get("responses"), list):
+        rows: list[dict[str, Any]] = []
+        for index, row in enumerate(payload["responses"]):
+            if not isinstance(row, dict):
+                continue
+            rows.append(
+                _response_payload_validation_input(
+                    row,
+                    input_shape=f"responses[{index}]",
+                )
+            )
+        return rows
+    if isinstance(payload, list):
+        return [
+            _response_payload_validation_input(row, input_shape=f"list[{index}]")
+            for index, row in enumerate(payload)
+            if isinstance(row, dict)
+        ]
+    if isinstance(payload, dict) and any(
+        key in payload for key in ("response_payload", "informal_knowledge_dag_nodes")
+    ):
+        return [_response_payload_validation_input(payload, input_shape="object")]
+    errors.append(f"unsupported LLM response payload validation JSON shape: {path}")
+    return []
+
+
+def _read_response_payload_validation_request_contexts(
+    path: Path | None,
+    errors: list[str],
+) -> tuple[dict[str, Any], ...]:
+    if path is None:
+        return tuple()
+    if not path.exists():
+        errors.append(f"LLM route-planner request context path does not exist: {path}")
+        return tuple()
+    if path.is_dir():
+        request_jsonl = (
+            path / "formalization_gap_planner_llm_route_planner_requests.jsonl"
+        )
+        if request_jsonl.exists():
+            return _read_request_context_jsonl(request_jsonl, errors)
+        manifest_json = (
+            path / "formalization_gap_planner_llm_route_planner_manifest.json"
+        )
+        if manifest_json.exists():
+            return _read_response_payload_validation_request_contexts(
+                manifest_json,
+                errors,
+            )
+        errors.append(
+            "LLM route-planner request context directory is missing "
+            "formalization_gap_planner_llm_route_planner_requests.jsonl or "
+            "formalization_gap_planner_llm_route_planner_manifest.json: "
+            + str(path)
+        )
+        return tuple()
+    if path.suffix.lower() == ".jsonl":
+        return _read_request_context_jsonl(path, errors)
+    payload = _read_json(path, errors)
+    if isinstance(payload, Mapping) and isinstance(payload.get("request_packets"), list):
+        return tuple(
+            dict(row)
+            for row in payload["request_packets"]
+            if isinstance(row, Mapping)
+        )
+    if isinstance(payload, Mapping) and str(payload.get("request_id", "")).strip():
+        return (dict(payload),)
+    if isinstance(payload, list):
+        return tuple(dict(row) for row in payload if isinstance(row, Mapping))
+    errors.append(f"unsupported LLM route-planner request context JSON shape: {path}")
+    return tuple()
+
+
+def _read_request_context_jsonl(
+    path: Path,
+    errors: list[str],
+) -> tuple[dict[str, Any], ...]:
+    rows: list[dict[str, Any]] = []
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError as exc:
+        errors.append(f"failed to read LLM route-planner request context JSONL {path}: {exc}")
+        return tuple()
+    for line_index, line in enumerate(lines, start=1):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        try:
+            value = json.loads(stripped)
+        except json.JSONDecodeError as exc:
+            errors.append(
+                "failed to parse LLM route-planner request context JSONL "
+                f"{path}:{line_index}: {exc}"
+            )
+            continue
+        if isinstance(value, Mapping):
+            rows.append(dict(value))
+        else:
+            errors.append(
+                "LLM route-planner request context JSONL row must be object: "
+                f"{path}:{line_index}"
+            )
+    if not rows:
+        errors.append(f"LLM route-planner request context JSONL had no rows: {path}")
+    return tuple(rows)
+
+
+def _request_context_schema_errors_by_id(
+    request_contexts: tuple[dict[str, Any], ...],
+    schema: Mapping[str, object],
+) -> dict[str, list[str]]:
+    errors_by_id: dict[str, list[str]] = {}
+    for index, request in enumerate(request_contexts):
+        request_id = str(request.get("request_id", "")).strip()
+        request_key = request_id or f"request_context[{index}]"
+        row_errors = validate_llm_route_planner_request(request, schema)
+        if not request_id:
+            row_errors.append(f"request_context[{index}].request_id missing")
+        if row_errors:
+            errors_by_id[request_key] = [
+                f"request_context[{index}].{error}" for error in sorted(set(row_errors))
+            ]
+    return errors_by_id
+
+
+def _response_payload_validation_request_context_for_response(
+    response: Mapping[str, Any],
+    *,
+    payload_index: int,
+    request_contexts: tuple[dict[str, Any], ...],
+) -> tuple[dict[str, Any], list[str]]:
+    if not request_contexts:
+        return {}, []
+    response_request_id = str(response.get("request_id", "")).strip()
+    if response_request_id:
+        matches = [
+            request
+            for request in request_contexts
+            if str(request.get("request_id", "")).strip() == response_request_id
+        ]
+        if len(matches) == 1:
+            return matches[0], []
+        if not matches:
+            return {}, [
+                "request_context could not be matched by request_id for "
+                f"payload_index={payload_index}: {response_request_id}"
+            ]
+        return {}, [
+            "request_context request_id is not unique for "
+            f"payload_index={payload_index}: {response_request_id}"
+        ]
+    response_route_id = str(response.get("route_id", "")).strip()
+    if response_route_id:
+        matches = [
+            request
+            for request in request_contexts
+            if str(request.get("route_id", "")).strip() == response_route_id
+        ]
+        if len(matches) == 1:
+            return matches[0], []
+        if len(matches) > 1:
+            return {}, [
+                "request_context route_id is not unique for "
+                f"payload_index={payload_index}: {response_route_id}"
+            ]
+    if len(request_contexts) == 1:
+        return request_contexts[0], []
+    return {}, [
+        "request_context could not be matched for payload_index="
+        f"{payload_index}; include response request_id or route_id"
+    ]
+
+
+def _response_payload_validation_input(
+    row: Mapping[str, Any],
+    *,
+    input_shape: str,
+) -> dict[str, Any]:
+    wrapper_present = "response_payload" in row
+    response = dict(row) if wrapper_present else _normalize_response_object(row)
+    return {
+        "response": response,
+        "input_shape": input_shape,
+        "response_wrapper_present": wrapper_present,
+    }
 
 
 def _normalize_response_object(row: Mapping[str, Any]) -> dict[str, Any]:
@@ -6631,6 +9126,150 @@ def _validate_with_schema(
     ).lower():
         errors.append("proof_evidence_boundary must say not theorem proof evidence")
     return errors
+
+
+def _validate_with_schema_deep(
+    row: Mapping[str, object],
+    schema: Mapping[str, object],
+    *,
+    path: str,
+) -> list[str]:
+    if not isinstance(row, Mapping):
+        return [f"{path or 'row'} must be object"]
+    return _deep_schema_value_errors(
+        path,
+        row,
+        schema,
+        root_schema=schema,
+    )
+
+
+def _deep_schema_value_errors(
+    path: str,
+    value: object,
+    schema: Mapping[str, object],
+    *,
+    root_schema: Mapping[str, object],
+) -> list[str]:
+    ref = schema.get("$ref")
+    if isinstance(ref, str):
+        resolved = _resolve_local_schema_ref(ref, root_schema)
+        if resolved is None:
+            return [f"{path or 'row'} has unresolved schema ref {ref}"]
+        return _deep_schema_value_errors(
+            path,
+            value,
+            resolved,
+            root_schema=root_schema,
+        )
+
+    any_of = schema.get("anyOf")
+    errors: list[str] = []
+    if isinstance(any_of, list) and any_of:
+        branch_errors = [
+            _deep_schema_value_errors(
+                path,
+                value,
+                dict(branch),
+                root_schema=root_schema,
+            )
+            for branch in any_of
+            if isinstance(branch, Mapping)
+        ]
+        if not any(not errors for errors in branch_errors):
+            first_errors = next((errors for errors in branch_errors if errors), [])
+            detail = "; ".join(first_errors[:3])
+            suffix = f": {detail}" if detail else ""
+            errors.append(
+                f"{path or 'row'} must match at least one anyOf branch{suffix}"
+            )
+
+    expected_type = schema.get("type")
+    if expected_type == "object":
+        if not isinstance(value, Mapping):
+            return [f"{path or 'row'} must be object"]
+        properties = schema.get("properties", {})
+        required = tuple(schema.get("required", ()))
+        for field_name in required:
+            if field_name not in value:
+                errors.append(f"{_schema_path(path, str(field_name))} required")
+        if isinstance(properties, Mapping):
+            for field_name, field_schema in properties.items():
+                if field_name not in value or not isinstance(field_schema, Mapping):
+                    continue
+                errors.extend(
+                    _deep_schema_value_errors(
+                        _schema_path(path, str(field_name)),
+                        value[field_name],
+                        field_schema,
+                        root_schema=root_schema,
+                    )
+                )
+        if schema.get("additionalProperties") is False:
+            allowed = set(properties) if isinstance(properties, Mapping) else set()
+            for field_name in value:
+                if field_name not in allowed:
+                    errors.append(f"{_schema_path(path, str(field_name))} unexpected")
+    elif expected_type == "array":
+        if not isinstance(value, (list, tuple)):
+            return [f"{path or 'row'} must be array"]
+        min_items = schema.get("minItems")
+        if isinstance(min_items, int) and len(value) < min_items:
+            errors.append(f"{path or 'row'} must contain at least {min_items} item(s)")
+        item_schema = schema.get("items", {})
+        if isinstance(item_schema, Mapping):
+            for index, item in enumerate(value):
+                errors.extend(
+                    _deep_schema_value_errors(
+                        f"{path}[{index}]" if path else f"[{index}]",
+                        item,
+                        item_schema,
+                        root_schema=root_schema,
+                    )
+                )
+    elif expected_type == "string":
+        if not isinstance(value, str):
+            return [f"{path or 'row'} must be string"]
+        min_length = schema.get("minLength")
+        if isinstance(min_length, int) and len(value) < min_length:
+            errors.append(f"{path or 'row'} must be non-empty")
+        pattern = schema.get("pattern")
+        if isinstance(pattern, str) and not re.search(pattern, value):
+            errors.append(f"{path or 'row'} must match {pattern}")
+    elif expected_type == "integer":
+        if not isinstance(value, int) or isinstance(value, bool):
+            return [f"{path or 'row'} must be integer"]
+    elif expected_type == "number":
+        if not isinstance(value, (int, float)) or isinstance(value, bool):
+            return [f"{path or 'row'} must be number"]
+    elif expected_type == "boolean":
+        if not isinstance(value, bool):
+            return [f"{path or 'row'} must be boolean"]
+
+    enum_values = schema.get("enum")
+    if isinstance(enum_values, list) and value not in enum_values:
+        errors.append(f"{path or 'row'} must be one of {', '.join(map(str, enum_values))}")
+    if "const" in schema and value != schema.get("const"):
+        errors.append(f"{path or 'row'} must equal {schema.get('const')}")
+    return errors
+
+
+def _resolve_local_schema_ref(
+    ref: str,
+    root_schema: Mapping[str, object],
+) -> Mapping[str, object] | None:
+    if not ref.startswith("#/$defs/"):
+        return None
+    name = ref.removeprefix("#/$defs/")
+    defs = root_schema.get("$defs", {})
+    if not isinstance(defs, Mapping):
+        return None
+    resolved = defs.get(name)
+    return dict(resolved) if isinstance(resolved, Mapping) else None
+
+
+def _schema_path(prefix: str, field_name: str) -> str:
+    return f"{prefix}.{field_name}" if prefix else field_name
 
 
 def _schema_property_errors(
@@ -6764,6 +9403,26 @@ def _write_outputs(out_dir: Path, payload: Mapping[str, object]) -> None:
         json.dumps(llm_route_planner_response_payload_schema(), indent=2),
         encoding="utf-8",
     )
+    (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.schema.json"
+    ).write_text(
+        json.dumps(
+            llm_route_planner_response_payload_validation_manifest_json_schema(),
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation_row.schema.json"
+    ).write_text(
+        json.dumps(
+            llm_route_planner_response_payload_validation_row_json_schema(),
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
     (out_dir / "formalization_gap_planner_llm_route_planner_row.schema.json").write_text(
         json.dumps(llm_route_planner_row_json_schema(), indent=2),
         encoding="utf-8",
@@ -6778,6 +9437,59 @@ def _write_outputs(out_dir: Path, payload: Mapping[str, object]) -> None:
     )
     (out_dir / "formalization_gap_planner_llm_route_planner.md").write_text(
         _markdown_report(payload),
+        encoding="utf-8",
+    )
+
+
+def _write_response_payload_validation_outputs(
+    out_dir: Path,
+    payload: Mapping[str, object],
+) -> None:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.json"
+    ).write_text(
+        json.dumps(payload, indent=2, default=str),
+        encoding="utf-8",
+    )
+    (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation.jsonl"
+    ).write_text(
+        "\n".join(
+            json.dumps(row, sort_keys=True)
+            for row in payload.get("rows", [])
+            if isinstance(row, dict)
+        )
+        + ("\n" if payload.get("rows") else ""),
+        encoding="utf-8",
+    )
+    (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_response_payload.schema.json"
+    ).write_text(
+        json.dumps(llm_route_planner_response_payload_schema(), indent=2),
+        encoding="utf-8",
+    )
+    (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.schema.json"
+    ).write_text(
+        json.dumps(
+            llm_route_planner_response_payload_validation_manifest_json_schema(),
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation_row.schema.json"
+    ).write_text(
+        json.dumps(
+            llm_route_planner_response_payload_validation_row_json_schema(),
+            indent=2,
+        ),
         encoding="utf-8",
     )
 

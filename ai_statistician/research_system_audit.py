@@ -3769,6 +3769,15 @@ async def run_research_system_audit(
             "formalization_gap_planner_resource_response_ledger_contract_ok": formalization_gap_planner_resource_response_ledger_manifest[
                 "n_response_contract_ok"
             ],
+            "formalization_gap_planner_resource_response_ledger_request_playbook_present": formalization_gap_planner_resource_response_ledger_manifest[
+                "n_request_playbook_present"
+            ],
+            "formalization_gap_planner_resource_response_ledger_playbook_grounded": formalization_gap_planner_resource_response_ledger_manifest[
+                "n_response_playbook_grounded"
+            ],
+            "formalization_gap_planner_resource_response_ledger_playbook_grounding_failures": formalization_gap_planner_resource_response_ledger_manifest[
+                "n_response_playbook_grounding_failures"
+            ],
             "formalization_gap_planner_resource_response_ledger_route_revision_recommended": formalization_gap_planner_resource_response_ledger_manifest[
                 "n_route_revision_recommended"
             ],
@@ -3858,6 +3867,9 @@ async def run_research_system_audit(
             ],
             "formalization_gap_planner_target_intake_lean_queries": formalization_gap_planner_target_intake_manifest[
                 "n_lean_grounding_queries"
+            ],
+            "formalization_gap_planner_target_intake_formal_library_queries": formalization_gap_planner_target_intake_manifest[
+                "n_formal_library_grounding_queries"
             ],
             "formalization_gap_planner_target_intake_missing_sources": formalization_gap_planner_target_intake_manifest[
                 "n_missing_proof_sources"
@@ -4140,6 +4152,12 @@ async def run_research_system_audit(
             "formalization_gap_planner_local_formal_source_responses": formalization_gap_planner_local_formal_source_adapter_manifest[
                 "n_local_formal_source_responses"
             ],
+            "formalization_gap_planner_local_formal_source_formal_grounding_rows": formalization_gap_planner_local_formal_source_adapter_manifest[
+                "n_formal_library_grounding_rows"
+            ],
+            "formalization_gap_planner_local_formal_source_legacy_lean_grounding_rows": formalization_gap_planner_local_formal_source_adapter_manifest[
+                "n_lean_library_grounding_rows"
+            ],
             "formalization_gap_planner_local_formal_source_hits": formalization_gap_planner_local_formal_source_adapter_manifest[
                 "n_hits"
             ],
@@ -4158,11 +4176,29 @@ async def run_research_system_audit(
             "formalization_gap_planner_local_proof_state_responses": formalization_gap_planner_local_proof_state_adapter_manifest[
                 "n_local_proof_state_responses"
             ],
+            "formalization_gap_planner_local_proof_state_target_prover_scaffold_accepted": formalization_gap_planner_local_proof_state_adapter_manifest[
+                "n_target_prover_scaffold_accepted"
+            ],
+            "formalization_gap_planner_local_proof_state_target_prover_failed": formalization_gap_planner_local_proof_state_adapter_manifest[
+                "n_target_prover_failed"
+            ],
+            "formalization_gap_planner_local_proof_state_target_prover_unavailable": formalization_gap_planner_local_proof_state_adapter_manifest[
+                "n_target_prover_unavailable"
+            ],
+            "formalization_gap_planner_local_proof_state_non_target_prover_skeleton": formalization_gap_planner_local_proof_state_adapter_manifest[
+                "n_non_target_prover_skeleton"
+            ],
             "formalization_gap_planner_local_proof_state_unavailable": formalization_gap_planner_local_proof_state_adapter_manifest[
                 "n_local_lean_unavailable"
             ],
+            "formalization_gap_planner_local_proof_state_placeholder_blocked": formalization_gap_planner_local_proof_state_adapter_manifest[
+                "n_placeholder_blocked"
+            ],
             "formalization_gap_planner_local_proof_state_formal_gap_scaffold_blocked": formalization_gap_planner_local_proof_state_adapter_manifest[
                 "n_formal_gap_scaffold_blocked"
+            ],
+            "formalization_gap_planner_local_proof_state_missing_skeleton": formalization_gap_planner_local_proof_state_adapter_manifest[
+                "n_missing_skeleton"
             ],
             "formalization_gap_planner_local_proof_state_merged_responses": formalization_gap_planner_local_proof_state_adapter_manifest[
                 "n_merged_responses"
@@ -4224,6 +4260,9 @@ async def run_research_system_audit(
             ],
             "formalization_gap_planner_refinement_evidence_literature": formalization_gap_planner_refinement_evidence_manifest[
                 "n_literature_evidence"
+            ],
+            "formalization_gap_planner_refinement_evidence_formal_grounding": formalization_gap_planner_refinement_evidence_manifest[
+                "n_formal_grounding_evidence"
             ],
             "formalization_gap_planner_refinement_evidence_lean_grounding": formalization_gap_planner_refinement_evidence_manifest[
                 "n_lean_grounding_evidence"
@@ -4299,6 +4338,9 @@ async def run_research_system_audit(
             ],
             "formalization_gap_planner_route_stability_expand_literature": formalization_gap_planner_route_stability_audit_manifest[
                 "n_expand_literature"
+            ],
+            "formalization_gap_planner_route_stability_expand_formal": formalization_gap_planner_route_stability_audit_manifest[
+                "n_expand_formal_grounding"
             ],
             "formalization_gap_planner_route_stability_expand_lean": formalization_gap_planner_route_stability_audit_manifest[
                 "n_expand_lean_grounding"
@@ -4380,6 +4422,15 @@ async def run_research_system_audit(
             ],
             "formalization_gap_planner_proof_state_triage_formal_gap_scaffold_items": formalization_gap_planner_proof_state_triage_manifest[
                 "n_formal_gap_scaffold_items"
+            ],
+            "formalization_gap_planner_proof_state_triage_target_prover_failed_items": formalization_gap_planner_proof_state_triage_manifest[
+                "n_target_prover_failed_items"
+            ],
+            "formalization_gap_planner_proof_state_triage_target_prover_unavailable_items": formalization_gap_planner_proof_state_triage_manifest[
+                "n_target_prover_unavailable_items"
+            ],
+            "formalization_gap_planner_proof_state_triage_non_target_prover_skeleton_items": formalization_gap_planner_proof_state_triage_manifest[
+                "n_non_target_prover_skeleton_items"
             ],
             "formalization_gap_planner_proof_state_triage_local_lean_failed_items": formalization_gap_planner_proof_state_triage_manifest[
                 "n_local_lean_failed_items"

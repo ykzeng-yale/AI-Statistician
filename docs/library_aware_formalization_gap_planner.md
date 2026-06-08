@@ -60,8 +60,14 @@ python3 -m ai_statistician.cli formalization-gap-planner-component-resource-regi
 python3 -m ai_statistician.cli formalization-gap-planner-llm-route-planner \
   --input runs/current/formalization_gap_planner_target_intake/formalization_gap_planner_target_intake_standalone_seed.json \
   --provider prompt_only \
+  --formalization-gap-planner-target-intake-dir runs/current/formalization_gap_planner_target_intake \
   --formalization-gap-planner-component-resource-registry-dir runs/current/formalization_gap_planner_component_resource_registry \
   --out runs/current/formalization_gap_planner_llm_route_planner
+
+python3 -m ai_statistician.cli formalization-gap-planner-llm-route-planner-response-payload-validate \
+  --input reviewed_llm_route_payload.json \
+  --request-context runs/current/formalization_gap_planner_llm_route_planner \
+  --out runs/current/formalization_gap_planner_llm_route_payload_validate
 
 python3 -m ai_statistician.cli formalization-gap-planner-standalone-plan \
   --input runs/current/formalization_gap_planner_llm_route_planner/formalization_gap_planner_llm_route_planner_standalone_seed.json \
@@ -103,7 +109,25 @@ stages Anthropic/Claude request packets and prompts without calling a model.
 `prompt_only` remains an explicit no-provider mode. With a reviewed
 `--response-json` or `--static-response-file`, it validates the LLM route
 proposal and emits a revised standalone seed. With `--invoke-provider`, it can
-call the configured generator backend. The public planner path records
+call the configured generator backend. For external teams that only need to
+preflight JSON before handing it to the full route planner, the
+`formalization-gap-planner-llm-route-planner-response-payload-validate` command
+accepts a raw response payload, wrapper response, list, or `responses` bundle
+and emits a validation manifest plus JSONL rows. Without `--request-context`,
+the command is schema-only. With `--request-context` pointing at a staged
+request packet, request JSONL, planner manifest, or planner output directory,
+it also runs the full request-bound preflight checks for target theorem
+identity, target prover family, source-ref grounding, formal-declaration
+provenance, residual repair grounding, and minimal-delta cost accounting. The
+validator also writes manifest and row schemas, and the publication bundle
+exports those schemas as reusable contracts. The publication bundle can also
+package an actual validator run with
+`--formalization-gap-planner-llm-route-planner-response-payload-validation-dir`;
+the bundle audit checks its manifest contract, JSONL row count, valid/invalid
+payload counters, and row schema IDs. That preflight checks the reusable
+payload contract and proof-evidence boundary; request-bound mode strengthens it
+to route-planning consistency against the staged request, but it still does not
+prove kernel verification. The public planner path records
 `*_provider_execution_mode` and live-call counters so staged packets are
 distinguishable from paid provider calls. For live
 AI Statistician development, the default LLM runtime is Anthropic Claude API:
@@ -113,7 +137,15 @@ simulation planning, algorithm-planning packets, and boundary critique. The same
 request/response contracts still run against explicit `openai` live generation
 or `static` replay. Runtime topology validation records the intended model tier
 for each LLM subsystem and rejects recognized Anthropic family drift, for example
-a Haiku-designated helper configured with a Sonnet or Opus model. Accepted LLM rows must include
+a Haiku-designated helper configured with a Sonnet or Opus model. LLM
+route-planner rows also reject provider-returned Anthropic model drift, so a
+Haiku-selected request cannot be accepted if the backend reports a Sonnet or
+Opus response model. In
+`--model-tier auto`, the route planner also reads target-intake rows: missing
+proof sources, library-search-required review flags, proof-state probes, complex
+theorem shapes, many `formal_library_grounding_queries`, or large normalized
+theorem context upgrade a superficially small route from Haiku triage to Sonnet
+route synthesis. Accepted LLM rows must include
 source-grounded informal DAG nodes, formal-realization DAG nodes, alignment
 rationales, a minimality rationale, a versioned minimal-delta cost witness, and
 an explicit proof-evidence boundary; `kernel_verified=true` claims are
@@ -125,15 +157,25 @@ inspection aid for external prover teams. The planner publishes both the
 wrapper response schema and
 `formalization_gap_planner_llm_route_planner_response_payload.schema.json`, so
 external prover teams can validate the exact JSON payload they return before it
-is wrapped into an AI Statistician response row. Evaluation rows preserve the
+is wrapped into an AI Statistician response row. That payload schema is
+structured around informal DAG nodes, formal realization nodes or the legacy
+Lean realization alias, route-alignment edges, the AND/OR minimal-delta cost
+graph, residual interpretations, search requests, planner next actions, source
+snippets, and standalone-route primitives. Evaluation rows preserve the
 LLM route-adoption readiness status and blockers, so an accepted but
 search-pending/refinement-pending Claude route is not reported as ready for
 standalone replay. This is still planning evidence, not proof evidence. The
 cost witness uses
 `formalization_gap_planner_minimal_delta_cost_policy:1` and must include a
 nonnegative route cost plus one `primitive_costs` row per selected primitive.
-It must also include an `and_or_cost_graph` with enumerated route options,
-exactly one selected option, and no listed alternative with lower `route_cost`.
+Each primitive cost row must use a `coverage_bucket` listed in
+`minimal_delta_cost_policy.coverage_bucket_base_cost`, with `base_cost` exactly
+equal to that published bucket cost. That bucket/base cost also cannot be
+cheaper than the explicit `coverage_bucket`, `coverage_status`, or
+`formalization_action` markers on the matching formal-realization nodes or
+standalone-route primitives. It must also include an `and_or_cost_graph` with
+enumerated route options, exactly one selected option, and no listed alternative
+with lower `route_cost`.
 Those costs are planning evidence for comparing exact reuse, wrappers, bridge
 lemmas, source ports, new definitions, typeclass/import burden, semantic risk,
 and reuse credit. They are not proof evidence.
@@ -178,9 +220,30 @@ lists planner stages, local-first resources, frontier tools such as Paperclip,
 PaperQA2, LeanSearch/Loogle, Lean LSP, Rocq, Isabelle, and Agda adapters, plus
 their request/response contracts and quality gates. The model may use those
 rows only to choose bounded `search_requests` and `planner_next_actions`.
-Registry rows are not treated as evidence that a resource was called; actual
-tool outputs must still enter through source-grounding, library-coverage,
-refinement-evidence, or resource-response ledger artifacts.
+If the response cites explicit `resource_contract_id` or
+`resource_contract_ids` values, the validator now requires those ids to appear
+in the queued request, interactive policy, feedback summary, or bundled
+component-resource registry context. Registry rows are not treated as evidence
+that a resource was called; actual tool outputs must still enter through
+source-grounding, library-coverage, refinement-evidence, or resource-response
+ledger artifacts.
+
+AI Statistician runtime handoffs now generate that registry step explicitly.
+Each `RuntimeFormalizationGapPlannerHandoff` includes a
+`component_resource_registry_cli`, a `component_resource_registry_dir`, and
+prompt-only/live LLM route-planner commands that pass the registry directory via
+`--formalization-gap-planner-component-resource-registry-dir`. The runtime
+handoff audit builds the registry offline and verifies that staged prompt
+packets contain nonzero component, resource, and resource-contract rows before
+declaring the handoff smoke-ready. The publication-bundle audit repeats those
+runtime-handoff checks when the optional handoff audit artifact is packaged, so
+a reusable bundle cannot silently lose registry-aware planner context. The same
+audit derives the standalone seed's effective target family from route-level
+targets, so a scalar Rocq/Lean/Isabelle replay handoff can be checked against a
+mixed standalone seed without requiring the seed to flatten its concrete route
+targets into a top-level prover. Runtime-generated target-intake JSON follows
+the same rule: the bridge may carry a scalar replay target, but each generated
+target row keeps the effective prover family from its source route.
 
 For feedback passes after prover/resource attempts, the request packet now also
 includes `context_packet.feedback_loop_summary` when residual, refinement,
@@ -214,9 +277,18 @@ planner next actions, or uncertainty review. Only
 handoff blockers under the current evidence bound. The standalone seed and each
 standalone-plan `standalone_input_trace` preserve the same fields, so a public
 consumer can filter adoption-ready route plans without reopening raw LLM
-responses.
-The response contract also rejects target-prover drift: any explicit
-`target_prover_family` in the response payload, standalone route,
+responses. Blocker labels are part of the published
+`formalization_gap_planner_route_adoption_blocker_taxonomy:1` vocabulary, and
+publication bundles now package that vocabulary as
+`contract/formalization_gap_planner_route_adoption_blocker_taxonomy.json` plus
+its JSON Schema. The publication-bundle audit rejects evaluation rows or LLM
+seed metadata that invent unregistered blocker strings, and it also checks that
+the LLM route-planner row schema enums match the packaged taxonomy contract.
+The response contract also rejects target drift. A returned
+`standalone_route.theorem_statement` must preserve the request or target-intake
+theorem identity; route repair can add explicit side-condition notes,
+primitives, and replan metadata, but it cannot switch to a different theorem.
+Any explicit `target_prover_family` in the response payload, standalone route,
 `replan_metadata`, or formal-realization nodes must match the request target
 prover family, modulo accepted aliases such as Coq/Rocq. The standalone seed
 still writes the request target explicitly, but mismatched LLM proposals are not
@@ -248,14 +320,26 @@ default to Anthropic/Claude staging with `--*-model-tier auto`, but they do not
 call the API unless the matching `--*-invoke-provider` flag is set. The
 reuse-smoke manifest records `staged_live_provider_prompt_no_api_call` versus
 `live_provider_invoked`, plus the number of requested live provider calls and
-the Haiku/Sonnet/Opus request-tier distribution. To run the second pass with
+the Haiku/Sonnet/Opus request-tier distribution. Auto tiering keeps small,
+source-backed reuse/wrapper routes on Haiku, but upgrades target-intake rows
+with missing proof sources, library search requirements, proof-state probes, or
+larger theorem context to Sonnet. To run the second pass with
 Claude after the deterministic residual/context stages have completed, use
 `--feedback-llm-route-planner-provider anthropic
 --feedback-llm-route-planner-invoke-provider`; Anthropic defaults to Claude
 Sonnet 4.6 unless a model is supplied. Static or reviewed JSON responses can be
 passed with the matching `--feedback-llm-route-planner-static-response-file` or
 `--feedback-llm-route-planner-response-json` flags for no-cost reproducible
-review.
+review. When the initial or feedback LLM route planner has an actual response
+payload, reuse-smoke now writes
+`formalization_gap_planner_llm_route_planner_response_payload_validation/` and
+passes that optional validator run into the publication bundle. The smoke path
+also writes the staged request packets beside the validator input and runs the
+validator in request-bound mode, so the publication bundle can audit that every
+payload was checked against its target theorem, target prover family, source
+refs, candidate declarations, residual repairs, and minimal-delta cost witness.
+Prompt-only staged runs omit the artifact instead of emitting an empty
+validation bundle.
 
 The reuse-smoke manifest names both the route-replan standalone seed and its
 `formalization_gap_planner_route_replan_standalone_seed.schema.json`, so an
@@ -295,7 +379,10 @@ truth input to `formalization_gap_planner_evaluation_ground_truth.json`, and
 the publication bundle copies that file with the optional evaluation artifacts.
 Its reproduction manifest includes a `run_evaluation` command that uses this
 bundled evaluation truth when it is present, otherwise it falls back to the
-bundle benchmark truth. The bundle audit checks that matched evaluation rows
+bundle benchmark truth. It also includes request-bound
+`formalization-gap-planner-llm-route-planner-response-payload-validate`
+commands for reviewed initial and feedback LLM route payloads, each pointing at
+the matching staged planner request context. The bundle audit checks that matched evaluation rows
 resolve against the copied evaluation truth and that the recorded route,
 delta, and existing-reuse ground-truth primitive fields match that copied file,
 so a bundle cannot silently pair evaluation rows with a different route-truth
@@ -304,13 +391,20 @@ row-to-truth matches, and primitive-field consistency so downstream gates do
 not need to scan every audit row.
 
 Target intake extracts objects, assumptions, procedure, claim, theorem shape,
-source refs, primitive seeds, and literature/Lean queries from a raw theorem
+source refs, primitive seeds, and literature/formal-library queries from a raw theorem
 request. The standalone command accepts the resulting seed or a hand-authored
 route JSON with coverage labels such as `exact_exists`, `wrapper_needed`,
 `bridge_needed`, `source_port_needed`, and `new_theory_needed`. It emits the
 same portable `goal_conditioned_minimal_formalization_plan_manifest.json`
 consumed by the evaluation, refinement, prover-adapter, and publication-bundle
-commands. The portable-plan audit validates schema identity, two-DAG structure,
+commands. LLM route-planner request packets can now also carry the matching
+target-intake rows through `--formalization-gap-planner-target-intake-dir`, so
+the model sees normalized objects, assumptions, procedure, claim, theorem shape,
+primitive seeds, literature queries, and `formal_library_grounding_queries`
+while preserving the boundary that target intake is route-synthesis context,
+not proof evidence. `lean_grounding_queries` is still emitted as a legacy alias
+for older Lean-only consumers.
+The portable-plan audit validates schema identity, two-DAG structure,
 AND/OR graph shape, work packets, interactive hooks, and absence of
 kernel-proof claims. The library-coverage-map command exports one row per
 selected primitive, mapping the informal route atom to the selected current
@@ -473,7 +567,7 @@ contract without importing this repository. The benchmark-audit command
 checks that route-truth examples have source references, distinct theorem
 families, required/existing/delta primitive consistency, coverage-label
 discipline, held-out/public split metadata, and explicit proof-boundary text.
-The evaluation writes row-level route recall/precision, Lean-delta
+The evaluation writes row-level route recall/precision, formalization-delta
 precision/recall, existing-library reuse precision/recall, coverage-label
 accuracy, two-DAG readiness, selected-primitive alignment coverage,
 feedback-loop readiness, and the proof-boundary check. It writes
@@ -483,9 +577,11 @@ counts for those diagnostics. These scores are
 benchmark evidence about planning quality, not theorem proof evidence.
 
 The ablation study compares the observed planner with counterfactual
-`no_literature_evidence`, `no_lean_grounding`, `no_proof_state_feedback`, and
-`no_route_planner` variants. It is a diagnostic for which signal families matter
-for route recall, Lean-delta recall, reuse, feedback readiness, and
+`no_literature_evidence`, `no_formal_grounding`, `no_proof_state_feedback`, and
+`no_route_planner` variants. `no_formal_grounding` is the prover-neutral
+successor to the legacy `no_lean_grounding` label. It is a diagnostic for which
+signal families matter for route recall, formalization-delta recall, reuse,
+feedback readiness, and
 route-adoption readiness under the current evidence bound; it is not theorem
 proof evidence. `research-system-audit` promotes the evaluation and ablation
 route-adoption counts into its top-level `counts` payload so AI Statistician
@@ -504,7 +600,10 @@ adapters may report `NEEDS_INSTALL`, `NEEDS_CREDENTIALS`, or
 evidence, not proof evidence. The command also writes
 `formalization_gap_planner_adapter_registry_row.schema.json` and row
 schema-valid counts so external users can validate the frontier-tool/MCP
-inventory without importing this repository.
+inventory without importing this repository. Route-revision adapters must now
+declare `revised_formal_realization_dag_nodes` in addition to any legacy
+`revised_lean_realization_dag_nodes` alias, so non-Lean prover clients can
+consume the generic DAG contract directly.
 The adapter-registry audit validates that the registry covers the required
 literature, formal-library, proof-state, route-revision, offline-regression,
 and cross-prover reuse surfaces; it also checks response fields, resource URLs,
@@ -781,15 +880,18 @@ so downstream consumers can validate the index directly, including
 bundle-local relative-path resolution when they have the exported bundle, plus
 `reproduce/formalization_gap_planner_reproduction_manifest.json` with
 bundle-relative artifacts, entry points, and commands for external reuse. The
-manifest includes the standalone planner path and the refinement rerun path:
-queue export, resource-request queue export, resource-response ledger export,
-deterministic adapter responses,
-local literature adapter, local
+manifest includes the one-command `formalization-gap-planner-reuse-smoke`
+path, the AI Statistician runtime target-intake replay command, the standalone
+planner path, and the refinement rerun path: target-intake-aware LLM route
+planning, queue export, resource-request queue export, resource-response ledger
+export, deterministic adapter responses, local literature adapter, local
 formal-source adapter, local proof-state adapter, refinement-evidence
 aggregation, route-revision overlay, route-stability audit, interactive
-session export, and feedback LLM route-planner rerun with interactive-session
-context.
-session summary. It also includes
+session export, and feedback LLM route-planner rerun with both target-intake
+and interactive-session context. The reuse-smoke commands are prompt-only by default: they stage
+Anthropic/Claude request packets with `--*-model-tier auto` and do not call the
+API unless an operator adds the matching live-provider invoke flags.
+It also includes
 `examples/formalization_gap_planner_standalone_example.json` and
 `examples/formalization_gap_planner_target_intake_example.json` so downstream
 users can run the public path immediately after replacing local corpus,
@@ -810,7 +912,10 @@ component-resource-registry audit checks against their public contracts or
 schemas. For optional interactive-session artifacts, it resolves
 decision-policy component ids, local/frontier resource ids, and
 resource-contract ids against the bundled component-resource registry. It also
-checks resource-request payload identity and dispatch specs, resource-response
+checks optional LLM route-planner request packets for target-intake theorem
+context and component-resource registry context, checks LLM response-payload
+validation manifests and JSONL rows when raw payload validator outputs are
+packaged, checks resource-request payload identity and dispatch specs, resource-response
 ledger rows against their request contracts, route-revision
 resource-response-ledger traces, route-stability awaiting/rejected request ids,
 and interactive-session next-command guidance against the same request ids.
@@ -990,20 +1095,27 @@ The current implementation composes four existing AI Statistician artifacts:
 3. `goal_conditioned_minimal_formalization_plan`
    Narrows global missing theory into theorem-specific selected nodes,
    excluded alternatives, portable work packets, the informal knowledge DAG,
-   the Lean realization DAG, explicit informal-to-realization alignment edges,
-   route revision triggers, and AND/OR route view.
+   the formal realization DAG, explicit informal-to-realization alignment edges,
+   route revision triggers, and AND/OR route view. Its manifest reports
+   `n_target_prover_families` and `by_target_prover_family`; when selected
+   routes span prover ecosystems, `target_prover_family` is the
+   `mixed:<targets>` summary while each row keeps its concrete route target.
 
 4. `formalization_gap_planner_target_intake`
    Normalizes a raw theorem request into objects, assumptions, procedure,
-   claim, theorem shape, source refs, primitive seeds, and literature/Lean
+   claim, theorem shape, source refs, primitive seeds, and literature/formal-library
    grounding queries. It also emits a standalone planner seed. This is target
    intake only, not route evidence or proof evidence.
 
 5. `formalization_gap_planner_llm_route_planner`
    Builds the LLM planning request packet from a standalone target route plus
-   optional source, coverage, resource-response, refinement-evidence,
-   route-revision, prover-residual, interactive-session, and decision-policy
-   context. Resource-response ledger rows include bounded response summaries,
+   optional target-intake, source, coverage, resource-response,
+   refinement-evidence, route-revision, prover-residual, interactive-session,
+   and decision-policy context. Target-intake rows provide the normalized
+   theorem objects, assumptions, procedure, claim, theorem shape, primitive
+   seeds, literature queries, and formal-library grounding queries that define
+   the target theorem context for route synthesis; they do not justify
+   source-backed mathematical claims. Resource-response ledger rows include bounded response summaries,
    source snippets or payload excerpts, response artifacts, contract status,
    route-evidence nodes, coverage updates, and residual goals, so a feedback
    LLM pass can revise from actual literature/tool evidence rather than only
@@ -1017,8 +1129,9 @@ The current implementation composes four existing AI Statistician artifacts:
    packet, and when request residuals are present every residual must receive
    an interpretation plus a `route_repair` or `repair_action`. It can run in
    prompt-only mode, validate a reviewed/static LLM JSON response, or invoke a
-   configured generator backend. It publishes request, wrapper response, raw
-   response-payload, and row schemas for external validation. Accepted
+   configured generator backend. It publishes request, wrapper response,
+   structured raw response-payload, and row schemas for external validation.
+   Accepted
    responses produce a revised standalone seed with source-grounded informal
    DAG nodes, formal realization nodes, alignment rationales, minimal-delta
    rationale, search requests, and the proof-evidence boundary. The accepted
@@ -1039,7 +1152,11 @@ The current implementation composes four existing AI Statistician artifacts:
    blocker counts that explain why an accepted LLM route still needs another
    literature/library/prover-feedback pass. The publication-bundle audit
    recomputes those readiness aggregates from packaged evaluation JSONL rows and
-   rejects bundles whose evaluation manifest silently drops or rewrites them.
+   rejects bundles whose evaluation manifest silently drops or rewrites them, or
+   whose row/seed blocker labels fall outside the published route-adoption
+   blocker taxonomy. The taxonomy is also a first-class bundle contract, so
+   non-Lean adapters can consume the exact status/blocker vocabulary without
+   importing AI Statistician runtime code.
    Accepted responses must also satisfy primitive-set coherence: selected
    primitives must appear in the standalone route and formal-realization DAG,
    and wrapper/bridge/source-port/new-theory delta primitives must have
@@ -1064,8 +1181,20 @@ The current implementation composes four existing AI Statistician artifacts:
    containing a target prover family, library snapshot reference, primitive
    coverage labels, source references, and candidate declarations. Downstream
    library-coverage artifacts re-emit those declarations as target-aware
-   `candidate_declaration_rows`. This is the independent reuse entry point for
-   systems that do not run the AI Statistician audit pipeline.
+   `candidate_declaration_rows`. Standalone validation rejects route-level or
+   primitive-level declaration rows whose explicit `target_prover_family`
+   disagrees with the input, route, or replan target, while accepting aliases
+   such as Coq/Coq8 for Rocq. A standalone seed must declare a target prover
+   family either at the input level or through route/replan metadata; when the
+   top-level field is omitted and the route target is unambiguous, the planner
+   preserves that route target instead of falling back to a Lean default. This is
+   also reflected in `by_target_prover_family`; mixed standalone manifests use
+   a `mixed:<targets>` manifest target while each route row keeps its concrete
+   prover family. Target intake therefore writes route-level prover families
+   into standalone seeds, and LLM route-planner request packets use the
+   effective route target rather than a top-level default. This is the
+   independent reuse entry point for systems that do not run the AI Statistician
+   audit pipeline.
 
 7. `formalization_gap_planner_portable_plan_audit`
    Validates any portable planner manifest before downstream reuse. It checks
@@ -1166,13 +1295,14 @@ The current implementation composes four existing AI Statistician artifacts:
    the local corpus has no match. It is route evidence, not proof evidence.
 
 18. `formalization_gap_planner_local_formal_source_adapter`
-   Replaces Lean-library-grounding rows with local declaration-search evidence
-   from the formal-source backend and optional Lean RAG dependency DB, while
+   Replaces formal-library-grounding rows, including legacy
+   `lean_library_grounding` rows, with local declaration-search evidence from
+   the formal-source backend and optional Lean RAG dependency DB, while
    preserving other adapter responses.
 
 19. `formalization_gap_planner_local_proof_state_adapter`
    Replaces proof-state-feedback rows with local Lean diagnostics and residual
-   goals, while preserving merged literature and Lean-grounding responses. It
+   goals, while preserving merged literature and formal-grounding responses. It
    blocks `sorry`/`admit`/`axiom` skeletons, classifies non-Lean skeletons as
    statement-materialization gaps, and remains diagnostic feedback, not proof
    evidence.
@@ -1251,7 +1381,7 @@ The current implementation composes four existing AI Statistician artifacts:
 
 27. `formalization_gap_planner_benchmark`
    Exports reusable route-truth labels for evaluation: required primitives,
-   actual existing reuse, actual Lean delta, coverage classification, source
+   actual existing reuse, actual formalization delta, coverage classification, source
    references, proof-evidence boundaries, and the benchmark route-row JSON
    Schema with schema-valid counts.
 
@@ -1262,7 +1392,7 @@ The current implementation composes four existing AI Statistician artifacts:
    non-proof-evidence boundaries.
 
 29. `formalization_gap_planner_ablation_study`
-   Compares the observed planner with no-literature, no-Lean-grounding,
+   Compares the observed planner with no-literature, no-formal-grounding,
    no-proof-feedback, and no-route-planner counterfactuals. It is planning
    diagnostic evidence only, not theorem proof evidence. It exports
    `formalization_gap_planner_ablation_study_row.schema.json` and the
@@ -1312,9 +1442,9 @@ The current implementation composes four existing AI Statistician artifacts:
    self-contained research
    supplement/reuse bundle. It also writes a
    machine-readable schema catalog for all reusable bundle contracts, a
-   reproduction manifest with downstream commands, including the local
-   adapter/refinement loop and feedback LLM route-planner rerun, and runnable
-   example inputs. The bundle
+   reproduction manifest with downstream commands, including request-bound
+   LLM route-payload validation, the local adapter/refinement loop, and
+   feedback LLM route-planner rerun, and runnable example inputs. The bundle
 records the proof boundary and remains route/planning evidence only. The
 reuse-smoke manifest exposes the schema catalog and schema as top-level
 artifacts for external users. The reproduction manifest includes a
@@ -1385,7 +1515,7 @@ A publication-quality evaluation should measure:
 
 - route recall and precision against held-out human or kernel-verified route
   truth
-- Lean-delta precision and recall for the selected wrappers, bridges, source
+- formalization-delta precision and recall for the selected wrappers, bridges, source
   ports, and new primitive obligations
 - coverage classification accuracy for `already exists`, `wrapper`, `bridge`,
   `source discovery`, and `new theory` labels

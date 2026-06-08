@@ -115,6 +115,8 @@ def test_prover_adapter_contract_validates_cross_prover_mapping_response() -> No
     assert payload["n_packets_with_standalone_input_trace"] == 1
     assert payload["n_packets_missing_standalone_input_trace"] == 0
     assert payload["n_packets_with_replan_metadata_trace"] == 1
+    assert payload["n_packets_with_llm_route_adoption_status"] == 0
+    assert payload["n_packet_llm_route_adoption_blockers"] == 0
     assert payload["n_packet_schema_valid"] == payload["n_packets"]
     assert payload["n_response_present"] == 1
     assert payload["n_response_contract_ok"] == 1
@@ -200,6 +202,124 @@ def test_prover_adapter_contract_validates_cross_prover_mapping_response() -> No
     assert (
         out_dir / "formalization_gap_planner_prover_adapter_packets.jsonl"
     ).exists()
+
+
+def test_prover_adapter_contract_rejects_kernel_ready_mapping_for_pending_llm_route() -> None:
+    root = Path("runs/test_formalization_gap_planner_prover_adapter_contract_pending_llm")
+    plan_dir = root / "plan"
+    out_dir = root / "contract"
+    response_jsonl = root / "adapter_responses.jsonl"
+    shutil.rmtree(root, ignore_errors=True)
+    plan_dir.mkdir(parents=True, exist_ok=True)
+    (plan_dir / "goal_conditioned_minimal_formalization_plan_manifest.json").write_text(
+        json.dumps(
+            {
+                "component_name": LIBRARY_AWARE_FORMALIZATION_GAP_PLANNER_NAME,
+                "portable_schema_id": PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_ID,
+                "library_snapshot_ref": "lean_fixture_snapshot",
+                "rows": [
+                    {
+                        "goal_plan_id": "goal:pending",
+                        "route_id": "route:pending",
+                        "display_name": "pending llm route",
+                        "target_prover_family": "lean4",
+                        "standalone_input_trace": {
+                            "source_route_id": "route:pending",
+                            "llm_route_planner_route_adoption_status": (
+                                "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+                            ),
+                            "llm_route_planner_route_adoption_blockers": [
+                                "search_requests_pending_evidence",
+                                "planner_next_actions_pending_evidence",
+                            ],
+                        },
+                        "route_alignment_edges": [
+                            {
+                                "source": "informal:rank_uniformity",
+                                "target": "formal:rank_uniformity_bridge",
+                                "kind": "aligned_to_formal_realization_candidate",
+                                "edge_type": "informal_to_formal_alignment",
+                                "primitive": "rank_uniformity",
+                                "action_class": "bridge_lemma",
+                                "alignment_status": "bridge_delta",
+                                "proof_evidence_status": (
+                                    "GOAL_CONDITIONED_MINIMAL_FORMALIZATION_PLAN_NOT_PROOF_EVIDENCE"
+                                ),
+                                "proof_evidence_boundary": "not theorem proof evidence",
+                            }
+                        ],
+                        "portable_work_packets": [
+                            {
+                                "primitive": "rank_uniformity",
+                                "action_class": "bridge_lemma",
+                                "expected_cost": "small",
+                                "worker_packet_kind": "prove_bridge_lemma",
+                                "required_gate": "target prover kernel verification",
+                            }
+                        ],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    response_jsonl.write_text(
+        json.dumps(
+            {
+                "goal_plan_id": "goal:pending",
+                "route_id": "route:pending",
+                "primitive": "rank_uniformity",
+                "target_prover_family": "rocq",
+                "mapping_status": "ready_for_kernel_attempt",
+                "translated_statement": "Theorem rank_uniformity : True.",
+                "translated_imports": ["Coq.Init.Logic"],
+                "verifier_command": "coqc RankUniformity.v",
+                "library_snapshot_ref": "rocq_fixture_snapshot",
+                "semantic_alignment_notes": (
+                    "The target statement maps the primitive, but the source route "
+                    "is still blocked by LLM planner adoption gates."
+                ),
+                "kernel_verified": False,
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_prover_adapter_contract(
+        plan_dir,
+        out_dir,
+        target_prover_family="rocq",
+        library_snapshot_ref="rocq_fixture_snapshot",
+        adapter_response_jsonl=response_jsonl,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_packets_with_llm_route_adoption_status"] == 1
+    assert payload["n_packets_llm_route_adoption_pending_refinement"] == 1
+    assert payload["n_packet_llm_route_adoption_blockers"] == 2
+    assert payload["by_packet_llm_route_adoption_status"] == {
+        "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
+    }
+    packet = payload["packets"][0]
+    assert packet["llm_route_planner_route_adoption_status"] == (
+        "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+    )
+    assert list(packet["llm_route_planner_route_adoption_blockers"]) == [
+        "search_requests_pending_evidence",
+        "planner_next_actions_pending_evidence",
+    ]
+    validation = payload["response_validation_rows"][0]
+    assert validation["acceptance_status"] == (
+        "REJECTED_PROVER_ADAPTER_MAPPING_CONTRACT"
+    )
+    assert any(
+        "ready_for_kernel_attempt requires llm_route_planner_route_adoption_status"
+        in error
+        for error in validation["errors"]
+    )
 
 
 def test_prover_adapter_contract_rejects_kernel_claims_in_mapping_layer() -> None:

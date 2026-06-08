@@ -569,14 +569,16 @@ def _handoff_row(
             overlay_row.get("revised_lean_realization_dag_nodes", []),
         )
     )
-    lean_nodes = _dict_tuple(
-        overlay_row.get("revised_lean_realization_dag_nodes", formal_nodes)
-    )
     alignment_edges = _dict_tuple(overlay_row.get("revised_route_alignment_edges", []))
     unaligned_primitives = _str_tuple(overlay_row.get("unaligned_primitives", []))
     target_prover_family = _target_prover_family_for_replan_route(
         plan_row,
         overlay_row,
+    )
+    lean_nodes = _lean_alias_nodes_for_target(
+        target_prover_family,
+        _dict_tuple(overlay_row.get("revised_lean_realization_dag_nodes", [])),
+        fallback_nodes=formal_nodes,
     )
     if not overlay_id:
         errors.append("route_revision_overlay_id missing")
@@ -685,12 +687,14 @@ def _standalone_seed(
         for row in rows
         if row.ok
     )
-    return {
+    seed_target = target_prover_family or (
+        route_targets[0] if len(set(route_targets)) == 1 else ""
+    )
+    if not seed_target and not route_targets:
+        seed_target = str(plan_payload.get("target_prover_family", ""))
+    seed: dict[str, object] = {
         "schema_version": FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_SCHEMA_VERSION,
         "component_name": FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_COMPONENT,
-        "target_prover_family": target_prover_family
-        or (route_targets[0] if len(set(route_targets)) == 1 else "")
-        or str(plan_payload.get("target_prover_family", "")),
         "library_snapshot_ref": library_snapshot_ref
         or str(plan_payload.get("library_snapshot_ref", "")),
         "background_primitives": _str_tuple(
@@ -704,6 +708,9 @@ def _standalone_seed(
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
     }
+    if seed_target:
+        seed["target_prover_family"] = seed_target
+    return seed
 
 
 def _standalone_route(
@@ -1027,21 +1034,34 @@ def _merged_source_refs(
     plan_row: dict[str, Any],
     overlay_row: dict[str, Any],
 ) -> tuple[str, ...]:
+    refs: list[str] = []
+    refs.extend(_str_tuple(overlay_row.get("source_refs", [])))
+    refs.extend(_source_refs_from_snippets(overlay_row.get("source_snippets", [])))
+    for node in _node_index(plan_row).values():
+        refs.extend(_source_refs_from_row(node))
+    for node in _dict_tuple(
+        overlay_row.get("revised_informal_knowledge_dag_nodes", [])
+    ):
+        refs.extend(_source_refs_from_row(node))
+    return _str_tuple(refs)
+
+
+def _source_refs_from_row(row: dict[str, object]) -> tuple[str, ...]:
     return _str_tuple(
         [
-            *overlay_row.get("source_refs", []),
-            *(
-                source
-                for node in _node_index(plan_row).values()
-                for source in node.get("source_refs", [])
-            ),
-            *(
-                node.get("source_ref", "")
-                for node in overlay_row.get("revised_informal_knowledge_dag_nodes", [])
-                if isinstance(node, dict)
-            ),
+            *(_str_tuple(row.get("source_ref", ""))),
+            *_str_tuple(row.get("source_refs", [])),
+            *_source_refs_from_snippets(row.get("source_snippets", [])),
         ]
     )
+
+
+def _source_refs_from_snippets(values: Any) -> tuple[str, ...]:
+    refs: list[str] = []
+    for snippet in _dict_tuple(values):
+        refs.extend(_str_tuple(snippet.get("source_ref", "")))
+        refs.extend(_str_tuple(snippet.get("source_refs", [])))
+    return _str_tuple(refs)
 
 
 def _target_prover_family_for_replan_route(
@@ -1068,6 +1088,28 @@ def _target_prover_family_for_replan_route(
         if text:
             return text
     return "lean4"
+
+
+def _lean_alias_nodes_for_target(
+    target_prover_family: str,
+    nodes: tuple[dict[str, object], ...],
+    *,
+    fallback_nodes: tuple[dict[str, object], ...] = (),
+) -> tuple[dict[str, object], ...]:
+    if not _is_lean_target_prover(target_prover_family):
+        return tuple()
+    return nodes or fallback_nodes
+
+
+def _is_lean_target_prover(target_prover_family: str) -> bool:
+    key = re.sub(
+        r"[^a-z0-9]+",
+        "_",
+        str(target_prover_family).strip().lower(),
+    ).strip("_")
+    return key in {"lean", "lean4", "lean_4"} or key.startswith(
+        ("lean4_", "lean_4_", "lean_")
+    )
 
 
 def _row_index(rows: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:

@@ -38,10 +38,17 @@ from ai_statistician.formalization_gap_planner_library_coverage_map import (
 )
 from ai_statistician.formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID,
+    LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_MANIFEST_SCHEMA_ID,
+    LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID,
     LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
+    PROOF_EVIDENCE_BOUNDARY as LLM_ROUTE_PLANNER_PROOF_EVIDENCE_BOUNDARY,
+    ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_ID,
     export_formalization_gap_planner_llm_route_planner,
+    route_adoption_blocker_taxonomy_json_schema,
+    validate_formalization_gap_planner_llm_route_planner_response_payloads,
+    validate_route_adoption_blocker_taxonomy_payload,
 )
 from ai_statistician.formalization_gap_planner_primitive_action_queue import (
     PROOF_EVIDENCE_STATUS as PRIMITIVE_ACTION_QUEUE_PROOF_EVIDENCE_STATUS,
@@ -109,6 +116,10 @@ from ai_statistician.formalization_gap_planner_publication_bundle import (
     schema_catalog_json_schema,
     validate_schema_catalog_payload,
 )
+from ai_statistician.formalization_gap_planner_publication_bundle_audit import (
+    PROOF_EVIDENCE_BOUNDARY_RESOURCE_REQUEST,
+    _resource_request_dispatch_spec_errors,
+)
 from ai_statistician.formalization_gap_planner_target_intake import (
     target_intake_row_json_schema,
 )
@@ -162,6 +173,111 @@ def _write_prompt_only_llm_route_planner_artifact(root: Path) -> Path:
     return out_dir
 
 
+def _write_llm_response_payload_validation_artifact(root: Path) -> Path:
+    root.mkdir(parents=True, exist_ok=True)
+    response_json = root / "response_payload.json"
+    response_json.write_text(
+        json.dumps(
+            {
+                "informal_knowledge_dag_nodes": [
+                    {
+                        "node_id": "informal:rank_uniformity",
+                        "claim": "Exchangeability gives a finite-rank route.",
+                        "depends_on": [],
+                        "source_refs": ["fixture_source"],
+                        "source_search_status": "SOURCE_BACKED",
+                    }
+                ],
+                "lean_realization_dag_nodes": [
+                    {
+                        "node_id": "formal:rank_uniformity_bridge",
+                        "primitive": "rank_uniformity",
+                        "coverage_bucket": "bridge_needed",
+                        "formalization_action": "prove_bridge",
+                    }
+                ],
+                "route_alignment_edges": [
+                    {
+                        "informal_node_id": "informal:rank_uniformity",
+                        "formal_node_id": "formal:rank_uniformity_bridge",
+                        "alignment_status": "bridge_needed",
+                        "alignment_rationale": "One bridge lemma is enough.",
+                    }
+                ],
+                "minimal_delta_plan": {
+                    "selected_primitives": ["rank_uniformity"],
+                    "cost_model_version": "formalization_gap_planner_minimal_delta_cost_policy:1",
+                    "route_cost": 4,
+                    "primitive_costs": [
+                        {
+                            "primitive": "rank_uniformity",
+                            "coverage_bucket": "bridge_needed",
+                            "base_cost": 4,
+                            "proof_difficulty_cost": 0,
+                            "import_cone_cost": 0,
+                            "definition_or_typeclass_cost": 0,
+                            "semantic_risk_cost": 0,
+                            "reuse_credit": 0,
+                            "total_cost": 4,
+                            "cost_rationale": "A focused bridge lemma is minimal.",
+                        }
+                    ],
+                    "and_or_cost_graph": {
+                        "graph_kind": "AND_OR_ROUTE_COST_GRAPH",
+                        "selected_route_option_id": "route_option:bridge",
+                        "route_options": [
+                            {
+                                "route_option_id": "route_option:bridge",
+                                "selected": True,
+                                "selected_primitives": ["rank_uniformity"],
+                                "route_cost": 4,
+                                "cost_rationale": "The bridge route is cheapest.",
+                            }
+                        ],
+                        "or_nodes": [
+                            {
+                                "node_id": "or:rank_uniformity",
+                                "choices": ["route_option:bridge"],
+                                "selection_rationale": "Only one bounded route is needed.",
+                            }
+                        ],
+                        "and_edges": [
+                            {
+                                "route_option_id": "route_option:bridge",
+                                "requires": ["rank_uniformity"],
+                            }
+                        ],
+                    },
+                    "minimality_rationale": "Add only the rank-uniformity bridge.",
+                },
+                "standalone_route": {
+                    "route_id": "rank_route",
+                    "display_name": "rank route",
+                    "theorem_statement": "A finite-rank route follows from exchangeability.",
+                    "source_refs": ["fixture_source"],
+                    "primitives": [
+                        {
+                            "primitive": "rank_uniformity",
+                            "coverage_status": "bridge_needed",
+                            "source_refs": ["fixture_source"],
+                        }
+                    ],
+                },
+                "proof_evidence_boundary": LLM_ROUTE_PLANNER_PROOF_EVIDENCE_BOUNDARY,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    out_dir = root / "payload_validation"
+    payload = validate_formalization_gap_planner_llm_route_planner_response_payloads(
+        response_json,
+        out_dir,
+    )
+    assert payload["all_ok"]
+    return out_dir
+
+
 def _fixture_prover_adapter_packet() -> dict[str, object]:
     return {
         "schema_version": 1,
@@ -190,10 +306,24 @@ def _fixture_prover_adapter_packet() -> dict[str, object]:
             "target_prover_family": "rocq",
             "target_library_snapshot_ref": "rocq_fixture",
             "trace_target_projection": "target_prover_adapter_contract",
+            "llm_route_planner_route_adoption_status": (
+                "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+            ),
+            "llm_route_planner_route_adoption_blockers": [
+                "search_requests_pending_evidence",
+                "uncertainty_flags_require_review",
+            ],
             "has_replan_metadata": True,
             "replan_metadata": {"revision_reason": "fixture route revision"},
             "applied_hook_kinds": ["resource_response_ledger"],
         },
+        "llm_route_planner_route_adoption_status": (
+            "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+        ),
+        "llm_route_planner_route_adoption_blockers": [
+            "search_requests_pending_evidence",
+            "uncertainty_flags_require_review",
+        ],
         "route_alignment_edge": {
             "source": "informal:rank_uniformity",
             "target": "formal:rank_uniformity",
@@ -282,6 +412,15 @@ def _fixture_cross_prover_matrix_row(
         "n_packets_with_standalone_input_trace": 1,
         "n_packets_missing_standalone_input_trace": 0,
         "n_packets_with_replan_metadata_trace": 1,
+        "n_packets_with_llm_route_adoption_status": 1,
+        "n_packets_llm_route_adoption_ready": 0,
+        "n_packets_llm_route_adoption_pending_refinement": 1,
+        "n_packets_llm_route_adoption_rejected": 0,
+        "n_packets_llm_route_adoption_awaiting_response": 0,
+        "n_packet_llm_route_adoption_blockers": 2,
+        "by_packet_llm_route_adoption_status": {
+            "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
+        },
         "n_response_present": 0,
         "n_awaiting_adapter_mapping": 1,
         "n_response_contract_ok": 0,
@@ -311,6 +450,15 @@ def _fixture_cross_prover_target_summary(
         "n_total_packets_with_standalone_input_trace": 1,
         "n_total_packets_missing_standalone_input_trace": 0,
         "n_total_packets_with_replan_metadata_trace": 1,
+        "n_total_packets_with_llm_route_adoption_status": 1,
+        "n_total_packets_llm_route_adoption_ready": 0,
+        "n_total_packets_llm_route_adoption_pending_refinement": 1,
+        "n_total_packets_llm_route_adoption_rejected": 0,
+        "n_total_packets_llm_route_adoption_awaiting_response": 0,
+        "n_total_packet_llm_route_adoption_blockers": 2,
+        "by_total_packet_llm_route_adoption_status": {
+            "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
+        },
         "target_rows": [
             {
                 "target_prover_family": target,
@@ -320,6 +468,15 @@ def _fixture_cross_prover_target_summary(
                 "n_packets_with_standalone_input_trace": 1,
                 "n_packets_missing_standalone_input_trace": 0,
                 "n_packets_with_replan_metadata_trace": 1,
+                "n_packets_with_llm_route_adoption_status": 1,
+                "n_packets_llm_route_adoption_ready": 0,
+                "n_packets_llm_route_adoption_pending_refinement": 1,
+                "n_packets_llm_route_adoption_rejected": 0,
+                "n_packets_llm_route_adoption_awaiting_response": 0,
+                "n_packet_llm_route_adoption_blockers": 2,
+                "by_packet_llm_route_adoption_status": {
+                    "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
+                },
                 "n_response_validation_rows": 1,
                 "aggregate_packet_jsonl_path": (
                     "formalization_gap_planner_cross_prover_packets.jsonl"
@@ -460,6 +617,9 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
     shutil.rmtree(root, ignore_errors=True)
     primary_dir = _write_prompt_only_llm_route_planner_artifact(root / "primary")
     feedback_dir = _write_prompt_only_llm_route_planner_artifact(root / "feedback")
+    validation_dir = _write_llm_response_payload_validation_artifact(
+        root / "payload_validation"
+    )
     out_dir = root / "bundle"
 
     code = main(
@@ -469,6 +629,8 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
             str(primary_dir),
             "--formalization-gap-planner-feedback-llm-route-planner-dir",
             str(feedback_dir),
+            "--formalization-gap-planner-llm-route-planner-response-payload-validation-dir",
+            str(validation_dir),
             "--out",
             str(out_dir),
         ]
@@ -491,6 +653,12 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
         "requested"
     ]
     assert optional_by_name["formalization_gap_planner_feedback_llm_route_planner"]["ok"]
+    assert optional_by_name[
+        "formalization_gap_planner_llm_route_planner_response_payload_validation"
+    ]["requested"]
+    assert optional_by_name[
+        "formalization_gap_planner_llm_route_planner_response_payload_validation"
+    ]["ok"]
     assert (
         out_dir
         / "artifacts"
@@ -502,6 +670,12 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
         / "artifacts"
         / "formalization_gap_planner_feedback_llm_route_planner"
         / "formalization_gap_planner_llm_route_planner_manifest.json"
+    ).exists()
+    assert (
+        out_dir
+        / "artifacts"
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation"
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.json"
     ).exists()
 
 
@@ -1066,12 +1240,12 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     runtime_handoff_audit_row = {
         "schema_version": 1,
         "check_id": "runtime_handoff_audit:fixture",
-        "check_name": "row_prompt_cli_cost_control:fixture",
-        "category": "cost_control",
+        "check_name": "row_llm_prompt_has_component_resource_registry_context",
+        "category": "component_resource_registry",
         "handoff_id": "runtime_formalization_gap_planner_handoff:fixture",
         "bridge_id": "runtime_formalization_gap_planner_bridge:fixture",
-        "expected": "Anthropic auto prompt-only command without --invoke-provider",
-        "observed": "--provider anthropic --model-tier auto --max-repair-attempts 1",
+        "expected": "prompt packets include component/resource/contract rows",
+        "observed": "registry_components=2 registry_resources=3 registry_contracts=3",
         "ok": True,
         "severity": "error",
         "errors": [],
@@ -1095,6 +1269,10 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
                 "n_standalone_smoke_ok": 1,
                 "n_llm_prompt_smoke_ok": 1,
                 "n_llm_prompt_packets": 1,
+                "n_component_resource_registry_smoke_ok": 1,
+                "n_component_resource_registry_components_in_prompt": 2,
+                "n_component_resource_registry_resources_in_prompt": 3,
+                "n_component_resource_registry_contracts_in_prompt": 3,
                 "all_ok": True,
                 "checks": [runtime_handoff_audit_row],
                 "proof_evidence_status": (
@@ -1310,6 +1488,15 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
                 "n_total_packets_with_standalone_input_trace": 1,
                 "n_total_packets_missing_standalone_input_trace": 0,
                 "n_total_packets_with_replan_metadata_trace": 1,
+                "n_total_packets_with_llm_route_adoption_status": 1,
+                "n_total_packets_llm_route_adoption_ready": 0,
+                "n_total_packets_llm_route_adoption_pending_refinement": 1,
+                "n_total_packets_llm_route_adoption_rejected": 0,
+                "n_total_packets_llm_route_adoption_awaiting_response": 0,
+                "n_total_packet_llm_route_adoption_blockers": 2,
+                "by_total_packet_llm_route_adoption_status": {
+                    "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
+                },
                 "packet_count_consistent": True,
                 "alignment_packet_count_consistent": True,
                 "standalone_input_trace_packet_count_consistent": True,
@@ -1595,11 +1782,52 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
             (
                 out_dir
                 / "contract"
+                / "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.schema.json"
+            ).read_text(encoding="utf-8")
+        )["$id"]
+        == LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_MANIFEST_SCHEMA_ID
+    )
+    assert (
+        json.loads(
+            (
+                out_dir
+                / "contract"
+                / "formalization_gap_planner_llm_route_planner_response_payload_validation_row.schema.json"
+            ).read_text(encoding="utf-8")
+        )["$id"]
+        == LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID
+    )
+    assert (
+        json.loads(
+            (
+                out_dir
+                / "contract"
                 / "formalization_gap_planner_llm_route_planner_row.schema.json"
             ).read_text(encoding="utf-8")
         )["$id"]
         == LLM_ROUTE_PLANNER_ROW_SCHEMA_ID
     )
+    route_adoption_taxonomy_schema = json.loads(
+        (
+            out_dir
+            / "contract"
+            / "formalization_gap_planner_route_adoption_blocker_taxonomy.schema.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert route_adoption_taxonomy_schema == route_adoption_blocker_taxonomy_json_schema()
+    route_adoption_taxonomy_contract = json.loads(
+        (
+            out_dir
+            / "contract"
+            / "formalization_gap_planner_route_adoption_blocker_taxonomy.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert route_adoption_taxonomy_contract["schema_id"] == (
+        ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_ID
+    )
+    assert validate_route_adoption_blocker_taxonomy_payload(
+        route_adoption_taxonomy_contract
+    ) == ()
     assert (
         out_dir / "contract" / "formalization_gap_planner_route_revision_overlay_row.schema.json"
     ).exists()
@@ -1758,7 +1986,17 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     assert "llm_route_planner_request_schema" in schema_catalog_entry_names
     assert "llm_route_planner_response_schema" in schema_catalog_entry_names
     assert "llm_route_planner_response_payload_schema" in schema_catalog_entry_names
+    assert (
+        "llm_route_planner_response_payload_validation_manifest_schema"
+        in schema_catalog_entry_names
+    )
+    assert (
+        "llm_route_planner_response_payload_validation_row_schema"
+        in schema_catalog_entry_names
+    )
     assert "llm_route_planner_row_schema" in schema_catalog_entry_names
+    assert "route_adoption_blocker_taxonomy_schema" in schema_catalog_entry_names
+    assert "route_adoption_blocker_taxonomy_contract" in schema_catalog_entry_names
     assert "runtime_handoff_audit_row_schema" in schema_catalog_entry_names
     assert all(
         (out_dir / row["relative_path"]).exists()
@@ -1897,6 +2135,36 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     assert "llm_route_planner_request_contract" in contract_payload
     assert "llm_route_planner_response_contract" in contract_payload
     assert "llm_route_planner_response_payload_contract" in contract_payload
+    assert "llm_model_policy_contract" in contract_payload
+    llm_model_policy = json.loads(
+        (
+            out_dir / "contract" / "ai_statistician_llm_model_policy.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert llm_model_policy["component_name"] == "ai_statistician_llm_model_policy"
+    assert llm_model_policy["default_live_generator_provider"] == "anthropic"
+    assert llm_model_policy["latest_claude_models_by_tier"] == {
+        "haiku": "claude-haiku-4-5-20251001",
+        "sonnet": "claude-sonnet-4-6",
+        "opus": "claude-opus-4-8",
+    }
+    assert "codex" not in llm_model_policy["supported_live_generator_providers"]
+    assert "codex_exec" not in llm_model_policy["supported_live_generator_providers"]
+    assert set(llm_model_policy["prohibited_generator_providers"]) == {
+        "codex",
+        "codex_exec",
+    }
+    assert (
+        out_dir / "contract" / "ai_statistician_llm_model_policy.md"
+    ).exists()
+    assert (
+        "llm_route_planner_response_payload_validation_manifest_contract"
+        in contract_payload
+    )
+    assert (
+        "llm_route_planner_response_payload_validation_row_contract"
+        in contract_payload
+    )
     assert "llm_route_planner_row_contract" in contract_payload
     assert "route_revision_overlay_row_contract" in contract_payload
     assert "route_stability_audit_row_contract" in contract_payload
@@ -1938,6 +2206,18 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         row["entrypoint"] == "formalization-gap-planner-llm-route-planner"
         for row in reproduction_payload["entrypoints"]
     )
+    assert any(
+        row["entrypoint"]
+        == "formalization-gap-planner-llm-route-planner-response-payload-validate"
+        for row in reproduction_payload["entrypoints"]
+    )
+    ablation_entrypoint = next(
+        row
+        for row in reproduction_payload["entrypoints"]
+        if row["entrypoint"] == "formalization-gap-planner-ablation-study"
+    )
+    assert "no-formal-grounding" in ablation_entrypoint["purpose"]
+    assert "no-Lean" not in ablation_entrypoint["purpose"]
     assert "run_llm_route_planner" in command_by_name
     assert (
         "formalization-gap-planner-llm-route-planner"
@@ -1947,11 +2227,33 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         "--formalization-gap-planner-component-resource-registry-dir"
         in command_by_name["run_llm_route_planner"]
     )
+    assert (
+        "--formalization-gap-planner-target-intake-dir"
+        in command_by_name["run_llm_route_planner"]
+    )
     assert "--model-tier auto" in command_by_name["run_llm_route_planner"]
     assert "--max-repair-attempts 1" in command_by_name["run_llm_route_planner"]
     assert (
+        "<work_dir>/formalization_gap_planner_target_intake"
+        in command_by_name["run_llm_route_planner"]
+    )
+    assert (
         "<bundle_dir>/component_resource_registry"
         in command_by_name["run_llm_route_planner"]
+    )
+    assert "validate_llm_route_payloads" in command_by_name
+    assert (
+        "formalization-gap-planner-llm-route-planner-response-payload-validate"
+        in command_by_name["validate_llm_route_payloads"]
+    )
+    assert "--request-context" in command_by_name["validate_llm_route_payloads"]
+    assert (
+        "<work_dir>/formalization_gap_planner_llm_route_planner"
+        in command_by_name["validate_llm_route_payloads"]
+    )
+    assert (
+        "<reviewed_llm_route_payload_json>"
+        in command_by_name["validate_llm_route_payloads"]
     )
     assert "run_feedback_llm_route_planner" in command_by_name
     assert (
@@ -1966,8 +2268,16 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         "--formalization-gap-planner-component-resource-registry-dir"
         in command_by_name["run_feedback_llm_route_planner"]
     )
+    assert (
+        "--formalization-gap-planner-target-intake-dir"
+        in command_by_name["run_feedback_llm_route_planner"]
+    )
     assert "--model-tier auto" in command_by_name["run_feedback_llm_route_planner"]
     assert "--max-repair-attempts 1" in command_by_name["run_feedback_llm_route_planner"]
+    assert (
+        "<work_dir>/formalization_gap_planner_target_intake"
+        in command_by_name["run_feedback_llm_route_planner"]
+    )
     assert (
         "<bundle_dir>/component_resource_registry"
         in command_by_name["run_feedback_llm_route_planner"]
@@ -1976,9 +2286,56 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         "formalization_gap_planner_route_replan_handoff/"
         in command_by_name["run_feedback_llm_route_planner"]
     )
+    assert "validate_feedback_llm_route_payloads" in command_by_name
+    assert (
+        "formalization-gap-planner-llm-route-planner-response-payload-validate"
+        in command_by_name["validate_feedback_llm_route_payloads"]
+    )
+    assert (
+        "--request-context"
+        in command_by_name["validate_feedback_llm_route_payloads"]
+    )
+    assert (
+        "<work_dir>/formalization_gap_planner_feedback_llm_route_planner"
+        in command_by_name["validate_feedback_llm_route_payloads"]
+    )
+    assert (
+        "<reviewed_feedback_llm_route_payload_json>"
+        in command_by_name["validate_feedback_llm_route_payloads"]
+    )
     assert (
         "formalization_gap_planner_llm_route_planner_standalone_seed.json"
         in command_by_name["run_standalone_planner"]
+    )
+    assert any(
+        row["entrypoint"] == "formalization-gap-planner-reuse-smoke"
+        for row in reproduction_payload["entrypoints"]
+    )
+    assert "run_reuse_smoke" in command_by_name
+    assert (
+        "formalization-gap-planner-reuse-smoke"
+        in command_by_name["run_reuse_smoke"]
+    )
+    assert (
+        "examples/formalization_gap_planner_target_intake_example.json"
+        in command_by_name["run_reuse_smoke"]
+    )
+    assert "--llm-route-planner-provider anthropic" in command_by_name["run_reuse_smoke"]
+    assert "--feedback-llm-route-planner-provider anthropic" in command_by_name["run_reuse_smoke"]
+    assert "--llm-route-planner-invoke-provider" not in command_by_name["run_reuse_smoke"]
+    assert "--feedback-llm-route-planner-invoke-provider" not in command_by_name["run_reuse_smoke"]
+    assert "run_runtime_handoff_reuse_smoke" in command_by_name
+    assert (
+        "runtime_formalization_gap_planner_target_intake"
+        in command_by_name["run_runtime_handoff_reuse_smoke"]
+    )
+    assert (
+        "formalization-gap-planner-reuse-smoke"
+        in command_by_name["run_runtime_handoff_reuse_smoke"]
+    )
+    assert (
+        "--feedback-llm-route-planner-invoke-provider"
+        not in command_by_name["run_runtime_handoff_reuse_smoke"]
     )
     assert (
         "artifacts/formalization_gap_planner_feedback_llm_route_planner/formalization_gap_planner_llm_route_planner_manifest.json"
@@ -2065,6 +2422,14 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         in reproduction_payload["bundle_relative_artifacts"]
     )
     assert (
+        "contract/ai_statistician_llm_model_policy.json"
+        in reproduction_payload["bundle_relative_artifacts"]
+    )
+    assert (
+        "contract/ai_statistician_llm_model_policy.md"
+        in reproduction_payload["bundle_relative_artifacts"]
+    )
+    assert (
         "contract/formalization_gap_planner_target_intake_row.schema.json"
         in reproduction_payload["bundle_relative_artifacts"]
     )
@@ -2134,6 +2499,14 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     )
     assert (
         "contract/formalization_gap_planner_llm_route_planner_row.schema.json"
+        in reproduction_payload["bundle_relative_artifacts"]
+    )
+    assert (
+        "contract/formalization_gap_planner_route_adoption_blocker_taxonomy.schema.json"
+        in reproduction_payload["bundle_relative_artifacts"]
+    )
+    assert (
+        "contract/formalization_gap_planner_route_adoption_blocker_taxonomy.json"
         in reproduction_payload["bundle_relative_artifacts"]
     )
     assert (
@@ -2227,11 +2600,20 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         for row in reproduction_payload["entrypoints"]
     )
     assert any(
+        row["entrypoint"]
+        == "formalization-gap-planner-minimal-delta-audit-feedback"
+        for row in reproduction_payload["entrypoints"]
+    )
+    assert any(
         row["entrypoint"] == "formalization-gap-planner-local-formal-source-adapter"
         for row in reproduction_payload["entrypoints"]
     )
     assert any(
         row["entrypoint"] == "formalization-gap-planner-local-proof-state-adapter"
+        for row in reproduction_payload["entrypoints"]
+    )
+    assert any(
+        row["entrypoint"] == "formalization-gap-planner-prover-adapter-feedback"
         for row in reproduction_payload["entrypoints"]
     )
     assert any(
@@ -2262,7 +2644,22 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     assert "formalization-gap-planner-local-proof-state-adapter" in command_by_name[
         "run_local_proof_state_adapter"
     ]
+    assert "formalization-gap-planner-prover-adapter-feedback" in command_by_name[
+        "run_prover_adapter_feedback"
+    ]
+    assert "formalization-gap-planner-minimal-delta-audit" in command_by_name[
+        "run_minimal_delta_audit"
+    ]
+    assert "formalization-gap-planner-minimal-delta-audit-feedback" in command_by_name[
+        "run_minimal_delta_audit_feedback"
+    ]
+    assert "formalization_gap_planner_minimal_delta_audit_feedback_adapter/" in command_by_name[
+        "run_local_literature_adapter"
+    ]
     assert "formalization_gap_planner_local_proof_state_adapter/" in command_by_name[
+        "run_prover_adapter_feedback"
+    ]
+    assert "formalization_gap_planner_prover_adapter_feedback_adapter/" in command_by_name[
         "run_refinement_evidence"
     ]
     assert "formalization-gap-planner-route-replan-handoff" in command_by_name[
@@ -2554,6 +2951,26 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         / "formalization_gap_planner_runtime_handoff_audit"
         / "formalization_gap_planner_runtime_handoff_audit_manifest.json"
     ).exists()
+    packaged_runtime_handoff_audit = json.loads(
+        (
+            out_dir
+            / "artifacts"
+            / "formalization_gap_planner_runtime_handoff_audit"
+            / "formalization_gap_planner_runtime_handoff_audit_manifest.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert packaged_runtime_handoff_audit[
+        "n_component_resource_registry_smoke_ok"
+    ] == 1
+    assert packaged_runtime_handoff_audit[
+        "n_component_resource_registry_components_in_prompt"
+    ] > 0
+    assert packaged_runtime_handoff_audit[
+        "n_component_resource_registry_resources_in_prompt"
+    ] > 0
+    assert packaged_runtime_handoff_audit[
+        "n_component_resource_registry_contracts_in_prompt"
+    ] > 0
     assert (
         out_dir
         / "artifacts"
@@ -2644,3 +3061,30 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         / "formalization_gap_planner_component_resource_registry_audit"
         / "formalization_gap_planner_component_resource_registry_audit_manifest.json"
     ).exists()
+
+
+def test_publication_bundle_audit_accepts_rocq_serapi_dispatch_surface() -> None:
+    dispatch_spec = {
+        "adapter_surface": "rocq_serapi",
+        "dispatch_kind": "frontier_mcp_or_cli",
+        "execution_command": "dispatch rocq proof-state request through rocq_lsp_serapi",
+        "expected_response_artifact": "proof_state_or_prover_feedback_response",
+        "mcp_or_cli_hint": "Rocq SerAPI/LSP adapter",
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY_RESOURCE_REQUEST,
+        "request_phase": "frontier_escalation",
+        "resource_id": "rocq_lsp_serapi",
+        "response_jsonl_contract": "formalization_gap_planner_resource_responses.jsonl",
+        "target_prover_family": "rocq",
+    }
+    row = {
+        "dispatch_spec": dispatch_spec,
+        "execution_command": dispatch_spec["execution_command"],
+        "expected_response_artifact": dispatch_spec["expected_response_artifact"],
+        "mcp_or_cli_hint": dispatch_spec["mcp_or_cli_hint"],
+        "request_payload": {"dispatch_spec": dispatch_spec},
+        "request_phase": dispatch_spec["request_phase"],
+        "resource_id": dispatch_spec["resource_id"],
+        "target_prover_family": dispatch_spec["target_prover_family"],
+    }
+
+    assert _resource_request_dispatch_spec_errors(row) == ()

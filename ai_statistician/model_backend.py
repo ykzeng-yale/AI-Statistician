@@ -20,6 +20,20 @@ DEFAULT_CLAUDE_GENERATOR_MODELS_BY_TIER = {
     "opus": DEFAULT_CLAUDE_OPUS_GENERATOR_MODEL,
 }
 CLAUDE_MODEL_TIERS = tuple(DEFAULT_CLAUDE_GENERATOR_MODELS_BY_TIER)
+ANTHROPIC_CLAUDE_TIER_ENV_VARS = {
+    "haiku": (
+        "AI_STATISTICIAN_CLAUDE_HAIKU_MODEL",
+        "AI_STATISTICIAN_ANTHROPIC_HAIKU_MODEL",
+    ),
+    "sonnet": (
+        "AI_STATISTICIAN_CLAUDE_SONNET_MODEL",
+        "AI_STATISTICIAN_ANTHROPIC_SONNET_MODEL",
+    ),
+    "opus": (
+        "AI_STATISTICIAN_CLAUDE_OPUS_MODEL",
+        "AI_STATISTICIAN_ANTHROPIC_OPUS_MODEL",
+    ),
+}
 ANTHROPIC_MODEL_SOURCE_CHECKED_DATE = "2026-06-08"
 ANTHROPIC_MODELS_OVERVIEW_URL = (
     "https://platform.claude.com/docs/en/about-claude/models/overview"
@@ -39,6 +53,13 @@ ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY = {
     "default_provider": DEFAULT_LIVE_GENERATOR_PROVIDER,
     "default_model_tier": "sonnet",
     "models_by_tier": DEFAULT_CLAUDE_GENERATOR_MODELS_BY_TIER,
+    "tier_specific_model_env_vars": ANTHROPIC_CLAUDE_TIER_ENV_VARS,
+    "global_model_override_policy": (
+        "AI_STATISTICIAN_LLM_MODEL, AI_STATISTICIAN_ANTHROPIC_MODEL, and "
+        "AI_STATISTICIAN_THEORY_MODEL are treated as Sonnet-tier defaults only. "
+        "They must not collapse Haiku/Sonnet/Opus cost-aware routing; use "
+        "tier-specific Claude env vars to override helper tiers."
+    ),
     "model_id_versioning": ANTHROPIC_MODEL_ID_VERSIONING_POLICY,
     "cost_split": {
         "sonnet": [
@@ -96,13 +117,12 @@ def default_generator_model(
         tier = (model_tier or "sonnet").strip().lower()
         if tier == "haiku":
             tier_default = DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL
-            tier_env_keys = ("AI_STATISTICIAN_CLAUDE_HAIKU_MODEL", "AI_STATISTICIAN_ANTHROPIC_HAIKU_MODEL")
         elif tier == "opus":
             tier_default = DEFAULT_CLAUDE_OPUS_GENERATOR_MODEL
-            tier_env_keys = ("AI_STATISTICIAN_CLAUDE_OPUS_MODEL", "AI_STATISTICIAN_ANTHROPIC_OPUS_MODEL")
         else:
+            tier = "sonnet"
             tier_default = DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
-            tier_env_keys = ("AI_STATISTICIAN_CLAUDE_SONNET_MODEL", "AI_STATISTICIAN_ANTHROPIC_SONNET_MODEL")
+        tier_env_keys = ANTHROPIC_CLAUDE_TIER_ENV_VARS[tier]
         tier_model = (
             env.get(tier_env_keys[0])
             or env.get(tier_env_keys[1])
@@ -127,7 +147,7 @@ def default_generator_model(
         ).strip()
     if provider == "static":
         return DEFAULT_STATIC_GENERATOR_MODEL
-    return global_model
+    return ""
 
 
 def claude_model_tier_for_model(model: str) -> str:

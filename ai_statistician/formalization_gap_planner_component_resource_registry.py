@@ -1220,7 +1220,7 @@ def _resource_specs() -> tuple[dict[str, Any], ...]:
                 "standalone_route_id",
                 "primitive_seed_rows",
                 "literature_queries",
-                "lean_grounding_queries",
+                "formal_library_grounding_queries",
             ),
         },
         {
@@ -1315,7 +1315,25 @@ def _resource_specs() -> tuple[dict[str, Any], ...]:
                 "https://huggingface.co/papers/2601.22554",
             ),
             "local_dependency": True,
+            "target_prover_families": ("lean4",),
             "evidence_contract": ("blueprint_nodes", "formal_declaration_links", "dependency_edges"),
+        },
+        {
+            "resource_id": "local_target_formal_source_index",
+            "resource_name": "Portable target formal-source index",
+            "resource_kind": "local_fallback",
+            "surface": "python_module_and_sqlite",
+            "role": (
+                "local declaration search over target-prover source roots using "
+                "the portable formal_declaration_hits contract"
+            ),
+            "local_dependency": True,
+            "target_prover_families": PORTABLE_REUSE_TARGETS,
+            "evidence_contract": (
+                "formal_declaration_hits",
+                "coverage_updates",
+                "target_prover_family",
+            ),
         },
         {
             "resource_id": "local_formal_source_index",
@@ -1564,10 +1582,11 @@ def _component_specs() -> tuple[dict[str, Any], ...]:
         {
             "component_id": "formal_library_coverage_mapping",
             "component_name": "Formal library coverage mapping",
-            "planner_stage": "informal DAG -> Lean/prover realization DAG",
+            "planner_stage": "informal DAG -> target-prover realization DAG",
             "role": "classify each informal node against available formal libraries and estimate minimal new theory",
             "required_capabilities": ("declaration search", "dependency graph traversal", "cross-prover library mapping"),
             "local_fallback_resource_ids": (
+                "local_target_formal_source_index",
                 "local_formal_source_index",
                 "local_lean_rag_dependency_graph",
             ),

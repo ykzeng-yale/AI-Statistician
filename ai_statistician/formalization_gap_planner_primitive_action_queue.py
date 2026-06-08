@@ -24,6 +24,7 @@ from .formalization_gap_planner_library_coverage_map import (
     WRAPPER_NEEDED,
     validate_library_coverage_map_row,
 )
+from .formalization_gap_planner_target_summary import target_prover_family_summary
 
 
 FORMALIZATION_GAP_PLANNER_PRIMITIVE_ACTION_QUEUE_SCHEMA_VERSION = 1
@@ -128,6 +129,10 @@ def export_formalization_gap_planner_primitive_action_queue(
     by_action_kind = Counter(row.queue_action_kind for row in rows)
     by_owner = Counter(row.owner_agent for row in rows)
     by_bucket = Counter(row.coverage_bucket for row in rows)
+    target_summary = target_prover_family_summary(
+        rows,
+        fallback_target_prover_family=manifest.get("target_prover_family", ""),
+    )
     payload: dict[str, object] = {
         "schema_version": (
             FORMALIZATION_GAP_PLANNER_PRIMITIVE_ACTION_QUEUE_SCHEMA_VERSION
@@ -137,7 +142,9 @@ def export_formalization_gap_planner_primitive_action_queue(
         "source_component": str(manifest.get("component_name", "")),
         "coverage_map_dir": str(coverage_map_dir),
         "coverage_map_manifest": str(manifest_path),
-        "target_prover_family": str(manifest.get("target_prover_family", "")),
+        "target_prover_family": target_summary["target_prover_family"],
+        "n_target_prover_families": target_summary["n_target_prover_families"],
+        "by_target_prover_family": target_summary["by_target_prover_family"],
         "library_snapshot_ref": str(manifest.get("library_snapshot_ref", "")),
         "n_coverage_rows": len(coverage_rows),
         "n_action_items": len(rows),
@@ -793,6 +800,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         "# Formalization Gap Planner Primitive Action Queue",
         "",
         f"- Action items: {payload.get('n_ok')}/{payload.get('n_action_items')}",
+        f"- Target prover family: {payload.get('target_prover_family')}",
+        f"- Target prover families: {payload.get('n_target_prover_families')}",
         f"- Target prover replay: {payload.get('n_target_prover_replay')}",
         f"- Compose existing declarations: {payload.get('n_compose_existing_declarations')}",
         f"- Write wrapper: {payload.get('n_write_wrapper')}",

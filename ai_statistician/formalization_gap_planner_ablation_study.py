@@ -22,16 +22,16 @@ FORMALIZATION_GAP_PLANNER_ABLATION_STUDY_ROW_SCHEMA_ID = (
 PROOF_EVIDENCE_STATUS = "FORMALIZATION_GAP_PLANNER_ABLATION_STUDY_NOT_PROOF_EVIDENCE"
 PROOF_EVIDENCE_BOUNDARY = (
     "Formalization gap planner ablation rows compare route-planning metrics "
-    "under counterfactual removal of literature, Lean-grounding, proof-state, "
-    "or route-planner signals. They are evaluation diagnostics, not theorem "
-    "proof evidence."
+    "under counterfactual removal of literature, formal-library grounding, "
+    "proof-state, or route-planner signals. They are evaluation diagnostics, "
+    "not theorem proof evidence."
 )
 
 
 ABLATION_VARIANTS = (
     "full_planner_observed",
     "no_literature_evidence",
-    "no_lean_grounding",
+    "no_formal_grounding",
     "no_proof_state_feedback",
     "no_route_planner",
 )
@@ -212,7 +212,7 @@ def export_formalization_gap_planner_ablation_study(
         "planner_proof_evidence_boundary": PLANNER_PROOF_EVIDENCE_BOUNDARY,
         "limitations": [
             "ablations are deterministic counterfactual diagnostics over recorded planner artifacts",
-            "no_literature and no_lean ablations remove recorded primitives rather than rerunning live tools",
+            "no_literature_evidence and no_formal_grounding ablations remove recorded primitives rather than rerunning live tools",
             "no_proof_state_feedback measures feedback-loop and replan-signal loss, not proof success",
             "kernel proof status still requires target-prover replay/calibration",
         ],
@@ -390,8 +390,8 @@ def _ablation_row(
             removed = set(_literature_primitives(plan_row))
             route_pred = _without(route_pred, removed)
             delta_pred = _without(delta_pred, removed)
-        elif variant == "no_lean_grounding":
-            removed = set(_lean_grounding_primitives(plan_row)) | set(existing_pred)
+        elif variant == "no_formal_grounding":
+            removed = set(_formal_grounding_primitives(plan_row)) | set(existing_pred)
             route_pred = _without(route_pred, removed)
             existing_pred = _without(existing_pred, removed)
             coverage = 0.0 if removed else coverage
@@ -521,7 +521,7 @@ def _literature_primitives(plan_row: dict[str, Any]) -> tuple[str, ...]:
     return _str_tuple(primitives)
 
 
-def _lean_grounding_primitives(plan_row: dict[str, Any]) -> tuple[str, ...]:
+def _formal_grounding_primitives(plan_row: dict[str, Any]) -> tuple[str, ...]:
     primitives: list[str] = []
     for node in _all_node_dicts(plan_row):
         status = str(node.get("coverage_status", "") or node.get("action_class", ""))
@@ -550,6 +550,7 @@ def _all_node_dicts(plan_row: dict[str, Any]) -> list[dict[str, Any]]:
         "source_discovery_nodes",
         "first_principles_nodes",
         "minimal_additional_formalization_nodes",
+        "formal_realization_dag_nodes",
         "lean_realization_dag_nodes",
     )
     nodes: list[dict[str, Any]] = []
@@ -618,9 +619,11 @@ def _ablated_signals(variant: str) -> tuple[str, ...]:
             "source_discovery_needed",
             "literature_discovery",
         ),
-        "no_lean_grounding": (
+        "no_formal_grounding": (
             "exact_exists",
             "candidate_declarations",
+            "formal_library_grounding",
+            "library_declaration_search",
             "lean_library_grounding",
             "local_lean_rag",
         ),
@@ -631,7 +634,7 @@ def _ablated_signals(variant: str) -> tuple[str, ...]:
         ),
         "no_route_planner": (
             "informal_route_dag",
-            "lean_realization_dag",
+            "formal_realization_dag",
             "minimal_delta_cut",
             "interactive_hooks",
         ),
@@ -642,7 +645,7 @@ def _interpretation(variant: str) -> str:
     return {
         "full_planner_observed": "Observed planner metrics with all recorded route-planning signals present.",
         "no_literature_evidence": "Counterfactual metric after removing source-backed route nodes and literature-only primitives.",
-        "no_lean_grounding": "Counterfactual metric after removing exact-reuse and Lean-grounding primitives.",
+        "no_formal_grounding": "Counterfactual metric after removing exact-reuse and formal-library-grounding primitives.",
         "no_proof_state_feedback": "Counterfactual feedback-loop metric after ignoring proof-state residual and replan signals.",
         "no_route_planner": "Null baseline with no predicted route, formalization delta, existing reuse, or feedback loop.",
     }.get(variant, "Unknown ablation variant.")

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from collections import Counter
-from dataclasses import asdict, replace
+from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -86,16 +86,13 @@ def export_formalization_gap_planner_standalone_plan(
     }
     all_primitives = _all_primitives(input_payload, routes)
     raw_rows = [
-        replace(
-                _plan_row(
-                    route,
-                    queue_by_route.get(str(route.get("route_id", "")), {}),
-                    all_primitives,
-                    library_snapshot_ref=library_snapshot_ref,
-                    source_target_prover_family=target_prover_family,
-                ),
-                target_prover_family=target_prover_family,
-            )
+        _plan_row(
+            route,
+            queue_by_route.get(str(route.get("route_id", "")), {}),
+            all_primitives,
+            library_snapshot_ref=library_snapshot_ref,
+            source_target_prover_family=target_prover_family,
+        )
         for route in routes
     ]
     rows = sorted(
@@ -108,6 +105,9 @@ def export_formalization_gap_planner_standalone_plan(
         ),
     )[: max(0, max_routes)]
     by_route_class = Counter(row.route_class for row in rows)
+    by_target_prover_family = Counter(
+        str(row.target_prover_family or "").strip() or "missing" for row in rows
+    )
     route_alignment_edge_schema = route_alignment_edge_json_schema()
     route_alignment_edge_schema_errors = [
         validate_route_alignment_edge(edge, route_alignment_edge_schema)
@@ -120,7 +120,13 @@ def export_formalization_gap_planner_standalone_plan(
     n_route_alignment_edge_schema_invalid = (
         len(route_alignment_edge_schema_errors) - n_route_alignment_edge_schema_valid
     )
-    row_dicts = [_portable_row_with_formal_aliases(asdict(row)) for row in rows]
+    row_dicts = [
+        _portable_row_with_formal_aliases(
+            asdict(row),
+            target_prover_family=str(row.target_prover_family or target_prover_family),
+        )
+        for row in rows
+    ]
     goal_plan_row_schema = portable_gap_plan_row_json_schema()
     goal_plan_row_schema_errors = [
         validate_portable_gap_plan_row(
@@ -157,12 +163,16 @@ def export_formalization_gap_planner_standalone_plan(
             "llm_route_planner_route_adoption_status"
         )
     )
+    manifest_target_prover_family = _manifest_target_prover_family(
+        rows,
+        fallback_target_prover_family=target_prover_family,
+    )
     payload: dict[str, object] = {
         "schema_version": GOAL_CONDITIONED_MINIMAL_FORMALIZATION_PLAN_SCHEMA_VERSION,
         "portable_schema_id": PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_ID,
         "portable_schema_version": PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_VERSION,
         "component_name": LIBRARY_AWARE_FORMALIZATION_GAP_PLANNER_NAME,
-        "target_prover_family": target_prover_family,
+        "target_prover_family": manifest_target_prover_family,
         "library_snapshot_ref": library_snapshot_ref,
         "formalization_delta_objective": FORMALIZATION_DELTA_OBJECTIVE,
         "optimization_objectives": list(OPTIMIZATION_OBJECTIVES),
@@ -175,6 +185,10 @@ def export_formalization_gap_planner_standalone_plan(
         "standalone_input_component": str(input_payload.get("component_name", "")),
         "n_theorem_routes": len(routes),
         "n_goal_plans": len(rows),
+        "n_target_prover_families": sum(
+            1 for target in by_target_prover_family if target != "missing"
+        ),
+        "by_target_prover_family": dict(sorted(by_target_prover_family.items())),
         "n_ready": sum(1 for row in rows if row.ok),
         "n_low_cost_goal_plans": sum(1 for row in rows if row.goal_conditioned_cost <= 7),
         "n_reuse_or_composition": by_route_class.get("reuse_or_composition", 0),
@@ -199,16 +213,20 @@ def export_formalization_gap_planner_standalone_plan(
             _graph_count(row.informal_knowledge_dag, "edges") for row in rows
         ),
         "n_lean_realization_dag_nodes": sum(
-            _graph_count(row.lean_realization_dag, "nodes") for row in rows
+            len(_dict_list(row.get("lean_realization_dag_nodes", [])))
+            for row in row_dicts
         ),
         "n_lean_realization_dag_edges": sum(
-            _graph_count(row.lean_realization_dag, "edges") for row in rows
+            len(_dict_list(row.get("lean_realization_dag_edges", [])))
+            for row in row_dicts
         ),
         "n_formal_realization_dag_nodes": sum(
-            _graph_count(row.lean_realization_dag, "nodes") for row in rows
+            len(_dict_list(row.get("formal_realization_dag_nodes", [])))
+            for row in row_dicts
         ),
         "n_formal_realization_dag_edges": sum(
-            _graph_count(row.lean_realization_dag, "edges") for row in rows
+            len(_dict_list(row.get("formal_realization_dag_edges", [])))
+            for row in row_dicts
         ),
         "n_route_alignment_edges": sum(len(row.route_alignment_edges) for row in rows),
         "n_standalone_input_traces": sum(
@@ -274,6 +292,10 @@ def export_formalization_gap_planner_standalone_plan(
         ),
         "n_standalone_input_trace_source_snippets": sum(
             len(row.standalone_input_trace.get("source_snippets", []))
+            for row in rows
+        ),
+        "n_standalone_input_trace_primitive_source_refs": sum(
+            len(row.standalone_input_trace.get("primitive_source_refs", []))
             for row in rows
         ),
         "n_primitive_source_snippets": sum(
@@ -387,22 +409,109 @@ def validate_standalone_input_payload(payload: dict[str, Any]) -> list[str]:
     routes = _raw_routes(payload)
     if not routes:
         errors.append("routes missing")
+    payload_target = str(payload.get("target_prover_family", "")).strip()
+    mixed_payload_target_keys = _mixed_target_prover_keys(payload_target)
+    payload_target_key = (
+        "" if mixed_payload_target_keys else _target_prover_key(payload_target)
+    )
+    route_target_keys: set[str] = set()
+    for route in routes:
+        metadata = _dict_value(route.get("replan_metadata", {}))
+        for target in (
+            route.get("target_prover_family", ""),
+            route.get("target_prover", ""),
+            metadata.get("target_prover_family", ""),
+            metadata.get("target_prover", ""),
+        ):
+            target_key = _target_prover_key(target)
+            if target_key:
+                route_target_keys.add(target_key)
+    if not payload_target_key and not mixed_payload_target_keys and not route_target_keys:
+        errors.append("target_prover_family missing")
     for idx, route in enumerate(routes):
         display_name = _display_name(route)
         if not display_name:
             errors.append(f"routes[{idx}].display_name or target_theorem_id missing")
+        route_target = str(route.get("target_prover_family", "")).strip()
+        metadata = route.get("replan_metadata", {})
+        metadata = metadata if isinstance(metadata, dict) else {}
+        metadata_target = str(metadata.get("target_prover_family", "")).strip()
+        route_target_key = _target_prover_key(route_target)
+        metadata_target_key = _target_prover_key(metadata_target)
+        if (
+            not payload_target_key
+            and not route_target_key
+            and not metadata_target_key
+            and (len(route_target_keys) > 1 or bool(mixed_payload_target_keys))
+        ):
+            errors.append(f"routes[{idx}].target_prover_family missing")
+        for location, target, target_key in (
+            (f"routes[{idx}].target_prover_family", route_target, route_target_key),
+            (
+                f"routes[{idx}].replan_metadata.target_prover_family",
+                metadata_target,
+                metadata_target_key,
+            ),
+        ):
+            if payload_target_key and target_key and target_key != payload_target_key:
+                errors.append(
+                    f"{location} {target} does not match target_prover_family "
+                    f"{payload_target}"
+                )
+            if (
+                mixed_payload_target_keys
+                and target_key
+                and target_key not in mixed_payload_target_keys
+            ):
+                errors.append(
+                    f"{location} {target} is not listed in mixed "
+                    f"target_prover_family {payload_target}"
+                )
+        if route_target_key and metadata_target_key and route_target_key != metadata_target_key:
+            errors.append(
+                f"routes[{idx}].replan_metadata.target_prover_family "
+                f"{metadata_target} does not match routes[{idx}].target_prover_family "
+                f"{route_target}"
+            )
+        effective_target = route_target or metadata_target or payload_target
+        effective_target_key = (
+            route_target_key or metadata_target_key or payload_target_key
+        )
+        errors.extend(
+            _candidate_declaration_row_input_errors(
+                route.get("candidate_declaration_rows", []),
+                location=f"routes[{idx}].candidate_declaration_rows",
+                expected_target=effective_target,
+                expected_target_key=effective_target_key,
+            )
+        )
         primitives = _raw_primitives(route)
         if not primitives:
             errors.append(f"routes[{idx}].primitives missing")
         for primitive_idx, primitive in enumerate(primitives):
             if not str(primitive.get("primitive", "")).strip():
                 errors.append(f"routes[{idx}].primitives[{primitive_idx}].primitive missing")
+            errors.extend(
+                _candidate_declaration_row_input_errors(
+                    primitive.get("candidate_declaration_rows", []),
+                    location=(
+                        f"routes[{idx}].primitives[{primitive_idx}]"
+                        ".candidate_declaration_rows"
+                    ),
+                    expected_target=effective_target,
+                    expected_target_key=effective_target_key,
+                )
+            )
     return errors
 
 
 def standalone_input_json_schema() -> dict[str, object]:
     string_array = {"type": "array", "items": {"type": "string"}}
     object_array = {"type": "array", "items": {"type": "object"}}
+    candidate_declaration_rows = {
+        "type": "array",
+        "items": {"$ref": "#/$defs/candidate_declaration_row"},
+    }
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_SCHEMA_ID,
@@ -446,6 +555,7 @@ def standalone_input_json_schema() -> dict[str, object]:
                     "source_refs": string_array,
                     "source_snippets": object_array,
                     "informal_proof_steps": string_array,
+                    "candidate_declaration_rows": candidate_declaration_rows,
                     "import_cone_size": {"type": "integer", "minimum": 0},
                     "dependency_graph_depth": {"type": "integer", "minimum": 0},
                     "blocker_count": {"type": "integer", "minimum": 0},
@@ -491,7 +601,7 @@ def standalone_input_json_schema() -> dict[str, object]:
                         "type": "array",
                         "items": {"type": "string"},
                     },
-                    "candidate_declaration_rows": object_array,
+                    "candidate_declaration_rows": candidate_declaration_rows,
                     "expected_premises": string_array,
                     "bridge_candidate_obligations": string_array,
                     "source_refs": string_array,
@@ -548,6 +658,27 @@ def standalone_input_json_schema() -> dict[str, object]:
                     "coverage_status": {"type": "string"},
                     "source_ref": {"type": "string"},
                     "target_prover_family": {"type": "string"},
+                },
+            },
+            "candidate_declaration_row": {
+                "type": "object",
+                "additionalProperties": True,
+                "anyOf": [
+                    {"required": ["declaration"]},
+                    {"required": ["declaration_name"]},
+                    {"required": ["candidate_declaration"]},
+                    {"required": ["name"]},
+                    {"required": ["full_name"]},
+                ],
+                "properties": {
+                    "declaration": {"type": "string", "minLength": 1},
+                    "declaration_name": {"type": "string"},
+                    "candidate_declaration": {"type": "string"},
+                    "name": {"type": "string"},
+                    "full_name": {"type": "string"},
+                    "target_prover_family": {"type": "string"},
+                    "target_prover": {"type": "string"},
+                    "source_field": {"type": "string"},
                 },
             },
             "replan_metadata": {
@@ -708,17 +839,20 @@ def _route_specs(
         primitive_costs = _minimal_delta_primitive_costs(raw_route)
         metadata = raw_route.get("replan_metadata", {})
         metadata = metadata if isinstance(metadata, dict) else {}
+        route_target_prover_family = str(
+            raw_route.get("target_prover_family", "")
+            or raw_route.get("target_prover", "")
+            or metadata.get("target_prover_family", "")
+            or metadata.get("target_prover", "")
+            or target_prover_family
+        ).strip()
         actions = [
             _action_for_primitive(
                 route_id,
                 primitive,
                 primitive_idx,
                 primitive_costs=primitive_costs,
-                target_prover_family=str(
-                    raw_route.get("target_prover_family", "")
-                    or metadata.get("target_prover_family", "")
-                    or target_prover_family
-                ),
+                target_prover_family=route_target_prover_family,
             )
             for primitive_idx, primitive in enumerate(_raw_primitives(raw_route))
         ]
@@ -740,6 +874,7 @@ def _route_specs(
             "problem_class": str(raw_route.get("problem_class", "standalone_theorem")),
             "theorem_goal_id": str(raw_route.get("theorem_goal_id", "")) or _display_name(raw_route),
             "display_name": _display_name(raw_route),
+            "target_prover_family": route_target_prover_family,
             "theorem_skeleton": str(raw_route.get("theorem_skeleton", "")),
             "theorem_statement": str(raw_route.get("theorem_statement", "")),
             "source_refs": _str_tuple(raw_route.get("source_refs", [])),
@@ -753,7 +888,7 @@ def _route_specs(
                 raw_route,
                 route_id=route_id,
                 route_index=idx,
-                target_prover_family=target_prover_family,
+                target_prover_family=route_target_prover_family,
             ),
             "route_revision_triggers": _route_or_metadata_rows(
                 raw_route,
@@ -875,7 +1010,12 @@ def _standalone_input_trace(
     revised_lean_nodes = _dict_list(
         raw_route.get(
             "revised_lean_realization_dag_nodes",
-            metadata.get("revised_lean_realization_dag_nodes", revised_formal_nodes),
+            metadata.get(
+                "revised_lean_realization_dag_nodes",
+                revised_formal_nodes
+                if _is_lean_target_prover(target_prover_family)
+                else [],
+            ),
         )
     )
     revised_alignment_edges = _dict_list(
@@ -894,6 +1034,14 @@ def _standalone_input_trace(
         }
         for primitive in _raw_primitives(raw_route)
         if _dict_list(primitive.get("source_snippets", []))
+    ]
+    primitive_source_refs = [
+        {
+            "primitive": str(primitive.get("primitive", "")),
+            "source_refs": _str_list(primitive.get("source_refs", [])),
+        }
+        for primitive in _raw_primitives(raw_route)
+        if _str_list(primitive.get("source_refs", []))
     ]
     primitive_candidate_declaration_rows = [
         {
@@ -997,6 +1145,7 @@ def _standalone_input_trace(
             metadata.get("source_refs", raw_route.get("source_refs", []))
         ),
         "source_snippets": source_snippets,
+        "primitive_source_refs": primitive_source_refs,
         "primitive_source_snippets": primitive_source_snippets,
         "primitive_candidate_declaration_rows": primitive_candidate_declaration_rows,
         "has_source_snippets": bool(source_snippets or primitive_source_snippets),
@@ -1284,27 +1433,154 @@ def _display_name(route: dict[str, Any]) -> str:
 
 def _target_prover_family(payload: dict[str, Any]) -> str:
     value = str(payload.get("target_prover_family", "")).strip()
-    return value or TARGET_PROVER_FAMILY
+    if value:
+        return value
+    route_targets = _route_declared_target_prover_families(payload)
+    if len({_target_prover_key(target) for target in route_targets}) == 1:
+        return route_targets[0]
+    return TARGET_PROVER_FAMILY
 
 
-def _portable_row_with_formal_aliases(row: dict[str, Any]) -> dict[str, Any]:
-    legacy_nodes = list(row.get("lean_realization_dag_nodes", []))
+def _route_declared_target_prover_families(payload: dict[str, Any]) -> tuple[str, ...]:
+    targets: list[str] = []
+    for route in _raw_routes(payload):
+        metadata = _dict_value(route.get("replan_metadata", {}))
+        for value in (
+            route.get("target_prover_family", ""),
+            route.get("target_prover", ""),
+            metadata.get("target_prover_family", ""),
+            metadata.get("target_prover", ""),
+        ):
+            target = str(value or "").strip()
+            if target:
+                targets.append(target)
+    compact: list[str] = []
+    seen: set[str] = set()
+    for target in targets:
+        key = _target_prover_key(target)
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        compact.append(target)
+    return tuple(compact)
+
+
+def _manifest_target_prover_family(
+    rows: list[Any],
+    *,
+    fallback_target_prover_family: str,
+) -> str:
+    targets = sorted(
+        {
+            str(getattr(row, "target_prover_family", "")).strip()
+            for row in rows
+            if str(getattr(row, "target_prover_family", "")).strip()
+        }
+    )
+    if len(targets) == 1:
+        return targets[0]
+    if len(targets) > 1:
+        return "mixed:" + ",".join(targets)
+    return fallback_target_prover_family or TARGET_PROVER_FAMILY
+
+
+def _portable_row_with_formal_aliases(
+    row: dict[str, Any],
+    *,
+    target_prover_family: str,
+) -> dict[str, Any]:
+    legacy_nodes = _dict_list(row.get("lean_realization_dag_nodes", []))
     formal_nodes = row.get("formal_realization_dag_nodes")
     row["formal_realization_dag_nodes"] = (
-        list(formal_nodes) if isinstance(formal_nodes, list) else legacy_nodes
+        _dict_list(formal_nodes)
+        if isinstance(formal_nodes, (list, tuple))
+        else legacy_nodes
     )
-    row["lean_realization_dag_nodes"] = legacy_nodes or list(
-        row["formal_realization_dag_nodes"]
-    )
-    legacy_edges = list(row.get("lean_realization_dag_edges", []))
+    legacy_edges = _dict_list(row.get("lean_realization_dag_edges", []))
     formal_edges = row.get("formal_realization_dag_edges")
     row["formal_realization_dag_edges"] = (
-        list(formal_edges) if isinstance(formal_edges, list) else legacy_edges
+        _dict_list(formal_edges)
+        if isinstance(formal_edges, (list, tuple))
+        else legacy_edges
     )
-    row["lean_realization_dag_edges"] = legacy_edges or list(
-        row["formal_realization_dag_edges"]
-    )
+    if _is_lean_target_prover(target_prover_family):
+        row["lean_realization_dag_nodes"] = legacy_nodes or list(
+            row["formal_realization_dag_nodes"]
+        )
+        row["lean_realization_dag_edges"] = legacy_edges or list(
+            row["formal_realization_dag_edges"]
+        )
+    else:
+        row["lean_realization_dag_nodes"] = []
+        row["lean_realization_dag_edges"] = []
     return row
+
+
+def _is_lean_target_prover(target_prover_family: str) -> bool:
+    key = _normalize_status(target_prover_family)
+    return key in {"lean", "lean4", "lean_4"} or key.startswith(
+        ("lean4_", "lean_4_", "lean_")
+    )
+
+
+def _target_prover_key(value: object) -> str:
+    key = _normalize_status(str(value or ""))
+    aliases = {
+        "coq": "rocq",
+        "coq8": "rocq",
+        "rocq_coq": "rocq",
+        "coq_rocq": "rocq",
+        "lean": "lean4",
+        "lean_4": "lean4",
+        "isabelle_hol": "isabelle",
+    }
+    return aliases.get(key, key)
+
+
+def _mixed_target_prover_keys(value: object) -> set[str]:
+    target = str(value or "").strip()
+    if not target.lower().startswith("mixed:"):
+        return set()
+    return {
+        key
+        for key in (
+            _target_prover_key(part)
+            for part in target.split(":", 1)[1].split(",")
+        )
+        if key
+    }
+
+
+def _candidate_declaration_row_input_errors(
+    value: Any,
+    *,
+    location: str,
+    expected_target: str,
+    expected_target_key: str,
+) -> list[str]:
+    if value in (None, ""):
+        return []
+    if not isinstance(value, list):
+        return [f"{location} must be an array of objects"]
+    errors: list[str] = []
+    for row_index, item in enumerate(value):
+        row_location = f"{location}[{row_index}]"
+        if not isinstance(item, dict):
+            errors.append(f"{row_location} must be an object")
+            continue
+        declaration = _candidate_declaration_row_declaration(item)
+        if not declaration:
+            errors.append(f"{row_location}.declaration missing")
+        row_target = str(
+            item.get("target_prover_family", "") or item.get("target_prover", "")
+        ).strip()
+        row_target_key = _target_prover_key(row_target)
+        if expected_target_key and row_target_key and row_target_key != expected_target_key:
+            errors.append(
+                f"{row_location}.target_prover_family {row_target} does not match "
+                f"target_prover_family {expected_target}"
+            )
+    return errors
 
 
 def _normalize_status(value: str) -> str:
@@ -1326,15 +1602,7 @@ def _candidate_declaration_rows_for_primitive(
 ) -> tuple[dict[str, object], ...]:
     rows: list[dict[str, object]] = []
     for item in _dict_list(primitive.get("candidate_declaration_rows", [])):
-        declaration = str(
-            item.get("declaration")
-            or item.get("declaration_name")
-            or item.get("candidate_declaration")
-            or item.get("lean_declaration")
-            or item.get("name")
-            or item.get("full_name")
-            or ""
-        ).strip()
+        declaration = _candidate_declaration_row_declaration(item)
         if not declaration:
             continue
         rows.append(
@@ -1377,6 +1645,18 @@ def _candidate_declaration_rows_for_primitive(
             }
         )
     return tuple(compact)
+
+
+def _candidate_declaration_row_declaration(item: dict[str, object]) -> str:
+    return str(
+        item.get("declaration")
+        or item.get("declaration_name")
+        or item.get("candidate_declaration")
+        or item.get("lean_declaration")
+        or item.get("name")
+        or item.get("full_name")
+        or ""
+    ).strip()
 
 
 def _candidate_declarations_for_primitive(

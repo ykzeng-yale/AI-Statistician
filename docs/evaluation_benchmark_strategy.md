@@ -505,7 +505,7 @@ primitives, exact-reuse/wrapper/bridge/source nodes, next worker packets, and
 but it is still route-selection metadata rather than theorem proof evidence.
 The `formalization-gap-planner-evaluation` gate scores those route selections
 against held-out or curated route truth with route recall/precision,
-Lean-delta precision/recall, existing-reuse precision/recall, coverage-label
+formalization-delta precision/recall, existing-reuse precision/recall, coverage-label
 accuracy, residual/side-condition primitive precision/recall, two-DAG
 readiness, and feedback-loop readiness. Route-truth files may provide
 `expected_residual_primitives` and `expected_residual_goals` so proof-state
@@ -521,15 +521,16 @@ public/held-out split metadata, route-row schema validity, and proof-boundary
 text. It is dataset-quality evidence for the planner benchmark, not theorem
 proof evidence.
 The `formalization-gap-planner-ablation-study` gate compares the full recorded
-planner against no-literature, no-Lean-grounding, no-proof-state-feedback, and
+planner against no-literature, no-formal-grounding, no-proof-state-feedback, and
 no-route-planner counterfactuals. It reports route/delta recall drops, reuse
 loss, residual-recall loss, and feedback readiness loss as planner diagnostics;
 it does not prove any theorem.
 The `formalization-gap-planner-target-intake` command is the public first
 stage for raw theorem requests: it normalizes objects, assumptions, procedure,
-claim, theorem shape, source refs, primitive seeds, and literature/Lean queries
-before standalone planning. The emitted JSONL rows have a published
-target-intake row schema for external validation, but they are route seeds only;
+claim, theorem shape, source refs, primitive seeds, and
+literature/formal-library queries before standalone planning. The emitted JSONL
+rows have a published target-intake row schema for external validation, but
+they are route seeds only;
 they must be upgraded through literature evidence, library grounding, and
 prover feedback before any proof-route claim.
 The `formalization-gap-planner-llm-route-planner` gate is the explicit
@@ -603,7 +604,7 @@ accepted response row can be audited after it becomes route-revision state,
 while missing and rejected responses remain explicit capacity or contract gaps
 through per-route resource-response status summaries.
 The `formalization-gap-planner-minimal-delta-audit` gate separately checks the
-planner's minimal Lean-delta discipline: cost arithmetic, selected cut versus
+planner's minimal formalization-delta discipline: cost arithmetic, selected cut versus
 work packets, `do_not_formalize_now` exclusions, AND/OR connectivity for delta
 nodes, route ordering, and obvious same-target dominance. It is a structural
 minimality proxy, not a proof of true semantic optimality. It also exports a

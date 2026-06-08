@@ -181,7 +181,9 @@ def export_goal_conditioned_minimal_formalization_plan(
         ),
     )[: max(0, max_routes)]
     by_route_class = Counter(row.route_class for row in rows)
-    by_target = Counter(row.target_prover_family for row in rows)
+    by_target = Counter(
+        str(row.target_prover_family or "").strip() or "missing" for row in rows
+    )
     target_prover_family = _manifest_target_prover_family(
         rows,
         source_target_prover_family=source_target_prover_family,
@@ -223,6 +225,9 @@ def export_goal_conditioned_minimal_formalization_plan(
         "portable_schema_version": PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_VERSION,
         "component_name": LIBRARY_AWARE_FORMALIZATION_GAP_PLANNER_NAME,
         "target_prover_family": target_prover_family,
+        "n_target_prover_families": sum(
+            1 for target in by_target if target != "missing"
+        ),
         "by_target_prover_family": dict(sorted(by_target.items())),
         "library_snapshot_ref": _library_snapshot_ref(
             formalization_delta_plan_dir,
@@ -266,13 +271,17 @@ def export_goal_conditioned_minimal_formalization_plan(
             _graph_count(row.informal_knowledge_dag, "edges") for row in rows
         ),
         "n_lean_realization_dag_nodes": sum(
-            _graph_count(row.lean_realization_dag, "nodes") for row in rows
+            len(row.lean_realization_dag_nodes) for row in rows
         ),
         "n_lean_realization_dag_edges": sum(
-            _graph_count(row.lean_realization_dag, "edges") for row in rows
+            len(row.lean_realization_dag_edges) for row in rows
         ),
-        "n_formal_realization_dag_nodes": sum(len(row.formal_realization_dag_nodes) for row in rows),
-        "n_formal_realization_dag_edges": sum(len(row.formal_realization_dag_edges) for row in rows),
+        "n_formal_realization_dag_nodes": sum(
+            len(row.formal_realization_dag_nodes) for row in rows
+        ),
+        "n_formal_realization_dag_edges": sum(
+            len(row.formal_realization_dag_edges) for row in rows
+        ),
         "n_route_alignment_edges": sum(len(row.route_alignment_edges) for row in rows),
         "n_route_alignment_edge_schema_valid": n_route_alignment_edge_schema_valid,
         "n_route_alignment_edge_schema_invalid": n_route_alignment_edge_schema_invalid,
@@ -507,7 +516,7 @@ def _plan_row(
         ),
         blockers=blockers,
     )
-    lean_realization_dag = _lean_realization_dag(
+    formal_realization_dag = _lean_realization_dag(
         route_id=route_id,
         display_name=str(route.get("display_name", "")),
         existing_reuse=existing_reuse,
@@ -515,10 +524,26 @@ def _plan_row(
     )
     route_alignment_edges = _route_alignment_edges(
         informal_knowledge_dag=informal_knowledge_dag,
-        lean_realization_dag=lean_realization_dag,
+        lean_realization_dag=formal_realization_dag,
     )
-    lean_realization_dag_nodes = tuple(lean_realization_dag.get("nodes", []))
-    lean_realization_dag_edges = tuple(lean_realization_dag.get("edges", []))
+    formal_realization_dag_nodes = tuple(formal_realization_dag.get("nodes", []))
+    formal_realization_dag_edges = tuple(formal_realization_dag.get("edges", []))
+    if _is_lean_target_prover(target_prover_family):
+        lean_realization_dag = formal_realization_dag
+        lean_realization_dag_nodes = formal_realization_dag_nodes
+        lean_realization_dag_edges = formal_realization_dag_edges
+    else:
+        lean_realization_dag = {
+            "nodes": [],
+            "edges": [],
+            "boundary": (
+                "Lean realization DAG is a legacy alias omitted for non-Lean "
+                "target prover families; use formal_realization_dag_nodes and "
+                "formal_realization_dag_edges."
+            ),
+        }
+        lean_realization_dag_nodes = tuple()
+        lean_realization_dag_edges = tuple()
     interactive_refinement_hooks = _merge_dict_rows(
         _interactive_refinement_hooks(
             display_name=str(route.get("display_name", "")),
@@ -595,8 +620,8 @@ def _plan_row(
         lean_realization_dag=lean_realization_dag,
         lean_realization_dag_nodes=lean_realization_dag_nodes,
         lean_realization_dag_edges=lean_realization_dag_edges,
-        formal_realization_dag_nodes=lean_realization_dag_nodes,
-        formal_realization_dag_edges=lean_realization_dag_edges,
+        formal_realization_dag_nodes=formal_realization_dag_nodes,
+        formal_realization_dag_edges=formal_realization_dag_edges,
         route_alignment_edges=route_alignment_edges,
         standalone_input_trace=dict(route.get("standalone_input_trace", {})),
         route_revision_triggers=route_revision_triggers,
@@ -924,14 +949,33 @@ def _manifest_target_prover_family(
     *,
     source_target_prover_family: str,
 ) -> str:
-    targets = sorted({row.target_prover_family for row in rows if row.target_prover_family})
+    targets = sorted(
+        {
+            str(row.target_prover_family or "").strip()
+            for row in rows
+            if str(row.target_prover_family or "").strip()
+        }
+    )
     if len(targets) == 1:
         return targets[0]
+    if len(targets) > 1:
+        return "mixed:" + ",".join(targets)
     return source_target_prover_family or TARGET_PROVER_FAMILY
 
 
 def _prover_family_key(target_prover_family: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "_", str(target_prover_family).strip().lower()).strip("_")
+    return re.sub(
+        r"[^a-z0-9]+",
+        "_",
+        str(target_prover_family).strip().lower(),
+    ).strip("_")
+
+
+def _is_lean_target_prover(target_prover_family: str) -> bool:
+    key = _prover_family_key(target_prover_family)
+    return key in {"lean", "lean4", "lean_4"} or key.startswith(
+        ("lean4_", "lean_4_", "lean_")
+    )
 
 
 def _proof_state_tools_for_target_prover(target_prover_family: str) -> tuple[str, ...]:

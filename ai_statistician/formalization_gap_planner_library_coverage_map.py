@@ -375,9 +375,9 @@ def _coverage_row(
     if not action_class:
         action_class = str(node.get("action_class", ""))
     coverage_bucket = _coverage_bucket(action_class, alignment_edge, realization_node)
-    row_target_prover_family = target_prover_family or str(
+    row_target_prover_family = str(
         plan_row.get("target_prover_family", "")
-    )
+    ) or target_prover_family
     row_library_snapshot_ref = library_snapshot_ref or str(
         plan_row.get("library_snapshot_ref", "")
     )
@@ -460,10 +460,17 @@ def _alignment_edge(plan_row: dict[str, Any], primitive: str) -> dict[str, objec
 
 
 def _realization_node(plan_row: dict[str, Any], node_id: str) -> dict[str, object]:
-    for node in plan_row.get("lean_realization_dag_nodes", []) or []:
+    for node in _realization_dag_nodes(plan_row):
         if isinstance(node, dict) and str(node.get("node_id", "")) == node_id:
             return node
     return {}
+
+
+def _realization_dag_nodes(plan_row: dict[str, Any]) -> tuple[dict[str, object], ...]:
+    formal_nodes = _dict_tuple(plan_row.get("formal_realization_dag_nodes", []))
+    if formal_nodes:
+        return formal_nodes
+    return _dict_tuple(plan_row.get("lean_realization_dag_nodes", []))
 
 
 def _primitive_node(plan_row: dict[str, Any], primitive: str) -> dict[str, object]:

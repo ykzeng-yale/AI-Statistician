@@ -41,6 +41,7 @@ from ai_statistician.research_agent_runtime import (
     _registered_algorithm_template_hint,
     _runtime_learning_memory_proof_obligation_ids,
     _runtime_formalization_gap_planner_bridge,
+    _runtime_formalization_gap_planner_target_intake_payload,
     _run_generated_python_sandbox,
     _run_split_conformal_interval_prototype,
     run_research_agent_runtime,
@@ -1427,8 +1428,21 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert "--model-tier auto" in gap_planner_bridge["next_llm_route_planner_prompt_cli"]
     assert "--max-repair-attempts 1" in gap_planner_bridge["next_llm_route_planner_prompt_cli"]
     assert "--provider anthropic" in gap_planner_bridge["next_llm_route_planner_prompt_cli"]
+    assert (
+        "--formalization-gap-planner-component-resource-registry-dir"
+        in gap_planner_bridge["next_llm_route_planner_prompt_cli"]
+    )
     assert "--invoke-provider" not in gap_planner_bridge["next_llm_route_planner_prompt_cli"]
     assert "--invoke-provider" in gap_planner_bridge["next_llm_route_planner_live_cli"]
+    assert (
+        "--formalization-gap-planner-component-resource-registry-dir"
+        in gap_planner_bridge["next_llm_route_planner_live_cli"]
+    )
+    assert "formalization-gap-planner-reuse-smoke" in gap_planner_bridge["next_reuse_smoke_cli"]
+    assert "--llm-route-planner-provider anthropic" in gap_planner_bridge["next_reuse_smoke_cli"]
+    assert "--feedback-llm-route-planner-provider anthropic" in gap_planner_bridge["next_reuse_smoke_cli"]
+    assert "--llm-route-planner-invoke-provider" not in gap_planner_bridge["next_reuse_smoke_cli"]
+    assert "--feedback-llm-route-planner-invoke-provider" not in gap_planner_bridge["next_reuse_smoke_cli"]
     assert gap_planner_bridge["proof_evidence_status"] == (
         "RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_NOT_PROOF_EVIDENCE"
     )
@@ -1444,21 +1458,56 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     ]
     assert len(persisted_bridge_rows) == 2
     assert persisted_bridge_rows[0]["standalone_seed_path"].endswith(".json")
+    assert persisted_bridge_rows[0]["target_intake_path"].endswith(".json")
     assert persisted_bridge_rows[0]["target_prover_family"] == "lean4"
     assert persisted_bridge_rows[0]["counts"]["candidate_declaration_rows"] > 0
+    assert persisted_bridge_rows[0]["component_resource_registry_dir"].endswith(
+        "component_resource_registry"
+    )
+    assert (
+        "formalization-gap-planner-component-resource-registry"
+        in persisted_bridge_rows[0]["component_resource_registry_cli"]
+    )
     assert "--model-tier auto" in persisted_bridge_rows[0]["llm_route_planner_prompt_cli"]
     assert "--max-repair-attempts 1" in persisted_bridge_rows[0]["llm_route_planner_prompt_cli"]
+    assert (
+        "--formalization-gap-planner-component-resource-registry-dir"
+        in persisted_bridge_rows[0]["llm_route_planner_prompt_cli"]
+    )
+    assert "formalization-gap-planner-reuse-smoke" in persisted_bridge_rows[0]["reuse_smoke_cli"]
+    assert "--llm-route-planner-invoke-provider" not in persisted_bridge_rows[0]["reuse_smoke_cli"]
     assert len(handoff_rows) == 2
     handoff = handoff_rows[0]
     assert handoff["artifact_kind"] == "RuntimeFormalizationGapPlannerHandoff"
     assert handoff["target_prover_family"] == "lean4"
+    assert handoff["target_intake_path"].endswith(".json")
     assert handoff["recommended_llm_provider"] == "anthropic"
     assert handoff["recommended_model_tier"] == "auto"
+    assert handoff["component_resource_registry_dir"].endswith(
+        "component_resource_registry"
+    )
+    assert (
+        "formalization-gap-planner-component-resource-registry"
+        in handoff["component_resource_registry_cli"]
+    )
     assert "--model-tier auto" in handoff["llm_route_planner_prompt_cli"]
     assert "--max-repair-attempts 1" in handoff["llm_route_planner_prompt_cli"]
     assert "--provider anthropic" in handoff["llm_route_planner_prompt_cli"]
+    assert (
+        "--formalization-gap-planner-component-resource-registry-dir"
+        in handoff["llm_route_planner_prompt_cli"]
+    )
     assert "--invoke-provider" not in handoff["llm_route_planner_prompt_cli"]
     assert "--invoke-provider" in handoff["llm_route_planner_live_cli"]
+    assert (
+        "--formalization-gap-planner-component-resource-registry-dir"
+        in handoff["llm_route_planner_live_cli"]
+    )
+    assert "formalization-gap-planner-reuse-smoke" in handoff["reuse_smoke_cli"]
+    assert "--llm-route-planner-provider anthropic" in handoff["reuse_smoke_cli"]
+    assert "--feedback-llm-route-planner-provider anthropic" in handoff["reuse_smoke_cli"]
+    assert "--llm-route-planner-invoke-provider" not in handoff["reuse_smoke_cli"]
+    assert "--feedback-llm-route-planner-invoke-provider" not in handoff["reuse_smoke_cli"]
     assert handoff["proof_evidence_status"] == (
         "RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_NOT_PROOF_EVIDENCE"
     )
@@ -1471,6 +1520,25 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert runtime_handoff_audit["n_handoffs"] == 2
     assert runtime_handoff_audit["n_cost_control_ok"] == 2
     assert runtime_handoff_audit["n_live_explicit_ok"] == 2
+    assert runtime_handoff_audit["n_reuse_smoke_cost_control_ok"] == 2
+    assert runtime_handoff_audit["n_component_resource_registry_smoke_ok"] == 2
+    assert (
+        runtime_handoff_audit[
+            "n_component_resource_registry_components_in_prompt"
+        ]
+        > 0
+    )
+    assert (
+        runtime_handoff_audit["n_component_resource_registry_resources_in_prompt"]
+        > 0
+    )
+    assert (
+        runtime_handoff_audit["n_component_resource_registry_contracts_in_prompt"]
+        > 0
+    )
+    assert runtime_handoff_audit["n_target_intake_smoke_ok"] == 2
+    assert runtime_handoff_audit["n_target_intake_targets"] >= 2
+    assert runtime_handoff_audit["n_target_intake_primitive_seeds"] > 0
     assert runtime_handoff_audit["n_standalone_smoke_ok"] == 2
     assert runtime_handoff_audit["n_llm_prompt_smoke_ok"] == 2
     assert runtime_handoff_audit["n_llm_prompt_packets"] >= 2
@@ -1499,6 +1567,9 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
         / "formalization_gap_planner_runtime_handoff_audit.md"
     ).read_text(encoding="utf-8")
     assert "Seed candidate declaration rows:" in runtime_handoff_report
+    assert "Target-intake smoke OK:" in runtime_handoff_report
+    assert "Component-resource registry smoke OK:" in runtime_handoff_report
+    assert "Registry context in prompts:" in runtime_handoff_report
     standalone_seed = gap_planner_bridge["standalone_seed"]
     assert validate_standalone_input_payload(standalone_seed) == []
     assert standalone_seed["component_name"] == "formalization_gap_planner_standalone_input"
@@ -1759,6 +1830,93 @@ def test_runtime_formalization_gap_planner_bridge_preserves_non_lean_target() ->
     ]
     assert bridge["counts"]["candidate_declaration_rows"] == 2
     assert bridge["counts"]["primitives_with_candidate_declaration_rows"] == 2
+
+
+def test_runtime_target_intake_payload_preserves_mixed_route_targets() -> None:
+    bridge = {
+        "bridge_id": "runtime_formalization_gap_planner_bridge:mixed_targets",
+        "target_prover_family": "rocq",
+        "standalone_seed_artifact_id": (
+            "runtime_formalization_gap_planner_standalone_seed:mixed_targets"
+        ),
+        "question": {
+            "id": "mixed_target_question",
+            "title": "Mixed prover target question",
+        },
+        "problem": {"problem_class": "distribution_free_prediction"},
+        "standalone_seed": {
+            "schema_version": 1,
+            "component_name": "formalization_gap_planner_standalone_input",
+            "library_snapshot_ref": "portable:runtime-mixed-targets",
+            "routes": [
+                {
+                    "route_id": "lean_rank_route",
+                    "display_name": "lean_rank_route",
+                    "target_prover_family": "lean4",
+                    "theorem_statement": "A Lean rank route.",
+                    "source_refs": ["runtime fixture"],
+                    "primitives": [
+                        {
+                            "primitive": "exchangeability",
+                            "coverage_status": "exact_exists",
+                            "candidate_declaration_rows": [
+                                {
+                                    "declaration": "Probability.exchangeable",
+                                    "target_prover_family": "lean4",
+                                    "source_field": "runtime_test_fixture",
+                                }
+                            ],
+                        }
+                    ],
+                },
+                {
+                    "route_id": "rocq_rank_route",
+                    "display_name": "rocq_rank_route",
+                    "target_prover_family": "rocq",
+                    "theorem_statement": "A Rocq rank route.",
+                    "source_refs": ["runtime fixture"],
+                    "primitives": [
+                        {
+                            "primitive": "exchangeability",
+                            "coverage_status": "exact_exists",
+                            "candidate_declaration_rows": [
+                                {
+                                    "declaration": "Rocq.Probability.exchangeable",
+                                    "target_prover_family": "rocq",
+                                    "source_field": "runtime_test_fixture",
+                                }
+                            ],
+                        }
+                    ],
+                },
+            ],
+        },
+    }
+
+    payload = _runtime_formalization_gap_planner_target_intake_payload(bridge)
+
+    assert payload["target_prover_family"] == "rocq"
+    assert [target["target_prover_family"] for target in payload["targets"]] == [
+        "lean4",
+        "rocq",
+    ]
+    assert payload["targets"][0]["candidate_primitives"][0][
+        "candidate_declaration_rows"
+    ][0]["target_prover_family"] == "lean4"
+    assert payload["targets"][1]["candidate_primitives"][0][
+        "candidate_declaration_rows"
+    ][0]["target_prover_family"] == "rocq"
+
+    bridge_without_scalar_target = dict(bridge)
+    bridge_without_scalar_target.pop("target_prover_family")
+    mixed_payload = _runtime_formalization_gap_planner_target_intake_payload(
+        bridge_without_scalar_target
+    )
+    assert "target_prover_family" not in mixed_payload
+    assert [target["target_prover_family"] for target in mixed_payload["targets"]] == [
+        "lean4",
+        "rocq",
+    ]
 
 
 def test_formal_subclaim_prover_flags_configured_filter_that_excludes_all_candidates() -> None:

@@ -8,6 +8,7 @@ from ai_statistician.formalization_gap_planner_contract import (
     PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_ID,
     PORTABLE_FORMALIZATION_GAP_PLAN_ROW_SCHEMA_ID,
     ROUTE_ALIGNMENT_EDGE_SCHEMA_ID,
+    portable_gap_plan_json_schema,
     portable_gap_plan_row_json_schema,
     route_alignment_edge_json_schema,
     validate_portable_gap_plan_row,
@@ -24,6 +25,7 @@ from ai_statistician.formalization_gap_planner_standalone import (
     FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_SCHEMA_ID,
     export_formalization_gap_planner_standalone_plan,
     standalone_input_json_schema,
+    validate_standalone_input_payload,
 )
 
 
@@ -105,14 +107,13 @@ def test_standalone_gap_planner_exports_portable_plan_for_external_prover() -> N
     assert payload["n_portable_work_packets"] >= 1
     assert payload["n_route_alignment_edge_schema_valid"] == payload["n_route_alignment_edges"]
     assert payload["n_route_alignment_edge_schema_invalid"] == 0
-    assert payload["n_formal_realization_dag_nodes"] == payload[
-        "n_lean_realization_dag_nodes"
-    ]
-    assert payload["n_formal_realization_dag_edges"] == payload[
-        "n_lean_realization_dag_edges"
-    ]
+    assert payload["n_formal_realization_dag_nodes"] > 0
+    assert payload["n_lean_realization_dag_nodes"] == 0
+    assert payload["n_formal_realization_dag_edges"] > 0
+    assert payload["n_lean_realization_dag_edges"] == 0
     assert payload["n_standalone_input_traces"] == payload["n_goal_plans"]
     assert payload["n_standalone_input_traces_with_replan_metadata"] == 0
+    assert payload["n_standalone_input_trace_primitive_source_refs"] == 1
     assert payload["n_goal_plan_row_schema_valid"] == payload["n_goal_plans"]
     assert payload["n_goal_plan_row_schema_invalid"] == 0
     assert payload["route_alignment_edge_schema"]["$id"] == ROUTE_ALIGNMENT_EDGE_SCHEMA_ID
@@ -127,14 +128,19 @@ def test_standalone_gap_planner_exports_portable_plan_for_external_prover() -> N
     assert "unrelated_measure_theory_chapter" in row["do_not_formalize_now"]
     assert row["informal_knowledge_dag_nodes"]
     assert row["formal_realization_dag_nodes"]
-    assert row["lean_realization_dag_nodes"]
-    assert row["formal_realization_dag_nodes"] == row["lean_realization_dag_nodes"]
-    assert row["formal_realization_dag_edges"] == row["lean_realization_dag_edges"]
+    assert row["lean_realization_dag_nodes"] == []
+    assert row["lean_realization_dag_edges"] == []
     assert row["route_alignment_edges"]
     assert row["standalone_input_trace"]["trace_kind"] == "standalone_input_route_trace"
     assert row["standalone_input_trace"]["source_route_id"] == row["route_id"]
     assert row["standalone_input_trace"]["target_prover_family"] == "rocq"
     assert not row["standalone_input_trace"]["has_replan_metadata"]
+    assert row["standalone_input_trace"]["primitive_source_refs"] == [
+        {
+            "primitive": "coverage_inequality",
+            "source_refs": ["vovk_gammerman_shafer_conformal"],
+        }
+    ]
     assert {
         edge["primitive"] for edge in row["route_alignment_edges"]
     } == set(row["selected_primitives"])
@@ -170,6 +176,18 @@ def test_standalone_gap_planner_exports_portable_plan_for_external_prover() -> N
     route_schema = standalone_schema["$defs"]["route"]
     route_props = route_schema["properties"]
     assert route_props["target_prover_family"]["type"] == "string"
+    assert (
+        route_props["candidate_declaration_rows"]["items"]["$ref"]
+        == "#/$defs/candidate_declaration_row"
+    )
+    primitive_props = standalone_schema["$defs"]["primitive"]["properties"]
+    assert (
+        primitive_props["candidate_declaration_rows"]["items"]["$ref"]
+        == "#/$defs/candidate_declaration_row"
+    )
+    candidate_row_schema = standalone_schema["$defs"]["candidate_declaration_row"]
+    assert {"required": ["declaration"]} in candidate_row_schema["anyOf"]
+    assert candidate_row_schema["properties"]["target_prover_family"]["type"] == "string"
     assert (
         route_props["revised_informal_knowledge_dag_nodes"]["items"]["$ref"]
         == "#/$defs/dag_node"
@@ -378,7 +396,7 @@ def test_standalone_gap_planner_preserves_candidate_declaration_rows_into_covera
     declaration_row = {
         "declaration": "Probability.exchangeable",
         "target_prover_family": "lean4",
-        "source_field": "llm_candidate_declaration_rows",
+        "source_field": "route_candidate_declaration_rows",
     }
     input_json.write_text(
         json.dumps(
@@ -410,7 +428,12 @@ def test_standalone_gap_planner_preserves_candidate_declaration_rows_into_covera
     payload = export_formalization_gap_planner_standalone_plan(input_json, out_dir)
 
     assert payload["all_ok"]
+    assert payload["n_lean_realization_dag_nodes"] == payload[
+        "n_formal_realization_dag_nodes"
+    ]
     row = payload["rows"][0]
+    assert row["lean_realization_dag_nodes"] == row["formal_realization_dag_nodes"]
+    assert row["lean_realization_dag_edges"] == row["formal_realization_dag_edges"]
     reuse_node = row["existing_reuse_nodes"][0]
     assert reuse_node["candidate_declaration_rows"] == [declaration_row]
     assert reuse_node["candidate_declarations"] == ["Probability.exchangeable"]
@@ -439,3 +462,282 @@ def test_standalone_gap_planner_preserves_candidate_declaration_rows_into_covera
     assert coverage_row["primitive"] == "exchangeability"
     assert coverage_row["candidate_declaration_rows"] == (declaration_row,)
     assert coverage_row["candidate_declarations"] == ("Probability.exchangeable",)
+
+
+def test_standalone_gap_planner_uses_route_target_when_top_level_missing() -> None:
+    root = Path("runs/test_formalization_gap_planner_standalone_route_target")
+    input_json = root / "standalone_input.json"
+    out_dir = root / "plan"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema_version": 1,
+        "component_name": "formalization_gap_planner_standalone_input",
+        "library_snapshot_ref": "isabelle:route-target-fixture",
+        "routes": [
+            {
+                "route_id": "isabelle_rank_route",
+                "display_name": "isabelle_rank_route",
+                "target_prover_family": "isabelle",
+                "theorem_statement": "Rank uniformity follows from exchangeability.",
+                "primitives": [
+                    {
+                        "primitive": "exchangeability",
+                        "coverage_status": "exact_exists",
+                        "candidate_declaration_rows": [
+                            {
+                                "declaration": "Probability.exchangeable",
+                                "target_prover_family": "isabelle",
+                                "source_field": "route_candidate_declaration_rows",
+                            }
+                        ],
+                    }
+                ],
+            }
+        ],
+    }
+    input_json.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+    assert validate_standalone_input_payload(payload) == []
+    plan_payload = export_formalization_gap_planner_standalone_plan(input_json, out_dir)
+
+    assert plan_payload["all_ok"]
+    assert plan_payload["target_prover_family"] == "isabelle"
+    row = plan_payload["rows"][0]
+    assert row["target_prover_family"] == "isabelle"
+    assert row["standalone_input_trace"]["target_prover_family"] == "isabelle"
+    assert row["lean_realization_dag_nodes"] == []
+    assert row["formal_realization_dag_nodes"]
+
+
+def test_standalone_input_requires_declared_target_prover_family() -> None:
+    root = Path("runs/test_formalization_gap_planner_standalone_missing_target")
+    input_json = root / "standalone_input.json"
+    out_dir = root / "plan"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema_version": 1,
+        "component_name": "formalization_gap_planner_standalone_input",
+        "library_snapshot_ref": "unknown:missing-target-fixture",
+        "routes": [
+            {
+                "route_id": "rank_route",
+                "display_name": "rank_route",
+                "theorem_statement": "Rank uniformity follows from exchangeability.",
+                "primitives": [
+                    {
+                        "primitive": "exchangeability",
+                        "coverage_status": "unknown",
+                    }
+                ],
+            }
+        ],
+    }
+    input_json.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+    errors = validate_standalone_input_payload(payload)
+
+    assert "target_prover_family missing" in errors
+    plan_payload = export_formalization_gap_planner_standalone_plan(input_json, out_dir)
+    assert not plan_payload["all_ok"]
+    assert "target_prover_family missing" in plan_payload["errors"]
+
+
+def test_standalone_input_rejects_ambiguous_route_target_inheritance() -> None:
+    payload = {
+        "schema_version": 1,
+        "component_name": "formalization_gap_planner_standalone_input",
+        "library_snapshot_ref": "mixed:ambiguous-target-fixture",
+        "routes": [
+            {
+                "route_id": "lean_rank_route",
+                "display_name": "lean_rank_route",
+                "target_prover_family": "lean4",
+                "theorem_statement": "A Lean route.",
+                "primitives": [{"primitive": "exchangeability"}],
+            },
+            {
+                "route_id": "rocq_rank_route",
+                "display_name": "rocq_rank_route",
+                "target_prover_family": "rocq",
+                "theorem_statement": "A Rocq route.",
+                "primitives": [{"primitive": "exchangeability"}],
+            },
+            {
+                "route_id": "missing_target_route",
+                "display_name": "missing_target_route",
+                "theorem_statement": "This route cannot inherit a unique target.",
+                "primitives": [{"primitive": "exchangeability"}],
+            },
+        ],
+    }
+
+    errors = validate_standalone_input_payload(payload)
+
+    assert "routes[2].target_prover_family missing" in errors
+
+
+def test_standalone_gap_planner_reports_mixed_route_targets() -> None:
+    root = Path("runs/test_formalization_gap_planner_standalone_mixed_targets")
+    input_json = root / "standalone_input.json"
+    out_dir = root / "plan"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema_version": 1,
+        "component_name": "formalization_gap_planner_standalone_input",
+        "library_snapshot_ref": "mixed:target-summary-fixture",
+        "routes": [
+            {
+                "route_id": "lean_rank_route",
+                "display_name": "lean_rank_route",
+                "target_prover_family": "lean4",
+                "theorem_statement": "A Lean rank route.",
+                "primitives": [{"primitive": "exchangeability"}],
+            },
+            {
+                "route_id": "rocq_rank_route",
+                "display_name": "rocq_rank_route",
+                "target_prover_family": "rocq",
+                "theorem_statement": "A Rocq rank route.",
+                "primitives": [{"primitive": "exchangeability"}],
+            },
+        ],
+    }
+    input_json.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+    assert validate_standalone_input_payload(payload) == []
+    mixed_manifest_payload = {**payload, "target_prover_family": "mixed:lean4,rocq"}
+    assert validate_standalone_input_payload(mixed_manifest_payload) == []
+    bad_manifest_payload = {
+        **payload,
+        "target_prover_family": "mixed:lean4,isabelle",
+    }
+    assert any(
+        "is not listed in mixed target_prover_family mixed:lean4,isabelle"
+        in error
+        for error in validate_standalone_input_payload(bad_manifest_payload)
+    )
+    plan_payload = export_formalization_gap_planner_standalone_plan(input_json, out_dir)
+
+    assert plan_payload["all_ok"]
+    assert plan_payload["target_prover_family"] == "mixed:lean4,rocq"
+    assert plan_payload["n_target_prover_families"] == 2
+    assert plan_payload["by_target_prover_family"] == {"lean4": 1, "rocq": 1}
+    portable_schema = portable_gap_plan_json_schema()
+    portable_props = portable_schema["properties"]
+    assert portable_props["n_target_prover_families"]["type"] == "integer"
+    assert (
+        portable_props["by_target_prover_family"]["additionalProperties"]["type"]
+        == "integer"
+    )
+    assert validate_portable_gap_plan_payload(plan_payload) == []
+    malformed = dict(plan_payload)
+    malformed["by_target_prover_family"] = {"lean4": 2}
+    assert (
+        "by_target_prover_family does not match row target_prover_family counts"
+        in validate_portable_gap_plan_payload(malformed)
+    )
+    malformed_count = dict(plan_payload)
+    malformed_count["n_target_prover_families"] = 1
+    assert (
+        "n_target_prover_families does not match row target_prover_family counts"
+        in validate_portable_gap_plan_payload(malformed_count)
+    )
+    by_route = {row["route_id"]: row for row in plan_payload["rows"]}
+    assert by_route["lean_rank_route"]["target_prover_family"] == "lean4"
+    assert by_route["rocq_rank_route"]["target_prover_family"] == "rocq"
+
+
+def test_standalone_input_rejects_cross_prover_candidate_declaration_rows() -> None:
+    root = Path("runs/test_formalization_gap_planner_standalone_bad_candidate_target")
+    input_json = root / "standalone_input.json"
+    out_dir = root / "plan"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema_version": 1,
+        "component_name": "formalization_gap_planner_standalone_input",
+        "target_prover_family": "rocq",
+        "library_snapshot_ref": "rocq:cross-prover-guard",
+        "routes": [
+            {
+                "route_id": "rocq_rank_route",
+                "display_name": "rocq_rank_route",
+                "target_prover_family": "rocq",
+                "theorem_statement": "A Rocq rank lemma should use Rocq evidence.",
+                "candidate_declaration_rows": [
+                    {
+                        "declaration": "Mathlib.Probability.exchangeable",
+                        "target_prover_family": "lean4",
+                        "source_field": "route_level_formal_context",
+                    }
+                ],
+                "primitives": [
+                    {
+                        "primitive": "exchangeability",
+                        "coverage_status": "exact_exists",
+                        "candidate_declaration_rows": [
+                            {
+                                "declaration": "Mathlib.Probability.exchangeable",
+                                "target_prover_family": "lean4",
+                                "source_field": "route_candidate_declaration_rows",
+                            }
+                        ],
+                    }
+                ],
+            }
+        ],
+    }
+    input_json.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+    errors = validate_standalone_input_payload(payload)
+
+    assert any(
+        "routes[0].candidate_declaration_rows[0].target_prover_family lean4 "
+        "does not match target_prover_family rocq" in error
+        for error in errors
+    )
+    assert any(
+        "routes[0].primitives[0].candidate_declaration_rows[0]"
+        ".target_prover_family lean4 does not match target_prover_family rocq"
+        in error
+        for error in errors
+    )
+    payload = export_formalization_gap_planner_standalone_plan(input_json, out_dir)
+    assert not payload["all_ok"]
+    assert payload["errors"]
+
+
+def test_standalone_input_accepts_target_prover_aliases_for_declaration_rows() -> None:
+    payload = {
+        "schema_version": 1,
+        "component_name": "formalization_gap_planner_standalone_input",
+        "target_prover_family": "rocq",
+        "library_snapshot_ref": "rocq:alias-guard",
+        "routes": [
+            {
+                "route_id": "rocq_rank_route",
+                "display_name": "rocq_rank_route",
+                "target_prover_family": "coq",
+                "replan_metadata": {"target_prover_family": "coq8"},
+                "theorem_statement": "Coq/Rocq aliases should remain compatible.",
+                "primitives": [
+                    {
+                        "primitive": "exchangeability",
+                        "coverage_status": "exact_exists",
+                        "candidate_declaration_rows": [
+                            {
+                                "declaration": "Rocq.Probability.exchangeable",
+                                "target_prover_family": "coq8",
+                                "source_field": "route_candidate_declaration_rows",
+                            }
+                        ],
+                    }
+                ],
+            }
+        ],
+    }
+
+    assert validate_standalone_input_payload(payload) == []

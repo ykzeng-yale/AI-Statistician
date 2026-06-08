@@ -7,10 +7,12 @@ a deterministic registry executor, or a thin wrapper around a complete external
 coding agent. Those pieces can be support infrastructure or model backends. The
 target is a full AI Statistician coding-agent system: its own agent runtime,
 environment iteration loop, blackboard, artifact store, tool adapters,
-validators, memory/RAG substrate, and multi-subsystem orchestration. Codex,
-Claude Code, OpenAI API models, Gemini CLI, Cursor-style agents, or future
-coding agents should be replaceable workers behind this runtime, not the
-architecture itself.
+validators, memory/RAG substrate, and multi-subsystem orchestration.
+Claude/OpenAI/Gemini-style API models should be replaceable generator backends
+behind this runtime, not the architecture itself. Complete coding agents such as
+Codex, Claude Code, Gemini CLI, or Cursor-style agents are not normal pure-LLM
+providers; if used later, they must sit behind explicit tool-worker adapters
+with the same evidence, sandbox, and audit boundaries as any other tool.
 
 The runtime must be able to turn an open statistical research question or paper
 into proposed methodology, theory, formal proof obligations, code, simulations,
@@ -60,8 +62,9 @@ development.
 The project must eventually own these layers rather than assuming Codex or any
 other single agent provides them:
 
-- `ModelBackend`: interchangeable adapters for local Codex-like models,
-  Anthropic/OpenAI/Gemini APIs, CLI agents, and future coding-agent workers.
+- `ModelBackend`: interchangeable generator-only adapters for
+  Anthropic/OpenAI/Gemini APIs, static replay, and future pure-model APIs.
+  Coding-agent CLIs are separate tool-worker adapters, not default LLM providers.
 - `AgentRuntime`: plan-act-observe-revise loop, task scheduling, subagent
   spawning, stop conditions, budget policy, and recovery from failed actions.
 - `EnvironmentLayer`: filesystem, shell, Python/R/Lean execution, sandbox code

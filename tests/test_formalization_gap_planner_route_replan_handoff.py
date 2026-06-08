@@ -74,6 +74,7 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
         node["primitive"]
         for node in plan_row["minimal_additional_formalization_nodes"]
     ] + ["conditional_rank_argument"]
+    revised_dag_source_ref = "Vovk-Gammerman-Shafer revised rank node"
     resource_response_trace = {
         "resource_response_ledger_id": "conditional_rank_argument",
         "resource_request_id": "request:conditional_rank_argument",
@@ -142,6 +143,7 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
                 "label": "conditional_rank_argument",
                 "primitive": "conditional_rank_argument",
                 "source_ref": "Lei-Wasserman theorem proof route",
+                "source_refs": [revised_dag_source_ref],
             }
         ],
         "revised_lean_realization_dag_nodes": [
@@ -259,6 +261,7 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert row["source_snippets"][0]["source_ref"] == (
         "Lei-Wasserman theorem proof route"
     )
+    assert revised_dag_source_ref in row["source_refs"]
     assert row["formal_declaration_hits"] == row["lean_declaration_hits"]
     assert row["standalone_route"]["target_prover_family"] == "lean4"
     assert row["standalone_route"]["replan_metadata"]["target_prover_family"] == "lean4"
@@ -278,6 +281,11 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert seed["routes"][0]["revised_lean_realization_dag_nodes"]
     assert seed["routes"][0]["source_snippets"][0]["source_ref"] == (
         "Lei-Wasserman theorem proof route"
+    )
+    assert revised_dag_source_ref in seed["routes"][0]["source_refs"]
+    assert (
+        revised_dag_source_ref
+        in seed["routes"][0]["replan_metadata"]["source_refs"]
     )
     assert seed["routes"][0]["replan_metadata"]["alignment_edge_primitives"]
     handoff_schema = route_replan_handoff_row_json_schema()
@@ -347,6 +355,10 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert primitive_by_name["conditional_rank_argument"]["source_snippets"][0][
         "source_ref"
     ] == "Lei-Wasserman theorem proof route"
+    assert (
+        revised_dag_source_ref
+        in primitive_by_name["conditional_rank_argument"]["source_refs"]
+    )
     invalid = dict(row)
     invalid.pop("standalone_route")
     assert "standalone_route required" in validate_route_replan_handoff_row(
@@ -577,14 +589,34 @@ def test_route_replan_handoff_preserves_overlay_target_prover_family_for_rocq() 
     )
 
     assert payload["all_ok"]
+    assert payload["n_revised_formal_realization_dag_nodes"] >= 1
+    assert payload["n_revised_lean_realization_dag_nodes"] == 0
     row = payload["rows"][0]
+    assert row["revised_formal_realization_dag_nodes"]
+    assert row["revised_lean_realization_dag_nodes"] == ()
     assert row["standalone_route"]["target_prover_family"] == "rocq"
     assert row["standalone_route"]["replan_metadata"]["target_prover_family"] == "rocq"
+    assert row["standalone_route"]["revised_formal_realization_dag_nodes"]
+    assert row["standalone_route"]["revised_lean_realization_dag_nodes"] == ()
+    assert row["standalone_route"]["replan_metadata"][
+        "revised_formal_realization_dag_nodes"
+    ]
+    assert row["standalone_route"]["replan_metadata"][
+        "revised_lean_realization_dag_nodes"
+    ] == ()
     seed_path = handoff_dir / "formalization_gap_planner_route_replan_standalone_seed.json"
     seed = json.loads(seed_path.read_text(encoding="utf-8"))
     assert seed["target_prover_family"] == "rocq"
     assert seed["routes"][0]["target_prover_family"] == "rocq"
     assert seed["routes"][0]["replan_metadata"]["target_prover_family"] == "rocq"
+    assert seed["routes"][0]["revised_formal_realization_dag_nodes"]
+    assert seed["routes"][0]["revised_lean_realization_dag_nodes"] == []
+    assert seed["routes"][0]["replan_metadata"][
+        "revised_formal_realization_dag_nodes"
+    ]
+    assert seed["routes"][0]["replan_metadata"][
+        "revised_lean_realization_dag_nodes"
+    ] == []
 
     next_plan = export_formalization_gap_planner_standalone_plan(
         seed_path,
@@ -597,3 +629,9 @@ def test_route_replan_handoff_preserves_overlay_target_prover_family_for_rocq() 
     assert next_plan["rows"][0]["standalone_input_trace"][
         "target_prover_family"
     ] == "rocq"
+    assert next_plan["rows"][0]["standalone_input_trace"][
+        "revised_formal_realization_dag_nodes"
+    ]
+    assert next_plan["rows"][0]["standalone_input_trace"][
+        "revised_lean_realization_dag_nodes"
+    ] == []

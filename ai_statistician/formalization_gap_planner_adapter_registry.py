@@ -718,6 +718,7 @@ def _adapter_specs(
                 "revised_selected_primitives",
                 "revised_delta_primitives",
                 "revised_informal_knowledge_dag_nodes",
+                "revised_formal_realization_dag_nodes",
                 "revised_lean_realization_dag_nodes",
             ),
             "builtin_ready": True,

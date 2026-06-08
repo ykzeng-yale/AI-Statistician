@@ -4,8 +4,10 @@ AI Statistician is intended to become a full coding-agent statistical research
 system, not a thin wrapper around Codex or any other complete external agent.
 The target runtime should own planning, tool use, environment interaction,
 artifact tracking, memory/RAG, validation, and iterative failure recovery, while
-using Codex, Claude, OpenAI, Gemini, or future coding agents as replaceable
-model backends.
+using Claude/OpenAI/Gemini-style API models as replaceable generator backends.
+Complete coding agents such as Codex are not treated as normal pure-LLM
+providers; they would need explicit tool-worker adapters governed by the
+runtime.
 
 The system should take open JASA/AOAS/frontier-style research questions or
 papers, have specialized subsystems derive estimands, estimators, theorem

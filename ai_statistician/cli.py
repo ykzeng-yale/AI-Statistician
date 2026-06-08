@@ -111,6 +111,7 @@ from .formalization_gap_planner_library_coverage_map import (
 )
 from .formalization_gap_planner_llm_route_planner import (
     export_formalization_gap_planner_llm_route_planner,
+    validate_formalization_gap_planner_llm_route_planner_response_payloads,
 )
 from .formalization_gap_planner_primitive_action_queue import (
     export_formalization_gap_planner_primitive_action_queue,
@@ -127,6 +128,9 @@ from .formalization_gap_planner_resource_response_ledger import (
 from .formalization_gap_planner_minimal_delta_audit import (
     audit_formalization_gap_planner_minimal_delta,
 )
+from .formalization_gap_planner_minimal_delta_audit_feedback_adapter import (
+    export_formalization_gap_planner_minimal_delta_audit_feedback_responses,
+)
 from .formalization_gap_planner_portable_plan_audit import (
     audit_formalization_gap_planner_portable_plan,
 )
@@ -141,6 +145,9 @@ from .formalization_gap_planner_reuse_smoke import (
 )
 from .formalization_gap_planner_prover_adapter_contract import (
     export_formalization_gap_planner_prover_adapter_contract,
+)
+from .formalization_gap_planner_prover_adapter_feedback_adapter import (
+    export_formalization_gap_planner_prover_adapter_feedback_responses,
 )
 from .formalization_gap_planner_refinement_adapters import (
     export_formalization_gap_planner_refinement_adapter_responses,
@@ -2320,7 +2327,7 @@ def _formalization_gap_planner_target_intake(args: argparse.Namespace) -> int:
         f"targets={payload['n_ok']}/{payload['n_targets']} "
         f"primitive_seeds={payload['n_primitive_seed_rows']} "
         f"literature_queries={payload['n_literature_queries']} "
-        f"lean_queries={payload['n_lean_grounding_queries']} "
+        f"formal_library_queries={payload['n_formal_library_grounding_queries']} "
         f"missing_sources={payload['n_missing_proof_sources']} "
         f"missing_skeletons={payload['n_missing_theorem_skeleton']} "
         f"all_ok={payload['all_ok']}"
@@ -2376,6 +2383,11 @@ def _formalization_gap_planner_llm_route_planner(args: argparse.Namespace) -> in
         response_json=Path(args.response_json) if args.response_json else None,
         static_response_json=(
             Path(args.static_response_file) if args.static_response_file else None
+        ),
+        formalization_gap_planner_target_intake_dir=(
+            Path(args.formalization_gap_planner_target_intake_dir)
+            if args.formalization_gap_planner_target_intake_dir
+            else None
         ),
         goal_conditioned_minimal_formalization_plan_dir=(
             Path(args.goal_conditioned_minimal_formalization_plan_dir)
@@ -2437,6 +2449,34 @@ def _formalization_gap_planner_llm_route_planner(args: argparse.Namespace) -> in
     print(
         f"\nLLM route planner manifest written to "
         f"{(Path(args.out) / 'formalization_gap_planner_llm_route_planner_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formalization_gap_planner_llm_route_planner_response_payload_validate(
+    args: argparse.Namespace,
+) -> int:
+    payload = validate_formalization_gap_planner_llm_route_planner_response_payloads(
+        Path(args.input),
+        Path(args.out),
+        request_context_json=(
+            Path(args.request_context) if args.request_context else None
+        ),
+    )
+    print(
+        "\nAI Statistical Theory Lab Formalization Gap Planner "
+        "LLM Response Payload Validator"
+    )
+    print("=" * 78)
+    print(
+        f"payloads={payload['n_valid_payloads']}/{payload['n_payloads']} "
+        f"invalid={payload['n_invalid_payloads']} "
+        f"request_bound={payload['n_request_bound_payloads']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nLLM response-payload validation manifest written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.json').resolve()}"
     )
     return 0 if payload["all_ok"] else 1
 
@@ -3042,6 +3082,74 @@ def _formalization_gap_planner_local_proof_state_adapter(args: argparse.Namespac
     return 0 if payload["all_ok"] else 1
 
 
+def _formalization_gap_planner_prover_adapter_feedback(args: argparse.Namespace) -> int:
+    payload = export_formalization_gap_planner_prover_adapter_feedback_responses(
+        Path(args.formalization_gap_planner_refinement_queue_dir),
+        Path(args.out),
+        formalization_gap_planner_prover_adapter_contract_dir=(
+            Path(args.formalization_gap_planner_prover_adapter_contract_dir)
+            if args.formalization_gap_planner_prover_adapter_contract_dir
+            else None
+        ),
+        formalization_gap_planner_cross_prover_matrix_audit_dir=(
+            Path(args.formalization_gap_planner_cross_prover_matrix_audit_dir)
+            if args.formalization_gap_planner_cross_prover_matrix_audit_dir
+            else None
+        ),
+        base_response_jsonl=Path(args.base_response_jsonl)
+        if args.base_response_jsonl
+        else None,
+        target_prover_family=args.target_prover_family,
+        max_items=args.max_items,
+    )
+    print("\nAI Statistical Theory Lab Formalization Gap Planner Prover-Adapter Feedback")
+    print("=" * 78)
+    print(
+        f"responses={payload['n_generated_feedback_responses']}/"
+        f"{payload['n_proof_state_feedback_rows']} "
+        f"validation={payload['n_validation_rows']} "
+        f"matched={payload['n_matched_proof_state_feedback_rows']} "
+        f"unmatched={payload['n_unmatched_proof_state_feedback_rows']} "
+        f"merged={payload['n_merged_responses']} "
+        f"revision={payload['n_route_revision_recommended']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nprover-adapter feedback manifest written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_prover_adapter_feedback_adapter_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formalization_gap_planner_minimal_delta_audit_feedback(args: argparse.Namespace) -> int:
+    payload = export_formalization_gap_planner_minimal_delta_audit_feedback_responses(
+        Path(args.formalization_gap_planner_refinement_queue_dir),
+        Path(args.formalization_gap_planner_minimal_delta_audit_dir),
+        Path(args.out),
+        base_response_jsonl=Path(args.base_response_jsonl)
+        if args.base_response_jsonl
+        else None,
+        max_items=args.max_items,
+    )
+    print("\nAI Statistical Theory Lab Formalization Gap Planner Minimal-Delta Audit Feedback")
+    print("=" * 86)
+    print(
+        f"responses={payload['n_generated_feedback_responses']}/"
+        f"{payload['n_route_revision_rows']} "
+        f"failed_decisions={payload['n_failed_minimal_delta_decision_rows']} "
+        f"matched={payload['n_matched_route_revision_rows']} "
+        f"unmatched={payload['n_unmatched_route_revision_rows']} "
+        f"merged={payload['n_merged_responses']} "
+        f"revision={payload['n_route_revision_recommended']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nminimal-delta audit feedback manifest written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_minimal_delta_audit_feedback_adapter_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
 def _formalization_gap_planner_refinement_evidence(args: argparse.Namespace) -> int:
     payload = export_formalization_gap_planner_refinement_evidence(
         Path(args.formalization_gap_planner_refinement_queue_dir),
@@ -3254,6 +3362,11 @@ def _formalization_gap_planner_publication_bundle(args: argparse.Namespace) -> i
         )
         if args.formalization_gap_planner_feedback_llm_route_planner_dir
         else None,
+        formalization_gap_planner_llm_route_planner_response_payload_validation_dir=Path(
+            args.formalization_gap_planner_llm_route_planner_response_payload_validation_dir
+        )
+        if args.formalization_gap_planner_llm_route_planner_response_payload_validation_dir
+        else None,
         goal_conditioned_minimal_formalization_plan_dir=Path(
             args.goal_conditioned_minimal_formalization_plan_dir
         )
@@ -3304,6 +3417,11 @@ def _formalization_gap_planner_publication_bundle(args: argparse.Namespace) -> i
         )
         if args.formalization_gap_planner_minimal_delta_audit_dir
         else None,
+        formalization_gap_planner_minimal_delta_audit_feedback_adapter_dir=Path(
+            args.formalization_gap_planner_minimal_delta_audit_feedback_adapter_dir
+        )
+        if args.formalization_gap_planner_minimal_delta_audit_feedback_adapter_dir
+        else None,
         formalization_gap_planner_source_grounding_audit_dir=Path(
             args.formalization_gap_planner_source_grounding_audit_dir
         )
@@ -3333,6 +3451,11 @@ def _formalization_gap_planner_publication_bundle(args: argparse.Namespace) -> i
             args.formalization_gap_planner_local_proof_state_adapter_dir
         )
         if args.formalization_gap_planner_local_proof_state_adapter_dir
+        else None,
+        formalization_gap_planner_prover_adapter_feedback_adapter_dir=Path(
+            args.formalization_gap_planner_prover_adapter_feedback_adapter_dir
+        )
+        if args.formalization_gap_planner_prover_adapter_feedback_adapter_dir
         else None,
         formalization_gap_planner_refinement_evidence_dir=Path(
             args.formalization_gap_planner_refinement_evidence_dir
@@ -7548,6 +7671,13 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     formalization_gap_planner_llm_route_planner.add_argument(
+        "--formalization-gap-planner-target-intake-dir",
+        help=(
+            "optional target-intake directory carrying normalized theorem "
+            "objects, assumptions, procedure, claim, theorem shape, and search queries"
+        ),
+    )
+    formalization_gap_planner_llm_route_planner.add_argument(
         "--goal-conditioned-minimal-formalization-plan-dir",
         help="optional current plan directory for context packet construction",
     )
@@ -7590,6 +7720,40 @@ def build_parser() -> argparse.ArgumentParser:
     )
     formalization_gap_planner_llm_route_planner.set_defaults(
         func=_formalization_gap_planner_llm_route_planner
+    )
+
+    formalization_gap_planner_llm_route_planner_response_payload_validate = (
+        sub.add_parser(
+            "formalization-gap-planner-llm-route-planner-response-payload-validate",
+            help=(
+                "validate raw LLM route-planner response payload JSON against "
+                "the reusable public payload schema"
+            ),
+        )
+    )
+    formalization_gap_planner_llm_route_planner_response_payload_validate.add_argument(
+        "--input",
+        required=True,
+        help="raw payload JSON, wrapper response JSON, list, or responses bundle",
+    )
+    formalization_gap_planner_llm_route_planner_response_payload_validate.add_argument(
+        "--request-context",
+        default="",
+        help=(
+            "optional staged LLM route-planner request packet, request JSONL, "
+            "manifest, or output directory for request-bound validation"
+        ),
+    )
+    formalization_gap_planner_llm_route_planner_response_payload_validate.add_argument(
+        "--out",
+        default=(
+            "runs/"
+            "formalization_gap_planner_llm_route_planner_response_payload_validate"
+        ),
+        help="response-payload validation output directory",
+    )
+    formalization_gap_planner_llm_route_planner_response_payload_validate.set_defaults(
+        func=_formalization_gap_planner_llm_route_planner_response_payload_validate
     )
 
     formalization_gap_planner_portable_plan_audit = sub.add_parser(
@@ -8153,6 +8317,86 @@ def build_parser() -> argparse.ArgumentParser:
         func=_formalization_gap_planner_local_proof_state_adapter
     )
 
+    formalization_gap_planner_prover_adapter_feedback = sub.add_parser(
+        "formalization-gap-planner-prover-adapter-feedback",
+        help=(
+            "convert target-prover adapter validation rows into refinement "
+            "prover-feedback responses"
+        ),
+    )
+    formalization_gap_planner_prover_adapter_feedback.add_argument(
+        "--formalization-gap-planner-refinement-queue-dir",
+        required=True,
+        help="directory containing formalization_gap_planner_refinement_queue_manifest.json",
+    )
+    formalization_gap_planner_prover_adapter_feedback.add_argument(
+        "--formalization-gap-planner-prover-adapter-contract-dir",
+        help="optional directory containing prover-adapter response-validation JSONL",
+    )
+    formalization_gap_planner_prover_adapter_feedback.add_argument(
+        "--formalization-gap-planner-cross-prover-matrix-audit-dir",
+        help="optional directory containing aggregate cross-prover response-validation JSONL",
+    )
+    formalization_gap_planner_prover_adapter_feedback.add_argument(
+        "--base-response-jsonl",
+        help="optional existing response JSONL to merge with target-prover feedback",
+    )
+    formalization_gap_planner_prover_adapter_feedback.add_argument(
+        "--target-prover-family",
+        default="",
+        help="optional target prover family filter such as lean4, rocq, isabelle, or agda",
+    )
+    formalization_gap_planner_prover_adapter_feedback.add_argument(
+        "--max-items",
+        type=int,
+        default=0,
+        help="limit queue rows scanned before filtering proof-state hooks; 0 keeps all",
+    )
+    formalization_gap_planner_prover_adapter_feedback.add_argument(
+        "--out",
+        default="runs/formalization_gap_planner_prover_adapter_feedback_adapter",
+        help="prover-adapter feedback output directory",
+    )
+    formalization_gap_planner_prover_adapter_feedback.set_defaults(
+        func=_formalization_gap_planner_prover_adapter_feedback
+    )
+
+    formalization_gap_planner_minimal_delta_audit_feedback = sub.add_parser(
+        "formalization-gap-planner-minimal-delta-audit-feedback",
+        help=(
+            "convert failed minimal-delta audit decisions into route-revision "
+            "refinement responses"
+        ),
+    )
+    formalization_gap_planner_minimal_delta_audit_feedback.add_argument(
+        "--formalization-gap-planner-refinement-queue-dir",
+        required=True,
+        help="directory containing formalization_gap_planner_refinement_queue_manifest.json",
+    )
+    formalization_gap_planner_minimal_delta_audit_feedback.add_argument(
+        "--formalization-gap-planner-minimal-delta-audit-dir",
+        required=True,
+        help="directory containing formalization_gap_planner_minimal_delta_audit_manifest.json",
+    )
+    formalization_gap_planner_minimal_delta_audit_feedback.add_argument(
+        "--base-response-jsonl",
+        help="optional existing response JSONL to merge with minimal-delta audit feedback",
+    )
+    formalization_gap_planner_minimal_delta_audit_feedback.add_argument(
+        "--max-items",
+        type=int,
+        default=0,
+        help="limit queue rows scanned before filtering route-revision hooks; 0 keeps all",
+    )
+    formalization_gap_planner_minimal_delta_audit_feedback.add_argument(
+        "--out",
+        default="runs/formalization_gap_planner_minimal_delta_audit_feedback_adapter",
+        help="minimal-delta audit feedback output directory",
+    )
+    formalization_gap_planner_minimal_delta_audit_feedback.set_defaults(
+        func=_formalization_gap_planner_minimal_delta_audit_feedback
+    )
+
     formalization_gap_planner_refinement_evidence = sub.add_parser(
         "formalization-gap-planner-refinement-evidence",
         help="validate refinement tool responses and emit route-revision proposals",
@@ -8362,6 +8606,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="optional feedback LLM route-planner directory to copy into the bundle",
     )
     formalization_gap_planner_publication_bundle.add_argument(
+        "--formalization-gap-planner-llm-route-planner-response-payload-validation-dir",
+        help=(
+            "optional LLM route-planner response-payload validation directory "
+            "to copy into the bundle"
+        ),
+    )
+    formalization_gap_planner_publication_bundle.add_argument(
         "--goal-conditioned-minimal-formalization-plan-dir",
         help="optional planner run directory to copy into the bundle",
     )
@@ -8402,6 +8653,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="optional minimal-delta audit directory to copy into the bundle",
     )
     formalization_gap_planner_publication_bundle.add_argument(
+        "--formalization-gap-planner-minimal-delta-audit-feedback-adapter-dir",
+        help="optional minimal-delta audit feedback-adapter response directory to copy into the bundle",
+    )
+    formalization_gap_planner_publication_bundle.add_argument(
         "--formalization-gap-planner-source-grounding-audit-dir",
         help="optional source-grounding audit directory to copy into the bundle",
     )
@@ -8424,6 +8679,10 @@ def build_parser() -> argparse.ArgumentParser:
     formalization_gap_planner_publication_bundle.add_argument(
         "--formalization-gap-planner-local-proof-state-adapter-dir",
         help="optional local proof-state-adapter response directory to copy into the bundle",
+    )
+    formalization_gap_planner_publication_bundle.add_argument(
+        "--formalization-gap-planner-prover-adapter-feedback-adapter-dir",
+        help="optional target-prover feedback-adapter response directory to copy into the bundle",
     )
     formalization_gap_planner_publication_bundle.add_argument(
         "--formalization-gap-planner-refinement-evidence-dir",

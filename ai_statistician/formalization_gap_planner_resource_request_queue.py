@@ -15,12 +15,13 @@ from .formalization_gap_planner_action_resource_plan import (
     PROOF_EVIDENCE_BOUNDARY as ACTION_RESOURCE_PROOF_EVIDENCE_BOUNDARY,
     validate_action_resource_plan_row,
 )
+from .formalization_gap_planner_target_summary import target_prover_family_summary
 
 
-FORMALIZATION_GAP_PLANNER_RESOURCE_REQUEST_QUEUE_SCHEMA_VERSION = 2
+FORMALIZATION_GAP_PLANNER_RESOURCE_REQUEST_QUEUE_SCHEMA_VERSION = 3
 RESOURCE_REQUEST_QUEUE_ROW_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
-    "formalization-gap-planner-resource-request-queue-row:2"
+    "formalization-gap-planner-resource-request-queue-row:3"
 )
 PROOF_EVIDENCE_STATUS = (
     "FORMALIZATION_GAP_PLANNER_RESOURCE_REQUEST_QUEUE_NOT_PROOF_EVIDENCE"
@@ -58,6 +59,7 @@ class FormalizationGapPlannerResourceRequestQueueRow:
     resource_contract_ids: tuple[str, ...]
     request_contract_fields: tuple[str, ...]
     response_contract_fields: tuple[str, ...]
+    request_playbook: dict[str, object]
     request_payload: dict[str, object]
     expected_response_artifact: str
     acceptance_gate: str
@@ -112,11 +114,18 @@ def export_formalization_gap_planner_resource_request_queue(
     by_request_phase = Counter(row.request_phase for row in rows)
     by_action_kind = Counter(row.queue_action_kind for row in rows)
     by_resource_id = Counter(row.resource_id for row in rows)
+    target_summary = target_prover_family_summary(
+        rows,
+        fallback_target_prover_family=action_manifest.get("target_prover_family", ""),
+    )
     n_self_contained_request_payloads = sum(
         1 for row in row_dicts if not _request_payload_identity_errors(row)
     )
     n_dispatch_spec_identity_valid = sum(
         1 for row in row_dicts if not _dispatch_spec_identity_errors(row)
+    )
+    n_request_playbook_identity_valid = sum(
+        1 for row in row_dicts if not _request_playbook_identity_errors(row)
     )
     payload: dict[str, object] = {
         "schema_version": (
@@ -127,7 +136,9 @@ def export_formalization_gap_planner_resource_request_queue(
         "source_components": (str(action_manifest.get("component_name", "")),),
         "action_resource_plan_dir": str(action_resource_plan_dir),
         "action_resource_plan_manifest": str(action_manifest_path),
-        "target_prover_family": str(action_manifest.get("target_prover_family", "")),
+        "target_prover_family": target_summary["target_prover_family"],
+        "n_target_prover_families": target_summary["n_target_prover_families"],
+        "by_target_prover_family": target_summary["by_target_prover_family"],
         "library_snapshot_ref": str(action_manifest.get("library_snapshot_ref", "")),
         "n_action_resource_plan_rows": len(action_rows),
         "n_resource_request_rows": len(rows),
@@ -141,6 +152,7 @@ def export_formalization_gap_planner_resource_request_queue(
         "n_distinct_resources": len(by_resource_id),
         "n_with_mcp_or_cli_hint": sum(1 for row in rows if row.mcp_or_cli_hint),
         "n_with_dispatch_specs": sum(1 for row in rows if row.dispatch_spec),
+        "n_with_request_playbooks": sum(1 for row in rows if row.request_playbook),
         "n_with_candidate_declaration_rows": sum(
             1 for row in rows if row.candidate_declaration_rows
         ),
@@ -150,6 +162,9 @@ def export_formalization_gap_planner_resource_request_queue(
         "n_dispatch_spec_identity_valid": n_dispatch_spec_identity_valid,
         "n_dispatch_spec_identity_mismatches": len(rows)
         - n_dispatch_spec_identity_valid,
+        "n_request_playbook_identity_valid": n_request_playbook_identity_valid,
+        "n_request_playbook_identity_mismatches": len(rows)
+        - n_request_playbook_identity_valid,
         "n_self_contained_request_payloads": n_self_contained_request_payloads,
         "n_request_payload_identity_mismatches": len(rows)
         - n_self_contained_request_payloads,
@@ -240,6 +255,7 @@ def resource_request_queue_row_json_schema() -> dict[str, object]:
         "resource_contract_ids",
         "request_contract_fields",
         "response_contract_fields",
+        "request_playbook",
         "request_payload",
         "expected_response_artifact",
         "acceptance_gate",
@@ -294,6 +310,7 @@ def resource_request_queue_row_json_schema() -> dict[str, object]:
             "resource_contract_ids": string_array,
             "request_contract_fields": string_array,
             "response_contract_fields": string_array,
+            "request_playbook": {"type": "object"},
             "request_payload": {"type": "object"},
             "expected_response_artifact": {"type": "string", "minLength": 1},
             "acceptance_gate": {"type": "string", "minLength": 1},
@@ -387,12 +404,14 @@ def validate_resource_request_queue_row(
             "execution_command",
             "mcp_or_cli_hint",
             "dispatch_spec",
+            "request_playbook",
             "proof_evidence_boundary",
         ):
             if field_name not in request_payload:
                 errors.append(f"request_payload.{field_name} required")
         errors.extend(_request_payload_identity_errors(row))
         errors.extend(_dispatch_spec_identity_errors(row))
+    errors.extend(_request_playbook_identity_errors(row))
     if "not theorem proof evidence" not in str(
         row.get("proof_evidence_boundary", "")
     ).lower():
@@ -473,6 +492,15 @@ def _resource_request_rows(
             mcp_or_cli_hint=mcp_or_cli_hint,
             expected_response_artifact=expected_response_artifact,
         )
+        request_playbook = _request_playbook(
+            action_row,
+            phase,
+            resource_id,
+            resource_request_id=resource_request_id,
+            expected_response_artifact=expected_response_artifact,
+            execution_command=execution_command,
+            mcp_or_cli_hint=mcp_or_cli_hint,
+        )
         request_payload = _request_payload(
             action_row,
             phase,
@@ -483,6 +511,7 @@ def _resource_request_rows(
             execution_command=execution_command,
             mcp_or_cli_hint=mcp_or_cli_hint,
             dispatch_spec=dispatch_spec,
+            request_playbook=request_playbook,
         )
         rows.append(
             FormalizationGapPlannerResourceRequestQueueRow(
@@ -513,6 +542,7 @@ def _resource_request_rows(
                 resource_contract_ids=resource_contract_ids,
                 request_contract_fields=request_contract_fields,
                 response_contract_fields=response_contract_fields,
+                request_playbook=request_playbook,
                 request_payload=request_payload,
                 expected_response_artifact=expected_response_artifact,
                 acceptance_gate=str(action_row.get("acceptance_gate", "")),
@@ -543,6 +573,7 @@ def _request_payload(
     execution_command: str,
     mcp_or_cli_hint: str,
     dispatch_spec: dict[str, object],
+    request_playbook: dict[str, object],
 ) -> dict[str, object]:
     resource_contract_ids = _resource_specific_tuple(
         action_row,
@@ -590,6 +621,7 @@ def _request_payload(
         "execution_command": execution_command,
         "mcp_or_cli_hint": mcp_or_cli_hint,
         "dispatch_spec": dispatch_spec,
+        "request_playbook": request_playbook,
         "acceptance_gate": str(action_row.get("acceptance_gate", "")),
         "stop_conditions": _str_tuple(action_row.get("stop_conditions", [])),
         "action_resource_proof_evidence_boundary": (
@@ -597,6 +629,127 @@ def _request_payload(
         ),
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
     }
+
+
+def _request_playbook(
+    action_row: dict[str, Any],
+    phase: str,
+    resource_id: str,
+    *,
+    resource_request_id: str,
+    expected_response_artifact: str,
+    execution_command: str,
+    mcp_or_cli_hint: str,
+) -> dict[str, object]:
+    request_contract_fields = _resource_specific_tuple(
+        action_row,
+        "request_contract_fields_by_resource",
+        resource_id,
+        "request_contract_fields",
+    )
+    response_contract_fields = _resource_specific_tuple(
+        action_row,
+        "response_contract_fields_by_resource",
+        resource_id,
+        "response_contract_fields",
+    )
+    candidate_declarations = tuple(
+        str(row.get("declaration", ""))
+        for row in _candidate_declaration_rows(
+            action_row.get("candidate_declaration_rows", [])
+        )
+        if str(row.get("declaration", ""))
+    )
+    return {
+        "resource_request_id": resource_request_id,
+        "resource_id": resource_id,
+        "request_phase": phase,
+        "target_prover_family": str(action_row.get("target_prover_family", "")),
+        "operator_prompt": _playbook_operator_prompt(
+            action_row,
+            resource_id,
+            expected_response_artifact,
+            response_contract_fields,
+        ),
+        "input_summary": {
+            "route_id": str(action_row.get("route_id", "")),
+            "display_name": str(action_row.get("display_name", "")),
+            "primitive": str(action_row.get("primitive", "")),
+            "coverage_bucket": str(action_row.get("coverage_bucket", "")),
+            "queue_action_kind": str(action_row.get("queue_action_kind", "")),
+            "candidate_declarations": candidate_declarations,
+            "evidence_inputs": _str_tuple(action_row.get("evidence_inputs", [])),
+            "expected_outputs": _str_tuple(action_row.get("expected_outputs", [])),
+        },
+        "required_inputs": request_contract_fields,
+        "expected_response_fields": response_contract_fields,
+        "expected_response_artifact": expected_response_artifact,
+        "acceptance_checklist": _playbook_acceptance_checklist(
+            action_row,
+            response_contract_fields,
+            expected_response_artifact,
+        ),
+        "rejection_triggers": _playbook_rejection_triggers(action_row),
+        "stop_conditions": _str_tuple(action_row.get("stop_conditions", [])),
+        "execution_command": execution_command,
+        "mcp_or_cli_hint": mcp_or_cli_hint,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
+
+
+def _playbook_operator_prompt(
+    action_row: dict[str, Any],
+    resource_id: str,
+    expected_response_artifact: str,
+    response_contract_fields: tuple[str, ...],
+) -> str:
+    response_fields = ", ".join(response_contract_fields) or "the response contract"
+    primitive = str(action_row.get("primitive", "")).strip() or "<primitive>"
+    route_id = str(action_row.get("route_id", "")).strip() or "<route>"
+    action_kind = (
+        str(action_row.get("queue_action_kind", "")).strip()
+        or "<queue_action_kind>"
+    )
+    return (
+        f"Use {resource_id} for {action_kind} on primitive {primitive} "
+        f"in route {route_id}; return {expected_response_artifact} with "
+        f"{response_fields}."
+    )
+
+
+def _playbook_acceptance_checklist(
+    action_row: dict[str, Any],
+    response_contract_fields: tuple[str, ...],
+    expected_response_artifact: str,
+) -> tuple[str, ...]:
+    checklist = [
+        "response echoes resource_request_id and resource_id",
+        f"response artifact equals {expected_response_artifact}",
+        "response remains planner feedback and not theorem proof evidence",
+    ]
+    if response_contract_fields:
+        checklist.append(
+            "response covers required fields: " + ", ".join(response_contract_fields)
+        )
+    acceptance_gate = str(action_row.get("acceptance_gate", "")).strip()
+    if acceptance_gate:
+        checklist.append(f"action acceptance gate passes: {acceptance_gate}")
+    if _candidate_declaration_rows(action_row.get("candidate_declaration_rows", [])):
+        checklist.append(
+            "candidate declarations are replayed, mapped, or rejected with diagnostics"
+        )
+    return tuple(checklist)
+
+
+def _playbook_rejection_triggers(action_row: dict[str, Any]) -> tuple[str, ...]:
+    triggers = list(_str_tuple(action_row.get("escalation_triggers", [])))
+    triggers.extend(
+        [
+            "response omits request identity, resource identity, or expected artifact",
+            "response claims theorem proof evidence without target-prover replay",
+        ]
+    )
+    return tuple(dict.fromkeys(trigger for trigger in triggers if trigger))
 
 
 def _request_payload_identity_errors(row: dict[str, Any]) -> list[str]:
@@ -622,6 +775,7 @@ def _request_payload_identity_errors(row: dict[str, Any]) -> list[str]:
         "execution_command",
         "mcp_or_cli_hint",
         "dispatch_spec",
+        "request_playbook",
     ):
         if request_payload.get(field_name) != row.get(field_name):
             errors.append(f"request_payload.{field_name} must match row.{field_name}")
@@ -633,6 +787,50 @@ def _request_payload_identity_errors(row: dict[str, Any]) -> list[str]:
         )
     if request_payload.get("request_rank") != row.get("request_rank"):
         errors.append("request_payload.request_rank must match row.request_rank")
+    return errors
+
+
+def _request_playbook_identity_errors(row: dict[str, Any]) -> list[str]:
+    request_playbook = row.get("request_playbook")
+    if not isinstance(request_playbook, dict):
+        return ["request_playbook must be object"]
+    errors: list[str] = []
+    for field_name in (
+        "resource_request_id",
+        "resource_id",
+        "request_phase",
+        "target_prover_family",
+        "expected_response_artifact",
+        "execution_command",
+        "mcp_or_cli_hint",
+        "proof_evidence_boundary",
+    ):
+        if request_playbook.get(field_name) != row.get(field_name):
+            errors.append(f"request_playbook.{field_name} must match row.{field_name}")
+    if _str_tuple(request_playbook.get("required_inputs", [])) != _str_tuple(
+        row.get("request_contract_fields", [])
+    ):
+        errors.append(
+            "request_playbook.required_inputs must match row.request_contract_fields"
+        )
+    if _str_tuple(
+        request_playbook.get("expected_response_fields", [])
+    ) != _str_tuple(row.get("response_contract_fields", [])):
+        errors.append(
+            "request_playbook.expected_response_fields must match row.response_contract_fields"
+        )
+    if not str(request_playbook.get("operator_prompt", "")).strip():
+        errors.append("request_playbook.operator_prompt must be non-empty")
+    if not isinstance(request_playbook.get("input_summary"), dict):
+        errors.append("request_playbook.input_summary must be object")
+    if not _str_tuple(request_playbook.get("acceptance_checklist", [])):
+        errors.append("request_playbook.acceptance_checklist must be non-empty")
+    request_payload = row.get("request_payload")
+    if isinstance(request_payload, dict):
+        if request_payload.get("request_playbook") != request_playbook:
+            errors.append(
+                "request_payload.request_playbook must match row.request_playbook"
+            )
     return errors
 
 
@@ -806,10 +1004,10 @@ def _adapter_surface(resource_id: str, phase: str) -> str:
         return "leansearch_api"
     if "leanexplore" in resource:
         return "leanexplore_mcp"
-    if "lsp" in resource:
-        return "target_prover_lsp_mcp"
     if "serapi" in resource:
         return "rocq_serapi"
+    if "lsp" in resource:
+        return "target_prover_lsp_mcp"
     if "sledgehammer" in resource:
         return "isabelle_sledgehammer"
     if "agda" in resource:
@@ -884,12 +1082,12 @@ def _mcp_or_cli_hint(resource_id: str, phase: str) -> str:
             return "Loogle/LeanSearch query adapter"
         if "leanexplore" in resource:
             return "LeanExplore MCP adapter"
+        if "serapi" in resource:
+            return "Rocq SerAPI/LSP adapter"
         if "lsp" in resource:
             return "target-prover LSP MCP adapter"
         if "reprover" in resource:
             return "ReProver or LeanDojo prover-feedback adapter"
-        if "serapi" in resource:
-            return "Rocq SerAPI/LSP adapter"
         if "sledgehammer" in resource:
             return "Isabelle/Sledgehammer adapter"
         if "agda" in resource:
@@ -1086,6 +1284,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         "# Formalization Gap Planner Resource Request Queue",
         "",
         f"- Resource requests: {payload.get('n_ok')}/{payload.get('n_resource_request_rows')}",
+        f"- Target prover family: {payload.get('target_prover_family')}",
+        f"- Target prover families: {payload.get('n_target_prover_families')}",
         f"- Local-first requests: {payload.get('n_local_first_requests')}",
         f"- Frontier escalation requests: {payload.get('n_frontier_escalation_requests')}",
         f"- Distinct resources: {payload.get('n_distinct_resources')}",
@@ -1101,6 +1301,11 @@ def _markdown_report(payload: dict[str, object]) -> str:
         (
             f"- Dispatch specs valid: "
             f"{payload.get('n_dispatch_spec_identity_valid')}/"
+            f"{payload.get('n_resource_request_rows')}"
+        ),
+        (
+            f"- Request playbooks valid: "
+            f"{payload.get('n_request_playbook_identity_valid')}/"
             f"{payload.get('n_resource_request_rows')}"
         ),
         f"- All OK: {payload.get('all_ok')}",

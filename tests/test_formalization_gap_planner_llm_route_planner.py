@@ -7,12 +7,19 @@ from pathlib import Path
 from ai_statistician.cli import main
 from ai_statistician.formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID,
+    LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_MANIFEST_SCHEMA_ID,
+    LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID,
     LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
     PROOF_EVIDENCE_BOUNDARY,
+    _generator_model_for_request,
     export_formalization_gap_planner_llm_route_planner,
+    llm_route_planner_response_payload_schema,
     llm_route_planner_row_json_schema,
+    validate_formalization_gap_planner_llm_route_planner_response_payloads,
+    validate_llm_route_planner_request,
+    validate_llm_route_planner_response_payload,
     validate_llm_route_planner_row,
 )
 from ai_statistician.formalization_gap_planner_component_resource_registry import (
@@ -42,6 +49,9 @@ from ai_statistician.formalization_gap_planner_standalone import (
 )
 from ai_statistician.formalization_gap_planner_source_grounding_audit import (
     audit_formalization_gap_planner_source_grounding,
+)
+from ai_statistician.formalization_gap_planner_target_intake import (
+    normalize_formalization_gap_planner_target_intake,
 )
 from ai_statistician.model_backend import GeneratorResponse
 
@@ -497,6 +507,12 @@ def _write_resource_response_ledger(root: Path) -> Path:
                         },
                         "response_artifacts": ["paperclip://rank-uniformity"],
                         "source_refs": ["conformal_prediction_textbook"],
+                        "request_playbook_present": True,
+                        "response_playbook_grounded": True,
+                        "response_playbook_grounding_terms": [
+                            "rank_uniformity",
+                            "tie handling",
+                        ],
                         "route_evidence_nodes": [
                             {
                                 "node_id": "paperclip:rank_uniformity",
@@ -609,9 +625,13 @@ def _write_resource_request_queue(root: Path) -> Path:
         json.dumps(
             {
                 "component_name": "formalization_gap_planner_resource_request_queue",
+                "schema_version": 3,
                 "n_resource_request_rows": 1,
+                "n_with_request_playbooks": 1,
+                "n_request_playbook_identity_valid": 1,
                 "rows": [
                     {
+                        "schema_version": 3,
                         "resource_request_id": "resource-request:rank_route",
                         "action_resource_plan_id": "action-resource:rank_route",
                         "primitive_action_id": "primitive-action:rank_route",
@@ -646,6 +666,60 @@ def _write_resource_request_queue(root: Path) -> Path:
                             "source_snippets",
                             "route_revision_recommended",
                         ],
+                        "request_playbook": {
+                            "resource_request_id": "resource-request:rank_route",
+                            "resource_id": "paperclip_cli_mcp",
+                            "request_phase": "frontier_escalation",
+                            "target_prover_family": "lean4",
+                            "operator_prompt": (
+                                "Use paperclip_cli_mcp to find source-backed rank "
+                                "uniformity evidence for the rank_uniformity primitive."
+                            ),
+                            "input_summary": {
+                                "route_id": "rank_route",
+                                "display_name": "distribution_free_rank_bound",
+                                "primitive": "rank_uniformity",
+                                "coverage_bucket": "bridge_needed",
+                                "queue_action_kind": (
+                                    "literature_grounded_route_synthesis"
+                                ),
+                                "candidate_declarations": [
+                                    "Probability.rankUniformityBridge"
+                                ],
+                            },
+                            "required_inputs": [
+                                "target_theorem",
+                                "primitive",
+                                "source_query",
+                            ],
+                            "expected_response_fields": [
+                                "source_refs",
+                                "source_snippets",
+                                "route_revision_recommended",
+                            ],
+                            "expected_response_artifact": "source_evidence",
+                            "acceptance_checklist": [
+                                "response echoes resource_request_id and resource_id",
+                                "response artifact equals source_evidence",
+                                (
+                                    "response covers required fields: source_refs, "
+                                    "source_snippets, route_revision_recommended"
+                                ),
+                            ],
+                            "rejection_triggers": [
+                                "local_literature_low_recall",
+                                (
+                                    "response claims theorem proof evidence without "
+                                    "target-prover replay"
+                                ),
+                            ],
+                            "stop_conditions": ["source-backed route node found"],
+                            "execution_command": (
+                                "paperclip search --query 'rank uniformity exchangeability'"
+                            ),
+                            "mcp_or_cli_hint": "paperclip_cli_mcp",
+                            "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+                        },
                         "expected_response_artifact": "source_evidence",
                         "acceptance_gate": "source_refs_and_snippets_present",
                         "escalation_triggers": ["local_literature_low_recall"],
@@ -671,6 +745,25 @@ def _write_resource_request_queue(root: Path) -> Path:
                                 }
                             ],
                             "source_query": "rank uniformity exchangeability",
+                            "request_playbook": {
+                                "resource_request_id": "resource-request:rank_route",
+                                "resource_id": "paperclip_cli_mcp",
+                                "request_phase": "frontier_escalation",
+                                "target_prover_family": "lean4",
+                                "operator_prompt": (
+                                    "Use paperclip_cli_mcp to find source-backed rank "
+                                    "uniformity evidence for the rank_uniformity primitive."
+                                ),
+                                "expected_response_fields": [
+                                    "source_refs",
+                                    "source_snippets",
+                                    "route_revision_recommended",
+                                ],
+                                "acceptance_checklist": [
+                                    "response echoes resource_request_id and resource_id",
+                                    "response artifact equals source_evidence",
+                                ],
+                            },
                         },
                     }
                 ],
@@ -767,6 +860,152 @@ def test_llm_route_planner_prompt_only_remains_explicit_no_provider_mode() -> No
     assert request["model"] == ""
 
 
+def test_llm_route_planner_stages_target_intake_context() -> None:
+    root = Path("runs/test_formalization_gap_planner_llm_route_planner_target_intake")
+    target_intake_dir = root / "target_intake"
+    out_dir = root / "llm_route_planner"
+    raw_target_json = root / "target.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    raw_target_json.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "component_name": "formalization_gap_planner_target_intake",
+                "target_prover_family": "lean4",
+                "library_snapshot_ref": "lean_mathlib_snapshot",
+                "target_id": "split_conformal_rank_bound",
+                "title": "Split conformal rank bound",
+                "domain": "conformal_prediction",
+                "theorem_statement": (
+                    "For exchangeable calibration and test scores, the split "
+                    "conformal rank bound has finite-sample coverage."
+                ),
+                "theorem_skeleton": "theorem split_conformal_rank_bound : ...",
+                "objects": ["calibration scores", "test score", "rank statistic"],
+                "assumptions": ["exchangeability", "deterministic tie handling"],
+                "statistical_procedure": "split conformal prediction",
+                "desired_conclusion": "finite-sample coverage inequality",
+                "desired_theorem_shape": "finite_sample_rank_coverage",
+                "known_proof_sources": ["conformal_prediction_textbook"],
+                "candidate_primitives": [
+                    {
+                        "primitive": "rank_uniformity",
+                        "coverage_status": "needs_search",
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    target_payload = normalize_formalization_gap_planner_target_intake(
+        raw_target_json,
+        target_intake_dir,
+    )
+    assert target_payload["all_ok"]
+    standalone_seed = (
+        target_intake_dir
+        / "formalization_gap_planner_target_intake_standalone_seed.json"
+    )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        standalone_seed,
+        out_dir,
+        formalization_gap_planner_target_intake_dir=target_intake_dir,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_requests_with_target_intake_rows"] == 1
+    assert payload["n_request_target_intake_rows"] == 1
+    request = payload["request_packets"][0]
+    context = request["context_packet"]
+    intake_row = context["target_intake_rows"][0]
+    assert intake_row["target_id"] == "split_conformal_rank_bound"
+    assert intake_row["normalized_objects"] == [
+        "calibration scores",
+        "test score",
+        "rank statistic",
+    ]
+    assert intake_row["normalized_assumptions"] == [
+        "exchangeability",
+        "deterministic tie handling",
+    ]
+    assert intake_row["normalized_procedure"] == "split conformal prediction"
+    assert intake_row["normalized_claim"] == "finite-sample coverage inequality"
+    assert intake_row["desired_theorem_shape"] == "finite_sample_rank_coverage"
+    assert "rank_uniformity" in intake_row["extracted_primitive_candidates"]
+    prompt_text = request["prompt_messages"]["user"]
+    assert "context_packet.target_intake_rows" in prompt_text
+    assert "normalized_assumptions" in prompt_text
+    assert "formal_library_grounding_queries" in prompt_text
+    assert "legacy alias" in prompt_text
+    assert "target intake is not proof evidence" in prompt_text
+
+
+def test_llm_route_planner_auto_uses_sonnet_for_source_unbacked_target_intake() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_target_intake_tier"
+    )
+    target_intake_dir = root / "target_intake"
+    out_dir = root / "llm_route_planner"
+    raw_target_json = root / "target.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    raw_target_json.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "component_name": "formalization_gap_planner_target_intake",
+                "target_prover_family": "lean4",
+                "library_snapshot_ref": "lean_mathlib_snapshot",
+                "target_id": "light_rank_bound_without_sources",
+                "title": "Light rank bound without sources",
+                "domain": "conformal_prediction",
+                "theorem_statement": "A small rank fact follows from exchangeability.",
+                "assumptions": ["exchangeability"],
+                "desired_conclusion": "finite-sample rank coverage",
+                "desired_theorem_shape": "finite_sample_rank_coverage",
+                "candidate_primitives": [
+                    {
+                        "primitive": "exchangeability",
+                        "coverage_status": "exact_exists",
+                        "candidate_declarations": ["Probability.exchangeable"],
+                    },
+                    {
+                        "primitive": "rank_uniformity",
+                        "coverage_status": "near_exists",
+                        "candidate_declarations": ["Probability.exchangeable"],
+                    },
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    target_payload = normalize_formalization_gap_planner_target_intake(
+        raw_target_json,
+        target_intake_dir,
+    )
+    assert target_payload["all_ok"]
+    assert "proof_source_refs_missing" in target_payload["rows"][0]["review_flags"]
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        target_intake_dir
+        / "formalization_gap_planner_target_intake_standalone_seed.json",
+        out_dir,
+        formalization_gap_planner_target_intake_dir=target_intake_dir,
+    )
+
+    assert payload["all_ok"]
+    assert payload["by_request_model_tier"] == {"sonnet": 1}
+    packet = payload["request_packets"][0]
+    assert packet["model_tier"] == "sonnet"
+    assert packet["model"] == "claude-sonnet-4-6"
+    assert "target intake review flag(s):" in packet["model_selection_rationale"]
+    assert "proof_source_refs_missing" in packet["model_selection_rationale"]
+
+
 def test_llm_route_planner_stages_component_resource_registry_context() -> None:
     root = Path("runs/test_formalization_gap_planner_llm_route_planner_registry_context")
     out_dir = root / "llm_route_planner"
@@ -806,6 +1045,119 @@ def test_llm_route_planner_stages_component_resource_registry_context() -> None:
     )
     assert "component_resource_registry_context" in request["prompt_messages"]["user"]
     assert "registry rows are not evidence" in request["prompt_messages"]["user"]
+
+
+def test_llm_route_planner_filters_registry_context_for_rocq_target() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_registry_context_rocq"
+    )
+    out_dir = root / "llm_route_planner"
+    registry_dir = root / "component_resource_registry"
+    input_json = root / "standalone_input.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "component_name": "formalization_gap_planner_standalone_input",
+                "target_prover_family": "rocq",
+                "library_snapshot_ref": "rocq_probability_snapshot",
+                "routes": [
+                    {
+                        "route_id": "rocq_rank_route",
+                        "display_name": "rocq_distribution_free_rank_bound",
+                        "target_prover_family": "rocq",
+                        "theorem_statement": (
+                            "A Rocq rank bound follows from exchangeability."
+                        ),
+                        "source_refs": ["conformal_prediction_textbook"],
+                        "primitives": [
+                            {
+                                "primitive": "rank_uniformity",
+                                "coverage_status": "bridge_needed",
+                            }
+                        ],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    export_formalization_gap_planner_component_resource_registry(registry_dir)
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        formalization_gap_planner_component_resource_registry_dir=registry_dir,
+    )
+
+    assert payload["all_ok"]
+    request = payload["request_packets"][0]
+    registry_context = request["context_packet"][
+        "component_resource_registry_context"
+    ]
+    resource_ids = {
+        row["resource_id"] for row in registry_context["resource_rows"]
+    }
+    assert "local_target_formal_source_index" in resource_ids
+    assert "rocq_lsp_serapi" in resource_ids
+    lean_only_resource_ids = {
+        "local_formal_source_index",
+        "local_lean_rag_dependency_graph",
+        "loogle_leansearch",
+        "leanexplore_mcp",
+        "lean_blueprint_leanarchitect",
+        "local_lake_lean",
+        "lean_lsp_mcp",
+        "leandojo_reprover",
+    }
+    lean_only_adapter_ids = lean_only_resource_ids | {"loogle_leansearchclient"}
+    assert not resource_ids.intersection(lean_only_resource_ids)
+    for row in (
+        *registry_context["component_rows"],
+        *registry_context["execution_plan_rows"],
+    ):
+        row_resource_ids = set()
+        for field_name in (
+            "local_fallback_resource_ids",
+            "frontier_resource_ids",
+            "local_first_resource_ids",
+            "frontier_escalation_resource_ids",
+            "resource_ids",
+        ):
+            row_resource_ids.update(row.get(field_name, ()))
+        assert not row_resource_ids.intersection(lean_only_resource_ids)
+        assert not set(row.get("adapter_ids", ())).intersection(lean_only_adapter_ids)
+        assert not set(row.get("detected_adapter_statuses", {})).intersection(
+            lean_only_adapter_ids
+        )
+    contract_resource_ids = {
+        row["resource_id"] for row in registry_context["resource_contract_rows"]
+    }
+    assert "rocq_lsp_serapi" in contract_resource_ids
+    assert not contract_resource_ids.intersection(lean_only_resource_ids)
+    assert "lean_realization_dag_nodes" not in request["required_output_contract"]
+    rocq_schema = llm_route_planner_response_payload_schema(
+        target_prover_family="rocq"
+    )
+    assert rocq_schema["anyOf"] == [{"required": ["formal_realization_dag_nodes"]}]
+    assert "lean_realization_dag_nodes" not in rocq_schema["properties"]
+    lean_schema = llm_route_planner_response_payload_schema(
+        target_prover_family="lean4"
+    )
+    assert {"required": ["lean_realization_dag_nodes"]} in lean_schema["anyOf"]
+    assert "lean_realization_dag_nodes" in lean_schema["properties"]
+    prompt_text = request["prompt_messages"]["user"]
+    assert "target-prover realization DAG" in prompt_text
+    assert "Lean/prover realization DAG" not in prompt_text
+    assert "target-prover effort" in prompt_text
+    assert "Lean/prover effort" not in prompt_text
+    assert "lean_realization_dag_nodes" not in prompt_text
+    assert "lean_grounding_queries" not in prompt_text
+    for lean_only_id in lean_only_adapter_ids:
+        assert lean_only_id not in prompt_text
 
 
 def test_llm_route_planner_accepts_registry_bound_actions_without_queue() -> None:
@@ -1034,6 +1386,52 @@ def test_llm_route_planner_rejects_registry_unavailable_tool_actions() -> None:
     assert "owner/tool is not available" in error_text
 
 
+def test_llm_route_planner_rejects_unknown_registry_resource_contract_ids() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_registry_bad_contract"
+    )
+    out_dir = root / "llm_route_planner"
+    registry_dir = root / "component_resource_registry"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    export_formalization_gap_planner_component_resource_registry(registry_dir)
+    response = _llm_response_payload()
+    response["search_requests"] = [
+        {
+            "request_kind": "prover_feedback",
+            "query": "rank uniformity proof-state residuals",
+            "reason": "bad fixture cites a contract not exposed by context",
+            "resource_id": "lean_lsp_mcp",
+            "resource_contract_ids": ["invented:proof_state_contract"],
+        }
+    ]
+    response["planner_next_actions"] = [
+        {
+            "owner": "lean_lsp_mcp",
+            "action": "attempt the rank_uniformity bridge lemma",
+            "resource_contract_ids": ["invented:proof_state_contract"],
+        }
+    ]
+    response_json.write_text(json.dumps(response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_component_resource_registry_dir=registry_dir,
+    )
+
+    assert not payload["all_ok"]
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    error_text = "\n".join(row["errors"])
+    assert "references resource_contract_id(s) not present" in error_text
+    assert "invented_proof_state_contract" in error_text
+
+
 def test_llm_route_planner_stages_resource_response_content() -> None:
     root = Path("runs/test_formalization_gap_planner_llm_route_planner_resource_context")
     out_dir = root / "llm_route_planner"
@@ -1090,6 +1488,11 @@ def test_llm_route_planner_stages_resource_response_content() -> None:
         "awaiting_request_ids": [],
         "absent_response_request_ids": [],
         "failed_contract_request_ids": [],
+        "request_playbook_present_count": 1,
+        "playbook_grounded_count": 1,
+        "playbook_grounding_failed_count": 0,
+        "playbook_grounded_request_ids": ["resource-request:rank_route"],
+        "playbook_grounding_failed_request_ids": [],
     }
     assert summary["response_acceptance_status_counts"] == {
         "ACCEPTED_WITH_ROUTE_REVISION": 1
@@ -1240,6 +1643,11 @@ def test_llm_route_planner_rejected_resource_response_is_status_not_repair_signa
         "awaiting_request_ids": [],
         "absent_response_request_ids": [],
         "failed_contract_request_ids": ["resource-request:rank_route"],
+        "request_playbook_present_count": 1,
+        "playbook_grounded_count": 1,
+        "playbook_grounding_failed_count": 0,
+        "playbook_grounded_request_ids": ["resource-request:rank_route"],
+        "playbook_grounding_failed_request_ids": [],
     }
     assert summary["response_acceptance_status_counts"] == {
         "REJECTED_MISSING_RESPONSE_CONTRACT_FIELDS": 1
@@ -1249,6 +1657,94 @@ def test_llm_route_planner_rejected_resource_response_is_status_not_repair_signa
     assert summary["admissible_source_snippets"] == []
     assert summary["replan_required"] is False
     assert summary["recommended_next_actions"] == []
+
+
+def test_llm_route_planner_rejected_playbook_grounding_response_requests_redispatch() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejected_playbook_grounding"
+    )
+    out_dir = root / "llm_route_planner"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    resource_response_ledger_dir = _write_resource_response_ledger(root)
+    manifest_path = (
+        resource_response_ledger_dir
+        / "formalization_gap_planner_resource_response_ledger_manifest.json"
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    row = manifest["rows"][0]
+    row["acceptance_status"] = "REJECTED_RESPONSE_NOT_GROUNDED_IN_REQUEST_PLAYBOOK"
+    row["response_contract_fields"] = [
+        "source_refs",
+        "source_snippets",
+        "route_revision_recommended",
+    ]
+    row["response_contract_ok"] = False
+    row["response_contract_minimum_met"] = True
+    row["matched_response_contract_fields"] = ["source_refs", "source_snippets"]
+    row["missing_response_contract_fields"] = ["route_revision_recommended"]
+    row["request_playbook_present"] = True
+    row["response_playbook_grounded"] = False
+    row["response_playbook_grounding_terms"] = []
+    row["ok"] = False
+    row["errors"] = ["resource response is not grounded in request_playbook"]
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        formalization_gap_planner_resource_response_ledger_dir=(
+            resource_response_ledger_dir
+        ),
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_requests_with_resource_response_ledger_rows"] == 1
+    assert payload["n_feedback_loop_summary_resource_response_admissible"] == 0
+    assert payload["n_feedback_loop_summary_resource_response_status_only"] == 1
+    request = payload["request_packets"][0]
+    summary = request["context_packet"]["feedback_loop_summary"]
+    assert summary["resource_response_admissibility"] == {
+        "total_count": 1,
+        "admissible_count": 0,
+        "status_only_count": 1,
+        "admissible_request_ids": [],
+        "status_only_request_ids": ["resource-request:rank_route"],
+        "rejected_request_ids": ["resource-request:rank_route"],
+        "awaiting_request_ids": [],
+        "absent_response_request_ids": [],
+        "failed_contract_request_ids": ["resource-request:rank_route"],
+        "request_playbook_present_count": 1,
+        "playbook_grounded_count": 0,
+        "playbook_grounding_failed_count": 1,
+        "playbook_grounded_request_ids": [],
+        "playbook_grounding_failed_request_ids": ["resource-request:rank_route"],
+    }
+    assert summary["replan_required"] is False
+    assert summary["admissible_source_snippets"] == []
+    assert summary["response_acceptance_status_counts"] == {
+        "REJECTED_RESPONSE_NOT_GROUNDED_IN_REQUEST_PLAYBOOK": 1
+    }
+    assert summary["recommended_next_actions"] == [
+        {
+            "source": "resource_response_ledger",
+            "owner": "paperclip_mcp",
+            "action": "redispatch_resource_response_with_request_playbook",
+            "resource_request_id": "resource-request:rank_route",
+            "acceptance_status": (
+                "REJECTED_RESPONSE_NOT_GROUNDED_IN_REQUEST_PLAYBOOK"
+            ),
+            "reason": "response_present but not grounded in queued request_playbook",
+            "response_contract_fields": [
+                "source_refs",
+                "source_snippets",
+                "route_revision_recommended",
+            ],
+            "matched_response_contract_fields": ["source_refs", "source_snippets"],
+            "missing_response_contract_fields": ["route_revision_recommended"],
+        }
+    ]
 
 
 def test_llm_route_planner_accepts_source_from_admissible_refinement_evidence() -> None:
@@ -1401,6 +1897,9 @@ def test_llm_route_planner_stages_pending_resource_request_queue() -> None:
     assert payload["all_ok"]
     assert payload["n_requests_with_resource_request_queue_rows"] == 1
     assert payload["n_request_resource_request_queue_rows"] == 1
+    assert payload["n_requests_with_resource_request_playbooks"] == 1
+    assert payload["n_request_resource_request_playbooks"] == 1
+    assert payload["n_feedback_loop_summary_resource_request_playbooks"] == 1
     assert payload["n_requests_with_feedback_loop_summary"] == 1
     request = payload["request_packets"][0]
     context = request["context_packet"]
@@ -1415,6 +1914,23 @@ def test_llm_route_planner_stages_pending_resource_request_queue() -> None:
         "route_revision_recommended",
     ]
     assert "paperclip search" in queue_row["execution_command"]
+    assert queue_row["request_playbook"]["operator_prompt"].startswith(
+        "Use paperclip_cli_mcp"
+    )
+    playbook = context["resource_request_playbooks"][0]
+    assert playbook["resource_request_id"] == "resource-request:rank_route"
+    assert playbook["resource_id"] == "paperclip_cli_mcp"
+    assert playbook["operator_prompt"] == queue_row["request_playbook"][
+        "operator_prompt"
+    ]
+    assert playbook["expected_response_fields"] == [
+        "source_refs",
+        "source_snippets",
+        "route_revision_recommended",
+    ]
+    assert "response artifact equals source_evidence" in playbook[
+        "acceptance_checklist"
+    ]
     declaration_rows = context["available_formal_declaration_rows"]
     assert {
         (
@@ -1434,13 +1950,26 @@ def test_llm_route_planner_stages_pending_resource_request_queue() -> None:
         "available_formal_declarations"
     ]
     assert "resource_request_queue_rows" in request["prompt_messages"]["user"]
+    assert "resource_request_playbooks" in request["prompt_messages"]["user"]
+    assert "operator_prompt" in request["prompt_messages"]["user"]
     assert "source_refs_and_snippets_present" in request["prompt_messages"]["user"]
     summary = context["feedback_loop_summary"]
     assert summary["evidence_counts"]["resource_request_queue_rows"] == 1
+    assert summary["resource_request_playbook_count"] == 1
+    assert summary["resource_request_playbooks"][0]["resource_request_id"] == (
+        "resource-request:rank_route"
+    )
     assert summary["recommended_next_actions"][0]["source"] == (
         "resource_request_queue"
     )
     assert summary["recommended_next_actions"][0]["owner"] == "paperclip_cli_mcp"
+    assert summary["recommended_next_actions"][0]["request_playbook_present"] is True
+    assert summary["recommended_next_actions"][0]["operator_prompt"].startswith(
+        "Use paperclip_cli_mcp"
+    )
+    assert "response artifact equals source_evidence" in summary[
+        "recommended_next_actions"
+    ][0]["acceptance_checklist"]
     assert summary["recommended_next_actions"][0]["resource_contracts"] == [
         "paperclip:source_snippet_contract"
     ]
@@ -1500,7 +2029,7 @@ def test_llm_route_planner_accepts_response_aligned_to_resource_request_queue() 
     response["planner_next_actions"] = [
         {
             "owner": "paperclip_cli_mcp",
-            "action": "dispatch queued literature evidence request",
+            "action": "dispatch queued rank_uniformity literature evidence request",
             "resource_request_id": "resource-request:rank_route",
             "resource_id": "paperclip_cli_mcp",
         }
@@ -1640,6 +2169,54 @@ def test_llm_route_planner_rejects_unqueued_resource_request_references() -> Non
     assert "not present in request queue or registry context" in error_text
 
 
+def test_llm_route_planner_rejects_resource_request_not_grounded_in_playbook() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_queue_playbook_mismatch"
+    )
+    out_dir = root / "llm_route_planner"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    resource_request_queue_dir = _write_resource_request_queue(root)
+    response_json = root / "response.json"
+    response = _llm_response_payload()
+    response["search_requests"] = [
+        {
+            "request_kind": "literature",
+            "query": "compact operator spectral theorem Hilbert basis",
+            "reason": "unrelated functional analysis search despite queued request id",
+            "resource_request_id": "resource-request:rank_route",
+            "resource_id": "paperclip_cli_mcp",
+        }
+    ]
+    response["planner_next_actions"] = [
+        {
+            "owner": "paperclip_cli_mcp",
+            "action": "dispatch compact operator spectral theorem search",
+            "resource_request_id": "resource-request:rank_route",
+            "resource_id": "paperclip_cli_mcp",
+        }
+    ]
+    response_json.write_text(json.dumps(response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_resource_request_queue_dir=(
+            resource_request_queue_dir
+        ),
+    )
+
+    assert not payload["all_ok"]
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert row["response_contract_ok"] is False
+    error_text = "\n".join(row["errors"])
+    assert "not grounded in the queued request_playbook" in error_text
+
+
 def test_llm_route_planner_stages_interactive_session_context() -> None:
     root = Path("runs/test_formalization_gap_planner_llm_route_planner_interactive_context")
     out_dir = root / "llm_route_planner"
@@ -1680,14 +2257,24 @@ def test_llm_route_planner_accepts_grounded_residual_interpretation() -> None:
     shutil.rmtree(root, ignore_errors=True)
     root.mkdir(parents=True, exist_ok=True)
     input_json = _write_input(root)
+    residual_source_ref = "paper:tie-side-condition"
+    primitive_source_ref = "paper:rank-primitive-route"
+    input_payload = json.loads(input_json.read_text(encoding="utf-8"))
+    input_payload["routes"][0]["source_refs"].extend(
+        [residual_source_ref, primitive_source_ref]
+    )
+    input_json.write_text(json.dumps(input_payload, indent=2), encoding="utf-8")
     interactive_session_dir = _write_interactive_session(root)
     response = _llm_response_payload()
+    response["standalone_route"]["primitives"][1]["source_refs"] = [
+        primitive_source_ref
+    ]
     response["residual_interpretations"] = [
         {
             "residual_goal": "missing finite tie-breaking side condition",
             "interpretation": "The proof route has not fixed deterministic tie handling.",
             "route_repair": "Add a tie-breaking side condition before replay.",
-            "source_refs": ["conformal_prediction_textbook"],
+            "source_refs": [residual_source_ref],
         }
     ]
     response_json.write_text(json.dumps(response), encoding="utf-8")
@@ -1707,6 +2294,8 @@ def test_llm_route_planner_accepts_grounded_residual_interpretation() -> None:
     assert row["residual_interpretations"][0]["route_repair"] == (
         "Add a tie-breaking side condition before replay."
     )
+    assert residual_source_ref in row["source_refs"]
+    assert primitive_source_ref in row["source_refs"]
 
 
 def test_llm_route_planner_rejects_unsourced_residual_repair() -> None:
@@ -1776,6 +2365,47 @@ def test_llm_route_planner_cli_rejects_codex_generator_alias() -> None:
     ).exists()
 
 
+def test_llm_route_planner_api_rejects_codex_generator_alias() -> None:
+    root = Path("runs/test_formalization_gap_planner_llm_route_planner_api_codex")
+    out_dir = root / "out"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+
+    try:
+        export_formalization_gap_planner_llm_route_planner(
+            input_json,
+            out_dir,
+            provider_name="codex_exec",
+        )
+    except ValueError as exc:
+        assert "Codex/Codex exec are not accepted as pure LLM" in str(exc)
+    else:
+        raise AssertionError("Codex exec must not be accepted through the API")
+    assert not (
+        out_dir / "formalization_gap_planner_llm_route_planner_requests.jsonl"
+    ).exists()
+
+
+def test_llm_route_planner_request_validator_rejects_codex_provider() -> None:
+    root = Path("runs/test_formalization_gap_planner_llm_route_planner_request_codex")
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="prompt_only",
+    )
+    request = dict(payload["request_packets"][0])
+    request["provider_name"] = "codex"
+
+    assert (
+        "provider_name must be one of prompt_only, static, anthropic, openai"
+        in validate_llm_route_planner_request(request)
+    )
+
+
 def test_llm_route_planner_cli_invoke_provider_requires_live_provider() -> None:
     root = Path("runs/test_formalization_gap_planner_llm_route_planner_cli_prompt_only_invoke")
     out_dir = root / "out"
@@ -1829,6 +2459,20 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert payload["response_payload_schema"]["$id"] == (
         LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID
     )
+    response_payload_schema = payload["response_payload_schema"]
+    assert response_payload_schema["anyOf"] == [
+        {"required": ["formal_realization_dag_nodes"]},
+        {"required": ["lean_realization_dag_nodes"]},
+    ]
+    assert response_payload_schema["properties"]["minimal_delta_plan"] == {
+        "$ref": "#/$defs/minimal_delta_plan"
+    }
+    minimal_delta_schema = response_payload_schema["$defs"]["minimal_delta_plan"]
+    assert "and_or_cost_graph" in minimal_delta_schema["required"]
+    assert minimal_delta_schema["properties"]["primitive_costs"]["items"] == {
+        "$ref": "#/$defs/primitive_cost"
+    }
+    assert validate_llm_route_planner_response_payload(_llm_response_payload()) == []
     assert payload["row_schema"]["$id"] == LLM_ROUTE_PLANNER_ROW_SCHEMA_ID
     assert (
         out_dir
@@ -1842,6 +2486,18 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert payload["n_route_adoption_pending_search_request_blockers"] == 1
     assert payload["n_route_adoption_pending_planner_next_action_blockers"] == 1
     assert payload["n_route_adoption_pending_uncertainty_blockers"] == 1
+    assert payload["route_adoption_blocker_taxonomy_id"] == (
+        "formalization_gap_planner_route_adoption_blocker_taxonomy:1"
+    )
+    assert set(payload["route_adoption_blocker_values"]) >= {
+        "search_requests_pending_evidence",
+        "planner_next_actions_pending_evidence",
+        "uncertainty_flags_require_review",
+        "semantic_alignment_risks_require_review",
+        "feedback_summary_actions_pending_resolution",
+        "resource_request_queue_pending_response",
+        "realization_coverage_incomplete",
+    }
     assert payload["by_route_adoption_status"] == {
         "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
     }
@@ -1880,6 +2536,9 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert row_schema["properties"]["realization_coverage_witness"] == {
         "$ref": "#/$defs/realization_coverage_witness"
     }
+    assert set(
+        row_schema["properties"]["route_adoption_blockers"]["items"]["enum"]
+    ) == set(payload["route_adoption_blocker_values"])
     witness_schema = row_schema["$defs"]["realization_coverage_witness"]
     assert "selected_primitives" in witness_schema["required"]
     assert "delta_primitives_missing_route_alignment_edge" in witness_schema["required"]
@@ -2053,6 +2712,361 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert plan_row["minimal_cut_summary"]["add_bridge_lemmas"] == ["rank_uniformity"]
 
 
+def test_llm_route_planner_rejects_payload_missing_schema_level_cost_graph() -> None:
+    root = Path("runs/test_formalization_gap_planner_llm_route_planner_payload_schema")
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response = _llm_response_payload()
+    minimal_delta = response["minimal_delta_plan"]
+    assert isinstance(minimal_delta, dict)
+    minimal_delta.pop("and_or_cost_graph")
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    schema_errors = validate_llm_route_planner_response_payload(response)
+    assert (
+        "response_payload.minimal_delta_plan.and_or_cost_graph required"
+        in schema_errors
+    )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_response_schema_invalid"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "response_payload.minimal_delta_plan.and_or_cost_graph required" in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_response_payload_validator_accepts_raw_payload() -> None:
+    root = Path("runs/test_formalization_gap_planner_llm_payload_validate")
+    out_dir = root / "out"
+    response_json = root / "response_payload.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    response_json.write_text(
+        json.dumps(_llm_response_payload(), indent=2),
+        encoding="utf-8",
+    )
+
+    payload = validate_formalization_gap_planner_llm_route_planner_response_payloads(
+        response_json,
+        out_dir,
+    )
+
+    assert payload["all_ok"]
+    assert payload["component_name"] == (
+        "formalization_gap_planner_llm_route_planner_response_payload_validator"
+    )
+    assert payload["response_payload_schema_id"] == (
+        LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID
+    )
+    assert payload["response_payload_validation_manifest_schema_id"] == (
+        LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_MANIFEST_SCHEMA_ID
+    )
+    assert payload["response_payload_validation_row_schema_id"] == (
+        LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID
+    )
+    assert payload["response_payload_validation_manifest_schema"]["$id"] == (
+        LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_MANIFEST_SCHEMA_ID
+    )
+    assert payload["response_payload_validation_row_schema"]["$id"] == (
+        LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID
+    )
+    assert payload["n_payloads"] == 1
+    assert payload["n_valid_payloads"] == 1
+    assert payload["n_invalid_payloads"] == 0
+    row = payload["rows"][0]
+    assert row["ok"]
+    assert not row["response_wrapper_present"]
+    assert row["payload_schema_id"] == LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID
+    assert row["request_context_validation_mode"] == "schema_only"
+    assert row["request_context_id"] == ""
+    assert row["n_schema_errors"] == 0
+    assert row["n_request_context_errors"] == 0
+    assert (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.json"
+    ).exists()
+    assert (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation.jsonl"
+    ).exists()
+    assert (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.schema.json"
+    ).exists()
+    assert (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation_row.schema.json"
+    ).exists()
+
+
+def test_llm_route_planner_response_payload_validator_rejects_wrapper_payload() -> None:
+    root = Path("runs/test_formalization_gap_planner_llm_payload_validate_bad")
+    out_dir = root / "out"
+    response_json = root / "response_payload.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    response = _llm_response_payload()
+    minimal_delta = response["minimal_delta_plan"]
+    assert isinstance(minimal_delta, dict)
+    minimal_delta.pop("and_or_cost_graph")
+    response_json.write_text(
+        json.dumps(
+            {
+                "request_id": "request:fixture",
+                "route_id": "route:fixture",
+                "response_payload": response,
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = validate_formalization_gap_planner_llm_route_planner_response_payloads(
+        response_json,
+        out_dir,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_payloads"] == 1
+    assert payload["n_valid_payloads"] == 0
+    assert payload["n_invalid_payloads"] == 1
+    row = payload["rows"][0]
+    assert row["response_wrapper_present"]
+    assert row["request_id"] == "request:fixture"
+    assert row["route_id"] == "route:fixture"
+    assert row["errors"] == [
+        "response_payload.minimal_delta_plan.and_or_cost_graph required"
+    ]
+
+
+def test_llm_route_planner_payload_validator_rejects_non_lean_legacy_alias_schema_only() -> None:
+    root = Path("runs/test_formalization_gap_planner_llm_payload_validate_rocq_alias")
+    out_dir = root / "out"
+    response_json = root / "response_payload.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    response = _llm_response_payload()
+    response["target_prover_family"] = "rocq"
+    response["standalone_route"]["target_prover_family"] = "rocq"
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    direct_errors = validate_llm_route_planner_response_payload(response)
+    assert any(
+        "lean_realization_dag_nodes is a Lean-only legacy alias" in error
+        for error in direct_errors
+    )
+
+    payload = validate_formalization_gap_planner_llm_route_planner_response_payloads(
+        response_json,
+        out_dir,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_payloads"] == 1
+    assert payload["n_valid_payloads"] == 0
+    assert payload["n_invalid_payloads"] == 1
+    row = payload["rows"][0]
+    assert row["request_context_validation_mode"] == "schema_only"
+    assert row["n_schema_errors"] == 1
+    assert row["n_request_context_errors"] == 0
+    assert any(
+        "lean_realization_dag_nodes is a Lean-only legacy alias" in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_response_payload_validator_request_context_accepts_payload() -> None:
+    root = Path("runs/test_formalization_gap_planner_llm_payload_validate_request_bound")
+    planner_dir = root / "llm_route_planner"
+    out_dir = root / "out"
+    response_json = root / "response_payload.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    staged = export_formalization_gap_planner_llm_route_planner(
+        _write_input(root),
+        planner_dir,
+        provider_name="prompt_only",
+    )
+    request = staged["request_packets"][0]
+    response_json.write_text(
+        json.dumps(
+            {
+                "request_id": request["request_id"],
+                "route_id": request["route_id"],
+                "response_payload": _llm_response_payload(),
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = validate_formalization_gap_planner_llm_route_planner_response_payloads(
+        response_json,
+        out_dir,
+        request_context_json=planner_dir,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_request_context_packets"] == 1
+    assert payload["n_request_bound_payloads"] == 1
+    assert payload["n_request_context_errors"] == 0
+    row = payload["rows"][0]
+    assert row["request_context_validation_mode"] == "request_bound"
+    assert row["request_context_id"] == request["request_id"]
+    assert row["request_context_route_id"] == request["route_id"]
+    assert row["n_schema_errors"] == 0
+    assert row["n_request_context_errors"] == 0
+
+
+def test_llm_route_planner_response_payload_validator_request_context_rejects_theorem_drift() -> None:
+    root = Path("runs/test_formalization_gap_planner_llm_payload_validate_theorem_drift")
+    planner_dir = root / "llm_route_planner"
+    out_dir = root / "out"
+    response_json = root / "response_payload.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    staged = export_formalization_gap_planner_llm_route_planner(
+        _write_input(root),
+        planner_dir,
+        provider_name="prompt_only",
+    )
+    request = staged["request_packets"][0]
+    response = _llm_response_payload()
+    standalone_route = response["standalone_route"]
+    assert isinstance(standalone_route, dict)
+    standalone_route["theorem_statement"] = (
+        "A Gaussian central limit theorem follows from Lindeberg conditions."
+    )
+    response_json.write_text(
+        json.dumps(
+            {
+                "request_id": request["request_id"],
+                "route_id": request["route_id"],
+                "response_payload": response,
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = validate_formalization_gap_planner_llm_route_planner_response_payloads(
+        response_json,
+        out_dir,
+        request_context_json=planner_dir,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_schema_errors"] == 0
+    assert payload["n_request_context_errors"] >= 1
+    row = payload["rows"][0]
+    assert row["request_context_validation_mode"] == "request_bound"
+    assert row["n_schema_errors"] == 0
+    assert row["n_request_context_errors"] >= 1
+    assert any(
+        "standalone_route.theorem_statement appears to target a different theorem"
+        in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_response_payload_validator_cli() -> None:
+    root = Path("runs/test_formalization_gap_planner_llm_payload_validate_cli")
+    out_dir = root / "out"
+    response_json = root / "response_payload.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    response_json.write_text(
+        json.dumps({"responses": [_llm_response_payload()]}, indent=2),
+        encoding="utf-8",
+    )
+
+    code = main(
+        [
+            "formalization-gap-planner-llm-route-planner-response-payload-validate",
+            "--input",
+            str(response_json),
+            "--out",
+            str(out_dir),
+        ]
+    )
+
+    assert code == 0
+    manifest = json.loads(
+        (
+            out_dir
+            / "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert manifest["all_ok"]
+    assert manifest["n_valid_payloads"] == 1
+
+
+def test_llm_route_planner_response_payload_validator_cli_request_context() -> None:
+    root = Path("runs/test_formalization_gap_planner_llm_payload_validate_cli_request_bound")
+    planner_dir = root / "llm_route_planner"
+    out_dir = root / "out"
+    response_json = root / "response_payload.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    staged = export_formalization_gap_planner_llm_route_planner(
+        _write_input(root),
+        planner_dir,
+        provider_name="prompt_only",
+    )
+    request = staged["request_packets"][0]
+    response_json.write_text(
+        json.dumps(
+            {
+                "request_id": request["request_id"],
+                "route_id": request["route_id"],
+                "response_payload": _llm_response_payload(),
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    code = main(
+        [
+            "formalization-gap-planner-llm-route-planner-response-payload-validate",
+            "--input",
+            str(response_json),
+            "--request-context",
+            str(planner_dir),
+            "--out",
+            str(out_dir),
+        ]
+    )
+
+    assert code == 0
+    manifest = json.loads(
+        (
+            out_dir
+            / "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert manifest["all_ok"]
+    assert manifest["n_request_bound_payloads"] == 1
+    assert manifest["rows"][0]["request_context_validation_mode"] == "request_bound"
+
+
 def test_llm_route_planner_marks_clean_accepted_route_adoption_ready() -> None:
     root = Path("runs/test_formalization_gap_planner_llm_route_planner_ready")
     out_dir = root / "llm_route_planner"
@@ -2110,6 +3124,133 @@ def test_llm_route_planner_marks_clean_accepted_route_adoption_ready() -> None:
         "READY_FOR_STANDALONE_REPLAY"
     )
     assert trace["llm_route_planner_route_adoption_blockers"] == []
+
+
+def test_llm_route_planner_blocks_route_adoption_on_feedback_redispatch_actions() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_feedback_action_blocks_adoption"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response = _llm_response_payload()
+    response["search_requests"] = []
+    response["planner_next_actions"] = []
+    response["uncertainty_flags"] = []
+    response["semantic_alignment_risks"] = []
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+    resource_response_ledger_dir = _write_resource_response_ledger(root)
+    manifest_path = (
+        resource_response_ledger_dir
+        / "formalization_gap_planner_resource_response_ledger_manifest.json"
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    row = manifest["rows"][0]
+    row["acceptance_status"] = "REJECTED_RESPONSE_NOT_GROUNDED_IN_REQUEST_PLAYBOOK"
+    row["response_contract_fields"] = [
+        "source_refs",
+        "source_snippets",
+        "route_revision_recommended",
+    ]
+    row["response_contract_ok"] = False
+    row["response_contract_minimum_met"] = True
+    row["matched_response_contract_fields"] = ["source_refs", "source_snippets"]
+    row["missing_response_contract_fields"] = ["route_revision_recommended"]
+    row["request_playbook_present"] = True
+    row["response_playbook_grounded"] = False
+    row["response_playbook_grounding_terms"] = []
+    row["ok"] = False
+    row["errors"] = ["resource response is not grounded in request_playbook"]
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_resource_response_ledger_dir=(
+            resource_response_ledger_dir
+        ),
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_response_contract_ok"] == 1
+    assert payload["n_route_adoption_ready"] == 0
+    assert payload["n_route_adoption_pending_refinement"] == 1
+    assert payload["n_route_adoption_pending_feedback_action_blockers"] == 1
+    assert (
+        payload[
+            "n_route_adoption_pending_resource_playbook_redispatch_blockers"
+        ]
+        == 1
+    )
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "ACCEPTED_LLM_ROUTE_PLAN"
+    assert row["route_adoption_status"] == (
+        "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+    )
+    assert set(row["route_adoption_blockers"]) >= {
+        "feedback_summary_actions_pending_resolution",
+        "resource_response_playbook_redispatch_pending",
+    }
+    seed_route = payload["standalone_seed"]["routes"][0]
+    assert seed_route["llm_route_planner_route_adoption_status"] == (
+        "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+    )
+    assert set(
+        seed_route["replan_metadata"]["llm_route_planner_route_adoption_blockers"]
+    ) >= {
+        "feedback_summary_actions_pending_resolution",
+        "resource_response_playbook_redispatch_pending",
+    }
+
+
+def test_llm_route_planner_blocks_route_adoption_on_pending_resource_request_queue() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_resource_queue_blocks_adoption"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    resource_request_queue_dir = _write_resource_request_queue(root)
+    response = _llm_response_payload()
+    response["search_requests"] = []
+    response["planner_next_actions"] = []
+    response["uncertainty_flags"] = []
+    response["semantic_alignment_risks"] = []
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_resource_request_queue_dir=(
+            resource_request_queue_dir
+        ),
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_response_contract_ok"] == 1
+    assert payload["n_route_adoption_ready"] == 0
+    assert payload["n_route_adoption_pending_refinement"] == 1
+    assert payload["n_route_adoption_pending_feedback_action_blockers"] == 1
+    assert payload["n_route_adoption_pending_resource_request_queue_blockers"] == 1
+    assert payload["n_route_adoption_pending_feedback_replan_blockers"] == 0
+    assert payload["n_route_adoption_pending_realization_coverage_blockers"] == 0
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "ACCEPTED_LLM_ROUTE_PLAN"
+    assert row["route_adoption_status"] == (
+        "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+    )
+    assert set(row["route_adoption_blockers"]) >= {
+        "feedback_summary_actions_pending_resolution",
+        "resource_request_queue_pending_response",
+    }
 
 
 def test_llm_route_planner_accepts_candidate_declaration_rows_only_response() -> None:
@@ -2310,6 +3451,51 @@ def test_llm_route_planner_rejects_wrong_target_candidate_declaration_rows() -> 
     )
 
 
+def test_llm_route_planner_rejects_wrong_candidate_declaration_row_provenance() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_wrong_candidate_row_provenance"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    bad_response = _llm_response_payload()
+    wrong_row = {
+        "declaration": "Probability.exchangeable",
+        "target_prover_family": "lean4",
+        "source_field": "unreviewed_external_search",
+    }
+    bad_response["lean_realization_dag_nodes"][0].pop("candidate_declarations", None)
+    bad_response["lean_realization_dag_nodes"][0]["candidate_declaration_rows"] = [
+        wrong_row
+    ]
+    bad_response["standalone_route"]["primitives"][0].pop(
+        "candidate_declarations",
+        None,
+    )
+    bad_response["standalone_route"]["primitives"][0][
+        "candidate_declaration_rows"
+    ] = [wrong_row]
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "candidate_declaration_rows must preserve request/context formal-library provenance"
+        in error
+        and "unreviewed_external_search" in error
+        for error in row["errors"]
+    )
+
+
 def test_llm_route_planner_search_requests_materialize_refinement_work_items() -> None:
     root = Path("runs/test_formalization_gap_planner_llm_route_planner_search_handoff")
     out_dir = root / "llm_route_planner"
@@ -2459,22 +3645,19 @@ def test_llm_route_planner_accepts_non_lean_generic_formal_realization_nodes() -
     assert payload["all_ok"]
     assert payload["n_response_contract_ok"] == 1
     assert payload["n_formal_realization_dag_nodes"] == 2
-    assert payload["n_lean_realization_dag_nodes"] == 2
+    assert payload["n_lean_realization_dag_nodes"] == 0
     row = payload["rows"][0]
     assert row["target_prover_family"] == "rocq"
-    assert row["formal_realization_dag_nodes"] == row["lean_realization_dag_nodes"]
+    assert row["formal_realization_dag_nodes"]
+    assert not row["lean_realization_dag_nodes"]
     seed_route = payload["standalone_seed"]["routes"][0]
     metadata = seed_route["replan_metadata"]
     assert payload["standalone_seed"]["target_prover_family"] == "rocq"
     assert seed_route["target_prover_family"] == "rocq"
     assert metadata["target_prover_family"] == "rocq"
     assert seed_route["revised_formal_realization_dag_nodes"]
-    assert seed_route["revised_formal_realization_dag_nodes"] == seed_route[
-        "revised_lean_realization_dag_nodes"
-    ]
-    assert metadata["revised_formal_realization_dag_nodes"] == metadata[
-        "revised_lean_realization_dag_nodes"
-    ]
+    assert "revised_lean_realization_dag_nodes" not in seed_route
+    assert "revised_lean_realization_dag_nodes" not in metadata
     hook_kinds = {
         hook["hook_kind"] for hook in seed_route["interactive_refinement_hooks"]
     }
@@ -2494,6 +3677,190 @@ def test_llm_route_planner_accepts_non_lean_generic_formal_realization_nodes() -
     assert "Rocq/coq-lsp proof-state adapter" in proof_hook["recommended_tools"]
     assert "lean-lsp-mcp" not in proof_hook["recommended_tools"]
     assert "lake build" not in proof_hook["recommended_tools"]
+
+
+def test_llm_route_planner_accepts_target_filtered_registry_adapter_id() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rocq_registry_adapter"
+    )
+    out_dir = root / "llm_route_planner"
+    registry_dir = root / "component_resource_registry"
+    input_json = root / "standalone_input.json"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "component_name": "formalization_gap_planner_standalone_input",
+                "target_prover_family": "rocq",
+                "library_snapshot_ref": "rocq:coq-community-probability",
+                "routes": [
+                    {
+                        "route_id": "rocq_rank_route",
+                        "display_name": "rocq_distribution_free_rank_bound",
+                        "target_prover_family": "rocq",
+                        "theorem_statement": (
+                            "A Rocq rank bound follows from exchangeability."
+                        ),
+                        "source_refs": ["conformal_prediction_textbook"],
+                        "source_snippets": [
+                            {
+                                "source_ref": "conformal_prediction_textbook",
+                                "claim": "Exchangeability implies a uniform rank statistic.",
+                                "excerpt": (
+                                    "Under exchangeability, the rank of the test score "
+                                    "among calibration scores is uniformly distributed "
+                                    "up to the tie convention."
+                                ),
+                                "target_primitives": ["rank_uniformity"],
+                            }
+                        ],
+                        "primitives": [
+                            {
+                                "primitive": "exchangeability",
+                                "coverage_status": "exact_exists",
+                                "candidate_declarations": [
+                                    "Rocq.Probability.exchangeable"
+                                ],
+                            },
+                            {
+                                "primitive": "rank_uniformity",
+                                "coverage_status": "bridge_needed",
+                            },
+                        ],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    export_formalization_gap_planner_component_resource_registry(registry_dir)
+    response = _llm_response_payload()
+    response["formal_realization_dag_nodes"] = [
+        {
+            **dict(node),
+            "candidate_declarations": (
+                ["Rocq.Probability.exchangeable"]
+                if node["primitive"] == "exchangeability"
+                else []
+            ),
+        }
+        for node in response.pop("lean_realization_dag_nodes")
+    ]
+    response["standalone_route"]["target_prover_family"] = "rocq"
+    response["standalone_route"]["primitives"][0]["candidate_declarations"] = [
+        "Rocq.Probability.exchangeable"
+    ]
+    response["planner_next_actions"] = [
+        {
+            "owner": "route_revision_overlay",
+            "adapter_id": "route_revision_overlay",
+            "action": "apply route_revision route repair for rank_uniformity",
+        }
+    ]
+    response_json.write_text(json.dumps(response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_component_resource_registry_dir=registry_dir,
+    )
+
+    assert payload["all_ok"]
+    row = payload["rows"][0]
+    assert row["response_contract_ok"]
+    assert row["planner_next_actions"][0]["adapter_id"] == "route_revision_overlay"
+
+
+def test_llm_route_planner_rejects_non_lean_legacy_realization_alias() -> None:
+    root = Path("runs/test_formalization_gap_planner_llm_route_planner_rocq_alias")
+    out_dir = root / "llm_route_planner"
+    input_json = root / "standalone_input.json"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "component_name": "formalization_gap_planner_standalone_input",
+                "target_prover_family": "rocq",
+                "library_snapshot_ref": "rocq:coq-community-probability",
+                "routes": [
+                    {
+                        "route_id": "rocq_rank_route",
+                        "display_name": "rocq_distribution_free_rank_bound",
+                        "theorem_statement": (
+                            "A Rocq rank bound follows from exchangeability."
+                        ),
+                        "source_refs": ["conformal_prediction_textbook"],
+                        "source_snippets": [
+                            {
+                                "source_ref": "conformal_prediction_textbook",
+                                "claim": "Exchangeability implies a uniform rank statistic.",
+                                "excerpt": (
+                                    "Under exchangeability, the rank of the test score "
+                                    "among calibration scores is uniformly distributed "
+                                    "up to the tie convention."
+                                ),
+                                "target_primitives": ["rank_uniformity"],
+                            }
+                        ],
+                        "primitives": [
+                            {
+                                "primitive": "exchangeability",
+                                "coverage_status": "exact_exists",
+                                "candidate_declarations": [
+                                    "Rocq.Probability.exchangeable"
+                                ],
+                            },
+                            {
+                                "primitive": "rank_uniformity",
+                                "coverage_status": "bridge_needed",
+                            },
+                        ],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    response = _llm_response_payload()
+    response["standalone_route"]["primitives"][0]["candidate_declarations"] = [
+        "Rocq.Probability.exchangeable"
+    ]
+    for node in response["lean_realization_dag_nodes"]:
+        if node["primitive"] == "exchangeability":
+            node["candidate_declarations"] = ["Rocq.Probability.exchangeable"]
+    response["planner_next_actions"] = [
+        {
+            "owner": "rocq_serapi",
+            "action": "attempt Rocq proof-state feedback for rank_uniformity",
+        }
+    ]
+    response_json.write_text(json.dumps(response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_response_contract_ok"] == 0
+    row = payload["rows"][0]
+    assert row["target_prover_family"] == "rocq"
+    assert row["response_contract_ok"] is False
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "lean_realization_dag_nodes is a Lean-only legacy alias" in error
+        for error in row["errors"]
+    )
 
 
 def test_llm_route_planner_invokes_anthropic_generator_backend_without_live_api() -> None:
@@ -2571,12 +3938,17 @@ def test_llm_route_planner_invokes_anthropic_generator_backend_without_live_api(
     assert "required_output_contract" in request.user_prompt
     assert request.schema["required"] == [
         "informal_knowledge_dag_nodes",
-        "formal_realization_dag_nodes",
         "route_alignment_edges",
         "minimal_delta_plan",
         "standalone_route",
         "proof_evidence_boundary",
     ]
+    assert request.schema["properties"]["formal_realization_dag_nodes"][
+        "items"
+    ] == {"$ref": "#/$defs/formal_realization_node"}
+    assert request.schema["properties"]["lean_realization_dag_nodes"]["items"] == {
+        "$ref": "#/$defs/formal_realization_node"
+    }
     assert request.metadata["component"] == "formalization_gap_planner_llm_route_planner"
     assert request.metadata["request_id"] == payload["request_packets"][0]["request_id"]
     assert request.metadata["model_tier"] == "sonnet"
@@ -2702,6 +4074,152 @@ def test_llm_route_planner_auto_uses_haiku_for_small_bounded_routes() -> None:
     request = captured["request"]
     assert request.model == "claude-haiku-4-5-20251001"
     assert request.metadata["model_tier"] == "haiku"
+
+
+def test_llm_route_planner_generator_model_fallback_preserves_selected_tier() -> None:
+    class FakeAnthropicBackend:
+        provider_name = "anthropic"
+
+    backend = FakeAnthropicBackend()
+
+    assert (
+        _generator_model_for_request(backend, "", model_tier="haiku")
+        == "claude-haiku-4-5-20251001"
+    )
+    assert (
+        _generator_model_for_request(backend, "", model_tier="sonnet")
+        == "claude-sonnet-4-6"
+    )
+    assert (
+        _generator_model_for_request(
+            backend,
+            "claude-haiku-custom",
+            model_tier="sonnet",
+        )
+        == "claude-haiku-custom"
+    )
+
+
+def test_llm_route_planner_auto_uses_sonnet_for_generic_formal_library_queries() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_generic_formal_queries"
+    )
+    out_dir = root / "llm_route_planner"
+    target_intake_dir = root / "target_intake"
+    shutil.rmtree(root, ignore_errors=True)
+    target_intake_dir.mkdir(parents=True, exist_ok=True)
+    input_json = _write_light_input(root)
+    target_intake_manifest = {
+        "component_name": "formalization_gap_planner_target_intake",
+        "rows": [
+            {
+                "schema_version": 1,
+                "target_intake_id": "target-intake:generic-formal-queries",
+                "target_id": "generic_formal_queries",
+                "display_name": "generic formal query load",
+                "domain": "portable_prover_test",
+                "target_prover_family": "rocq",
+                "library_snapshot_ref": "rocq_snapshot",
+                "theorem_statement": "A small rank fact follows from reuse.",
+                "theorem_skeleton": "",
+                "normalized_objects": ["rank statistic"],
+                "normalized_assumptions": ["exchangeability"],
+                "normalized_procedure": "",
+                "normalized_claim": "rank reuse",
+                "desired_theorem_shape": "finite_sample_rank_coverage",
+                "proof_source_refs": ["conformal_prediction_textbook"],
+                "primitive_seed_rows": [
+                    {"primitive": "rank_uniformity", "coverage_status": "near_exists"}
+                ],
+                "extracted_primitive_candidates": ["rank_uniformity"],
+                "background_primitives": [],
+                "standalone_route_id": "rank_route_light",
+                "literature_queries": ["rank reuse route"],
+                "formal_library_grounding_queries": [
+                    f"formal query {idx}" for idx in range(9)
+                ],
+                "lean_grounding_queries": [],
+                "proof_state_probe_required": False,
+                "missing_required_fields": [],
+                "review_flags": [],
+                "proof_evidence_status": (
+                    "FORMALIZATION_GAP_PLANNER_TARGET_INTAKE_NOT_PROOF_EVIDENCE"
+                ),
+                "proof_evidence_boundary": "target intake is not theorem proof evidence",
+                "ok": True,
+                "errors": [],
+            }
+        ],
+    }
+    (
+        target_intake_dir / "formalization_gap_planner_target_intake_manifest.json"
+    ).write_text(json.dumps(target_intake_manifest, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        formalization_gap_planner_target_intake_dir=target_intake_dir,
+    )
+
+    assert payload["all_ok"]
+    assert payload["by_request_model_tier"] == {"sonnet": 1}
+    packet = payload["request_packets"][0]
+    assert packet["model_tier"] == "sonnet"
+    assert packet["model"] == "claude-sonnet-4-6"
+    assert "formal-library grounding query(s)" in packet["model_selection_rationale"]
+    intake_row = packet["context_packet"]["target_intake_rows"][0]
+    assert len(intake_row["formal_library_grounding_queries"]) == 9
+    assert "lean_grounding_queries" not in intake_row
+
+
+def test_llm_route_planner_rejects_provider_returned_model_tier_mismatch() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_returned_model_tier_mismatch"
+    )
+    out_dir = root / "llm_route_planner"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_light_input(root)
+    captured: dict[str, object] = {}
+
+    class FakeAnthropicBackend:
+        provider_name = "anthropic"
+
+        def generate(self, request):
+            captured["request"] = request
+            return GeneratorResponse(
+                text=json.dumps(_llm_response_payload()),
+                provider="anthropic",
+                model="claude-sonnet-4-6",
+                metadata={
+                    "generator_only": True,
+                    "tools_available": False,
+                    "schema_supplied": request.schema is not None,
+                    "returned_model_overrode_request": True,
+                },
+            )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="anthropic",
+        invoke_provider=True,
+        generator_backend=FakeAnthropicBackend(),
+    )
+
+    request = captured["request"]
+    assert request.model == "claude-haiku-4-5-20251001"
+    assert request.metadata["model_tier"] == "haiku"
+    assert not payload["all_ok"]
+    assert payload["by_request_model_tier"] == {"haiku": 1}
+    assert payload["n_rejected"] == 1
+    assert payload["n_response_contract_ok"] == 0
+    assert payload["n_row_schema_invalid"] == 1
+    row = payload["rows"][0]
+    assert row["model_tier"] == "haiku"
+    assert row["model"] == "claude-sonnet-4-6"
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any("expected Claude haiku tier" in error for error in row["errors"])
 
 
 def test_llm_route_planner_rejects_anthropic_explicit_model_tier_mismatch() -> None:
@@ -3069,6 +4587,37 @@ def test_llm_route_planner_rejects_target_prover_family_drift() -> None:
     )
 
 
+def test_llm_route_planner_rejects_target_theorem_identity_drift() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_theorem_drift"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    bad_response = _llm_response_payload()
+    bad_response["standalone_route"]["theorem_statement"] = (
+        "A central limit theorem for independent sample means follows from "
+        "Lindeberg conditions."
+    )
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "theorem_statement appears to target a different theorem" in error
+        for error in row["errors"]
+    )
+
+
 def test_llm_route_planner_rejects_source_backed_node_without_source_ref() -> None:
     root = Path("runs/test_formalization_gap_planner_llm_route_planner_rejects_source_backed_without_ref")
     response_json = root / "bad_response.json"
@@ -3264,6 +4813,67 @@ def test_llm_route_planner_rejects_unaccounted_primitive_cost_dimensions() -> No
     assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
     assert any(
         "total_cost must equal base_cost + proof_difficulty_cost" in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_rejects_coverage_bucket_base_cost_mismatch() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_bucket_base_cost"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    bad_response = _llm_response_payload()
+    cost_row = bad_response["minimal_delta_plan"]["primitive_costs"][1]
+    cost_row["coverage_bucket"] = "source_port_needed"
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "base_cost must equal minimal_delta_cost_policy.coverage_bucket_base_cost"
+        in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_rejects_underpriced_coverage_evidence() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_underpriced_coverage"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    bad_response = _llm_response_payload()
+    bad_response["standalone_route"]["primitives"][1][
+        "coverage_status"
+    ] = "source_port_needed"
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "coverage_bucket/base_cost underprices formal/standalone coverage evidence"
+        in error
         for error in row["errors"]
     )
 
@@ -3558,6 +5168,84 @@ def test_llm_route_planner_rejects_wrong_target_candidate_declarations() -> None
     row = payload["rows"][0]
     assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
     assert any("ungrounded candidate_declarations" in error for error in row["errors"])
+
+
+def test_llm_route_planner_uses_route_level_targets_without_top_level_target() -> None:
+    root = Path("runs/test_formalization_gap_planner_llm_route_planner_mixed_targets")
+    out_dir = root / "llm_route_planner"
+    input_json = root / "standalone_input.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "component_name": "formalization_gap_planner_standalone_input",
+                "library_snapshot_ref": "portable:probability-snapshots",
+                "routes": [
+                    {
+                        "route_id": "lean_rank_route",
+                        "display_name": "lean_distribution_free_rank_bound",
+                        "target_prover_family": "lean4",
+                        "theorem_statement": (
+                            "A Lean rank bound follows from exchangeability."
+                        ),
+                        "source_refs": ["conformal_prediction_textbook"],
+                        "primitives": [
+                            {
+                                "primitive": "exchangeability",
+                                "coverage_status": "exact_exists",
+                                "candidate_declarations": [
+                                    "Probability.exchangeable"
+                                ],
+                            }
+                        ],
+                    },
+                    {
+                        "route_id": "rocq_rank_route",
+                        "display_name": "rocq_distribution_free_rank_bound",
+                        "target_prover_family": "rocq",
+                        "theorem_statement": (
+                            "A Rocq rank bound follows from exchangeability."
+                        ),
+                        "source_refs": ["conformal_prediction_textbook"],
+                        "primitives": [
+                            {
+                                "primitive": "exchangeability",
+                                "coverage_status": "exact_exists",
+                                "candidate_declarations": [
+                                    "Rocq.Probability.exchangeable"
+                                ],
+                            }
+                        ],
+                    },
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+    )
+
+    assert payload["n_request_packets"] == 2
+    assert [request["target_prover_family"] for request in payload["request_packets"]] == [
+        "lean4",
+        "rocq",
+    ]
+    assert [
+        request["context_packet"]["target_prover_family"]
+        for request in payload["request_packets"]
+    ] == ["lean4", "rocq"]
+    assert "target_prover_family" not in payload["standalone_seed"]
+    assert [
+        route["target_prover_family"]
+        for route in payload["standalone_seed"]["routes"]
+    ] == ["lean4", "rocq"]
 
 
 def test_llm_route_planner_rejects_existing_coverage_without_declaration() -> None:

@@ -1236,6 +1236,29 @@ Apply a central limit theorem to the centered score and use Slutsky's theorem.
             Path(getattr(backend_with_auto_deps, "lean_rag_dependency_graph_path")).name,
             "stat_inference.sqlite",
         )
+        with patch(
+            "ai_statistician.formal_source_index.DEFAULT_LEAN_RAG_DB_CANDIDATES",
+            (lean_rag_db,),
+        ):
+            auto_health_payload = audit_lean_rag_dependency_health(
+                Path("runs/test_auto_lean_rag_dependency_health"),
+                auto_discovered=True,
+            )
+        self.assertEqual(auto_health_payload["health_status"], "active_healthy")
+        self.assertTrue(auto_health_payload["active_enabled"])
+        self.assertEqual(Path(auto_health_payload["active_db_path"]).name, "stat_inference.sqlite")
+        self.assertEqual(Path(auto_health_payload["requested_db_path"]).name, "stat_inference.sqlite")
+        with patch(
+            "ai_statistician.formal_source_index.DEFAULT_LEAN_RAG_DB_CANDIDATES",
+            (lean_rag_db,),
+        ):
+            no_auto_health_payload = audit_lean_rag_dependency_health(
+                Path("runs/test_no_auto_lean_rag_dependency_health"),
+                auto_discovered=False,
+            )
+        self.assertEqual(no_auto_health_payload["health_status"], "not_configured")
+        self.assertFalse(no_auto_health_payload["active_enabled"])
+        self.assertEqual(no_auto_health_payload["active_db_path"], "")
         ancestor_workspace = Path("runs/test_lean_rag_ancestor_workspace")
         ancestor_db = (
             ancestor_workspace
@@ -20173,6 +20196,12 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             payload["counts"]["formalization_gap_planner_target_intake_lean_queries"],
             0,
         )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_target_intake_formal_library_queries"
+            ],
+            payload["counts"]["formalization_gap_planner_target_intake_lean_queries"],
+        )
         self.assertEqual(payload["counts"]["formalization_gap_planner_target_intake_missing_sources"], 0)
         self.assertEqual(
             payload["counts"]["formalization_gap_planner_evaluation_rows"],
@@ -20343,6 +20372,18 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             0,
         )
         self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_refinement_adapter_formal_grounding_responses"
+            ],
+            payload["counts"]["formalization_gap_planner_refinement_queue_formal_grounding"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_refinement_adapter_lean_grounding_responses"
+            ],
+            payload["counts"]["formalization_gap_planner_refinement_queue_lean_grounding"],
+        )
+        self.assertEqual(
             payload["counts"]["formalization_gap_planner_local_literature_responses"],
             payload["counts"]["formalization_gap_planner_refinement_queue_literature"],
         )
@@ -20351,8 +20392,50 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             payload["counts"]["formalization_gap_planner_refinement_queue_formal_grounding"],
         )
         self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_local_formal_source_formal_grounding_rows"
+            ],
+            payload["counts"]["formalization_gap_planner_refinement_queue_formal_grounding"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_local_formal_source_legacy_lean_grounding_rows"
+            ],
+            payload["counts"]["formalization_gap_planner_refinement_queue_lean_grounding"],
+        )
+        self.assertEqual(
             payload["counts"]["formalization_gap_planner_local_proof_state_responses"],
             payload["counts"]["formalization_gap_planner_refinement_queue_proof_feedback"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_local_proof_state_target_prover_scaffold_accepted"
+            ]
+            + payload["counts"][
+                "formalization_gap_planner_local_proof_state_target_prover_failed"
+            ]
+            + payload["counts"][
+                "formalization_gap_planner_local_proof_state_target_prover_unavailable"
+            ]
+            + payload["counts"][
+                "formalization_gap_planner_local_proof_state_non_target_prover_skeleton"
+            ]
+            + payload["counts"][
+                "formalization_gap_planner_local_proof_state_placeholder_blocked"
+            ]
+            + payload["counts"][
+                "formalization_gap_planner_local_proof_state_formal_gap_scaffold_blocked"
+            ]
+            + payload["counts"][
+                "formalization_gap_planner_local_proof_state_missing_skeleton"
+            ],
+            payload["counts"]["formalization_gap_planner_local_proof_state_responses"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_local_proof_state_target_prover_unavailable"
+            ],
+            payload["counts"]["formalization_gap_planner_local_proof_state_unavailable"],
         )
         self.assertEqual(
             payload["counts"]["formalization_gap_planner_local_literature_merged_responses"],
@@ -20431,6 +20514,18 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             0,
         )
         self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_refinement_evidence_formal_grounding"
+            ],
+            payload["counts"]["formalization_gap_planner_refinement_queue_formal_grounding"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_refinement_evidence_lean_grounding"
+            ],
+            payload["counts"]["formalization_gap_planner_refinement_queue_lean_grounding"],
+        )
+        self.assertEqual(
             payload["counts"]["formalization_gap_planner_refinement_evidence_ok"],
             payload["counts"]["formalization_gap_planner_refinement_evidence_rows"],
         )
@@ -20478,9 +20573,14 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertGreaterEqual(
             payload["counts"]["formalization_gap_planner_route_stability_apply_revision"]
             + payload["counts"]["formalization_gap_planner_route_stability_expand_literature"]
+            + payload["counts"]["formalization_gap_planner_route_stability_expand_formal"]
             + payload["counts"]["formalization_gap_planner_route_stability_expand_lean"]
             + payload["counts"]["formalization_gap_planner_route_stability_expand_proof_state"],
             0,
+        )
+        self.assertGreaterEqual(
+            payload["counts"]["formalization_gap_planner_route_stability_expand_formal"],
+            payload["counts"]["formalization_gap_planner_route_stability_expand_lean"],
         )
         self.assertEqual(
             payload["counts"]["formalization_gap_planner_route_stability_row_schema_valid"],
@@ -20557,6 +20657,22 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertGreaterEqual(
             payload["counts"]["formalization_gap_planner_proof_state_triage_distinct_signatures"],
             0,
+        )
+        self.assertGreaterEqual(
+            payload["counts"][
+                "formalization_gap_planner_proof_state_triage_target_prover_failed_items"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_proof_state_triage_local_lean_failed_items"
+            ],
+        )
+        self.assertGreaterEqual(
+            payload["counts"][
+                "formalization_gap_planner_proof_state_triage_non_target_prover_skeleton_items"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_proof_state_triage_non_lean_skeleton_items"
+            ],
         )
         self.assertEqual(
             payload["counts"]["formalization_gap_planner_proof_state_triage_row_schema_valid"],
@@ -20676,7 +20792,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             {
                 "full_planner_observed",
                 "no_literature_evidence",
-                "no_lean_grounding",
+                "no_formal_grounding",
                 "no_proof_state_feedback",
                 "no_route_planner",
             },
@@ -20688,7 +20804,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             {
                 "full_planner_observed",
                 "no_literature_evidence",
-                "no_lean_grounding",
+                "no_formal_grounding",
                 "no_proof_state_feedback",
                 "no_route_planner",
             },

@@ -1736,12 +1736,17 @@ def run_research_agent_runtime(
     learning_path = out_dir / "runtime_learning_rows.jsonl"
     gap_planner_bridges_path = out_dir / "runtime_formalization_gap_planner_bridges.jsonl"
     gap_planner_seed_dir = out_dir / "runtime_formalization_gap_planner_seeds"
+    gap_planner_target_intake_dir = out_dir / "runtime_formalization_gap_planner_target_intake"
     gap_planner_handoffs_path = out_dir / "runtime_formalization_gap_planner_handoffs.jsonl"
     _write_jsonl(agenda_path, agenda_rows)
     _write_jsonl(learning_path, learning_rows)
     _write_runtime_formalization_gap_planner_seed_files(
         gap_planner_bridge_rows,
         seed_dir=gap_planner_seed_dir,
+    )
+    _write_runtime_formalization_gap_planner_target_intake_files(
+        gap_planner_bridge_rows,
+        target_intake_dir=gap_planner_target_intake_dir,
     )
     gap_planner_handoff_rows = _runtime_formalization_gap_planner_handoff_rows(
         gap_planner_bridge_rows,
@@ -1756,6 +1761,9 @@ def run_research_agent_runtime(
     )
     manifest["artifacts"]["runtime_formalization_gap_planner_seed_dir"] = str(
         gap_planner_seed_dir
+    )
+    manifest["artifacts"]["runtime_formalization_gap_planner_target_intake_dir"] = str(
+        gap_planner_target_intake_dir
     )
     manifest["artifacts"]["runtime_formalization_gap_planner_handoffs_jsonl"] = str(
         gap_planner_handoffs_path
@@ -2633,6 +2641,189 @@ def _write_runtime_formalization_gap_planner_seed_files(
         bridge["standalone_seed_path"] = str(seed_path)
 
 
+def _write_runtime_formalization_gap_planner_target_intake_files(
+    bridge_rows: list[dict[str, Any]],
+    *,
+    target_intake_dir: Path,
+) -> None:
+    target_intake_dir.mkdir(parents=True, exist_ok=True)
+    for index, bridge in enumerate(bridge_rows):
+        payload = _runtime_formalization_gap_planner_target_intake_payload(bridge)
+        if not payload.get("targets"):
+            continue
+        question = bridge.get("question", {})
+        question_id = (
+            str(question.get("id", "")).strip()
+            if isinstance(question, Mapping)
+            else ""
+        )
+        bridge_id = str(bridge.get("bridge_id", "")).strip()
+        filename = (
+            f"{_safe_identifier(question_id or 'question')}_"
+            f"{_safe_identifier(bridge_id or str(index))}.json"
+        )
+        target_intake_path = target_intake_dir / filename
+        target_intake_path.write_text(
+            json.dumps(payload, indent=2, default=str),
+            encoding="utf-8",
+        )
+        bridge["target_intake_path"] = str(target_intake_path)
+
+
+def _runtime_formalization_gap_planner_target_intake_payload(
+    bridge: Mapping[str, Any],
+) -> dict[str, Any]:
+    seed = bridge.get("standalone_seed", {})
+    if not isinstance(seed, Mapping):
+        seed = {}
+    question = bridge.get("question", {})
+    if not isinstance(question, Mapping):
+        question = {}
+    problem = bridge.get("problem", {})
+    if not isinstance(problem, Mapping):
+        problem = {}
+    routes = [
+        dict(route)
+        for route in seed.get("routes", [])
+        if isinstance(route, Mapping)
+    ]
+    route_target_prover_families = [
+        _runtime_formalization_gap_planner_route_target_prover_family(route)
+        for route in routes
+    ]
+    unique_route_targets = tuple(
+        dict.fromkeys(target for target in route_target_prover_families if target)
+    )
+    target_prover_family = str(
+        bridge.get("target_prover_family")
+        or seed.get("target_prover_family")
+        or (unique_route_targets[0] if len(unique_route_targets) == 1 else "")
+        or ("" if unique_route_targets else "lean4")
+    )
+    library_snapshot_ref = str(
+        seed.get("library_snapshot_ref")
+        or "ai_statistician_runtime_formalization_snapshot"
+    )
+    background_primitives = [
+        str(primitive)
+        for primitive in seed.get("background_primitives", [])
+        if str(primitive).strip()
+    ]
+    targets = [
+        _runtime_formalization_gap_planner_target_intake_target(
+            route,
+            question=question,
+            problem=problem,
+            target_prover_family=(
+                _runtime_formalization_gap_planner_route_target_prover_family(
+                    route,
+                    fallback_target_prover_family=target_prover_family,
+                )
+            ),
+            library_snapshot_ref=library_snapshot_ref,
+            background_primitives=background_primitives,
+        )
+        for route in routes
+    ]
+    payload = {
+        "schema_version": 1,
+        "component_name": "formalization_gap_planner_target_intake",
+        "source_component": "ai_statistician_research_agent_runtime",
+        "runtime_bridge_id": str(bridge.get("bridge_id", "")),
+        "standalone_seed_artifact_id": str(
+            bridge.get("standalone_seed_artifact_id", "")
+        ),
+        "library_snapshot_ref": library_snapshot_ref,
+        "domain": str(problem.get("problem_class", "")),
+        "background_primitives": background_primitives,
+        "targets": targets,
+        "proof_evidence_status": (
+            RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_NOT_PROOF_EVIDENCE
+        ),
+        "proof_evidence_boundary": RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_BOUNDARY,
+    }
+    if target_prover_family:
+        payload["target_prover_family"] = target_prover_family
+    return payload
+
+
+def _runtime_formalization_gap_planner_route_target_prover_family(
+    route: Mapping[str, Any],
+    *,
+    fallback_target_prover_family: str = "",
+) -> str:
+    metadata = route.get("replan_metadata", {})
+    metadata = metadata if isinstance(metadata, Mapping) else {}
+    return str(
+        route.get("target_prover_family")
+        or route.get("target_prover")
+        or metadata.get("target_prover_family")
+        or metadata.get("target_prover")
+        or fallback_target_prover_family
+    ).strip()
+
+
+def _runtime_formalization_gap_planner_target_intake_target(
+    route: Mapping[str, Any],
+    *,
+    question: Mapping[str, Any],
+    problem: Mapping[str, Any],
+    target_prover_family: str,
+    library_snapshot_ref: str,
+    background_primitives: list[str],
+) -> dict[str, Any]:
+    source_refs = [
+        str(ref)
+        for ref in route.get("source_refs", [])
+        if str(ref).strip()
+    ]
+    theorem_statement = str(route.get("theorem_statement", "")).strip()
+    theorem_skeleton = str(route.get("theorem_skeleton", "")).strip()
+    target_id = str(
+        route.get("route_id")
+        or route.get("theorem_goal_id")
+        or route.get("question_id")
+        or question.get("id", "")
+    ).strip()
+    primitive_rows = [
+        dict(primitive)
+        for primitive in route.get("primitives", [])
+        if isinstance(primitive, Mapping)
+    ]
+    desired_shape = theorem_skeleton or "runtime formalization gap planner route"
+    informal_steps = [
+        str(step)
+        for step in route.get("informal_proof_steps", [])
+        if str(step).strip()
+    ]
+    procedure = str(problem.get("estimand") or problem.get("dgp") or "").strip()
+    return {
+        "target_id": target_id,
+        "title": str(route.get("display_name") or question.get("title") or target_id),
+        "domain": str(route.get("problem_class") or problem.get("problem_class") or ""),
+        "target_prover_family": target_prover_family,
+        "library_snapshot_ref": library_snapshot_ref,
+        "theorem_statement": theorem_statement,
+        "theorem_skeleton": theorem_skeleton,
+        "objects": background_primitives,
+        "assumptions": [
+            str(assumption)
+            for assumption in problem.get("assumptions", [])
+            if str(assumption).strip()
+        ],
+        "statistical_procedure": procedure,
+        "desired_conclusion": theorem_statement,
+        "desired_theorem_shape": desired_shape,
+        "known_proof_sources": source_refs,
+        "source_refs": source_refs,
+        "candidate_primitives": primitive_rows,
+        "informal_proof_steps": informal_steps,
+        "runtime_replan_metadata": dict(route.get("replan_metadata", {}))
+        if isinstance(route.get("replan_metadata"), Mapping)
+        else {},
+    }
+
+
 def _runtime_formalization_gap_planner_handoff_rows(
     bridge_rows: list[dict[str, Any]],
     *,
@@ -2642,10 +2833,18 @@ def _runtime_formalization_gap_planner_handoff_rows(
     handoff_root = runtime_out_dir / "runtime_formalization_gap_planner_handoffs"
     for bridge in bridge_rows:
         seed_path_text = str(bridge.get("standalone_seed_path", "")).strip()
-        if not seed_path_text:
+        target_intake_path_text = str(bridge.get("target_intake_path", "")).strip()
+        if not seed_path_text or not target_intake_path_text:
             continue
         seed_path = Path(seed_path_text)
         bridge_id = str(bridge.get("bridge_id", "")).strip()
+        seed = bridge.get("standalone_seed", {})
+        if not isinstance(seed, Mapping):
+            seed = {}
+        target_prover_family = str(
+            bridge.get("target_prover_family") or seed.get("target_prover_family") or ""
+        )
+        library_snapshot_ref = str(seed.get("library_snapshot_ref", ""))
         question = bridge.get("question", {})
         question_id = (
             str(question.get("id", "")).strip()
@@ -2656,23 +2855,54 @@ def _runtime_formalization_gap_planner_handoff_rows(
             question_id or bridge_id or seed_path.stem or "runtime_gap_planner"
         )
         seed_arg = shlex.quote(str(seed_path))
+        target_intake_arg = shlex.quote(target_intake_path_text)
         standalone_out = handoff_root / handoff_slug / "standalone_plan"
+        component_resource_registry_out = (
+            handoff_root / handoff_slug / "component_resource_registry"
+        )
         llm_prompt_out = handoff_root / handoff_slug / "llm_route_planner_prompt"
         llm_live_out = handoff_root / handoff_slug / "llm_route_planner_live"
+        reuse_smoke_out = handoff_root / handoff_slug / "reuse_smoke"
+        component_resource_registry_arg = shlex.quote(
+            str(component_resource_registry_out)
+        )
         standalone_plan_cli = (
             "python3 -m ai_statistician.cli formalization-gap-planner-standalone-plan "
             f"--input {seed_arg} --out {shlex.quote(str(standalone_out))}"
+        )
+        component_resource_registry_cli = (
+            "python3 -m ai_statistician.cli "
+            "formalization-gap-planner-component-resource-registry "
+            f"--out {component_resource_registry_arg}"
         )
         llm_route_planner_prompt_cli = (
             "python3 -m ai_statistician.cli formalization-gap-planner-llm-route-planner "
             f"--input {seed_arg} --provider anthropic --model-tier auto "
             "--max-repair-attempts 1 "
+            "--formalization-gap-planner-component-resource-registry-dir "
+            f"{component_resource_registry_arg} "
             f"--out {shlex.quote(str(llm_prompt_out))}"
         )
         llm_route_planner_live_cli = (
             "python3 -m ai_statistician.cli formalization-gap-planner-llm-route-planner "
             f"--input {seed_arg} --provider anthropic --model-tier auto "
-            f"--max-repair-attempts 1 --invoke-provider --out {shlex.quote(str(llm_live_out))}"
+            "--max-repair-attempts 1 "
+            "--formalization-gap-planner-component-resource-registry-dir "
+            f"{component_resource_registry_arg} "
+            f"--invoke-provider --out {shlex.quote(str(llm_live_out))}"
+        )
+        reuse_smoke_cli = (
+            "python3 -m ai_statistician.cli formalization-gap-planner-reuse-smoke "
+            f"--input {target_intake_arg} "
+            f"--target-prover-family {shlex.quote(target_prover_family)} "
+            f"--target-library-snapshot-ref {shlex.quote(library_snapshot_ref)} "
+            "--llm-route-planner-provider anthropic "
+            "--llm-route-planner-model-tier auto "
+            "--llm-route-planner-max-repair-attempts 1 "
+            "--feedback-llm-route-planner-provider anthropic "
+            "--feedback-llm-route-planner-model-tier auto "
+            "--feedback-llm-route-planner-max-repair-attempts 1 "
+            f"--out {shlex.quote(str(reuse_smoke_out))}"
         )
         row = {
             "schema_version": RUNTIME_SCHEMA_VERSION,
@@ -2685,7 +2915,9 @@ def _runtime_formalization_gap_planner_handoff_rows(
                 bridge.get("standalone_seed_artifact_id", "")
             ),
             "standalone_seed_path": seed_path_text,
-            "target_prover_family": str(bridge.get("target_prover_family", "")),
+            "target_intake_path": target_intake_path_text,
+            "target_prover_family": target_prover_family,
+            "library_snapshot_ref": library_snapshot_ref,
             "recommended_llm_provider": "anthropic",
             "recommended_model_tier": "auto",
             "model_tier_policy": (
@@ -2694,14 +2926,17 @@ def _runtime_formalization_gap_planner_handoff_rows(
                 "routes and Claude Sonnet for residual, bridge, source-port, "
                 "or new-theory routes"
             ),
+            "component_resource_registry_dir": str(component_resource_registry_out),
+            "component_resource_registry_cli": component_resource_registry_cli,
             "standalone_plan_cli": standalone_plan_cli,
             "llm_route_planner_prompt_cli": llm_route_planner_prompt_cli,
             "llm_route_planner_live_cli": llm_route_planner_live_cli,
+            "reuse_smoke_cli": reuse_smoke_cli,
             "cost_control": (
-                "Use llm_route_planner_prompt_cli first; it writes request "
-                "packets without calling the Anthropic API. Add live execution "
-                "only after inspecting the staged prompts or run "
-                "llm_route_planner_live_cli explicitly."
+                "Use reuse_smoke_cli or llm_route_planner_prompt_cli first; "
+                "they write request packets without calling the Anthropic API. "
+                "Add live execution only after inspecting the staged prompts "
+                "or run llm_route_planner_live_cli explicitly."
             ),
             "proof_evidence_status": (
                 RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_NOT_PROOF_EVIDENCE
@@ -2710,8 +2945,13 @@ def _runtime_formalization_gap_planner_handoff_rows(
         }
         bridge["handoff_id"] = row["handoff_id"]
         bridge["standalone_plan_cli"] = standalone_plan_cli
+        bridge["component_resource_registry_dir"] = str(
+            component_resource_registry_out
+        )
+        bridge["component_resource_registry_cli"] = component_resource_registry_cli
         bridge["llm_route_planner_prompt_cli"] = llm_route_planner_prompt_cli
         bridge["llm_route_planner_live_cli"] = llm_route_planner_live_cli
+        bridge["reuse_smoke_cli"] = reuse_smoke_cli
         bridge["recommended_llm_provider"] = "anthropic"
         bridge["recommended_model_tier"] = "auto"
         bridge["target_prover_family"] = row["target_prover_family"]
@@ -2845,13 +3085,30 @@ def _runtime_formalization_gap_planner_bridge(
             "--input <runtime_formalization_gap_planner_standalone_seed.json> "
             "--provider anthropic --model-tier auto "
             "--max-repair-attempts 1 "
+            "--formalization-gap-planner-component-resource-registry-dir "
+            "<runtime_formalization_gap_planner_component_resource_registry_dir> "
             "--out runs/formalization_gap_planner_runtime_llm_route_planner_prompt"
         ),
         "next_llm_route_planner_live_cli": (
             "python3 -m ai_statistician.cli formalization-gap-planner-llm-route-planner "
             "--input <runtime_formalization_gap_planner_standalone_seed.json> "
-            "--provider anthropic --model-tier auto --max-repair-attempts 1 --invoke-provider "
+            "--provider anthropic --model-tier auto --max-repair-attempts 1 "
+            "--formalization-gap-planner-component-resource-registry-dir "
+            "<runtime_formalization_gap_planner_component_resource_registry_dir> "
+            "--invoke-provider "
             "--out runs/formalization_gap_planner_runtime_llm_route_planner_live"
+        ),
+        "next_reuse_smoke_cli": (
+            "python3 -m ai_statistician.cli formalization-gap-planner-reuse-smoke "
+            "--input <runtime_formalization_gap_planner_target_intake.json> "
+            f"--target-prover-family {target_prover_family} "
+            "--target-library-snapshot-ref ai_statistician_runtime_formalization_snapshot "
+            "--llm-route-planner-provider anthropic --llm-route-planner-model-tier auto "
+            "--llm-route-planner-max-repair-attempts 1 "
+            "--feedback-llm-route-planner-provider anthropic "
+            "--feedback-llm-route-planner-model-tier auto "
+            "--feedback-llm-route-planner-max-repair-attempts 1 "
+            "--out runs/formalization_gap_planner_runtime_reuse_smoke"
         ),
         "proof_evidence_status": (
             RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_NOT_PROOF_EVIDENCE

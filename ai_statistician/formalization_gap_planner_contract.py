@@ -253,6 +253,11 @@ def portable_gap_plan_json_schema() -> dict[str, object]:
             "interactive_route_synthesis_contract": {"type": "object"},
             "evaluation_protocol": {"type": "object"},
             "n_goal_plans": {"type": "integer", "minimum": 0},
+            "n_target_prover_families": {"type": "integer", "minimum": 0},
+            "by_target_prover_family": {
+                "type": "object",
+                "additionalProperties": {"type": "integer", "minimum": 0},
+            },
             "n_and_or_plan_nodes": {"type": "integer", "minimum": 0},
             "n_and_or_plan_edges": {"type": "integer", "minimum": 0},
             "n_informal_knowledge_dag_nodes": {"type": "integer", "minimum": 0},
@@ -764,6 +769,22 @@ def validate_portable_gap_plan_payload(payload: dict[str, Any]) -> list[str]:
     if not isinstance(rows, (list, tuple)):
         errors.append("rows must be a list")
         return errors
+    target_counts: dict[str, int] = {}
+    for row in rows:
+        if isinstance(row, dict):
+            target = str(row.get("target_prover_family", "")).strip() or "missing"
+            target_counts[target] = target_counts.get(target, 0) + 1
+    expected_target_summary = dict(sorted(target_counts.items()))
+    declared_target_summary = payload.get("by_target_prover_family")
+    if declared_target_summary is not None and declared_target_summary != expected_target_summary:
+        errors.append("by_target_prover_family does not match row target_prover_family counts")
+    declared_target_family_count = payload.get("n_target_prover_families")
+    if declared_target_family_count is not None:
+        expected_target_family_count = sum(
+            1 for target in expected_target_summary if target != "missing"
+        )
+        if declared_target_family_count != expected_target_family_count:
+            errors.append("n_target_prover_families does not match row target_prover_family counts")
     snapshot_ref = str(payload.get("library_snapshot_ref", ""))
     for idx, row in enumerate(rows):
         if not isinstance(row, dict):

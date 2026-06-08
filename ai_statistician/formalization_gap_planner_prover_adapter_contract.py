@@ -74,6 +74,8 @@ class FormalizationGapPlannerProverAdapterPacket:
     portable_work_packet: dict[str, object]
     route_alignment_edge: dict[str, object]
     standalone_input_trace: dict[str, object]
+    llm_route_planner_route_adoption_status: str
+    llm_route_planner_route_adoption_blockers: tuple[str, ...]
     alignment_status: str
     informal_route_node_id: str
     formal_realization_node_id: str
@@ -217,6 +219,46 @@ def export_formalization_gap_planner_prover_adapter_contract(
             1
             for packet in packets
             if packet.standalone_input_trace.get("has_replan_metadata")
+        ),
+        "n_packets_with_llm_route_adoption_status": sum(
+            1 for packet in packets if packet.llm_route_planner_route_adoption_status
+        ),
+        "n_packets_llm_route_adoption_ready": sum(
+            1
+            for packet in packets
+            if packet.llm_route_planner_route_adoption_status
+            == "READY_FOR_STANDALONE_REPLAY"
+        ),
+        "n_packets_llm_route_adoption_pending_refinement": sum(
+            1
+            for packet in packets
+            if packet.llm_route_planner_route_adoption_status
+            == "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+        ),
+        "n_packets_llm_route_adoption_rejected": sum(
+            1
+            for packet in packets
+            if packet.llm_route_planner_route_adoption_status
+            == "REJECTED_LLM_ROUTE_PLAN"
+        ),
+        "n_packets_llm_route_adoption_awaiting_response": sum(
+            1
+            for packet in packets
+            if packet.llm_route_planner_route_adoption_status
+            == "AWAITING_LLM_ROUTE_PLANNER_RESPONSE"
+        ),
+        "n_packet_llm_route_adoption_blockers": sum(
+            len(packet.llm_route_planner_route_adoption_blockers)
+            for packet in packets
+        ),
+        "by_packet_llm_route_adoption_status": dict(
+            sorted(
+                Counter(
+                    packet.llm_route_planner_route_adoption_status
+                    for packet in packets
+                    if packet.llm_route_planner_route_adoption_status
+                ).items()
+            )
         ),
         "n_responses": len(response_rows_raw),
         "n_unmatched_adapter_responses": len(unmatched_response_errors),
@@ -386,6 +428,8 @@ def prover_adapter_packet_json_schema() -> dict[str, object]:
             "portable_work_packet",
             "route_alignment_edge",
             "standalone_input_trace",
+            "llm_route_planner_route_adoption_status",
+            "llm_route_planner_route_adoption_blockers",
             "alignment_status",
             "informal_route_node_id",
             "formal_realization_node_id",
@@ -416,6 +460,8 @@ def prover_adapter_packet_json_schema() -> dict[str, object]:
             "portable_work_packet": {"type": "object"},
             "route_alignment_edge": {"$ref": "#/$defs/route_alignment_edge"},
             "standalone_input_trace": {"$ref": "#/$defs/standalone_input_trace"},
+            "llm_route_planner_route_adoption_status": {"type": "string"},
+            "llm_route_planner_route_adoption_blockers": string_array,
             "alignment_status": {"type": "string", "minLength": 1},
             "informal_route_node_id": {"type": "string", "minLength": 1},
             "formal_realization_node_id": {"type": "string", "minLength": 1},
@@ -701,6 +747,12 @@ def _packet_for_work_packet(
             target_prover_family=target_prover_family,
         )
     )
+    llm_route_adoption_status = str(
+        standalone_input_trace.get("llm_route_planner_route_adoption_status", "")
+    )
+    llm_route_adoption_blockers = _str_tuple(
+        standalone_input_trace.get("llm_route_planner_route_adoption_blockers", [])
+    )
     return FormalizationGapPlannerProverAdapterPacket(
         schema_version=FORMALIZATION_GAP_PLANNER_PROVER_ADAPTER_CONTRACT_SCHEMA_VERSION,
         prover_adapter_packet_id=packet_id,
@@ -719,6 +771,8 @@ def _packet_for_work_packet(
         portable_work_packet=dict(packet),
         route_alignment_edge=alignment_edge,
         standalone_input_trace=standalone_input_trace,
+        llm_route_planner_route_adoption_status=llm_route_adoption_status,
+        llm_route_planner_route_adoption_blockers=llm_route_adoption_blockers,
         alignment_status=str(alignment_edge.get("alignment_status", "")),
         informal_route_node_id=str(alignment_edge.get("source", "")),
         formal_realization_node_id=str(alignment_edge.get("target", "")),
@@ -900,6 +954,19 @@ def _validate_response(
         errors.append("translated_imports must be a list")
     if mapping_status == "ready_for_kernel_attempt" and not translated_imports:
         errors.append("translated_imports required when ready_for_kernel_attempt")
+    if (
+        mapping_status == "ready_for_kernel_attempt"
+        and packet.llm_route_planner_route_adoption_status
+        and packet.llm_route_planner_route_adoption_status
+        != "READY_FOR_STANDALONE_REPLAY"
+    ):
+        blockers = ", ".join(packet.llm_route_planner_route_adoption_blockers)
+        suffix = f" blockers: {blockers}" if blockers else ""
+        errors.append(
+            "ready_for_kernel_attempt requires llm_route_planner_route_adoption_status "
+            "READY_FOR_STANDALONE_REPLAY; packet has "
+            f"{packet.llm_route_planner_route_adoption_status}{suffix}"
+        )
     if mapping_status in {
         "needs_statement_translation",
         "needs_library_grounding",

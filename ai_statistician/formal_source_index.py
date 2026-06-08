@@ -20,9 +20,31 @@ DECL_RE = re.compile(
     r"(theorem|lemma|def|abbrev|structure|class|inductive)\s+"
     r"([A-Za-z_][A-Za-z0-9_'.]*)"
 )
+ROCQ_DECL_RE = re.compile(
+    r"^\s*"
+    r"(Theorem|Lemma|Definition|Fixpoint|Inductive|Record|Class|Instance|"
+    r"Corollary|Proposition|Remark|Fact)\s+"
+    r"([A-Za-z_][A-Za-z0-9_']*)\b"
+)
+ISABELLE_DECL_RE = re.compile(
+    r"^\s*"
+    r"(theorem|lemma|corollary|proposition|definition|fun|primrec|inductive)\s+"
+    r"([A-Za-z_][A-Za-z0-9_']*)\b"
+)
+AGDA_DECL_RE = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_'.-]*)\s*:")
 NAMESPACE_RE = re.compile(r"^\s*namespace\s+([A-Za-z_][A-Za-z0-9_'.]*)\b")
 END_RE = re.compile(r"^\s*end(?:\s+([A-Za-z_][A-Za-z0-9_'.]*))?\b")
 IMPORT_RE = re.compile(r"^\s*import\s+(.+)$")
+ROCQ_NAMESPACE_RE = re.compile(
+    r"^\s*(?:Module|Section)\s+([A-Za-z_][A-Za-z0-9_']*)\b"
+)
+ROCQ_END_RE = re.compile(r"^\s*End\s+([A-Za-z_][A-Za-z0-9_']*)\s*\.")
+ROCQ_IMPORT_RE = re.compile(
+    r"^\s*(?:From\s+[A-Za-z_][A-Za-z0-9_'.]*\s+)?"
+    r"Require\s+(?:Import|Export)?\s*(.+?)\.\s*$"
+)
+ISABELLE_THEORY_RE = re.compile(r"^\s*theory\s+([A-Za-z_][A-Za-z0-9_']*)\b")
+ISABELLE_IMPORTS_RE = re.compile(r"^\s*imports\s+(.+)$")
 TOKEN_RE = re.compile(r"[\w'.]+|[∀∃∧∨→↔=≤≥<>+*/^.-]+", re.UNICODE)
 STOP_TOKENS = {
     "the",
@@ -61,6 +83,20 @@ DEFAULT_LEAN_RAG_DB_RELATIVE_PATH = Path(
 # Tests and downstream orchestration can prepend project-specific candidates
 # without changing the global auto-discovery rule.
 DEFAULT_LEAN_RAG_DB_CANDIDATES: tuple[Path, ...] = ()
+FORMAL_SOURCE_SUFFIXES_BY_TYPE = {
+    "lean": (".lean",),
+    "lean4": (".lean",),
+    "lean_library": (".lean",),
+    "mathlib": (".lean",),
+    "rocq": (".v",),
+    "rocq_library": (".v",),
+    "coq": (".v",),
+    "coq_library": (".v",),
+    "isabelle": (".thy",),
+    "isabelle_library": (".thy",),
+    "agda": (".agda",),
+    "agda_library": (".agda",),
+}
 
 
 @dataclass(frozen=True)
@@ -97,7 +133,7 @@ class FormalSourceHit:
 
 
 class FormalSourceRetriever:
-    """Reusable declaration retriever with pre-tokenized Lean source rows."""
+    """Reusable declaration retriever with pre-tokenized formal-source rows."""
 
     def __init__(self, declarations: list[FormalDeclaration] | None = None) -> None:
         self.declarations = declarations if declarations is not None else build_formal_source_index()
@@ -312,7 +348,7 @@ class FormalSourceSqliteIndex:
         """Read all declarations back from the persisted index.
 
         Downstream graph audits can reuse the already-built SQLite corpus
-        instead of rescanning the Lean source tree during release-style audits.
+        instead of rescanning the formal source tree during release-style audits.
         """
 
         with closing(sqlite3.connect(self.db_path)) as conn:
@@ -376,7 +412,7 @@ def build_formal_source_index(
     max_file_bytes: int = 2_000_000,
     max_files_per_root: int = 1500,
 ) -> list[FormalDeclaration]:
-    """Index Lean declarations from local formal sources.
+    """Index declarations from local formal sources.
 
     This is deliberately a lightweight declaration index, not a parser. Its job
     is to make local theorem mining cheap and auditable before we ask an LLM or
@@ -396,7 +432,12 @@ def build_formal_source_index(
         if resolved in seen_roots:
             continue
         seen_roots.add(resolved)
-        for path in _iter_lean_files(location, max_file_bytes=max_file_bytes, max_files=max_files_per_root):
+        for path in _iter_formal_source_files(
+            root,
+            location,
+            max_file_bytes=max_file_bytes,
+            max_files=max_files_per_root,
+        ):
             rows.extend(_declarations_in_file(root, path, location))
     return rows
 
@@ -442,7 +483,7 @@ def build_formal_source_search_backend(
                 declarations = sqlite_index.load_declarations()
                 if not _cache_covers_configured_roots(declarations, roots):
                     raise sqlite3.DatabaseError(
-                        "formal-source SQLite cache is stale for the configured Lean source roots"
+                        "formal-source SQLite cache is stale for the configured formal source roots"
                     )
                 dependency_retriever = _optional_lean_rag_dependency_retriever(lean_rag_db_path)
                 if include_graph:
@@ -591,32 +632,34 @@ def _cache_covers_configured_roots(
 ) -> bool:
     """Return whether a cached index still represents existing configured roots.
 
-    The source inventory can grow as new Lean libraries are mirrored locally.
+    The source inventory can grow as new formal libraries are mirrored locally.
     A syntactically healthy SQLite cache can still be stale if it predates those
-    sources. Treat existing roots with at least one Lean file as required source
-    ids, so release-style retrieval does not silently ignore newly available
-    formal libraries.
+    sources. Treat existing roots with at least one indexable formal source file
+    as required source ids, so release-style retrieval does not silently ignore
+    newly available formal libraries.
     """
 
     present_source_ids = {declaration.source_id for declaration in declarations}
     required_source_ids = {
         root.id
         for root in roots
-        if _root_has_indexable_lean_file(Path(root.location).expanduser())
+        if _root_has_indexable_formal_source_file(root)
     }
     return required_source_ids.issubset(present_source_ids)
 
 
-def _root_has_indexable_lean_file(root: Path) -> bool:
-    if not root.exists():
+def _root_has_indexable_formal_source_file(root: FormalSourceRoot) -> bool:
+    location = Path(root.location).expanduser()
+    if not location.exists():
         return False
-    for dirpath, dirnames, filenames in os.walk(root):
+    suffixes = _formal_source_suffixes(root)
+    for dirpath, dirnames, filenames in os.walk(location):
         dirnames[:] = sorted(dirname for dirname in dirnames if dirname not in SKIPPED_PATH_PARTS)
         for filename in filenames:
-            if not filename.endswith(".lean"):
+            if not filename.endswith(suffixes):
                 continue
             path = Path(dirpath) / filename
-            if _skip_path(path, base=root) or not _file_size_ok(path, 2_000_000):
+            if _skip_path(path, base=location) or not _file_size_ok(path, 2_000_000):
                 continue
             return True
     return False
@@ -703,7 +746,7 @@ def formal_source_index_fingerprint(declarations: list[FormalDeclaration] | None
 
 
 def _search_tokens(text: str) -> set[str]:
-    """Tokenize Lean names plus natural-language queries for local declaration search."""
+    """Tokenize formal names plus natural-language queries for declaration search."""
 
     split_text = re.sub(r"[_'.]", " ", text)
     camel_split = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", split_text)
@@ -809,20 +852,22 @@ def _declaration_signature(lines: list[str], start_idx: int, *, max_lines: int =
         if pos >= len(lines):
             break
         line = lines[pos]
-        if offset > 0 and (
-            DECL_RE.match(line)
-            or NAMESPACE_RE.match(line)
-            or END_RE.match(line)
-        ):
+        if offset > 0 and _line_starts_new_formal_item(line):
             break
         chunks.append(line.strip())
-        if ":=" in line or line.strip().endswith("where"):
+        stripped = line.strip()
+        if (
+            ":=" in line
+            or stripped.endswith("where")
+            or stripped.endswith(".")
+            or stripped.endswith("by")
+        ):
             break
     return " ".join(chunk for chunk in chunks if chunk)
 
 
 def _compress_signature(signature: str) -> dict[str, object]:
-    """Extract Lean-aware theorem-shape features for cheap premise retrieval."""
+    """Extract theorem-shape features for cheap premise retrieval."""
 
     clean = re.sub(r":=.*$", "", signature).strip()
     conclusion = _conclusion_fragment(clean)
@@ -894,34 +939,27 @@ def _declarations_in_file(root: FormalSourceRoot, path: Path, base: Path) -> lis
     except OSError:
         return []
     rel = str(path.relative_to(base))
+    language = _formal_source_language(root, path)
     namespace_stack: list[str] = []
     imports: list[str] = []
     rows: list[FormalDeclaration] = []
     for idx, line in enumerate(lines, start=1):
-        import_match = IMPORT_RE.match(line)
-        if import_match:
-            imports.extend(_parse_imports(import_match.group(1)))
+        import_items = _imports_from_line(line, language)
+        if import_items:
+            imports.extend(import_items)
             continue
-        ns_match = NAMESPACE_RE.match(line)
-        if ns_match:
-            namespace_stack.extend(ns_match.group(1).split("."))
+        namespace_name = _namespace_open_from_line(line, language)
+        if namespace_name:
+            namespace_stack.extend(namespace_name.split("."))
             continue
-        end_match = END_RE.match(line)
-        if end_match and namespace_stack:
-            end_name = end_match.group(1)
-            if end_name:
-                parts = end_name.split(".")
-                if namespace_stack[-len(parts) :] == parts:
-                    del namespace_stack[-len(parts) :]
-                else:
-                    namespace_stack.pop()
-            else:
-                namespace_stack.pop()
+        end_name = _namespace_close_from_line(line, language)
+        if end_name is not None and namespace_stack:
+            _pop_namespace(namespace_stack, end_name)
             continue
-        decl_match = DECL_RE.match(line)
-        if not decl_match:
+        decl = _declaration_from_line(line, language)
+        if decl is None:
             continue
-        kind, raw_name = decl_match.groups()
+        kind, raw_name = decl
         namespace = ".".join(namespace_stack)
         name = raw_name if "." in raw_name or not namespace else f"{namespace}.{raw_name}"
         signature = _declaration_signature(lines, idx - 1)
@@ -948,19 +986,141 @@ def _declarations_in_file(root: FormalSourceRoot, path: Path, base: Path) -> lis
     return rows
 
 
+def _line_starts_new_formal_item(line: str) -> bool:
+    return any(
+        regex.match(line)
+        for regex in (
+            DECL_RE,
+            ROCQ_DECL_RE,
+            ISABELLE_DECL_RE,
+            AGDA_DECL_RE,
+            NAMESPACE_RE,
+            END_RE,
+            ROCQ_NAMESPACE_RE,
+            ROCQ_END_RE,
+            ISABELLE_THEORY_RE,
+        )
+    )
+
+
+def _imports_from_line(line: str, language: str) -> list[str]:
+    if language == "rocq":
+        match = ROCQ_IMPORT_RE.match(line)
+        return _parse_imports(match.group(1)) if match else []
+    if language == "isabelle":
+        match = ISABELLE_IMPORTS_RE.match(line)
+        return _parse_imports(match.group(1)) if match else []
+    if language == "agda":
+        text = line.strip()
+        if text.startswith("open import "):
+            return _parse_imports(text.removeprefix("open import "))
+        if text.startswith("import "):
+            return _parse_imports(text.removeprefix("import "))
+        return []
+    match = IMPORT_RE.match(line)
+    return _parse_imports(match.group(1)) if match else []
+
+
+def _namespace_open_from_line(line: str, language: str) -> str:
+    if language == "rocq":
+        match = ROCQ_NAMESPACE_RE.match(line)
+        return match.group(1) if match else ""
+    if language == "isabelle":
+        match = ISABELLE_THEORY_RE.match(line)
+        return match.group(1) if match else ""
+    if language == "agda":
+        module_match = re.match(
+            r"^\s*module\s+([A-Za-z_][A-Za-z0-9_'.-]*)\b",
+            line,
+        )
+        return module_match.group(1).replace("-", "_") if module_match else ""
+    match = NAMESPACE_RE.match(line)
+    return match.group(1) if match else ""
+
+
+def _namespace_close_from_line(line: str, language: str) -> str | None:
+    if language == "rocq":
+        match = ROCQ_END_RE.match(line)
+        return match.group(1) if match else None
+    if language == "isabelle":
+        return "" if line.strip() == "end" else None
+    if language == "agda":
+        return None
+    match = END_RE.match(line)
+    return match.group(1) if match else None
+
+
+def _pop_namespace(namespace_stack: list[str], end_name: str | None) -> None:
+    if end_name:
+        parts = end_name.split(".")
+        if namespace_stack[-len(parts) :] == parts:
+            del namespace_stack[-len(parts) :]
+            return
+    namespace_stack.pop()
+
+
+def _declaration_from_line(line: str, language: str) -> tuple[str, str] | None:
+    if language == "rocq":
+        match = ROCQ_DECL_RE.match(line)
+        if not match:
+            return None
+        kind, raw_name = match.groups()
+        return kind.lower(), raw_name
+    if language == "isabelle":
+        match = ISABELLE_DECL_RE.match(line)
+        if not match:
+            return None
+        return match.groups()
+    if language == "agda":
+        match = AGDA_DECL_RE.match(line)
+        if not match:
+            return None
+        name = match.group(1).replace("-", "_")
+        return "signature", name
+    match = DECL_RE.match(line)
+    return match.groups() if match else None
+
+
 def _parse_imports(import_tail: str) -> list[str]:
     cleaned = import_tail.split("--", 1)[0].strip()
-    return [item for item in cleaned.split() if re.match(r"^[A-Za-z_][A-Za-z0-9_'.]*$", item)]
+    cleaned = cleaned.split("(*", 1)[0].strip()
+    return [
+        item.strip('"')
+        for item in cleaned.split()
+        if re.match(r"^\"?[A-Za-z_][A-Za-z0-9_'.-]*\"?$", item)
+    ]
 
 
 def _iter_lean_files(location: Path, *, max_file_bytes: int, max_files: int):
-    """Yield a capped, deterministic stream of Lean files while pruning heavy build dirs."""
+    """Yield a capped, deterministic stream of Lean files.
+
+    Kept as a compatibility wrapper around the generic formal-source iterator.
+    """
+
+    root = FormalSourceRoot("lean_compat", str(location), "lean_library")
+    yield from _iter_formal_source_files(
+        root,
+        location,
+        max_file_bytes=max_file_bytes,
+        max_files=max_files,
+    )
+
+
+def _iter_formal_source_files(
+    root: FormalSourceRoot,
+    location: Path,
+    *,
+    max_file_bytes: int,
+    max_files: int,
+):
+    """Yield source files for a configured prover family while pruning builds."""
 
     n_files = 0
+    suffixes = _formal_source_suffixes(root)
     for dirpath, dirnames, filenames in os.walk(location):
         dirnames[:] = sorted(dirname for dirname in dirnames if dirname not in SKIPPED_PATH_PARTS)
         for filename in sorted(filenames):
-            if not filename.endswith(".lean"):
+            if not filename.endswith(suffixes):
                 continue
             path = Path(dirpath) / filename
             if _skip_path(path, base=location) or not _file_size_ok(path, max_file_bytes):
@@ -969,6 +1129,29 @@ def _iter_lean_files(location: Path, *, max_file_bytes: int, max_files: int):
             n_files += 1
             if n_files >= max_files:
                 return
+
+
+def _formal_source_suffixes(root: FormalSourceRoot) -> tuple[str, ...]:
+    key = _source_type_key(root.source_type)
+    return FORMAL_SOURCE_SUFFIXES_BY_TYPE.get(
+        key,
+        (".lean", ".v", ".thy", ".agda"),
+    )
+
+
+def _formal_source_language(root: FormalSourceRoot, path: Path) -> str:
+    key = _source_type_key(root.source_type)
+    if key.startswith(("rocq", "coq")) or path.suffix == ".v":
+        return "rocq"
+    if key.startswith("isabelle") or path.suffix == ".thy":
+        return "isabelle"
+    if key.startswith("agda") or path.suffix == ".agda":
+        return "agda"
+    return "lean"
+
+
+def _source_type_key(value: object) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", str(value or "").strip().lower()).strip("_")
 
 
 def _skip_path(path: Path, *, base: Path | None = None) -> bool:
