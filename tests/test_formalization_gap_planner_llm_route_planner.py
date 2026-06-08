@@ -1112,6 +1112,7 @@ def test_llm_route_planner_filters_registry_context_for_rocq_target() -> None:
         "lean_lsp_mcp",
         "leandojo_reprover",
     }
+    lean_only_adapter_ids = lean_only_resource_ids | {"loogle_leansearchclient"}
     assert not resource_ids.intersection(lean_only_resource_ids)
     for row in (
         *registry_context["component_rows"],
@@ -1127,6 +1128,10 @@ def test_llm_route_planner_filters_registry_context_for_rocq_target() -> None:
         ):
             row_resource_ids.update(row.get(field_name, ()))
         assert not row_resource_ids.intersection(lean_only_resource_ids)
+        assert not set(row.get("adapter_ids", ())).intersection(lean_only_adapter_ids)
+        assert not set(row.get("detected_adapter_statuses", {})).intersection(
+            lean_only_adapter_ids
+        )
     contract_resource_ids = {
         row["resource_id"] for row in registry_context["resource_contract_rows"]
     }

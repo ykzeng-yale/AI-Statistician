@@ -6481,9 +6481,15 @@ def _component_resource_registry_context(
     if not isinstance(payload, Mapping):
         return {}
     target = str(target_prover_family or "").strip().lower()
+    all_resource_rows = tuple(_dict_tuple(payload.get("resource_rows", [])))
+    resource_row_by_id = {
+        str(row.get("resource_id", "")).strip(): row
+        for row in all_resource_rows
+        if str(row.get("resource_id", "")).strip()
+    }
     resource_rows = [
         _compact_row(row)
-        for row in _dict_tuple(payload.get("resource_rows", []))
+        for row in all_resource_rows
         if _resource_targets_match(row, target)
     ][:40]
     compatible_resource_ids = {
@@ -6495,6 +6501,8 @@ def _component_resource_registry_context(
         _target_filtered_registry_row(
             _compact_row(row),
             compatible_resource_ids=compatible_resource_ids,
+            resource_row_by_id=resource_row_by_id,
+            target_prover_family=target,
         )
         for row in _dict_tuple(payload.get("component_rows", []))
     ][:20]
@@ -6502,6 +6510,8 @@ def _component_resource_registry_context(
         _target_filtered_registry_row(
             _compact_row(row),
             compatible_resource_ids=compatible_resource_ids,
+            resource_row_by_id=resource_row_by_id,
+            target_prover_family=target,
         )
         for row in _dict_tuple(payload.get("execution_plan_rows", []))
     ][:20]
@@ -6539,6 +6549,8 @@ def _target_filtered_registry_row(
     row: dict[str, object],
     *,
     compatible_resource_ids: set[str],
+    resource_row_by_id: Mapping[str, Mapping[str, object]],
+    target_prover_family: str,
 ) -> dict[str, object]:
     filtered = dict(row)
     for field_name in (
@@ -6555,7 +6567,55 @@ def _target_filtered_registry_row(
             for resource_id in _str_tuple(filtered.get(field_name, []))
             if resource_id in compatible_resource_ids
         )
+    if "adapter_ids" in filtered:
+        adapter_ids = tuple(
+            adapter_id
+            for adapter_id in _str_tuple(filtered.get("adapter_ids", []))
+            if _adapter_targets_match(
+                adapter_id,
+                target_prover_family=target_prover_family,
+                compatible_resource_ids=compatible_resource_ids,
+                resource_row_by_id=resource_row_by_id,
+            )
+        )
+        filtered["adapter_ids"] = adapter_ids
+        statuses = filtered.get("detected_adapter_statuses", {})
+        if isinstance(statuses, Mapping):
+            filtered["detected_adapter_statuses"] = {
+                adapter_id: statuses[adapter_id]
+                for adapter_id in adapter_ids
+                if adapter_id in statuses
+            }
     return filtered
+
+
+def _adapter_targets_match(
+    adapter_id: str,
+    *,
+    target_prover_family: str,
+    compatible_resource_ids: set[str],
+    resource_row_by_id: Mapping[str, Mapping[str, object]],
+) -> bool:
+    adapter = str(adapter_id or "").strip()
+    if not adapter:
+        return False
+    if adapter in compatible_resource_ids:
+        return True
+    target = _target_prover_key(target_prover_family)
+    resource_row = resource_row_by_id.get(adapter)
+    if resource_row is not None:
+        return _resource_targets_match(resource_row, target)
+    key = _resource_ref_key(adapter)
+    target_specific_tokens = {
+        "lean4": ("lean", "lake", "loogle", "mathlib", "leandojo"),
+        "rocq": ("rocq", "coq", "serapi"),
+        "isabelle": ("isabelle", "sledgehammer", "afp"),
+        "agda": ("agda",),
+    }
+    for prover_key, tokens in target_specific_tokens.items():
+        if any(token in key for token in tokens):
+            return target == prover_key
+    return True
 
 
 def _component_resource_context_from_request(
