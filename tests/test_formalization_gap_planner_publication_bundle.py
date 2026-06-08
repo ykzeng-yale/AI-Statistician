@@ -2101,6 +2101,28 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     assert "llm_route_planner_request_contract" in contract_payload
     assert "llm_route_planner_response_contract" in contract_payload
     assert "llm_route_planner_response_payload_contract" in contract_payload
+    assert "llm_model_policy_contract" in contract_payload
+    llm_model_policy = json.loads(
+        (
+            out_dir / "contract" / "ai_statistician_llm_model_policy.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert llm_model_policy["component_name"] == "ai_statistician_llm_model_policy"
+    assert llm_model_policy["default_live_generator_provider"] == "anthropic"
+    assert llm_model_policy["latest_claude_models_by_tier"] == {
+        "haiku": "claude-haiku-4-5-20251001",
+        "sonnet": "claude-sonnet-4-6",
+        "opus": "claude-opus-4-8",
+    }
+    assert "codex" not in llm_model_policy["supported_live_generator_providers"]
+    assert "codex_exec" not in llm_model_policy["supported_live_generator_providers"]
+    assert set(llm_model_policy["prohibited_generator_providers"]) == {
+        "codex",
+        "codex_exec",
+    }
+    assert (
+        out_dir / "contract" / "ai_statistician_llm_model_policy.md"
+    ).exists()
     assert (
         "llm_route_planner_response_payload_validation_manifest_contract"
         in contract_payload
@@ -2274,6 +2296,14 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     )
     assert (
         "contract/formalization_gap_planner_prover_adapter_packet.schema.json"
+        in reproduction_payload["bundle_relative_artifacts"]
+    )
+    assert (
+        "contract/ai_statistician_llm_model_policy.json"
+        in reproduction_payload["bundle_relative_artifacts"]
+    )
+    assert (
+        "contract/ai_statistician_llm_model_policy.md"
         in reproduction_payload["bundle_relative_artifacts"]
     )
     assert (

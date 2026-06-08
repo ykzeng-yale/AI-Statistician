@@ -130,11 +130,20 @@ from .formalization_gap_planner_target_intake import (
     target_intake_json_schema,
     target_intake_row_json_schema,
 )
+from .model_backend import (
+    ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
+    ANTHROPIC_MODEL_SOURCE_CHECKED_DATE,
+    DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+    DEFAULT_CLAUDE_OPUS_GENERATOR_MODEL,
+    DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
+    DEFAULT_LIVE_GENERATOR_PROVIDER,
+)
 
 
 FORMALIZATION_GAP_PLANNER_PUBLICATION_BUNDLE_SCHEMA_VERSION = 1
 PUBLICATION_BUNDLE_COMPONENT_NAME = "formalization_gap_planner_publication_bundle"
 SCHEMA_CATALOG_COMPONENT_NAME = "formalization_gap_planner_schema_catalog"
+LLM_MODEL_POLICY_COMPONENT_NAME = "ai_statistician_llm_model_policy"
 FORMALIZATION_GAP_PLANNER_SCHEMA_CATALOG_SCHEMA_ID = (
     "urn:ai-statistician:schemas:formalization-gap-planner-schema-catalog:1"
 )
@@ -500,6 +509,7 @@ def export_formalization_gap_planner_publication_bundle(
         component_resource_contract_row_json_schema()
     )
     contract_payload = _contract_payload(library_snapshot_ref)
+    llm_model_policy_payload = _llm_model_policy_payload()
     schema_path = contract_dir / "library_aware_formalization_gap_plan.schema.json"
     prover_adapter_schema_path = (
         contract_dir / "formalization_gap_planner_prover_adapter_response.schema.json"
@@ -626,6 +636,8 @@ def export_formalization_gap_planner_publication_bundle(
         contract_dir / "formalization_gap_planner_schema_catalog.schema.json"
     )
     contract_path = contract_dir / "formalization_gap_planner_portable_contract.json"
+    llm_model_policy_path = contract_dir / "ai_statistician_llm_model_policy.json"
+    llm_model_policy_report_path = contract_dir / "ai_statistician_llm_model_policy.md"
     standalone_schema_path = (
         contract_dir / "formalization_gap_planner_standalone_input.schema.json"
     )
@@ -853,6 +865,14 @@ def export_formalization_gap_planner_publication_bundle(
     )
     cross_prover_target_summary_schema_path.write_text(
         json.dumps(cross_prover_target_summary_schema, indent=2),
+        encoding="utf-8",
+    )
+    llm_model_policy_path.write_text(
+        json.dumps(llm_model_policy_payload, indent=2, default=str),
+        encoding="utf-8",
+    )
+    llm_model_policy_report_path.write_text(
+        _llm_model_policy_markdown(llm_model_policy_payload),
         encoding="utf-8",
     )
     contract_path.write_text(json.dumps(contract_payload, indent=2), encoding="utf-8")
@@ -1090,6 +1110,21 @@ def export_formalization_gap_planner_publication_bundle(
             "path": str(contract_path),
             "required": True,
             "ok": contract_payload["schema_id"] == PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_ID,
+        },
+        {
+            "artifact_name": "llm_model_policy",
+            "path": str(llm_model_policy_path),
+            "required": True,
+            "ok": bool(llm_model_policy_payload.get("all_ok")),
+        },
+        {
+            "artifact_name": "llm_model_policy_report",
+            "path": str(llm_model_policy_report_path),
+            "required": True,
+            "ok": llm_model_policy_report_path.exists()
+            and "Claude Haiku" in llm_model_policy_report_path.read_text(
+                encoding="utf-8"
+            ),
         },
         {
             "artifact_name": "portable_schema",
@@ -2145,6 +2180,101 @@ def _schema_artifact_kind(
     return "contract_json"
 
 
+def _llm_model_policy_payload() -> dict[str, object]:
+    models_by_tier = dict(
+        ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY.get("models_by_tier", {})
+    )
+    supported_providers = ("anthropic", "openai", "static")
+    prohibited_providers = ("codex", "codex_exec")
+    all_ok = (
+        DEFAULT_LIVE_GENERATOR_PROVIDER == "anthropic"
+        and models_by_tier
+        == {
+            "haiku": DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            "sonnet": DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
+            "opus": DEFAULT_CLAUDE_OPUS_GENERATOR_MODEL,
+        }
+        and not set(prohibited_providers).intersection(supported_providers)
+    )
+    return {
+        "schema_version": FORMALIZATION_GAP_PLANNER_PUBLICATION_BUNDLE_SCHEMA_VERSION,
+        "component_name": LLM_MODEL_POLICY_COMPONENT_NAME,
+        "policy_kind": "cost_aware_generator_only_llm_policy",
+        "source_checked_date": ANTHROPIC_MODEL_SOURCE_CHECKED_DATE,
+        "default_live_generator_provider": DEFAULT_LIVE_GENERATOR_PROVIDER,
+        "supported_live_generator_providers": supported_providers,
+        "prohibited_generator_providers": prohibited_providers,
+        "claude_model_selection": ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
+        "latest_claude_models_by_tier": models_by_tier,
+        "cost_aware_runtime_tiers": {
+            "sonnet": (
+                "ArchitectCoordinator",
+                "TheoryDeveloper",
+                "FormalizerProofEngineer",
+                "formalization_gap_planner_route_synthesis",
+            ),
+            "haiku": (
+                "theory_intake",
+                "SimulationEngineer",
+                "AlgorithmEngineer",
+                "CriticEvaluator",
+                "bounded_route_triage",
+            ),
+            "opus": ("operator_explicit_only",),
+        },
+        "generator_boundary": (
+            "Claude/OpenAI/static providers are generator-only backends. "
+            "Agent loops, retrieval, tool calls, filesystem writes, tests, "
+            "Lean/prover execution, validation, and route repair remain owned "
+            "by AI Statistician runtime components."
+        ),
+        "codex_policy": (
+            "Codex is not accepted as a normal live LLM provider because it "
+            "cannot be made a stable pure-generator API boundary in this system."
+        ),
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": (
+            "LLM model policy artifacts document generator routing only. They "
+            "are not theorem proof evidence."
+        ),
+        "all_ok": all_ok,
+        "errors": ()
+        if all_ok
+        else ("Claude generator model policy constants are inconsistent",),
+    }
+
+
+def _llm_model_policy_markdown(payload: dict[str, object]) -> str:
+    policy = dict(payload.get("claude_model_selection", {}) or {})
+    models = dict(payload.get("latest_claude_models_by_tier", {}) or {})
+    lines = [
+        "# AI Statistician LLM Model Policy",
+        "",
+        f"- Default live provider: `{payload.get('default_live_generator_provider')}`",
+        f"- Source checked date: `{payload.get('source_checked_date')}`",
+        f"- Supported live providers: {', '.join(str(item) for item in payload.get('supported_live_generator_providers', []))}",
+        f"- Prohibited generator providers: {', '.join(str(item) for item in payload.get('prohibited_generator_providers', []))}",
+        "",
+        "## Claude Tiers",
+        "",
+        f"- Claude Haiku: `{models.get('haiku', '')}`",
+        f"- Claude Sonnet: `{models.get('sonnet', '')}`",
+        f"- Claude Opus: `{models.get('opus', '')}`",
+        "",
+        "## Source",
+        "",
+        f"- Models overview: {policy.get('models_overview_url', '')}",
+        f"- Model IDs and versioning: {policy.get('model_ids_and_versioning_url', '')}",
+        "",
+        "## Boundary",
+        "",
+        str(payload.get("generator_boundary", "")),
+        "",
+        str(payload.get("proof_evidence_boundary", "")),
+    ]
+    return "\n".join(lines) + "\n"
+
+
 def _contract_payload(library_snapshot_ref: str) -> dict[str, object]:
     return {
         "component": LIBRARY_AWARE_FORMALIZATION_GAP_PLANNER_NAME,
@@ -2153,6 +2283,7 @@ def _contract_payload(library_snapshot_ref: str) -> dict[str, object]:
         "library_snapshot_ref": library_snapshot_ref,
         "planner_contract": planner_contract(library_snapshot_ref),
         "schema_catalog_contract": schema_catalog_json_schema(),
+        "llm_model_policy_contract": _llm_model_policy_payload(),
         "portable_work_packet_contract": portable_work_packet_contract(),
         "prover_adapter_packet_contract": prover_adapter_packet_json_schema(),
         "prover_adapter_response_contract": prover_adapter_response_json_schema(),
@@ -2849,6 +2980,8 @@ def _reproduction_payload(
     )
     bundle_relative_artifacts = (
         "contract/formalization_gap_planner_portable_contract.json",
+        "contract/ai_statistician_llm_model_policy.json",
+        "contract/ai_statistician_llm_model_policy.md",
         "contract/formalization_gap_planner_schema_catalog.json",
         "contract/formalization_gap_planner_schema_catalog.schema.json",
         "contract/library_aware_formalization_gap_plan.schema.json",

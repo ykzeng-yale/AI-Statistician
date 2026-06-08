@@ -109,6 +109,7 @@ from .formalization_gap_planner_runtime_handoff_audit import (
 )
 from .formalization_gap_planner_publication_bundle import (
     FORMALIZATION_GAP_PLANNER_SCHEMA_CATALOG_SCHEMA_ID,
+    LLM_MODEL_POLICY_COMPONENT_NAME,
     PUBLICATION_BUNDLE_COMPONENT_NAME,
     SCHEMA_CATALOG_COMPONENT_NAME,
     validate_schema_catalog_payload,
@@ -136,6 +137,13 @@ from .formalization_gap_planner_target_intake import (
     FORMALIZATION_GAP_PLANNER_TARGET_INTAKE_ROW_SCHEMA_ID,
     normalize_formalization_gap_planner_target_intake,
     validate_target_intake_row,
+)
+from .model_backend import (
+    ANTHROPIC_MODEL_SOURCE_CHECKED_DATE,
+    DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+    DEFAULT_CLAUDE_OPUS_GENERATOR_MODEL,
+    DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
+    DEFAULT_LIVE_GENERATOR_PROVIDER,
 )
 
 
@@ -1877,6 +1885,10 @@ def _manifest_checks(
 
 def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicationBundleAuditCheck]:
     contract_path = bundle_dir / "contract" / "formalization_gap_planner_portable_contract.json"
+    llm_model_policy_path = bundle_dir / "contract" / "ai_statistician_llm_model_policy.json"
+    llm_model_policy_report_path = (
+        bundle_dir / "contract" / "ai_statistician_llm_model_policy.md"
+    )
     schema_path = bundle_dir / "contract" / "library_aware_formalization_gap_plan.schema.json"
     portable_plan_row_schema_path = (
         bundle_dir / "contract" / "library_aware_formalization_gap_plan_row.schema.json"
@@ -2182,6 +2194,18 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
     component_resource_contract_row_schema = _read_json_no_error(
         component_resource_contract_row_schema_path
     )
+    llm_model_policy = _read_json_no_error(llm_model_policy_path)
+    llm_models_by_tier = (
+        llm_model_policy.get("latest_claude_models_by_tier", {})
+        if isinstance(llm_model_policy.get("latest_claude_models_by_tier", {}), dict)
+        else {}
+    )
+    supported_llm_providers = set(
+        _str_tuple(llm_model_policy.get("supported_live_generator_providers", []))
+    )
+    prohibited_llm_providers = set(
+        _str_tuple(llm_model_policy.get("prohibited_generator_providers", []))
+    )
     schema_catalog_entries = [
         row
         for row in schema_catalog.get("schema_entries", [])
@@ -2212,6 +2236,78 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
             PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_ID,
             str(contract.get("schema_id", "")),
             contract.get("schema_id") == PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_ID,
+        ),
+        _check(
+            "llm_model_policy_file",
+            "contract",
+            "LLM model policy file exists",
+            str(llm_model_policy_path.exists()),
+            llm_model_policy_path.exists(),
+        ),
+        _check(
+            "llm_model_policy_report_file",
+            "contract",
+            "LLM model policy markdown exists",
+            str(llm_model_policy_report_path.exists()),
+            llm_model_policy_report_path.exists(),
+        ),
+        _check(
+            "llm_model_policy_component",
+            "contract",
+            LLM_MODEL_POLICY_COMPONENT_NAME,
+            str(llm_model_policy.get("component_name", "")),
+            llm_model_policy.get("component_name") == LLM_MODEL_POLICY_COMPONENT_NAME,
+        ),
+        _check(
+            "llm_model_policy_default_provider",
+            "contract",
+            DEFAULT_LIVE_GENERATOR_PROVIDER,
+            str(llm_model_policy.get("default_live_generator_provider", "")),
+            llm_model_policy.get("default_live_generator_provider")
+            == DEFAULT_LIVE_GENERATOR_PROVIDER
+            == "anthropic",
+        ),
+        _check(
+            "llm_model_policy_supported_providers",
+            "contract",
+            "anthropic,openai,static",
+            ",".join(sorted(supported_llm_providers)),
+            supported_llm_providers == {"anthropic", "openai", "static"},
+        ),
+        _check(
+            "llm_model_policy_rejects_codex",
+            "contract",
+            "codex,codex_exec excluded from supported providers",
+            ",".join(sorted(supported_llm_providers | prohibited_llm_providers)),
+            {"codex", "codex_exec"}.issubset(prohibited_llm_providers)
+            and not {"codex", "codex_exec"}.intersection(supported_llm_providers),
+        ),
+        _check(
+            "llm_model_policy_latest_claude_tiers",
+            "contract",
+            "latest Claude Haiku/Sonnet/Opus tier ids",
+            json.dumps(llm_models_by_tier, sort_keys=True),
+            llm_models_by_tier
+            == {
+                "haiku": DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+                "sonnet": DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
+                "opus": DEFAULT_CLAUDE_OPUS_GENERATOR_MODEL,
+            },
+        ),
+        _check(
+            "llm_model_policy_source_checked_date",
+            "contract",
+            ANTHROPIC_MODEL_SOURCE_CHECKED_DATE,
+            str(llm_model_policy.get("source_checked_date", "")),
+            llm_model_policy.get("source_checked_date")
+            == ANTHROPIC_MODEL_SOURCE_CHECKED_DATE,
+        ),
+        _check(
+            "portable_contract_has_llm_model_policy_contract",
+            "contract",
+            "llm_model_policy_contract",
+            str("llm_model_policy_contract" in contract),
+            "llm_model_policy_contract" in contract,
         ),
         _check(
             "portable_plan_row_schema_file",
@@ -4173,6 +4269,8 @@ def _reproduction_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublic
             ",".join(sorted(artifacts)),
             {
                 "contract/formalization_gap_planner_portable_contract.json",
+                "contract/ai_statistician_llm_model_policy.json",
+                "contract/ai_statistician_llm_model_policy.md",
                 "contract/formalization_gap_planner_standalone_input.schema.json",
                 "contract/formalization_gap_planner_prover_adapter_packet.schema.json",
                 "contract/formalization_gap_planner_prover_adapter_response_validation_row.schema.json",

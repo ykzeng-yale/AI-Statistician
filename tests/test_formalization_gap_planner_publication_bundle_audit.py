@@ -2661,6 +2661,27 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         for row in audit_payload["checks"]
     )
     assert any(
+        row["check_name"] == "llm_model_policy_default_provider"
+        and row["observed"] == "anthropic"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"] == "llm_model_policy_latest_claude_tiers"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"] == "llm_model_policy_rejects_codex"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"] == "portable_contract_has_llm_model_policy_contract"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
         row["check_name"] == "target_intake_row_schema_id"
         and row["observed"] == target_intake_row_json_schema()["$id"]
         and row["ok"]
