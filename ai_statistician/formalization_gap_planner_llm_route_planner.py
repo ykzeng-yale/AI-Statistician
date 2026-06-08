@@ -5409,6 +5409,7 @@ def _response_resource_request_alignment_errors(
                 "frontier_resource_ids",
                 "local_first_resource_ids",
                 "frontier_escalation_resource_ids",
+                "adapter_ids",
             ):
                 allowed_resource_ids.update(
                     _resource_ref_key(value)

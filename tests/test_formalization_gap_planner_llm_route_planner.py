@@ -3658,6 +3658,103 @@ def test_llm_route_planner_accepts_non_lean_generic_formal_realization_nodes() -
     assert "lake build" not in proof_hook["recommended_tools"]
 
 
+def test_llm_route_planner_accepts_target_filtered_registry_adapter_id() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rocq_registry_adapter"
+    )
+    out_dir = root / "llm_route_planner"
+    registry_dir = root / "component_resource_registry"
+    input_json = root / "standalone_input.json"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "component_name": "formalization_gap_planner_standalone_input",
+                "target_prover_family": "rocq",
+                "library_snapshot_ref": "rocq:coq-community-probability",
+                "routes": [
+                    {
+                        "route_id": "rocq_rank_route",
+                        "display_name": "rocq_distribution_free_rank_bound",
+                        "target_prover_family": "rocq",
+                        "theorem_statement": (
+                            "A Rocq rank bound follows from exchangeability."
+                        ),
+                        "source_refs": ["conformal_prediction_textbook"],
+                        "source_snippets": [
+                            {
+                                "source_ref": "conformal_prediction_textbook",
+                                "claim": "Exchangeability implies a uniform rank statistic.",
+                                "excerpt": (
+                                    "Under exchangeability, the rank of the test score "
+                                    "among calibration scores is uniformly distributed "
+                                    "up to the tie convention."
+                                ),
+                                "target_primitives": ["rank_uniformity"],
+                            }
+                        ],
+                        "primitives": [
+                            {
+                                "primitive": "exchangeability",
+                                "coverage_status": "exact_exists",
+                                "candidate_declarations": [
+                                    "Rocq.Probability.exchangeable"
+                                ],
+                            },
+                            {
+                                "primitive": "rank_uniformity",
+                                "coverage_status": "bridge_needed",
+                            },
+                        ],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    export_formalization_gap_planner_component_resource_registry(registry_dir)
+    response = _llm_response_payload()
+    response["formal_realization_dag_nodes"] = [
+        {
+            **dict(node),
+            "candidate_declarations": (
+                ["Rocq.Probability.exchangeable"]
+                if node["primitive"] == "exchangeability"
+                else []
+            ),
+        }
+        for node in response.pop("lean_realization_dag_nodes")
+    ]
+    response["standalone_route"]["target_prover_family"] = "rocq"
+    response["standalone_route"]["primitives"][0]["candidate_declarations"] = [
+        "Rocq.Probability.exchangeable"
+    ]
+    response["planner_next_actions"] = [
+        {
+            "owner": "route_revision_overlay",
+            "adapter_id": "route_revision_overlay",
+            "action": "apply route_revision route repair for rank_uniformity",
+        }
+    ]
+    response_json.write_text(json.dumps(response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_component_resource_registry_dir=registry_dir,
+    )
+
+    assert payload["all_ok"]
+    row = payload["rows"][0]
+    assert row["response_contract_ok"]
+    assert row["planner_next_actions"][0]["adapter_id"] == "route_revision_overlay"
+
+
 def test_llm_route_planner_rejects_non_lean_legacy_realization_alias() -> None:
     root = Path("runs/test_formalization_gap_planner_llm_route_planner_rocq_alias")
     out_dir = root / "llm_route_planner"
