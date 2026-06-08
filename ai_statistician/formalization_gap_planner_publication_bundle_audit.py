@@ -1042,6 +1042,19 @@ def audit_formalization_gap_planner_publication_bundle(
             and check.check_name.endswith("_registry_context")
             and check.ok
         ),
+        "n_optional_llm_route_planner_request_target_intake_context_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_llm_route_planner_request_")
+            and check.check_name.endswith("_target_intake_context")
+        ),
+        "n_optional_llm_route_planner_request_target_intake_context_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_llm_route_planner_request_")
+            and check.check_name.endswith("_target_intake_context")
+            and check.ok
+        ),
         "n_optional_llm_route_planner_request_model_tier_mismatch_checked": sum(
             1
             for check in checks
@@ -1265,6 +1278,19 @@ def audit_formalization_gap_planner_publication_bundle(
             for check in checks
             if check.check_name.startswith("optional_feedback_llm_route_planner_request_")
             and check.check_name.endswith("_registry_context")
+            and check.ok
+        ),
+        "n_optional_feedback_llm_route_planner_request_target_intake_context_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_feedback_llm_route_planner_request_")
+            and check.check_name.endswith("_target_intake_context")
+        ),
+        "n_optional_feedback_llm_route_planner_request_target_intake_context_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_feedback_llm_route_planner_request_")
+            and check.check_name.endswith("_target_intake_context")
             and check.ok
         ),
         "n_optional_feedback_llm_route_planner_request_model_tier_mismatch_checked": sum(
@@ -5402,6 +5428,17 @@ def _llm_route_planner_optional_checks(
                 errors=registry_errors,
             )
         )
+        target_intake_errors = _llm_request_target_intake_context_errors(request)
+        checks.append(
+            _check(
+                f"{check_prefix}_request_{idx}_target_intake_context",
+                "optional_artifacts",
+                "LLM route-planner request carries target-intake theorem context",
+                _llm_request_target_intake_context_observed(request),
+                not target_intake_errors,
+                errors=target_intake_errors,
+            )
+        )
     for idx, row in enumerate(rows):
         schema_errors = validate_llm_route_planner_row(row, row_schema)
         checks.append(
@@ -5632,6 +5669,59 @@ def _llm_request_registry_context_observed(request: dict[str, Any]) -> str:
         f"resources={len(resource_rows)}; "
         f"contracts={len(contract_rows)}; "
         f"execution_plans={len(execution_plan_rows)}"
+    )
+
+
+def _llm_request_target_intake_context_errors(request: dict[str, Any]) -> tuple[str, ...]:
+    errors: list[str] = []
+    context = _dict_value(request, "context_packet")
+    rows = _dict_tuple(context.get("target_intake_rows", []))
+    if not rows:
+        return ("target_intake_rows missing",)
+    if len(rows) > 25:
+        errors.append("target_intake_rows unbounded")
+    for index, row in enumerate(rows):
+        if not str(row.get("theorem_statement", "")).strip():
+            errors.append(f"target_intake_rows[{index}].theorem_statement missing")
+        if not (
+            _str_tuple(row.get("extracted_primitive_candidates", []))
+            or _dict_tuple(row.get("primitive_seed_rows", []))
+        ):
+            errors.append(
+                f"target_intake_rows[{index}] missing primitive candidates or seed rows"
+            )
+        if "not theorem proof evidence" not in str(
+            row.get("proof_evidence_boundary", "")
+        ).lower():
+            errors.append(
+                f"target_intake_rows[{index}] proof evidence boundary missing"
+            )
+    prompt_user = _dict_value(request, "prompt_messages").get("user", "")
+    if "context_packet.target_intake_rows" not in str(prompt_user):
+        errors.append("prompt does not expose target_intake_rows")
+    if "target intake is not proof evidence" not in str(prompt_user):
+        errors.append("prompt does not preserve target-intake non-evidence boundary")
+    return tuple(errors)
+
+
+def _llm_request_target_intake_context_observed(request: dict[str, Any]) -> str:
+    context = _dict_value(request, "context_packet")
+    rows = _dict_tuple(context.get("target_intake_rows", []))
+    primitives = sum(
+        len(_str_tuple(row.get("extracted_primitive_candidates", [])))
+        for row in rows
+    )
+    literature_queries = sum(
+        len(_str_tuple(row.get("literature_queries", []))) for row in rows
+    )
+    lean_queries = sum(
+        len(_str_tuple(row.get("lean_grounding_queries", []))) for row in rows
+    )
+    return (
+        f"target_intake_rows={len(rows)}; "
+        f"primitive_candidates={primitives}; "
+        f"literature_queries={literature_queries}; "
+        f"lean_grounding_queries={lean_queries}"
     )
 
 
@@ -13741,6 +13831,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Optional LLM route-planner seed route-adoption readiness preserved: {payload.get('n_optional_llm_route_planner_seed_route_adoption_readiness_valid')}/{payload.get('n_optional_llm_route_planner_seed_route_adoption_readiness_checked')}",
         f"- Optional LLM route-planner request evidence bounds valid: {payload.get('n_optional_llm_route_planner_request_evidence_bound_valid')}/{payload.get('n_optional_llm_route_planner_request_evidence_bound_checked')}",
         f"- Optional LLM route-planner request registry context valid: {payload.get('n_optional_llm_route_planner_request_registry_context_valid')}/{payload.get('n_optional_llm_route_planner_request_registry_context_checked')}",
+        f"- Optional LLM route-planner request target-intake context valid: {payload.get('n_optional_llm_route_planner_request_target_intake_context_valid')}/{payload.get('n_optional_llm_route_planner_request_target_intake_context_checked')}",
         f"- Optional LLM route-planner request model-tier mismatch policy valid: {payload.get('n_optional_llm_route_planner_request_model_tier_mismatch_valid')}/{payload.get('n_optional_llm_route_planner_request_model_tier_mismatch_checked')}",
         f"- Optional feedback LLM route-planner requests valid: {payload.get('n_optional_feedback_llm_route_planner_request_schema_valid')}/{payload.get('n_optional_feedback_llm_route_planner_request_schema_checked')}",
         f"- Optional feedback LLM route-planner rows valid: {payload.get('n_optional_feedback_llm_route_planner_row_schema_valid')}/{payload.get('n_optional_feedback_llm_route_planner_row_schema_checked')}",
@@ -13752,6 +13843,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Optional feedback LLM route-planner seed route-adoption readiness preserved: {payload.get('n_optional_feedback_llm_route_planner_seed_route_adoption_readiness_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_route_adoption_readiness_checked')}",
         f"- Optional feedback LLM route-planner request evidence bounds valid: {payload.get('n_optional_feedback_llm_route_planner_request_evidence_bound_valid')}/{payload.get('n_optional_feedback_llm_route_planner_request_evidence_bound_checked')}",
         f"- Optional feedback LLM route-planner request registry context valid: {payload.get('n_optional_feedback_llm_route_planner_request_registry_context_valid')}/{payload.get('n_optional_feedback_llm_route_planner_request_registry_context_checked')}",
+        f"- Optional feedback LLM route-planner request target-intake context valid: {payload.get('n_optional_feedback_llm_route_planner_request_target_intake_context_valid')}/{payload.get('n_optional_feedback_llm_route_planner_request_target_intake_context_checked')}",
         f"- Optional feedback LLM route-planner request model-tier mismatch policy valid: {payload.get('n_optional_feedback_llm_route_planner_request_model_tier_mismatch_valid')}/{payload.get('n_optional_feedback_llm_route_planner_request_model_tier_mismatch_checked')}",
         f"- Optional interactive-session schema valid: {payload.get('n_optional_interactive_session_row_schema_valid')}/{payload.get('n_optional_interactive_session_row_schema_checked')}",
         f"- Optional interactive-session resource-response status consistent: {payload.get('n_optional_interactive_session_resource_response_status_valid')}/{payload.get('n_optional_interactive_session_resource_response_status_checked')}",

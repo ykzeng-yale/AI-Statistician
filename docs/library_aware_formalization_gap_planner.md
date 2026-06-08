@@ -881,9 +881,10 @@ component-resource-registry audit checks against their public contracts or
 schemas. For optional interactive-session artifacts, it resolves
 decision-policy component ids, local/frontier resource ids, and
 resource-contract ids against the bundled component-resource registry. It also
-checks optional LLM response-payload validation manifests and JSONL rows when
-raw payload validator outputs are packaged, checks resource-request payload
-identity and dispatch specs, resource-response
+checks optional LLM route-planner request packets for target-intake theorem
+context and component-resource registry context, checks LLM response-payload
+validation manifests and JSONL rows when raw payload validator outputs are
+packaged, checks resource-request payload identity and dispatch specs, resource-response
 ledger rows against their request contracts, route-revision
 resource-response-ledger traces, route-stability awaiting/rejected request ids,
 and interactive-session next-command guidance against the same request ids.

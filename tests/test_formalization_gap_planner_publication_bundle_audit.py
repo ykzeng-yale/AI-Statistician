@@ -309,35 +309,40 @@ def _fixture_prover_adapter_response_validation_row(
 
 def _write_accepted_llm_route_planner_artifact(root: Path) -> Path:
     root.mkdir(parents=True, exist_ok=True)
-    input_json = root / "standalone_input.json"
-    input_json.write_text(
+    target_intake_dir = root / "target_intake"
+    raw_target_json = root / "target_intake_request.json"
+    raw_target_json.write_text(
         json.dumps(
             {
                 "schema_version": 1,
-                "component_name": "formalization_gap_planner_standalone_input",
+                "component_name": "formalization_gap_planner_target_intake",
                 "target_prover_family": "lean4",
                 "library_snapshot_ref": "lean_mathlib_snapshot",
-                "routes": [
+                "target_id": "rank_route",
+                "title": "distribution_free_rank_bound",
+                "theorem_statement": (
+                    "A source-backed rank-uniformity bridge closes the "
+                    "distribution-free rank route."
+                ),
+                "known_proof_sources": ["fixture_source"],
+                "candidate_primitives": [
                     {
-                        "route_id": "rank_route",
-                        "display_name": "distribution_free_rank_bound",
-                        "theorem_statement": (
-                            "A source-backed rank-uniformity bridge closes the "
-                            "distribution-free rank route."
-                        ),
-                        "source_refs": ["fixture_source"],
-                        "primitives": [
-                            {
-                                "primitive": "rank_uniformity",
-                                "coverage_status": "bridge_needed",
-                            }
-                        ],
+                        "primitive": "rank_uniformity",
+                        "coverage_status": "bridge_needed",
                     }
                 ],
             },
             indent=2,
         ),
         encoding="utf-8",
+    )
+    normalize_formalization_gap_planner_target_intake(
+        raw_target_json,
+        target_intake_dir,
+    )
+    input_json = (
+        target_intake_dir
+        / "formalization_gap_planner_target_intake_standalone_seed.json"
     )
     response_json = root / "llm_response.json"
     response_json.write_text(
@@ -485,6 +490,7 @@ def _write_accepted_llm_route_planner_artifact(root: Path) -> Path:
         provider_name="static",
         invoke_provider=True,
         static_response_json=response_json,
+        formalization_gap_planner_target_intake_dir=target_intake_dir,
         formalization_gap_planner_component_resource_registry_dir=(
             component_resource_registry_dir
         ),
@@ -5566,6 +5572,18 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     )
     assert (
         audit_payload[
+            "n_optional_llm_route_planner_request_target_intake_context_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_request_target_intake_context_valid"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
             "n_optional_llm_route_planner_request_model_tier_mismatch_checked"
         ]
         == 1
@@ -5695,6 +5713,18 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     assert (
         audit_payload[
             "n_optional_feedback_llm_route_planner_request_registry_context_valid"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_feedback_llm_route_planner_request_target_intake_context_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_feedback_llm_route_planner_request_target_intake_context_valid"
         ]
         == 1
     )
@@ -6209,6 +6239,50 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     assert (
         rejected_registry_payload[
             "n_optional_feedback_llm_route_planner_request_registry_context_valid"
+        ]
+        == 1
+    )
+    requests_path.write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in requests) + "\n",
+        encoding="utf-8",
+    )
+
+    target_intake_corrupted_requests = json.loads(json.dumps(requests))
+    target_intake_corrupted_requests[0]["context_packet"].pop(
+        "target_intake_rows",
+        None,
+    )
+    requests_path.write_text(
+        "\n".join(
+            json.dumps(row, sort_keys=True)
+            for row in target_intake_corrupted_requests
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    rejected_target_intake_payload = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        root / "audit_rejects_llm_target_intake_context_loss",
+    )
+    failed_target_intake_names = {
+        row["check_name"]
+        for row in rejected_target_intake_payload["checks"]
+        if not row["ok"]
+    }
+    assert not rejected_target_intake_payload["all_ok"]
+    assert (
+        "optional_llm_route_planner_request_0_target_intake_context"
+        in failed_target_intake_names
+    )
+    assert (
+        rejected_target_intake_payload[
+            "n_optional_llm_route_planner_request_target_intake_context_valid"
+        ]
+        == 0
+    )
+    assert (
+        rejected_target_intake_payload[
+            "n_optional_feedback_llm_route_planner_request_target_intake_context_valid"
         ]
         == 1
     )
