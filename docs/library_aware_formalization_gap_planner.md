@@ -119,8 +119,11 @@ rejected. Each row also carries a `realization_coverage_witness` summarizing
 whether the selected primitives have standalone-route nodes and formal
 realization nodes, whether delta primitives have route-alignment edges, and
 whether any introduced primitive lacks an alignment edge. This is a portable
-inspection aid for external prover teams; it is still planning evidence, not
-proof evidence. The cost witness uses
+inspection aid for external prover teams. Evaluation rows preserve the LLM
+route-adoption readiness status and blockers, so an accepted but
+search-pending/refinement-pending Claude route is not reported as ready for
+standalone replay. This is still planning evidence, not proof evidence. The
+cost witness uses
 `formalization_gap_planner_minimal_delta_cost_policy:1` and must include a
 nonnegative route cost plus one `primitive_costs` row per selected primitive.
 It must also include an `and_or_cost_graph` with enumerated route options,
@@ -1012,7 +1015,11 @@ The current implementation composes four existing AI Statistician artifacts:
    introduced-primitive evidence bounds, minimal-delta metadata, revised
    informal/formal-realization DAG nodes, realization-coverage witnesses, and
    normalized alignment edges for both primary and feedback LLM route-planner
-   artifacts.
+   artifacts. Evaluation manifests also summarize route-adoption readiness
+   (`READY_FOR_STANDALONE_REPLAY`,
+   `PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION`, awaiting, and rejected) plus the
+   blocker counts that explain why an accepted LLM route still needs another
+   literature/library/prover-feedback pass.
    Accepted responses must also satisfy primitive-set coherence: selected
    primitives must appear in the standalone route and formal-realization DAG,
    and wrapper/bridge/source-port/new-theory delta primitives must have

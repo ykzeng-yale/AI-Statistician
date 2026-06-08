@@ -2438,6 +2438,34 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_rows_with_llm_route_planner_model_tier",
             0,
         ),
+        "n_evaluation_rows_with_llm_route_planner_route_adoption_status": (
+            evaluation_payload.get(
+                "n_rows_with_llm_route_planner_route_adoption_status",
+                0,
+            )
+        ),
+        "n_evaluation_rows_ready_for_route_adoption": evaluation_payload.get(
+            "n_rows_ready_for_route_adoption",
+            0,
+        ),
+        "n_evaluation_rows_pending_refinement_before_route_adoption": (
+            evaluation_payload.get(
+                "n_rows_pending_refinement_before_route_adoption",
+                0,
+            )
+        ),
+        "n_evaluation_llm_route_adoption_blockers": evaluation_payload.get(
+            "n_llm_route_adoption_blockers",
+            0,
+        ),
+        "evaluation_llm_route_adoption_blockers": evaluation_payload.get(
+            "llm_route_adoption_blockers",
+            (),
+        ),
+        "evaluation_by_llm_route_adoption_status": evaluation_payload.get(
+            "evaluation_by_llm_route_adoption_status",
+            {},
+        ),
         "n_evaluation_rows_with_llm_route_planner_generator_metadata": evaluation_payload.get(
             "n_rows_with_llm_route_planner_generator_metadata",
             0,
@@ -4701,6 +4729,13 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_evaluation_rows_with_llm_route_planner_model_tier')}/"
             f"{payload.get('n_evaluation_rows_with_llm_route_planner_generator_metadata')} "
             f"tiers={payload.get('evaluation_by_llm_model_tier')}"
+        ),
+        (
+            f"- Evaluation LLM route-adoption ready/pending/blockers: "
+            f"{payload.get('n_evaluation_rows_ready_for_route_adoption')}/"
+            f"{payload.get('n_evaluation_rows_pending_refinement_before_route_adoption')}/"
+            f"{payload.get('n_evaluation_llm_route_adoption_blockers')} "
+            f"statuses={payload.get('evaluation_by_llm_route_adoption_status')}"
         ),
         f"- Evaluation mean route recall: {payload.get('mean_evaluation_route_recall')}",
         f"- Evaluation mean alignment coverage: {payload.get('mean_evaluation_alignment_coverage')}",

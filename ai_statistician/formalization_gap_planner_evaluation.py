@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections import Counter
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -23,6 +24,10 @@ PROOF_EVIDENCE_BOUNDARY = (
     "route-truth labels. They are evaluation diagnostics, not theorem proof "
     "evidence."
 )
+ROUTE_ADOPTION_READY_STATUS = "READY_FOR_STANDALONE_REPLAY"
+ROUTE_ADOPTION_PENDING_STATUS = "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+ROUTE_ADOPTION_AWAITING_STATUS = "AWAITING_LLM_ROUTE_PLANNER_RESPONSE"
+ROUTE_ADOPTION_REJECTED_STATUS = "REJECTED_LLM_ROUTE_PLAN"
 
 
 @dataclass(frozen=True)
@@ -83,6 +88,8 @@ class FormalizationGapPlannerEvaluationRow:
     llm_route_planner_provider: str
     llm_route_planner_model: str
     llm_route_planner_model_tier: str
+    llm_route_planner_route_adoption_status: str
+    llm_route_planner_route_adoption_blockers: tuple[str, ...]
     llm_route_planner_acceptance_status: str
     llm_route_planner_model_selection_rationale: str
     llm_route_planner_has_generator_metadata: bool
@@ -143,6 +150,11 @@ def evaluate_formalization_gap_planner(
     for row in evaluation_rows:
         by_ok[row.ok] = by_ok.get(row.ok, 0) + 1
     by_llm_model_tier = _llm_model_tier_summary(evaluation_rows)
+    by_llm_route_adoption_status = _llm_route_adoption_status_summary(evaluation_rows)
+    llm_route_adoption_blockers = _unique_row_attr_strings(
+        evaluation_rows,
+        "llm_route_planner_route_adoption_blockers",
+    )
     realization_missing_selected = _unique_row_attr_strings(
         evaluation_rows,
         "realization_missing_selected_formal_primitives",
@@ -197,6 +209,41 @@ def evaluate_formalization_gap_planner(
         "n_rows_with_llm_route_planner_model_tier": sum(
             1 for row in evaluation_rows if row.llm_route_planner_model_tier
         ),
+        "n_rows_with_llm_route_planner_route_adoption_status": sum(
+            1
+            for row in evaluation_rows
+            if row.llm_route_planner_route_adoption_status
+        ),
+        "n_rows_ready_for_route_adoption": sum(
+            1
+            for row in evaluation_rows
+            if row.llm_route_planner_route_adoption_status
+            == ROUTE_ADOPTION_READY_STATUS
+        ),
+        "n_rows_pending_refinement_before_route_adoption": sum(
+            1
+            for row in evaluation_rows
+            if row.llm_route_planner_route_adoption_status
+            == ROUTE_ADOPTION_PENDING_STATUS
+        ),
+        "n_rows_awaiting_llm_route_planner_response": sum(
+            1
+            for row in evaluation_rows
+            if row.llm_route_planner_route_adoption_status
+            == ROUTE_ADOPTION_AWAITING_STATUS
+        ),
+        "n_rows_rejected_llm_route_plan": sum(
+            1
+            for row in evaluation_rows
+            if row.llm_route_planner_route_adoption_status
+            == ROUTE_ADOPTION_REJECTED_STATUS
+        ),
+        "n_llm_route_adoption_blockers": sum(
+            len(row.llm_route_planner_route_adoption_blockers)
+            for row in evaluation_rows
+        ),
+        "llm_route_adoption_blockers": llm_route_adoption_blockers,
+        "evaluation_by_llm_route_adoption_status": by_llm_route_adoption_status,
         "n_rows_with_llm_route_planner_generator_metadata": sum(
             1
             for row in evaluation_rows
@@ -386,6 +433,8 @@ def evaluation_row_json_schema() -> dict[str, object]:
             "llm_route_planner_provider",
             "llm_route_planner_model",
             "llm_route_planner_model_tier",
+            "llm_route_planner_route_adoption_status",
+            "llm_route_planner_route_adoption_blockers",
             "llm_route_planner_acceptance_status",
             "llm_route_planner_model_selection_rationale",
             "llm_route_planner_has_generator_metadata",
@@ -457,6 +506,8 @@ def evaluation_row_json_schema() -> dict[str, object]:
             "llm_route_planner_provider": {"type": "string"},
             "llm_route_planner_model": {"type": "string"},
             "llm_route_planner_model_tier": {"type": "string"},
+            "llm_route_planner_route_adoption_status": {"type": "string"},
+            "llm_route_planner_route_adoption_blockers": string_array,
             "llm_route_planner_acceptance_status": {"type": "string"},
             "llm_route_planner_model_selection_rationale": {"type": "string"},
             "llm_route_planner_has_generator_metadata": {"type": "boolean"},
@@ -645,6 +696,12 @@ def _evaluate_row(
         llm_route_planner_provider=str(llm_trace["provider"]),
         llm_route_planner_model=str(llm_trace["model"]),
         llm_route_planner_model_tier=str(llm_trace["model_tier"]),
+        llm_route_planner_route_adoption_status=str(
+            llm_trace["route_adoption_status"]
+        ),
+        llm_route_planner_route_adoption_blockers=_str_tuple(
+            llm_trace["route_adoption_blockers"]
+        ),
         llm_route_planner_acceptance_status=str(llm_trace["acceptance_status"]),
         llm_route_planner_model_selection_rationale=str(
             llm_trace["model_selection_rationale"]
@@ -958,12 +1015,21 @@ def _llm_route_planner_trace(row: dict[str, Any]) -> dict[str, object]:
     provider = str(trace.get("llm_route_planner_provider", "")).strip()
     model = str(trace.get("llm_route_planner_model", "")).strip()
     model_tier = str(trace.get("llm_route_planner_model_tier", "")).strip()
+    route_adoption_status = str(
+        trace.get("llm_route_planner_route_adoption_status", "")
+    ).strip()
     return {
-        "trace_present": bool(row_id or provider or model or model_tier),
+        "trace_present": bool(
+            row_id or provider or model or model_tier or route_adoption_status
+        ),
         "row_id": row_id,
         "provider": provider,
         "model": model,
         "model_tier": model_tier,
+        "route_adoption_status": route_adoption_status,
+        "route_adoption_blockers": _str_tuple(
+            trace.get("llm_route_planner_route_adoption_blockers", [])
+        ),
         "acceptance_status": str(
             trace.get("llm_route_planner_acceptance_status", "")
         ).strip(),
@@ -975,6 +1041,50 @@ def _llm_route_planner_trace(row: dict[str, Any]) -> dict[str, object]:
             or generator_metadata
         ),
         "generator_metadata_keys": generator_keys,
+    }
+
+
+def _llm_route_adoption_status_summary(
+    rows: list[FormalizationGapPlannerEvaluationRow],
+) -> dict[str, dict[str, object]]:
+    by_status = Counter(
+        row.llm_route_planner_route_adoption_status
+        for row in rows
+        if row.llm_route_planner_route_adoption_status
+    )
+    return {
+        status: {
+            "n_rows": by_status[status],
+            "n_ok": sum(
+                1
+                for row in rows
+                if row.llm_route_planner_route_adoption_status == status and row.ok
+            ),
+            "n_matched_ground_truth": sum(
+                1
+                for row in rows
+                if row.llm_route_planner_route_adoption_status == status
+                and row.matched_ground_truth
+            ),
+            "n_route_adoption_blockers": sum(
+                len(row.llm_route_planner_route_adoption_blockers)
+                for row in rows
+                if row.llm_route_planner_route_adoption_status == status
+            ),
+            "mean_route_recall": _mean(
+                row.route_recall
+                for row in rows
+                if row.llm_route_planner_route_adoption_status == status
+                and row.matched_ground_truth
+            ),
+            "mean_delta_precision": _mean(
+                row.delta_precision
+                for row in rows
+                if row.llm_route_planner_route_adoption_status == status
+                and row.matched_ground_truth
+            ),
+        }
+        for status in sorted(by_status)
     }
 
 
@@ -1283,6 +1393,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Missing delta alignment primitives: {payload.get('realization_missing_delta_alignment_primitives')}",
         f"- Rows with LLM route-planner trace: {payload.get('n_rows_with_llm_route_planner_trace')}",
         f"- Evaluation by LLM model tier: {payload.get('evaluation_by_llm_model_tier')}",
+        f"- Evaluation by LLM route adoption status: {payload.get('evaluation_by_llm_route_adoption_status')}",
+        f"- LLM route adoption blockers: {payload.get('llm_route_adoption_blockers')}",
         f"- Mean selected route-option cost: {payload.get('mean_minimal_delta_selected_route_cost')}",
         f"- All OK: {payload.get('all_ok')}",
         "",
@@ -1300,7 +1412,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"- `{row.get('display_name')}` recall={row.get('route_recall')} "
             f"precision={row.get('route_precision')} delta_precision={row.get('delta_precision')} "
             f"delta_recall={row.get('delta_recall')} "
-            f"llm_tier={row.get('llm_route_planner_model_tier')} ok={row.get('ok')}"
+            f"llm_tier={row.get('llm_route_planner_model_tier')} "
+            f"route_adoption={row.get('llm_route_planner_route_adoption_status')} "
+            f"ok={row.get('ok')}"
         )
         if row.get("route_missing_primitives"):
             lines.append(

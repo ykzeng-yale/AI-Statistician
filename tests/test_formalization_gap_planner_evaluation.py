@@ -186,6 +186,12 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
                             "llm_route_planner_provider": "anthropic",
                             "llm_route_planner_model": "claude-sonnet-4-6",
                             "llm_route_planner_model_tier": "sonnet",
+                            "llm_route_planner_route_adoption_status": (
+                                "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+                            ),
+                            "llm_route_planner_route_adoption_blockers": [
+                                "search_requests_pending_evidence"
+                            ],
                             "llm_route_planner_acceptance_status": (
                                 "ACCEPTED_SOURCE_GROUNDED_ROUTE_PLAN"
                             ),
@@ -266,6 +272,25 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
     assert payload["n_rows_with_complete_realization_coverage"] == 1
     assert payload["n_rows_with_llm_route_planner_trace"] == 1
     assert payload["n_rows_with_llm_route_planner_model_tier"] == 1
+    assert payload["n_rows_with_llm_route_planner_route_adoption_status"] == 1
+    assert payload["n_rows_ready_for_route_adoption"] == 0
+    assert payload["n_rows_pending_refinement_before_route_adoption"] == 1
+    assert payload["n_rows_awaiting_llm_route_planner_response"] == 0
+    assert payload["n_rows_rejected_llm_route_plan"] == 0
+    assert payload["n_llm_route_adoption_blockers"] == 1
+    assert payload["llm_route_adoption_blockers"] == (
+        "search_requests_pending_evidence",
+    )
+    assert payload["evaluation_by_llm_route_adoption_status"] == {
+        "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": {
+            "n_rows": 1,
+            "n_ok": 0,
+            "n_matched_ground_truth": 1,
+            "n_route_adoption_blockers": 1,
+            "mean_route_recall": 1.0,
+            "mean_delta_precision": 1.0,
+        }
+    }
     assert payload["n_rows_with_llm_route_planner_generator_metadata"] == 1
     assert payload["evaluation_by_llm_model_tier"] == {
         "sonnet": {
@@ -299,6 +324,12 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
     assert row["llm_route_planner_provider"] == "anthropic"
     assert row["llm_route_planner_model"] == "claude-sonnet-4-6"
     assert row["llm_route_planner_model_tier"] == "sonnet"
+    assert row["llm_route_planner_route_adoption_status"] == (
+        "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+    )
+    assert row["llm_route_planner_route_adoption_blockers"] == (
+        "search_requests_pending_evidence",
+    )
     assert row["llm_route_planner_has_generator_metadata"] is True
     assert row["llm_route_planner_generator_metadata_keys"] == (
         "generator_only",

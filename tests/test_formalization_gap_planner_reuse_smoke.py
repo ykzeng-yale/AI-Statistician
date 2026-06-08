@@ -1759,6 +1759,34 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     )
     assert payload["n_evaluation_rows_with_llm_route_planner_trace"] == 1
     assert payload["n_evaluation_rows_with_llm_route_planner_model_tier"] == 1
+    assert (
+        payload[
+            "n_evaluation_rows_with_llm_route_planner_route_adoption_status"
+        ]
+        == 1
+    )
+    assert payload["n_evaluation_rows_ready_for_route_adoption"] == 0
+    assert (
+        payload["n_evaluation_rows_pending_refinement_before_route_adoption"]
+        == 1
+    )
+    assert payload["n_evaluation_llm_route_adoption_blockers"] == 4
+    assert set(payload["evaluation_llm_route_adoption_blockers"]) == {
+        "planner_next_actions_pending_evidence",
+        "search_requests_pending_evidence",
+        "semantic_alignment_risks_require_review",
+        "uncertainty_flags_require_review",
+    }
+    assert payload["evaluation_by_llm_route_adoption_status"] == {
+        "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": {
+            "n_rows": 1,
+            "n_ok": 0,
+            "n_matched_ground_truth": 1,
+            "n_route_adoption_blockers": 4,
+            "mean_route_recall": 1.0,
+            "mean_delta_precision": 1.0,
+        }
+    }
     assert payload["n_evaluation_rows_with_llm_route_planner_generator_metadata"] == 1
     sonnet_evaluation = payload["evaluation_by_llm_model_tier"]["sonnet"]
     assert sonnet_evaluation["n_rows"] == 1
