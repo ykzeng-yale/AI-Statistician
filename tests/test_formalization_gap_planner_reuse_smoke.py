@@ -264,7 +264,7 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
 
     assert payload["all_ok"]
     assert payload["component_name"] == FORMALIZATION_GAP_PLANNER_REUSE_SMOKE_COMPONENT
-    assert payload["n_stages"] == 35
+    assert payload["n_stages"] == 36
     assert payload["n_failed"] == 0
     assert payload["n_proof_boundary_ok"] == payload["n_stages"]
     assert payload["target_prover_family"] == "rocq"
@@ -1204,6 +1204,24 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         == payload["n_portable_work_packets"]
     )
     assert payload["n_prover_adapter_response_validation_row_schema_invalid"] == 0
+    assert payload["n_prover_adapter_feedback_generated_responses"] > 0
+    assert (
+        payload["n_prover_adapter_feedback_merged_response_schema_valid"]
+        == payload["n_prover_adapter_feedback_merged_responses"]
+    )
+    assert payload["n_prover_adapter_feedback_merged_response_schema_invalid"] == 0
+    assert (
+        payload[
+            "n_publication_bundle_optional_prover_adapter_feedback_response_schema_valid"
+        ]
+        == payload[
+            "n_publication_bundle_optional_prover_adapter_feedback_response_schema_checked"
+        ]
+        == (
+            payload["n_prover_adapter_feedback_generated_responses"]
+            + payload["n_prover_adapter_feedback_merged_responses"]
+        )
+    )
     assert payload["n_cross_prover_targets_ok"] == payload["n_cross_prover_targets"] == 4
     assert payload["n_cross_prover_total_packets"] == 4 * payload["n_portable_work_packets"]
     assert payload["n_cross_prover_total_packet_schema_valid"] == payload["n_cross_prover_total_packets"]
@@ -1399,6 +1417,7 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         "formalization_gap_planner_local_literature_adapter",
         "formalization_gap_planner_local_formal_source_adapter",
         "formalization_gap_planner_local_proof_state_adapter",
+        "formalization_gap_planner_prover_adapter_feedback_adapter",
         "formalization_gap_planner_refinement_evidence",
         "formalization_gap_planner_route_revision_overlay",
         "formalization_gap_planner_route_stability_audit",
@@ -1507,6 +1526,12 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert Path(payload["artifacts"]["local_literature_response_schema"]).exists()
     assert Path(payload["artifacts"]["local_formal_source_response_schema"]).exists()
     assert Path(payload["artifacts"]["local_proof_state_response_schema"]).exists()
+    assert Path(payload["artifacts"]["prover_adapter_feedback_adapter_manifest"]).exists()
+    assert Path(payload["artifacts"]["prover_adapter_feedback_responses_jsonl"]).exists()
+    assert Path(
+        payload["artifacts"]["prover_adapter_feedback_merged_responses_jsonl"]
+    ).exists()
+    assert Path(payload["artifacts"]["prover_adapter_feedback_response_schema"]).exists()
     assert (
         out_dir
         / "formalization_gap_planner_source_grounding_audit"
@@ -1780,8 +1805,23 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         json.dumps(initial_response, indent=2),
         encoding="utf-8",
     )
+    feedback_response = _reviewed_llm_route_response_payload()
+    feedback_response["residual_interpretations"] = [
+        {
+            "residual_goal": "rocq:rank_uniformity: awaiting prover adapter mapping",
+            "interpretation": (
+                "The target Rocq route still needs a prover-adapter mapping for "
+                "the rank_uniformity bridge before any kernel replay can be claimed."
+            ),
+            "repair_action": "run target-prover adapter mapping for rank_uniformity",
+            "formal_gap_boundary": (
+                "Awaiting Rocq adapter mapping is target-prover feedback, not "
+                "source evidence or theorem proof evidence."
+            ),
+        }
+    ]
     feedback_response_path.write_text(
-        json.dumps(_reviewed_llm_route_response_payload(), indent=2),
+        json.dumps(feedback_response, indent=2),
         encoding="utf-8",
     )
 

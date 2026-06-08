@@ -85,6 +85,9 @@ from .formalization_gap_planner_publication_bundle_audit import (
 from .formalization_gap_planner_proof_state_triage import (
     export_formalization_gap_planner_proof_state_triage,
 )
+from .formalization_gap_planner_prover_adapter_feedback_adapter import (
+    export_formalization_gap_planner_prover_adapter_feedback_responses,
+)
 from .formalization_gap_planner_refinement_adapters import (
     export_formalization_gap_planner_refinement_adapter_responses,
 )
@@ -523,6 +526,23 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_merged_response_schema_valid",
         "n_merged_response_schema_invalid",
     ),
+    "formalization_gap_planner_prover_adapter_feedback_adapter": (
+        "n_queue_rows",
+        "n_proof_state_feedback_rows",
+        "n_validation_sources",
+        "n_validation_rows",
+        "n_validation_rows_with_response",
+        "n_validation_rows_contract_ok",
+        "n_generated_feedback_responses",
+        "n_merged_responses",
+        "n_matched_proof_state_feedback_rows",
+        "n_unmatched_proof_state_feedback_rows",
+        "n_route_revision_recommended",
+        "n_response_schema_valid",
+        "n_response_schema_invalid",
+        "n_merged_response_schema_valid",
+        "n_merged_response_schema_invalid",
+    ),
     "formalization_gap_planner_refinement_evidence": (
         "n_evidence_rows",
         "n_response_present",
@@ -825,6 +845,9 @@ def run_formalization_gap_planner_reuse_smoke(
     local_proof_state_adapter_dir = (
         out_dir / "formalization_gap_planner_local_proof_state_adapter"
     )
+    prover_adapter_feedback_adapter_dir = (
+        out_dir / "formalization_gap_planner_prover_adapter_feedback_adapter"
+    )
     refinement_evidence_dir = out_dir / "formalization_gap_planner_refinement_evidence"
     route_revision_overlay_dir = (
         out_dir / "formalization_gap_planner_route_revision_overlay"
@@ -960,6 +983,12 @@ def run_formalization_gap_planner_reuse_smoke(
             library_snapshot_ref=adapter_snapshot_ref,
         )
     )
+    cross_prover_matrix_payload = audit_formalization_gap_planner_cross_prover_matrix(
+        plan_dir,
+        cross_prover_matrix_audit_dir,
+        target_prover_families=DEFAULT_REUSE_TARGETS,
+        library_snapshot_ref_prefix="formalization_gap_planner_reuse_smoke",
+    )
     action_resource_plan_payload = (
         export_formalization_gap_planner_action_resource_plan(
             primitive_action_queue_dir,
@@ -1041,10 +1070,28 @@ def run_formalization_gap_planner_reuse_smoke(
         local_proof_state_adapter_dir
         / "formalization_gap_planner_refinement_evidence_responses.jsonl"
     )
+    prover_adapter_feedback_payload = (
+        export_formalization_gap_planner_prover_adapter_feedback_responses(
+            refinement_queue_dir,
+            prover_adapter_feedback_adapter_dir,
+            formalization_gap_planner_prover_adapter_contract_dir=(
+                prover_adapter_contract_dir
+            ),
+            formalization_gap_planner_cross_prover_matrix_audit_dir=(
+                cross_prover_matrix_audit_dir
+            ),
+            base_response_jsonl=local_proof_state_response_jsonl,
+            target_prover_family=target_prover_family,
+        )
+    )
+    prover_adapter_feedback_response_jsonl = (
+        prover_adapter_feedback_adapter_dir
+        / "formalization_gap_planner_refinement_evidence_responses.jsonl"
+    )
     refinement_evidence_payload = export_formalization_gap_planner_refinement_evidence(
         refinement_queue_dir,
         refinement_evidence_dir,
-        response_jsonl=local_proof_state_response_jsonl,
+        response_jsonl=prover_adapter_feedback_response_jsonl,
     )
     route_revision_overlay_payload = (
         export_formalization_gap_planner_route_revision_overlay(
@@ -1134,12 +1181,6 @@ def run_formalization_gap_planner_reuse_smoke(
         ablation_study_dir,
         formalization_gap_planner_interactive_session_dir=interactive_session_dir,
     )
-    cross_prover_matrix_payload = audit_formalization_gap_planner_cross_prover_matrix(
-        plan_dir,
-        cross_prover_matrix_audit_dir,
-        target_prover_families=DEFAULT_REUSE_TARGETS,
-        library_snapshot_ref_prefix="formalization_gap_planner_reuse_smoke",
-    )
     publication_snapshot_ref = (
         str(plan_payload.get("library_snapshot_ref", "")).strip()
         or str(intake_payload.get("library_snapshot_ref", "")).strip()
@@ -1178,6 +1219,9 @@ def run_formalization_gap_planner_reuse_smoke(
         formalization_gap_planner_local_literature_adapter_dir=local_literature_adapter_dir,
         formalization_gap_planner_local_formal_source_adapter_dir=local_formal_source_adapter_dir,
         formalization_gap_planner_local_proof_state_adapter_dir=local_proof_state_adapter_dir,
+        formalization_gap_planner_prover_adapter_feedback_adapter_dir=(
+            prover_adapter_feedback_adapter_dir
+        ),
         formalization_gap_planner_refinement_evidence_dir=refinement_evidence_dir,
         formalization_gap_planner_route_revision_overlay_dir=route_revision_overlay_dir,
         formalization_gap_planner_route_stability_audit_dir=route_stability_audit_dir,
@@ -1355,6 +1399,13 @@ def run_formalization_gap_planner_reuse_smoke(
             local_proof_state_adapter_dir
             / "formalization_gap_planner_local_proof_state_adapter_manifest.json",
             local_proof_state_adapter_payload,
+        ),
+        _stage_row(
+            "formalization_gap_planner_prover_adapter_feedback_adapter",
+            prover_adapter_feedback_adapter_dir,
+            prover_adapter_feedback_adapter_dir
+            / "formalization_gap_planner_prover_adapter_feedback_adapter_manifest.json",
+            prover_adapter_feedback_payload,
         ),
         _stage_row(
             "formalization_gap_planner_refinement_evidence",
@@ -2729,6 +2780,14 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_optional_minimal_delta_audit_feedback_response_schema_valid",
             0,
         ),
+        "n_publication_bundle_optional_prover_adapter_feedback_response_schema_checked": publication_bundle_audit_payload.get(
+            "n_optional_prover_adapter_feedback_response_schema_checked",
+            0,
+        ),
+        "n_publication_bundle_optional_prover_adapter_feedback_response_schema_valid": publication_bundle_audit_payload.get(
+            "n_optional_prover_adapter_feedback_response_schema_valid",
+            0,
+        ),
         "n_publication_bundle_optional_local_adapter_response_schema_checked": publication_bundle_audit_payload.get(
             "n_optional_local_adapter_response_schema_checked",
             0,
@@ -3364,6 +3423,36 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_local_adapter_merged_response_schema_invalid": local_proof_state_adapter_payload.get(
             "n_merged_response_schema_invalid",
             0,
+        ),
+        "n_prover_adapter_feedback_generated_responses": (
+            prover_adapter_feedback_payload.get("n_generated_feedback_responses", 0)
+        ),
+        "n_prover_adapter_feedback_merged_responses": (
+            prover_adapter_feedback_payload.get("n_merged_responses", 0)
+        ),
+        "n_prover_adapter_feedback_validation_sources": (
+            prover_adapter_feedback_payload.get("n_validation_sources", 0)
+        ),
+        "n_prover_adapter_feedback_validation_rows": (
+            prover_adapter_feedback_payload.get("n_validation_rows", 0)
+        ),
+        "n_prover_adapter_feedback_matched_rows": (
+            prover_adapter_feedback_payload.get("n_matched_proof_state_feedback_rows", 0)
+        ),
+        "n_prover_adapter_feedback_route_revision_recommended": (
+            prover_adapter_feedback_payload.get("n_route_revision_recommended", 0)
+        ),
+        "n_prover_adapter_feedback_response_schema_valid": (
+            prover_adapter_feedback_payload.get("n_response_schema_valid", 0)
+        ),
+        "n_prover_adapter_feedback_response_schema_invalid": (
+            prover_adapter_feedback_payload.get("n_response_schema_invalid", 0)
+        ),
+        "n_prover_adapter_feedback_merged_response_schema_valid": (
+            prover_adapter_feedback_payload.get("n_merged_response_schema_valid", 0)
+        ),
+        "n_prover_adapter_feedback_merged_response_schema_invalid": (
+            prover_adapter_feedback_payload.get("n_merged_response_schema_invalid", 0)
         ),
         "n_refinement_contract_ok": refinement_evidence_payload.get(
             "n_contract_ok",
@@ -4396,6 +4485,26 @@ def _artifact_paths(out_dir: Path) -> dict[str, str]:
             / "formalization_gap_planner_local_proof_state_adapter"
             / "formalization_gap_planner_refinement_tool_response.schema.json"
         ),
+        "prover_adapter_feedback_adapter_manifest": str(
+            out_dir
+            / "formalization_gap_planner_prover_adapter_feedback_adapter"
+            / "formalization_gap_planner_prover_adapter_feedback_adapter_manifest.json"
+        ),
+        "prover_adapter_feedback_responses_jsonl": str(
+            out_dir
+            / "formalization_gap_planner_prover_adapter_feedback_adapter"
+            / "formalization_gap_planner_prover_adapter_feedback_responses.jsonl"
+        ),
+        "prover_adapter_feedback_merged_responses_jsonl": str(
+            out_dir
+            / "formalization_gap_planner_prover_adapter_feedback_adapter"
+            / "formalization_gap_planner_refinement_evidence_responses.jsonl"
+        ),
+        "prover_adapter_feedback_response_schema": str(
+            out_dir
+            / "formalization_gap_planner_prover_adapter_feedback_adapter"
+            / "formalization_gap_planner_refinement_tool_response.schema.json"
+        ),
         "refinement_evidence_manifest": str(
             out_dir
             / "formalization_gap_planner_refinement_evidence"
@@ -5074,6 +5183,12 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Resource request queue: local={payload.get('n_resource_request_local_first')} frontier={payload.get('n_resource_request_frontier_escalation')}",
         f"- Awaiting adapter mappings: {payload.get('n_awaiting_adapter_mapping')}",
         f"- Prover-adapter response-validation row schema valid: {payload.get('n_prover_adapter_response_validation_row_schema_valid')}/{payload.get('n_portable_work_packets')}",
+        (
+            f"- Prover-adapter feedback generated/merged/schema-valid: "
+            f"{payload.get('n_prover_adapter_feedback_generated_responses')}/"
+            f"{payload.get('n_prover_adapter_feedback_merged_responses')}/"
+            f"{payload.get('n_prover_adapter_feedback_merged_response_schema_valid')}"
+        ),
         f"- Adapter registry: {payload.get('n_adapter_registry_ready')}/{payload.get('n_adapter_registry_adapters')}",
         (
             f"- Adapter registry row schema valid: "

@@ -754,6 +754,23 @@ def audit_formalization_gap_planner_publication_bundle(
             and check.check_name.endswith("_schema_valid")
             and check.ok
         ),
+        "n_optional_prover_adapter_feedback_response_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith(
+                "optional_prover_adapter_feedback_response_"
+            )
+            and check.check_name.endswith("_schema_valid")
+        ),
+        "n_optional_prover_adapter_feedback_response_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith(
+                "optional_prover_adapter_feedback_response_"
+            )
+            and check.check_name.endswith("_schema_valid")
+            and check.ok
+        ),
         "n_optional_refinement_work_item_row_schema_checked": sum(
             1
             for check in checks
@@ -4583,6 +4600,8 @@ def _optional_artifact_checks(
             checks.extend(
                 _minimal_delta_audit_feedback_adapter_optional_checks(bundle_dir)
             )
+        if artifact_name == "formalization_gap_planner_prover_adapter_feedback_adapter":
+            checks.extend(_prover_adapter_feedback_adapter_optional_checks(bundle_dir))
         if artifact_name in {
             "formalization_gap_planner_local_literature_adapter",
             "formalization_gap_planner_local_formal_source_adapter",
@@ -9295,6 +9314,134 @@ def _minimal_delta_audit_feedback_adapter_optional_checks(
                     f"optional_minimal_delta_audit_feedback_response_{scope}_row_{idx}_schema_valid",
                     "optional_artifacts",
                     "minimal-delta audit feedback response row satisfies published refinement-tool schema",
+                    "; ".join(schema_errors) if schema_errors else "ok",
+                    not schema_errors,
+                    errors=schema_errors,
+                )
+            )
+    return checks
+
+
+def _prover_adapter_feedback_adapter_optional_checks(
+    bundle_dir: Path,
+) -> list[FormalizationGapPlannerPublicationBundleAuditCheck]:
+    artifact_dir = (
+        bundle_dir
+        / "artifacts"
+        / "formalization_gap_planner_prover_adapter_feedback_adapter"
+    )
+    manifest_path = (
+        artifact_dir
+        / "formalization_gap_planner_prover_adapter_feedback_adapter_manifest.json"
+    )
+    generated_rows_jsonl_path = (
+        artifact_dir / "formalization_gap_planner_prover_adapter_feedback_responses.jsonl"
+    )
+    merged_rows_jsonl_path = (
+        artifact_dir / "formalization_gap_planner_refinement_evidence_responses.jsonl"
+    )
+    response_schema_path = (
+        artifact_dir / "formalization_gap_planner_refinement_tool_response.schema.json"
+    )
+    manifest = _read_json_no_error(manifest_path)
+    response_schema = _read_json_no_error(response_schema_path)
+    generated_rows, generated_row_errors = _read_jsonl_dict_rows_no_error(
+        generated_rows_jsonl_path
+    )
+    merged_rows, merged_row_errors = _read_jsonl_dict_rows_no_error(
+        merged_rows_jsonl_path
+    )
+    checks = [
+        _check(
+            "optional_prover_adapter_feedback_response_schema_file",
+            "optional_artifacts",
+            "optional prover-adapter feedback response schema exists",
+            str(response_schema_path.exists()),
+            response_schema_path.exists(),
+        ),
+        _check(
+            "optional_prover_adapter_feedback_response_schema_id",
+            "optional_artifacts",
+            "urn:ai-statistician:schemas:formalization-gap-planner-refinement-tool-response:1",
+            str(response_schema.get("$id", "")),
+            response_schema.get("$id")
+            == "urn:ai-statistician:schemas:formalization-gap-planner-refinement-tool-response:1",
+        ),
+        _check(
+            "optional_prover_adapter_feedback_generated_manifest_schema_valid_count",
+            "optional_artifacts",
+            "prover-adapter feedback manifest generated response schema-valid count matches generated response count",
+            (
+                f"{manifest.get('n_response_schema_valid', 0)}/"
+                f"{manifest.get('n_generated_feedback_responses', 0)}; "
+                f"invalid={manifest.get('n_response_schema_invalid', 0)}"
+            ),
+            int(manifest.get("n_generated_feedback_responses", 0) or 0) > 0
+            and int(manifest.get("n_response_schema_valid", 0) or 0)
+            == int(manifest.get("n_generated_feedback_responses", 0) or 0)
+            and int(manifest.get("n_response_schema_invalid", 0) or 0) == 0,
+        ),
+        _check(
+            "optional_prover_adapter_feedback_merged_manifest_schema_valid_count",
+            "optional_artifacts",
+            "prover-adapter feedback manifest merged response schema-valid count matches merged response count",
+            (
+                f"{manifest.get('n_merged_response_schema_valid', 0)}/"
+                f"{manifest.get('n_merged_responses', 0)}; "
+                f"invalid={manifest.get('n_merged_response_schema_invalid', 0)}"
+            ),
+            int(manifest.get("n_merged_responses", 0) or 0) > 0
+            and int(manifest.get("n_merged_response_schema_valid", 0) or 0)
+            == int(manifest.get("n_merged_responses", 0) or 0)
+            and int(manifest.get("n_merged_response_schema_invalid", 0) or 0) == 0,
+        ),
+        _check(
+            "optional_prover_adapter_feedback_generated_jsonl_parse",
+            "optional_artifacts",
+            "prover-adapter feedback generated response JSONL parses into object rows",
+            "; ".join(generated_row_errors)
+            if generated_row_errors
+            else f"rows={len(generated_rows)}",
+            not generated_row_errors,
+            errors=generated_row_errors,
+        ),
+        _check(
+            "optional_prover_adapter_feedback_generated_jsonl_row_count",
+            "optional_artifacts",
+            "prover-adapter feedback generated response JSONL rows match manifest generated response count",
+            (
+                f"jsonl={len(generated_rows)} "
+                f"manifest={manifest.get('n_generated_feedback_responses', 0)}"
+            ),
+            len(generated_rows)
+            == int(manifest.get("n_generated_feedback_responses", 0) or 0),
+        ),
+        _check(
+            "optional_prover_adapter_feedback_merged_jsonl_parse",
+            "optional_artifacts",
+            "prover-adapter feedback merged response JSONL parses into object rows",
+            "; ".join(merged_row_errors)
+            if merged_row_errors
+            else f"rows={len(merged_rows)}",
+            not merged_row_errors,
+            errors=merged_row_errors,
+        ),
+        _check(
+            "optional_prover_adapter_feedback_merged_jsonl_row_count",
+            "optional_artifacts",
+            "prover-adapter feedback merged response JSONL rows match manifest merged response count",
+            f"jsonl={len(merged_rows)} manifest={manifest.get('n_merged_responses', 0)}",
+            len(merged_rows) == int(manifest.get("n_merged_responses", 0) or 0),
+        ),
+    ]
+    for scope, rows in (("generated", generated_rows), ("merged", merged_rows)):
+        for idx, row in enumerate(rows):
+            schema_errors = validate_refinement_tool_response_row(row)
+            checks.append(
+                _check(
+                    f"optional_prover_adapter_feedback_response_{scope}_row_{idx}_schema_valid",
+                    "optional_artifacts",
+                    "prover-adapter feedback response row satisfies published refinement-tool schema",
                     "; ".join(schema_errors) if schema_errors else "ok",
                     not schema_errors,
                     errors=schema_errors,
