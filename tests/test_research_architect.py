@@ -426,12 +426,12 @@ def test_theory_developer_prompt_compacts_runtime_retrieval_context() -> None:
 
     assert "full retrieval artifacts remain" in prompt.lower()
     assert "concise_output_budget" in prompt
-    assert '"max_derivation_steps": 5' in prompt
+    assert '"max_derivation_steps":3' in prompt
     assert "Probability.coverage" in prompt
-    assert "theorem very_long" in prompt
+    assert "signature_omitted" in prompt
     assert long_signature not in prompt
     assert '"inputs"' not in prompt
-    assert '"formal_source_hits": 1' in prompt
+    assert '"formal_source_hits":1' in prompt
     assert "CriticEvaluator" in prompt
     assert "formal_gap:proof_bank_expansion" in prompt
     assert "missing exchangeability bridge" in prompt

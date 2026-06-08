@@ -10552,7 +10552,7 @@ def build_parser() -> argparse.ArgumentParser:
         default="",
         help="model name for the TheoryDeveloper provider; Anthropic defaults to Claude Sonnet 4.6",
     )
-    research_architect_theory.add_argument("--max-tokens", type=int, default=9000)
+    research_architect_theory.add_argument("--max-tokens", type=int, default=ResearchArchitectConfig().max_tokens)
     research_architect_theory.add_argument("--temperature", type=float, default=0.2)
     research_architect_theory.add_argument("--out", default="runs/research_architect_theory")
     research_architect_theory.add_argument("--env-file", default=".env")
@@ -10595,7 +10595,7 @@ def build_parser() -> argparse.ArgumentParser:
         default="",
         help="model name for the TheoryDeveloper provider; Anthropic defaults to Claude Sonnet 4.6",
     )
-    research_agent_runtime.add_argument("--max-tokens", type=int, default=9000)
+    research_agent_runtime.add_argument("--max-tokens", type=int, default=ResearchArchitectConfig().max_tokens)
     research_agent_runtime.add_argument("--temperature", type=float, default=0.2)
     research_agent_runtime.add_argument(
         "--llm-timeout-seconds",

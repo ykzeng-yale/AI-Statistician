@@ -53,6 +53,7 @@ from ai_statistician.research_architect import (
     LLMTheoryDeveloperAgent,
     ResearchArchitectConfig,
     StaticArchitectLLMProvider,
+    build_theory_developer_prompt,
 )
 from ai_statistician.research_lab import load_open_research_questions
 from ai_statistician.research_lab import FormalSubclaimProver, ProblemFormalizer, TheoryPlanner
@@ -108,6 +109,102 @@ def test_generated_algorithm_sandbox_rejects_unsafe_code(tmp_path: Path) -> None
     assert any("forbidden generated-code token" in row for row in prototype["safety_errors"])
     assert tool_call.tool_name == "python.generated_sandbox_precheck"
     assert tool_call.exit_status == "rejected"
+
+
+def test_theory_developer_prompt_compacts_architect_and_retrieval_context() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    long_text = "long_context_" + ("x" * 4000)
+    prompt = build_theory_developer_prompt(
+        question,
+        architect_context={
+            "architect_coordinator_proposal_id": "architect:test",
+            "architect_runtime_plan": {
+                "problem_analysis": {
+                    "theorem_family": "distribution-free coverage",
+                    "statistical_objects": [long_text for _ in range(8)],
+                    "key_obstacles": [long_text for _ in range(8)],
+                    "unused_large_field": long_text,
+                },
+                "retrieval_strategy": {
+                    "paper_queries": [long_text for _ in range(8)],
+                    "formal_source_queries": [long_text for _ in range(8)],
+                    "lean_rag_priorities": [long_text for _ in range(8)],
+                },
+                "subsystem_execution_plan": [
+                    {
+                        "subsystem": f"Subsystem{i}",
+                        "objective": long_text,
+                        "expected_artifacts": [long_text for _ in range(8)],
+                        "acceptance_gate": long_text,
+                    }
+                    for i in range(8)
+                ],
+                "evidence_gates": [
+                    {
+                        "artifact_kind": f"gate{i}",
+                        "required_evidence": long_text,
+                        "not_evidence": long_text,
+                    }
+                    for i in range(8)
+                ],
+                "raw_unbounded_architect_notes": long_text,
+            },
+            "retrieval_context": {
+                "knowledge_cards": [
+                    {
+                        "id": f"knowledge_{i}",
+                        "title": f"Knowledge {i}",
+                        "summary": long_text,
+                        "tags": ["conformal"] * 20,
+                    }
+                    for i in range(8)
+                ],
+                "paper_sources": [
+                    {
+                        "id": f"paper_{i}",
+                        "title": f"Paper {i}",
+                        "summary": long_text,
+                        "matched_terms": ["coverage"] * 20,
+                    }
+                    for i in range(8)
+                ],
+                "formal_source_hits": [
+                    {
+                        "theorem_goal_id": f"goal_{i}",
+                        "hits": [
+                            {
+                                "source_id": "mathlib",
+                                "path": "Mathlib/Probability.lean",
+                                "line": 10 + j,
+                                "kind": "theorem",
+                                "name": f"hit_{i}_{j}",
+                                "signature": "signature " + ("s" * 4000),
+                                "matched_terms": ["probability"] * 20,
+                            }
+                            for j in range(8)
+                        ],
+                    }
+                    for i in range(6)
+                ],
+                "boundary": "Retrieval hits are not proof evidence.",
+            },
+        },
+    )
+
+    assert "compact_theory_discovery_packet" in prompt
+    assert "architect_runtime_plan_summary" in prompt
+    assert "raw_unbounded_architect_notes" not in prompt
+    assert "unused_large_field" not in prompt
+    assert "knowledge_0" in prompt
+    assert "knowledge_4" not in prompt
+    assert "paper_0" in prompt
+    assert "paper_4" not in prompt
+    assert "hit_0_0" in prompt
+    assert "hit_0_3" not in prompt
+    assert "signature_omitted" in prompt
+    assert "s" * 800 not in prompt
+    assert "x" * 800 not in prompt
+    assert len(prompt) < 30000
 
 
 def test_algorithm_engineer_prompt_exposes_generated_python_safe_subset() -> None:
@@ -1234,6 +1331,8 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert topology["counts"]["anthropic_model_tier_mismatches"] == 0
     assert topology["policy_status"] == "OK"
     assert topology["policy_violations"] == []
+    theory_row = next(row for row in topology["llm_agents"] if row["subsystem"] == "TheoryDeveloper")
+    assert theory_row["max_tokens"] == 4500
     assert topology["policy"]["supported_generator_providers"] == ["anthropic", "openai", "static"]
     assert topology["policy"]["default_live_provider"] == "anthropic"
     assert topology["policy"]["claude_model_selection"]["models_by_tier"] == {

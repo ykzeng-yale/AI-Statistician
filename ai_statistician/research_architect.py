@@ -79,7 +79,7 @@ class AnthropicArchitectLLMProvider(AnthropicGeneratorBackend):
 @dataclass(frozen=True)
 class ResearchArchitectConfig:
     model: str = default_generator_model("anthropic", model_tier="sonnet")
-    max_tokens: int = 9000
+    max_tokens: int = 4500
     temperature: float = 0.2
     provider_name: str = "anthropic"
     max_repair_attempts: int = 1
@@ -274,19 +274,25 @@ def build_theory_developer_prompt(
             "description": question.description,
             "tags": list(question.tags),
         },
+        "prompt_mode": {
+            "mode": "compact_theory_discovery_packet",
+            "purpose": "derive the core statistical object, procedure, theorem goals, and proof obligations without replaying full retrieval artifacts",
+            "do_not_expand_full_retrieval_or_architect_json": True,
+        },
         "architect_context": _compact_architect_context_for_prompt(architect_context),
         "required_output_contract": THEORY_DEVELOPER_OUTPUT_CONTRACT,
         "concise_output_budget": {
-            "max_derivation_steps": 5,
-            "max_candidate_procedures": 2,
+            "max_derivation_steps": 3,
+            "max_candidate_procedures": 1,
             "max_theorem_goals": 2,
-            "max_formal_obligations_per_theorem": 5,
-            "max_simulation_predictions": 4,
-            "max_next_actions": 5,
-            "max_string_chars": 420,
+            "max_formal_obligations_per_theorem": 3,
+            "max_simulation_predictions": 3,
+            "max_next_actions": 3,
+            "max_string_chars": 280,
             "instruction": (
-                "Return a complete valid JSON object within this budget. Prefer short "
-                "equations and compressed bullet-like strings over long exposition."
+                "Return a complete valid JSON object within this budget. Produce a "
+                "minimal first-pass theory packet: one primary procedure, one or two "
+                "theorem goals, short equation strings, and no essay."
             ),
         },
         "proof_boundary": KERNEL_PROOF_BOUNDARY,
@@ -298,16 +304,37 @@ def build_theory_developer_prompt(
         "proof dependencies, simulation implications, and rejected alternatives. Keep "
         "the packet concise enough to finish as one valid JSON object; do not trade "
         "JSON completeness for detail.\n\n"
-        + json.dumps(payload, indent=2, default=str)
+        + json.dumps(payload, separators=(",", ":"), default=str)
     )
 
 
 def _compact_architect_context_for_prompt(context: Mapping[str, Any]) -> dict[str, Any]:
-    compact = dict(context)
-    retrieval_context = compact.get("retrieval_context")
+    compact: dict[str, Any] = {
+        "compaction_note": (
+            "This is a bounded TheoryDeveloper prompt view. Full Architect, "
+            "retrieval, and trace artifacts remain in runtime outputs."
+        )
+    }
+    for key in (
+        "architect_coordinator_proposal_id",
+        "retrieval_memory_manifest_id",
+        "previous_theory_packet_id",
+        "simulation_manifest_id",
+        "formalization_manifest_id",
+        "proof_state_feedback_manifest_id",
+    ):
+        if context.get(key) not in (None, "", [], {}):
+            compact[key] = _truncate_text(context.get(key), 180)
+
+    architect_plan = context.get("architect_runtime_plan")
+    if isinstance(architect_plan, Mapping):
+        compact["architect_runtime_plan_summary"] = _compact_architect_runtime_plan_for_prompt(architect_plan)
+
+    retrieval_context = context.get("retrieval_context")
     if isinstance(retrieval_context, Mapping):
         compact["retrieval_context"] = _compact_retrieval_context_for_prompt(retrieval_context)
-    runtime_task = compact.get("runtime_task")
+
+    runtime_task = context.get("runtime_task")
     if isinstance(runtime_task, Mapping):
         compact["runtime_task"] = {
             key: runtime_task.get(key)
@@ -322,13 +349,71 @@ def _compact_architect_context_for_prompt(context: Mapping[str, Any]) -> dict[st
             )
             if key in runtime_task
         }
-    environment_feedback = compact.get("environment_feedback")
+
+    environment_feedback = context.get("environment_feedback")
     if isinstance(environment_feedback, Mapping):
         compact["environment_feedback"] = _compact_environment_feedback_for_prompt(environment_feedback)
-    runtime_learning_memory = compact.get("runtime_learning_memory")
+
+    runtime_learning_memory = context.get("runtime_learning_memory")
     if isinstance(runtime_learning_memory, Mapping):
         compact["runtime_learning_memory"] = _compact_runtime_learning_memory_for_prompt(runtime_learning_memory)
     return compact
+
+
+def _compact_architect_runtime_plan_for_prompt(plan: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "problem_analysis": _compact_prompt_mapping(
+            plan.get("problem_analysis", {}),
+            keys=(
+                "theorem_family",
+                "statistical_objects",
+                "key_obstacles",
+                "missing_information",
+            ),
+            list_limit=4,
+            text_limit=240,
+        ),
+        "retrieval_strategy": _compact_prompt_mapping(
+            plan.get("retrieval_strategy", {}),
+            keys=("paper_queries", "formal_source_queries", "lean_rag_priorities"),
+            list_limit=3,
+            text_limit=180,
+        ),
+        "stat_knowledge_bank_plan": _compact_prompt_mapping(
+            plan.get("stat_knowledge_bank_plan", {}),
+            keys=("source_families_to_collect", "assumption_dimensions", "proof_skeletons_to_track"),
+            list_limit=3,
+            text_limit=220,
+        ),
+        "literature_fair_comparison_plan": _compact_prompt_rows(
+            plan.get("literature_fair_comparison_plan", []),
+            keys=("candidate_source_family", "must_match", "likely_mismatches", "unsafe_transfer_risks"),
+            limit=2,
+            list_limit=3,
+            text_limit=180,
+        ),
+        "subsystem_execution_plan": _compact_prompt_rows(
+            plan.get("subsystem_execution_plan", []),
+            keys=("subsystem", "objective", "expected_artifacts", "acceptance_gate"),
+            limit=3,
+            list_limit=3,
+            text_limit=220,
+        ),
+        "evidence_gates": _compact_prompt_rows(
+            plan.get("evidence_gates", []),
+            keys=("artifact_kind", "required_evidence", "not_evidence"),
+            limit=3,
+            list_limit=3,
+            text_limit=220,
+        ),
+        "iteration_policy": _compact_prompt_mapping(
+            plan.get("iteration_policy", {}),
+            keys=("reroute_triggers", "stop_conditions", "max_repair_rounds"),
+            list_limit=3,
+            text_limit=220,
+        ),
+        "boundary": _truncate_text(plan.get("boundary", ""), 360),
+    }
 
 
 def _compact_retrieval_context_for_prompt(retrieval_context: Mapping[str, Any]) -> dict[str, Any]:
@@ -346,9 +431,9 @@ def _compact_retrieval_context_for_prompt(retrieval_context: Mapping[str, Any]) 
                 if isinstance(row, Mapping)
             ),
         },
-        "knowledge_cards": [_compact_knowledge_card(row) for row in knowledge_cards[:5]],
-        "paper_sources": [_compact_paper_source(row) for row in paper_sources[:5]],
-        "formal_source_hits": [_compact_formal_hit_group(row) for row in formal_source_hits[:3]],
+        "knowledge_cards": [_compact_knowledge_card(row) for row in knowledge_cards[:3]],
+        "paper_sources": [_compact_paper_source(row) for row in paper_sources[:3]],
+        "formal_source_hits": [_compact_formal_hit_group(row) for row in formal_source_hits[:2]],
         "boundary": retrieval_context.get("boundary", ""),
         "compaction_note": (
             "Full retrieval artifacts remain in runtime outputs; this prompt view "
@@ -364,8 +449,8 @@ def _compact_knowledge_card(row: Any) -> dict[str, Any]:
         "id": row.get("id", ""),
         "title": row.get("title", ""),
         "source_type": row.get("source_type", ""),
-        "summary": _truncate_text(row.get("summary", ""), 360),
-        "tags": list(row.get("tags", []) or [])[:8],
+        "summary": _truncate_text(row.get("summary", ""), 240),
+        "tags": list(row.get("tags", []) or [])[:6],
     }
 
 
@@ -378,8 +463,8 @@ def _compact_paper_source(row: Any) -> dict[str, Any]:
         "journal": row.get("journal", ""),
         "topic": row.get("topic", ""),
         "publication_date": row.get("publication_date", ""),
-        "summary": _truncate_text(row.get("summary", ""), 360),
-        "matched_terms": list(row.get("matched_terms", []) or [])[:10],
+        "summary": _truncate_text(row.get("summary", ""), 240),
+        "matched_terms": list(row.get("matched_terms", []) or [])[:8],
     }
 
 
@@ -390,7 +475,7 @@ def _compact_formal_hit_group(row: Any) -> dict[str, Any]:
     return {
         "theorem_goal_id": row.get("theorem_goal_id", ""),
         "n_hits": len(hits),
-        "hits": [_compact_formal_hit(hit) for hit in hits[:3]],
+        "hits": [_compact_formal_hit(hit) for hit in hits[:2]],
     }
 
 
@@ -402,11 +487,62 @@ def _compact_formal_hit(hit: Any) -> dict[str, Any]:
         "path": hit.get("path", ""),
         "line": hit.get("line", ""),
         "kind": hit.get("kind", ""),
-        "name": _truncate_text(hit.get("name", ""), 160),
+        "name": _truncate_text(hit.get("name", ""), 140),
         "score": hit.get("score", ""),
-        "matched_terms": list(hit.get("matched_terms", []) or [])[:10],
-        "signature": _truncate_text(hit.get("signature", ""), 240),
+        "matched_terms": list(hit.get("matched_terms", []) or [])[:8],
+        "signature_omitted": bool(hit.get("signature")),
     }
+
+
+def _compact_prompt_rows(
+    rows: Any,
+    *,
+    keys: tuple[str, ...],
+    limit: int,
+    list_limit: int,
+    text_limit: int,
+) -> list[dict[str, Any]]:
+    if not isinstance(rows, (list, tuple)):
+        return []
+    return [
+        _compact_prompt_mapping(row, keys=keys, list_limit=list_limit, text_limit=text_limit)
+        if isinstance(row, Mapping)
+        else {"summary": _truncate_text(row, text_limit)}
+        for row in list(rows)[:limit]
+    ]
+
+
+def _compact_prompt_mapping(
+    row: Any,
+    *,
+    keys: tuple[str, ...],
+    list_limit: int,
+    text_limit: int,
+) -> dict[str, Any]:
+    if not isinstance(row, Mapping):
+        return {}
+    return {
+        key: _compact_prompt_value(row.get(key), list_limit=list_limit, text_limit=text_limit)
+        for key in keys
+        if row.get(key) not in (None, "", [], {})
+    }
+
+
+def _compact_prompt_value(value: Any, *, list_limit: int, text_limit: int) -> Any:
+    if isinstance(value, str):
+        return _truncate_text(value, text_limit)
+    if isinstance(value, Mapping):
+        return {
+            str(key): _compact_prompt_value(child, list_limit=list_limit, text_limit=text_limit)
+            for key, child in list(value.items())[:list_limit]
+            if child not in (None, "", [], {})
+        }
+    if isinstance(value, (list, tuple)):
+        return [
+            _compact_prompt_value(child, list_limit=list_limit, text_limit=text_limit)
+            for child in list(value)[:list_limit]
+        ]
+    return value
 
 
 def _compact_environment_feedback_for_prompt(feedback: Mapping[str, Any]) -> dict[str, Any]:
