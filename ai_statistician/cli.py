@@ -128,6 +128,9 @@ from .formalization_gap_planner_resource_response_ledger import (
 from .formalization_gap_planner_minimal_delta_audit import (
     audit_formalization_gap_planner_minimal_delta,
 )
+from .formalization_gap_planner_minimal_delta_audit_feedback_adapter import (
+    export_formalization_gap_planner_minimal_delta_audit_feedback_responses,
+)
 from .formalization_gap_planner_portable_plan_audit import (
     audit_formalization_gap_planner_portable_plan,
 )
@@ -3105,6 +3108,35 @@ def _formalization_gap_planner_prover_adapter_feedback(args: argparse.Namespace)
     print(
         f"\nprover-adapter feedback manifest written to "
         f"{(Path(args.out) / 'formalization_gap_planner_prover_adapter_feedback_adapter_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formalization_gap_planner_minimal_delta_audit_feedback(args: argparse.Namespace) -> int:
+    payload = export_formalization_gap_planner_minimal_delta_audit_feedback_responses(
+        Path(args.formalization_gap_planner_refinement_queue_dir),
+        Path(args.formalization_gap_planner_minimal_delta_audit_dir),
+        Path(args.out),
+        base_response_jsonl=Path(args.base_response_jsonl)
+        if args.base_response_jsonl
+        else None,
+        max_items=args.max_items,
+    )
+    print("\nAI Statistical Theory Lab Formalization Gap Planner Minimal-Delta Audit Feedback")
+    print("=" * 86)
+    print(
+        f"responses={payload['n_generated_feedback_responses']}/"
+        f"{payload['n_route_revision_rows']} "
+        f"failed_decisions={payload['n_failed_minimal_delta_decision_rows']} "
+        f"matched={payload['n_matched_route_revision_rows']} "
+        f"unmatched={payload['n_unmatched_route_revision_rows']} "
+        f"merged={payload['n_merged_responses']} "
+        f"revision={payload['n_route_revision_recommended']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nminimal-delta audit feedback manifest written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_minimal_delta_audit_feedback_adapter_manifest.json').resolve()}"
     )
     return 0 if payload["all_ok"] else 1
 
@@ -8298,6 +8330,42 @@ def build_parser() -> argparse.ArgumentParser:
     )
     formalization_gap_planner_prover_adapter_feedback.set_defaults(
         func=_formalization_gap_planner_prover_adapter_feedback
+    )
+
+    formalization_gap_planner_minimal_delta_audit_feedback = sub.add_parser(
+        "formalization-gap-planner-minimal-delta-audit-feedback",
+        help=(
+            "convert failed minimal-delta audit decisions into route-revision "
+            "refinement responses"
+        ),
+    )
+    formalization_gap_planner_minimal_delta_audit_feedback.add_argument(
+        "--formalization-gap-planner-refinement-queue-dir",
+        required=True,
+        help="directory containing formalization_gap_planner_refinement_queue_manifest.json",
+    )
+    formalization_gap_planner_minimal_delta_audit_feedback.add_argument(
+        "--formalization-gap-planner-minimal-delta-audit-dir",
+        required=True,
+        help="directory containing formalization_gap_planner_minimal_delta_audit_manifest.json",
+    )
+    formalization_gap_planner_minimal_delta_audit_feedback.add_argument(
+        "--base-response-jsonl",
+        help="optional existing response JSONL to merge with minimal-delta audit feedback",
+    )
+    formalization_gap_planner_minimal_delta_audit_feedback.add_argument(
+        "--max-items",
+        type=int,
+        default=0,
+        help="limit queue rows scanned before filtering route-revision hooks; 0 keeps all",
+    )
+    formalization_gap_planner_minimal_delta_audit_feedback.add_argument(
+        "--out",
+        default="runs/formalization_gap_planner_minimal_delta_audit_feedback_adapter",
+        help="minimal-delta audit feedback output directory",
+    )
+    formalization_gap_planner_minimal_delta_audit_feedback.set_defaults(
+        func=_formalization_gap_planner_minimal_delta_audit_feedback
     )
 
     formalization_gap_planner_refinement_evidence = sub.add_parser(
