@@ -126,6 +126,12 @@ def evaluate_formalization_gap_planner(
     plan_payload = _read_json(plan_manifest_path, errors)
     truth_payload = _read_json(ground_truth_path, errors)
     plan_rows = [row for row in plan_payload.get("rows", []) if isinstance(row, dict)]
+    n_formal_realization_dag_nodes = sum(
+        _node_field_count(row, "formal_realization_dag_nodes") for row in plan_rows
+    )
+    n_legacy_lean_realization_dag_nodes = sum(
+        _node_field_count(row, "lean_realization_dag_nodes") for row in plan_rows
+    )
     truth_rows = _truth_rows(truth_payload)
     truth_index = _truth_index(truth_rows)
     evaluation_rows = [
@@ -177,6 +183,14 @@ def evaluate_formalization_gap_planner(
         "ground_truth_path": str(ground_truth_path),
         "bundled_ground_truth_filename": "formalization_gap_planner_evaluation_ground_truth.json",
         "n_plan_rows": len(plan_rows),
+        "n_plan_rows_with_formal_realization_dag_nodes": sum(
+            1 for row in plan_rows if _node_field_count(row, "formal_realization_dag_nodes")
+        ),
+        "n_plan_rows_with_legacy_lean_realization_dag_nodes": sum(
+            1 for row in plan_rows if _node_field_count(row, "lean_realization_dag_nodes")
+        ),
+        "n_formal_realization_dag_nodes": n_formal_realization_dag_nodes,
+        "n_legacy_lean_realization_dag_nodes": n_legacy_lean_realization_dag_nodes,
         "n_ground_truth_rows": len(truth_rows),
         "n_evaluation_rows": len(evaluation_rows),
         "n_evaluation_row_schema_valid": n_evaluation_row_schema_valid,
@@ -1214,6 +1228,13 @@ def _formal_realization_nodes(row: dict[str, Any]) -> tuple[dict[str, Any], ...]
     return tuple(node for node in nodes if isinstance(node, dict))
 
 
+def _node_field_count(row: dict[str, Any], field_name: str) -> int:
+    nodes = row.get(field_name, [])
+    if not isinstance(nodes, (list, tuple)):
+        return 0
+    return sum(1 for node in nodes if isinstance(node, dict))
+
+
 def _truth_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
     for field_name in ("routes", "rows", "ground_truth_routes"):
         rows = payload.get(field_name, [])
@@ -1375,6 +1396,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Matched ground truth: {payload.get('n_matched_ground_truth')}",
         f"- Ground-truth rows matched by plan: {payload.get('n_ground_truth_rows_matched_by_plan')}",
         f"- Unlabeled plan rows: {payload.get('n_unlabeled_plan_rows')}",
+        f"- Plan rows with formal realization DAG nodes: {payload.get('n_plan_rows_with_formal_realization_dag_nodes')}",
+        f"- Plan rows with legacy Lean realization DAG nodes: {payload.get('n_plan_rows_with_legacy_lean_realization_dag_nodes')}",
         f"- Mean route recall: {payload.get('mean_route_recall')}",
         f"- Mean route precision: {payload.get('mean_route_precision')}",
         f"- Mean delta precision: {payload.get('mean_delta_precision')}",

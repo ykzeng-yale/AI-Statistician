@@ -550,6 +550,7 @@ def _all_node_dicts(plan_row: dict[str, Any]) -> list[dict[str, Any]]:
         "source_discovery_nodes",
         "first_principles_nodes",
         "minimal_additional_formalization_nodes",
+        "formal_realization_dag_nodes",
         "lean_realization_dag_nodes",
     )
     nodes: list[dict[str, Any]] = []

@@ -88,11 +88,20 @@ def test_evaluation_scores_route_alignment_contract() -> None:
         encoding="utf-8",
     )
     export_formalization_gap_planner_standalone_plan(input_json, plan_dir)
+    manifest_path = plan_dir / "goal_conditioned_minimal_formalization_plan_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    for row in manifest["rows"]:
+        row.pop("lean_realization_dag_nodes", None)
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
     payload = evaluate_formalization_gap_planner(plan_dir, truth_json, out_dir)
 
     assert payload["all_ok"]
     assert payload["n_alignment_contract_ok"] == payload["n_evaluation_rows"] == 1
+    assert payload["n_plan_rows_with_formal_realization_dag_nodes"] == 1
+    assert payload["n_plan_rows_with_legacy_lean_realization_dag_nodes"] == 0
+    assert payload["n_formal_realization_dag_nodes"] >= 1
+    assert payload["n_legacy_lean_realization_dag_nodes"] == 0
     assert (
         payload["n_evaluation_row_schema_valid"]
         == payload["n_evaluation_rows"]

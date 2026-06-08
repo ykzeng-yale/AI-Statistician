@@ -34,6 +34,14 @@ def test_ablation_study_compares_literature_lean_feedback_and_null_baselines() -
                     "candidate_declarations": ["Probability.exchangeable"],
                 }
             ],
+            "formal_realization_dag_nodes": [
+                {
+                    "node_id": "formal:rank_uniformity",
+                    "primitive": "rank_uniformity",
+                    "coverage_status": "exact_exists",
+                    "candidate_declarations": ["GenericRank.uniformity"],
+                }
+            ],
             "minimal_additional_formalization_nodes": [
                 {
                     "primitive": "rank_uniformity",
@@ -177,6 +185,8 @@ def test_ablation_study_compares_literature_lean_feedback_and_null_baselines() -
         == 1.0
     )
     assert by_variant["no_formal_grounding"]["mean_existing_reuse_recall"] == 0.0
+    assert by_variant["no_formal_grounding"]["n_impacted_primitives"] == 2
+    assert "rank_uniformity" in by_variant["no_formal_grounding"]["impacted_primitives"]
     assert by_variant["no_formal_grounding"]["route_adoption_ready_rate"] == 0.0
     assert by_variant["full_planner_observed"]["mean_residual_recall"] == 1.0
     assert by_variant["no_proof_state_feedback"]["feedback_loop_readiness"] == 0.0
