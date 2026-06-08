@@ -20632,6 +20632,22 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             payload["counts"]["formalization_gap_planner_proof_state_triage_distinct_signatures"],
             0,
         )
+        self.assertGreaterEqual(
+            payload["counts"][
+                "formalization_gap_planner_proof_state_triage_target_prover_failed_items"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_proof_state_triage_local_lean_failed_items"
+            ],
+        )
+        self.assertGreaterEqual(
+            payload["counts"][
+                "formalization_gap_planner_proof_state_triage_non_target_prover_skeleton_items"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_proof_state_triage_non_lean_skeleton_items"
+            ],
+        )
         self.assertEqual(
             payload["counts"]["formalization_gap_planner_proof_state_triage_row_schema_valid"],
             payload["counts"]["formalization_gap_planner_proof_state_triage_items"],

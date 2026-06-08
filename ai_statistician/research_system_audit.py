@@ -4423,6 +4423,15 @@ async def run_research_system_audit(
             "formalization_gap_planner_proof_state_triage_formal_gap_scaffold_items": formalization_gap_planner_proof_state_triage_manifest[
                 "n_formal_gap_scaffold_items"
             ],
+            "formalization_gap_planner_proof_state_triage_target_prover_failed_items": formalization_gap_planner_proof_state_triage_manifest[
+                "n_target_prover_failed_items"
+            ],
+            "formalization_gap_planner_proof_state_triage_target_prover_unavailable_items": formalization_gap_planner_proof_state_triage_manifest[
+                "n_target_prover_unavailable_items"
+            ],
+            "formalization_gap_planner_proof_state_triage_non_target_prover_skeleton_items": formalization_gap_planner_proof_state_triage_manifest[
+                "n_non_target_prover_skeleton_items"
+            ],
             "formalization_gap_planner_proof_state_triage_local_lean_failed_items": formalization_gap_planner_proof_state_triage_manifest[
                 "n_local_lean_failed_items"
             ],

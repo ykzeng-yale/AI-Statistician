@@ -626,7 +626,11 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_overlay_rows",
         "n_triage_items",
         "n_formal_gap_scaffold_items",
+        "n_target_prover_failed_items",
+        "n_target_prover_unavailable_items",
+        "n_non_target_prover_skeleton_items",
         "n_local_lean_failed_items",
+        "n_non_lean_skeleton_items",
         "n_with_residual_goals",
     ),
     "formalization_gap_planner_interactive_session": (
@@ -3804,6 +3808,21 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_proof_state_triage_items": proof_state_triage_payload.get(
             "n_triage_items",
             0,
+        ),
+        "n_proof_state_triage_target_prover_failed_items": (
+            proof_state_triage_payload.get("n_target_prover_failed_items", 0)
+        ),
+        "n_proof_state_triage_target_prover_unavailable_items": (
+            proof_state_triage_payload.get("n_target_prover_unavailable_items", 0)
+        ),
+        "n_proof_state_triage_non_target_prover_skeleton_items": (
+            proof_state_triage_payload.get("n_non_target_prover_skeleton_items", 0)
+        ),
+        "n_proof_state_triage_local_lean_failed_items": (
+            proof_state_triage_payload.get("n_local_lean_failed_items", 0)
+        ),
+        "n_proof_state_triage_non_lean_skeleton_items": (
+            proof_state_triage_payload.get("n_non_lean_skeleton_items", 0)
         ),
         "n_proof_state_triage_row_schema_valid": proof_state_triage_payload.get(
             "n_row_schema_valid",

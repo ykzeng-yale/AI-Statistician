@@ -1388,6 +1388,12 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         "n_proof_state_triage_items"
     ]
     assert payload["n_proof_state_triage_row_schema_invalid"] == 0
+    assert payload["n_proof_state_triage_target_prover_failed_items"] >= payload[
+        "n_proof_state_triage_local_lean_failed_items"
+    ]
+    assert payload["n_proof_state_triage_non_target_prover_skeleton_items"] >= payload[
+        "n_proof_state_triage_non_lean_skeleton_items"
+    ]
     assert payload["n_interactive_session_rows"] > 0
     assert payload["n_interactive_session_row_schema_valid"] == payload["n_interactive_session_rows"]
     assert payload["n_interactive_session_row_schema_invalid"] == 0
@@ -1487,6 +1493,9 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     local_proof_state_summary = stage_by_name[
         "formalization_gap_planner_local_proof_state_adapter"
     ]["summary"]
+    proof_state_triage_summary = stage_by_name[
+        "formalization_gap_planner_proof_state_triage"
+    ]["summary"]
     interactive_summary = stage_by_name["formalization_gap_planner_interactive_session"][
         "summary"
     ]
@@ -1528,6 +1537,18 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     ]
     assert local_proof_state_summary["n_local_lean_unavailable"] == payload[
         "n_local_proof_state_unavailable"
+    ]
+    assert proof_state_triage_summary["n_target_prover_failed_items"] == payload[
+        "n_proof_state_triage_target_prover_failed_items"
+    ]
+    assert proof_state_triage_summary["n_non_target_prover_skeleton_items"] == payload[
+        "n_proof_state_triage_non_target_prover_skeleton_items"
+    ]
+    assert proof_state_triage_summary["n_local_lean_failed_items"] == payload[
+        "n_proof_state_triage_local_lean_failed_items"
+    ]
+    assert proof_state_triage_summary["n_non_lean_skeleton_items"] == payload[
+        "n_proof_state_triage_non_lean_skeleton_items"
     ]
     assert interactive_summary["n_run_formal_grounding"] == payload[
         "n_interactive_session_run_formal_grounding"
