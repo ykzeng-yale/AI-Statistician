@@ -20170,6 +20170,12 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             payload["counts"]["formalization_gap_planner_target_intake_lean_queries"],
             0,
         )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_target_intake_formal_library_queries"
+            ],
+            payload["counts"]["formalization_gap_planner_target_intake_lean_queries"],
+        )
         self.assertEqual(payload["counts"]["formalization_gap_planner_target_intake_missing_sources"], 0)
         self.assertEqual(
             payload["counts"]["formalization_gap_planner_evaluation_rows"],

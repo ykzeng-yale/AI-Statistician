@@ -1220,6 +1220,7 @@ def _resource_specs() -> tuple[dict[str, Any], ...]:
                 "standalone_route_id",
                 "primitive_seed_rows",
                 "literature_queries",
+                "formal_library_grounding_queries",
                 "lean_grounding_queries",
             ),
         },

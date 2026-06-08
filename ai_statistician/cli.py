@@ -2327,7 +2327,7 @@ def _formalization_gap_planner_target_intake(args: argparse.Namespace) -> int:
         f"targets={payload['n_ok']}/{payload['n_targets']} "
         f"primitive_seeds={payload['n_primitive_seed_rows']} "
         f"literature_queries={payload['n_literature_queries']} "
-        f"lean_queries={payload['n_lean_grounding_queries']} "
+        f"formal_library_queries={payload['n_formal_library_grounding_queries']} "
         f"missing_sources={payload['n_missing_proof_sources']} "
         f"missing_skeletons={payload['n_missing_theorem_skeleton']} "
         f"all_ok={payload['all_ok']}"

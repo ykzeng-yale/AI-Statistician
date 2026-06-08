@@ -67,13 +67,22 @@ def test_target_intake_seeds_standalone_gap_plan() -> None:
     assert intake_payload["schema_id"] == FORMALIZATION_GAP_PLANNER_TARGET_INTAKE_SCHEMA_ID
     assert intake_payload["n_targets"] == 1
     assert intake_payload["n_primitive_seed_rows"] >= 5
+    assert intake_payload["n_formal_library_grounding_queries"] == intake_payload[
+        "n_lean_grounding_queries"
+    ]
+    assert intake_payload["n_formal_library_grounding_queries"] > 0
     row = intake_payload["rows"][0]
     assert row["target_id"] == "split_conformal_coverage"
     assert "rank_uniformity" in row["extracted_primitive_candidates"]
     assert "exchangeability" in row["extracted_primitive_candidates"]
+    assert row["formal_library_grounding_queries"] == row["lean_grounding_queries"]
+    assert row["formal_library_grounding_queries"]
     assert row["proof_source_refs"]
     assert "library_coverage_search_required" in row["review_flags"]
     assert validate_target_intake_row(row) == []
+    legacy_row = dict(row)
+    legacy_row.pop("formal_library_grounding_queries")
+    assert validate_target_intake_row(legacy_row) == []
     malformed_row = dict(row)
     malformed_row.pop("standalone_route_id")
     assert "standalone_route_id required" in validate_target_intake_row(malformed_row)

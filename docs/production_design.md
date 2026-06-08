@@ -32,8 +32,9 @@ is treated as a Sonnet-tier compatibility default and must not collapse
 cost-aware Haiku/Sonnet routing. The formalization gap planner's auto route
 tier uses the same split: small source-backed reuse/wrapper triage stays on
 Haiku, while target-intake rows with missing proof sources, library-search
-requirements, proof-state probes, complex theorem shape, or large theorem
-context are upgraded to Sonnet.
+requirements, proof-state probes, complex theorem shape, many generic
+`formal_library_grounding_queries`, or large theorem context are upgraded to
+Sonnet.
 
 1. The theory layer emits only estimator families with registered formal
    obligations.

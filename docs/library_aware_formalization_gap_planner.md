@@ -143,8 +143,9 @@ Haiku-selected request cannot be accepted if the backend reports a Sonnet or
 Opus response model. In
 `--model-tier auto`, the route planner also reads target-intake rows: missing
 proof sources, library-search-required review flags, proof-state probes, complex
-theorem shapes, or large normalized theorem context upgrade a superficially
-small route from Haiku triage to Sonnet route synthesis. Accepted LLM rows must include
+theorem shapes, many `formal_library_grounding_queries`, or large normalized
+theorem context upgrade a superficially small route from Haiku triage to Sonnet
+route synthesis. Accepted LLM rows must include
 source-grounded informal DAG nodes, formal-realization DAG nodes, alignment
 rationales, a minimality rationale, a versioned minimal-delta cost witness, and
 an explicit proof-evidence boundary; `kernel_verified=true` claims are
@@ -393,8 +394,10 @@ consumed by the evaluation, refinement, prover-adapter, and publication-bundle
 commands. LLM route-planner request packets can now also carry the matching
 target-intake rows through `--formalization-gap-planner-target-intake-dir`, so
 the model sees normalized objects, assumptions, procedure, claim, theorem shape,
-primitive seeds, literature queries, and Lean grounding queries while preserving
-the boundary that target intake is route-synthesis context, not proof evidence.
+primitive seeds, literature queries, and `formal_library_grounding_queries`
+while preserving the boundary that target intake is route-synthesis context,
+not proof evidence. `lean_grounding_queries` is still emitted as a legacy alias
+for older Lean-only consumers.
 The portable-plan audit validates schema identity, two-DAG structure,
 AND/OR graph shape, work packets, interactive hooks, and absence of
 kernel-proof claims. The library-coverage-map command exports one row per
@@ -1101,9 +1104,9 @@ The current implementation composes four existing AI Statistician artifacts:
    refinement-evidence, route-revision, prover-residual, interactive-session,
    and decision-policy context. Target-intake rows provide the normalized
    theorem objects, assumptions, procedure, claim, theorem shape, primitive
-   seeds, literature queries, and Lean grounding queries that define the target
-   theorem context for route synthesis; they do not justify source-backed
-   mathematical claims. Resource-response ledger rows include bounded response summaries,
+   seeds, literature queries, and formal-library grounding queries that define
+   the target theorem context for route synthesis; they do not justify
+   source-backed mathematical claims. Resource-response ledger rows include bounded response summaries,
    source snippets or payload excerpts, response artifacts, contract status,
    route-evidence nodes, coverage updates, and residual goals, so a feedback
    LLM pass can revise from actual literature/tool evidence rather than only

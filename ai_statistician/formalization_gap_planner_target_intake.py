@@ -97,6 +97,7 @@ class FormalizationGapPlannerTargetIntakeRow:
     background_primitives: tuple[str, ...]
     standalone_route_id: str
     literature_queries: tuple[str, ...]
+    formal_library_grounding_queries: tuple[str, ...]
     lean_grounding_queries: tuple[str, ...]
     proof_state_probe_required: bool
     missing_required_fields: tuple[str, ...]
@@ -148,6 +149,9 @@ def normalize_formalization_gap_planner_target_intake(
         ),
         "n_primitive_seed_rows": sum(len(row.primitive_seed_rows) for row in rows),
         "n_literature_queries": sum(len(row.literature_queries) for row in rows),
+        "n_formal_library_grounding_queries": sum(
+            len(row.formal_library_grounding_queries) for row in rows
+        ),
         "n_lean_grounding_queries": sum(len(row.lean_grounding_queries) for row in rows),
         "all_ok": (
             not errors
@@ -317,6 +321,7 @@ def target_intake_row_json_schema() -> dict[str, object]:
             "background_primitives": string_array,
             "standalone_route_id": {"type": "string", "minLength": 1},
             "literature_queries": string_array,
+            "formal_library_grounding_queries": string_array,
             "lean_grounding_queries": string_array,
             "proof_state_probe_required": {"type": "boolean"},
             "missing_required_fields": string_array,
@@ -406,7 +411,7 @@ def _target_intake_row(target: dict[str, Any]) -> FormalizationGapPlannerTargetI
         claim=claim,
         primitives=primitive_names,
     )
-    lean_queries = _lean_grounding_queries(
+    formal_library_queries = _formal_library_grounding_queries(
         theorem_shape=desired_shape,
         primitives=primitive_names,
         objects=objects,
@@ -451,7 +456,8 @@ def _target_intake_row(target: dict[str, Any]) -> FormalizationGapPlannerTargetI
         background_primitives=background,
         standalone_route_id=route_id,
         literature_queries=literature_queries,
-        lean_grounding_queries=lean_queries,
+        formal_library_grounding_queries=formal_library_queries,
+        lean_grounding_queries=formal_library_queries,
         proof_state_probe_required=bool(theorem_skeleton),
         missing_required_fields=tuple(missing_required),
         review_flags=tuple(review_flags),
@@ -595,7 +601,7 @@ def _literature_queries(
     )
 
 
-def _lean_grounding_queries(
+def _formal_library_grounding_queries(
     *,
     theorem_shape: str,
     primitives: tuple[str, ...],
@@ -760,6 +766,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         "",
         f"- Targets: {payload.get('n_ok')}/{payload.get('n_targets')}",
         f"- Primitive seeds: {payload.get('n_primitive_seed_rows')}",
+        f"- Literature queries: {payload.get('n_literature_queries')}",
+        f"- Formal-library queries: {payload.get('n_formal_library_grounding_queries')}",
         f"- Missing proof sources: {payload.get('n_missing_proof_sources')}",
         f"- Missing theorem skeletons: {payload.get('n_missing_theorem_skeleton')}",
         f"- All OK: {payload.get('all_ok')}",

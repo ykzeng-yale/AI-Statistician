@@ -3868,6 +3868,9 @@ async def run_research_system_audit(
             "formalization_gap_planner_target_intake_lean_queries": formalization_gap_planner_target_intake_manifest[
                 "n_lean_grounding_queries"
             ],
+            "formalization_gap_planner_target_intake_formal_library_queries": formalization_gap_planner_target_intake_manifest[
+                "n_formal_library_grounding_queries"
+            ],
             "formalization_gap_planner_target_intake_missing_sources": formalization_gap_planner_target_intake_manifest[
                 "n_missing_proof_sources"
             ],

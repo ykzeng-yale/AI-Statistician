@@ -2057,7 +2057,7 @@ def _user_prompt(
         "required_output_contract": dict(required_output_contract),
         "hard_requirements": [
             "Return only JSON.",
-            "When context_packet.target_intake_rows is present, use its normalized_objects, normalized_assumptions, normalized_procedure, normalized_claim, desired_theorem_shape, literature_queries, and lean_grounding_queries as the target theorem context for route synthesis; target intake is not proof evidence.",
+            "When context_packet.target_intake_rows is present, use its normalized_objects, normalized_assumptions, normalized_procedure, normalized_claim, desired_theorem_shape, literature_queries, and formal_library_grounding_queries as the target theorem context for route synthesis; lean_grounding_queries is a legacy alias only; target intake is not proof evidence.",
             "standalone_route.theorem_statement must preserve the requested target theorem identity; route repairs may add explicit side-condition notes but must not switch to a different theorem.",
             "Every informal DAG node must have source_refs, a source_search_status, or a formal_gap_boundary.",
             "SOURCE_BACKED claims may cite only source_refs listed in context_packet.available_source_refs.",
@@ -3021,7 +3021,7 @@ def _target_intake_sonnet_reasons(
         objects = _str_tuple(row.get("normalized_objects", []))
         primitives = _str_tuple(row.get("extracted_primitive_candidates", []))
         literature_queries = _str_tuple(row.get("literature_queries", []))
-        lean_queries = _str_tuple(row.get("lean_grounding_queries", []))
+        formal_library_queries = _formal_library_grounding_queries_from_intake_row(row)
         theorem_statement = str(row.get("theorem_statement", "") or "")
         desired_shape = _primitive_key(row.get("desired_theorem_shape", ""))
         complex_shape_markers = {
@@ -3052,13 +3052,22 @@ def _target_intake_sonnet_reasons(
             reasons.append(
                 f"target intake has {len(literature_queries)} literature query(s)"
             )
-        if len(lean_queries) > 8:
+        if len(formal_library_queries) > 8:
             reasons.append(
-                f"target intake has {len(lean_queries)} Lean grounding query(s)"
+                "target intake has "
+                f"{len(formal_library_queries)} formal-library grounding query(s)"
             )
         if len(theorem_statement) > 600:
             reasons.append("long target-intake theorem statement")
     return list(dict.fromkeys(reasons))
+
+
+def _formal_library_grounding_queries_from_intake_row(
+    row: Mapping[str, Any],
+) -> tuple[str, ...]:
+    generic = _str_tuple(row.get("formal_library_grounding_queries", []))
+    legacy = _str_tuple(row.get("lean_grounding_queries", []))
+    return tuple(dict.fromkeys([*generic, *legacy]))
 
 
 def _route_and_primitive_source_refs(route: Mapping[str, Any]) -> tuple[str, ...]:
@@ -7173,6 +7182,7 @@ def _compact_row(row: Mapping[str, Any]) -> dict[str, object]:
         "extracted_primitive_candidates",
         "background_primitives",
         "literature_queries",
+        "formal_library_grounding_queries",
         "lean_grounding_queries",
         "proof_state_probe_required",
         "missing_required_fields",

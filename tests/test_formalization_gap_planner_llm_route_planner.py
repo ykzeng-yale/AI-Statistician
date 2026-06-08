@@ -935,6 +935,8 @@ def test_llm_route_planner_stages_target_intake_context() -> None:
     prompt_text = request["prompt_messages"]["user"]
     assert "context_packet.target_intake_rows" in prompt_text
     assert "normalized_assumptions" in prompt_text
+    assert "formal_library_grounding_queries" in prompt_text
+    assert "legacy alias" in prompt_text
     assert "target intake is not proof evidence" in prompt_text
 
 
@@ -3653,6 +3655,78 @@ def test_llm_route_planner_auto_uses_haiku_for_small_bounded_routes() -> None:
     request = captured["request"]
     assert request.model == "claude-haiku-4-5-20251001"
     assert request.metadata["model_tier"] == "haiku"
+
+
+def test_llm_route_planner_auto_uses_sonnet_for_generic_formal_library_queries() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_generic_formal_queries"
+    )
+    out_dir = root / "llm_route_planner"
+    target_intake_dir = root / "target_intake"
+    shutil.rmtree(root, ignore_errors=True)
+    target_intake_dir.mkdir(parents=True, exist_ok=True)
+    input_json = _write_light_input(root)
+    target_intake_manifest = {
+        "component_name": "formalization_gap_planner_target_intake",
+        "rows": [
+            {
+                "schema_version": 1,
+                "target_intake_id": "target-intake:generic-formal-queries",
+                "target_id": "generic_formal_queries",
+                "display_name": "generic formal query load",
+                "domain": "portable_prover_test",
+                "target_prover_family": "rocq",
+                "library_snapshot_ref": "rocq_snapshot",
+                "theorem_statement": "A small rank fact follows from reuse.",
+                "theorem_skeleton": "",
+                "normalized_objects": ["rank statistic"],
+                "normalized_assumptions": ["exchangeability"],
+                "normalized_procedure": "",
+                "normalized_claim": "rank reuse",
+                "desired_theorem_shape": "finite_sample_rank_coverage",
+                "proof_source_refs": ["conformal_prediction_textbook"],
+                "primitive_seed_rows": [
+                    {"primitive": "rank_uniformity", "coverage_status": "near_exists"}
+                ],
+                "extracted_primitive_candidates": ["rank_uniformity"],
+                "background_primitives": [],
+                "standalone_route_id": "rank_route_light",
+                "literature_queries": ["rank reuse route"],
+                "formal_library_grounding_queries": [
+                    f"formal query {idx}" for idx in range(9)
+                ],
+                "lean_grounding_queries": [],
+                "proof_state_probe_required": False,
+                "missing_required_fields": [],
+                "review_flags": [],
+                "proof_evidence_status": (
+                    "FORMALIZATION_GAP_PLANNER_TARGET_INTAKE_NOT_PROOF_EVIDENCE"
+                ),
+                "proof_evidence_boundary": "target intake is not theorem proof evidence",
+                "ok": True,
+                "errors": [],
+            }
+        ],
+    }
+    (
+        target_intake_dir / "formalization_gap_planner_target_intake_manifest.json"
+    ).write_text(json.dumps(target_intake_manifest, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        formalization_gap_planner_target_intake_dir=target_intake_dir,
+    )
+
+    assert payload["all_ok"]
+    assert payload["by_request_model_tier"] == {"sonnet": 1}
+    packet = payload["request_packets"][0]
+    assert packet["model_tier"] == "sonnet"
+    assert packet["model"] == "claude-sonnet-4-6"
+    assert "formal-library grounding query(s)" in packet["model_selection_rationale"]
+    intake_row = packet["context_packet"]["target_intake_rows"][0]
+    assert len(intake_row["formal_library_grounding_queries"]) == 9
+    assert intake_row["lean_grounding_queries"] == []
 
 
 def test_llm_route_planner_rejects_provider_returned_model_tier_mismatch() -> None:

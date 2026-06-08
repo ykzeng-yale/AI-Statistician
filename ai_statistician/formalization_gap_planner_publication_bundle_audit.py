@@ -5851,14 +5851,18 @@ def _llm_request_target_intake_context_observed(request: dict[str, Any]) -> str:
     literature_queries = sum(
         len(_str_tuple(row.get("literature_queries", []))) for row in rows
     )
-    lean_queries = sum(
-        len(_str_tuple(row.get("lean_grounding_queries", []))) for row in rows
+    formal_library_queries = sum(
+        len(
+            _str_tuple(row.get("formal_library_grounding_queries", []))
+            or _str_tuple(row.get("lean_grounding_queries", []))
+        )
+        for row in rows
     )
     return (
         f"target_intake_rows={len(rows)}; "
         f"primitive_candidates={primitives}; "
         f"literature_queries={literature_queries}; "
-        f"lean_grounding_queries={lean_queries}"
+        f"formal_library_grounding_queries={formal_library_queries}"
     )
 
 
@@ -13473,7 +13477,6 @@ def _target_intake_row_contract_errors(row: dict[str, Any]) -> tuple[str, ...]:
         "standalone_route_id",
         "primitive_seed_rows",
         "literature_queries",
-        "lean_grounding_queries",
         "proof_evidence_status",
         "proof_evidence_boundary",
         "ok",
@@ -13495,10 +13498,18 @@ def _target_intake_row_contract_errors(row: dict[str, Any]) -> tuple[str, ...]:
     for field_name in (
         "primitive_seed_rows",
         "literature_queries",
+        "formal_library_grounding_queries",
         "lean_grounding_queries",
     ):
         if field_name in row and not isinstance(row.get(field_name), list):
             errors.append(f"{field_name} must be an array")
+    if (
+        "formal_library_grounding_queries" not in row
+        and "lean_grounding_queries" not in row
+    ):
+        errors.append(
+            "formal_library_grounding_queries or lean_grounding_queries required"
+        )
     if row.get("primitive_seed_rows") == []:
         errors.append("primitive_seed_rows must not be empty")
     if "NOT_PROOF_EVIDENCE" not in str(row.get("proof_evidence_status", "")):

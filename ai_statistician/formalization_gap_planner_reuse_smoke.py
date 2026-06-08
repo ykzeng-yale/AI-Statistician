@@ -133,6 +133,7 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_ok",
         "n_primitive_seed_rows",
         "n_literature_queries",
+        "n_formal_library_grounding_queries",
         "n_lean_grounding_queries",
         "n_missing_proof_sources",
         "n_missing_theorem_skeleton",
