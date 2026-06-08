@@ -276,6 +276,10 @@ def export_formalization_gap_planner_standalone_plan(
             len(row.standalone_input_trace.get("source_snippets", []))
             for row in rows
         ),
+        "n_standalone_input_trace_primitive_source_refs": sum(
+            len(row.standalone_input_trace.get("primitive_source_refs", []))
+            for row in rows
+        ),
         "n_primitive_source_snippets": sum(
             len(action.get("source_snippets", []))
             for route in routes
@@ -895,6 +899,14 @@ def _standalone_input_trace(
         for primitive in _raw_primitives(raw_route)
         if _dict_list(primitive.get("source_snippets", []))
     ]
+    primitive_source_refs = [
+        {
+            "primitive": str(primitive.get("primitive", "")),
+            "source_refs": _str_list(primitive.get("source_refs", [])),
+        }
+        for primitive in _raw_primitives(raw_route)
+        if _str_list(primitive.get("source_refs", []))
+    ]
     primitive_candidate_declaration_rows = [
         {
             "primitive": str(primitive.get("primitive", "")),
@@ -997,6 +1009,7 @@ def _standalone_input_trace(
             metadata.get("source_refs", raw_route.get("source_refs", []))
         ),
         "source_snippets": source_snippets,
+        "primitive_source_refs": primitive_source_refs,
         "primitive_source_snippets": primitive_source_snippets,
         "primitive_candidate_declaration_rows": primitive_candidate_declaration_rows,
         "has_source_snippets": bool(source_snippets or primitive_source_snippets),

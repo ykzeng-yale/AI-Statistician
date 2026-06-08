@@ -113,6 +113,7 @@ def test_standalone_gap_planner_exports_portable_plan_for_external_prover() -> N
     ]
     assert payload["n_standalone_input_traces"] == payload["n_goal_plans"]
     assert payload["n_standalone_input_traces_with_replan_metadata"] == 0
+    assert payload["n_standalone_input_trace_primitive_source_refs"] == 1
     assert payload["n_goal_plan_row_schema_valid"] == payload["n_goal_plans"]
     assert payload["n_goal_plan_row_schema_invalid"] == 0
     assert payload["route_alignment_edge_schema"]["$id"] == ROUTE_ALIGNMENT_EDGE_SCHEMA_ID
@@ -135,6 +136,12 @@ def test_standalone_gap_planner_exports_portable_plan_for_external_prover() -> N
     assert row["standalone_input_trace"]["source_route_id"] == row["route_id"]
     assert row["standalone_input_trace"]["target_prover_family"] == "rocq"
     assert not row["standalone_input_trace"]["has_replan_metadata"]
+    assert row["standalone_input_trace"]["primitive_source_refs"] == [
+        {
+            "primitive": "coverage_inequality",
+            "source_refs": ["vovk_gammerman_shafer_conformal"],
+        }
+    ]
     assert {
         edge["primitive"] for edge in row["route_alignment_edges"]
     } == set(row["selected_primitives"])
