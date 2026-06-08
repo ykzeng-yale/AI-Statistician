@@ -47,6 +47,9 @@ from ai_statistician.formalization_gap_planner_standalone import (
 from ai_statistician.formalization_gap_planner_source_grounding_audit import (
     audit_formalization_gap_planner_source_grounding,
 )
+from ai_statistician.formalization_gap_planner_target_intake import (
+    normalize_formalization_gap_planner_target_intake,
+)
 from ai_statistician.model_backend import GeneratorResponse
 
 
@@ -852,6 +855,87 @@ def test_llm_route_planner_prompt_only_remains_explicit_no_provider_mode() -> No
     request = payload["request_packets"][0]
     assert request["provider_name"] == "prompt_only"
     assert request["model"] == ""
+
+
+def test_llm_route_planner_stages_target_intake_context() -> None:
+    root = Path("runs/test_formalization_gap_planner_llm_route_planner_target_intake")
+    target_intake_dir = root / "target_intake"
+    out_dir = root / "llm_route_planner"
+    raw_target_json = root / "target.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    raw_target_json.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "component_name": "formalization_gap_planner_target_intake",
+                "target_prover_family": "lean4",
+                "library_snapshot_ref": "lean_mathlib_snapshot",
+                "target_id": "split_conformal_rank_bound",
+                "title": "Split conformal rank bound",
+                "domain": "conformal_prediction",
+                "theorem_statement": (
+                    "For exchangeable calibration and test scores, the split "
+                    "conformal rank bound has finite-sample coverage."
+                ),
+                "theorem_skeleton": "theorem split_conformal_rank_bound : ...",
+                "objects": ["calibration scores", "test score", "rank statistic"],
+                "assumptions": ["exchangeability", "deterministic tie handling"],
+                "statistical_procedure": "split conformal prediction",
+                "desired_conclusion": "finite-sample coverage inequality",
+                "desired_theorem_shape": "finite_sample_rank_coverage",
+                "known_proof_sources": ["conformal_prediction_textbook"],
+                "candidate_primitives": [
+                    {
+                        "primitive": "rank_uniformity",
+                        "coverage_status": "needs_search",
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    target_payload = normalize_formalization_gap_planner_target_intake(
+        raw_target_json,
+        target_intake_dir,
+    )
+    assert target_payload["all_ok"]
+    standalone_seed = (
+        target_intake_dir
+        / "formalization_gap_planner_target_intake_standalone_seed.json"
+    )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        standalone_seed,
+        out_dir,
+        formalization_gap_planner_target_intake_dir=target_intake_dir,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_requests_with_target_intake_rows"] == 1
+    assert payload["n_request_target_intake_rows"] == 1
+    request = payload["request_packets"][0]
+    context = request["context_packet"]
+    intake_row = context["target_intake_rows"][0]
+    assert intake_row["target_id"] == "split_conformal_rank_bound"
+    assert intake_row["normalized_objects"] == [
+        "calibration scores",
+        "test score",
+        "rank statistic",
+    ]
+    assert intake_row["normalized_assumptions"] == [
+        "exchangeability",
+        "deterministic tie handling",
+    ]
+    assert intake_row["normalized_procedure"] == "split conformal prediction"
+    assert intake_row["normalized_claim"] == "finite-sample coverage inequality"
+    assert intake_row["desired_theorem_shape"] == "finite_sample_rank_coverage"
+    assert "rank_uniformity" in intake_row["extracted_primitive_candidates"]
+    prompt_text = request["prompt_messages"]["user"]
+    assert "context_packet.target_intake_rows" in prompt_text
+    assert "normalized_assumptions" in prompt_text
+    assert "target intake is not proof evidence" in prompt_text
 
 
 def test_llm_route_planner_stages_component_resource_registry_context() -> None:

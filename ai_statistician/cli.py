@@ -2384,6 +2384,11 @@ def _formalization_gap_planner_llm_route_planner(args: argparse.Namespace) -> in
         static_response_json=(
             Path(args.static_response_file) if args.static_response_file else None
         ),
+        formalization_gap_planner_target_intake_dir=(
+            Path(args.formalization_gap_planner_target_intake_dir)
+            if args.formalization_gap_planner_target_intake_dir
+            else None
+        ),
         goal_conditioned_minimal_formalization_plan_dir=(
             Path(args.goal_conditioned_minimal_formalization_plan_dir)
             if args.goal_conditioned_minimal_formalization_plan_dir
@@ -7659,6 +7664,13 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "static JSON payload; with --invoke-provider it is used as a fake "
             "generator, otherwise it is validated as a reviewed response"
+        ),
+    )
+    formalization_gap_planner_llm_route_planner.add_argument(
+        "--formalization-gap-planner-target-intake-dir",
+        help=(
+            "optional target-intake directory carrying normalized theorem "
+            "objects, assumptions, procedure, claim, theorem shape, and search queries"
         ),
     )
     formalization_gap_planner_llm_route_planner.add_argument(

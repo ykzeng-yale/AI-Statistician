@@ -555,6 +555,7 @@ def export_formalization_gap_planner_llm_route_planner(
     response_json: Path | None = None,
     static_response_json: Path | None = None,
     generator_backend: GeneratorBackend | None = None,
+    formalization_gap_planner_target_intake_dir: Path | None = None,
     goal_conditioned_minimal_formalization_plan_dir: Path | None = None,
     formalization_gap_planner_library_coverage_map_dir: Path | None = None,
     formalization_gap_planner_source_grounding_audit_dir: Path | None = None,
@@ -572,6 +573,9 @@ def export_formalization_gap_planner_llm_route_planner(
     errors.extend(validate_standalone_input_payload(input_payload))
     context_payloads = _context_payloads(
         errors,
+        formalization_gap_planner_target_intake_dir=(
+            formalization_gap_planner_target_intake_dir
+        ),
         goal_conditioned_minimal_formalization_plan_dir=(
             goal_conditioned_minimal_formalization_plan_dir
         ),
@@ -695,6 +699,24 @@ def export_formalization_gap_planner_llm_route_planner(
         ),
         "n_request_available_source_snippets": sum(
             len(_dict_value(packet, "context_packet").get("available_source_snippets", []))
+            for packet in request_packets
+        ),
+        "n_requests_with_target_intake_rows": sum(
+            1
+            for packet in request_packets
+            if _dict_tuple(
+                _dict_value(packet, "context_packet").get("target_intake_rows", [])
+            )
+        ),
+        "n_request_target_intake_rows": sum(
+            len(
+                _dict_tuple(
+                    _dict_value(packet, "context_packet").get(
+                        "target_intake_rows",
+                        [],
+                    )
+                )
+            )
             for packet in request_packets
         ),
         "n_request_model_tier_haiku": by_model_tier.get("haiku", 0),
@@ -1830,6 +1852,10 @@ def _request_packet(
         "current_route": dict(route),
         "route_match_ids": route_match_ids,
         "replan_metadata": _dict_value(route, "replan_metadata"),
+        "target_intake_rows": _rows_for_route(
+            context_payloads.get("target_intake", {}),
+            route_match_ids,
+        ),
         "library_coverage_rows": _rows_for_route(
             context_payloads.get("library_coverage_map", {}),
             route_match_ids,
@@ -1967,6 +1993,7 @@ def _user_prompt(
         "required_output_contract": dict(required_output_contract),
         "hard_requirements": [
             "Return only JSON.",
+            "When context_packet.target_intake_rows is present, use its normalized_objects, normalized_assumptions, normalized_procedure, normalized_claim, desired_theorem_shape, literature_queries, and lean_grounding_queries as the target theorem context for route synthesis; target intake is not proof evidence.",
             "Every informal DAG node must have source_refs, a source_search_status, or a formal_gap_boundary.",
             "SOURCE_BACKED claims may cite only source_refs listed in context_packet.available_source_refs.",
             "When context_packet.available_source_snippets contains relevant excerpts, reuse those source_snippets in informal DAG nodes or standalone_route primitives instead of paraphrasing unsupported evidence.",
@@ -5816,6 +5843,7 @@ def _primitive_key(value: object) -> str:
 def _context_payloads(
     errors: list[str],
     *,
+    formalization_gap_planner_target_intake_dir: Path | None,
     goal_conditioned_minimal_formalization_plan_dir: Path | None,
     formalization_gap_planner_library_coverage_map_dir: Path | None,
     formalization_gap_planner_source_grounding_audit_dir: Path | None,
@@ -5827,6 +5855,11 @@ def _context_payloads(
     formalization_gap_planner_component_resource_registry_dir: Path | None,
 ) -> dict[str, Any]:
     return {
+        "target_intake": _optional_manifest(
+            formalization_gap_planner_target_intake_dir,
+            "formalization_gap_planner_target_intake_manifest.json",
+            errors,
+        ),
         "goal_plan": _optional_manifest(
             goal_conditioned_minimal_formalization_plan_dir,
             "goal_conditioned_minimal_formalization_plan_manifest.json",
@@ -6815,9 +6848,35 @@ def _compact_row(row: Mapping[str, Any]) -> dict[str, object]:
     keep = (
         "goal_plan_id",
         "route_id",
+        "target_intake_id",
+        "target_id",
+        "standalone_route_id",
         "refinement_evidence_id",
         "refinement_item_id",
         "display_name",
+        "domain",
+        "target_prover_family",
+        "library_snapshot_ref",
+        "theorem_statement",
+        "theorem_skeleton",
+        "normalized_objects",
+        "normalized_assumptions",
+        "normalized_procedure",
+        "normalized_claim",
+        "desired_theorem_shape",
+        "proof_source_refs",
+        "primitive_seed_rows",
+        "extracted_primitive_candidates",
+        "background_primitives",
+        "literature_queries",
+        "lean_grounding_queries",
+        "proof_state_probe_required",
+        "missing_required_fields",
+        "review_flags",
+        "proof_evidence_status",
+        "proof_evidence_boundary",
+        "ok",
+        "errors",
         "primitive",
         "component_id",
         "component_name",

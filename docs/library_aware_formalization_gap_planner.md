@@ -60,6 +60,7 @@ python3 -m ai_statistician.cli formalization-gap-planner-component-resource-regi
 python3 -m ai_statistician.cli formalization-gap-planner-llm-route-planner \
   --input runs/current/formalization_gap_planner_target_intake/formalization_gap_planner_target_intake_standalone_seed.json \
   --provider prompt_only \
+  --formalization-gap-planner-target-intake-dir runs/current/formalization_gap_planner_target_intake \
   --formalization-gap-planner-component-resource-registry-dir runs/current/formalization_gap_planner_component_resource_registry \
   --out runs/current/formalization_gap_planner_llm_route_planner
 
@@ -362,7 +363,12 @@ route JSON with coverage labels such as `exact_exists`, `wrapper_needed`,
 `bridge_needed`, `source_port_needed`, and `new_theory_needed`. It emits the
 same portable `goal_conditioned_minimal_formalization_plan_manifest.json`
 consumed by the evaluation, refinement, prover-adapter, and publication-bundle
-commands. The portable-plan audit validates schema identity, two-DAG structure,
+commands. LLM route-planner request packets can now also carry the matching
+target-intake rows through `--formalization-gap-planner-target-intake-dir`, so
+the model sees normalized objects, assumptions, procedure, claim, theorem shape,
+primitive seeds, literature queries, and Lean grounding queries while preserving
+the boundary that target intake is route-synthesis context, not proof evidence.
+The portable-plan audit validates schema identity, two-DAG structure,
 AND/OR graph shape, work packets, interactive hooks, and absence of
 kernel-proof claims. The library-coverage-map command exports one row per
 selected primitive, mapping the informal route atom to the selected current
@@ -1058,9 +1064,13 @@ The current implementation composes four existing AI Statistician artifacts:
 
 5. `formalization_gap_planner_llm_route_planner`
    Builds the LLM planning request packet from a standalone target route plus
-   optional source, coverage, resource-response, refinement-evidence,
-   route-revision, prover-residual, interactive-session, and decision-policy
-   context. Resource-response ledger rows include bounded response summaries,
+   optional target-intake, source, coverage, resource-response,
+   refinement-evidence, route-revision, prover-residual, interactive-session,
+   and decision-policy context. Target-intake rows provide the normalized
+   theorem objects, assumptions, procedure, claim, theorem shape, primitive
+   seeds, literature queries, and Lean grounding queries that define the target
+   theorem context for route synthesis; they do not justify source-backed
+   mathematical claims. Resource-response ledger rows include bounded response summaries,
    source snippets or payload excerpts, response artifacts, contract status,
    route-evidence nodes, coverage updates, and residual goals, so a feedback
    LLM pass can revise from actual literature/tool evidence rather than only

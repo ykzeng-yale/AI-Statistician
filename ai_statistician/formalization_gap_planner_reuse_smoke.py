@@ -932,6 +932,7 @@ def run_formalization_gap_planner_reuse_smoke(
         invoke_provider=llm_route_planner_invoke_provider,
         response_json=llm_route_planner_response_json,
         static_response_json=llm_route_planner_static_response_json,
+        formalization_gap_planner_target_intake_dir=target_intake_dir,
         formalization_gap_planner_component_resource_registry_dir=(
             component_resource_registry_dir
         ),
@@ -1166,6 +1167,7 @@ def run_formalization_gap_planner_reuse_smoke(
             invoke_provider=feedback_llm_route_planner_invoke_provider,
             response_json=feedback_llm_route_planner_response_json,
             static_response_json=feedback_llm_route_planner_static_response_json,
+            formalization_gap_planner_target_intake_dir=target_intake_dir,
             goal_conditioned_minimal_formalization_plan_dir=plan_dir,
             formalization_gap_planner_library_coverage_map_dir=library_coverage_map_dir,
             formalization_gap_planner_source_grounding_audit_dir=source_grounding_audit_dir,
