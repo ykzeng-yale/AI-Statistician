@@ -427,12 +427,12 @@ def test_route_revision_overlay_accepts_generic_formal_realization_nodes() -> No
     )
 
     assert payload["all_ok"]
+    assert payload["n_formal_realization_dag_nodes"] >= 2
+    assert payload["n_lean_realization_dag_nodes"] == 0
     row = payload["rows"][0]
     assert "generic_rank_bridge" in row["revised_selected_primitives"]
     assert row["revised_formal_realization_dag_nodes"]
-    assert row["revised_lean_realization_dag_nodes"] == row[
-        "revised_formal_realization_dag_nodes"
-    ]
+    assert row["revised_lean_realization_dag_nodes"] == ()
     assert {
         edge["primitive"] for edge in row["revised_route_alignment_edges"]
     } == {"existing_rank", "generic_rank_bridge"}

@@ -589,14 +589,34 @@ def test_route_replan_handoff_preserves_overlay_target_prover_family_for_rocq() 
     )
 
     assert payload["all_ok"]
+    assert payload["n_revised_formal_realization_dag_nodes"] >= 1
+    assert payload["n_revised_lean_realization_dag_nodes"] == 0
     row = payload["rows"][0]
+    assert row["revised_formal_realization_dag_nodes"]
+    assert row["revised_lean_realization_dag_nodes"] == ()
     assert row["standalone_route"]["target_prover_family"] == "rocq"
     assert row["standalone_route"]["replan_metadata"]["target_prover_family"] == "rocq"
+    assert row["standalone_route"]["revised_formal_realization_dag_nodes"]
+    assert row["standalone_route"]["revised_lean_realization_dag_nodes"] == ()
+    assert row["standalone_route"]["replan_metadata"][
+        "revised_formal_realization_dag_nodes"
+    ]
+    assert row["standalone_route"]["replan_metadata"][
+        "revised_lean_realization_dag_nodes"
+    ] == ()
     seed_path = handoff_dir / "formalization_gap_planner_route_replan_standalone_seed.json"
     seed = json.loads(seed_path.read_text(encoding="utf-8"))
     assert seed["target_prover_family"] == "rocq"
     assert seed["routes"][0]["target_prover_family"] == "rocq"
     assert seed["routes"][0]["replan_metadata"]["target_prover_family"] == "rocq"
+    assert seed["routes"][0]["revised_formal_realization_dag_nodes"]
+    assert seed["routes"][0]["revised_lean_realization_dag_nodes"] == []
+    assert seed["routes"][0]["replan_metadata"][
+        "revised_formal_realization_dag_nodes"
+    ]
+    assert seed["routes"][0]["replan_metadata"][
+        "revised_lean_realization_dag_nodes"
+    ] == []
 
     next_plan = export_formalization_gap_planner_standalone_plan(
         seed_path,
@@ -609,3 +629,9 @@ def test_route_replan_handoff_preserves_overlay_target_prover_family_for_rocq() 
     assert next_plan["rows"][0]["standalone_input_trace"][
         "target_prover_family"
     ] == "rocq"
+    assert next_plan["rows"][0]["standalone_input_trace"][
+        "revised_formal_realization_dag_nodes"
+    ]
+    assert next_plan["rows"][0]["standalone_input_trace"][
+        "revised_lean_realization_dag_nodes"
+    ] == []

@@ -569,14 +569,16 @@ def _handoff_row(
             overlay_row.get("revised_lean_realization_dag_nodes", []),
         )
     )
-    lean_nodes = _dict_tuple(
-        overlay_row.get("revised_lean_realization_dag_nodes", formal_nodes)
-    )
     alignment_edges = _dict_tuple(overlay_row.get("revised_route_alignment_edges", []))
     unaligned_primitives = _str_tuple(overlay_row.get("unaligned_primitives", []))
     target_prover_family = _target_prover_family_for_replan_route(
         plan_row,
         overlay_row,
+    )
+    lean_nodes = _lean_alias_nodes_for_target(
+        target_prover_family,
+        _dict_tuple(overlay_row.get("revised_lean_realization_dag_nodes", [])),
+        fallback_nodes=formal_nodes,
     )
     if not overlay_id:
         errors.append("route_revision_overlay_id missing")
@@ -1081,6 +1083,28 @@ def _target_prover_family_for_replan_route(
         if text:
             return text
     return "lean4"
+
+
+def _lean_alias_nodes_for_target(
+    target_prover_family: str,
+    nodes: tuple[dict[str, object], ...],
+    *,
+    fallback_nodes: tuple[dict[str, object], ...] = (),
+) -> tuple[dict[str, object], ...]:
+    if not _is_lean_target_prover(target_prover_family):
+        return tuple()
+    return nodes or fallback_nodes
+
+
+def _is_lean_target_prover(target_prover_family: str) -> bool:
+    key = re.sub(
+        r"[^a-z0-9]+",
+        "_",
+        str(target_prover_family).strip().lower(),
+    ).strip("_")
+    return key in {"lean", "lean4", "lean_4"} or key.startswith(
+        ("lean4_", "lean_4_", "lean_")
+    )
 
 
 def _row_index(rows: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:

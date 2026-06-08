@@ -12614,7 +12614,7 @@ def _route_replan_handoff_optional_checks(
             _check(
                 f"optional_route_replan_handoff_row_{idx}_seed_dag_preservation",
                 "optional_artifacts",
-                "seed route and replan metadata preserve revised informal and Lean DAG nodes",
+                "seed route and replan metadata preserve revised informal and formal DAG nodes",
                 _handoff_seed_dag_observed(row, seed_route),
                 not dag_errors,
                 errors=dag_errors,
