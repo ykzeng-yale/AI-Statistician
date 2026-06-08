@@ -8,6 +8,7 @@ from ai_statistician.formalization_gap_planner_contract import (
     PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_ID,
     PORTABLE_FORMALIZATION_GAP_PLAN_ROW_SCHEMA_ID,
     ROUTE_ALIGNMENT_EDGE_SCHEMA_ID,
+    portable_gap_plan_json_schema,
     portable_gap_plan_row_json_schema,
     route_alignment_edge_json_schema,
     validate_portable_gap_plan_row,
@@ -613,6 +614,26 @@ def test_standalone_gap_planner_reports_mixed_route_targets() -> None:
     assert plan_payload["target_prover_family"] == "mixed:lean4,rocq"
     assert plan_payload["n_target_prover_families"] == 2
     assert plan_payload["by_target_prover_family"] == {"lean4": 1, "rocq": 1}
+    portable_schema = portable_gap_plan_json_schema()
+    portable_props = portable_schema["properties"]
+    assert portable_props["n_target_prover_families"]["type"] == "integer"
+    assert (
+        portable_props["by_target_prover_family"]["additionalProperties"]["type"]
+        == "integer"
+    )
+    assert validate_portable_gap_plan_payload(plan_payload) == []
+    malformed = dict(plan_payload)
+    malformed["by_target_prover_family"] = {"lean4": 2}
+    assert (
+        "by_target_prover_family does not match row target_prover_family counts"
+        in validate_portable_gap_plan_payload(malformed)
+    )
+    malformed_count = dict(plan_payload)
+    malformed_count["n_target_prover_families"] = 1
+    assert (
+        "n_target_prover_families does not match row target_prover_family counts"
+        in validate_portable_gap_plan_payload(malformed_count)
+    )
     by_route = {row["route_id"]: row for row in plan_payload["rows"]}
     assert by_route["lean_rank_route"]["target_prover_family"] == "lean4"
     assert by_route["rocq_rank_route"]["target_prover_family"] == "rocq"
