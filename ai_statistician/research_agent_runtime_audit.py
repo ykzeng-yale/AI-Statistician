@@ -237,7 +237,9 @@ def audit_research_agent_runtime(
             "full frontier theorem proof remains false unless a separate kernel-verified reduction closes formal gaps",
         ],
     }
-    capability_gaps = _runtime_capability_gaps(payload)
+    capability_scorecard = _runtime_capability_scorecard(payload)
+    payload["capability_scorecard"] = capability_scorecard
+    capability_gaps = _runtime_capability_gaps_from_scorecard(capability_scorecard)
     payload["capability_ready_for_full_ai_statistician"] = not capability_gaps
     payload["capability_status"] = (
         "FULL_AUTONOMOUS_AI_STATISTICIAN_READY"
@@ -531,33 +533,140 @@ def _topology_live_generator_count(manifest: Mapping[str, Any]) -> int:
 
 
 def _runtime_capability_gaps(payload: Mapping[str, Any]) -> list[str]:
+    return _runtime_capability_gaps_from_scorecard(_runtime_capability_scorecard(payload))
+
+
+def _runtime_capability_gaps_from_scorecard(
+    scorecard: Mapping[str, Any],
+) -> list[str]:
+    rows = scorecard.get("rows", []) if isinstance(scorecard, Mapping) else []
     gaps: list[str] = []
-    n_results = int(payload.get("n_results", 0) or 0)
-    if n_results <= 0:
-        gaps.append("no per-question runtime result was audited")
-    if int(payload.get("n_live_generator_agents_enabled", 0) or 0) <= 0:
-        gaps.append("no live Anthropic/OpenAI generator agents were enabled")
-    if payload.get("architect_coordinator_enabled") is not True:
-        gaps.append("ArchitectCoordinator was disabled; this is a subsystem-chain run, not architect-orchestrated research")
-    if int(payload.get("n_results_with_problem_analysis", 0) or 0) < n_results:
-        gaps.append("Architect problem_analysis was missing for at least one result")
-    if int(payload.get("n_results_with_stat_knowledge_bank_plan", 0) or 0) < n_results:
-        gaps.append("dynamic StatKnowledgeBank planning was missing for at least one result")
-    if int(payload.get("n_results_with_literature_fair_comparison_plan", 0) or 0) < n_results:
-        gaps.append("literature fair-comparison planning was missing for at least one result")
-    if int(payload.get("n_algorithm_sandbox_executed", 0) or 0) <= 0:
-        gaps.append("no algorithm sandbox prototype executed")
-    if int(payload.get("n_unsafe_generated_code_rejected", 0) or 0) > 0:
-        gaps.append("at least one generated algorithm draft was rejected by the sandbox guard")
-    if int(payload.get("n_lean_lsp_mcp_live_calls", 0) or 0) <= 0:
-        gaps.append("Lean LSP/MCP was not called live for proof-state diagnostics")
-    if int(payload.get("n_real_kernel_verified_subclaims", 0) or 0) <= 0:
-        gaps.append("no real AXLE/local Lean kernel-verified subclaim was recorded")
-    if int(payload.get("n_formal_gaps", 0) or 0) > 0:
-        gaps.append("formal gaps remain open")
-    if int(payload.get("n_full_frontier_theorem_proved", 0) or 0) <= 0:
-        gaps.append("no full frontier theorem was kernel-proved")
+    for row in rows:
+        if not isinstance(row, Mapping):
+            continue
+        if row.get("passed") is True:
+            continue
+        blocker = str(row.get("blocker", "")).strip()
+        if blocker:
+            gaps.append(blocker)
     return gaps
+
+
+def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
+    n_results = int(payload.get("n_results", 0) or 0)
+    rows = [
+        _scorecard_row(
+            "runtime_result_present",
+            n_results > 0,
+            f"n_results={n_results}",
+            "no per-question runtime result was audited",
+        ),
+        _scorecard_row(
+            "live_generator_agents_enabled",
+            int(payload.get("n_live_generator_agents_enabled", 0) or 0) > 0,
+            f"n_live_generator_agents_enabled={payload.get('n_live_generator_agents_enabled')}",
+            "no live Anthropic/OpenAI generator agents were enabled",
+        ),
+        _scorecard_row(
+            "architect_orchestrated",
+            payload.get("architect_coordinator_enabled") is True,
+            f"architect_coordinator_enabled={payload.get('architect_coordinator_enabled')}",
+            "ArchitectCoordinator was disabled; this is a subsystem-chain run, not architect-orchestrated research",
+        ),
+        _scorecard_row(
+            "architect_problem_analysis_present",
+            int(payload.get("n_results_with_problem_analysis", 0) or 0) >= n_results,
+            f"problem_analysis={payload.get('n_results_with_problem_analysis')}/{n_results}",
+            "Architect problem_analysis was missing for at least one result",
+        ),
+        _scorecard_row(
+            "dynamic_stat_knowledge_bank_planned",
+            int(payload.get("n_results_with_stat_knowledge_bank_plan", 0) or 0) >= n_results,
+            f"stat_knowledge_bank={payload.get('n_results_with_stat_knowledge_bank_plan')}/{n_results}",
+            "dynamic StatKnowledgeBank planning was missing for at least one result",
+        ),
+        _scorecard_row(
+            "literature_fair_comparison_planned",
+            int(payload.get("n_results_with_literature_fair_comparison_plan", 0) or 0) >= n_results,
+            f"literature_fair_comparison={payload.get('n_results_with_literature_fair_comparison_plan')}/{n_results}",
+            "literature fair-comparison planning was missing for at least one result",
+        ),
+        _scorecard_row(
+            "algorithm_sandbox_executed",
+            int(payload.get("n_algorithm_sandbox_executed", 0) or 0) > 0,
+            f"n_algorithm_sandbox_executed={payload.get('n_algorithm_sandbox_executed')}",
+            "no algorithm sandbox prototype executed",
+        ),
+        _scorecard_row(
+            "generated_algorithm_sandbox_clean",
+            int(payload.get("n_unsafe_generated_code_rejected", 0) or 0) <= 0,
+            f"n_unsafe_generated_code_rejected={payload.get('n_unsafe_generated_code_rejected')}",
+            "at least one generated algorithm draft was rejected by the sandbox guard",
+        ),
+        _scorecard_row(
+            "runtime_progress_observable",
+            int(payload.get("n_runtime_progress_events", 0) or 0)
+            >= 2 * int(payload.get("n_runtime_traces", 0) or 0)
+            and int(payload.get("n_runtime_traces", 0) or 0) > 0,
+            (
+                f"progress_events={payload.get('n_runtime_progress_events')} "
+                f"runtime_traces={payload.get('n_runtime_traces')}"
+            ),
+            "runtime progress JSONL did not record start/finish events for every trace",
+        ),
+        _scorecard_row(
+            "live_lean_lsp_mcp_called",
+            int(payload.get("n_lean_lsp_mcp_live_calls", 0) or 0) > 0,
+            f"n_lean_lsp_mcp_live_calls={payload.get('n_lean_lsp_mcp_live_calls')}",
+            "Lean LSP/MCP was not called live for proof-state diagnostics",
+        ),
+        _scorecard_row(
+            "real_kernel_subclaim_verified",
+            int(payload.get("n_real_kernel_verified_subclaims", 0) or 0) > 0,
+            f"n_real_kernel_verified_subclaims={payload.get('n_real_kernel_verified_subclaims')}",
+            "no real AXLE/local Lean kernel-verified subclaim was recorded",
+        ),
+        _scorecard_row(
+            "no_formal_gaps_remaining",
+            int(payload.get("n_formal_gaps", 0) or 0) <= 0,
+            f"n_formal_gaps={payload.get('n_formal_gaps')}",
+            "formal gaps remain open",
+        ),
+        _scorecard_row(
+            "full_frontier_theorem_kernel_proved",
+            int(payload.get("n_full_frontier_theorem_proved", 0) or 0) > 0,
+            f"n_full_frontier_theorem_proved={payload.get('n_full_frontier_theorem_proved')}",
+            "no full frontier theorem was kernel-proved",
+        ),
+    ]
+    n_passed = sum(1 for row in rows if row["passed"])
+    return {
+        "artifact_kind": "RuntimeCapabilityScorecard",
+        "scope": "live autonomous AI Statistician core runtime readiness",
+        "n_requirements": len(rows),
+        "n_passed": n_passed,
+        "n_failed": len(rows) - n_passed,
+        "ready": n_passed == len(rows),
+        "rows": rows,
+        "boundary": (
+            "This scorecard is a capability truth table. It separates runtime "
+            "contract health from live-agent ability and Lean-kernel theorem evidence."
+        ),
+    }
+
+
+def _scorecard_row(
+    requirement_id: str,
+    passed: bool,
+    evidence: str,
+    blocker: str,
+) -> dict[str, Any]:
+    return {
+        "requirement_id": requirement_id,
+        "passed": bool(passed),
+        "evidence": evidence,
+        "blocker": "" if passed else blocker,
+    }
 
 
 def _trace_has_runtime_learning_memory_input(traces: list[Any]) -> bool:
@@ -668,6 +777,8 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         f"- all_ok: {payload.get('all_ok')}",
         f"- capability_ready_for_full_ai_statistician: {payload.get('capability_ready_for_full_ai_statistician')}",
         f"- capability_status: {payload.get('capability_status')}",
+        f"- capability scorecard: {payload.get('capability_scorecard', {}).get('n_passed')}/"
+        f"{payload.get('capability_scorecard', {}).get('n_requirements')} passed",
         f"- results: {payload.get('n_ok')}/{payload.get('n_results')}",
         f"- runtime progress events: {payload.get('n_runtime_progress_events')}",
         f"- runtime traces: {payload.get('n_runtime_traces')}",

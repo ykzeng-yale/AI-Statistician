@@ -1510,6 +1510,15 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert audit["all_ok"] is True
     assert audit["capability_ready_for_full_ai_statistician"] is False
     assert audit["capability_status"] == "CONTRACT_OK_WITH_CAPABILITY_GAPS"
+    scorecard = audit["capability_scorecard"]
+    scorecard_rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    assert scorecard["artifact_kind"] == "RuntimeCapabilityScorecard"
+    assert scorecard["ready"] is False
+    assert scorecard_rows["architect_orchestrated"]["passed"] is True
+    assert scorecard_rows["dynamic_stat_knowledge_bank_planned"]["passed"] is True
+    assert scorecard_rows["live_generator_agents_enabled"]["passed"] is False
+    assert scorecard_rows["live_lean_lsp_mcp_called"]["passed"] is False
+    assert scorecard_rows["full_frontier_theorem_kernel_proved"]["passed"] is False
     assert "no live Anthropic/OpenAI generator agents were enabled" in audit["capability_gaps"]
     assert "Lean LSP/MCP was not called live for proof-state diagnostics" in audit["capability_gaps"]
     assert "no full frontier theorem was kernel-proved" in audit["capability_gaps"]
@@ -1838,6 +1847,12 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
     audit = audit_research_agent_runtime(out_dir, root / "out_audit")
     assert audit["all_ok"] is True
     assert audit["capability_ready_for_full_ai_statistician"] is False
+    scorecard = audit["capability_scorecard"]
+    scorecard_rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    assert scorecard["ready"] is False
+    assert scorecard_rows["runtime_progress_observable"]["passed"] is True
+    assert scorecard_rows["architect_orchestrated"]["passed"] is False
+    assert scorecard_rows["live_generator_agents_enabled"]["passed"] is False
     assert "no live Anthropic/OpenAI generator agents were enabled" in audit["capability_gaps"]
     assert "ArchitectCoordinator was disabled; this is a subsystem-chain run, not architect-orchestrated research" in audit["capability_gaps"]
     assert audit["llm_topology_policy_ok"] is True
