@@ -938,6 +938,69 @@ def test_llm_route_planner_stages_target_intake_context() -> None:
     assert "target intake is not proof evidence" in prompt_text
 
 
+def test_llm_route_planner_auto_uses_sonnet_for_source_unbacked_target_intake() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_target_intake_tier"
+    )
+    target_intake_dir = root / "target_intake"
+    out_dir = root / "llm_route_planner"
+    raw_target_json = root / "target.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    raw_target_json.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "component_name": "formalization_gap_planner_target_intake",
+                "target_prover_family": "lean4",
+                "library_snapshot_ref": "lean_mathlib_snapshot",
+                "target_id": "light_rank_bound_without_sources",
+                "title": "Light rank bound without sources",
+                "domain": "conformal_prediction",
+                "theorem_statement": "A small rank fact follows from exchangeability.",
+                "assumptions": ["exchangeability"],
+                "desired_conclusion": "finite-sample rank coverage",
+                "desired_theorem_shape": "finite_sample_rank_coverage",
+                "candidate_primitives": [
+                    {
+                        "primitive": "exchangeability",
+                        "coverage_status": "exact_exists",
+                        "candidate_declarations": ["Probability.exchangeable"],
+                    },
+                    {
+                        "primitive": "rank_uniformity",
+                        "coverage_status": "near_exists",
+                        "candidate_declarations": ["Probability.exchangeable"],
+                    },
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    target_payload = normalize_formalization_gap_planner_target_intake(
+        raw_target_json,
+        target_intake_dir,
+    )
+    assert target_payload["all_ok"]
+    assert "proof_source_refs_missing" in target_payload["rows"][0]["review_flags"]
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        target_intake_dir
+        / "formalization_gap_planner_target_intake_standalone_seed.json",
+        out_dir,
+        formalization_gap_planner_target_intake_dir=target_intake_dir,
+    )
+
+    assert payload["all_ok"]
+    assert payload["by_request_model_tier"] == {"sonnet": 1}
+    packet = payload["request_packets"][0]
+    assert packet["model_tier"] == "sonnet"
+    assert packet["model"] == "claude-sonnet-4-6"
+    assert "target intake review flag(s):" in packet["model_selection_rationale"]
+    assert "proof_source_refs_missing" in packet["model_selection_rationale"]
+
+
 def test_llm_route_planner_stages_component_resource_registry_context() -> None:
     root = Path("runs/test_formalization_gap_planner_llm_route_planner_registry_context")
     out_dir = root / "llm_route_planner"

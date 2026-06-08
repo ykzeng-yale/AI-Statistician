@@ -29,7 +29,11 @@ evergreen aliases. Use `AI_STATISTICIAN_CLAUDE_HAIKU_MODEL`,
 `AI_STATISTICIAN_CLAUDE_OPUS_MODEL` for tier-specific overrides. Leave
 `AI_STATISTICIAN_LLM_MODEL` unset in normal Anthropic runs; the global override
 is treated as a Sonnet-tier compatibility default and must not collapse
-cost-aware Haiku/Sonnet routing.
+cost-aware Haiku/Sonnet routing. The formalization gap planner's auto route
+tier uses the same split: small source-backed reuse/wrapper triage stays on
+Haiku, while target-intake rows with missing proof sources, library-search
+requirements, proof-state probes, complex theorem shape, or large theorem
+context are upgraded to Sonnet.
 
 1. The theory layer emits only estimator families with registered formal
    obligations.

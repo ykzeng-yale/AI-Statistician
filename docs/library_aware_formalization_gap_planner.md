@@ -131,7 +131,11 @@ simulation planning, algorithm-planning packets, and boundary critique. The same
 request/response contracts still run against explicit `openai` live generation
 or `static` replay. Runtime topology validation records the intended model tier
 for each LLM subsystem and rejects recognized Anthropic family drift, for example
-a Haiku-designated helper configured with a Sonnet or Opus model. Accepted LLM rows must include
+a Haiku-designated helper configured with a Sonnet or Opus model. In
+`--model-tier auto`, the route planner also reads target-intake rows: missing
+proof sources, library-search-required review flags, proof-state probes, complex
+theorem shapes, or large normalized theorem context upgrade a superficially
+small route from Haiku triage to Sonnet route synthesis. Accepted LLM rows must include
 source-grounded informal DAG nodes, formal-realization DAG nodes, alignment
 rationales, a minimality rationale, a versioned minimal-delta cost witness, and
 an explicit proof-evidence boundary; `kernel_verified=true` claims are
@@ -297,7 +301,10 @@ default to Anthropic/Claude staging with `--*-model-tier auto`, but they do not
 call the API unless the matching `--*-invoke-provider` flag is set. The
 reuse-smoke manifest records `staged_live_provider_prompt_no_api_call` versus
 `live_provider_invoked`, plus the number of requested live provider calls and
-the Haiku/Sonnet/Opus request-tier distribution. To run the second pass with
+the Haiku/Sonnet/Opus request-tier distribution. Auto tiering keeps small,
+source-backed reuse/wrapper routes on Haiku, but upgrades target-intake rows
+with missing proof sources, library search requirements, proof-state probes, or
+larger theorem context to Sonnet. To run the second pass with
 Claude after the deterministic residual/context stages have completed, use
 `--feedback-llm-route-planner-provider anthropic
 --feedback-llm-route-planner-invoke-provider`; Anthropic defaults to Claude

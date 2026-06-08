@@ -267,6 +267,7 @@ LLM_ROUTE_PLANNER_MODEL_TIER_POLICY: dict[str, object] = {
     "auto_tier_rules": [
         "Use haiku for small routes whose primitives are already-exists, exact, near, wrapper, or different-formulation coverage and have no residual goals.",
         "Use sonnet when prover residual goals, feedback-loop replan signals, or incomplete realization-coverage witnesses are present.",
+        "Use sonnet when target-intake rows expose missing proof sources, library-search requirements, proof-state probes, complex theorem shape, or large normalized theorem context.",
         "Use sonnet when any primitive needs a bridge, source port, new definition, new theory, or has unknown/missing coverage.",
         "Use sonnet for routes with more than four primitives, many source refs, or long theorem statements.",
         "Use opus only when explicitly requested by the operator; auto mode never selects opus.",
@@ -2865,6 +2866,7 @@ def _llm_route_planner_model_tier_decision(
         sonnet_reasons.append("incomplete realization-coverage witness")
     if bool(feedback_summary.get("replan_required", False)):
         sonnet_reasons.append("feedback-loop summary requires route repair")
+    sonnet_reasons.extend(_target_intake_sonnet_reasons(context_packet))
     hard_markers = sorted(route_markers & complex_markers)
     if hard_markers:
         sonnet_reasons.append(
@@ -2888,6 +2890,78 @@ def _llm_route_planner_model_tier_decision(
             "and only reuse/near/wrapper-level coverage markers"
         ),
     )
+
+
+def _target_intake_sonnet_reasons(
+    context_packet: Mapping[str, Any],
+) -> list[str]:
+    rows = _dict_tuple(context_packet.get("target_intake_rows", []))
+    if not rows:
+        return []
+    reasons: list[str] = []
+    for row in rows:
+        missing = _str_tuple(row.get("missing_required_fields", []))
+        if missing:
+            reasons.append(
+                "target intake missing required field(s): "
+                + ", ".join(missing[:4])
+            )
+        review_flags = set(_str_tuple(row.get("review_flags", [])))
+        hard_flags = sorted(
+            review_flags
+            & {
+                "proof_source_refs_missing",
+                "library_coverage_search_required",
+            }
+        )
+        if hard_flags:
+            reasons.append(
+                "target intake review flag(s): " + ", ".join(hard_flags[:4])
+            )
+        if bool(row.get("proof_state_probe_required", False)):
+            reasons.append("target intake requires proof-state probe")
+        assumptions = _str_tuple(row.get("normalized_assumptions", []))
+        objects = _str_tuple(row.get("normalized_objects", []))
+        primitives = _str_tuple(row.get("extracted_primitive_candidates", []))
+        literature_queries = _str_tuple(row.get("literature_queries", []))
+        lean_queries = _str_tuple(row.get("lean_grounding_queries", []))
+        theorem_statement = str(row.get("theorem_statement", "") or "")
+        desired_shape = _primitive_key(row.get("desired_theorem_shape", ""))
+        complex_shape_markers = {
+            "asymptotic_normality",
+            "central_limit_theorem",
+            "empirical_process",
+            "martingale",
+            "conditional_expectation",
+            "measurability",
+            "integrability",
+            "uniform_convergence",
+            "minimax",
+            "semiparametric",
+        }
+        if desired_shape in complex_shape_markers:
+            reasons.append(f"complex target theorem shape: {desired_shape}")
+        if len(primitives) > 4:
+            reasons.append(
+                f"target intake has {len(primitives)} primitive candidate(s)"
+            )
+        if len(assumptions) > 4:
+            reasons.append(
+                f"target intake has {len(assumptions)} normalized assumption(s)"
+            )
+        if len(objects) > 6:
+            reasons.append(f"target intake has {len(objects)} normalized object(s)")
+        if len(literature_queries) > 6:
+            reasons.append(
+                f"target intake has {len(literature_queries)} literature query(s)"
+            )
+        if len(lean_queries) > 8:
+            reasons.append(
+                f"target intake has {len(lean_queries)} Lean grounding query(s)"
+            )
+        if len(theorem_statement) > 600:
+            reasons.append("long target-intake theorem statement")
+    return list(dict.fromkeys(reasons))
 
 
 def _route_and_primitive_source_refs(route: Mapping[str, Any]) -> tuple[str, ...]:
