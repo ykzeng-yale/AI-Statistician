@@ -105,12 +105,10 @@ def test_standalone_gap_planner_exports_portable_plan_for_external_prover() -> N
     assert payload["n_portable_work_packets"] >= 1
     assert payload["n_route_alignment_edge_schema_valid"] == payload["n_route_alignment_edges"]
     assert payload["n_route_alignment_edge_schema_invalid"] == 0
-    assert payload["n_formal_realization_dag_nodes"] == payload[
-        "n_lean_realization_dag_nodes"
-    ]
-    assert payload["n_formal_realization_dag_edges"] == payload[
-        "n_lean_realization_dag_edges"
-    ]
+    assert payload["n_formal_realization_dag_nodes"] > 0
+    assert payload["n_lean_realization_dag_nodes"] == 0
+    assert payload["n_formal_realization_dag_edges"] > 0
+    assert payload["n_lean_realization_dag_edges"] == 0
     assert payload["n_standalone_input_traces"] == payload["n_goal_plans"]
     assert payload["n_standalone_input_traces_with_replan_metadata"] == 0
     assert payload["n_standalone_input_trace_primitive_source_refs"] == 1
@@ -128,9 +126,8 @@ def test_standalone_gap_planner_exports_portable_plan_for_external_prover() -> N
     assert "unrelated_measure_theory_chapter" in row["do_not_formalize_now"]
     assert row["informal_knowledge_dag_nodes"]
     assert row["formal_realization_dag_nodes"]
-    assert row["lean_realization_dag_nodes"]
-    assert row["formal_realization_dag_nodes"] == row["lean_realization_dag_nodes"]
-    assert row["formal_realization_dag_edges"] == row["lean_realization_dag_edges"]
+    assert row["lean_realization_dag_nodes"] == []
+    assert row["lean_realization_dag_edges"] == []
     assert row["route_alignment_edges"]
     assert row["standalone_input_trace"]["trace_kind"] == "standalone_input_route_trace"
     assert row["standalone_input_trace"]["source_route_id"] == row["route_id"]
@@ -417,7 +414,12 @@ def test_standalone_gap_planner_preserves_candidate_declaration_rows_into_covera
     payload = export_formalization_gap_planner_standalone_plan(input_json, out_dir)
 
     assert payload["all_ok"]
+    assert payload["n_lean_realization_dag_nodes"] == payload[
+        "n_formal_realization_dag_nodes"
+    ]
     row = payload["rows"][0]
+    assert row["lean_realization_dag_nodes"] == row["formal_realization_dag_nodes"]
+    assert row["lean_realization_dag_edges"] == row["formal_realization_dag_edges"]
     reuse_node = row["existing_reuse_nodes"][0]
     assert reuse_node["candidate_declaration_rows"] == [declaration_row]
     assert reuse_node["candidate_declarations"] == ["Probability.exchangeable"]

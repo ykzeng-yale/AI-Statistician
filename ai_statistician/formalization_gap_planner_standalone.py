@@ -120,7 +120,13 @@ def export_formalization_gap_planner_standalone_plan(
     n_route_alignment_edge_schema_invalid = (
         len(route_alignment_edge_schema_errors) - n_route_alignment_edge_schema_valid
     )
-    row_dicts = [_portable_row_with_formal_aliases(asdict(row)) for row in rows]
+    row_dicts = [
+        _portable_row_with_formal_aliases(
+            asdict(row),
+            target_prover_family=str(row.target_prover_family or target_prover_family),
+        )
+        for row in rows
+    ]
     goal_plan_row_schema = portable_gap_plan_row_json_schema()
     goal_plan_row_schema_errors = [
         validate_portable_gap_plan_row(
@@ -199,16 +205,20 @@ def export_formalization_gap_planner_standalone_plan(
             _graph_count(row.informal_knowledge_dag, "edges") for row in rows
         ),
         "n_lean_realization_dag_nodes": sum(
-            _graph_count(row.lean_realization_dag, "nodes") for row in rows
+            len(_dict_list(row.get("lean_realization_dag_nodes", [])))
+            for row in row_dicts
         ),
         "n_lean_realization_dag_edges": sum(
-            _graph_count(row.lean_realization_dag, "edges") for row in rows
+            len(_dict_list(row.get("lean_realization_dag_edges", [])))
+            for row in row_dicts
         ),
         "n_formal_realization_dag_nodes": sum(
-            _graph_count(row.lean_realization_dag, "nodes") for row in rows
+            len(_dict_list(row.get("formal_realization_dag_nodes", [])))
+            for row in row_dicts
         ),
         "n_formal_realization_dag_edges": sum(
-            _graph_count(row.lean_realization_dag, "edges") for row in rows
+            len(_dict_list(row.get("formal_realization_dag_edges", [])))
+            for row in row_dicts
         ),
         "n_route_alignment_edges": sum(len(row.route_alignment_edges) for row in rows),
         "n_standalone_input_traces": sum(
@@ -879,7 +889,12 @@ def _standalone_input_trace(
     revised_lean_nodes = _dict_list(
         raw_route.get(
             "revised_lean_realization_dag_nodes",
-            metadata.get("revised_lean_realization_dag_nodes", revised_formal_nodes),
+            metadata.get(
+                "revised_lean_realization_dag_nodes",
+                revised_formal_nodes
+                if _is_lean_target_prover(target_prover_family)
+                else [],
+            ),
         )
     )
     revised_alignment_edges = _dict_list(
@@ -1300,24 +1315,36 @@ def _target_prover_family(payload: dict[str, Any]) -> str:
     return value or TARGET_PROVER_FAMILY
 
 
-def _portable_row_with_formal_aliases(row: dict[str, Any]) -> dict[str, Any]:
+def _portable_row_with_formal_aliases(
+    row: dict[str, Any],
+    *,
+    target_prover_family: str,
+) -> dict[str, Any]:
     legacy_nodes = list(row.get("lean_realization_dag_nodes", []))
     formal_nodes = row.get("formal_realization_dag_nodes")
     row["formal_realization_dag_nodes"] = (
         list(formal_nodes) if isinstance(formal_nodes, list) else legacy_nodes
-    )
-    row["lean_realization_dag_nodes"] = legacy_nodes or list(
-        row["formal_realization_dag_nodes"]
     )
     legacy_edges = list(row.get("lean_realization_dag_edges", []))
     formal_edges = row.get("formal_realization_dag_edges")
     row["formal_realization_dag_edges"] = (
         list(formal_edges) if isinstance(formal_edges, list) else legacy_edges
     )
-    row["lean_realization_dag_edges"] = legacy_edges or list(
-        row["formal_realization_dag_edges"]
-    )
+    if _is_lean_target_prover(target_prover_family):
+        row["lean_realization_dag_nodes"] = legacy_nodes or list(
+            row["formal_realization_dag_nodes"]
+        )
+        row["lean_realization_dag_edges"] = legacy_edges or list(
+            row["formal_realization_dag_edges"]
+        )
+    else:
+        row["lean_realization_dag_nodes"] = []
+        row["lean_realization_dag_edges"] = []
     return row
+
+
+def _is_lean_target_prover(target_prover_family: str) -> bool:
+    return _normalize_status(target_prover_family) in {"lean", "lean4", "lean_4"}
 
 
 def _normalize_status(value: str) -> str:
