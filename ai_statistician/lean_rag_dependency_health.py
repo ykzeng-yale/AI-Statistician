@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from .lean_rag_dependency import LeanRagDependencyRetriever
+from .formal_source_index import _auto_lean_rag_db_candidates
 
 
 LEAN_RAG_DEPENDENCY_HEALTH_SCHEMA_VERSION = 1
@@ -26,7 +27,15 @@ def audit_lean_rag_dependency_health(
     """
 
     requested = Path(requested_db_path).expanduser() if requested_db_path else None
-    active = Path(active_db_path).expanduser() if active_db_path else None
+    active = (
+        Path(active_db_path).expanduser()
+        if active_db_path
+        else _auto_discovered_active_db()
+        if requested is None and auto_discovered
+        else None
+    )
+    if requested is None and active is not None and auto_discovered:
+        requested = active
     requested_health = _health_for_path(requested)
     active_health = _health_for_path(active) if active is not None else {}
     requested_healthy = bool(requested_health.get("all_ok", False))
@@ -76,6 +85,14 @@ def audit_lean_rag_dependency_health(
         encoding="utf-8",
     )
     return payload
+
+
+def _auto_discovered_active_db() -> Path | None:
+    for candidate in _auto_lean_rag_db_candidates():
+        health = _health_for_path(candidate)
+        if health.get("all_ok", False):
+            return candidate
+    return None
 
 
 def _health_for_path(path: Path | None) -> dict[str, object]:

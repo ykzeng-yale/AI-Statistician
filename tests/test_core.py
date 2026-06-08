@@ -1236,6 +1236,29 @@ Apply a central limit theorem to the centered score and use Slutsky's theorem.
             Path(getattr(backend_with_auto_deps, "lean_rag_dependency_graph_path")).name,
             "stat_inference.sqlite",
         )
+        with patch(
+            "ai_statistician.formal_source_index.DEFAULT_LEAN_RAG_DB_CANDIDATES",
+            (lean_rag_db,),
+        ):
+            auto_health_payload = audit_lean_rag_dependency_health(
+                Path("runs/test_auto_lean_rag_dependency_health"),
+                auto_discovered=True,
+            )
+        self.assertEqual(auto_health_payload["health_status"], "active_healthy")
+        self.assertTrue(auto_health_payload["active_enabled"])
+        self.assertEqual(Path(auto_health_payload["active_db_path"]).name, "stat_inference.sqlite")
+        self.assertEqual(Path(auto_health_payload["requested_db_path"]).name, "stat_inference.sqlite")
+        with patch(
+            "ai_statistician.formal_source_index.DEFAULT_LEAN_RAG_DB_CANDIDATES",
+            (lean_rag_db,),
+        ):
+            no_auto_health_payload = audit_lean_rag_dependency_health(
+                Path("runs/test_no_auto_lean_rag_dependency_health"),
+                auto_discovered=False,
+            )
+        self.assertEqual(no_auto_health_payload["health_status"], "not_configured")
+        self.assertFalse(no_auto_health_payload["active_enabled"])
+        self.assertEqual(no_auto_health_payload["active_db_path"], "")
         ancestor_workspace = Path("runs/test_lean_rag_ancestor_workspace")
         ancestor_db = (
             ancestor_workspace

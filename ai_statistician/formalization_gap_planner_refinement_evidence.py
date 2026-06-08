@@ -589,11 +589,19 @@ def _evidence_row(
         source_snippets = _source_snippets_from_route_evidence_nodes(
             route_evidence_nodes
         )
+    target_prover_family = str(
+        response.get(
+            "target_prover_family",
+            queue_row.get("target_prover_family", ""),
+        )
+    )
     formal_declaration_hits = _dict_tuple(
         response.get("formal_declaration_hits", response.get("lean_declaration_hits", []))
     )
-    lean_declaration_hits = _dict_tuple(
-        response.get("lean_declaration_hits", formal_declaration_hits)
+    lean_declaration_hits = _lean_alias_rows_for_target(
+        target_prover_family,
+        _dict_tuple(response.get("lean_declaration_hits", [])),
+        fallback_rows=formal_declaration_hits,
     )
     coverage_updates = _coverage_updates(response.get("coverage_updates", {}), errors)
     prover_diagnostics = _str_tuple(response.get("prover_diagnostics", []))
@@ -603,12 +611,6 @@ def _evidence_row(
         response.get(
             "prover_attempt_class",
             _prover_attempt_class(prover_attempt_status),
-        )
-    )
-    target_prover_family = str(
-        response.get(
-            "target_prover_family",
-            queue_row.get("target_prover_family", ""),
         )
     )
     route_revision_summary = str(response.get("route_revision_summary", ""))
@@ -625,8 +627,10 @@ def _evidence_row(
             response.get("revised_lean_realization_dag_nodes", []),
         )
     )
-    revised_lean_nodes = _dict_tuple(
-        response.get("revised_lean_realization_dag_nodes", revised_formal_nodes)
+    revised_lean_nodes = _lean_alias_rows_for_target(
+        target_prover_family,
+        _dict_tuple(response.get("revised_lean_realization_dag_nodes", [])),
+        fallback_rows=revised_formal_nodes,
     )
     route_revision_recommended = bool(response.get("route_revision_recommended", False))
     route_revision_reasons = _str_tuple(response.get("route_revision_reasons", []))
@@ -641,6 +645,18 @@ def _evidence_row(
         bool,
     ):
         errors.append("route_revision_recommended must be boolean")
+    if not _is_lean_target_prover(target_prover_family):
+        if _dict_tuple(response.get("lean_declaration_hits", [])):
+            errors.append(
+                "lean_declaration_hits is a Lean-only legacy alias; non-Lean "
+                "target prover responses must use formal_declaration_hits only"
+            )
+        if _dict_tuple(response.get("revised_lean_realization_dag_nodes", [])):
+            errors.append(
+                "revised_lean_realization_dag_nodes is a Lean-only legacy alias; "
+                "non-Lean target prover responses must use "
+                "revised_formal_realization_dag_nodes only"
+            )
 
     if hook_kind == "literature_discovery":
         if not source_refs:
@@ -782,6 +798,30 @@ def _expected_evidence_kinds(hook_kind: str) -> tuple[str, ...]:
 
 def _is_formal_library_grounding_hook(hook_kind: str) -> bool:
     return hook_kind in {"formal_library_grounding", "lean_library_grounding"}
+
+
+def _lean_alias_rows_for_target(
+    target_prover_family: str,
+    rows: tuple[dict[str, object], ...],
+    *,
+    fallback_rows: tuple[dict[str, object], ...] = (),
+) -> tuple[dict[str, object], ...]:
+    if not _is_lean_target_prover(target_prover_family):
+        return tuple()
+    return rows or fallback_rows
+
+
+def _is_lean_target_prover(target_prover_family: str) -> bool:
+    key = re.sub(
+        r"[^a-z0-9]+",
+        "_",
+        str(target_prover_family).strip().lower(),
+    ).strip("_")
+    if not key:
+        return True
+    return key in {"lean", "lean4", "lean_4"} or key.startswith(
+        ("lean4_", "lean_4_", "lean_")
+    )
 
 
 def _match_responses_to_queue_rows(
