@@ -4176,11 +4176,29 @@ async def run_research_system_audit(
             "formalization_gap_planner_local_proof_state_responses": formalization_gap_planner_local_proof_state_adapter_manifest[
                 "n_local_proof_state_responses"
             ],
+            "formalization_gap_planner_local_proof_state_target_prover_scaffold_accepted": formalization_gap_planner_local_proof_state_adapter_manifest[
+                "n_target_prover_scaffold_accepted"
+            ],
+            "formalization_gap_planner_local_proof_state_target_prover_failed": formalization_gap_planner_local_proof_state_adapter_manifest[
+                "n_target_prover_failed"
+            ],
+            "formalization_gap_planner_local_proof_state_target_prover_unavailable": formalization_gap_planner_local_proof_state_adapter_manifest[
+                "n_target_prover_unavailable"
+            ],
+            "formalization_gap_planner_local_proof_state_non_target_prover_skeleton": formalization_gap_planner_local_proof_state_adapter_manifest[
+                "n_non_target_prover_skeleton"
+            ],
             "formalization_gap_planner_local_proof_state_unavailable": formalization_gap_planner_local_proof_state_adapter_manifest[
                 "n_local_lean_unavailable"
             ],
+            "formalization_gap_planner_local_proof_state_placeholder_blocked": formalization_gap_planner_local_proof_state_adapter_manifest[
+                "n_placeholder_blocked"
+            ],
             "formalization_gap_planner_local_proof_state_formal_gap_scaffold_blocked": formalization_gap_planner_local_proof_state_adapter_manifest[
                 "n_formal_gap_scaffold_blocked"
+            ],
+            "formalization_gap_planner_local_proof_state_missing_skeleton": formalization_gap_planner_local_proof_state_adapter_manifest[
+                "n_missing_skeleton"
             ],
             "formalization_gap_planner_local_proof_state_merged_responses": formalization_gap_planner_local_proof_state_adapter_manifest[
                 "n_merged_responses"

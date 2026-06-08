@@ -1290,6 +1290,19 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert payload["n_local_formal_source_legacy_lean_grounding_rows"] == 0
     assert payload["n_local_proof_state_responses"] > 0
     assert (
+        payload["n_local_proof_state_target_prover_scaffold_accepted"]
+        + payload["n_local_proof_state_target_prover_failed"]
+        + payload["n_local_proof_state_target_prover_unavailable"]
+        + payload["n_local_proof_state_non_target_prover_skeleton"]
+        + payload["n_local_proof_state_placeholder_blocked"]
+        + payload["n_local_proof_state_formal_gap_scaffold_blocked"]
+        + payload["n_local_proof_state_missing_skeleton"]
+        == payload["n_local_proof_state_responses"]
+    )
+    assert payload["n_local_proof_state_target_prover_unavailable"] == payload[
+        "n_local_proof_state_unavailable"
+    ]
+    assert (
         payload["n_local_literature_response_schema_valid"]
         == payload["n_local_literature_responses"]
     )
@@ -1471,6 +1484,9 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     refinement_evidence_summary = stage_by_name[
         "formalization_gap_planner_refinement_evidence"
     ]["summary"]
+    local_proof_state_summary = stage_by_name[
+        "formalization_gap_planner_local_proof_state_adapter"
+    ]["summary"]
     interactive_summary = stage_by_name["formalization_gap_planner_interactive_session"][
         "summary"
     ]
@@ -1500,6 +1516,18 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     ]
     assert refinement_evidence_summary["n_lean_grounding_evidence"] == payload[
         "n_refinement_evidence_lean_grounding"
+    ]
+    assert local_proof_state_summary["n_target_prover_failed"] == payload[
+        "n_local_proof_state_target_prover_failed"
+    ]
+    assert local_proof_state_summary["n_target_prover_unavailable"] == payload[
+        "n_local_proof_state_target_prover_unavailable"
+    ]
+    assert local_proof_state_summary["n_non_target_prover_skeleton"] == payload[
+        "n_local_proof_state_non_target_prover_skeleton"
+    ]
+    assert local_proof_state_summary["n_local_lean_unavailable"] == payload[
+        "n_local_proof_state_unavailable"
     ]
     assert interactive_summary["n_run_formal_grounding"] == payload[
         "n_interactive_session_run_formal_grounding"

@@ -532,9 +532,15 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_proof_state_feedback_rows",
         "lean_command_available",
         "n_local_proof_state_responses",
+        "n_target_prover_scaffold_accepted",
+        "n_target_prover_failed",
+        "n_target_prover_unavailable",
+        "n_non_target_prover_skeleton",
         "n_local_lean_unavailable",
+        "n_placeholder_blocked",
         "n_formal_gap_scaffold_blocked",
         "n_non_lean_skeleton",
+        "n_missing_skeleton",
         "n_merged_responses",
         "n_local_response_schema_valid",
         "n_local_response_schema_invalid",
@@ -3541,9 +3547,30 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_local_proof_state_responses",
             0,
         ),
+        "n_local_proof_state_target_prover_scaffold_accepted": (
+            local_proof_state_adapter_payload.get("n_target_prover_scaffold_accepted", 0)
+        ),
+        "n_local_proof_state_target_prover_failed": (
+            local_proof_state_adapter_payload.get("n_target_prover_failed", 0)
+        ),
+        "n_local_proof_state_target_prover_unavailable": (
+            local_proof_state_adapter_payload.get("n_target_prover_unavailable", 0)
+        ),
+        "n_local_proof_state_non_target_prover_skeleton": (
+            local_proof_state_adapter_payload.get("n_non_target_prover_skeleton", 0)
+        ),
         "n_local_proof_state_unavailable": local_proof_state_adapter_payload.get(
             "n_local_lean_unavailable",
             0,
+        ),
+        "n_local_proof_state_placeholder_blocked": (
+            local_proof_state_adapter_payload.get("n_placeholder_blocked", 0)
+        ),
+        "n_local_proof_state_formal_gap_scaffold_blocked": (
+            local_proof_state_adapter_payload.get("n_formal_gap_scaffold_blocked", 0)
+        ),
+        "n_local_proof_state_missing_skeleton": (
+            local_proof_state_adapter_payload.get("n_missing_skeleton", 0)
         ),
         "n_local_adapter_merged_responses": local_proof_state_adapter_payload.get(
             "n_merged_responses",

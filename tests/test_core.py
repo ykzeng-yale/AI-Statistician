@@ -20382,6 +20382,36 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             payload["counts"]["formalization_gap_planner_refinement_queue_proof_feedback"],
         )
         self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_local_proof_state_target_prover_scaffold_accepted"
+            ]
+            + payload["counts"][
+                "formalization_gap_planner_local_proof_state_target_prover_failed"
+            ]
+            + payload["counts"][
+                "formalization_gap_planner_local_proof_state_target_prover_unavailable"
+            ]
+            + payload["counts"][
+                "formalization_gap_planner_local_proof_state_non_target_prover_skeleton"
+            ]
+            + payload["counts"][
+                "formalization_gap_planner_local_proof_state_placeholder_blocked"
+            ]
+            + payload["counts"][
+                "formalization_gap_planner_local_proof_state_formal_gap_scaffold_blocked"
+            ]
+            + payload["counts"][
+                "formalization_gap_planner_local_proof_state_missing_skeleton"
+            ],
+            payload["counts"]["formalization_gap_planner_local_proof_state_responses"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_local_proof_state_target_prover_unavailable"
+            ],
+            payload["counts"]["formalization_gap_planner_local_proof_state_unavailable"],
+        )
+        self.assertEqual(
             payload["counts"]["formalization_gap_planner_local_literature_merged_responses"],
             payload["counts"]["formalization_gap_planner_refinement_queue_items"],
         )
