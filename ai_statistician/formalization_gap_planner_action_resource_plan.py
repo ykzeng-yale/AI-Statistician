@@ -571,6 +571,17 @@ def _action_resource_plan_row(
         for row in execution_plan_rows
         for adapter_id in _str_tuple(row.get("adapter_ids", []))
     )
+    target_prover_family = str(action_row.get("target_prover_family", ""))
+    local_first_resource_ids = _target_compatible_resource_ids(
+        local_first_resource_ids,
+        resource_index,
+        target_prover_family=target_prover_family,
+    )
+    frontier_escalation_resource_ids = _target_compatible_resource_ids(
+        frontier_escalation_resource_ids,
+        resource_index,
+        target_prover_family=target_prover_family,
+    )
     selected_resource_ids = _unique(
         (*local_first_resource_ids, *frontier_escalation_resource_ids)
     )
@@ -676,8 +687,9 @@ def _action_resource_plan_row(
     execution_commands = _unique(action_row.get("execution_commands", []))
     resource_selection_reason = (
         f"{action_kind} uses planner components {', '.join(component_ids)}; "
-        "each component contributes local-first resources, frontier escalation "
-        "resources, adapter ids, and resource contracts from the public registry"
+        "component resources are filtered by the row target_prover_family before "
+        "local-first resources, frontier escalation resources, adapter ids, and "
+        "resource contracts are selected from the public registry"
     )
     primitive_action_id = str(action_row.get("primitive_action_id", ""))
     return FormalizationGapPlannerActionResourcePlanRow(
@@ -700,7 +712,7 @@ def _action_resource_plan_row(
         primitive=str(action_row.get("primitive", "")),
         coverage_bucket=str(action_row.get("coverage_bucket", "")),
         queue_action_kind=action_kind,
-        target_prover_family=str(action_row.get("target_prover_family", "")),
+        target_prover_family=target_prover_family,
         library_snapshot_ref=str(action_row.get("library_snapshot_ref", "")),
         candidate_declaration_rows=_candidate_declaration_rows(action_row),
         component_ids=component_ids,
@@ -726,6 +738,38 @@ def _action_resource_plan_row(
         ok=bool(action_row.get("ok", False)) and not row_errors,
         errors=tuple(row_errors),
     )
+
+
+def _target_compatible_resource_ids(
+    resource_ids: tuple[str, ...],
+    resource_index: dict[str, dict[str, Any]],
+    *,
+    target_prover_family: str,
+) -> tuple[str, ...]:
+    return _unique(
+        resource_id
+        for resource_id in resource_ids
+        if _resource_supports_target(
+            resource_index.get(resource_id, {}),
+            target_prover_family=target_prover_family,
+        )
+    )
+
+
+def _resource_supports_target(
+    resource_row: dict[str, Any],
+    *,
+    target_prover_family: str,
+) -> bool:
+    target_key = _target_prover_key(target_prover_family)
+    if not target_key:
+        return True
+    supported_targets = _str_tuple(resource_row.get("target_prover_families", []))
+    if not supported_targets:
+        return True
+    supported_keys = {_target_prover_key(target) for target in supported_targets}
+    supported_keys.discard("")
+    return not supported_keys or target_key in supported_keys
 
 
 def _schema_property_errors(

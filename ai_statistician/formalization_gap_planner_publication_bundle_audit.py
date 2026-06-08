@@ -9134,10 +9134,10 @@ def _resource_request_adapter_surface(resource_id: str, phase: str) -> str:
         return "leansearch_api"
     if "leanexplore" in resource:
         return "leanexplore_mcp"
-    if "lsp" in resource:
-        return "target_prover_lsp_mcp"
     if "serapi" in resource:
         return "rocq_serapi"
+    if "lsp" in resource:
+        return "target_prover_lsp_mcp"
     if "sledgehammer" in resource:
         return "isabelle_sledgehammer"
     if "agda" in resource:

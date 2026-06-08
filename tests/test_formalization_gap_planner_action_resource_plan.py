@@ -280,6 +280,91 @@ def test_action_resource_plan_reports_mixed_targets_from_rows() -> None:
     assert rows_by_route["rocq_rank_route"]["target_prover_family"] == "rocq"
 
 
+def test_action_resource_plan_filters_target_specific_resources_for_rocq_bridge() -> None:
+    root = Path("runs/test_formalization_gap_planner_action_resource_plan_rocq")
+    input_json = root / "standalone_input.json"
+    plan_dir = root / "plan"
+    coverage_dir = root / "coverage"
+    action_queue_dir = root / "action_queue"
+    component_resource_registry_dir = root / "component_resource_registry"
+    action_resource_plan_dir = root / "action_resource_plan"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "component_name": "formalization_gap_planner_standalone_input",
+                "target_prover_family": "rocq",
+                "library_snapshot_ref": "rocq_conformal_snapshot",
+                "routes": [
+                    {
+                        "route_id": "rocq_rank_route",
+                        "display_name": "rocq_rank_route",
+                        "theorem_statement": "A Rocq rank route.",
+                        "primitives": [
+                            {
+                                "primitive": "rank_uniformity",
+                                "coverage_status": "bridge_needed",
+                                "expected_premises": ["exchangeability"],
+                            }
+                        ],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    export_formalization_gap_planner_standalone_plan(input_json, plan_dir)
+    export_formalization_gap_planner_library_coverage_map(plan_dir, coverage_dir)
+    export_formalization_gap_planner_primitive_action_queue(
+        coverage_dir,
+        action_queue_dir,
+    )
+    export_formalization_gap_planner_component_resource_registry(
+        component_resource_registry_dir
+    )
+
+    payload = export_formalization_gap_planner_action_resource_plan(
+        action_queue_dir,
+        component_resource_registry_dir,
+        action_resource_plan_dir,
+    )
+
+    assert payload["all_ok"]
+    row = payload["rows"][0]
+    assert row["target_prover_family"] == "rocq"
+    assert "local_target_formal_source_index" in row["local_first_resource_ids"]
+    assert "rocq_lsp_serapi" in row["frontier_escalation_resource_ids"]
+    lean_only_resources = {
+        "local_formal_source_index",
+        "local_lean_rag_dependency_graph",
+        "loogle_leansearch",
+        "leanexplore_mcp",
+        "lean_blueprint_leanarchitect",
+        "local_lake_lean",
+        "lean_lsp_mcp",
+        "leandojo_reprover",
+    }
+    selected_resources = set(row["local_first_resource_ids"]) | set(
+        row["frontier_escalation_resource_ids"]
+    )
+    assert not selected_resources.intersection(lean_only_resources)
+    assert "formal_declaration_hits" in row["response_contract_fields_by_resource"][
+        "local_target_formal_source_index"
+    ]
+    assert "lean_declaration_hits" not in row["response_contract_fields_by_resource"][
+        "local_target_formal_source_index"
+    ]
+    assert "prover_diagnostics" in row["response_contract_fields_by_resource"][
+        "rocq_lsp_serapi"
+    ]
+    assert "target_prover_family" in row["request_contract_fields_by_resource"][
+        "rocq_lsp_serapi"
+    ]
+
+
 def test_action_resource_plan_marks_missing_registry_as_blocker() -> None:
     root = Path("runs/test_formalization_gap_planner_action_resource_plan_rejects")
     input_json = root / "standalone_input.json"

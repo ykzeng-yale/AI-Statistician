@@ -1004,10 +1004,10 @@ def _adapter_surface(resource_id: str, phase: str) -> str:
         return "leansearch_api"
     if "leanexplore" in resource:
         return "leanexplore_mcp"
-    if "lsp" in resource:
-        return "target_prover_lsp_mcp"
     if "serapi" in resource:
         return "rocq_serapi"
+    if "lsp" in resource:
+        return "target_prover_lsp_mcp"
     if "sledgehammer" in resource:
         return "isabelle_sledgehammer"
     if "agda" in resource:
@@ -1082,12 +1082,12 @@ def _mcp_or_cli_hint(resource_id: str, phase: str) -> str:
             return "Loogle/LeanSearch query adapter"
         if "leanexplore" in resource:
             return "LeanExplore MCP adapter"
+        if "serapi" in resource:
+            return "Rocq SerAPI/LSP adapter"
         if "lsp" in resource:
             return "target-prover LSP MCP adapter"
         if "reprover" in resource:
             return "ReProver or LeanDojo prover-feedback adapter"
-        if "serapi" in resource:
-            return "Rocq SerAPI/LSP adapter"
         if "sledgehammer" in resource:
             return "Isabelle/Sledgehammer adapter"
         if "agda" in resource:

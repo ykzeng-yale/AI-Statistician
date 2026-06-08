@@ -108,7 +108,20 @@ def test_component_resource_registry_covers_planner_components_and_frontier_tool
     assert "target_intake_schema" in resource_ids
     assert "target_intake_row_schema" in resource_ids
     assert "portable_gap_plan_row_schema" in resource_ids
+    assert "local_target_formal_source_index" in resource_ids
     by_resource = {row["resource_id"]: row for row in payload["resource_rows"]}
+    assert by_resource["local_target_formal_source_index"]["target_prover_families"] == (
+        "lean4",
+        "rocq",
+        "isabelle",
+        "agda",
+    )
+    assert "lean_declaration_hits" not in by_resource[
+        "local_target_formal_source_index"
+    ]["evidence_contract"]
+    assert by_resource["lean_blueprint_leanarchitect"]["target_prover_families"] == (
+        "lean4",
+    )
     assert "literature_source_grounding" in by_resource["paperclip_cli_mcp"][
         "capability_tags"
     ]
@@ -136,6 +149,9 @@ def test_component_resource_registry_covers_planner_components_and_frontier_tool
     assert "leanexplore_mcp" in by_component["formal_library_coverage_mapping"][
         "frontier_resource_ids"
     ]
+    assert "local_target_formal_source_index" in by_component[
+        "formal_library_coverage_mapping"
+    ]["local_fallback_resource_ids"]
     assert "formal_coverage_classification_recorded" in by_component[
         "formal_library_coverage_mapping"
     ]["required_quality_signals"]

@@ -116,6 +116,10 @@ from ai_statistician.formalization_gap_planner_publication_bundle import (
     schema_catalog_json_schema,
     validate_schema_catalog_payload,
 )
+from ai_statistician.formalization_gap_planner_publication_bundle_audit import (
+    PROOF_EVIDENCE_BOUNDARY_RESOURCE_REQUEST,
+    _resource_request_dispatch_spec_errors,
+)
 from ai_statistician.formalization_gap_planner_target_intake import (
     target_intake_row_json_schema,
 )
@@ -3057,3 +3061,30 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         / "formalization_gap_planner_component_resource_registry_audit"
         / "formalization_gap_planner_component_resource_registry_audit_manifest.json"
     ).exists()
+
+
+def test_publication_bundle_audit_accepts_rocq_serapi_dispatch_surface() -> None:
+    dispatch_spec = {
+        "adapter_surface": "rocq_serapi",
+        "dispatch_kind": "frontier_mcp_or_cli",
+        "execution_command": "dispatch rocq proof-state request through rocq_lsp_serapi",
+        "expected_response_artifact": "proof_state_or_prover_feedback_response",
+        "mcp_or_cli_hint": "Rocq SerAPI/LSP adapter",
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY_RESOURCE_REQUEST,
+        "request_phase": "frontier_escalation",
+        "resource_id": "rocq_lsp_serapi",
+        "response_jsonl_contract": "formalization_gap_planner_resource_responses.jsonl",
+        "target_prover_family": "rocq",
+    }
+    row = {
+        "dispatch_spec": dispatch_spec,
+        "execution_command": dispatch_spec["execution_command"],
+        "expected_response_artifact": dispatch_spec["expected_response_artifact"],
+        "mcp_or_cli_hint": dispatch_spec["mcp_or_cli_hint"],
+        "request_payload": {"dispatch_spec": dispatch_spec},
+        "request_phase": dispatch_spec["request_phase"],
+        "resource_id": dispatch_spec["resource_id"],
+        "target_prover_family": dispatch_spec["target_prover_family"],
+    }
+
+    assert _resource_request_dispatch_spec_errors(row) == ()
