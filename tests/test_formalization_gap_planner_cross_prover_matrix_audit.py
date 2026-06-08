@@ -90,6 +90,11 @@ def test_cross_prover_matrix_audit_exports_all_reuse_targets() -> None:
     )
     assert payload["n_total_packets_missing_standalone_input_trace"] == 0
     assert payload["n_total_packets_with_replan_metadata_trace"] == 0
+    assert payload["n_total_packets_with_llm_route_adoption_status"] == 0
+    assert payload["n_total_packets_llm_route_adoption_ready"] == 0
+    assert payload["n_total_packets_llm_route_adoption_pending_refinement"] == 0
+    assert payload["n_total_packet_llm_route_adoption_blockers"] == 0
+    assert payload["by_total_packet_llm_route_adoption_status"] == {}
     assert payload["n_awaiting_adapter_mapping"] == payload["n_total_packets"]
     assert payload["n_unmatched_adapter_responses"] == 0
     assert payload["n_rejected"] == 0
@@ -106,6 +111,13 @@ def test_cross_prover_matrix_audit_exports_all_reuse_targets() -> None:
         == 0
     )
     assert payload["target_summary"]["n_unmatched_adapter_responses"] == 0
+    assert (
+        payload["target_summary"]["n_total_packets_with_llm_route_adoption_status"]
+        == 0
+    )
+    assert payload["target_summary"][
+        "by_total_packet_llm_route_adoption_status"
+    ] == {}
     assert all(
         row["n_packets_with_alignment"] == row["n_packets"]
         and row["n_packet_schema_valid"] == row["n_packets"]
@@ -113,6 +125,8 @@ def test_cross_prover_matrix_audit_exports_all_reuse_targets() -> None:
         and row["n_packets_missing_alignment"] == 0
         and row["n_packets_with_standalone_input_trace"] == row["n_packets"]
         and row["n_packets_missing_standalone_input_trace"] == 0
+        and row["n_packets_with_llm_route_adoption_status"] == 0
+        and row["n_packet_llm_route_adoption_blockers"] == 0
         and row["n_unmatched_adapter_responses"] == 0
         for row in payload["matrix_rows"]
     )

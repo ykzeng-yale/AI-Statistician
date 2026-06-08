@@ -299,10 +299,24 @@ def _fixture_prover_adapter_packet() -> dict[str, object]:
             "target_prover_family": "rocq",
             "target_library_snapshot_ref": "rocq_fixture",
             "trace_target_projection": "target_prover_adapter_contract",
+            "llm_route_planner_route_adoption_status": (
+                "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+            ),
+            "llm_route_planner_route_adoption_blockers": [
+                "search_requests_pending_evidence",
+                "uncertainty_flags_require_review",
+            ],
             "has_replan_metadata": True,
             "replan_metadata": {"revision_reason": "fixture route revision"},
             "applied_hook_kinds": ["resource_response_ledger"],
         },
+        "llm_route_planner_route_adoption_status": (
+            "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+        ),
+        "llm_route_planner_route_adoption_blockers": [
+            "search_requests_pending_evidence",
+            "uncertainty_flags_require_review",
+        ],
         "route_alignment_edge": {
             "source": "informal:rank_uniformity",
             "target": "formal:rank_uniformity",
@@ -391,6 +405,15 @@ def _fixture_cross_prover_matrix_row(
         "n_packets_with_standalone_input_trace": 1,
         "n_packets_missing_standalone_input_trace": 0,
         "n_packets_with_replan_metadata_trace": 1,
+        "n_packets_with_llm_route_adoption_status": 1,
+        "n_packets_llm_route_adoption_ready": 0,
+        "n_packets_llm_route_adoption_pending_refinement": 1,
+        "n_packets_llm_route_adoption_rejected": 0,
+        "n_packets_llm_route_adoption_awaiting_response": 0,
+        "n_packet_llm_route_adoption_blockers": 2,
+        "by_packet_llm_route_adoption_status": {
+            "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
+        },
         "n_response_present": 0,
         "n_awaiting_adapter_mapping": 1,
         "n_response_contract_ok": 0,
@@ -420,6 +443,15 @@ def _fixture_cross_prover_target_summary(
         "n_total_packets_with_standalone_input_trace": 1,
         "n_total_packets_missing_standalone_input_trace": 0,
         "n_total_packets_with_replan_metadata_trace": 1,
+        "n_total_packets_with_llm_route_adoption_status": 1,
+        "n_total_packets_llm_route_adoption_ready": 0,
+        "n_total_packets_llm_route_adoption_pending_refinement": 1,
+        "n_total_packets_llm_route_adoption_rejected": 0,
+        "n_total_packets_llm_route_adoption_awaiting_response": 0,
+        "n_total_packet_llm_route_adoption_blockers": 2,
+        "by_total_packet_llm_route_adoption_status": {
+            "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
+        },
         "target_rows": [
             {
                 "target_prover_family": target,
@@ -429,6 +461,15 @@ def _fixture_cross_prover_target_summary(
                 "n_packets_with_standalone_input_trace": 1,
                 "n_packets_missing_standalone_input_trace": 0,
                 "n_packets_with_replan_metadata_trace": 1,
+                "n_packets_with_llm_route_adoption_status": 1,
+                "n_packets_llm_route_adoption_ready": 0,
+                "n_packets_llm_route_adoption_pending_refinement": 1,
+                "n_packets_llm_route_adoption_rejected": 0,
+                "n_packets_llm_route_adoption_awaiting_response": 0,
+                "n_packet_llm_route_adoption_blockers": 2,
+                "by_packet_llm_route_adoption_status": {
+                    "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
+                },
                 "n_response_validation_rows": 1,
                 "aggregate_packet_jsonl_path": (
                     "formalization_gap_planner_cross_prover_packets.jsonl"
@@ -1436,6 +1477,15 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
                 "n_total_packets_with_standalone_input_trace": 1,
                 "n_total_packets_missing_standalone_input_trace": 0,
                 "n_total_packets_with_replan_metadata_trace": 1,
+                "n_total_packets_with_llm_route_adoption_status": 1,
+                "n_total_packets_llm_route_adoption_ready": 0,
+                "n_total_packets_llm_route_adoption_pending_refinement": 1,
+                "n_total_packets_llm_route_adoption_rejected": 0,
+                "n_total_packets_llm_route_adoption_awaiting_response": 0,
+                "n_total_packet_llm_route_adoption_blockers": 2,
+                "by_total_packet_llm_route_adoption_status": {
+                    "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
+                },
                 "packet_count_consistent": True,
                 "alignment_packet_count_consistent": True,
                 "standalone_input_trace_packet_count_consistent": True,
