@@ -181,7 +181,9 @@ def export_goal_conditioned_minimal_formalization_plan(
         ),
     )[: max(0, max_routes)]
     by_route_class = Counter(row.route_class for row in rows)
-    by_target = Counter(row.target_prover_family for row in rows)
+    by_target = Counter(
+        str(row.target_prover_family or "").strip() or "missing" for row in rows
+    )
     target_prover_family = _manifest_target_prover_family(
         rows,
         source_target_prover_family=source_target_prover_family,
@@ -223,6 +225,9 @@ def export_goal_conditioned_minimal_formalization_plan(
         "portable_schema_version": PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_VERSION,
         "component_name": LIBRARY_AWARE_FORMALIZATION_GAP_PLANNER_NAME,
         "target_prover_family": target_prover_family,
+        "n_target_prover_families": sum(
+            1 for target in by_target if target != "missing"
+        ),
         "by_target_prover_family": dict(sorted(by_target.items())),
         "library_snapshot_ref": _library_snapshot_ref(
             formalization_delta_plan_dir,
@@ -944,9 +949,17 @@ def _manifest_target_prover_family(
     *,
     source_target_prover_family: str,
 ) -> str:
-    targets = sorted({row.target_prover_family for row in rows if row.target_prover_family})
+    targets = sorted(
+        {
+            str(row.target_prover_family or "").strip()
+            for row in rows
+            if str(row.target_prover_family or "").strip()
+        }
+    )
     if len(targets) == 1:
         return targets[0]
+    if len(targets) > 1:
+        return "mixed:" + ",".join(targets)
     return source_target_prover_family or TARGET_PROVER_FAMILY
 
 

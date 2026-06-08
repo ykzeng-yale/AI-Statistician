@@ -1096,7 +1096,10 @@ The current implementation composes four existing AI Statistician artifacts:
    Narrows global missing theory into theorem-specific selected nodes,
    excluded alternatives, portable work packets, the informal knowledge DAG,
    the formal realization DAG, explicit informal-to-realization alignment edges,
-   route revision triggers, and AND/OR route view.
+   route revision triggers, and AND/OR route view. Its manifest reports
+   `n_target_prover_families` and `by_target_prover_family`; when selected
+   routes span prover ecosystems, `target_prover_family` is the
+   `mixed:<targets>` summary while each row keeps its concrete route target.
 
 4. `formalization_gap_planner_target_intake`
    Normalizes a raw theorem request into objects, assumptions, procedure,
