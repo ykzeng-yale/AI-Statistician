@@ -125,7 +125,11 @@ inspection aid for external prover teams. The planner publishes both the
 wrapper response schema and
 `formalization_gap_planner_llm_route_planner_response_payload.schema.json`, so
 external prover teams can validate the exact JSON payload they return before it
-is wrapped into an AI Statistician response row. Evaluation rows preserve the
+is wrapped into an AI Statistician response row. That payload schema is
+structured around informal DAG nodes, formal realization nodes or the legacy
+Lean realization alias, route-alignment edges, the AND/OR minimal-delta cost
+graph, residual interpretations, search requests, planner next actions, source
+snippets, and standalone-route primitives. Evaluation rows preserve the
 LLM route-adoption readiness status and blockers, so an accepted but
 search-pending/refinement-pending Claude route is not reported as ready for
 standalone replay. This is still planning evidence, not proof evidence. The
@@ -1017,8 +1021,9 @@ The current implementation composes four existing AI Statistician artifacts:
    packet, and when request residuals are present every residual must receive
    an interpretation plus a `route_repair` or `repair_action`. It can run in
    prompt-only mode, validate a reviewed/static LLM JSON response, or invoke a
-   configured generator backend. It publishes request, wrapper response, raw
-   response-payload, and row schemas for external validation. Accepted
+   configured generator backend. It publishes request, wrapper response,
+   structured raw response-payload, and row schemas for external validation.
+   Accepted
    responses produce a revised standalone seed with source-grounded informal
    DAG nodes, formal realization nodes, alignment rationales, minimal-delta
    rationale, search requests, and the proof-evidence boundary. The accepted

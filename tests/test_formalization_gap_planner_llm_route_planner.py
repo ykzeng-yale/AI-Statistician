@@ -13,6 +13,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     PROOF_EVIDENCE_BOUNDARY,
     export_formalization_gap_planner_llm_route_planner,
     llm_route_planner_row_json_schema,
+    validate_llm_route_planner_response_payload,
     validate_llm_route_planner_row,
 )
 from ai_statistician.formalization_gap_planner_component_resource_registry import (
@@ -1829,6 +1830,20 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert payload["response_payload_schema"]["$id"] == (
         LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID
     )
+    response_payload_schema = payload["response_payload_schema"]
+    assert response_payload_schema["anyOf"] == [
+        {"required": ["formal_realization_dag_nodes"]},
+        {"required": ["lean_realization_dag_nodes"]},
+    ]
+    assert response_payload_schema["properties"]["minimal_delta_plan"] == {
+        "$ref": "#/$defs/minimal_delta_plan"
+    }
+    minimal_delta_schema = response_payload_schema["$defs"]["minimal_delta_plan"]
+    assert "and_or_cost_graph" in minimal_delta_schema["required"]
+    assert minimal_delta_schema["properties"]["primitive_costs"]["items"] == {
+        "$ref": "#/$defs/primitive_cost"
+    }
+    assert validate_llm_route_planner_response_payload(_llm_response_payload()) == []
     assert payload["row_schema"]["$id"] == LLM_ROUTE_PLANNER_ROW_SCHEMA_ID
     assert (
         out_dir
@@ -2051,6 +2066,42 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert trace["minimal_delta_route_option_count"] == 2
     assert trace["minimal_delta_selected_route_cost"] == 4
     assert plan_row["minimal_cut_summary"]["add_bridge_lemmas"] == ["rank_uniformity"]
+
+
+def test_llm_route_planner_rejects_payload_missing_schema_level_cost_graph() -> None:
+    root = Path("runs/test_formalization_gap_planner_llm_route_planner_payload_schema")
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response = _llm_response_payload()
+    minimal_delta = response["minimal_delta_plan"]
+    assert isinstance(minimal_delta, dict)
+    minimal_delta.pop("and_or_cost_graph")
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    schema_errors = validate_llm_route_planner_response_payload(response)
+    assert (
+        "response_payload.minimal_delta_plan.and_or_cost_graph required"
+        in schema_errors
+    )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_response_schema_invalid"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "response_payload.minimal_delta_plan.and_or_cost_graph required" in error
+        for error in row["errors"]
+    )
 
 
 def test_llm_route_planner_marks_clean_accepted_route_adoption_ready() -> None:
@@ -2571,12 +2622,17 @@ def test_llm_route_planner_invokes_anthropic_generator_backend_without_live_api(
     assert "required_output_contract" in request.user_prompt
     assert request.schema["required"] == [
         "informal_knowledge_dag_nodes",
-        "formal_realization_dag_nodes",
         "route_alignment_edges",
         "minimal_delta_plan",
         "standalone_route",
         "proof_evidence_boundary",
     ]
+    assert request.schema["properties"]["formal_realization_dag_nodes"][
+        "items"
+    ] == {"$ref": "#/$defs/formal_realization_node"}
+    assert request.schema["properties"]["lean_realization_dag_nodes"]["items"] == {
+        "$ref": "#/$defs/formal_realization_node"
+    }
     assert request.metadata["component"] == "formalization_gap_planner_llm_route_planner"
     assert request.metadata["request_id"] == payload["request_packets"][0]["request_id"]
     assert request.metadata["model_tier"] == "sonnet"

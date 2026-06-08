@@ -1107,6 +1107,7 @@ def llm_route_planner_request_json_schema() -> dict[str, object]:
 
 
 def llm_route_planner_response_json_schema() -> dict[str, object]:
+    response_payload_schema = llm_route_planner_response_payload_schema()
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID,
@@ -1119,13 +1120,14 @@ def llm_route_planner_response_json_schema() -> dict[str, object]:
             "route_id": {"type": "string"},
             "provider_name": {"type": "string"},
             "model": {"type": "string"},
-            "response_payload": {"type": "object"},
+            "response_payload": {"$ref": "#/$defs/response_payload"},
             "kernel_verified": {"type": "boolean", "const": False},
             "proof_evidence_boundary": {
                 "type": "string",
                 "pattern": "not theorem proof evidence",
             },
         },
+        "$defs": {"response_payload": response_payload_schema},
     }
 
 
@@ -1319,7 +1321,22 @@ def validate_llm_route_planner_response(
     payload = row.get("response_payload", {})
     if isinstance(payload, Mapping) and bool(payload.get("kernel_verified", False)):
         errors.append("LLM response payload cannot claim kernel_verified=true")
+    if isinstance(payload, Mapping) and not bool(row.get("provider_failure", False)):
+        errors.extend(validate_llm_route_planner_response_payload(payload))
     return sorted(set(errors))
+
+
+def validate_llm_route_planner_response_payload(
+    payload: Mapping[str, object],
+    schema: Mapping[str, object] | None = None,
+) -> list[str]:
+    """Validate the reusable raw LLM route-planner response payload contract."""
+
+    return _validate_with_schema_deep(
+        payload,
+        schema or llm_route_planner_response_payload_schema(),
+        path="response_payload",
+    )
 
 
 def validate_llm_route_planner_row(
@@ -1754,6 +1771,191 @@ def _extract_json_object_or_text(text: str) -> object:
 
 
 def llm_route_planner_response_payload_schema() -> dict[str, object]:
+    string_array = {"type": "array", "items": {"type": "string"}}
+    source_snippet = {
+        "type": "object",
+        "additionalProperties": True,
+        "required": ["source_ref", "excerpt"],
+        "properties": {
+            "source_ref": {"type": "string", "minLength": 1},
+            "source_refs": string_array,
+            "claim": {"type": "string"},
+            "excerpt": {"type": "string", "minLength": 1},
+            "target_primitives": string_array,
+        },
+    }
+    candidate_declaration_row = {
+        "type": "object",
+        "additionalProperties": True,
+        "required": ["declaration", "target_prover_family", "source_field"],
+        "properties": {
+            "declaration": {"type": "string", "minLength": 1},
+            "target_prover_family": {"type": "string", "minLength": 1},
+            "source_field": {"type": "string", "minLength": 1},
+        },
+    }
+    formal_realization_node = {
+        "type": "object",
+        "additionalProperties": True,
+        "required": ["node_id", "primitive", "coverage_bucket", "formalization_action"],
+        "properties": {
+            "node_id": {"type": "string", "minLength": 1},
+            "primitive": {"type": "string", "minLength": 1},
+            "coverage_bucket": {"type": "string", "minLength": 1},
+            "candidate_declarations": string_array,
+            "candidate_declaration_rows": {
+                "type": "array",
+                "items": {"$ref": "#/$defs/candidate_declaration_row"},
+            },
+            "formalization_action": {"type": "string", "minLength": 1},
+            "target_prover_family": {"type": "string"},
+        },
+    }
+    primitive_cost = {
+        "type": "object",
+        "additionalProperties": True,
+        "required": [
+            "primitive",
+            "coverage_bucket",
+            "base_cost",
+            "proof_difficulty_cost",
+            "import_cone_cost",
+            "definition_or_typeclass_cost",
+            "semantic_risk_cost",
+            "reuse_credit",
+            "total_cost",
+            "cost_rationale",
+        ],
+        "properties": {
+            "primitive": {"type": "string", "minLength": 1},
+            "coverage_bucket": {"type": "string", "minLength": 1},
+            "base_cost": {"type": "number"},
+            "proof_difficulty_cost": {"type": "number"},
+            "import_cone_cost": {"type": "number"},
+            "definition_or_typeclass_cost": {"type": "number"},
+            "semantic_risk_cost": {"type": "number"},
+            "reuse_credit": {"type": "number"},
+            "total_cost": {"type": "number"},
+            "cost_rationale": {"type": "string", "minLength": 1},
+        },
+    }
+    route_option = {
+        "type": "object",
+        "additionalProperties": True,
+        "required": [
+            "route_option_id",
+            "selected",
+            "selected_primitives",
+            "route_cost",
+            "cost_rationale",
+        ],
+        "properties": {
+            "route_option_id": {"type": "string", "minLength": 1},
+            "selected": {"type": "boolean"},
+            "selected_primitives": string_array,
+            "route_cost": {"type": "number"},
+            "cost_rationale": {"type": "string", "minLength": 1},
+        },
+    }
+    and_or_cost_graph = {
+        "type": "object",
+        "additionalProperties": True,
+        "required": [
+            "graph_kind",
+            "selected_route_option_id",
+            "route_options",
+            "or_nodes",
+            "and_edges",
+        ],
+        "properties": {
+            "graph_kind": {"type": "string", "const": "AND_OR_ROUTE_COST_GRAPH"},
+            "selected_route_option_id": {"type": "string", "minLength": 1},
+            "route_options": {
+                "type": "array",
+                "minItems": 1,
+                "items": {"$ref": "#/$defs/route_option"},
+            },
+            "or_nodes": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                    "type": "object",
+                    "additionalProperties": True,
+                    "required": ["node_id", "choices", "selection_rationale"],
+                    "properties": {
+                        "node_id": {"type": "string", "minLength": 1},
+                        "choices": string_array,
+                        "selection_rationale": {"type": "string", "minLength": 1},
+                    },
+                },
+            },
+            "and_edges": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                    "type": "object",
+                    "additionalProperties": True,
+                    "required": ["route_option_id", "requires"],
+                    "properties": {
+                        "route_option_id": {"type": "string", "minLength": 1},
+                        "requires": string_array,
+                    },
+                },
+            },
+        },
+    }
+    minimal_delta_plan = {
+        "type": "object",
+        "additionalProperties": True,
+        "required": [
+            "selected_primitives",
+            "cost_model_version",
+            "route_cost",
+            "primitive_costs",
+            "and_or_cost_graph",
+            "minimality_rationale",
+        ],
+        "properties": {
+            "selected_primitives": string_array,
+            "cost_model_version": {
+                "type": "string",
+                "const": MINIMAL_DELTA_COST_POLICY_ID,
+            },
+            "route_cost": {"type": "number"},
+            "primitive_costs": {
+                "type": "array",
+                "minItems": 1,
+                "items": {"$ref": "#/$defs/primitive_cost"},
+            },
+            "and_or_cost_graph": {"$ref": "#/$defs/and_or_cost_graph"},
+            "new_definitions": string_array,
+            "wrapper_lemmas": string_array,
+            "bridge_lemmas": string_array,
+            "source_port_lemmas": string_array,
+            "do_not_formalize_now": string_array,
+            "minimality_rationale": {"type": "string", "minLength": 1},
+        },
+    }
+    standalone_primitive = {
+        "type": "object",
+        "additionalProperties": True,
+        "required": ["primitive", "coverage_status", "source_refs"],
+        "properties": {
+            "primitive": {"type": "string", "minLength": 1},
+            "coverage_status": {"type": "string", "minLength": 1},
+            "candidate_declarations": string_array,
+            "candidate_declaration_rows": {
+                "type": "array",
+                "items": {"$ref": "#/$defs/candidate_declaration_row"},
+            },
+            "source_refs": string_array,
+            "source_snippets": {
+                "type": "array",
+                "items": {"$ref": "#/$defs/source_snippet"},
+            },
+            "formal_gap_boundary": {"type": "string"},
+        },
+    }
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
@@ -1762,30 +1964,172 @@ def llm_route_planner_response_payload_schema() -> dict[str, object]:
         "additionalProperties": True,
         "required": [
             "informal_knowledge_dag_nodes",
-            "formal_realization_dag_nodes",
             "route_alignment_edges",
             "minimal_delta_plan",
             "standalone_route",
             "proof_evidence_boundary",
         ],
+        "anyOf": [
+            {"required": ["formal_realization_dag_nodes"]},
+            {"required": ["lean_realization_dag_nodes"]},
+        ],
         "properties": {
-            "informal_knowledge_dag_nodes": {"type": "array"},
-            "formal_realization_dag_nodes": {"type": "array"},
-            "lean_realization_dag_nodes": {"type": "array"},
-            "route_alignment_edges": {"type": "array"},
-            "minimal_delta_plan": {"type": "object"},
-            "residual_interpretations": {"type": "array"},
-            "search_requests": {"type": "array"},
-            "uncertainty_flags": {"type": "array"},
-            "semantic_alignment_risks": {"type": "array"},
-            "planner_next_actions": {"type": "array"},
-            "standalone_route": {"type": "object"},
-            "source_refs": {"type": "array"},
-            "source_snippets": {"type": "array"},
+            "informal_knowledge_dag_nodes": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                    "type": "object",
+                    "additionalProperties": True,
+                    "required": [
+                        "node_id",
+                        "claim",
+                        "depends_on",
+                        "source_refs",
+                        "source_search_status",
+                    ],
+                    "properties": {
+                        "node_id": {"type": "string", "minLength": 1},
+                        "claim": {"type": "string", "minLength": 1},
+                        "depends_on": string_array,
+                        "source_refs": string_array,
+                        "source_snippets": {
+                            "type": "array",
+                            "items": {"$ref": "#/$defs/source_snippet"},
+                        },
+                        "source_search_status": {"type": "string", "minLength": 1},
+                        "semantic_role": {"type": "string"},
+                        "formal_gap_boundary": {"type": "string"},
+                    },
+                },
+            },
+            "formal_realization_dag_nodes": {
+                "type": "array",
+                "minItems": 1,
+                "items": {"$ref": "#/$defs/formal_realization_node"},
+            },
+            "lean_realization_dag_nodes": {
+                "type": "array",
+                "minItems": 1,
+                "items": {"$ref": "#/$defs/formal_realization_node"},
+            },
+            "route_alignment_edges": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                    "type": "object",
+                    "additionalProperties": True,
+                    "required": [
+                        "informal_node_id",
+                        "formal_node_id",
+                        "alignment_status",
+                        "alignment_rationale",
+                    ],
+                    "properties": {
+                        "informal_node_id": {"type": "string", "minLength": 1},
+                        "formal_node_id": {"type": "string", "minLength": 1},
+                        "alignment_status": {"type": "string", "minLength": 1},
+                        "alignment_rationale": {"type": "string", "minLength": 1},
+                    },
+                },
+            },
+            "minimal_delta_plan": {"$ref": "#/$defs/minimal_delta_plan"},
+            "residual_interpretations": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": True,
+                    "required": ["residual_goal", "interpretation"],
+                    "properties": {
+                        "residual_goal": {"type": "string", "minLength": 1},
+                        "interpretation": {"type": "string", "minLength": 1},
+                        "route_repair": {"type": "string"},
+                        "repair_action": {"type": "string"},
+                        "source_refs": string_array,
+                        "source_snippets": {
+                            "type": "array",
+                            "items": {"$ref": "#/$defs/source_snippet"},
+                        },
+                        "source_search_status": {"type": "string", "minLength": 1},
+                        "formal_gap_boundary": {"type": "string"},
+                    },
+                },
+            },
+            "search_requests": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": True,
+                    "required": ["request_kind", "query", "reason"],
+                    "properties": {
+                        "request_kind": {"type": "string", "minLength": 1},
+                        "query": {"type": "string", "minLength": 1},
+                        "reason": {"type": "string", "minLength": 1},
+                        "resource_request_id": {"type": "string"},
+                        "resource_id": {"type": "string"},
+                    },
+                },
+            },
+            "uncertainty_flags": string_array,
+            "semantic_alignment_risks": string_array,
+            "planner_next_actions": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": True,
+                    "required": ["owner", "action"],
+                    "properties": {
+                        "owner": {"type": "string", "minLength": 1},
+                        "action": {"type": "string", "minLength": 1},
+                        "resource_request_id": {"type": "string"},
+                        "resource_id": {"type": "string"},
+                    },
+                },
+            },
+            "standalone_route": {
+                "type": "object",
+                "additionalProperties": True,
+                "required": [
+                    "display_name",
+                    "theorem_statement",
+                    "source_refs",
+                    "primitives",
+                ],
+                "properties": {
+                    "route_id": {"type": "string"},
+                    "display_name": {"type": "string", "minLength": 1},
+                    "theorem_statement": {"type": "string", "minLength": 1},
+                    "target_prover_family": {"type": "string"},
+                    "source_refs": string_array,
+                    "source_snippets": {
+                        "type": "array",
+                        "items": {"$ref": "#/$defs/source_snippet"},
+                    },
+                    "primitives": {
+                        "type": "array",
+                        "minItems": 1,
+                        "items": {"$ref": "#/$defs/standalone_primitive"},
+                    },
+                },
+            },
+            "source_refs": string_array,
+            "source_snippets": {
+                "type": "array",
+                "items": {"$ref": "#/$defs/source_snippet"},
+            },
             "proof_evidence_boundary": {
                 "type": "string",
                 "pattern": "not theorem proof evidence",
             },
+        },
+        "$defs": {
+            "source_snippet": source_snippet,
+            "candidate_declaration_row": candidate_declaration_row,
+            "formal_realization_node": formal_realization_node,
+            "primitive_cost": primitive_cost,
+            "route_option": route_option,
+            "and_or_cost_graph": and_or_cost_graph,
+            "minimal_delta_plan": minimal_delta_plan,
+            "standalone_primitive": standalone_primitive,
         },
     }
 
@@ -6631,6 +6975,150 @@ def _validate_with_schema(
     ).lower():
         errors.append("proof_evidence_boundary must say not theorem proof evidence")
     return errors
+
+
+def _validate_with_schema_deep(
+    row: Mapping[str, object],
+    schema: Mapping[str, object],
+    *,
+    path: str,
+) -> list[str]:
+    if not isinstance(row, Mapping):
+        return [f"{path or 'row'} must be object"]
+    return _deep_schema_value_errors(
+        path,
+        row,
+        schema,
+        root_schema=schema,
+    )
+
+
+def _deep_schema_value_errors(
+    path: str,
+    value: object,
+    schema: Mapping[str, object],
+    *,
+    root_schema: Mapping[str, object],
+) -> list[str]:
+    ref = schema.get("$ref")
+    if isinstance(ref, str):
+        resolved = _resolve_local_schema_ref(ref, root_schema)
+        if resolved is None:
+            return [f"{path or 'row'} has unresolved schema ref {ref}"]
+        return _deep_schema_value_errors(
+            path,
+            value,
+            resolved,
+            root_schema=root_schema,
+        )
+
+    any_of = schema.get("anyOf")
+    errors: list[str] = []
+    if isinstance(any_of, list) and any_of:
+        branch_errors = [
+            _deep_schema_value_errors(
+                path,
+                value,
+                dict(branch),
+                root_schema=root_schema,
+            )
+            for branch in any_of
+            if isinstance(branch, Mapping)
+        ]
+        if not any(not errors for errors in branch_errors):
+            first_errors = next((errors for errors in branch_errors if errors), [])
+            detail = "; ".join(first_errors[:3])
+            suffix = f": {detail}" if detail else ""
+            errors.append(
+                f"{path or 'row'} must match at least one anyOf branch{suffix}"
+            )
+
+    expected_type = schema.get("type")
+    if expected_type == "object":
+        if not isinstance(value, Mapping):
+            return [f"{path or 'row'} must be object"]
+        properties = schema.get("properties", {})
+        required = tuple(schema.get("required", ()))
+        for field_name in required:
+            if field_name not in value:
+                errors.append(f"{_schema_path(path, str(field_name))} required")
+        if isinstance(properties, Mapping):
+            for field_name, field_schema in properties.items():
+                if field_name not in value or not isinstance(field_schema, Mapping):
+                    continue
+                errors.extend(
+                    _deep_schema_value_errors(
+                        _schema_path(path, str(field_name)),
+                        value[field_name],
+                        field_schema,
+                        root_schema=root_schema,
+                    )
+                )
+        if schema.get("additionalProperties") is False:
+            allowed = set(properties) if isinstance(properties, Mapping) else set()
+            for field_name in value:
+                if field_name not in allowed:
+                    errors.append(f"{_schema_path(path, str(field_name))} unexpected")
+    elif expected_type == "array":
+        if not isinstance(value, (list, tuple)):
+            return [f"{path or 'row'} must be array"]
+        min_items = schema.get("minItems")
+        if isinstance(min_items, int) and len(value) < min_items:
+            errors.append(f"{path or 'row'} must contain at least {min_items} item(s)")
+        item_schema = schema.get("items", {})
+        if isinstance(item_schema, Mapping):
+            for index, item in enumerate(value):
+                errors.extend(
+                    _deep_schema_value_errors(
+                        f"{path}[{index}]" if path else f"[{index}]",
+                        item,
+                        item_schema,
+                        root_schema=root_schema,
+                    )
+                )
+    elif expected_type == "string":
+        if not isinstance(value, str):
+            return [f"{path or 'row'} must be string"]
+        min_length = schema.get("minLength")
+        if isinstance(min_length, int) and len(value) < min_length:
+            errors.append(f"{path or 'row'} must be non-empty")
+        pattern = schema.get("pattern")
+        if isinstance(pattern, str) and not re.search(pattern, value):
+            errors.append(f"{path or 'row'} must match {pattern}")
+    elif expected_type == "integer":
+        if not isinstance(value, int) or isinstance(value, bool):
+            return [f"{path or 'row'} must be integer"]
+    elif expected_type == "number":
+        if not isinstance(value, (int, float)) or isinstance(value, bool):
+            return [f"{path or 'row'} must be number"]
+    elif expected_type == "boolean":
+        if not isinstance(value, bool):
+            return [f"{path or 'row'} must be boolean"]
+
+    enum_values = schema.get("enum")
+    if isinstance(enum_values, list) and value not in enum_values:
+        errors.append(f"{path or 'row'} must be one of {', '.join(map(str, enum_values))}")
+    if "const" in schema and value != schema.get("const"):
+        errors.append(f"{path or 'row'} must equal {schema.get('const')}")
+    return errors
+
+
+def _resolve_local_schema_ref(
+    ref: str,
+    root_schema: Mapping[str, object],
+) -> Mapping[str, object] | None:
+    if not ref.startswith("#/$defs/"):
+        return None
+    name = ref.removeprefix("#/$defs/")
+    defs = root_schema.get("$defs", {})
+    if not isinstance(defs, Mapping):
+        return None
+    resolved = defs.get(name)
+    return dict(resolved) if isinstance(resolved, Mapping) else None
+
+
+def _schema_path(prefix: str, field_name: str) -> str:
+    return f"{prefix}.{field_name}" if prefix else field_name
 
 
 def _schema_property_errors(
