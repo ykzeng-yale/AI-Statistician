@@ -1692,6 +1692,7 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                 "n_ablation_variants": 1,
                 "n_row_schema_valid": 1,
                 "n_row_schema_invalid": 0,
+                "largest_route_adoption_ready_drop_variant": "full_planner_observed",
                 "all_ok": True,
                 "rows": [ablation_row],
             },
@@ -3235,10 +3236,65 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     )
     assert audit_payload["n_optional_ablation_study_row_schema_checked"] == 1
     assert audit_payload["n_optional_ablation_study_row_schema_valid"] == 1
+    assert (
+        audit_payload["n_optional_ablation_study_route_adoption_manifest_checked"]
+        == 1
+    )
+    assert audit_payload["n_optional_ablation_study_route_adoption_manifest_valid"] == 1
+    assert audit_payload["n_optional_ablation_study_rows_with_route_adoption_metrics"] == 1
+    assert (
+        audit_payload[
+            "optional_ablation_study_largest_route_adoption_ready_drop_variant"
+        ]
+        == "full_planner_observed"
+    )
     assert any(
         row["check_name"] == "optional_ablation_study_row_0_schema_valid"
         and row["ok"]
         for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"] == "optional_ablation_study_route_adoption_manifest"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    ablation_manifest_path = (
+        bundle_dir
+        / "artifacts"
+        / "formalization_gap_planner_ablation_study"
+        / "formalization_gap_planner_ablation_study_manifest.json"
+    )
+    ablation_manifest_payload = json.loads(
+        ablation_manifest_path.read_text(encoding="utf-8")
+    )
+    corrupted_ablation_manifest = json.loads(json.dumps(ablation_manifest_payload))
+    corrupted_ablation_manifest[
+        "largest_route_adoption_ready_drop_variant"
+    ] = "no_route_planner"
+    ablation_manifest_path.write_text(
+        json.dumps(corrupted_ablation_manifest, indent=2),
+        encoding="utf-8",
+    )
+    rejected_ablation_payload = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        root / "audit_rejects_ablation_route_adoption_loss",
+    )
+    ablation_failed_names = {
+        row["check_name"]
+        for row in rejected_ablation_payload["checks"]
+        if not row["ok"]
+    }
+    assert not rejected_ablation_payload["all_ok"]
+    assert "optional_ablation_study_route_adoption_manifest" in ablation_failed_names
+    assert (
+        rejected_ablation_payload[
+            "n_optional_ablation_study_route_adoption_manifest_valid"
+        ]
+        == 0
+    )
+    ablation_manifest_path.write_text(
+        json.dumps(ablation_manifest_payload, indent=2),
+        encoding="utf-8",
     )
     assert any(
         row["check_name"] == "component_resource_registry_required_components"

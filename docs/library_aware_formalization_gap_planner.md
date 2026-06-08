@@ -480,7 +480,9 @@ route-adoption readiness under the current evidence bound; it is not theorem
 proof evidence. `research-system-audit` promotes the evaluation and ablation
 route-adoption counts into its top-level `counts` payload so AI Statistician
 runs can be filtered by adoption readiness without parsing nested planner
-artifacts.
+artifacts. The publication-bundle audit recomputes the ablation
+`largest_route_adoption_ready_drop_variant` from packaged JSONL rows and rejects
+bundles whose manifest-level route-adoption aggregate drifts from those rows.
 
 The adapter registry command records which refinement tools can satisfy each
 hook, which response fields they must emit, and whether local commands,
@@ -1251,8 +1253,10 @@ The current implementation composes four existing AI Statistician artifacts:
    Compares the observed planner with no-literature, no-Lean-grounding,
    no-proof-feedback, and no-route-planner counterfactuals. It is planning
    diagnostic evidence only, not theorem proof evidence. It exports
-   `formalization_gap_planner_ablation_study_row.schema.json` so paper
-   supplements can validate counterfactual metric rows independently.
+   `formalization_gap_planner_ablation_study_row.schema.json` and the
+   `largest_route_adoption_ready_drop_variant` aggregate so paper supplements
+   can validate counterfactual metric rows and route-adoption drop summaries
+   independently.
 
 27. `formal_verifier_replay_export`
    Turns selected routes into theorem/bridge replay tasks. This is the handoff
@@ -1324,7 +1328,8 @@ resolution, and route/delta/existing-reuse primitive consistency.
    route-stability rows satisfy the published stability-row schema, optional
    portable-plan audit rows satisfy the published audit-row schema, optional
    route-replan handoff-audit rows satisfy the published audit-row schema,
-   optional ablation-study rows satisfy the published ablation-row schema,
+   optional ablation-study rows satisfy the published ablation-row schema and
+   recomputed route-adoption drop aggregate,
    optional proof-state triage rows satisfy the published triage-row schema,
    optional library-coverage map rows satisfy the published coverage-map row
    schema, optional primitive-action queue rows satisfy the published

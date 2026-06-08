@@ -353,6 +353,14 @@ def audit_formalization_gap_planner_publication_bundle(
     optional_evaluation_route_adoption_blockers = (
         _evaluation_route_adoption_blockers_from_rows(optional_evaluation_rows)
     )
+    optional_ablation_study_rows = _optional_ablation_study_rows_for_summary(
+        bundle_dir
+    )
+    optional_ablation_route_adoption_drop_variant = (
+        _ablation_study_largest_route_adoption_drop_variant(
+            optional_ablation_study_rows
+        )
+    )
     payload: dict[str, object] = {
         "schema_version": FORMALIZATION_GAP_PLANNER_PUBLICATION_BUNDLE_AUDIT_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -1437,6 +1445,25 @@ def audit_formalization_gap_planner_publication_bundle(
             if check.check_name.startswith("optional_ablation_study_row_")
             and check.check_name.endswith("_schema_valid")
             and check.ok
+        ),
+        "n_optional_ablation_study_route_adoption_manifest_checked": sum(
+            1
+            for check in checks
+            if check.check_name == "optional_ablation_study_route_adoption_manifest"
+        ),
+        "n_optional_ablation_study_route_adoption_manifest_valid": sum(
+            1
+            for check in checks
+            if check.check_name == "optional_ablation_study_route_adoption_manifest"
+            and check.ok
+        ),
+        "n_optional_ablation_study_rows_with_route_adoption_metrics": sum(
+            1
+            for row in optional_ablation_study_rows
+            if _ablation_study_row_has_route_adoption_metrics(row)
+        ),
+        "optional_ablation_study_largest_route_adoption_ready_drop_variant": (
+            optional_ablation_route_adoption_drop_variant
         ),
         "n_optional_portable_plan_audit_row_schema_checked": sum(
             1
@@ -5690,6 +5717,14 @@ def _nonnegative_number(value: object) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and value >= 0
 
 
+def _numeric(value: object) -> float:
+    if isinstance(value, bool):
+        return 0.0
+    if isinstance(value, (int, float)):
+        return float(value)
+    return 0.0
+
+
 def _llm_available_source_keys(request: dict[str, Any]) -> set[str]:
     context = _dict_value(request, "context_packet")
     refs = list(_str_tuple(context.get("available_source_refs", [])))
@@ -8636,6 +8671,20 @@ def _ablation_study_optional_checks(
                 errors=schema_errors,
             )
         )
+    route_adoption_errors = _ablation_study_route_adoption_manifest_errors(
+        manifest,
+        rows,
+    )
+    checks.append(
+        _check(
+            "optional_ablation_study_route_adoption_manifest",
+            "optional_artifacts",
+            "ablation study manifest preserves route-adoption-ready drop aggregates",
+            "; ".join(route_adoption_errors) if route_adoption_errors else "ok",
+            not route_adoption_errors,
+            errors=route_adoption_errors,
+        )
+    )
     return checks
 
 
@@ -10131,6 +10180,21 @@ def _optional_evaluation_rows_for_summary(
     return tuple() if errors else tuple(rows)
 
 
+def _optional_ablation_study_rows_for_summary(
+    bundle_dir: Path,
+) -> tuple[dict[str, Any], ...]:
+    rows_jsonl_path = (
+        bundle_dir
+        / "artifacts"
+        / "formalization_gap_planner_ablation_study"
+        / "formalization_gap_planner_ablation_study.jsonl"
+    )
+    if not rows_jsonl_path.exists():
+        return tuple()
+    rows, errors = _read_jsonl_dict_rows_no_error(rows_jsonl_path)
+    return tuple() if errors else tuple(rows)
+
+
 def _evaluation_realization_missing_row_errors(
     row: dict[str, Any],
 ) -> tuple[str, ...]:
@@ -10367,6 +10431,78 @@ def _evaluation_route_adoption_manifest_errors(
                 f"expected={expected_status_blockers}"
             )
     return tuple(errors)
+
+
+def _ablation_study_route_adoption_manifest_errors(
+    manifest: dict[str, Any],
+    rows: list[dict[str, Any]],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    expected_variant = _ablation_study_largest_route_adoption_drop_variant(rows)
+    observed_variant = str(
+        manifest.get("largest_route_adoption_ready_drop_variant", "")
+    ).strip()
+    metric_rows = sum(
+        1 for row in rows if _ablation_study_row_has_route_adoption_metrics(row)
+    )
+    if rows and not observed_variant:
+        errors.append("largest_route_adoption_ready_drop_variant missing")
+    if expected_variant and observed_variant != expected_variant:
+        errors.append(
+            "largest_route_adoption_ready_drop_variant mismatch: "
+            f"observed={observed_variant} expected={expected_variant}"
+        )
+    if metric_rows != len(rows):
+        errors.append(
+            "ablation route-adoption metric rows mismatch: "
+            f"observed={metric_rows} expected={len(rows)}"
+        )
+    for idx, row in enumerate(rows):
+        variant = str(row.get("ablation_variant", "")).strip()
+        ready = _numeric(row.get("route_adoption_ready_rate", 0.0))
+        pending = _numeric(row.get("route_adoption_pending_refinement_rate", 0.0))
+        if ready + pending > 1.0 + 1e-9:
+            errors.append(
+                f"row {idx} route adoption ready+pending exceeds 1.0: "
+                f"{ready + pending}"
+            )
+        if variant == "full_planner_observed":
+            drop = _numeric(row.get("relative_route_adoption_ready_drop", 0.0))
+            if abs(drop) > 1e-9:
+                errors.append(
+                    "full_planner_observed relative_route_adoption_ready_drop "
+                    f"must be 0.0: observed={drop}"
+                )
+    return tuple(errors)
+
+
+def _ablation_study_largest_route_adoption_drop_variant(rows: Any) -> str:
+    row_tuple = _dict_tuple(rows)
+    if not row_tuple:
+        return ""
+    ablated_rows = [
+        row
+        for row in row_tuple
+        if str(row.get("ablation_variant", "")).strip() != "full_planner_observed"
+    ]
+    candidate_rows = ablated_rows or list(row_tuple)
+    best = max(
+        candidate_rows,
+        key=lambda row: _numeric(row.get("relative_route_adoption_ready_drop", 0.0)),
+    )
+    return str(best.get("ablation_variant", "")).strip()
+
+
+def _ablation_study_row_has_route_adoption_metrics(row: dict[str, Any]) -> bool:
+    return all(
+        _nonnegative_number(row.get(field_name))
+        for field_name in (
+            "route_adoption_ready_rate",
+            "route_adoption_pending_refinement_rate",
+            "mean_route_adoption_blockers",
+            "relative_route_adoption_ready_drop",
+        )
+    )
 
 
 def _evaluation_realization_missing_selected_from_rows(
@@ -12491,6 +12627,11 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Optional runtime handoff-audit schema valid: {payload.get('n_optional_runtime_handoff_audit_row_schema_valid')}/{payload.get('n_optional_runtime_handoff_audit_row_schema_checked')}",
         f"- Optional runtime handoff-audit cost controls valid: {payload.get('n_optional_runtime_handoff_audit_cost_control_valid')}/{payload.get('n_optional_runtime_handoff_audit_cost_control_checked')}",
         f"- Optional ablation-study schema valid: {payload.get('n_optional_ablation_study_row_schema_valid')}/{payload.get('n_optional_ablation_study_row_schema_checked')}",
+        f"- Optional ablation-study route-adoption manifest valid: {payload.get('n_optional_ablation_study_route_adoption_manifest_valid')}/{payload.get('n_optional_ablation_study_route_adoption_manifest_checked')}",
+        (
+            "- Optional ablation-study largest route-adoption-ready drop: "
+            f"`{payload.get('optional_ablation_study_largest_route_adoption_ready_drop_variant')}`"
+        ),
         f"- Optional portable-plan audit schema valid: {payload.get('n_optional_portable_plan_audit_row_schema_valid')}/{payload.get('n_optional_portable_plan_audit_row_schema_checked')}",
         f"- Optional library-coverage map schema valid: {payload.get('n_optional_library_coverage_map_row_schema_valid')}/{payload.get('n_optional_library_coverage_map_row_schema_checked')}",
         f"- Optional primitive action-queue schema valid: {payload.get('n_optional_primitive_action_queue_row_schema_valid')}/{payload.get('n_optional_primitive_action_queue_row_schema_checked')}",
