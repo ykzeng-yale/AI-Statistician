@@ -24,7 +24,12 @@ not silently run on Sonnet or Opus unless the topology policy is intentionally
 changed. As of the 2026-06-08 model-source check, the pinned default Claude API
 IDs are Haiku `claude-haiku-4-5-20251001`, Sonnet `claude-sonnet-4-6`, and Opus
 `claude-opus-4-8`; Claude 4.6+ dateless IDs are treated as pinned snapshots, not
-evergreen aliases.
+evergreen aliases. Use `AI_STATISTICIAN_CLAUDE_HAIKU_MODEL`,
+`AI_STATISTICIAN_CLAUDE_SONNET_MODEL`, and
+`AI_STATISTICIAN_CLAUDE_OPUS_MODEL` for tier-specific overrides. Leave
+`AI_STATISTICIAN_LLM_MODEL` unset in normal Anthropic runs; the global override
+is treated as a Sonnet-tier compatibility default and must not collapse
+cost-aware Haiku/Sonnet routing.
 
 1. The theory layer emits only estimator families with registered formal
    obligations.

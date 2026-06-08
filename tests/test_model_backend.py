@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
 from ai_statistician.model_backend import (
     ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
+    ANTHROPIC_CLAUDE_TIER_ENV_VARS,
     ANTHROPIC_MODEL_ID_VERSIONING_POLICY,
     DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
     AnthropicGeneratorBackend,
@@ -231,6 +233,8 @@ def test_live_generator_defaults_to_anthropic_cost_aware_tiers(monkeypatch: pyte
         "sonnet": "claude-sonnet-4-6",
         "opus": "claude-opus-4-8",
     }
+    assert ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY["tier_specific_model_env_vars"] == ANTHROPIC_CLAUDE_TIER_ENV_VARS
+    assert "Sonnet-tier defaults only" in ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY["global_model_override_policy"]
     assert "pinned snapshots" in ANTHROPIC_MODEL_ID_VERSIONING_POLICY
     assert "not evergreen aliases" in ANTHROPIC_MODEL_ID_VERSIONING_POLICY
     assert default_generator_model("static") == "static"
@@ -302,3 +306,24 @@ def test_claude_model_tier_helpers_detect_cross_tier_model_overrides() -> None:
     )
     assert claude_model_tier_mismatch("claude-haiku-4-5-20251001", "haiku") == ""
     assert claude_model_tier_mismatch("custom-anthropic-model", "haiku") == ""
+
+
+def test_operator_docs_preserve_claude_tier_env_contract() -> None:
+    env_example = Path(".env.example").read_text(encoding="utf-8")
+    production_design = Path("docs/production_design.md").read_text(encoding="utf-8")
+    architect_goal = Path("docs/architect_llm_agent_goal.md").read_text(encoding="utf-8")
+    readme = Path("README.md").read_text(encoding="utf-8")
+    production_design_text = " ".join(production_design.split())
+    architect_goal_text = " ".join(architect_goal.split())
+    readme_text = " ".join(readme.split())
+
+    for tier, env_vars in ANTHROPIC_CLAUDE_TIER_ENV_VARS.items():
+        assert f"claude-{tier}" in env_example
+        for env_var in env_vars[:1]:
+            assert env_var in env_example
+            assert env_var in production_design
+    assert "Leave AI_STATISTICIAN_LLM_MODEL unset" in env_example
+    assert "must not collapse cost-aware Haiku/Sonnet routing" in production_design_text
+    assert "Codex/Codex exec are not accepted as pure LLM providers" in env_example
+    assert "not normal pure-LLM" in architect_goal_text
+    assert "not treated as normal pure-LLM" in readme_text
