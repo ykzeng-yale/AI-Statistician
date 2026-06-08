@@ -268,8 +268,11 @@ publication bundles now package that vocabulary as
 its JSON Schema. The publication-bundle audit rejects evaluation rows or LLM
 seed metadata that invent unregistered blocker strings, and it also checks that
 the LLM route-planner row schema enums match the packaged taxonomy contract.
-The response contract also rejects target-prover drift: any explicit
-`target_prover_family` in the response payload, standalone route,
+The response contract also rejects target drift. A returned
+`standalone_route.theorem_statement` must preserve the request or target-intake
+theorem identity; route repair can add explicit side-condition notes,
+primitives, and replan metadata, but it cannot switch to a different theorem.
+Any explicit `target_prover_family` in the response payload, standalone route,
 `replan_metadata`, or formal-realization nodes must match the request target
 prover family, modulo accepted aliases such as Coq/Rocq. The standalone seed
 still writes the request target explicitly, but mismatched LLM proposals are not

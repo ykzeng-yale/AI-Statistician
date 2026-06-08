@@ -1995,6 +1995,7 @@ def _user_prompt(
         "hard_requirements": [
             "Return only JSON.",
             "When context_packet.target_intake_rows is present, use its normalized_objects, normalized_assumptions, normalized_procedure, normalized_claim, desired_theorem_shape, literature_queries, and lean_grounding_queries as the target theorem context for route synthesis; target intake is not proof evidence.",
+            "standalone_route.theorem_statement must preserve the requested target theorem identity; route repairs may add explicit side-condition notes but must not switch to a different theorem.",
             "Every informal DAG node must have source_refs, a source_search_status, or a formal_gap_boundary.",
             "SOURCE_BACKED claims may cite only source_refs listed in context_packet.available_source_refs.",
             "When context_packet.available_source_snippets contains relevant excerpts, reuse those source_snippets in informal DAG nodes or standalone_route primitives instead of paraphrasing unsupported evidence.",
@@ -3215,6 +3216,7 @@ def _response_contract_errors(
                 f"[{index}] needs source_refs, source_search_status, or formal_gap_boundary"
             )
     errors.extend(_response_source_ref_grounding_errors(payload, request))
+    errors.extend(_response_target_theorem_identity_errors(payload, request))
     errors.extend(_response_target_prover_consistency_errors(payload, request))
     errors.extend(_response_search_request_contract_errors(payload))
     errors.extend(_response_planner_next_action_contract_errors(payload))
@@ -3875,6 +3877,119 @@ def _response_formal_declaration_grounding_errors(
                 f"[{index}] existing-library coverage requires grounded candidate_declarations"
             )
     return errors
+
+
+TARGET_THEOREM_IDENTITY_STOPWORDS = {
+    "a",
+    "an",
+    "and",
+    "are",
+    "as",
+    "at",
+    "be",
+    "by",
+    "can",
+    "existing",
+    "fact",
+    "facts",
+    "follow",
+    "following",
+    "follows",
+    "for",
+    "from",
+    "given",
+    "has",
+    "have",
+    "imply",
+    "implies",
+    "in",
+    "into",
+    "is",
+    "lemma",
+    "lemmas",
+    "of",
+    "on",
+    "or",
+    "that",
+    "the",
+    "then",
+    "there",
+    "theorem",
+    "theorems",
+    "this",
+    "to",
+    "under",
+    "using",
+    "with",
+}
+
+
+def _response_target_theorem_identity_errors(
+    payload: Mapping[str, Any],
+    request: Mapping[str, Any],
+) -> list[str]:
+    route = _dict_value(payload, "standalone_route")
+    response_statement = str(route.get("theorem_statement", "") or "").strip()
+    if not response_statement:
+        return []
+    anchors = _target_theorem_identity_anchors(request)
+    if not anchors:
+        return []
+    if any(
+        _target_theorem_identity_overlap_ok(anchor, response_statement)
+        for anchor in anchors
+    ):
+        return []
+    request_route = _dict_value(request, "target_route")
+    return [
+        "standalone_route.theorem_statement appears to target a different theorem "
+        "than the request/target-intake context; preserve target theorem identity "
+        "and represent repairs as added assumptions, primitives, or route-repair "
+        "metadata. "
+        f"request_route_id={request.get('route_id', '')}; "
+        f"request_display_name={request_route.get('display_name', '')}"
+    ]
+
+
+def _target_theorem_identity_anchors(
+    request: Mapping[str, Any],
+) -> tuple[str, ...]:
+    request_route = _dict_value(request, "target_route")
+    context_packet = _dict_value(request, "context_packet")
+    statement_anchors = _str_tuple(
+        [
+            request_route.get("theorem_statement", ""),
+            *[
+                row.get("theorem_statement", "")
+                for row in _dict_tuple(context_packet.get("target_intake_rows", []))
+            ],
+        ]
+    )
+    if statement_anchors:
+        return statement_anchors
+    return _str_tuple(
+        row.get("normalized_claim", "")
+        for row in _dict_tuple(context_packet.get("target_intake_rows", []))
+    )
+
+
+def _target_theorem_identity_overlap_ok(anchor: str, response: str) -> bool:
+    anchor_tokens = _target_theorem_identity_tokens(anchor)
+    response_tokens = _target_theorem_identity_tokens(response)
+    if not anchor_tokens or not response_tokens:
+        return True
+    shared = anchor_tokens & response_tokens
+    if len(anchor_tokens) <= 3:
+        return len(shared) >= max(1, len(anchor_tokens) - 1)
+    return len(shared) >= 2 and (len(shared) / len(anchor_tokens)) >= 0.35
+
+
+def _target_theorem_identity_tokens(text: str) -> set[str]:
+    return {
+        token
+        for token in re.findall(r"[a-z0-9]+", str(text or "").lower())
+        if len(token) >= 3 and token not in TARGET_THEOREM_IDENTITY_STOPWORDS
+    }
 
 
 def _response_target_prover_consistency_errors(
