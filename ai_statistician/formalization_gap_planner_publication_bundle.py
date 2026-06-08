@@ -286,6 +286,13 @@ OPTIONAL_ARTIFACT_FILES = {
         "formalization_gap_planner_refinement_tool_response.schema.json",
         "formalization_gap_planner_local_proof_state_adapter.md",
     ),
+    "formalization_gap_planner_prover_adapter_feedback_adapter": (
+        "formalization_gap_planner_prover_adapter_feedback_adapter_manifest.json",
+        "formalization_gap_planner_refinement_evidence_responses.jsonl",
+        "formalization_gap_planner_prover_adapter_feedback_responses.jsonl",
+        "formalization_gap_planner_refinement_tool_response.schema.json",
+        "formalization_gap_planner_prover_adapter_feedback_adapter.md",
+    ),
     "formalization_gap_planner_refinement_evidence": (
         "formalization_gap_planner_refinement_evidence_manifest.json",
         "formalization_gap_planner_refinement_evidence.jsonl",
@@ -401,6 +408,7 @@ def export_formalization_gap_planner_publication_bundle(
     formalization_gap_planner_local_literature_adapter_dir: Path | None = None,
     formalization_gap_planner_local_formal_source_adapter_dir: Path | None = None,
     formalization_gap_planner_local_proof_state_adapter_dir: Path | None = None,
+    formalization_gap_planner_prover_adapter_feedback_adapter_dir: Path | None = None,
     formalization_gap_planner_refinement_evidence_dir: Path | None = None,
     formalization_gap_planner_route_revision_overlay_dir: Path | None = None,
     formalization_gap_planner_route_stability_audit_dir: Path | None = None,
@@ -952,6 +960,10 @@ def export_formalization_gap_planner_publication_bundle(
         (
             "formalization_gap_planner_local_proof_state_adapter",
             formalization_gap_planner_local_proof_state_adapter_dir,
+        ),
+        (
+            "formalization_gap_planner_prover_adapter_feedback_adapter",
+            formalization_gap_planner_prover_adapter_feedback_adapter_dir,
         ),
         (
             "formalization_gap_planner_refinement_evidence",
@@ -2378,6 +2390,12 @@ def _reproduction_payload(
             "primary_output": "formalization_gap_planner_local_proof_state_adapter_manifest.json",
         },
         {
+            "entrypoint": "formalization-gap-planner-prover-adapter-feedback",
+            "purpose": "merge target-prover adapter validation rows into refinement prover-feedback responses",
+            "required_input": "refinement queue directory plus prover-adapter contract or cross-prover matrix audit output",
+            "primary_output": "formalization_gap_planner_prover_adapter_feedback_adapter_manifest.json",
+        },
+        {
             "entrypoint": "formalization-gap-planner-refinement-evidence",
             "purpose": "validate adapter responses and convert them into route-revision proposals",
             "required_input": "refinement queue directory plus merged response JSONL",
@@ -2676,6 +2694,23 @@ def _reproduction_payload(
             ),
         },
         {
+            "name": "run_prover_adapter_feedback",
+            "command": (
+                "python3 -m ai_statistician.cli "
+                "formalization-gap-planner-prover-adapter-feedback "
+                "--formalization-gap-planner-refinement-queue-dir "
+                "<work_dir>/formalization_gap_planner_refinement_queue "
+                "--base-response-jsonl "
+                "<work_dir>/formalization_gap_planner_local_proof_state_adapter/"
+                "formalization_gap_planner_refinement_evidence_responses.jsonl "
+                "--formalization-gap-planner-prover-adapter-contract-dir "
+                "<work_dir>/formalization_gap_planner_prover_adapter_contract "
+                "--formalization-gap-planner-cross-prover-matrix-audit-dir "
+                "<work_dir>/formalization_gap_planner_cross_prover_matrix_audit "
+                "--out <work_dir>/formalization_gap_planner_prover_adapter_feedback_adapter"
+            ),
+        },
+        {
             "name": "run_refinement_evidence",
             "command": (
                 "python3 -m ai_statistician.cli "
@@ -2683,7 +2718,7 @@ def _reproduction_payload(
                 "--formalization-gap-planner-refinement-queue-dir "
                 "<work_dir>/formalization_gap_planner_refinement_queue "
                 "--response-jsonl "
-                "<work_dir>/formalization_gap_planner_local_proof_state_adapter/"
+                "<work_dir>/formalization_gap_planner_prover_adapter_feedback_adapter/"
                 "formalization_gap_planner_refinement_evidence_responses.jsonl "
                 "--out <work_dir>/formalization_gap_planner_refinement_evidence"
             ),

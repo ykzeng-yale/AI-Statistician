@@ -2447,6 +2447,10 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         for row in reproduction_payload["entrypoints"]
     )
     assert any(
+        row["entrypoint"] == "formalization-gap-planner-prover-adapter-feedback"
+        for row in reproduction_payload["entrypoints"]
+    )
+    assert any(
         row["entrypoint"] == "formalization-gap-planner-route-replan-handoff"
         for row in reproduction_payload["entrypoints"]
     )
@@ -2474,7 +2478,13 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     assert "formalization-gap-planner-local-proof-state-adapter" in command_by_name[
         "run_local_proof_state_adapter"
     ]
+    assert "formalization-gap-planner-prover-adapter-feedback" in command_by_name[
+        "run_prover_adapter_feedback"
+    ]
     assert "formalization_gap_planner_local_proof_state_adapter/" in command_by_name[
+        "run_prover_adapter_feedback"
+    ]
+    assert "formalization_gap_planner_prover_adapter_feedback_adapter/" in command_by_name[
         "run_refinement_evidence"
     ]
     assert "formalization-gap-planner-route-replan-handoff" in command_by_name[

@@ -143,6 +143,9 @@ from .formalization_gap_planner_reuse_smoke import (
 from .formalization_gap_planner_prover_adapter_contract import (
     export_formalization_gap_planner_prover_adapter_contract,
 )
+from .formalization_gap_planner_prover_adapter_feedback_adapter import (
+    export_formalization_gap_planner_prover_adapter_feedback_responses,
+)
 from .formalization_gap_planner_refinement_adapters import (
     export_formalization_gap_planner_refinement_adapter_responses,
 )
@@ -3067,6 +3070,45 @@ def _formalization_gap_planner_local_proof_state_adapter(args: argparse.Namespac
     return 0 if payload["all_ok"] else 1
 
 
+def _formalization_gap_planner_prover_adapter_feedback(args: argparse.Namespace) -> int:
+    payload = export_formalization_gap_planner_prover_adapter_feedback_responses(
+        Path(args.formalization_gap_planner_refinement_queue_dir),
+        Path(args.out),
+        formalization_gap_planner_prover_adapter_contract_dir=(
+            Path(args.formalization_gap_planner_prover_adapter_contract_dir)
+            if args.formalization_gap_planner_prover_adapter_contract_dir
+            else None
+        ),
+        formalization_gap_planner_cross_prover_matrix_audit_dir=(
+            Path(args.formalization_gap_planner_cross_prover_matrix_audit_dir)
+            if args.formalization_gap_planner_cross_prover_matrix_audit_dir
+            else None
+        ),
+        base_response_jsonl=Path(args.base_response_jsonl)
+        if args.base_response_jsonl
+        else None,
+        target_prover_family=args.target_prover_family,
+        max_items=args.max_items,
+    )
+    print("\nAI Statistical Theory Lab Formalization Gap Planner Prover-Adapter Feedback")
+    print("=" * 78)
+    print(
+        f"responses={payload['n_generated_feedback_responses']}/"
+        f"{payload['n_proof_state_feedback_rows']} "
+        f"validation={payload['n_validation_rows']} "
+        f"matched={payload['n_matched_proof_state_feedback_rows']} "
+        f"unmatched={payload['n_unmatched_proof_state_feedback_rows']} "
+        f"merged={payload['n_merged_responses']} "
+        f"revision={payload['n_route_revision_recommended']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nprover-adapter feedback manifest written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_prover_adapter_feedback_adapter_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
 def _formalization_gap_planner_refinement_evidence(args: argparse.Namespace) -> int:
     payload = export_formalization_gap_planner_refinement_evidence(
         Path(args.formalization_gap_planner_refinement_queue_dir),
@@ -3363,6 +3405,11 @@ def _formalization_gap_planner_publication_bundle(args: argparse.Namespace) -> i
             args.formalization_gap_planner_local_proof_state_adapter_dir
         )
         if args.formalization_gap_planner_local_proof_state_adapter_dir
+        else None,
+        formalization_gap_planner_prover_adapter_feedback_adapter_dir=Path(
+            args.formalization_gap_planner_prover_adapter_feedback_adapter_dir
+        )
+        if args.formalization_gap_planner_prover_adapter_feedback_adapter_dir
         else None,
         formalization_gap_planner_refinement_evidence_dir=Path(
             args.formalization_gap_planner_refinement_evidence_dir
@@ -8209,6 +8256,50 @@ def build_parser() -> argparse.ArgumentParser:
         func=_formalization_gap_planner_local_proof_state_adapter
     )
 
+    formalization_gap_planner_prover_adapter_feedback = sub.add_parser(
+        "formalization-gap-planner-prover-adapter-feedback",
+        help=(
+            "convert target-prover adapter validation rows into refinement "
+            "prover-feedback responses"
+        ),
+    )
+    formalization_gap_planner_prover_adapter_feedback.add_argument(
+        "--formalization-gap-planner-refinement-queue-dir",
+        required=True,
+        help="directory containing formalization_gap_planner_refinement_queue_manifest.json",
+    )
+    formalization_gap_planner_prover_adapter_feedback.add_argument(
+        "--formalization-gap-planner-prover-adapter-contract-dir",
+        help="optional directory containing prover-adapter response-validation JSONL",
+    )
+    formalization_gap_planner_prover_adapter_feedback.add_argument(
+        "--formalization-gap-planner-cross-prover-matrix-audit-dir",
+        help="optional directory containing aggregate cross-prover response-validation JSONL",
+    )
+    formalization_gap_planner_prover_adapter_feedback.add_argument(
+        "--base-response-jsonl",
+        help="optional existing response JSONL to merge with target-prover feedback",
+    )
+    formalization_gap_planner_prover_adapter_feedback.add_argument(
+        "--target-prover-family",
+        default="",
+        help="optional target prover family filter such as lean4, rocq, isabelle, or agda",
+    )
+    formalization_gap_planner_prover_adapter_feedback.add_argument(
+        "--max-items",
+        type=int,
+        default=0,
+        help="limit queue rows scanned before filtering proof-state hooks; 0 keeps all",
+    )
+    formalization_gap_planner_prover_adapter_feedback.add_argument(
+        "--out",
+        default="runs/formalization_gap_planner_prover_adapter_feedback_adapter",
+        help="prover-adapter feedback output directory",
+    )
+    formalization_gap_planner_prover_adapter_feedback.set_defaults(
+        func=_formalization_gap_planner_prover_adapter_feedback
+    )
+
     formalization_gap_planner_refinement_evidence = sub.add_parser(
         "formalization-gap-planner-refinement-evidence",
         help="validate refinement tool responses and emit route-revision proposals",
@@ -8487,6 +8578,10 @@ def build_parser() -> argparse.ArgumentParser:
     formalization_gap_planner_publication_bundle.add_argument(
         "--formalization-gap-planner-local-proof-state-adapter-dir",
         help="optional local proof-state-adapter response directory to copy into the bundle",
+    )
+    formalization_gap_planner_publication_bundle.add_argument(
+        "--formalization-gap-planner-prover-adapter-feedback-adapter-dir",
+        help="optional target-prover feedback-adapter response directory to copy into the bundle",
     )
     formalization_gap_planner_publication_bundle.add_argument(
         "--formalization-gap-planner-refinement-evidence-dir",

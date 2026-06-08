@@ -235,6 +235,7 @@ REQUIRED_REPRODUCTION_ENTRYPOINTS = (
     "formalization-gap-planner-local-literature-adapter",
     "formalization-gap-planner-local-formal-source-adapter",
     "formalization-gap-planner-local-proof-state-adapter",
+    "formalization-gap-planner-prover-adapter-feedback",
     "formalization-gap-planner-refinement-evidence",
     "formalization-gap-planner-route-revision-overlay",
     "formalization-gap-planner-route-stability-audit",
@@ -280,6 +281,9 @@ REQUIRED_REPRODUCTION_COMMANDS = {
     ),
     "run_local_proof_state_adapter": (
         "formalization-gap-planner-local-proof-state-adapter"
+    ),
+    "run_prover_adapter_feedback": (
+        "formalization-gap-planner-prover-adapter-feedback"
     ),
     "run_refinement_evidence": "formalization-gap-planner-refinement-evidence",
     "run_route_revision_overlay": "formalization-gap-planner-route-revision-overlay",
@@ -3896,6 +3900,10 @@ def _reproduction_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublic
         "run_local_formal_source_adapter",
         "run_local_proof_state_adapter",
     }
+    prover_feedback_command_names = {
+        "run_prover_adapter_feedback",
+        "run_refinement_evidence",
+    }
     return [
         _check(
             "reproduction_manifest",
@@ -4134,9 +4142,26 @@ def _reproduction_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublic
         _check(
             "reproduction_local_feedback_to_evidence_command",
             "reproduction",
-            "refinement-evidence consumes merged local proof-state responses",
-            commands.get("run_refinement_evidence", ""),
+            "target-prover feedback adapter consumes local proof-state responses before refinement evidence",
+            commands.get("run_prover_adapter_feedback", ""),
             "formalization_gap_planner_local_proof_state_adapter/"
+            in commands.get("run_prover_adapter_feedback", "")
+            and "formalization_gap_planner_refinement_evidence_responses.jsonl"
+            in commands.get("run_prover_adapter_feedback", ""),
+        ),
+        _check(
+            "reproduction_prover_adapter_feedback_to_evidence_command",
+            "reproduction",
+            ",".join(sorted(prover_feedback_command_names)),
+            " | ".join(commands.get(name, "") for name in sorted(prover_feedback_command_names)),
+            prover_feedback_command_names.issubset(command_names)
+            and "formalization-gap-planner-prover-adapter-feedback"
+            in commands.get("run_prover_adapter_feedback", "")
+            and "formalization_gap_planner_prover_adapter_contract"
+            in commands.get("run_prover_adapter_feedback", "")
+            and "formalization_gap_planner_cross_prover_matrix_audit"
+            in commands.get("run_prover_adapter_feedback", "")
+            and "formalization_gap_planner_prover_adapter_feedback_adapter/"
             in commands.get("run_refinement_evidence", "")
             and "formalization_gap_planner_refinement_evidence_responses.jsonl"
             in commands.get("run_refinement_evidence", ""),
