@@ -306,6 +306,16 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     )
     assert payload["n_llm_route_planner_request_schema_invalid"] == 0
     assert payload["n_llm_route_planner_response_present"] == 0
+    assert not payload["has_llm_route_planner_response_payload_validation"]
+    assert payload["n_llm_route_planner_response_payload_validation_payloads"] == 0
+    assert (
+        payload["n_llm_route_planner_response_payload_validation_valid_payloads"]
+        == 0
+    )
+    assert (
+        payload["n_llm_route_planner_response_payload_validation_invalid_payloads"]
+        == 0
+    )
     assert payload["n_llm_route_planner_provider_failures"] == 0
     assert payload["n_llm_route_planner_rows_with_generator_metadata"] == 0
     assert payload["n_llm_route_planner_rows_with_generation_errors"] == 0
@@ -388,6 +398,10 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert payload["llm_route_planner_provider"] == "anthropic"
     assert payload["feedback_llm_route_planner_provider"] == "anthropic"
     stage_by_name = {stage["stage_name"]: stage for stage in payload["stages"]}
+    assert (
+        "formalization_gap_planner_llm_route_planner_response_payload_validation"
+        not in stage_by_name
+    )
     llm_stage_summary = stage_by_name[
         "formalization_gap_planner_llm_route_planner"
     ]["summary"]
@@ -614,6 +628,18 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
             "n_publication_bundle_optional_feedback_llm_route_planner_row_schema_checked"
         ]
         == payload["n_feedback_llm_route_planner_request_packets"]
+    )
+    assert (
+        payload[
+            "n_publication_bundle_optional_llm_route_planner_response_payload_validation_manifest_contract_checked"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_publication_bundle_optional_llm_route_planner_response_payload_validation_row_schema_checked"
+        ]
+        == 0
     )
     assert payload["n_portable_work_packets"] > 0
     assert payload["n_route_alignment_edges"] >= payload["n_portable_work_packets"]
@@ -1767,6 +1793,16 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     )
 
     assert payload["n_llm_route_planner_response_present"] == 1
+    assert payload["has_llm_route_planner_response_payload_validation"]
+    assert payload["n_llm_route_planner_response_payload_validation_payloads"] == 2
+    assert (
+        payload["n_llm_route_planner_response_payload_validation_valid_payloads"]
+        == 2
+    )
+    assert (
+        payload["n_llm_route_planner_response_payload_validation_invalid_payloads"]
+        == 0
+    )
     assert (
         payload[
             "n_goal_plan_standalone_input_traces_with_llm_route_planner_metadata"
@@ -1863,6 +1899,12 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     assert payload["n_resource_request_with_candidate_declaration_rows"] > 0
     assert payload["n_resource_request_candidate_declaration_rows"] > 0
     stage_by_name = {stage["stage_name"]: stage for stage in payload["stages"]}
+    validation_summary = stage_by_name[
+        "formalization_gap_planner_llm_route_planner_response_payload_validation"
+    ]["summary"]
+    assert validation_summary["n_payloads"] == 2
+    assert validation_summary["n_valid_payloads"] == 2
+    assert validation_summary["n_invalid_payloads"] == 0
     coverage_summary = stage_by_name[
         "formalization_gap_planner_library_coverage_map"
     ]["summary"]
@@ -1978,6 +2020,45 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         ]
         == 1
     )
+    assert (
+        payload[
+            "n_publication_bundle_optional_llm_route_planner_response_payload_validation_manifest_contract_valid"
+        ]
+        == payload[
+            "n_publication_bundle_optional_llm_route_planner_response_payload_validation_manifest_contract_checked"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_optional_llm_route_planner_response_payload_validation_count_valid"
+        ]
+        == payload[
+            "n_publication_bundle_optional_llm_route_planner_response_payload_validation_count_checked"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_optional_llm_route_planner_response_payload_validation_row_schema_valid"
+        ]
+        == payload[
+            "n_publication_bundle_optional_llm_route_planner_response_payload_validation_row_schema_checked"
+        ]
+        == 2
+    )
+    assert Path(
+        payload["artifacts"][
+            "llm_route_planner_response_payload_validation_manifest"
+        ]
+    ).exists()
+    assert (
+        out_dir
+        / "formalization_gap_planner_publication_bundle"
+        / "artifacts"
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation"
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.json"
+    ).exists()
     seed_payload = json.loads(
         (
             out_dir
@@ -2031,6 +2112,7 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         out_dir / "formalization_gap_planner_reuse_smoke.md"
     ).read_text(encoding="utf-8")
     assert "Structured candidate declaration rows:" in report_text
+    assert "LLM route payload validation payloads valid/invalid: 2/0" in report_text
     feedback_seed_payload = json.loads(
         (
             out_dir

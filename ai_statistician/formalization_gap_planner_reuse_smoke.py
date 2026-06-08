@@ -43,6 +43,7 @@ from .formalization_gap_planner_library_coverage_map import (
 )
 from .formalization_gap_planner_llm_route_planner import (
     export_formalization_gap_planner_llm_route_planner,
+    validate_formalization_gap_planner_llm_route_planner_response_payloads,
 )
 from .formalization_gap_planner_primitive_action_queue import (
     export_formalization_gap_planner_primitive_action_queue,
@@ -211,6 +212,12 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_search_requests",
         "n_row_schema_valid",
         "n_row_schema_invalid",
+    ),
+    "formalization_gap_planner_llm_route_planner_response_payload_validation": (
+        "n_payloads",
+        "n_valid_payloads",
+        "n_invalid_payloads",
+        "all_ok",
     ),
     "goal_conditioned_minimal_formalization_plan": (
         "n_goal_plans",
@@ -664,6 +671,12 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_optional_route_revision_resource_response_status_valid",
         "n_optional_route_replan_handoff_audit_row_schema_checked",
         "n_optional_route_replan_handoff_audit_row_schema_valid",
+        "n_optional_llm_route_planner_response_payload_validation_manifest_contract_checked",
+        "n_optional_llm_route_planner_response_payload_validation_manifest_contract_valid",
+        "n_optional_llm_route_planner_response_payload_validation_count_checked",
+        "n_optional_llm_route_planner_response_payload_validation_count_valid",
+        "n_optional_llm_route_planner_response_payload_validation_row_schema_checked",
+        "n_optional_llm_route_planner_response_payload_validation_row_schema_valid",
         "n_optional_ablation_study_row_schema_checked",
         "n_optional_ablation_study_row_schema_valid",
         "n_optional_proof_state_triage_row_schema_checked",
@@ -818,6 +831,10 @@ def run_formalization_gap_planner_reuse_smoke(
     publication_bundle_dir = out_dir / "formalization_gap_planner_publication_bundle"
     publication_bundle_audit_dir = (
         out_dir / "formalization_gap_planner_publication_bundle_audit"
+    )
+    llm_response_payload_validation_dir = (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation"
     )
 
     adapter_registry_payload = export_formalization_gap_planner_adapter_registry(
@@ -1072,6 +1089,12 @@ def run_formalization_gap_planner_reuse_smoke(
             ),
         )
     )
+    llm_response_payload_validation_payload = (
+        _maybe_validate_llm_route_planner_response_payloads(
+            (llm_route_planner_payload, feedback_llm_route_planner_payload),
+            llm_response_payload_validation_dir,
+        )
+    )
     ablation_study_payload = export_formalization_gap_planner_ablation_study(
         plan_dir,
         evaluation_dir,
@@ -1098,6 +1121,11 @@ def run_formalization_gap_planner_reuse_smoke(
         formalization_gap_planner_llm_route_planner_dir=llm_route_planner_dir,
         formalization_gap_planner_feedback_llm_route_planner_dir=(
             feedback_llm_route_planner_dir
+        ),
+        formalization_gap_planner_llm_route_planner_response_payload_validation_dir=(
+            llm_response_payload_validation_dir
+            if llm_response_payload_validation_payload is not None
+            else None
         ),
         goal_conditioned_minimal_formalization_plan_dir=plan_dir,
         formalization_gap_planner_portable_plan_audit_dir=portable_plan_audit_dir,
@@ -1327,6 +1355,19 @@ def run_formalization_gap_planner_reuse_smoke(
             / "formalization_gap_planner_llm_route_planner_manifest.json",
             feedback_llm_route_planner_payload,
         ),
+        *(
+            (
+                _stage_row(
+                    "formalization_gap_planner_llm_route_planner_response_payload_validation",
+                    llm_response_payload_validation_dir,
+                    llm_response_payload_validation_dir
+                    / "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.json",
+                    llm_response_payload_validation_payload,
+                ),
+            )
+            if llm_response_payload_validation_payload is not None
+            else ()
+        ),
         _stage_row(
             "formalization_gap_planner_proof_state_triage",
             proof_state_triage_dir,
@@ -1474,6 +1515,27 @@ def run_formalization_gap_planner_reuse_smoke(
                 feedback_llm_route_planner_payload,
                 provider_name=feedback_llm_route_planner_provider,
                 invoke_provider=feedback_llm_route_planner_invoke_provider,
+            )
+        ),
+        "has_llm_route_planner_response_payload_validation": (
+            llm_response_payload_validation_payload is not None
+        ),
+        "n_llm_route_planner_response_payload_validation_payloads": (
+            _optional_int(
+                llm_response_payload_validation_payload,
+                "n_payloads",
+            )
+        ),
+        "n_llm_route_planner_response_payload_validation_valid_payloads": (
+            _optional_int(
+                llm_response_payload_validation_payload,
+                "n_valid_payloads",
+            )
+        ),
+        "n_llm_route_planner_response_payload_validation_invalid_payloads": (
+            _optional_int(
+                llm_response_payload_validation_payload,
+                "n_invalid_payloads",
             )
         ),
         "n_total_llm_route_planner_live_provider_calls_requested": (
@@ -2110,6 +2172,30 @@ def run_formalization_gap_planner_reuse_smoke(
         ),
         "n_publication_bundle_optional_feedback_llm_route_planner_seed_route_adoption_readiness_valid": publication_bundle_audit_payload.get(
             "n_optional_feedback_llm_route_planner_seed_route_adoption_readiness_valid",
+            0,
+        ),
+        "n_publication_bundle_optional_llm_route_planner_response_payload_validation_manifest_contract_checked": publication_bundle_audit_payload.get(
+            "n_optional_llm_route_planner_response_payload_validation_manifest_contract_checked",
+            0,
+        ),
+        "n_publication_bundle_optional_llm_route_planner_response_payload_validation_manifest_contract_valid": publication_bundle_audit_payload.get(
+            "n_optional_llm_route_planner_response_payload_validation_manifest_contract_valid",
+            0,
+        ),
+        "n_publication_bundle_optional_llm_route_planner_response_payload_validation_count_checked": publication_bundle_audit_payload.get(
+            "n_optional_llm_route_planner_response_payload_validation_count_checked",
+            0,
+        ),
+        "n_publication_bundle_optional_llm_route_planner_response_payload_validation_count_valid": publication_bundle_audit_payload.get(
+            "n_optional_llm_route_planner_response_payload_validation_count_valid",
+            0,
+        ),
+        "n_publication_bundle_optional_llm_route_planner_response_payload_validation_row_schema_checked": publication_bundle_audit_payload.get(
+            "n_optional_llm_route_planner_response_payload_validation_row_schema_checked",
+            0,
+        ),
+        "n_publication_bundle_optional_llm_route_planner_response_payload_validation_row_schema_valid": publication_bundle_audit_payload.get(
+            "n_optional_llm_route_planner_response_payload_validation_row_schema_valid",
             0,
         ),
         "n_minimal_delta_audit_failed": minimal_delta_audit_payload.get("n_failed", 0),
@@ -3584,6 +3670,96 @@ def run_formalization_gap_planner_reuse_smoke(
     return payload
 
 
+def _maybe_validate_llm_route_planner_response_payloads(
+    planner_payloads: tuple[dict[str, Any], ...],
+    out_dir: Path,
+) -> dict[str, object] | None:
+    responses: list[dict[str, object]] = []
+    for planner_payload in planner_payloads:
+        for row in planner_payload.get("rows", []):
+            if not isinstance(row, dict):
+                continue
+            if not row.get("response_present"):
+                continue
+            response_payload = _llm_route_planner_response_payload_from_row(row)
+            if not response_payload:
+                continue
+            responses.append(
+                {
+                    "request_id": str(row.get("request_id", "")),
+                    "route_id": str(row.get("route_id", "")),
+                    "response_payload": response_payload,
+                    "proof_evidence_boundary": str(
+                        row.get(
+                            "proof_evidence_boundary",
+                            "not theorem proof evidence",
+                        )
+                    ),
+                }
+            )
+    if not responses:
+        return None
+    out_dir.mkdir(parents=True, exist_ok=True)
+    input_path = (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation_input.json"
+    )
+    input_path.write_text(
+        json.dumps({"responses": responses}, indent=2, default=str),
+        encoding="utf-8",
+    )
+    return validate_formalization_gap_planner_llm_route_planner_response_payloads(
+        input_path,
+        out_dir,
+    )
+
+
+def _llm_route_planner_response_payload_from_row(row: dict[str, Any]) -> dict[str, Any]:
+    response_payload = row.get("response_payload", {})
+    if isinstance(response_payload, dict) and response_payload:
+        return response_payload
+
+    raw_response_text = str(row.get("raw_response_text", "")).strip()
+    if raw_response_text:
+        try:
+            raw_response_payload = json.loads(raw_response_text)
+        except json.JSONDecodeError:
+            raw_response_payload = {}
+        if isinstance(raw_response_payload, dict):
+            nested_payload = raw_response_payload.get("response_payload", {})
+            if isinstance(nested_payload, dict) and nested_payload:
+                return nested_payload
+            if raw_response_payload:
+                return raw_response_payload
+
+    payload_keys = (
+        "informal_knowledge_dag_nodes",
+        "formal_realization_dag_nodes",
+        "lean_realization_dag_nodes",
+        "route_alignment_edges",
+        "minimal_delta_plan",
+        "residual_interpretations",
+        "search_requests",
+        "uncertainty_flags",
+        "semantic_alignment_risks",
+        "planner_next_actions",
+        "standalone_route",
+        "source_snippets",
+        "proof_evidence_boundary",
+    )
+    return {
+        key: row[key]
+        for key in payload_keys
+        if key in row
+    }
+
+
+def _optional_int(payload: dict[str, object] | None, key: str) -> int:
+    if payload is None:
+        return 0
+    return int(payload.get(key, 0) or 0)
+
+
 def _evaluation_ground_truth_path(
     plan_payload: dict[str, Any],
     out_dir: Path,
@@ -3847,6 +4023,21 @@ def _artifact_paths(out_dir: Path) -> dict[str, str]:
             out_dir
             / "formalization_gap_planner_feedback_llm_route_planner"
             / "formalization_gap_planner_llm_route_planner_standalone_seed.json"
+        ),
+        "llm_route_planner_response_payload_validation_manifest": str(
+            out_dir
+            / "formalization_gap_planner_llm_route_planner_response_payload_validation"
+            / "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.json"
+        ),
+        "llm_route_planner_response_payload_validation_jsonl": str(
+            out_dir
+            / "formalization_gap_planner_llm_route_planner_response_payload_validation"
+            / "formalization_gap_planner_llm_route_planner_response_payload_validation.jsonl"
+        ),
+        "llm_route_planner_response_payload_validation_row_schema": str(
+            out_dir
+            / "formalization_gap_planner_llm_route_planner_response_payload_validation"
+            / "formalization_gap_planner_llm_route_planner_response_payload_validation_row.schema.json"
         ),
         "standalone_plan_manifest": str(
             out_dir
@@ -4639,6 +4830,21 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_publication_bundle_optional_llm_route_planner_request_model_tier_mismatch_checked')} "
             f"feedback={payload.get('n_publication_bundle_optional_feedback_llm_route_planner_request_model_tier_mismatch_valid')}/"
             f"{payload.get('n_publication_bundle_optional_feedback_llm_route_planner_request_model_tier_mismatch_checked')}"
+        ),
+        (
+            f"- LLM route payload validation payloads valid/invalid: "
+            f"{payload.get('n_llm_route_planner_response_payload_validation_valid_payloads')}/"
+            f"{payload.get('n_llm_route_planner_response_payload_validation_invalid_payloads')} "
+            f"present={payload.get('has_llm_route_planner_response_payload_validation')}"
+        ),
+        (
+            f"- Bundle LLM route payload validation manifest/count/rows valid: "
+            f"{payload.get('n_publication_bundle_optional_llm_route_planner_response_payload_validation_manifest_contract_valid')}/"
+            f"{payload.get('n_publication_bundle_optional_llm_route_planner_response_payload_validation_manifest_contract_checked')} "
+            f"count={payload.get('n_publication_bundle_optional_llm_route_planner_response_payload_validation_count_valid')}/"
+            f"{payload.get('n_publication_bundle_optional_llm_route_planner_response_payload_validation_count_checked')} "
+            f"rows={payload.get('n_publication_bundle_optional_llm_route_planner_response_payload_validation_row_schema_valid')}/"
+            f"{payload.get('n_publication_bundle_optional_llm_route_planner_response_payload_validation_row_schema_checked')}"
         ),
         (
             f"- Feedback LLM route planner requests valid: "
