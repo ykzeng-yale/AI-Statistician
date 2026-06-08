@@ -233,6 +233,7 @@ REQUIRED_REPRODUCTION_ENTRYPOINTS = (
     "formalization-gap-planner-resource-request-queue",
     "formalization-gap-planner-resource-response-ledger",
     "formalization-gap-planner-target-intake",
+    "formalization-gap-planner-reuse-smoke",
     "formalization-gap-planner-benchmark-audit",
     "formalization-gap-planner-evaluation",
     "formalization-gap-planner-adapter-registry-audit",
@@ -268,6 +269,8 @@ REQUIRED_REPRODUCTION_COMMANDS = {
     "run_standalone_planner": "formalization-gap-planner-standalone-plan",
     "run_llm_route_planner": "formalization-gap-planner-llm-route-planner",
     "run_target_intake": "formalization-gap-planner-target-intake",
+    "run_reuse_smoke": "formalization-gap-planner-reuse-smoke",
+    "run_runtime_handoff_reuse_smoke": "formalization-gap-planner-reuse-smoke",
     "audit_standalone_plan": "formalization-gap-planner-portable-plan-audit",
     "export_library_coverage_map": "formalization-gap-planner-library-coverage-map",
     "export_primitive_action_queue": (
@@ -4132,6 +4135,52 @@ def _reproduction_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublic
             commands.get("run_target_intake", ""),
             "formalization-gap-planner-target-intake"
             in commands.get("run_target_intake", ""),
+        ),
+        _check(
+            "reproduction_reuse_smoke_command",
+            "reproduction",
+            "public reuse-smoke command uses bundled target-intake example and prompt-only Anthropic staging",
+            commands.get("run_reuse_smoke", ""),
+            "formalization-gap-planner-reuse-smoke"
+            in commands.get("run_reuse_smoke", "")
+            and "examples/formalization_gap_planner_target_intake_example.json"
+            in commands.get("run_reuse_smoke", "")
+            and "--target-prover-family"
+            in commands.get("run_reuse_smoke", "")
+            and "--llm-route-planner-provider anthropic"
+            in commands.get("run_reuse_smoke", "")
+            and "--llm-route-planner-model-tier auto"
+            in commands.get("run_reuse_smoke", "")
+            and "--feedback-llm-route-planner-provider anthropic"
+            in commands.get("run_reuse_smoke", "")
+            and "--feedback-llm-route-planner-model-tier auto"
+            in commands.get("run_reuse_smoke", "")
+            and "--llm-route-planner-invoke-provider"
+            not in commands.get("run_reuse_smoke", "")
+            and "--feedback-llm-route-planner-invoke-provider"
+            not in commands.get("run_reuse_smoke", ""),
+        ),
+        _check(
+            "reproduction_runtime_handoff_reuse_smoke_command",
+            "reproduction",
+            "runtime handoff reuse-smoke command consumes runtime target-intake JSON and remains prompt-only",
+            commands.get("run_runtime_handoff_reuse_smoke", ""),
+            "formalization-gap-planner-reuse-smoke"
+            in commands.get("run_runtime_handoff_reuse_smoke", "")
+            and "runtime_formalization_gap_planner_target_intake"
+            in commands.get("run_runtime_handoff_reuse_smoke", "")
+            and "<runtime_target_intake_json>"
+            in commands.get("run_runtime_handoff_reuse_smoke", "")
+            and "--target-library-snapshot-ref <runtime-library-snapshot-ref>"
+            in commands.get("run_runtime_handoff_reuse_smoke", "")
+            and "--llm-route-planner-provider anthropic"
+            in commands.get("run_runtime_handoff_reuse_smoke", "")
+            and "--feedback-llm-route-planner-provider anthropic"
+            in commands.get("run_runtime_handoff_reuse_smoke", "")
+            and "--llm-route-planner-invoke-provider"
+            not in commands.get("run_runtime_handoff_reuse_smoke", "")
+            and "--feedback-llm-route-planner-invoke-provider"
+            not in commands.get("run_runtime_handoff_reuse_smoke", ""),
         ),
         _check(
             "reproduction_llm_route_planner_command",

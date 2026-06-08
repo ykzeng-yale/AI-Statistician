@@ -3169,6 +3169,15 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         for row in audit_payload["checks"]
     )
     assert any(
+        row["check_name"] == "reproduction_reuse_smoke_command" and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"] == "reproduction_runtime_handoff_reuse_smoke_command"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
         row["check_name"] == "reproduction_component_resource_registry_command"
         and row["ok"]
         for row in audit_payload["checks"]
@@ -6323,3 +6332,43 @@ def test_publication_bundle_audit_rejects_llm_reproduction_without_registry_cont
     assert not audit_payload["all_ok"]
     assert "reproduction_llm_route_planner_command" in failed_names
     assert "reproduction_feedback_llm_route_planner_command" in failed_names
+
+
+def test_publication_bundle_audit_rejects_live_reuse_smoke_reproduction_commands() -> None:
+    root = Path(
+        "runs/"
+        "test_formalization_gap_planner_publication_bundle_audit_rejects_live_reuse_smoke"
+    )
+    bundle_dir = root / "bundle"
+    audit_dir = root / "audit"
+    shutil.rmtree(root, ignore_errors=True)
+    export_formalization_gap_planner_publication_bundle(bundle_dir)
+
+    manifest_path = (
+        bundle_dir
+        / "reproduce"
+        / "formalization_gap_planner_reproduction_manifest.json"
+    )
+    reproduction_payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    for row in reproduction_payload["commands"]:
+        if row["name"] == "run_reuse_smoke":
+            row["command"] += " --llm-route-planner-invoke-provider"
+        if row["name"] == "run_runtime_handoff_reuse_smoke":
+            row["command"] += " --feedback-llm-route-planner-invoke-provider"
+
+    manifest_path.write_text(
+        json.dumps(reproduction_payload, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+
+    audit_payload = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        audit_dir,
+    )
+    failed_names = {
+        row["check_name"] for row in audit_payload["checks"] if not row["ok"]
+    }
+
+    assert not audit_payload["all_ok"]
+    assert "reproduction_reuse_smoke_command" in failed_names
+    assert "reproduction_runtime_handoff_reuse_smoke_command" in failed_names
