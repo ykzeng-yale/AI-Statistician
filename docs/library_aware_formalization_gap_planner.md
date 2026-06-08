@@ -98,12 +98,14 @@ python3 -m ai_statistician.cli formalization-gap-planner-source-grounding-audit 
 The `formalization-gap-planner-llm-route-planner` command is the intended
 intelligence boundary for theorem understanding, literature-backed informal
 route synthesis, informal DAG construction, semantic alignment hypotheses,
-prover-residual interpretation, and minimal-delta rationale. In `prompt_only`
-mode it writes a complete request packet and prompt without calling a model.
-With a reviewed `--response-json` or `--static-response-file`, it validates the
-LLM route proposal and emits a revised standalone seed. With
-`--invoke-provider`, it can call the configured generator backend. The public
-planner path defaults to `prompt_only` to avoid accidental model spend. For live
+prover-residual interpretation, and minimal-delta rationale. By default it
+stages Anthropic/Claude request packets and prompts without calling a model.
+`prompt_only` remains an explicit no-provider mode. With a reviewed
+`--response-json` or `--static-response-file`, it validates the LLM route
+proposal and emits a revised standalone seed. With `--invoke-provider`, it can
+call the configured generator backend. The public planner path records
+`*_provider_execution_mode` and live-call counters so staged packets are
+distinguishable from paid provider calls. For live
 AI Statistician development, the default LLM runtime is Anthropic Claude API:
 Sonnet 4.6 for theorem understanding, route planning, theory repair, and
 formalizer work; Haiku 4.5 for cheaper structured helper tasks such as intake,
@@ -238,9 +240,13 @@ The one-command smoke path has two separate LLM route-planner controls. The
 initial theorem-route planner uses `--llm-route-planner-provider`, and the
 post-feedback rerun over the route-replan seed, residual goals, and
 interactive-session context uses `--feedback-llm-route-planner-provider`. Both
-default to `prompt_only` to avoid accidental API cost. To run the second pass
-with Claude after the deterministic residual/context stages have completed,
-use `--feedback-llm-route-planner-provider anthropic
+default to Anthropic/Claude staging with `--*-model-tier auto`, but they do not
+call the API unless the matching `--*-invoke-provider` flag is set. The
+reuse-smoke manifest records `staged_live_provider_prompt_no_api_call` versus
+`live_provider_invoked`, plus the number of requested live provider calls and
+the Haiku/Sonnet/Opus request-tier distribution. To run the second pass with
+Claude after the deterministic residual/context stages have completed, use
+`--feedback-llm-route-planner-provider anthropic
 --feedback-llm-route-planner-invoke-provider`; Anthropic defaults to Claude
 Sonnet 4.6 unless a model is supplied. Static or reviewed JSON responses can be
 passed with the matching `--feedback-llm-route-planner-static-response-file` or

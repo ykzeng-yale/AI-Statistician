@@ -133,6 +133,12 @@ SUMMARY_KEYS_BY_STAGE = {
     "formalization_gap_planner_llm_route_planner": (
         "provider_name",
         "invoke_provider",
+        "model_tier_selection_mode",
+        "by_request_model_tier",
+        "n_request_model_tier_haiku",
+        "n_request_model_tier_sonnet",
+        "n_request_model_tier_opus",
+        "n_request_model_tier_mismatches",
         "n_routes",
         "n_request_packets",
         "n_request_schema_valid",
@@ -168,6 +174,12 @@ SUMMARY_KEYS_BY_STAGE = {
     "formalization_gap_planner_feedback_llm_route_planner": (
         "provider_name",
         "invoke_provider",
+        "model_tier_selection_mode",
+        "by_request_model_tier",
+        "n_request_model_tier_haiku",
+        "n_request_model_tier_sonnet",
+        "n_request_model_tier_opus",
+        "n_request_model_tier_mismatches",
         "n_routes",
         "n_request_packets",
         "n_request_schema_valid",
@@ -1431,12 +1443,50 @@ def run_formalization_gap_planner_reuse_smoke(
         "llm_route_planner_provider": llm_route_planner_provider,
         "llm_route_planner_model": str(llm_route_planner_payload.get("model", "")),
         "llm_route_planner_invoke_provider": llm_route_planner_invoke_provider,
+        "llm_route_planner_provider_execution_mode": (
+            _llm_provider_execution_mode(
+                llm_route_planner_provider,
+                invoke_provider=llm_route_planner_invoke_provider,
+            )
+        ),
+        "n_llm_route_planner_live_provider_calls_requested": (
+            _llm_live_provider_call_count(
+                llm_route_planner_payload,
+                provider_name=llm_route_planner_provider,
+                invoke_provider=llm_route_planner_invoke_provider,
+            )
+        ),
         "feedback_llm_route_planner_provider": feedback_llm_route_planner_provider,
         "feedback_llm_route_planner_model": str(
             feedback_llm_route_planner_payload.get("model", "")
         ),
         "feedback_llm_route_planner_invoke_provider": (
             feedback_llm_route_planner_invoke_provider
+        ),
+        "feedback_llm_route_planner_provider_execution_mode": (
+            _llm_provider_execution_mode(
+                feedback_llm_route_planner_provider,
+                invoke_provider=feedback_llm_route_planner_invoke_provider,
+            )
+        ),
+        "n_feedback_llm_route_planner_live_provider_calls_requested": (
+            _llm_live_provider_call_count(
+                feedback_llm_route_planner_payload,
+                provider_name=feedback_llm_route_planner_provider,
+                invoke_provider=feedback_llm_route_planner_invoke_provider,
+            )
+        ),
+        "n_total_llm_route_planner_live_provider_calls_requested": (
+            _llm_live_provider_call_count(
+                llm_route_planner_payload,
+                provider_name=llm_route_planner_provider,
+                invoke_provider=llm_route_planner_invoke_provider,
+            )
+            + _llm_live_provider_call_count(
+                feedback_llm_route_planner_payload,
+                provider_name=feedback_llm_route_planner_provider,
+                invoke_provider=feedback_llm_route_planner_invoke_provider,
+            )
         ),
         "n_stages": len(stages),
         "n_ok": sum(1 for stage in stages if stage.ok),
@@ -3685,6 +3735,32 @@ def _summary(stage_name: str, payload: dict[str, Any]) -> dict[str, object]:
     }
 
 
+def _llm_provider_execution_mode(provider_name: str, *, invoke_provider: bool) -> str:
+    provider = str(provider_name or "").strip().lower()
+    if provider in {"anthropic", "openai"}:
+        if invoke_provider:
+            return "live_provider_invoked"
+        return "staged_live_provider_prompt_no_api_call"
+    if provider == "static":
+        return "static_replay_no_live_provider"
+    if provider == "prompt_only":
+        return "prompt_only_no_provider"
+    return "unknown_provider_mode"
+
+
+def _llm_live_provider_call_count(
+    payload: dict[str, Any],
+    *,
+    provider_name: str,
+    invoke_provider: bool,
+) -> int:
+    if str(provider_name or "").strip().lower() not in {"anthropic", "openai"}:
+        return 0
+    if not invoke_provider:
+        return 0
+    return int(payload.get("n_request_packets", 0) or 0)
+
+
 def _proof_boundary_ok(payload: dict[str, Any]) -> bool:
     status = str(payload.get("proof_evidence_status", "")).lower()
     boundary = str(payload.get("proof_evidence_boundary", "")).lower()
@@ -4490,6 +4566,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"- LLM route planner requests valid: "
             f"{payload.get('n_llm_route_planner_request_schema_valid')}/"
             f"{payload.get('n_llm_route_planner_request_packets')} "
+            f"mode={payload.get('llm_route_planner_provider_execution_mode')} "
+            f"live_calls={payload.get('n_llm_route_planner_live_provider_calls_requested')} "
             f"awaiting={payload.get('n_llm_route_planner_awaiting')} "
             f"provider_failures={payload.get('n_llm_route_planner_provider_failures')} "
             f"model_tier_mismatches={payload.get('n_llm_route_planner_request_model_tier_mismatches')} "
@@ -4566,6 +4644,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"- Feedback LLM route planner requests valid: "
             f"{payload.get('n_feedback_llm_route_planner_request_schema_valid')}/"
             f"{payload.get('n_feedback_llm_route_planner_request_packets')} "
+            f"mode={payload.get('feedback_llm_route_planner_provider_execution_mode')} "
+            f"live_calls={payload.get('n_feedback_llm_route_planner_live_provider_calls_requested')} "
             f"awaiting={payload.get('n_feedback_llm_route_planner_awaiting')} "
             f"provider_failures={payload.get('n_feedback_llm_route_planner_provider_failures')} "
             f"model_tier_mismatches={payload.get('n_feedback_llm_route_planner_request_model_tier_mismatches')} "

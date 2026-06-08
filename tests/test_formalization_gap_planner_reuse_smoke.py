@@ -285,6 +285,11 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     )
     assert payload["n_llm_route_planner_request_packets"] > 0
     assert payload["llm_route_planner_model_tier_selection_mode"] == "auto"
+    assert (
+        payload["llm_route_planner_provider_execution_mode"]
+        == "staged_live_provider_prompt_no_api_call"
+    )
+    assert payload["n_llm_route_planner_live_provider_calls_requested"] == 0
     assert payload["llm_route_planner_max_repair_attempts"] == 1
     assert payload["llm_route_planner_by_request_model_tier"]
     assert (
@@ -351,6 +356,12 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert payload["n_llm_route_planner_component_resource_registry_contracts_in_prompt"] > 0
     assert payload["n_feedback_llm_route_planner_request_packets"] > 0
     assert payload["feedback_llm_route_planner_model_tier_selection_mode"] == "auto"
+    assert (
+        payload["feedback_llm_route_planner_provider_execution_mode"]
+        == "staged_live_provider_prompt_no_api_call"
+    )
+    assert payload["n_feedback_llm_route_planner_live_provider_calls_requested"] == 0
+    assert payload["n_total_llm_route_planner_live_provider_calls_requested"] == 0
     assert payload["feedback_llm_route_planner_max_repair_attempts"] == 1
     assert payload["feedback_llm_route_planner_by_request_model_tier"]
     assert (
@@ -376,6 +387,21 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert payload["n_feedback_llm_route_planner_accepted_route_plans"] == 0
     assert payload["llm_route_planner_provider"] == "anthropic"
     assert payload["feedback_llm_route_planner_provider"] == "anthropic"
+    stage_by_name = {stage["stage_name"]: stage for stage in payload["stages"]}
+    llm_stage_summary = stage_by_name[
+        "formalization_gap_planner_llm_route_planner"
+    ]["summary"]
+    assert llm_stage_summary["model_tier_selection_mode"] == "auto"
+    assert llm_stage_summary["by_request_model_tier"] == payload[
+        "llm_route_planner_by_request_model_tier"
+    ]
+    feedback_llm_stage_summary = stage_by_name[
+        "formalization_gap_planner_feedback_llm_route_planner"
+    ]["summary"]
+    assert feedback_llm_stage_summary["model_tier_selection_mode"] == "auto"
+    assert feedback_llm_stage_summary["by_request_model_tier"] == payload[
+        "feedback_llm_route_planner_by_request_model_tier"
+    ]
     reproduction_command = payload["reproduction_commands"][0]
     assert "--llm-route-planner-model-tier auto" in reproduction_command
     assert "--llm-route-planner-max-repair-attempts 1" in reproduction_command
