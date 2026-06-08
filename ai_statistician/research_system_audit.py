@@ -4243,6 +4243,9 @@ async def run_research_system_audit(
             "formalization_gap_planner_refinement_evidence_literature": formalization_gap_planner_refinement_evidence_manifest[
                 "n_literature_evidence"
             ],
+            "formalization_gap_planner_refinement_evidence_formal_grounding": formalization_gap_planner_refinement_evidence_manifest[
+                "n_formal_grounding_evidence"
+            ],
             "formalization_gap_planner_refinement_evidence_lean_grounding": formalization_gap_planner_refinement_evidence_manifest[
                 "n_lean_grounding_evidence"
             ],

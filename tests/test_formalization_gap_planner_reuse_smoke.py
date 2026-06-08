@@ -1270,7 +1270,13 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert payload["n_refinement_ready"] == payload["n_refinement_items"]
     assert payload["n_refinement_item_schema_valid"] == payload["n_refinement_items"]
     assert payload["n_refinement_item_schema_invalid"] == 0
+    assert payload["n_refinement_formal_library_grounding_items"] > 0
+    assert payload["n_refinement_lean_library_grounding_items"] == 0
     assert payload["n_refinement_responses"] == payload["n_refinement_items"]
+    assert payload["n_refinement_adapter_formal_grounding_responses"] == payload[
+        "n_refinement_formal_library_grounding_items"
+    ]
+    assert payload["n_refinement_adapter_lean_grounding_responses"] == 0
     assert (
         payload["n_refinement_adapter_response_schema_valid"]
         == payload["n_refinement_responses"]
@@ -1312,6 +1318,10 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         "n_refinement_evidence_rows"
     ]
     assert payload["n_refinement_evidence_row_schema_invalid"] == 0
+    assert payload["n_refinement_evidence_formal_grounding"] == payload[
+        "n_refinement_formal_library_grounding_items"
+    ]
+    assert payload["n_refinement_evidence_lean_grounding"] == 0
     assert payload["n_routes_with_revision"] > 0
     assert payload["n_route_revision_overlay_row_schema_valid"] >= payload["n_routes_with_revision"]
     assert payload["n_route_revision_overlay_row_schema_invalid"] == 0
@@ -1452,6 +1462,15 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     }
     assert all(stage["proof_boundary_ok"] for stage in payload["stages"])
     stage_by_name = {stage["stage_name"]: stage for stage in payload["stages"]}
+    refinement_queue_summary = stage_by_name[
+        "formalization_gap_planner_refinement_queue"
+    ]["summary"]
+    refinement_adapter_summary = stage_by_name[
+        "formalization_gap_planner_refinement_adapter_responses"
+    ]["summary"]
+    refinement_evidence_summary = stage_by_name[
+        "formalization_gap_planner_refinement_evidence"
+    ]["summary"]
     interactive_summary = stage_by_name["formalization_gap_planner_interactive_session"][
         "summary"
     ]
@@ -1463,6 +1482,24 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     ]
     assert handoff_summary["n_revised_lean_realization_dag_nodes"] == payload[
         "n_route_replan_revised_lean_realization_dag_nodes"
+    ]
+    assert refinement_queue_summary["n_formal_library_grounding_items"] == payload[
+        "n_refinement_formal_library_grounding_items"
+    ]
+    assert refinement_queue_summary["n_lean_library_grounding_items"] == payload[
+        "n_refinement_lean_library_grounding_items"
+    ]
+    assert refinement_adapter_summary["n_formal_grounding_responses"] == payload[
+        "n_refinement_adapter_formal_grounding_responses"
+    ]
+    assert refinement_adapter_summary["n_lean_grounding_responses"] == payload[
+        "n_refinement_adapter_lean_grounding_responses"
+    ]
+    assert refinement_evidence_summary["n_formal_grounding_evidence"] == payload[
+        "n_refinement_evidence_formal_grounding"
+    ]
+    assert refinement_evidence_summary["n_lean_grounding_evidence"] == payload[
+        "n_refinement_evidence_lean_grounding"
     ]
     assert interactive_summary["n_run_formal_grounding"] == payload[
         "n_interactive_session_run_formal_grounding"

@@ -468,6 +468,7 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_ready",
         "n_blocked",
         "n_literature_discovery_items",
+        "n_formal_library_grounding_items",
         "n_lean_library_grounding_items",
         "n_proof_state_feedback_items",
         "n_route_revision_items",
@@ -477,6 +478,8 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_responses",
         "n_ground_truth_matched",
         "n_ground_truth_unmatched",
+        "n_formal_grounding_responses",
+        "n_lean_grounding_responses",
         "n_route_revision_recommended",
         "n_response_schema_valid",
         "n_response_schema_invalid",
@@ -562,6 +565,8 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_response_schema_valid",
         "n_response_schema_invalid",
         "n_awaiting_tool_response",
+        "n_formal_grounding_evidence",
+        "n_lean_grounding_evidence",
         "n_route_revision_recommended",
         "n_rejected",
     ),
@@ -3434,7 +3439,19 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_item_schema_invalid",
             0,
         ),
+        "n_refinement_formal_library_grounding_items": (
+            refinement_queue_payload.get("n_formal_library_grounding_items", 0)
+        ),
+        "n_refinement_lean_library_grounding_items": (
+            refinement_queue_payload.get("n_lean_library_grounding_items", 0)
+        ),
         "n_refinement_responses": refinement_adapter_payload.get("n_responses", 0),
+        "n_refinement_adapter_formal_grounding_responses": (
+            refinement_adapter_payload.get("n_formal_grounding_responses", 0)
+        ),
+        "n_refinement_adapter_lean_grounding_responses": (
+            refinement_adapter_payload.get("n_lean_grounding_responses", 0)
+        ),
         "n_refinement_adapter_response_schema_valid": refinement_adapter_payload.get(
             "n_response_schema_valid",
             0,
@@ -3609,6 +3626,12 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_refinement_evidence_rows": refinement_evidence_payload.get(
             "n_evidence_rows",
             0,
+        ),
+        "n_refinement_evidence_formal_grounding": (
+            refinement_evidence_payload.get("n_formal_grounding_evidence", 0)
+        ),
+        "n_refinement_evidence_lean_grounding": (
+            refinement_evidence_payload.get("n_lean_grounding_evidence", 0)
         ),
         "n_refinement_evidence_row_schema_valid": refinement_evidence_payload.get(
             "n_evidence_row_schema_valid",

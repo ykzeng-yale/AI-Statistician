@@ -20346,6 +20346,18 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             0,
         )
         self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_refinement_adapter_formal_grounding_responses"
+            ],
+            payload["counts"]["formalization_gap_planner_refinement_queue_formal_grounding"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_refinement_adapter_lean_grounding_responses"
+            ],
+            payload["counts"]["formalization_gap_planner_refinement_queue_lean_grounding"],
+        )
+        self.assertEqual(
             payload["counts"]["formalization_gap_planner_local_literature_responses"],
             payload["counts"]["formalization_gap_planner_refinement_queue_literature"],
         )
@@ -20444,6 +20456,18 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertEqual(
             payload["counts"]["formalization_gap_planner_refinement_evidence_row_schema_invalid"],
             0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_refinement_evidence_formal_grounding"
+            ],
+            payload["counts"]["formalization_gap_planner_refinement_queue_formal_grounding"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_refinement_evidence_lean_grounding"
+            ],
+            payload["counts"]["formalization_gap_planner_refinement_queue_lean_grounding"],
         )
         self.assertEqual(
             payload["counts"]["formalization_gap_planner_refinement_evidence_ok"],
