@@ -592,6 +592,7 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_standalone_seed_routes",
         "n_route_alignment_edges",
         "n_revised_informal_knowledge_dag_nodes",
+        "n_revised_formal_realization_dag_nodes",
         "n_revised_lean_realization_dag_nodes",
         "n_unaligned_primitives",
         "n_routes_with_residual_goals",
@@ -3688,6 +3689,10 @@ def run_formalization_gap_planner_reuse_smoke(
         ),
         "n_route_replan_revised_informal_knowledge_dag_nodes": route_replan_handoff_payload.get(
             "n_revised_informal_knowledge_dag_nodes",
+            0,
+        ),
+        "n_route_replan_revised_formal_realization_dag_nodes": route_replan_handoff_payload.get(
+            "n_revised_formal_realization_dag_nodes",
             0,
         ),
         "n_route_replan_revised_lean_realization_dag_nodes": route_replan_handoff_payload.get(

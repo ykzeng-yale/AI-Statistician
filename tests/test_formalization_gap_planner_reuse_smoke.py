@@ -1338,9 +1338,16 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         >= payload["n_route_replan_handoff_rows"]
     )
     assert (
+        payload["n_route_replan_revised_formal_realization_dag_nodes"]
+        >= payload["n_route_replan_handoff_rows"]
+    )
+    assert (
         payload["n_route_replan_revised_lean_realization_dag_nodes"]
         >= payload["n_route_replan_handoff_rows"]
     )
+    assert payload["n_route_replan_revised_formal_realization_dag_nodes"] == payload[
+        "n_route_replan_revised_lean_realization_dag_nodes"
+    ]
     assert payload["n_route_replan_unaligned_primitives"] == 0
     assert payload["n_route_replan_roundtrip_alignment_edges"] >= payload["n_replan_seed_routes"]
     assert (
@@ -1447,6 +1454,15 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     stage_by_name = {stage["stage_name"]: stage for stage in payload["stages"]}
     interactive_summary = stage_by_name["formalization_gap_planner_interactive_session"][
         "summary"
+    ]
+    handoff_summary = stage_by_name["formalization_gap_planner_route_replan_handoff"][
+        "summary"
+    ]
+    assert handoff_summary["n_revised_formal_realization_dag_nodes"] == payload[
+        "n_route_replan_revised_formal_realization_dag_nodes"
+    ]
+    assert handoff_summary["n_revised_lean_realization_dag_nodes"] == payload[
+        "n_route_replan_revised_lean_realization_dag_nodes"
     ]
     assert interactive_summary["n_run_formal_grounding"] == payload[
         "n_interactive_session_run_formal_grounding"
