@@ -140,6 +140,7 @@ def audit_research_agent_runtime(
         "runtime_dir": str(runtime_dir),
         "manifest": str(manifest_path),
         "runtime_stage": manifest.get("runtime_stage", ""),
+        "runtime_evaluation_mode": str(manifest.get("runtime_evaluation_mode", "")),
         "n_results": len(rows),
         "n_ok": sum(1 for row in rows if row.ok),
         "all_ok": not errors and bool(rows) and all(row.ok for row in rows),
@@ -556,6 +557,12 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     n_results = int(payload.get("n_results", 0) or 0)
     rows = [
         _scorecard_row(
+            "runtime_marked_capability_eval",
+            str(payload.get("runtime_evaluation_mode", "")) == "capability_eval",
+            f"runtime_evaluation_mode={payload.get('runtime_evaluation_mode')}",
+            "runtime manifest was not marked as capability_eval",
+        ),
+        _scorecard_row(
             "runtime_result_present",
             n_results > 0,
             f"n_results={n_results}",
@@ -643,6 +650,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "artifact_kind": "RuntimeCapabilityScorecard",
         "scope": "live autonomous AI Statistician core runtime readiness",
+        "runtime_evaluation_mode": str(payload.get("runtime_evaluation_mode", "")),
         "n_requirements": len(rows),
         "n_passed": n_passed,
         "n_failed": len(rows) - n_passed,
@@ -779,6 +787,7 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         f"- capability_status: {payload.get('capability_status')}",
         f"- capability scorecard: {payload.get('capability_scorecard', {}).get('n_passed')}/"
         f"{payload.get('capability_scorecard', {}).get('n_requirements')} passed",
+        f"- runtime evaluation mode: {payload.get('runtime_evaluation_mode')}",
         f"- results: {payload.get('n_ok')}/{payload.get('n_results')}",
         f"- runtime progress events: {payload.get('n_runtime_progress_events')}",
         f"- runtime traces: {payload.get('n_runtime_traces')}",

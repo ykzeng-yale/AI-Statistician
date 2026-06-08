@@ -111,6 +111,7 @@ class ResearchAgentRuntimeConfig:
     max_critic_repair_rounds: int = 1
     proof_obligation_ids: tuple[str, ...] = ()
     max_proof_obligations: int = 0
+    evaluation_mode: str = "debug"
 
 
 class ArchitectCoordinatorRuntimeSubsystem:
@@ -1705,6 +1706,7 @@ def run_research_agent_runtime(
             if architect_coordinator is not None
             else "retrieval_theory_simulation_algorithm_formalization_critic_environment_loop"
         ),
+        "runtime_evaluation_mode": config.evaluation_mode,
         "n_questions": len(questions),
         "config": asdict(config),
         "runtime_input_context": _runtime_input_context_summary(architect_context or {}),

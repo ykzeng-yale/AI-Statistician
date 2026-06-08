@@ -1127,6 +1127,7 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     )
 
     assert manifest["runtime_stage"] == "architect_retrieval_theory_simulation_algorithm_formalization_critic_environment_loop"
+    assert manifest["runtime_evaluation_mode"] == "debug"
     assert manifest["status_counts"]
     assert manifest["n_runtime_next_action_items"] > 0
     assert manifest["n_runtime_learning_rows"] > 0
@@ -1513,7 +1514,9 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     scorecard = audit["capability_scorecard"]
     scorecard_rows = {row["requirement_id"]: row for row in scorecard["rows"]}
     assert scorecard["artifact_kind"] == "RuntimeCapabilityScorecard"
+    assert scorecard["runtime_evaluation_mode"] == "debug"
     assert scorecard["ready"] is False
+    assert scorecard_rows["runtime_marked_capability_eval"]["passed"] is False
     assert scorecard_rows["architect_orchestrated"]["passed"] is True
     assert scorecard_rows["dynamic_stat_knowledge_bank_planned"]["passed"] is True
     assert scorecard_rows["live_generator_agents_enabled"]["passed"] is False
@@ -1564,6 +1567,43 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert system_overlay["n_real_kernel_verified_subclaims"] == 0
     assert system_overlay["n_non_real_kernel_verified_subclaims"] == 0
     assert Path(system_overlay["manifest_path"]).exists()
+
+
+def test_research_agent_runtime_records_capability_eval_mode_in_manifest() -> None:
+    out_dir = Path("runs/test_research_agent_runtime_capability_eval_mode")
+    shutil.rmtree(out_dir, ignore_errors=True)
+    question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+    developer = LLMTheoryDeveloperAgent(
+        provider=StaticArchitectLLMProvider(_runtime_sample_response()),
+        config=ResearchArchitectConfig(provider_name="static", model="static-theory-model"),
+    )
+    architect_coordinator = LLMArchitectCoordinatorAgent(
+        provider=StaticArchitectLLMProvider(_architect_sample_response()),
+        config=ArchitectCoordinatorConfig(provider_name="static", model="static-architect-model"),
+    )
+
+    manifest = run_research_agent_runtime(
+        [question],
+        out_dir,
+        theory_developer=developer,
+        architect_coordinator=architect_coordinator,
+        config=ResearchAgentRuntimeConfig(
+            n_runs=10,
+            seed=20260528,
+            max_iterations=2,
+            evaluation_mode="capability_eval",
+        ),
+    )
+
+    assert manifest["runtime_evaluation_mode"] == "capability_eval"
+    audit = audit_research_agent_runtime(out_dir, out_dir / "audit")
+    scorecard_rows = {
+        row["requirement_id"]: row for row in audit["capability_scorecard"]["rows"]
+    }
+    assert audit["runtime_evaluation_mode"] == "capability_eval"
+    assert audit["capability_scorecard"]["runtime_evaluation_mode"] == "capability_eval"
+    assert scorecard_rows["runtime_marked_capability_eval"]["passed"] is True
+    assert audit["capability_ready_for_full_ai_statistician"] is False
 
 
 def test_runtime_formalization_gap_planner_bridge_preserves_non_lean_target() -> None:
@@ -1870,6 +1910,7 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
     assert manifest["runtime_input_context"]["artifact_kind"] == "RuntimeInputContextSummary"
     assert manifest["runtime_input_context"]["runtime_learning_memory_supplied"] is True
     assert manifest["runtime_input_context"]["runtime_learning_memory_rows_loaded"] == 1
+    assert manifest["runtime_evaluation_mode"] == "debug"
     assert str(learning_file) in manifest["runtime_input_context"]["runtime_learning_memory_source_paths"]
     assert "not proof evidence" in manifest["runtime_input_context"]["boundary"]
     assert "n_kernel_verified_subclaims" in manifest
@@ -1914,8 +1955,10 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
     assert audit["capability_ready_for_full_ai_statistician"] is False
     scorecard = audit["capability_scorecard"]
     scorecard_rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    assert scorecard["runtime_evaluation_mode"] == "debug"
     assert scorecard["ready"] is False
     assert scorecard_rows["runtime_progress_observable"]["passed"] is True
+    assert scorecard_rows["runtime_marked_capability_eval"]["passed"] is False
     assert scorecard_rows["architect_orchestrated"]["passed"] is False
     assert scorecard_rows["live_generator_agents_enabled"]["passed"] is False
     assert "no live Anthropic/OpenAI generator agents were enabled" in audit["capability_gaps"]

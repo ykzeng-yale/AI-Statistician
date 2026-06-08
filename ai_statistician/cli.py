@@ -5925,6 +5925,11 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
             max_critic_repair_rounds=args.max_critic_repair_rounds,
             proof_obligation_ids=tuple(args.proof_obligation_id or ()),
             max_proof_obligations=args.max_proof_obligations,
+            evaluation_mode=(
+                "capability_eval"
+                if getattr(args, "capability_eval", False)
+                else "debug"
+            ),
         ),
     )
     print("\nAI Statistician Agent Runtime")
