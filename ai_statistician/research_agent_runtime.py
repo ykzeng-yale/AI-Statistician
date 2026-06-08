@@ -2682,20 +2682,28 @@ def _runtime_formalization_gap_planner_target_intake_payload(
     problem = bridge.get("problem", {})
     if not isinstance(problem, Mapping):
         problem = {}
-    target_prover_family = str(
-        bridge.get("target_prover_family")
-        or seed.get("target_prover_family")
-        or "lean4"
-    )
-    library_snapshot_ref = str(
-        seed.get("library_snapshot_ref")
-        or "ai_statistician_runtime_formalization_snapshot"
-    )
     routes = [
         dict(route)
         for route in seed.get("routes", [])
         if isinstance(route, Mapping)
     ]
+    route_target_prover_families = [
+        _runtime_formalization_gap_planner_route_target_prover_family(route)
+        for route in routes
+    ]
+    unique_route_targets = tuple(
+        dict.fromkeys(target for target in route_target_prover_families if target)
+    )
+    target_prover_family = str(
+        bridge.get("target_prover_family")
+        or seed.get("target_prover_family")
+        or (unique_route_targets[0] if len(unique_route_targets) == 1 else "")
+        or ("" if unique_route_targets else "lean4")
+    )
+    library_snapshot_ref = str(
+        seed.get("library_snapshot_ref")
+        or "ai_statistician_runtime_formalization_snapshot"
+    )
     background_primitives = [
         str(primitive)
         for primitive in seed.get("background_primitives", [])
@@ -2706,13 +2714,18 @@ def _runtime_formalization_gap_planner_target_intake_payload(
             route,
             question=question,
             problem=problem,
-            target_prover_family=target_prover_family,
+            target_prover_family=(
+                _runtime_formalization_gap_planner_route_target_prover_family(
+                    route,
+                    fallback_target_prover_family=target_prover_family,
+                )
+            ),
             library_snapshot_ref=library_snapshot_ref,
             background_primitives=background_primitives,
         )
         for route in routes
     ]
-    return {
+    payload = {
         "schema_version": 1,
         "component_name": "formalization_gap_planner_target_intake",
         "source_component": "ai_statistician_research_agent_runtime",
@@ -2720,7 +2733,6 @@ def _runtime_formalization_gap_planner_target_intake_payload(
         "standalone_seed_artifact_id": str(
             bridge.get("standalone_seed_artifact_id", "")
         ),
-        "target_prover_family": target_prover_family,
         "library_snapshot_ref": library_snapshot_ref,
         "domain": str(problem.get("problem_class", "")),
         "background_primitives": background_primitives,
@@ -2730,6 +2742,25 @@ def _runtime_formalization_gap_planner_target_intake_payload(
         ),
         "proof_evidence_boundary": RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_BOUNDARY,
     }
+    if target_prover_family:
+        payload["target_prover_family"] = target_prover_family
+    return payload
+
+
+def _runtime_formalization_gap_planner_route_target_prover_family(
+    route: Mapping[str, Any],
+    *,
+    fallback_target_prover_family: str = "",
+) -> str:
+    metadata = route.get("replan_metadata", {})
+    metadata = metadata if isinstance(metadata, Mapping) else {}
+    return str(
+        route.get("target_prover_family")
+        or route.get("target_prover")
+        or metadata.get("target_prover_family")
+        or metadata.get("target_prover")
+        or fallback_target_prover_family
+    ).strip()
 
 
 def _runtime_formalization_gap_planner_target_intake_target(

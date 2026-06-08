@@ -41,6 +41,7 @@ from ai_statistician.research_agent_runtime import (
     _registered_algorithm_template_hint,
     _runtime_learning_memory_proof_obligation_ids,
     _runtime_formalization_gap_planner_bridge,
+    _runtime_formalization_gap_planner_target_intake_payload,
     _run_generated_python_sandbox,
     _run_split_conformal_interval_prototype,
     run_research_agent_runtime,
@@ -1780,6 +1781,93 @@ def test_runtime_formalization_gap_planner_bridge_preserves_non_lean_target() ->
     ]
     assert bridge["counts"]["candidate_declaration_rows"] == 2
     assert bridge["counts"]["primitives_with_candidate_declaration_rows"] == 2
+
+
+def test_runtime_target_intake_payload_preserves_mixed_route_targets() -> None:
+    bridge = {
+        "bridge_id": "runtime_formalization_gap_planner_bridge:mixed_targets",
+        "target_prover_family": "rocq",
+        "standalone_seed_artifact_id": (
+            "runtime_formalization_gap_planner_standalone_seed:mixed_targets"
+        ),
+        "question": {
+            "id": "mixed_target_question",
+            "title": "Mixed prover target question",
+        },
+        "problem": {"problem_class": "distribution_free_prediction"},
+        "standalone_seed": {
+            "schema_version": 1,
+            "component_name": "formalization_gap_planner_standalone_input",
+            "library_snapshot_ref": "portable:runtime-mixed-targets",
+            "routes": [
+                {
+                    "route_id": "lean_rank_route",
+                    "display_name": "lean_rank_route",
+                    "target_prover_family": "lean4",
+                    "theorem_statement": "A Lean rank route.",
+                    "source_refs": ["runtime fixture"],
+                    "primitives": [
+                        {
+                            "primitive": "exchangeability",
+                            "coverage_status": "exact_exists",
+                            "candidate_declaration_rows": [
+                                {
+                                    "declaration": "Probability.exchangeable",
+                                    "target_prover_family": "lean4",
+                                    "source_field": "runtime_test_fixture",
+                                }
+                            ],
+                        }
+                    ],
+                },
+                {
+                    "route_id": "rocq_rank_route",
+                    "display_name": "rocq_rank_route",
+                    "target_prover_family": "rocq",
+                    "theorem_statement": "A Rocq rank route.",
+                    "source_refs": ["runtime fixture"],
+                    "primitives": [
+                        {
+                            "primitive": "exchangeability",
+                            "coverage_status": "exact_exists",
+                            "candidate_declaration_rows": [
+                                {
+                                    "declaration": "Rocq.Probability.exchangeable",
+                                    "target_prover_family": "rocq",
+                                    "source_field": "runtime_test_fixture",
+                                }
+                            ],
+                        }
+                    ],
+                },
+            ],
+        },
+    }
+
+    payload = _runtime_formalization_gap_planner_target_intake_payload(bridge)
+
+    assert payload["target_prover_family"] == "rocq"
+    assert [target["target_prover_family"] for target in payload["targets"]] == [
+        "lean4",
+        "rocq",
+    ]
+    assert payload["targets"][0]["candidate_primitives"][0][
+        "candidate_declaration_rows"
+    ][0]["target_prover_family"] == "lean4"
+    assert payload["targets"][1]["candidate_primitives"][0][
+        "candidate_declaration_rows"
+    ][0]["target_prover_family"] == "rocq"
+
+    bridge_without_scalar_target = dict(bridge)
+    bridge_without_scalar_target.pop("target_prover_family")
+    mixed_payload = _runtime_formalization_gap_planner_target_intake_payload(
+        bridge_without_scalar_target
+    )
+    assert "target_prover_family" not in mixed_payload
+    assert [target["target_prover_family"] for target in mixed_payload["targets"]] == [
+        "lean4",
+        "rocq",
+    ]
 
 
 def test_formal_subclaim_prover_flags_configured_filter_that_excludes_all_candidates() -> None:
