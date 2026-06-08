@@ -50,6 +50,10 @@ PROOF_EVIDENCE_BOUNDARY = (
     "and minimal-delta plans, but they are not theorem proof evidence. Proof "
     "claims require target-prover kernel replay."
 )
+ROUTE_ADOPTION_READY_STATUS = "READY_FOR_STANDALONE_REPLAY"
+ROUTE_ADOPTION_PENDING_STATUS = "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+ROUTE_ADOPTION_AWAITING_STATUS = "AWAITING_LLM_ROUTE_PLANNER_RESPONSE"
+ROUTE_ADOPTION_REJECTED_STATUS = "REJECTED_LLM_ROUTE_PLAN"
 LLM_ROUTE_PLANNER_COMPONENT = "formalization_gap_planner_llm_route_planner"
 PROMPT_ONLY_PROVIDER = "prompt_only"
 DEFAULT_LLM_ROUTE_PLANNER_PROVIDER = "anthropic"
@@ -418,6 +422,8 @@ class FormalizationGapPlannerLLMRoutePlannerRow:
     repair_error_history: tuple[dict[str, object], ...]
     generation_errors: tuple[str, ...]
     acceptance_status: str
+    route_adoption_status: str
+    route_adoption_blockers: tuple[str, ...]
     proof_evidence_status: str
     proof_evidence_boundary: str
     ok: bool
@@ -552,6 +558,7 @@ def export_formalization_gap_planner_llm_route_planner(
         validate_llm_route_planner_row(row, row_schema) for row in row_dicts
     ]
     by_acceptance_status = Counter(row.acceptance_status for row in rows)
+    by_route_adoption_status = Counter(row.route_adoption_status for row in rows)
     standalone_seed = _standalone_seed(input_payload, rows)
     payload: dict[str, object] = {
         "schema_version": FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SCHEMA_VERSION,
@@ -886,6 +893,44 @@ def export_formalization_gap_planner_llm_route_planner(
         "n_accepted_route_plans": sum(
             1 for row in rows if row.acceptance_status.startswith("ACCEPTED_")
         ),
+        "n_route_adoption_ready": by_route_adoption_status.get(
+            ROUTE_ADOPTION_READY_STATUS,
+            0,
+        ),
+        "n_route_adoption_pending_refinement": by_route_adoption_status.get(
+            ROUTE_ADOPTION_PENDING_STATUS,
+            0,
+        ),
+        "n_route_adoption_awaiting_llm_response": by_route_adoption_status.get(
+            ROUTE_ADOPTION_AWAITING_STATUS,
+            0,
+        ),
+        "n_route_adoption_rejected": by_route_adoption_status.get(
+            ROUTE_ADOPTION_REJECTED_STATUS,
+            0,
+        ),
+        "by_route_adoption_status": dict(sorted(by_route_adoption_status.items())),
+        "n_route_adoption_pending_search_request_blockers": sum(
+            1
+            for row in rows
+            if "search_requests_pending_evidence" in row.route_adoption_blockers
+        ),
+        "n_route_adoption_pending_planner_next_action_blockers": sum(
+            1
+            for row in rows
+            if "planner_next_actions_pending_evidence" in row.route_adoption_blockers
+        ),
+        "n_route_adoption_pending_uncertainty_blockers": sum(
+            1
+            for row in rows
+            if "uncertainty_flags_require_review" in row.route_adoption_blockers
+        ),
+        "n_route_adoption_pending_residual_repair_blockers": sum(
+            1
+            for row in rows
+            if "residual_interpretations_require_route_replay"
+            in row.route_adoption_blockers
+        ),
         "n_rejected": sum(
             count
             for status, count in by_acceptance_status.items()
@@ -1123,6 +1168,8 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
             "repair_error_history",
             "generation_errors",
             "acceptance_status",
+            "route_adoption_status",
+            "route_adoption_blockers",
             "proof_evidence_status",
             "proof_evidence_boundary",
             "ok",
@@ -1169,6 +1216,8 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
             "repair_error_history": object_array,
             "generation_errors": string_array,
             "acceptance_status": {"type": "string", "minLength": 1},
+            "route_adoption_status": {"type": "string", "minLength": 1},
+            "route_adoption_blockers": string_array,
             "proof_evidence_status": {"type": "string", "const": PROOF_EVIDENCE_STATUS},
             "proof_evidence_boundary": {
                 "type": "string",
@@ -1954,6 +2003,20 @@ def _row_for_request(
     )
     minimal_delta_plan = _dict_value(payload, "minimal_delta_plan")
     route_alignment_edges = _dict_tuple(payload.get("route_alignment_edges", []))
+    route_adoption_status, route_adoption_blockers = _route_adoption_readiness(
+        response_present=response_present,
+        provider_failure=provider_failure,
+        response_contract_ok=response_contract_ok,
+        search_requests=_dict_tuple(payload.get("search_requests", [])),
+        planner_next_actions=_dict_tuple(payload.get("planner_next_actions", [])),
+        uncertainty_flags=_str_tuple(payload.get("uncertainty_flags", [])),
+        semantic_alignment_risks=_str_tuple(
+            payload.get("semantic_alignment_risks", [])
+        ),
+        residual_interpretations=_dict_tuple(
+            payload.get("residual_interpretations", [])
+        ),
+    )
     return FormalizationGapPlannerLLMRoutePlannerRow(
         schema_version=FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SCHEMA_VERSION,
         llm_route_planner_row_id="formalization_gap_planner_llm_route_plan:"
@@ -2007,6 +2070,8 @@ def _row_for_request(
         ),
         generation_errors=generation_errors,
         acceptance_status=acceptance_status,
+        route_adoption_status=route_adoption_status,
+        route_adoption_blockers=route_adoption_blockers,
         proof_evidence_status=PROOF_EVIDENCE_STATUS,
         proof_evidence_boundary=PROOF_EVIDENCE_BOUNDARY,
         ok=not request_errors
@@ -2014,6 +2079,42 @@ def _row_for_request(
         and (not response_present or response_contract_ok),
         errors=tuple(sorted(set(all_errors))),
     )
+
+
+def _route_adoption_readiness(
+    *,
+    response_present: bool,
+    provider_failure: bool,
+    response_contract_ok: bool,
+    search_requests: tuple[dict[str, object], ...],
+    planner_next_actions: tuple[dict[str, object], ...],
+    uncertainty_flags: tuple[str, ...],
+    semantic_alignment_risks: tuple[str, ...],
+    residual_interpretations: tuple[dict[str, object], ...],
+) -> tuple[str, tuple[str, ...]]:
+    if provider_failure or (response_present and not response_contract_ok):
+        return (ROUTE_ADOPTION_REJECTED_STATUS, ("response_not_accepted",))
+    if not response_present:
+        return (
+            ROUTE_ADOPTION_AWAITING_STATUS,
+            ("llm_route_planner_response_missing",),
+        )
+
+    blockers: list[str] = []
+    if search_requests:
+        blockers.append("search_requests_pending_evidence")
+    if planner_next_actions:
+        blockers.append("planner_next_actions_pending_evidence")
+    if uncertainty_flags:
+        blockers.append("uncertainty_flags_require_review")
+    if semantic_alignment_risks:
+        blockers.append("semantic_alignment_risks_require_review")
+    if residual_interpretations:
+        blockers.append("residual_interpretations_require_route_replay")
+    blockers = list(dict.fromkeys(blockers))
+    if blockers:
+        return (ROUTE_ADOPTION_PENDING_STATUS, tuple(blockers))
+    return (ROUTE_ADOPTION_READY_STATUS, tuple())
 
 
 def _response_contract_errors(
@@ -5356,6 +5457,12 @@ def _compact_standalone_input_trace(value: object) -> dict[str, object]:
         "has_replan_metadata": bool(trace.get("has_replan_metadata", False)),
         "applied_hook_kinds": list(_str_tuple(trace.get("applied_hook_kinds", []))),
         "residual_goals": list(_str_tuple(trace.get("residual_goals", []))),
+        "llm_route_planner_route_adoption_status": str(
+            trace.get("llm_route_planner_route_adoption_status", "")
+        ),
+        "llm_route_planner_route_adoption_blockers": list(
+            _str_tuple(trace.get("llm_route_planner_route_adoption_blockers", []))
+        ),
         "has_minimal_delta_and_or_cost_graph": bool(
             trace.get("has_minimal_delta_and_or_cost_graph", False)
         ),
@@ -5629,6 +5736,10 @@ def _accepted_route_for_seed(
         ),
         "target_prover_family": row.target_prover_family,
         "llm_route_planner_acceptance_status": row.acceptance_status,
+        "llm_route_planner_route_adoption_status": row.route_adoption_status,
+        "llm_route_planner_route_adoption_blockers": list(
+            row.route_adoption_blockers
+        ),
         "llm_route_planner_search_requests": [dict(item) for item in row.search_requests],
         "llm_route_planner_interactive_refinement_hooks": [
             dict(item) for item in llm_refinement_hooks
@@ -5693,6 +5804,10 @@ def _accepted_route_for_seed(
     route["realization_coverage_witness"] = realization_coverage_witness
     route["llm_route_planner_row_id"] = row.llm_route_planner_row_id
     route["llm_route_planner_acceptance_status"] = row.acceptance_status
+    route["llm_route_planner_route_adoption_status"] = row.route_adoption_status
+    route["llm_route_planner_route_adoption_blockers"] = list(
+        row.route_adoption_blockers
+    )
     return route
 
 
@@ -6666,6 +6781,8 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
         f"- Provider failures: {payload.get('n_provider_failures')}",
         f"- Rows with generator metadata: {payload.get('n_rows_with_generator_metadata')}",
         f"- Accepted route plans: {payload.get('n_accepted_route_plans')}",
+        f"- Route adoption ready: {payload.get('n_route_adoption_ready')}",
+        f"- Route adoption pending refinement: {payload.get('n_route_adoption_pending_refinement')}",
         f"- Awaiting LLM response: {payload.get('n_awaiting_llm_response')}",
         f"- Rejected: {payload.get('n_rejected')}",
         f"- Informal DAG nodes: {payload.get('n_informal_knowledge_dag_nodes')}",

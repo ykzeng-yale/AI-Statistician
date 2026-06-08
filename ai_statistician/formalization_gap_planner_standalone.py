@@ -143,6 +143,20 @@ def export_formalization_gap_planner_standalone_plan(
         if row.standalone_input_trace.get("llm_route_planner_row_id")
         or row.standalone_input_trace.get("llm_route_planner_model_tier")
     )
+    by_llm_route_adoption_status = Counter(
+        str(
+            row.standalone_input_trace.get(
+                "llm_route_planner_route_adoption_status",
+                "",
+            )
+        )
+        or "missing"
+        for row in rows
+        if row.standalone_input_trace.get("llm_route_planner_row_id")
+        or row.standalone_input_trace.get(
+            "llm_route_planner_route_adoption_status"
+        )
+    )
     payload: dict[str, object] = {
         "schema_version": GOAL_CONDITIONED_MINIMAL_FORMALIZATION_PLAN_SCHEMA_VERSION,
         "portable_schema_id": PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_ID,
@@ -224,6 +238,34 @@ def export_formalization_gap_planner_standalone_plan(
             if row.standalone_input_trace.get(
                 "llm_route_planner_has_generator_metadata"
             )
+        ),
+        "standalone_input_trace_by_llm_route_adoption_status": dict(
+            sorted(by_llm_route_adoption_status.items())
+        ),
+        "n_standalone_input_traces_with_llm_route_adoption_status": sum(
+            1
+            for row in rows
+            if row.standalone_input_trace.get(
+                "llm_route_planner_route_adoption_status"
+            )
+        ),
+        "n_standalone_input_traces_ready_for_route_adoption": (
+            by_llm_route_adoption_status.get("READY_FOR_STANDALONE_REPLAY", 0)
+        ),
+        "n_standalone_input_traces_pending_refinement_before_route_adoption": (
+            by_llm_route_adoption_status.get(
+                "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION",
+                0,
+            )
+        ),
+        "n_standalone_input_trace_route_adoption_blockers": sum(
+            len(
+                row.standalone_input_trace.get(
+                    "llm_route_planner_route_adoption_blockers",
+                    [],
+                )
+            )
+            for row in rows
         ),
         "n_standalone_input_traces_with_source_snippets": sum(
             1
@@ -912,6 +954,12 @@ def _standalone_input_trace(
         ),
         "llm_route_planner_acceptance_status": str(
             metadata.get("llm_route_planner_acceptance_status", "")
+        ),
+        "llm_route_planner_route_adoption_status": str(
+            metadata.get("llm_route_planner_route_adoption_status", "")
+        ),
+        "llm_route_planner_route_adoption_blockers": _str_list(
+            metadata.get("llm_route_planner_route_adoption_blockers", [])
         ),
         "llm_route_planner_generator_metadata": llm_generator_metadata,
         "llm_route_planner_generator_metadata_keys": _str_list(

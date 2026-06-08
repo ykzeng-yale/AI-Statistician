@@ -196,6 +196,16 @@ the requested work without parsing raw LLM text. The request remains planning
 evidence only; its response must still enter through source grounding,
 library-coverage, refinement-evidence, or prover-feedback ledgers before route
 repair is accepted.
+Accepted rows also carry `route_adoption_status` and
+`route_adoption_blockers`. A row can satisfy the JSON/source/formal alignment
+contract while still being `PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION` because it
+asked for additional literature search, formal-library search, prover feedback,
+planner next actions, or uncertainty review. Only
+`READY_FOR_STANDALONE_REPLAY` means the route has no unresolved LLM-planner
+handoff blockers under the current evidence bound. The standalone seed and each
+standalone-plan `standalone_input_trace` preserve the same fields, so a public
+consumer can filter adoption-ready route plans without reopening raw LLM
+responses.
 The response contract also rejects target-prover drift: any explicit
 `target_prover_family` in the response payload, standalone route,
 `replan_metadata`, or formal-realization nodes must match the request target

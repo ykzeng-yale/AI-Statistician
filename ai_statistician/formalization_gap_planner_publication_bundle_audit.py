@@ -852,6 +852,19 @@ def audit_formalization_gap_planner_publication_bundle(
             and check.check_name.endswith("_seed_search_handoff")
             and check.ok
         ),
+        "n_optional_llm_route_planner_seed_route_adoption_readiness_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_llm_route_planner_row_")
+            and check.check_name.endswith("_seed_route_adoption_readiness")
+        ),
+        "n_optional_llm_route_planner_seed_route_adoption_readiness_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_llm_route_planner_row_")
+            and check.check_name.endswith("_seed_route_adoption_readiness")
+            and check.ok
+        ),
         "n_optional_llm_route_planner_generic_formal_dag_checked": sum(
             1
             for check in checks
@@ -1017,6 +1030,19 @@ def audit_formalization_gap_planner_publication_bundle(
             for check in checks
             if check.check_name.startswith("optional_feedback_llm_route_planner_row_")
             and check.check_name.endswith("_seed_search_handoff")
+            and check.ok
+        ),
+        "n_optional_feedback_llm_route_planner_seed_route_adoption_readiness_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_feedback_llm_route_planner_row_")
+            and check.check_name.endswith("_seed_route_adoption_readiness")
+        ),
+        "n_optional_feedback_llm_route_planner_seed_route_adoption_readiness_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_feedback_llm_route_planner_row_")
+            and check.check_name.endswith("_seed_route_adoption_readiness")
             and check.ok
         ),
         "n_optional_feedback_llm_route_planner_generic_formal_dag_checked": sum(
@@ -4594,6 +4620,20 @@ def _llm_route_planner_optional_checks(
                     errors=search_handoff_errors,
                 )
             )
+            route_adoption_errors = _llm_seed_route_adoption_readiness_errors(
+                row,
+                seed_route,
+            )
+            checks.append(
+                _check(
+                    f"{check_prefix}_row_{idx}_seed_route_adoption_readiness",
+                    "optional_artifacts",
+                    "accepted LLM row route-adoption readiness and blockers are preserved in standalone seed metadata",
+                    _llm_seed_route_adoption_readiness_observed(row, seed_route),
+                    not route_adoption_errors,
+                    errors=route_adoption_errors,
+                )
+            )
     return checks
 
 
@@ -6333,6 +6373,70 @@ def _llm_embedded_search_request_hashes(values: Any) -> set[str]:
         if isinstance(request, dict):
             hashes.add(stable_hash(request))
     return hashes
+
+
+def _llm_seed_route_adoption_readiness_errors(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    metadata = _seed_route_metadata(seed_route)
+    if not seed_route:
+        errors.append("seed route missing")
+    if not isinstance(metadata, dict):
+        errors.append("seed route replan_metadata missing")
+        return tuple(errors)
+    row_status = str(row.get("route_adoption_status", "")).strip()
+    if not row_status:
+        errors.append("accepted LLM row route_adoption_status missing")
+    route_status = str(
+        seed_route.get("llm_route_planner_route_adoption_status", "")
+    ).strip()
+    metadata_status = str(
+        metadata.get("llm_route_planner_route_adoption_status", "")
+    ).strip()
+    if row_status != route_status:
+        errors.append("seed route llm_route_planner_route_adoption_status mismatch")
+    if row_status != metadata_status:
+        errors.append(
+            "seed metadata llm_route_planner_route_adoption_status mismatch"
+        )
+    row_blockers = _str_tuple(row.get("route_adoption_blockers", []))
+    route_blockers = _str_tuple(
+        seed_route.get("llm_route_planner_route_adoption_blockers", [])
+    )
+    metadata_blockers = _str_tuple(
+        metadata.get("llm_route_planner_route_adoption_blockers", [])
+    )
+    if row_blockers != route_blockers:
+        errors.append("seed route llm_route_planner_route_adoption_blockers mismatch")
+    if row_blockers != metadata_blockers:
+        errors.append(
+            "seed metadata llm_route_planner_route_adoption_blockers mismatch"
+        )
+    return tuple(errors)
+
+
+def _llm_seed_route_adoption_readiness_observed(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+) -> str:
+    metadata = _seed_route_metadata(seed_route)
+    metadata = metadata if isinstance(metadata, dict) else {}
+    row_blockers = _str_tuple(row.get("route_adoption_blockers", []))
+    route_blockers = _str_tuple(
+        seed_route.get("llm_route_planner_route_adoption_blockers", [])
+    )
+    metadata_blockers = _str_tuple(
+        metadata.get("llm_route_planner_route_adoption_blockers", [])
+    )
+    return (
+        f"row_status={row.get('route_adoption_status', '')}; "
+        f"route_status={seed_route.get('llm_route_planner_route_adoption_status', '')}; "
+        f"metadata_status={metadata.get('llm_route_planner_route_adoption_status', '')}; "
+        f"route_blockers={len(set(row_blockers).intersection(route_blockers))}/{len(row_blockers)}; "
+        f"metadata_blockers={len(set(row_blockers).intersection(metadata_blockers))}/{len(row_blockers)}"
+    )
 
 
 def _llm_seed_model_provenance_errors(
@@ -12085,6 +12189,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Optional LLM route-planner seed alignment preserved: {payload.get('n_optional_llm_route_planner_seed_alignment_valid')}/{payload.get('n_optional_llm_route_planner_seed_alignment_checked')}",
         f"- Optional LLM route-planner seed DAG preserved: {payload.get('n_optional_llm_route_planner_seed_dag_valid')}/{payload.get('n_optional_llm_route_planner_seed_dag_checked')}",
         f"- Optional LLM route-planner seed search handoff preserved: {payload.get('n_optional_llm_route_planner_seed_search_handoff_valid')}/{payload.get('n_optional_llm_route_planner_seed_search_handoff_checked')}",
+        f"- Optional LLM route-planner seed route-adoption readiness preserved: {payload.get('n_optional_llm_route_planner_seed_route_adoption_readiness_valid')}/{payload.get('n_optional_llm_route_planner_seed_route_adoption_readiness_checked')}",
         f"- Optional LLM route-planner request evidence bounds valid: {payload.get('n_optional_llm_route_planner_request_evidence_bound_valid')}/{payload.get('n_optional_llm_route_planner_request_evidence_bound_checked')}",
         f"- Optional LLM route-planner request registry context valid: {payload.get('n_optional_llm_route_planner_request_registry_context_valid')}/{payload.get('n_optional_llm_route_planner_request_registry_context_checked')}",
         f"- Optional LLM route-planner request model-tier mismatch policy valid: {payload.get('n_optional_llm_route_planner_request_model_tier_mismatch_valid')}/{payload.get('n_optional_llm_route_planner_request_model_tier_mismatch_checked')}",
@@ -12095,6 +12200,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Optional feedback LLM route-planner seed alignment preserved: {payload.get('n_optional_feedback_llm_route_planner_seed_alignment_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_alignment_checked')}",
         f"- Optional feedback LLM route-planner seed DAG preserved: {payload.get('n_optional_feedback_llm_route_planner_seed_dag_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_dag_checked')}",
         f"- Optional feedback LLM route-planner seed search handoff preserved: {payload.get('n_optional_feedback_llm_route_planner_seed_search_handoff_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_search_handoff_checked')}",
+        f"- Optional feedback LLM route-planner seed route-adoption readiness preserved: {payload.get('n_optional_feedback_llm_route_planner_seed_route_adoption_readiness_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_route_adoption_readiness_checked')}",
         f"- Optional feedback LLM route-planner request evidence bounds valid: {payload.get('n_optional_feedback_llm_route_planner_request_evidence_bound_valid')}/{payload.get('n_optional_feedback_llm_route_planner_request_evidence_bound_checked')}",
         f"- Optional feedback LLM route-planner request registry context valid: {payload.get('n_optional_feedback_llm_route_planner_request_registry_context_valid')}/{payload.get('n_optional_feedback_llm_route_planner_request_registry_context_checked')}",
         f"- Optional feedback LLM route-planner request model-tier mismatch policy valid: {payload.get('n_optional_feedback_llm_route_planner_request_model_tier_mismatch_valid')}/{payload.get('n_optional_feedback_llm_route_planner_request_model_tier_mismatch_checked')}",

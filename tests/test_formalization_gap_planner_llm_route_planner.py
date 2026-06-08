@@ -1829,6 +1829,14 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert payload["n_response_present"] == 1
     assert payload["n_response_contract_ok"] == 1
     assert payload["n_accepted_route_plans"] == 1
+    assert payload["n_route_adoption_ready"] == 0
+    assert payload["n_route_adoption_pending_refinement"] == 1
+    assert payload["n_route_adoption_pending_search_request_blockers"] == 1
+    assert payload["n_route_adoption_pending_planner_next_action_blockers"] == 1
+    assert payload["n_route_adoption_pending_uncertainty_blockers"] == 1
+    assert payload["by_route_adoption_status"] == {
+        "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
+    }
     assert payload["n_informal_knowledge_dag_nodes"] == 2
     assert payload["n_lean_realization_dag_nodes"] == 2
     assert payload["n_route_alignment_edges"] == 1
@@ -1842,6 +1850,15 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert payload["n_rows_with_minimal_delta_cost_witness"] == 1
     row = payload["rows"][0]
     assert row["acceptance_status"] == "ACCEPTED_WITH_SEARCH_REQUESTS"
+    assert row["route_adoption_status"] == (
+        "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+    )
+    assert set(row["route_adoption_blockers"]) >= {
+        "search_requests_pending_evidence",
+        "planner_next_actions_pending_evidence",
+        "uncertainty_flags_require_review",
+        "semantic_alignment_risks_require_review",
+    }
     assert "conformal_prediction_textbook" in row["source_refs"]
     assert validate_llm_route_planner_row(
         row,
@@ -1910,6 +1927,18 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     )
     assert metadata["llm_route_planner_row_id"] == row["llm_route_planner_row_id"]
     assert metadata["llm_route_planner_acceptance_status"] == row["acceptance_status"]
+    assert (
+        seed_route["llm_route_planner_route_adoption_status"]
+        == row["route_adoption_status"]
+    )
+    assert (
+        metadata["llm_route_planner_route_adoption_status"]
+        == row["route_adoption_status"]
+    )
+    assert (
+        metadata["llm_route_planner_route_adoption_blockers"]
+        == list(row["route_adoption_blockers"])
+    )
     assert metadata["llm_route_planner_model_tier"] == row["model_tier"]
     assert (
         metadata["llm_route_planner_model_selection_rationale"]
@@ -1989,6 +2018,13 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     trace = plan_row["standalone_input_trace"]
     assert trace["llm_route_planner_row_id"] == row["llm_route_planner_row_id"]
     assert trace["llm_route_planner_model_tier"] == row["model_tier"]
+    assert trace["llm_route_planner_route_adoption_status"] == (
+        "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+    )
+    assert set(trace["llm_route_planner_route_adoption_blockers"]) >= {
+        "search_requests_pending_evidence",
+        "planner_next_actions_pending_evidence",
+    }
     assert (
         trace["llm_route_planner_model_selection_rationale"]
         == row["model_selection_rationale"]
@@ -2007,6 +2043,65 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert trace["minimal_delta_route_option_count"] == 2
     assert trace["minimal_delta_selected_route_cost"] == 4
     assert plan_row["minimal_cut_summary"]["add_bridge_lemmas"] == ["rank_uniformity"]
+
+
+def test_llm_route_planner_marks_clean_accepted_route_adoption_ready() -> None:
+    root = Path("runs/test_formalization_gap_planner_llm_route_planner_ready")
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response = _llm_response_payload()
+    response["search_requests"] = []
+    response["planner_next_actions"] = []
+    response["uncertainty_flags"] = []
+    response["semantic_alignment_risks"] = []
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_route_adoption_ready"] == 1
+    assert payload["n_route_adoption_pending_refinement"] == 0
+    assert payload["by_route_adoption_status"] == {
+        "READY_FOR_STANDALONE_REPLAY": 1
+    }
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "ACCEPTED_LLM_ROUTE_PLAN"
+    assert row["route_adoption_status"] == "READY_FOR_STANDALONE_REPLAY"
+    assert row["route_adoption_blockers"] == ()
+    seed_route = payload["standalone_seed"]["routes"][0]
+    assert (
+        seed_route["llm_route_planner_route_adoption_status"]
+        == "READY_FOR_STANDALONE_REPLAY"
+    )
+    assert seed_route["replan_metadata"][
+        "llm_route_planner_route_adoption_blockers"
+    ] == []
+
+    plan_dir = root / "standalone_plan_from_ready_llm_seed"
+    plan_payload = export_formalization_gap_planner_standalone_plan(
+        out_dir / "formalization_gap_planner_llm_route_planner_standalone_seed.json",
+        plan_dir,
+    )
+    assert plan_payload["all_ok"]
+    assert plan_payload[
+        "n_standalone_input_traces_ready_for_route_adoption"
+    ] == 1
+    assert plan_payload[
+        "n_standalone_input_traces_pending_refinement_before_route_adoption"
+    ] == 0
+    trace = plan_payload["rows"][0]["standalone_input_trace"]
+    assert trace["llm_route_planner_route_adoption_status"] == (
+        "READY_FOR_STANDALONE_REPLAY"
+    )
+    assert trace["llm_route_planner_route_adoption_blockers"] == []
 
 
 def test_llm_route_planner_accepts_candidate_declaration_rows_only_response() -> None:

@@ -141,6 +141,14 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_awaiting_llm_response",
         "n_response_contract_ok",
         "n_accepted_route_plans",
+        "n_route_adoption_ready",
+        "n_route_adoption_pending_refinement",
+        "n_route_adoption_awaiting_llm_response",
+        "n_route_adoption_rejected",
+        "n_route_adoption_pending_search_request_blockers",
+        "n_route_adoption_pending_planner_next_action_blockers",
+        "n_route_adoption_pending_uncertainty_blockers",
+        "n_route_adoption_pending_residual_repair_blockers",
         "n_rejected",
         "n_informal_knowledge_dag_nodes",
         "n_lean_realization_dag_nodes",
@@ -168,6 +176,14 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_awaiting_llm_response",
         "n_response_contract_ok",
         "n_accepted_route_plans",
+        "n_route_adoption_ready",
+        "n_route_adoption_pending_refinement",
+        "n_route_adoption_awaiting_llm_response",
+        "n_route_adoption_rejected",
+        "n_route_adoption_pending_search_request_blockers",
+        "n_route_adoption_pending_planner_next_action_blockers",
+        "n_route_adoption_pending_uncertainty_blockers",
+        "n_route_adoption_pending_residual_repair_blockers",
         "n_rejected",
         "n_informal_knowledge_dag_nodes",
         "n_lean_realization_dag_nodes",
@@ -189,6 +205,10 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_ok",
         "target_prover_family",
         "library_snapshot_ref",
+        "n_standalone_input_traces_with_llm_route_adoption_status",
+        "n_standalone_input_traces_ready_for_route_adoption",
+        "n_standalone_input_traces_pending_refinement_before_route_adoption",
+        "n_standalone_input_trace_route_adoption_blockers",
         "n_portable_work_packets",
         "n_existing_reuse_nodes",
         "n_wrapper_nodes",
@@ -1383,6 +1403,30 @@ def run_formalization_gap_planner_reuse_smoke(
                 0,
             )
         ),
+        "n_goal_plan_standalone_input_traces_with_llm_route_adoption_status": (
+            plan_payload.get(
+                "n_standalone_input_traces_with_llm_route_adoption_status",
+                0,
+            )
+        ),
+        "n_goal_plan_standalone_input_traces_ready_for_route_adoption": (
+            plan_payload.get(
+                "n_standalone_input_traces_ready_for_route_adoption",
+                0,
+            )
+        ),
+        "n_goal_plan_standalone_input_traces_pending_refinement_before_route_adoption": (
+            plan_payload.get(
+                "n_standalone_input_traces_pending_refinement_before_route_adoption",
+                0,
+            )
+        ),
+        "n_goal_plan_standalone_input_trace_route_adoption_blockers": (
+            plan_payload.get(
+                "n_standalone_input_trace_route_adoption_blockers",
+                0,
+            )
+        ),
         "max_routes": max_routes,
         "llm_route_planner_provider": llm_route_planner_provider,
         "llm_route_planner_model": str(llm_route_planner_payload.get("model", "")),
@@ -1525,6 +1569,44 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_llm_route_planner_accepted_route_plans": llm_route_planner_payload.get(
             "n_accepted_route_plans",
             0,
+        ),
+        "n_llm_route_planner_route_adoption_ready": llm_route_planner_payload.get(
+            "n_route_adoption_ready",
+            0,
+        ),
+        "n_llm_route_planner_route_adoption_pending_refinement": (
+            llm_route_planner_payload.get("n_route_adoption_pending_refinement", 0)
+        ),
+        "n_llm_route_planner_route_adoption_awaiting_llm_response": (
+            llm_route_planner_payload.get("n_route_adoption_awaiting_llm_response", 0)
+        ),
+        "n_llm_route_planner_route_adoption_rejected": llm_route_planner_payload.get(
+            "n_route_adoption_rejected",
+            0,
+        ),
+        "n_llm_route_planner_route_adoption_pending_search_request_blockers": (
+            llm_route_planner_payload.get(
+                "n_route_adoption_pending_search_request_blockers",
+                0,
+            )
+        ),
+        "n_llm_route_planner_route_adoption_pending_planner_next_action_blockers": (
+            llm_route_planner_payload.get(
+                "n_route_adoption_pending_planner_next_action_blockers",
+                0,
+            )
+        ),
+        "n_llm_route_planner_route_adoption_pending_uncertainty_blockers": (
+            llm_route_planner_payload.get(
+                "n_route_adoption_pending_uncertainty_blockers",
+                0,
+            )
+        ),
+        "n_llm_route_planner_route_adoption_pending_residual_repair_blockers": (
+            llm_route_planner_payload.get(
+                "n_route_adoption_pending_residual_repair_blockers",
+                0,
+            )
         ),
         "n_llm_route_planner_row_schema_valid": llm_route_planner_payload.get(
             "n_row_schema_valid",
@@ -1708,6 +1790,48 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_accepted_route_plans",
             0,
         ),
+        "n_feedback_llm_route_planner_route_adoption_ready": (
+            feedback_llm_route_planner_payload.get("n_route_adoption_ready", 0)
+        ),
+        "n_feedback_llm_route_planner_route_adoption_pending_refinement": (
+            feedback_llm_route_planner_payload.get(
+                "n_route_adoption_pending_refinement",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_route_adoption_awaiting_llm_response": (
+            feedback_llm_route_planner_payload.get(
+                "n_route_adoption_awaiting_llm_response",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_route_adoption_rejected": (
+            feedback_llm_route_planner_payload.get("n_route_adoption_rejected", 0)
+        ),
+        "n_feedback_llm_route_planner_route_adoption_pending_search_request_blockers": (
+            feedback_llm_route_planner_payload.get(
+                "n_route_adoption_pending_search_request_blockers",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_route_adoption_pending_planner_next_action_blockers": (
+            feedback_llm_route_planner_payload.get(
+                "n_route_adoption_pending_planner_next_action_blockers",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_route_adoption_pending_uncertainty_blockers": (
+            feedback_llm_route_planner_payload.get(
+                "n_route_adoption_pending_uncertainty_blockers",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_route_adoption_pending_residual_repair_blockers": (
+            feedback_llm_route_planner_payload.get(
+                "n_route_adoption_pending_residual_repair_blockers",
+                0,
+            )
+        ),
         "n_feedback_llm_route_planner_row_schema_valid": feedback_llm_route_planner_payload.get(
             "n_row_schema_valid",
             0,
@@ -1874,6 +1998,14 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_optional_llm_route_planner_seed_model_provenance_valid",
             0,
         ),
+        "n_publication_bundle_optional_llm_route_planner_seed_route_adoption_readiness_checked": publication_bundle_audit_payload.get(
+            "n_optional_llm_route_planner_seed_route_adoption_readiness_checked",
+            0,
+        ),
+        "n_publication_bundle_optional_llm_route_planner_seed_route_adoption_readiness_valid": publication_bundle_audit_payload.get(
+            "n_optional_llm_route_planner_seed_route_adoption_readiness_valid",
+            0,
+        ),
         "n_publication_bundle_optional_feedback_llm_route_planner_request_schema_checked": publication_bundle_audit_payload.get(
             "n_optional_feedback_llm_route_planner_request_schema_checked",
             0,
@@ -1920,6 +2052,14 @@ def run_formalization_gap_planner_reuse_smoke(
         ),
         "n_publication_bundle_optional_feedback_llm_route_planner_seed_model_provenance_valid": publication_bundle_audit_payload.get(
             "n_optional_feedback_llm_route_planner_seed_model_provenance_valid",
+            0,
+        ),
+        "n_publication_bundle_optional_feedback_llm_route_planner_seed_route_adoption_readiness_checked": publication_bundle_audit_payload.get(
+            "n_optional_feedback_llm_route_planner_seed_route_adoption_readiness_checked",
+            0,
+        ),
+        "n_publication_bundle_optional_feedback_llm_route_planner_seed_route_adoption_readiness_valid": publication_bundle_audit_payload.get(
+            "n_optional_feedback_llm_route_planner_seed_route_adoption_readiness_valid",
             0,
         ),
         "n_minimal_delta_audit_failed": minimal_delta_audit_payload.get("n_failed", 0),
@@ -4313,6 +4453,12 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"tiers={payload.get('goal_plan_standalone_input_trace_by_llm_model_tier')}"
         ),
         (
+            f"- Goal-plan LLM route-adoption ready/pending/blockers: "
+            f"{payload.get('n_goal_plan_standalone_input_traces_ready_for_route_adoption')}/"
+            f"{payload.get('n_goal_plan_standalone_input_traces_pending_refinement_before_route_adoption')}/"
+            f"{payload.get('n_goal_plan_standalone_input_trace_route_adoption_blockers')}"
+        ),
+        (
             f"- LLM route planner requests valid: "
             f"{payload.get('n_llm_route_planner_request_schema_valid')}/"
             f"{payload.get('n_llm_route_planner_request_packets')} "
@@ -4320,6 +4466,13 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"provider_failures={payload.get('n_llm_route_planner_provider_failures')} "
             f"model_tier_mismatches={payload.get('n_llm_route_planner_request_model_tier_mismatches')} "
             f"generator_metadata_rows={payload.get('n_llm_route_planner_rows_with_generator_metadata')}"
+        ),
+        (
+            f"- LLM route planner adoption ready/pending/search-blockers/action-blockers: "
+            f"{payload.get('n_llm_route_planner_route_adoption_ready')}/"
+            f"{payload.get('n_llm_route_planner_route_adoption_pending_refinement')}/"
+            f"{payload.get('n_llm_route_planner_route_adoption_pending_search_request_blockers')}/"
+            f"{payload.get('n_llm_route_planner_route_adoption_pending_planner_next_action_blockers')}"
         ),
         (
             f"- LLM route planner resource registry context/resources/contracts: "
@@ -4361,6 +4514,13 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_publication_bundle_optional_feedback_llm_route_planner_seed_model_provenance_checked')}"
         ),
         (
+            f"- Bundle LLM route planner seed route-adoption readiness preserved: "
+            f"{payload.get('n_publication_bundle_optional_llm_route_planner_seed_route_adoption_readiness_valid')}/"
+            f"{payload.get('n_publication_bundle_optional_llm_route_planner_seed_route_adoption_readiness_checked')} "
+            f"feedback={payload.get('n_publication_bundle_optional_feedback_llm_route_planner_seed_route_adoption_readiness_valid')}/"
+            f"{payload.get('n_publication_bundle_optional_feedback_llm_route_planner_seed_route_adoption_readiness_checked')}"
+        ),
+        (
             f"- Bundle feedback LLM route planner requests/rows valid: "
             f"{payload.get('n_publication_bundle_optional_feedback_llm_route_planner_request_schema_valid')}/"
             f"{payload.get('n_publication_bundle_optional_feedback_llm_route_planner_request_schema_checked')} "
@@ -4384,6 +4544,13 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"generator_metadata_rows={payload.get('n_feedback_llm_route_planner_rows_with_generator_metadata')} "
             f"accepted={payload.get('n_feedback_llm_route_planner_accepted_route_plans')} "
             f"residual_goals={payload.get('n_feedback_llm_route_planner_request_residual_goals')}"
+        ),
+        (
+            f"- Feedback LLM route planner adoption ready/pending/search-blockers/action-blockers: "
+            f"{payload.get('n_feedback_llm_route_planner_route_adoption_ready')}/"
+            f"{payload.get('n_feedback_llm_route_planner_route_adoption_pending_refinement')}/"
+            f"{payload.get('n_feedback_llm_route_planner_route_adoption_pending_search_request_blockers')}/"
+            f"{payload.get('n_feedback_llm_route_planner_route_adoption_pending_planner_next_action_blockers')}"
         ),
         (
             f"- Feedback LLM route planner context coverage/source/request_queue/response_ledger/refinement/overlay/session/policy: "

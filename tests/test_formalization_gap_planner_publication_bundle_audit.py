@@ -4770,6 +4770,18 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     assert audit_payload["n_optional_llm_route_planner_seed_dag_valid"] == 1
     assert audit_payload["n_optional_llm_route_planner_seed_search_handoff_checked"] == 1
     assert audit_payload["n_optional_llm_route_planner_seed_search_handoff_valid"] == 1
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_seed_route_adoption_readiness_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_seed_route_adoption_readiness_valid"
+        ]
+        == 1
+    )
     assert audit_payload["n_optional_llm_route_planner_generic_formal_dag_checked"] == 1
     assert audit_payload["n_optional_llm_route_planner_generic_formal_dag_valid"] == 1
     assert (
@@ -4879,6 +4891,18 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     assert (
         audit_payload[
             "n_optional_feedback_llm_route_planner_seed_search_handoff_valid"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_feedback_llm_route_planner_seed_route_adoption_readiness_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_feedback_llm_route_planner_seed_route_adoption_readiness_valid"
         ]
         == 1
     )
@@ -5590,6 +5614,55 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         / "formalization_gap_planner_llm_route_planner_standalone_seed.json"
     )
     seed_payload = json.loads(seed_path.read_text(encoding="utf-8"))
+
+    route_adoption_corrupted_seed = json.loads(json.dumps(seed_payload))
+    route_adoption_corrupted_seed["routes"][0].pop(
+        "llm_route_planner_route_adoption_status",
+        None,
+    )
+    route_adoption_corrupted_seed["routes"][0][
+        "llm_route_planner_route_adoption_blockers"
+    ] = []
+    route_adoption_corrupted_seed["routes"][0]["replan_metadata"].pop(
+        "llm_route_planner_route_adoption_status",
+        None,
+    )
+    route_adoption_corrupted_seed["routes"][0]["replan_metadata"][
+        "llm_route_planner_route_adoption_blockers"
+    ] = []
+    seed_path.write_text(
+        json.dumps(route_adoption_corrupted_seed, indent=2),
+        encoding="utf-8",
+    )
+    rejected_route_adoption_payload = (
+        audit_formalization_gap_planner_publication_bundle(
+            bundle_dir,
+            root / "audit_rejects_llm_seed_route_adoption_readiness_loss",
+        )
+    )
+    route_adoption_checks = [
+        row
+        for row in rejected_route_adoption_payload["checks"]
+        if row["check_name"]
+        == "optional_llm_route_planner_row_0_seed_route_adoption_readiness"
+    ]
+    assert route_adoption_checks
+    assert not route_adoption_checks[0]["ok"]
+    assert any(
+        "route_adoption_status" in error
+        for error in route_adoption_checks[0]["errors"]
+    )
+    assert any(
+        "route_adoption_blockers" in error
+        for error in route_adoption_checks[0]["errors"]
+    )
+    assert (
+        rejected_route_adoption_payload[
+            "n_optional_llm_route_planner_seed_route_adoption_readiness_valid"
+        ]
+        == 0
+    )
+    seed_path.write_text(json.dumps(seed_payload, indent=2), encoding="utf-8")
 
     search_handoff_corrupted_seed = json.loads(json.dumps(seed_payload))
     search_handoff_corrupted_seed["routes"][0]["interactive_refinement_hooks"] = []

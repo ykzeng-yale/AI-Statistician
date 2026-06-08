@@ -1772,6 +1772,9 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     assert payload["n_llm_route_planner_rows_with_generation_errors"] == 0
     assert payload["n_llm_route_planner_response_contract_ok"] == 1
     assert payload["n_llm_route_planner_accepted_route_plans"] == 1
+    assert payload["n_llm_route_planner_route_adoption_ready"] == 0
+    assert payload["n_llm_route_planner_route_adoption_pending_refinement"] == 1
+    assert payload["n_llm_route_planner_route_adoption_pending_search_request_blockers"] == 1
     assert payload["n_llm_route_planner_awaiting"] == 0
     assert payload["n_llm_route_planner_search_requests"] == 1
     assert payload["n_feedback_llm_route_planner_response_present"] == 1
@@ -1782,6 +1785,17 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     assert payload["n_feedback_llm_route_planner_rows_with_generation_errors"] == 0
     assert payload["n_feedback_llm_route_planner_response_contract_ok"] == 1
     assert payload["n_feedback_llm_route_planner_accepted_route_plans"] == 1
+    assert payload["n_feedback_llm_route_planner_route_adoption_ready"] == 0
+    assert (
+        payload["n_feedback_llm_route_planner_route_adoption_pending_refinement"]
+        == 1
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_route_adoption_pending_search_request_blockers"
+        ]
+        == 1
+    )
     assert payload["n_feedback_llm_route_planner_awaiting"] == 0
     assert payload["n_feedback_llm_route_planner_search_requests"] == 1
     assert payload["n_llm_route_planner_feedback_loop_realization_witnesses"] == 0
@@ -1870,6 +1884,15 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         == 1
     )
     assert (
+        payload[
+            "n_publication_bundle_optional_llm_route_planner_seed_route_adoption_readiness_valid"
+        ]
+        == payload[
+            "n_publication_bundle_optional_llm_route_planner_seed_route_adoption_readiness_checked"
+        ]
+        == 1
+    )
+    assert (
         payload["n_publication_bundle_optional_feedback_llm_route_planner_row_schema_valid"]
         == payload["n_publication_bundle_optional_feedback_llm_route_planner_row_schema_checked"]
         == 1
@@ -1889,6 +1912,15 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         ]
         == payload[
             "n_publication_bundle_optional_feedback_llm_route_planner_seed_model_provenance_checked"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_optional_feedback_llm_route_planner_seed_route_adoption_readiness_valid"
+        ]
+        == payload[
+            "n_publication_bundle_optional_feedback_llm_route_planner_seed_route_adoption_readiness_checked"
         ]
         == 1
     )
@@ -1933,6 +1965,12 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     ]
     standalone_trace = plan_rows[0]["standalone_input_trace"]
     assert standalone_trace["llm_route_planner_model_tier"] == "sonnet"
+    assert standalone_trace["llm_route_planner_route_adoption_status"] == (
+        "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+    )
+    assert "search_requests_pending_evidence" in standalone_trace[
+        "llm_route_planner_route_adoption_blockers"
+    ]
     assert standalone_trace["llm_route_planner_has_generator_metadata"] is True
     assert standalone_trace["llm_route_planner_generator_metadata"]["generator_only"] is True
     report_text = (
