@@ -3407,22 +3407,19 @@ def test_llm_route_planner_accepts_non_lean_generic_formal_realization_nodes() -
     assert payload["all_ok"]
     assert payload["n_response_contract_ok"] == 1
     assert payload["n_formal_realization_dag_nodes"] == 2
-    assert payload["n_lean_realization_dag_nodes"] == 2
+    assert payload["n_lean_realization_dag_nodes"] == 0
     row = payload["rows"][0]
     assert row["target_prover_family"] == "rocq"
-    assert row["formal_realization_dag_nodes"] == row["lean_realization_dag_nodes"]
+    assert row["formal_realization_dag_nodes"]
+    assert not row["lean_realization_dag_nodes"]
     seed_route = payload["standalone_seed"]["routes"][0]
     metadata = seed_route["replan_metadata"]
     assert payload["standalone_seed"]["target_prover_family"] == "rocq"
     assert seed_route["target_prover_family"] == "rocq"
     assert metadata["target_prover_family"] == "rocq"
     assert seed_route["revised_formal_realization_dag_nodes"]
-    assert seed_route["revised_formal_realization_dag_nodes"] == seed_route[
-        "revised_lean_realization_dag_nodes"
-    ]
-    assert metadata["revised_formal_realization_dag_nodes"] == metadata[
-        "revised_lean_realization_dag_nodes"
-    ]
+    assert "revised_lean_realization_dag_nodes" not in seed_route
+    assert "revised_lean_realization_dag_nodes" not in metadata
     hook_kinds = {
         hook["hook_kind"] for hook in seed_route["interactive_refinement_hooks"]
     }
@@ -3442,6 +3439,93 @@ def test_llm_route_planner_accepts_non_lean_generic_formal_realization_nodes() -
     assert "Rocq/coq-lsp proof-state adapter" in proof_hook["recommended_tools"]
     assert "lean-lsp-mcp" not in proof_hook["recommended_tools"]
     assert "lake build" not in proof_hook["recommended_tools"]
+
+
+def test_llm_route_planner_rejects_non_lean_legacy_realization_alias() -> None:
+    root = Path("runs/test_formalization_gap_planner_llm_route_planner_rocq_alias")
+    out_dir = root / "llm_route_planner"
+    input_json = root / "standalone_input.json"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "component_name": "formalization_gap_planner_standalone_input",
+                "target_prover_family": "rocq",
+                "library_snapshot_ref": "rocq:coq-community-probability",
+                "routes": [
+                    {
+                        "route_id": "rocq_rank_route",
+                        "display_name": "rocq_distribution_free_rank_bound",
+                        "theorem_statement": (
+                            "A Rocq rank bound follows from exchangeability."
+                        ),
+                        "source_refs": ["conformal_prediction_textbook"],
+                        "source_snippets": [
+                            {
+                                "source_ref": "conformal_prediction_textbook",
+                                "claim": "Exchangeability implies a uniform rank statistic.",
+                                "excerpt": (
+                                    "Under exchangeability, the rank of the test score "
+                                    "among calibration scores is uniformly distributed "
+                                    "up to the tie convention."
+                                ),
+                                "target_primitives": ["rank_uniformity"],
+                            }
+                        ],
+                        "primitives": [
+                            {
+                                "primitive": "exchangeability",
+                                "coverage_status": "exact_exists",
+                                "candidate_declarations": [
+                                    "Rocq.Probability.exchangeable"
+                                ],
+                            },
+                            {
+                                "primitive": "rank_uniformity",
+                                "coverage_status": "bridge_needed",
+                            },
+                        ],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    response = _llm_response_payload()
+    response["standalone_route"]["primitives"][0]["candidate_declarations"] = [
+        "Rocq.Probability.exchangeable"
+    ]
+    for node in response["lean_realization_dag_nodes"]:
+        if node["primitive"] == "exchangeability":
+            node["candidate_declarations"] = ["Rocq.Probability.exchangeable"]
+    response["planner_next_actions"] = [
+        {
+            "owner": "rocq_serapi",
+            "action": "attempt Rocq proof-state feedback for rank_uniformity",
+        }
+    ]
+    response_json.write_text(json.dumps(response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_response_contract_ok"] == 0
+    row = payload["rows"][0]
+    assert row["target_prover_family"] == "rocq"
+    assert row["response_contract_ok"] is False
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "lean_realization_dag_nodes is a Lean-only legacy alias" in error
+        for error in row["errors"]
+    )
 
 
 def test_llm_route_planner_invokes_anthropic_generator_backend_without_live_api() -> None:

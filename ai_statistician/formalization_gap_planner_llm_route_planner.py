@@ -2079,6 +2079,7 @@ def _user_prompt(
             "Every residual_interpretations row that proposes route repair must have source_refs/source_snippets, a matching literature/source search_request, or a formal_gap_boundary; prover residuals alone are not source evidence for new mathematical side conditions.",
             "Every alignment edge must include an alignment_rationale.",
             "Every alignment edge informal_node_id/formal_node_id must reference nodes present in the returned informal and formal DAGs.",
+            "Use formal_realization_dag_nodes for all target provers; lean_realization_dag_nodes is accepted only as a Lean legacy alias and must not be used for non-Lean target_prover_family values.",
             "Minimal delta must include selected_primitives, cost_model_version, route_cost, primitive_costs, and_or_cost_graph, and minimality_rationale.",
             "Use minimal_delta_cost_policy as the AND/OR graph cost surface; pick the route with the lowest current formalization delta cost.",
             "Every selected primitive must have exactly one primitive_costs row with base_cost, proof_difficulty_cost, import_cone_cost, definition_or_typeclass_cost, semantic_risk_cost, reuse_credit, total_cost, and cost_rationale.",
@@ -3153,6 +3154,11 @@ def _row_for_request(
         payload,
         target_prover_family=target_prover_family,
     )
+    lean_legacy_nodes = _lean_legacy_realization_nodes_for_target(
+        payload,
+        formal_nodes=formal_nodes,
+        target_prover_family=target_prover_family,
+    )
     standalone_route = _standalone_route_from_payload(
         payload,
         target_prover_family=target_prover_family,
@@ -3197,7 +3203,7 @@ def _row_for_request(
             payload.get("informal_knowledge_dag_nodes", [])
         ),
         formal_realization_dag_nodes=formal_nodes,
-        lean_realization_dag_nodes=formal_nodes,
+        lean_realization_dag_nodes=lean_legacy_nodes,
         route_alignment_edges=route_alignment_edges,
         minimal_delta_plan=minimal_delta_plan,
         residual_interpretations=_dict_tuple(
@@ -3324,6 +3330,7 @@ def _response_contract_errors(
         errors.append(
             "formal_realization_dag_nodes or lean_realization_dag_nodes must be non-empty"
         )
+    errors.extend(_response_realization_field_contract_errors(payload, request))
     if not alignment_edges:
         errors.append("route_alignment_edges must be non-empty")
     for index, node in enumerate(informal_nodes):
@@ -3397,6 +3404,21 @@ def _response_contract_errors(
     errors.extend(_response_residual_interpretation_errors(payload, request))
     errors.extend(_response_residual_source_grounding_errors(payload))
     return errors
+
+
+def _response_realization_field_contract_errors(
+    payload: Mapping[str, Any],
+    request: Mapping[str, Any],
+) -> list[str]:
+    target_prover_key = _target_prover_key(request.get("target_prover_family", ""))
+    legacy_nodes = _dict_tuple(payload.get("lean_realization_dag_nodes", []))
+    if target_prover_key and target_prover_key != "lean4" and legacy_nodes:
+        return [
+            "lean_realization_dag_nodes is a Lean-only legacy alias; "
+            "non-Lean target prover responses must use "
+            "formal_realization_dag_nodes only"
+        ]
+    return []
 
 
 def _minimal_delta_cost_witness_errors(
@@ -7527,6 +7549,9 @@ def _accepted_route_for_seed(
     revised_formal_nodes = tuple(
         _llm_formal_node_for_seed(node) for node in row.formal_realization_dag_nodes
     )
+    revised_lean_nodes = tuple(
+        _llm_formal_node_for_seed(node) for node in row.lean_realization_dag_nodes
+    )
     revised_alignment_edges = tuple(_llm_alignment_edges_for_seed(row))
     metadata = _dict_value(route, "replan_metadata")
     applied_hook_kinds = tuple(
@@ -7636,7 +7661,6 @@ def _accepted_route_for_seed(
         "source_snippets": [dict(snippet) for snippet in source_snippets],
         "revised_informal_knowledge_dag_nodes": [dict(node) for node in revised_informal_nodes],
         "revised_formal_realization_dag_nodes": [dict(node) for node in revised_formal_nodes],
-        "revised_lean_realization_dag_nodes": [dict(node) for node in revised_formal_nodes],
         "revised_route_alignment_edges": [dict(edge) for edge in revised_alignment_edges],
         "alignment_edge_primitives": list(
             dict.fromkeys(
@@ -7656,6 +7680,12 @@ def _accepted_route_for_seed(
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
     }
+    if revised_lean_nodes:
+        metadata["revised_lean_realization_dag_nodes"] = [
+            dict(node) for node in revised_lean_nodes
+        ]
+    else:
+        metadata.pop("revised_lean_realization_dag_nodes", None)
     route["replan_metadata"] = metadata
     route["interactive_refinement_hooks"] = [
         dict(item) for item in route_refinement_hooks
@@ -7669,9 +7699,12 @@ def _accepted_route_for_seed(
     route["revised_formal_realization_dag_nodes"] = [
         dict(node) for node in revised_formal_nodes
     ]
-    route["revised_lean_realization_dag_nodes"] = [
-        dict(node) for node in revised_formal_nodes
-    ]
+    if revised_lean_nodes:
+        route["revised_lean_realization_dag_nodes"] = [
+            dict(node) for node in revised_lean_nodes
+        ]
+    else:
+        route.pop("revised_lean_realization_dag_nodes", None)
     route["revised_route_alignment_edges"] = [
         dict(edge) for edge in revised_alignment_edges
     ]
@@ -8247,6 +8280,27 @@ def _formal_realization_nodes_from_payload(
             inherited_target_prover_family=inherited_target,
         )
         for node in formal_nodes
+    )
+
+
+def _lean_legacy_realization_nodes_for_target(
+    payload: Mapping[str, Any],
+    *,
+    formal_nodes: tuple[dict[str, object], ...],
+    target_prover_family: str,
+) -> tuple[dict[str, object], ...]:
+    target_key = _target_prover_key(target_prover_family)
+    if target_key != "lean4":
+        return tuple()
+    legacy_nodes = _dict_tuple(payload.get("lean_realization_dag_nodes", []))
+    if not legacy_nodes:
+        return formal_nodes
+    return tuple(
+        _normalize_candidate_declaration_fields(
+            node,
+            inherited_target_prover_family=target_prover_family,
+        )
+        for node in legacy_nodes
     )
 
 
