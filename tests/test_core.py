@@ -6207,7 +6207,7 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(manifest.exists())
         self.assertIn('"required_ok": true', manifest.read_text())
 
-    def test_doctor_report_flags_global_claude_model_tier_collapse(self) -> None:
+    def test_doctor_report_keeps_cost_aware_tiers_under_global_claude_model_env(self) -> None:
         report = build_doctor_report(
             root=Path("."),
             env_file=Path(".env"),
@@ -6219,14 +6219,12 @@ class SystemTests(unittest.TestCase):
         )
 
         violations = report["summary"]["llm_model_tier_policy_violations"]
-        self.assertTrue(
-            any("collapsed to one resolved model" in item for item in violations)
-        )
-        self.assertTrue(
-            any("Claude haiku tier expected Claude haiku tier" in item for item in violations)
-        )
+        self.assertEqual(violations, [])
+        self.assertEqual(report["summary"]["llm_models"]["haiku"], "claude-haiku-4-5-20251001")
+        self.assertEqual(report["summary"]["llm_models"]["sonnet"], "claude-sonnet-4-6")
+        self.assertEqual(report["summary"]["llm_models"]["opus"], "claude-opus-4-8")
         checks = {row["name"]: row for row in report["checks"]}
-        self.assertEqual(checks["LLM Claude tier policy"]["status"], "WARN")
+        self.assertEqual(checks["LLM Claude tier policy"]["status"], "OK")
         self.assertNotIn("do-not-print-anthropic", json.dumps(report))
 
     def test_capability_audit_maps_objective_to_evidence(self) -> None:

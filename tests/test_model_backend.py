@@ -175,6 +175,8 @@ def test_live_generator_defaults_to_anthropic_cost_aware_tiers(monkeypatch: pyte
     monkeypatch.setenv("AI_STATISTICIAN_ANTHROPIC_MODEL", "claude-test")
     assert default_generator_provider() == "anthropic"
     assert default_generator_model("anthropic") == "claude-test"
+    assert default_generator_model("anthropic", model_tier="haiku") == "claude-haiku-4-5-20251001"
+    assert default_generator_model("anthropic", model_tier="opus") == "claude-opus-4-8"
 
     monkeypatch.delenv("AI_STATISTICIAN_ANTHROPIC_MODEL", raising=False)
     monkeypatch.setenv("AI_STATISTICIAN_CLAUDE_HAIKU_MODEL", "claude-haiku-test")
@@ -185,7 +187,7 @@ def test_live_generator_defaults_to_anthropic_cost_aware_tiers(monkeypatch: pyte
     assert default_generator_model("anthropic", model_tier="opus") == "claude-opus-test"
 
 
-def test_claude_model_tier_policy_violations_detect_global_model_collapse(
+def test_global_model_env_does_not_collapse_anthropic_cost_aware_tiers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("AI_STATISTICIAN_LLM_MODEL", "claude-sonnet-4-6")
@@ -196,6 +198,15 @@ def test_claude_model_tier_policy_violations_detect_global_model_collapse(
     }
 
     assert models == {
+        "haiku": "claude-haiku-4-5-20251001",
+        "sonnet": "claude-sonnet-4-6",
+        "opus": "claude-opus-4-8",
+    }
+    assert claude_model_tier_policy_violations(models) == []
+
+
+def test_claude_model_tier_policy_violations_detect_configured_model_collapse() -> None:
+    models = {
         "haiku": "claude-sonnet-4-6",
         "sonnet": "claude-sonnet-4-6",
         "opus": "claude-sonnet-4-6",

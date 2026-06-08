@@ -19,9 +19,9 @@ DEFAULT_CLAUDE_GENERATOR_MODELS_BY_TIER = {
     "opus": DEFAULT_CLAUDE_OPUS_GENERATOR_MODEL,
 }
 CLAUDE_MODEL_TIERS = tuple(DEFAULT_CLAUDE_GENERATOR_MODELS_BY_TIER)
-ANTHROPIC_MODEL_SOURCE_CHECKED_DATE = "2026-06-07"
+ANTHROPIC_MODEL_SOURCE_CHECKED_DATE = "2026-06-08"
 ANTHROPIC_MODELS_OVERVIEW_URL = (
-    "https://platform.claude.com/docs/en/docs/about-claude/models"
+    "https://platform.claude.com/docs/en/about-claude/models/overview"
 )
 ANTHROPIC_MODEL_IDS_AND_VERSIONING_URL = (
     "https://platform.claude.com/docs/en/about-claude/models/model-ids-and-versions"
@@ -102,14 +102,21 @@ def default_generator_model(
         else:
             tier_default = DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
             tier_env_keys = ("AI_STATISTICIAN_CLAUDE_SONNET_MODEL", "AI_STATISTICIAN_ANTHROPIC_SONNET_MODEL")
-        return (
-            global_model
-            or env.get(tier_env_keys[0])
+        tier_model = (
+            env.get(tier_env_keys[0])
             or env.get(tier_env_keys[1])
-            or env.get("AI_STATISTICIAN_ANTHROPIC_MODEL")
-            or env.get("AI_STATISTICIAN_THEORY_MODEL")
             or tier_default
-        ).strip()
+        )
+        if tier == "sonnet":
+            return (
+                env.get(tier_env_keys[0])
+                or env.get(tier_env_keys[1])
+                or env.get("AI_STATISTICIAN_ANTHROPIC_MODEL")
+                or env.get("AI_STATISTICIAN_THEORY_MODEL")
+                or global_model
+                or tier_default
+            ).strip()
+        return str(tier_model or "").strip()
     if provider == "openai":
         return (
             env.get("AI_STATISTICIAN_OPENAI_MODEL")
