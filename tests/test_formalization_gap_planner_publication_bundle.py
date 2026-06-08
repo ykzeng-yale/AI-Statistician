@@ -112,6 +112,8 @@ from ai_statistician.formalization_gap_planner_source_grounding_audit import (
     source_grounding_row_json_schema,
 )
 from ai_statistician.formalization_gap_planner_publication_bundle import (
+    LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_LEAN_LEGACY_SCHEMA_ID,
+    LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_TARGET_PROVER_SCHEMA_ID,
     export_formalization_gap_planner_publication_bundle,
     schema_catalog_json_schema,
     validate_schema_catalog_payload,
@@ -1777,6 +1779,41 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         )["$id"]
         == LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID
     )
+    lean_legacy_payload_schema = json.loads(
+        (
+            out_dir
+            / "contract"
+            / "formalization_gap_planner_llm_route_planner_response_payload_lean_legacy.schema.json"
+        ).read_text(encoding="utf-8")
+    )
+    target_prover_payload_schema = json.loads(
+        (
+            out_dir
+            / "contract"
+            / "formalization_gap_planner_llm_route_planner_response_payload_target_prover.schema.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert lean_legacy_payload_schema["$id"] == (
+        LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_LEAN_LEGACY_SCHEMA_ID
+    )
+    assert target_prover_payload_schema["$id"] == (
+        LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_TARGET_PROVER_SCHEMA_ID
+    )
+    assert lean_legacy_payload_schema["x-target-prover-families"] == ["lean4"]
+    assert target_prover_payload_schema["x-target-prover-families"] == [
+        "rocq",
+        "isabelle",
+        "agda",
+    ]
+    assert "lean_realization_dag_nodes" in lean_legacy_payload_schema[
+        "properties"
+    ]
+    assert "lean_realization_dag_nodes" not in target_prover_payload_schema[
+        "properties"
+    ]
+    assert target_prover_payload_schema["anyOf"] == [
+        {"required": ["formal_realization_dag_nodes"]}
+    ]
     assert (
         json.loads(
             (
@@ -1986,6 +2023,14 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     assert "llm_route_planner_request_schema" in schema_catalog_entry_names
     assert "llm_route_planner_response_schema" in schema_catalog_entry_names
     assert "llm_route_planner_response_payload_schema" in schema_catalog_entry_names
+    assert (
+        "llm_route_planner_response_payload_lean_legacy_schema"
+        in schema_catalog_entry_names
+    )
+    assert (
+        "llm_route_planner_response_payload_target_prover_schema"
+        in schema_catalog_entry_names
+    )
     assert (
         "llm_route_planner_response_payload_validation_manifest_schema"
         in schema_catalog_entry_names

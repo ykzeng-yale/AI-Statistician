@@ -151,6 +151,14 @@ LLM_MODEL_POLICY_COMPONENT_NAME = "ai_statistician_llm_model_policy"
 FORMALIZATION_GAP_PLANNER_SCHEMA_CATALOG_SCHEMA_ID = (
     "urn:ai-statistician:schemas:formalization-gap-planner-schema-catalog:1"
 )
+LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_LEAN_LEGACY_SCHEMA_ID = (
+    "urn:ai-statistician:schemas:"
+    "formalization-gap-planner-llm-route-planner-response-payload-lean-legacy:1"
+)
+LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_TARGET_PROVER_SCHEMA_ID = (
+    "urn:ai-statistician:schemas:"
+    "formalization-gap-planner-llm-route-planner-response-payload-target-prover:1"
+)
 OPTIONAL_ARTIFACT_FILES = {
     "formalization_gap_planner_target_intake": (
         "formalization_gap_planner_target_intake_manifest.json",
@@ -481,6 +489,28 @@ def export_formalization_gap_planner_publication_bundle(
     llm_route_planner_response_payload_schema_payload = (
         llm_route_planner_response_payload_schema()
     )
+    llm_route_planner_response_payload_lean_legacy_schema = (
+        _scoped_llm_response_payload_schema(
+            target_prover_family="lean4",
+            schema_id=LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_LEAN_LEGACY_SCHEMA_ID,
+            title=(
+                "Formalization Gap Planner LLM Route Planner Response Payload "
+                "(Lean Legacy Compatible)"
+            ),
+            target_prover_families=("lean4",),
+        )
+    )
+    llm_route_planner_response_payload_target_prover_schema = (
+        _scoped_llm_response_payload_schema(
+            target_prover_family="rocq",
+            schema_id=LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_TARGET_PROVER_SCHEMA_ID,
+            title=(
+                "Formalization Gap Planner LLM Route Planner Response Payload "
+                "(Target-Prover Portable)"
+            ),
+            target_prover_families=("rocq", "isabelle", "agda"),
+        )
+    )
     llm_route_planner_response_payload_validation_manifest_schema = (
         llm_route_planner_response_payload_validation_manifest_json_schema()
     )
@@ -579,6 +609,14 @@ def export_formalization_gap_planner_publication_bundle(
     llm_route_planner_response_payload_schema_path = (
         contract_dir
         / "formalization_gap_planner_llm_route_planner_response_payload.schema.json"
+    )
+    llm_route_planner_response_payload_lean_legacy_schema_path = (
+        contract_dir
+        / "formalization_gap_planner_llm_route_planner_response_payload_lean_legacy.schema.json"
+    )
+    llm_route_planner_response_payload_target_prover_schema_path = (
+        contract_dir
+        / "formalization_gap_planner_llm_route_planner_response_payload_target_prover.schema.json"
     )
     llm_route_planner_response_payload_validation_manifest_schema_path = (
         contract_dir
@@ -758,6 +796,14 @@ def export_formalization_gap_planner_publication_bundle(
     )
     llm_route_planner_response_payload_schema_path.write_text(
         json.dumps(llm_route_planner_response_payload_schema_payload, indent=2),
+        encoding="utf-8",
+    )
+    llm_route_planner_response_payload_lean_legacy_schema_path.write_text(
+        json.dumps(llm_route_planner_response_payload_lean_legacy_schema, indent=2),
+        encoding="utf-8",
+    )
+    llm_route_planner_response_payload_target_prover_schema_path.write_text(
+        json.dumps(llm_route_planner_response_payload_target_prover_schema, indent=2),
         encoding="utf-8",
     )
     llm_route_planner_response_payload_validation_manifest_schema_path.write_text(
@@ -1282,6 +1328,20 @@ def export_formalization_gap_planner_publication_bundle(
             "required": True,
             "ok": llm_route_planner_response_payload_schema_payload.get("$id")
             == LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
+        },
+        {
+            "artifact_name": "llm_route_planner_response_payload_lean_legacy_schema",
+            "path": str(llm_route_planner_response_payload_lean_legacy_schema_path),
+            "required": True,
+            "ok": llm_route_planner_response_payload_lean_legacy_schema.get("$id")
+            == LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_LEAN_LEGACY_SCHEMA_ID,
+        },
+        {
+            "artifact_name": "llm_route_planner_response_payload_target_prover_schema",
+            "path": str(llm_route_planner_response_payload_target_prover_schema_path),
+            "required": True,
+            "ok": llm_route_planner_response_payload_target_prover_schema.get("$id")
+            == LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_TARGET_PROVER_SCHEMA_ID,
         },
         {
             "artifact_name": (
@@ -2329,6 +2389,31 @@ def _llm_model_policy_markdown(payload: dict[str, object]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _scoped_llm_response_payload_schema(
+    *,
+    target_prover_family: str,
+    schema_id: str,
+    title: str,
+    target_prover_families: tuple[str, ...],
+) -> dict[str, object]:
+    schema = json.loads(
+        json.dumps(
+            llm_route_planner_response_payload_schema(
+                target_prover_family=target_prover_family
+            ),
+            default=str,
+        )
+    )
+    schema["$id"] = schema_id
+    schema["title"] = title
+    schema["x-target-prover-families"] = list(target_prover_families)
+    schema["description"] = (
+        "Target-scoped LLM route-planner response payload schema for the "
+        "library-aware formalization gap planner publication bundle."
+    )
+    return schema
+
+
 def _contract_payload(library_snapshot_ref: str) -> dict[str, object]:
     return {
         "component": LIBRARY_AWARE_FORMALIZATION_GAP_PLANNER_NAME,
@@ -2358,6 +2443,28 @@ def _contract_payload(library_snapshot_ref: str) -> dict[str, object]:
         "llm_route_planner_response_contract": llm_route_planner_response_json_schema(),
         "llm_route_planner_response_payload_contract": (
             llm_route_planner_response_payload_schema()
+        ),
+        "llm_route_planner_response_payload_lean_legacy_contract": (
+            _scoped_llm_response_payload_schema(
+                target_prover_family="lean4",
+                schema_id=LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_LEAN_LEGACY_SCHEMA_ID,
+                title=(
+                    "Formalization Gap Planner LLM Route Planner Response "
+                    "Payload (Lean Legacy Compatible)"
+                ),
+                target_prover_families=("lean4",),
+            )
+        ),
+        "llm_route_planner_response_payload_target_prover_contract": (
+            _scoped_llm_response_payload_schema(
+                target_prover_family="rocq",
+                schema_id=LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_TARGET_PROVER_SCHEMA_ID,
+                title=(
+                    "Formalization Gap Planner LLM Route Planner Response "
+                    "Payload (Target-Prover Portable)"
+                ),
+                target_prover_families=("rocq", "isabelle", "agda"),
+            )
         ),
         "llm_route_planner_response_payload_validation_manifest_contract": (
             llm_route_planner_response_payload_validation_manifest_json_schema()
@@ -3164,6 +3271,8 @@ def _reproduction_payload(
         "contract/formalization_gap_planner_llm_route_planner_request.schema.json",
         "contract/formalization_gap_planner_llm_route_planner_response.schema.json",
         "contract/formalization_gap_planner_llm_route_planner_response_payload.schema.json",
+        "contract/formalization_gap_planner_llm_route_planner_response_payload_lean_legacy.schema.json",
+        "contract/formalization_gap_planner_llm_route_planner_response_payload_target_prover.schema.json",
         "contract/formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.schema.json",
         "contract/formalization_gap_planner_llm_route_planner_response_payload_validation_row.schema.json",
         "contract/formalization_gap_planner_llm_route_planner_row.schema.json",
