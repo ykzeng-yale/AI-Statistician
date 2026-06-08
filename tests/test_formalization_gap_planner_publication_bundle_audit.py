@@ -339,7 +339,17 @@ def _write_accepted_llm_route_planner_artifact(root: Path) -> Path:
                     ),
                 },
                 "residual_interpretations": [],
-                "search_requests": [],
+                "search_requests": [
+                    {
+                        "request_kind": "literature",
+                        "query": "rank_uniformity finite rank exchangeability",
+                        "reason": (
+                            "Confirm the source-backed rank-uniformity bridge "
+                            "before route adoption."
+                        ),
+                        "target_primitives": ["rank_uniformity"],
+                    }
+                ],
                 "uncertainty_flags": [],
                 "semantic_alignment_risks": [],
                 "planner_next_actions": [],
@@ -4758,6 +4768,8 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     assert audit_payload["n_optional_llm_route_planner_seed_alignment_valid"] == 1
     assert audit_payload["n_optional_llm_route_planner_seed_dag_checked"] == 1
     assert audit_payload["n_optional_llm_route_planner_seed_dag_valid"] == 1
+    assert audit_payload["n_optional_llm_route_planner_seed_search_handoff_checked"] == 1
+    assert audit_payload["n_optional_llm_route_planner_seed_search_handoff_valid"] == 1
     assert audit_payload["n_optional_llm_route_planner_generic_formal_dag_checked"] == 1
     assert audit_payload["n_optional_llm_route_planner_generic_formal_dag_valid"] == 1
     assert (
@@ -4858,6 +4870,18 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     )
     assert audit_payload["n_optional_feedback_llm_route_planner_seed_dag_checked"] == 1
     assert audit_payload["n_optional_feedback_llm_route_planner_seed_dag_valid"] == 1
+    assert (
+        audit_payload[
+            "n_optional_feedback_llm_route_planner_seed_search_handoff_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_feedback_llm_route_planner_seed_search_handoff_valid"
+        ]
+        == 1
+    )
     assert (
         audit_payload[
             "n_optional_feedback_llm_route_planner_generic_formal_dag_checked"
@@ -5349,6 +5373,7 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
             "route_repair": "Add the hidden side condition to the route.",
         }
     ]
+    residual_corrupted_rows[0]["search_requests"] = []
     rows_path.write_text(
         "\n".join(json.dumps(row, sort_keys=True) for row in residual_corrupted_rows)
         + "\n",
@@ -5565,6 +5590,45 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         / "formalization_gap_planner_llm_route_planner_standalone_seed.json"
     )
     seed_payload = json.loads(seed_path.read_text(encoding="utf-8"))
+
+    search_handoff_corrupted_seed = json.loads(json.dumps(seed_payload))
+    search_handoff_corrupted_seed["routes"][0]["interactive_refinement_hooks"] = []
+    search_handoff_corrupted_seed["routes"][0]["route_revision_triggers"] = []
+    search_handoff_corrupted_seed["routes"][0]["replan_metadata"][
+        "llm_route_planner_search_requests"
+    ] = []
+    search_handoff_corrupted_seed["routes"][0]["replan_metadata"][
+        "llm_route_planner_interactive_refinement_hooks"
+    ] = []
+    search_handoff_corrupted_seed["routes"][0]["replan_metadata"][
+        "llm_route_planner_route_revision_triggers"
+    ] = []
+    seed_path.write_text(
+        json.dumps(search_handoff_corrupted_seed, indent=2),
+        encoding="utf-8",
+    )
+    rejected_search_handoff_payload = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        root / "audit_rejects_llm_seed_search_handoff_loss",
+    )
+    search_handoff_checks = [
+        row
+        for row in rejected_search_handoff_payload["checks"]
+        if row["check_name"] == "optional_llm_route_planner_row_0_seed_search_handoff"
+    ]
+    assert search_handoff_checks
+    assert not search_handoff_checks[0]["ok"]
+    assert any("search_requests" in error for error in search_handoff_checks[0]["errors"])
+    assert any("interactive_refinement_hooks" in error for error in search_handoff_checks[0]["errors"])
+    assert any("route_revision_triggers" in error for error in search_handoff_checks[0]["errors"])
+    assert (
+        rejected_search_handoff_payload[
+            "n_optional_llm_route_planner_seed_search_handoff_valid"
+        ]
+        == 0
+    )
+    seed_path.write_text(json.dumps(seed_payload, indent=2), encoding="utf-8")
+
     graph_corrupted_seed = json.loads(json.dumps(seed_payload))
     graph_corrupted_seed["routes"][0].pop("minimal_delta_and_or_cost_graph", None)
     graph_corrupted_seed["routes"][0]["replan_metadata"].pop(

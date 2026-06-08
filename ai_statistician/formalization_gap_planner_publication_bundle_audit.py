@@ -839,6 +839,19 @@ def audit_formalization_gap_planner_publication_bundle(
             and check.check_name.endswith("_seed_dag_preservation")
             and check.ok
         ),
+        "n_optional_llm_route_planner_seed_search_handoff_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_llm_route_planner_row_")
+            and check.check_name.endswith("_seed_search_handoff")
+        ),
+        "n_optional_llm_route_planner_seed_search_handoff_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_llm_route_planner_row_")
+            and check.check_name.endswith("_seed_search_handoff")
+            and check.ok
+        ),
         "n_optional_llm_route_planner_generic_formal_dag_checked": sum(
             1
             for check in checks
@@ -991,6 +1004,19 @@ def audit_formalization_gap_planner_publication_bundle(
             for check in checks
             if check.check_name.startswith("optional_feedback_llm_route_planner_row_")
             and check.check_name.endswith("_seed_dag_preservation")
+            and check.ok
+        ),
+        "n_optional_feedback_llm_route_planner_seed_search_handoff_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_feedback_llm_route_planner_row_")
+            and check.check_name.endswith("_seed_search_handoff")
+        ),
+        "n_optional_feedback_llm_route_planner_seed_search_handoff_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_feedback_llm_route_planner_row_")
+            and check.check_name.endswith("_seed_search_handoff")
             and check.ok
         ),
         "n_optional_feedback_llm_route_planner_generic_formal_dag_checked": sum(
@@ -4557,6 +4583,17 @@ def _llm_route_planner_optional_checks(
                     errors=dag_errors,
                 )
             )
+            search_handoff_errors = _llm_seed_search_handoff_errors(row, seed_route)
+            checks.append(
+                _check(
+                    f"{check_prefix}_row_{idx}_seed_search_handoff",
+                    "optional_artifacts",
+                    "accepted LLM row search requests are preserved as interactive refinement hooks and route-revision triggers",
+                    _llm_seed_search_handoff_observed(row, seed_route),
+                    not search_handoff_errors,
+                    errors=search_handoff_errors,
+                )
+            )
     return checks
 
 
@@ -6208,6 +6245,94 @@ def _llm_seed_provenance_observed(
         f"source_refs_metadata={len(row_sources.intersection(metadata_sources))}/{len(row_sources)}; "
         f"has_cost_graph={bool(_dict_value(_dict_value(row, 'minimal_delta_plan'), 'and_or_cost_graph'))}"
     )
+
+
+def _llm_seed_search_handoff_errors(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+) -> tuple[str, ...]:
+    search_requests = _dict_tuple(row.get("search_requests", []))
+    if not search_requests:
+        return tuple()
+    errors: list[str] = []
+    metadata = _seed_route_metadata(seed_route)
+    if not seed_route:
+        errors.append("seed route missing")
+    if not isinstance(metadata, dict):
+        errors.append("seed route replan_metadata missing")
+        return tuple(errors)
+    expected_request_hashes = _object_hashes(search_requests)
+    metadata_request_hashes = _object_hashes(
+        metadata.get("llm_route_planner_search_requests", [])
+    )
+    if expected_request_hashes != metadata_request_hashes:
+        errors.append("seed metadata llm_route_planner_search_requests mismatch")
+    route_hook_hashes = _llm_embedded_search_request_hashes(
+        seed_route.get("interactive_refinement_hooks", [])
+    )
+    metadata_hook_hashes = _llm_embedded_search_request_hashes(
+        metadata.get("llm_route_planner_interactive_refinement_hooks", [])
+    )
+    if not expected_request_hashes.issubset(route_hook_hashes):
+        errors.append("seed route interactive_refinement_hooks missing LLM search requests")
+    if not expected_request_hashes.issubset(metadata_hook_hashes):
+        errors.append(
+            "seed metadata llm_route_planner_interactive_refinement_hooks missing LLM search requests"
+        )
+    route_trigger_hashes = _llm_embedded_search_request_hashes(
+        seed_route.get("route_revision_triggers", [])
+    )
+    metadata_trigger_hashes = _llm_embedded_search_request_hashes(
+        metadata.get("llm_route_planner_route_revision_triggers", [])
+    )
+    if not expected_request_hashes.issubset(route_trigger_hashes):
+        errors.append("seed route route_revision_triggers missing LLM search requests")
+    if not expected_request_hashes.issubset(metadata_trigger_hashes):
+        errors.append(
+            "seed metadata llm_route_planner_route_revision_triggers missing LLM search requests"
+        )
+    return tuple(errors)
+
+
+def _llm_seed_search_handoff_observed(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+) -> str:
+    metadata = _seed_route_metadata(seed_route)
+    metadata = metadata if isinstance(metadata, dict) else {}
+    expected = _object_hashes(row.get("search_requests", []))
+    route_hook_hashes = _llm_embedded_search_request_hashes(
+        seed_route.get("interactive_refinement_hooks", [])
+    )
+    metadata_hook_hashes = _llm_embedded_search_request_hashes(
+        metadata.get("llm_route_planner_interactive_refinement_hooks", [])
+    )
+    route_trigger_hashes = _llm_embedded_search_request_hashes(
+        seed_route.get("route_revision_triggers", [])
+    )
+    metadata_trigger_hashes = _llm_embedded_search_request_hashes(
+        metadata.get("llm_route_planner_route_revision_triggers", [])
+    )
+    metadata_request_hashes = _object_hashes(
+        metadata.get("llm_route_planner_search_requests", [])
+    )
+    return (
+        f"search_requests={len(expected)}; "
+        f"metadata_requests={len(expected.intersection(metadata_request_hashes))}/{len(expected)}; "
+        f"route_hooks={len(expected.intersection(route_hook_hashes))}/{len(expected)}; "
+        f"metadata_hooks={len(expected.intersection(metadata_hook_hashes))}/{len(expected)}; "
+        f"route_triggers={len(expected.intersection(route_trigger_hashes))}/{len(expected)}; "
+        f"metadata_triggers={len(expected.intersection(metadata_trigger_hashes))}/{len(expected)}"
+    )
+
+
+def _llm_embedded_search_request_hashes(values: Any) -> set[str]:
+    hashes: set[str] = set()
+    for row in _dict_tuple(values):
+        request = row.get("llm_route_planner_search_request", {})
+        if isinstance(request, dict):
+            hashes.add(stable_hash(request))
+    return hashes
 
 
 def _llm_seed_model_provenance_errors(
@@ -11959,6 +12084,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Optional LLM route-planner seed realization witness preserved: {payload.get('n_optional_llm_route_planner_seed_realization_witness_valid')}/{payload.get('n_optional_llm_route_planner_seed_realization_witness_checked')}",
         f"- Optional LLM route-planner seed alignment preserved: {payload.get('n_optional_llm_route_planner_seed_alignment_valid')}/{payload.get('n_optional_llm_route_planner_seed_alignment_checked')}",
         f"- Optional LLM route-planner seed DAG preserved: {payload.get('n_optional_llm_route_planner_seed_dag_valid')}/{payload.get('n_optional_llm_route_planner_seed_dag_checked')}",
+        f"- Optional LLM route-planner seed search handoff preserved: {payload.get('n_optional_llm_route_planner_seed_search_handoff_valid')}/{payload.get('n_optional_llm_route_planner_seed_search_handoff_checked')}",
         f"- Optional LLM route-planner request evidence bounds valid: {payload.get('n_optional_llm_route_planner_request_evidence_bound_valid')}/{payload.get('n_optional_llm_route_planner_request_evidence_bound_checked')}",
         f"- Optional LLM route-planner request registry context valid: {payload.get('n_optional_llm_route_planner_request_registry_context_valid')}/{payload.get('n_optional_llm_route_planner_request_registry_context_checked')}",
         f"- Optional LLM route-planner request model-tier mismatch policy valid: {payload.get('n_optional_llm_route_planner_request_model_tier_mismatch_valid')}/{payload.get('n_optional_llm_route_planner_request_model_tier_mismatch_checked')}",
@@ -11968,6 +12094,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Optional feedback LLM route-planner seed realization witness preserved: {payload.get('n_optional_feedback_llm_route_planner_seed_realization_witness_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_realization_witness_checked')}",
         f"- Optional feedback LLM route-planner seed alignment preserved: {payload.get('n_optional_feedback_llm_route_planner_seed_alignment_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_alignment_checked')}",
         f"- Optional feedback LLM route-planner seed DAG preserved: {payload.get('n_optional_feedback_llm_route_planner_seed_dag_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_dag_checked')}",
+        f"- Optional feedback LLM route-planner seed search handoff preserved: {payload.get('n_optional_feedback_llm_route_planner_seed_search_handoff_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_search_handoff_checked')}",
         f"- Optional feedback LLM route-planner request evidence bounds valid: {payload.get('n_optional_feedback_llm_route_planner_request_evidence_bound_valid')}/{payload.get('n_optional_feedback_llm_route_planner_request_evidence_bound_checked')}",
         f"- Optional feedback LLM route-planner request registry context valid: {payload.get('n_optional_feedback_llm_route_planner_request_registry_context_valid')}/{payload.get('n_optional_feedback_llm_route_planner_request_registry_context_checked')}",
         f"- Optional feedback LLM route-planner request model-tier mismatch policy valid: {payload.get('n_optional_feedback_llm_route_planner_request_model_tier_mismatch_valid')}/{payload.get('n_optional_feedback_llm_route_planner_request_model_tier_mismatch_checked')}",
