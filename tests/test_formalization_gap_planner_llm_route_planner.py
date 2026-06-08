@@ -17,6 +17,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     export_formalization_gap_planner_llm_route_planner,
     llm_route_planner_row_json_schema,
     validate_formalization_gap_planner_llm_route_planner_response_payloads,
+    validate_llm_route_planner_request,
     validate_llm_route_planner_response_payload,
     validate_llm_route_planner_row,
 )
@@ -2248,6 +2249,47 @@ def test_llm_route_planner_cli_rejects_codex_generator_alias() -> None:
     assert not (
         out_dir / "formalization_gap_planner_llm_route_planner_requests.jsonl"
     ).exists()
+
+
+def test_llm_route_planner_api_rejects_codex_generator_alias() -> None:
+    root = Path("runs/test_formalization_gap_planner_llm_route_planner_api_codex")
+    out_dir = root / "out"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+
+    try:
+        export_formalization_gap_planner_llm_route_planner(
+            input_json,
+            out_dir,
+            provider_name="codex_exec",
+        )
+    except ValueError as exc:
+        assert "Codex/Codex exec are not accepted as pure LLM" in str(exc)
+    else:
+        raise AssertionError("Codex exec must not be accepted through the API")
+    assert not (
+        out_dir / "formalization_gap_planner_llm_route_planner_requests.jsonl"
+    ).exists()
+
+
+def test_llm_route_planner_request_validator_rejects_codex_provider() -> None:
+    root = Path("runs/test_formalization_gap_planner_llm_route_planner_request_codex")
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="prompt_only",
+    )
+    request = dict(payload["request_packets"][0])
+    request["provider_name"] = "codex"
+
+    assert (
+        "provider_name must be one of prompt_only, static, anthropic, openai"
+        in validate_llm_route_planner_request(request)
+    )
 
 
 def test_llm_route_planner_cli_invoke_provider_requires_live_provider() -> None:

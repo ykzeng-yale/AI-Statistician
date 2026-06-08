@@ -168,6 +168,12 @@ LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATOR_COMPONENT = (
 )
 PROMPT_ONLY_PROVIDER = "prompt_only"
 DEFAULT_LLM_ROUTE_PLANNER_PROVIDER = "anthropic"
+LLM_ROUTE_PLANNER_PROVIDER_NAMES = (
+    PROMPT_ONLY_PROVIDER,
+    "static",
+    "anthropic",
+    "openai",
+)
 MINIMAL_DELTA_COST_POLICY_ID = (
     "formalization_gap_planner_minimal_delta_cost_policy:1"
 )
@@ -606,7 +612,7 @@ def export_formalization_gap_planner_llm_route_planner(
         ),
     )
     routes = _routes(input_payload)
-    provider = provider_name or DEFAULT_LLM_ROUTE_PLANNER_PROVIDER
+    provider = _normalize_provider_name(provider_name)
     normalized_model_tier = _normalize_model_tier(model_tier)
     request_packets = tuple(
         _request_packet(
@@ -1771,6 +1777,12 @@ def validate_llm_route_planner_request(
     schema: Mapping[str, object] | None = None,
 ) -> list[str]:
     errors = _validate_with_schema(row, schema or llm_route_planner_request_json_schema())
+    provider = str(row.get("provider_name", "") or "").strip().lower()
+    if provider and provider not in LLM_ROUTE_PLANNER_PROVIDER_NAMES:
+        errors.append(
+            "provider_name must be one of "
+            + ", ".join(LLM_ROUTE_PLANNER_PROVIDER_NAMES)
+        )
     prompt = row.get("prompt_messages", {})
     if not isinstance(prompt, Mapping):
         errors.append("prompt_messages must be object")
@@ -2839,6 +2851,17 @@ def _provider_backend(provider_name: str) -> GeneratorBackend:
         "invoke_provider requires provider_name in {anthropic, openai} "
         "or a supplied generator_backend/static_response_json"
     )
+
+
+def _normalize_provider_name(provider_name: str) -> str:
+    provider = str(provider_name or DEFAULT_LLM_ROUTE_PLANNER_PROVIDER).strip().lower()
+    if provider not in LLM_ROUTE_PLANNER_PROVIDER_NAMES:
+        raise ValueError(
+            "provider_name must be one of "
+            + ", ".join(LLM_ROUTE_PLANNER_PROVIDER_NAMES)
+            + "; Codex/Codex exec are not accepted as pure LLM route-planner providers"
+        )
+    return provider
 
 
 def _normalize_model_tier(model_tier: str) -> str:
