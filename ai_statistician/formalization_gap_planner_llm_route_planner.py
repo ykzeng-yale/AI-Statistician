@@ -1444,6 +1444,30 @@ def validate_llm_route_planner_response_payload(
     return sorted(set(errors))
 
 
+def validate_llm_route_planner_response_payload_validation_manifest(
+    manifest: Mapping[str, object],
+    schema: Mapping[str, object] | None = None,
+) -> list[str]:
+    """Validate the reusable response-payload validation manifest contract."""
+
+    return _validate_with_schema(
+        manifest,
+        schema or llm_route_planner_response_payload_validation_manifest_json_schema(),
+    )
+
+
+def validate_llm_route_planner_response_payload_validation_row(
+    row: Mapping[str, object],
+    schema: Mapping[str, object] | None = None,
+) -> list[str]:
+    """Validate a response-payload validation JSONL row."""
+
+    return _validate_with_schema(
+        row,
+        schema or llm_route_planner_response_payload_validation_row_json_schema(),
+    )
+
+
 def validate_llm_route_planner_row(
     row: Mapping[str, object],
     schema: Mapping[str, object] | None = None,

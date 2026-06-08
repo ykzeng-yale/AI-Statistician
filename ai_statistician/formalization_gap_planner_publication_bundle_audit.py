@@ -48,6 +48,7 @@ from .formalization_gap_planner_library_coverage_map import (
     validate_library_coverage_map_row,
 )
 from .formalization_gap_planner_llm_route_planner import (
+    LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATOR_COMPONENT,
     LLM_ROUTE_PLANNER_PLANNER_NEXT_ACTION_HOOK_ALIASES,
     LLM_ROUTE_PLANNER_SEARCH_REQUEST_KIND_ALIASES,
     LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID,
@@ -58,6 +59,8 @@ from .formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
     MINIMAL_DELTA_COST_POLICY_ID,
     validate_llm_route_planner_request,
+    validate_llm_route_planner_response_payload_validation_manifest,
+    validate_llm_route_planner_response_payload_validation_row,
     validate_llm_route_planner_row,
 )
 from .formalization_gap_planner_primitive_action_queue import (
@@ -985,6 +988,49 @@ def audit_formalization_gap_planner_publication_bundle(
             for check in checks
             if check.check_name
             == "optional_llm_route_planner_request_model_tier_mismatch_policy"
+            and check.ok
+        ),
+        "n_optional_llm_route_planner_response_payload_validation_manifest_contract_checked": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_llm_route_planner_response_payload_validation_manifest_schema_valid"
+        ),
+        "n_optional_llm_route_planner_response_payload_validation_manifest_contract_valid": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_llm_route_planner_response_payload_validation_manifest_schema_valid"
+            and check.ok
+        ),
+        "n_optional_llm_route_planner_response_payload_validation_count_checked": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_llm_route_planner_response_payload_validation_count_consistency"
+        ),
+        "n_optional_llm_route_planner_response_payload_validation_count_valid": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_llm_route_planner_response_payload_validation_count_consistency"
+            and check.ok
+        ),
+        "n_optional_llm_route_planner_response_payload_validation_row_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith(
+                "optional_llm_route_planner_response_payload_validation_row_"
+            )
+            and check.check_name.endswith("_schema_valid")
+        ),
+        "n_optional_llm_route_planner_response_payload_validation_row_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith(
+                "optional_llm_route_planner_response_payload_validation_row_"
+            )
+            and check.check_name.endswith("_schema_valid")
             and check.ok
         ),
         "n_optional_feedback_llm_route_planner_request_schema_checked": sum(
@@ -4296,6 +4342,15 @@ def _optional_artifact_checks(
                     check_prefix="optional_feedback_llm_route_planner",
                 )
             )
+        if (
+            artifact_name
+            == "formalization_gap_planner_llm_route_planner_response_payload_validation"
+        ):
+            checks.extend(
+                _llm_route_planner_response_payload_validation_optional_checks(
+                    bundle_dir
+                )
+            )
         if artifact_name == "goal_conditioned_minimal_formalization_plan":
             checks.extend(_goal_conditioned_plan_optional_checks(bundle_dir))
         if artifact_name == "formalization_gap_planner_route_replan_handoff":
@@ -4495,6 +4550,183 @@ def _target_intake_optional_checks(
                 "; ".join(contract_errors) if contract_errors else "ok",
                 not contract_errors,
                 errors=contract_errors,
+            )
+        )
+    return checks
+
+
+def _llm_route_planner_response_payload_validation_optional_checks(
+    bundle_dir: Path,
+) -> list[FormalizationGapPlannerPublicationBundleAuditCheck]:
+    artifact_dir = (
+        bundle_dir
+        / "artifacts"
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation"
+    )
+    manifest_path = (
+        artifact_dir
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.json"
+    )
+    rows_jsonl_path = (
+        artifact_dir
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation.jsonl"
+    )
+    response_payload_schema_path = (
+        artifact_dir
+        / "formalization_gap_planner_llm_route_planner_response_payload.schema.json"
+    )
+    validation_manifest_schema_path = (
+        artifact_dir
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.schema.json"
+    )
+    validation_row_schema_path = (
+        artifact_dir
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation_row.schema.json"
+    )
+    manifest = _read_json_no_error(manifest_path)
+    response_payload_schema = _read_json_no_error(response_payload_schema_path)
+    validation_manifest_schema = _read_json_no_error(validation_manifest_schema_path)
+    validation_row_schema = _read_json_no_error(validation_row_schema_path)
+    rows, row_errors = _read_jsonl_dict_rows_no_error(rows_jsonl_path)
+    manifest_rows = _dict_tuple(manifest.get("rows", []))
+    manifest_contract_errors = (
+        validate_llm_route_planner_response_payload_validation_manifest(
+            manifest,
+            validation_manifest_schema,
+        )
+    )
+    valid_rows = sum(1 for row in rows if bool(row.get("ok", False)))
+    invalid_rows = len(rows) - valid_rows
+    count_errors: list[str] = []
+    if len(rows) != int(manifest.get("n_payloads", 0) or 0):
+        count_errors.append("JSONL row count must match manifest n_payloads")
+    if len(manifest_rows) != len(rows):
+        count_errors.append("manifest embedded rows must match JSONL row count")
+    if valid_rows != int(manifest.get("n_valid_payloads", 0) or 0):
+        count_errors.append("valid JSONL rows must match manifest n_valid_payloads")
+    if invalid_rows != int(manifest.get("n_invalid_payloads", 0) or 0):
+        count_errors.append("invalid JSONL rows must match manifest n_invalid_payloads")
+    checks = [
+        _check(
+            "optional_llm_route_planner_response_payload_validation_all_ok",
+            "optional_artifacts",
+            "LLM response-payload validation manifest all_ok",
+            str(manifest.get("all_ok", "")),
+            bool(manifest.get("all_ok", False)),
+        ),
+        _check(
+            "optional_llm_route_planner_response_payload_validation_component",
+            "optional_artifacts",
+            LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATOR_COMPONENT,
+            str(manifest.get("component_name", "")),
+            manifest.get("component_name")
+            == LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATOR_COMPONENT,
+        ),
+        _check(
+            "optional_llm_route_planner_response_payload_validation_boundary",
+            "optional_artifacts",
+            "not theorem proof evidence",
+            str(manifest.get("proof_evidence_boundary", ""))[:160],
+            "not theorem proof evidence"
+            in str(manifest.get("proof_evidence_boundary", "")).lower(),
+        ),
+        _check(
+            "optional_llm_route_planner_response_payload_validation_payload_schema_file",
+            "optional_artifacts",
+            "response-payload schema exists",
+            str(response_payload_schema_path.exists()),
+            response_payload_schema_path.exists(),
+        ),
+        _check(
+            "optional_llm_route_planner_response_payload_validation_payload_schema_id",
+            "optional_artifacts",
+            LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
+            str(response_payload_schema.get("$id", "")),
+            response_payload_schema.get("$id")
+            == LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
+        ),
+        _check(
+            "optional_llm_route_planner_response_payload_validation_manifest_schema_file",
+            "optional_artifacts",
+            "response-payload validation manifest schema exists",
+            str(validation_manifest_schema_path.exists()),
+            validation_manifest_schema_path.exists(),
+        ),
+        _check(
+            "optional_llm_route_planner_response_payload_validation_manifest_schema_id",
+            "optional_artifacts",
+            LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_MANIFEST_SCHEMA_ID,
+            str(validation_manifest_schema.get("$id", "")),
+            validation_manifest_schema.get("$id")
+            == LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_MANIFEST_SCHEMA_ID,
+        ),
+        _check(
+            "optional_llm_route_planner_response_payload_validation_row_schema_file",
+            "optional_artifacts",
+            "response-payload validation row schema exists",
+            str(validation_row_schema_path.exists()),
+            validation_row_schema_path.exists(),
+        ),
+        _check(
+            "optional_llm_route_planner_response_payload_validation_row_schema_id",
+            "optional_artifacts",
+            LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID,
+            str(validation_row_schema.get("$id", "")),
+            validation_row_schema.get("$id")
+            == LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID,
+        ),
+        _check(
+            "optional_llm_route_planner_response_payload_validation_manifest_schema_valid",
+            "optional_artifacts",
+            "validation manifest satisfies published schema",
+            "; ".join(manifest_contract_errors) if manifest_contract_errors else "ok",
+            not manifest_contract_errors,
+            errors=tuple(manifest_contract_errors),
+        ),
+        _check(
+            "optional_llm_route_planner_response_payload_validation_jsonl_parse",
+            "optional_artifacts",
+            "response-payload validation JSONL parses into object rows",
+            "; ".join(row_errors) if row_errors else f"rows={len(rows)}",
+            not row_errors,
+            errors=row_errors,
+        ),
+        _check(
+            "optional_llm_route_planner_response_payload_validation_count_consistency",
+            "optional_artifacts",
+            "response-payload validation JSONL counts match manifest counters",
+            (
+                f"jsonl={len(rows)} manifest={manifest.get('n_payloads', 0)} "
+                f"valid={valid_rows}/{manifest.get('n_valid_payloads', 0)} "
+                f"invalid={invalid_rows}/{manifest.get('n_invalid_payloads', 0)}"
+            ),
+            not count_errors,
+            errors=tuple(count_errors),
+        ),
+    ]
+    for idx, row in enumerate(rows):
+        schema_errors = validate_llm_route_planner_response_payload_validation_row(
+            row,
+            validation_row_schema,
+        )
+        checks.append(
+            _check(
+                f"optional_llm_route_planner_response_payload_validation_row_{idx}_schema_valid",
+                "optional_artifacts",
+                "response-payload validation row satisfies published row schema",
+                "; ".join(schema_errors) if schema_errors else "ok",
+                not schema_errors,
+                errors=tuple(schema_errors),
+            )
+        )
+        checks.append(
+            _check(
+                f"optional_llm_route_planner_response_payload_validation_row_{idx}_payload_schema_id",
+                "optional_artifacts",
+                "validation row targets the published response-payload schema",
+                str(row.get("payload_schema_id", "")),
+                row.get("payload_schema_id")
+                == LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
             )
         )
     return checks

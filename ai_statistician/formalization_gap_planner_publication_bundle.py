@@ -175,6 +175,13 @@ OPTIONAL_ARTIFACT_FILES = {
         "formalization_gap_planner_llm_route_planner_standalone_seed.schema.json",
         "formalization_gap_planner_llm_route_planner.md",
     ),
+    "formalization_gap_planner_llm_route_planner_response_payload_validation": (
+        "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.json",
+        "formalization_gap_planner_llm_route_planner_response_payload_validation.jsonl",
+        "formalization_gap_planner_llm_route_planner_response_payload.schema.json",
+        "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.schema.json",
+        "formalization_gap_planner_llm_route_planner_response_payload_validation_row.schema.json",
+    ),
     "goal_conditioned_minimal_formalization_plan": (
         "goal_conditioned_minimal_formalization_plan_manifest.json",
         "goal_conditioned_minimal_formalization_plan.jsonl",
@@ -376,6 +383,8 @@ def export_formalization_gap_planner_publication_bundle(
     formalization_gap_planner_target_intake_dir: Path | None = None,
     formalization_gap_planner_llm_route_planner_dir: Path | None = None,
     formalization_gap_planner_feedback_llm_route_planner_dir: Path | None = None,
+    formalization_gap_planner_llm_route_planner_response_payload_validation_dir: Path
+    | None = None,
     goal_conditioned_minimal_formalization_plan_dir: Path | None = None,
     formalization_gap_planner_evaluation_dir: Path | None = None,
     formalization_gap_planner_ablation_study_dir: Path | None = None,
@@ -875,6 +884,10 @@ def export_formalization_gap_planner_publication_bundle(
         (
             "formalization_gap_planner_feedback_llm_route_planner",
             formalization_gap_planner_feedback_llm_route_planner_dir,
+        ),
+        (
+            "formalization_gap_planner_llm_route_planner_response_payload_validation",
+            formalization_gap_planner_llm_route_planner_response_payload_validation_dir,
         ),
         (
             "goal_conditioned_minimal_formalization_plan",

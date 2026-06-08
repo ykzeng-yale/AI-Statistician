@@ -113,10 +113,14 @@ preflight JSON before handing it to the full route planner, the
 accepts a raw response payload, wrapper response, list, or `responses` bundle
 and emits a schema-only validation manifest plus JSONL rows. The validator also
 writes manifest and row schemas, and the publication bundle exports those
-schemas as reusable contracts. That preflight checks the reusable payload
-contract and proof-evidence boundary, but it does not prove source grounding,
-declaration provenance, minimality, or kernel verification without the full
-request packet. The public planner path records
+schemas as reusable contracts. The publication bundle can also package an
+actual validator run with
+`--formalization-gap-planner-llm-route-planner-response-payload-validation-dir`;
+the bundle audit checks its manifest contract, JSONL row count, valid/invalid
+payload counters, and row schema IDs. That preflight checks the reusable
+payload contract and proof-evidence boundary, but it does not prove source
+grounding, declaration provenance, minimality, or kernel verification without
+the full request packet. The public planner path records
 `*_provider_execution_mode` and live-call counters so staged packets are
 distinguishable from paid provider calls. For live
 AI Statistician development, the default LLM runtime is Anthropic Claude API:
@@ -827,7 +831,9 @@ component-resource-registry audit checks against their public contracts or
 schemas. For optional interactive-session artifacts, it resolves
 decision-policy component ids, local/frontier resource ids, and
 resource-contract ids against the bundled component-resource registry. It also
-checks resource-request payload identity and dispatch specs, resource-response
+checks optional LLM response-payload validation manifests and JSONL rows when
+raw payload validator outputs are packaged, checks resource-request payload
+identity and dispatch specs, resource-response
 ledger rows against their request contracts, route-revision
 resource-response-ledger traces, route-stability awaiting/rejected request ids,
 and interactive-session next-command guidance against the same request ids.

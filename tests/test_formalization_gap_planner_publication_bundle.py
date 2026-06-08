@@ -43,7 +43,9 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID,
     LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
+    PROOF_EVIDENCE_BOUNDARY as LLM_ROUTE_PLANNER_PROOF_EVIDENCE_BOUNDARY,
     export_formalization_gap_planner_llm_route_planner,
+    validate_formalization_gap_planner_llm_route_planner_response_payloads,
 )
 from ai_statistician.formalization_gap_planner_primitive_action_queue import (
     PROOF_EVIDENCE_STATUS as PRIMITIVE_ACTION_QUEUE_PROOF_EVIDENCE_STATUS,
@@ -160,6 +162,111 @@ def _write_prompt_only_llm_route_planner_artifact(root: Path) -> Path:
     input_json = _write_llm_route_planner_fixture_input(root)
     out_dir = root / "llm_route_planner"
     payload = export_formalization_gap_planner_llm_route_planner(input_json, out_dir)
+    assert payload["all_ok"]
+    return out_dir
+
+
+def _write_llm_response_payload_validation_artifact(root: Path) -> Path:
+    root.mkdir(parents=True, exist_ok=True)
+    response_json = root / "response_payload.json"
+    response_json.write_text(
+        json.dumps(
+            {
+                "informal_knowledge_dag_nodes": [
+                    {
+                        "node_id": "informal:rank_uniformity",
+                        "claim": "Exchangeability gives a finite-rank route.",
+                        "depends_on": [],
+                        "source_refs": ["fixture_source"],
+                        "source_search_status": "SOURCE_BACKED",
+                    }
+                ],
+                "lean_realization_dag_nodes": [
+                    {
+                        "node_id": "formal:rank_uniformity_bridge",
+                        "primitive": "rank_uniformity",
+                        "coverage_bucket": "bridge_needed",
+                        "formalization_action": "prove_bridge",
+                    }
+                ],
+                "route_alignment_edges": [
+                    {
+                        "informal_node_id": "informal:rank_uniformity",
+                        "formal_node_id": "formal:rank_uniformity_bridge",
+                        "alignment_status": "bridge_needed",
+                        "alignment_rationale": "One bridge lemma is enough.",
+                    }
+                ],
+                "minimal_delta_plan": {
+                    "selected_primitives": ["rank_uniformity"],
+                    "cost_model_version": "formalization_gap_planner_minimal_delta_cost_policy:1",
+                    "route_cost": 4,
+                    "primitive_costs": [
+                        {
+                            "primitive": "rank_uniformity",
+                            "coverage_bucket": "bridge_needed",
+                            "base_cost": 4,
+                            "proof_difficulty_cost": 0,
+                            "import_cone_cost": 0,
+                            "definition_or_typeclass_cost": 0,
+                            "semantic_risk_cost": 0,
+                            "reuse_credit": 0,
+                            "total_cost": 4,
+                            "cost_rationale": "A focused bridge lemma is minimal.",
+                        }
+                    ],
+                    "and_or_cost_graph": {
+                        "graph_kind": "AND_OR_ROUTE_COST_GRAPH",
+                        "selected_route_option_id": "route_option:bridge",
+                        "route_options": [
+                            {
+                                "route_option_id": "route_option:bridge",
+                                "selected": True,
+                                "selected_primitives": ["rank_uniformity"],
+                                "route_cost": 4,
+                                "cost_rationale": "The bridge route is cheapest.",
+                            }
+                        ],
+                        "or_nodes": [
+                            {
+                                "node_id": "or:rank_uniformity",
+                                "choices": ["route_option:bridge"],
+                                "selection_rationale": "Only one bounded route is needed.",
+                            }
+                        ],
+                        "and_edges": [
+                            {
+                                "route_option_id": "route_option:bridge",
+                                "requires": ["rank_uniformity"],
+                            }
+                        ],
+                    },
+                    "minimality_rationale": "Add only the rank-uniformity bridge.",
+                },
+                "standalone_route": {
+                    "route_id": "rank_route",
+                    "display_name": "rank route",
+                    "theorem_statement": "A finite-rank route follows from exchangeability.",
+                    "source_refs": ["fixture_source"],
+                    "primitives": [
+                        {
+                            "primitive": "rank_uniformity",
+                            "coverage_status": "bridge_needed",
+                            "source_refs": ["fixture_source"],
+                        }
+                    ],
+                },
+                "proof_evidence_boundary": LLM_ROUTE_PLANNER_PROOF_EVIDENCE_BOUNDARY,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    out_dir = root / "payload_validation"
+    payload = validate_formalization_gap_planner_llm_route_planner_response_payloads(
+        response_json,
+        out_dir,
+    )
     assert payload["all_ok"]
     return out_dir
 
@@ -462,6 +569,9 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
     shutil.rmtree(root, ignore_errors=True)
     primary_dir = _write_prompt_only_llm_route_planner_artifact(root / "primary")
     feedback_dir = _write_prompt_only_llm_route_planner_artifact(root / "feedback")
+    validation_dir = _write_llm_response_payload_validation_artifact(
+        root / "payload_validation"
+    )
     out_dir = root / "bundle"
 
     code = main(
@@ -471,6 +581,8 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
             str(primary_dir),
             "--formalization-gap-planner-feedback-llm-route-planner-dir",
             str(feedback_dir),
+            "--formalization-gap-planner-llm-route-planner-response-payload-validation-dir",
+            str(validation_dir),
             "--out",
             str(out_dir),
         ]
@@ -493,6 +605,12 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
         "requested"
     ]
     assert optional_by_name["formalization_gap_planner_feedback_llm_route_planner"]["ok"]
+    assert optional_by_name[
+        "formalization_gap_planner_llm_route_planner_response_payload_validation"
+    ]["requested"]
+    assert optional_by_name[
+        "formalization_gap_planner_llm_route_planner_response_payload_validation"
+    ]["ok"]
     assert (
         out_dir
         / "artifacts"
@@ -504,6 +622,12 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
         / "artifacts"
         / "formalization_gap_planner_feedback_llm_route_planner"
         / "formalization_gap_planner_llm_route_planner_manifest.json"
+    ).exists()
+    assert (
+        out_dir
+        / "artifacts"
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation"
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.json"
     ).exists()
 
 

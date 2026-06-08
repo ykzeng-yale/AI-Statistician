@@ -3279,6 +3279,11 @@ def _formalization_gap_planner_publication_bundle(args: argparse.Namespace) -> i
         )
         if args.formalization_gap_planner_feedback_llm_route_planner_dir
         else None,
+        formalization_gap_planner_llm_route_planner_response_payload_validation_dir=Path(
+            args.formalization_gap_planner_llm_route_planner_response_payload_validation_dir
+        )
+        if args.formalization_gap_planner_llm_route_planner_response_payload_validation_dir
+        else None,
         goal_conditioned_minimal_formalization_plan_dir=Path(
             args.goal_conditioned_minimal_formalization_plan_dir
         )
@@ -8411,6 +8416,13 @@ def build_parser() -> argparse.ArgumentParser:
     formalization_gap_planner_publication_bundle.add_argument(
         "--formalization-gap-planner-feedback-llm-route-planner-dir",
         help="optional feedback LLM route-planner directory to copy into the bundle",
+    )
+    formalization_gap_planner_publication_bundle.add_argument(
+        "--formalization-gap-planner-llm-route-planner-response-payload-validation-dir",
+        help=(
+            "optional LLM route-planner response-payload validation directory "
+            "to copy into the bundle"
+        ),
     )
     formalization_gap_planner_publication_bundle.add_argument(
         "--goal-conditioned-minimal-formalization-plan-dir",

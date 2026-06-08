@@ -25,6 +25,7 @@ from ai_statistician.formalization_gap_planner_library_coverage_map import (
 from ai_statistician.formalization_gap_planner_llm_route_planner import (
     PROOF_EVIDENCE_BOUNDARY as LLM_ROUTE_PLANNER_PROOF_EVIDENCE_BOUNDARY,
     export_formalization_gap_planner_llm_route_planner,
+    validate_formalization_gap_planner_llm_route_planner_response_payloads,
 )
 from ai_statistician.formalization_gap_planner_primitive_action_queue import (
     PROOF_EVIDENCE_STATUS as PRIMITIVE_ACTION_QUEUE_PROOF_EVIDENCE_STATUS,
@@ -393,6 +394,30 @@ def _write_accepted_llm_route_planner_artifact(root: Path) -> Path:
     assert payload["all_ok"]
     assert payload["n_accepted_route_plans"] == 1
     assert payload["n_rows_with_generator_metadata"] == 1
+    return out_dir
+
+
+def _write_llm_payload_validation_from_route_planner_artifact(
+    llm_route_planner_dir: Path,
+    root: Path,
+) -> Path:
+    root.mkdir(parents=True, exist_ok=True)
+    response_json = root / "response_payloads.json"
+    raw_response_json = llm_route_planner_dir.parent / "llm_response.json"
+    response_json.write_text(
+        json.dumps(
+            {"responses": [json.loads(raw_response_json.read_text(encoding="utf-8"))]},
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    out_dir = root / "payload_validation"
+    payload = validate_formalization_gap_planner_llm_route_planner_response_payloads(
+        response_json,
+        out_dir,
+    )
+    assert payload["all_ok"]
+    assert payload["n_valid_payloads"] == 1
     return out_dir
 
 
@@ -4890,11 +4915,18 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     shutil.rmtree(root, ignore_errors=True)
     primary_llm_dir = _write_accepted_llm_route_planner_artifact(root / "primary_llm")
     feedback_llm_dir = _write_accepted_llm_route_planner_artifact(root / "feedback_llm")
+    payload_validation_dir = _write_llm_payload_validation_from_route_planner_artifact(
+        primary_llm_dir,
+        root / "payload_validation",
+    )
 
     export_formalization_gap_planner_publication_bundle(
         bundle_dir,
         formalization_gap_planner_llm_route_planner_dir=primary_llm_dir,
         formalization_gap_planner_feedback_llm_route_planner_dir=feedback_llm_dir,
+        formalization_gap_planner_llm_route_planner_response_payload_validation_dir=(
+            payload_validation_dir
+        ),
     )
     audit_payload = audit_formalization_gap_planner_publication_bundle(
         bundle_dir,
@@ -4939,6 +4971,54 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     )
     assert audit_payload["n_optional_llm_route_planner_seed_provenance_checked"] == 1
     assert audit_payload["n_optional_llm_route_planner_seed_provenance_valid"] == 1
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_response_payload_validation_manifest_contract_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_response_payload_validation_manifest_contract_valid"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_response_payload_validation_count_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_response_payload_validation_count_valid"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_response_payload_validation_row_schema_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_response_payload_validation_row_schema_valid"
+        ]
+        == 1
+    )
+    assert any(
+        row["check_name"]
+        == "optional_llm_route_planner_response_payload_validation_manifest_schema_valid"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "optional_llm_route_planner_response_payload_validation_row_0_payload_schema_id"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
     assert (
         audit_payload[
             "n_optional_llm_route_planner_seed_model_provenance_checked"
