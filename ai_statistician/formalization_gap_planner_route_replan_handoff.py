@@ -1027,21 +1027,34 @@ def _merged_source_refs(
     plan_row: dict[str, Any],
     overlay_row: dict[str, Any],
 ) -> tuple[str, ...]:
+    refs: list[str] = []
+    refs.extend(_str_tuple(overlay_row.get("source_refs", [])))
+    refs.extend(_source_refs_from_snippets(overlay_row.get("source_snippets", [])))
+    for node in _node_index(plan_row).values():
+        refs.extend(_source_refs_from_row(node))
+    for node in _dict_tuple(
+        overlay_row.get("revised_informal_knowledge_dag_nodes", [])
+    ):
+        refs.extend(_source_refs_from_row(node))
+    return _str_tuple(refs)
+
+
+def _source_refs_from_row(row: dict[str, object]) -> tuple[str, ...]:
     return _str_tuple(
         [
-            *overlay_row.get("source_refs", []),
-            *(
-                source
-                for node in _node_index(plan_row).values()
-                for source in node.get("source_refs", [])
-            ),
-            *(
-                node.get("source_ref", "")
-                for node in overlay_row.get("revised_informal_knowledge_dag_nodes", [])
-                if isinstance(node, dict)
-            ),
+            *(_str_tuple(row.get("source_ref", ""))),
+            *_str_tuple(row.get("source_refs", [])),
+            *_source_refs_from_snippets(row.get("source_snippets", [])),
         ]
     )
+
+
+def _source_refs_from_snippets(values: Any) -> tuple[str, ...]:
+    refs: list[str] = []
+    for snippet in _dict_tuple(values):
+        refs.extend(_str_tuple(snippet.get("source_ref", "")))
+        refs.extend(_str_tuple(snippet.get("source_refs", [])))
+    return _str_tuple(refs)
 
 
 def _target_prover_family_for_replan_route(

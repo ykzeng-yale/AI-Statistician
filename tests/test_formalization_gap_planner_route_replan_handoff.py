@@ -74,6 +74,7 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
         node["primitive"]
         for node in plan_row["minimal_additional_formalization_nodes"]
     ] + ["conditional_rank_argument"]
+    revised_dag_source_ref = "Vovk-Gammerman-Shafer revised rank node"
     resource_response_trace = {
         "resource_response_ledger_id": "conditional_rank_argument",
         "resource_request_id": "request:conditional_rank_argument",
@@ -142,6 +143,7 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
                 "label": "conditional_rank_argument",
                 "primitive": "conditional_rank_argument",
                 "source_ref": "Lei-Wasserman theorem proof route",
+                "source_refs": [revised_dag_source_ref],
             }
         ],
         "revised_lean_realization_dag_nodes": [
@@ -259,6 +261,7 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert row["source_snippets"][0]["source_ref"] == (
         "Lei-Wasserman theorem proof route"
     )
+    assert revised_dag_source_ref in row["source_refs"]
     assert row["formal_declaration_hits"] == row["lean_declaration_hits"]
     assert row["standalone_route"]["target_prover_family"] == "lean4"
     assert row["standalone_route"]["replan_metadata"]["target_prover_family"] == "lean4"
@@ -278,6 +281,11 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert seed["routes"][0]["revised_lean_realization_dag_nodes"]
     assert seed["routes"][0]["source_snippets"][0]["source_ref"] == (
         "Lei-Wasserman theorem proof route"
+    )
+    assert revised_dag_source_ref in seed["routes"][0]["source_refs"]
+    assert (
+        revised_dag_source_ref
+        in seed["routes"][0]["replan_metadata"]["source_refs"]
     )
     assert seed["routes"][0]["replan_metadata"]["alignment_edge_primitives"]
     handoff_schema = route_replan_handoff_row_json_schema()
@@ -347,6 +355,10 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert primitive_by_name["conditional_rank_argument"]["source_snippets"][0][
         "source_ref"
     ] == "Lei-Wasserman theorem proof route"
+    assert (
+        revised_dag_source_ref
+        in primitive_by_name["conditional_rank_argument"]["source_refs"]
+    )
     invalid = dict(row)
     invalid.pop("standalone_route")
     assert "standalone_route required" in validate_route_replan_handoff_row(
