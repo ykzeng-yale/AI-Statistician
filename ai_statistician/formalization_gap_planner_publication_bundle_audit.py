@@ -336,6 +336,16 @@ def audit_formalization_gap_planner_publication_bundle(
     by_category: dict[str, int] = {}
     for check in checks:
         by_category[check.category] = by_category.get(check.category, 0) + 1
+    optional_evaluation_rows = _optional_evaluation_rows_for_summary(bundle_dir)
+    optional_realization_missing_selected = (
+        _evaluation_realization_missing_selected_from_rows(optional_evaluation_rows)
+    )
+    optional_realization_missing_delta = (
+        _evaluation_realization_missing_delta_from_rows(optional_evaluation_rows)
+    )
+    optional_realization_missing_by_route = (
+        _evaluation_realization_missing_by_route_from_rows(optional_evaluation_rows)
+    )
     payload: dict[str, object] = {
         "schema_version": FORMALIZATION_GAP_PLANNER_PUBLICATION_BUNDLE_AUDIT_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -491,6 +501,47 @@ def audit_formalization_gap_planner_publication_bundle(
             if check.check_name.startswith("optional_evaluation_row_")
             and check.check_name.endswith("_ground_truth_primitives")
             and check.ok
+        ),
+        "n_optional_evaluation_realization_missing_row_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_evaluation_row_")
+            and check.check_name.endswith("_realization_missing_fields")
+        ),
+        "n_optional_evaluation_realization_missing_row_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_evaluation_row_")
+            and check.check_name.endswith("_realization_missing_fields")
+            and check.ok
+        ),
+        "n_optional_evaluation_realization_missing_manifest_checked": sum(
+            1
+            for check in checks
+            if check.check_name == "optional_evaluation_realization_missing_manifest"
+        ),
+        "n_optional_evaluation_realization_missing_manifest_valid": sum(
+            1
+            for check in checks
+            if check.check_name == "optional_evaluation_realization_missing_manifest"
+            and check.ok
+        ),
+        "n_optional_evaluation_realization_missing_selected_formal_primitives": sum(
+            len(_str_tuple(row.get("realization_missing_selected_formal_primitives", [])))
+            for row in optional_evaluation_rows
+        ),
+        "optional_evaluation_realization_missing_selected_formal_primitives": (
+            optional_realization_missing_selected
+        ),
+        "n_optional_evaluation_realization_missing_delta_alignment_primitives": sum(
+            len(_str_tuple(row.get("realization_missing_delta_alignment_primitives", [])))
+            for row in optional_evaluation_rows
+        ),
+        "optional_evaluation_realization_missing_delta_alignment_primitives": (
+            optional_realization_missing_delta
+        ),
+        "optional_evaluation_realization_missing_primitives_by_route": (
+            optional_realization_missing_by_route
         ),
         "n_optional_interactive_decision_policy_row_schema_checked": sum(
             1
@@ -9675,6 +9726,20 @@ def _evaluation_optional_checks(
             len(rows) == int(manifest.get("n_evaluation_rows", 0) or 0),
         ),
     ]
+    realization_manifest_errors = _evaluation_realization_missing_manifest_errors(
+        manifest,
+        rows,
+    )
+    checks.append(
+        _check(
+            "optional_evaluation_realization_missing_manifest",
+            "optional_artifacts",
+            "evaluation manifest preserves realization-missing primitive aggregates",
+            "; ".join(realization_manifest_errors) if realization_manifest_errors else "ok",
+            not realization_manifest_errors,
+            errors=realization_manifest_errors,
+        )
+    )
     for idx, row in enumerate(rows):
         schema_errors = validate_evaluation_row(row)
         matched = bool(row.get("matched_ground_truth", False))
@@ -9685,6 +9750,7 @@ def _evaluation_optional_checks(
             row,
             matched_truth,
         )
+        realization_errors = _evaluation_realization_missing_row_errors(row)
         checks.append(
             _check(
                 f"optional_evaluation_row_{idx}_schema_valid",
@@ -9717,7 +9783,191 @@ def _evaluation_optional_checks(
                 errors=truth_errors,
             )
         )
+        checks.append(
+            _check(
+                f"optional_evaluation_row_{idx}_realization_missing_fields",
+                "optional_artifacts",
+                "evaluation row preserves realization-missing primitive diagnostics",
+                "; ".join(realization_errors) if realization_errors else "ok",
+                not realization_errors,
+                errors=realization_errors,
+            )
+        )
     return checks
+
+
+def _optional_evaluation_rows_for_summary(
+    bundle_dir: Path,
+) -> tuple[dict[str, Any], ...]:
+    rows_jsonl_path = (
+        bundle_dir
+        / "artifacts"
+        / "formalization_gap_planner_evaluation"
+        / "formalization_gap_planner_evaluation.jsonl"
+    )
+    if not rows_jsonl_path.exists():
+        return tuple()
+    rows, errors = _read_jsonl_dict_rows_no_error(rows_jsonl_path)
+    return tuple() if errors else tuple(rows)
+
+
+def _evaluation_realization_missing_row_errors(
+    row: dict[str, Any],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    for field_name in (
+        "realization_missing_selected_formal_primitives",
+        "realization_missing_delta_alignment_primitives",
+    ):
+        if field_name not in row:
+            errors.append(f"{field_name} missing")
+            continue
+        value = row.get(field_name)
+        if not isinstance(value, (list, tuple, set)):
+            errors.append(f"{field_name} is not an array")
+    missing_selected = _str_tuple(
+        row.get("realization_missing_selected_formal_primitives", [])
+    )
+    missing_delta = _str_tuple(
+        row.get("realization_missing_delta_alignment_primitives", [])
+    )
+    if bool(row.get("realization_coverage_complete", False)) and (
+        missing_selected or missing_delta
+    ):
+        errors.append(
+            "realization_coverage_complete is true but missing primitives are nonempty"
+        )
+    return tuple(errors)
+
+
+def _evaluation_realization_missing_manifest_errors(
+    manifest: dict[str, Any],
+    rows: list[dict[str, Any]],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    expected_selected_total = sum(
+        len(_str_tuple(row.get("realization_missing_selected_formal_primitives", [])))
+        for row in rows
+    )
+    expected_delta_total = sum(
+        len(_str_tuple(row.get("realization_missing_delta_alignment_primitives", [])))
+        for row in rows
+    )
+    expected_selected = _evaluation_realization_missing_selected_from_rows(rows)
+    expected_delta = _evaluation_realization_missing_delta_from_rows(rows)
+    expected_by_route = _evaluation_realization_missing_route_keys(
+        _evaluation_realization_missing_by_route_from_rows(rows)
+    )
+    observed_by_route = _evaluation_realization_missing_route_keys(
+        _dict_tuple(manifest.get("realization_missing_primitives_by_route", []))
+    )
+    observed_selected_total = int(
+        manifest.get("n_realization_missing_selected_formal_primitives", -1) or 0
+    )
+    observed_delta_total = int(
+        manifest.get("n_realization_missing_delta_alignment_primitives", -1) or 0
+    )
+    observed_selected = set(
+        _str_tuple(manifest.get("realization_missing_selected_formal_primitives", []))
+    )
+    observed_delta = set(
+        _str_tuple(manifest.get("realization_missing_delta_alignment_primitives", []))
+    )
+    if observed_selected_total != expected_selected_total:
+        errors.append(
+            "n_realization_missing_selected_formal_primitives mismatch: "
+            f"observed={observed_selected_total} expected={expected_selected_total}"
+        )
+    if observed_delta_total != expected_delta_total:
+        errors.append(
+            "n_realization_missing_delta_alignment_primitives mismatch: "
+            f"observed={observed_delta_total} expected={expected_delta_total}"
+        )
+    if observed_selected != set(expected_selected):
+        errors.append(
+            "realization_missing_selected_formal_primitives mismatch: "
+            f"observed={sorted(observed_selected)} expected={sorted(expected_selected)}"
+        )
+    if observed_delta != set(expected_delta):
+        errors.append(
+            "realization_missing_delta_alignment_primitives mismatch: "
+            f"observed={sorted(observed_delta)} expected={sorted(expected_delta)}"
+        )
+    if observed_by_route != expected_by_route:
+        errors.append(
+            "realization_missing_primitives_by_route mismatch: "
+            f"observed={sorted(observed_by_route)} expected={sorted(expected_by_route)}"
+        )
+    return tuple(errors)
+
+
+def _evaluation_realization_missing_selected_from_rows(
+    rows: Any,
+) -> tuple[str, ...]:
+    values: list[str] = []
+    for row in _dict_tuple(rows):
+        values.extend(
+            _str_tuple(row.get("realization_missing_selected_formal_primitives", []))
+        )
+    return tuple(dict.fromkeys(values))
+
+
+def _evaluation_realization_missing_delta_from_rows(
+    rows: Any,
+) -> tuple[str, ...]:
+    values: list[str] = []
+    for row in _dict_tuple(rows):
+        values.extend(
+            _str_tuple(row.get("realization_missing_delta_alignment_primitives", []))
+        )
+    return tuple(dict.fromkeys(values))
+
+
+def _evaluation_realization_missing_by_route_from_rows(
+    rows: Any,
+) -> tuple[dict[str, Any], ...]:
+    by_route: list[dict[str, Any]] = []
+    for row in _dict_tuple(rows):
+        missing_selected = _str_tuple(
+            row.get("realization_missing_selected_formal_primitives", [])
+        )
+        missing_delta = _str_tuple(
+            row.get("realization_missing_delta_alignment_primitives", [])
+        )
+        if not missing_selected and not missing_delta:
+            continue
+        by_route.append(
+            {
+                "route_id": str(row.get("route_id", "")),
+                "goal_plan_id": str(row.get("goal_plan_id", "")),
+                "display_name": str(row.get("display_name", "")),
+                "missing_selected_formal_primitives": missing_selected,
+                "missing_delta_alignment_primitives": missing_delta,
+            }
+        )
+    return tuple(by_route)
+
+
+def _evaluation_realization_missing_route_keys(
+    rows: Any,
+) -> set[str]:
+    keys: set[str] = set()
+    for row in _dict_tuple(rows):
+        keys.add(
+            "route_id={route_id}|goal_plan_id={goal_plan_id}|display_name={display}|"
+            "selected={selected}|delta={delta}".format(
+                route_id=str(row.get("route_id", "")),
+                goal_plan_id=str(row.get("goal_plan_id", "")),
+                display=str(row.get("display_name", "")),
+                selected=",".join(
+                    sorted(_str_tuple(row.get("missing_selected_formal_primitives", [])))
+                ),
+                delta=",".join(
+                    sorted(_str_tuple(row.get("missing_delta_alignment_primitives", [])))
+                ),
+            )
+        )
+    return keys
 
 
 def _evaluation_ground_truth_rows(payload: dict[str, Any]) -> tuple[dict[str, Any], ...]:
@@ -11696,6 +11946,13 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Component execution-plan schema valid: {payload.get('n_component_execution_plan_schema_valid')}/{payload.get('n_component_execution_plan_schema_checked')}",
         f"- Benchmark route-row schema valid: {payload.get('n_benchmark_route_row_schema_valid')}/{payload.get('n_benchmark_route_row_schema_checked')}",
         f"- Optional evaluation-row schema valid: {payload.get('n_optional_evaluation_row_schema_valid')}/{payload.get('n_optional_evaluation_row_schema_checked')}",
+        f"- Optional evaluation realization-missing rows valid: {payload.get('n_optional_evaluation_realization_missing_row_valid')}/{payload.get('n_optional_evaluation_realization_missing_row_checked')}",
+        f"- Optional evaluation realization-missing manifest valid: {payload.get('n_optional_evaluation_realization_missing_manifest_valid')}/{payload.get('n_optional_evaluation_realization_missing_manifest_checked')}",
+        (
+            "- Optional evaluation missing realization primitives: "
+            f"selected={payload.get('optional_evaluation_realization_missing_selected_formal_primitives')} "
+            f"delta={payload.get('optional_evaluation_realization_missing_delta_alignment_primitives')}"
+        ),
         f"- Optional LLM route-planner requests valid: {payload.get('n_optional_llm_route_planner_request_schema_valid')}/{payload.get('n_optional_llm_route_planner_request_schema_checked')}",
         f"- Optional LLM route-planner rows valid: {payload.get('n_optional_llm_route_planner_row_schema_valid')}/{payload.get('n_optional_llm_route_planner_row_schema_checked')}",
         f"- Optional LLM route-planner seed provenance preserved: {payload.get('n_optional_llm_route_planner_seed_provenance_valid')}/{payload.get('n_optional_llm_route_planner_seed_provenance_checked')}",

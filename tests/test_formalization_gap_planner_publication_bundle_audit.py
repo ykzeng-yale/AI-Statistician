@@ -523,10 +523,10 @@ def _fixture_evaluation_row() -> dict[str, object]:
         "minimal_delta_route_option_count": 0,
         "minimal_delta_selected_route_option_id": "",
         "minimal_delta_selected_route_cost": 0.0,
-        "realization_coverage_witness_present": False,
+        "realization_coverage_witness_present": True,
         "realization_coverage_complete": False,
-        "realization_missing_selected_formal_primitives": [],
-        "realization_missing_delta_alignment_primitives": [],
+        "realization_missing_selected_formal_primitives": ["rank_uniformity"],
+        "realization_missing_delta_alignment_primitives": ["rank_uniformity"],
         "llm_route_planner_trace_present": False,
         "llm_route_planner_row_id": "",
         "llm_route_planner_provider": "",
@@ -1118,6 +1118,15 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         encoding="utf-8",
     )
     evaluation_row = _fixture_evaluation_row()
+    evaluation_realization_missing_by_route = [
+        {
+            "route_id": "route:fixture",
+            "goal_plan_id": "goal:fixture",
+            "display_name": "fixture route",
+            "missing_selected_formal_primitives": ["rank_uniformity"],
+            "missing_delta_alignment_primitives": ["rank_uniformity"],
+        }
+    ]
     (evaluation_dir / "formalization_gap_planner_evaluation_manifest.json").write_text(
         json.dumps(
             {
@@ -1125,6 +1134,17 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                 "n_evaluation_rows": 1,
                 "n_evaluation_row_schema_valid": 1,
                 "n_evaluation_row_schema_invalid": 0,
+                "n_realization_missing_selected_formal_primitives": 1,
+                "realization_missing_selected_formal_primitives": [
+                    "rank_uniformity"
+                ],
+                "n_realization_missing_delta_alignment_primitives": 1,
+                "realization_missing_delta_alignment_primitives": [
+                    "rank_uniformity"
+                ],
+                "realization_missing_primitives_by_route": (
+                    evaluation_realization_missing_by_route
+                ),
                 "bundled_ground_truth_filename": (
                     "formalization_gap_planner_evaluation_ground_truth.json"
                 ),
@@ -2313,6 +2333,49 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     assert audit_payload["n_optional_evaluation_ground_truth_match_valid"] == 1
     assert audit_payload["n_optional_evaluation_ground_truth_primitive_checked"] == 1
     assert audit_payload["n_optional_evaluation_ground_truth_primitive_valid"] == 1
+    assert audit_payload["n_optional_evaluation_realization_missing_row_checked"] == 1
+    assert audit_payload["n_optional_evaluation_realization_missing_row_valid"] == 1
+    assert (
+        audit_payload["n_optional_evaluation_realization_missing_manifest_checked"]
+        == 1
+    )
+    assert (
+        audit_payload["n_optional_evaluation_realization_missing_manifest_valid"]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_evaluation_realization_missing_selected_formal_primitives"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_evaluation_realization_missing_delta_alignment_primitives"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "optional_evaluation_realization_missing_selected_formal_primitives"
+        ]
+        == ("rank_uniformity",)
+    )
+    assert (
+        audit_payload[
+            "optional_evaluation_realization_missing_delta_alignment_primitives"
+        ]
+        == ("rank_uniformity",)
+    )
+    assert audit_payload["optional_evaluation_realization_missing_primitives_by_route"] == (
+        {
+            "route_id": "route:fixture",
+            "goal_plan_id": "goal:fixture",
+            "display_name": "fixture route",
+            "missing_selected_formal_primitives": ("rank_uniformity",),
+            "missing_delta_alignment_primitives": ("rank_uniformity",),
+        },
+    )
     assert any(
         row["check_name"] == "optional_evaluation_ground_truth_copy" and row["ok"]
         for row in audit_payload["checks"]
@@ -2328,6 +2391,16 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     )
     assert any(
         row["check_name"] == "optional_evaluation_row_0_ground_truth_primitives"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"] == "optional_evaluation_row_0_realization_missing_fields"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"] == "optional_evaluation_realization_missing_manifest"
         and row["ok"]
         for row in audit_payload["checks"]
     )
@@ -3146,6 +3219,45 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         audit_dir
         / "formalization_gap_planner_publication_bundle_audit_manifest.json"
     ).exists()
+
+    evaluation_manifest_path = (
+        bundle_dir
+        / "artifacts"
+        / "formalization_gap_planner_evaluation"
+        / "formalization_gap_planner_evaluation_manifest.json"
+    )
+    evaluation_manifest_payload = json.loads(
+        evaluation_manifest_path.read_text(encoding="utf-8")
+    )
+    corrupted_evaluation_manifest = json.loads(json.dumps(evaluation_manifest_payload))
+    corrupted_evaluation_manifest["n_realization_missing_selected_formal_primitives"] = 0
+    corrupted_evaluation_manifest["realization_missing_selected_formal_primitives"] = []
+    corrupted_evaluation_manifest["realization_missing_primitives_by_route"] = []
+    evaluation_manifest_path.write_text(
+        json.dumps(corrupted_evaluation_manifest, indent=2),
+        encoding="utf-8",
+    )
+    rejected_evaluation_payload = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        root / "audit_rejects_evaluation_realization_missing_loss",
+    )
+    evaluation_failed_names = {
+        row["check_name"]
+        for row in rejected_evaluation_payload["checks"]
+        if not row["ok"]
+    }
+    assert not rejected_evaluation_payload["all_ok"]
+    assert "optional_evaluation_realization_missing_manifest" in evaluation_failed_names
+    assert (
+        rejected_evaluation_payload[
+            "n_optional_evaluation_realization_missing_manifest_valid"
+        ]
+        == 0
+    )
+    evaluation_manifest_path.write_text(
+        json.dumps(evaluation_manifest_payload, indent=2),
+        encoding="utf-8",
+    )
 
     seed_path = (
         bundle_dir
