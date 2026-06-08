@@ -15,14 +15,14 @@ from .formalization_gap_planner_resource_request_queue import (
 )
 
 
-FORMALIZATION_GAP_PLANNER_RESOURCE_RESPONSE_LEDGER_SCHEMA_VERSION = 3
+FORMALIZATION_GAP_PLANNER_RESOURCE_RESPONSE_LEDGER_SCHEMA_VERSION = 4
 RESOURCE_RESPONSE_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
     "formalization-gap-planner-resource-response:1"
 )
 RESOURCE_RESPONSE_LEDGER_ROW_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
-    "formalization-gap-planner-resource-response-ledger-row:3"
+    "formalization-gap-planner-resource-response-ledger-row:4"
 )
 PROOF_EVIDENCE_STATUS = (
     "FORMALIZATION_GAP_PLANNER_RESOURCE_RESPONSE_LEDGER_NOT_PROOF_EVIDENCE"
@@ -62,6 +62,9 @@ class FormalizationGapPlannerResourceResponseLedgerRow:
     response_contract_fields: tuple[str, ...]
     response_contract_minimum_met: bool
     response_contract_ok: bool
+    request_playbook_present: bool
+    response_playbook_grounded: bool
+    response_playbook_grounding_terms: tuple[str, ...]
     response_payload: dict[str, object]
     response_summary: str
     response_artifacts: tuple[str, ...]
@@ -176,6 +179,19 @@ def export_formalization_gap_planner_resource_response_ledger(
             1 for row in rows if row.response_contract_minimum_met
         ),
         "n_response_contract_ok": sum(1 for row in rows if row.response_contract_ok),
+        "n_request_playbook_present": sum(
+            1 for row in rows if row.request_playbook_present
+        ),
+        "n_response_playbook_grounded": sum(
+            1 for row in rows if row.response_playbook_grounded
+        ),
+        "n_response_playbook_grounding_failures": sum(
+            1
+            for row in rows
+            if row.response_present
+            and row.request_playbook_present
+            and not row.response_playbook_grounded
+        ),
         "n_missing_response_contract_field_rows": sum(
             1
             for row in rows
@@ -225,6 +241,7 @@ def export_formalization_gap_planner_resource_response_ledger(
             "request rows carry resource-specific contract fields, so matched fields validate request-contract coverage rather than full semantic certification",
             "a present response must match at least one queued response_contract_field before it can be accepted",
             "present responses must echo the requested resource and expected artifact before they can be accepted",
+            "present responses for request-playbook rows must overlap the bounded playbook ask before they can be accepted",
         ],
     }
     if out_dir is not None:
@@ -363,6 +380,9 @@ def resource_response_ledger_row_json_schema() -> dict[str, object]:
         "response_contract_fields",
         "response_contract_minimum_met",
         "response_contract_ok",
+        "request_playbook_present",
+        "response_playbook_grounded",
+        "response_playbook_grounding_terms",
         "response_payload",
         "response_summary",
         "response_artifacts",
@@ -429,6 +449,9 @@ def resource_response_ledger_row_json_schema() -> dict[str, object]:
             "response_contract_fields": string_array,
             "response_contract_minimum_met": {"type": "boolean"},
             "response_contract_ok": {"type": "boolean"},
+            "request_playbook_present": {"type": "boolean"},
+            "response_playbook_grounded": {"type": "boolean"},
+            "response_playbook_grounding_terms": string_array,
             "response_payload": {"type": "object"},
             "response_summary": {"type": "string"},
             "response_artifacts": string_array,
@@ -527,6 +550,13 @@ def _ledger_row(
     route_revision_recommended = bool(
         response_values.get("route_revision_recommended", False)
     ) or bool(residual_goals) or bool(route_revision_reasons)
+    request_playbook = _dict_value(request_row, "request_playbook")
+    request_playbook_present = bool(request_playbook)
+    response_playbook_grounded, response_playbook_grounding_terms = (
+        _response_playbook_grounding(request_playbook, response_values)
+        if response_present and request_playbook_present
+        else (False, tuple())
+    )
     if response_present and kernel_claimed:
         row_errors.append("resource response claims kernel verification in a non-proof layer")
     if response_present and response_errors:
@@ -538,12 +568,23 @@ def _ledger_row(
             "resource response missing all queued response_contract_fields: "
             + ",".join(response_contract_fields)
         )
+    if (
+        response_present
+        and request_playbook_present
+        and response_contract_minimum_met
+        and not response_playbook_grounded
+    ):
+        row_errors.append(
+            "resource response is not grounded in request_playbook "
+            "operator_prompt, input_summary, expected_response_fields, or acceptance_checklist"
+        )
     response_contract_ok = (
         response_present
         and not response_errors
         and not response_request_errors
         and not kernel_claimed
         and response_contract_minimum_met
+        and (not request_playbook_present or response_playbook_grounded)
     )
     if not response_present:
         acceptance_status = "AWAITING_RESOURCE_RESPONSE"
@@ -555,6 +596,8 @@ def _ledger_row(
         acceptance_status = "REJECTED_RESPONSE_REQUEST_MISMATCH"
     elif not matched_fields:
         acceptance_status = "REJECTED_MISSING_RESPONSE_CONTRACT_FIELDS"
+    elif request_playbook_present and not response_playbook_grounded:
+        acceptance_status = "REJECTED_RESPONSE_NOT_GROUNDED_IN_REQUEST_PLAYBOOK"
     elif route_revision_recommended:
         acceptance_status = "ACCEPTED_WITH_ROUTE_REVISION"
     else:
@@ -603,6 +646,9 @@ def _ledger_row(
         response_contract_fields=response_contract_fields,
         response_contract_minimum_met=response_contract_minimum_met,
         response_contract_ok=response_contract_ok,
+        request_playbook_present=request_playbook_present,
+        response_playbook_grounded=response_playbook_grounded,
+        response_playbook_grounding_terms=response_playbook_grounding_terms,
         response_payload=response_payload,
         response_summary=str(response_values.get("response_summary", "")),
         response_artifacts=_str_tuple(response_values.get("response_artifacts", [])),
@@ -751,6 +797,99 @@ def _merged_response_values(
         if key not in values and key != "response_payload":
             values[key] = value
     return values
+
+
+def _response_playbook_grounding(
+    request_playbook: dict[str, Any],
+    response_values: dict[str, Any],
+) -> tuple[bool, tuple[str, ...]]:
+    playbook_tokens = _grounding_tokens(
+        " ".join(
+            [
+                str(request_playbook.get("operator_prompt", "")),
+                str(request_playbook.get("expected_response_artifact", "")),
+                " ".join(_str_tuple(request_playbook.get("required_inputs", []))),
+                " ".join(
+                    _str_tuple(request_playbook.get("expected_response_fields", []))
+                ),
+                " ".join(_str_tuple(request_playbook.get("acceptance_checklist", []))),
+                " ".join(_str_tuple(request_playbook.get("rejection_triggers", []))),
+                " ".join(_str_tuple(request_playbook.get("stop_conditions", []))),
+                json.dumps(_dict_value(request_playbook, "input_summary"), default=str),
+            ]
+        )
+    )
+    response_tokens = _grounding_tokens(
+        " ".join(
+            [
+                str(response_values.get("response_summary", "")),
+                " ".join(_str_tuple(response_values.get("source_refs", []))),
+                json.dumps(
+                    _dict_tuple(response_values.get("route_evidence_nodes", [])),
+                    default=str,
+                ),
+                json.dumps(
+                    _dict_tuple(response_values.get("lean_declaration_hits", [])),
+                    default=str,
+                ),
+                json.dumps(_dict_value(response_values, "coverage_updates"), default=str),
+                " ".join(_str_tuple(response_values.get("prover_diagnostics", []))),
+                " ".join(_str_tuple(response_values.get("residual_goals", []))),
+                " ".join(
+                    _str_tuple(response_values.get("route_revision_reasons", []))
+                ),
+                str(response_values.get("prover_attempt_status", "")),
+                str(response_values.get("prover_diagnostic_signature", "")),
+            ]
+        )
+    )
+    overlap = tuple(sorted(playbook_tokens & response_tokens))
+    return (bool(overlap), overlap)
+
+
+def _grounding_tokens(text: str) -> set[str]:
+    stopwords = {
+        "action",
+        "adapter",
+        "artifact",
+        "check",
+        "claim",
+        "contract",
+        "dispatch",
+        "evidence",
+        "expected",
+        "field",
+        "fields",
+        "found",
+        "gate",
+        "grounded",
+        "informal",
+        "literature",
+        "node",
+        "nodes",
+        "planner",
+        "prompt",
+        "query",
+        "queued",
+        "refs",
+        "request",
+        "response",
+        "resource",
+        "route",
+        "search",
+        "source",
+        "theorem",
+        "tool",
+    }
+    tokens: set[str] = set()
+    for token in re.findall(r"[a-z0-9_]+", str(text or "").lower()):
+        if len(token) < 4 or token in stopwords:
+            continue
+        tokens.add(token)
+        for part in token.split("_"):
+            if len(part) >= 4 and part not in stopwords:
+                tokens.add(part)
+    return tokens
 
 
 def _kernel_verified_claimed(

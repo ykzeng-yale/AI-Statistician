@@ -197,6 +197,9 @@ def test_resource_response_ledger_accepts_adapter_feedback_without_proof_claims(
     assert payload["n_response_present"] == 2
     assert payload["n_awaiting_response"] == payload["n_resource_requests"] - 2
     assert payload["n_response_contract_ok"] == 2
+    assert payload["n_request_playbook_present"] == payload["n_resource_requests"]
+    assert payload["n_response_playbook_grounded"] == 2
+    assert payload["n_response_playbook_grounding_failures"] == 0
     assert payload["n_with_dispatch_specs"] == payload["n_ledger_rows"]
     assert payload["n_route_revision_recommended"] == 1
     assert payload["n_rejected"] == 0
@@ -211,6 +214,9 @@ def test_resource_response_ledger_accepts_adapter_feedback_without_proof_claims(
         if row["resource_request_id"] == source_request["resource_request_id"]
     )
     assert source_ledger["acceptance_status"] == "ACCEPTED_RESOURCE_RESPONSE"
+    assert source_ledger["request_playbook_present"]
+    assert source_ledger["response_playbook_grounded"]
+    assert source_ledger["response_playbook_grounding_terms"]
     assert source_ledger["acceptance_gate"] == source_request["acceptance_gate"]
     assert source_ledger["response_contract_fields"] == source_request["response_contract_fields"]
     assert source_ledger["response_contract_minimum_met"]
@@ -240,6 +246,9 @@ def test_resource_response_ledger_accepts_adapter_feedback_without_proof_claims(
         },
     )
     assert proof_ledger["acceptance_status"] == "ACCEPTED_WITH_ROUTE_REVISION"
+    assert proof_ledger["request_playbook_present"]
+    assert proof_ledger["response_playbook_grounded"]
+    assert "rank_uniformity" in proof_ledger["response_playbook_grounding_terms"]
     assert proof_ledger["response_contract_minimum_met"]
     assert proof_ledger["dispatch_spec"]["adapter_surface"] == "target_prover_lsp_mcp"
     assert "prover_diagnostics" in proof_ledger["matched_response_contract_fields"]
@@ -412,3 +421,61 @@ def test_resource_response_ledger_rejects_missing_contract_evidence() -> None:
     assert rejected["response_contract_fields"] == request["response_contract_fields"]
     assert rejected["missing_response_contract_fields"] == request["response_contract_fields"]
     assert any("missing all queued response_contract_fields" in error for error in rejected["errors"])
+
+
+def test_resource_response_ledger_rejects_response_not_grounded_in_playbook() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_resource_response_ledger_playbook_mismatch"
+    )
+    ledger_dir = root / "ledger"
+    response_jsonl = root / "resource_responses.jsonl"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    request_payload, request_queue_dir = _build_request_queue(root)
+    request = next(
+        row for row in request_payload["rows"] if row["resource_id"] == "paperclip_cli_mcp"
+    )
+    response = {
+        "resource_request_id": request["resource_request_id"],
+        "resource_id": request["resource_id"],
+        "expected_response_artifact": request["expected_response_artifact"],
+        "response_payload": {
+            "source_refs": ["compact operator spectral theorem"],
+            "route_evidence_nodes": [
+                {
+                    "node_id": "informal:unrelated",
+                    "claim": "a Hilbert basis diagonalizes a compact operator",
+                }
+            ],
+            "response_summary": "unrelated functional analysis source evidence",
+        },
+        "source_refs": ["compact operator spectral theorem"],
+        "route_evidence_nodes": [
+            {
+                "node_id": "informal:unrelated",
+                "claim": "a Hilbert basis diagonalizes a compact operator",
+            }
+        ],
+        "proof_evidence_boundary": "not theorem proof evidence",
+    }
+    response_jsonl.write_text(json.dumps(response, sort_keys=True) + "\n", encoding="utf-8")
+
+    payload = export_formalization_gap_planner_resource_response_ledger(
+        request_queue_dir,
+        ledger_dir,
+        response_jsonl=response_jsonl,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_response_contract_minimum_met"] == 1
+    assert payload["n_response_contract_ok"] == 0
+    assert payload["n_response_playbook_grounding_failures"] == 1
+    assert payload["n_rejected"] == 1
+    rejected = next(row for row in payload["rows"] if row["response_present"])
+    assert rejected["acceptance_status"] == (
+        "REJECTED_RESPONSE_NOT_GROUNDED_IN_REQUEST_PLAYBOOK"
+    )
+    assert rejected["request_playbook_present"]
+    assert not rejected["response_playbook_grounded"]
+    assert rejected["response_playbook_grounding_terms"] == ()
+    assert any("not grounded in request_playbook" in error for error in rejected["errors"])
