@@ -1172,7 +1172,10 @@ The current implementation composes four existing AI Statistician artifacts:
    containing a target prover family, library snapshot reference, primitive
    coverage labels, source references, and candidate declarations. Downstream
    library-coverage artifacts re-emit those declarations as target-aware
-   `candidate_declaration_rows`. This is the independent reuse entry point for
+   `candidate_declaration_rows`. Standalone validation rejects route-level or
+   primitive-level declaration rows whose explicit `target_prover_family`
+   disagrees with the input, route, or replan target, while accepting aliases
+   such as Coq/Coq8 for Rocq. This is the independent reuse entry point for
    systems that do not run the AI Statistician audit pipeline.
 
 7. `formalization_gap_planner_portable_plan_audit`

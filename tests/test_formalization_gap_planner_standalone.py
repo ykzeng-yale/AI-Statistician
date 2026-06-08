@@ -24,6 +24,7 @@ from ai_statistician.formalization_gap_planner_standalone import (
     FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_SCHEMA_ID,
     export_formalization_gap_planner_standalone_plan,
     standalone_input_json_schema,
+    validate_standalone_input_payload,
 )
 
 
@@ -174,6 +175,18 @@ def test_standalone_gap_planner_exports_portable_plan_for_external_prover() -> N
     route_schema = standalone_schema["$defs"]["route"]
     route_props = route_schema["properties"]
     assert route_props["target_prover_family"]["type"] == "string"
+    assert (
+        route_props["candidate_declaration_rows"]["items"]["$ref"]
+        == "#/$defs/candidate_declaration_row"
+    )
+    primitive_props = standalone_schema["$defs"]["primitive"]["properties"]
+    assert (
+        primitive_props["candidate_declaration_rows"]["items"]["$ref"]
+        == "#/$defs/candidate_declaration_row"
+    )
+    candidate_row_schema = standalone_schema["$defs"]["candidate_declaration_row"]
+    assert {"required": ["declaration"]} in candidate_row_schema["anyOf"]
+    assert candidate_row_schema["properties"]["target_prover_family"]["type"] == "string"
     assert (
         route_props["revised_informal_knowledge_dag_nodes"]["items"]["$ref"]
         == "#/$defs/dag_node"
@@ -448,3 +461,96 @@ def test_standalone_gap_planner_preserves_candidate_declaration_rows_into_covera
     assert coverage_row["primitive"] == "exchangeability"
     assert coverage_row["candidate_declaration_rows"] == (declaration_row,)
     assert coverage_row["candidate_declarations"] == ("Probability.exchangeable",)
+
+
+def test_standalone_input_rejects_cross_prover_candidate_declaration_rows() -> None:
+    root = Path("runs/test_formalization_gap_planner_standalone_bad_candidate_target")
+    input_json = root / "standalone_input.json"
+    out_dir = root / "plan"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema_version": 1,
+        "component_name": "formalization_gap_planner_standalone_input",
+        "target_prover_family": "rocq",
+        "library_snapshot_ref": "rocq:cross-prover-guard",
+        "routes": [
+            {
+                "route_id": "rocq_rank_route",
+                "display_name": "rocq_rank_route",
+                "target_prover_family": "rocq",
+                "theorem_statement": "A Rocq rank lemma should use Rocq evidence.",
+                "candidate_declaration_rows": [
+                    {
+                        "declaration": "Mathlib.Probability.exchangeable",
+                        "target_prover_family": "lean4",
+                        "source_field": "route_level_formal_context",
+                    }
+                ],
+                "primitives": [
+                    {
+                        "primitive": "exchangeability",
+                        "coverage_status": "exact_exists",
+                        "candidate_declaration_rows": [
+                            {
+                                "declaration": "Mathlib.Probability.exchangeable",
+                                "target_prover_family": "lean4",
+                                "source_field": "route_candidate_declaration_rows",
+                            }
+                        ],
+                    }
+                ],
+            }
+        ],
+    }
+    input_json.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+    errors = validate_standalone_input_payload(payload)
+
+    assert any(
+        "routes[0].candidate_declaration_rows[0].target_prover_family lean4 "
+        "does not match target_prover_family rocq" in error
+        for error in errors
+    )
+    assert any(
+        "routes[0].primitives[0].candidate_declaration_rows[0]"
+        ".target_prover_family lean4 does not match target_prover_family rocq"
+        in error
+        for error in errors
+    )
+    payload = export_formalization_gap_planner_standalone_plan(input_json, out_dir)
+    assert not payload["all_ok"]
+    assert payload["errors"]
+
+
+def test_standalone_input_accepts_target_prover_aliases_for_declaration_rows() -> None:
+    payload = {
+        "schema_version": 1,
+        "component_name": "formalization_gap_planner_standalone_input",
+        "target_prover_family": "rocq",
+        "library_snapshot_ref": "rocq:alias-guard",
+        "routes": [
+            {
+                "route_id": "rocq_rank_route",
+                "display_name": "rocq_rank_route",
+                "target_prover_family": "coq",
+                "replan_metadata": {"target_prover_family": "coq8"},
+                "theorem_statement": "Coq/Rocq aliases should remain compatible.",
+                "primitives": [
+                    {
+                        "primitive": "exchangeability",
+                        "coverage_status": "exact_exists",
+                        "candidate_declaration_rows": [
+                            {
+                                "declaration": "Rocq.Probability.exchangeable",
+                                "target_prover_family": "coq8",
+                                "source_field": "route_candidate_declaration_rows",
+                            }
+                        ],
+                    }
+                ],
+            }
+        ],
+    }
+
+    assert validate_standalone_input_payload(payload) == []

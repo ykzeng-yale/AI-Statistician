@@ -401,22 +401,76 @@ def validate_standalone_input_payload(payload: dict[str, Any]) -> list[str]:
     routes = _raw_routes(payload)
     if not routes:
         errors.append("routes missing")
+    payload_target = str(payload.get("target_prover_family", "")).strip()
+    payload_target_key = _target_prover_key(payload_target)
     for idx, route in enumerate(routes):
         display_name = _display_name(route)
         if not display_name:
             errors.append(f"routes[{idx}].display_name or target_theorem_id missing")
+        route_target = str(route.get("target_prover_family", "")).strip()
+        metadata = route.get("replan_metadata", {})
+        metadata = metadata if isinstance(metadata, dict) else {}
+        metadata_target = str(metadata.get("target_prover_family", "")).strip()
+        route_target_key = _target_prover_key(route_target)
+        metadata_target_key = _target_prover_key(metadata_target)
+        for location, target, target_key in (
+            (f"routes[{idx}].target_prover_family", route_target, route_target_key),
+            (
+                f"routes[{idx}].replan_metadata.target_prover_family",
+                metadata_target,
+                metadata_target_key,
+            ),
+        ):
+            if payload_target_key and target_key and target_key != payload_target_key:
+                errors.append(
+                    f"{location} {target} does not match target_prover_family "
+                    f"{payload_target}"
+                )
+        if route_target_key and metadata_target_key and route_target_key != metadata_target_key:
+            errors.append(
+                f"routes[{idx}].replan_metadata.target_prover_family "
+                f"{metadata_target} does not match routes[{idx}].target_prover_family "
+                f"{route_target}"
+            )
+        effective_target = route_target or metadata_target or payload_target
+        effective_target_key = (
+            route_target_key or metadata_target_key or payload_target_key
+        )
+        errors.extend(
+            _candidate_declaration_row_input_errors(
+                route.get("candidate_declaration_rows", []),
+                location=f"routes[{idx}].candidate_declaration_rows",
+                expected_target=effective_target,
+                expected_target_key=effective_target_key,
+            )
+        )
         primitives = _raw_primitives(route)
         if not primitives:
             errors.append(f"routes[{idx}].primitives missing")
         for primitive_idx, primitive in enumerate(primitives):
             if not str(primitive.get("primitive", "")).strip():
                 errors.append(f"routes[{idx}].primitives[{primitive_idx}].primitive missing")
+            errors.extend(
+                _candidate_declaration_row_input_errors(
+                    primitive.get("candidate_declaration_rows", []),
+                    location=(
+                        f"routes[{idx}].primitives[{primitive_idx}]"
+                        ".candidate_declaration_rows"
+                    ),
+                    expected_target=effective_target,
+                    expected_target_key=effective_target_key,
+                )
+            )
     return errors
 
 
 def standalone_input_json_schema() -> dict[str, object]:
     string_array = {"type": "array", "items": {"type": "string"}}
     object_array = {"type": "array", "items": {"type": "object"}}
+    candidate_declaration_rows = {
+        "type": "array",
+        "items": {"$ref": "#/$defs/candidate_declaration_row"},
+    }
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_SCHEMA_ID,
@@ -460,6 +514,7 @@ def standalone_input_json_schema() -> dict[str, object]:
                     "source_refs": string_array,
                     "source_snippets": object_array,
                     "informal_proof_steps": string_array,
+                    "candidate_declaration_rows": candidate_declaration_rows,
                     "import_cone_size": {"type": "integer", "minimum": 0},
                     "dependency_graph_depth": {"type": "integer", "minimum": 0},
                     "blocker_count": {"type": "integer", "minimum": 0},
@@ -505,7 +560,7 @@ def standalone_input_json_schema() -> dict[str, object]:
                         "type": "array",
                         "items": {"type": "string"},
                     },
-                    "candidate_declaration_rows": object_array,
+                    "candidate_declaration_rows": candidate_declaration_rows,
                     "expected_premises": string_array,
                     "bridge_candidate_obligations": string_array,
                     "source_refs": string_array,
@@ -562,6 +617,27 @@ def standalone_input_json_schema() -> dict[str, object]:
                     "coverage_status": {"type": "string"},
                     "source_ref": {"type": "string"},
                     "target_prover_family": {"type": "string"},
+                },
+            },
+            "candidate_declaration_row": {
+                "type": "object",
+                "additionalProperties": True,
+                "anyOf": [
+                    {"required": ["declaration"]},
+                    {"required": ["declaration_name"]},
+                    {"required": ["candidate_declaration"]},
+                    {"required": ["name"]},
+                    {"required": ["full_name"]},
+                ],
+                "properties": {
+                    "declaration": {"type": "string", "minLength": 1},
+                    "declaration_name": {"type": "string"},
+                    "candidate_declaration": {"type": "string"},
+                    "name": {"type": "string"},
+                    "full_name": {"type": "string"},
+                    "target_prover_family": {"type": "string"},
+                    "target_prover": {"type": "string"},
+                    "source_field": {"type": "string"},
                 },
             },
             "replan_metadata": {
@@ -1354,6 +1430,52 @@ def _is_lean_target_prover(target_prover_family: str) -> bool:
     )
 
 
+def _target_prover_key(value: object) -> str:
+    key = _normalize_status(str(value or ""))
+    aliases = {
+        "coq": "rocq",
+        "coq8": "rocq",
+        "rocq_coq": "rocq",
+        "coq_rocq": "rocq",
+        "lean": "lean4",
+        "lean_4": "lean4",
+        "isabelle_hol": "isabelle",
+    }
+    return aliases.get(key, key)
+
+
+def _candidate_declaration_row_input_errors(
+    value: Any,
+    *,
+    location: str,
+    expected_target: str,
+    expected_target_key: str,
+) -> list[str]:
+    if value in (None, ""):
+        return []
+    if not isinstance(value, list):
+        return [f"{location} must be an array of objects"]
+    errors: list[str] = []
+    for row_index, item in enumerate(value):
+        row_location = f"{location}[{row_index}]"
+        if not isinstance(item, dict):
+            errors.append(f"{row_location} must be an object")
+            continue
+        declaration = _candidate_declaration_row_declaration(item)
+        if not declaration:
+            errors.append(f"{row_location}.declaration missing")
+        row_target = str(
+            item.get("target_prover_family", "") or item.get("target_prover", "")
+        ).strip()
+        row_target_key = _target_prover_key(row_target)
+        if expected_target_key and row_target_key and row_target_key != expected_target_key:
+            errors.append(
+                f"{row_location}.target_prover_family {row_target} does not match "
+                f"target_prover_family {expected_target}"
+            )
+    return errors
+
+
 def _normalize_status(value: str) -> str:
     return value.strip().lower().replace("-", "_").replace(" ", "_")
 
@@ -1373,15 +1495,7 @@ def _candidate_declaration_rows_for_primitive(
 ) -> tuple[dict[str, object], ...]:
     rows: list[dict[str, object]] = []
     for item in _dict_list(primitive.get("candidate_declaration_rows", [])):
-        declaration = str(
-            item.get("declaration")
-            or item.get("declaration_name")
-            or item.get("candidate_declaration")
-            or item.get("lean_declaration")
-            or item.get("name")
-            or item.get("full_name")
-            or ""
-        ).strip()
+        declaration = _candidate_declaration_row_declaration(item)
         if not declaration:
             continue
         rows.append(
@@ -1424,6 +1538,18 @@ def _candidate_declaration_rows_for_primitive(
             }
         )
     return tuple(compact)
+
+
+def _candidate_declaration_row_declaration(item: dict[str, object]) -> str:
+    return str(
+        item.get("declaration")
+        or item.get("declaration_name")
+        or item.get("candidate_declaration")
+        or item.get("lean_declaration")
+        or item.get("name")
+        or item.get("full_name")
+        or ""
+    ).strip()
 
 
 def _candidate_declarations_for_primitive(
