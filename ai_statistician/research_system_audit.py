@@ -4152,6 +4152,12 @@ async def run_research_system_audit(
             "formalization_gap_planner_local_formal_source_responses": formalization_gap_planner_local_formal_source_adapter_manifest[
                 "n_local_formal_source_responses"
             ],
+            "formalization_gap_planner_local_formal_source_formal_grounding_rows": formalization_gap_planner_local_formal_source_adapter_manifest[
+                "n_formal_library_grounding_rows"
+            ],
+            "formalization_gap_planner_local_formal_source_legacy_lean_grounding_rows": formalization_gap_planner_local_formal_source_adapter_manifest[
+                "n_lean_library_grounding_rows"
+            ],
             "formalization_gap_planner_local_formal_source_hits": formalization_gap_planner_local_formal_source_adapter_manifest[
                 "n_hits"
             ],

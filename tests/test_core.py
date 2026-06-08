@@ -20354,6 +20354,18 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             payload["counts"]["formalization_gap_planner_refinement_queue_formal_grounding"],
         )
         self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_local_formal_source_formal_grounding_rows"
+            ],
+            payload["counts"]["formalization_gap_planner_refinement_queue_formal_grounding"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_local_formal_source_legacy_lean_grounding_rows"
+            ],
+            payload["counts"]["formalization_gap_planner_refinement_queue_lean_grounding"],
+        )
+        self.assertEqual(
             payload["counts"]["formalization_gap_planner_local_proof_state_responses"],
             payload["counts"]["formalization_gap_planner_refinement_queue_proof_feedback"],
         )

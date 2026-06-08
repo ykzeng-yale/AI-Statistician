@@ -1278,6 +1278,10 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert payload["n_refinement_adapter_response_schema_invalid"] == 0
     assert payload["n_local_literature_responses"] > 0
     assert payload["n_local_formal_source_responses"] > 0
+    assert payload["n_local_formal_source_formal_grounding_rows"] == payload[
+        "n_local_formal_source_responses"
+    ]
+    assert payload["n_local_formal_source_legacy_lean_grounding_rows"] == 0
     assert payload["n_local_proof_state_responses"] > 0
     assert (
         payload["n_local_literature_response_schema_valid"]

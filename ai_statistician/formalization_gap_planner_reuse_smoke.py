@@ -511,6 +511,7 @@ SUMMARY_KEYS_BY_STAGE = {
     ),
     "formalization_gap_planner_local_formal_source_adapter": (
         "n_queue_rows",
+        "n_formal_library_grounding_rows",
         "n_lean_library_grounding_rows",
         "search_backend",
         "lean_rag_dependency_graph_enabled",
@@ -3492,6 +3493,18 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_local_formal_source_responses": local_formal_source_adapter_payload.get(
             "n_local_formal_source_responses",
             0,
+        ),
+        "n_local_formal_source_formal_grounding_rows": (
+            local_formal_source_adapter_payload.get(
+                "n_formal_library_grounding_rows",
+                0,
+            )
+        ),
+        "n_local_formal_source_legacy_lean_grounding_rows": (
+            local_formal_source_adapter_payload.get(
+                "n_lean_library_grounding_rows",
+                0,
+            )
         ),
         "n_local_formal_source_hits": local_formal_source_adapter_payload.get(
             "n_hits",
