@@ -1824,6 +1824,7 @@ def validate_llm_route_planner_response_payload(
     )
     if bool(payload.get("kernel_verified", False)):
         errors.append("response_payload cannot claim kernel_verified=true")
+    errors.extend(_response_payload_realization_field_contract_errors(payload))
     return sorted(set(errors))
 
 
@@ -3419,6 +3420,61 @@ def _response_realization_field_contract_errors(
             "formal_realization_dag_nodes only"
         ]
     return []
+
+
+def _response_payload_realization_field_contract_errors(
+    payload: Mapping[str, Any],
+) -> list[str]:
+    target_prover_key = _target_prover_key(
+        _declared_payload_target_prover_family(payload)
+    )
+    legacy_nodes = _dict_tuple(payload.get("lean_realization_dag_nodes", []))
+    if target_prover_key and target_prover_key != "lean4" and legacy_nodes:
+        return [
+            "lean_realization_dag_nodes is a Lean-only legacy alias; "
+            "non-Lean target prover responses must use "
+            "formal_realization_dag_nodes only"
+        ]
+    return []
+
+
+def _declared_payload_target_prover_family(payload: Mapping[str, Any]) -> str:
+    direct_values = [
+        payload.get("target_prover_family", ""),
+        payload.get("target_prover", ""),
+    ]
+    route = _dict_value(payload, "standalone_route")
+    metadata = _dict_value(route, "replan_metadata")
+    direct_values.extend(
+        [
+            route.get("target_prover_family", ""),
+            route.get("target_prover", ""),
+            metadata.get("target_prover_family", ""),
+            metadata.get("target_prover", ""),
+        ]
+    )
+    for value in direct_values:
+        text = str(value or "").strip()
+        if text:
+            return text
+
+    for node in (
+        *_dict_tuple(payload.get("formal_realization_dag_nodes", [])),
+        *_dict_tuple(payload.get("lean_realization_dag_nodes", [])),
+        *_dict_tuple(route.get("primitives", [])),
+    ):
+        for field_name in ("target_prover_family", "target_prover"):
+            text = str(node.get(field_name, "") or "").strip()
+            if text:
+                return text
+        for declaration_row in _dict_tuple(node.get("candidate_declaration_rows", [])):
+            text = str(
+                declaration_row.get("target_prover_family", "")
+                or declaration_row.get("target_prover", "")
+            ).strip()
+            if text:
+                return text
+    return ""
 
 
 def _minimal_delta_cost_witness_errors(
