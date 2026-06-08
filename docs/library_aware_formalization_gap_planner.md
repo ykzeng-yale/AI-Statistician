@@ -1179,8 +1179,10 @@ The current implementation composes four existing AI Statistician artifacts:
    family either at the input level or through route/replan metadata; when the
    top-level field is omitted and the route target is unambiguous, the planner
    preserves that route target instead of falling back to a Lean default. This is
-   the independent reuse entry point for systems that do not run the AI
-   Statistician audit pipeline.
+   also reflected in `by_target_prover_family`; mixed standalone manifests use
+   a `mixed:<targets>` manifest target while each route row keeps its concrete
+   prover family. This is the independent reuse entry point for systems that do
+   not run the AI Statistician audit pipeline.
 
 7. `formalization_gap_planner_portable_plan_audit`
    Validates any portable planner manifest before downstream reuse. It checks

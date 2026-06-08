@@ -105,6 +105,9 @@ def export_formalization_gap_planner_standalone_plan(
         ),
     )[: max(0, max_routes)]
     by_route_class = Counter(row.route_class for row in rows)
+    by_target_prover_family = Counter(
+        str(row.target_prover_family or "").strip() or "missing" for row in rows
+    )
     route_alignment_edge_schema = route_alignment_edge_json_schema()
     route_alignment_edge_schema_errors = [
         validate_route_alignment_edge(edge, route_alignment_edge_schema)
@@ -182,6 +185,10 @@ def export_formalization_gap_planner_standalone_plan(
         "standalone_input_component": str(input_payload.get("component_name", "")),
         "n_theorem_routes": len(routes),
         "n_goal_plans": len(rows),
+        "n_target_prover_families": sum(
+            1 for target in by_target_prover_family if target != "missing"
+        ),
+        "by_target_prover_family": dict(sorted(by_target_prover_family.items())),
         "n_ready": sum(1 for row in rows if row.ok),
         "n_low_cost_goal_plans": sum(1 for row in rows if row.goal_conditioned_cost <= 7),
         "n_reuse_or_composition": by_route_class.get("reuse_or_composition", 0),
@@ -1460,6 +1467,8 @@ def _manifest_target_prover_family(
     )
     if len(targets) == 1:
         return targets[0]
+    if len(targets) > 1:
+        return "mixed:" + ",".join(targets)
     return fallback_target_prover_family or TARGET_PROVER_FAMILY
 
 
