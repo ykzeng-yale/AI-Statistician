@@ -2459,6 +2459,9 @@ def _formalization_gap_planner_llm_route_planner_response_payload_validate(
     payload = validate_formalization_gap_planner_llm_route_planner_response_payloads(
         Path(args.input),
         Path(args.out),
+        request_context_json=(
+            Path(args.request_context) if args.request_context else None
+        ),
     )
     print(
         "\nAI Statistical Theory Lab Formalization Gap Planner "
@@ -2468,6 +2471,7 @@ def _formalization_gap_planner_llm_route_planner_response_payload_validate(
     print(
         f"payloads={payload['n_valid_payloads']}/{payload['n_payloads']} "
         f"invalid={payload['n_invalid_payloads']} "
+        f"request_bound={payload['n_request_bound_payloads']} "
         f"all_ok={payload['all_ok']}"
     )
     print(
@@ -7731,6 +7735,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--input",
         required=True,
         help="raw payload JSON, wrapper response JSON, list, or responses bundle",
+    )
+    formalization_gap_planner_llm_route_planner_response_payload_validate.add_argument(
+        "--request-context",
+        default="",
+        help=(
+            "optional staged LLM route-planner request packet, request JSONL, "
+            "manifest, or output directory for request-bound validation"
+        ),
     )
     formalization_gap_planner_llm_route_planner_response_payload_validate.add_argument(
         "--out",

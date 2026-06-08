@@ -1247,17 +1247,29 @@ def export_formalization_gap_planner_llm_route_planner(
 def validate_formalization_gap_planner_llm_route_planner_response_payloads(
     response_json: Path,
     out_dir: Path | None = None,
+    *,
+    request_context_json: Path | None = None,
 ) -> dict[str, object]:
-    """Validate raw LLM route-planner payload JSON without route context.
+    """Validate raw LLM route-planner payload JSON.
 
-    This is the public, reusable schema-only validation surface for external
-    prover integrations. It accepts the same raw/wrapper/list JSON shapes as
-    the full route planner, but it does not perform request-context grounding,
-    declaration provenance, or minimal-delta semantic audits.
+    This is the public, reusable validation surface for external prover
+    integrations. Without ``request_context_json`` it performs schema-only
+    validation. With a staged request packet, request JSONL, manifest, or route
+    planner output directory, it also performs the same request-bound grounding
+    and theorem/prover consistency checks used by the full route planner.
     """
 
     errors: list[str] = []
     response_inputs = _read_response_payload_validation_inputs(response_json, errors)
+    request_contexts = _read_response_payload_validation_request_contexts(
+        request_context_json,
+        errors,
+    )
+    request_schema = llm_route_planner_request_json_schema()
+    request_schema_errors_by_id = _request_context_schema_errors_by_id(
+        request_contexts,
+        request_schema,
+    )
     response_payload_schema = llm_route_planner_response_payload_schema()
     validation_manifest_schema = (
         llm_route_planner_response_payload_validation_manifest_json_schema()
@@ -1269,10 +1281,36 @@ def validate_formalization_gap_planner_llm_route_planner_response_payloads(
     for index, response_input in enumerate(response_inputs):
         response = response_input["response"]
         payload = _response_payload(response)
-        row_errors = validate_llm_route_planner_response_payload(
+        schema_errors = validate_llm_route_planner_response_payload(
             payload,
             response_payload_schema,
         )
+        request_context, request_context_errors = (
+            _response_payload_validation_request_context_for_response(
+                response,
+                payload_index=index,
+                request_contexts=request_contexts,
+            )
+        )
+        if request_context:
+            request_id = str(request_context.get("request_id", ""))
+            request_context_errors = [
+                *request_schema_errors_by_id.get(request_id, []),
+                *request_context_errors,
+                *_response_contract_errors(payload, request_context),
+            ]
+            request_context_validation_mode = "request_bound"
+            request_context_id = request_id
+            request_context_route_id = str(request_context.get("route_id", ""))
+        elif request_context_json is not None:
+            request_context_validation_mode = "request_context_unmatched"
+            request_context_id = ""
+            request_context_route_id = ""
+        else:
+            request_context_validation_mode = "schema_only"
+            request_context_id = ""
+            request_context_route_id = ""
+        row_errors = sorted(set([*schema_errors, *request_context_errors]))
         rows.append(
             {
                 "validation_id": (
@@ -1292,6 +1330,14 @@ def validate_formalization_gap_planner_llm_route_planner_response_payloads(
                 "route_id": str(response.get("route_id", "")),
                 "payload_schema_id": LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
                 "payload_fingerprint": stable_hash(payload),
+                "request_context_path": (
+                    str(request_context_json) if request_context_json is not None else ""
+                ),
+                "request_context_validation_mode": request_context_validation_mode,
+                "request_context_id": request_context_id,
+                "request_context_route_id": request_context_route_id,
+                "n_schema_errors": len(schema_errors),
+                "n_request_context_errors": len(request_context_errors),
                 "n_errors": len(row_errors),
                 "ok": not row_errors,
                 "errors": row_errors,
@@ -1305,6 +1351,9 @@ def validate_formalization_gap_planner_llm_route_planner_response_payloads(
         "created_at": datetime.now(timezone.utc).isoformat(),
         "component_name": LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATOR_COMPONENT,
         "input_path": str(response_json),
+        "request_context_path": (
+            str(request_context_json) if request_context_json is not None else ""
+        ),
         "response_payload_schema_id": LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
         "response_payload_validation_manifest_schema_id": (
             LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_MANIFEST_SCHEMA_ID
@@ -1318,6 +1367,16 @@ def validate_formalization_gap_planner_llm_route_planner_response_payloads(
         "n_payloads": len(rows),
         "n_valid_payloads": n_valid,
         "n_invalid_payloads": len(rows) - n_valid,
+        "n_request_context_packets": len(request_contexts),
+        "n_request_bound_payloads": sum(
+            1
+            for row in rows
+            if row["request_context_validation_mode"] == "request_bound"
+        ),
+        "n_schema_errors": sum(int(row["n_schema_errors"]) for row in rows),
+        "n_request_context_errors": sum(
+            int(row["n_request_context_errors"]) for row in rows
+        ),
         "rows": rows,
         "all_ok": not errors and bool(rows) and all(bool(row["ok"]) for row in rows),
         "errors": errors,
@@ -1327,7 +1386,8 @@ def validate_formalization_gap_planner_llm_route_planner_response_payloads(
             "Schema-only payload validation does not prove source grounding.",
             "Schema-only payload validation does not prove formal-library declaration provenance.",
             "Schema-only payload validation does not prove target-prover kernel verification.",
-            "Use the full LLM route planner with a request packet for context-grounded validation.",
+            "Request-bound payload validation is still planning preflight, not theorem proof evidence.",
+            "Use the full LLM route planner or a target prover kernel for route adoption and proof evidence.",
         ],
     }
     if out_dir is not None:
@@ -2621,6 +2681,12 @@ def llm_route_planner_response_payload_validation_row_json_schema() -> dict[str,
             "route_id",
             "payload_schema_id",
             "payload_fingerprint",
+            "request_context_path",
+            "request_context_validation_mode",
+            "request_context_id",
+            "request_context_route_id",
+            "n_schema_errors",
+            "n_request_context_errors",
             "n_errors",
             "ok",
             "errors",
@@ -2644,6 +2710,15 @@ def llm_route_planner_response_payload_validation_row_json_schema() -> dict[str,
                 "const": LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
             },
             "payload_fingerprint": {"type": "string", "minLength": 1},
+            "request_context_path": {"type": "string"},
+            "request_context_validation_mode": {
+                "type": "string",
+                "minLength": 1,
+            },
+            "request_context_id": {"type": "string"},
+            "request_context_route_id": {"type": "string"},
+            "n_schema_errors": {"type": "integer"},
+            "n_request_context_errors": {"type": "integer"},
             "n_errors": {"type": "integer"},
             "ok": {"type": "boolean"},
             "errors": string_array,
@@ -2698,6 +2773,7 @@ def llm_route_planner_response_payload_validation_manifest_json_schema() -> dict
                 "const": LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATOR_COMPONENT,
             },
             "input_path": {"type": "string", "minLength": 1},
+            "request_context_path": {"type": "string"},
             "response_payload_schema_id": {
                 "type": "string",
                 "const": LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
@@ -2716,6 +2792,10 @@ def llm_route_planner_response_payload_validation_manifest_json_schema() -> dict
             "n_payloads": {"type": "integer"},
             "n_valid_payloads": {"type": "integer"},
             "n_invalid_payloads": {"type": "integer"},
+            "n_request_context_packets": {"type": "integer"},
+            "n_request_bound_payloads": {"type": "integer"},
+            "n_schema_errors": {"type": "integer"},
+            "n_request_context_errors": {"type": "integer"},
             "rows": {
                 "type": "array",
                 "items": {
@@ -8339,6 +8419,153 @@ def _read_response_payload_validation_inputs(
         return [_response_payload_validation_input(payload, input_shape="object")]
     errors.append(f"unsupported LLM response payload validation JSON shape: {path}")
     return []
+
+
+def _read_response_payload_validation_request_contexts(
+    path: Path | None,
+    errors: list[str],
+) -> tuple[dict[str, Any], ...]:
+    if path is None:
+        return tuple()
+    if not path.exists():
+        errors.append(f"LLM route-planner request context path does not exist: {path}")
+        return tuple()
+    if path.is_dir():
+        request_jsonl = (
+            path / "formalization_gap_planner_llm_route_planner_requests.jsonl"
+        )
+        if request_jsonl.exists():
+            return _read_request_context_jsonl(request_jsonl, errors)
+        manifest_json = (
+            path / "formalization_gap_planner_llm_route_planner_manifest.json"
+        )
+        if manifest_json.exists():
+            return _read_response_payload_validation_request_contexts(
+                manifest_json,
+                errors,
+            )
+        errors.append(
+            "LLM route-planner request context directory is missing "
+            "formalization_gap_planner_llm_route_planner_requests.jsonl or "
+            "formalization_gap_planner_llm_route_planner_manifest.json: "
+            + str(path)
+        )
+        return tuple()
+    if path.suffix.lower() == ".jsonl":
+        return _read_request_context_jsonl(path, errors)
+    payload = _read_json(path, errors)
+    if isinstance(payload, Mapping) and isinstance(payload.get("request_packets"), list):
+        return tuple(
+            dict(row)
+            for row in payload["request_packets"]
+            if isinstance(row, Mapping)
+        )
+    if isinstance(payload, Mapping) and str(payload.get("request_id", "")).strip():
+        return (dict(payload),)
+    if isinstance(payload, list):
+        return tuple(dict(row) for row in payload if isinstance(row, Mapping))
+    errors.append(f"unsupported LLM route-planner request context JSON shape: {path}")
+    return tuple()
+
+
+def _read_request_context_jsonl(
+    path: Path,
+    errors: list[str],
+) -> tuple[dict[str, Any], ...]:
+    rows: list[dict[str, Any]] = []
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError as exc:
+        errors.append(f"failed to read LLM route-planner request context JSONL {path}: {exc}")
+        return tuple()
+    for line_index, line in enumerate(lines, start=1):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        try:
+            value = json.loads(stripped)
+        except json.JSONDecodeError as exc:
+            errors.append(
+                "failed to parse LLM route-planner request context JSONL "
+                f"{path}:{line_index}: {exc}"
+            )
+            continue
+        if isinstance(value, Mapping):
+            rows.append(dict(value))
+        else:
+            errors.append(
+                "LLM route-planner request context JSONL row must be object: "
+                f"{path}:{line_index}"
+            )
+    if not rows:
+        errors.append(f"LLM route-planner request context JSONL had no rows: {path}")
+    return tuple(rows)
+
+
+def _request_context_schema_errors_by_id(
+    request_contexts: tuple[dict[str, Any], ...],
+    schema: Mapping[str, object],
+) -> dict[str, list[str]]:
+    errors_by_id: dict[str, list[str]] = {}
+    for index, request in enumerate(request_contexts):
+        request_id = str(request.get("request_id", "")).strip()
+        request_key = request_id or f"request_context[{index}]"
+        row_errors = validate_llm_route_planner_request(request, schema)
+        if not request_id:
+            row_errors.append(f"request_context[{index}].request_id missing")
+        if row_errors:
+            errors_by_id[request_key] = [
+                f"request_context[{index}].{error}" for error in sorted(set(row_errors))
+            ]
+    return errors_by_id
+
+
+def _response_payload_validation_request_context_for_response(
+    response: Mapping[str, Any],
+    *,
+    payload_index: int,
+    request_contexts: tuple[dict[str, Any], ...],
+) -> tuple[dict[str, Any], list[str]]:
+    if not request_contexts:
+        return {}, []
+    response_request_id = str(response.get("request_id", "")).strip()
+    if response_request_id:
+        matches = [
+            request
+            for request in request_contexts
+            if str(request.get("request_id", "")).strip() == response_request_id
+        ]
+        if len(matches) == 1:
+            return matches[0], []
+        if not matches:
+            return {}, [
+                "request_context could not be matched by request_id for "
+                f"payload_index={payload_index}: {response_request_id}"
+            ]
+        return {}, [
+            "request_context request_id is not unique for "
+            f"payload_index={payload_index}: {response_request_id}"
+        ]
+    response_route_id = str(response.get("route_id", "")).strip()
+    if response_route_id:
+        matches = [
+            request
+            for request in request_contexts
+            if str(request.get("route_id", "")).strip() == response_route_id
+        ]
+        if len(matches) == 1:
+            return matches[0], []
+        if len(matches) > 1:
+            return {}, [
+                "request_context route_id is not unique for "
+                f"payload_index={payload_index}: {response_route_id}"
+            ]
+    if len(request_contexts) == 1:
+        return request_contexts[0], []
+    return {}, [
+        "request_context could not be matched for payload_index="
+        f"{payload_index}; include response request_id or route_id"
+    ]
 
 
 def _response_payload_validation_input(

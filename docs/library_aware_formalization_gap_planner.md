@@ -66,6 +66,7 @@ python3 -m ai_statistician.cli formalization-gap-planner-llm-route-planner \
 
 python3 -m ai_statistician.cli formalization-gap-planner-llm-route-planner-response-payload-validate \
   --input reviewed_llm_route_payload.json \
+  --request-context runs/current/formalization_gap_planner_llm_route_planner \
   --out runs/current/formalization_gap_planner_llm_route_payload_validate
 
 python3 -m ai_statistician.cli formalization-gap-planner-standalone-plan \
@@ -112,16 +113,21 @@ call the configured generator backend. For external teams that only need to
 preflight JSON before handing it to the full route planner, the
 `formalization-gap-planner-llm-route-planner-response-payload-validate` command
 accepts a raw response payload, wrapper response, list, or `responses` bundle
-and emits a schema-only validation manifest plus JSONL rows. The validator also
-writes manifest and row schemas, and the publication bundle exports those
-schemas as reusable contracts. The publication bundle can also package an
-actual validator run with
+and emits a validation manifest plus JSONL rows. Without `--request-context`,
+the command is schema-only. With `--request-context` pointing at a staged
+request packet, request JSONL, planner manifest, or planner output directory,
+it also runs the full request-bound preflight checks for target theorem
+identity, target prover family, source-ref grounding, formal-declaration
+provenance, residual repair grounding, and minimal-delta cost accounting. The
+validator also writes manifest and row schemas, and the publication bundle
+exports those schemas as reusable contracts. The publication bundle can also
+package an actual validator run with
 `--formalization-gap-planner-llm-route-planner-response-payload-validation-dir`;
 the bundle audit checks its manifest contract, JSONL row count, valid/invalid
 payload counters, and row schema IDs. That preflight checks the reusable
-payload contract and proof-evidence boundary, but it does not prove source
-grounding, declaration provenance, minimality, or kernel verification without
-the full request packet. The public planner path records
+payload contract and proof-evidence boundary; request-bound mode strengthens it
+to route-planning consistency against the staged request, but it still does not
+prove kernel verification. The public planner path records
 `*_provider_execution_mode` and live-call counters so staged packets are
 distinguishable from paid provider calls. For live
 AI Statistician development, the default LLM runtime is Anthropic Claude API:

@@ -2631,6 +2631,10 @@ def test_llm_route_planner_response_payload_validator_accepts_raw_payload() -> N
     assert row["ok"]
     assert not row["response_wrapper_present"]
     assert row["payload_schema_id"] == LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID
+    assert row["request_context_validation_mode"] == "schema_only"
+    assert row["request_context_id"] == ""
+    assert row["n_schema_errors"] == 0
+    assert row["n_request_context_errors"] == 0
     assert (
         out_dir
         / "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.json"
@@ -2690,6 +2694,102 @@ def test_llm_route_planner_response_payload_validator_rejects_wrapper_payload() 
     ]
 
 
+def test_llm_route_planner_response_payload_validator_request_context_accepts_payload() -> None:
+    root = Path("runs/test_formalization_gap_planner_llm_payload_validate_request_bound")
+    planner_dir = root / "llm_route_planner"
+    out_dir = root / "out"
+    response_json = root / "response_payload.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    staged = export_formalization_gap_planner_llm_route_planner(
+        _write_input(root),
+        planner_dir,
+        provider_name="prompt_only",
+    )
+    request = staged["request_packets"][0]
+    response_json.write_text(
+        json.dumps(
+            {
+                "request_id": request["request_id"],
+                "route_id": request["route_id"],
+                "response_payload": _llm_response_payload(),
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = validate_formalization_gap_planner_llm_route_planner_response_payloads(
+        response_json,
+        out_dir,
+        request_context_json=planner_dir,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_request_context_packets"] == 1
+    assert payload["n_request_bound_payloads"] == 1
+    assert payload["n_request_context_errors"] == 0
+    row = payload["rows"][0]
+    assert row["request_context_validation_mode"] == "request_bound"
+    assert row["request_context_id"] == request["request_id"]
+    assert row["request_context_route_id"] == request["route_id"]
+    assert row["n_schema_errors"] == 0
+    assert row["n_request_context_errors"] == 0
+
+
+def test_llm_route_planner_response_payload_validator_request_context_rejects_theorem_drift() -> None:
+    root = Path("runs/test_formalization_gap_planner_llm_payload_validate_theorem_drift")
+    planner_dir = root / "llm_route_planner"
+    out_dir = root / "out"
+    response_json = root / "response_payload.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    staged = export_formalization_gap_planner_llm_route_planner(
+        _write_input(root),
+        planner_dir,
+        provider_name="prompt_only",
+    )
+    request = staged["request_packets"][0]
+    response = _llm_response_payload()
+    standalone_route = response["standalone_route"]
+    assert isinstance(standalone_route, dict)
+    standalone_route["theorem_statement"] = (
+        "A Gaussian central limit theorem follows from Lindeberg conditions."
+    )
+    response_json.write_text(
+        json.dumps(
+            {
+                "request_id": request["request_id"],
+                "route_id": request["route_id"],
+                "response_payload": response,
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = validate_formalization_gap_planner_llm_route_planner_response_payloads(
+        response_json,
+        out_dir,
+        request_context_json=planner_dir,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_schema_errors"] == 0
+    assert payload["n_request_context_errors"] >= 1
+    row = payload["rows"][0]
+    assert row["request_context_validation_mode"] == "request_bound"
+    assert row["n_schema_errors"] == 0
+    assert row["n_request_context_errors"] >= 1
+    assert any(
+        "standalone_route.theorem_statement appears to target a different theorem"
+        in error
+        for error in row["errors"]
+    )
+
+
 def test_llm_route_planner_response_payload_validator_cli() -> None:
     root = Path("runs/test_formalization_gap_planner_llm_payload_validate_cli")
     out_dir = root / "out"
@@ -2720,6 +2820,56 @@ def test_llm_route_planner_response_payload_validator_cli() -> None:
     )
     assert manifest["all_ok"]
     assert manifest["n_valid_payloads"] == 1
+
+
+def test_llm_route_planner_response_payload_validator_cli_request_context() -> None:
+    root = Path("runs/test_formalization_gap_planner_llm_payload_validate_cli_request_bound")
+    planner_dir = root / "llm_route_planner"
+    out_dir = root / "out"
+    response_json = root / "response_payload.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    staged = export_formalization_gap_planner_llm_route_planner(
+        _write_input(root),
+        planner_dir,
+        provider_name="prompt_only",
+    )
+    request = staged["request_packets"][0]
+    response_json.write_text(
+        json.dumps(
+            {
+                "request_id": request["request_id"],
+                "route_id": request["route_id"],
+                "response_payload": _llm_response_payload(),
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    code = main(
+        [
+            "formalization-gap-planner-llm-route-planner-response-payload-validate",
+            "--input",
+            str(response_json),
+            "--request-context",
+            str(planner_dir),
+            "--out",
+            str(out_dir),
+        ]
+    )
+
+    assert code == 0
+    manifest = json.loads(
+        (
+            out_dir
+            / "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert manifest["all_ok"]
+    assert manifest["n_request_bound_payloads"] == 1
+    assert manifest["rows"][0]["request_context_validation_mode"] == "request_bound"
 
 
 def test_llm_route_planner_marks_clean_accepted_route_adoption_ready() -> None:
