@@ -17,6 +17,10 @@ from .formalization_gap_planner_standalone import (
     export_formalization_gap_planner_standalone_plan,
     validate_standalone_input_payload,
 )
+from .formalization_gap_planner_target_intake import (
+    FORMALIZATION_GAP_PLANNER_TARGET_INTAKE_COMPONENT,
+    normalize_formalization_gap_planner_target_intake,
+)
 
 
 FORMALIZATION_GAP_PLANNER_RUNTIME_HANDOFF_AUDIT_SCHEMA_VERSION = 1
@@ -133,6 +137,22 @@ def audit_formalization_gap_planner_runtime_handoffs(
         "n_live_explicit_ok": sum(
             1 for summary in smoke_summaries if summary.get("live_explicit_ok")
         ),
+        "n_reuse_smoke_cost_control_ok": sum(
+            1
+            for summary in smoke_summaries
+            if summary.get("reuse_smoke_cost_control_ok")
+        ),
+        "n_target_intake_smoke_ok": sum(
+            1 for summary in smoke_summaries if summary.get("target_intake_smoke_ok")
+        ),
+        "n_target_intake_targets": sum(
+            int(summary.get("target_intake_targets", 0) or 0)
+            for summary in smoke_summaries
+        ),
+        "n_target_intake_primitive_seeds": sum(
+            int(summary.get("target_intake_primitive_seeds", 0) or 0)
+            for summary in smoke_summaries
+        ),
         "n_standalone_smoke_ok": sum(
             1 for summary in smoke_summaries if summary.get("standalone_smoke_ok")
         ),
@@ -231,6 +251,8 @@ def runtime_handoff_audit_row_json_schema() -> dict[str, object]:
                     "row",
                     "standalone_seed",
                     "standalone_smoke",
+                    "reuse_smoke",
+                    "target_intake",
                     "target_prover",
                 ],
             },
@@ -278,20 +300,32 @@ def _audit_handoff_row(
 ) -> tuple[list[FormalizationGapPlannerRuntimeHandoffAuditCheck], dict[str, object]]:
     handoff_id = str(handoff.get("handoff_id", f"row:{row_index}"))
     bridge_id = str(handoff.get("bridge_id", ""))
-    seed_path = Path(str(handoff.get("standalone_seed_path", "")))
+    seed_path_text = str(handoff.get("standalone_seed_path", "")).strip()
+    target_intake_path_text = str(handoff.get("target_intake_path", "")).strip()
+    seed_path = Path(seed_path_text)
+    target_intake_path = Path(target_intake_path_text)
     standalone_plan_cli = str(handoff.get("standalone_plan_cli", ""))
     prompt_cli = str(handoff.get("llm_route_planner_prompt_cli", ""))
     live_cli = str(handoff.get("llm_route_planner_live_cli", ""))
+    reuse_smoke_cli = str(handoff.get("reuse_smoke_cli", ""))
     handoff_target = str(handoff.get("target_prover_family", "")).strip()
     summary: dict[str, object] = {
         "handoff_id": handoff_id,
         "bridge_id": bridge_id,
-        "standalone_seed_path": str(seed_path),
+        "standalone_seed_path": seed_path_text,
+        "target_intake_path": target_intake_path_text,
         "target_prover_family": handoff_target,
-        "seed_exists": seed_path.exists(),
+        "seed_exists": bool(seed_path_text) and seed_path.exists(),
+        "target_intake_exists": (
+            bool(target_intake_path_text) and target_intake_path.exists()
+        ),
         "seed_schema_ok": False,
         "cost_control_ok": False,
         "live_explicit_ok": False,
+        "reuse_smoke_cost_control_ok": False,
+        "target_intake_smoke_ok": False,
+        "target_intake_targets": 0,
+        "target_intake_primitive_seeds": 0,
         "standalone_smoke_ok": False,
         "llm_prompt_smoke_ok": False,
         "llm_prompt_packets": 0,
@@ -309,10 +343,18 @@ def _audit_handoff_row(
     summary["seed_schema_ok"] = seed_schema_ok
     summary.update(_seed_context_counts(seed_payload))
     seed_target = str(seed_payload.get("target_prover_family", "")).strip()
+    seed_snapshot = str(seed_payload.get("library_snapshot_ref", "")).strip()
     cost_control_ok = _prompt_cli_cost_control_ok(prompt_cli)
     live_explicit_ok = _live_cli_explicit_ok(live_cli)
+    reuse_smoke_cost_control_ok = _reuse_smoke_cli_cost_control_ok(
+        reuse_smoke_cli,
+        target_intake_path_text=target_intake_path_text,
+        target_prover_family=handoff_target,
+        library_snapshot_ref=seed_snapshot,
+    )
     summary["cost_control_ok"] = cost_control_ok
     summary["live_explicit_ok"] = live_explicit_ok
+    summary["reuse_smoke_cost_control_ok"] = reuse_smoke_cost_control_ok
     checks = [
         _row_check(
             "row_artifact_kind",
@@ -340,6 +382,15 @@ def _audit_handoff_row(
             "standalone seed path exists",
             str(seed_path.exists()),
             seed_path.exists(),
+        ),
+        _row_check(
+            "row_target_intake_path_exists",
+            "target_intake",
+            handoff_id,
+            bridge_id,
+            "target intake path exists",
+            str(bool(target_intake_path_text) and target_intake_path.exists()),
+            bool(target_intake_path_text) and target_intake_path.exists(),
         ),
         _row_check(
             "row_seed_component",
@@ -424,6 +475,15 @@ def _audit_handoff_row(
             "formalization-gap-planner-standalone-plan" in standalone_plan_cli,
         ),
         _row_check(
+            "row_reuse_smoke_cli_present",
+            "reuse_smoke",
+            handoff_id,
+            bridge_id,
+            "formalization-gap-planner-reuse-smoke command",
+            reuse_smoke_cli,
+            "formalization-gap-planner-reuse-smoke" in reuse_smoke_cli,
+        ),
+        _row_check(
             "row_prompt_cli_cost_control",
             "cost_control",
             handoff_id,
@@ -431,6 +491,15 @@ def _audit_handoff_row(
             "Anthropic auto prompt-only command without --invoke-provider",
             prompt_cli,
             cost_control_ok,
+        ),
+        _row_check(
+            "row_reuse_smoke_cli_cost_control",
+            "cost_control",
+            handoff_id,
+            bridge_id,
+            "Anthropic auto reuse-smoke command without live provider flags",
+            reuse_smoke_cli,
+            reuse_smoke_cost_control_ok,
         ),
         _row_check(
             "row_live_cli_explicit",
@@ -480,6 +549,37 @@ def _audit_handoff_row(
             not _has_kernel_proof_claim(handoff),
         ),
     ]
+    if run_smoke and bool(target_intake_path_text) and target_intake_path.exists():
+        target_ok, target_observed, target_counts = _run_target_intake_smoke(
+            target_intake_path,
+            handoff_id=handoff_id,
+            smoke_root=smoke_root,
+        )
+        summary.update(target_counts)
+        summary["target_intake_smoke_ok"] = target_ok
+        checks.append(
+            _row_check(
+                "row_target_intake_smoke",
+                "target_intake",
+                handoff_id,
+                bridge_id,
+                "target intake normalizes to standalone seed",
+                target_observed,
+                target_ok,
+            )
+        )
+    elif run_smoke:
+        checks.append(
+            _row_check(
+                "row_target_intake_smoke",
+                "target_intake",
+                handoff_id,
+                bridge_id,
+                "target intake normalizes to standalone seed",
+                "skipped because target intake path missing",
+                False,
+            )
+        )
     if run_smoke and seed_schema_ok:
         standalone_ok, standalone_observed = _run_standalone_smoke(
             seed_path,
@@ -644,6 +744,51 @@ def _run_llm_prompt_smoke(
     }
 
 
+def _run_target_intake_smoke(
+    target_intake_path: Path,
+    *,
+    handoff_id: str,
+    smoke_root: Path | None,
+) -> tuple[bool, str, dict[str, int]]:
+    try:
+        payload = normalize_formalization_gap_planner_target_intake(
+            target_intake_path,
+            _smoke_dir(smoke_root, handoff_id) / "target_intake"
+            if smoke_root is not None
+            else None,
+        )
+    except Exception as exc:  # pragma: no cover - defensive audit surface
+        return (
+            False,
+            f"{type(exc).__name__}: {exc}",
+            {"target_intake_targets": 0, "target_intake_primitive_seeds": 0},
+        )
+    standalone_seed = payload.get("standalone_seed", {})
+    standalone_component = (
+        str(standalone_seed.get("component_name", ""))
+        if isinstance(standalone_seed, Mapping)
+        else ""
+    )
+    n_targets = int(payload.get("n_targets", 0) or 0)
+    n_primitive_seeds = int(payload.get("n_primitive_seed_rows", 0) or 0)
+    ok = (
+        bool(payload.get("all_ok", False))
+        and str(payload.get("component_name", ""))
+        == FORMALIZATION_GAP_PLANNER_TARGET_INTAKE_COMPONENT
+        and standalone_component == FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_COMPONENT
+        and n_targets > 0
+        and n_primitive_seeds > 0
+    )
+    return ok, (
+        f"all_ok={payload.get('all_ok')} component={payload.get('component_name')} "
+        f"standalone_component={standalone_component} targets={n_targets} "
+        f"primitive_seeds={n_primitive_seeds} errors={payload.get('errors')}"
+    ), {
+        "target_intake_targets": n_targets,
+        "target_intake_primitive_seeds": n_primitive_seeds,
+    }
+
+
 def _prompt_cli_cost_control_ok(prompt_cli: str) -> bool:
     return (
         "formalization-gap-planner-llm-route-planner" in prompt_cli
@@ -651,6 +796,29 @@ def _prompt_cli_cost_control_ok(prompt_cli: str) -> bool:
         and "--model-tier auto" in prompt_cli
         and "--max-repair-attempts 1" in prompt_cli
         and "--invoke-provider" not in prompt_cli
+    )
+
+
+def _reuse_smoke_cli_cost_control_ok(
+    reuse_smoke_cli: str,
+    *,
+    target_intake_path_text: str,
+    target_prover_family: str,
+    library_snapshot_ref: str,
+) -> bool:
+    return (
+        "formalization-gap-planner-reuse-smoke" in reuse_smoke_cli
+        and target_intake_path_text in reuse_smoke_cli
+        and f"--target-prover-family {target_prover_family}" in reuse_smoke_cli
+        and f"--target-library-snapshot-ref {library_snapshot_ref}" in reuse_smoke_cli
+        and "--llm-route-planner-provider anthropic" in reuse_smoke_cli
+        and "--llm-route-planner-model-tier auto" in reuse_smoke_cli
+        and "--llm-route-planner-max-repair-attempts 1" in reuse_smoke_cli
+        and "--feedback-llm-route-planner-provider anthropic" in reuse_smoke_cli
+        and "--feedback-llm-route-planner-model-tier auto" in reuse_smoke_cli
+        and "--feedback-llm-route-planner-max-repair-attempts 1" in reuse_smoke_cli
+        and "--llm-route-planner-invoke-provider" not in reuse_smoke_cli
+        and "--feedback-llm-route-planner-invoke-provider" not in reuse_smoke_cli
     )
 
 
@@ -882,6 +1050,9 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
         f"- Handoffs: {payload.get('n_handoffs')}",
         f"- Checks: {payload.get('n_ok')}/{payload.get('n_checks')}",
         f"- Cost control OK: {payload.get('n_cost_control_ok')}",
+        f"- Reuse-smoke cost control OK: {payload.get('n_reuse_smoke_cost_control_ok')}",
+        f"- Target-intake smoke OK: {payload.get('n_target_intake_smoke_ok')}",
+        f"- Target-intake targets/primitives: {payload.get('n_target_intake_targets')}/{payload.get('n_target_intake_primitive_seeds')}",
         f"- Standalone smoke OK: {payload.get('n_standalone_smoke_ok')}",
         f"- LLM prompt smoke OK: {payload.get('n_llm_prompt_smoke_ok')}",
         f"- Prompt packets: {payload.get('n_llm_prompt_packets')}",

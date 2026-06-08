@@ -1380,6 +1380,11 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert "--provider anthropic" in gap_planner_bridge["next_llm_route_planner_prompt_cli"]
     assert "--invoke-provider" not in gap_planner_bridge["next_llm_route_planner_prompt_cli"]
     assert "--invoke-provider" in gap_planner_bridge["next_llm_route_planner_live_cli"]
+    assert "formalization-gap-planner-reuse-smoke" in gap_planner_bridge["next_reuse_smoke_cli"]
+    assert "--llm-route-planner-provider anthropic" in gap_planner_bridge["next_reuse_smoke_cli"]
+    assert "--feedback-llm-route-planner-provider anthropic" in gap_planner_bridge["next_reuse_smoke_cli"]
+    assert "--llm-route-planner-invoke-provider" not in gap_planner_bridge["next_reuse_smoke_cli"]
+    assert "--feedback-llm-route-planner-invoke-provider" not in gap_planner_bridge["next_reuse_smoke_cli"]
     assert gap_planner_bridge["proof_evidence_status"] == (
         "RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_NOT_PROOF_EVIDENCE"
     )
@@ -1395,14 +1400,18 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     ]
     assert len(persisted_bridge_rows) == 2
     assert persisted_bridge_rows[0]["standalone_seed_path"].endswith(".json")
+    assert persisted_bridge_rows[0]["target_intake_path"].endswith(".json")
     assert persisted_bridge_rows[0]["target_prover_family"] == "lean4"
     assert persisted_bridge_rows[0]["counts"]["candidate_declaration_rows"] > 0
     assert "--model-tier auto" in persisted_bridge_rows[0]["llm_route_planner_prompt_cli"]
     assert "--max-repair-attempts 1" in persisted_bridge_rows[0]["llm_route_planner_prompt_cli"]
+    assert "formalization-gap-planner-reuse-smoke" in persisted_bridge_rows[0]["reuse_smoke_cli"]
+    assert "--llm-route-planner-invoke-provider" not in persisted_bridge_rows[0]["reuse_smoke_cli"]
     assert len(handoff_rows) == 2
     handoff = handoff_rows[0]
     assert handoff["artifact_kind"] == "RuntimeFormalizationGapPlannerHandoff"
     assert handoff["target_prover_family"] == "lean4"
+    assert handoff["target_intake_path"].endswith(".json")
     assert handoff["recommended_llm_provider"] == "anthropic"
     assert handoff["recommended_model_tier"] == "auto"
     assert "--model-tier auto" in handoff["llm_route_planner_prompt_cli"]
@@ -1410,6 +1419,11 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert "--provider anthropic" in handoff["llm_route_planner_prompt_cli"]
     assert "--invoke-provider" not in handoff["llm_route_planner_prompt_cli"]
     assert "--invoke-provider" in handoff["llm_route_planner_live_cli"]
+    assert "formalization-gap-planner-reuse-smoke" in handoff["reuse_smoke_cli"]
+    assert "--llm-route-planner-provider anthropic" in handoff["reuse_smoke_cli"]
+    assert "--feedback-llm-route-planner-provider anthropic" in handoff["reuse_smoke_cli"]
+    assert "--llm-route-planner-invoke-provider" not in handoff["reuse_smoke_cli"]
+    assert "--feedback-llm-route-planner-invoke-provider" not in handoff["reuse_smoke_cli"]
     assert handoff["proof_evidence_status"] == (
         "RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_NOT_PROOF_EVIDENCE"
     )
@@ -1422,6 +1436,10 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert runtime_handoff_audit["n_handoffs"] == 2
     assert runtime_handoff_audit["n_cost_control_ok"] == 2
     assert runtime_handoff_audit["n_live_explicit_ok"] == 2
+    assert runtime_handoff_audit["n_reuse_smoke_cost_control_ok"] == 2
+    assert runtime_handoff_audit["n_target_intake_smoke_ok"] == 2
+    assert runtime_handoff_audit["n_target_intake_targets"] >= 2
+    assert runtime_handoff_audit["n_target_intake_primitive_seeds"] > 0
     assert runtime_handoff_audit["n_standalone_smoke_ok"] == 2
     assert runtime_handoff_audit["n_llm_prompt_smoke_ok"] == 2
     assert runtime_handoff_audit["n_llm_prompt_packets"] >= 2
@@ -1450,6 +1468,7 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
         / "formalization_gap_planner_runtime_handoff_audit.md"
     ).read_text(encoding="utf-8")
     assert "Seed candidate declaration rows:" in runtime_handoff_report
+    assert "Target-intake smoke OK:" in runtime_handoff_report
     standalone_seed = gap_planner_bridge["standalone_seed"]
     assert validate_standalone_input_payload(standalone_seed) == []
     assert standalone_seed["component_name"] == "formalization_gap_planner_standalone_input"
