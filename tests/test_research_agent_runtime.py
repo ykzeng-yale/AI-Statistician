@@ -35,15 +35,19 @@ from ai_statistician.proof_state_feedback import (
     LocalLeanProofStateFeedbackProvider,
 )
 from ai_statistician.research_agent_runtime import (
+    AlgorithmEngineerRuntimeSubsystem,
     ResearchAgentRuntimeConfig,
     _proof_bank_obligation_request_ids,
+    _registered_algorithm_template_hint,
     _runtime_learning_memory_proof_obligation_ids,
     _runtime_formalization_gap_planner_bridge,
     _run_generated_python_sandbox,
+    _run_split_conformal_interval_prototype,
     run_research_agent_runtime,
 )
 from ai_statistician.research_agent_runtime_audit import audit_research_agent_runtime
 from ai_statistician.research_system_audit import _research_agent_runtime_audit_overlay
+from ai_statistician.agent_runtime import AgentTask, BlackboardState
 from ai_statistician.research_architect import (
     LLMTheoryDeveloperAgent,
     ResearchArchitectConfig,
@@ -135,9 +139,128 @@ def test_algorithm_engineer_prompt_exposes_generated_python_safe_subset() -> Non
     assert "forbidden_dependencies" in prompt
     assert "numpy" in prompt
     assert "sklearn" in prompt
+    assert "split_conformal_interval" in prompt
+    assert "trusted split-conformal regression interval sandbox" in prompt
     assert "import or from-import statements" in prompt
     assert "method calls or attribute access except math.* and statistics.*" in prompt
     assert "leave sandbox_code_drafts empty" in prompt
+
+
+def test_split_conformal_registered_template_hint_and_execution(tmp_path: Path) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    template = _registered_algorithm_template_hint(
+        proposal_target={"registered_template_hint": "none"},
+        spec={
+            "id": "E1",
+            "name": "Split conformal interval",
+            "algorithm_sketch": "Fit on train split, calibrate residual quantile, return prediction interval.",
+        },
+        question=question,
+    )
+    assert template == "split_conformal_interval"
+
+    prototype, tool_call = _run_split_conformal_interval_prototype(
+        sandbox_dir=tmp_path,
+        estimator_id="E1",
+        spec={"id": "E1", "name": "Split conformal interval"},
+        n_runs=12,
+        seed=20260607,
+        timeout_s=20,
+    )
+
+    assert prototype["prototype_status"] == "EXECUTED"
+    assert prototype["executor"] == "registered_split_conformal_interval_template"
+    assert prototype["smoke_passed"] is True
+    assert prototype["promotion_ready"] is False
+    assert "not theorem proof evidence" in prototype["boundary"]
+    assert prototype["metrics"]["status"] == "ok"
+    assert prototype["metrics"]["n_failed"] == 0
+    assert 0.0 <= prototype["metrics"]["coverage_90"] <= 1.0
+    assert prototype["metrics"]["mean_interval_width"] > 0.0
+    assert tool_call.tool_name == "python.split_conformal_interval_sandbox"
+    assert tool_call.exit_status == "0"
+
+
+def test_algorithm_engineer_runtime_executes_registered_split_conformal_template(tmp_path: Path) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    theory_packet_id = "theory:conformal"
+    simulation_manifest_id = "simulation:conformal"
+    blackboard = BlackboardState(
+        project_id=f"runtime:{question.id}",
+        artifacts={
+            theory_packet_id: {
+                "packet_id": theory_packet_id,
+                "estimator_specs": [
+                    {
+                        "id": "E1",
+                        "name": "Split conformal interval",
+                        "algorithm_sketch": (
+                            "Fit regression on train split, calibrate residual quantile, "
+                            "return prediction interval."
+                        ),
+                    }
+                ],
+            },
+            simulation_manifest_id: {
+                "manifest_id": simulation_manifest_id,
+                "simulation_passed": True,
+            },
+        },
+    )
+    algorithm_engineer = LLMAlgorithmEngineerAgent(
+        provider=StaticArchitectLLMProvider(_conformal_algorithm_sample_response()),
+        config=AlgorithmEngineerConfig(provider_name="static", model="static-conformal-algorithm-model"),
+    )
+    subsystem = AlgorithmEngineerRuntimeSubsystem(
+        out_dir=tmp_path,
+        n_runs=12,
+        seed=20260607,
+        proposal_agent=algorithm_engineer,
+        timeout_s=20,
+    )
+    task = AgentTask(
+        task_id="algorithm:conformal",
+        owner_subsystem="AlgorithmEngineer",
+        objective="Execute registered conformal sandbox template.",
+        inputs={
+            "question": {
+                "id": question.id,
+                "title": question.title,
+                "description": question.description,
+                "tags": list(question.tags),
+            },
+            "theory_packet_id": theory_packet_id,
+            "simulation_manifest_id": simulation_manifest_id,
+            "implementation_gaps": [
+                {
+                    "estimator_id": "E1",
+                    "status": "REQUIRES_ALGORITHM_ENGINEER_ADAPTER",
+                    "reason": "Conformal estimator needs registered runtime template.",
+                }
+            ],
+        },
+        expected_artifacts=("algorithm_sandbox_manifest",),
+    )
+
+    result = subsystem.run(task, blackboard)
+    manifest = next(
+        artifact
+        for key, artifact in result.produced_artifacts.items()
+        if key.startswith("algorithm_sandbox_manifest:")
+    )
+    prototype = manifest["prototypes"][0]
+
+    assert result.status == "REROUTE"
+    assert manifest["n_executed"] == 1
+    assert manifest["n_passed"] == 1
+    assert manifest["n_generated_code_executed"] == 0
+    assert manifest["n_unsafe_generated_code_rejected"] == 0
+    assert prototype["executor"] == "registered_split_conformal_interval_template"
+    assert prototype["llm_algorithm_engineer_target"]["registered_template_hint"] == "split_conformal_interval"
+    assert prototype["metrics"]["status"] == "ok"
+    assert any(row.tool_name == "python.split_conformal_interval_sandbox" for row in result.tool_calls)
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "FormalizationEvaluator"
 
 
 def test_formal_subclaim_prover_uses_batch_kernel_verifier() -> None:
@@ -710,6 +833,60 @@ def _algorithm_sample_response() -> dict[str, object]:
                 "owner_agent": "AgentRuntime",
                 "action": "execute registered crossfit_aipw sandbox template",
                 "acceptance_gate": "reproducible sandbox metrics recorded",
+            }
+        ],
+    }
+
+
+def _conformal_algorithm_sample_response() -> dict[str, object]:
+    return {
+        "implementation_targets": [
+            {
+                "estimator_id": "E1",
+                "adapter_strategy": "Use the registered split_conformal_interval sandbox template.",
+                "registered_template_hint": "split_conformal_interval",
+                "data_contract": [
+                    "exchangeable regression observations",
+                    "train/calibration/test split",
+                    "residual quantile interval output",
+                ],
+                "validation_metrics": ["coverage_90", "mean_interval_width", "n_success"],
+                "risk_controls": [
+                    "record marginal-only coverage boundary",
+                    "stress nonlinear and heavy-tail DGPs",
+                ],
+            }
+        ],
+        "sandbox_plan": {
+            "prototype_steps": ["execute trusted split conformal template"],
+            "stress_tests": ["linear", "nonlinear", "heavy-tailed"],
+            "expected_outputs": ["coverage_90", "mean_interval_width"],
+            "expected_failure_modes": ["coverage below nominal under non-exchangeable shift"],
+        },
+        "code_generation_plan": {
+            "files_to_generate": [],
+            "functions_to_implement": [],
+            "dependencies": ["trusted runtime template only"],
+            "runtime_executor": "AgentRuntime",
+        },
+        "sandbox_code_drafts": [],
+        "promotion_gate": {
+            "required_tests": ["trusted template sandbox smoke passes"],
+            "required_reproducibility_evidence": ["fixed seed", "metrics JSON", "script hash"],
+            "production_registration_requirements": ["registered algorithm review"],
+        },
+        "critic_findings": [
+            {
+                "critic": "implementation_boundary",
+                "finding": "Template execution is empirical implementation evidence only.",
+                "reroute_if_confirmed": "AlgorithmEngineer",
+            }
+        ],
+        "next_actions": [
+            {
+                "owner_agent": "AgentRuntime",
+                "action": "run trusted split conformal sandbox template",
+                "acceptance_gate": "algorithm manifest has n_executed >= 1",
             }
         ],
     }

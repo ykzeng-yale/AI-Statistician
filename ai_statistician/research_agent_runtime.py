@@ -705,8 +705,25 @@ class AlgorithmEngineerRuntimeSubsystem:
             spec = _estimator_spec(packet, estimator_id)
             proposal_target = _algorithm_proposal_for_estimator(proposal_packet, estimator_id)
             code_draft = _algorithm_code_draft_for_estimator(proposal_packet, estimator_id)
-            if estimator_id == "crossfit_aipw":
+            template_hint = _registered_algorithm_template_hint(
+                proposal_target=proposal_target,
+                spec=spec,
+                question=question,
+            )
+            if estimator_id == "crossfit_aipw" or template_hint == "crossfit_aipw":
                 prototype, tool_call = _run_crossfit_aipw_prototype(
+                    sandbox_dir=sandbox_dir,
+                    estimator_id=estimator_id,
+                    spec=spec,
+                    n_runs=int(task.inputs.get("n_runs", self.n_runs) or self.n_runs),
+                    seed=int(task.inputs.get("seed", self.seed) or self.seed),
+                    timeout_s=self.timeout_s,
+                )
+                prototype["llm_algorithm_engineer_target"] = proposal_target
+                prototype_rows.append(prototype)
+                tool_calls.append(tool_call)
+            elif template_hint == "split_conformal_interval":
+                prototype, tool_call = _run_split_conformal_interval_prototype(
                     sandbox_dir=sandbox_dir,
                     estimator_id=estimator_id,
                     spec=spec,
@@ -2192,6 +2209,40 @@ def _algorithm_code_draft_for_estimator(
         if str(row.get("estimator_id", "")) == estimator_id:
             return dict(row)
     return {}
+
+
+def _registered_algorithm_template_hint(
+    *,
+    proposal_target: Mapping[str, Any],
+    spec: Mapping[str, Any],
+    question: OpenResearchQuestion,
+) -> str:
+    explicit = str(proposal_target.get("registered_template_hint", "") or "").strip()
+    if explicit in {"crossfit_aipw", "split_conformal_interval"}:
+        return explicit
+    haystack = " ".join(
+        str(part)
+        for part in (
+            explicit,
+            spec.get("id", ""),
+            spec.get("name", ""),
+            spec.get("algorithm_sketch", ""),
+            spec.get("formula", ""),
+            question.id,
+            question.title,
+            question.description,
+            " ".join(question.tags),
+        )
+    ).lower()
+    if "crossfit" in haystack or "aipw" in haystack:
+        return "crossfit_aipw"
+    if "conformal" in haystack and (
+        "interval" in haystack
+        or "prediction" in haystack
+        or "coverage" in haystack
+    ):
+        return "split_conformal_interval"
+    return ""
 
 
 def _critic_next_action_agenda(
@@ -4169,6 +4220,205 @@ def main():
             "coverage_95": float(np.mean(covered)),
             "mean_se": float(np.mean(ses_arr)),
             "empirical_sd": float(np.std(estimates_arr, ddof=1)) if estimates_arr.size > 1 else 0.0,
+        }
+    with open(args.out, "w", encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=2, sort_keys=True)
+    print(json.dumps(payload, sort_keys=True))
+
+
+if __name__ == "__main__":
+    main()
+'''
+
+
+def _run_split_conformal_interval_prototype(
+    *,
+    sandbox_dir: Path,
+    estimator_id: str,
+    spec: Mapping[str, Any],
+    n_runs: int,
+    seed: int,
+    timeout_s: int,
+) -> tuple[dict[str, Any], ToolCallRecord]:
+    script_path = sandbox_dir / f"{_safe_identifier(estimator_id)}_split_conformal_template.py"
+    result_path = sandbox_dir / f"{_safe_identifier(estimator_id)}_split_conformal_result.json"
+    script = _split_conformal_interval_prototype_script()
+    script_path.write_text(script, encoding="utf-8")
+    replicates = max(10, min(int(n_runs), 100))
+    cmd = [
+        sys.executable,
+        str(script_path.resolve()),
+        "--out",
+        str(result_path.resolve()),
+        "--replicates",
+        str(replicates),
+        "--seed",
+        str(seed),
+    ]
+    try:
+        completed = subprocess.run(
+            cmd,
+            cwd=str(sandbox_dir),
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=timeout_s,
+        )
+        returncode = int(completed.returncode)
+        stdout = completed.stdout.strip()
+        stderr = completed.stderr.strip()
+    except subprocess.TimeoutExpired as exc:
+        returncode = 124
+        stdout = str(exc.stdout or "").strip()
+        stderr = f"timeout after {timeout_s}s: {exc.stderr or ''}".strip()
+    metrics: dict[str, Any] = {}
+    if result_path.exists():
+        try:
+            metrics = json.loads(result_path.read_text(encoding="utf-8"))
+        except Exception as exc:  # pragma: no cover - defensive artifact parsing
+            metrics = {"parse_error": repr(exc)}
+    smoke_passed = (
+        returncode == 0
+        and bool(metrics)
+        and float(metrics.get("n_failed", 1.0)) == 0.0
+        and 0.0 <= float(metrics.get("coverage_90", -1.0)) <= 1.0
+        and float(metrics.get("mean_interval_width", 0.0)) > 0.0
+    )
+    boundary = (
+        "Trusted split-conformal sandbox execution checks implementation plausibility "
+        "and empirical coverage metrics only. It is not production registration and "
+        "not theorem proof evidence."
+    )
+    prototype = {
+        "estimator_id": estimator_id,
+        "prototype_status": "EXECUTED" if returncode == 0 else "FAILED",
+        "executor": "registered_split_conformal_interval_template",
+        "spec": dict(spec),
+        "script_path": str(script_path),
+        "result_path": str(result_path),
+        "script_hash": stable_hash(script),
+        "returncode": returncode,
+        "metrics": metrics,
+        "smoke_passed": smoke_passed,
+        "promotion_ready": False,
+        "boundary": boundary,
+    }
+    tool_call = ToolCallRecord(
+        tool_name="python.split_conformal_interval_sandbox",
+        inputs={"replicates": replicates, "seed": seed, "script_path": str(script_path)},
+        output_paths=(str(result_path),),
+        input_hash=stable_hash({"script": script, "replicates": replicates, "seed": seed}),
+        output_hash=stable_hash(metrics) if metrics else "",
+        exit_status=str(returncode),
+        stdout_summary=stdout[:500],
+        stderr_summary=stderr[:500],
+        safety_boundary=boundary,
+    )
+    return prototype, tool_call
+
+
+def _split_conformal_interval_prototype_script() -> str:
+    return r'''from __future__ import annotations
+
+import argparse
+import json
+import math
+
+import numpy as np
+
+
+def _ridge_fit(x, y, ridge=1e-3):
+    x_aug = np.column_stack([np.ones(x.shape[0]), x])
+    gram = x_aug.T @ x_aug + ridge * np.eye(x_aug.shape[1])
+    return np.linalg.solve(gram, x_aug.T @ y)
+
+
+def _ridge_predict(beta, x):
+    return np.column_stack([np.ones(x.shape[0]), x]) @ beta
+
+
+def _response(x, beta, rng, *, heavy_tail=False, nonlinear=False):
+    signal = x @ beta
+    if nonlinear:
+        signal = signal + 0.5 * np.sin(x[:, 0]) - 0.25 * x[:, 1] * x[:, 2]
+    if heavy_tail:
+        noise = rng.standard_t(df=3, size=x.shape[0])
+    else:
+        noise = rng.normal(scale=1.0, size=x.shape[0])
+    return signal + noise
+
+
+def _one_run(rng, *, alpha=0.1, n_train=120, n_cal=80, n_test=120, d=5, mode="linear"):
+    n_total = n_train + n_cal + n_test
+    x = rng.normal(size=(n_total, d))
+    beta = rng.normal(size=d)
+    y = _response(
+        x,
+        beta,
+        rng,
+        heavy_tail=(mode == "heavy_tail"),
+        nonlinear=(mode == "nonlinear"),
+    )
+    x_train = x[:n_train]
+    y_train = y[:n_train]
+    x_cal = x[n_train:n_train + n_cal]
+    y_cal = y[n_train:n_train + n_cal]
+    x_test = x[n_train + n_cal:]
+    y_test = y[n_train + n_cal:]
+    beta_hat = _ridge_fit(x_train, y_train)
+    cal_pred = _ridge_predict(beta_hat, x_cal)
+    scores = np.abs(y_cal - cal_pred)
+    if np.any(~np.isfinite(scores)):
+        return math.nan, math.nan, math.nan, 1
+    order = int(math.ceil((1.0 - alpha) * (n_cal + 1))) - 1
+    order = max(0, min(order, n_cal - 1))
+    q = float(np.sort(scores)[order])
+    test_pred = _ridge_predict(beta_hat, x_test)
+    covered = np.abs(y_test - test_pred) <= q
+    return float(np.mean(covered)), float(2.0 * q), q, 0
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--out", required=True)
+    parser.add_argument("--replicates", type=int, default=40)
+    parser.add_argument("--seed", type=int, default=20260607)
+    args = parser.parse_args()
+    rng = np.random.default_rng(args.seed)
+    modes = ("linear", "nonlinear", "heavy_tail")
+    coverages = []
+    widths = []
+    quantiles = []
+    by_mode = {mode: [] for mode in modes}
+    n_failed = 0
+    for idx in range(args.replicates):
+        mode = modes[idx % len(modes)]
+        coverage, width, q, failed = _one_run(rng, mode=mode)
+        if failed or not (math.isfinite(coverage) and math.isfinite(width) and math.isfinite(q)):
+            n_failed += 1
+            continue
+        coverages.append(coverage)
+        widths.append(width)
+        quantiles.append(q)
+        by_mode[mode].append(coverage)
+    if not coverages:
+        payload = {"status": "all_failed", "n_runs": args.replicates, "n_failed": args.replicates}
+    else:
+        payload = {
+            "status": "ok",
+            "alpha": 0.1,
+            "nominal_coverage": 0.9,
+            "n_runs": args.replicates,
+            "n_success": len(coverages),
+            "n_failed": n_failed,
+            "coverage_90": float(np.mean(coverages)),
+            "coverage_sd": float(np.std(np.asarray(coverages), ddof=1)) if len(coverages) > 1 else 0.0,
+            "mean_interval_width": float(np.mean(widths)),
+            "mean_calibration_quantile": float(np.mean(quantiles)),
+            "coverage_by_mode": {
+                mode: float(np.mean(values)) if values else math.nan
+                for mode, values in by_mode.items()
+            },
         }
     with open(args.out, "w", encoding="utf-8") as handle:
         json.dump(payload, handle, indent=2, sort_keys=True)

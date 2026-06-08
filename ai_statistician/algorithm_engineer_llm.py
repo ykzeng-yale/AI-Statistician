@@ -126,6 +126,15 @@ def build_algorithm_engineer_prompt(
                 "template_id": "crossfit_aipw",
                 "capability": "sandbox AIPW-style binary-treatment ATE prototype with nuisance fits and coverage stress metrics",
                 "execution_owner": "AgentRuntime",
+            },
+            {
+                "template_id": "split_conformal_interval",
+                "capability": (
+                    "trusted split-conformal regression interval sandbox with "
+                    "exchangeable train/calibration/test simulation, empirical "
+                    "coverage, interval width, and calibration quantile metrics"
+                ),
+                "execution_owner": "AgentRuntime",
             }
         ],
         "generated_code_sandbox_contract": {
@@ -219,7 +228,7 @@ ALGORITHM_ENGINEER_OUTPUT_CONTRACT: dict[str, Any] = {
         {
             "estimator_id": "string",
             "adapter_strategy": "string",
-            "registered_template_hint": "crossfit_aipw|none",
+            "registered_template_hint": "crossfit_aipw|split_conformal_interval|none",
             "data_contract": ["string"],
             "validation_metrics": ["string"],
             "risk_controls": ["string"],
@@ -316,7 +325,7 @@ def validate_algorithm_engineer_packet(packet: Mapping[str, Any]) -> list[str]:
         if not str(row.get("estimator_id", "")).strip():
             errors.append("implementation target missing estimator_id")
         template = str(row.get("registered_template_hint", "none") or "none")
-        if template not in {"crossfit_aipw", "none"}:
+        if template not in {"crossfit_aipw", "split_conformal_interval", "none"}:
             errors.append(f"unsupported registered_template_hint: {template}")
     for row in packet.get("sandbox_code_drafts", []) or []:
         if not isinstance(row, Mapping):
