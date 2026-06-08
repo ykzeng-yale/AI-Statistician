@@ -1907,8 +1907,10 @@ def _request_packet(
     )
     display_name = str(route.get("display_name") or route_id)
     route_match_ids = _route_match_ids(route, route_id)
-    target_prover_family = _target_prover_family(input_payload)
-    library_snapshot_ref = str(input_payload.get("library_snapshot_ref", ""))
+    target_prover_family = _route_target_prover_family(input_payload, route)
+    library_snapshot_ref = str(
+        route.get("library_snapshot_ref") or input_payload.get("library_snapshot_ref", "")
+    )
     residual_goals = _residual_goals_for_route(route_match_ids, context_payloads)
     context_packet = {
         "standalone_input_component": str(input_payload.get("component_name", "")),
@@ -7679,16 +7681,19 @@ def _standalone_seed(
         if row.response_contract_ok and row.standalone_route
     ]
     routes = accepted_routes or [dict(route) for route in _routes(input_payload)]
-    return {
+    seed: dict[str, object] = {
         "schema_version": FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_SCHEMA_VERSION,
         "component_name": FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_COMPONENT,
-        "target_prover_family": _target_prover_family(input_payload),
         "library_snapshot_ref": str(input_payload.get("library_snapshot_ref", "")),
         "routes": routes,
         "llm_route_planner_source": LLM_ROUTE_PLANNER_COMPONENT,
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
     }
+    seed_target = _single_seed_target_prover_family(input_payload, routes)
+    if seed_target:
+        seed["target_prover_family"] = seed_target
+    return seed
 
 
 def _accepted_route_for_seed(
@@ -8427,6 +8432,38 @@ def _routes(payload: Mapping[str, Any]) -> tuple[dict[str, object], ...]:
 
 def _target_prover_family(payload: Mapping[str, Any]) -> str:
     return str(payload.get("target_prover_family") or payload.get("target_prover") or "lean4")
+
+
+def _route_target_prover_family(
+    payload: Mapping[str, Any],
+    route: Mapping[str, Any],
+) -> str:
+    metadata = _dict_value(route, "replan_metadata")
+    return str(
+        route.get("target_prover_family")
+        or route.get("target_prover")
+        or metadata.get("target_prover_family")
+        or metadata.get("target_prover")
+        or _target_prover_family(payload)
+    )
+
+
+def _single_seed_target_prover_family(
+    input_payload: Mapping[str, Any],
+    routes: list[dict[str, object]],
+) -> str:
+    targets: list[str] = []
+    seen: set[str] = set()
+    for route in routes:
+        target = _route_target_prover_family(input_payload, route).strip()
+        key = _target_prover_key(target)
+        if not target or not key or key in seen:
+            continue
+        seen.add(key)
+        targets.append(target)
+    if len(targets) == 1:
+        return targets[0]
+    return ""
 
 
 def _formal_realization_nodes_from_payload(

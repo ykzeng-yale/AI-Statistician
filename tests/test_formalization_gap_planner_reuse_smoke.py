@@ -269,6 +269,8 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert payload["n_proof_boundary_ok"] == payload["n_stages"]
     assert payload["target_prover_family"] == "rocq"
     assert payload["source_target_prover_family"] == "lean4"
+    assert payload["n_source_target_prover_families"] == 1
+    assert payload["source_by_target_prover_family"] == {"lean4": 1}
     assert (
         payload[
             "n_goal_plan_standalone_input_traces_with_llm_route_planner_metadata"
@@ -329,6 +331,11 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         == payload["n_llm_route_planner_request_packets"]
     )
     assert payload["n_llm_route_planner_row_schema_invalid"] == 0
+    report_text = (
+        out_dir / "formalization_gap_planner_reuse_smoke.md"
+    ).read_text(encoding="utf-8")
+    assert "Source prover targets: `lean4` families=1 by={'lean4': 1}" in report_text
+
     assert (
         payload["n_llm_route_planner_rows_with_realization_coverage_witness"]
         == payload["n_llm_route_planner_request_packets"]
@@ -1874,6 +1881,96 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         / "formalization_gap_planner_interactive_session"
         / "formalization_gap_planner_interactive_session_manifest.json"
     ).exists()
+
+
+def test_reuse_smoke_surfaces_mixed_source_target_distribution() -> None:
+    root = Path("runs/test_formalization_gap_planner_reuse_smoke_mixed_targets")
+    input_path = root / "target_request.json"
+    out_dir = root / "reuse_smoke"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "component_name": "formalization_gap_planner_target_intake",
+                "library_snapshot_ref": "portable:probability-snapshots",
+                "domain": "distribution-free prediction",
+                "targets": [
+                    {
+                        "target_prover_family": "lean4",
+                        "target_id": "lean_rank_bound",
+                        "title": "Lean finite-rank route",
+                        "theorem_statement": (
+                            "Exchangeability implies a finite-rank coverage bound."
+                        ),
+                        "desired_theorem_shape": "finite-rank coverage bound",
+                        "known_proof_sources": ["conformal prediction textbook"],
+                        "candidate_primitives": [
+                            {
+                                "primitive": "exchangeability",
+                                "coverage_status": "exact_exists",
+                                "candidate_declarations": [
+                                    "Probability.exchangeable"
+                                ],
+                            }
+                        ],
+                    },
+                    {
+                        "target_prover_family": "rocq",
+                        "target_id": "rocq_rank_bound",
+                        "title": "Rocq finite-rank route",
+                        "theorem_statement": (
+                            "Exchangeability implies a finite-rank coverage bound."
+                        ),
+                        "desired_theorem_shape": "finite-rank coverage bound",
+                        "known_proof_sources": ["conformal prediction textbook"],
+                        "candidate_primitives": [
+                            {
+                                "primitive": "exchangeability",
+                                "coverage_status": "exact_exists",
+                                "candidate_declarations": [
+                                    "Rocq.Probability.exchangeable"
+                                ],
+                            }
+                        ],
+                    },
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = run_formalization_gap_planner_reuse_smoke(
+        input_path,
+        out_dir,
+        target_prover_family="rocq",
+        target_library_snapshot_ref="rocq:reuse-smoke-mixed",
+    )
+
+    assert payload["all_ok"]
+    assert payload["source_target_prover_family"] == "mixed:lean4,rocq"
+    assert payload["n_source_target_prover_families"] == 2
+    assert payload["source_by_target_prover_family"] == {"lean4": 1, "rocq": 1}
+    goal_plan_stage = next(
+        stage
+        for stage in payload["stages"]
+        if stage["stage_name"] == "goal_conditioned_minimal_formalization_plan"
+    )
+    assert goal_plan_stage["summary"]["target_prover_family"] == "mixed:lean4,rocq"
+    assert goal_plan_stage["summary"]["n_target_prover_families"] == 2
+    assert goal_plan_stage["summary"]["by_target_prover_family"] == {
+        "lean4": 1,
+        "rocq": 1,
+    }
+    report_text = (
+        out_dir / "formalization_gap_planner_reuse_smoke.md"
+    ).read_text(encoding="utf-8")
+    assert (
+        "Source prover targets: `mixed:lean4,rocq` families=2 "
+        "by={'lean4': 1, 'rocq': 1}"
+    ) in report_text
 
 
 def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:

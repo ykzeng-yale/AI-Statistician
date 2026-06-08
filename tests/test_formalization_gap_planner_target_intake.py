@@ -113,3 +113,94 @@ def test_target_intake_seeds_standalone_gap_plan() -> None:
     row_schema = json.loads(row_schema_path.read_text(encoding="utf-8"))
     assert row_schema["$id"] == FORMALIZATION_GAP_PLANNER_TARGET_INTAKE_ROW_SCHEMA_ID
     assert row_schema["$id"] == target_intake_row_json_schema()["$id"]
+
+
+def test_target_intake_preserves_mixed_route_targets_in_standalone_seed() -> None:
+    root = Path("runs/test_formalization_gap_planner_target_intake_mixed_targets")
+    input_path = root / "target_request.json"
+    intake_dir = root / "target_intake"
+    plan_dir = root / "standalone_plan"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "component_name": "formalization_gap_planner_target_intake",
+                "library_snapshot_ref": "portable:probability-snapshots",
+                "domain": "distribution-free prediction",
+                "targets": [
+                    {
+                        "target_prover_family": "lean4",
+                        "target_id": "lean_rank_bound",
+                        "title": "Lean finite-rank route",
+                        "theorem_statement": (
+                            "Exchangeability implies a finite-rank coverage bound."
+                        ),
+                        "desired_theorem_shape": "finite-rank coverage bound",
+                        "known_proof_sources": ["conformal prediction textbook"],
+                        "candidate_primitives": [
+                            {
+                                "primitive": "exchangeability",
+                                "coverage_status": "exact_exists",
+                                "candidate_declarations": [
+                                    "Probability.exchangeable"
+                                ],
+                            }
+                        ],
+                    },
+                    {
+                        "target_prover_family": "rocq",
+                        "target_id": "rocq_rank_bound",
+                        "title": "Rocq finite-rank route",
+                        "theorem_statement": (
+                            "Exchangeability implies a finite-rank coverage bound."
+                        ),
+                        "desired_theorem_shape": "finite-rank coverage bound",
+                        "known_proof_sources": ["conformal prediction textbook"],
+                        "candidate_primitives": [
+                            {
+                                "primitive": "exchangeability",
+                                "coverage_status": "exact_exists",
+                                "candidate_declarations": [
+                                    "Rocq.Probability.exchangeable"
+                                ],
+                            }
+                        ],
+                    },
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    intake_payload = normalize_formalization_gap_planner_target_intake(
+        input_path,
+        intake_dir,
+    )
+
+    assert intake_payload["all_ok"]
+    seed = intake_payload["standalone_seed"]
+    assert "target_prover_family" not in seed
+    assert [route["target_prover_family"] for route in seed["routes"]] == [
+        "lean4",
+        "rocq",
+    ]
+
+    standalone_seed_path = (
+        intake_dir / "formalization_gap_planner_target_intake_standalone_seed.json"
+    )
+    plan_payload = export_formalization_gap_planner_standalone_plan(
+        standalone_seed_path,
+        plan_dir,
+    )
+
+    assert plan_payload["all_ok"]
+    assert plan_payload["target_prover_family"] == "mixed:lean4,rocq"
+    assert plan_payload["n_target_prover_families"] == 2
+    assert plan_payload["by_target_prover_family"] == {"lean4": 1, "rocq": 1}
+    assert [row["target_prover_family"] for row in plan_payload["rows"]] == [
+        "lean4",
+        "rocq",
+    ]

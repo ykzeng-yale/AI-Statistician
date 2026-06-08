@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
@@ -198,6 +199,9 @@ def _base_response(
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
     }
+    target_prover_family = str(queue_row.get("target_prover_family", "")).strip()
+    if target_prover_family:
+        response["target_prover_family"] = target_prover_family
     for field_name in (
         "resource_request_ids",
         "resource_ids",
@@ -330,6 +334,7 @@ def _route_revision_response(
     delta = _delta_primitives(queue_row, truth_row, coverage)
     reasons = _route_revision_reasons(queue_row, truth_row, coverage)
     source_refs = _source_refs(queue_row, truth_row)
+    formal_nodes = _lean_dag_nodes(coverage)
     response = _base_response(
         queue_row,
         evidence_kind="route_revision_proposal",
@@ -350,12 +355,13 @@ def _route_revision_response(
                 selected,
                 source_refs,
             ),
-            "revised_formal_realization_dag_nodes": _lean_dag_nodes(coverage),
-            "revised_lean_realization_dag_nodes": _lean_dag_nodes(coverage),
+            "revised_formal_realization_dag_nodes": formal_nodes,
             "route_revision_recommended": True,
             "route_revision_reasons": tuple(reasons),
         }
     )
+    if _is_lean_target_prover(queue_row.get("target_prover_family", "")):
+        response["revised_lean_realization_dag_nodes"] = formal_nodes
     return response
 
 
@@ -560,7 +566,7 @@ def _route_revision_summary(
     if truth_row is None:
         return (
             f"Revise {display_name} by first collecting source-backed route evidence "
-            "and live Lean coverage for the queued primitives."
+            "and live target-prover coverage for the queued primitives."
         )
     notes = str(truth_row.get("notes", ""))
     return (
@@ -593,6 +599,19 @@ def _is_failed_prover_feedback(status: str) -> bool:
             "unclosed",
             "not_kernel_verified",
         )
+    )
+
+
+def _is_lean_target_prover(target_prover_family: object) -> bool:
+    key = re.sub(
+        r"[^a-z0-9]+",
+        "_",
+        str(target_prover_family or "").strip().lower(),
+    ).strip("_")
+    if not key:
+        return True
+    return key in {"lean", "lean4", "lean_4"} or key.startswith(
+        ("lean4_", "lean_4_", "lean_")
     )
 
 

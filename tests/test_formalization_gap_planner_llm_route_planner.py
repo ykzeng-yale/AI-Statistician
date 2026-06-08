@@ -4917,6 +4917,84 @@ def test_llm_route_planner_rejects_wrong_target_candidate_declarations() -> None
     assert any("ungrounded candidate_declarations" in error for error in row["errors"])
 
 
+def test_llm_route_planner_uses_route_level_targets_without_top_level_target() -> None:
+    root = Path("runs/test_formalization_gap_planner_llm_route_planner_mixed_targets")
+    out_dir = root / "llm_route_planner"
+    input_json = root / "standalone_input.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "component_name": "formalization_gap_planner_standalone_input",
+                "library_snapshot_ref": "portable:probability-snapshots",
+                "routes": [
+                    {
+                        "route_id": "lean_rank_route",
+                        "display_name": "lean_distribution_free_rank_bound",
+                        "target_prover_family": "lean4",
+                        "theorem_statement": (
+                            "A Lean rank bound follows from exchangeability."
+                        ),
+                        "source_refs": ["conformal_prediction_textbook"],
+                        "primitives": [
+                            {
+                                "primitive": "exchangeability",
+                                "coverage_status": "exact_exists",
+                                "candidate_declarations": [
+                                    "Probability.exchangeable"
+                                ],
+                            }
+                        ],
+                    },
+                    {
+                        "route_id": "rocq_rank_route",
+                        "display_name": "rocq_distribution_free_rank_bound",
+                        "target_prover_family": "rocq",
+                        "theorem_statement": (
+                            "A Rocq rank bound follows from exchangeability."
+                        ),
+                        "source_refs": ["conformal_prediction_textbook"],
+                        "primitives": [
+                            {
+                                "primitive": "exchangeability",
+                                "coverage_status": "exact_exists",
+                                "candidate_declarations": [
+                                    "Rocq.Probability.exchangeable"
+                                ],
+                            }
+                        ],
+                    },
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+    )
+
+    assert payload["n_request_packets"] == 2
+    assert [request["target_prover_family"] for request in payload["request_packets"]] == [
+        "lean4",
+        "rocq",
+    ]
+    assert [
+        request["context_packet"]["target_prover_family"]
+        for request in payload["request_packets"]
+    ] == ["lean4", "rocq"]
+    assert "target_prover_family" not in payload["standalone_seed"]
+    assert [
+        route["target_prover_family"]
+        for route in payload["standalone_seed"]["routes"]
+    ] == ["lean4", "rocq"]
+
+
 def test_llm_route_planner_rejects_existing_coverage_without_declaration() -> None:
     root = Path("runs/test_formalization_gap_planner_llm_route_planner_rejects_existing_without_declaration")
     response_json = root / "bad_response.json"

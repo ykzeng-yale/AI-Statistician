@@ -410,7 +410,10 @@ def validate_standalone_input_payload(payload: dict[str, Any]) -> list[str]:
     if not routes:
         errors.append("routes missing")
     payload_target = str(payload.get("target_prover_family", "")).strip()
-    payload_target_key = _target_prover_key(payload_target)
+    mixed_payload_target_keys = _mixed_target_prover_keys(payload_target)
+    payload_target_key = (
+        "" if mixed_payload_target_keys else _target_prover_key(payload_target)
+    )
     route_target_keys: set[str] = set()
     for route in routes:
         metadata = _dict_value(route.get("replan_metadata", {}))
@@ -423,7 +426,7 @@ def validate_standalone_input_payload(payload: dict[str, Any]) -> list[str]:
             target_key = _target_prover_key(target)
             if target_key:
                 route_target_keys.add(target_key)
-    if not payload_target_key and not route_target_keys:
+    if not payload_target_key and not mixed_payload_target_keys and not route_target_keys:
         errors.append("target_prover_family missing")
     for idx, route in enumerate(routes):
         display_name = _display_name(route)
@@ -439,7 +442,7 @@ def validate_standalone_input_payload(payload: dict[str, Any]) -> list[str]:
             not payload_target_key
             and not route_target_key
             and not metadata_target_key
-            and len(route_target_keys) > 1
+            and (len(route_target_keys) > 1 or bool(mixed_payload_target_keys))
         ):
             errors.append(f"routes[{idx}].target_prover_family missing")
         for location, target, target_key in (
@@ -454,6 +457,15 @@ def validate_standalone_input_payload(payload: dict[str, Any]) -> list[str]:
                 errors.append(
                     f"{location} {target} does not match target_prover_family "
                     f"{payload_target}"
+                )
+            if (
+                mixed_payload_target_keys
+                and target_key
+                and target_key not in mixed_payload_target_keys
+            ):
+                errors.append(
+                    f"{location} {target} is not listed in mixed "
+                    f"target_prover_family {payload_target}"
                 )
         if route_target_key and metadata_target_key and route_target_key != metadata_target_key:
             errors.append(
@@ -1523,6 +1535,20 @@ def _target_prover_key(value: object) -> str:
         "isabelle_hol": "isabelle",
     }
     return aliases.get(key, key)
+
+
+def _mixed_target_prover_keys(value: object) -> set[str]:
+    target = str(value or "").strip()
+    if not target.lower().startswith("mixed:"):
+        return set()
+    return {
+        key
+        for key in (
+            _target_prover_key(part)
+            for part in target.split(":", 1)[1].split(",")
+        )
+        if key
+    }
 
 
 def _candidate_declaration_row_input_errors(

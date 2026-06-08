@@ -472,30 +472,40 @@ def _standalone_seed(
     input_payload: dict[str, Any],
     rows: list[FormalizationGapPlannerTargetIntakeRow],
 ) -> dict[str, object]:
-    first_row = rows[0] if rows else None
-    target_family = (
-        str(input_payload.get("target_prover_family", "")).strip()
-        or (first_row.target_prover_family if first_row else DEFAULT_TARGET_PROVER_FAMILY)
+    route_target_families = tuple(
+        row.target_prover_family.strip()
+        for row in rows
+        if row.target_prover_family.strip()
     )
+    route_target_keys = {
+        _target_prover_key(target) for target in route_target_families if target
+    }
+    if "" in route_target_keys:
+        route_target_keys.remove("")
+    top_level_target_family = str(input_payload.get("target_prover_family", "")).strip()
+    if not top_level_target_family and len(route_target_keys) == 1:
+        top_level_target_family = route_target_families[0]
+    elif len(route_target_keys) > 1:
+        top_level_target_family = ""
     snapshot = (
         str(input_payload.get("library_snapshot_ref", "")).strip()
-        or (first_row.library_snapshot_ref if first_row else "")
+        or (rows[0].library_snapshot_ref if rows else "")
     )
     background = _str_tuple(
         primitive
         for row in rows
         for primitive in row.background_primitives
     )
-    return {
+    seed: dict[str, object] = {
         "schema_version": FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_SCHEMA_VERSION,
         "component_name": FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_COMPONENT,
-        "target_prover_family": target_family,
         "library_snapshot_ref": snapshot,
         "background_primitives": background,
         "routes": [
             {
                 "route_id": row.standalone_route_id,
                 "display_name": row.display_name,
+                "target_prover_family": row.target_prover_family,
                 "theorem_statement": row.theorem_statement,
                 "theorem_skeleton": row.theorem_skeleton,
                 "source_refs": row.proof_source_refs,
@@ -513,6 +523,9 @@ def _standalone_seed(
             for row in rows
         ],
     }
+    if top_level_target_family:
+        seed["target_prover_family"] = top_level_target_family
+    return seed
 
 
 def _primitive_seed_rows(
@@ -651,6 +664,18 @@ def _target_records(payload: dict[str, Any]) -> list[dict[str, Any]]:
             if isinstance(target, dict)
         ]
     return [payload] if payload else []
+
+
+def _target_prover_key(value: object) -> str:
+    target = str(value or "").strip().lower()
+    aliases = {
+        "lean": "lean4",
+        "lean_4": "lean4",
+        "coq": "rocq",
+        "coq8": "rocq",
+        "isabelle_hol": "isabelle",
+    }
+    return aliases.get(target, target)
 
 
 def _first_text(row: dict[str, Any], *field_names: str) -> str:

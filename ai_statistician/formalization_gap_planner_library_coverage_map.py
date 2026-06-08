@@ -375,9 +375,9 @@ def _coverage_row(
     if not action_class:
         action_class = str(node.get("action_class", ""))
     coverage_bucket = _coverage_bucket(action_class, alignment_edge, realization_node)
-    row_target_prover_family = target_prover_family or str(
+    row_target_prover_family = str(
         plan_row.get("target_prover_family", "")
-    )
+    ) or target_prover_family
     row_library_snapshot_ref = library_snapshot_ref or str(
         plan_row.get("library_snapshot_ref", "")
     )

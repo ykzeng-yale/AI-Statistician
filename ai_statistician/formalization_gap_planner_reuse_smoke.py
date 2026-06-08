@@ -240,6 +240,8 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_goal_plans",
         "n_ok",
         "target_prover_family",
+        "n_target_prover_families",
+        "by_target_prover_family",
         "library_snapshot_ref",
         "n_standalone_input_traces_with_llm_route_adoption_status",
         "n_standalone_input_traces_ready_for_route_adoption",
@@ -1555,6 +1557,14 @@ def run_formalization_gap_planner_reuse_smoke(
         ),
         "source_target_prover_family": str(
             plan_payload.get("target_prover_family", "")
+        ),
+        "n_source_target_prover_families": plan_payload.get(
+            "n_target_prover_families",
+            0,
+        ),
+        "source_by_target_prover_family": plan_payload.get(
+            "by_target_prover_family",
+            {},
         ),
         "source_library_snapshot_ref": str(plan_payload.get("library_snapshot_ref", "")),
         "target_library_snapshot_ref": adapter_snapshot_ref,
@@ -5188,6 +5198,11 @@ def _markdown_report(payload: dict[str, object]) -> str:
         "# Formalization Gap Planner Reuse Smoke",
         "",
         f"- Target prover: `{payload.get('target_prover_family')}`",
+        (
+            f"- Source prover targets: `{payload.get('source_target_prover_family')}` "
+            f"families={payload.get('n_source_target_prover_families')} "
+            f"by={payload.get('source_by_target_prover_family')}"
+        ),
         f"- Stages: {payload.get('n_ok')}/{payload.get('n_stages')}",
         f"- Proof-boundary checks: {payload.get('n_proof_boundary_ok')}/{payload.get('n_stages')}",
         f"- Work packets: {payload.get('n_portable_work_packets')}",

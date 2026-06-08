@@ -687,12 +687,14 @@ def _standalone_seed(
         for row in rows
         if row.ok
     )
-    return {
+    seed_target = target_prover_family or (
+        route_targets[0] if len(set(route_targets)) == 1 else ""
+    )
+    if not seed_target and not route_targets:
+        seed_target = str(plan_payload.get("target_prover_family", ""))
+    seed: dict[str, object] = {
         "schema_version": FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_SCHEMA_VERSION,
         "component_name": FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_COMPONENT,
-        "target_prover_family": target_prover_family
-        or (route_targets[0] if len(set(route_targets)) == 1 else "")
-        or str(plan_payload.get("target_prover_family", "")),
         "library_snapshot_ref": library_snapshot_ref
         or str(plan_payload.get("library_snapshot_ref", "")),
         "background_primitives": _str_tuple(
@@ -706,6 +708,9 @@ def _standalone_seed(
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
     }
+    if seed_target:
+        seed["target_prover_family"] = seed_target
+    return seed
 
 
 def _standalone_route(

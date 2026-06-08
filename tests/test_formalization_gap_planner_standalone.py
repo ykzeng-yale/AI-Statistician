@@ -608,6 +608,17 @@ def test_standalone_gap_planner_reports_mixed_route_targets() -> None:
     input_json.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
     assert validate_standalone_input_payload(payload) == []
+    mixed_manifest_payload = {**payload, "target_prover_family": "mixed:lean4,rocq"}
+    assert validate_standalone_input_payload(mixed_manifest_payload) == []
+    bad_manifest_payload = {
+        **payload,
+        "target_prover_family": "mixed:lean4,isabelle",
+    }
+    assert any(
+        "is not listed in mixed target_prover_family mixed:lean4,isabelle"
+        in error
+        for error in validate_standalone_input_payload(bad_manifest_payload)
+    )
     plan_payload = export_formalization_gap_planner_standalone_plan(input_json, out_dir)
 
     assert plan_payload["all_ok"]
