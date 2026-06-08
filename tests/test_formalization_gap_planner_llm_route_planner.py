@@ -2573,6 +2573,87 @@ def test_llm_route_planner_marks_clean_accepted_route_adoption_ready() -> None:
     assert trace["llm_route_planner_route_adoption_blockers"] == []
 
 
+def test_llm_route_planner_blocks_route_adoption_on_feedback_redispatch_actions() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_feedback_action_blocks_adoption"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response = _llm_response_payload()
+    response["search_requests"] = []
+    response["planner_next_actions"] = []
+    response["uncertainty_flags"] = []
+    response["semantic_alignment_risks"] = []
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+    resource_response_ledger_dir = _write_resource_response_ledger(root)
+    manifest_path = (
+        resource_response_ledger_dir
+        / "formalization_gap_planner_resource_response_ledger_manifest.json"
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    row = manifest["rows"][0]
+    row["acceptance_status"] = "REJECTED_RESPONSE_NOT_GROUNDED_IN_REQUEST_PLAYBOOK"
+    row["response_contract_fields"] = [
+        "source_refs",
+        "source_snippets",
+        "route_revision_recommended",
+    ]
+    row["response_contract_ok"] = False
+    row["response_contract_minimum_met"] = True
+    row["matched_response_contract_fields"] = ["source_refs", "source_snippets"]
+    row["missing_response_contract_fields"] = ["route_revision_recommended"]
+    row["request_playbook_present"] = True
+    row["response_playbook_grounded"] = False
+    row["response_playbook_grounding_terms"] = []
+    row["ok"] = False
+    row["errors"] = ["resource response is not grounded in request_playbook"]
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_resource_response_ledger_dir=(
+            resource_response_ledger_dir
+        ),
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_response_contract_ok"] == 1
+    assert payload["n_route_adoption_ready"] == 0
+    assert payload["n_route_adoption_pending_refinement"] == 1
+    assert payload["n_route_adoption_pending_feedback_action_blockers"] == 1
+    assert (
+        payload[
+            "n_route_adoption_pending_resource_playbook_redispatch_blockers"
+        ]
+        == 1
+    )
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "ACCEPTED_LLM_ROUTE_PLAN"
+    assert row["route_adoption_status"] == (
+        "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+    )
+    assert set(row["route_adoption_blockers"]) >= {
+        "feedback_summary_actions_pending_resolution",
+        "resource_response_playbook_redispatch_pending",
+    }
+    seed_route = payload["standalone_seed"]["routes"][0]
+    assert seed_route["llm_route_planner_route_adoption_status"] == (
+        "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+    )
+    assert set(
+        seed_route["replan_metadata"]["llm_route_planner_route_adoption_blockers"]
+    ) >= {
+        "feedback_summary_actions_pending_resolution",
+        "resource_response_playbook_redispatch_pending",
+    }
+
+
 def test_llm_route_planner_accepts_candidate_declaration_rows_only_response() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_candidate_rows_only"

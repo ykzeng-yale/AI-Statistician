@@ -978,6 +978,18 @@ def export_formalization_gap_planner_llm_route_planner(
             if "residual_interpretations_require_route_replay"
             in row.route_adoption_blockers
         ),
+        "n_route_adoption_pending_feedback_action_blockers": sum(
+            1
+            for row in rows
+            if "feedback_summary_actions_pending_resolution"
+            in row.route_adoption_blockers
+        ),
+        "n_route_adoption_pending_resource_playbook_redispatch_blockers": sum(
+            1
+            for row in rows
+            if "resource_response_playbook_redispatch_pending"
+            in row.route_adoption_blockers
+        ),
         "n_rejected": sum(
             count
             for status, count in by_acceptance_status.items()
@@ -2675,6 +2687,10 @@ def _row_for_request(
         residual_interpretations=_dict_tuple(
             payload.get("residual_interpretations", [])
         ),
+        feedback_summary=_dict_value(
+            _dict_value(request, "context_packet"),
+            "feedback_loop_summary",
+        ),
     )
     return FormalizationGapPlannerLLMRoutePlannerRow(
         schema_version=FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SCHEMA_VERSION,
@@ -2750,6 +2766,7 @@ def _route_adoption_readiness(
     uncertainty_flags: tuple[str, ...],
     semantic_alignment_risks: tuple[str, ...],
     residual_interpretations: tuple[dict[str, object], ...],
+    feedback_summary: Mapping[str, object],
 ) -> tuple[str, tuple[str, ...]]:
     if provider_failure or (response_present and not response_contract_ok):
         return (ROUTE_ADOPTION_REJECTED_STATUS, ("response_not_accepted",))
@@ -2770,6 +2787,25 @@ def _route_adoption_readiness(
         blockers.append("semantic_alignment_risks_require_review")
     if residual_interpretations:
         blockers.append("residual_interpretations_require_route_replay")
+    feedback_actions = _dict_tuple(feedback_summary.get("recommended_next_actions", []))
+    if feedback_actions:
+        blockers.append("feedback_summary_actions_pending_resolution")
+    if any(
+        str(action.get("action", "")).strip()
+        == "redispatch_resource_response_with_request_playbook"
+        for action in feedback_actions
+    ):
+        blockers.append("resource_response_playbook_redispatch_pending")
+    if any(
+        str(action.get("source", "")).strip() == "resource_request_queue"
+        for action in feedback_actions
+    ):
+        blockers.append("resource_request_queue_pending_response")
+    if _truthy(feedback_summary.get("replan_required")):
+        blockers.append("feedback_loop_replan_required")
+    realization_coverage = _dict_value(feedback_summary, "realization_coverage")
+    if realization_coverage.get("complete") is False:
+        blockers.append("realization_coverage_incomplete")
     blockers = list(dict.fromkeys(blockers))
     if blockers:
         return (ROUTE_ADOPTION_PENDING_STATUS, tuple(blockers))
@@ -5491,7 +5527,7 @@ def _feedback_loop_summary(
         ]
     )
     recommended_next_actions = _feedback_next_actions(
-        actionable_rows_by_field,
+        rows_by_field,
         residual_goals=residual_goals,
     )
     realization_coverage = _realization_feedback_summary(
