@@ -84,8 +84,18 @@ def test_goal_conditioned_plan_preserves_route_target_prover_family() -> None:
     assert payload["all_ok"]
     assert payload["target_prover_family"] == "rocq"
     assert payload["by_target_prover_family"] == {"rocq": 1}
+    assert payload["n_formal_realization_dag_nodes"] > 0
+    assert payload["n_formal_realization_dag_edges"] > 0
+    assert payload["n_lean_realization_dag_nodes"] == 0
+    assert payload["n_lean_realization_dag_edges"] == 0
     row = payload["rows"][0]
     assert row["target_prover_family"] == "rocq"
+    assert row["formal_realization_dag_nodes"]
+    assert row["formal_realization_dag_edges"]
+    assert not row["lean_realization_dag_nodes"]
+    assert not row["lean_realization_dag_edges"]
+    assert row["lean_realization_dag"]["nodes"] == []
+    assert row["lean_realization_dag"]["edges"] == []
     proof_hook = next(
         hook
         for hook in row["interactive_refinement_hooks"]

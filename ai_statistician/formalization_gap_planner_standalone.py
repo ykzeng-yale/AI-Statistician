@@ -1320,15 +1320,19 @@ def _portable_row_with_formal_aliases(
     *,
     target_prover_family: str,
 ) -> dict[str, Any]:
-    legacy_nodes = list(row.get("lean_realization_dag_nodes", []))
+    legacy_nodes = _dict_list(row.get("lean_realization_dag_nodes", []))
     formal_nodes = row.get("formal_realization_dag_nodes")
     row["formal_realization_dag_nodes"] = (
-        list(formal_nodes) if isinstance(formal_nodes, list) else legacy_nodes
+        _dict_list(formal_nodes)
+        if isinstance(formal_nodes, (list, tuple))
+        else legacy_nodes
     )
-    legacy_edges = list(row.get("lean_realization_dag_edges", []))
+    legacy_edges = _dict_list(row.get("lean_realization_dag_edges", []))
     formal_edges = row.get("formal_realization_dag_edges")
     row["formal_realization_dag_edges"] = (
-        list(formal_edges) if isinstance(formal_edges, list) else legacy_edges
+        _dict_list(formal_edges)
+        if isinstance(formal_edges, (list, tuple))
+        else legacy_edges
     )
     if _is_lean_target_prover(target_prover_family):
         row["lean_realization_dag_nodes"] = legacy_nodes or list(
@@ -1344,7 +1348,10 @@ def _portable_row_with_formal_aliases(
 
 
 def _is_lean_target_prover(target_prover_family: str) -> bool:
-    return _normalize_status(target_prover_family) in {"lean", "lean4", "lean_4"}
+    key = _normalize_status(target_prover_family)
+    return key in {"lean", "lean4", "lean_4"} or key.startswith(
+        ("lean4_", "lean_4_", "lean_")
+    )
 
 
 def _normalize_status(value: str) -> str:
