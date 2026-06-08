@@ -3360,7 +3360,18 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         for row in audit_payload["checks"]
     )
     assert any(
+        row["check_name"] == "reproduction_llm_route_payload_validation_command"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
         row["check_name"] == "reproduction_feedback_llm_route_planner_command"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "reproduction_feedback_llm_route_payload_validation_command"
         and row["ok"]
         for row in audit_payload["checks"]
     )

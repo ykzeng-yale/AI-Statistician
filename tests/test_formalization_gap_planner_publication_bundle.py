@@ -2202,6 +2202,11 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         row["entrypoint"] == "formalization-gap-planner-llm-route-planner"
         for row in reproduction_payload["entrypoints"]
     )
+    assert any(
+        row["entrypoint"]
+        == "formalization-gap-planner-llm-route-planner-response-payload-validate"
+        for row in reproduction_payload["entrypoints"]
+    )
     assert "run_llm_route_planner" in command_by_name
     assert (
         "formalization-gap-planner-llm-route-planner"
@@ -2224,6 +2229,20 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     assert (
         "<bundle_dir>/component_resource_registry"
         in command_by_name["run_llm_route_planner"]
+    )
+    assert "validate_llm_route_payloads" in command_by_name
+    assert (
+        "formalization-gap-planner-llm-route-planner-response-payload-validate"
+        in command_by_name["validate_llm_route_payloads"]
+    )
+    assert "--request-context" in command_by_name["validate_llm_route_payloads"]
+    assert (
+        "<work_dir>/formalization_gap_planner_llm_route_planner"
+        in command_by_name["validate_llm_route_payloads"]
+    )
+    assert (
+        "<reviewed_llm_route_payload_json>"
+        in command_by_name["validate_llm_route_payloads"]
     )
     assert "run_feedback_llm_route_planner" in command_by_name
     assert (
@@ -2255,6 +2274,23 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     assert (
         "formalization_gap_planner_route_replan_handoff/"
         in command_by_name["run_feedback_llm_route_planner"]
+    )
+    assert "validate_feedback_llm_route_payloads" in command_by_name
+    assert (
+        "formalization-gap-planner-llm-route-planner-response-payload-validate"
+        in command_by_name["validate_feedback_llm_route_payloads"]
+    )
+    assert (
+        "--request-context"
+        in command_by_name["validate_feedback_llm_route_payloads"]
+    )
+    assert (
+        "<work_dir>/formalization_gap_planner_feedback_llm_route_planner"
+        in command_by_name["validate_feedback_llm_route_payloads"]
+    )
+    assert (
+        "<reviewed_feedback_llm_route_payload_json>"
+        in command_by_name["validate_feedback_llm_route_payloads"]
     )
     assert (
         "formalization_gap_planner_llm_route_planner_standalone_seed.json"

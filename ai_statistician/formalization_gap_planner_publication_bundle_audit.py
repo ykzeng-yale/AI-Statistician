@@ -235,6 +235,7 @@ REQUIRED_REUSE_TARGETS = ("lean4", "rocq", "isabelle", "agda")
 REQUIRED_REPRODUCTION_ENTRYPOINTS = (
     "formalization-gap-planner-standalone-plan",
     "formalization-gap-planner-llm-route-planner",
+    "formalization-gap-planner-llm-route-planner-response-payload-validate",
     "formalization-gap-planner-portable-plan-audit",
     "formalization-gap-planner-library-coverage-map",
     "formalization-gap-planner-primitive-action-queue",
@@ -278,6 +279,9 @@ REQUIRED_REPRODUCTION_COMMANDS = {
     "run_ablation_study": "formalization-gap-planner-ablation-study",
     "run_standalone_planner": "formalization-gap-planner-standalone-plan",
     "run_llm_route_planner": "formalization-gap-planner-llm-route-planner",
+    "validate_llm_route_payloads": (
+        "formalization-gap-planner-llm-route-planner-response-payload-validate"
+    ),
     "run_target_intake": "formalization-gap-planner-target-intake",
     "run_reuse_smoke": "formalization-gap-planner-reuse-smoke",
     "run_runtime_handoff_reuse_smoke": "formalization-gap-planner-reuse-smoke",
@@ -323,6 +327,9 @@ REQUIRED_REPRODUCTION_COMMANDS = {
     "run_proof_state_triage": "formalization-gap-planner-proof-state-triage",
     "run_interactive_session": "formalization-gap-planner-interactive-session",
     "run_feedback_llm_route_planner": "formalization-gap-planner-llm-route-planner",
+    "validate_feedback_llm_route_payloads": (
+        "formalization-gap-planner-llm-route-planner-response-payload-validate"
+    ),
 }
 REQUIRED_COMPONENT_RESOURCE_IDS = (
     "target_theorem_intake",
@@ -4425,6 +4432,20 @@ def _reproduction_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublic
             in commands.get("export_action_resource_plan", ""),
         ),
         _check(
+            "reproduction_llm_route_payload_validation_command",
+            "reproduction",
+            "initial LLM route payload validator uses request-bound staged planner context",
+            commands.get("validate_llm_route_payloads", ""),
+            "formalization-gap-planner-llm-route-planner-response-payload-validate"
+            in commands.get("validate_llm_route_payloads", "")
+            and "--request-context"
+            in commands.get("validate_llm_route_payloads", "")
+            and "formalization_gap_planner_llm_route_planner"
+            in commands.get("validate_llm_route_payloads", "")
+            and "<reviewed_llm_route_payload_json>"
+            in commands.get("validate_llm_route_payloads", ""),
+        ),
+        _check(
             "reproduction_resource_request_queue_command",
             "reproduction",
             "resource-request-queue command consumes action-resource plan output",
@@ -4533,6 +4554,20 @@ def _reproduction_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublic
             in commands.get("run_feedback_llm_route_planner", "")
             and "component_resource_registry"
             in commands.get("run_feedback_llm_route_planner", ""),
+        ),
+        _check(
+            "reproduction_feedback_llm_route_payload_validation_command",
+            "reproduction",
+            "feedback LLM route payload validator uses request-bound staged planner context",
+            commands.get("validate_feedback_llm_route_payloads", ""),
+            "formalization-gap-planner-llm-route-planner-response-payload-validate"
+            in commands.get("validate_feedback_llm_route_payloads", "")
+            and "--request-context"
+            in commands.get("validate_feedback_llm_route_payloads", "")
+            and "formalization_gap_planner_feedback_llm_route_planner"
+            in commands.get("validate_feedback_llm_route_payloads", "")
+            and "<reviewed_feedback_llm_route_payload_json>"
+            in commands.get("validate_feedback_llm_route_payloads", ""),
         ),
         _check(
             "reproduction_minimal_delta_audit_feedback_command",

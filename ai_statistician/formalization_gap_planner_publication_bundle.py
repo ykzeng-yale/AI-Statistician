@@ -2470,6 +2470,12 @@ def _reproduction_payload(
             "primary_output": "formalization_gap_planner_llm_route_planner_manifest.json",
         },
         {
+            "entrypoint": "formalization-gap-planner-llm-route-planner-response-payload-validate",
+            "purpose": "preflight reviewed LLM route-planner response payloads against the public schema and staged request context",
+            "required_input": "reviewed LLM route payload JSON plus the matching staged LLM route-planner request directory",
+            "primary_output": "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.json",
+        },
+        {
             "entrypoint": "formalization-gap-planner-portable-plan-audit",
             "purpose": "validate a portable planner manifest before downstream reuse",
             "required_input": "directory containing goal_conditioned_minimal_formalization_plan_manifest.json",
@@ -2759,6 +2765,16 @@ def _reproduction_payload(
                 "--formalization-gap-planner-component-resource-registry-dir "
                 "<bundle_dir>/component_resource_registry "
                 "--out <work_dir>/formalization_gap_planner_llm_route_planner"
+            ),
+        },
+        {
+            "name": "validate_llm_route_payloads",
+            "command": (
+                "python3 -m ai_statistician.cli "
+                "formalization-gap-planner-llm-route-planner-response-payload-validate "
+                "--input <reviewed_llm_route_payload_json> "
+                "--request-context <work_dir>/formalization_gap_planner_llm_route_planner "
+                "--out <work_dir>/formalization_gap_planner_llm_route_planner_response_payload_validation"
             ),
         },
         {
@@ -3122,6 +3138,16 @@ def _reproduction_payload(
                 "--formalization-gap-planner-component-resource-registry-dir "
                 "<bundle_dir>/component_resource_registry "
                 "--out <work_dir>/formalization_gap_planner_feedback_llm_route_planner"
+            ),
+        },
+        {
+            "name": "validate_feedback_llm_route_payloads",
+            "command": (
+                "python3 -m ai_statistician.cli "
+                "formalization-gap-planner-llm-route-planner-response-payload-validate "
+                "--input <reviewed_feedback_llm_route_payload_json> "
+                "--request-context <work_dir>/formalization_gap_planner_feedback_llm_route_planner "
+                "--out <work_dir>/formalization_gap_planner_feedback_llm_route_planner_response_payload_validation"
             ),
         },
     )

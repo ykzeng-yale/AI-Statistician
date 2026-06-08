@@ -369,7 +369,10 @@ truth input to `formalization_gap_planner_evaluation_ground_truth.json`, and
 the publication bundle copies that file with the optional evaluation artifacts.
 Its reproduction manifest includes a `run_evaluation` command that uses this
 bundled evaluation truth when it is present, otherwise it falls back to the
-bundle benchmark truth. The bundle audit checks that matched evaluation rows
+bundle benchmark truth. It also includes request-bound
+`formalization-gap-planner-llm-route-planner-response-payload-validate`
+commands for reviewed initial and feedback LLM route payloads, each pointing at
+the matching staged planner request context. The bundle audit checks that matched evaluation rows
 resolve against the copied evaluation truth and that the recorded route,
 delta, and existing-reuse ground-truth primitive fields match that copied file,
 so a bundle cannot silently pair evaluation rows with a different route-truth
@@ -1406,9 +1409,9 @@ The current implementation composes four existing AI Statistician artifacts:
    self-contained research
    supplement/reuse bundle. It also writes a
    machine-readable schema catalog for all reusable bundle contracts, a
-   reproduction manifest with downstream commands, including the local
-   adapter/refinement loop and feedback LLM route-planner rerun, and runnable
-   example inputs. The bundle
+   reproduction manifest with downstream commands, including request-bound
+   LLM route-payload validation, the local adapter/refinement loop, and
+   feedback LLM route-planner rerun, and runnable example inputs. The bundle
 records the proof boundary and remains route/planning evidence only. The
 reuse-smoke manifest exposes the schema catalog and schema as top-level
 artifacts for external users. The reproduction manifest includes a
