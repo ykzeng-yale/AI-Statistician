@@ -236,6 +236,7 @@ def test_live_generator_defaults_to_anthropic_cost_aware_tiers(monkeypatch: pyte
     assert default_generator_model("static") == "static"
 
     monkeypatch.setenv("AI_STATISTICIAN_LLM_PROVIDER", "codex_exec")
+    monkeypatch.setenv("AI_STATISTICIAN_LLM_MODEL", "gpt-codex-test")
     assert default_generator_provider() == "anthropic"
     assert default_generator_model("codex") == ""
     assert default_generator_model("codex_exec") == ""

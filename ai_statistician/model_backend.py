@@ -127,7 +127,7 @@ def default_generator_model(
         ).strip()
     if provider == "static":
         return DEFAULT_STATIC_GENERATOR_MODEL
-    return global_model
+    return ""
 
 
 def claude_model_tier_for_model(model: str) -> str:
