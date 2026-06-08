@@ -7,6 +7,8 @@ from pathlib import Path
 from ai_statistician.cli import main
 from ai_statistician.formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID,
+    LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_MANIFEST_SCHEMA_ID,
+    LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID,
     LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
@@ -2128,6 +2130,18 @@ def test_llm_route_planner_response_payload_validator_accepts_raw_payload() -> N
     assert payload["response_payload_schema_id"] == (
         LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID
     )
+    assert payload["response_payload_validation_manifest_schema_id"] == (
+        LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_MANIFEST_SCHEMA_ID
+    )
+    assert payload["response_payload_validation_row_schema_id"] == (
+        LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID
+    )
+    assert payload["response_payload_validation_manifest_schema"]["$id"] == (
+        LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_MANIFEST_SCHEMA_ID
+    )
+    assert payload["response_payload_validation_row_schema"]["$id"] == (
+        LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID
+    )
     assert payload["n_payloads"] == 1
     assert payload["n_valid_payloads"] == 1
     assert payload["n_invalid_payloads"] == 0
@@ -2142,6 +2156,14 @@ def test_llm_route_planner_response_payload_validator_accepts_raw_payload() -> N
     assert (
         out_dir
         / "formalization_gap_planner_llm_route_planner_response_payload_validation.jsonl"
+    ).exists()
+    assert (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.schema.json"
+    ).exists()
+    assert (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation_row.schema.json"
     ).exists()
 
 

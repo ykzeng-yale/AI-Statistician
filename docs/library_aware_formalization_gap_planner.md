@@ -111,10 +111,12 @@ call the configured generator backend. For external teams that only need to
 preflight JSON before handing it to the full route planner, the
 `formalization-gap-planner-llm-route-planner-response-payload-validate` command
 accepts a raw response payload, wrapper response, list, or `responses` bundle
-and emits a schema-only validation manifest plus JSONL rows. That preflight
-checks the reusable payload contract and proof-evidence boundary, but it does
-not prove source grounding, declaration provenance, minimality, or kernel
-verification without the full request packet. The public planner path records
+and emits a schema-only validation manifest plus JSONL rows. The validator also
+writes manifest and row schemas, and the publication bundle exports those
+schemas as reusable contracts. That preflight checks the reusable payload
+contract and proof-evidence boundary, but it does not prove source grounding,
+declaration provenance, minimality, or kernel verification without the full
+request packet. The public planner path records
 `*_provider_execution_mode` and live-call counters so staged packets are
 distinguishable from paid provider calls. For live
 AI Statistician development, the default LLM runtime is Anthropic Claude API:

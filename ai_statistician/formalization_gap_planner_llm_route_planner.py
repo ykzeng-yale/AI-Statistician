@@ -40,6 +40,14 @@ LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
     "formalization-gap-planner-llm-route-planner-response-payload:1"
 )
+LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_MANIFEST_SCHEMA_ID = (
+    "urn:ai-statistician:schemas:"
+    "formalization-gap-planner-llm-route-planner-response-payload-validation-manifest:1"
+)
+LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID = (
+    "urn:ai-statistician:schemas:"
+    "formalization-gap-planner-llm-route-planner-response-payload-validation-row:1"
+)
 LLM_ROUTE_PLANNER_ROW_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
     "formalization-gap-planner-llm-route-planner-row:1"
@@ -1069,6 +1077,12 @@ def validate_formalization_gap_planner_llm_route_planner_response_payloads(
     errors: list[str] = []
     response_inputs = _read_response_payload_validation_inputs(response_json, errors)
     response_payload_schema = llm_route_planner_response_payload_schema()
+    validation_manifest_schema = (
+        llm_route_planner_response_payload_validation_manifest_json_schema()
+    )
+    validation_row_schema = (
+        llm_route_planner_response_payload_validation_row_json_schema()
+    )
     rows: list[dict[str, object]] = []
     for index, response_input in enumerate(response_inputs):
         response = response_input["response"]
@@ -1110,7 +1124,15 @@ def validate_formalization_gap_planner_llm_route_planner_response_payloads(
         "component_name": LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATOR_COMPONENT,
         "input_path": str(response_json),
         "response_payload_schema_id": LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
+        "response_payload_validation_manifest_schema_id": (
+            LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_MANIFEST_SCHEMA_ID
+        ),
+        "response_payload_validation_row_schema_id": (
+            LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID
+        ),
         "response_payload_schema": response_payload_schema,
+        "response_payload_validation_manifest_schema": validation_manifest_schema,
+        "response_payload_validation_row_schema": validation_row_schema,
         "n_payloads": len(rows),
         "n_valid_payloads": n_valid,
         "n_invalid_payloads": len(rows) - n_valid,
@@ -2213,6 +2235,148 @@ def llm_route_planner_response_payload_schema() -> dict[str, object]:
             "and_or_cost_graph": and_or_cost_graph,
             "minimal_delta_plan": minimal_delta_plan,
             "standalone_primitive": standalone_primitive,
+        },
+    }
+
+
+def llm_route_planner_response_payload_validation_row_json_schema() -> dict[str, object]:
+    string_array = {"type": "array", "items": {"type": "string"}}
+    return {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID,
+        "title": (
+            "Formalization Gap Planner LLM Route Planner Response Payload "
+            "Validation Row"
+        ),
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "validation_id",
+            "schema_version",
+            "payload_index",
+            "input_path",
+            "input_shape",
+            "response_wrapper_present",
+            "request_id",
+            "route_id",
+            "payload_schema_id",
+            "payload_fingerprint",
+            "n_errors",
+            "ok",
+            "errors",
+            "proof_evidence_status",
+            "proof_evidence_boundary",
+        ],
+        "properties": {
+            "validation_id": {"type": "string", "minLength": 1},
+            "schema_version": {
+                "type": "integer",
+                "const": FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SCHEMA_VERSION,
+            },
+            "payload_index": {"type": "integer"},
+            "input_path": {"type": "string", "minLength": 1},
+            "input_shape": {"type": "string", "minLength": 1},
+            "response_wrapper_present": {"type": "boolean"},
+            "request_id": {"type": "string"},
+            "route_id": {"type": "string"},
+            "payload_schema_id": {
+                "type": "string",
+                "const": LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
+            },
+            "payload_fingerprint": {"type": "string", "minLength": 1},
+            "n_errors": {"type": "integer"},
+            "ok": {"type": "boolean"},
+            "errors": string_array,
+            "proof_evidence_status": {
+                "type": "string",
+                "const": PROOF_EVIDENCE_STATUS,
+            },
+            "proof_evidence_boundary": {
+                "type": "string",
+                "pattern": "not theorem proof evidence",
+            },
+        },
+    }
+
+
+def llm_route_planner_response_payload_validation_manifest_json_schema() -> dict[str, object]:
+    string_array = {"type": "array", "items": {"type": "string"}}
+    return {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_MANIFEST_SCHEMA_ID,
+        "title": (
+            "Formalization Gap Planner LLM Route Planner Response Payload "
+            "Validation Manifest"
+        ),
+        "type": "object",
+        "additionalProperties": True,
+        "required": [
+            "schema_version",
+            "created_at",
+            "component_name",
+            "input_path",
+            "response_payload_schema_id",
+            "response_payload_validation_manifest_schema_id",
+            "response_payload_validation_row_schema_id",
+            "n_payloads",
+            "n_valid_payloads",
+            "n_invalid_payloads",
+            "rows",
+            "all_ok",
+            "errors",
+            "proof_evidence_status",
+            "proof_evidence_boundary",
+        ],
+        "properties": {
+            "schema_version": {
+                "type": "integer",
+                "const": FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SCHEMA_VERSION,
+            },
+            "created_at": {"type": "string", "minLength": 1},
+            "component_name": {
+                "type": "string",
+                "const": LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATOR_COMPONENT,
+            },
+            "input_path": {"type": "string", "minLength": 1},
+            "response_payload_schema_id": {
+                "type": "string",
+                "const": LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
+            },
+            "response_payload_validation_manifest_schema_id": {
+                "type": "string",
+                "const": LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_MANIFEST_SCHEMA_ID,
+            },
+            "response_payload_validation_row_schema_id": {
+                "type": "string",
+                "const": LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID,
+            },
+            "response_payload_schema": {"type": "object"},
+            "response_payload_validation_manifest_schema": {"type": "object"},
+            "response_payload_validation_row_schema": {"type": "object"},
+            "n_payloads": {"type": "integer"},
+            "n_valid_payloads": {"type": "integer"},
+            "n_invalid_payloads": {"type": "integer"},
+            "rows": {
+                "type": "array",
+                "items": {
+                    "$ref": "#/$defs/response_payload_validation_row",
+                },
+            },
+            "all_ok": {"type": "boolean"},
+            "errors": string_array,
+            "proof_evidence_status": {
+                "type": "string",
+                "const": PROOF_EVIDENCE_STATUS,
+            },
+            "proof_evidence_boundary": {
+                "type": "string",
+                "pattern": "not theorem proof evidence",
+            },
+        },
+        "$defs": {
+            "response_payload_validation_row": (
+                llm_route_planner_response_payload_validation_row_json_schema()
+            ),
         },
     }
 
@@ -7382,6 +7546,26 @@ def _write_outputs(out_dir: Path, payload: Mapping[str, object]) -> None:
         json.dumps(llm_route_planner_response_payload_schema(), indent=2),
         encoding="utf-8",
     )
+    (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.schema.json"
+    ).write_text(
+        json.dumps(
+            llm_route_planner_response_payload_validation_manifest_json_schema(),
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation_row.schema.json"
+    ).write_text(
+        json.dumps(
+            llm_route_planner_response_payload_validation_row_json_schema(),
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
     (out_dir / "formalization_gap_planner_llm_route_planner_row.schema.json").write_text(
         json.dumps(llm_route_planner_row_json_schema(), indent=2),
         encoding="utf-8",
@@ -7429,6 +7613,26 @@ def _write_response_payload_validation_outputs(
         / "formalization_gap_planner_llm_route_planner_response_payload.schema.json"
     ).write_text(
         json.dumps(llm_route_planner_response_payload_schema(), indent=2),
+        encoding="utf-8",
+    )
+    (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.schema.json"
+    ).write_text(
+        json.dumps(
+            llm_route_planner_response_payload_validation_manifest_json_schema(),
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation_row.schema.json"
+    ).write_text(
+        json.dumps(
+            llm_route_planner_response_payload_validation_row_json_schema(),
+            indent=2,
+        ),
         encoding="utf-8",
     )
 

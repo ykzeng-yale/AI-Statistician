@@ -38,6 +38,8 @@ from ai_statistician.formalization_gap_planner_library_coverage_map import (
 )
 from ai_statistician.formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID,
+    LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_MANIFEST_SCHEMA_ID,
+    LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID,
     LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
@@ -1595,6 +1597,26 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
             (
                 out_dir
                 / "contract"
+                / "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.schema.json"
+            ).read_text(encoding="utf-8")
+        )["$id"]
+        == LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_MANIFEST_SCHEMA_ID
+    )
+    assert (
+        json.loads(
+            (
+                out_dir
+                / "contract"
+                / "formalization_gap_planner_llm_route_planner_response_payload_validation_row.schema.json"
+            ).read_text(encoding="utf-8")
+        )["$id"]
+        == LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID
+    )
+    assert (
+        json.loads(
+            (
+                out_dir
+                / "contract"
                 / "formalization_gap_planner_llm_route_planner_row.schema.json"
             ).read_text(encoding="utf-8")
         )["$id"]
@@ -1758,6 +1780,14 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     assert "llm_route_planner_request_schema" in schema_catalog_entry_names
     assert "llm_route_planner_response_schema" in schema_catalog_entry_names
     assert "llm_route_planner_response_payload_schema" in schema_catalog_entry_names
+    assert (
+        "llm_route_planner_response_payload_validation_manifest_schema"
+        in schema_catalog_entry_names
+    )
+    assert (
+        "llm_route_planner_response_payload_validation_row_schema"
+        in schema_catalog_entry_names
+    )
     assert "llm_route_planner_row_schema" in schema_catalog_entry_names
     assert "runtime_handoff_audit_row_schema" in schema_catalog_entry_names
     assert all(
@@ -1897,6 +1927,14 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     assert "llm_route_planner_request_contract" in contract_payload
     assert "llm_route_planner_response_contract" in contract_payload
     assert "llm_route_planner_response_payload_contract" in contract_payload
+    assert (
+        "llm_route_planner_response_payload_validation_manifest_contract"
+        in contract_payload
+    )
+    assert (
+        "llm_route_planner_response_payload_validation_row_contract"
+        in contract_payload
+    )
     assert "llm_route_planner_row_contract" in contract_payload
     assert "route_revision_overlay_row_contract" in contract_payload
     assert "route_stability_audit_row_contract" in contract_payload
