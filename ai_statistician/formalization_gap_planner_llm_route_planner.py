@@ -4239,7 +4239,7 @@ def _formal_node_supports_introduced_primitive(
     if _primitive_key(node.get("primitive", "")) != primitive:
         return False
     if _formal_node_claims_existing_library(node):
-        return bool(_str_tuple(node.get("candidate_declarations", [])))
+        return bool(_node_candidate_declarations(node))
     if str(node.get("formal_gap_boundary", "")).strip():
         return True
     markers = (

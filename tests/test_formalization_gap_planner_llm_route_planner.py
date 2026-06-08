@@ -2055,6 +2055,114 @@ def test_llm_route_planner_accepts_candidate_declaration_rows_only_response() ->
     ]
 
 
+def test_llm_route_planner_accepts_introduced_reuse_with_candidate_declaration_rows() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_introduced_candidate_rows"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    input_payload = json.loads(input_json.read_text(encoding="utf-8"))
+    input_payload["routes"][0]["candidate_declaration_rows"] = [
+        {
+            "declaration": "Probability.rankOrderStatistic",
+            "target_prover_family": "lean4",
+            "source_field": "route_level_formal_context",
+        }
+    ]
+    input_json.write_text(json.dumps(input_payload, indent=2), encoding="utf-8")
+    response = _llm_response_payload()
+    helper_declaration_row = {
+        "declaration": "Probability.rankOrderStatistic",
+        "target_prover_family": "lean4",
+        "source_field": "available_formal_declaration_rows",
+    }
+    response["informal_knowledge_dag_nodes"].append(
+        {
+            "node_id": "informal:rank_order_statistic",
+            "claim": "The rank argument uses an order-statistic helper.",
+            "depends_on": ["informal:rank_uniformity"],
+            "source_refs": ["conformal_prediction_textbook"],
+            "source_search_status": "SOURCE_BACKED",
+            "semantic_role": "lemma",
+        }
+    )
+    response["lean_realization_dag_nodes"].append(
+        {
+            "node_id": "formal:rank_order_statistic",
+            "primitive": "rank_order_statistic",
+            "coverage_bucket": "already_exists",
+            "candidate_declaration_rows": [helper_declaration_row],
+            "formalization_action": "reuse",
+        }
+    )
+    response["route_alignment_edges"].append(
+        {
+            "informal_node_id": "informal:rank_order_statistic",
+            "formal_node_id": "formal:rank_order_statistic",
+            "alignment_status": "exact",
+            "alignment_rationale": (
+                "The introduced helper is realized by an existing declaration "
+                "whose target-prover provenance is carried in a structured row."
+            ),
+        }
+    )
+    response["standalone_route"]["primitives"].append(
+        {
+            "primitive": "rank_order_statistic",
+            "coverage_status": "exact_exists",
+            "candidate_declaration_rows": [helper_declaration_row],
+            "source_refs": ["conformal_prediction_textbook"],
+        }
+    )
+    minimal_delta = response["minimal_delta_plan"]
+    minimal_delta["selected_primitives"].append("rank_order_statistic")
+    minimal_delta["primitive_costs"].append(
+        {
+            "primitive": "rank_order_statistic",
+            "coverage_bucket": "already_exists",
+            "base_cost": 0,
+            "proof_difficulty_cost": 0,
+            "import_cone_cost": 0,
+            "definition_or_typeclass_cost": 0,
+            "semantic_risk_cost": 0,
+            "reuse_credit": 0,
+            "total_cost": 0,
+            "cost_rationale": (
+                "The helper is an exact existing declaration, so it adds no "
+                "new formalization delta."
+            ),
+        }
+    )
+    for option in minimal_delta["and_or_cost_graph"]["route_options"]:
+        option["selected_primitives"].append("rank_order_statistic")
+    response_json.write_text(json.dumps(response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert payload["all_ok"]
+    row = payload["rows"][0]
+    witness = row["realization_coverage_witness"]
+    assert "rank_order_statistic" in witness["introduced_primitives"]
+    assert "rank_order_statistic" in witness["introduced_primitives_with_route_alignment_edge"]
+    helper_node = next(
+        node
+        for node in row["formal_realization_dag_nodes"]
+        if node["primitive"] == "rank_order_statistic"
+    )
+    assert helper_node["candidate_declarations"] == [
+        "Probability.rankOrderStatistic"
+    ]
+    assert helper_node["candidate_declaration_rows"] == [helper_declaration_row]
+
+
 def test_llm_route_planner_rejects_wrong_target_candidate_declaration_rows() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_rejects_wrong_target_candidate_rows"
