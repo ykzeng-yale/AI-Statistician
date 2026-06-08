@@ -212,7 +212,7 @@ def export_formalization_gap_planner_ablation_study(
         "planner_proof_evidence_boundary": PLANNER_PROOF_EVIDENCE_BOUNDARY,
         "limitations": [
             "ablations are deterministic counterfactual diagnostics over recorded planner artifacts",
-            "no_literature and no_lean ablations remove recorded primitives rather than rerunning live tools",
+            "no_literature_evidence and no_formal_grounding ablations remove recorded primitives rather than rerunning live tools",
             "no_proof_state_feedback measures feedback-loop and replan-signal loss, not proof success",
             "kernel proof status still requires target-prover replay/calibration",
         ],

@@ -2207,6 +2207,13 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         == "formalization-gap-planner-llm-route-planner-response-payload-validate"
         for row in reproduction_payload["entrypoints"]
     )
+    ablation_entrypoint = next(
+        row
+        for row in reproduction_payload["entrypoints"]
+        if row["entrypoint"] == "formalization-gap-planner-ablation-study"
+    )
+    assert "no-formal-grounding" in ablation_entrypoint["purpose"]
+    assert "no-Lean" not in ablation_entrypoint["purpose"]
     assert "run_llm_route_planner" in command_by_name
     assert (
         "formalization-gap-planner-llm-route-planner"

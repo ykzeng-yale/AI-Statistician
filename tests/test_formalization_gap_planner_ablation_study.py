@@ -213,6 +213,8 @@ def test_ablation_study_compares_literature_lean_feedback_and_null_baselines() -
         by_variant["no_route_planner"]["relative_route_adoption_ready_drop"]
         == 1.0
     )
+    assert any("no_formal_grounding" in item for item in payload["limitations"])
+    assert not any("no_lean" in item for item in payload["limitations"])
     assert "not theorem proof evidence" in payload["proof_evidence_boundary"]
     assert (
         out_dir / "formalization_gap_planner_ablation_study_manifest.json"

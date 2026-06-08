@@ -2556,7 +2556,7 @@ def _reproduction_payload(
         },
         {
             "entrypoint": "formalization-gap-planner-ablation-study",
-            "purpose": "compare recorded planner metrics against no-literature, no-Lean, no-proof-feedback, and no-route-planner baselines",
+            "purpose": "compare recorded planner metrics against no-literature, no-formal-grounding, no-proof-feedback, and no-route-planner baselines",
             "required_input": "planner, evaluation, and optional interactive-session artifact directories",
             "primary_output": "formalization_gap_planner_ablation_study_manifest.json",
         },
