@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from collections import Counter
-from dataclasses import asdict, replace
+from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -86,16 +86,13 @@ def export_formalization_gap_planner_standalone_plan(
     }
     all_primitives = _all_primitives(input_payload, routes)
     raw_rows = [
-        replace(
-                _plan_row(
-                    route,
-                    queue_by_route.get(str(route.get("route_id", "")), {}),
-                    all_primitives,
-                    library_snapshot_ref=library_snapshot_ref,
-                    source_target_prover_family=target_prover_family,
-                ),
-                target_prover_family=target_prover_family,
-            )
+        _plan_row(
+            route,
+            queue_by_route.get(str(route.get("route_id", "")), {}),
+            all_primitives,
+            library_snapshot_ref=library_snapshot_ref,
+            source_target_prover_family=target_prover_family,
+        )
         for route in routes
     ]
     rows = sorted(
@@ -163,12 +160,16 @@ def export_formalization_gap_planner_standalone_plan(
             "llm_route_planner_route_adoption_status"
         )
     )
+    manifest_target_prover_family = _manifest_target_prover_family(
+        rows,
+        fallback_target_prover_family=target_prover_family,
+    )
     payload: dict[str, object] = {
         "schema_version": GOAL_CONDITIONED_MINIMAL_FORMALIZATION_PLAN_SCHEMA_VERSION,
         "portable_schema_id": PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_ID,
         "portable_schema_version": PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_VERSION,
         "component_name": LIBRARY_AWARE_FORMALIZATION_GAP_PLANNER_NAME,
-        "target_prover_family": target_prover_family,
+        "target_prover_family": manifest_target_prover_family,
         "library_snapshot_ref": library_snapshot_ref,
         "formalization_delta_objective": FORMALIZATION_DELTA_OBJECTIVE,
         "optimization_objectives": list(OPTIMIZATION_OBJECTIVES),
@@ -403,6 +404,20 @@ def validate_standalone_input_payload(payload: dict[str, Any]) -> list[str]:
         errors.append("routes missing")
     payload_target = str(payload.get("target_prover_family", "")).strip()
     payload_target_key = _target_prover_key(payload_target)
+    route_target_keys: set[str] = set()
+    for route in routes:
+        metadata = _dict_value(route.get("replan_metadata", {}))
+        for target in (
+            route.get("target_prover_family", ""),
+            route.get("target_prover", ""),
+            metadata.get("target_prover_family", ""),
+            metadata.get("target_prover", ""),
+        ):
+            target_key = _target_prover_key(target)
+            if target_key:
+                route_target_keys.add(target_key)
+    if not payload_target_key and not route_target_keys:
+        errors.append("target_prover_family missing")
     for idx, route in enumerate(routes):
         display_name = _display_name(route)
         if not display_name:
@@ -413,6 +428,13 @@ def validate_standalone_input_payload(payload: dict[str, Any]) -> list[str]:
         metadata_target = str(metadata.get("target_prover_family", "")).strip()
         route_target_key = _target_prover_key(route_target)
         metadata_target_key = _target_prover_key(metadata_target)
+        if (
+            not payload_target_key
+            and not route_target_key
+            and not metadata_target_key
+            and len(route_target_keys) > 1
+        ):
+            errors.append(f"routes[{idx}].target_prover_family missing")
         for location, target, target_key in (
             (f"routes[{idx}].target_prover_family", route_target, route_target_key),
             (
@@ -798,17 +820,20 @@ def _route_specs(
         primitive_costs = _minimal_delta_primitive_costs(raw_route)
         metadata = raw_route.get("replan_metadata", {})
         metadata = metadata if isinstance(metadata, dict) else {}
+        route_target_prover_family = str(
+            raw_route.get("target_prover_family", "")
+            or raw_route.get("target_prover", "")
+            or metadata.get("target_prover_family", "")
+            or metadata.get("target_prover", "")
+            or target_prover_family
+        ).strip()
         actions = [
             _action_for_primitive(
                 route_id,
                 primitive,
                 primitive_idx,
                 primitive_costs=primitive_costs,
-                target_prover_family=str(
-                    raw_route.get("target_prover_family", "")
-                    or metadata.get("target_prover_family", "")
-                    or target_prover_family
-                ),
+                target_prover_family=route_target_prover_family,
             )
             for primitive_idx, primitive in enumerate(_raw_primitives(raw_route))
         ]
@@ -830,6 +855,7 @@ def _route_specs(
             "problem_class": str(raw_route.get("problem_class", "standalone_theorem")),
             "theorem_goal_id": str(raw_route.get("theorem_goal_id", "")) or _display_name(raw_route),
             "display_name": _display_name(raw_route),
+            "target_prover_family": route_target_prover_family,
             "theorem_skeleton": str(raw_route.get("theorem_skeleton", "")),
             "theorem_statement": str(raw_route.get("theorem_statement", "")),
             "source_refs": _str_tuple(raw_route.get("source_refs", [])),
@@ -843,7 +869,7 @@ def _route_specs(
                 raw_route,
                 route_id=route_id,
                 route_index=idx,
-                target_prover_family=target_prover_family,
+                target_prover_family=route_target_prover_family,
             ),
             "route_revision_triggers": _route_or_metadata_rows(
                 raw_route,
@@ -1388,7 +1414,53 @@ def _display_name(route: dict[str, Any]) -> str:
 
 def _target_prover_family(payload: dict[str, Any]) -> str:
     value = str(payload.get("target_prover_family", "")).strip()
-    return value or TARGET_PROVER_FAMILY
+    if value:
+        return value
+    route_targets = _route_declared_target_prover_families(payload)
+    if len({_target_prover_key(target) for target in route_targets}) == 1:
+        return route_targets[0]
+    return TARGET_PROVER_FAMILY
+
+
+def _route_declared_target_prover_families(payload: dict[str, Any]) -> tuple[str, ...]:
+    targets: list[str] = []
+    for route in _raw_routes(payload):
+        metadata = _dict_value(route.get("replan_metadata", {}))
+        for value in (
+            route.get("target_prover_family", ""),
+            route.get("target_prover", ""),
+            metadata.get("target_prover_family", ""),
+            metadata.get("target_prover", ""),
+        ):
+            target = str(value or "").strip()
+            if target:
+                targets.append(target)
+    compact: list[str] = []
+    seen: set[str] = set()
+    for target in targets:
+        key = _target_prover_key(target)
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        compact.append(target)
+    return tuple(compact)
+
+
+def _manifest_target_prover_family(
+    rows: list[Any],
+    *,
+    fallback_target_prover_family: str,
+) -> str:
+    targets = sorted(
+        {
+            str(getattr(row, "target_prover_family", "")).strip()
+            for row in rows
+            if str(getattr(row, "target_prover_family", "")).strip()
+        }
+    )
+    if len(targets) == 1:
+        return targets[0]
+    return fallback_target_prover_family or TARGET_PROVER_FAMILY
 
 
 def _portable_row_with_formal_aliases(

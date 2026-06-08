@@ -1175,8 +1175,12 @@ The current implementation composes four existing AI Statistician artifacts:
    `candidate_declaration_rows`. Standalone validation rejects route-level or
    primitive-level declaration rows whose explicit `target_prover_family`
    disagrees with the input, route, or replan target, while accepting aliases
-   such as Coq/Coq8 for Rocq. This is the independent reuse entry point for
-   systems that do not run the AI Statistician audit pipeline.
+   such as Coq/Coq8 for Rocq. A standalone seed must declare a target prover
+   family either at the input level or through route/replan metadata; when the
+   top-level field is omitted and the route target is unambiguous, the planner
+   preserves that route target instead of falling back to a Lean default. This is
+   the independent reuse entry point for systems that do not run the AI
+   Statistician audit pipeline.
 
 7. `formalization_gap_planner_portable_plan_audit`
    Validates any portable planner manifest before downstream reuse. It checks
