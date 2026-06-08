@@ -952,6 +952,11 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert payload["n_evaluation_alignment_contract_ok"] == payload["n_evaluation_rows"]
     assert payload["n_evaluation_feedback_loop_ready"] == payload["n_evaluation_rows"]
     assert payload["n_evaluation_unaligned_primitives"] == 0
+    assert payload["n_evaluation_realization_missing_selected_formal_primitives"] == 0
+    assert payload["n_evaluation_realization_missing_delta_alignment_primitives"] == 0
+    assert payload["evaluation_realization_missing_selected_formal_primitives"] == ()
+    assert payload["evaluation_realization_missing_delta_alignment_primitives"] == ()
+    assert payload["evaluation_realization_missing_primitives_by_route"] == ()
     assert payload["n_evaluation_rows_with_llm_route_planner_trace"] == 0
     assert payload["n_evaluation_rows_with_llm_route_planner_model_tier"] == 0
     assert payload["n_evaluation_rows_with_llm_route_planner_generator_metadata"] == 0

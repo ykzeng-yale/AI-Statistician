@@ -2270,6 +2270,26 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_unaligned_primitives",
             0,
         ),
+        "n_evaluation_realization_missing_selected_formal_primitives": evaluation_payload.get(
+            "n_realization_missing_selected_formal_primitives",
+            0,
+        ),
+        "n_evaluation_realization_missing_delta_alignment_primitives": evaluation_payload.get(
+            "n_realization_missing_delta_alignment_primitives",
+            0,
+        ),
+        "evaluation_realization_missing_selected_formal_primitives": evaluation_payload.get(
+            "realization_missing_selected_formal_primitives",
+            (),
+        ),
+        "evaluation_realization_missing_delta_alignment_primitives": evaluation_payload.get(
+            "realization_missing_delta_alignment_primitives",
+            (),
+        ),
+        "evaluation_realization_missing_primitives_by_route": evaluation_payload.get(
+            "realization_missing_primitives_by_route",
+            (),
+        ),
         "n_evaluation_rows_with_llm_route_planner_trace": evaluation_payload.get(
             "n_rows_with_llm_route_planner_trace",
             0,
@@ -4501,6 +4521,13 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_publication_bundle_optional_evaluation_ground_truth_primitive_checked')}"
         ),
         f"- Evaluation alignment ready: {payload.get('n_evaluation_alignment_contract_ok')}/{payload.get('n_evaluation_rows')}",
+        (
+            f"- Evaluation realization missing selected/delta primitives: "
+            f"{payload.get('n_evaluation_realization_missing_selected_formal_primitives')}/"
+            f"{payload.get('n_evaluation_realization_missing_delta_alignment_primitives')} "
+            f"selected={payload.get('evaluation_realization_missing_selected_formal_primitives')} "
+            f"delta={payload.get('evaluation_realization_missing_delta_alignment_primitives')}"
+        ),
         (
             f"- Evaluation LLM trace/model-tier/generator-metadata: "
             f"{payload.get('n_evaluation_rows_with_llm_route_planner_trace')}/"

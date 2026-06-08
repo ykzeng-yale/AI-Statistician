@@ -280,6 +280,9 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
     }
     assert payload["n_realization_missing_selected_formal_primitives"] == 0
     assert payload["n_realization_missing_delta_alignment_primitives"] == 0
+    assert payload["realization_missing_selected_formal_primitives"] == ()
+    assert payload["realization_missing_delta_alignment_primitives"] == ()
+    assert payload["realization_missing_primitives_by_route"] == ()
     assert payload["n_minimal_delta_route_options"] == 2
     assert payload["mean_minimal_delta_selected_route_cost"] == 4.0
     row = payload["rows"][0]
@@ -302,6 +305,107 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
         "retry_count",
     )
     assert validate_evaluation_row(row) == ()
+
+
+def test_evaluation_surfaces_realization_missing_primitives_by_route() -> None:
+    root = Path("runs/test_formalization_gap_planner_evaluation_realization_gaps")
+    input_json = root / "standalone_input.json"
+    plan_dir = root / "plan"
+    truth_json = root / "ground_truth.json"
+    out_dir = root / "evaluation"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    realization_witness = {
+        "selected_primitives": ["exchangeability", "rank_uniformity"],
+        "delta_primitives": ["rank_uniformity"],
+        "introduced_primitives": [],
+        "aligned_primitives": ["exchangeability"],
+        "selected_primitives_missing_formal_realization_node": [
+            "rank_uniformity"
+        ],
+        "delta_primitives_missing_route_alignment_edge": ["rank_uniformity"],
+        "introduced_primitives_missing_route_alignment_edge": [],
+        "realization_coverage_complete": False,
+    }
+    input_json.write_text(
+        json.dumps(
+            {
+                "component_name": "formalization_gap_planner_standalone_input",
+                "target_prover_family": "lean4",
+                "library_snapshot_ref": "mathlib4:evaluation-realization-gaps",
+                "routes": [
+                    {
+                        "route_id": "rank_route",
+                        "display_name": "rank_route",
+                        "theorem_statement": "Rank uniformity follows from exchangeability.",
+                        "realization_coverage_witness": realization_witness,
+                        "replan_metadata": {
+                            "llm_route_planner_row_id": "llm-route-row:rank",
+                            "llm_route_planner_model_tier": "sonnet",
+                            "realization_coverage_witness": realization_witness,
+                        },
+                        "primitives": [
+                            {
+                                "primitive": "exchangeability",
+                                "coverage_status": "exact_exists",
+                                "candidate_declarations": ["Probability.exchangeable"],
+                            },
+                            {
+                                "primitive": "rank_uniformity",
+                                "coverage_status": "bridge_needed",
+                            },
+                        ],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    truth_json.write_text(
+        json.dumps(
+            {
+                "routes": [
+                    {
+                        "route_id": "rank_route",
+                        "required_primitives": ["exchangeability", "rank_uniformity"],
+                        "actual_existing_reuse_primitives": ["exchangeability"],
+                        "actual_delta_primitives": ["rank_uniformity"],
+                    }
+                ]
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    export_formalization_gap_planner_standalone_plan(input_json, plan_dir)
+
+    payload = evaluate_formalization_gap_planner(plan_dir, truth_json, out_dir)
+
+    assert payload["n_realization_missing_selected_formal_primitives"] == 1
+    assert payload["n_realization_missing_delta_alignment_primitives"] == 1
+    assert payload["realization_missing_selected_formal_primitives"] == (
+        "rank_uniformity",
+    )
+    assert payload["realization_missing_delta_alignment_primitives"] == (
+        "rank_uniformity",
+    )
+    assert payload["realization_missing_primitives_by_route"] == (
+        {
+            "route_id": "rank_route",
+            "display_name": "rank_route",
+            "goal_plan_id": payload["rows"][0]["goal_plan_id"],
+            "missing_selected_formal_primitives": ("rank_uniformity",),
+            "missing_delta_alignment_primitives": ("rank_uniformity",),
+            "llm_route_planner_row_id": "llm-route-row:rank",
+            "llm_route_planner_model_tier": "sonnet",
+        },
+    )
+    report = (
+        out_dir / "formalization_gap_planner_evaluation.md"
+    ).read_text(encoding="utf-8")
+    assert "Missing selected formal primitives" in report
+    assert "rank_uniformity" in report
 
 
 def test_evaluation_rejects_missing_route_alignment() -> None:

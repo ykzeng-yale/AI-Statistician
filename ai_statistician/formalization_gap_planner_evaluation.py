@@ -143,6 +143,14 @@ def evaluate_formalization_gap_planner(
     for row in evaluation_rows:
         by_ok[row.ok] = by_ok.get(row.ok, 0) + 1
     by_llm_model_tier = _llm_model_tier_summary(evaluation_rows)
+    realization_missing_selected = _unique_row_attr_strings(
+        evaluation_rows,
+        "realization_missing_selected_formal_primitives",
+    )
+    realization_missing_delta = _unique_row_attr_strings(
+        evaluation_rows,
+        "realization_missing_delta_alignment_primitives",
+    )
     payload: dict[str, object] = {
         "schema_version": FORMALIZATION_GAP_PLANNER_EVALUATION_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -199,9 +207,14 @@ def evaluate_formalization_gap_planner(
             len(row.realization_missing_selected_formal_primitives)
             for row in evaluation_rows
         ),
+        "realization_missing_selected_formal_primitives": realization_missing_selected,
         "n_realization_missing_delta_alignment_primitives": sum(
             len(row.realization_missing_delta_alignment_primitives)
             for row in evaluation_rows
+        ),
+        "realization_missing_delta_alignment_primitives": realization_missing_delta,
+        "realization_missing_primitives_by_route": (
+            _realization_missing_primitives_by_route(evaluation_rows)
         ),
         "n_minimal_delta_route_options": sum(
             row.minimal_delta_route_option_count for row in evaluation_rows
@@ -1002,6 +1015,47 @@ def _llm_model_tier_summary(
     }
 
 
+def _unique_row_attr_strings(
+    rows: list[FormalizationGapPlannerEvaluationRow],
+    attr_name: str,
+) -> tuple[str, ...]:
+    return tuple(
+        sorted(
+            {
+                str(item)
+                for row in rows
+                for item in getattr(row, attr_name)
+                if str(item)
+            }
+        )
+    )
+
+
+def _realization_missing_primitives_by_route(
+    rows: list[FormalizationGapPlannerEvaluationRow],
+) -> tuple[dict[str, object], ...]:
+    diagnostics: list[dict[str, object]] = []
+    for row in rows:
+        missing_selected = _str_tuple(
+            row.realization_missing_selected_formal_primitives
+        )
+        missing_delta = _str_tuple(row.realization_missing_delta_alignment_primitives)
+        if not missing_selected and not missing_delta:
+            continue
+        diagnostics.append(
+            {
+                "route_id": row.route_id,
+                "display_name": row.display_name,
+                "goal_plan_id": row.goal_plan_id,
+                "missing_selected_formal_primitives": missing_selected,
+                "missing_delta_alignment_primitives": missing_delta,
+                "llm_route_planner_row_id": row.llm_route_planner_row_id,
+                "llm_route_planner_model_tier": row.llm_route_planner_model_tier,
+            }
+        )
+    return tuple(diagnostics)
+
+
 def _alignment_contract(row: dict[str, Any]) -> tuple[bool, float, tuple[str, ...], tuple[str, ...]]:
     selected = set(_str_tuple(row.get("selected_primitives", [])))
     edges = row.get("route_alignment_edges", [])
@@ -1225,6 +1279,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Rows with minimal-delta cost graph: {payload.get('n_rows_with_minimal_delta_cost_graph')}",
         f"- Rows with realization coverage witness: {payload.get('n_rows_with_realization_coverage_witness')}",
         f"- Rows with complete realization coverage: {payload.get('n_rows_with_complete_realization_coverage')}",
+        f"- Missing selected formal primitives: {payload.get('realization_missing_selected_formal_primitives')}",
+        f"- Missing delta alignment primitives: {payload.get('realization_missing_delta_alignment_primitives')}",
         f"- Rows with LLM route-planner trace: {payload.get('n_rows_with_llm_route_planner_trace')}",
         f"- Evaluation by LLM model tier: {payload.get('evaluation_by_llm_model_tier')}",
         f"- Mean selected route-option cost: {payload.get('mean_minimal_delta_selected_route_cost')}",
