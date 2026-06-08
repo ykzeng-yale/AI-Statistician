@@ -990,6 +990,21 @@ def export_formalization_gap_planner_llm_route_planner(
             if "resource_response_playbook_redispatch_pending"
             in row.route_adoption_blockers
         ),
+        "n_route_adoption_pending_resource_request_queue_blockers": sum(
+            1
+            for row in rows
+            if "resource_request_queue_pending_response" in row.route_adoption_blockers
+        ),
+        "n_route_adoption_pending_feedback_replan_blockers": sum(
+            1
+            for row in rows
+            if "feedback_loop_replan_required" in row.route_adoption_blockers
+        ),
+        "n_route_adoption_pending_realization_coverage_blockers": sum(
+            1
+            for row in rows
+            if "realization_coverage_incomplete" in row.route_adoption_blockers
+        ),
         "n_rejected": sum(
             count
             for status, count in by_acceptance_status.items()

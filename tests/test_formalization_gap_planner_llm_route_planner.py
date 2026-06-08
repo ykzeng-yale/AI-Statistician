@@ -2654,6 +2654,52 @@ def test_llm_route_planner_blocks_route_adoption_on_feedback_redispatch_actions(
     }
 
 
+def test_llm_route_planner_blocks_route_adoption_on_pending_resource_request_queue() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_resource_queue_blocks_adoption"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    resource_request_queue_dir = _write_resource_request_queue(root)
+    response = _llm_response_payload()
+    response["search_requests"] = []
+    response["planner_next_actions"] = []
+    response["uncertainty_flags"] = []
+    response["semantic_alignment_risks"] = []
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_resource_request_queue_dir=(
+            resource_request_queue_dir
+        ),
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_response_contract_ok"] == 1
+    assert payload["n_route_adoption_ready"] == 0
+    assert payload["n_route_adoption_pending_refinement"] == 1
+    assert payload["n_route_adoption_pending_feedback_action_blockers"] == 1
+    assert payload["n_route_adoption_pending_resource_request_queue_blockers"] == 1
+    assert payload["n_route_adoption_pending_feedback_replan_blockers"] == 0
+    assert payload["n_route_adoption_pending_realization_coverage_blockers"] == 0
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "ACCEPTED_LLM_ROUTE_PLAN"
+    assert row["route_adoption_status"] == (
+        "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+    )
+    assert set(row["route_adoption_blockers"]) >= {
+        "feedback_summary_actions_pending_resolution",
+        "resource_request_queue_pending_response",
+    }
+
+
 def test_llm_route_planner_accepts_candidate_declaration_rows_only_response() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_candidate_rows_only"

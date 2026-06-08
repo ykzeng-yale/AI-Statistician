@@ -1924,6 +1924,14 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         ]
         == 0
     )
+    assert (
+        payload[
+            "n_llm_route_planner_route_adoption_pending_resource_request_queue_blockers"
+        ]
+        == 0
+    )
+    assert payload["n_llm_route_planner_route_adoption_pending_feedback_replan_blockers"] == 0
+    assert payload["n_llm_route_planner_route_adoption_pending_realization_coverage_blockers"] == 0
     assert payload["n_llm_route_planner_awaiting"] == 0
     assert payload["n_llm_route_planner_search_requests"] == 1
     assert payload["n_feedback_llm_route_planner_response_present"] == 1
@@ -1954,6 +1962,24 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     assert (
         payload[
             "n_feedback_llm_route_planner_route_adoption_pending_resource_playbook_redispatch_blockers"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_route_adoption_pending_resource_request_queue_blockers"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_route_adoption_pending_feedback_replan_blockers"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_route_adoption_pending_realization_coverage_blockers"
         ]
         == 0
     )

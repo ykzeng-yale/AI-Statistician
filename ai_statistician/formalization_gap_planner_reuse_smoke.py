@@ -164,6 +164,9 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_route_adoption_pending_residual_repair_blockers",
         "n_route_adoption_pending_feedback_action_blockers",
         "n_route_adoption_pending_resource_playbook_redispatch_blockers",
+        "n_route_adoption_pending_resource_request_queue_blockers",
+        "n_route_adoption_pending_feedback_replan_blockers",
+        "n_route_adoption_pending_realization_coverage_blockers",
         "n_rejected",
         "n_informal_knowledge_dag_nodes",
         "n_lean_realization_dag_nodes",
@@ -207,6 +210,9 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_route_adoption_pending_residual_repair_blockers",
         "n_route_adoption_pending_feedback_action_blockers",
         "n_route_adoption_pending_resource_playbook_redispatch_blockers",
+        "n_route_adoption_pending_resource_request_queue_blockers",
+        "n_route_adoption_pending_feedback_replan_blockers",
+        "n_route_adoption_pending_realization_coverage_blockers",
         "n_rejected",
         "n_informal_knowledge_dag_nodes",
         "n_lean_realization_dag_nodes",
@@ -1830,6 +1836,24 @@ def run_formalization_gap_planner_reuse_smoke(
                 0,
             )
         ),
+        "n_llm_route_planner_route_adoption_pending_resource_request_queue_blockers": (
+            llm_route_planner_payload.get(
+                "n_route_adoption_pending_resource_request_queue_blockers",
+                0,
+            )
+        ),
+        "n_llm_route_planner_route_adoption_pending_feedback_replan_blockers": (
+            llm_route_planner_payload.get(
+                "n_route_adoption_pending_feedback_replan_blockers",
+                0,
+            )
+        ),
+        "n_llm_route_planner_route_adoption_pending_realization_coverage_blockers": (
+            llm_route_planner_payload.get(
+                "n_route_adoption_pending_realization_coverage_blockers",
+                0,
+            )
+        ),
         "n_llm_route_planner_row_schema_valid": llm_route_planner_payload.get(
             "n_row_schema_valid",
             0,
@@ -2063,6 +2087,24 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_feedback_llm_route_planner_route_adoption_pending_resource_playbook_redispatch_blockers": (
             feedback_llm_route_planner_payload.get(
                 "n_route_adoption_pending_resource_playbook_redispatch_blockers",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_route_adoption_pending_resource_request_queue_blockers": (
+            feedback_llm_route_planner_payload.get(
+                "n_route_adoption_pending_resource_request_queue_blockers",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_route_adoption_pending_feedback_replan_blockers": (
+            feedback_llm_route_planner_payload.get(
+                "n_route_adoption_pending_feedback_replan_blockers",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_route_adoption_pending_realization_coverage_blockers": (
+            feedback_llm_route_planner_payload.get(
+                "n_route_adoption_pending_realization_coverage_blockers",
                 0,
             )
         ),
@@ -5024,7 +5066,10 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_llm_route_planner_route_adoption_pending_search_request_blockers')}/"
             f"{payload.get('n_llm_route_planner_route_adoption_pending_planner_next_action_blockers')} "
             f"feedback_actions={payload.get('n_llm_route_planner_route_adoption_pending_feedback_action_blockers')} "
-            f"playbook_redispatch={payload.get('n_llm_route_planner_route_adoption_pending_resource_playbook_redispatch_blockers')}"
+            f"playbook_redispatch={payload.get('n_llm_route_planner_route_adoption_pending_resource_playbook_redispatch_blockers')} "
+            f"resource_queue={payload.get('n_llm_route_planner_route_adoption_pending_resource_request_queue_blockers')} "
+            f"replan={payload.get('n_llm_route_planner_route_adoption_pending_feedback_replan_blockers')} "
+            f"realization={payload.get('n_llm_route_planner_route_adoption_pending_realization_coverage_blockers')}"
         ),
         (
             f"- LLM route planner resource registry context/resources/contracts: "
@@ -5121,7 +5166,10 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_feedback_llm_route_planner_route_adoption_pending_search_request_blockers')}/"
             f"{payload.get('n_feedback_llm_route_planner_route_adoption_pending_planner_next_action_blockers')} "
             f"feedback_actions={payload.get('n_feedback_llm_route_planner_route_adoption_pending_feedback_action_blockers')} "
-            f"playbook_redispatch={payload.get('n_feedback_llm_route_planner_route_adoption_pending_resource_playbook_redispatch_blockers')}"
+            f"playbook_redispatch={payload.get('n_feedback_llm_route_planner_route_adoption_pending_resource_playbook_redispatch_blockers')} "
+            f"resource_queue={payload.get('n_feedback_llm_route_planner_route_adoption_pending_resource_request_queue_blockers')} "
+            f"replan={payload.get('n_feedback_llm_route_planner_route_adoption_pending_feedback_replan_blockers')} "
+            f"realization={payload.get('n_feedback_llm_route_planner_route_adoption_pending_realization_coverage_blockers')}"
         ),
         (
             f"- Feedback LLM route planner context coverage/source/request_queue/response_ledger/refinement/overlay/session/policy: "
