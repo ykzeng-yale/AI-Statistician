@@ -176,8 +176,8 @@ def test_ablation_study_compares_literature_lean_feedback_and_null_baselines() -
         ]
         == 1.0
     )
-    assert by_variant["no_lean_grounding"]["mean_existing_reuse_recall"] == 0.0
-    assert by_variant["no_lean_grounding"]["route_adoption_ready_rate"] == 0.0
+    assert by_variant["no_formal_grounding"]["mean_existing_reuse_recall"] == 0.0
+    assert by_variant["no_formal_grounding"]["route_adoption_ready_rate"] == 0.0
     assert by_variant["full_planner_observed"]["mean_residual_recall"] == 1.0
     assert by_variant["no_proof_state_feedback"]["feedback_loop_readiness"] == 0.0
     assert by_variant["no_proof_state_feedback"]["next_action_replan_rate"] == 0.0

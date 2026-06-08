@@ -20673,7 +20673,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             {
                 "full_planner_observed",
                 "no_literature_evidence",
-                "no_lean_grounding",
+                "no_formal_grounding",
                 "no_proof_state_feedback",
                 "no_route_planner",
             },
@@ -20685,7 +20685,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             {
                 "full_planner_observed",
                 "no_literature_evidence",
-                "no_lean_grounding",
+                "no_formal_grounding",
                 "no_proof_state_feedback",
                 "no_route_planner",
             },

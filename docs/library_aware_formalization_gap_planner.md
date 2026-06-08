@@ -384,7 +384,7 @@ row-to-truth matches, and primitive-field consistency so downstream gates do
 not need to scan every audit row.
 
 Target intake extracts objects, assumptions, procedure, claim, theorem shape,
-source refs, primitive seeds, and literature/Lean queries from a raw theorem
+source refs, primitive seeds, and literature/formal-library queries from a raw theorem
 request. The standalone command accepts the resulting seed or a hand-authored
 route JSON with coverage labels such as `exact_exists`, `wrapper_needed`,
 `bridge_needed`, `source_port_needed`, and `new_theory_needed`. It emits the
@@ -558,7 +558,7 @@ contract without importing this repository. The benchmark-audit command
 checks that route-truth examples have source references, distinct theorem
 families, required/existing/delta primitive consistency, coverage-label
 discipline, held-out/public split metadata, and explicit proof-boundary text.
-The evaluation writes row-level route recall/precision, Lean-delta
+The evaluation writes row-level route recall/precision, formalization-delta
 precision/recall, existing-library reuse precision/recall, coverage-label
 accuracy, two-DAG readiness, selected-primitive alignment coverage,
 feedback-loop readiness, and the proof-boundary check. It writes
@@ -568,9 +568,11 @@ counts for those diagnostics. These scores are
 benchmark evidence about planning quality, not theorem proof evidence.
 
 The ablation study compares the observed planner with counterfactual
-`no_literature_evidence`, `no_lean_grounding`, `no_proof_state_feedback`, and
-`no_route_planner` variants. It is a diagnostic for which signal families matter
-for route recall, Lean-delta recall, reuse, feedback readiness, and
+`no_literature_evidence`, `no_formal_grounding`, `no_proof_state_feedback`, and
+`no_route_planner` variants. `no_formal_grounding` is the prover-neutral
+successor to the legacy `no_lean_grounding` label. It is a diagnostic for which
+signal families matter for route recall, formalization-delta recall, reuse,
+feedback readiness, and
 route-adoption readiness under the current evidence bound; it is not theorem
 proof evidence. `research-system-audit` promotes the evaluation and ablation
 route-adoption counts into its top-level `counts` payload so AI Statistician
@@ -1084,12 +1086,12 @@ The current implementation composes four existing AI Statistician artifacts:
 3. `goal_conditioned_minimal_formalization_plan`
    Narrows global missing theory into theorem-specific selected nodes,
    excluded alternatives, portable work packets, the informal knowledge DAG,
-   the Lean realization DAG, explicit informal-to-realization alignment edges,
+   the formal realization DAG, explicit informal-to-realization alignment edges,
    route revision triggers, and AND/OR route view.
 
 4. `formalization_gap_planner_target_intake`
    Normalizes a raw theorem request into objects, assumptions, procedure,
-   claim, theorem shape, source refs, primitive seeds, and literature/Lean
+   claim, theorem shape, source refs, primitive seeds, and literature/formal-library
    grounding queries. It also emits a standalone planner seed. This is target
    intake only, not route evidence or proof evidence.
 
@@ -1269,13 +1271,14 @@ The current implementation composes four existing AI Statistician artifacts:
    the local corpus has no match. It is route evidence, not proof evidence.
 
 18. `formalization_gap_planner_local_formal_source_adapter`
-   Replaces Lean-library-grounding rows with local declaration-search evidence
-   from the formal-source backend and optional Lean RAG dependency DB, while
+   Replaces formal-library-grounding rows, including legacy
+   `lean_library_grounding` rows, with local declaration-search evidence from
+   the formal-source backend and optional Lean RAG dependency DB, while
    preserving other adapter responses.
 
 19. `formalization_gap_planner_local_proof_state_adapter`
    Replaces proof-state-feedback rows with local Lean diagnostics and residual
-   goals, while preserving merged literature and Lean-grounding responses. It
+   goals, while preserving merged literature and formal-grounding responses. It
    blocks `sorry`/`admit`/`axiom` skeletons, classifies non-Lean skeletons as
    statement-materialization gaps, and remains diagnostic feedback, not proof
    evidence.
@@ -1354,7 +1357,7 @@ The current implementation composes four existing AI Statistician artifacts:
 
 27. `formalization_gap_planner_benchmark`
    Exports reusable route-truth labels for evaluation: required primitives,
-   actual existing reuse, actual Lean delta, coverage classification, source
+   actual existing reuse, actual formalization delta, coverage classification, source
    references, proof-evidence boundaries, and the benchmark route-row JSON
    Schema with schema-valid counts.
 
@@ -1365,7 +1368,7 @@ The current implementation composes four existing AI Statistician artifacts:
    non-proof-evidence boundaries.
 
 29. `formalization_gap_planner_ablation_study`
-   Compares the observed planner with no-literature, no-Lean-grounding,
+   Compares the observed planner with no-literature, no-formal-grounding,
    no-proof-feedback, and no-route-planner counterfactuals. It is planning
    diagnostic evidence only, not theorem proof evidence. It exports
    `formalization_gap_planner_ablation_study_row.schema.json` and the
@@ -1488,7 +1491,7 @@ A publication-quality evaluation should measure:
 
 - route recall and precision against held-out human or kernel-verified route
   truth
-- Lean-delta precision and recall for the selected wrappers, bridges, source
+- formalization-delta precision and recall for the selected wrappers, bridges, source
   ports, and new primitive obligations
 - coverage classification accuracy for `already exists`, `wrapper`, `bridge`,
   `source discovery`, and `new theory` labels
