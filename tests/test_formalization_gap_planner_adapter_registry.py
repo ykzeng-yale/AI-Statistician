@@ -49,6 +49,12 @@ def test_formalization_gap_planner_adapter_registry_exports_contracts() -> None:
     ]
     assert "lean_declaration_hits" in by_id["local_formal_source_index"]["output_contract_fields"]
     assert "prover_diagnostics" in by_id["lean_lsp_mcp"]["output_contract_fields"]
+    assert "revised_formal_realization_dag_nodes" in by_id[
+        "route_revision_overlay"
+    ]["output_contract_fields"]
+    assert "revised_lean_realization_dag_nodes" in by_id[
+        "route_revision_overlay"
+    ]["output_contract_fields"]
     assert "not theorem proof evidence" in payload["proof_evidence_boundary"]
     assert (
         root

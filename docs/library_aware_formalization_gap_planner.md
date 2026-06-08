@@ -589,7 +589,10 @@ adapters may report `NEEDS_INSTALL`, `NEEDS_CREDENTIALS`, or
 evidence, not proof evidence. The command also writes
 `formalization_gap_planner_adapter_registry_row.schema.json` and row
 schema-valid counts so external users can validate the frontier-tool/MCP
-inventory without importing this repository.
+inventory without importing this repository. Route-revision adapters must now
+declare `revised_formal_realization_dag_nodes` in addition to any legacy
+`revised_lean_realization_dag_nodes` alias, so non-Lean prover clients can
+consume the generic DAG contract directly.
 The adapter-registry audit validates that the registry covers the required
 literature, formal-library, proof-state, route-revision, offline-regression,
 and cross-prover reuse surfaces; it also checks response fields, resource URLs,
