@@ -59,6 +59,9 @@ ROUTE_ADOPTION_PENDING_STATUS = "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
 ROUTE_ADOPTION_AWAITING_STATUS = "AWAITING_LLM_ROUTE_PLANNER_RESPONSE"
 ROUTE_ADOPTION_REJECTED_STATUS = "REJECTED_LLM_ROUTE_PLAN"
 LLM_ROUTE_PLANNER_COMPONENT = "formalization_gap_planner_llm_route_planner"
+LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATOR_COMPONENT = (
+    "formalization_gap_planner_llm_route_planner_response_payload_validator"
+)
 PROMPT_ONLY_PROVIDER = "prompt_only"
 DEFAULT_LLM_ROUTE_PLANNER_PROVIDER = "anthropic"
 MINIMAL_DELTA_COST_POLICY_ID = (
@@ -1051,6 +1054,83 @@ def export_formalization_gap_planner_llm_route_planner(
     return payload
 
 
+def validate_formalization_gap_planner_llm_route_planner_response_payloads(
+    response_json: Path,
+    out_dir: Path | None = None,
+) -> dict[str, object]:
+    """Validate raw LLM route-planner payload JSON without route context.
+
+    This is the public, reusable schema-only validation surface for external
+    prover integrations. It accepts the same raw/wrapper/list JSON shapes as
+    the full route planner, but it does not perform request-context grounding,
+    declaration provenance, or minimal-delta semantic audits.
+    """
+
+    errors: list[str] = []
+    response_inputs = _read_response_payload_validation_inputs(response_json, errors)
+    response_payload_schema = llm_route_planner_response_payload_schema()
+    rows: list[dict[str, object]] = []
+    for index, response_input in enumerate(response_inputs):
+        response = response_input["response"]
+        payload = _response_payload(response)
+        row_errors = validate_llm_route_planner_response_payload(
+            payload,
+            response_payload_schema,
+        )
+        rows.append(
+            {
+                "validation_id": (
+                    "formalization_gap_planner_llm_route_planner_response_payload_validation:"
+                    + stable_hash([str(response_json), index, payload])[:20]
+                ),
+                "schema_version": (
+                    FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SCHEMA_VERSION
+                ),
+                "payload_index": index,
+                "input_path": str(response_json),
+                "input_shape": str(response_input.get("input_shape", "")),
+                "response_wrapper_present": bool(
+                    response_input.get("response_wrapper_present", False)
+                ),
+                "request_id": str(response.get("request_id", "")),
+                "route_id": str(response.get("route_id", "")),
+                "payload_schema_id": LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
+                "payload_fingerprint": stable_hash(payload),
+                "n_errors": len(row_errors),
+                "ok": not row_errors,
+                "errors": row_errors,
+                "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            }
+        )
+    n_valid = sum(1 for row in rows if row["ok"])
+    payload: dict[str, object] = {
+        "schema_version": FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SCHEMA_VERSION,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "component_name": LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATOR_COMPONENT,
+        "input_path": str(response_json),
+        "response_payload_schema_id": LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
+        "response_payload_schema": response_payload_schema,
+        "n_payloads": len(rows),
+        "n_valid_payloads": n_valid,
+        "n_invalid_payloads": len(rows) - n_valid,
+        "rows": rows,
+        "all_ok": not errors and bool(rows) and all(bool(row["ok"]) for row in rows),
+        "errors": errors,
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+        "limitations": [
+            "Schema-only payload validation does not prove source grounding.",
+            "Schema-only payload validation does not prove formal-library declaration provenance.",
+            "Schema-only payload validation does not prove target-prover kernel verification.",
+            "Use the full LLM route planner with a request packet for context-grounded validation.",
+        ],
+    }
+    if out_dir is not None:
+        _write_response_payload_validation_outputs(out_dir, payload)
+    return payload
+
+
 def llm_route_planner_request_json_schema() -> dict[str, object]:
     string_array = {"type": "array", "items": {"type": "string"}}
     return {
@@ -1332,11 +1412,14 @@ def validate_llm_route_planner_response_payload(
 ) -> list[str]:
     """Validate the reusable raw LLM route-planner response payload contract."""
 
-    return _validate_with_schema_deep(
+    errors = _validate_with_schema_deep(
         payload,
         schema or llm_route_planner_response_payload_schema(),
         path="response_payload",
     )
+    if bool(payload.get("kernel_verified", False)):
+        errors.append("response_payload cannot claim kernel_verified=true")
+    return sorted(set(errors))
 
 
 def validate_llm_route_planner_row(
@@ -6908,6 +6991,53 @@ def _read_response_json(path: Path, errors: list[str]) -> list[dict[str, Any]]:
     return []
 
 
+def _read_response_payload_validation_inputs(
+    path: Path,
+    errors: list[str],
+) -> list[dict[str, Any]]:
+    payload = _read_json(path, errors)
+    if not payload:
+        return []
+    if isinstance(payload, dict) and isinstance(payload.get("responses"), list):
+        rows: list[dict[str, Any]] = []
+        for index, row in enumerate(payload["responses"]):
+            if not isinstance(row, dict):
+                continue
+            rows.append(
+                _response_payload_validation_input(
+                    row,
+                    input_shape=f"responses[{index}]",
+                )
+            )
+        return rows
+    if isinstance(payload, list):
+        return [
+            _response_payload_validation_input(row, input_shape=f"list[{index}]")
+            for index, row in enumerate(payload)
+            if isinstance(row, dict)
+        ]
+    if isinstance(payload, dict) and any(
+        key in payload for key in ("response_payload", "informal_knowledge_dag_nodes")
+    ):
+        return [_response_payload_validation_input(payload, input_shape="object")]
+    errors.append(f"unsupported LLM response payload validation JSON shape: {path}")
+    return []
+
+
+def _response_payload_validation_input(
+    row: Mapping[str, Any],
+    *,
+    input_shape: str,
+) -> dict[str, Any]:
+    wrapper_present = "response_payload" in row
+    response = dict(row) if wrapper_present else _normalize_response_object(row)
+    return {
+        "response": response,
+        "input_shape": input_shape,
+        "response_wrapper_present": wrapper_present,
+    }
+
+
 def _normalize_response_object(row: Mapping[str, Any]) -> dict[str, Any]:
     if "response_payload" in row:
         normalized = dict(row)
@@ -7266,6 +7396,39 @@ def _write_outputs(out_dir: Path, payload: Mapping[str, object]) -> None:
     )
     (out_dir / "formalization_gap_planner_llm_route_planner.md").write_text(
         _markdown_report(payload),
+        encoding="utf-8",
+    )
+
+
+def _write_response_payload_validation_outputs(
+    out_dir: Path,
+    payload: Mapping[str, object],
+) -> None:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.json"
+    ).write_text(
+        json.dumps(payload, indent=2, default=str),
+        encoding="utf-8",
+    )
+    (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation.jsonl"
+    ).write_text(
+        "\n".join(
+            json.dumps(row, sort_keys=True)
+            for row in payload.get("rows", [])
+            if isinstance(row, dict)
+        )
+        + ("\n" if payload.get("rows") else ""),
+        encoding="utf-8",
+    )
+    (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_response_payload.schema.json"
+    ).write_text(
+        json.dumps(llm_route_planner_response_payload_schema(), indent=2),
         encoding="utf-8",
     )
 

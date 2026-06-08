@@ -13,6 +13,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     PROOF_EVIDENCE_BOUNDARY,
     export_formalization_gap_planner_llm_route_planner,
     llm_route_planner_row_json_schema,
+    validate_formalization_gap_planner_llm_route_planner_response_payloads,
     validate_llm_route_planner_response_payload,
     validate_llm_route_planner_row,
 )
@@ -2102,6 +2103,119 @@ def test_llm_route_planner_rejects_payload_missing_schema_level_cost_graph() -> 
         "response_payload.minimal_delta_plan.and_or_cost_graph required" in error
         for error in row["errors"]
     )
+
+
+def test_llm_route_planner_response_payload_validator_accepts_raw_payload() -> None:
+    root = Path("runs/test_formalization_gap_planner_llm_payload_validate")
+    out_dir = root / "out"
+    response_json = root / "response_payload.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    response_json.write_text(
+        json.dumps(_llm_response_payload(), indent=2),
+        encoding="utf-8",
+    )
+
+    payload = validate_formalization_gap_planner_llm_route_planner_response_payloads(
+        response_json,
+        out_dir,
+    )
+
+    assert payload["all_ok"]
+    assert payload["component_name"] == (
+        "formalization_gap_planner_llm_route_planner_response_payload_validator"
+    )
+    assert payload["response_payload_schema_id"] == (
+        LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID
+    )
+    assert payload["n_payloads"] == 1
+    assert payload["n_valid_payloads"] == 1
+    assert payload["n_invalid_payloads"] == 0
+    row = payload["rows"][0]
+    assert row["ok"]
+    assert not row["response_wrapper_present"]
+    assert row["payload_schema_id"] == LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID
+    assert (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.json"
+    ).exists()
+    assert (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation.jsonl"
+    ).exists()
+
+
+def test_llm_route_planner_response_payload_validator_rejects_wrapper_payload() -> None:
+    root = Path("runs/test_formalization_gap_planner_llm_payload_validate_bad")
+    out_dir = root / "out"
+    response_json = root / "response_payload.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    response = _llm_response_payload()
+    minimal_delta = response["minimal_delta_plan"]
+    assert isinstance(minimal_delta, dict)
+    minimal_delta.pop("and_or_cost_graph")
+    response_json.write_text(
+        json.dumps(
+            {
+                "request_id": "request:fixture",
+                "route_id": "route:fixture",
+                "response_payload": response,
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = validate_formalization_gap_planner_llm_route_planner_response_payloads(
+        response_json,
+        out_dir,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_payloads"] == 1
+    assert payload["n_valid_payloads"] == 0
+    assert payload["n_invalid_payloads"] == 1
+    row = payload["rows"][0]
+    assert row["response_wrapper_present"]
+    assert row["request_id"] == "request:fixture"
+    assert row["route_id"] == "route:fixture"
+    assert row["errors"] == [
+        "response_payload.minimal_delta_plan.and_or_cost_graph required"
+    ]
+
+
+def test_llm_route_planner_response_payload_validator_cli() -> None:
+    root = Path("runs/test_formalization_gap_planner_llm_payload_validate_cli")
+    out_dir = root / "out"
+    response_json = root / "response_payload.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    response_json.write_text(
+        json.dumps({"responses": [_llm_response_payload()]}, indent=2),
+        encoding="utf-8",
+    )
+
+    code = main(
+        [
+            "formalization-gap-planner-llm-route-planner-response-payload-validate",
+            "--input",
+            str(response_json),
+            "--out",
+            str(out_dir),
+        ]
+    )
+
+    assert code == 0
+    manifest = json.loads(
+        (
+            out_dir
+            / "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert manifest["all_ok"]
+    assert manifest["n_valid_payloads"] == 1
 
 
 def test_llm_route_planner_marks_clean_accepted_route_adoption_ready() -> None:

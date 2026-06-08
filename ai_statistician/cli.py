@@ -111,6 +111,7 @@ from .formalization_gap_planner_library_coverage_map import (
 )
 from .formalization_gap_planner_llm_route_planner import (
     export_formalization_gap_planner_llm_route_planner,
+    validate_formalization_gap_planner_llm_route_planner_response_payloads,
 )
 from .formalization_gap_planner_primitive_action_queue import (
     export_formalization_gap_planner_primitive_action_queue,
@@ -2437,6 +2438,30 @@ def _formalization_gap_planner_llm_route_planner(args: argparse.Namespace) -> in
     print(
         f"\nLLM route planner manifest written to "
         f"{(Path(args.out) / 'formalization_gap_planner_llm_route_planner_manifest.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formalization_gap_planner_llm_route_planner_response_payload_validate(
+    args: argparse.Namespace,
+) -> int:
+    payload = validate_formalization_gap_planner_llm_route_planner_response_payloads(
+        Path(args.input),
+        Path(args.out),
+    )
+    print(
+        "\nAI Statistical Theory Lab Formalization Gap Planner "
+        "LLM Response Payload Validator"
+    )
+    print("=" * 78)
+    print(
+        f"payloads={payload['n_valid_payloads']}/{payload['n_payloads']} "
+        f"invalid={payload['n_invalid_payloads']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nLLM response-payload validation manifest written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.json').resolve()}"
     )
     return 0 if payload["all_ok"] else 1
 
@@ -7590,6 +7615,32 @@ def build_parser() -> argparse.ArgumentParser:
     )
     formalization_gap_planner_llm_route_planner.set_defaults(
         func=_formalization_gap_planner_llm_route_planner
+    )
+
+    formalization_gap_planner_llm_route_planner_response_payload_validate = (
+        sub.add_parser(
+            "formalization-gap-planner-llm-route-planner-response-payload-validate",
+            help=(
+                "validate raw LLM route-planner response payload JSON against "
+                "the reusable public payload schema"
+            ),
+        )
+    )
+    formalization_gap_planner_llm_route_planner_response_payload_validate.add_argument(
+        "--input",
+        required=True,
+        help="raw payload JSON, wrapper response JSON, list, or responses bundle",
+    )
+    formalization_gap_planner_llm_route_planner_response_payload_validate.add_argument(
+        "--out",
+        default=(
+            "runs/"
+            "formalization_gap_planner_llm_route_planner_response_payload_validate"
+        ),
+        help="response-payload validation output directory",
+    )
+    formalization_gap_planner_llm_route_planner_response_payload_validate.set_defaults(
+        func=_formalization_gap_planner_llm_route_planner_response_payload_validate
     )
 
     formalization_gap_planner_portable_plan_audit = sub.add_parser(

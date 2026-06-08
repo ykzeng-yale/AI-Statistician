@@ -63,6 +63,10 @@ python3 -m ai_statistician.cli formalization-gap-planner-llm-route-planner \
   --formalization-gap-planner-component-resource-registry-dir runs/current/formalization_gap_planner_component_resource_registry \
   --out runs/current/formalization_gap_planner_llm_route_planner
 
+python3 -m ai_statistician.cli formalization-gap-planner-llm-route-planner-response-payload-validate \
+  --input reviewed_llm_route_payload.json \
+  --out runs/current/formalization_gap_planner_llm_route_payload_validate
+
 python3 -m ai_statistician.cli formalization-gap-planner-standalone-plan \
   --input runs/current/formalization_gap_planner_llm_route_planner/formalization_gap_planner_llm_route_planner_standalone_seed.json \
   --out runs/current/formalization_gap_planner_standalone_plan
@@ -103,7 +107,14 @@ stages Anthropic/Claude request packets and prompts without calling a model.
 `prompt_only` remains an explicit no-provider mode. With a reviewed
 `--response-json` or `--static-response-file`, it validates the LLM route
 proposal and emits a revised standalone seed. With `--invoke-provider`, it can
-call the configured generator backend. The public planner path records
+call the configured generator backend. For external teams that only need to
+preflight JSON before handing it to the full route planner, the
+`formalization-gap-planner-llm-route-planner-response-payload-validate` command
+accepts a raw response payload, wrapper response, list, or `responses` bundle
+and emits a schema-only validation manifest plus JSONL rows. That preflight
+checks the reusable payload contract and proof-evidence boundary, but it does
+not prove source grounding, declaration provenance, minimality, or kernel
+verification without the full request packet. The public planner path records
 `*_provider_execution_mode` and live-call counters so staged packets are
 distinguishable from paid provider calls. For live
 AI Statistician development, the default LLM runtime is Anthropic Claude API:
