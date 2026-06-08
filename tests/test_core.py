@@ -6312,7 +6312,7 @@ class SystemTests(unittest.TestCase):
         self.assertIn("S7_feedback_loop_repair_with_seeded_failures", payload["recommended_next_gate_stack"])
 
         doc = Path("docs/evaluation_benchmark_strategy.md").read_text(encoding="utf-8")
-        self.assertIn("`proofs_kernel_verified=109/109`", doc)
+        self.assertIn("`proofs_kernel_verified=122/122`", doc)
         self.assertIn("expected-result coverage about 83.9%", doc)
         self.assertIn("34 frontier-evaluation triage items", doc)
         self.assertIn("bounded adaptive MC inside the benchmark", doc)
