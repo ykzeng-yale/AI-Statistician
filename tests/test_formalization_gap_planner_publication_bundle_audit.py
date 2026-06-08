@@ -3549,6 +3549,96 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         encoding="utf-8",
     )
 
+    evaluation_rows_path = (
+        bundle_dir
+        / "artifacts"
+        / "formalization_gap_planner_evaluation"
+        / "formalization_gap_planner_evaluation.jsonl"
+    )
+    evaluation_rows_payload = [
+        json.loads(line)
+        for line in evaluation_rows_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    corrupted_route_adoption_rows = json.loads(json.dumps(evaluation_rows_payload))
+    corrupted_route_adoption_rows[0][
+        "llm_route_planner_route_adoption_blockers"
+    ] = [
+        "search_requests_pending_evidence",
+        "invented_route_adoption_blocker",
+    ]
+    corrupted_route_adoption_manifest = json.loads(
+        json.dumps(evaluation_manifest_payload)
+    )
+    corrupted_route_adoption_manifest["llm_route_adoption_blockers"] = [
+        "search_requests_pending_evidence",
+        "invented_route_adoption_blocker",
+    ]
+    corrupted_route_adoption_manifest["rows"] = corrupted_route_adoption_rows
+    evaluation_rows_path.write_text(
+        "\n".join(
+            json.dumps(row, sort_keys=True)
+            for row in corrupted_route_adoption_rows
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    evaluation_manifest_path.write_text(
+        json.dumps(corrupted_route_adoption_manifest, indent=2),
+        encoding="utf-8",
+    )
+    rejected_route_adoption_blocker_payload = (
+        audit_formalization_gap_planner_publication_bundle(
+            bundle_dir,
+            root / "audit_rejects_unknown_route_adoption_blocker",
+        )
+    )
+    route_adoption_blocker_failed_names = {
+        row["check_name"]
+        for row in rejected_route_adoption_blocker_payload["checks"]
+        if not row["ok"]
+    }
+    route_adoption_blocker_row_check = next(
+        row
+        for row in rejected_route_adoption_blocker_payload["checks"]
+        if row["check_name"] == "optional_evaluation_row_0_route_adoption_fields"
+    )
+    assert not rejected_route_adoption_blocker_payload["all_ok"]
+    assert (
+        "optional_evaluation_row_0_route_adoption_fields"
+        in route_adoption_blocker_failed_names
+    )
+    assert (
+        "optional_evaluation_route_adoption_manifest"
+        not in route_adoption_blocker_failed_names
+    )
+    assert (
+        rejected_route_adoption_blocker_payload[
+            "n_optional_evaluation_route_adoption_row_valid"
+        ]
+        == 0
+    )
+    assert (
+        rejected_route_adoption_blocker_payload[
+            "n_optional_evaluation_route_adoption_manifest_valid"
+        ]
+        == 1
+    )
+    assert any(
+        "unknown llm route-adoption blockers: invented_route_adoption_blocker"
+        in error
+        for error in route_adoption_blocker_row_check["errors"]
+    )
+    evaluation_rows_path.write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in evaluation_rows_payload)
+        + "\n",
+        encoding="utf-8",
+    )
+    evaluation_manifest_path.write_text(
+        json.dumps(evaluation_manifest_payload, indent=2),
+        encoding="utf-8",
+    )
+
     seed_path = (
         bundle_dir
         / "artifacts"

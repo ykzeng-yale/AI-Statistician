@@ -235,7 +235,10 @@ planner next actions, or uncertainty review. Only
 handoff blockers under the current evidence bound. The standalone seed and each
 standalone-plan `standalone_input_trace` preserve the same fields, so a public
 consumer can filter adoption-ready route plans without reopening raw LLM
-responses.
+responses. Blocker labels are part of the published
+`formalization_gap_planner_route_adoption_blocker_taxonomy:1` vocabulary, and
+the publication-bundle audit rejects evaluation rows or LLM seed metadata that
+invent unregistered blocker strings.
 The response contract also rejects target-prover drift: any explicit
 `target_prover_family` in the response payload, standalone route,
 `replan_metadata`, or formal-realization nodes must match the request target
@@ -1070,7 +1073,9 @@ The current implementation composes four existing AI Statistician artifacts:
    blocker counts that explain why an accepted LLM route still needs another
    literature/library/prover-feedback pass. The publication-bundle audit
    recomputes those readiness aggregates from packaged evaluation JSONL rows and
-   rejects bundles whose evaluation manifest silently drops or rewrites them.
+   rejects bundles whose evaluation manifest silently drops or rewrites them, or
+   whose row/seed blocker labels fall outside the published route-adoption
+   blocker taxonomy.
    Accepted responses must also satisfy primitive-set coherence: selected
    primitives must appear in the standalone route and formal-realization DAG,
    and wrapper/bridge/source-port/new-theory delta primitives must have

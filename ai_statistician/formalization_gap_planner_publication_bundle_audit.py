@@ -58,6 +58,11 @@ from .formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID,
     LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
     MINIMAL_DELTA_COST_POLICY_ID,
+    ROUTE_ADOPTION_AWAITING_STATUS,
+    ROUTE_ADOPTION_BLOCKER_VALUES,
+    ROUTE_ADOPTION_PENDING_STATUS,
+    ROUTE_ADOPTION_READY_STATUS,
+    ROUTE_ADOPTION_REJECTED_STATUS,
     validate_llm_route_planner_request,
     validate_llm_route_planner_response_payload_validation_manifest,
     validate_llm_route_planner_response_payload_validation_row,
@@ -7120,6 +7125,19 @@ def _llm_seed_route_adoption_readiness_errors(
     metadata_status = str(
         metadata.get("llm_route_planner_route_adoption_status", "")
     ).strip()
+    valid_statuses = {
+        ROUTE_ADOPTION_READY_STATUS,
+        ROUTE_ADOPTION_PENDING_STATUS,
+        ROUTE_ADOPTION_AWAITING_STATUS,
+        ROUTE_ADOPTION_REJECTED_STATUS,
+    }
+    for label, status in (
+        ("row", row_status),
+        ("seed route", route_status),
+        ("seed metadata", metadata_status),
+    ):
+        if status and status not in valid_statuses:
+            errors.append(f"{label} unknown llm_route_planner_route_adoption_status")
     if row_status != route_status:
         errors.append("seed route llm_route_planner_route_adoption_status mismatch")
     if row_status != metadata_status:
@@ -7133,6 +7151,18 @@ def _llm_seed_route_adoption_readiness_errors(
     metadata_blockers = _str_tuple(
         metadata.get("llm_route_planner_route_adoption_blockers", [])
     )
+    valid_blockers = set(ROUTE_ADOPTION_BLOCKER_VALUES)
+    for label, blockers in (
+        ("row", row_blockers),
+        ("seed route", route_blockers),
+        ("seed metadata", metadata_blockers),
+    ):
+        unknown_blockers = sorted(set(blockers) - valid_blockers)
+        if unknown_blockers:
+            errors.append(
+                f"{label} unknown llm_route_planner_route_adoption_blockers: "
+                + ", ".join(unknown_blockers)
+            )
     if row_blockers != route_blockers:
         errors.append("seed route llm_route_planner_route_adoption_blockers mismatch")
     if row_blockers != metadata_blockers:
@@ -11152,18 +11182,23 @@ def _evaluation_route_adoption_row_errors(
             errors.append(f"{blockers_field} is not an array")
         blockers = _str_tuple(blockers_value if blockers_value is not None else [])
     valid_statuses = {
-        "READY_FOR_STANDALONE_REPLAY",
-        "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION",
-        "AWAITING_LLM_ROUTE_PLANNER_RESPONSE",
-        "REJECTED_LLM_ROUTE_PLAN",
+        ROUTE_ADOPTION_READY_STATUS,
+        ROUTE_ADOPTION_PENDING_STATUS,
+        ROUTE_ADOPTION_AWAITING_STATUS,
+        ROUTE_ADOPTION_REJECTED_STATUS,
     }
     if status and status not in valid_statuses:
         errors.append(f"unknown llm route-adoption status: {status}")
+    unknown_blockers = sorted(set(blockers) - set(ROUTE_ADOPTION_BLOCKER_VALUES))
+    if unknown_blockers:
+        errors.append(
+            "unknown llm route-adoption blockers: " + ", ".join(unknown_blockers)
+        )
     if bool(row.get("llm_route_planner_trace_present", False)) and not status:
         errors.append("LLM route-planner trace is present but route-adoption status is empty")
-    if status == "READY_FOR_STANDALONE_REPLAY" and blockers:
+    if status == ROUTE_ADOPTION_READY_STATUS and blockers:
         errors.append("ready route-adoption status must not carry blockers")
-    if status == "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION" and not blockers:
+    if status == ROUTE_ADOPTION_PENDING_STATUS and not blockers:
         errors.append("pending route-adoption status must explain at least one blocker")
     return tuple(errors)
 

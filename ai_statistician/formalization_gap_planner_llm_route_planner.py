@@ -66,6 +66,53 @@ ROUTE_ADOPTION_READY_STATUS = "READY_FOR_STANDALONE_REPLAY"
 ROUTE_ADOPTION_PENDING_STATUS = "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
 ROUTE_ADOPTION_AWAITING_STATUS = "AWAITING_LLM_ROUTE_PLANNER_RESPONSE"
 ROUTE_ADOPTION_REJECTED_STATUS = "REJECTED_LLM_ROUTE_PLAN"
+ROUTE_ADOPTION_STATUSES = (
+    ROUTE_ADOPTION_READY_STATUS,
+    ROUTE_ADOPTION_PENDING_STATUS,
+    ROUTE_ADOPTION_AWAITING_STATUS,
+    ROUTE_ADOPTION_REJECTED_STATUS,
+)
+ROUTE_ADOPTION_BLOCKER_RESPONSE_NOT_ACCEPTED = "response_not_accepted"
+ROUTE_ADOPTION_BLOCKER_RESPONSE_MISSING = "llm_route_planner_response_missing"
+ROUTE_ADOPTION_BLOCKER_SEARCH_REQUESTS = "search_requests_pending_evidence"
+ROUTE_ADOPTION_BLOCKER_PLANNER_NEXT_ACTIONS = (
+    "planner_next_actions_pending_evidence"
+)
+ROUTE_ADOPTION_BLOCKER_UNCERTAINTY_FLAGS = "uncertainty_flags_require_review"
+ROUTE_ADOPTION_BLOCKER_SEMANTIC_ALIGNMENT_RISKS = (
+    "semantic_alignment_risks_require_review"
+)
+ROUTE_ADOPTION_BLOCKER_RESIDUAL_INTERPRETATIONS = (
+    "residual_interpretations_require_route_replay"
+)
+ROUTE_ADOPTION_BLOCKER_FEEDBACK_ACTIONS = (
+    "feedback_summary_actions_pending_resolution"
+)
+ROUTE_ADOPTION_BLOCKER_RESOURCE_PLAYBOOK_REDISPATCH = (
+    "resource_response_playbook_redispatch_pending"
+)
+ROUTE_ADOPTION_BLOCKER_RESOURCE_REQUEST_QUEUE = (
+    "resource_request_queue_pending_response"
+)
+ROUTE_ADOPTION_BLOCKER_FEEDBACK_REPLAN = "feedback_loop_replan_required"
+ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE = "realization_coverage_incomplete"
+ROUTE_ADOPTION_BLOCKER_VALUES = (
+    ROUTE_ADOPTION_BLOCKER_RESPONSE_NOT_ACCEPTED,
+    ROUTE_ADOPTION_BLOCKER_RESPONSE_MISSING,
+    ROUTE_ADOPTION_BLOCKER_SEARCH_REQUESTS,
+    ROUTE_ADOPTION_BLOCKER_PLANNER_NEXT_ACTIONS,
+    ROUTE_ADOPTION_BLOCKER_UNCERTAINTY_FLAGS,
+    ROUTE_ADOPTION_BLOCKER_SEMANTIC_ALIGNMENT_RISKS,
+    ROUTE_ADOPTION_BLOCKER_RESIDUAL_INTERPRETATIONS,
+    ROUTE_ADOPTION_BLOCKER_FEEDBACK_ACTIONS,
+    ROUTE_ADOPTION_BLOCKER_RESOURCE_PLAYBOOK_REDISPATCH,
+    ROUTE_ADOPTION_BLOCKER_RESOURCE_REQUEST_QUEUE,
+    ROUTE_ADOPTION_BLOCKER_FEEDBACK_REPLAN,
+    ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE,
+)
+ROUTE_ADOPTION_BLOCKER_TAXONOMY_ID = (
+    "formalization_gap_planner_route_adoption_blocker_taxonomy:1"
+)
 LLM_ROUTE_PLANNER_COMPONENT = "formalization_gap_planner_llm_route_planner"
 LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATOR_COMPONENT = (
     "formalization_gap_planner_llm_route_planner_response_payload_validator"
@@ -956,54 +1003,59 @@ def export_formalization_gap_planner_llm_route_planner(
             ROUTE_ADOPTION_REJECTED_STATUS,
             0,
         ),
+        "route_adoption_blocker_taxonomy_id": ROUTE_ADOPTION_BLOCKER_TAXONOMY_ID,
+        "route_adoption_blocker_values": list(ROUTE_ADOPTION_BLOCKER_VALUES),
         "by_route_adoption_status": dict(sorted(by_route_adoption_status.items())),
         "n_route_adoption_pending_search_request_blockers": sum(
             1
             for row in rows
-            if "search_requests_pending_evidence" in row.route_adoption_blockers
+            if ROUTE_ADOPTION_BLOCKER_SEARCH_REQUESTS in row.route_adoption_blockers
         ),
         "n_route_adoption_pending_planner_next_action_blockers": sum(
             1
             for row in rows
-            if "planner_next_actions_pending_evidence" in row.route_adoption_blockers
+            if ROUTE_ADOPTION_BLOCKER_PLANNER_NEXT_ACTIONS
+            in row.route_adoption_blockers
         ),
         "n_route_adoption_pending_uncertainty_blockers": sum(
             1
             for row in rows
-            if "uncertainty_flags_require_review" in row.route_adoption_blockers
+            if ROUTE_ADOPTION_BLOCKER_UNCERTAINTY_FLAGS
+            in row.route_adoption_blockers
         ),
         "n_route_adoption_pending_residual_repair_blockers": sum(
             1
             for row in rows
-            if "residual_interpretations_require_route_replay"
+            if ROUTE_ADOPTION_BLOCKER_RESIDUAL_INTERPRETATIONS
             in row.route_adoption_blockers
         ),
         "n_route_adoption_pending_feedback_action_blockers": sum(
             1
             for row in rows
-            if "feedback_summary_actions_pending_resolution"
-            in row.route_adoption_blockers
+            if ROUTE_ADOPTION_BLOCKER_FEEDBACK_ACTIONS in row.route_adoption_blockers
         ),
         "n_route_adoption_pending_resource_playbook_redispatch_blockers": sum(
             1
             for row in rows
-            if "resource_response_playbook_redispatch_pending"
+            if ROUTE_ADOPTION_BLOCKER_RESOURCE_PLAYBOOK_REDISPATCH
             in row.route_adoption_blockers
         ),
         "n_route_adoption_pending_resource_request_queue_blockers": sum(
             1
             for row in rows
-            if "resource_request_queue_pending_response" in row.route_adoption_blockers
+            if ROUTE_ADOPTION_BLOCKER_RESOURCE_REQUEST_QUEUE
+            in row.route_adoption_blockers
         ),
         "n_route_adoption_pending_feedback_replan_blockers": sum(
             1
             for row in rows
-            if "feedback_loop_replan_required" in row.route_adoption_blockers
+            if ROUTE_ADOPTION_BLOCKER_FEEDBACK_REPLAN in row.route_adoption_blockers
         ),
         "n_route_adoption_pending_realization_coverage_blockers": sum(
             1
             for row in rows
-            if "realization_coverage_incomplete" in row.route_adoption_blockers
+            if ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE
+            in row.route_adoption_blockers
         ),
         "n_rejected": sum(
             count
@@ -1384,8 +1436,17 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
             "repair_error_history": object_array,
             "generation_errors": string_array,
             "acceptance_status": {"type": "string", "minLength": 1},
-            "route_adoption_status": {"type": "string", "minLength": 1},
-            "route_adoption_blockers": string_array,
+            "route_adoption_status": {
+                "type": "string",
+                "enum": list(ROUTE_ADOPTION_STATUSES),
+            },
+            "route_adoption_blockers": {
+                "type": "array",
+                "items": {
+                    "type": "string",
+                    "enum": list(ROUTE_ADOPTION_BLOCKER_VALUES),
+                },
+            },
             "proof_evidence_status": {"type": "string", "const": PROOF_EVIDENCE_STATUS},
             "proof_evidence_boundary": {
                 "type": "string",
@@ -2784,43 +2845,46 @@ def _route_adoption_readiness(
     feedback_summary: Mapping[str, object],
 ) -> tuple[str, tuple[str, ...]]:
     if provider_failure or (response_present and not response_contract_ok):
-        return (ROUTE_ADOPTION_REJECTED_STATUS, ("response_not_accepted",))
+        return (
+            ROUTE_ADOPTION_REJECTED_STATUS,
+            (ROUTE_ADOPTION_BLOCKER_RESPONSE_NOT_ACCEPTED,),
+        )
     if not response_present:
         return (
             ROUTE_ADOPTION_AWAITING_STATUS,
-            ("llm_route_planner_response_missing",),
+            (ROUTE_ADOPTION_BLOCKER_RESPONSE_MISSING,),
         )
 
     blockers: list[str] = []
     if search_requests:
-        blockers.append("search_requests_pending_evidence")
+        blockers.append(ROUTE_ADOPTION_BLOCKER_SEARCH_REQUESTS)
     if planner_next_actions:
-        blockers.append("planner_next_actions_pending_evidence")
+        blockers.append(ROUTE_ADOPTION_BLOCKER_PLANNER_NEXT_ACTIONS)
     if uncertainty_flags:
-        blockers.append("uncertainty_flags_require_review")
+        blockers.append(ROUTE_ADOPTION_BLOCKER_UNCERTAINTY_FLAGS)
     if semantic_alignment_risks:
-        blockers.append("semantic_alignment_risks_require_review")
+        blockers.append(ROUTE_ADOPTION_BLOCKER_SEMANTIC_ALIGNMENT_RISKS)
     if residual_interpretations:
-        blockers.append("residual_interpretations_require_route_replay")
+        blockers.append(ROUTE_ADOPTION_BLOCKER_RESIDUAL_INTERPRETATIONS)
     feedback_actions = _dict_tuple(feedback_summary.get("recommended_next_actions", []))
     if feedback_actions:
-        blockers.append("feedback_summary_actions_pending_resolution")
+        blockers.append(ROUTE_ADOPTION_BLOCKER_FEEDBACK_ACTIONS)
     if any(
         str(action.get("action", "")).strip()
         == "redispatch_resource_response_with_request_playbook"
         for action in feedback_actions
     ):
-        blockers.append("resource_response_playbook_redispatch_pending")
+        blockers.append(ROUTE_ADOPTION_BLOCKER_RESOURCE_PLAYBOOK_REDISPATCH)
     if any(
         str(action.get("source", "")).strip() == "resource_request_queue"
         for action in feedback_actions
     ):
-        blockers.append("resource_request_queue_pending_response")
+        blockers.append(ROUTE_ADOPTION_BLOCKER_RESOURCE_REQUEST_QUEUE)
     if _truthy(feedback_summary.get("replan_required")):
-        blockers.append("feedback_loop_replan_required")
+        blockers.append(ROUTE_ADOPTION_BLOCKER_FEEDBACK_REPLAN)
     realization_coverage = _dict_value(feedback_summary, "realization_coverage")
     if realization_coverage.get("complete") is False:
-        blockers.append("realization_coverage_incomplete")
+        blockers.append(ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE)
     blockers = list(dict.fromkeys(blockers))
     if blockers:
         return (ROUTE_ADOPTION_PENDING_STATUS, tuple(blockers))

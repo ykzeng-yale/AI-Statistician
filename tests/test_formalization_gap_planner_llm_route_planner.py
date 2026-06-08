@@ -2134,6 +2134,18 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert payload["n_route_adoption_pending_search_request_blockers"] == 1
     assert payload["n_route_adoption_pending_planner_next_action_blockers"] == 1
     assert payload["n_route_adoption_pending_uncertainty_blockers"] == 1
+    assert payload["route_adoption_blocker_taxonomy_id"] == (
+        "formalization_gap_planner_route_adoption_blocker_taxonomy:1"
+    )
+    assert set(payload["route_adoption_blocker_values"]) >= {
+        "search_requests_pending_evidence",
+        "planner_next_actions_pending_evidence",
+        "uncertainty_flags_require_review",
+        "semantic_alignment_risks_require_review",
+        "feedback_summary_actions_pending_resolution",
+        "resource_request_queue_pending_response",
+        "realization_coverage_incomplete",
+    }
     assert payload["by_route_adoption_status"] == {
         "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
     }
@@ -2172,6 +2184,9 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert row_schema["properties"]["realization_coverage_witness"] == {
         "$ref": "#/$defs/realization_coverage_witness"
     }
+    assert set(
+        row_schema["properties"]["route_adoption_blockers"]["items"]["enum"]
+    ) == set(payload["route_adoption_blocker_values"])
     witness_schema = row_schema["$defs"]["realization_coverage_witness"]
     assert "selected_primitives" in witness_schema["required"]
     assert "delta_primitives_missing_route_alignment_edge" in witness_schema["required"]
