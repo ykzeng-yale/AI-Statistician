@@ -4902,6 +4902,17 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     )
 
     assert audit_payload["all_ok"]
+    assert any(
+        row["check_name"] == "optional_llm_route_planner_response_payload_schema_id"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "optional_feedback_llm_route_planner_response_payload_schema_id"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
     assert audit_payload["n_optional_llm_route_planner_seed_provenance_checked"] == 1
     assert audit_payload["n_optional_llm_route_planner_seed_provenance_valid"] == 1
     assert (

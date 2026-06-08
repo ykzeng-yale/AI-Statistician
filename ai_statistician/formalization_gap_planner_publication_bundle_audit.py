@@ -51,6 +51,7 @@ from .formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_PLANNER_NEXT_ACTION_HOOK_ALIASES,
     LLM_ROUTE_PLANNER_SEARCH_REQUEST_KIND_ALIASES,
     LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID,
+    LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID,
     LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
     MINIMAL_DELTA_COST_POLICY_ID,
@@ -166,6 +167,7 @@ REQUIRED_CORE_ARTIFACTS = (
     "source_grounding_row_schema",
     "llm_route_planner_request_schema",
     "llm_route_planner_response_schema",
+    "llm_route_planner_response_payload_schema",
     "llm_route_planner_row_schema",
     "route_revision_overlay_row_schema",
     "route_stability_audit_row_schema",
@@ -1914,6 +1916,11 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
         / "contract"
         / "formalization_gap_planner_llm_route_planner_response.schema.json"
     )
+    llm_route_planner_response_payload_schema_path = (
+        bundle_dir
+        / "contract"
+        / "formalization_gap_planner_llm_route_planner_response_payload.schema.json"
+    )
     llm_route_planner_row_schema_path = (
         bundle_dir
         / "contract"
@@ -2053,6 +2060,9 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
     )
     llm_route_planner_response_schema = _read_json_no_error(
         llm_route_planner_response_schema_path
+    )
+    llm_route_planner_response_payload_schema = _read_json_no_error(
+        llm_route_planner_response_payload_schema_path
     )
     llm_route_planner_row_schema = _read_json_no_error(
         llm_route_planner_row_schema_path
@@ -2201,6 +2211,7 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
                 "target_intake_row_schema",
                 "llm_route_planner_request_schema",
                 "llm_route_planner_response_schema",
+                "llm_route_planner_response_payload_schema",
                 "llm_route_planner_row_schema",
                 "portable_plan_row_schema",
             }.issubset(schema_catalog_entry_names),
@@ -2767,6 +2778,21 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
             str(llm_route_planner_response_schema.get("$id", "")),
             llm_route_planner_response_schema.get("$id")
             == LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID,
+        ),
+        _check(
+            "llm_route_planner_response_payload_schema_file",
+            "contract",
+            "LLM route-planner response-payload schema exists",
+            str(llm_route_planner_response_payload_schema_path.exists()),
+            llm_route_planner_response_payload_schema_path.exists(),
+        ),
+        _check(
+            "llm_route_planner_response_payload_schema_id",
+            "contract",
+            LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
+            str(llm_route_planner_response_payload_schema.get("$id", "")),
+            llm_route_planner_response_payload_schema.get("$id")
+            == LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
         ),
         _check(
             "llm_route_planner_response_schema_rejects_kernel_claim",
@@ -4430,6 +4456,10 @@ def _llm_route_planner_optional_checks(
     response_schema_path = (
         artifact_dir / "formalization_gap_planner_llm_route_planner_response.schema.json"
     )
+    response_payload_schema_path = (
+        artifact_dir
+        / "formalization_gap_planner_llm_route_planner_response_payload.schema.json"
+    )
     row_schema_path = (
         artifact_dir / "formalization_gap_planner_llm_route_planner_row.schema.json"
     )
@@ -4440,6 +4470,7 @@ def _llm_route_planner_optional_checks(
     manifest = _read_json_no_error(manifest_path)
     request_schema = _read_json_no_error(request_schema_path)
     response_schema = _read_json_no_error(response_schema_path)
+    response_payload_schema = _read_json_no_error(response_payload_schema_path)
     row_schema = _read_json_no_error(row_schema_path)
     seed_payload = _read_json_no_error(standalone_seed_path)
     requests, request_errors = _read_jsonl_dict_rows_no_error(requests_jsonl_path)
@@ -4496,6 +4527,21 @@ def _llm_route_planner_optional_checks(
             LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID,
             str(response_schema.get("$id", "")),
             response_schema.get("$id") == LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID,
+        ),
+        _check(
+            f"{check_prefix}_response_payload_schema_file",
+            "optional_artifacts",
+            "LLM route-planner response-payload schema exists",
+            str(response_payload_schema_path.exists()),
+            response_payload_schema_path.exists(),
+        ),
+        _check(
+            f"{check_prefix}_response_payload_schema_id",
+            "optional_artifacts",
+            LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
+            str(response_payload_schema.get("$id", "")),
+            response_payload_schema.get("$id")
+            == LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
         ),
         _check(
             f"{check_prefix}_response_schema_rejects_kernel_claim",

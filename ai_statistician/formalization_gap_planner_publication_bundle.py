@@ -57,9 +57,11 @@ from .formalization_gap_planner_library_coverage_map import (
 )
 from .formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID,
+    LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID,
     LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
     llm_route_planner_request_json_schema,
+    llm_route_planner_response_payload_schema,
     llm_route_planner_response_json_schema,
     llm_route_planner_row_json_schema,
 )
@@ -147,6 +149,7 @@ OPTIONAL_ARTIFACT_FILES = {
         "formalization_gap_planner_llm_route_planner.jsonl",
         "formalization_gap_planner_llm_route_planner_request.schema.json",
         "formalization_gap_planner_llm_route_planner_response.schema.json",
+        "formalization_gap_planner_llm_route_planner_response_payload.schema.json",
         "formalization_gap_planner_llm_route_planner_row.schema.json",
         "formalization_gap_planner_llm_route_planner_standalone_seed.json",
         "formalization_gap_planner_llm_route_planner_standalone_seed.schema.json",
@@ -158,6 +161,7 @@ OPTIONAL_ARTIFACT_FILES = {
         "formalization_gap_planner_llm_route_planner.jsonl",
         "formalization_gap_planner_llm_route_planner_request.schema.json",
         "formalization_gap_planner_llm_route_planner_response.schema.json",
+        "formalization_gap_planner_llm_route_planner_response_payload.schema.json",
         "formalization_gap_planner_llm_route_planner_row.schema.json",
         "formalization_gap_planner_llm_route_planner_standalone_seed.json",
         "formalization_gap_planner_llm_route_planner_standalone_seed.schema.json",
@@ -427,6 +431,9 @@ def export_formalization_gap_planner_publication_bundle(
     library_coverage_map_row_schema = library_coverage_map_row_json_schema()
     llm_route_planner_request_schema = llm_route_planner_request_json_schema()
     llm_route_planner_response_schema = llm_route_planner_response_json_schema()
+    llm_route_planner_response_payload_schema_payload = (
+        llm_route_planner_response_payload_schema()
+    )
     llm_route_planner_row_schema = llm_route_planner_row_json_schema()
     primitive_action_queue_row_schema = primitive_action_queue_row_json_schema()
     action_resource_plan_row_schema = action_resource_plan_row_json_schema()
@@ -508,6 +515,10 @@ def export_formalization_gap_planner_publication_bundle(
     llm_route_planner_response_schema_path = (
         contract_dir
         / "formalization_gap_planner_llm_route_planner_response.schema.json"
+    )
+    llm_route_planner_response_payload_schema_path = (
+        contract_dir
+        / "formalization_gap_planner_llm_route_planner_response_payload.schema.json"
     )
     llm_route_planner_row_schema_path = (
         contract_dir
@@ -665,6 +676,10 @@ def export_formalization_gap_planner_publication_bundle(
     )
     llm_route_planner_response_schema_path.write_text(
         json.dumps(llm_route_planner_response_schema, indent=2),
+        encoding="utf-8",
+    )
+    llm_route_planner_response_payload_schema_path.write_text(
+        json.dumps(llm_route_planner_response_payload_schema_payload, indent=2),
         encoding="utf-8",
     )
     llm_route_planner_row_schema_path.write_text(
@@ -1125,6 +1140,13 @@ def export_formalization_gap_planner_publication_bundle(
             "required": True,
             "ok": llm_route_planner_response_schema.get("$id")
             == LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID,
+        },
+        {
+            "artifact_name": "llm_route_planner_response_payload_schema",
+            "path": str(llm_route_planner_response_payload_schema_path),
+            "required": True,
+            "ok": llm_route_planner_response_payload_schema_payload.get("$id")
+            == LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
         },
         {
             "artifact_name": "llm_route_planner_row_schema",
@@ -2068,6 +2090,9 @@ def _contract_payload(library_snapshot_ref: str) -> dict[str, object]:
         "library_coverage_map_row_contract": library_coverage_map_row_json_schema(),
         "llm_route_planner_request_contract": llm_route_planner_request_json_schema(),
         "llm_route_planner_response_contract": llm_route_planner_response_json_schema(),
+        "llm_route_planner_response_payload_contract": (
+            llm_route_planner_response_payload_schema()
+        ),
         "llm_route_planner_row_contract": llm_route_planner_row_json_schema(),
         "primitive_action_queue_row_contract": primitive_action_queue_row_json_schema(),
         "action_resource_plan_row_contract": action_resource_plan_row_json_schema(),
@@ -2722,6 +2747,7 @@ def _reproduction_payload(
         "contract/formalization_gap_planner_target_intake_row.schema.json",
         "contract/formalization_gap_planner_llm_route_planner_request.schema.json",
         "contract/formalization_gap_planner_llm_route_planner_response.schema.json",
+        "contract/formalization_gap_planner_llm_route_planner_response_payload.schema.json",
         "contract/formalization_gap_planner_llm_route_planner_row.schema.json",
         "contract/formalization_gap_planner_prover_adapter_packet.schema.json",
         "contract/formalization_gap_planner_prover_adapter_response.schema.json",
