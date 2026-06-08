@@ -124,7 +124,19 @@ def test_action_resource_plan_joins_actions_to_frontier_resources() -> None:
     assert "minimal_delta_and_or_planning" in bridge_row["component_ids"]
     assert "prover_feedback_refinement" in bridge_row["component_ids"]
     assert "lean_lsp_mcp" in bridge_row["frontier_escalation_resource_ids"]
+    assert "formal_declaration_hits" in bridge_row["response_contract_fields"]
+    assert "lean_declaration_hits" in bridge_row["response_contract_fields"]
     assert "prover_diagnostics" in bridge_row["response_contract_fields"]
+    for resource_id in (
+        "local_formal_source_index",
+        "loogle_leansearch",
+        "leanexplore_mcp",
+    ):
+        resource_fields = bridge_row["response_contract_fields_by_resource"][
+            resource_id
+        ]
+        assert "formal_declaration_hits" in resource_fields
+        assert "lean_declaration_hits" in resource_fields
     assert "lean_lsp_mcp" in bridge_row["resource_contracts_by_resource"]
     assert bridge_row["resource_contracts_by_resource"]["lean_lsp_mcp"]
     assert "mcp_tool_call" in bridge_row["request_contract_fields_by_resource"][

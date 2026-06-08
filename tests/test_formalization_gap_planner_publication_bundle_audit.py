@@ -948,14 +948,25 @@ def _fixture_action_resource_plan_row() -> dict[str, object]:
             ],
         },
         "response_contract_fields_by_resource": {
-            "local_formal_source_index": ["lean_declaration_hits"],
+            "local_formal_source_index": [
+                "formal_declaration_hits",
+                "lean_declaration_hits",
+            ],
             "local_lean_rag_dependency_graph": [
                 "declaration_hits",
                 "dependency_neighbors",
             ],
             "local_lake_lean": ["prover_diagnostics", "residual_goals"],
-            "loogle_leansearch": ["lean_declaration_hits", "premise_candidates"],
-            "leanexplore_mcp": ["lean_declaration_hits", "semantic_match_scores"],
+            "loogle_leansearch": [
+                "formal_declaration_hits",
+                "lean_declaration_hits",
+                "premise_candidates",
+            ],
+            "leanexplore_mcp": [
+                "formal_declaration_hits",
+                "lean_declaration_hits",
+                "semantic_match_scores",
+            ],
             "lean_lsp_mcp": ["prover_diagnostics", "residual_goals"],
         },
         "request_contract_fields": [
@@ -968,6 +979,7 @@ def _fixture_action_resource_plan_row() -> dict[str, object]:
             "mcp_tool_call",
         ],
         "response_contract_fields": [
+            "formal_declaration_hits",
             "lean_declaration_hits",
             "declaration_hits",
             "dependency_neighbors",
@@ -2664,6 +2676,33 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     assert audit_payload["n_optional_primitive_action_queue_row_schema_valid"] == 1
     assert audit_payload["n_optional_action_resource_plan_row_schema_checked"] == 1
     assert audit_payload["n_optional_action_resource_plan_row_schema_valid"] == 1
+    bundled_action_plan_rows = [
+        json.loads(line)
+        for line in (
+            bundle_dir
+            / "artifacts"
+            / "formalization_gap_planner_action_resource_plan"
+            / "formalization_gap_planner_action_resource_plan.jsonl"
+        ).read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    bundled_action_plan_row = bundled_action_plan_rows[0]
+    assert "formal_declaration_hits" in bundled_action_plan_row[
+        "response_contract_fields"
+    ]
+    assert "lean_declaration_hits" in bundled_action_plan_row[
+        "response_contract_fields"
+    ]
+    for resource_id in (
+        "local_formal_source_index",
+        "loogle_leansearch",
+        "leanexplore_mcp",
+    ):
+        resource_fields = bundled_action_plan_row[
+            "response_contract_fields_by_resource"
+        ][resource_id]
+        assert "formal_declaration_hits" in resource_fields
+        assert "lean_declaration_hits" in resource_fields
     assert audit_payload["n_optional_minimal_delta_decision_row_schema_checked"] == 1
     assert audit_payload["n_optional_minimal_delta_decision_row_schema_valid"] == 1
     assert audit_payload["n_optional_source_grounding_row_schema_checked"] == 1
