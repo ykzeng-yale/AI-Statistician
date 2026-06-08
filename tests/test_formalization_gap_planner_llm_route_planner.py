@@ -2300,6 +2300,63 @@ def test_llm_route_planner_accepts_policy_grounded_quality_controls() -> None:
     assert action["response_validation_signals"] == [
         "residual_goals_or_diagnostics_present"
     ]
+    seed_route = payload["standalone_seed"]["routes"][0]
+    hook = next(
+        hook
+        for hook in seed_route["interactive_refinement_hooks"]
+        if any(
+            binding.get("source") == "planner_next_actions[0]"
+            for binding in hook.get("resource_request_bindings", [])
+        )
+    )
+    assert hook["planner_next_actions"][0]["resource_contract_ids"] == [
+        "lean_lsp:proof_state_feedback"
+    ]
+    hook_binding = next(
+        binding
+        for binding in hook["resource_request_bindings"]
+        if binding.get("source") == "planner_next_actions[0]"
+    )
+    assert hook_binding["resource_id"] == "lean_lsp_mcp"
+    assert hook_binding["quality_controls"]["quality_gates"] == [
+        "response_schema_valid"
+    ]
+
+    plan_dir = root / "standalone_plan_from_quality_control_seed"
+    refinement_queue_dir = root / "refinement_queue_from_quality_control_seed"
+    plan_payload = export_formalization_gap_planner_standalone_plan(
+        out_dir / "formalization_gap_planner_llm_route_planner_standalone_seed.json",
+        plan_dir,
+    )
+    assert plan_payload["all_ok"]
+    queue_payload = export_formalization_gap_planner_refinement_queue(
+        plan_dir,
+        refinement_queue_dir,
+    )
+    assert queue_payload["all_ok"]
+    queue_row = next(
+        row
+        for row in queue_payload["rows"]
+        if row.get("hook_kind") == "proof_state_feedback"
+        and any(
+            binding.get("source") == "planner_next_actions[0]"
+            for binding in row.get("resource_request_bindings", [])
+        )
+    )
+    queue_binding = next(
+        binding
+        for binding in queue_row["resource_request_bindings"]
+        if binding.get("source") == "planner_next_actions[0]"
+    )
+    assert queue_binding["quality_controls"]["resource_contract_ids"] == [
+        "lean_lsp:proof_state_feedback"
+    ]
+    assert queue_binding["quality_controls"]["required_quality_signals"] == [
+        "diagnostic_signature"
+    ]
+    assert queue_binding["quality_controls"]["response_validation_signals"] == [
+        "residual_goals_or_diagnostics_present"
+    ]
 
 
 def test_llm_route_planner_rejects_ungrounded_quality_controls() -> None:

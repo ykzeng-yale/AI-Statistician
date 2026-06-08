@@ -8303,6 +8303,7 @@ def _llm_refinement_hooks_for_search_requests(
                 "acceptance_record": _acceptance_record_for_llm_hook(hook_kind),
                 "llm_route_planner_search_request_index": index,
                 "llm_route_planner_search_request": dict(request),
+                "quality_controls": _quality_control_payload_for_row(request),
                 "planner_next_actions": [dict(action) for action in planner_next_actions],
                 "resource_request_ids": list(
                     resource_binding_summary["resource_request_ids"]
@@ -8339,6 +8340,7 @@ def _llm_route_revision_triggers_for_search_requests(
                 "next_action": _next_action_for_llm_hook(hook_kind, query=query),
                 "llm_route_planner_search_request_index": index,
                 "llm_route_planner_search_request": dict(request),
+                "quality_controls": _quality_control_payload_for_row(request),
                 "resource_request_ids": list(
                     resource_binding_summary["resource_request_ids"]
                 ),
@@ -8395,6 +8397,7 @@ def _llm_refinement_hooks_for_planner_next_actions(
                 "acceptance_record": _acceptance_record_for_llm_hook(hook_kind),
                 "llm_route_planner_planner_next_action_index": index,
                 "llm_route_planner_planner_next_action": dict(action),
+                "quality_controls": _quality_control_payload_for_row(action),
                 "resource_request_ids": list(
                     resource_binding_summary["resource_request_ids"]
                 ),
@@ -8433,6 +8436,7 @@ def _llm_route_revision_triggers_for_planner_next_actions(
                 "next_action": _next_action_for_llm_hook(hook_kind, query=query),
                 "llm_route_planner_planner_next_action_index": index,
                 "llm_route_planner_planner_next_action": dict(action),
+                "quality_controls": _quality_control_payload_for_row(action),
                 "resource_request_ids": list(
                     resource_binding_summary["resource_request_ids"]
                 ),
@@ -8475,11 +8479,17 @@ def _llm_resource_binding_summary(
         for request_id in request_ids or ("",):
             for resource_id in row_resource_ids or ("",):
                 if request_id or resource_id:
+                    quality_controls = _quality_control_payload_for_row(row)
                     bindings.append(
                         {
                             "source": source,
                             "resource_request_id": request_id,
                             "resource_id": resource_id,
+                            **(
+                                {"quality_controls": quality_controls}
+                                if quality_controls
+                                else {}
+                            ),
                         }
                     )
     return {
@@ -8494,6 +8504,21 @@ def _llm_resource_binding_summary(
             )
         ),
     }
+
+
+def _quality_control_payload_for_row(row: Mapping[str, object]) -> dict[str, object]:
+    payload: dict[str, object] = {}
+    for field_name in (
+        "resource_contract_ids",
+        "required_quality_signals",
+        "quality_gates",
+        "response_validation_signals",
+        "stop_conditions",
+    ):
+        values = _str_tuple(row.get(field_name, []))
+        if values:
+            payload[field_name] = list(values)
+    return payload
 
 
 def _hook_kind_for_llm_planner_action(action: Mapping[str, object]) -> str:
