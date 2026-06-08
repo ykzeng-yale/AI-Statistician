@@ -2782,6 +2782,30 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         for row in audit_payload["checks"]
     )
     assert any(
+        row["check_name"] == "schema_catalog_lean_legacy_payload_schema_targets"
+        and row["observed"] == "lean4"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"] == "schema_catalog_target_prover_payload_schema_targets"
+        and row["observed"] == "rocq,isabelle,agda"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "llm_route_planner_response_payload_lean_legacy_schema_shape"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "llm_route_planner_response_payload_target_prover_schema_shape"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
         row["check_name"] == "route_adoption_blocker_taxonomy_schema_id"
         and row["ok"]
         for row in audit_payload["checks"]

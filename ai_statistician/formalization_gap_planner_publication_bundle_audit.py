@@ -117,6 +117,8 @@ from .formalization_gap_planner_runtime_handoff_audit import (
 )
 from .formalization_gap_planner_publication_bundle import (
     FORMALIZATION_GAP_PLANNER_SCHEMA_CATALOG_SCHEMA_ID,
+    LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_LEAN_LEGACY_SCHEMA_ID,
+    LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_TARGET_PROVER_SCHEMA_ID,
     LLM_MODEL_POLICY_COMPONENT_NAME,
     PUBLICATION_BUNDLE_COMPONENT_NAME,
     SCHEMA_CATALOG_COMPONENT_NAME,
@@ -189,6 +191,8 @@ REQUIRED_CORE_ARTIFACTS = (
     "llm_route_planner_request_schema",
     "llm_route_planner_response_schema",
     "llm_route_planner_response_payload_schema",
+    "llm_route_planner_response_payload_lean_legacy_schema",
+    "llm_route_planner_response_payload_target_prover_schema",
     "llm_route_planner_response_payload_validation_manifest_schema",
     "llm_route_planner_response_payload_validation_row_schema",
     "llm_route_planner_row_schema",
@@ -2099,6 +2103,16 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
         / "contract"
         / "formalization_gap_planner_llm_route_planner_response_payload.schema.json"
     )
+    llm_route_planner_response_payload_lean_legacy_schema_path = (
+        bundle_dir
+        / "contract"
+        / "formalization_gap_planner_llm_route_planner_response_payload_lean_legacy.schema.json"
+    )
+    llm_route_planner_response_payload_target_prover_schema_path = (
+        bundle_dir
+        / "contract"
+        / "formalization_gap_planner_llm_route_planner_response_payload_target_prover.schema.json"
+    )
     llm_route_planner_response_payload_validation_manifest_schema_path = (
         bundle_dir
         / "contract"
@@ -2262,6 +2276,12 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
     llm_route_planner_response_payload_schema = _read_json_no_error(
         llm_route_planner_response_payload_schema_path
     )
+    llm_route_planner_response_payload_lean_legacy_schema = _read_json_no_error(
+        llm_route_planner_response_payload_lean_legacy_schema_path
+    )
+    llm_route_planner_response_payload_target_prover_schema = _read_json_no_error(
+        llm_route_planner_response_payload_target_prover_schema_path
+    )
     llm_route_planner_response_payload_validation_manifest_schema = (
         _read_json_no_error(
             llm_route_planner_response_payload_validation_manifest_schema_path
@@ -2390,6 +2410,9 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
         for row in schema_catalog.get("schema_entries", [])
         if isinstance(row, dict)
     ]
+    schema_catalog_entries_by_name = {
+        str(row.get("artifact_name", "")): row for row in schema_catalog_entries
+    }
     schema_catalog_entry_names = {
         str(row.get("artifact_name", "")) for row in schema_catalog_entries
     }
@@ -2559,6 +2582,8 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
                 "llm_route_planner_request_schema",
                 "llm_route_planner_response_schema",
                 "llm_route_planner_response_payload_schema",
+                "llm_route_planner_response_payload_lean_legacy_schema",
+                "llm_route_planner_response_payload_target_prover_schema",
                 "llm_route_planner_response_payload_validation_manifest_schema",
                 "llm_route_planner_response_payload_validation_row_schema",
                 "llm_route_planner_row_schema",
@@ -2566,6 +2591,46 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
                 "route_adoption_blocker_taxonomy_contract",
                 "portable_plan_row_schema",
             }.issubset(schema_catalog_entry_names),
+        ),
+        _check(
+            "schema_catalog_lean_legacy_payload_schema_targets",
+            "contract",
+            "lean4",
+            ",".join(
+                _str_tuple(
+                    schema_catalog_entries_by_name.get(
+                        "llm_route_planner_response_payload_lean_legacy_schema",
+                        {},
+                    ).get("target_prover_families", [])
+                )
+            ),
+            _str_tuple(
+                schema_catalog_entries_by_name.get(
+                    "llm_route_planner_response_payload_lean_legacy_schema",
+                    {},
+                ).get("target_prover_families", [])
+            )
+            == ("lean4",),
+        ),
+        _check(
+            "schema_catalog_target_prover_payload_schema_targets",
+            "contract",
+            "rocq,isabelle,agda",
+            ",".join(
+                _str_tuple(
+                    schema_catalog_entries_by_name.get(
+                        "llm_route_planner_response_payload_target_prover_schema",
+                        {},
+                    ).get("target_prover_families", [])
+                )
+            ),
+            _str_tuple(
+                schema_catalog_entries_by_name.get(
+                    "llm_route_planner_response_payload_target_prover_schema",
+                    {},
+                ).get("target_prover_families", [])
+            )
+            == ("rocq", "isabelle", "agda"),
         ),
         _check(
             "schema_catalog_missing_schema_ids",
@@ -3144,6 +3209,148 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
             str(llm_route_planner_response_payload_schema.get("$id", "")),
             llm_route_planner_response_payload_schema.get("$id")
             == LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
+        ),
+        _check(
+            "llm_route_planner_response_payload_lean_legacy_schema_file",
+            "contract",
+            "Lean-compatible LLM route-planner response-payload schema exists",
+            str(llm_route_planner_response_payload_lean_legacy_schema_path.exists()),
+            llm_route_planner_response_payload_lean_legacy_schema_path.exists(),
+        ),
+        _check(
+            "llm_route_planner_response_payload_lean_legacy_schema_id",
+            "contract",
+            LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_LEAN_LEGACY_SCHEMA_ID,
+            str(llm_route_planner_response_payload_lean_legacy_schema.get("$id", "")),
+            llm_route_planner_response_payload_lean_legacy_schema.get("$id")
+            == LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_LEAN_LEGACY_SCHEMA_ID,
+        ),
+        _check(
+            "llm_route_planner_response_payload_lean_legacy_schema_shape",
+            "contract",
+            "lean4 target and lean_realization_dag_nodes property",
+            json.dumps(
+                {
+                    "targets": _str_tuple(
+                        llm_route_planner_response_payload_lean_legacy_schema.get(
+                            "x-target-prover-families",
+                            [],
+                        )
+                    ),
+                    "has_lean_alias": "lean_realization_dag_nodes"
+                    in (
+                        llm_route_planner_response_payload_lean_legacy_schema.get(
+                            "properties",
+                            {},
+                        )
+                        if isinstance(
+                            llm_route_planner_response_payload_lean_legacy_schema.get(
+                                "properties",
+                                {},
+                            ),
+                            dict,
+                        )
+                        else {}
+                    ),
+                },
+                sort_keys=True,
+            ),
+            _str_tuple(
+                llm_route_planner_response_payload_lean_legacy_schema.get(
+                    "x-target-prover-families",
+                    [],
+                )
+            )
+            == ("lean4",)
+            and "lean_realization_dag_nodes"
+            in (
+                llm_route_planner_response_payload_lean_legacy_schema.get(
+                    "properties",
+                    {},
+                )
+                if isinstance(
+                    llm_route_planner_response_payload_lean_legacy_schema.get(
+                        "properties",
+                        {},
+                    ),
+                    dict,
+                )
+                else {}
+            ),
+        ),
+        _check(
+            "llm_route_planner_response_payload_target_prover_schema_file",
+            "contract",
+            "portable target-prover LLM route-planner response-payload schema exists",
+            str(llm_route_planner_response_payload_target_prover_schema_path.exists()),
+            llm_route_planner_response_payload_target_prover_schema_path.exists(),
+        ),
+        _check(
+            "llm_route_planner_response_payload_target_prover_schema_id",
+            "contract",
+            LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_TARGET_PROVER_SCHEMA_ID,
+            str(llm_route_planner_response_payload_target_prover_schema.get("$id", "")),
+            llm_route_planner_response_payload_target_prover_schema.get("$id")
+            == LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_TARGET_PROVER_SCHEMA_ID,
+        ),
+        _check(
+            "llm_route_planner_response_payload_target_prover_schema_shape",
+            "contract",
+            "rocq,isabelle,agda target and no lean_realization_dag_nodes property",
+            json.dumps(
+                {
+                    "targets": _str_tuple(
+                        llm_route_planner_response_payload_target_prover_schema.get(
+                            "x-target-prover-families",
+                            [],
+                        )
+                    ),
+                    "anyOf": llm_route_planner_response_payload_target_prover_schema.get(
+                        "anyOf",
+                        [],
+                    ),
+                    "has_lean_alias": "lean_realization_dag_nodes"
+                    in (
+                        llm_route_planner_response_payload_target_prover_schema.get(
+                            "properties",
+                            {},
+                        )
+                        if isinstance(
+                            llm_route_planner_response_payload_target_prover_schema.get(
+                                "properties",
+                                {},
+                            ),
+                            dict,
+                        )
+                        else {}
+                    ),
+                },
+                sort_keys=True,
+            ),
+            _str_tuple(
+                llm_route_planner_response_payload_target_prover_schema.get(
+                    "x-target-prover-families",
+                    [],
+                )
+            )
+            == ("rocq", "isabelle", "agda")
+            and llm_route_planner_response_payload_target_prover_schema.get("anyOf")
+            == [{"required": ["formal_realization_dag_nodes"]}]
+            and "lean_realization_dag_nodes"
+            not in (
+                llm_route_planner_response_payload_target_prover_schema.get(
+                    "properties",
+                    {},
+                )
+                if isinstance(
+                    llm_route_planner_response_payload_target_prover_schema.get(
+                        "properties",
+                        {},
+                    ),
+                    dict,
+                )
+                else {}
+            ),
         ),
         _check(
             "llm_route_planner_response_payload_validation_manifest_schema_file",
