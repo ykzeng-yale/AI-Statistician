@@ -60,9 +60,13 @@ class FormalizationGapPlannerAblationStudyRow:
     feedback_loop_readiness: float
     next_action_replan_rate: float
     next_action_replay_rate: float
+    route_adoption_ready_rate: float
+    route_adoption_pending_refinement_rate: float
+    mean_route_adoption_blockers: float
     relative_route_recall_drop: float
     relative_delta_recall_drop: float
     relative_residual_recall_drop: float
+    relative_route_adoption_ready_drop: float
     interpretation: str
     proof_evidence_status: str
     proof_evidence_boundary: str
@@ -252,9 +256,13 @@ def ablation_study_row_json_schema() -> dict[str, object]:
         "feedback_loop_readiness",
         "next_action_replan_rate",
         "next_action_replay_rate",
+        "route_adoption_ready_rate",
+        "route_adoption_pending_refinement_rate",
+        "mean_route_adoption_blockers",
         "relative_route_recall_drop",
         "relative_delta_recall_drop",
         "relative_residual_recall_drop",
+        "relative_route_adoption_ready_drop",
         "interpretation",
         "proof_evidence_status",
         "proof_evidence_boundary",
@@ -297,9 +305,13 @@ def ablation_study_row_json_schema() -> dict[str, object]:
             "feedback_loop_readiness": rate,
             "next_action_replan_rate": rate,
             "next_action_replay_rate": rate,
+            "route_adoption_ready_rate": rate,
+            "route_adoption_pending_refinement_rate": rate,
+            "mean_route_adoption_blockers": nonnegative_number,
             "relative_route_recall_drop": nonnegative_number,
             "relative_delta_recall_drop": nonnegative_number,
             "relative_residual_recall_drop": nonnegative_number,
+            "relative_route_adoption_ready_drop": nonnegative_number,
             "interpretation": {"type": "string", "minLength": 1},
             "proof_evidence_status": {"type": "string", "const": PROOF_EVIDENCE_STATUS},
             "proof_evidence_boundary": {
@@ -387,6 +399,9 @@ def _ablation_row(
             existing_pred = ()
             residual_pred = ()
             coverage = 0.0
+        adoption_ready, adoption_pending, adoption_blockers = (
+            _route_adoption_metrics(variant, row, removed)
+        )
         if removed:
             impacted_routes += 1
             impacted_primitives.update(removed)
@@ -404,6 +419,9 @@ def _ablation_row(
                 "feedback_ready": _feedback_ready(variant, row, session_row),
                 "replan": _next_action_rate(variant, session_row, "route_replan"),
                 "replay": _next_action_rate(variant, session_row, "target_prover_replay"),
+                "route_adoption_ready": adoption_ready,
+                "route_adoption_pending": adoption_pending,
+                "route_adoption_blockers": adoption_blockers,
             }
         )
     if not evaluation_rows:
@@ -441,9 +459,19 @@ def _ablation_row(
         feedback_loop_readiness=_mean(metric["feedback_ready"] for metric in metrics),
         next_action_replan_rate=_mean(metric["replan"] for metric in metrics),
         next_action_replay_rate=_mean(metric["replay"] for metric in metrics),
+        route_adoption_ready_rate=_mean(
+            metric["route_adoption_ready"] for metric in metrics
+        ),
+        route_adoption_pending_refinement_rate=_mean(
+            metric["route_adoption_pending"] for metric in metrics
+        ),
+        mean_route_adoption_blockers=_mean(
+            metric["route_adoption_blockers"] for metric in metrics
+        ),
         relative_route_recall_drop=0.0,
         relative_delta_recall_drop=0.0,
         relative_residual_recall_drop=0.0,
+        relative_route_adoption_ready_drop=0.0,
         interpretation=_interpretation(variant),
         proof_evidence_status=PROOF_EVIDENCE_STATUS,
         proof_evidence_boundary=PROOF_EVIDENCE_BOUNDARY,
@@ -468,6 +496,10 @@ def _row_with_relative_drops(
     data["relative_residual_recall_drop"] = max(
         0.0,
         full.mean_residual_recall - row.mean_residual_recall,
+    )
+    data["relative_route_adoption_ready_drop"] = max(
+        0.0,
+        full.route_adoption_ready_rate - row.route_adoption_ready_rate,
     )
     return FormalizationGapPlannerAblationStudyRow(**data)
 
@@ -534,6 +566,31 @@ def _feedback_ready(
     if session_row:
         return 1.0
     return 0.0
+
+
+def _route_adoption_metrics(
+    variant: str,
+    evaluation_row: dict[str, Any],
+    removed: set[str],
+) -> tuple[float, float, float]:
+    blockers = _str_tuple(
+        evaluation_row.get("llm_route_planner_route_adoption_blockers", [])
+    )
+    if variant != "full_planner_observed" and removed:
+        return (0.0, 1.0, float(max(1, len(blockers))))
+    status = str(
+        evaluation_row.get("llm_route_planner_route_adoption_status", "")
+    ).strip()
+    if status == "READY_FOR_STANDALONE_REPLAY":
+        return (1.0, 0.0, 0.0)
+    if status == "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION":
+        return (0.0, 1.0, float(max(1, len(blockers))))
+    if status in {
+        "AWAITING_LLM_ROUTE_PLANNER_RESPONSE",
+        "REJECTED_LLM_ROUTE_PLAN",
+    }:
+        return (0.0, 1.0, float(max(1, len(blockers))))
+    return (0.0, 0.0, float(len(blockers)))
 
 
 def _next_action_rate(
@@ -749,6 +806,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
                 f"- Delta recall: {row.get('mean_delta_recall')}",
                 f"- Residual recall: {row.get('mean_residual_recall')}",
                 f"- Existing reuse recall: {row.get('mean_existing_reuse_recall')}",
+                f"- Route-adoption ready/pending/blockers: {row.get('route_adoption_ready_rate')}/{row.get('route_adoption_pending_refinement_rate')}/{row.get('mean_route_adoption_blockers')}",
                 f"- Impacted routes: {row.get('n_impacted_routes')}",
                 f"- Interpretation: {row.get('interpretation')}",
                 "",

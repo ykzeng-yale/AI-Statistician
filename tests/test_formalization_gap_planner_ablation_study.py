@@ -97,6 +97,11 @@ def test_ablation_study_compares_literature_lean_feedback_and_null_baselines() -
             "realization_coverage_complete": False,
             "realization_missing_selected_formal_primitives": [],
             "realization_missing_delta_alignment_primitives": [],
+            "llm_route_planner_trace_present": True,
+            "llm_route_planner_route_adoption_status": (
+                "READY_FOR_STANDALONE_REPLAY"
+            ),
+            "llm_route_planner_route_adoption_blockers": [],
         }
     ]
     (evaluation_dir / "formalization_gap_planner_evaluation_manifest.json").write_text(
@@ -147,18 +152,53 @@ def test_ablation_study_compares_literature_lean_feedback_and_null_baselines() -
     )
     by_variant = {row["ablation_variant"]: row for row in payload["rows"]}
     assert by_variant["full_planner_observed"]["mean_route_recall"] == 1.0
+    assert by_variant["full_planner_observed"]["route_adoption_ready_rate"] == 1.0
+    assert (
+        by_variant["full_planner_observed"][
+            "route_adoption_pending_refinement_rate"
+        ]
+        == 0.0
+    )
+    assert by_variant["full_planner_observed"]["mean_route_adoption_blockers"] == 0.0
     assert by_variant["no_literature_evidence"]["mean_route_recall"] < 1.0
     assert by_variant["no_literature_evidence"]["n_impacted_primitives"] == 2
+    assert by_variant["no_literature_evidence"]["route_adoption_ready_rate"] == 0.0
+    assert (
+        by_variant["no_literature_evidence"][
+            "route_adoption_pending_refinement_rate"
+        ]
+        == 1.0
+    )
+    assert by_variant["no_literature_evidence"]["mean_route_adoption_blockers"] == 1.0
+    assert (
+        by_variant["no_literature_evidence"][
+            "relative_route_adoption_ready_drop"
+        ]
+        == 1.0
+    )
     assert by_variant["no_lean_grounding"]["mean_existing_reuse_recall"] == 0.0
+    assert by_variant["no_lean_grounding"]["route_adoption_ready_rate"] == 0.0
     assert by_variant["full_planner_observed"]["mean_residual_recall"] == 1.0
     assert by_variant["no_proof_state_feedback"]["feedback_loop_readiness"] == 0.0
     assert by_variant["no_proof_state_feedback"]["next_action_replan_rate"] == 0.0
     assert by_variant["no_proof_state_feedback"]["mean_residual_recall"] == 0.0
+    assert by_variant["no_proof_state_feedback"]["route_adoption_ready_rate"] == 0.0
+    assert (
+        by_variant["no_proof_state_feedback"][
+            "route_adoption_pending_refinement_rate"
+        ]
+        == 1.0
+    )
     assert (
         payload["largest_residual_recall_drop_variant"]
         == "no_proof_state_feedback"
     )
     assert by_variant["no_route_planner"]["mean_route_recall"] == 0.0
+    assert by_variant["no_route_planner"]["route_adoption_ready_rate"] == 0.0
+    assert (
+        by_variant["no_route_planner"]["relative_route_adoption_ready_drop"]
+        == 1.0
+    )
     assert "not theorem proof evidence" in payload["proof_evidence_boundary"]
     assert (
         out_dir / "formalization_gap_planner_ablation_study_manifest.json"

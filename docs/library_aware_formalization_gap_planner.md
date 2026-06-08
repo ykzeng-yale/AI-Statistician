@@ -475,8 +475,9 @@ benchmark evidence about planning quality, not theorem proof evidence.
 The ablation study compares the observed planner with counterfactual
 `no_literature_evidence`, `no_lean_grounding`, `no_proof_state_feedback`, and
 `no_route_planner` variants. It is a diagnostic for which signal families matter
-for route recall, Lean-delta recall, reuse, and feedback readiness; it is not
-theorem proof evidence.
+for route recall, Lean-delta recall, reuse, feedback readiness, and
+route-adoption readiness under the current evidence bound; it is not theorem
+proof evidence.
 
 The adapter registry command records which refinement tools can satisfy each
 hook, which response fields they must emit, and whether local commands,
