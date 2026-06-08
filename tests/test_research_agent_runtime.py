@@ -149,7 +149,7 @@ def test_algorithm_engineer_prompt_exposes_generated_python_safe_subset() -> Non
 def test_split_conformal_registered_template_hint_and_execution(tmp_path: Path) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     template = _registered_algorithm_template_hint(
-        proposal_target={"registered_template_hint": "none"},
+        proposal_target={},
         spec={
             "id": "E1",
             "name": "Split conformal interval",
@@ -158,6 +158,18 @@ def test_split_conformal_registered_template_hint_and_execution(tmp_path: Path) 
         question=question,
     )
     assert template == "split_conformal_interval"
+    assert (
+        _registered_algorithm_template_hint(
+            proposal_target={"registered_template_hint": "none"},
+            spec={
+                "id": "E1",
+                "name": "Split conformal interval",
+                "algorithm_sketch": "Fit on train split, calibrate residual quantile.",
+            },
+            question=question,
+        )
+        == ""
+    )
 
     prototype, tool_call = _run_split_conformal_interval_prototype(
         sandbox_dir=tmp_path,
@@ -1184,6 +1196,16 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert Path(manifest["artifacts"]["runtime_learning_rows_jsonl"]).exists()
     result_path = Path(manifest["artifacts"]["per_question_results"][0])
     result = json.loads(result_path.read_text(encoding="utf-8"))
+    progress_path = Path(manifest["artifacts"]["runtime_progress_jsonl"])
+    assert progress_path.exists()
+    progress_rows = [
+        json.loads(line)
+        for line in progress_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert progress_rows[0]["event_type"] == "subsystem_start"
+    assert progress_rows[0]["subsystem"] == "ArchitectCoordinator"
+    assert any(row["event_type"] == "subsystem_finish" for row in progress_rows)
     assert [row["status"] for row in result["traces"][:12]] == [
         "REROUTE",
         "REROUTE",
@@ -1511,6 +1533,7 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert audit["n_algorithm_sandbox_executed"] == 4
     assert audit["n_generated_code_sandbox_executed"] == 2
     assert audit["n_unsafe_generated_code_rejected"] == 0
+    assert audit["n_runtime_progress_events"] >= audit["n_runtime_traces"] * 2
     assert audit["n_results_with_problem_analysis"] == 1
     assert audit["n_results_with_stat_knowledge_bank_plan"] == 1
     assert audit["n_results_with_literature_fair_comparison_plan"] == 1
@@ -1786,6 +1809,16 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
     assert proof_control["prioritized_proof_obligation_ids"] == ["variance_nonneg"]
     assert proof_control["selected_priority_proof_obligation_ids"] == ["variance_nonneg"]
     assert Path(manifest["artifacts"]["runtime_traces_jsonl"]).exists()
+    progress_path = Path(manifest["artifacts"]["runtime_progress_jsonl"])
+    assert progress_path.exists()
+    progress_rows = [
+        json.loads(line)
+        for line in progress_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert progress_rows[0]["event_type"] == "subsystem_start"
+    assert progress_rows[0]["subsystem"] == "RetrievalMemory"
+    assert any(row["event_type"] == "subsystem_finish" for row in progress_rows)
     result = json.loads(Path(manifest["artifacts"]["per_question_results"][0]).read_text(encoding="utf-8"))
     learning_context = result["traces"][1]["task"]["inputs"]["architect_context"]["runtime_learning_memory"]
     assert learning_context["artifact_kind"] == "RuntimeLearningMemoryContext"
@@ -1816,5 +1849,6 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
     assert audit["n_memory_prioritized_proof_obligations"] == 2
     assert audit["n_memory_off_catalog_proof_obligations"] == 2
     assert audit["n_memory_rejected_proof_obligations"] == 2
+    assert audit["n_runtime_progress_events"] >= audit["n_runtime_traces"] * 2
     assert audit["n_results_with_runtime_learning_memory_input"] == 1
     assert audit["n_runtime_learning_memory_input_rows"] == 1

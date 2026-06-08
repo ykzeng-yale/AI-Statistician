@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Literal, Mapping, Protocol
+from typing import Any, Callable, Literal, Mapping, Protocol
 
 
 RuntimeStatus = Literal[
@@ -171,6 +171,7 @@ class AgentRuntime:
         *,
         max_iterations: int = 4,
         max_transient_subsystem_retries: int = 0,
+        progress_callback: Callable[[dict[str, Any]], None] | None = None,
     ) -> AgentRuntimeResult:
         task = initial_task
         traces: list[RuntimeIterationTrace] = []
@@ -180,6 +181,13 @@ class AgentRuntime:
         for iteration in range(1, max_iterations + 1):
             subsystem = self.subsystems.get(task.owner_subsystem)
             self.blackboard.task_history.append(task.task_id)
+            _emit_progress(
+                progress_callback,
+                event_type="subsystem_start",
+                iteration=iteration,
+                task=task,
+                subsystem=task.owner_subsystem if subsystem is None else getattr(subsystem, "name", task.owner_subsystem),
+            )
             if subsystem is None:
                 trace = RuntimeIterationTrace(
                     iteration=iteration,
@@ -191,6 +199,19 @@ class AgentRuntime:
                 )
                 traces.append(trace)
                 self.blackboard.active_blockers.append(trace.rationale)
+                _emit_progress(
+                    progress_callback,
+                    event_type="subsystem_finish",
+                    iteration=iteration,
+                    task=task,
+                    subsystem=task.owner_subsystem,
+                    status=trace.status,
+                    rationale=trace.rationale,
+                    produced_artifact_ids=(),
+                    evidence_ids=(),
+                    next_task_id="",
+                    failure_classification=trace.failure_classification,
+                )
                 final_status = "BLOCKED"
                 break
 
@@ -230,6 +251,18 @@ class AgentRuntime:
                                 },
                             )
                         )
+                        _emit_progress(
+                            progress_callback,
+                            event_type="subsystem_retry",
+                            iteration=iteration,
+                            task=task,
+                            subsystem=getattr(subsystem, "name", task.owner_subsystem),
+                            status="FAILED",
+                            rationale=f"retrying after {exc.__class__.__name__}",
+                            failure_classification="transient_subsystem_exception_retry",
+                            retry_attempt=attempt + 1,
+                            max_retries=max_retries,
+                        )
                         continue
                     failure_classification = (
                         "transient_subsystem_exception_exhausted"
@@ -255,6 +288,16 @@ class AgentRuntime:
                         ),
                         failure_classification=failure_classification,
                     )
+                    _emit_progress(
+                        progress_callback,
+                        event_type="subsystem_exception",
+                        iteration=iteration,
+                        task=task,
+                        subsystem=getattr(subsystem, "name", task.owner_subsystem),
+                        status=result.status,
+                        rationale=result.rationale,
+                        failure_classification=failure_classification,
+                    )
                     break
 
             self.blackboard.artifacts.update(result.produced_artifacts)
@@ -275,6 +318,19 @@ class AgentRuntime:
                 failure_classification=result.failure_classification,
             )
             traces.append(trace)
+            _emit_progress(
+                progress_callback,
+                event_type="subsystem_finish",
+                iteration=iteration,
+                task=task,
+                subsystem=trace.subsystem,
+                status=trace.status,
+                rationale=trace.rationale,
+                produced_artifact_ids=trace.produced_artifact_ids,
+                evidence_ids=trace.evidence_ids,
+                next_task_id=trace.next_task_id,
+                failure_classification=trace.failure_classification,
+            )
 
             if result.status == "ACCEPTED":
                 final_status = "ACCEPTED"
@@ -293,6 +349,44 @@ class AgentRuntime:
             blackboard=self.blackboard,
             traces=tuple(traces),
         )
+
+
+def _emit_progress(
+    progress_callback: Callable[[dict[str, Any]], None] | None,
+    *,
+    event_type: str,
+    iteration: int,
+    task: AgentTask,
+    subsystem: str,
+    status: RuntimeStatus | str = "",
+    rationale: str = "",
+    produced_artifact_ids: tuple[str, ...] = (),
+    evidence_ids: tuple[str, ...] = (),
+    next_task_id: str = "",
+    failure_classification: str = "",
+    retry_attempt: int = 0,
+    max_retries: int = 0,
+) -> None:
+    if progress_callback is None:
+        return
+    progress_callback(
+        {
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "event_type": event_type,
+            "iteration": iteration,
+            "task_id": task.task_id,
+            "owner_subsystem": task.owner_subsystem,
+            "subsystem": subsystem,
+            "status": status,
+            "rationale": rationale,
+            "produced_artifact_ids": list(produced_artifact_ids),
+            "evidence_ids": list(evidence_ids),
+            "next_task_id": next_task_id,
+            "failure_classification": failure_classification,
+            "retry_attempt": retry_attempt,
+            "max_retries": max_retries,
+        }
+    )
 
 
 def _is_transient_subsystem_exception(exc: Exception) -> bool:

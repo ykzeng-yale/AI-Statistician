@@ -85,10 +85,19 @@ def audit_research_agent_runtime(
     errors.extend(topology_errors)
     result_paths = _resolve_manifest_paths(runtime_dir, manifest)
     rows = [_audit_result_path(path) for path in result_paths]
-    trace_path = _resolve_path(runtime_dir, manifest.get("artifacts", {}).get("runtime_traces_jsonl", ""))
-    agenda_path = _resolve_path(runtime_dir, manifest.get("artifacts", {}).get("runtime_next_action_agenda_jsonl", ""))
-    learning_path = _resolve_path(runtime_dir, manifest.get("artifacts", {}).get("runtime_learning_rows_jsonl", ""))
+    artifacts = manifest.get("artifacts", {})
+    if not isinstance(artifacts, Mapping):
+        artifacts = {}
+    trace_path = _resolve_path(runtime_dir, artifacts.get("runtime_traces_jsonl", ""))
+    progress_path = _resolve_path(runtime_dir, artifacts.get("runtime_progress_jsonl", ""))
+    agenda_path = _resolve_path(runtime_dir, artifacts.get("runtime_next_action_agenda_jsonl", ""))
+    learning_path = _resolve_path(runtime_dir, artifacts.get("runtime_learning_rows_jsonl", ""))
     trace_rows = _load_jsonl(trace_path, errors, required=True)
+    progress_rows = _load_jsonl(
+        progress_path,
+        errors,
+        required=bool(artifacts.get("runtime_progress_jsonl")),
+    )
     agenda_rows = _load_jsonl(agenda_path, errors, required=True)
     learning_rows = _load_jsonl(learning_path, errors, required=True)
     if int(manifest.get("n_questions", -1)) != len(rows):
@@ -99,6 +108,10 @@ def audit_research_agent_runtime(
         errors.append("manifest n_runtime_learning_rows does not match learning JSONL")
     if len(trace_rows) != sum(row.n_traces for row in rows):
         errors.append("runtime_traces.jsonl row count does not match per-question traces")
+    if artifacts.get("runtime_progress_jsonl") and len(progress_rows) < 2 * len(trace_rows):
+        errors.append(
+            "runtime_progress.jsonl must include start and finish events for each completed trace"
+        )
     runtime_input_context = (
         manifest.get("runtime_input_context", {})
         if isinstance(manifest.get("runtime_input_context"), Mapping)
@@ -132,6 +145,7 @@ def audit_research_agent_runtime(
         "all_ok": not errors and bool(rows) and all(row.ok for row in rows),
         "errors": errors,
         "by_status": dict(sorted(by_status.items())),
+        "n_runtime_progress_events": len(progress_rows),
         "n_runtime_traces": len(trace_rows),
         "n_runtime_next_action_items": len(agenda_rows),
         "n_runtime_learning_rows": len(learning_rows),
@@ -214,6 +228,7 @@ def audit_research_agent_runtime(
                 "rows": [asdict(row) for row in rows],
                 "agenda": agenda_rows,
                 "learning": learning_rows,
+                "progress": progress_rows,
             }
         ),
         "limitations": [
@@ -654,6 +669,7 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         f"- capability_ready_for_full_ai_statistician: {payload.get('capability_ready_for_full_ai_statistician')}",
         f"- capability_status: {payload.get('capability_status')}",
         f"- results: {payload.get('n_ok')}/{payload.get('n_results')}",
+        f"- runtime progress events: {payload.get('n_runtime_progress_events')}",
         f"- runtime traces: {payload.get('n_runtime_traces')}",
         f"- agenda items: {payload.get('n_runtime_next_action_items')}",
         f"- learning rows: {payload.get('n_runtime_learning_rows')}",

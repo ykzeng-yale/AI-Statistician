@@ -1561,6 +1561,8 @@ def run_research_agent_runtime(
     out_dir.mkdir(parents=True, exist_ok=True)
     results: list[dict[str, Any]] = []
     trace_rows: list[dict[str, Any]] = []
+    progress_path = out_dir / "runtime_progress.jsonl"
+    progress_path.write_text("", encoding="utf-8")
     shared_formal_source_retriever = formal_source_retriever or FormalSourceRetriever()
     llm_topology = _runtime_llm_topology(
         architect_coordinator=architect_coordinator,
@@ -1622,6 +1624,17 @@ def run_research_agent_runtime(
             subsystems=subsystems,
             blackboard=blackboard,
         )
+        def record_progress(row: dict[str, Any]) -> None:
+            _append_jsonl_row(
+                progress_path,
+                {
+                    "schema_version": RUNTIME_SCHEMA_VERSION,
+                    "question_id": question.id,
+                    "question_title": question.title,
+                    **row,
+                },
+            )
+
         initial_task = (
             AgentTask(
                 task_id=f"architect:{question.id}",
@@ -1658,6 +1671,7 @@ def run_research_agent_runtime(
             initial_task,
             max_iterations=config.max_iterations,
             max_transient_subsystem_retries=config.max_subsystem_retries,
+            progress_callback=record_progress,
         )
         result_json = result.to_json()
         result_path = out_dir / f"{_safe_identifier(question.id)}_runtime_result.json"
@@ -1705,6 +1719,7 @@ def run_research_agent_runtime(
         "simulation_evidence_boundary": SIMULATION_NOT_PROOF_BOUNDARY,
         "llm_runtime_topology": llm_topology,
         "artifacts": {
+            "runtime_progress_jsonl": str(progress_path),
             "runtime_traces_jsonl": str(traces_path),
             "runtime_llm_topology_json": str(llm_topology_path),
             "per_question_results": [str(row["artifact_path"]) for row in results],
@@ -2218,6 +2233,8 @@ def _registered_algorithm_template_hint(
     question: OpenResearchQuestion,
 ) -> str:
     explicit = str(proposal_target.get("registered_template_hint", "") or "").strip()
+    if explicit == "none":
+        return ""
     if explicit in {"crossfit_aipw", "split_conformal_interval"}:
         return explicit
     haystack = " ".join(
@@ -4494,3 +4511,10 @@ def _write_jsonl(path: Path, rows: list[Mapping[str, Any]]) -> None:
     with path.open("w", encoding="utf-8") as handle:
         for row in rows:
             handle.write(json.dumps(row, default=str) + "\n")
+
+
+def _append_jsonl_row(path: Path, row: Mapping[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(row, default=str) + "\n")
+        handle.flush()
