@@ -1236,12 +1236,12 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     runtime_handoff_audit_row = {
         "schema_version": 1,
         "check_id": "runtime_handoff_audit:fixture",
-        "check_name": "row_prompt_cli_cost_control:fixture",
-        "category": "cost_control",
+        "check_name": "row_llm_prompt_has_component_resource_registry_context",
+        "category": "component_resource_registry",
         "handoff_id": "runtime_formalization_gap_planner_handoff:fixture",
         "bridge_id": "runtime_formalization_gap_planner_bridge:fixture",
-        "expected": "Anthropic auto prompt-only command without --invoke-provider",
-        "observed": "--provider anthropic --model-tier auto --max-repair-attempts 1",
+        "expected": "prompt packets include component/resource/contract rows",
+        "observed": "registry_components=2 registry_resources=3 registry_contracts=3",
         "ok": True,
         "severity": "error",
         "errors": [],
@@ -1265,6 +1265,10 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
                 "n_standalone_smoke_ok": 1,
                 "n_llm_prompt_smoke_ok": 1,
                 "n_llm_prompt_packets": 1,
+                "n_component_resource_registry_smoke_ok": 1,
+                "n_component_resource_registry_components_in_prompt": 2,
+                "n_component_resource_registry_resources_in_prompt": 3,
+                "n_component_resource_registry_contracts_in_prompt": 3,
                 "all_ok": True,
                 "checks": [runtime_handoff_audit_row],
                 "proof_evidence_status": (
@@ -2884,6 +2888,26 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         / "formalization_gap_planner_runtime_handoff_audit"
         / "formalization_gap_planner_runtime_handoff_audit_manifest.json"
     ).exists()
+    packaged_runtime_handoff_audit = json.loads(
+        (
+            out_dir
+            / "artifacts"
+            / "formalization_gap_planner_runtime_handoff_audit"
+            / "formalization_gap_planner_runtime_handoff_audit_manifest.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert packaged_runtime_handoff_audit[
+        "n_component_resource_registry_smoke_ok"
+    ] == 1
+    assert packaged_runtime_handoff_audit[
+        "n_component_resource_registry_components_in_prompt"
+    ] > 0
+    assert packaged_runtime_handoff_audit[
+        "n_component_resource_registry_resources_in_prompt"
+    ] > 0
+    assert packaged_runtime_handoff_audit[
+        "n_component_resource_registry_contracts_in_prompt"
+    ] > 0
     assert (
         out_dir
         / "artifacts"

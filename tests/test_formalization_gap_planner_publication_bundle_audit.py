@@ -65,7 +65,11 @@ from ai_statistician.formalization_gap_planner_publication_bundle import (
     schema_catalog_json_schema,
 )
 from ai_statistician.formalization_gap_planner_publication_bundle_audit import (
+    _runtime_handoff_audit_optional_checks,
     audit_formalization_gap_planner_publication_bundle,
+)
+from ai_statistician.formalization_gap_planner_runtime_handoff_audit import (
+    runtime_handoff_audit_row_json_schema,
 )
 from ai_statistician.formalization_gap_planner_portable_plan_audit import (
     portable_plan_audit_row_json_schema,
@@ -110,6 +114,86 @@ from ai_statistician.formalization_gap_planner_interactive_session import (
 from ai_statistician.formalization_gap_planner_proof_state_triage import (
     proof_state_triage_row_json_schema,
 )
+
+
+def test_publication_bundle_audit_checks_runtime_handoff_registry_context() -> None:
+    root = Path("runs/test_publication_bundle_audit_runtime_handoff_registry")
+    shutil.rmtree(root, ignore_errors=True)
+    artifact_dir = (
+        root
+        / "bundle"
+        / "artifacts"
+        / "formalization_gap_planner_runtime_handoff_audit"
+    )
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+    row = {
+        "schema_version": 1,
+        "check_id": "runtime_handoff_audit:registry_context",
+        "check_name": "row_llm_prompt_has_component_resource_registry_context",
+        "category": "component_resource_registry",
+        "handoff_id": "runtime_formalization_gap_planner_handoff:fixture",
+        "bridge_id": "runtime_formalization_gap_planner_bridge:fixture",
+        "expected": "prompt packets include component/resource/contract rows",
+        "observed": "registry_components=2 registry_resources=3 registry_contracts=3",
+        "ok": True,
+        "severity": "error",
+        "errors": [],
+    }
+    (artifact_dir / "formalization_gap_planner_runtime_handoff_audit_manifest.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "component_name": "formalization_gap_planner_runtime_handoff_audit",
+                "n_handoffs": 1,
+                "n_checks": 1,
+                "n_ok": 1,
+                "n_failed": 0,
+                "n_row_schema_valid": 1,
+                "n_row_schema_invalid": 0,
+                "n_cost_control_ok": 1,
+                "n_live_explicit_ok": 1,
+                "n_standalone_smoke_ok": 1,
+                "n_llm_prompt_smoke_ok": 1,
+                "n_llm_prompt_packets": 1,
+                "n_component_resource_registry_smoke_ok": 1,
+                "n_component_resource_registry_components_in_prompt": 2,
+                "n_component_resource_registry_resources_in_prompt": 3,
+                "n_component_resource_registry_contracts_in_prompt": 3,
+                "all_ok": True,
+                "checks": [row],
+                "proof_evidence_status": (
+                    "FORMALIZATION_GAP_PLANNER_RUNTIME_HANDOFF_AUDIT_NOT_PROOF_EVIDENCE"
+                ),
+                "proof_evidence_boundary": "not theorem proof evidence",
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    (artifact_dir / "formalization_gap_planner_runtime_handoff_audit.jsonl").write_text(
+        json.dumps(row, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    (
+        artifact_dir
+        / "formalization_gap_planner_runtime_handoff_audit_row.schema.json"
+    ).write_text(
+        json.dumps(runtime_handoff_audit_row_json_schema(), indent=2),
+        encoding="utf-8",
+    )
+
+    checks = _runtime_handoff_audit_optional_checks(root / "bundle")
+    by_name = {check.check_name: check for check in checks}
+
+    assert by_name["optional_runtime_handoff_audit_cost_control"].ok
+    assert by_name["optional_runtime_handoff_audit_prompt_smoke"].ok
+    assert by_name[
+        "optional_runtime_handoff_audit_component_resource_registry_smoke"
+    ].ok
+    assert by_name[
+        "optional_runtime_handoff_audit_registry_context_in_prompt"
+    ].ok
+    assert by_name["optional_runtime_handoff_audit_row_0_schema_valid"].ok
 
 
 def _fixture_prover_adapter_packet() -> dict[str, object]:

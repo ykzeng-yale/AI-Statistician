@@ -12598,6 +12598,58 @@ def _runtime_handoff_audit_optional_checks(
             and int(manifest.get("n_llm_prompt_packets", 0) or 0) >= n_handoffs,
         ),
         _check(
+            "optional_runtime_handoff_audit_component_resource_registry_smoke",
+            "optional_artifacts",
+            "component-resource registry smoke passed for each runtime handoff",
+            (
+                f"registry_smoke={manifest.get('n_component_resource_registry_smoke_ok', 0)}/"
+                f"{n_handoffs}"
+            ),
+            n_handoffs > 0
+            and int(
+                manifest.get("n_component_resource_registry_smoke_ok", 0) or 0
+            )
+            == n_handoffs,
+        ),
+        _check(
+            "optional_runtime_handoff_audit_registry_context_in_prompt",
+            "optional_artifacts",
+            "runtime handoff prompt packets preserve component/resource/contract context",
+            (
+                "components="
+                f"{manifest.get('n_component_resource_registry_components_in_prompt', 0)}; "
+                "resources="
+                f"{manifest.get('n_component_resource_registry_resources_in_prompt', 0)}; "
+                "contracts="
+                f"{manifest.get('n_component_resource_registry_contracts_in_prompt', 0)}"
+            ),
+            n_handoffs > 0
+            and int(
+                manifest.get(
+                    "n_component_resource_registry_components_in_prompt",
+                    0,
+                )
+                or 0
+            )
+            > 0
+            and int(
+                manifest.get(
+                    "n_component_resource_registry_resources_in_prompt",
+                    0,
+                )
+                or 0
+            )
+            > 0
+            and int(
+                manifest.get(
+                    "n_component_resource_registry_contracts_in_prompt",
+                    0,
+                )
+                or 0
+            )
+            > 0,
+        ),
+        _check(
             "optional_runtime_handoff_audit_standalone_smoke",
             "optional_artifacts",
             "standalone planner smoke passed for each runtime handoff seed",

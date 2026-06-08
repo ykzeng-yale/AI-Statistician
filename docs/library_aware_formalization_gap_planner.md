@@ -216,7 +216,9 @@ prompt-only/live LLM route-planner commands that pass the registry directory via
 `--formalization-gap-planner-component-resource-registry-dir`. The runtime
 handoff audit builds the registry offline and verifies that staged prompt
 packets contain nonzero component, resource, and resource-contract rows before
-declaring the handoff smoke-ready.
+declaring the handoff smoke-ready. The publication-bundle audit repeats those
+runtime-handoff checks when the optional handoff audit artifact is packaged, so
+a reusable bundle cannot silently lose registry-aware planner context.
 
 For feedback passes after prover/resource attempts, the request packet now also
 includes `context_packet.feedback_loop_summary` when residual, refinement,
