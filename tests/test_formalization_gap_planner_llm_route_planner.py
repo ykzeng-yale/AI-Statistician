@@ -3295,6 +3295,51 @@ def test_llm_route_planner_rejects_wrong_target_candidate_declaration_rows() -> 
     )
 
 
+def test_llm_route_planner_rejects_wrong_candidate_declaration_row_provenance() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_wrong_candidate_row_provenance"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    bad_response = _llm_response_payload()
+    wrong_row = {
+        "declaration": "Probability.exchangeable",
+        "target_prover_family": "lean4",
+        "source_field": "unreviewed_external_search",
+    }
+    bad_response["lean_realization_dag_nodes"][0].pop("candidate_declarations", None)
+    bad_response["lean_realization_dag_nodes"][0]["candidate_declaration_rows"] = [
+        wrong_row
+    ]
+    bad_response["standalone_route"]["primitives"][0].pop(
+        "candidate_declarations",
+        None,
+    )
+    bad_response["standalone_route"]["primitives"][0][
+        "candidate_declaration_rows"
+    ] = [wrong_row]
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "candidate_declaration_rows must preserve request/context formal-library provenance"
+        in error
+        and "unreviewed_external_search" in error
+        for error in row["errors"]
+    )
+
+
 def test_llm_route_planner_search_requests_materialize_refinement_work_items() -> None:
     root = Path("runs/test_formalization_gap_planner_llm_route_planner_search_handoff")
     out_dir = root / "llm_route_planner"

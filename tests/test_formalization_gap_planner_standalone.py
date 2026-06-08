@@ -382,7 +382,7 @@ def test_standalone_gap_planner_preserves_candidate_declaration_rows_into_covera
     declaration_row = {
         "declaration": "Probability.exchangeable",
         "target_prover_family": "lean4",
-        "source_field": "llm_candidate_declaration_rows",
+        "source_field": "route_candidate_declaration_rows",
     }
     input_json.write_text(
         json.dumps(

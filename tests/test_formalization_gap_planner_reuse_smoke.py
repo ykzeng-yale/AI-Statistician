@@ -42,7 +42,7 @@ def _reviewed_llm_route_response_payload() -> dict[str, object]:
                     {
                         "declaration": "Probability.exchangeable",
                         "target_prover_family": "lean4",
-                        "source_field": "llm_candidate_declaration_rows",
+                        "source_field": "available_formal_declaration_rows",
                     }
                 ],
                 "formalization_action": "reuse",
@@ -198,7 +198,7 @@ def _reviewed_llm_route_response_payload() -> dict[str, object]:
                         {
                             "declaration": "Probability.exchangeable",
                             "target_prover_family": "lean4",
-                            "source_field": "llm_candidate_declaration_rows",
+                            "source_field": "available_formal_declaration_rows",
                         }
                     ],
                     "source_refs": ["conformal_prediction_textbook"],
@@ -1935,7 +1935,7 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
             "residual_goal": "rocq:rank_uniformity: awaiting prover adapter mapping",
             "interpretation": (
                 "The target Rocq route still needs a prover-adapter mapping for "
-                "the rank_uniformity bridge before any kernel replay can be claimed."
+                "rank_uniformity before any kernel replay can be claimed."
             ),
             "repair_action": "run target-prover adapter mapping for rank_uniformity",
             "formal_gap_boundary": (
@@ -2323,7 +2323,7 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         {
             "declaration": "Probability.exchangeable",
             "target_prover_family": "lean4",
-            "source_field": "llm_candidate_declaration_rows",
+            "source_field": "available_formal_declaration_rows",
         }
     ]
     assert seed_primitive["candidate_declarations"] == ["Probability.exchangeable"]
@@ -2346,7 +2346,7 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         {
             "declaration": "Probability.exchangeable",
             "target_prover_family": "lean4",
-            "source_field": "llm_candidate_declaration_rows",
+            "source_field": "available_formal_declaration_rows",
         }
     ]
     standalone_trace = plan_rows[0]["standalone_input_trace"]

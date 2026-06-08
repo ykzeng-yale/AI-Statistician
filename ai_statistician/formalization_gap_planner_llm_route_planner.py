@@ -4060,6 +4060,9 @@ def _response_formal_declaration_grounding_errors(
             "response candidate_declarations must be drawn from request/context "
             f"formal-library evidence; ungrounded candidate_declarations: {preview}"
         )
+    errors.extend(
+        _response_candidate_declaration_row_provenance_errors(payload, request)
+    )
     for index, node in enumerate(
         _formal_realization_nodes_from_payload(
             payload,
@@ -4085,6 +4088,47 @@ def _response_formal_declaration_grounding_errors(
                 "standalone_route.primitives"
                 f"[{index}] existing-library coverage requires grounded candidate_declarations"
             )
+    return errors
+
+
+def _response_candidate_declaration_row_provenance_errors(
+    payload: Mapping[str, Any],
+    request: Mapping[str, Any],
+) -> list[str]:
+    available = _available_formal_declaration_row_provenance_for_request(request)
+    if not available:
+        return []
+    errors: list[str] = []
+    unsupported: list[str] = []
+    for location, row in _response_candidate_declaration_row_locations(
+        payload,
+        target_prover_family=str(request.get("target_prover_family", "")),
+    ):
+        declaration_key = _formal_declaration_key(row.get("declaration", ""))
+        target_key = _target_prover_key(row.get("target_prover_family", ""))
+        source_field_key = _formal_declaration_source_field_key(
+            row.get("source_field", "")
+        )
+        if not declaration_key:
+            continue
+        allowed_sources = available.get((declaration_key, target_key), set())
+        if not allowed_sources:
+            unsupported.append(
+                f"{location}={row.get('declaration', '')}"
+                f"@{row.get('target_prover_family', '')}"
+            )
+            continue
+        if source_field_key not in allowed_sources:
+            unsupported.append(
+                f"{location}={row.get('declaration', '')}"
+                f" source_field={row.get('source_field', '')}"
+            )
+    if unsupported:
+        errors.append(
+            "response candidate_declaration_rows must preserve request/context "
+            "formal-library provenance; unsupported rows: "
+            + "; ".join(unsupported[:8])
+        )
     return errors
 
 
@@ -4444,9 +4488,16 @@ def _node_candidate_declarations(node: Mapping[str, Any]) -> tuple[str, ...]:
 
 def _response_candidate_declaration_row_locations(
     payload: Mapping[str, Any],
+    *,
+    target_prover_family: str = "",
 ) -> tuple[tuple[str, dict[str, object]], ...]:
     rows: list[tuple[str, dict[str, object]]] = []
-    for index, node in enumerate(_formal_realization_nodes_from_payload(payload)):
+    for index, node in enumerate(
+        _formal_realization_nodes_from_payload(
+            payload,
+            target_prover_family=target_prover_family,
+        )
+    ):
         rows.extend(
             (
                 f"formal_realization_dag_nodes[{index}].candidate_declaration_rows[{row_index}]",
@@ -4463,7 +4514,10 @@ def _response_candidate_declaration_row_locations(
                 )
             )
         )
-    route = _dict_value(payload, "standalone_route")
+    route = _standalone_route_from_payload(
+        payload,
+        target_prover_family=target_prover_family,
+    )
     for index, primitive in enumerate(_dict_tuple(route.get("primitives", []))):
         rows.extend(
             (
@@ -4623,6 +4677,47 @@ def _available_formal_declaration_keys_for_request(
     }
 
 
+def _available_formal_declaration_row_provenance_for_request(
+    request: Mapping[str, Any],
+) -> dict[tuple[str, str], set[str]]:
+    context_packet = _dict_value(request, "context_packet")
+    structured_rows = _dict_tuple(
+        context_packet.get("available_formal_declaration_rows", [])
+    )
+    provenance: dict[tuple[str, str], set[str]] = {}
+    target_prover_family = str(request.get("target_prover_family", ""))
+    for row in _target_compatible_formal_declaration_rows(
+        structured_rows,
+        target_prover_family=target_prover_family,
+    ):
+        declaration_key = _formal_declaration_key(row.get("declaration", ""))
+        target_key = _target_prover_key(
+            row.get("target_prover_family", "") or target_prover_family
+        )
+        if not declaration_key:
+            continue
+        source_fields = {
+            _formal_declaration_source_field_key(row.get("source_field", "")),
+            "available_formal_declaration_rows",
+        }
+        source_fields.discard("")
+        provenance.setdefault((declaration_key, target_key), set()).update(
+            source_fields
+        )
+
+    flat_declarations = _str_tuple(
+        context_packet.get("available_formal_declarations", [])
+    )
+    for declaration in flat_declarations:
+        declaration_key = _formal_declaration_key(declaration)
+        target_key = _target_prover_key(target_prover_family)
+        if declaration_key:
+            provenance.setdefault((declaration_key, target_key), set()).add(
+                "available_formal_declarations"
+            )
+    return provenance
+
+
 def _collect_formal_declaration_rows(
     value: Any,
     rows: list[dict[str, object]],
@@ -4758,6 +4853,17 @@ def _formal_declaration_values(value: Any) -> tuple[str, ...]:
 
 def _formal_declaration_key(value: object) -> str:
     return re.sub(r"[^a-z0-9_'.]+", "_", str(value or "").strip().lower()).strip("_")
+
+
+def _formal_declaration_source_field_key(value: object) -> str:
+    key = _primitive_key(value)
+    aliases = {
+        "available_declaration_rows": "available_formal_declaration_rows",
+        "formal_declaration_rows": "available_formal_declaration_rows",
+        "available_declarations": "available_formal_declarations",
+        "formal_declarations": "available_formal_declarations",
+    }
+    return aliases.get(key, key)
 
 
 def _response_source_ref_grounding_errors(
