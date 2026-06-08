@@ -1046,6 +1046,94 @@ def test_llm_route_planner_stages_component_resource_registry_context() -> None:
     assert "registry rows are not evidence" in request["prompt_messages"]["user"]
 
 
+def test_llm_route_planner_filters_registry_context_for_rocq_target() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_registry_context_rocq"
+    )
+    out_dir = root / "llm_route_planner"
+    registry_dir = root / "component_resource_registry"
+    input_json = root / "standalone_input.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "component_name": "formalization_gap_planner_standalone_input",
+                "target_prover_family": "rocq",
+                "library_snapshot_ref": "rocq_probability_snapshot",
+                "routes": [
+                    {
+                        "route_id": "rocq_rank_route",
+                        "display_name": "rocq_distribution_free_rank_bound",
+                        "target_prover_family": "rocq",
+                        "theorem_statement": (
+                            "A Rocq rank bound follows from exchangeability."
+                        ),
+                        "source_refs": ["conformal_prediction_textbook"],
+                        "primitives": [
+                            {
+                                "primitive": "rank_uniformity",
+                                "coverage_status": "bridge_needed",
+                            }
+                        ],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    export_formalization_gap_planner_component_resource_registry(registry_dir)
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        formalization_gap_planner_component_resource_registry_dir=registry_dir,
+    )
+
+    assert payload["all_ok"]
+    request = payload["request_packets"][0]
+    registry_context = request["context_packet"][
+        "component_resource_registry_context"
+    ]
+    resource_ids = {
+        row["resource_id"] for row in registry_context["resource_rows"]
+    }
+    assert "local_target_formal_source_index" in resource_ids
+    assert "rocq_lsp_serapi" in resource_ids
+    lean_only_resource_ids = {
+        "local_formal_source_index",
+        "local_lean_rag_dependency_graph",
+        "loogle_leansearch",
+        "leanexplore_mcp",
+        "lean_blueprint_leanarchitect",
+        "local_lake_lean",
+        "lean_lsp_mcp",
+        "leandojo_reprover",
+    }
+    assert not resource_ids.intersection(lean_only_resource_ids)
+    for row in (
+        *registry_context["component_rows"],
+        *registry_context["execution_plan_rows"],
+    ):
+        row_resource_ids = set()
+        for field_name in (
+            "local_fallback_resource_ids",
+            "frontier_resource_ids",
+            "local_first_resource_ids",
+            "frontier_escalation_resource_ids",
+            "resource_ids",
+        ):
+            row_resource_ids.update(row.get(field_name, ()))
+        assert not row_resource_ids.intersection(lean_only_resource_ids)
+    contract_resource_ids = {
+        row["resource_id"] for row in registry_context["resource_contract_rows"]
+    }
+    assert "rocq_lsp_serapi" in contract_resource_ids
+    assert not contract_resource_ids.intersection(lean_only_resource_ids)
+
+
 def test_llm_route_planner_accepts_registry_bound_actions_without_queue() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_registry_bound_static"

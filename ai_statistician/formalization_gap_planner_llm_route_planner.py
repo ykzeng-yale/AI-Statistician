@@ -6486,26 +6486,35 @@ def _component_resource_registry_context(
         for row in _dict_tuple(payload.get("resource_rows", []))
         if _resource_targets_match(row, target)
     ][:40]
-    resource_ids = {
+    compatible_resource_ids = {
         str(row.get("resource_id", "")).strip()
         for row in resource_rows
         if str(row.get("resource_id", "")).strip()
     }
     component_rows = [
-        _compact_row(row)
+        _target_filtered_registry_row(
+            _compact_row(row),
+            compatible_resource_ids=compatible_resource_ids,
+        )
         for row in _dict_tuple(payload.get("component_rows", []))
     ][:20]
     execution_plan_rows = [
-        _compact_row(row)
+        _target_filtered_registry_row(
+            _compact_row(row),
+            compatible_resource_ids=compatible_resource_ids,
+        )
         for row in _dict_tuple(payload.get("execution_plan_rows", []))
     ][:20]
-    resource_ids.update(_resource_ids_for_registry_context(component_rows))
-    resource_ids.update(_resource_ids_for_registry_context(execution_plan_rows))
+    referenced_resource_ids = set(compatible_resource_ids)
+    referenced_resource_ids.update(_resource_ids_for_registry_context(component_rows))
+    referenced_resource_ids.update(
+        _resource_ids_for_registry_context(execution_plan_rows)
+    )
     resource_contract_rows = [
         _compact_row(row)
         for row in _dict_tuple(payload.get("resource_contract_rows", []))
         if (
-            str(row.get("resource_id", "")).strip() in resource_ids
+            str(row.get("resource_id", "")).strip() in referenced_resource_ids
             and _resource_targets_match(row, target)
         )
     ][:40]
@@ -6524,6 +6533,29 @@ def _component_resource_registry_context(
         "resource_contract_rows": tuple(resource_contract_rows),
     }
     return context if any(context[key] for key in ("component_rows", "resource_rows")) else {}
+
+
+def _target_filtered_registry_row(
+    row: dict[str, object],
+    *,
+    compatible_resource_ids: set[str],
+) -> dict[str, object]:
+    filtered = dict(row)
+    for field_name in (
+        "local_fallback_resource_ids",
+        "frontier_resource_ids",
+        "local_first_resource_ids",
+        "frontier_escalation_resource_ids",
+        "resource_ids",
+    ):
+        if field_name not in filtered:
+            continue
+        filtered[field_name] = tuple(
+            resource_id
+            for resource_id in _str_tuple(filtered.get(field_name, []))
+            if resource_id in compatible_resource_ids
+        )
+    return filtered
 
 
 def _component_resource_context_from_request(
