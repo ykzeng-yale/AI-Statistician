@@ -1378,8 +1378,16 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert "--model-tier auto" in gap_planner_bridge["next_llm_route_planner_prompt_cli"]
     assert "--max-repair-attempts 1" in gap_planner_bridge["next_llm_route_planner_prompt_cli"]
     assert "--provider anthropic" in gap_planner_bridge["next_llm_route_planner_prompt_cli"]
+    assert (
+        "--formalization-gap-planner-component-resource-registry-dir"
+        in gap_planner_bridge["next_llm_route_planner_prompt_cli"]
+    )
     assert "--invoke-provider" not in gap_planner_bridge["next_llm_route_planner_prompt_cli"]
     assert "--invoke-provider" in gap_planner_bridge["next_llm_route_planner_live_cli"]
+    assert (
+        "--formalization-gap-planner-component-resource-registry-dir"
+        in gap_planner_bridge["next_llm_route_planner_live_cli"]
+    )
     assert "formalization-gap-planner-reuse-smoke" in gap_planner_bridge["next_reuse_smoke_cli"]
     assert "--llm-route-planner-provider anthropic" in gap_planner_bridge["next_reuse_smoke_cli"]
     assert "--feedback-llm-route-planner-provider anthropic" in gap_planner_bridge["next_reuse_smoke_cli"]
@@ -1403,8 +1411,19 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert persisted_bridge_rows[0]["target_intake_path"].endswith(".json")
     assert persisted_bridge_rows[0]["target_prover_family"] == "lean4"
     assert persisted_bridge_rows[0]["counts"]["candidate_declaration_rows"] > 0
+    assert persisted_bridge_rows[0]["component_resource_registry_dir"].endswith(
+        "component_resource_registry"
+    )
+    assert (
+        "formalization-gap-planner-component-resource-registry"
+        in persisted_bridge_rows[0]["component_resource_registry_cli"]
+    )
     assert "--model-tier auto" in persisted_bridge_rows[0]["llm_route_planner_prompt_cli"]
     assert "--max-repair-attempts 1" in persisted_bridge_rows[0]["llm_route_planner_prompt_cli"]
+    assert (
+        "--formalization-gap-planner-component-resource-registry-dir"
+        in persisted_bridge_rows[0]["llm_route_planner_prompt_cli"]
+    )
     assert "formalization-gap-planner-reuse-smoke" in persisted_bridge_rows[0]["reuse_smoke_cli"]
     assert "--llm-route-planner-invoke-provider" not in persisted_bridge_rows[0]["reuse_smoke_cli"]
     assert len(handoff_rows) == 2
@@ -1414,11 +1433,26 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert handoff["target_intake_path"].endswith(".json")
     assert handoff["recommended_llm_provider"] == "anthropic"
     assert handoff["recommended_model_tier"] == "auto"
+    assert handoff["component_resource_registry_dir"].endswith(
+        "component_resource_registry"
+    )
+    assert (
+        "formalization-gap-planner-component-resource-registry"
+        in handoff["component_resource_registry_cli"]
+    )
     assert "--model-tier auto" in handoff["llm_route_planner_prompt_cli"]
     assert "--max-repair-attempts 1" in handoff["llm_route_planner_prompt_cli"]
     assert "--provider anthropic" in handoff["llm_route_planner_prompt_cli"]
+    assert (
+        "--formalization-gap-planner-component-resource-registry-dir"
+        in handoff["llm_route_planner_prompt_cli"]
+    )
     assert "--invoke-provider" not in handoff["llm_route_planner_prompt_cli"]
     assert "--invoke-provider" in handoff["llm_route_planner_live_cli"]
+    assert (
+        "--formalization-gap-planner-component-resource-registry-dir"
+        in handoff["llm_route_planner_live_cli"]
+    )
     assert "formalization-gap-planner-reuse-smoke" in handoff["reuse_smoke_cli"]
     assert "--llm-route-planner-provider anthropic" in handoff["reuse_smoke_cli"]
     assert "--feedback-llm-route-planner-provider anthropic" in handoff["reuse_smoke_cli"]
@@ -1437,6 +1471,21 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert runtime_handoff_audit["n_cost_control_ok"] == 2
     assert runtime_handoff_audit["n_live_explicit_ok"] == 2
     assert runtime_handoff_audit["n_reuse_smoke_cost_control_ok"] == 2
+    assert runtime_handoff_audit["n_component_resource_registry_smoke_ok"] == 2
+    assert (
+        runtime_handoff_audit[
+            "n_component_resource_registry_components_in_prompt"
+        ]
+        > 0
+    )
+    assert (
+        runtime_handoff_audit["n_component_resource_registry_resources_in_prompt"]
+        > 0
+    )
+    assert (
+        runtime_handoff_audit["n_component_resource_registry_contracts_in_prompt"]
+        > 0
+    )
     assert runtime_handoff_audit["n_target_intake_smoke_ok"] == 2
     assert runtime_handoff_audit["n_target_intake_targets"] >= 2
     assert runtime_handoff_audit["n_target_intake_primitive_seeds"] > 0
@@ -1469,6 +1518,8 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     ).read_text(encoding="utf-8")
     assert "Seed candidate declaration rows:" in runtime_handoff_report
     assert "Target-intake smoke OK:" in runtime_handoff_report
+    assert "Component-resource registry smoke OK:" in runtime_handoff_report
+    assert "Registry context in prompts:" in runtime_handoff_report
     standalone_seed = gap_planner_bridge["standalone_seed"]
     assert validate_standalone_input_payload(standalone_seed) == []
     assert standalone_seed["component_name"] == "formalization_gap_planner_standalone_input"

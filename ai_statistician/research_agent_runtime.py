@@ -2826,23 +2826,39 @@ def _runtime_formalization_gap_planner_handoff_rows(
         seed_arg = shlex.quote(str(seed_path))
         target_intake_arg = shlex.quote(target_intake_path_text)
         standalone_out = handoff_root / handoff_slug / "standalone_plan"
+        component_resource_registry_out = (
+            handoff_root / handoff_slug / "component_resource_registry"
+        )
         llm_prompt_out = handoff_root / handoff_slug / "llm_route_planner_prompt"
         llm_live_out = handoff_root / handoff_slug / "llm_route_planner_live"
         reuse_smoke_out = handoff_root / handoff_slug / "reuse_smoke"
+        component_resource_registry_arg = shlex.quote(
+            str(component_resource_registry_out)
+        )
         standalone_plan_cli = (
             "python3 -m ai_statistician.cli formalization-gap-planner-standalone-plan "
             f"--input {seed_arg} --out {shlex.quote(str(standalone_out))}"
+        )
+        component_resource_registry_cli = (
+            "python3 -m ai_statistician.cli "
+            "formalization-gap-planner-component-resource-registry "
+            f"--out {component_resource_registry_arg}"
         )
         llm_route_planner_prompt_cli = (
             "python3 -m ai_statistician.cli formalization-gap-planner-llm-route-planner "
             f"--input {seed_arg} --provider anthropic --model-tier auto "
             "--max-repair-attempts 1 "
+            "--formalization-gap-planner-component-resource-registry-dir "
+            f"{component_resource_registry_arg} "
             f"--out {shlex.quote(str(llm_prompt_out))}"
         )
         llm_route_planner_live_cli = (
             "python3 -m ai_statistician.cli formalization-gap-planner-llm-route-planner "
             f"--input {seed_arg} --provider anthropic --model-tier auto "
-            f"--max-repair-attempts 1 --invoke-provider --out {shlex.quote(str(llm_live_out))}"
+            "--max-repair-attempts 1 "
+            "--formalization-gap-planner-component-resource-registry-dir "
+            f"{component_resource_registry_arg} "
+            f"--invoke-provider --out {shlex.quote(str(llm_live_out))}"
         )
         reuse_smoke_cli = (
             "python3 -m ai_statistician.cli formalization-gap-planner-reuse-smoke "
@@ -2879,6 +2895,8 @@ def _runtime_formalization_gap_planner_handoff_rows(
                 "routes and Claude Sonnet for residual, bridge, source-port, "
                 "or new-theory routes"
             ),
+            "component_resource_registry_dir": str(component_resource_registry_out),
+            "component_resource_registry_cli": component_resource_registry_cli,
             "standalone_plan_cli": standalone_plan_cli,
             "llm_route_planner_prompt_cli": llm_route_planner_prompt_cli,
             "llm_route_planner_live_cli": llm_route_planner_live_cli,
@@ -2896,6 +2914,10 @@ def _runtime_formalization_gap_planner_handoff_rows(
         }
         bridge["handoff_id"] = row["handoff_id"]
         bridge["standalone_plan_cli"] = standalone_plan_cli
+        bridge["component_resource_registry_dir"] = str(
+            component_resource_registry_out
+        )
+        bridge["component_resource_registry_cli"] = component_resource_registry_cli
         bridge["llm_route_planner_prompt_cli"] = llm_route_planner_prompt_cli
         bridge["llm_route_planner_live_cli"] = llm_route_planner_live_cli
         bridge["reuse_smoke_cli"] = reuse_smoke_cli
@@ -3032,12 +3054,17 @@ def _runtime_formalization_gap_planner_bridge(
             "--input <runtime_formalization_gap_planner_standalone_seed.json> "
             "--provider anthropic --model-tier auto "
             "--max-repair-attempts 1 "
+            "--formalization-gap-planner-component-resource-registry-dir "
+            "<runtime_formalization_gap_planner_component_resource_registry_dir> "
             "--out runs/formalization_gap_planner_runtime_llm_route_planner_prompt"
         ),
         "next_llm_route_planner_live_cli": (
             "python3 -m ai_statistician.cli formalization-gap-planner-llm-route-planner "
             "--input <runtime_formalization_gap_planner_standalone_seed.json> "
-            "--provider anthropic --model-tier auto --max-repair-attempts 1 --invoke-provider "
+            "--provider anthropic --model-tier auto --max-repair-attempts 1 "
+            "--formalization-gap-planner-component-resource-registry-dir "
+            "<runtime_formalization_gap_planner_component_resource_registry_dir> "
+            "--invoke-provider "
             "--out runs/formalization_gap_planner_runtime_llm_route_planner_live"
         ),
         "next_reuse_smoke_cli": (

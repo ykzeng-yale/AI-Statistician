@@ -209,6 +209,15 @@ Registry rows are not treated as evidence that a resource was called; actual
 tool outputs must still enter through source-grounding, library-coverage,
 refinement-evidence, or resource-response ledger artifacts.
 
+AI Statistician runtime handoffs now generate that registry step explicitly.
+Each `RuntimeFormalizationGapPlannerHandoff` includes a
+`component_resource_registry_cli`, a `component_resource_registry_dir`, and
+prompt-only/live LLM route-planner commands that pass the registry directory via
+`--formalization-gap-planner-component-resource-registry-dir`. The runtime
+handoff audit builds the registry offline and verifies that staged prompt
+packets contain nonzero component, resource, and resource-contract rows before
+declaring the handoff smoke-ready.
+
 For feedback passes after prover/resource attempts, the request packet now also
 includes `context_packet.feedback_loop_summary` when residual, refinement,
 route-revision, or interactive-session evidence is present. This summary is a

@@ -2,12 +2,16 @@ from __future__ import annotations
 
 import json
 import re
+import tempfile
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
 from .fingerprint import stable_hash
+from .formalization_gap_planner_component_resource_registry import (
+    export_formalization_gap_planner_component_resource_registry,
+)
 from .formalization_gap_planner_llm_route_planner import (
     export_formalization_gap_planner_llm_route_planner,
 )
@@ -142,6 +146,41 @@ def audit_formalization_gap_planner_runtime_handoffs(
             for summary in smoke_summaries
             if summary.get("reuse_smoke_cost_control_ok")
         ),
+        "n_component_resource_registry_smoke_ok": sum(
+            1
+            for summary in smoke_summaries
+            if summary.get("component_resource_registry_smoke_ok")
+        ),
+        "n_component_resource_registry_components_in_prompt": sum(
+            int(
+                summary.get(
+                    "llm_prompt_component_resource_registry_components",
+                    0,
+                )
+                or 0
+            )
+            for summary in smoke_summaries
+        ),
+        "n_component_resource_registry_resources_in_prompt": sum(
+            int(
+                summary.get(
+                    "llm_prompt_component_resource_registry_resources",
+                    0,
+                )
+                or 0
+            )
+            for summary in smoke_summaries
+        ),
+        "n_component_resource_registry_contracts_in_prompt": sum(
+            int(
+                summary.get(
+                    "llm_prompt_component_resource_registry_contracts",
+                    0,
+                )
+                or 0
+            )
+            for summary in smoke_summaries
+        ),
         "n_target_intake_smoke_ok": sum(
             1 for summary in smoke_summaries if summary.get("target_intake_smoke_ok")
         ),
@@ -245,6 +284,7 @@ def runtime_handoff_audit_row_json_schema() -> dict[str, object]:
                 "type": "string",
                 "enum": [
                     "artifacts",
+                    "component_resource_registry",
                     "cost_control",
                     "llm_prompt_smoke",
                     "proof_boundary",
@@ -308,6 +348,12 @@ def _audit_handoff_row(
     prompt_cli = str(handoff.get("llm_route_planner_prompt_cli", ""))
     live_cli = str(handoff.get("llm_route_planner_live_cli", ""))
     reuse_smoke_cli = str(handoff.get("reuse_smoke_cli", ""))
+    component_resource_registry_cli = str(
+        handoff.get("component_resource_registry_cli", "")
+    )
+    component_resource_registry_dir_text = str(
+        handoff.get("component_resource_registry_dir", "")
+    ).strip()
     handoff_target = str(handoff.get("target_prover_family", "")).strip()
     summary: dict[str, object] = {
         "handoff_id": handoff_id,
@@ -323,6 +369,10 @@ def _audit_handoff_row(
         "cost_control_ok": False,
         "live_explicit_ok": False,
         "reuse_smoke_cost_control_ok": False,
+        "component_resource_registry_smoke_ok": False,
+        "llm_prompt_component_resource_registry_components": 0,
+        "llm_prompt_component_resource_registry_resources": 0,
+        "llm_prompt_component_resource_registry_contracts": 0,
         "target_intake_smoke_ok": False,
         "target_intake_targets": 0,
         "target_intake_primitive_seeds": 0,
@@ -344,8 +394,14 @@ def _audit_handoff_row(
     summary.update(_seed_context_counts(seed_payload))
     seed_target = str(seed_payload.get("target_prover_family", "")).strip()
     seed_snapshot = str(seed_payload.get("library_snapshot_ref", "")).strip()
-    cost_control_ok = _prompt_cli_cost_control_ok(prompt_cli)
-    live_explicit_ok = _live_cli_explicit_ok(live_cli)
+    cost_control_ok = _prompt_cli_cost_control_ok(
+        prompt_cli,
+        component_resource_registry_dir_text=component_resource_registry_dir_text,
+    )
+    live_explicit_ok = _live_cli_explicit_ok(
+        live_cli,
+        component_resource_registry_dir_text=component_resource_registry_dir_text,
+    )
     reuse_smoke_cost_control_ok = _reuse_smoke_cli_cost_control_ok(
         reuse_smoke_cli,
         target_intake_path_text=target_intake_path_text,
@@ -484,6 +540,44 @@ def _audit_handoff_row(
             "formalization-gap-planner-reuse-smoke" in reuse_smoke_cli,
         ),
         _row_check(
+            "row_component_resource_registry_cli_present",
+            "component_resource_registry",
+            handoff_id,
+            bridge_id,
+            "formalization-gap-planner-component-resource-registry command",
+            component_resource_registry_cli,
+            "formalization-gap-planner-component-resource-registry"
+            in component_resource_registry_cli,
+        ),
+        _row_check(
+            "row_prompt_cli_has_component_resource_registry_context",
+            "component_resource_registry",
+            handoff_id,
+            bridge_id,
+            "--formalization-gap-planner-component-resource-registry-dir",
+            prompt_cli,
+            "--formalization-gap-planner-component-resource-registry-dir"
+            in prompt_cli
+            and (
+                not component_resource_registry_dir_text
+                or component_resource_registry_dir_text in prompt_cli
+            ),
+        ),
+        _row_check(
+            "row_live_cli_has_component_resource_registry_context",
+            "component_resource_registry",
+            handoff_id,
+            bridge_id,
+            "--formalization-gap-planner-component-resource-registry-dir",
+            live_cli,
+            "--formalization-gap-planner-component-resource-registry-dir"
+            in live_cli
+            and (
+                not component_resource_registry_dir_text
+                or component_resource_registry_dir_text in live_cli
+            ),
+        ),
+        _row_check(
             "row_prompt_cli_cost_control",
             "cost_control",
             handoff_id,
@@ -581,6 +675,24 @@ def _audit_handoff_row(
             )
         )
     if run_smoke and seed_schema_ok:
+        registry_ok, registry_observed, registry_dir = (
+            _run_component_resource_registry_smoke(
+                handoff_id=handoff_id,
+                smoke_root=smoke_root,
+            )
+        )
+        summary["component_resource_registry_smoke_ok"] = registry_ok
+        checks.append(
+            _row_check(
+                "row_component_resource_registry_smoke",
+                "component_resource_registry",
+                handoff_id,
+                bridge_id,
+                "component-resource registry exports reusable tool contracts",
+                registry_observed,
+                registry_ok,
+            )
+        )
         standalone_ok, standalone_observed = _run_standalone_smoke(
             seed_path,
             handoff_id=handoff_id,
@@ -602,6 +714,7 @@ def _audit_handoff_row(
             seed_path,
             handoff_id=handoff_id,
             smoke_root=smoke_root,
+            component_resource_registry_dir=registry_dir if registry_ok else None,
         )
         summary.update(llm_counts)
         summary["llm_prompt_smoke_ok"] = llm_ok
@@ -616,9 +729,53 @@ def _audit_handoff_row(
                 llm_ok,
             )
         )
+        checks.append(
+            _row_check(
+                "row_llm_prompt_has_component_resource_registry_context",
+                "component_resource_registry",
+                handoff_id,
+                bridge_id,
+                "prompt packets include component/resource/contract rows",
+                llm_observed,
+                llm_ok
+                and int(
+                    llm_counts.get(
+                        "llm_prompt_component_resource_registry_components",
+                        0,
+                    )
+                    or 0
+                )
+                > 0
+                and int(
+                    llm_counts.get(
+                        "llm_prompt_component_resource_registry_resources",
+                        0,
+                    )
+                    or 0
+                )
+                > 0
+                and int(
+                    llm_counts.get(
+                        "llm_prompt_component_resource_registry_contracts",
+                        0,
+                    )
+                    or 0
+                )
+                > 0,
+            )
+        )
     elif run_smoke:
         checks.extend(
             [
+                _row_check(
+                    "row_component_resource_registry_smoke",
+                    "component_resource_registry",
+                    handoff_id,
+                    bridge_id,
+                    "component-resource registry exports reusable tool contracts",
+                    "skipped because seed schema invalid",
+                    False,
+                ),
                 _row_check(
                     "row_standalone_smoke",
                     "standalone_smoke",
@@ -634,6 +791,15 @@ def _audit_handoff_row(
                     handoff_id,
                     bridge_id,
                     "prompt-only Anthropic route planner stages awaiting requests",
+                    "skipped because seed schema invalid",
+                    False,
+                ),
+                _row_check(
+                    "row_llm_prompt_has_component_resource_registry_context",
+                    "component_resource_registry",
+                    handoff_id,
+                    bridge_id,
+                    "prompt packets include component/resource/contract rows",
                     "skipped because seed schema invalid",
                     False,
                 ),
@@ -677,6 +843,38 @@ def _seed_context_counts(seed_payload: Mapping[str, Any]) -> dict[str, int]:
     }
 
 
+def _run_component_resource_registry_smoke(
+    *,
+    handoff_id: str,
+    smoke_root: Path | None,
+) -> tuple[bool, str, Path | None]:
+    registry_dir = (
+        _smoke_dir(smoke_root, handoff_id) / "component_resource_registry"
+        if smoke_root is not None
+        else Path(tempfile.mkdtemp(prefix="fgp_runtime_registry_"))
+    )
+    try:
+        payload = export_formalization_gap_planner_component_resource_registry(
+            registry_dir,
+        )
+    except Exception as exc:  # pragma: no cover - defensive audit surface
+        return False, f"{type(exc).__name__}: {exc}", None
+    ok = (
+        bool(payload.get("all_ok", False))
+        and int(payload.get("n_component_rows", 0) or 0) > 0
+        and int(payload.get("n_resources", 0) or 0) > 0
+        and int(payload.get("n_resource_contract_rows", 0) or 0) > 0
+        and (registry_dir is None or registry_dir.exists())
+    )
+    return ok, (
+        f"all_ok={payload.get('all_ok')} "
+        f"components={payload.get('n_component_rows')} "
+        f"resources={payload.get('n_resources')} "
+        f"contracts={payload.get('n_resource_contract_rows')} "
+        f"errors={payload.get('errors')}"
+    ), registry_dir
+
+
 def _run_standalone_smoke(
     seed_path: Path,
     *,
@@ -705,6 +903,7 @@ def _run_llm_prompt_smoke(
     *,
     handoff_id: str,
     smoke_root: Path | None,
+    component_resource_registry_dir: Path | None = None,
 ) -> tuple[bool, str, dict[str, int]]:
     try:
         payload = export_formalization_gap_planner_llm_route_planner(
@@ -716,15 +915,33 @@ def _run_llm_prompt_smoke(
             model_tier="auto",
             max_repair_attempts=1,
             invoke_provider=False,
+            formalization_gap_planner_component_resource_registry_dir=(
+                component_resource_registry_dir
+            ),
         )
     except Exception as exc:  # pragma: no cover - defensive audit surface
         return (
             False,
             f"{type(exc).__name__}: {exc}",
-            {"llm_prompt_packets": 0, "llm_prompt_awaiting_response": 0},
+            {
+                "llm_prompt_packets": 0,
+                "llm_prompt_awaiting_response": 0,
+                "llm_prompt_component_resource_registry_components": 0,
+                "llm_prompt_component_resource_registry_resources": 0,
+                "llm_prompt_component_resource_registry_contracts": 0,
+            },
         )
     n_packets = int(payload.get("n_request_packets", 0) or 0)
     n_awaiting = int(payload.get("n_awaiting_llm_response", 0) or 0)
+    n_registry_components = int(
+        payload.get("n_component_resource_registry_components_in_prompt", 0) or 0
+    )
+    n_registry_resources = int(
+        payload.get("n_component_resource_registry_resources_in_prompt", 0) or 0
+    )
+    n_registry_contracts = int(
+        payload.get("n_component_resource_registry_contracts_in_prompt", 0) or 0
+    )
     ok = (
         bool(payload.get("all_ok", False))
         and n_packets > 0
@@ -737,10 +954,17 @@ def _run_llm_prompt_smoke(
         f"all_ok={payload.get('all_ok')} provider={payload.get('provider_name')} "
         f"invoke_provider={payload.get('invoke_provider')} "
         f"tier_mode={payload.get('model_tier_selection_mode')} "
-        f"packets={n_packets} awaiting={n_awaiting} errors={payload.get('errors')}"
+        f"packets={n_packets} awaiting={n_awaiting} "
+        f"registry_components={n_registry_components} "
+        f"registry_resources={n_registry_resources} "
+        f"registry_contracts={n_registry_contracts} "
+        f"errors={payload.get('errors')}"
     ), {
         "llm_prompt_packets": n_packets,
         "llm_prompt_awaiting_response": n_awaiting,
+        "llm_prompt_component_resource_registry_components": n_registry_components,
+        "llm_prompt_component_resource_registry_resources": n_registry_resources,
+        "llm_prompt_component_resource_registry_contracts": n_registry_contracts,
     }
 
 
@@ -789,12 +1013,21 @@ def _run_target_intake_smoke(
     }
 
 
-def _prompt_cli_cost_control_ok(prompt_cli: str) -> bool:
+def _prompt_cli_cost_control_ok(
+    prompt_cli: str,
+    *,
+    component_resource_registry_dir_text: str,
+) -> bool:
     return (
         "formalization-gap-planner-llm-route-planner" in prompt_cli
         and "--provider anthropic" in prompt_cli
         and "--model-tier auto" in prompt_cli
         and "--max-repair-attempts 1" in prompt_cli
+        and "--formalization-gap-planner-component-resource-registry-dir" in prompt_cli
+        and (
+            not component_resource_registry_dir_text
+            or component_resource_registry_dir_text in prompt_cli
+        )
         and "--invoke-provider" not in prompt_cli
     )
 
@@ -822,12 +1055,21 @@ def _reuse_smoke_cli_cost_control_ok(
     )
 
 
-def _live_cli_explicit_ok(live_cli: str) -> bool:
+def _live_cli_explicit_ok(
+    live_cli: str,
+    *,
+    component_resource_registry_dir_text: str,
+) -> bool:
     return (
         "formalization-gap-planner-llm-route-planner" in live_cli
         and "--provider anthropic" in live_cli
         and "--model-tier auto" in live_cli
         and "--max-repair-attempts 1" in live_cli
+        and "--formalization-gap-planner-component-resource-registry-dir" in live_cli
+        and (
+            not component_resource_registry_dir_text
+            or component_resource_registry_dir_text in live_cli
+        )
         and "--invoke-provider" in live_cli
     )
 
@@ -1054,7 +1296,14 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
         f"- Target-intake smoke OK: {payload.get('n_target_intake_smoke_ok')}",
         f"- Target-intake targets/primitives: {payload.get('n_target_intake_targets')}/{payload.get('n_target_intake_primitive_seeds')}",
         f"- Standalone smoke OK: {payload.get('n_standalone_smoke_ok')}",
+        f"- Component-resource registry smoke OK: {payload.get('n_component_resource_registry_smoke_ok')}",
         f"- LLM prompt smoke OK: {payload.get('n_llm_prompt_smoke_ok')}",
+        (
+            f"- Registry context in prompts: "
+            f"components={payload.get('n_component_resource_registry_components_in_prompt')} "
+            f"resources={payload.get('n_component_resource_registry_resources_in_prompt')} "
+            f"contracts={payload.get('n_component_resource_registry_contracts_in_prompt')}"
+        ),
         f"- Prompt packets: {payload.get('n_llm_prompt_packets')}",
         f"- Awaiting LLM response: {payload.get('n_llm_prompt_awaiting_response')}",
         f"- Seed routes/primitives: {payload.get('n_seed_routes')}/{payload.get('n_seed_primitives')}",
