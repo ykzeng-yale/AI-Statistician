@@ -59,10 +59,13 @@ from .formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
     MINIMAL_DELTA_COST_POLICY_ID,
     ROUTE_ADOPTION_AWAITING_STATUS,
+    ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_ID,
+    ROUTE_ADOPTION_BLOCKER_TAXONOMY_ID,
     ROUTE_ADOPTION_BLOCKER_VALUES,
     ROUTE_ADOPTION_PENDING_STATUS,
     ROUTE_ADOPTION_READY_STATUS,
     ROUTE_ADOPTION_REJECTED_STATUS,
+    validate_route_adoption_blocker_taxonomy_payload,
     validate_llm_route_planner_request,
     validate_llm_route_planner_response_payload_validation_manifest,
     validate_llm_route_planner_response_payload_validation_row,
@@ -189,6 +192,8 @@ REQUIRED_CORE_ARTIFACTS = (
     "llm_route_planner_response_payload_validation_manifest_schema",
     "llm_route_planner_response_payload_validation_row_schema",
     "llm_route_planner_row_schema",
+    "route_adoption_blocker_taxonomy_schema",
+    "route_adoption_blocker_taxonomy_contract",
     "route_revision_overlay_row_schema",
     "route_stability_audit_row_schema",
     "route_replan_handoff_row_schema",
@@ -2050,6 +2055,16 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
         / "contract"
         / "formalization_gap_planner_llm_route_planner_row.schema.json"
     )
+    route_adoption_blocker_taxonomy_schema_path = (
+        bundle_dir
+        / "contract"
+        / "formalization_gap_planner_route_adoption_blocker_taxonomy.schema.json"
+    )
+    route_adoption_blocker_taxonomy_path = (
+        bundle_dir
+        / "contract"
+        / "formalization_gap_planner_route_adoption_blocker_taxonomy.json"
+    )
     route_revision_overlay_row_schema_path = (
         bundle_dir
         / "contract"
@@ -2198,6 +2213,63 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
     )
     llm_route_planner_row_schema = _read_json_no_error(
         llm_route_planner_row_schema_path
+    )
+    route_adoption_blocker_taxonomy_schema = _read_json_no_error(
+        route_adoption_blocker_taxonomy_schema_path
+    )
+    route_adoption_blocker_taxonomy = _read_json_no_error(
+        route_adoption_blocker_taxonomy_path
+    )
+    route_adoption_blocker_taxonomy_errors = (
+        validate_route_adoption_blocker_taxonomy_payload(
+            route_adoption_blocker_taxonomy
+        )
+    )
+    embedded_route_adoption_blocker_taxonomy_errors = (
+        validate_route_adoption_blocker_taxonomy_payload(
+            contract.get("route_adoption_blocker_taxonomy_contract", {})
+            if isinstance(
+                contract.get("route_adoption_blocker_taxonomy_contract", {}),
+                dict,
+            )
+            else {}
+        )
+    )
+    row_schema_properties = llm_route_planner_row_schema.get("properties", {})
+    row_schema_properties = (
+        row_schema_properties if isinstance(row_schema_properties, dict) else {}
+    )
+    row_schema_route_adoption_status = row_schema_properties.get(
+        "route_adoption_status",
+        {},
+    )
+    row_schema_route_adoption_status = (
+        row_schema_route_adoption_status
+        if isinstance(row_schema_route_adoption_status, dict)
+        else {}
+    )
+    row_schema_route_adoption_blockers = row_schema_properties.get(
+        "route_adoption_blockers",
+        {},
+    )
+    row_schema_route_adoption_blockers = (
+        row_schema_route_adoption_blockers
+        if isinstance(row_schema_route_adoption_blockers, dict)
+        else {}
+    )
+    row_schema_route_adoption_blocker_items = (
+        row_schema_route_adoption_blockers.get("items", {})
+    )
+    row_schema_route_adoption_blocker_items = (
+        row_schema_route_adoption_blocker_items
+        if isinstance(row_schema_route_adoption_blocker_items, dict)
+        else {}
+    )
+    taxonomy_status_values = _str_tuple(
+        route_adoption_blocker_taxonomy.get("status_values", [])
+    )
+    taxonomy_blocker_values = _str_tuple(
+        route_adoption_blocker_taxonomy.get("blocker_values", [])
     )
     route_revision_overlay_row_schema = _read_json_no_error(
         route_revision_overlay_row_schema_path
@@ -2431,6 +2503,8 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
                 "llm_route_planner_response_payload_validation_manifest_schema",
                 "llm_route_planner_response_payload_validation_row_schema",
                 "llm_route_planner_row_schema",
+                "route_adoption_blocker_taxonomy_schema",
+                "route_adoption_blocker_taxonomy_contract",
                 "portable_plan_row_schema",
             }.issubset(schema_catalog_entry_names),
         ),
@@ -3082,6 +3156,79 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
             str(llm_route_planner_row_schema.get("$id", "")),
             llm_route_planner_row_schema.get("$id")
             == LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
+        ),
+        _check(
+            "route_adoption_blocker_taxonomy_schema_file",
+            "contract",
+            "route-adoption blocker taxonomy schema exists",
+            str(route_adoption_blocker_taxonomy_schema_path.exists()),
+            route_adoption_blocker_taxonomy_schema_path.exists(),
+        ),
+        _check(
+            "route_adoption_blocker_taxonomy_schema_id",
+            "contract",
+            ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_ID,
+            str(route_adoption_blocker_taxonomy_schema.get("$id", "")),
+            route_adoption_blocker_taxonomy_schema.get("$id")
+            == ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_ID,
+        ),
+        _check(
+            "route_adoption_blocker_taxonomy_file",
+            "contract",
+            "route-adoption blocker taxonomy contract exists",
+            str(route_adoption_blocker_taxonomy_path.exists()),
+            route_adoption_blocker_taxonomy_path.exists(),
+        ),
+        _check(
+            "route_adoption_blocker_taxonomy_payload",
+            "contract",
+            "route-adoption blocker taxonomy validates",
+            (
+                "; ".join(route_adoption_blocker_taxonomy_errors)
+                if route_adoption_blocker_taxonomy_errors
+                else str(route_adoption_blocker_taxonomy.get("taxonomy_id", ""))
+            ),
+            not route_adoption_blocker_taxonomy_errors
+            and route_adoption_blocker_taxonomy.get("taxonomy_id")
+            == ROUTE_ADOPTION_BLOCKER_TAXONOMY_ID,
+            errors=route_adoption_blocker_taxonomy_errors,
+        ),
+        _check(
+            "portable_contract_has_route_adoption_blocker_taxonomy_contract",
+            "contract",
+            "route_adoption_blocker_taxonomy_contract",
+            str("route_adoption_blocker_taxonomy_contract" in contract),
+            "route_adoption_blocker_taxonomy_contract" in contract,
+        ),
+        _check(
+            "portable_contract_route_adoption_blocker_taxonomy_valid",
+            "contract",
+            "embedded route-adoption blocker taxonomy validates",
+            (
+                "; ".join(embedded_route_adoption_blocker_taxonomy_errors)
+                if embedded_route_adoption_blocker_taxonomy_errors
+                else "valid"
+            ),
+            not embedded_route_adoption_blocker_taxonomy_errors,
+            errors=embedded_route_adoption_blocker_taxonomy_errors,
+        ),
+        _check(
+            "llm_route_planner_row_schema_route_adoption_status_enum_matches_taxonomy",
+            "contract",
+            "row schema route_adoption_status enum matches taxonomy",
+            ",".join(_str_tuple(row_schema_route_adoption_status.get("enum", []))),
+            _str_tuple(row_schema_route_adoption_status.get("enum", []))
+            == taxonomy_status_values,
+        ),
+        _check(
+            "llm_route_planner_row_schema_route_adoption_blocker_enum_matches_taxonomy",
+            "contract",
+            "row schema route_adoption_blockers enum matches taxonomy",
+            ",".join(
+                _str_tuple(row_schema_route_adoption_blocker_items.get("enum", []))
+            ),
+            _str_tuple(row_schema_route_adoption_blocker_items.get("enum", []))
+            == taxonomy_blocker_values,
         ),
         _check(
             "primitive_action_queue_row_schema_file",

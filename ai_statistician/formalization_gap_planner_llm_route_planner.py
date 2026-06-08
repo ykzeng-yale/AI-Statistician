@@ -52,6 +52,10 @@ LLM_ROUTE_PLANNER_ROW_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
     "formalization-gap-planner-llm-route-planner-row:1"
 )
+ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_ID = (
+    "urn:ai-statistician:schemas:"
+    "formalization-gap-planner-route-adoption-blocker-taxonomy:1"
+)
 PROOF_EVIDENCE_STATUS = (
     "FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_NOT_PROOF_EVIDENCE"
 )
@@ -113,6 +117,51 @@ ROUTE_ADOPTION_BLOCKER_VALUES = (
 ROUTE_ADOPTION_BLOCKER_TAXONOMY_ID = (
     "formalization_gap_planner_route_adoption_blocker_taxonomy:1"
 )
+ROUTE_ADOPTION_BLOCKER_TAXONOMY_COMPONENT = (
+    "formalization_gap_planner_route_adoption_blocker_taxonomy"
+)
+ROUTE_ADOPTION_BLOCKER_DEFINITIONS = {
+    ROUTE_ADOPTION_BLOCKER_RESPONSE_NOT_ACCEPTED: (
+        "The LLM route-planner response was rejected or failed response "
+        "contract validation."
+    ),
+    ROUTE_ADOPTION_BLOCKER_RESPONSE_MISSING: (
+        "The route has no LLM route-planner response yet."
+    ),
+    ROUTE_ADOPTION_BLOCKER_SEARCH_REQUESTS: (
+        "The accepted route asks for additional literature, source, library, "
+        "or prover search evidence before adoption."
+    ),
+    ROUTE_ADOPTION_BLOCKER_PLANNER_NEXT_ACTIONS: (
+        "The accepted route carries unresolved planner next-action hooks."
+    ),
+    ROUTE_ADOPTION_BLOCKER_UNCERTAINTY_FLAGS: (
+        "The accepted route carries uncertainty flags requiring review."
+    ),
+    ROUTE_ADOPTION_BLOCKER_SEMANTIC_ALIGNMENT_RISKS: (
+        "The accepted route carries semantic-alignment risks requiring review."
+    ),
+    ROUTE_ADOPTION_BLOCKER_RESIDUAL_INTERPRETATIONS: (
+        "The accepted route interpreted prover residual goals and must be "
+        "replayed through route repair before standalone adoption."
+    ),
+    ROUTE_ADOPTION_BLOCKER_FEEDBACK_ACTIONS: (
+        "The feedback-loop summary recommends unresolved follow-up actions."
+    ),
+    ROUTE_ADOPTION_BLOCKER_RESOURCE_PLAYBOOK_REDISPATCH: (
+        "A resource response must be redispatched with its request playbook "
+        "before the route can use it."
+    ),
+    ROUTE_ADOPTION_BLOCKER_RESOURCE_REQUEST_QUEUE: (
+        "The resource request queue still has pending responses."
+    ),
+    ROUTE_ADOPTION_BLOCKER_FEEDBACK_REPLAN: (
+        "The feedback loop explicitly requires route replanning."
+    ),
+    ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE: (
+        "The formal-realization coverage witness is incomplete."
+    ),
+}
 LLM_ROUTE_PLANNER_COMPONENT = "formalization_gap_planner_llm_route_planner"
 LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATOR_COMPONENT = (
     "formalization_gap_planner_llm_route_planner_response_payload_validator"
@@ -1500,6 +1549,138 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
             }
         },
     }
+
+
+def route_adoption_blocker_taxonomy_json_schema() -> dict[str, object]:
+    string_array = {"type": "array", "items": {"type": "string"}}
+    return {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_ID,
+        "title": "Formalization Gap Planner Route Adoption Blocker Taxonomy",
+        "description": (
+            "Portable vocabulary for explaining why an LLM route-planner row "
+            "is not yet ready for standalone route replay."
+        ),
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "schema_version",
+            "schema_id",
+            "component_name",
+            "taxonomy_id",
+            "status_values",
+            "blocker_values",
+            "blocker_definitions",
+            "proof_evidence_status",
+            "proof_evidence_boundary",
+            "all_ok",
+            "errors",
+        ],
+        "properties": {
+            "schema_version": {
+                "type": "integer",
+                "const": FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SCHEMA_VERSION,
+            },
+            "schema_id": {"const": ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_ID},
+            "component_name": {"const": ROUTE_ADOPTION_BLOCKER_TAXONOMY_COMPONENT},
+            "taxonomy_id": {"const": ROUTE_ADOPTION_BLOCKER_TAXONOMY_ID},
+            "status_values": {
+                "type": "array",
+                "items": {"type": "string", "enum": list(ROUTE_ADOPTION_STATUSES)},
+            },
+            "blocker_values": {
+                "type": "array",
+                "items": {
+                    "type": "string",
+                    "enum": list(ROUTE_ADOPTION_BLOCKER_VALUES),
+                },
+            },
+            "blocker_definitions": {
+                "type": "object",
+                "additionalProperties": {"type": "string"},
+            },
+            "proof_evidence_status": {"const": PROOF_EVIDENCE_STATUS},
+            "proof_evidence_boundary": {
+                "type": "string",
+                "pattern": "not theorem proof evidence",
+            },
+            "all_ok": {"type": "boolean"},
+            "errors": string_array,
+        },
+    }
+
+
+def route_adoption_blocker_taxonomy_payload() -> dict[str, object]:
+    return {
+        "schema_version": FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SCHEMA_VERSION,
+        "schema_id": ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_ID,
+        "component_name": ROUTE_ADOPTION_BLOCKER_TAXONOMY_COMPONENT,
+        "taxonomy_id": ROUTE_ADOPTION_BLOCKER_TAXONOMY_ID,
+        "status_values": list(ROUTE_ADOPTION_STATUSES),
+        "blocker_values": list(ROUTE_ADOPTION_BLOCKER_VALUES),
+        "blocker_definitions": dict(ROUTE_ADOPTION_BLOCKER_DEFINITIONS),
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": (
+            "Route-adoption blocker taxonomy artifacts define reusable planner "
+            "readiness vocabulary only. They are not theorem proof evidence."
+        ),
+        "all_ok": True,
+        "errors": [],
+    }
+
+
+def validate_route_adoption_blocker_taxonomy_payload(
+    payload: Mapping[str, Any],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    required = route_adoption_blocker_taxonomy_json_schema().get("required", [])
+    if isinstance(required, list):
+        for field_name in required:
+            if isinstance(field_name, str) and field_name not in payload:
+                errors.append(f"{field_name} required")
+    if payload.get("schema_version") != (
+        FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SCHEMA_VERSION
+    ):
+        errors.append("schema_version mismatch")
+    if payload.get("schema_id") != ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_ID:
+        errors.append("schema_id mismatch")
+    if payload.get("component_name") != ROUTE_ADOPTION_BLOCKER_TAXONOMY_COMPONENT:
+        errors.append("component_name mismatch")
+    if payload.get("taxonomy_id") != ROUTE_ADOPTION_BLOCKER_TAXONOMY_ID:
+        errors.append("taxonomy_id mismatch")
+    if _str_tuple(payload.get("status_values", [])) != ROUTE_ADOPTION_STATUSES:
+        errors.append("status_values must match route adoption status constants")
+    if _str_tuple(payload.get("blocker_values", [])) != ROUTE_ADOPTION_BLOCKER_VALUES:
+        errors.append("blocker_values must match route adoption blocker constants")
+    definitions = payload.get("blocker_definitions", {})
+    if not isinstance(definitions, Mapping):
+        errors.append("blocker_definitions must be object")
+    else:
+        definition_keys = tuple(str(key) for key in definitions.keys())
+        if set(definition_keys) != set(ROUTE_ADOPTION_BLOCKER_VALUES):
+            errors.append("blocker_definitions keys must match blocker_values")
+        empty_definitions = [
+            key
+            for key, value in definitions.items()
+            if not isinstance(value, str) or not value.strip()
+        ]
+        if empty_definitions:
+            errors.append(
+                "blocker_definitions must be non-empty strings for: "
+                + ", ".join(sorted(str(key) for key in empty_definitions))
+            )
+    if payload.get("proof_evidence_status") != PROOF_EVIDENCE_STATUS:
+        errors.append("proof_evidence_status mismatch")
+    if "not theorem proof evidence" not in str(
+        payload.get("proof_evidence_boundary", "")
+    ).lower():
+        errors.append("proof_evidence_boundary must say not theorem proof evidence")
+    payload_errors = payload.get("errors", [])
+    if payload.get("all_ok") is True and payload_errors not in ([], (), None):
+        errors.append("all_ok taxonomy payload must not carry errors")
+    if payload.get("all_ok") is False and not payload_errors:
+        errors.append("non-ok taxonomy payload must carry errors")
+    return tuple(errors)
 
 
 def validate_llm_route_planner_request(

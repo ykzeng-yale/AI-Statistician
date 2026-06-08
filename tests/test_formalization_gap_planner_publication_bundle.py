@@ -44,8 +44,11 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID,
     LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
     PROOF_EVIDENCE_BOUNDARY as LLM_ROUTE_PLANNER_PROOF_EVIDENCE_BOUNDARY,
+    ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_ID,
     export_formalization_gap_planner_llm_route_planner,
+    route_adoption_blocker_taxonomy_json_schema,
     validate_formalization_gap_planner_llm_route_planner_response_payloads,
+    validate_route_adoption_blocker_taxonomy_payload,
 )
 from ai_statistician.formalization_gap_planner_primitive_action_queue import (
     PROOF_EVIDENCE_STATUS as PRIMITIVE_ACTION_QUEUE_PROOF_EVIDENCE_STATUS,
@@ -1796,6 +1799,27 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         )["$id"]
         == LLM_ROUTE_PLANNER_ROW_SCHEMA_ID
     )
+    route_adoption_taxonomy_schema = json.loads(
+        (
+            out_dir
+            / "contract"
+            / "formalization_gap_planner_route_adoption_blocker_taxonomy.schema.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert route_adoption_taxonomy_schema == route_adoption_blocker_taxonomy_json_schema()
+    route_adoption_taxonomy_contract = json.loads(
+        (
+            out_dir
+            / "contract"
+            / "formalization_gap_planner_route_adoption_blocker_taxonomy.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert route_adoption_taxonomy_contract["schema_id"] == (
+        ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_ID
+    )
+    assert validate_route_adoption_blocker_taxonomy_payload(
+        route_adoption_taxonomy_contract
+    ) == ()
     assert (
         out_dir / "contract" / "formalization_gap_planner_route_revision_overlay_row.schema.json"
     ).exists()
@@ -1963,6 +1987,8 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         in schema_catalog_entry_names
     )
     assert "llm_route_planner_row_schema" in schema_catalog_entry_names
+    assert "route_adoption_blocker_taxonomy_schema" in schema_catalog_entry_names
+    assert "route_adoption_blocker_taxonomy_contract" in schema_catalog_entry_names
     assert "runtime_handoff_audit_row_schema" in schema_catalog_entry_names
     assert all(
         (out_dir / row["relative_path"]).exists()
@@ -2406,6 +2432,14 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     )
     assert (
         "contract/formalization_gap_planner_llm_route_planner_row.schema.json"
+        in reproduction_payload["bundle_relative_artifacts"]
+    )
+    assert (
+        "contract/formalization_gap_planner_route_adoption_blocker_taxonomy.schema.json"
+        in reproduction_payload["bundle_relative_artifacts"]
+    )
+    assert (
+        "contract/formalization_gap_planner_route_adoption_blocker_taxonomy.json"
         in reproduction_payload["bundle_relative_artifacts"]
     )
     assert (

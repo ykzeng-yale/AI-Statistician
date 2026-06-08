@@ -2651,6 +2651,40 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         for row in audit_payload["checks"]
     )
     assert any(
+        row["check_name"] == "route_adoption_blocker_taxonomy_schema_id"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"] == "route_adoption_blocker_taxonomy_payload"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "portable_contract_has_route_adoption_blocker_taxonomy_contract"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "portable_contract_route_adoption_blocker_taxonomy_valid"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "llm_route_planner_row_schema_route_adoption_status_enum_matches_taxonomy"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "llm_route_planner_row_schema_route_adoption_blocker_enum_matches_taxonomy"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
         row["check_name"] == "optional_goal_plan_row_schema_id"
         and row["observed"] == portable_gap_plan_row_json_schema()["$id"]
         and row["ok"]
@@ -3636,6 +3670,49 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     )
     evaluation_manifest_path.write_text(
         json.dumps(evaluation_manifest_payload, indent=2),
+        encoding="utf-8",
+    )
+
+    route_adoption_taxonomy_path = (
+        bundle_dir
+        / "contract"
+        / "formalization_gap_planner_route_adoption_blocker_taxonomy.json"
+    )
+    route_adoption_taxonomy_payload = json.loads(
+        route_adoption_taxonomy_path.read_text(encoding="utf-8")
+    )
+    corrupted_route_adoption_taxonomy = json.loads(
+        json.dumps(route_adoption_taxonomy_payload)
+    )
+    corrupted_route_adoption_taxonomy["blocker_values"] = [
+        "search_requests_pending_evidence",
+        "invented_route_adoption_blocker",
+    ]
+    corrupted_route_adoption_taxonomy["blocker_definitions"] = {
+        "search_requests_pending_evidence": "fixture definition",
+        "invented_route_adoption_blocker": "fixture definition",
+    }
+    route_adoption_taxonomy_path.write_text(
+        json.dumps(corrupted_route_adoption_taxonomy, indent=2),
+        encoding="utf-8",
+    )
+    rejected_taxonomy_payload = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        root / "audit_rejects_stale_route_adoption_taxonomy",
+    )
+    taxonomy_failed_names = {
+        row["check_name"]
+        for row in rejected_taxonomy_payload["checks"]
+        if not row["ok"]
+    }
+    assert not rejected_taxonomy_payload["all_ok"]
+    assert "route_adoption_blocker_taxonomy_payload" in taxonomy_failed_names
+    assert (
+        "llm_route_planner_row_schema_route_adoption_blocker_enum_matches_taxonomy"
+        in taxonomy_failed_names
+    )
+    route_adoption_taxonomy_path.write_text(
+        json.dumps(route_adoption_taxonomy_payload, indent=2),
         encoding="utf-8",
     )
 

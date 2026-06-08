@@ -237,8 +237,11 @@ standalone-plan `standalone_input_trace` preserve the same fields, so a public
 consumer can filter adoption-ready route plans without reopening raw LLM
 responses. Blocker labels are part of the published
 `formalization_gap_planner_route_adoption_blocker_taxonomy:1` vocabulary, and
-the publication-bundle audit rejects evaluation rows or LLM seed metadata that
-invent unregistered blocker strings.
+publication bundles now package that vocabulary as
+`contract/formalization_gap_planner_route_adoption_blocker_taxonomy.json` plus
+its JSON Schema. The publication-bundle audit rejects evaluation rows or LLM
+seed metadata that invent unregistered blocker strings, and it also checks that
+the LLM route-planner row schema enums match the packaged taxonomy contract.
 The response contract also rejects target-prover drift: any explicit
 `target_prover_family` in the response payload, standalone route,
 `replan_metadata`, or formal-realization nodes must match the request target
@@ -1075,7 +1078,9 @@ The current implementation composes four existing AI Statistician artifacts:
    recomputes those readiness aggregates from packaged evaluation JSONL rows and
    rejects bundles whose evaluation manifest silently drops or rewrites them, or
    whose row/seed blocker labels fall outside the published route-adoption
-   blocker taxonomy.
+   blocker taxonomy. The taxonomy is also a first-class bundle contract, so
+   non-Lean adapters can consume the exact status/blocker vocabulary without
+   importing AI Statistician runtime code.
    Accepted responses must also satisfy primitive-set coherence: selected
    primitives must appear in the standalone route and formal-realization DAG,
    and wrapper/bridge/source-port/new-theory delta primitives must have

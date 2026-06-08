@@ -62,12 +62,16 @@ from .formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID,
     LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
+    ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_ID,
     llm_route_planner_request_json_schema,
     llm_route_planner_response_payload_validation_manifest_json_schema,
     llm_route_planner_response_payload_validation_row_json_schema,
     llm_route_planner_response_payload_schema,
     llm_route_planner_response_json_schema,
     llm_route_planner_row_json_schema,
+    route_adoption_blocker_taxonomy_json_schema,
+    route_adoption_blocker_taxonomy_payload,
+    validate_route_adoption_blocker_taxonomy_payload,
 )
 from .formalization_gap_planner_primitive_action_queue import (
     primitive_action_queue_row_json_schema,
@@ -519,6 +523,12 @@ def export_formalization_gap_planner_publication_bundle(
     )
     contract_payload = _contract_payload(library_snapshot_ref)
     llm_model_policy_payload = _llm_model_policy_payload()
+    route_adoption_blocker_taxonomy_schema = (
+        route_adoption_blocker_taxonomy_json_schema()
+    )
+    route_adoption_blocker_taxonomy_contract = (
+        route_adoption_blocker_taxonomy_payload()
+    )
     schema_path = contract_dir / "library_aware_formalization_gap_plan.schema.json"
     prover_adapter_schema_path = (
         contract_dir / "formalization_gap_planner_prover_adapter_response.schema.json"
@@ -581,6 +591,14 @@ def export_formalization_gap_planner_publication_bundle(
     llm_route_planner_row_schema_path = (
         contract_dir
         / "formalization_gap_planner_llm_route_planner_row.schema.json"
+    )
+    route_adoption_blocker_taxonomy_schema_path = (
+        contract_dir
+        / "formalization_gap_planner_route_adoption_blocker_taxonomy.schema.json"
+    )
+    route_adoption_blocker_taxonomy_path = (
+        contract_dir
+        / "formalization_gap_planner_route_adoption_blocker_taxonomy.json"
     )
     primitive_action_queue_row_schema_path = (
         contract_dir
@@ -758,6 +776,14 @@ def export_formalization_gap_planner_publication_bundle(
     )
     llm_route_planner_row_schema_path.write_text(
         json.dumps(llm_route_planner_row_schema, indent=2),
+        encoding="utf-8",
+    )
+    route_adoption_blocker_taxonomy_schema_path.write_text(
+        json.dumps(route_adoption_blocker_taxonomy_schema, indent=2),
+        encoding="utf-8",
+    )
+    route_adoption_blocker_taxonomy_path.write_text(
+        json.dumps(route_adoption_blocker_taxonomy_contract, indent=2),
         encoding="utf-8",
     )
     primitive_action_queue_row_schema_path.write_text(
@@ -1283,6 +1309,21 @@ def export_formalization_gap_planner_publication_bundle(
             "required": True,
             "ok": llm_route_planner_row_schema.get("$id")
             == LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
+        },
+        {
+            "artifact_name": "route_adoption_blocker_taxonomy_schema",
+            "path": str(route_adoption_blocker_taxonomy_schema_path),
+            "required": True,
+            "ok": route_adoption_blocker_taxonomy_schema.get("$id")
+            == ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_ID,
+        },
+        {
+            "artifact_name": "route_adoption_blocker_taxonomy_contract",
+            "path": str(route_adoption_blocker_taxonomy_path),
+            "required": True,
+            "ok": not validate_route_adoption_blocker_taxonomy_payload(
+                route_adoption_blocker_taxonomy_contract
+            ),
         },
         {
             "artifact_name": "primitive_action_queue_row_schema",
@@ -2325,6 +2366,9 @@ def _contract_payload(library_snapshot_ref: str) -> dict[str, object]:
             llm_route_planner_response_payload_validation_row_json_schema()
         ),
         "llm_route_planner_row_contract": llm_route_planner_row_json_schema(),
+        "route_adoption_blocker_taxonomy_contract": (
+            route_adoption_blocker_taxonomy_payload()
+        ),
         "primitive_action_queue_row_contract": primitive_action_queue_row_json_schema(),
         "action_resource_plan_row_contract": action_resource_plan_row_json_schema(),
         "resource_request_queue_row_contract": resource_request_queue_row_json_schema(),
@@ -3093,6 +3137,8 @@ def _reproduction_payload(
         "contract/formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.schema.json",
         "contract/formalization_gap_planner_llm_route_planner_response_payload_validation_row.schema.json",
         "contract/formalization_gap_planner_llm_route_planner_row.schema.json",
+        "contract/formalization_gap_planner_route_adoption_blocker_taxonomy.schema.json",
+        "contract/formalization_gap_planner_route_adoption_blocker_taxonomy.json",
         "contract/formalization_gap_planner_prover_adapter_packet.schema.json",
         "contract/formalization_gap_planner_prover_adapter_response.schema.json",
         "contract/formalization_gap_planner_prover_adapter_response_validation_row.schema.json",
