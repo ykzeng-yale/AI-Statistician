@@ -613,9 +613,13 @@ def _write_resource_request_queue(root: Path) -> Path:
         json.dumps(
             {
                 "component_name": "formalization_gap_planner_resource_request_queue",
+                "schema_version": 3,
                 "n_resource_request_rows": 1,
+                "n_with_request_playbooks": 1,
+                "n_request_playbook_identity_valid": 1,
                 "rows": [
                     {
+                        "schema_version": 3,
                         "resource_request_id": "resource-request:rank_route",
                         "action_resource_plan_id": "action-resource:rank_route",
                         "primitive_action_id": "primitive-action:rank_route",
@@ -650,6 +654,60 @@ def _write_resource_request_queue(root: Path) -> Path:
                             "source_snippets",
                             "route_revision_recommended",
                         ],
+                        "request_playbook": {
+                            "resource_request_id": "resource-request:rank_route",
+                            "resource_id": "paperclip_cli_mcp",
+                            "request_phase": "frontier_escalation",
+                            "target_prover_family": "lean4",
+                            "operator_prompt": (
+                                "Use paperclip_cli_mcp to find source-backed rank "
+                                "uniformity evidence for the rank_uniformity primitive."
+                            ),
+                            "input_summary": {
+                                "route_id": "rank_route",
+                                "display_name": "distribution_free_rank_bound",
+                                "primitive": "rank_uniformity",
+                                "coverage_bucket": "bridge_needed",
+                                "queue_action_kind": (
+                                    "literature_grounded_route_synthesis"
+                                ),
+                                "candidate_declarations": [
+                                    "Probability.rankUniformityBridge"
+                                ],
+                            },
+                            "required_inputs": [
+                                "target_theorem",
+                                "primitive",
+                                "source_query",
+                            ],
+                            "expected_response_fields": [
+                                "source_refs",
+                                "source_snippets",
+                                "route_revision_recommended",
+                            ],
+                            "expected_response_artifact": "source_evidence",
+                            "acceptance_checklist": [
+                                "response echoes resource_request_id and resource_id",
+                                "response artifact equals source_evidence",
+                                (
+                                    "response covers required fields: source_refs, "
+                                    "source_snippets, route_revision_recommended"
+                                ),
+                            ],
+                            "rejection_triggers": [
+                                "local_literature_low_recall",
+                                (
+                                    "response claims theorem proof evidence without "
+                                    "target-prover replay"
+                                ),
+                            ],
+                            "stop_conditions": ["source-backed route node found"],
+                            "execution_command": (
+                                "paperclip search --query 'rank uniformity exchangeability'"
+                            ),
+                            "mcp_or_cli_hint": "paperclip_cli_mcp",
+                            "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+                        },
                         "expected_response_artifact": "source_evidence",
                         "acceptance_gate": "source_refs_and_snippets_present",
                         "escalation_triggers": ["local_literature_low_recall"],
@@ -675,6 +733,25 @@ def _write_resource_request_queue(root: Path) -> Path:
                                 }
                             ],
                             "source_query": "rank uniformity exchangeability",
+                            "request_playbook": {
+                                "resource_request_id": "resource-request:rank_route",
+                                "resource_id": "paperclip_cli_mcp",
+                                "request_phase": "frontier_escalation",
+                                "target_prover_family": "lean4",
+                                "operator_prompt": (
+                                    "Use paperclip_cli_mcp to find source-backed rank "
+                                    "uniformity evidence for the rank_uniformity primitive."
+                                ),
+                                "expected_response_fields": [
+                                    "source_refs",
+                                    "source_snippets",
+                                    "route_revision_recommended",
+                                ],
+                                "acceptance_checklist": [
+                                    "response echoes resource_request_id and resource_id",
+                                    "response artifact equals source_evidence",
+                                ],
+                            },
                         },
                     }
                 ],
@@ -1405,6 +1482,9 @@ def test_llm_route_planner_stages_pending_resource_request_queue() -> None:
     assert payload["all_ok"]
     assert payload["n_requests_with_resource_request_queue_rows"] == 1
     assert payload["n_request_resource_request_queue_rows"] == 1
+    assert payload["n_requests_with_resource_request_playbooks"] == 1
+    assert payload["n_request_resource_request_playbooks"] == 1
+    assert payload["n_feedback_loop_summary_resource_request_playbooks"] == 1
     assert payload["n_requests_with_feedback_loop_summary"] == 1
     request = payload["request_packets"][0]
     context = request["context_packet"]
@@ -1419,6 +1499,23 @@ def test_llm_route_planner_stages_pending_resource_request_queue() -> None:
         "route_revision_recommended",
     ]
     assert "paperclip search" in queue_row["execution_command"]
+    assert queue_row["request_playbook"]["operator_prompt"].startswith(
+        "Use paperclip_cli_mcp"
+    )
+    playbook = context["resource_request_playbooks"][0]
+    assert playbook["resource_request_id"] == "resource-request:rank_route"
+    assert playbook["resource_id"] == "paperclip_cli_mcp"
+    assert playbook["operator_prompt"] == queue_row["request_playbook"][
+        "operator_prompt"
+    ]
+    assert playbook["expected_response_fields"] == [
+        "source_refs",
+        "source_snippets",
+        "route_revision_recommended",
+    ]
+    assert "response artifact equals source_evidence" in playbook[
+        "acceptance_checklist"
+    ]
     declaration_rows = context["available_formal_declaration_rows"]
     assert {
         (
@@ -1438,13 +1535,26 @@ def test_llm_route_planner_stages_pending_resource_request_queue() -> None:
         "available_formal_declarations"
     ]
     assert "resource_request_queue_rows" in request["prompt_messages"]["user"]
+    assert "resource_request_playbooks" in request["prompt_messages"]["user"]
+    assert "operator_prompt" in request["prompt_messages"]["user"]
     assert "source_refs_and_snippets_present" in request["prompt_messages"]["user"]
     summary = context["feedback_loop_summary"]
     assert summary["evidence_counts"]["resource_request_queue_rows"] == 1
+    assert summary["resource_request_playbook_count"] == 1
+    assert summary["resource_request_playbooks"][0]["resource_request_id"] == (
+        "resource-request:rank_route"
+    )
     assert summary["recommended_next_actions"][0]["source"] == (
         "resource_request_queue"
     )
     assert summary["recommended_next_actions"][0]["owner"] == "paperclip_cli_mcp"
+    assert summary["recommended_next_actions"][0]["request_playbook_present"] is True
+    assert summary["recommended_next_actions"][0]["operator_prompt"].startswith(
+        "Use paperclip_cli_mcp"
+    )
+    assert "response artifact equals source_evidence" in summary[
+        "recommended_next_actions"
+    ][0]["acceptance_checklist"]
     assert summary["recommended_next_actions"][0]["resource_contracts"] == [
         "paperclip:source_snippet_contract"
     ]

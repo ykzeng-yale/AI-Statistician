@@ -656,6 +656,27 @@ def export_formalization_gap_planner_llm_route_planner(
             )
             for packet in request_packets
         ),
+        "n_requests_with_resource_request_playbooks": sum(
+            1
+            for packet in request_packets
+            if _dict_tuple(
+                _dict_value(packet, "context_packet").get(
+                    "resource_request_playbooks",
+                    [],
+                )
+            )
+        ),
+        "n_request_resource_request_playbooks": sum(
+            len(
+                _dict_tuple(
+                    _dict_value(packet, "context_packet").get(
+                        "resource_request_playbooks",
+                        [],
+                    )
+                )
+            )
+            for packet in request_packets
+        ),
         "n_requests_with_refinement_evidence_rows": sum(
             1
             for packet in request_packets
@@ -711,6 +732,16 @@ def export_formalization_gap_planner_llm_route_planner(
                     "feedback_loop_summary",
                 ).get("replan_required", False)
             )
+        ),
+        "n_feedback_loop_summary_resource_request_playbooks": sum(
+            int(
+                _dict_value(
+                    _dict_value(packet, "context_packet"),
+                    "feedback_loop_summary",
+                ).get("resource_request_playbook_count", 0)
+                or 0
+            )
+            for packet in request_packets
         ),
         "n_feedback_loop_summary_resource_response_admissible": sum(
             int(
@@ -1574,6 +1605,9 @@ def _request_packet(
         "residual_goals": residual_goals,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
     }
+    context_packet["resource_request_playbooks"] = [
+        dict(row) for row in _resource_request_playbooks_for_context(context_packet)
+    ]
     context_packet["available_source_refs"] = list(
         _available_source_refs_for_context(route, context_packet)
     )
@@ -1693,6 +1727,7 @@ def _user_prompt(
             "Every wrapper, bridge, source-port, new-definition, or first-principles delta primitive must have a route_alignment_edge.",
             "New selected or delta primitives not already present in the target route or context packet must be justified by an aligned informal node with grounded source_refs, a matching literature search_request, or a formal_gap_boundary.",
             "When context_packet.resource_request_queue_rows is present, evidence-gathering search_requests and planner_next_actions should reference queued resource_request_id or resource_id entries instead of inventing new tool dispatches.",
+            "When context_packet.resource_request_playbooks is present, use each playbook's operator_prompt, expected_response_fields, and acceptance_checklist as the bounded ask for search_requests and planner_next_actions.",
             "Do not claim kernel verification or theorem proof evidence.",
         ],
     }
@@ -1886,6 +1921,7 @@ def _repair_user_prompt(
             "Prefer candidate_declaration_rows so target_prover_family provenance is preserved.",
             "If evidence is missing, emit search_requests instead of inventing facts.",
             "When the original request has resource_request_queue_rows, align search_requests and planner_next_actions to queued resource_request_id/resource_id values.",
+            "When the original request has resource_request_playbooks, keep repaired search_requests and planner_next_actions aligned to those playbook operator prompts and acceptance checklists.",
             "Include a complete minimal_delta_plan with selected_primitives, primitive_costs, and and_or_cost_graph.",
         ],
     }
@@ -5409,6 +5445,12 @@ def _feedback_loop_summary(
         ),
         "recommended_next_actions": recommended_next_actions,
     }
+    resource_request_playbooks = _dict_tuple(
+        context_packet.get("resource_request_playbooks", [])
+    )
+    if resource_request_playbooks:
+        summary["resource_request_playbook_count"] = len(resource_request_playbooks)
+        summary["resource_request_playbooks"] = resource_request_playbooks[:12]
     if realization_coverage:
         summary["realization_coverage"] = realization_coverage
     if replan_metadata:
@@ -5701,6 +5743,7 @@ def _feedback_next_actions(
             or str(row.get("mcp_or_cli_hint", "")).strip()
         ):
             continue
+        request_playbook = _dict_value(row, "request_playbook")
         actions.append(
             {
                 "source": "resource_request_queue",
@@ -5727,6 +5770,16 @@ def _feedback_next_actions(
                 "mcp_or_cli_hint": str(row.get("mcp_or_cli_hint", "")).strip(),
                 "stop_conditions": list(
                     _str_tuple(row.get("stop_conditions", []))[:8]
+                ),
+                "request_playbook_present": bool(request_playbook),
+                "operator_prompt": str(
+                    request_playbook.get("operator_prompt", "")
+                ).strip(),
+                "acceptance_checklist": list(
+                    _str_tuple(request_playbook.get("acceptance_checklist", []))[:8]
+                ),
+                "rejection_triggers": list(
+                    _str_tuple(request_playbook.get("rejection_triggers", []))[:8]
                 ),
             }
         )
@@ -5789,6 +5842,87 @@ def _collect_source_snippets(
     for row in rows:
         candidates.extend(_row_source_snippet_candidates(row))
     return _compact_source_snippets(candidates)
+
+
+def _resource_request_playbooks_for_context(
+    context_packet: Mapping[str, Any],
+) -> tuple[dict[str, object], ...]:
+    playbooks: list[dict[str, object]] = []
+    for row in _dict_tuple(context_packet.get("resource_request_queue_rows", [])):
+        request_playbook = _dict_value(row, "request_playbook")
+        if not request_playbook:
+            continue
+        playbook = {
+            "resource_request_id": str(
+                request_playbook.get("resource_request_id")
+                or row.get("resource_request_id", "")
+            ).strip(),
+            "resource_id": str(
+                request_playbook.get("resource_id") or row.get("resource_id", "")
+            ).strip(),
+            "request_phase": str(
+                request_playbook.get("request_phase") or row.get("request_phase", "")
+            ).strip(),
+            "target_prover_family": str(
+                request_playbook.get("target_prover_family")
+                or row.get("target_prover_family", "")
+            ).strip(),
+            "operator_prompt": str(
+                request_playbook.get("operator_prompt", "")
+            ).strip(),
+            "input_summary": _dict_value(request_playbook, "input_summary"),
+            "required_inputs": list(
+                _str_tuple(
+                    request_playbook.get(
+                        "required_inputs",
+                        row.get("request_contract_fields", []),
+                    )
+                )
+            ),
+            "expected_response_fields": list(
+                _str_tuple(
+                    request_playbook.get(
+                        "expected_response_fields",
+                        row.get("response_contract_fields", []),
+                    )
+                )
+            ),
+            "expected_response_artifact": str(
+                request_playbook.get("expected_response_artifact")
+                or row.get("expected_response_artifact", "")
+            ).strip(),
+            "acceptance_checklist": list(
+                _str_tuple(request_playbook.get("acceptance_checklist", []))
+            ),
+            "rejection_triggers": list(
+                _str_tuple(request_playbook.get("rejection_triggers", []))
+            ),
+            "stop_conditions": list(
+                _str_tuple(
+                    request_playbook.get(
+                        "stop_conditions",
+                        row.get("stop_conditions", []),
+                    )
+                )
+            ),
+            "execution_command": str(
+                request_playbook.get("execution_command")
+                or row.get("execution_command", "")
+            ).strip(),
+            "mcp_or_cli_hint": str(
+                request_playbook.get("mcp_or_cli_hint")
+                or row.get("mcp_or_cli_hint", "")
+            ).strip(),
+            "proof_evidence_boundary": str(
+                request_playbook.get(
+                    "proof_evidence_boundary",
+                    PROOF_EVIDENCE_BOUNDARY,
+                )
+            ),
+        }
+        if playbook["resource_request_id"] or playbook["operator_prompt"]:
+            playbooks.append(playbook)
+    return tuple(playbooks[:25])
 
 
 def _collect_source_snippets_from_value(
@@ -5974,6 +6108,7 @@ def _compact_row(row: Mapping[str, Any]) -> dict[str, object]:
         "coverage_bucket",
         "coverage_status",
         "candidate_declarations",
+        "candidate_declaration_rows",
         "source_refs",
         "source_snippets",
         "source_grounding_status",
@@ -6055,6 +6190,7 @@ def _compact_row(row: Mapping[str, Any]) -> dict[str, object]:
         "execution_command",
         "mcp_or_cli_hint",
         "dispatch_spec",
+        "request_playbook",
         "request_payload",
     )
     compact: dict[str, object] = {}
