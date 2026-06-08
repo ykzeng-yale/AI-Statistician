@@ -2214,6 +2214,36 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         "formalization_gap_planner_llm_route_planner_standalone_seed.json"
         in command_by_name["run_standalone_planner"]
     )
+    assert any(
+        row["entrypoint"] == "formalization-gap-planner-reuse-smoke"
+        for row in reproduction_payload["entrypoints"]
+    )
+    assert "run_reuse_smoke" in command_by_name
+    assert (
+        "formalization-gap-planner-reuse-smoke"
+        in command_by_name["run_reuse_smoke"]
+    )
+    assert (
+        "examples/formalization_gap_planner_target_intake_example.json"
+        in command_by_name["run_reuse_smoke"]
+    )
+    assert "--llm-route-planner-provider anthropic" in command_by_name["run_reuse_smoke"]
+    assert "--feedback-llm-route-planner-provider anthropic" in command_by_name["run_reuse_smoke"]
+    assert "--llm-route-planner-invoke-provider" not in command_by_name["run_reuse_smoke"]
+    assert "--feedback-llm-route-planner-invoke-provider" not in command_by_name["run_reuse_smoke"]
+    assert "run_runtime_handoff_reuse_smoke" in command_by_name
+    assert (
+        "runtime_formalization_gap_planner_target_intake"
+        in command_by_name["run_runtime_handoff_reuse_smoke"]
+    )
+    assert (
+        "formalization-gap-planner-reuse-smoke"
+        in command_by_name["run_runtime_handoff_reuse_smoke"]
+    )
+    assert (
+        "--feedback-llm-route-planner-invoke-provider"
+        not in command_by_name["run_runtime_handoff_reuse_smoke"]
+    )
     assert (
         "artifacts/formalization_gap_planner_feedback_llm_route_planner/formalization_gap_planner_llm_route_planner_manifest.json"
         in reproduction_payload["bundle_relative_artifacts"]

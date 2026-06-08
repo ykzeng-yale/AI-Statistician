@@ -806,15 +806,18 @@ so downstream consumers can validate the index directly, including
 bundle-local relative-path resolution when they have the exported bundle, plus
 `reproduce/formalization_gap_planner_reproduction_manifest.json` with
 bundle-relative artifacts, entry points, and commands for external reuse. The
-manifest includes the standalone planner path and the refinement rerun path:
-queue export, resource-request queue export, resource-response ledger export,
-deterministic adapter responses,
+manifest includes the one-command `formalization-gap-planner-reuse-smoke`
+path, the AI Statistician runtime target-intake replay command, the standalone
+planner path, and the refinement rerun path: queue export, resource-request
+queue export, resource-response ledger export, deterministic adapter responses,
 local literature adapter, local
 formal-source adapter, local proof-state adapter, refinement-evidence
 aggregation, route-revision overlay, route-stability audit, interactive
 session export, and feedback LLM route-planner rerun with interactive-session
-context.
-session summary. It also includes
+context. The reuse-smoke commands are prompt-only by default: they stage
+Anthropic/Claude request packets with `--*-model-tier auto` and do not call the
+API unless an operator adds the matching live-provider invoke flags.
+It also includes
 `examples/formalization_gap_planner_standalone_example.json` and
 `examples/formalization_gap_planner_target_intake_example.json` so downstream
 users can run the public path immediately after replacing local corpus,

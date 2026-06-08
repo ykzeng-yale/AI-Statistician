@@ -2492,6 +2492,19 @@ def _reproduction_payload(
             "primary_output": "formalization_gap_planner_target_intake_manifest.json",
         },
         {
+            "entrypoint": "formalization-gap-planner-reuse-smoke",
+            "purpose": (
+                "run the full public planner path from target intake through "
+                "LLM prompt staging, local adapters, route revision, prover "
+                "adapter contracts, and publication-bundle audit"
+            ),
+            "required_input": (
+                "target theorem request JSON or AI Statistician runtime "
+                "target-intake JSON emitted by research-agent-runtime"
+            ),
+            "primary_output": "formalization_gap_planner_reuse_smoke_manifest.json",
+        },
+        {
             "entrypoint": "formalization-gap-planner-ablation-study",
             "purpose": "compare recorded planner metrics against no-literature, no-Lean, no-proof-feedback, and no-route-planner baselines",
             "required_input": "planner, evaluation, and optional interactive-session artifact directories",
@@ -2709,6 +2722,42 @@ def _reproduction_payload(
                 "formalization-gap-planner-target-intake "
                 "--input <bundle_dir>/examples/formalization_gap_planner_target_intake_example.json "
                 "--out <work_dir>/formalization_gap_planner_target_intake"
+            ),
+        },
+        {
+            "name": "run_reuse_smoke",
+            "command": (
+                "python3 -m ai_statistician.cli "
+                "formalization-gap-planner-reuse-smoke "
+                "--input <bundle_dir>/examples/formalization_gap_planner_target_intake_example.json "
+                "--target-prover-family rocq "
+                f"--target-library-snapshot-ref {library_snapshot_ref} "
+                "--llm-route-planner-provider anthropic "
+                "--llm-route-planner-model-tier auto "
+                "--llm-route-planner-max-repair-attempts 1 "
+                "--feedback-llm-route-planner-provider anthropic "
+                "--feedback-llm-route-planner-model-tier auto "
+                "--feedback-llm-route-planner-max-repair-attempts 1 "
+                "--out <work_dir>/formalization_gap_planner_reuse_smoke"
+            ),
+        },
+        {
+            "name": "run_runtime_handoff_reuse_smoke",
+            "command": (
+                "python3 -m ai_statistician.cli "
+                "formalization-gap-planner-reuse-smoke "
+                "--input "
+                "<ai_statistician_runtime_dir>/runtime_formalization_gap_planner_target_intake/"
+                "<runtime_target_intake_json> "
+                "--target-prover-family <lean4|rocq|isabelle|agda|other> "
+                "--target-library-snapshot-ref <runtime-library-snapshot-ref> "
+                "--llm-route-planner-provider anthropic "
+                "--llm-route-planner-model-tier auto "
+                "--llm-route-planner-max-repair-attempts 1 "
+                "--feedback-llm-route-planner-provider anthropic "
+                "--feedback-llm-route-planner-model-tier auto "
+                "--feedback-llm-route-planner-max-repair-attempts 1 "
+                "--out <work_dir>/formalization_gap_planner_runtime_reuse_smoke"
             ),
         },
         {
