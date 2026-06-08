@@ -20,6 +20,10 @@ FORMALIZER_BOUNDARY = (
     "evidence requires AgentRuntime to run AXLE/local Lean/kernel verification "
     "on the intended formal claim."
 )
+FORMALIZER_MAX_THEORY_ROWS = 3
+FORMALIZER_MAX_THEOREM_GOALS = 4
+FORMALIZER_MAX_PROOF_BANK_ROWS = 12
+FORMALIZER_MAX_TEXT_CHARS = 420
 
 
 @dataclass(frozen=True)
@@ -104,10 +108,33 @@ def build_formalizer_prompt(
     proof_bank_obligation_catalog: list[Mapping[str, Any]] | None = None,
 ) -> str:
     catalog_rows = [
-        dict(row)
+        _compact_mapping(
+            row,
+            keys=("obligation_id", "candidate_rank", "candidate_sources", "catalog_scope", "target_kind"),
+        )
         for row in (proof_bank_obligation_catalog or _proof_bank_catalog_from_theorem_goals(theorem_goals))
         if isinstance(row, Mapping)
-    ]
+    ][:FORMALIZER_MAX_PROOF_BANK_ROWS]
+    theorem_cards = _compact_rows(
+        theory_packet.get("theorem_cards", []) if isinstance(theory_packet, Mapping) else [],
+        keys=("id", "title", "claim", "statement", "conclusion", "assumptions", "proof_obligations"),
+        limit=FORMALIZER_MAX_THEORY_ROWS,
+    )
+    lemma_cards = _compact_rows(
+        theory_packet.get("lemma_cards", []) if isinstance(theory_packet, Mapping) else [],
+        keys=("id", "title", "claim", "statement", "role", "depends_on"),
+        limit=FORMALIZER_MAX_THEORY_ROWS,
+    )
+    formalization_requests = _compact_rows(
+        theory_packet.get("formalization_requests", []) if isinstance(theory_packet, Mapping) else [],
+        keys=("id", "target", "claim", "statement", "reason", "proof_obligations"),
+        limit=FORMALIZER_MAX_THEORY_ROWS,
+    )
+    theorem_goal_rows = _compact_rows(
+        theorem_goals,
+        keys=("id", "title", "claim", "claim_type", "statement", "proof_obligations"),
+        limit=FORMALIZER_MAX_THEOREM_GOALS,
+    )
     payload = {
         "question": {
             "id": question.id,
@@ -115,12 +142,23 @@ def build_formalizer_prompt(
             "description": question.description,
             "tags": list(question.tags),
         },
+        "prompt_mode": {
+            "mode": "compact_minimal_proof_target_triage",
+            "purpose": "choose minimal Lean/formal targets and proof-bank obligations before kernel gates",
+            "max_items_per_list": 3,
+            "do_not_expand_full_derivations": True,
+        },
         "theory_packet_summary": {
             "packet_id": theory_packet.get("packet_id", ""),
-            "theorem_cards": theory_packet.get("theorem_cards", []),
-            "lemma_cards": theory_packet.get("lemma_cards", []),
-            "proof_plan": theory_packet.get("proof_plan", {}),
-            "formalization_requests": theory_packet.get("formalization_requests", []),
+            "theorem_cards": theorem_cards,
+            "lemma_cards": lemma_cards,
+            "proof_plan": _compact_value(theory_packet.get("proof_plan", {}) if isinstance(theory_packet, Mapping) else {}),
+            "formalization_requests": formalization_requests,
+            "omitted_counts": {
+                "theorem_cards": _safe_len(theory_packet.get("theorem_cards", []) if isinstance(theory_packet, Mapping) else []),
+                "lemma_cards": _safe_len(theory_packet.get("lemma_cards", []) if isinstance(theory_packet, Mapping) else []),
+                "formalization_requests": _safe_len(theory_packet.get("formalization_requests", []) if isinstance(theory_packet, Mapping) else []),
+            },
         },
         "simulation_manifest_summary": {
             "manifest_id": simulation_manifest.get("manifest_id", ""),
@@ -132,9 +170,16 @@ def build_formalizer_prompt(
             "n_executed": algorithm_manifest.get("n_executed", 0),
             "promotion_ready": algorithm_manifest.get("promotion_ready", False),
         },
-        "registered_problem": dict(registered_problem),
-        "registered_theorem_goals": [dict(row) for row in theorem_goals],
+        "registered_problem": _compact_mapping(
+            registered_problem,
+            keys=("question_id", "problem_class", "dgp", "estimand", "assumptions", "asymptotic_regime"),
+        ),
+        "registered_theorem_goals": theorem_goal_rows,
+        "registered_theorem_goals_total": _safe_len(theorem_goals),
         "registered_proof_bank_obligation_catalog": catalog_rows,
+        "registered_proof_bank_obligation_catalog_total": _safe_len(
+            proof_bank_obligation_catalog or theorem_goals
+        ),
         "proof_bank_obligation_request_policy": {
             "use_only_registered_catalog_ids_when_possible": True,
             "request_effect": "priority_only_for_kernel_smoke_selection",
@@ -146,13 +191,15 @@ def build_formalizer_prompt(
     }
     return (
         "Design formalization and proof-search artifacts for the Formalizer/ProofEngineer subsystem. "
-        "Return ONLY JSON matching required_output_contract. You may propose Lean statement sketches, "
-        "lemma dependency plans, source retrieval queries, and kernel-check work orders, but do not claim "
-        "the theorem is proved, do not claim kernel verification, and do not hide formal gaps. "
+        "Return ONLY compact JSON matching required_output_contract. Keep each list to at most 3 items. "
+        "Prefer one minimal Lean target plus one or two registered proof-bank obligations over a broad "
+        "formalization essay. You may propose Lean statement sketches, lemma dependency plans, source "
+        "retrieval queries, and kernel-check work orders, but do not claim the theorem is proved, do not "
+        "claim kernel verification, and do not hide formal gaps. "
         "For proof_bank_obligation_requests, choose obligation_id values from "
         "registered_proof_bank_obligation_catalog when possible; these requests only prioritize "
         "AgentRuntime kernel-smoke work and may be filtered or rejected by the runtime.\n\n"
-        + json.dumps(payload, indent=2, default=str)
+        + json.dumps(payload, separators=(",", ":"), default=str)
     )
 
 
@@ -356,6 +403,51 @@ def _proof_bank_catalog_from_theorem_goals(theorem_goals: list[Mapping[str, Any]
                 }
             )
     return rows
+
+
+def _compact_rows(
+    rows: Any,
+    *,
+    keys: tuple[str, ...],
+    limit: int,
+) -> list[dict[str, Any]]:
+    if not isinstance(rows, list | tuple):
+        return []
+    compact: list[dict[str, Any]] = []
+    for row in rows:
+        if isinstance(row, Mapping):
+            compact.append(_compact_mapping(row, keys=keys))
+        else:
+            compact.append({"value": _compact_value(row)})
+        if len(compact) >= limit:
+            break
+    return compact
+
+
+def _compact_mapping(row: Mapping[str, Any], *, keys: tuple[str, ...]) -> dict[str, Any]:
+    return {
+        key: _compact_value(row.get(key))
+        for key in keys
+        if key in row and row.get(key) not in (None, "", [], {})
+    }
+
+
+def _compact_value(value: Any) -> Any:
+    if isinstance(value, str):
+        return value[:FORMALIZER_MAX_TEXT_CHARS]
+    if isinstance(value, Mapping):
+        return {
+            str(key): _compact_value(child)
+            for key, child in list(value.items())[:6]
+            if child not in (None, "", [], {})
+        }
+    if isinstance(value, list | tuple):
+        return [_compact_value(child) for child in list(value)[:5]]
+    return value
+
+
+def _safe_len(value: Any) -> int:
+    return len(value) if isinstance(value, list | tuple) else 0
 
 
 def _contains_forbidden_proof_claim(value: Any) -> str:

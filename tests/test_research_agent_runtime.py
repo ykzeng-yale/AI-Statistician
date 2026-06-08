@@ -467,6 +467,55 @@ def test_formalizer_prompt_exposes_registered_proof_obligation_catalog() -> None
     assert "proof_body" not in prompt
 
 
+def test_formalizer_prompt_compacts_large_theory_context() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet={
+            "packet_id": "theory:large",
+            "theorem_cards": [
+                {
+                    "id": f"T{i}",
+                    "title": f"Theorem {i}",
+                    "statement": "very long theorem statement " + ("x" * 2000),
+                    "proof_obligations": ["variance_nonneg"],
+                }
+                for i in range(20)
+            ],
+            "lemma_cards": [
+                {"id": f"L{i}", "statement": "long lemma " + ("y" * 2000)}
+                for i in range(20)
+            ],
+            "formalization_requests": [
+                {"id": f"F{i}", "statement": "long formalization " + ("z" * 2000)}
+                for i in range(20)
+            ],
+            "proof_plan": {"steps": ["oversized proof step " + ("p" * 2000)] * 10},
+        },
+        simulation_manifest={"manifest_id": "simulation:test", "simulation_passed": True},
+        algorithm_manifest={"manifest_id": "algorithm:test", "n_executed": 1},
+        registered_problem={"problem_class": "semiparametric", "assumptions": ["bounded outcome"]},
+        theorem_goals=[
+            {"id": f"G{i}", "title": f"Goal {i}", "proof_obligations": ["variance_nonneg"]}
+            for i in range(20)
+        ],
+        proof_bank_obligation_catalog=[
+            {"obligation_id": f"obligation_{i}", "candidate_rank": i}
+            for i in range(30)
+        ],
+    )
+
+    assert "compact_minimal_proof_target_triage" in prompt
+    assert "do_not_expand_full_derivations" in prompt
+    assert "theory:large" in prompt
+    assert "T0" in prompt
+    assert "T4" not in prompt
+    assert "obligation_0" in prompt
+    assert "obligation_12" not in prompt
+    assert "x" * 800 not in prompt
+    assert len(prompt) < 16000
+
+
 def test_formalizer_proof_obligation_requests_split_catalog_buckets() -> None:
     selected, off_catalog, rejected = _proof_bank_obligation_request_ids(
         {
