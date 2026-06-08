@@ -1583,7 +1583,7 @@ def _component_specs() -> tuple[dict[str, Any], ...]:
         {
             "component_id": "formal_library_coverage_mapping",
             "component_name": "Formal library coverage mapping",
-            "planner_stage": "informal DAG -> Lean/prover realization DAG",
+            "planner_stage": "informal DAG -> target-prover realization DAG",
             "role": "classify each informal node against available formal libraries and estimate minimal new theory",
             "required_capabilities": ("declaration search", "dependency graph traversal", "cross-prover library mapping"),
             "local_fallback_resource_ids": (
