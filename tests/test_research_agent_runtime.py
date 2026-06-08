@@ -1591,11 +1591,13 @@ def test_research_agent_runtime_records_capability_eval_mode_in_manifest() -> No
             n_runs=10,
             seed=20260528,
             max_iterations=2,
+            llm_timeout_seconds=17.0,
             evaluation_mode="capability_eval",
         ),
     )
 
     assert manifest["runtime_evaluation_mode"] == "capability_eval"
+    assert manifest["config"]["llm_timeout_seconds"] == 17.0
     audit = audit_research_agent_runtime(out_dir, out_dir / "audit")
     scorecard_rows = {
         row["requirement_id"]: row for row in audit["capability_scorecard"]["rows"]

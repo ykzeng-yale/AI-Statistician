@@ -8,6 +8,7 @@ import pytest
 from ai_statistician.model_backend import (
     ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
     ANTHROPIC_MODEL_ID_VERSIONING_POLICY,
+    DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
     AnthropicGeneratorBackend,
     GeneratorRequest,
     StaticJSONGeneratorBackend,
@@ -95,6 +96,34 @@ def test_anthropic_generator_backend_calls_messages_api_without_tools(
     assert response.metadata["retry_count"] == 0
 
 
+def test_anthropic_generator_backend_honors_explicit_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    class FakeMessages:
+        def create(self, **kwargs):
+            return SimpleNamespace(content=[SimpleNamespace(text='{"ok": true}')])
+
+    class FakeAnthropicClient:
+        def __init__(self, *, api_key: str, timeout: float, max_retries: int) -> None:
+            captured["timeout"] = timeout
+            captured["max_retries"] = max_retries
+            self.messages = FakeMessages()
+
+    monkeypatch.setitem(sys.modules, "anthropic", SimpleNamespace(Anthropic=FakeAnthropicClient))
+
+    response = AnthropicGeneratorBackend(
+        api_key="test-anthropic-key",
+        timeout_s=17.5,
+    ).generate(_request())
+
+    assert captured["timeout"] == 17.5
+    assert captured["max_retries"] == 0
+    assert response.metadata["timeout_seconds"] == 17.5
+    assert DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS == 120.0
+
+
 def test_anthropic_generator_backend_retries_transient_connection_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -123,6 +152,33 @@ def test_anthropic_generator_backend_retries_transient_connection_error(
     assert calls["count"] == 2
     assert response.text == '{"ok": true}'
     assert response.metadata["retry_count"] == 1
+
+
+def test_anthropic_generator_backend_does_not_retry_timeout_by_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AI_STATISTICIAN_LLM_MAX_RETRIES", "2")
+    monkeypatch.setenv("AI_STATISTICIAN_LLM_RETRY_BACKOFF_SECONDS", "0")
+    calls = {"count": 0}
+
+    class APITimeoutError(Exception):
+        pass
+
+    class FakeMessages:
+        def create(self, **kwargs):
+            calls["count"] += 1
+            raise APITimeoutError("request timed out")
+
+    class FakeAnthropicClient:
+        def __init__(self, *, api_key: str, timeout: float, max_retries: int) -> None:
+            self.messages = FakeMessages()
+
+    monkeypatch.setitem(sys.modules, "anthropic", SimpleNamespace(Anthropic=FakeAnthropicClient))
+
+    with pytest.raises(APITimeoutError, match="timed out"):
+        AnthropicGeneratorBackend(api_key="test-anthropic-key").generate(_request())
+
+    assert calls["count"] == 1
 
 
 def test_anthropic_generator_backend_does_not_retry_non_transport_error(

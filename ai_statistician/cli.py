@@ -339,6 +339,7 @@ from .research_architect import (
 from .architect_coordinator_llm import ArchitectCoordinatorConfig, LLMArchitectCoordinatorAgent
 from .algorithm_engineer_llm import AlgorithmEngineerConfig, LLMAlgorithmEngineerAgent
 from .model_backend import (
+    DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
     OpenAIResponsesGeneratorBackend,
     default_generator_model,
     default_generator_provider,
@@ -497,6 +498,7 @@ def _build_theory_generator_backend(
     *,
     provider_name: str,
     static_response_file: str = "",
+    llm_timeout_seconds: float | None = None,
 ):
     if provider_name == "static":
         if not static_response_file:
@@ -506,7 +508,7 @@ def _build_theory_generator_backend(
             "static",
         )
     if provider_name == "anthropic":
-        return AnthropicArchitectLLMProvider(), "anthropic"
+        return AnthropicArchitectLLMProvider(timeout_s=llm_timeout_seconds), "anthropic"
     if provider_name == "openai":
         return OpenAIResponsesGeneratorBackend(), "openai"
     raise ValueError(f"unknown theory provider: {provider_name}")
@@ -524,6 +526,7 @@ def _build_algorithm_engineer_agent_from_args(args: argparse.Namespace, *, defau
     provider, provider_name = _build_theory_generator_backend(
         provider_name=provider_choice,
         static_response_file=static_file,
+        llm_timeout_seconds=getattr(args, "llm_timeout_seconds", None),
     )
     model = _model_for_subsystem_provider(
         provider_choice=provider_choice,
@@ -555,6 +558,7 @@ def _build_simulation_engineer_agent_from_args(args: argparse.Namespace, *, defa
     provider, provider_name = _build_theory_generator_backend(
         provider_name=provider_choice,
         static_response_file=static_file,
+        llm_timeout_seconds=getattr(args, "llm_timeout_seconds", None),
     )
     model = _model_for_subsystem_provider(
         provider_choice=provider_choice,
@@ -586,6 +590,7 @@ def _build_formalizer_agent_from_args(args: argparse.Namespace, *, default_model
     provider, provider_name = _build_theory_generator_backend(
         provider_name=provider_choice,
         static_response_file=static_file,
+        llm_timeout_seconds=getattr(args, "llm_timeout_seconds", None),
     )
     model = _model_for_subsystem_provider(
         provider_choice=provider_choice,
@@ -617,6 +622,7 @@ def _build_critic_evaluator_agent_from_args(args: argparse.Namespace, *, default
     provider, provider_name = _build_theory_generator_backend(
         provider_name=provider_choice,
         static_response_file=static_file,
+        llm_timeout_seconds=getattr(args, "llm_timeout_seconds", None),
     )
     model = _model_for_subsystem_provider(
         provider_choice=provider_choice,
@@ -648,6 +654,7 @@ def _build_architect_coordinator_agent_from_args(args: argparse.Namespace, *, de
     provider, provider_name = _build_theory_generator_backend(
         provider_name=provider_choice,
         static_response_file=static_file,
+        llm_timeout_seconds=getattr(args, "llm_timeout_seconds", None),
     )
     model = _model_for_subsystem_provider(
         provider_choice=provider_choice,
@@ -5832,6 +5839,7 @@ def _research_architect_theory_develop(args: argparse.Namespace) -> int:
     provider, provider_name = _build_theory_generator_backend(
         provider_name=args.provider,
         static_response_file=args.static_response_file,
+        llm_timeout_seconds=getattr(args, "llm_timeout_seconds", None),
     )
     context: dict[str, object] = {}
     if args.context_json:
@@ -5885,6 +5893,7 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
     provider, provider_name = _build_theory_generator_backend(
         provider_name=args.provider,
         static_response_file=args.static_response_file,
+        llm_timeout_seconds=getattr(args, "llm_timeout_seconds", None),
     )
     context: dict[str, object] = {}
     if args.context_json:
@@ -5925,6 +5934,7 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
             max_critic_repair_rounds=args.max_critic_repair_rounds,
             proof_obligation_ids=tuple(args.proof_obligation_id or ()),
             max_proof_obligations=args.max_proof_obligations,
+            llm_timeout_seconds=args.llm_timeout_seconds,
             evaluation_mode=(
                 "capability_eval"
                 if getattr(args, "capability_eval", False)
@@ -10328,6 +10338,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     research_agent_runtime.add_argument("--max-tokens", type=int, default=9000)
     research_agent_runtime.add_argument("--temperature", type=float, default=0.2)
+    research_agent_runtime.add_argument(
+        "--llm-timeout-seconds",
+        type=float,
+        default=DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
+        help=(
+            "wall-clock timeout for each live LLM generator request; timeout "
+            "exceptions are not retried by default so one subsystem cannot stall "
+            "the full AgentRuntime"
+        ),
+    )
     research_agent_runtime.add_argument(
         "--architect-coordinator-provider",
         choices=SUBSYSTEM_GENERATOR_PROVIDER_CHOICES,

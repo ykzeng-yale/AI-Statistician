@@ -250,8 +250,9 @@ class AnthropicGeneratorBackend:
 
     provider_name = "anthropic"
 
-    def __init__(self, *, api_key: str | None = None) -> None:
+    def __init__(self, *, api_key: str | None = None, timeout_s: float | None = None) -> None:
         self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
+        self.timeout_s = timeout_s
 
     def generate(self, request: GeneratorRequest) -> GeneratorResponse:
         if not self.api_key:
@@ -260,13 +261,7 @@ class AnthropicGeneratorBackend:
             import anthropic
         except Exception as exc:  # pragma: no cover - import depends on local env
             raise ValueError(f"failed to import anthropic package: {exc!r}") from exc
-        timeout_s = max(
-            1.0,
-            _env_float(
-                "AI_STATISTICIAN_LLM_TIMEOUT_SECONDS",
-                default=DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
-            ),
-        )
+        timeout_s = _live_generator_timeout_seconds(self.timeout_s)
         client = anthropic.Anthropic(
             api_key=self.api_key,
             timeout=timeout_s,
@@ -359,12 +354,15 @@ class OpenAIResponsesGeneratorBackend:
 def _call_with_generator_retries(call: Callable[[], Any]) -> tuple[Any, int]:
     max_retries = max(0, _env_int("AI_STATISTICIAN_LLM_MAX_RETRIES", default=4))
     backoff = max(0.0, _env_float("AI_STATISTICIAN_LLM_RETRY_BACKOFF_SECONDS", default=1.0))
+    retry_timeouts = _env_bool("AI_STATISTICIAN_LLM_RETRY_TIMEOUTS", default=False)
     last_exc: Exception | None = None
     for attempt in range(max_retries + 1):
         try:
             return call(), attempt
         except Exception as exc:
             last_exc = exc
+            if _is_timeout_generator_exception(exc) and not retry_timeouts:
+                raise
             if attempt >= max_retries:
                 raise
             if not _is_retryable_generator_exception(exc):
@@ -390,6 +388,31 @@ def _is_retryable_generator_exception(exc: Exception) -> bool:
     )
     haystack = f"{module}.{name} {text}"
     return any(marker in haystack for marker in retry_markers)
+
+
+def _is_timeout_generator_exception(exc: Exception) -> bool:
+    name = type(exc).__name__.lower()
+    text = str(exc).lower()
+    return "timeout" in name or "timed out" in text or "timeout" in text
+
+
+def _live_generator_timeout_seconds(value: float | None = None) -> float:
+    if value is not None:
+        return max(1.0, float(value))
+    return max(
+        1.0,
+        _env_float(
+            "AI_STATISTICIAN_LLM_TIMEOUT_SECONDS",
+            default=DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
+        ),
+    )
+
+
+def _env_bool(key: str, *, default: bool) -> bool:
+    raw = os.environ.get(key)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _env_int(key: str, *, default: int) -> int:

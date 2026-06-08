@@ -49,6 +49,7 @@ from .formalizer_llm import (
 )
 from .model_backend import (
     ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
+    DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
     claude_model_tier_mismatch,
 )
 from .formal_source_index import FormalSourceHit, FormalSourceRetriever
@@ -111,6 +112,7 @@ class ResearchAgentRuntimeConfig:
     max_critic_repair_rounds: int = 1
     proof_obligation_ids: tuple[str, ...] = ()
     max_proof_obligations: int = 0
+    llm_timeout_seconds: float = DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS
     evaluation_mode: str = "debug"
 
 
