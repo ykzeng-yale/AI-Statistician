@@ -7123,11 +7123,13 @@ def _route_source_refs(payload: Mapping[str, Any]) -> tuple[str, ...]:
         refs.extend(_str_tuple(node.get("source_refs", [])))
         refs.extend(_source_refs_from_snippets(node.get("source_snippets", [])))
     for residual in _dict_tuple(payload.get("residual_interpretations", [])):
+        refs.extend(_str_tuple(residual.get("source_refs", [])))
         refs.extend(_source_refs_from_snippets(residual.get("source_snippets", [])))
     route = _dict_value(payload, "standalone_route")
     refs.extend(_str_tuple(route.get("source_refs", [])))
     refs.extend(_source_refs_from_snippets(route.get("source_snippets", [])))
     for primitive in _dict_tuple(route.get("primitives", [])):
+        refs.extend(_str_tuple(primitive.get("source_refs", [])))
         refs.extend(_source_refs_from_snippets(primitive.get("source_snippets", [])))
     return _str_tuple(refs)
 

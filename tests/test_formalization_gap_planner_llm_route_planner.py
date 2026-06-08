@@ -1684,14 +1684,24 @@ def test_llm_route_planner_accepts_grounded_residual_interpretation() -> None:
     shutil.rmtree(root, ignore_errors=True)
     root.mkdir(parents=True, exist_ok=True)
     input_json = _write_input(root)
+    residual_source_ref = "paper:tie-side-condition"
+    primitive_source_ref = "paper:rank-primitive-route"
+    input_payload = json.loads(input_json.read_text(encoding="utf-8"))
+    input_payload["routes"][0]["source_refs"].extend(
+        [residual_source_ref, primitive_source_ref]
+    )
+    input_json.write_text(json.dumps(input_payload, indent=2), encoding="utf-8")
     interactive_session_dir = _write_interactive_session(root)
     response = _llm_response_payload()
+    response["standalone_route"]["primitives"][1]["source_refs"] = [
+        primitive_source_ref
+    ]
     response["residual_interpretations"] = [
         {
             "residual_goal": "missing finite tie-breaking side condition",
             "interpretation": "The proof route has not fixed deterministic tie handling.",
             "route_repair": "Add a tie-breaking side condition before replay.",
-            "source_refs": ["conformal_prediction_textbook"],
+            "source_refs": [residual_source_ref],
         }
     ]
     response_json.write_text(json.dumps(response), encoding="utf-8")
@@ -1711,6 +1721,8 @@ def test_llm_route_planner_accepts_grounded_residual_interpretation() -> None:
     assert row["residual_interpretations"][0]["route_repair"] == (
         "Add a tie-breaking side condition before replay."
     )
+    assert residual_source_ref in row["source_refs"]
+    assert primitive_source_ref in row["source_refs"]
 
 
 def test_llm_route_planner_rejects_unsourced_residual_repair() -> None:
