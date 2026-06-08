@@ -52,7 +52,7 @@ import anthropic            # noqa: E402
 from axle import AxleClient  # noqa: E402
 
 LEAN_ENV = "lean-4.29.0"
-DEFAULT_MODEL = "claude-haiku-4-5"
+DEFAULT_MODEL = "claude-haiku-4-5-20251001"
 
 
 # ═════════════════════════════════════════════════════════════════════════════

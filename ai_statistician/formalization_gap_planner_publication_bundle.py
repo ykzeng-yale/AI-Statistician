@@ -1988,6 +1988,7 @@ def schema_catalog_json_schema() -> dict[str, object]:
                     "relative_path": {"type": "string", "minLength": 1},
                     "schema_id": {"type": "string", "minLength": 1},
                     "title": {"type": "string"},
+                    "target_prover_families": string_array,
                     "artifact_kind": {
                         "enum": ["json_schema", "contract_manifest", "contract_json"]
                     },
@@ -2191,6 +2192,19 @@ def _schema_catalog_bundle_path_errors(
     return tuple(errors)
 
 
+def _schema_catalog_target_prover_families(raw_schema: dict[str, object]) -> list[str]:
+    values = raw_schema.get("x-target-prover-families", [])
+    if not isinstance(values, list):
+        return []
+    return list(
+        dict.fromkeys(
+            str(value).strip()
+            for value in values
+            if str(value).strip()
+        )
+    )
+
+
 def _schema_catalog_payload(
     *,
     bundle_id: str,
@@ -2224,18 +2238,20 @@ def _schema_catalog_payload(
         if not schema_id:
             entry_errors.append("schema_id missing")
         title = str(raw.get("title") or raw.get("component") or artifact_name)
-        entries.append(
-            {
-                "artifact_name": artifact_name,
-                "relative_path": _relative_bundle_path(path, bundle_dir),
-                "schema_id": schema_id,
-                "title": title,
-                "artifact_kind": _schema_artifact_kind(path, artifact_name, raw),
-                "required": bool(artifact.get("required", False)),
-                "ok": bool(artifact.get("ok", False)) and not entry_errors,
-                "errors": entry_errors,
-            }
-        )
+        target_prover_families = _schema_catalog_target_prover_families(raw)
+        entry = {
+            "artifact_name": artifact_name,
+            "relative_path": _relative_bundle_path(path, bundle_dir),
+            "schema_id": schema_id,
+            "title": title,
+            "artifact_kind": _schema_artifact_kind(path, artifact_name, raw),
+            "required": bool(artifact.get("required", False)),
+            "ok": bool(artifact.get("ok", False)) and not entry_errors,
+            "errors": entry_errors,
+        }
+        if target_prover_families:
+            entry["target_prover_families"] = target_prover_families
+        entries.append(entry)
     errors = [
         f"{entry['artifact_name']}: " + "; ".join(str(error) for error in entry["errors"])
         for entry in entries

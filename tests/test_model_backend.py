@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -327,3 +328,17 @@ def test_operator_docs_preserve_claude_tier_env_contract() -> None:
     assert "Codex/Codex exec are not accepted as pure LLM providers" in env_example
     assert "not normal pure-LLM" in architect_goal_text
     assert "not treated as normal pure-LLM" in readme_text
+
+
+def test_legacy_demo_scripts_use_pinned_claude_haiku_snapshot() -> None:
+    legacy_scripts = [
+        Path("Preliminary Attempt/stat_agent.py"),
+        Path("Preliminary Attempt/formal_proof_eval.py"),
+        Path("Preliminary Attempt/stat_research_agent.py"),
+    ]
+    bare_haiku_alias = re.compile(r"(?<![A-Za-z0-9_-])claude-haiku-4-5(?!-[0-9])")
+
+    for script in legacy_scripts:
+        text = script.read_text(encoding="utf-8")
+        assert "claude-haiku-4-5-20251001" in text
+        assert bare_haiku_alias.search(text) is None

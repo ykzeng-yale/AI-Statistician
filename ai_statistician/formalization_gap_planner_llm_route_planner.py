@@ -2652,6 +2652,11 @@ def llm_route_planner_response_payload_schema(
                         "reason": {"type": "string", "minLength": 1},
                         "resource_request_id": {"type": "string"},
                         "resource_id": {"type": "string"},
+                        "resource_contract_ids": string_array,
+                        "required_quality_signals": string_array,
+                        "quality_gates": string_array,
+                        "response_validation_signals": string_array,
+                        "stop_conditions": string_array,
                     },
                 },
             },
@@ -2668,6 +2673,11 @@ def llm_route_planner_response_payload_schema(
                         "action": {"type": "string", "minLength": 1},
                         "resource_request_id": {"type": "string"},
                         "resource_id": {"type": "string"},
+                        "resource_contract_ids": string_array,
+                        "required_quality_signals": string_array,
+                        "quality_gates": string_array,
+                        "response_validation_signals": string_array,
+                        "stop_conditions": string_array,
                     },
                 },
             },
@@ -5429,6 +5439,10 @@ def _response_resource_request_alignment_errors(
         context_packet,
         registry_context=registry_context,
     )
+    quality_context = _quality_control_context_for_request(
+        context_packet,
+        registry_context=registry_context,
+    )
     has_registry_context = any(
         _dict_tuple(registry_context.get(row_key, []))
         for row_key in (
@@ -5529,6 +5543,15 @@ def _response_resource_request_alignment_errors(
                 "summary, or registry context: "
                 + ", ".join(unknown_resource_contract_ids[:8])
             )
+        errors.extend(
+            _quality_control_grounding_errors(
+                collection_name,
+                index,
+                row,
+                resource_contract_ids=resource_contract_ids,
+                quality_context=quality_context,
+            )
+        )
         unknown_tool_owners = (
             sorted(
                 tool_id
@@ -5567,6 +5590,149 @@ def _response_resource_request_alignment_errors(
             "queued resource_request_id or resource_id"
         )
     return errors
+
+
+def _quality_control_context_for_request(
+    context_packet: Mapping[str, Any],
+    *,
+    registry_context: Mapping[str, Any],
+) -> dict[str, object]:
+    required_quality_signals: set[str] = set()
+    quality_gates: set[str] = set()
+    response_validation_signals: set[str] = set()
+    stop_conditions: set[str] = set()
+    response_validation_signals_by_contract_id: dict[str, set[str]] = {}
+
+    def absorb(row: Mapping[str, Any], *, contract_scoped: bool = False) -> None:
+        required_quality_signals.update(
+            _quality_control_keys(row, ("required_quality_signal", "required_quality_signals"))
+        )
+        quality_gates.update(_quality_control_keys(row, ("quality_gate", "quality_gates", "gate")))
+        row_response_validation_signals = _quality_control_keys(
+            row,
+            (
+                "response_validation_signal",
+                "response_validation_signals",
+                "validation_signal",
+                "validation_signals",
+            ),
+        )
+        response_validation_signals.update(row_response_validation_signals)
+        stop_conditions.update(_quality_control_keys(row, ("stop_condition", "stop_conditions")))
+        if contract_scoped:
+            for contract_id in _resource_contract_ids_for_rows((dict(row),)):
+                response_validation_signals_by_contract_id.setdefault(
+                    contract_id,
+                    set(),
+                ).update(row_response_validation_signals)
+
+    for row_key in (
+        "interactive_decision_policy_rows",
+        "resource_request_queue_rows",
+    ):
+        for row in _dict_tuple(context_packet.get(row_key, [])):
+            absorb(row, contract_scoped=True)
+    for row in _dict_tuple(context_packet.get("interactive_session_rows", [])):
+        absorb(row)
+    feedback_summary = _dict_value(context_packet, "feedback_loop_summary")
+    for row in _dict_tuple(feedback_summary.get("recommended_next_actions", [])):
+        absorb(row, contract_scoped=True)
+
+    for row in _dict_tuple(registry_context.get("resource_rows", [])):
+        absorb(row)
+    for row in _dict_tuple(registry_context.get("component_rows", [])):
+        absorb(row)
+    for row in _dict_tuple(registry_context.get("execution_plan_rows", [])):
+        absorb(row)
+    for row in _dict_tuple(registry_context.get("resource_contract_rows", [])):
+        absorb(row, contract_scoped=True)
+
+    return {
+        "required_quality_signals": required_quality_signals,
+        "quality_gates": quality_gates,
+        "response_validation_signals": response_validation_signals,
+        "stop_conditions": stop_conditions,
+        "response_validation_signals_by_contract_id": response_validation_signals_by_contract_id,
+    }
+
+
+def _quality_control_grounding_errors(
+    collection_name: str,
+    index: int,
+    row: Mapping[str, Any],
+    *,
+    resource_contract_ids: set[str],
+    quality_context: Mapping[str, object],
+) -> list[str]:
+    errors: list[str] = []
+    for field_name, aliases in (
+        ("required_quality_signals", ("required_quality_signal", "required_quality_signals")),
+        ("quality_gates", ("quality_gate", "quality_gates", "gate")),
+        (
+            "response_validation_signals",
+            (
+                "response_validation_signal",
+                "response_validation_signals",
+                "validation_signal",
+                "validation_signals",
+            ),
+        ),
+        ("stop_conditions", ("stop_condition", "stop_conditions")),
+    ):
+        declared = _quality_control_keys(row, aliases)
+        allowed = set(quality_context.get(field_name, set()) or set())
+        unknown = sorted(declared - allowed) if allowed else []
+        if unknown:
+            errors.append(
+                f"{collection_name}[{index}] references {field_name} not present "
+                "in request interactive policy, resource queue, feedback summary, "
+                "or component-resource registry context: "
+                + ", ".join(unknown[:8])
+            )
+
+    declared_response_signals = _quality_control_keys(
+        row,
+        (
+            "response_validation_signal",
+            "response_validation_signals",
+            "validation_signal",
+            "validation_signals",
+        ),
+    )
+    by_contract = quality_context.get("response_validation_signals_by_contract_id", {})
+    if (
+        declared_response_signals
+        and resource_contract_ids
+        and isinstance(by_contract, Mapping)
+    ):
+        allowed_for_contracts: set[str] = set()
+        for contract_id in resource_contract_ids:
+            allowed_for_contracts.update(set(by_contract.get(contract_id, set()) or set()))
+        if allowed_for_contracts:
+            unknown_for_contracts = sorted(
+                declared_response_signals - allowed_for_contracts
+            )
+            if unknown_for_contracts:
+                errors.append(
+                    f"{collection_name}[{index}] response_validation_signals are "
+                    "not supported by the referenced resource_contract_id(s): "
+                    + ", ".join(unknown_for_contracts[:8])
+                )
+    return errors
+
+
+def _quality_control_keys(
+    row: Mapping[str, Any],
+    field_names: tuple[str, ...],
+) -> set[str]:
+    keys: set[str] = set()
+    for field_name in field_names:
+        keys.update(
+            _resource_ref_key(value)
+            for value in _str_tuple(row.get(field_name, []))
+            if _resource_ref_key(value)
+        )
+    return keys
 
 
 def _resource_contract_ids_for_request_context(
@@ -8137,6 +8303,7 @@ def _llm_refinement_hooks_for_search_requests(
                 "acceptance_record": _acceptance_record_for_llm_hook(hook_kind),
                 "llm_route_planner_search_request_index": index,
                 "llm_route_planner_search_request": dict(request),
+                "quality_controls": _quality_control_payload_for_row(request),
                 "planner_next_actions": [dict(action) for action in planner_next_actions],
                 "resource_request_ids": list(
                     resource_binding_summary["resource_request_ids"]
@@ -8173,6 +8340,7 @@ def _llm_route_revision_triggers_for_search_requests(
                 "next_action": _next_action_for_llm_hook(hook_kind, query=query),
                 "llm_route_planner_search_request_index": index,
                 "llm_route_planner_search_request": dict(request),
+                "quality_controls": _quality_control_payload_for_row(request),
                 "resource_request_ids": list(
                     resource_binding_summary["resource_request_ids"]
                 ),
@@ -8229,6 +8397,7 @@ def _llm_refinement_hooks_for_planner_next_actions(
                 "acceptance_record": _acceptance_record_for_llm_hook(hook_kind),
                 "llm_route_planner_planner_next_action_index": index,
                 "llm_route_planner_planner_next_action": dict(action),
+                "quality_controls": _quality_control_payload_for_row(action),
                 "resource_request_ids": list(
                     resource_binding_summary["resource_request_ids"]
                 ),
@@ -8267,6 +8436,7 @@ def _llm_route_revision_triggers_for_planner_next_actions(
                 "next_action": _next_action_for_llm_hook(hook_kind, query=query),
                 "llm_route_planner_planner_next_action_index": index,
                 "llm_route_planner_planner_next_action": dict(action),
+                "quality_controls": _quality_control_payload_for_row(action),
                 "resource_request_ids": list(
                     resource_binding_summary["resource_request_ids"]
                 ),
@@ -8309,11 +8479,17 @@ def _llm_resource_binding_summary(
         for request_id in request_ids or ("",):
             for resource_id in row_resource_ids or ("",):
                 if request_id or resource_id:
+                    quality_controls = _quality_control_payload_for_row(row)
                     bindings.append(
                         {
                             "source": source,
                             "resource_request_id": request_id,
                             "resource_id": resource_id,
+                            **(
+                                {"quality_controls": quality_controls}
+                                if quality_controls
+                                else {}
+                            ),
                         }
                     )
     return {
@@ -8328,6 +8504,21 @@ def _llm_resource_binding_summary(
             )
         ),
     }
+
+
+def _quality_control_payload_for_row(row: Mapping[str, object]) -> dict[str, object]:
+    payload: dict[str, object] = {}
+    for field_name in (
+        "resource_contract_ids",
+        "required_quality_signals",
+        "quality_gates",
+        "response_validation_signals",
+        "stop_conditions",
+    ):
+        values = _str_tuple(row.get(field_name, []))
+        if values:
+            payload[field_name] = list(values)
+    return payload
 
 
 def _hook_kind_for_llm_planner_action(action: Mapping[str, object]) -> str:
