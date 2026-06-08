@@ -1990,6 +1990,7 @@ def _user_prompt(
             "Minimal delta must include selected_primitives, cost_model_version, route_cost, primitive_costs, and_or_cost_graph, and minimality_rationale.",
             "Use minimal_delta_cost_policy as the AND/OR graph cost surface; pick the route with the lowest current formalization delta cost.",
             "Every selected primitive must have exactly one primitive_costs row with base_cost, proof_difficulty_cost, import_cone_cost, definition_or_typeclass_cost, semantic_risk_cost, reuse_credit, total_cost, and cost_rationale.",
+            "Every primitive_costs coverage_bucket must be listed in minimal_delta_cost_policy.coverage_bucket_base_cost, and base_cost must equal that bucket base cost.",
             "Every primitive_costs row must satisfy total_cost = base_cost + proof_difficulty_cost + import_cone_cost + definition_or_typeclass_cost + semantic_risk_cost - reuse_credit; route_cost must equal the sum of selected primitive total_cost values.",
             "and_or_cost_graph must enumerate route_options, non-empty or_nodes, and non-empty and_edges; it must mark exactly one selected route option and no listed alternative may have lower route_cost.",
             "Every selected primitive must appear in standalone_route.primitives and formal_realization_dag_nodes.",
@@ -3208,6 +3209,12 @@ def _minimal_delta_cost_witness_errors(
                 errors.append(
                     f"minimal_delta_plan.primitive_costs[{index}].{dimension_error}"
                 )
+            base_cost_policy_error = _primitive_cost_base_cost_policy_error(row)
+            if base_cost_policy_error:
+                errors.append(
+                    f"minimal_delta_plan.primitive_costs[{index}]."
+                    + base_cost_policy_error
+                )
             if not str(row.get("cost_rationale", "")).strip():
                 errors.append(
                     f"minimal_delta_plan.primitive_costs[{index}].cost_rationale missing"
@@ -3242,6 +3249,34 @@ def _minimal_delta_cost_witness_errors(
         )
     )
     return errors
+
+
+def _primitive_cost_base_cost_policy_error(
+    row: Mapping[str, object],
+) -> str:
+    bucket = _primitive_key(row.get("coverage_bucket", ""))
+    if not bucket:
+        return "coverage_bucket missing"
+    policy = MINIMAL_DELTA_COST_POLICY.get("coverage_bucket_base_cost", {})
+    if not isinstance(policy, Mapping):
+        return "coverage_bucket_base_cost policy missing"
+    if bucket not in policy:
+        return (
+            "coverage_bucket must be listed in "
+            "minimal_delta_cost_policy.coverage_bucket_base_cost: "
+            + bucket
+        )
+    expected = policy.get(bucket)
+    if not _is_nonnegative_number(expected) or not _is_nonnegative_number(
+        row.get("base_cost")
+    ):
+        return ""
+    if abs(float(row.get("base_cost", 0) or 0) - float(expected)) > 1e-9:
+        return (
+            "base_cost must equal minimal_delta_cost_policy."
+            f"coverage_bucket_base_cost[{bucket!r}]={expected}"
+        )
+    return ""
 
 
 def _primitive_cost_dimension_accounting_error(

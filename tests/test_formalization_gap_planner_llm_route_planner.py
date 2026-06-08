@@ -3876,6 +3876,36 @@ def test_llm_route_planner_rejects_unaccounted_primitive_cost_dimensions() -> No
     )
 
 
+def test_llm_route_planner_rejects_coverage_bucket_base_cost_mismatch() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_bucket_base_cost"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    bad_response = _llm_response_payload()
+    cost_row = bad_response["minimal_delta_plan"]["primitive_costs"][1]
+    cost_row["coverage_bucket"] = "source_port_needed"
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "base_cost must equal minimal_delta_cost_policy.coverage_bucket_base_cost"
+        in error
+        for error in row["errors"]
+    )
+
+
 def test_llm_route_planner_rejects_missing_primitive_cost_dimensions() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_rejects_missing_cost_dimensions"

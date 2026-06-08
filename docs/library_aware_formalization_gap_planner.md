@@ -153,8 +153,11 @@ standalone replay. This is still planning evidence, not proof evidence. The
 cost witness uses
 `formalization_gap_planner_minimal_delta_cost_policy:1` and must include a
 nonnegative route cost plus one `primitive_costs` row per selected primitive.
-It must also include an `and_or_cost_graph` with enumerated route options,
-exactly one selected option, and no listed alternative with lower `route_cost`.
+Each primitive cost row must use a `coverage_bucket` listed in
+`minimal_delta_cost_policy.coverage_bucket_base_cost`, with `base_cost` exactly
+equal to that published bucket cost. It must also include an
+`and_or_cost_graph` with enumerated route options, exactly one selected option,
+and no listed alternative with lower `route_cost`.
 Those costs are planning evidence for comparing exact reuse, wrappers, bridge
 lemmas, source ports, new definitions, typeclass/import burden, semantic risk,
 and reuse credit. They are not proof evidence.
