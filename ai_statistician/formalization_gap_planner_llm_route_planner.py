@@ -4483,6 +4483,9 @@ def _response_resource_request_alignment_errors(
         for row in queue_rows
         if _resource_ref_key(row.get("resource_id", ""))
     }
+    playbooks_by_request_id, playbooks_by_resource_id = (
+        _resource_request_playbook_indexes(context_packet)
+    )
     registry_context = _dict_value(
         context_packet,
         "component_resource_registry_context",
@@ -4582,6 +4585,17 @@ def _response_resource_request_alignment_errors(
             aligned_to_queue = True
         if tool_owner_ids & queued_resource_ids:
             aligned_to_queue = True
+        errors.extend(
+            _resource_request_playbook_grounding_errors(
+                collection_name,
+                index,
+                row,
+                request_ids=request_ids,
+                resource_ids=resource_ids | (tool_owner_ids & queued_resource_ids),
+                playbooks_by_request_id=playbooks_by_request_id,
+                playbooks_by_resource_id=playbooks_by_resource_id,
+            )
+        )
     if queue_rows and not aligned_to_queue:
         errors.append(
             "when context_packet.resource_request_queue_rows is present, at least "
@@ -4589,6 +4603,128 @@ def _response_resource_request_alignment_errors(
             "queued resource_request_id or resource_id"
         )
     return errors
+
+
+def _resource_request_playbook_indexes(
+    context_packet: Mapping[str, Any],
+) -> tuple[dict[str, list[dict[str, object]]], dict[str, list[dict[str, object]]]]:
+    playbooks = _dict_tuple(context_packet.get("resource_request_playbooks", []))
+    if not playbooks:
+        playbooks = tuple(
+            _dict_value(row, "request_playbook")
+            for row in _dict_tuple(context_packet.get("resource_request_queue_rows", []))
+            if _dict_value(row, "request_playbook")
+        )
+    by_request_id: dict[str, list[dict[str, object]]] = {}
+    by_resource_id: dict[str, list[dict[str, object]]] = {}
+    for playbook in playbooks:
+        request_id = _resource_ref_key(playbook.get("resource_request_id", ""))
+        resource_id = _resource_ref_key(playbook.get("resource_id", ""))
+        if request_id:
+            by_request_id.setdefault(request_id, []).append(dict(playbook))
+        if resource_id:
+            by_resource_id.setdefault(resource_id, []).append(dict(playbook))
+    return by_request_id, by_resource_id
+
+
+def _resource_request_playbook_grounding_errors(
+    collection_name: str,
+    index: int,
+    row: Mapping[str, Any],
+    *,
+    request_ids: set[str],
+    resource_ids: set[str],
+    playbooks_by_request_id: Mapping[str, list[dict[str, object]]],
+    playbooks_by_resource_id: Mapping[str, list[dict[str, object]]],
+) -> list[str]:
+    matched_playbooks: list[dict[str, object]] = []
+    for request_id in sorted(request_ids):
+        matched_playbooks.extend(playbooks_by_request_id.get(request_id, []))
+    if not matched_playbooks:
+        for resource_id in sorted(resource_ids):
+            matched_playbooks.extend(playbooks_by_resource_id.get(resource_id, []))
+    if not matched_playbooks:
+        return []
+
+    content_tokens = _planner_action_content_tokens(row)
+    if not content_tokens:
+        return [
+            f"{collection_name}[{index}] has no substantive query/action terms "
+            "to ground against the queued request_playbook"
+        ]
+    for playbook in matched_playbooks:
+        if content_tokens & _playbook_grounding_tokens(playbook):
+            return []
+    return [
+        f"{collection_name}[{index}] is not grounded in the queued request_playbook "
+        "operator_prompt, input_summary, expected_response_fields, or acceptance_checklist"
+    ]
+
+
+def _planner_action_content_tokens(row: Mapping[str, Any]) -> set[str]:
+    text_parts = [
+        str(row.get(field_name, ""))
+        for field_name in (
+            "query",
+            "reason",
+            "action",
+            "rationale",
+            "description",
+            "route_repair",
+            "repair_action",
+        )
+    ]
+    return _grounding_tokens(" ".join(text_parts))
+
+
+def _playbook_grounding_tokens(playbook: Mapping[str, Any]) -> set[str]:
+    text_parts = [
+        str(playbook.get("operator_prompt", "")),
+        str(playbook.get("expected_response_artifact", "")),
+        " ".join(_str_tuple(playbook.get("required_inputs", []))),
+        " ".join(_str_tuple(playbook.get("expected_response_fields", []))),
+        " ".join(_str_tuple(playbook.get("acceptance_checklist", []))),
+        " ".join(_str_tuple(playbook.get("rejection_triggers", []))),
+        " ".join(_str_tuple(playbook.get("stop_conditions", []))),
+        json.dumps(_dict_value(playbook, "input_summary"), default=str),
+    ]
+    return _grounding_tokens(" ".join(text_parts))
+
+
+def _grounding_tokens(text: str) -> set[str]:
+    stopwords = {
+        "action",
+        "adapter",
+        "artifact",
+        "check",
+        "contract",
+        "dispatch",
+        "evidence",
+        "expected",
+        "field",
+        "fields",
+        "find",
+        "gate",
+        "grounded",
+        "literature",
+        "planner",
+        "prompt",
+        "query",
+        "queued",
+        "request",
+        "response",
+        "resource",
+        "route",
+        "search",
+        "source",
+        "theorem",
+        "tool",
+    }
+    return {
+        token
+        for token in re.findall(r"[a-z0-9_]+", str(text or "").lower())
+        if len(token) >= 4 and token not in stopwords
+    }
 
 
 def _structured_resource_refs(row: Mapping[str, Any]) -> dict[str, list[str]]:

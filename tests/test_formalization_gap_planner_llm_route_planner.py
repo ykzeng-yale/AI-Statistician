@@ -1614,7 +1614,7 @@ def test_llm_route_planner_accepts_response_aligned_to_resource_request_queue() 
     response["planner_next_actions"] = [
         {
             "owner": "paperclip_cli_mcp",
-            "action": "dispatch queued literature evidence request",
+            "action": "dispatch queued rank_uniformity literature evidence request",
             "resource_request_id": "resource-request:rank_route",
             "resource_id": "paperclip_cli_mcp",
         }
@@ -1752,6 +1752,54 @@ def test_llm_route_planner_rejects_unqueued_resource_request_references() -> Non
     error_text = "\n".join(row["errors"])
     assert "unknown resource_request_id" in error_text
     assert "not present in request queue or registry context" in error_text
+
+
+def test_llm_route_planner_rejects_resource_request_not_grounded_in_playbook() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_queue_playbook_mismatch"
+    )
+    out_dir = root / "llm_route_planner"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    resource_request_queue_dir = _write_resource_request_queue(root)
+    response_json = root / "response.json"
+    response = _llm_response_payload()
+    response["search_requests"] = [
+        {
+            "request_kind": "literature",
+            "query": "compact operator spectral theorem Hilbert basis",
+            "reason": "unrelated functional analysis search despite queued request id",
+            "resource_request_id": "resource-request:rank_route",
+            "resource_id": "paperclip_cli_mcp",
+        }
+    ]
+    response["planner_next_actions"] = [
+        {
+            "owner": "paperclip_cli_mcp",
+            "action": "dispatch compact operator spectral theorem search",
+            "resource_request_id": "resource-request:rank_route",
+            "resource_id": "paperclip_cli_mcp",
+        }
+    ]
+    response_json.write_text(json.dumps(response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_resource_request_queue_dir=(
+            resource_request_queue_dir
+        ),
+    )
+
+    assert not payload["all_ok"]
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert row["response_contract_ok"] is False
+    error_text = "\n".join(row["errors"])
+    assert "not grounded in the queued request_playbook" in error_text
 
 
 def test_llm_route_planner_stages_interactive_session_context() -> None:
