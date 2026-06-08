@@ -3004,6 +3004,15 @@ async def run_research_system_audit(
             "research_agent_runtime_audit_all_ok": research_agent_runtime_audit_manifest[
                 "all_ok"
             ],
+            "research_agent_runtime_capability_ready_for_full_ai_statistician": research_agent_runtime_audit_manifest[
+                "capability_ready_for_full_ai_statistician"
+            ],
+            "research_agent_runtime_capability_status": research_agent_runtime_audit_manifest[
+                "capability_status"
+            ],
+            "research_agent_runtime_capability_gaps": research_agent_runtime_audit_manifest[
+                "capability_gaps"
+            ],
             "research_agent_runtime_audit_results": research_agent_runtime_audit_manifest[
                 "n_results"
             ],
@@ -3019,6 +3028,12 @@ async def run_research_system_audit(
             ],
             "research_agent_runtime_critic_reroutes": research_agent_runtime_audit_manifest[
                 "n_critic_reroutes"
+            ],
+            "research_agent_runtime_live_generator_agents_enabled": research_agent_runtime_audit_manifest[
+                "n_live_generator_agents_enabled"
+            ],
+            "research_agent_runtime_lean_lsp_mcp_live_calls": research_agent_runtime_audit_manifest[
+                "n_lean_lsp_mcp_live_calls"
             ],
             "research_agent_runtime_algorithm_sandbox_executed": research_agent_runtime_audit_manifest[
                 "n_algorithm_sandbox_executed"
@@ -8526,6 +8541,11 @@ def _research_agent_runtime_audit_overlay(
         "requested": False,
         "available": False,
         "all_ok": False,
+        "capability_ready_for_full_ai_statistician": False,
+        "capability_status": "NOT_REQUESTED",
+        "capability_gaps": [
+            "research-agent-runtime audit was not requested",
+        ],
         "errors": [],
         "runtime_dir": "",
         "manifest_path": str(audit_out / "research_agent_runtime_audit_manifest.json"),
@@ -8553,7 +8573,9 @@ def _research_agent_runtime_audit_overlay(
         "architect_coordinator_enabled": False,
         "llm_topology_policy_ok": False,
         "unsupported_generator_backends_enabled": 0,
+        "n_live_generator_agents_enabled": 0,
         "n_critic_reroutes": 0,
+        "n_lean_lsp_mcp_live_calls": 0,
         "n_algorithm_sandbox_executed": 0,
         "n_generated_code_sandbox_executed": 0,
         "n_unsafe_generated_code_rejected": 0,

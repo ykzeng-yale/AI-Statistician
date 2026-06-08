@@ -1309,9 +1309,16 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
 
     audit = audit_research_agent_runtime(out_dir, out_dir / "runtime_alignment_audit")
     assert audit["all_ok"] is True
+    assert audit["capability_ready_for_full_ai_statistician"] is False
+    assert audit["capability_status"] == "CONTRACT_OK_WITH_CAPABILITY_GAPS"
+    assert "no live Anthropic/OpenAI generator agents were enabled" in audit["capability_gaps"]
+    assert "Lean LSP/MCP was not called live for proof-state diagnostics" in audit["capability_gaps"]
+    assert "no full frontier theorem was kernel-proved" in audit["capability_gaps"]
     assert audit["architect_coordinator_enabled"] is True
     assert audit["llm_topology_policy_ok"] is True
     assert audit["unsupported_generator_backends_enabled"] == 0
+    assert audit["n_live_generator_agents_enabled"] == 0
+    assert audit["n_lean_lsp_mcp_live_calls"] == 0
     assert audit["n_critic_reroutes"] == 1
     assert audit["has_kernel_evidence"] is False
     assert audit["has_real_kernel_evidence"] is False
@@ -1339,6 +1346,8 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert system_overlay["requested"] is True
     assert system_overlay["available"] is True
     assert system_overlay["all_ok"] is True
+    assert system_overlay["capability_ready_for_full_ai_statistician"] is False
+    assert system_overlay["capability_status"] == "CONTRACT_OK_WITH_CAPABILITY_GAPS"
     assert system_overlay["architect_coordinator_enabled"] is True
     assert system_overlay["n_critic_reroutes"] == 1
     assert system_overlay["has_real_kernel_evidence"] is False
@@ -1618,6 +1627,9 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
     assert "formalization_proof_feedback" in evidence_types
     audit = audit_research_agent_runtime(out_dir, root / "out_audit")
     assert audit["all_ok"] is True
+    assert audit["capability_ready_for_full_ai_statistician"] is False
+    assert "no live Anthropic/OpenAI generator agents were enabled" in audit["capability_gaps"]
+    assert "ArchitectCoordinator was disabled; this is a subsystem-chain run, not architect-orchestrated research" in audit["capability_gaps"]
     assert audit["llm_topology_policy_ok"] is True
     assert audit["unsupported_generator_backends_enabled"] == 0
     assert audit["has_real_kernel_evidence"] is False

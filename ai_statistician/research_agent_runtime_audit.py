@@ -61,6 +61,7 @@ class RuntimeAuditRow:
     n_learning_rows: int
     architect_coordinator_enabled: bool
     n_critic_reroutes: int
+    n_lean_lsp_mcp_live_calls: int
     has_runtime_learning_memory_input: bool
     has_problem_analysis: bool
     has_stat_knowledge_bank_plan: bool
@@ -187,9 +188,11 @@ def audit_research_agent_runtime(
         "n_unsafe_generated_code_rejected": sum(
             row.n_unsafe_generated_code_rejected for row in rows
         ),
+        "n_lean_lsp_mcp_live_calls": sum(row.n_lean_lsp_mcp_live_calls for row in rows),
         "architect_coordinator_enabled": any(row.architect_coordinator_enabled for row in rows),
         "llm_topology_policy_ok": not topology_errors,
         "unsupported_generator_backends_enabled": _topology_unsupported_count(manifest),
+        "n_live_generator_agents_enabled": _topology_live_generator_count(manifest),
         "n_critic_reroutes": sum(row.n_critic_reroutes for row in rows),
         "n_results_with_runtime_learning_memory_input": sum(
             1 for row in rows if row.has_runtime_learning_memory_input
@@ -219,6 +222,25 @@ def audit_research_agent_runtime(
             "full frontier theorem proof remains false unless a separate kernel-verified reduction closes formal gaps",
         ],
     }
+    capability_gaps = _runtime_capability_gaps(payload)
+    payload["capability_ready_for_full_ai_statistician"] = not capability_gaps
+    payload["capability_status"] = (
+        "FULL_AUTONOMOUS_AI_STATISTICIAN_READY"
+        if not capability_gaps
+        else (
+            "CONTRACT_OK_WITH_CAPABILITY_GAPS"
+            if payload["all_ok"]
+            else "CONTRACT_ERRORS_AND_CAPABILITY_GAPS"
+        )
+    )
+    payload["capability_gaps"] = capability_gaps
+    payload["readiness_boundary"] = (
+        "all_ok only means runtime artifacts satisfy the audit contract. "
+        "capability_ready_for_full_ai_statistician is the stricter gate for the "
+        "original goal: live Architect orchestration, executable algorithm feedback, "
+        "live Lean LSP/MCP proof-state interaction, real kernel evidence, and no "
+        "remaining full-theorem formal gaps."
+    )
     if out_dir is not None:
         out_dir.mkdir(parents=True, exist_ok=True)
         manifest_out = out_dir / "research_agent_runtime_audit_manifest.json"
@@ -247,6 +269,7 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
     simulation = _artifacts_with_prefix(artifacts, "simulation_manifest:")
     algorithm = _artifacts_with_prefix(artifacts, "algorithm_sandbox_manifest:")
     formalization = _artifacts_with_prefix(artifacts, "formalization_manifest:")
+    proof_state_feedback = _artifacts_with_prefix(artifacts, "proof_state_feedback_manifest:")
     critic = _artifacts_with_prefix(artifacts, "critic_evaluator_manifest:")
     required_counts = {
         "retrieval manifest": retrieval,
@@ -362,6 +385,9 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
         if isinstance(row.get("runtime_reroute_decision"), Mapping)
         and row.get("runtime_reroute_decision", {}).get("reroute_to_theory_developer") is True
     )
+    n_lean_lsp_mcp_live_calls = sum(
+        1 for row in proof_state_feedback if row.get("lean_lsp_mcp_live_called") is True
+    )
     if not any(
         isinstance(row.get("runtime_reroute_decision"), Mapping)
         for row in critic
@@ -418,6 +444,7 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
         n_learning_rows=n_learning,
         architect_coordinator_enabled=architect_enabled,
         n_critic_reroutes=n_critic_reroutes,
+        n_lean_lsp_mcp_live_calls=n_lean_lsp_mcp_live_calls,
         has_runtime_learning_memory_input=has_runtime_learning_memory_input,
         has_problem_analysis=has_problem_analysis,
         has_stat_knowledge_bank_plan=has_stat_knowledge_bank_plan,
@@ -472,6 +499,50 @@ def _topology_unsupported_count(manifest: Mapping[str, Any]) -> int:
         return 0
     counts = topology.get("counts", {}) if isinstance(topology.get("counts"), Mapping) else {}
     return int(counts.get("unsupported_generator_backends_enabled", 0) or 0)
+
+
+def _topology_live_generator_count(manifest: Mapping[str, Any]) -> int:
+    topology = manifest.get("llm_runtime_topology", {})
+    if not isinstance(topology, Mapping):
+        return 0
+    counts = topology.get("counts", {}) if isinstance(topology.get("counts"), Mapping) else {}
+    by_provider = counts.get("enabled_by_provider", {})
+    if not isinstance(by_provider, Mapping):
+        return 0
+    return sum(
+        int(by_provider.get(provider, 0) or 0)
+        for provider in ("anthropic", "openai")
+    )
+
+
+def _runtime_capability_gaps(payload: Mapping[str, Any]) -> list[str]:
+    gaps: list[str] = []
+    n_results = int(payload.get("n_results", 0) or 0)
+    if n_results <= 0:
+        gaps.append("no per-question runtime result was audited")
+    if int(payload.get("n_live_generator_agents_enabled", 0) or 0) <= 0:
+        gaps.append("no live Anthropic/OpenAI generator agents were enabled")
+    if payload.get("architect_coordinator_enabled") is not True:
+        gaps.append("ArchitectCoordinator was disabled; this is a subsystem-chain run, not architect-orchestrated research")
+    if int(payload.get("n_results_with_problem_analysis", 0) or 0) < n_results:
+        gaps.append("Architect problem_analysis was missing for at least one result")
+    if int(payload.get("n_results_with_stat_knowledge_bank_plan", 0) or 0) < n_results:
+        gaps.append("dynamic StatKnowledgeBank planning was missing for at least one result")
+    if int(payload.get("n_results_with_literature_fair_comparison_plan", 0) or 0) < n_results:
+        gaps.append("literature fair-comparison planning was missing for at least one result")
+    if int(payload.get("n_algorithm_sandbox_executed", 0) or 0) <= 0:
+        gaps.append("no algorithm sandbox prototype executed")
+    if int(payload.get("n_unsafe_generated_code_rejected", 0) or 0) > 0:
+        gaps.append("at least one generated algorithm draft was rejected by the sandbox guard")
+    if int(payload.get("n_lean_lsp_mcp_live_calls", 0) or 0) <= 0:
+        gaps.append("Lean LSP/MCP was not called live for proof-state diagnostics")
+    if int(payload.get("n_real_kernel_verified_subclaims", 0) or 0) <= 0:
+        gaps.append("no real AXLE/local Lean kernel-verified subclaim was recorded")
+    if int(payload.get("n_formal_gaps", 0) or 0) > 0:
+        gaps.append("formal gaps remain open")
+    if int(payload.get("n_full_frontier_theorem_proved", 0) or 0) <= 0:
+        gaps.append("no full frontier theorem was kernel-proved")
+    return gaps
 
 
 def _trace_has_runtime_learning_memory_input(traces: list[Any]) -> bool:
@@ -580,10 +651,13 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         "# Research Agent Runtime Audit",
         "",
         f"- all_ok: {payload.get('all_ok')}",
+        f"- capability_ready_for_full_ai_statistician: {payload.get('capability_ready_for_full_ai_statistician')}",
+        f"- capability_status: {payload.get('capability_status')}",
         f"- results: {payload.get('n_ok')}/{payload.get('n_results')}",
         f"- runtime traces: {payload.get('n_runtime_traces')}",
         f"- agenda items: {payload.get('n_runtime_next_action_items')}",
         f"- learning rows: {payload.get('n_runtime_learning_rows')}",
+        f"- live generator agents enabled: {payload.get('n_live_generator_agents_enabled')}",
         f"- ArchitectCoordinator enabled: {payload.get('architect_coordinator_enabled')}",
         f"- LLM topology policy ok: {payload.get('llm_topology_policy_ok')}",
         f"- unsupported generator backends: {payload.get('unsupported_generator_backends_enabled')}",
@@ -591,6 +665,7 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         f"- algorithm sandbox executed: {payload.get('n_algorithm_sandbox_executed')}",
         f"- generated-code sandbox executed: {payload.get('n_generated_code_sandbox_executed')}",
         f"- unsafe generated-code rejected: {payload.get('n_unsafe_generated_code_rejected')}",
+        f"- Lean LSP/MCP live calls: {payload.get('n_lean_lsp_mcp_live_calls')}",
         f"- runtime-learning-memory inputs: {payload.get('n_results_with_runtime_learning_memory_input')}",
         f"- runtime-learning-memory input rows: {payload.get('n_runtime_learning_memory_input_rows')}",
         f"- problem-analysis rows: {payload.get('n_results_with_problem_analysis')}",
@@ -613,8 +688,17 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         f"- LLM-rejected proof obligations: {payload.get('n_llm_rejected_proof_obligations')}",
         f"- full frontier theorem proved: {payload.get('n_full_frontier_theorem_proved')}",
         "",
-        "## Rows",
+        "## Capability Gaps",
     ]
+    if payload.get("capability_gaps"):
+        for gap in payload.get("capability_gaps", []) or []:
+            lines.append(f"- {gap}")
+    else:
+        lines.append("- none")
+    lines.extend([
+        "",
+        "## Rows",
+    ])
     for row in payload.get("rows", []) or []:
         lines.append(
             f"- {row.get('question_id')}: ok={row.get('ok')} traces={row.get('n_traces')} "
