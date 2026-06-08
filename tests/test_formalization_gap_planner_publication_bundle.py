@@ -2017,6 +2017,9 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     schema_catalog_entry_names = {
         row["artifact_name"] for row in schema_catalog_payload["schema_entries"]
     }
+    schema_catalog_entries_by_name = {
+        row["artifact_name"]: row for row in schema_catalog_payload["schema_entries"]
+    }
     assert "portable_contract" in schema_catalog_entry_names
     assert "portable_plan_row_schema" in schema_catalog_entry_names
     assert "target_intake_row_schema" in schema_catalog_entry_names
@@ -2031,6 +2034,12 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         "llm_route_planner_response_payload_target_prover_schema"
         in schema_catalog_entry_names
     )
+    assert schema_catalog_entries_by_name[
+        "llm_route_planner_response_payload_lean_legacy_schema"
+    ]["target_prover_families"] == ["lean4"]
+    assert schema_catalog_entries_by_name[
+        "llm_route_planner_response_payload_target_prover_schema"
+    ]["target_prover_families"] == ["rocq", "isabelle", "agda"]
     assert (
         "llm_route_planner_response_payload_validation_manifest_schema"
         in schema_catalog_entry_names
