@@ -4863,7 +4863,7 @@ class SystemTests(unittest.TestCase):
         self.assertGreaterEqual(len(guidance["top_actions"]), 3)
         self.assertEqual(
             guidance["top_actions"][1]["action"],
-            "Improve all-60 frontier theory-target recovery using the per-topic triage misses.",
+            "Run and gate all-60 frontier theory-target scoring with per-topic triage, not only the release smoke subset.",
         )
         self.assertTrue(
             Path(
@@ -8494,7 +8494,10 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(first["proof_bank_bridge_available"])
         self.assertTrue(first["bridge_candidate_obligations"])
         self.assertGreater(first["bridge_candidate_score"], 0)
-        self.assertIn(first["priority_band"], {"BRIDGE_REUSE_READY", "HIGH_REUSE_BRIDGE_READY"})
+        self.assertIn(
+            first["priority_band"],
+            {"EXACT_PROOF_BANK_REUSE", "BRIDGE_REUSE_READY", "HIGH_REUSE_BRIDGE_READY"},
+        )
         self.assertIn(first["bridge_candidate_obligations"][0], first["suggested_next_step"])
         self.assertIn(first["bridge_readiness"], payload["by_bridge_readiness"])
         self.assertTrue(first["theorem_goals"])
