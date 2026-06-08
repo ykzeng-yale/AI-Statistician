@@ -1388,6 +1388,8 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         == payload["n_interactive_decision_policy_rows"]
     )
     assert payload["n_interactive_session_replan"] == 0
+    assert payload["n_interactive_session_run_formal_grounding"] >= 0
+    assert payload["n_interactive_session_run_lean_grounding"] == 0
     assert payload["n_interactive_session_waiting_for_adapter_responses"] > 0
     assert payload["n_interactive_session_rows_requiring_replan"] > 0
     assert payload["n_ablation_variants"] == 5
@@ -1442,6 +1444,16 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         "formalization_gap_planner_publication_bundle_audit",
     }
     assert all(stage["proof_boundary_ok"] for stage in payload["stages"])
+    stage_by_name = {stage["stage_name"]: stage for stage in payload["stages"]}
+    interactive_summary = stage_by_name["formalization_gap_planner_interactive_session"][
+        "summary"
+    ]
+    assert interactive_summary["n_run_formal_grounding"] == payload[
+        "n_interactive_session_run_formal_grounding"
+    ]
+    assert interactive_summary["n_run_lean_grounding"] == payload[
+        "n_interactive_session_run_lean_grounding"
+    ]
     assert (
         out_dir / "formalization_gap_planner_reuse_smoke_manifest.json"
     ).exists()

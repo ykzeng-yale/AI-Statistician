@@ -627,6 +627,7 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_decision_policy_row_schema_valid",
         "n_decision_policy_row_schema_invalid",
         "n_run_literature_search",
+        "n_run_formal_grounding",
         "n_run_lean_grounding",
         "n_run_proof_state_feedback",
         "n_run_route_replan",
@@ -3803,6 +3804,14 @@ def run_formalization_gap_planner_reuse_smoke(
         ),
         "n_interactive_session_replan": interactive_session_payload.get(
             "n_run_route_replan",
+            0,
+        ),
+        "n_interactive_session_run_formal_grounding": interactive_session_payload.get(
+            "n_run_formal_grounding",
+            0,
+        ),
+        "n_interactive_session_run_lean_grounding": interactive_session_payload.get(
+            "n_run_lean_grounding",
             0,
         ),
         "n_interactive_session_waiting_for_adapter_responses": interactive_session_payload.get(

@@ -20493,9 +20493,14 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertGreaterEqual(
             payload["counts"]["formalization_gap_planner_route_stability_apply_revision"]
             + payload["counts"]["formalization_gap_planner_route_stability_expand_literature"]
+            + payload["counts"]["formalization_gap_planner_route_stability_expand_formal"]
             + payload["counts"]["formalization_gap_planner_route_stability_expand_lean"]
             + payload["counts"]["formalization_gap_planner_route_stability_expand_proof_state"],
             0,
+        )
+        self.assertGreaterEqual(
+            payload["counts"]["formalization_gap_planner_route_stability_expand_formal"],
+            payload["counts"]["formalization_gap_planner_route_stability_expand_lean"],
         )
         self.assertEqual(
             payload["counts"]["formalization_gap_planner_route_stability_row_schema_valid"],

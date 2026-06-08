@@ -4318,6 +4318,9 @@ async def run_research_system_audit(
             "formalization_gap_planner_route_stability_expand_literature": formalization_gap_planner_route_stability_audit_manifest[
                 "n_expand_literature"
             ],
+            "formalization_gap_planner_route_stability_expand_formal": formalization_gap_planner_route_stability_audit_manifest[
+                "n_expand_formal_grounding"
+            ],
             "formalization_gap_planner_route_stability_expand_lean": formalization_gap_planner_route_stability_audit_manifest[
                 "n_expand_lean_grounding"
             ],
