@@ -1348,6 +1348,94 @@ def test_llm_route_planner_rejected_resource_response_is_status_not_repair_signa
     assert summary["recommended_next_actions"] == []
 
 
+def test_llm_route_planner_rejected_playbook_grounding_response_requests_redispatch() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejected_playbook_grounding"
+    )
+    out_dir = root / "llm_route_planner"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    resource_response_ledger_dir = _write_resource_response_ledger(root)
+    manifest_path = (
+        resource_response_ledger_dir
+        / "formalization_gap_planner_resource_response_ledger_manifest.json"
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    row = manifest["rows"][0]
+    row["acceptance_status"] = "REJECTED_RESPONSE_NOT_GROUNDED_IN_REQUEST_PLAYBOOK"
+    row["response_contract_fields"] = [
+        "source_refs",
+        "source_snippets",
+        "route_revision_recommended",
+    ]
+    row["response_contract_ok"] = False
+    row["response_contract_minimum_met"] = True
+    row["matched_response_contract_fields"] = ["source_refs", "source_snippets"]
+    row["missing_response_contract_fields"] = ["route_revision_recommended"]
+    row["request_playbook_present"] = True
+    row["response_playbook_grounded"] = False
+    row["response_playbook_grounding_terms"] = []
+    row["ok"] = False
+    row["errors"] = ["resource response is not grounded in request_playbook"]
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        formalization_gap_planner_resource_response_ledger_dir=(
+            resource_response_ledger_dir
+        ),
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_requests_with_resource_response_ledger_rows"] == 1
+    assert payload["n_feedback_loop_summary_resource_response_admissible"] == 0
+    assert payload["n_feedback_loop_summary_resource_response_status_only"] == 1
+    request = payload["request_packets"][0]
+    summary = request["context_packet"]["feedback_loop_summary"]
+    assert summary["resource_response_admissibility"] == {
+        "total_count": 1,
+        "admissible_count": 0,
+        "status_only_count": 1,
+        "admissible_request_ids": [],
+        "status_only_request_ids": ["resource-request:rank_route"],
+        "rejected_request_ids": ["resource-request:rank_route"],
+        "awaiting_request_ids": [],
+        "absent_response_request_ids": [],
+        "failed_contract_request_ids": ["resource-request:rank_route"],
+        "request_playbook_present_count": 1,
+        "playbook_grounded_count": 0,
+        "playbook_grounding_failed_count": 1,
+        "playbook_grounded_request_ids": [],
+        "playbook_grounding_failed_request_ids": ["resource-request:rank_route"],
+    }
+    assert summary["replan_required"] is False
+    assert summary["admissible_source_snippets"] == []
+    assert summary["response_acceptance_status_counts"] == {
+        "REJECTED_RESPONSE_NOT_GROUNDED_IN_REQUEST_PLAYBOOK": 1
+    }
+    assert summary["recommended_next_actions"] == [
+        {
+            "source": "resource_response_ledger",
+            "owner": "paperclip_mcp",
+            "action": "redispatch_resource_response_with_request_playbook",
+            "resource_request_id": "resource-request:rank_route",
+            "acceptance_status": (
+                "REJECTED_RESPONSE_NOT_GROUNDED_IN_REQUEST_PLAYBOOK"
+            ),
+            "reason": "response_present but not grounded in queued request_playbook",
+            "response_contract_fields": [
+                "source_refs",
+                "source_snippets",
+                "route_revision_recommended",
+            ],
+            "matched_response_contract_fields": ["source_refs", "source_snippets"],
+            "missing_response_contract_fields": ["route_revision_recommended"],
+        }
+    ]
+
+
 def test_llm_route_planner_accepts_source_from_admissible_refinement_evidence() -> None:
     root = Path("runs/test_formalization_gap_planner_llm_route_planner_refinement_source")
     out_dir = root / "llm_route_planner"

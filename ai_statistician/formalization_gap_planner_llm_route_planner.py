@@ -5944,6 +5944,42 @@ def _feedback_next_actions(
             }
         )
     for row in rows_by_field.get("resource_response_ledger_rows", ()):
+        if (
+            _truthy(row.get("request_playbook_present"))
+            and _truthy(row.get("response_present"))
+            and not _truthy(row.get("response_playbook_grounded"))
+        ):
+            actions.append(
+                {
+                    "source": "resource_response_ledger",
+                    "owner": str(row.get("resource_id", "")).strip(),
+                    "action": "redispatch_resource_response_with_request_playbook",
+                    "resource_request_id": str(
+                        row.get("resource_request_id", "")
+                    ).strip(),
+                    "acceptance_status": str(
+                        row.get("acceptance_status", "")
+                    ).strip(),
+                    "reason": (
+                        "response_present but not grounded in queued "
+                        "request_playbook"
+                    ),
+                    "response_contract_fields": list(
+                        _str_tuple(row.get("response_contract_fields", []))[:8]
+                    ),
+                    "matched_response_contract_fields": list(
+                        _str_tuple(row.get("matched_response_contract_fields", []))[
+                            :8
+                        ]
+                    ),
+                    "missing_response_contract_fields": list(
+                        _str_tuple(row.get("missing_response_contract_fields", []))[
+                            :8
+                        ]
+                    ),
+                }
+            )
+            continue
         if not _resource_response_row_is_admissible_feedback(row):
             continue
         if not (
