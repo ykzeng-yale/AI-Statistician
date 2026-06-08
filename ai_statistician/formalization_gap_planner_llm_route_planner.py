@@ -2126,6 +2126,7 @@ def _generate_responses(
             request_model = _generator_model_for_request(
                 generator_backend,
                 model or str(packet.get("model", "")),
+                model_tier=str(packet.get("model_tier", "")),
             )
             try:
                 generated = generator_backend.generate(
@@ -3082,10 +3083,16 @@ def _route_and_primitive_source_refs(route: Mapping[str, Any]) -> tuple[str, ...
 def _generator_model_for_request(
     generator_backend: GeneratorBackend,
     requested_model: str,
+    *,
+    model_tier: str,
 ) -> str:
     provider_name = str(getattr(generator_backend, "provider_name", ""))
     if provider_name == "anthropic":
-        return default_generator_model("anthropic", requested_model, model_tier="sonnet")
+        return default_generator_model(
+            "anthropic",
+            requested_model,
+            model_tier=model_tier or "sonnet",
+        )
     return default_generator_model(provider_name, requested_model)
 
 

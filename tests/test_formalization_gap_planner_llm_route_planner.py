@@ -13,6 +13,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID,
     LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
     PROOF_EVIDENCE_BOUNDARY,
+    _generator_model_for_request,
     export_formalization_gap_planner_llm_route_planner,
     llm_route_planner_row_json_schema,
     validate_formalization_gap_planner_llm_route_planner_response_payloads,
@@ -3775,6 +3776,30 @@ def test_llm_route_planner_auto_uses_haiku_for_small_bounded_routes() -> None:
     request = captured["request"]
     assert request.model == "claude-haiku-4-5-20251001"
     assert request.metadata["model_tier"] == "haiku"
+
+
+def test_llm_route_planner_generator_model_fallback_preserves_selected_tier() -> None:
+    class FakeAnthropicBackend:
+        provider_name = "anthropic"
+
+    backend = FakeAnthropicBackend()
+
+    assert (
+        _generator_model_for_request(backend, "", model_tier="haiku")
+        == "claude-haiku-4-5-20251001"
+    )
+    assert (
+        _generator_model_for_request(backend, "", model_tier="sonnet")
+        == "claude-sonnet-4-6"
+    )
+    assert (
+        _generator_model_for_request(
+            backend,
+            "claude-haiku-custom",
+            model_tier="sonnet",
+        )
+        == "claude-haiku-custom"
+    )
 
 
 def test_llm_route_planner_auto_uses_sonnet_for_generic_formal_library_queries() -> None:
