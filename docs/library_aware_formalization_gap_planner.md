@@ -205,9 +205,13 @@ lists planner stages, local-first resources, frontier tools such as Paperclip,
 PaperQA2, LeanSearch/Loogle, Lean LSP, Rocq, Isabelle, and Agda adapters, plus
 their request/response contracts and quality gates. The model may use those
 rows only to choose bounded `search_requests` and `planner_next_actions`.
-Registry rows are not treated as evidence that a resource was called; actual
-tool outputs must still enter through source-grounding, library-coverage,
-refinement-evidence, or resource-response ledger artifacts.
+If the response cites explicit `resource_contract_id` or
+`resource_contract_ids` values, the validator now requires those ids to appear
+in the queued request, interactive policy, feedback summary, or bundled
+component-resource registry context. Registry rows are not treated as evidence
+that a resource was called; actual tool outputs must still enter through
+source-grounding, library-coverage, refinement-evidence, or resource-response
+ledger artifacts.
 
 AI Statistician runtime handoffs now generate that registry step explicitly.
 Each `RuntimeFormalizationGapPlannerHandoff` includes a

@@ -4822,6 +4822,10 @@ def _response_resource_request_alignment_errors(
         context_packet,
         "component_resource_registry_context",
     )
+    allowed_resource_contract_ids = _resource_contract_ids_for_request_context(
+        context_packet,
+        registry_context=registry_context,
+    )
     has_registry_context = any(
         _dict_tuple(registry_context.get(row_key, []))
         for row_key in (
@@ -4831,7 +4835,8 @@ def _response_resource_request_alignment_errors(
             "execution_plan_rows",
         )
     )
-    if not queue_rows and not has_registry_context:
+    has_resource_id_context = bool(queue_rows or has_registry_context)
+    if not has_resource_id_context and not allowed_resource_contract_ids:
         return []
 
     allowed_resource_ids = set(queued_resource_ids)
@@ -4883,6 +4888,11 @@ def _response_resource_request_alignment_errors(
             for value in refs["resource_ids"]
             if _resource_ref_key(value)
         }
+        resource_contract_ids = {
+            _resource_ref_key(value)
+            for value in refs["resource_contract_ids"]
+            if _resource_ref_key(value)
+        }
         tool_owner_ids = {
             _resource_ref_key(value)
             for value in refs["tool_owner_ids"]
@@ -4894,18 +4904,36 @@ def _response_resource_request_alignment_errors(
                 f"{collection_name}[{index}] references unknown resource_request_id(s): "
                 + ", ".join(unknown_request_ids[:8])
             )
-        unknown_resource_ids = sorted(resource_ids - allowed_resource_ids)
+        unknown_resource_ids = (
+            sorted(resource_ids - allowed_resource_ids)
+            if has_resource_id_context
+            else []
+        )
         if unknown_resource_ids:
             errors.append(
                 f"{collection_name}[{index}] references resource_id(s) not present "
                 "in request queue or registry context: "
                 + ", ".join(unknown_resource_ids[:8])
             )
-        unknown_tool_owners = sorted(
-            tool_id
-            for tool_id in tool_owner_ids
-            if tool_id not in allowed_resource_ids
-            and _resource_owner_looks_like_tool(tool_id)
+        unknown_resource_contract_ids = sorted(
+            resource_contract_ids - allowed_resource_contract_ids
+        )
+        if unknown_resource_contract_ids:
+            errors.append(
+                f"{collection_name}[{index}] references resource_contract_id(s) "
+                "not present in request queue, interactive policy, feedback "
+                "summary, or registry context: "
+                + ", ".join(unknown_resource_contract_ids[:8])
+            )
+        unknown_tool_owners = (
+            sorted(
+                tool_id
+                for tool_id in tool_owner_ids
+                if tool_id not in allowed_resource_ids
+                and _resource_owner_looks_like_tool(tool_id)
+            )
+            if has_resource_id_context
+            else []
         )
         if unknown_tool_owners:
             errors.append(
@@ -4935,6 +4963,60 @@ def _response_resource_request_alignment_errors(
             "queued resource_request_id or resource_id"
         )
     return errors
+
+
+def _resource_contract_ids_for_request_context(
+    context_packet: Mapping[str, Any],
+    *,
+    registry_context: Mapping[str, Any],
+) -> set[str]:
+    ids: set[str] = set()
+    for row_key in (
+        "resource_request_queue_rows",
+        "interactive_decision_policy_rows",
+    ):
+        ids.update(
+            _resource_contract_ids_for_rows(
+                _dict_tuple(context_packet.get(row_key, []))
+            )
+        )
+    feedback_summary = _dict_value(context_packet, "feedback_loop_summary")
+    ids.update(
+        _resource_contract_ids_for_rows(
+            _dict_tuple(feedback_summary.get("recommended_next_actions", []))
+        )
+    )
+    for row_key in (
+        "resource_rows",
+        "resource_contract_rows",
+        "component_rows",
+        "execution_plan_rows",
+    ):
+        ids.update(
+            _resource_contract_ids_for_rows(
+                _dict_tuple(registry_context.get(row_key, []))
+            )
+        )
+    return ids
+
+
+def _resource_contract_ids_for_rows(
+    rows: tuple[dict[str, object], ...] | list[dict[str, object]],
+) -> set[str]:
+    ids: set[str] = set()
+    for row in rows:
+        for field_name in (
+            "resource_contract_id",
+            "resource_contract_ids",
+            "resource_contract",
+            "resource_contracts",
+        ):
+            ids.update(
+                _resource_ref_key(value)
+                for value in _str_tuple(row.get(field_name, []))
+                if _resource_ref_key(value)
+            )
+    return ids
 
 
 def _resource_request_playbook_indexes(
@@ -5063,6 +5145,7 @@ def _structured_resource_refs(row: Mapping[str, Any]) -> dict[str, list[str]]:
     refs = {
         "resource_request_ids": [],
         "resource_ids": [],
+        "resource_contract_ids": [],
         "tool_owner_ids": [],
     }
 
@@ -5082,6 +5165,13 @@ def _structured_resource_refs(row: Mapping[str, Any]) -> dict[str, list[str]]:
                     "mcp_or_cli_hint",
                 }:
                     refs["resource_ids"].extend(_str_tuple(item))
+                elif key_text in {
+                    "resource_contract_id",
+                    "resource_contract_ids",
+                    "resource_contract",
+                    "resource_contracts",
+                }:
+                    refs["resource_contract_ids"].extend(_str_tuple(item))
                 elif key_text in {
                     "owner",
                     "tool",

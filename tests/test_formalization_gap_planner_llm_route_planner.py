@@ -1121,6 +1121,52 @@ def test_llm_route_planner_rejects_registry_unavailable_tool_actions() -> None:
     assert "owner/tool is not available" in error_text
 
 
+def test_llm_route_planner_rejects_unknown_registry_resource_contract_ids() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_registry_bad_contract"
+    )
+    out_dir = root / "llm_route_planner"
+    registry_dir = root / "component_resource_registry"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    export_formalization_gap_planner_component_resource_registry(registry_dir)
+    response = _llm_response_payload()
+    response["search_requests"] = [
+        {
+            "request_kind": "prover_feedback",
+            "query": "rank uniformity proof-state residuals",
+            "reason": "bad fixture cites a contract not exposed by context",
+            "resource_id": "lean_lsp_mcp",
+            "resource_contract_ids": ["invented:proof_state_contract"],
+        }
+    ]
+    response["planner_next_actions"] = [
+        {
+            "owner": "lean_lsp_mcp",
+            "action": "attempt the rank_uniformity bridge lemma",
+            "resource_contract_ids": ["invented:proof_state_contract"],
+        }
+    ]
+    response_json.write_text(json.dumps(response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_component_resource_registry_dir=registry_dir,
+    )
+
+    assert not payload["all_ok"]
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    error_text = "\n".join(row["errors"])
+    assert "references resource_contract_id(s) not present" in error_text
+    assert "invented_proof_state_contract" in error_text
+
+
 def test_llm_route_planner_stages_resource_response_content() -> None:
     root = Path("runs/test_formalization_gap_planner_llm_route_planner_resource_context")
     out_dir = root / "llm_route_planner"
