@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 import json
 import shutil
 from pathlib import Path
@@ -33,7 +34,11 @@ from ai_statistician.formalization_gap_planner_standalone import (
 )
 
 
-def _build_request_queue(root: Path) -> tuple[dict[str, object], Path]:
+def _build_request_queue(
+    root: Path,
+    *,
+    input_payload: dict[str, object] | None = None,
+) -> tuple[dict[str, object], Path]:
     input_json = root / "standalone_input.json"
     plan_dir = root / "plan"
     coverage_dir = root / "coverage"
@@ -41,40 +46,38 @@ def _build_request_queue(root: Path) -> tuple[dict[str, object], Path]:
     component_resource_registry_dir = root / "component_resource_registry"
     action_resource_plan_dir = root / "action_resource_plan"
     request_queue_dir = root / "request_queue"
-    input_json.write_text(
-        json.dumps(
+    payload = input_payload or {
+        "schema_version": 1,
+        "component_name": "formalization_gap_planner_standalone_input",
+        "target_prover_family": "lean4",
+        "library_snapshot_ref": "lean_mathlib_empirical_process_snapshot",
+        "routes": [
             {
-                "schema_version": 1,
-                "component_name": "formalization_gap_planner_standalone_input",
-                "target_prover_family": "lean4",
-                "library_snapshot_ref": "lean_mathlib_empirical_process_snapshot",
-                "routes": [
+                "display_name": "distribution_free_rank_bound",
+                "theorem_statement": (
+                    "A distribution-free rank bound follows from exchangeability."
+                ),
+                "source_refs": ["conformal_prediction_textbook"],
+                "primitives": [
                     {
-                        "display_name": "distribution_free_rank_bound",
-                        "theorem_statement": (
-                            "A distribution-free rank bound follows from exchangeability."
-                        ),
-                        "source_refs": ["conformal_prediction_textbook"],
-                        "primitives": [
-                            {
-                                "primitive": "rank_uniformity",
-                                "coverage_status": "bridge_needed",
-                                "candidate_declarations": [
-                                    "Probability.rankUniformityBridge"
-                                ],
-                                "expected_premises": ["exchangeability"],
-                            },
-                            {
-                                "primitive": "coverage_inequality",
-                                "coverage_status": "source_port_needed",
-                                "source_refs": ["vovk_gammerman_shafer"],
-                            },
+                        "primitive": "rank_uniformity",
+                        "coverage_status": "bridge_needed",
+                        "candidate_declarations": [
+                            "Probability.rankUniformityBridge"
                         ],
-                    }
+                        "expected_premises": ["exchangeability"],
+                    },
+                    {
+                        "primitive": "coverage_inequality",
+                        "coverage_status": "source_port_needed",
+                        "source_refs": ["vovk_gammerman_shafer"],
+                    },
                 ],
-            },
-            indent=2,
-        ),
+            }
+        ],
+    }
+    input_json.write_text(
+        json.dumps(payload, indent=2),
         encoding="utf-8",
     )
     export_formalization_gap_planner_standalone_plan(input_json, plan_dir)
@@ -96,6 +99,77 @@ def _build_request_queue(root: Path) -> tuple[dict[str, object], Path]:
         request_queue_dir,
     )
     return payload, request_queue_dir
+
+
+def test_resource_response_ledger_reports_mixed_targets_from_request_rows() -> None:
+    root = Path("runs/test_formalization_gap_planner_resource_response_ledger_mixed")
+    ledger_dir = root / "ledger"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    request_payload, request_queue_dir = _build_request_queue(
+        root,
+        input_payload={
+            "schema_version": 1,
+            "component_name": "formalization_gap_planner_standalone_input",
+            "library_snapshot_ref": "mixed:response-ledger-target-summary",
+            "routes": [
+                {
+                    "route_id": "lean_rank_route",
+                    "display_name": "lean_rank_route",
+                    "target_prover_family": "lean4",
+                    "theorem_statement": "A Lean route.",
+                    "primitives": [
+                        {
+                            "primitive": "rank_uniformity",
+                            "coverage_status": "bridge_needed",
+                            "candidate_declarations": [
+                                "Probability.rankUniformityBridge"
+                            ],
+                            "expected_premises": ["exchangeability"],
+                        }
+                    ],
+                },
+                {
+                    "route_id": "rocq_rank_route",
+                    "display_name": "rocq_rank_route",
+                    "target_prover_family": "rocq",
+                    "theorem_statement": "A Rocq route.",
+                    "source_refs": ["rocq_conformal_notes"],
+                    "primitives": [
+                        {
+                            "primitive": "coverage_inequality",
+                            "coverage_status": "source_port_needed",
+                            "source_refs": ["rocq_conformal_notes"],
+                        }
+                    ],
+                },
+            ],
+        },
+    )
+
+    payload = export_formalization_gap_planner_resource_response_ledger(
+        request_queue_dir,
+        ledger_dir,
+    )
+
+    request_counts = Counter(
+        str(row["target_prover_family"]) for row in request_payload["rows"]
+    )
+    ledger_counts = Counter(str(row["target_prover_family"]) for row in payload["rows"])
+    assert request_payload["all_ok"]
+    assert request_payload["target_prover_family"] == "mixed:lean4,rocq"
+    assert request_payload["n_target_prover_families"] == 2
+    assert request_payload["by_target_prover_family"] == dict(
+        sorted(request_counts.items())
+    )
+    assert payload["all_ok"]
+    assert payload["target_prover_family"] == "mixed:lean4,rocq"
+    assert payload["n_target_prover_families"] == 2
+    assert payload["by_target_prover_family"] == dict(sorted(ledger_counts.items()))
+    assert {row["target_prover_family"] for row in payload["rows"]} == {
+        "lean4",
+        "rocq",
+    }
 
 
 def test_resource_response_ledger_accepts_adapter_feedback_without_proof_claims() -> None:

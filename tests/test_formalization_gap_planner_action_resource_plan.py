@@ -201,6 +201,85 @@ def test_action_resource_plan_joins_actions_to_frontier_resources() -> None:
     ).exists()
 
 
+def test_action_resource_plan_reports_mixed_targets_from_rows() -> None:
+    root = Path("runs/test_formalization_gap_planner_action_resource_plan_mixed")
+    input_json = root / "standalone_input.json"
+    plan_dir = root / "plan"
+    coverage_dir = root / "coverage"
+    action_queue_dir = root / "action_queue"
+    component_resource_registry_dir = root / "component_resource_registry"
+    action_resource_plan_dir = root / "action_resource_plan"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "component_name": "formalization_gap_planner_standalone_input",
+                "library_snapshot_ref": "mixed:action-resource-target-summary",
+                "routes": [
+                    {
+                        "route_id": "lean_rank_route",
+                        "display_name": "lean_rank_route",
+                        "target_prover_family": "lean4",
+                        "theorem_statement": "A Lean route.",
+                        "primitives": [
+                            {
+                                "primitive": "exchangeability",
+                                "coverage_status": "exact_exists",
+                                "candidate_declarations": ["Probability.exchangeable"],
+                            }
+                        ],
+                    },
+                    {
+                        "route_id": "rocq_rank_route",
+                        "display_name": "rocq_rank_route",
+                        "target_prover_family": "rocq",
+                        "theorem_statement": "A Rocq route.",
+                        "source_refs": ["rocq_conformal_notes"],
+                        "primitives": [
+                            {
+                                "primitive": "rank_uniformity",
+                                "coverage_status": "source_port_needed",
+                                "source_refs": ["rocq_conformal_notes"],
+                            }
+                        ],
+                    },
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    export_formalization_gap_planner_standalone_plan(input_json, plan_dir)
+    export_formalization_gap_planner_library_coverage_map(plan_dir, coverage_dir)
+    action_queue_payload = export_formalization_gap_planner_primitive_action_queue(
+        coverage_dir,
+        action_queue_dir,
+    )
+    export_formalization_gap_planner_component_resource_registry(
+        component_resource_registry_dir
+    )
+
+    payload = export_formalization_gap_planner_action_resource_plan(
+        action_queue_dir,
+        component_resource_registry_dir,
+        action_resource_plan_dir,
+    )
+
+    assert action_queue_payload["all_ok"]
+    assert action_queue_payload["target_prover_family"] == "mixed:lean4,rocq"
+    assert action_queue_payload["n_target_prover_families"] == 2
+    assert action_queue_payload["by_target_prover_family"] == {"lean4": 1, "rocq": 1}
+    assert payload["all_ok"]
+    assert payload["target_prover_family"] == "mixed:lean4,rocq"
+    assert payload["n_target_prover_families"] == 2
+    assert payload["by_target_prover_family"] == {"lean4": 1, "rocq": 1}
+    rows_by_route = {row["route_id"]: row for row in payload["rows"]}
+    assert rows_by_route["lean_rank_route"]["target_prover_family"] == "lean4"
+    assert rows_by_route["rocq_rank_route"]["target_prover_family"] == "rocq"
+
+
 def test_action_resource_plan_marks_missing_registry_as_blocker() -> None:
     root = Path("runs/test_formalization_gap_planner_action_resource_plan_rejects")
     input_json = root / "standalone_input.json"

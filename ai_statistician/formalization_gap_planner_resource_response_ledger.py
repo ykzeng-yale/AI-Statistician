@@ -13,6 +13,7 @@ from .formalization_gap_planner_resource_request_queue import (
     RESOURCE_REQUEST_QUEUE_ROW_SCHEMA_ID,
     validate_resource_request_queue_row,
 )
+from .formalization_gap_planner_target_summary import target_prover_family_summary
 
 
 FORMALIZATION_GAP_PLANNER_RESOURCE_RESPONSE_LEDGER_SCHEMA_VERSION = 4
@@ -148,6 +149,10 @@ def export_formalization_gap_planner_resource_response_ledger(
     by_acceptance_status = Counter(row.acceptance_status for row in rows)
     by_resource_id = Counter(row.resource_id for row in rows)
     by_expected_artifact = Counter(row.expected_response_artifact for row in rows)
+    target_summary = target_prover_family_summary(
+        rows,
+        fallback_target_prover_family=request_manifest.get("target_prover_family", ""),
+    )
     payload: dict[str, object] = {
         "schema_version": (
             FORMALIZATION_GAP_PLANNER_RESOURCE_RESPONSE_LEDGER_SCHEMA_VERSION
@@ -159,7 +164,9 @@ def export_formalization_gap_planner_resource_response_ledger(
         "resource_request_queue_manifest": str(request_manifest_path),
         "response_jsonl": str(response_jsonl_path),
         "response_jsonl_exists": response_file_exists,
-        "target_prover_family": str(request_manifest.get("target_prover_family", "")),
+        "target_prover_family": target_summary["target_prover_family"],
+        "n_target_prover_families": target_summary["n_target_prover_families"],
+        "by_target_prover_family": target_summary["by_target_prover_family"],
         "library_snapshot_ref": str(request_manifest.get("library_snapshot_ref", "")),
         "n_resource_requests": len(request_rows),
         "n_input_responses": len(responses),
@@ -1118,6 +1125,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         "# Formalization Gap Planner Resource Response Ledger",
         "",
         f"- Ledger rows: {payload.get('n_ok')}/{payload.get('n_ledger_rows')}",
+        f"- Target prover family: {payload.get('target_prover_family')}",
+        f"- Target prover families: {payload.get('n_target_prover_families')}",
         f"- Input responses: {payload.get('n_input_responses')}",
         f"- Responses present: {payload.get('n_response_present')}",
         f"- Awaiting responses: {payload.get('n_awaiting_response')}",

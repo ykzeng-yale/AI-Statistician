@@ -25,6 +25,7 @@ from .formalization_gap_planner_primitive_action_queue import (
     QUEUE_ACTION_KINDS,
     validate_primitive_action_queue_row,
 )
+from .formalization_gap_planner_target_summary import target_prover_family_summary
 
 
 FORMALIZATION_GAP_PLANNER_ACTION_RESOURCE_PLAN_SCHEMA_VERSION = 1
@@ -184,7 +185,10 @@ def export_formalization_gap_planner_action_resource_plan(
     n_row_schema_valid = sum(1 for row_errors in row_schema_errors if not row_errors)
     n_row_schema_invalid = len(row_schema_errors) - n_row_schema_valid
     by_action_kind = Counter(row.queue_action_kind for row in rows)
-    by_target = Counter(row.target_prover_family for row in rows)
+    target_summary = target_prover_family_summary(
+        rows,
+        fallback_target_prover_family=action_manifest.get("target_prover_family", ""),
+    )
     payload: dict[str, object] = {
         "schema_version": (
             FORMALIZATION_GAP_PLANNER_ACTION_RESOURCE_PLAN_SCHEMA_VERSION
@@ -199,7 +203,9 @@ def export_formalization_gap_planner_action_resource_plan(
         "primitive_action_queue_manifest": str(action_manifest_path),
         "component_resource_registry_dir": str(component_resource_registry_dir),
         "component_resource_registry_manifest": str(registry_manifest_path),
-        "target_prover_family": str(action_manifest.get("target_prover_family", "")),
+        "target_prover_family": target_summary["target_prover_family"],
+        "n_target_prover_families": target_summary["n_target_prover_families"],
+        "by_target_prover_family": target_summary["by_target_prover_family"],
         "library_snapshot_ref": str(action_manifest.get("library_snapshot_ref", "")),
         "n_action_rows": len(action_rows),
         "n_resource_plan_rows": len(rows),
@@ -240,7 +246,6 @@ def export_formalization_gap_planner_action_resource_plan(
         ),
         "action_resource_plan_row_schema": row_schema,
         "by_action_kind": dict(sorted(by_action_kind.items())),
-        "by_target_prover_family": dict(sorted(by_target.items())),
         "rows": row_dicts,
         "all_ok": (
             not errors
@@ -935,6 +940,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         "# Formalization Gap Planner Action Resource Plan",
         "",
         f"- Resource plans: {payload.get('n_ok')}/{payload.get('n_resource_plan_rows')}",
+        f"- Target prover family: {payload.get('target_prover_family')}",
+        f"- Target prover families: {payload.get('n_target_prover_families')}",
         f"- Local-first coverage: {payload.get('n_with_local_first_resources')}",
         f"- Frontier escalation coverage: {payload.get('n_with_frontier_escalation_resources')}",
         f"- Resource-contract coverage: {payload.get('n_with_resource_contracts')}",

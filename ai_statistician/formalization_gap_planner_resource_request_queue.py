@@ -15,6 +15,7 @@ from .formalization_gap_planner_action_resource_plan import (
     PROOF_EVIDENCE_BOUNDARY as ACTION_RESOURCE_PROOF_EVIDENCE_BOUNDARY,
     validate_action_resource_plan_row,
 )
+from .formalization_gap_planner_target_summary import target_prover_family_summary
 
 
 FORMALIZATION_GAP_PLANNER_RESOURCE_REQUEST_QUEUE_SCHEMA_VERSION = 3
@@ -113,6 +114,10 @@ def export_formalization_gap_planner_resource_request_queue(
     by_request_phase = Counter(row.request_phase for row in rows)
     by_action_kind = Counter(row.queue_action_kind for row in rows)
     by_resource_id = Counter(row.resource_id for row in rows)
+    target_summary = target_prover_family_summary(
+        rows,
+        fallback_target_prover_family=action_manifest.get("target_prover_family", ""),
+    )
     n_self_contained_request_payloads = sum(
         1 for row in row_dicts if not _request_payload_identity_errors(row)
     )
@@ -131,7 +136,9 @@ def export_formalization_gap_planner_resource_request_queue(
         "source_components": (str(action_manifest.get("component_name", "")),),
         "action_resource_plan_dir": str(action_resource_plan_dir),
         "action_resource_plan_manifest": str(action_manifest_path),
-        "target_prover_family": str(action_manifest.get("target_prover_family", "")),
+        "target_prover_family": target_summary["target_prover_family"],
+        "n_target_prover_families": target_summary["n_target_prover_families"],
+        "by_target_prover_family": target_summary["by_target_prover_family"],
         "library_snapshot_ref": str(action_manifest.get("library_snapshot_ref", "")),
         "n_action_resource_plan_rows": len(action_rows),
         "n_resource_request_rows": len(rows),
@@ -1277,6 +1284,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         "# Formalization Gap Planner Resource Request Queue",
         "",
         f"- Resource requests: {payload.get('n_ok')}/{payload.get('n_resource_request_rows')}",
+        f"- Target prover family: {payload.get('target_prover_family')}",
+        f"- Target prover families: {payload.get('n_target_prover_families')}",
         f"- Local-first requests: {payload.get('n_local_first_requests')}",
         f"- Frontier escalation requests: {payload.get('n_frontier_escalation_requests')}",
         f"- Distinct resources: {payload.get('n_distinct_resources')}",
