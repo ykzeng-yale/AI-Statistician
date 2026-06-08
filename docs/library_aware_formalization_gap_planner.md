@@ -165,6 +165,14 @@ snippets, and standalone-route primitives. Evaluation rows preserve the
 LLM route-adoption readiness status and blockers, so an accepted but
 search-pending/refinement-pending Claude route is not reported as ready for
 standalone replay. This is still planning evidence, not proof evidence. The
+`search_requests` and `planner_next_actions` rows may also carry
+`resource_contract_ids`, `required_quality_signals`, `quality_gates`,
+`response_validation_signals`, and `stop_conditions`. When request context
+contains an interactive decision policy, resource queue, feedback summary, or
+component-resource registry, those quality controls must be grounded in that
+context; invented gates or response-validation signals reject the LLM route
+instead of silently becoming tool policy.
+The
 cost witness uses
 `formalization_gap_planner_minimal_delta_cost_policy:1` and must include a
 nonnegative route cost plus one `primitive_costs` row per selected primitive.

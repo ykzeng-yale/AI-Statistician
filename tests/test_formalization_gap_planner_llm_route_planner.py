@@ -2250,6 +2250,107 @@ def test_llm_route_planner_stages_interactive_session_context() -> None:
     assert "interactive_decision_policy_rows" in request["prompt_messages"]["user"]
 
 
+def test_llm_route_planner_accepts_policy_grounded_quality_controls() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_quality_controls"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    interactive_session_dir = _write_interactive_session(root)
+    response = _llm_response_payload()
+    response["residual_interpretations"] = [
+        {
+            "residual_goal": "missing finite tie-breaking side condition",
+            "interpretation": "The proof-state residual requires explicit finite tie-breaking.",
+            "route_repair": "Keep proof-state feedback bounded to the Lean residual before route adoption.",
+            "source_refs": ["conformal_prediction_textbook"],
+        }
+    ]
+    response["planner_next_actions"][0].update(
+        {
+            "resource_contract_ids": ["lean_lsp:proof_state_feedback"],
+            "required_quality_signals": ["diagnostic_signature"],
+            "quality_gates": ["response_schema_valid"],
+            "response_validation_signals": [
+                "residual_goals_or_diagnostics_present"
+            ],
+            "stop_conditions": ["residual interpreted or source search requested"],
+        }
+    )
+    response_json.write_text(json.dumps(response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_interactive_session_dir=interactive_session_dir,
+    )
+
+    assert payload["all_ok"]
+    row = payload["rows"][0]
+    assert row["response_contract_ok"] is True
+    action = row["planner_next_actions"][0]
+    assert action["resource_contract_ids"] == ["lean_lsp:proof_state_feedback"]
+    assert action["required_quality_signals"] == ["diagnostic_signature"]
+    assert action["quality_gates"] == ["response_schema_valid"]
+    assert action["response_validation_signals"] == [
+        "residual_goals_or_diagnostics_present"
+    ]
+
+
+def test_llm_route_planner_rejects_ungrounded_quality_controls() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_bad_quality_controls"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    interactive_session_dir = _write_interactive_session(root)
+    response = _llm_response_payload()
+    response["residual_interpretations"] = [
+        {
+            "residual_goal": "missing finite tie-breaking side condition",
+            "interpretation": "The proof-state residual requires explicit finite tie-breaking.",
+            "route_repair": "Keep proof-state feedback bounded to the Lean residual before route adoption.",
+            "source_refs": ["conformal_prediction_textbook"],
+        }
+    ]
+    response["search_requests"][0].update(
+        {
+            "resource_contract_ids": ["lean_lsp:proof_state_feedback"],
+            "required_quality_signals": ["invented_quality_signal"],
+            "quality_gates": ["invented_quality_gate"],
+            "response_validation_signals": ["invented_response_signal"],
+            "stop_conditions": ["invented stop condition"],
+        }
+    )
+    response_json.write_text(json.dumps(response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_interactive_session_dir=interactive_session_dir,
+    )
+
+    assert not payload["all_ok"]
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    error_text = "\n".join(row["errors"])
+    assert "required_quality_signals not present" in error_text
+    assert "quality_gates not present" in error_text
+    assert "response_validation_signals not present" in error_text
+    assert "stop_conditions not present" in error_text
+    assert "not supported by the referenced resource_contract_id" in error_text
+
+
 def test_llm_route_planner_accepts_grounded_residual_interpretation() -> None:
     root = Path("runs/test_formalization_gap_planner_llm_route_planner_residual_accept")
     out_dir = root / "llm_route_planner"
