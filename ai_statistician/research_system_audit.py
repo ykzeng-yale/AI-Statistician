@@ -3928,6 +3928,22 @@ async def run_research_system_audit(
             "formalization_gap_planner_evaluation_feedback_loop_ready": formalization_gap_planner_evaluation_manifest[
                 "n_feedback_loop_ready"
             ],
+            "formalization_gap_planner_evaluation_rows_with_route_adoption_status": formalization_gap_planner_evaluation_manifest.get(
+                "n_rows_with_llm_route_planner_route_adoption_status",
+                0,
+            ),
+            "formalization_gap_planner_evaluation_rows_ready_for_route_adoption": formalization_gap_planner_evaluation_manifest.get(
+                "n_rows_ready_for_route_adoption",
+                0,
+            ),
+            "formalization_gap_planner_evaluation_rows_pending_refinement_before_route_adoption": formalization_gap_planner_evaluation_manifest.get(
+                "n_rows_pending_refinement_before_route_adoption",
+                0,
+            ),
+            "formalization_gap_planner_evaluation_route_adoption_blockers": formalization_gap_planner_evaluation_manifest.get(
+                "n_llm_route_adoption_blockers",
+                0,
+            ),
             "formalization_gap_planner_evaluation_ground_truth_residual_rows": formalization_gap_planner_evaluation_manifest.get(
                 "n_ground_truth_residual_rows",
                 0,
@@ -4465,6 +4481,10 @@ async def run_research_system_audit(
                 "largest_residual_recall_drop_variant",
                 "",
             ),
+            "formalization_gap_planner_ablation_largest_route_adoption_ready_drop": formalization_gap_planner_ablation_study_manifest.get(
+                "largest_route_adoption_ready_drop_variant",
+                "",
+            ),
             "formalization_gap_planner_prover_adapter_packets": formalization_gap_planner_prover_adapter_contract_manifest[
                 "n_packets"
             ],
@@ -4838,6 +4858,22 @@ async def run_research_system_audit(
             "formalization_gap_planner_publication_bundle_audit_optional_evaluation_row_schema_valid": formalization_gap_planner_publication_bundle_audit_manifest[
                 "n_optional_evaluation_row_schema_valid"
             ],
+            "formalization_gap_planner_publication_bundle_audit_optional_evaluation_route_adoption_manifest_checked": formalization_gap_planner_publication_bundle_audit_manifest.get(
+                "n_optional_evaluation_route_adoption_manifest_checked",
+                0,
+            ),
+            "formalization_gap_planner_publication_bundle_audit_optional_evaluation_route_adoption_manifest_valid": formalization_gap_planner_publication_bundle_audit_manifest.get(
+                "n_optional_evaluation_route_adoption_manifest_valid",
+                0,
+            ),
+            "formalization_gap_planner_publication_bundle_audit_optional_evaluation_route_adoption_row_checked": formalization_gap_planner_publication_bundle_audit_manifest.get(
+                "n_optional_evaluation_route_adoption_row_checked",
+                0,
+            ),
+            "formalization_gap_planner_publication_bundle_audit_optional_evaluation_route_adoption_row_valid": formalization_gap_planner_publication_bundle_audit_manifest.get(
+                "n_optional_evaluation_route_adoption_row_valid",
+                0,
+            ),
             "formalization_gap_planner_publication_bundle_audit_optional_interactive_decision_policy_row_schema_checked": formalization_gap_planner_publication_bundle_audit_manifest[
                 "n_optional_interactive_decision_policy_row_schema_checked"
             ],

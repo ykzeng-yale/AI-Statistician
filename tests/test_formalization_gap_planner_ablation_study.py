@@ -193,6 +193,10 @@ def test_ablation_study_compares_literature_lean_feedback_and_null_baselines() -
         payload["largest_residual_recall_drop_variant"]
         == "no_proof_state_feedback"
     )
+    assert (
+        payload["largest_route_adoption_ready_drop_variant"]
+        == "no_literature_evidence"
+    )
     assert by_variant["no_route_planner"]["mean_route_recall"] == 0.0
     assert by_variant["no_route_planner"]["route_adoption_ready_rate"] == 0.0
     assert (

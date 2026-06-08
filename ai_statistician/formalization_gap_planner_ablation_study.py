@@ -200,6 +200,12 @@ def export_formalization_gap_planner_ablation_study(
         ).ablation_variant
         if rows
         else "",
+        "largest_route_adoption_ready_drop_variant": max(
+            ablated_rows or rows,
+            key=lambda row: row.relative_route_adoption_ready_drop,
+        ).ablation_variant
+        if rows
+        else "",
         "ablation_study_fingerprint": stable_hash(row_dicts),
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
@@ -786,6 +792,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Best route recall: `{payload.get('best_variant_by_route_recall')}`",
         f"- Largest route-recall drop: `{payload.get('largest_route_recall_drop_variant')}`",
         f"- Largest residual-recall drop: `{payload.get('largest_residual_recall_drop_variant')}`",
+        f"- Largest route-adoption-ready drop: `{payload.get('largest_route_adoption_ready_drop_variant')}`",
         f"- All OK: {payload.get('all_ok')}",
         "",
         "## Proof Boundary",

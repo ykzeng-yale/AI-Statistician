@@ -20212,6 +20212,30 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             payload["counts"]["formalization_gap_planner_evaluation_rows"],
         )
         self.assertGreaterEqual(
+            payload["counts"][
+                "formalization_gap_planner_evaluation_rows_with_route_adoption_status"
+            ],
+            0,
+        )
+        self.assertGreaterEqual(
+            payload["counts"][
+                "formalization_gap_planner_evaluation_rows_ready_for_route_adoption"
+            ],
+            0,
+        )
+        self.assertGreaterEqual(
+            payload["counts"][
+                "formalization_gap_planner_evaluation_rows_pending_refinement_before_route_adoption"
+            ],
+            0,
+        )
+        self.assertGreaterEqual(
+            payload["counts"][
+                "formalization_gap_planner_evaluation_route_adoption_blockers"
+            ],
+            0,
+        )
+        self.assertGreaterEqual(
             payload["counts"]["formalization_gap_planner_evaluation_mean_route_recall"],
             0.0,
         )
@@ -20646,6 +20670,18 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["counts"]["formalization_gap_planner_ablation_largest_delta_drop"])
         self.assertIn(
             payload["counts"]["formalization_gap_planner_ablation_largest_residual_drop"],
+            {
+                "full_planner_observed",
+                "no_literature_evidence",
+                "no_lean_grounding",
+                "no_proof_state_feedback",
+                "no_route_planner",
+            },
+        )
+        self.assertIn(
+            payload["counts"][
+                "formalization_gap_planner_ablation_largest_route_adoption_ready_drop"
+            ],
             {
                 "full_planner_observed",
                 "no_literature_evidence",
@@ -21141,6 +21177,22 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertEqual(
             payload["counts"]["formalization_gap_planner_publication_bundle_audit_optional_evaluation_row_schema_checked"],
             payload["counts"]["formalization_gap_planner_evaluation_rows"],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_evaluation_route_adoption_manifest_valid"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_evaluation_route_adoption_manifest_checked"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_evaluation_route_adoption_row_valid"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_publication_bundle_audit_optional_evaluation_route_adoption_row_checked"
+            ],
         )
         self.assertEqual(
             payload["counts"][

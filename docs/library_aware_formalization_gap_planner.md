@@ -477,7 +477,10 @@ The ablation study compares the observed planner with counterfactual
 `no_route_planner` variants. It is a diagnostic for which signal families matter
 for route recall, Lean-delta recall, reuse, feedback readiness, and
 route-adoption readiness under the current evidence bound; it is not theorem
-proof evidence.
+proof evidence. `research-system-audit` promotes the evaluation and ablation
+route-adoption counts into its top-level `counts` payload so AI Statistician
+runs can be filtered by adoption readiness without parsing nested planner
+artifacts.
 
 The adapter registry command records which refinement tools can satisfy each
 hook, which response fields they must emit, and whether local commands,
