@@ -92,7 +92,7 @@ import scipy.stats             # noqa: E402
 from axle import AxleClient    # noqa: E402
 
 LEAN_ENV = "lean-4.29.0"
-DEFAULT_MODEL = "claude-haiku-4-5"
+DEFAULT_MODEL = "claude-haiku-4-5-20251001"
 N_MC_RUNS = 2_000
 MAX_OUTER_ROUNDS = 2   # Mathematician escalation 层
 MAX_INNER_ROUNDS = 2   # Algorithm-Simulator 修复 impl bug 层

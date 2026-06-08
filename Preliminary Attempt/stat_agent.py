@@ -63,7 +63,7 @@ import numpy as np             # noqa: E402
 from axle import AxleClient    # noqa: E402
 
 LEAN_ENV = "lean-4.29.0"
-DEFAULT_MODEL = "claude-haiku-4-5"
+DEFAULT_MODEL = "claude-haiku-4-5-20251001"
 N_MC_SAMPLES = 100_000   # Monte Carlo sample 数, 越多越准但越慢
 
 
