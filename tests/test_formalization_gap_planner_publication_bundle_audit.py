@@ -6708,6 +6708,65 @@ def test_publication_bundle_audit_rejects_llm_reproduction_without_registry_cont
     assert "reproduction_feedback_llm_route_planner_command" in failed_names
 
 
+def test_publication_bundle_audit_rejects_llm_reproduction_without_target_intake_context() -> None:
+    root = Path(
+        "runs/"
+        "test_formalization_gap_planner_publication_bundle_audit_rejects_llm_repro_target_intake"
+    )
+    bundle_dir = root / "bundle"
+    audit_dir = root / "audit"
+    shutil.rmtree(root, ignore_errors=True)
+    export_formalization_gap_planner_publication_bundle(bundle_dir)
+
+    manifest_path = (
+        bundle_dir
+        / "reproduce"
+        / "formalization_gap_planner_reproduction_manifest.json"
+    )
+    reproduction_payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    target_intake_flag = "--formalization-gap-planner-target-intake-dir"
+
+    def _without_flag_value(command: str, flag: str) -> str:
+        tokens = command.split()
+        rewritten: list[str] = []
+        skip_next = False
+        for token in tokens:
+            if skip_next:
+                skip_next = False
+                continue
+            if token == flag:
+                skip_next = True
+                continue
+            rewritten.append(token)
+        return " ".join(rewritten)
+
+    corrupted_command_names = {
+        "run_llm_route_planner",
+        "run_feedback_llm_route_planner",
+    }
+    for row in reproduction_payload["commands"]:
+        if row["name"] in corrupted_command_names:
+            row["command"] = _without_flag_value(row["command"], target_intake_flag)
+            assert target_intake_flag not in row["command"]
+
+    manifest_path.write_text(
+        json.dumps(reproduction_payload, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+
+    audit_payload = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        audit_dir,
+    )
+    failed_names = {
+        row["check_name"] for row in audit_payload["checks"] if not row["ok"]
+    }
+
+    assert not audit_payload["all_ok"]
+    assert "reproduction_llm_route_planner_command" in failed_names
+    assert "reproduction_feedback_llm_route_planner_command" in failed_names
+
+
 def test_publication_bundle_audit_rejects_live_reuse_smoke_reproduction_commands() -> None:
     root = Path(
         "runs/"

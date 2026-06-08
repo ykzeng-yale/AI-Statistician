@@ -2211,8 +2211,16 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         "--formalization-gap-planner-component-resource-registry-dir"
         in command_by_name["run_llm_route_planner"]
     )
+    assert (
+        "--formalization-gap-planner-target-intake-dir"
+        in command_by_name["run_llm_route_planner"]
+    )
     assert "--model-tier auto" in command_by_name["run_llm_route_planner"]
     assert "--max-repair-attempts 1" in command_by_name["run_llm_route_planner"]
+    assert (
+        "<work_dir>/formalization_gap_planner_target_intake"
+        in command_by_name["run_llm_route_planner"]
+    )
     assert (
         "<bundle_dir>/component_resource_registry"
         in command_by_name["run_llm_route_planner"]
@@ -2230,8 +2238,16 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         "--formalization-gap-planner-component-resource-registry-dir"
         in command_by_name["run_feedback_llm_route_planner"]
     )
+    assert (
+        "--formalization-gap-planner-target-intake-dir"
+        in command_by_name["run_feedback_llm_route_planner"]
+    )
     assert "--model-tier auto" in command_by_name["run_feedback_llm_route_planner"]
     assert "--max-repair-attempts 1" in command_by_name["run_feedback_llm_route_planner"]
+    assert (
+        "<work_dir>/formalization_gap_planner_target_intake"
+        in command_by_name["run_feedback_llm_route_planner"]
+    )
     assert (
         "<bundle_dir>/component_resource_registry"
         in command_by_name["run_feedback_llm_route_planner"]

@@ -4337,11 +4337,15 @@ def _reproduction_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublic
         _check(
             "reproduction_llm_route_planner_command",
             "reproduction",
-            "initial LLM route planner consumes target-intake seed and component-resource registry context",
+            "initial LLM route planner consumes target-intake seed, target-intake context, and component-resource registry context",
             commands.get("run_llm_route_planner", ""),
             "formalization-gap-planner-llm-route-planner"
             in commands.get("run_llm_route_planner", "")
             and "formalization_gap_planner_target_intake_standalone_seed.json"
+            in commands.get("run_llm_route_planner", "")
+            and "--formalization-gap-planner-target-intake-dir"
+            in commands.get("run_llm_route_planner", "")
+            and "formalization_gap_planner_target_intake"
             in commands.get("run_llm_route_planner", "")
             and "--formalization-gap-planner-component-resource-registry-dir"
             in commands.get("run_llm_route_planner", "")
@@ -4455,11 +4459,15 @@ def _reproduction_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublic
         _check(
             "reproduction_feedback_llm_route_planner_command",
             "reproduction",
-            "feedback LLM route planner consumes route-replan seed and interactive-session context",
+            "feedback LLM route planner consumes route-replan seed, target-intake context, and interactive-session context",
             commands.get("run_feedback_llm_route_planner", ""),
             "formalization-gap-planner-llm-route-planner"
             in commands.get("run_feedback_llm_route_planner", "")
             and "formalization_gap_planner_route_replan_handoff/"
+            in commands.get("run_feedback_llm_route_planner", "")
+            and "--formalization-gap-planner-target-intake-dir"
+            in commands.get("run_feedback_llm_route_planner", "")
+            and "formalization_gap_planner_target_intake"
             in commands.get("run_feedback_llm_route_planner", "")
             and "--formalization-gap-planner-interactive-session-dir"
             in commands.get("run_feedback_llm_route_planner", "")

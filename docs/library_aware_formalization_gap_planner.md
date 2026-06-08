@@ -848,13 +848,13 @@ bundle-local relative-path resolution when they have the exported bundle, plus
 bundle-relative artifacts, entry points, and commands for external reuse. The
 manifest includes the one-command `formalization-gap-planner-reuse-smoke`
 path, the AI Statistician runtime target-intake replay command, the standalone
-planner path, and the refinement rerun path: queue export, resource-request
-queue export, resource-response ledger export, deterministic adapter responses,
-local literature adapter, local
+planner path, and the refinement rerun path: target-intake-aware LLM route
+planning, queue export, resource-request queue export, resource-response ledger
+export, deterministic adapter responses, local literature adapter, local
 formal-source adapter, local proof-state adapter, refinement-evidence
 aggregation, route-revision overlay, route-stability audit, interactive
-session export, and feedback LLM route-planner rerun with interactive-session
-context. The reuse-smoke commands are prompt-only by default: they stage
+session export, and feedback LLM route-planner rerun with both target-intake
+and interactive-session context. The reuse-smoke commands are prompt-only by default: they stage
 Anthropic/Claude request packets with `--*-model-tier auto` and do not call the
 API unless an operator adds the matching live-provider invoke flags.
 It also includes
