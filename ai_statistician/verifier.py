@@ -342,7 +342,7 @@ class LocalLeanProofVerifier:
                     ok=False,
                     proof_body=proof_body,
                     verifier=self.name,
-                    verification_strength="local_lean_kernel",
+                    verification_strength="local_lean_timeout",
                     kernel_verified=False,
                     elapsed_ms=int((time.perf_counter() - start) * 1000),
                     errors=errors,

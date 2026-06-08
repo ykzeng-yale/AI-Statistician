@@ -5136,10 +5136,23 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
 
 def _formalization_status(check: Any) -> str:
     if not check.ok:
+        if _proof_check_timed_out(check):
+            return "verification_timeout"
         return "verification_failed"
     if getattr(check, "kernel_verified", False):
         return "kernel_verified_proof"
     return "mock_verified_proof"
+
+
+def _proof_check_timed_out(check: Any) -> bool:
+    strength = str(getattr(check, "verification_strength", "") or "").lower()
+    if "timeout" in strength:
+        return True
+    for error in getattr(check, "errors", []) or []:
+        lowered = str(error).lower()
+        if "timed out" in lowered or "timeout" in lowered:
+            return True
+    return False
 
 
 class FormalSubclaimProver:
@@ -5177,11 +5190,14 @@ class FormalSubclaimProver:
         return self._formal_source_retriever
 
     def proof_obligation_control(self) -> dict[str, Any]:
+        verifier_timeout_s = getattr(self.verifier, "timeout_s", None)
         return {
             "configured_proof_obligation_ids": list(self.proof_obligation_ids),
             "requested_proof_obligation_ids": list(self.proof_obligation_ids),
             "prioritized_proof_obligation_ids": list(self._last_prioritized_obligation_ids),
             "max_proof_obligations": self.max_proof_obligations,
+            "verifier": getattr(self.verifier, "name", type(self.verifier).__name__),
+            "verifier_timeout_s": verifier_timeout_s if isinstance(verifier_timeout_s, int) else None,
             "candidate_proof_obligation_ids": list(self._last_candidate_obligation_ids),
             "selected_proof_obligation_ids": list(self._last_selected_obligation_ids),
             "selected_priority_proof_obligation_ids": list(self._last_selected_priority_obligation_ids),
@@ -5324,7 +5340,13 @@ class FormalSubclaimProver:
                     kernel_verified=check.kernel_verified,
                     elapsed_ms=check.elapsed_ms,
                     errors=check.errors,
-                    gap_reason=None if check.ok else "registered Mathlib-backed subclaim failed verifier",
+                    gap_reason=(
+                        None
+                        if check.ok
+                        else "registered Mathlib-backed subclaim timed out during verifier run"
+                        if _proof_check_timed_out(check)
+                        else "registered Mathlib-backed subclaim failed verifier"
+                    ),
                     proof_dependencies=obligation.depends_on,
                 )
             )
