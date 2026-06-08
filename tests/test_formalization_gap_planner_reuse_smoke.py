@@ -1857,6 +1857,24 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     )
     assert (
         payload[
+            "n_llm_route_planner_response_payload_validation_request_context_packets"
+        ]
+        == 2
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_request_bound_payloads"
+        ]
+        == 2
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_request_context_errors"
+        ]
+        == 0
+    )
+    assert (
+        payload[
             "n_goal_plan_standalone_input_traces_with_llm_route_planner_metadata"
         ]
         == 1
@@ -2132,6 +2150,24 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         ]
         == payload[
             "n_publication_bundle_optional_llm_route_planner_response_payload_validation_count_checked"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_optional_llm_route_planner_response_payload_validation_request_bound_accounting_valid"
+        ]
+        == payload[
+            "n_publication_bundle_optional_llm_route_planner_response_payload_validation_request_bound_accounting_checked"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_optional_llm_route_planner_response_payload_validation_request_bound_coverage_valid"
+        ]
+        == payload[
+            "n_publication_bundle_optional_llm_route_planner_response_payload_validation_request_bound_coverage_checked"
         ]
         == 1
     )

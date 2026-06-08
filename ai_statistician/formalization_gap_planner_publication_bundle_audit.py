@@ -1094,6 +1094,32 @@ def audit_formalization_gap_planner_publication_bundle(
             == "optional_llm_route_planner_response_payload_validation_count_consistency"
             and check.ok
         ),
+        "n_optional_llm_route_planner_response_payload_validation_request_bound_accounting_checked": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_llm_route_planner_response_payload_validation_request_bound_accounting"
+        ),
+        "n_optional_llm_route_planner_response_payload_validation_request_bound_accounting_valid": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_llm_route_planner_response_payload_validation_request_bound_accounting"
+            and check.ok
+        ),
+        "n_optional_llm_route_planner_response_payload_validation_request_bound_coverage_checked": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_llm_route_planner_response_payload_validation_request_bound_coverage"
+        ),
+        "n_optional_llm_route_planner_response_payload_validation_request_bound_coverage_valid": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_llm_route_planner_response_payload_validation_request_bound_coverage"
+            and check.ok
+        ),
         "n_optional_llm_route_planner_response_payload_validation_row_schema_checked": sum(
             1
             for check in checks
@@ -5038,6 +5064,56 @@ def _llm_route_planner_response_payload_validation_optional_checks(
         count_errors.append("valid JSONL rows must match manifest n_valid_payloads")
     if invalid_rows != int(manifest.get("n_invalid_payloads", 0) or 0):
         count_errors.append("invalid JSONL rows must match manifest n_invalid_payloads")
+    manifest_request_bound_payloads = int(
+        manifest.get("n_request_bound_payloads", 0) or 0
+    )
+    manifest_schema_errors = int(manifest.get("n_schema_errors", 0) or 0)
+    manifest_request_context_errors = int(
+        manifest.get("n_request_context_errors", 0) or 0
+    )
+    manifest_request_context_packets = int(
+        manifest.get("n_request_context_packets", 0) or 0
+    )
+    row_request_bound_payloads = sum(
+        1
+        for row in rows
+        if str(row.get("request_context_validation_mode", ""))
+        == "request_bound"
+    )
+    row_schema_errors = sum(int(row.get("n_schema_errors", 0) or 0) for row in rows)
+    row_request_context_errors = sum(
+        int(row.get("n_request_context_errors", 0) or 0) for row in rows
+    )
+    request_bound_accounting_errors: list[str] = []
+    if row_request_bound_payloads != manifest_request_bound_payloads:
+        request_bound_accounting_errors.append(
+            "request-bound JSONL rows must match manifest n_request_bound_payloads"
+        )
+    if row_schema_errors != manifest_schema_errors:
+        request_bound_accounting_errors.append(
+            "JSONL row schema-error counts must match manifest n_schema_errors"
+        )
+    if row_request_context_errors != manifest_request_context_errors:
+        request_bound_accounting_errors.append(
+            "JSONL row request-context-error counts must match manifest n_request_context_errors"
+        )
+    request_context_path_present = bool(
+        str(manifest.get("request_context_path", "")).strip()
+    )
+    request_bound_coverage_errors: list[str] = []
+    if request_context_path_present or manifest_request_context_packets:
+        if manifest_request_context_packets <= 0:
+            request_bound_coverage_errors.append(
+                "request-context validation must declare n_request_context_packets"
+            )
+        if manifest_request_bound_payloads != int(manifest.get("n_payloads", 0) or 0):
+            request_bound_coverage_errors.append(
+                "request-context validation must bind every payload row"
+            )
+        if manifest_request_context_errors:
+            request_bound_coverage_errors.append(
+                "request-bound validation must have zero request-context errors"
+            )
     checks = [
         _check(
             "optional_llm_route_planner_response_payload_validation_all_ok",
@@ -5134,6 +5210,32 @@ def _llm_route_planner_response_payload_validation_optional_checks(
             ),
             not count_errors,
             errors=tuple(count_errors),
+        ),
+        _check(
+            "optional_llm_route_planner_response_payload_validation_request_bound_accounting",
+            "optional_artifacts",
+            "request-bound/schema-error counters match JSONL rows",
+            (
+                f"bound={row_request_bound_payloads}/{manifest_request_bound_payloads} "
+                f"schema_errors={row_schema_errors}/{manifest_schema_errors} "
+                f"context_errors={row_request_context_errors}/{manifest_request_context_errors}"
+            ),
+            not request_bound_accounting_errors,
+            errors=tuple(request_bound_accounting_errors),
+        ),
+        _check(
+            "optional_llm_route_planner_response_payload_validation_request_bound_coverage",
+            "optional_artifacts",
+            "request-context validation binds every payload when request context is supplied",
+            (
+                f"context_path_present={request_context_path_present} "
+                f"context_packets={manifest_request_context_packets} "
+                f"request_bound={manifest_request_bound_payloads}/"
+                f"{manifest.get('n_payloads', 0)} "
+                f"context_errors={manifest_request_context_errors}"
+            ),
+            not request_bound_coverage_errors,
+            errors=tuple(request_bound_coverage_errors),
         ),
     ]
     for idx, row in enumerate(rows):

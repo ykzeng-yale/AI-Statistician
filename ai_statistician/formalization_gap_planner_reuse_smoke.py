@@ -1644,6 +1644,30 @@ def run_formalization_gap_planner_reuse_smoke(
                 "n_invalid_payloads",
             )
         ),
+        "n_llm_route_planner_response_payload_validation_request_context_packets": (
+            _optional_int(
+                llm_response_payload_validation_payload,
+                "n_request_context_packets",
+            )
+        ),
+        "n_llm_route_planner_response_payload_validation_request_bound_payloads": (
+            _optional_int(
+                llm_response_payload_validation_payload,
+                "n_request_bound_payloads",
+            )
+        ),
+        "n_llm_route_planner_response_payload_validation_schema_errors": (
+            _optional_int(
+                llm_response_payload_validation_payload,
+                "n_schema_errors",
+            )
+        ),
+        "n_llm_route_planner_response_payload_validation_request_context_errors": (
+            _optional_int(
+                llm_response_payload_validation_payload,
+                "n_request_context_errors",
+            )
+        ),
         "n_total_llm_route_planner_live_provider_calls_requested": (
             _llm_live_provider_call_count(
                 llm_route_planner_payload,
@@ -2354,6 +2378,22 @@ def run_formalization_gap_planner_reuse_smoke(
         ),
         "n_publication_bundle_optional_llm_route_planner_response_payload_validation_count_valid": publication_bundle_audit_payload.get(
             "n_optional_llm_route_planner_response_payload_validation_count_valid",
+            0,
+        ),
+        "n_publication_bundle_optional_llm_route_planner_response_payload_validation_request_bound_accounting_checked": publication_bundle_audit_payload.get(
+            "n_optional_llm_route_planner_response_payload_validation_request_bound_accounting_checked",
+            0,
+        ),
+        "n_publication_bundle_optional_llm_route_planner_response_payload_validation_request_bound_accounting_valid": publication_bundle_audit_payload.get(
+            "n_optional_llm_route_planner_response_payload_validation_request_bound_accounting_valid",
+            0,
+        ),
+        "n_publication_bundle_optional_llm_route_planner_response_payload_validation_request_bound_coverage_checked": publication_bundle_audit_payload.get(
+            "n_optional_llm_route_planner_response_payload_validation_request_bound_coverage_checked",
+            0,
+        ),
+        "n_publication_bundle_optional_llm_route_planner_response_payload_validation_request_bound_coverage_valid": publication_bundle_audit_payload.get(
+            "n_optional_llm_route_planner_response_payload_validation_request_bound_coverage_valid",
             0,
         ),
         "n_publication_bundle_optional_llm_route_planner_response_payload_validation_row_schema_checked": publication_bundle_audit_payload.get(
@@ -3932,7 +3972,11 @@ def _maybe_validate_llm_route_planner_response_payloads(
     out_dir: Path,
 ) -> dict[str, object] | None:
     responses: list[dict[str, object]] = []
+    request_contexts: list[dict[str, object]] = []
     for planner_payload in planner_payloads:
+        for request in planner_payload.get("request_packets", []):
+            if isinstance(request, dict):
+                request_contexts.append(dict(request))
         for row in planner_payload.get("rows", []):
             if not isinstance(row, dict):
                 continue
@@ -3965,9 +4009,24 @@ def _maybe_validate_llm_route_planner_response_payloads(
         json.dumps({"responses": responses}, indent=2, default=str),
         encoding="utf-8",
     )
+    request_context_path: Path | None = None
+    if request_contexts:
+        request_context_path = (
+            out_dir
+            / "formalization_gap_planner_llm_route_planner_response_payload_validation_request_context.json"
+        )
+        request_context_path.write_text(
+            json.dumps(
+                {"request_packets": request_contexts},
+                indent=2,
+                default=str,
+            ),
+            encoding="utf-8",
+        )
     return validate_formalization_gap_planner_llm_route_planner_response_payloads(
         input_path,
         out_dir,
+        request_context_json=request_context_path,
     )
 
 
@@ -5137,6 +5196,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"- LLM route payload validation payloads valid/invalid: "
             f"{payload.get('n_llm_route_planner_response_payload_validation_valid_payloads')}/"
             f"{payload.get('n_llm_route_planner_response_payload_validation_invalid_payloads')} "
+            f"request_bound={payload.get('n_llm_route_planner_response_payload_validation_request_bound_payloads')}/"
+            f"{payload.get('n_llm_route_planner_response_payload_validation_payloads')} "
             f"present={payload.get('has_llm_route_planner_response_payload_validation')}"
         ),
         (
@@ -5145,6 +5206,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_publication_bundle_optional_llm_route_planner_response_payload_validation_manifest_contract_checked')} "
             f"count={payload.get('n_publication_bundle_optional_llm_route_planner_response_payload_validation_count_valid')}/"
             f"{payload.get('n_publication_bundle_optional_llm_route_planner_response_payload_validation_count_checked')} "
+            f"bound={payload.get('n_publication_bundle_optional_llm_route_planner_response_payload_validation_request_bound_coverage_valid')}/"
+            f"{payload.get('n_publication_bundle_optional_llm_route_planner_response_payload_validation_request_bound_coverage_checked')} "
             f"rows={payload.get('n_publication_bundle_optional_llm_route_planner_response_payload_validation_row_schema_valid')}/"
             f"{payload.get('n_publication_bundle_optional_llm_route_planner_response_payload_validation_row_schema_checked')}"
         ),

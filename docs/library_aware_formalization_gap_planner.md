@@ -323,8 +323,13 @@ passed with the matching `--feedback-llm-route-planner-static-response-file` or
 review. When the initial or feedback LLM route planner has an actual response
 payload, reuse-smoke now writes
 `formalization_gap_planner_llm_route_planner_response_payload_validation/` and
-passes that optional validator run into the publication bundle; prompt-only
-staged runs omit the artifact instead of emitting an empty validation bundle.
+passes that optional validator run into the publication bundle. The smoke path
+also writes the staged request packets beside the validator input and runs the
+validator in request-bound mode, so the publication bundle can audit that every
+payload was checked against its target theorem, target prover family, source
+refs, candidate declarations, residual repairs, and minimal-delta cost witness.
+Prompt-only staged runs omit the artifact instead of emitting an empty
+validation bundle.
 
 The reuse-smoke manifest names both the route-replan standalone seed and its
 `formalization_gap_planner_route_replan_standalone_seed.schema.json`, so an

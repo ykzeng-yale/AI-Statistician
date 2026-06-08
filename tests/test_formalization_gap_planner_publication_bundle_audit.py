@@ -519,9 +519,11 @@ def _write_llm_payload_validation_from_route_planner_artifact(
     payload = validate_formalization_gap_planner_llm_route_planner_response_payloads(
         response_json,
         out_dir,
+        request_context_json=llm_route_planner_dir,
     )
     assert payload["all_ok"]
     assert payload["n_valid_payloads"] == 1
+    assert payload["n_request_bound_payloads"] == 1
     return out_dir
 
 
@@ -5468,6 +5470,30 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     )
     assert (
         audit_payload[
+            "n_optional_llm_route_planner_response_payload_validation_request_bound_accounting_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_response_payload_validation_request_bound_accounting_valid"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_response_payload_validation_request_bound_coverage_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_response_payload_validation_request_bound_coverage_valid"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
             "n_optional_llm_route_planner_response_payload_validation_row_schema_checked"
         ]
         == 1
@@ -5487,6 +5513,12 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     assert any(
         row["check_name"]
         == "optional_llm_route_planner_response_payload_validation_row_0_payload_schema_id"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "optional_llm_route_planner_response_payload_validation_request_bound_coverage"
         and row["ok"]
         for row in audit_payload["checks"]
     )
