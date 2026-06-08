@@ -211,6 +211,11 @@ def _base_response(
         value = queue_row.get(field_name, [])
         if value:
             response[field_name] = value
+    quality_controls = _quality_controls_from_resource_request_bindings(
+        _dict_tuple(queue_row.get("resource_request_bindings", []))
+    )
+    if quality_controls:
+        response["quality_controls"] = quality_controls
     return response
 
 
@@ -621,6 +626,37 @@ def _str_tuple(values: Any) -> tuple[str, ...]:
     if not isinstance(values, (list, tuple, set)):
         return tuple()
     return tuple(dict.fromkeys(str(item) for item in values if str(item)))
+
+
+def _dict_tuple(values: Any) -> tuple[dict[str, object], ...]:
+    if not isinstance(values, (list, tuple)):
+        return tuple()
+    return tuple(dict(value) for value in values if isinstance(value, dict))
+
+
+def _quality_controls_from_resource_request_bindings(
+    bindings: tuple[dict[str, object], ...],
+) -> dict[str, tuple[str, ...]]:
+    merged: dict[str, list[str]] = {}
+    for binding in bindings:
+        quality_controls = binding.get("quality_controls", {})
+        if not isinstance(quality_controls, dict):
+            continue
+        for field_name in (
+            "resource_contract_ids",
+            "required_quality_signals",
+            "quality_gates",
+            "response_validation_signals",
+            "stop_conditions",
+        ):
+            values = _str_tuple(quality_controls.get(field_name, []))
+            if values:
+                merged.setdefault(field_name, []).extend(values)
+    return {
+        field_name: _str_tuple(values)
+        for field_name, values in merged.items()
+        if _str_tuple(values)
+    }
 
 
 def _read_json(path: Path, errors: list[str]) -> dict[str, Any]:

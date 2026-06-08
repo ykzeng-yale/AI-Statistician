@@ -173,7 +173,10 @@ component-resource registry, those quality controls must be grounded in that
 context; invented gates or response-validation signals reject the LLM route
 instead of silently becoming tool policy.
 Accepted controls are preserved on route hooks and resource-request bindings so
-the refinement queue can dispatch the same bounded tool contract.
+the refinement queue can dispatch the same bounded tool contract; refinement
+adapter responses and normalized refinement-evidence rows also expose a compact
+`quality_controls` object for downstream executors that should not have to
+parse every binding.
 The
 cost witness uses
 `formalization_gap_planner_minimal_delta_cost_policy:1` and must include a

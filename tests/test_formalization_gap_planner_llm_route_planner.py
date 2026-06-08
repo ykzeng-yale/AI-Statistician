@@ -2358,6 +2358,43 @@ def test_llm_route_planner_accepts_policy_grounded_quality_controls() -> None:
         "residual_goals_or_diagnostics_present"
     ]
 
+    adapter_dir = root / "adapter_responses_from_quality_control_queue"
+    evidence_dir = root / "refinement_evidence_from_quality_control_queue"
+    adapter_payload = export_formalization_gap_planner_refinement_adapter_responses(
+        refinement_queue_dir,
+        adapter_dir,
+    )
+    assert adapter_payload["all_ok"]
+    adapter_response = next(
+        response
+        for response in adapter_payload["responses"]
+        if response.get("resource_request_bindings")
+    )
+    assert tuple(adapter_response["quality_controls"]["resource_contract_ids"]) == (
+        "lean_lsp:proof_state_feedback",
+    )
+    assert tuple(adapter_response["quality_controls"]["quality_gates"]) == (
+        "response_schema_valid",
+    )
+    evidence_payload = export_formalization_gap_planner_refinement_evidence(
+        refinement_queue_dir,
+        evidence_dir,
+        response_jsonl=adapter_dir
+        / "formalization_gap_planner_refinement_evidence_responses.jsonl",
+    )
+    assert evidence_payload["all_ok"]
+    evidence_row = next(
+        row
+        for row in evidence_payload["rows"]
+        if row.get("resource_request_bindings")
+    )
+    assert tuple(evidence_row["quality_controls"]["required_quality_signals"]) == (
+        "diagnostic_signature",
+    )
+    assert tuple(evidence_row["quality_controls"]["response_validation_signals"]) == (
+        "residual_goals_or_diagnostics_present",
+    )
+
 
 def test_llm_route_planner_rejects_ungrounded_quality_controls() -> None:
     root = Path(

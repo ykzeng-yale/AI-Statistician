@@ -48,6 +48,7 @@ class FormalizationGapPlannerRefinementEvidenceRow:
     resource_request_ids: tuple[str, ...]
     resource_ids: tuple[str, ...]
     resource_request_bindings: tuple[dict[str, object], ...]
+    quality_controls: dict[str, tuple[str, ...]]
     llm_route_planner_hook_trace: dict[str, object]
     source_refs: tuple[str, ...]
     route_evidence_nodes: tuple[dict[str, object], ...]
@@ -249,6 +250,17 @@ def refinement_tool_response_json_schema() -> dict[str, object]:
 
     string_array = {"type": "array", "items": {"type": "string"}}
     object_array = {"type": "array", "items": {"type": "object"}}
+    quality_controls = {
+        "type": "object",
+        "additionalProperties": string_array,
+        "properties": {
+            "resource_contract_ids": string_array,
+            "required_quality_signals": string_array,
+            "quality_gates": string_array,
+            "response_validation_signals": string_array,
+            "stop_conditions": string_array,
+        },
+    }
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": REFINEMENT_TOOL_RESPONSE_SCHEMA_ID,
@@ -282,6 +294,7 @@ def refinement_tool_response_json_schema() -> dict[str, object]:
             "resource_request_ids": string_array,
             "resource_ids": string_array,
             "resource_request_bindings": object_array,
+            "quality_controls": quality_controls,
             "llm_route_planner_hook_trace": {"type": "object"},
             "source_refs": string_array,
             "source_snippets": object_array,
@@ -320,6 +333,17 @@ def refinement_evidence_row_json_schema() -> dict[str, object]:
     string_array = {"type": "array", "items": {"type": "string"}}
     object_array = {"type": "array", "items": {"type": "object"}}
     string_map = {"type": "object", "additionalProperties": {"type": "string"}}
+    quality_controls = {
+        "type": "object",
+        "additionalProperties": string_array,
+        "properties": {
+            "resource_contract_ids": string_array,
+            "required_quality_signals": string_array,
+            "quality_gates": string_array,
+            "response_validation_signals": string_array,
+            "stop_conditions": string_array,
+        },
+    }
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": REFINEMENT_EVIDENCE_ROW_SCHEMA_ID,
@@ -398,6 +422,7 @@ def refinement_evidence_row_json_schema() -> dict[str, object]:
             "resource_request_ids": string_array,
             "resource_ids": string_array,
             "resource_request_bindings": object_array,
+            "quality_controls": quality_controls,
             "source_refs": string_array,
             "source_snippets": object_array,
             "route_evidence_nodes": object_array,
@@ -496,6 +521,9 @@ def _evidence_row(
     resource_request_bindings = _dict_tuple(
         queue_row.get("resource_request_bindings", [])
     )
+    quality_controls = _quality_controls_from_resource_request_bindings(
+        resource_request_bindings
+    )
     llm_route_planner_hook_trace = _dict_value(
         queue_row,
         "llm_route_planner_hook_trace",
@@ -518,6 +546,7 @@ def _evidence_row(
             resource_request_ids=resource_request_ids,
             resource_ids=resource_ids,
             resource_request_bindings=resource_request_bindings,
+            quality_controls=quality_controls,
             llm_route_planner_hook_trace=llm_route_planner_hook_trace,
             source_refs=(),
             route_evidence_nodes=(),
@@ -566,6 +595,9 @@ def _evidence_row(
     response_resource_request_bindings = _dict_tuple(
         response.get("resource_request_bindings", [])
     )
+    response_quality_controls = _quality_controls_from_payload(
+        response.get("quality_controls", {})
+    )
     if response_resource_request_ids:
         resource_request_ids = _merge_str_tuples(
             resource_request_ids,
@@ -578,6 +610,13 @@ def _evidence_row(
             resource_request_bindings,
             response_resource_request_bindings,
         )
+    quality_controls = _merge_quality_controls(
+        quality_controls,
+        _quality_controls_from_resource_request_bindings(
+            response_resource_request_bindings
+        ),
+        response_quality_controls,
+    )
     expected_kinds = _expected_evidence_kinds(hook_kind)
     if evidence_kind and expected_kinds and evidence_kind not in expected_kinds:
         errors.append(f"evidence_kind {evidence_kind} does not match hook {hook_kind}")
@@ -710,6 +749,7 @@ def _evidence_row(
         resource_request_ids=resource_request_ids,
         resource_ids=resource_ids,
         resource_request_bindings=resource_request_bindings,
+        quality_controls=quality_controls,
         llm_route_planner_hook_trace=llm_route_planner_hook_trace,
         source_refs=source_refs,
         route_evidence_nodes=route_evidence_nodes,
@@ -754,6 +794,7 @@ def _route_revision_proposal(
         "resource_request_ids": row.resource_request_ids,
         "resource_ids": row.resource_ids,
         "resource_request_bindings": row.resource_request_bindings,
+        "quality_controls": row.quality_controls,
         "llm_route_planner_hook_trace": row.llm_route_planner_hook_trace,
         "route_revision_summary": row.route_revision_summary,
         "route_revision_reasons": row.route_revision_reasons,
@@ -997,6 +1038,57 @@ def _merge_dict_tuples(
             seen.add(key)
             rows.append(dict(item))
     return tuple(rows)
+
+
+def _merge_quality_controls(
+    *values: dict[str, tuple[str, ...]],
+) -> dict[str, tuple[str, ...]]:
+    merged: dict[str, list[str]] = {}
+    for item in values:
+        if not isinstance(item, dict):
+            continue
+        for field_name in (
+            "resource_contract_ids",
+            "required_quality_signals",
+            "quality_gates",
+            "response_validation_signals",
+            "stop_conditions",
+        ):
+            field_values = _str_tuple(item.get(field_name, []))
+            if field_values:
+                merged.setdefault(field_name, []).extend(field_values)
+    return {
+        field_name: _str_tuple(field_values)
+        for field_name, field_values in merged.items()
+        if _str_tuple(field_values)
+    }
+
+
+def _quality_controls_from_payload(value: Any) -> dict[str, tuple[str, ...]]:
+    if not isinstance(value, dict):
+        return {}
+    return _merge_quality_controls(
+        {
+            field_name: _str_tuple(value.get(field_name, []))
+            for field_name in (
+                "resource_contract_ids",
+                "required_quality_signals",
+                "quality_gates",
+                "response_validation_signals",
+                "stop_conditions",
+            )
+        }
+    )
+
+
+def _quality_controls_from_resource_request_bindings(
+    bindings: tuple[dict[str, object], ...],
+) -> dict[str, tuple[str, ...]]:
+    controls = [
+        _quality_controls_from_payload(binding.get("quality_controls", {}))
+        for binding in bindings
+    ]
+    return _merge_quality_controls(*controls)
 
 
 def _str_tuple(values: Any) -> tuple[str, ...]:
