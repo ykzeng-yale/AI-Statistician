@@ -15,6 +15,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     PROOF_EVIDENCE_BOUNDARY,
     _generator_model_for_request,
     export_formalization_gap_planner_llm_route_planner,
+    llm_route_planner_response_payload_schema,
     llm_route_planner_row_json_schema,
     validate_formalization_gap_planner_llm_route_planner_response_payloads,
     validate_llm_route_planner_request,
@@ -1137,11 +1138,24 @@ def test_llm_route_planner_filters_registry_context_for_rocq_target() -> None:
     }
     assert "rocq_lsp_serapi" in contract_resource_ids
     assert not contract_resource_ids.intersection(lean_only_resource_ids)
+    assert "lean_realization_dag_nodes" not in request["required_output_contract"]
+    rocq_schema = llm_route_planner_response_payload_schema(
+        target_prover_family="rocq"
+    )
+    assert rocq_schema["anyOf"] == [{"required": ["formal_realization_dag_nodes"]}]
+    assert "lean_realization_dag_nodes" not in rocq_schema["properties"]
+    lean_schema = llm_route_planner_response_payload_schema(
+        target_prover_family="lean4"
+    )
+    assert {"required": ["lean_realization_dag_nodes"]} in lean_schema["anyOf"]
+    assert "lean_realization_dag_nodes" in lean_schema["properties"]
     prompt_text = request["prompt_messages"]["user"]
     assert "target-prover realization DAG" in prompt_text
     assert "Lean/prover realization DAG" not in prompt_text
     assert "target-prover effort" in prompt_text
     assert "Lean/prover effort" not in prompt_text
+    assert "lean_realization_dag_nodes" not in prompt_text
+    assert "lean_grounding_queries" not in prompt_text
     for lean_only_id in lean_only_adapter_ids:
         assert lean_only_id not in prompt_text
 
@@ -4155,7 +4169,7 @@ def test_llm_route_planner_auto_uses_sonnet_for_generic_formal_library_queries()
     assert "formal-library grounding query(s)" in packet["model_selection_rationale"]
     intake_row = packet["context_packet"]["target_intake_rows"][0]
     assert len(intake_row["formal_library_grounding_queries"]) == 9
-    assert intake_row["lean_grounding_queries"] == []
+    assert "lean_grounding_queries" not in intake_row
 
 
 def test_llm_route_planner_rejects_provider_returned_model_tier_mismatch() -> None:

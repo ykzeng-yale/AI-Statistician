@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 from collections import Counter
+from copy import deepcopy
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -2020,6 +2021,9 @@ def _request_packet(
         requested_model=model,
         model_tier=selected_model_tier,
     )
+    required_output_contract = _output_contract_for_target_prover(
+        target_prover_family
+    )
     request_id = "formalization_gap_planner_llm_route_request:" + stable_hash(
         [route_id, display_name, target_prover_family, library_snapshot_ref, context_packet]
     )[:20]
@@ -2028,7 +2032,7 @@ def _request_packet(
         "user": _user_prompt(
             target_route=route,
             context_packet=context_packet,
-            required_output_contract=LLM_ROUTE_PLANNER_OUTPUT_CONTRACT,
+            required_output_contract=required_output_contract,
         ),
     }
     return {
@@ -2046,12 +2050,19 @@ def _request_packet(
         "context_packet": context_packet,
         "residual_goals": residual_goals,
         "minimal_delta_cost_policy": MINIMAL_DELTA_COST_POLICY,
-        "required_output_contract": LLM_ROUTE_PLANNER_OUTPUT_CONTRACT,
+        "required_output_contract": required_output_contract,
         "prompt_messages": prompt_messages,
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
         "prompt_fingerprint": stable_hash(prompt_messages),
     }
+
+
+def _output_contract_for_target_prover(target_prover_family: str) -> dict[str, object]:
+    contract = deepcopy(LLM_ROUTE_PLANNER_OUTPUT_CONTRACT)
+    if _target_prover_key(target_prover_family) != "lean4":
+        contract.pop("lean_realization_dag_nodes", None)
+    return contract
 
 
 def _user_prompt(
@@ -2060,6 +2071,30 @@ def _user_prompt(
     context_packet: Mapping[str, Any],
     required_output_contract: Mapping[str, Any],
 ) -> str:
+    target_prover_key = _target_prover_key(
+        context_packet.get("target_prover_family", "")
+    )
+    target_intake_requirement = (
+        "When context_packet.target_intake_rows is present, use its "
+        "normalized_objects, normalized_assumptions, normalized_procedure, "
+        "normalized_claim, desired_theorem_shape, literature_queries, and "
+        "formal_library_grounding_queries as the target theorem context for "
+        "route synthesis; target intake is not proof evidence."
+    )
+    formal_realization_requirement = (
+        "Use formal_realization_dag_nodes for the target-prover realization DAG."
+    )
+    if target_prover_key == "lean4":
+        target_intake_requirement = (
+            target_intake_requirement
+            + " lean_grounding_queries is a legacy alias only."
+        )
+        formal_realization_requirement = (
+            "Use formal_realization_dag_nodes for all target provers; "
+            "lean_realization_dag_nodes is accepted only as a Lean legacy "
+            "alias and must not be used for non-Lean target_prover_family "
+            "values."
+        )
     payload = {
         "task": (
             "Synthesize or revise a library-aware formalization proof route. "
@@ -2072,7 +2107,7 @@ def _user_prompt(
         "required_output_contract": dict(required_output_contract),
         "hard_requirements": [
             "Return only JSON.",
-            "When context_packet.target_intake_rows is present, use its normalized_objects, normalized_assumptions, normalized_procedure, normalized_claim, desired_theorem_shape, literature_queries, and formal_library_grounding_queries as the target theorem context for route synthesis; lean_grounding_queries is a legacy alias only; target intake is not proof evidence.",
+            target_intake_requirement,
             "standalone_route.theorem_statement must preserve the requested target theorem identity; route repairs may add explicit side-condition notes but must not switch to a different theorem.",
             "Every informal DAG node must have source_refs, a source_search_status, or a formal_gap_boundary.",
             "SOURCE_BACKED claims may cite only source_refs listed in context_packet.available_source_refs.",
@@ -2094,7 +2129,7 @@ def _user_prompt(
             "Every residual_interpretations row that proposes route repair must have source_refs/source_snippets, a matching literature/source search_request, or a formal_gap_boundary; prover residuals alone are not source evidence for new mathematical side conditions.",
             "Every alignment edge must include an alignment_rationale.",
             "Every alignment edge informal_node_id/formal_node_id must reference nodes present in the returned informal and formal DAGs.",
-            "Use formal_realization_dag_nodes for all target provers; lean_realization_dag_nodes is accepted only as a Lean legacy alias and must not be used for non-Lean target_prover_family values.",
+            formal_realization_requirement,
             "Minimal delta must include selected_primitives, cost_model_version, route_cost, primitive_costs, and_or_cost_graph, and minimality_rationale.",
             "Use minimal_delta_cost_policy as the AND/OR graph cost surface; pick the route with the lowest current formalization delta cost.",
             "Every selected primitive must have exactly one primitive_costs row with base_cost, proof_difficulty_cost, import_cone_cost, definition_or_typeclass_cost, semantic_risk_cost, reuse_credit, total_cost, and cost_rationale.",
@@ -2150,7 +2185,11 @@ def _generate_responses(
                         model=request_model,
                         max_tokens=max_tokens,
                         temperature=temperature,
-                        schema=llm_route_planner_response_payload_schema(),
+                        schema=llm_route_planner_response_payload_schema(
+                            target_prover_family=str(
+                                packet.get("target_prover_family", "")
+                            )
+                        ),
                         metadata={
                             "component": LLM_ROUTE_PLANNER_COMPONENT,
                             "request_id": str(packet.get("request_id", "")),
@@ -2315,7 +2354,9 @@ def _extract_json_object_or_text(text: str) -> object:
         return text[:12000]
 
 
-def llm_route_planner_response_payload_schema() -> dict[str, object]:
+def llm_route_planner_response_payload_schema(
+    *, target_prover_family: str = ""
+) -> dict[str, object]:
     string_array = {"type": "array", "items": {"type": "string"}}
     source_snippet = {
         "type": "object",
@@ -2501,7 +2542,7 @@ def llm_route_planner_response_payload_schema() -> dict[str, object]:
             "formal_gap_boundary": {"type": "string"},
         },
     }
-    return {
+    schema: dict[str, object] = {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
         "title": "Formalization Gap Planner LLM Route Planner Response Payload",
@@ -2677,6 +2718,12 @@ def llm_route_planner_response_payload_schema() -> dict[str, object]:
             "standalone_primitive": standalone_primitive,
         },
     }
+    if target_prover_family and _target_prover_key(target_prover_family) != "lean4":
+        schema["anyOf"] = [{"required": ["formal_realization_dag_nodes"]}]
+        properties = schema.get("properties", {})
+        if isinstance(properties, dict):
+            properties.pop("lean_realization_dag_nodes", None)
+    return schema
 
 
 def llm_route_planner_response_payload_validation_row_json_schema() -> dict[str, object]:
@@ -7628,6 +7675,15 @@ def _compact_row(row: Mapping[str, Any]) -> dict[str, object]:
                 compact[key] = trace
             continue
         compact[key] = row[key]
+    compact_target = _target_prover_key(compact.get("target_prover_family", ""))
+    if compact_target and compact_target != "lean4":
+        for lean_legacy_key in (
+            "lean_grounding_queries",
+            "lean_declaration_hits",
+            "revised_lean_realization_dag_nodes",
+            "needs_more_lean_grounding",
+        ):
+            compact.pop(lean_legacy_key, None)
     return compact
 
 
