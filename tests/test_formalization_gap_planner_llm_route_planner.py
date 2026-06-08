@@ -7,6 +7,7 @@ from pathlib import Path
 from ai_statistician.cli import main
 from ai_statistician.formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID,
+    LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID,
     LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
     PROOF_EVIDENCE_BOUNDARY,
@@ -1825,7 +1826,14 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
 
     assert payload["all_ok"]
     assert payload["response_schema"]["$id"] == LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID
+    assert payload["response_payload_schema"]["$id"] == (
+        LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID
+    )
     assert payload["row_schema"]["$id"] == LLM_ROUTE_PLANNER_ROW_SCHEMA_ID
+    assert (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_response_payload.schema.json"
+    ).exists()
     assert payload["n_response_present"] == 1
     assert payload["n_response_contract_ok"] == 1
     assert payload["n_accepted_route_plans"] == 1

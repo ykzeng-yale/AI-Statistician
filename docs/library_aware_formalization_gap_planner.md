@@ -121,8 +121,12 @@ rejected. Each row also carries a `realization_coverage_witness` summarizing
 whether the selected primitives have standalone-route nodes and formal
 realization nodes, whether delta primitives have route-alignment edges, and
 whether any introduced primitive lacks an alignment edge. This is a portable
-inspection aid for external prover teams. Evaluation rows preserve the LLM
-route-adoption readiness status and blockers, so an accepted but
+inspection aid for external prover teams. The planner publishes both the
+wrapper response schema and
+`formalization_gap_planner_llm_route_planner_response_payload.schema.json`, so
+external prover teams can validate the exact JSON payload they return before it
+is wrapped into an AI Statistician response row. Evaluation rows preserve the
+LLM route-adoption readiness status and blockers, so an accepted but
 search-pending/refinement-pending Claude route is not reported as ready for
 standalone replay. This is still planning evidence, not proof evidence. The
 cost witness uses
@@ -1013,10 +1017,12 @@ The current implementation composes four existing AI Statistician artifacts:
    packet, and when request residuals are present every residual must receive
    an interpretation plus a `route_repair` or `repair_action`. It can run in
    prompt-only mode, validate a reviewed/static LLM JSON response, or invoke a
-   configured generator backend. Accepted responses produce a revised
-   standalone seed with source-grounded informal DAG nodes, formal realization
-   nodes, alignment rationales, minimal-delta rationale, search requests, and
-   the proof-evidence boundary. The accepted LLM DAG, route-alignment edges,
+   configured generator backend. It publishes request, wrapper response, raw
+   response-payload, and row schemas for external validation. Accepted
+   responses produce a revised standalone seed with source-grounded informal
+   DAG nodes, formal realization nodes, alignment rationales, minimal-delta
+   rationale, search requests, and the proof-evidence boundary. The accepted
+   LLM DAG, route-alignment edges,
    minimal-delta plan, search requests, residual interpretations, and provider
    provenance are also copied into the seed route's `replan_metadata`, so the
    standalone planner trace and source-grounding audit can inspect the LLM
@@ -1301,7 +1307,7 @@ The current implementation composes four existing AI Statistician artifacts:
    resource-response schema, resource-response-ledger row schema,
    route-stability audit row schema, route-replan handoff-audit row schema,
    portable-plan audit row schema,
-   ablation-study row schema,
+   ablation-study row schema, LLM route-planner response-payload schema,
    proof-state triage row schema, docs, and optional run artifacts into a
    self-contained research
    supplement/reuse bundle. It also writes a

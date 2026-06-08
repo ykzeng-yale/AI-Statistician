@@ -36,6 +36,10 @@ LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
     "formalization-gap-planner-llm-route-planner-response:1"
 )
+LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID = (
+    "urn:ai-statistician:schemas:"
+    "formalization-gap-planner-llm-route-planner-response-payload:1"
+)
 LLM_ROUTE_PLANNER_ROW_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
     "formalization-gap-planner-llm-route-planner-row:1"
@@ -509,6 +513,7 @@ def export_formalization_gap_planner_llm_route_planner(
     )
     request_model_tier_mismatches = _request_model_tier_mismatches(request_packets)
     request_schema = llm_route_planner_request_json_schema()
+    response_payload_schema = llm_route_planner_response_payload_schema()
     request_schema_errors = [
         validate_llm_route_planner_request(packet, request_schema)
         for packet in request_packets
@@ -1014,6 +1019,7 @@ def export_formalization_gap_planner_llm_route_planner(
             1 for row_errors in row_schema_errors if row_errors
         ),
         "request_schema": request_schema,
+        "response_payload_schema": response_payload_schema,
         "response_schema": response_schema,
         "row_schema": row_schema,
         "request_packets": request_packets,
@@ -1750,6 +1756,8 @@ def _extract_json_object_or_text(text: str) -> object:
 def llm_route_planner_response_payload_schema() -> dict[str, object]:
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
+        "title": "Formalization Gap Planner LLM Route Planner Response Payload",
         "type": "object",
         "additionalProperties": True,
         "required": [
@@ -6747,6 +6755,13 @@ def _write_outputs(out_dir: Path, payload: Mapping[str, object]) -> None:
     )
     (out_dir / "formalization_gap_planner_llm_route_planner_response.schema.json").write_text(
         json.dumps(llm_route_planner_response_json_schema(), indent=2),
+        encoding="utf-8",
+    )
+    (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_response_payload.schema.json"
+    ).write_text(
+        json.dumps(llm_route_planner_response_payload_schema(), indent=2),
         encoding="utf-8",
     )
     (out_dir / "formalization_gap_planner_llm_route_planner_row.schema.json").write_text(
