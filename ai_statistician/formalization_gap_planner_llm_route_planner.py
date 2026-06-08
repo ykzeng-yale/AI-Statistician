@@ -1856,6 +1856,9 @@ def validate_llm_route_planner_row(
     schema: Mapping[str, object] | None = None,
 ) -> list[str]:
     errors = _validate_with_schema(row, schema or llm_route_planner_row_json_schema())
+    model_tier_mismatch = _row_model_tier_mismatch_error(row)
+    if model_tier_mismatch:
+        errors.append(model_tier_mismatch)
     if int(row.get("repair_attempts", 0) or 0) < len(
         _dict_tuple(row.get("repair_error_history", []))
     ):
@@ -2895,6 +2898,19 @@ def _request_model_tier_mismatch(
     }
 
 
+def _row_model_tier_mismatch_error(row: Mapping[str, object]) -> str:
+    provider = str(row.get("provider_name", "") or "").strip().lower()
+    if provider != "anthropic":
+        return ""
+    model = str(row.get("model", "") or "").strip()
+    model_tier = str(row.get("model_tier", "") or "").strip().lower()
+    return claude_model_tier_mismatch(
+        model,
+        model_tier,
+        subject=f"LLM route planner row {row.get('request_id', '')}".strip(),
+    )
+
+
 def _llm_route_planner_model_tier_decision(
     route: Mapping[str, Any],
     context_packet: Mapping[str, Any],
@@ -3077,23 +3093,42 @@ def _row_for_request(
     contract_errors = (
         _response_contract_errors(payload, request) if response_present else []
     )
+    response_model_tier_errors = (
+        _str_tuple(
+            _row_model_tier_mismatch_error(
+                {
+                    "request_id": request.get("request_id", ""),
+                    "provider_name": (
+                        (response or {}).get("provider_name")
+                        or request.get("provider_name", "")
+                    ),
+                    "model": (response or {}).get("model") or request.get("model", ""),
+                    "model_tier": request.get("model_tier", ""),
+                }
+            )
+        )
+        if response_present
+        else tuple()
+    )
     all_errors = [
         *request_errors,
         *response_errors,
         *contract_errors,
+        *response_model_tier_errors,
         *generation_errors,
     ]
     response_contract_ok = (
         response_present
         and not response_errors
         and not contract_errors
+        and not response_model_tier_errors
         and not generation_errors
     )
     if provider_failure:
         acceptance_status = "REJECTED_LLM_ROUTE_PLANNER_PROVIDER_FAILURE"
     elif not response_present:
         acceptance_status = "AWAITING_LLM_ROUTE_PLANNER_RESPONSE"
-    elif response_errors or contract_errors:
+    elif response_errors or contract_errors or response_model_tier_errors:
         acceptance_status = "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
     elif _dict_tuple(payload.get("search_requests", [])):
         acceptance_status = "ACCEPTED_WITH_SEARCH_REQUESTS"

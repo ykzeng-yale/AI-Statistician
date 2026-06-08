@@ -3655,6 +3655,56 @@ def test_llm_route_planner_auto_uses_haiku_for_small_bounded_routes() -> None:
     assert request.metadata["model_tier"] == "haiku"
 
 
+def test_llm_route_planner_rejects_provider_returned_model_tier_mismatch() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_returned_model_tier_mismatch"
+    )
+    out_dir = root / "llm_route_planner"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_light_input(root)
+    captured: dict[str, object] = {}
+
+    class FakeAnthropicBackend:
+        provider_name = "anthropic"
+
+        def generate(self, request):
+            captured["request"] = request
+            return GeneratorResponse(
+                text=json.dumps(_llm_response_payload()),
+                provider="anthropic",
+                model="claude-sonnet-4-6",
+                metadata={
+                    "generator_only": True,
+                    "tools_available": False,
+                    "schema_supplied": request.schema is not None,
+                    "returned_model_overrode_request": True,
+                },
+            )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="anthropic",
+        invoke_provider=True,
+        generator_backend=FakeAnthropicBackend(),
+    )
+
+    request = captured["request"]
+    assert request.model == "claude-haiku-4-5-20251001"
+    assert request.metadata["model_tier"] == "haiku"
+    assert not payload["all_ok"]
+    assert payload["by_request_model_tier"] == {"haiku": 1}
+    assert payload["n_rejected"] == 1
+    assert payload["n_response_contract_ok"] == 0
+    assert payload["n_row_schema_invalid"] == 1
+    row = payload["rows"][0]
+    assert row["model_tier"] == "haiku"
+    assert row["model"] == "claude-sonnet-4-6"
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any("expected Claude haiku tier" in error for error in row["errors"])
+
+
 def test_llm_route_planner_rejects_anthropic_explicit_model_tier_mismatch() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_model_tier_mismatch"

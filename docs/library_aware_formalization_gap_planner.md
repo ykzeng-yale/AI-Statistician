@@ -137,7 +137,10 @@ simulation planning, algorithm-planning packets, and boundary critique. The same
 request/response contracts still run against explicit `openai` live generation
 or `static` replay. Runtime topology validation records the intended model tier
 for each LLM subsystem and rejects recognized Anthropic family drift, for example
-a Haiku-designated helper configured with a Sonnet or Opus model. In
+a Haiku-designated helper configured with a Sonnet or Opus model. LLM
+route-planner rows also reject provider-returned Anthropic model drift, so a
+Haiku-selected request cannot be accepted if the backend reports a Sonnet or
+Opus response model. In
 `--model-tier auto`, the route planner also reads target-intake rows: missing
 proof sources, library-search-required review flags, proof-state probes, complex
 theorem shapes, or large normalized theorem context upgrade a superficially
