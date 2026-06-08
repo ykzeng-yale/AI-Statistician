@@ -5869,6 +5869,14 @@ def _research_architect_theory_develop(args: argparse.Namespace) -> int:
 
 def _research_agent_runtime(args: argparse.Namespace) -> int:
     _load_dotenv(Path(args.env_file))
+    if getattr(args, "capability_eval", False):
+        config_errors = _research_agent_runtime_capability_config_errors(args)
+        if config_errors:
+            print("\nAI Statistician Agent Runtime capability eval rejected")
+            print("=" * 72)
+            for error in config_errors:
+                print(f"- {error}")
+            return 2
     verifier = _proof_verifier_from_args(args)
     proof_state_provider = _proof_state_provider_from_args(args)
     questions = load_open_research_questions(Path(args.question_file))
@@ -5942,7 +5950,48 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
         "runtime manifest written to "
         f"{(Path(args.out) / 'research_agent_runtime_manifest.json').resolve()}"
     )
+    if getattr(args, "capability_eval", False):
+        audit = audit_research_agent_runtime(
+            Path(args.out),
+            Path(args.out) / "runtime_capability_audit",
+        )
+        scorecard = audit.get("capability_scorecard", {})
+        print(
+            f"capability_scorecard={scorecard.get('n_passed')}/"
+            f"{scorecard.get('n_requirements')} "
+            f"ready={scorecard.get('ready')}"
+        )
+        return 0 if audit.get("capability_ready_for_full_ai_statistician") else 1
     return 0
+
+
+def _research_agent_runtime_capability_config_errors(
+    args: argparse.Namespace,
+) -> list[str]:
+    errors: list[str] = []
+    if getattr(args, "provider", "") not in {"anthropic", "openai"}:
+        errors.append("capability eval requires --provider anthropic or --provider openai")
+    subsystem_provider_fields = (
+        ("architect_coordinator_provider", "ArchitectCoordinator"),
+        ("simulation_engineer_provider", "SimulationEngineer"),
+        ("algorithm_engineer_provider", "AlgorithmEngineer"),
+        ("formalizer_provider", "Formalizer"),
+        ("critic_evaluator_provider", "CriticEvaluator"),
+    )
+    for field_name, subsystem in subsystem_provider_fields:
+        provider_choice = str(getattr(args, field_name, "none") or "none")
+        if provider_choice in {"none", "static"}:
+            errors.append(
+                f"capability eval requires live {subsystem}; "
+                f"{field_name}={provider_choice}"
+            )
+    if not (getattr(args, "local_lean", False) or getattr(args, "real_lean", False)):
+        errors.append("capability eval requires --local-lean or --real-lean")
+    if getattr(args, "proof_obligation_id", None):
+        errors.append(
+            "capability eval must not use --proof-obligation-id; manual proof filters are debug-only"
+        )
+    return errors
 
 
 def _research_agent_runtime_audit(args: argparse.Namespace) -> int:
@@ -10416,6 +10465,15 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=1,
         help="bounded CriticEvaluator -> TheoryDeveloper repair loops before accepting remaining gaps",
+    )
+    research_agent_runtime.add_argument(
+        "--capability-eval",
+        action="store_true",
+        help=(
+            "run as a strict main-capability evaluation: reject static/no-Architect/"
+            "manual-proof-filter debug modes and return nonzero unless the runtime "
+            "capability scorecard is ready"
+        ),
     )
     research_agent_runtime.add_argument("--out", default="runs/research_agent_runtime")
     research_agent_runtime.add_argument("--env-file", default=".env")

@@ -1743,6 +1743,71 @@ def test_research_agent_runtime_rejects_anthropic_model_tier_mismatch() -> None:
         )
 
 
+def test_research_agent_runtime_cli_capability_eval_rejects_debug_modes() -> None:
+    root = Path("runs/test_research_agent_runtime_capability_eval_guard")
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    response_file = root / "response.json"
+    response_file.write_text(json.dumps(_runtime_sample_response()), encoding="utf-8")
+
+    static_code = main(
+        [
+            "research-agent-runtime",
+            "--capability-eval",
+            "--provider",
+            "static",
+            "--static-response-file",
+            str(response_file),
+            "--question-file",
+            "examples/research_questions.json",
+            "--max-questions",
+            "1",
+            "--local-lean",
+            "--out",
+            str(root / "static_out"),
+        ]
+    )
+    assert static_code == 2
+
+    no_architect_code = main(
+        [
+            "research-agent-runtime",
+            "--capability-eval",
+            "--provider",
+            "anthropic",
+            "--architect-coordinator-provider",
+            "none",
+            "--question-file",
+            "examples/research_questions.json",
+            "--max-questions",
+            "1",
+            "--local-lean",
+            "--out",
+            str(root / "no_architect_out"),
+        ]
+    )
+    assert no_architect_code == 2
+
+    manual_filter_code = main(
+        [
+            "research-agent-runtime",
+            "--capability-eval",
+            "--provider",
+            "anthropic",
+            "--question-file",
+            "examples/research_questions.json",
+            "--max-questions",
+            "1",
+            "--local-lean",
+            "--proof-obligation-id",
+            "variance_nonneg",
+            "--out",
+            str(root / "manual_filter_out"),
+        ]
+    )
+    assert manual_filter_code == 2
+
+
 def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
     root = Path("runs/test_research_agent_runtime_cli")
     shutil.rmtree(root, ignore_errors=True)
