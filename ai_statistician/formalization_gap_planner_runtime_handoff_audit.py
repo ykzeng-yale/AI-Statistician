@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 import tempfile
+from collections import Counter
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -225,6 +226,16 @@ def audit_formalization_gap_planner_runtime_handoffs(
             int(summary.get("seed_primitives_with_candidate_declaration_rows", 0) or 0)
             for summary in smoke_summaries
         ),
+        "n_seed_target_prover_family_compatible_with_handoff": sum(
+            1
+            for summary in smoke_summaries
+            if summary.get("seed_target_prover_family_compatible_with_handoff")
+        ),
+        "n_mixed_seed_target_prover_families": sum(
+            1
+            for summary in smoke_summaries
+            if int(summary.get("seed_n_target_prover_families", 0) or 0) > 1
+        ),
         "by_category": dict(sorted(by_category.items())),
         "checks": check_dicts,
         "row_schema_errors": row_schema_errors,
@@ -392,7 +403,16 @@ def _audit_handoff_row(
     seed_schema_ok = not seed_errors and not validation_errors
     summary["seed_schema_ok"] = seed_schema_ok
     summary.update(_seed_context_counts(seed_payload))
-    seed_target = str(seed_payload.get("target_prover_family", "")).strip()
+    seed_target_summary = _seed_target_prover_summary(seed_payload)
+    summary.update(seed_target_summary)
+    seed_target = str(seed_target_summary.get("seed_target_prover_family", ""))
+    seed_target_compatible = _seed_target_compatible_with_handoff(
+        handoff_target,
+        seed_target_summary,
+    )
+    summary["seed_target_prover_family_compatible_with_handoff"] = (
+        seed_target_compatible
+    )
     seed_snapshot = str(seed_payload.get("library_snapshot_ref", "")).strip()
     cost_control_ok = _prompt_cli_cost_control_ok(
         prompt_cli,
@@ -481,9 +501,9 @@ def _audit_handoff_row(
             "target_prover",
             handoff_id,
             bridge_id,
-            handoff_target or "<handoff target>",
+            "handoff target compatible with standalone seed target family",
             seed_target,
-            bool(handoff_target) and seed_target == handoff_target,
+            seed_target_compatible,
         ),
         _row_check(
             "row_seed_schema_valid",
@@ -841,6 +861,110 @@ def _seed_context_counts(seed_payload: Mapping[str, Any]) -> dict[str, int]:
             1 for primitive in primitives if primitive.get("candidate_declaration_rows")
         ),
     }
+
+
+def _seed_target_prover_summary(seed_payload: Mapping[str, Any]) -> dict[str, object]:
+    top_level_target = str(seed_payload.get("target_prover_family", "")).strip()
+    route_targets = _seed_route_target_prover_families(seed_payload)
+    by_target = Counter(route_targets)
+    unique_targets: list[str] = []
+    seen: set[str] = set()
+    for target in route_targets:
+        key = _target_prover_key(target)
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        unique_targets.append(target)
+    top_mixed_keys = _mixed_target_prover_keys(top_level_target)
+    if len(unique_targets) == 1:
+        effective_target = unique_targets[0]
+    elif len(unique_targets) > 1:
+        effective_target = "mixed:" + ",".join(sorted(unique_targets))
+    else:
+        effective_target = top_level_target
+    target_keys = (
+        {_target_prover_key(target) for target in unique_targets}
+        if unique_targets
+        else top_mixed_keys or {_target_prover_key(top_level_target)}
+    )
+    target_keys.discard("")
+    return {
+        "seed_declared_target_prover_family": top_level_target,
+        "seed_target_prover_family": effective_target,
+        "seed_n_target_prover_families": len(target_keys),
+        "seed_by_target_prover_family": dict(sorted(by_target.items())),
+        "seed_target_prover_family_keys": tuple(sorted(target_keys)),
+    }
+
+
+def _seed_route_target_prover_families(
+    seed_payload: Mapping[str, Any],
+) -> tuple[str, ...]:
+    targets: list[str] = []
+    for route in seed_payload.get("routes", []):
+        if not isinstance(route, Mapping):
+            continue
+        metadata = _dict_value(route.get("replan_metadata", {}))
+        target = str(
+            route.get("target_prover_family")
+            or route.get("target_prover")
+            or metadata.get("target_prover_family")
+            or metadata.get("target_prover")
+            or ""
+        ).strip()
+        if target:
+            targets.append(target)
+    return tuple(targets)
+
+
+def _seed_target_compatible_with_handoff(
+    handoff_target: str,
+    seed_target_summary: Mapping[str, object],
+) -> bool:
+    handoff_keys = _mixed_target_prover_keys(handoff_target)
+    handoff_key = _target_prover_key(handoff_target)
+    seed_keys = {
+        str(key)
+        for key in seed_target_summary.get("seed_target_prover_family_keys", [])
+        if str(key)
+    }
+    if not seed_keys or not (handoff_keys or handoff_key):
+        return False
+    if handoff_keys:
+        return seed_keys == handoff_keys
+    return handoff_key in seed_keys
+
+
+def _mixed_target_prover_keys(value: object) -> set[str]:
+    target = str(value or "").strip()
+    if not target.lower().startswith("mixed:"):
+        return set()
+    return {
+        key
+        for key in (
+            _target_prover_key(part)
+            for part in target.split(":", 1)[1].split(",")
+        )
+        if key
+    }
+
+
+def _target_prover_key(value: object) -> str:
+    target = re.sub(
+        r"[^a-z0-9]+",
+        "_",
+        str(value or "").strip().lower(),
+    ).strip("_")
+    aliases = {
+        "lean": "lean4",
+        "lean_4": "lean4",
+        "coq": "rocq",
+        "coq8": "rocq",
+        "rocq_coq": "rocq",
+        "coq_rocq": "rocq",
+        "isabelle_hol": "isabelle",
+    }
+    return aliases.get(target, target)
 
 
 def _run_component_resource_registry_smoke(

@@ -237,7 +237,11 @@ handoff audit builds the registry offline and verifies that staged prompt
 packets contain nonzero component, resource, and resource-contract rows before
 declaring the handoff smoke-ready. The publication-bundle audit repeats those
 runtime-handoff checks when the optional handoff audit artifact is packaged, so
-a reusable bundle cannot silently lose registry-aware planner context.
+a reusable bundle cannot silently lose registry-aware planner context. The same
+audit derives the standalone seed's effective target family from route-level
+targets, so a scalar Rocq/Lean/Isabelle replay handoff can be checked against a
+mixed standalone seed without requiring the seed to flatten its concrete route
+targets into a top-level prover.
 
 For feedback passes after prover/resource attempts, the request packet now also
 includes `context_packet.feedback_loop_summary` when residual, refinement,
