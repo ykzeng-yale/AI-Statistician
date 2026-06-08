@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 import json
-import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Mapping
 
 from .fingerprint import stable_hash
-from .llm_json_repair import generate_validated_json_packet
+from .llm_json_repair import extract_json_object, generate_validated_json_packet
 from .model_backend import GeneratorBackend, GeneratorRequest, default_generator_model
 from .research_schema import OpenResearchQuestion
 
@@ -141,12 +140,13 @@ def build_architect_coordinator_prompt(
     }
     return (
         "Act as the top-level ArchitectCoordinator for the AI Statistician runtime. "
-        "Return ONLY JSON matching required_output_contract. Start with problem analysis, "
-        "then define the execution graph, subsystem priorities, dynamic knowledge-bank plan, "
-        "literature fair-comparison gate, retrieval/search strategy, iteration policy, and "
-        "evidence gates. Do not execute tools, do not claim simulations ran, and do not claim "
-        "proof evidence.\n\n"
-        + json.dumps(payload, indent=2, default=str)
+        "Return ONLY one compact JSON object matching required_output_contract. Keep each "
+        "list to at most 3 short strings or objects. Do not include paragraphs, Markdown, "
+        "LaTeX derivations, or code. Start with problem_analysis, then define the execution "
+        "graph, dynamic knowledge-bank plan, literature fair-comparison gate, retrieval/search "
+        "strategy, iteration policy, and evidence gates. Do not execute tools, do not claim "
+        "simulations ran, and do not claim proof evidence.\n\n"
+        + json.dumps(payload, separators=(",", ":"), default=str)
     )
 
 
@@ -316,20 +316,7 @@ def _normalize_architect_packet(
 
 
 def _extract_json_object(text: str) -> dict[str, Any]:
-    stripped = text.strip()
-    if stripped.startswith("```"):
-        stripped = re.sub(r"^```(?:json)?\s*", "", stripped)
-        stripped = re.sub(r"\s*```$", "", stripped)
-    try:
-        payload = json.loads(stripped)
-    except json.JSONDecodeError:
-        match = re.search(r"\{.*\}", stripped, re.DOTALL)
-        if not match:
-            raise
-        payload = json.loads(match.group(0))
-    if not isinstance(payload, dict):
-        raise ValueError("expected JSON object from LLM ArchitectCoordinator")
-    return payload
+    return extract_json_object(text, label="LLM ArchitectCoordinator")
 
 
 def _contains_forbidden_claim(value: Any) -> str:

@@ -13,6 +13,7 @@ DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL = "claude-haiku-4-5-20251001"
 DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL = "claude-sonnet-4-6"
 DEFAULT_ANTHROPIC_GENERATOR_MODEL = DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
 DEFAULT_STATIC_GENERATOR_MODEL = "static"
+DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS = 120.0
 DEFAULT_CLAUDE_GENERATOR_MODELS_BY_TIER = {
     "haiku": DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
     "sonnet": DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
@@ -259,18 +260,39 @@ class AnthropicGeneratorBackend:
             import anthropic
         except Exception as exc:  # pragma: no cover - import depends on local env
             raise ValueError(f"failed to import anthropic package: {exc!r}") from exc
-        client = anthropic.Anthropic(api_key=self.api_key)
+        timeout_s = max(
+            1.0,
+            _env_float(
+                "AI_STATISTICIAN_LLM_TIMEOUT_SECONDS",
+                default=DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
+            ),
+        )
+        client = anthropic.Anthropic(
+            api_key=self.api_key,
+            timeout=timeout_s,
+            max_retries=0,
+        )
+        json_mode_hint = request.schema is not None
+        user_prompt = request.user_prompt
+        if json_mode_hint:
+            user_prompt = (
+                request.user_prompt
+                + "\n\nReturn exactly one valid JSON object. Do not wrap it in Markdown. "
+                "Do not include commentary outside JSON."
+            )
+        messages = [{"role": "user", "content": user_prompt}]
         response, retry_count = _call_with_generator_retries(
             lambda: client.messages.create(
                 model=request.model,
                 max_tokens=request.max_tokens,
                 temperature=request.temperature,
                 system=request.system_prompt,
-                messages=[{"role": "user", "content": request.user_prompt}],
+                messages=messages,
             )
         )
+        text = _anthropic_text(response)
         return GeneratorResponse(
-            text=_anthropic_text(response),
+            text=text,
             provider=self.provider_name,
             model=request.model,
             raw=response,
@@ -278,6 +300,8 @@ class AnthropicGeneratorBackend:
                 "generator_only": True,
                 "tools_available": False,
                 "schema_supplied": request.schema is not None,
+                "json_prompt_hint_used": json_mode_hint,
+                "timeout_seconds": timeout_s,
                 "retry_count": retry_count,
             },
         )

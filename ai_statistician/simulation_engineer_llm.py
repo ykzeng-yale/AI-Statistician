@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 import json
-import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Mapping
 
 from .fingerprint import stable_hash
-from .llm_json_repair import generate_validated_json_packet
+from .llm_json_repair import extract_json_object, generate_validated_json_packet
 from .model_backend import GeneratorBackend, GeneratorRequest, default_generator_model
 from .research_schema import OpenResearchQuestion
 
@@ -286,17 +285,4 @@ def _normalize_simulation_packet(
 
 
 def _extract_json_object(text: str) -> dict[str, Any]:
-    stripped = text.strip()
-    if stripped.startswith("```"):
-        stripped = re.sub(r"^```(?:json)?\s*", "", stripped)
-        stripped = re.sub(r"\s*```$", "", stripped)
-    try:
-        payload = json.loads(stripped)
-    except json.JSONDecodeError:
-        match = re.search(r"\{.*\}", stripped, re.DOTALL)
-        if not match:
-            raise
-        payload = json.loads(match.group(0))
-    if not isinstance(payload, dict):
-        raise ValueError("expected JSON object from LLM SimulatorEngineer")
-    return payload
+    return extract_json_object(text, label="LLM SimulatorEngineer")

@@ -15,7 +15,7 @@ from .model_backend import (
     StaticJSONGeneratorBackend,
     default_generator_model,
 )
-from .llm_json_repair import generate_validated_json_packet
+from .llm_json_repair import extract_json_object, generate_validated_json_packet
 from .research_schema import OpenResearchQuestion, ResearchReport
 
 
@@ -962,17 +962,7 @@ def _project_state(
 
 
 def _extract_json_object(text: str) -> dict[str, Any]:
-    stripped = text.strip()
-    if stripped.startswith("{") and stripped.endswith("}"):
-        payload = json.loads(stripped)
-    else:
-        match = re.search(r"\{.*\}", stripped, flags=re.DOTALL)
-        if not match:
-            raise ValueError(f"LLM response did not contain JSON: {text[:200]!r}")
-        payload = json.loads(match.group(0))
-    if not isinstance(payload, dict):
-        raise ValueError("LLM response JSON must be an object")
-    return payload
+    return extract_json_object(text, label="LLM TheoryDeveloper")
 
 
 def _forbidden_proof_claims(value: Any, *, path: str = "") -> list[str]:

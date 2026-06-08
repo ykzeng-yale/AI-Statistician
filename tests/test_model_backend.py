@@ -53,8 +53,10 @@ def test_anthropic_generator_backend_calls_messages_api_without_tools(
             )
 
     class FakeAnthropicClient:
-        def __init__(self, *, api_key: str) -> None:
+        def __init__(self, *, api_key: str, timeout: float, max_retries: int) -> None:
             captured["api_key"] = api_key
+            captured["timeout"] = timeout
+            captured["max_retries"] = max_retries
             self.messages = FakeMessages()
 
     fake_anthropic_module = SimpleNamespace(Anthropic=FakeAnthropicClient)
@@ -65,13 +67,22 @@ def test_anthropic_generator_backend_calls_messages_api_without_tools(
     )
 
     assert captured["api_key"] == "test-anthropic-key"
+    assert captured["timeout"] == 120.0
+    assert captured["max_retries"] == 0
     kwargs = captured["kwargs"]
     assert kwargs["model"] == "test-model"
     assert kwargs["max_tokens"] == 128
     assert kwargs["temperature"] == 0.0
     assert kwargs["system"] == "Return JSON."
     assert kwargs["messages"] == [
-        {"role": "user", "content": "Produce a theory packet."}
+        {
+            "role": "user",
+            "content": (
+                "Produce a theory packet.\n\n"
+                "Return exactly one valid JSON object. Do not wrap it in Markdown. "
+                "Do not include commentary outside JSON."
+            ),
+        }
     ]
     assert "tools" not in kwargs
     assert response.text == '{"ok": true}'
@@ -79,6 +90,8 @@ def test_anthropic_generator_backend_calls_messages_api_without_tools(
     assert response.metadata["generator_only"] is True
     assert response.metadata["tools_available"] is False
     assert response.metadata["schema_supplied"] is True
+    assert response.metadata["json_prompt_hint_used"] is True
+    assert response.metadata["timeout_seconds"] == 120.0
     assert response.metadata["retry_count"] == 0
 
 
@@ -100,7 +113,7 @@ def test_anthropic_generator_backend_retries_transient_connection_error(
             return SimpleNamespace(content=[SimpleNamespace(text='{"ok": true}')])
 
     class FakeAnthropicClient:
-        def __init__(self, *, api_key: str) -> None:
+        def __init__(self, *, api_key: str, timeout: float, max_retries: int) -> None:
             self.messages = FakeMessages()
 
     monkeypatch.setitem(sys.modules, "anthropic", SimpleNamespace(Anthropic=FakeAnthropicClient))
@@ -124,7 +137,7 @@ def test_anthropic_generator_backend_does_not_retry_non_transport_error(
             raise ValueError("invalid request shape")
 
     class FakeAnthropicClient:
-        def __init__(self, *, api_key: str) -> None:
+        def __init__(self, *, api_key: str, timeout: float, max_retries: int) -> None:
             self.messages = FakeMessages()
 
     monkeypatch.setitem(sys.modules, "anthropic", SimpleNamespace(Anthropic=FakeAnthropicClient))
