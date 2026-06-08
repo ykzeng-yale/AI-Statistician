@@ -155,9 +155,12 @@ cost witness uses
 nonnegative route cost plus one `primitive_costs` row per selected primitive.
 Each primitive cost row must use a `coverage_bucket` listed in
 `minimal_delta_cost_policy.coverage_bucket_base_cost`, with `base_cost` exactly
-equal to that published bucket cost. It must also include an
-`and_or_cost_graph` with enumerated route options, exactly one selected option,
-and no listed alternative with lower `route_cost`.
+equal to that published bucket cost. That bucket/base cost also cannot be
+cheaper than the explicit `coverage_bucket`, `coverage_status`, or
+`formalization_action` markers on the matching formal-realization nodes or
+standalone-route primitives. It must also include an `and_or_cost_graph` with
+enumerated route options, exactly one selected option, and no listed alternative
+with lower `route_cost`.
 Those costs are planning evidence for comparing exact reuse, wrappers, bridge
 lemmas, source ports, new definitions, typeclass/import burden, semantic risk,
 and reuse credit. They are not proof evidence.

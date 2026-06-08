@@ -1991,6 +1991,7 @@ def _user_prompt(
             "Use minimal_delta_cost_policy as the AND/OR graph cost surface; pick the route with the lowest current formalization delta cost.",
             "Every selected primitive must have exactly one primitive_costs row with base_cost, proof_difficulty_cost, import_cone_cost, definition_or_typeclass_cost, semantic_risk_cost, reuse_credit, total_cost, and cost_rationale.",
             "Every primitive_costs coverage_bucket must be listed in minimal_delta_cost_policy.coverage_bucket_base_cost, and base_cost must equal that bucket base cost.",
+            "A primitive_costs coverage_bucket/base_cost must not be cheaper than the explicit coverage_bucket, coverage_status, or formalization_action markers on the corresponding formal_realization_dag_nodes or standalone_route.primitives.",
             "Every primitive_costs row must satisfy total_cost = base_cost + proof_difficulty_cost + import_cone_cost + definition_or_typeclass_cost + semantic_risk_cost - reuse_credit; route_cost must equal the sum of selected primitive total_cost values.",
             "and_or_cost_graph must enumerate route_options, non-empty or_nodes, and non-empty and_edges; it must mark exactly one selected route option and no listed alternative may have lower route_cost.",
             "Every selected primitive must appear in standalone_route.primitives and formal_realization_dag_nodes.",
@@ -5221,7 +5222,129 @@ def _response_primitive_coherence_errors(
             search_requests=search_requests,
         )
     )
+    errors.extend(
+        _primitive_cost_coverage_evidence_errors(
+            minimal_delta=minimal_delta,
+            formal_nodes=formal_nodes,
+            standalone_primitives=standalone_primitives,
+        )
+    )
     return errors
+
+
+def _primitive_cost_coverage_evidence_errors(
+    *,
+    minimal_delta: Mapping[str, Any],
+    formal_nodes: tuple[dict[str, object], ...],
+    standalone_primitives: tuple[dict[str, object], ...],
+) -> list[str]:
+    errors: list[str] = []
+    formal_by_primitive: dict[str, list[dict[str, object]]] = {}
+    for node in formal_nodes:
+        primitive = _primitive_key(node.get("primitive", ""))
+        if primitive:
+            formal_by_primitive.setdefault(primitive, []).append(node)
+    standalone_by_primitive: dict[str, list[dict[str, object]]] = {}
+    for row in standalone_primitives:
+        primitive = _primitive_key(row.get("primitive", ""))
+        if primitive:
+            standalone_by_primitive.setdefault(primitive, []).append(row)
+    for index, row in enumerate(_dict_tuple(minimal_delta.get("primitive_costs", []))):
+        primitive = _primitive_key(row.get("primitive", ""))
+        if not primitive:
+            continue
+        bucket = _primitive_key(row.get("coverage_bucket", ""))
+        bucket_cost = _coverage_bucket_base_cost(bucket)
+        if bucket_cost is None:
+            continue
+        evidence_rows = [
+            *formal_by_primitive.get(primitive, []),
+            *standalone_by_primitive.get(primitive, []),
+        ]
+        evidence = _coverage_evidence_base_cost(evidence_rows)
+        if evidence is None:
+            continue
+        evidence_cost, evidence_marker = evidence
+        if bucket_cost + 1e-9 < evidence_cost:
+            errors.append(
+                "minimal_delta_plan.primitive_costs"
+                f"[{index}].coverage_bucket/base_cost underprices "
+                "formal/standalone coverage evidence for primitive "
+                f"{primitive}: coverage_bucket={bucket} base_cost={bucket_cost:g} "
+                f"but evidence marker {evidence_marker} requires at least "
+                f"{evidence_cost:g}"
+            )
+    return errors
+
+
+def _coverage_evidence_base_cost(
+    rows: list[dict[str, object]],
+) -> tuple[float, str] | None:
+    best: tuple[float, str] | None = None
+    for row in rows:
+        for field_name in (
+            "coverage_bucket",
+            "coverage_status",
+            "formalization_action",
+            "alignment_status",
+        ):
+            marker = _primitive_key(row.get(field_name, ""))
+            bucket = _coverage_marker_policy_bucket(marker)
+            if not bucket:
+                continue
+            cost = _coverage_bucket_base_cost(bucket)
+            if cost is None:
+                continue
+            label = f"{field_name}={marker}"
+            if best is None or cost > best[0]:
+                best = (cost, label)
+    return best
+
+
+def _coverage_bucket_base_cost(bucket: str) -> float | None:
+    policy = MINIMAL_DELTA_COST_POLICY.get("coverage_bucket_base_cost", {})
+    if not isinstance(policy, Mapping):
+        return None
+    value = policy.get(bucket)
+    if not _is_nonnegative_number(value):
+        return None
+    return float(value)
+
+
+def _coverage_marker_policy_bucket(marker: str) -> str:
+    aliases = {
+        "already_exists": "already_exists",
+        "exact_exists": "exact_exists",
+        "exact": "exact_exists",
+        "reuse": "already_exists",
+        "compose": "already_exists",
+        "compose_existing_declarations": "already_exists",
+        "target_prover_replay": "already_exists",
+        "different_formulation": "different_formulation",
+        "near_exists": "near_exists",
+        "near": "near_exists",
+        "wrapper": "wrapper",
+        "wrapper_needed": "wrapper_needed",
+        "write_wrapper": "wrapper",
+        "bridge": "bridge",
+        "bridge_needed": "bridge_needed",
+        "prove_bridge": "bridge",
+        "source_port": "source_port",
+        "source_port_needed": "source_port_needed",
+        "port_external_source": "source_port",
+        "new_definition": "new_definition",
+        "new_definition_needed": "new_definition",
+        "define_new": "new_definition",
+        "new_theory": "new_theory",
+        "new_theory_needed": "new_theory_needed",
+        "first_principles": "new_theory",
+        "design_from_first_principles": "new_theory",
+        "theory_missing": "new_theory",
+        "unknown": "unknown",
+        "coverage_unknown": "unknown",
+        "declaration_unknown": "unknown",
+    }
+    return aliases.get(marker, "")
 
 
 def _realization_coverage_witness(
