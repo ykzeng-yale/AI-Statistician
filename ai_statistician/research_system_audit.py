@@ -3769,6 +3769,15 @@ async def run_research_system_audit(
             "formalization_gap_planner_resource_response_ledger_contract_ok": formalization_gap_planner_resource_response_ledger_manifest[
                 "n_response_contract_ok"
             ],
+            "formalization_gap_planner_resource_response_ledger_request_playbook_present": formalization_gap_planner_resource_response_ledger_manifest[
+                "n_request_playbook_present"
+            ],
+            "formalization_gap_planner_resource_response_ledger_playbook_grounded": formalization_gap_planner_resource_response_ledger_manifest[
+                "n_response_playbook_grounded"
+            ],
+            "formalization_gap_planner_resource_response_ledger_playbook_grounding_failures": formalization_gap_planner_resource_response_ledger_manifest[
+                "n_response_playbook_grounding_failures"
+            ],
             "formalization_gap_planner_resource_response_ledger_route_revision_recommended": formalization_gap_planner_resource_response_ledger_manifest[
                 "n_route_revision_recommended"
             ],

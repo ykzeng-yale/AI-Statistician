@@ -8946,6 +8946,8 @@ def _resource_response_contract_field_accounting_errors(
     overlap = matched_fields & missing_fields
     response_contract_minimum_met = bool(row.get("response_contract_minimum_met", False))
     response_contract_ok = bool(row.get("response_contract_ok", False))
+    request_playbook_present = bool(row.get("request_playbook_present", False))
+    response_playbook_grounded = bool(row.get("response_playbook_grounded", False))
     acceptance_status = str(row.get("acceptance_status", ""))
     if row_response_contract_fields and row_response_contract_fields != expected_fields:
         errors.append(
@@ -8969,8 +8971,24 @@ def _resource_response_contract_field_accounting_errors(
         )
     if response_contract_ok and not response_contract_minimum_met:
         errors.append("response_contract_ok requires response_contract_minimum_met")
+    if (
+        response_contract_ok
+        and request_playbook_present
+        and not response_playbook_grounded
+    ):
+        errors.append(
+            "response_contract_ok requires response_playbook_grounded when request_playbook_present"
+        )
     if acceptance_status.startswith("ACCEPTED_") and not response_contract_minimum_met:
         errors.append("accepted resource response requires response_contract_minimum_met")
+    if (
+        acceptance_status.startswith("ACCEPTED_")
+        and request_playbook_present
+        and not response_playbook_grounded
+    ):
+        errors.append(
+            "accepted resource response requires response_playbook_grounded when request_playbook_present"
+        )
     return tuple(errors)
 
 

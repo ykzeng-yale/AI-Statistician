@@ -813,6 +813,12 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         == payload["n_resource_response_ledger_rows"]
     )
     assert payload["n_resource_response_ledger_contract_ok"] == 0
+    assert (
+        payload["n_resource_response_ledger_request_playbook_present"]
+        == payload["n_resource_response_ledger_rows"]
+    )
+    assert payload["n_resource_response_ledger_playbook_grounded"] == 0
+    assert payload["n_resource_response_ledger_playbook_grounding_failures"] == 0
     assert payload["n_resource_response_ledger_request_mismatches"] == 0
     assert payload["n_resource_response_ledger_route_revision_recommended"] == 0
     assert payload["n_resource_response_ledger_rejected"] == 0

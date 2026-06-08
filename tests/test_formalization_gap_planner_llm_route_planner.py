@@ -501,6 +501,12 @@ def _write_resource_response_ledger(root: Path) -> Path:
                         },
                         "response_artifacts": ["paperclip://rank-uniformity"],
                         "source_refs": ["conformal_prediction_textbook"],
+                        "request_playbook_present": True,
+                        "response_playbook_grounded": True,
+                        "response_playbook_grounding_terms": [
+                            "rank_uniformity",
+                            "tie handling",
+                        ],
                         "route_evidence_nodes": [
                             {
                                 "node_id": "paperclip:rank_uniformity",
@@ -1171,6 +1177,11 @@ def test_llm_route_planner_stages_resource_response_content() -> None:
         "awaiting_request_ids": [],
         "absent_response_request_ids": [],
         "failed_contract_request_ids": [],
+        "request_playbook_present_count": 1,
+        "playbook_grounded_count": 1,
+        "playbook_grounding_failed_count": 0,
+        "playbook_grounded_request_ids": ["resource-request:rank_route"],
+        "playbook_grounding_failed_request_ids": [],
     }
     assert summary["response_acceptance_status_counts"] == {
         "ACCEPTED_WITH_ROUTE_REVISION": 1
@@ -1321,6 +1332,11 @@ def test_llm_route_planner_rejected_resource_response_is_status_not_repair_signa
         "awaiting_request_ids": [],
         "absent_response_request_ids": [],
         "failed_contract_request_ids": ["resource-request:rank_route"],
+        "request_playbook_present_count": 1,
+        "playbook_grounded_count": 1,
+        "playbook_grounding_failed_count": 0,
+        "playbook_grounded_request_ids": ["resource-request:rank_route"],
+        "playbook_grounding_failed_request_ids": [],
     }
     assert summary["response_acceptance_status_counts"] == {
         "REJECTED_MISSING_RESPONSE_CONTRACT_FIELDS": 1

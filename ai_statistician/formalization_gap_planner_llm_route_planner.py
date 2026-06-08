@@ -5751,11 +5751,26 @@ def _resource_response_admissibility_summary(
     awaiting_ids: list[str] = []
     absent_response_ids: list[str] = []
     failed_contract_ids: list[str] = []
+    playbook_present_ids: list[str] = []
+    playbook_grounded_ids: list[str] = []
+    playbook_grounding_failed_ids: list[str] = []
     for row in rows:
         request_id = str(row.get("resource_request_id", "")).strip()
         if not request_id:
             request_id = str(row.get("resource_response_ledger_id", "")).strip()
         status = str(row.get("acceptance_status", "")).strip()
+        request_playbook_present = _truthy(row.get("request_playbook_present"))
+        response_playbook_grounded = _truthy(row.get("response_playbook_grounded"))
+        if request_playbook_present:
+            playbook_present_ids.append(request_id)
+        if request_playbook_present and response_playbook_grounded:
+            playbook_grounded_ids.append(request_id)
+        if (
+            request_playbook_present
+            and _truthy(row.get("response_present"))
+            and not response_playbook_grounded
+        ):
+            playbook_grounding_failed_ids.append(request_id)
         if _resource_response_row_is_admissible_feedback(row):
             admissible_ids.append(request_id)
             continue
@@ -5784,6 +5799,15 @@ def _resource_response_admissibility_summary(
         "awaiting_request_ids": list(_unique_strings(awaiting_ids)[:20]),
         "absent_response_request_ids": list(_unique_strings(absent_response_ids)[:20]),
         "failed_contract_request_ids": list(_unique_strings(failed_contract_ids)[:20]),
+        "request_playbook_present_count": len(playbook_present_ids),
+        "playbook_grounded_count": len(playbook_grounded_ids),
+        "playbook_grounding_failed_count": len(playbook_grounding_failed_ids),
+        "playbook_grounded_request_ids": list(
+            _unique_strings(playbook_grounded_ids)[:20]
+        ),
+        "playbook_grounding_failed_request_ids": list(
+            _unique_strings(playbook_grounding_failed_ids)[:20]
+        ),
     }
 
 
@@ -6238,6 +6262,9 @@ def _compact_row(row: Mapping[str, Any]) -> dict[str, object]:
         "response_present",
         "response_contract_minimum_met",
         "response_contract_ok",
+        "request_playbook_present",
+        "response_playbook_grounded",
+        "response_playbook_grounding_terms",
         "response_summary",
         "response_payload",
         "response_artifacts",

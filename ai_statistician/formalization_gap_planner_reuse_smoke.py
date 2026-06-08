@@ -3247,6 +3247,18 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_response_contract_ok",
             0,
         ),
+        "n_resource_response_ledger_request_playbook_present": resource_response_ledger_payload.get(
+            "n_request_playbook_present",
+            0,
+        ),
+        "n_resource_response_ledger_playbook_grounded": resource_response_ledger_payload.get(
+            "n_response_playbook_grounded",
+            0,
+        ),
+        "n_resource_response_ledger_playbook_grounding_failures": resource_response_ledger_payload.get(
+            "n_response_playbook_grounding_failures",
+            0,
+        ),
         "n_resource_response_ledger_request_mismatches": resource_response_ledger_payload.get(
             "n_response_request_mismatches",
             0,
@@ -5173,6 +5185,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_resource_response_ledger_row_schema_valid')}/"
             f"{payload.get('n_resource_response_ledger_rows')} "
             f"awaiting={payload.get('n_resource_response_ledger_awaiting')} "
+            f"playbook_present={payload.get('n_resource_response_ledger_request_playbook_present')} "
+            f"playbook_grounded={payload.get('n_resource_response_ledger_playbook_grounded')} "
+            f"playbook_failures={payload.get('n_resource_response_ledger_playbook_grounding_failures')} "
             f"request_mismatch={payload.get('n_resource_response_ledger_request_mismatches')}"
         ),
         (

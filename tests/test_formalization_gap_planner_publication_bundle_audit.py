@@ -3924,6 +3924,125 @@ def test_publication_bundle_audit_rejects_stale_resource_response_contract_accou
     assert "response_contract_minimum_met" in "; ".join(accounting_check["errors"])
 
 
+def test_publication_bundle_audit_rejects_accepted_resource_response_without_playbook_grounding() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_publication_bundle_audit_resource_response_playbook_grounding"
+    )
+    input_json = root / "standalone_input.json"
+    plan_dir = root / "plan"
+    coverage_dir = root / "coverage"
+    action_queue_dir = root / "action_queue"
+    component_resource_registry_dir = root / "component_resource_registry"
+    action_resource_plan_dir = root / "action_resource_plan"
+    request_queue_dir = root / "request_queue"
+    response_ledger_dir = root / "response_ledger"
+    bundle_dir = root / "bundle"
+    audit_dir = root / "audit"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json.write_text(
+        json.dumps(
+            {
+                "target_prover_family": "lean4",
+                "library_snapshot_ref": "mathlib4:fixture",
+                "routes": [
+                    {
+                        "display_name": "rank route",
+                        "primitives": [
+                            {
+                                "primitive": "rank_uniformity",
+                                "coverage_status": "bridge_needed",
+                                "expected_premises": ["exchangeability"],
+                            }
+                        ],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    export_formalization_gap_planner_standalone_plan(input_json, plan_dir)
+    export_formalization_gap_planner_library_coverage_map(plan_dir, coverage_dir)
+    export_formalization_gap_planner_primitive_action_queue(
+        coverage_dir,
+        action_queue_dir,
+    )
+    export_formalization_gap_planner_component_resource_registry(
+        component_resource_registry_dir,
+    )
+    export_formalization_gap_planner_action_resource_plan(
+        action_queue_dir,
+        component_resource_registry_dir,
+        action_resource_plan_dir,
+    )
+    export_formalization_gap_planner_resource_request_queue(
+        action_resource_plan_dir,
+        request_queue_dir,
+    )
+    export_formalization_gap_planner_resource_response_ledger(
+        request_queue_dir,
+        response_ledger_dir,
+    )
+    export_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        formalization_gap_planner_resource_request_queue_dir=request_queue_dir,
+        formalization_gap_planner_resource_response_ledger_dir=response_ledger_dir,
+    )
+    ledger_jsonl = (
+        bundle_dir
+        / "artifacts"
+        / "formalization_gap_planner_resource_response_ledger"
+        / "formalization_gap_planner_resource_response_ledger.jsonl"
+    )
+    rows = [
+        json.loads(line)
+        for line in ledger_jsonl.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    response_contract_fields = list(rows[0]["response_contract_fields"])
+    assert response_contract_fields
+    rows[0]["response_present"] = True
+    rows[0]["response_contract_minimum_met"] = True
+    rows[0]["response_contract_ok"] = True
+    rows[0]["matched_response_contract_fields"] = [response_contract_fields[0]]
+    rows[0]["missing_response_contract_fields"] = response_contract_fields[1:]
+    rows[0]["acceptance_status"] = "ACCEPTED_RESOURCE_RESPONSE"
+    rows[0]["request_playbook_present"] = True
+    rows[0]["response_playbook_grounded"] = False
+    rows[0]["response_playbook_grounding_terms"] = []
+    ledger_jsonl.write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
+    payload = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        audit_dir,
+    )
+
+    failed_names = {row["check_name"] for row in payload["checks"] if not row["ok"]}
+    assert not payload["all_ok"]
+    assert payload["n_optional_resource_response_ledger_row_schema_valid"] == payload[
+        "n_optional_resource_response_ledger_row_schema_checked"
+    ]
+    assert (
+        "optional_resource_response_ledger_row_0_contract_field_accounting"
+        in failed_names
+    )
+    accounting_check = next(
+        row
+        for row in payload["checks"]
+        if row["check_name"]
+        == "optional_resource_response_ledger_row_0_contract_field_accounting"
+    )
+    accounting_errors = "; ".join(accounting_check["errors"])
+    assert "response_contract_ok requires response_playbook_grounded" in accounting_errors
+    assert "accepted resource response requires response_playbook_grounded" in (
+        accounting_errors
+    )
+
+
 def test_publication_bundle_audit_rejects_unaccepted_route_revision_ledger_feedback() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_publication_bundle_audit_overlay_ledger_provenance"
