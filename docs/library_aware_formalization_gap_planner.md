@@ -1019,7 +1019,9 @@ The current implementation composes four existing AI Statistician artifacts:
    (`READY_FOR_STANDALONE_REPLAY`,
    `PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION`, awaiting, and rejected) plus the
    blocker counts that explain why an accepted LLM route still needs another
-   literature/library/prover-feedback pass.
+   literature/library/prover-feedback pass. The publication-bundle audit
+   recomputes those readiness aggregates from packaged evaluation JSONL rows and
+   rejects bundles whose evaluation manifest silently drops or rewrites them.
    Accepted responses must also satisfy primitive-set coherence: selected
    primitives must appear in the standalone route and formal-realization DAG,
    and wrapper/bridge/source-port/new-theory delta primitives must have

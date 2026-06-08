@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections import Counter
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -346,6 +347,12 @@ def audit_formalization_gap_planner_publication_bundle(
     optional_realization_missing_by_route = (
         _evaluation_realization_missing_by_route_from_rows(optional_evaluation_rows)
     )
+    optional_evaluation_route_adoption_status_counts = (
+        _evaluation_route_adoption_status_counts_from_rows(optional_evaluation_rows)
+    )
+    optional_evaluation_route_adoption_blockers = (
+        _evaluation_route_adoption_blockers_from_rows(optional_evaluation_rows)
+    )
     payload: dict[str, object] = {
         "schema_version": FORMALIZATION_GAP_PLANNER_PUBLICATION_BUNDLE_AUDIT_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -525,6 +532,57 @@ def audit_formalization_gap_planner_publication_bundle(
             for check in checks
             if check.check_name == "optional_evaluation_realization_missing_manifest"
             and check.ok
+        ),
+        "n_optional_evaluation_route_adoption_row_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_evaluation_row_")
+            and check.check_name.endswith("_route_adoption_fields")
+        ),
+        "n_optional_evaluation_route_adoption_row_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_evaluation_row_")
+            and check.check_name.endswith("_route_adoption_fields")
+            and check.ok
+        ),
+        "n_optional_evaluation_route_adoption_manifest_checked": sum(
+            1
+            for check in checks
+            if check.check_name == "optional_evaluation_route_adoption_manifest"
+        ),
+        "n_optional_evaluation_route_adoption_manifest_valid": sum(
+            1
+            for check in checks
+            if check.check_name == "optional_evaluation_route_adoption_manifest"
+            and check.ok
+        ),
+        "n_optional_evaluation_rows_with_route_adoption_status": sum(
+            1
+            for row in optional_evaluation_rows
+            if str(row.get("llm_route_planner_route_adoption_status", "")).strip()
+        ),
+        "optional_evaluation_route_adoption_status_counts": dict(
+            optional_evaluation_route_adoption_status_counts
+        ),
+        "n_optional_evaluation_rows_ready_for_route_adoption": (
+            optional_evaluation_route_adoption_status_counts.get(
+                "READY_FOR_STANDALONE_REPLAY",
+                0,
+            )
+        ),
+        "n_optional_evaluation_rows_pending_refinement_before_route_adoption": (
+            optional_evaluation_route_adoption_status_counts.get(
+                "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION",
+                0,
+            )
+        ),
+        "n_optional_evaluation_route_adoption_blockers": sum(
+            len(_str_tuple(row.get("llm_route_planner_route_adoption_blockers", [])))
+            for row in optional_evaluation_rows
+        ),
+        "optional_evaluation_route_adoption_blockers": (
+            optional_evaluation_route_adoption_blockers
         ),
         "n_optional_evaluation_realization_missing_selected_formal_primitives": sum(
             len(_str_tuple(row.get("realization_missing_selected_formal_primitives", [])))
@@ -9959,6 +10017,10 @@ def _evaluation_optional_checks(
         manifest,
         rows,
     )
+    route_adoption_manifest_errors = _evaluation_route_adoption_manifest_errors(
+        manifest,
+        rows,
+    )
     checks.append(
         _check(
             "optional_evaluation_realization_missing_manifest",
@@ -9967,6 +10029,20 @@ def _evaluation_optional_checks(
             "; ".join(realization_manifest_errors) if realization_manifest_errors else "ok",
             not realization_manifest_errors,
             errors=realization_manifest_errors,
+        )
+    )
+    checks.append(
+        _check(
+            "optional_evaluation_route_adoption_manifest",
+            "optional_artifacts",
+            "evaluation manifest preserves LLM route-adoption readiness aggregates",
+            (
+                "; ".join(route_adoption_manifest_errors)
+                if route_adoption_manifest_errors
+                else "ok"
+            ),
+            not route_adoption_manifest_errors,
+            errors=route_adoption_manifest_errors,
         )
     )
     for idx, row in enumerate(rows):
@@ -9980,6 +10056,7 @@ def _evaluation_optional_checks(
             matched_truth,
         )
         realization_errors = _evaluation_realization_missing_row_errors(row)
+        route_adoption_errors = _evaluation_route_adoption_row_errors(row)
         checks.append(
             _check(
                 f"optional_evaluation_row_{idx}_schema_valid",
@@ -10020,6 +10097,20 @@ def _evaluation_optional_checks(
                 "; ".join(realization_errors) if realization_errors else "ok",
                 not realization_errors,
                 errors=realization_errors,
+            )
+        )
+        checks.append(
+            _check(
+                f"optional_evaluation_row_{idx}_route_adoption_fields",
+                "optional_artifacts",
+                "evaluation row preserves LLM route-adoption readiness fields",
+                (
+                    "; ".join(route_adoption_errors)
+                    if route_adoption_errors
+                    else "ok"
+                ),
+                not route_adoption_errors,
+                errors=route_adoption_errors,
             )
         )
     return checks
@@ -10066,6 +10157,45 @@ def _evaluation_realization_missing_row_errors(
         errors.append(
             "realization_coverage_complete is true but missing primitives are nonempty"
         )
+    return tuple(errors)
+
+
+def _evaluation_route_adoption_row_errors(
+    row: dict[str, Any],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    status_field = "llm_route_planner_route_adoption_status"
+    blockers_field = "llm_route_planner_route_adoption_blockers"
+    if status_field not in row:
+        errors.append(f"{status_field} missing")
+        status = ""
+    else:
+        status_value = row.get(status_field, "")
+        if not isinstance(status_value, str):
+            errors.append(f"{status_field} is not a string")
+        status = str(status_value).strip()
+    if blockers_field not in row:
+        errors.append(f"{blockers_field} missing")
+        blockers = tuple()
+    else:
+        blockers_value = row.get(blockers_field)
+        if not isinstance(blockers_value, (list, tuple, set)):
+            errors.append(f"{blockers_field} is not an array")
+        blockers = _str_tuple(blockers_value if blockers_value is not None else [])
+    valid_statuses = {
+        "READY_FOR_STANDALONE_REPLAY",
+        "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION",
+        "AWAITING_LLM_ROUTE_PLANNER_RESPONSE",
+        "REJECTED_LLM_ROUTE_PLAN",
+    }
+    if status and status not in valid_statuses:
+        errors.append(f"unknown llm route-adoption status: {status}")
+    if bool(row.get("llm_route_planner_trace_present", False)) and not status:
+        errors.append("LLM route-planner trace is present but route-adoption status is empty")
+    if status == "READY_FOR_STANDALONE_REPLAY" and blockers:
+        errors.append("ready route-adoption status must not carry blockers")
+    if status == "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION" and not blockers:
+        errors.append("pending route-adoption status must explain at least one blocker")
     return tuple(errors)
 
 
@@ -10130,6 +10260,115 @@ def _evaluation_realization_missing_manifest_errors(
     return tuple(errors)
 
 
+def _evaluation_route_adoption_manifest_errors(
+    manifest: dict[str, Any],
+    rows: list[dict[str, Any]],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    status_counts = _evaluation_route_adoption_status_counts_from_rows(rows)
+    expected_status_count = sum(status_counts.values())
+    expected_ready = status_counts.get("READY_FOR_STANDALONE_REPLAY", 0)
+    expected_pending = status_counts.get(
+        "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION",
+        0,
+    )
+    expected_awaiting = status_counts.get("AWAITING_LLM_ROUTE_PLANNER_RESPONSE", 0)
+    expected_rejected = status_counts.get("REJECTED_LLM_ROUTE_PLAN", 0)
+    expected_blocker_total = sum(
+        len(_str_tuple(row.get("llm_route_planner_route_adoption_blockers", [])))
+        for row in _dict_tuple(rows)
+    )
+    expected_blockers = set(_evaluation_route_adoption_blockers_from_rows(rows))
+    observed_status_count = int(
+        manifest.get("n_rows_with_llm_route_planner_route_adoption_status", -1) or 0
+    )
+    observed_ready = int(manifest.get("n_rows_ready_for_route_adoption", -1) or 0)
+    observed_pending = int(
+        manifest.get("n_rows_pending_refinement_before_route_adoption", -1) or 0
+    )
+    observed_awaiting = int(
+        manifest.get("n_rows_awaiting_llm_route_planner_response", -1) or 0
+    )
+    observed_rejected = int(manifest.get("n_rows_rejected_llm_route_plan", -1) or 0)
+    observed_blocker_total = int(manifest.get("n_llm_route_adoption_blockers", -1) or 0)
+    observed_blockers = set(_str_tuple(manifest.get("llm_route_adoption_blockers", [])))
+    observed_by_status = manifest.get("evaluation_by_llm_route_adoption_status", {})
+    observed_by_status = observed_by_status if isinstance(observed_by_status, dict) else {}
+    observed_status_keys = {
+        str(key)
+        for key, value in observed_by_status.items()
+        if isinstance(value, dict) and int(value.get("n_rows", 0) or 0) > 0
+    }
+    if observed_status_count != expected_status_count:
+        errors.append(
+            "n_rows_with_llm_route_planner_route_adoption_status mismatch: "
+            f"observed={observed_status_count} expected={expected_status_count}"
+        )
+    if observed_ready != expected_ready:
+        errors.append(
+            "n_rows_ready_for_route_adoption mismatch: "
+            f"observed={observed_ready} expected={expected_ready}"
+        )
+    if observed_pending != expected_pending:
+        errors.append(
+            "n_rows_pending_refinement_before_route_adoption mismatch: "
+            f"observed={observed_pending} expected={expected_pending}"
+        )
+    if observed_awaiting != expected_awaiting:
+        errors.append(
+            "n_rows_awaiting_llm_route_planner_response mismatch: "
+            f"observed={observed_awaiting} expected={expected_awaiting}"
+        )
+    if observed_rejected != expected_rejected:
+        errors.append(
+            "n_rows_rejected_llm_route_plan mismatch: "
+            f"observed={observed_rejected} expected={expected_rejected}"
+        )
+    if observed_blocker_total != expected_blocker_total:
+        errors.append(
+            "n_llm_route_adoption_blockers mismatch: "
+            f"observed={observed_blocker_total} expected={expected_blocker_total}"
+        )
+    if observed_blockers != expected_blockers:
+        errors.append(
+            "llm_route_adoption_blockers mismatch: "
+            f"observed={sorted(observed_blockers)} expected={sorted(expected_blockers)}"
+        )
+    if observed_status_keys != set(status_counts):
+        errors.append(
+            "evaluation_by_llm_route_adoption_status keys mismatch: "
+            f"observed={sorted(observed_status_keys)} expected={sorted(status_counts)}"
+        )
+    for status, expected_count in status_counts.items():
+        summary = observed_by_status.get(status, {})
+        if not isinstance(summary, dict):
+            errors.append(f"evaluation_by_llm_route_adoption_status[{status}] missing")
+            continue
+        observed_count = int(summary.get("n_rows", -1) or 0)
+        observed_status_blockers = int(
+            summary.get("n_route_adoption_blockers", -1) or 0
+        )
+        expected_status_blockers = sum(
+            len(_str_tuple(row.get("llm_route_planner_route_adoption_blockers", [])))
+            for row in _dict_tuple(rows)
+            if str(row.get("llm_route_planner_route_adoption_status", "")).strip()
+            == status
+        )
+        if observed_count != expected_count:
+            errors.append(
+                f"evaluation_by_llm_route_adoption_status[{status}].n_rows "
+                f"mismatch: observed={observed_count} expected={expected_count}"
+            )
+        if observed_status_blockers != expected_status_blockers:
+            errors.append(
+                "evaluation_by_llm_route_adoption_status"
+                f"[{status}].n_route_adoption_blockers mismatch: "
+                f"observed={observed_status_blockers} "
+                f"expected={expected_status_blockers}"
+            )
+    return tuple(errors)
+
+
 def _evaluation_realization_missing_selected_from_rows(
     rows: Any,
 ) -> tuple[str, ...]:
@@ -10137,6 +10376,26 @@ def _evaluation_realization_missing_selected_from_rows(
     for row in _dict_tuple(rows):
         values.extend(
             _str_tuple(row.get("realization_missing_selected_formal_primitives", []))
+        )
+    return tuple(dict.fromkeys(values))
+
+
+def _evaluation_route_adoption_status_counts_from_rows(rows: Any) -> Counter[str]:
+    return Counter(
+        status
+        for row in _dict_tuple(rows)
+        for status in [
+            str(row.get("llm_route_planner_route_adoption_status", "")).strip()
+        ]
+        if status
+    )
+
+
+def _evaluation_route_adoption_blockers_from_rows(rows: Any) -> tuple[str, ...]:
+    values: list[str] = []
+    for row in _dict_tuple(rows):
+        values.extend(
+            _str_tuple(row.get("llm_route_planner_route_adoption_blockers", []))
         )
     return tuple(dict.fromkeys(values))
 
@@ -12177,6 +12436,13 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Optional evaluation-row schema valid: {payload.get('n_optional_evaluation_row_schema_valid')}/{payload.get('n_optional_evaluation_row_schema_checked')}",
         f"- Optional evaluation realization-missing rows valid: {payload.get('n_optional_evaluation_realization_missing_row_valid')}/{payload.get('n_optional_evaluation_realization_missing_row_checked')}",
         f"- Optional evaluation realization-missing manifest valid: {payload.get('n_optional_evaluation_realization_missing_manifest_valid')}/{payload.get('n_optional_evaluation_realization_missing_manifest_checked')}",
+        f"- Optional evaluation route-adoption manifest valid: {payload.get('n_optional_evaluation_route_adoption_manifest_valid')}/{payload.get('n_optional_evaluation_route_adoption_manifest_checked')}",
+        (
+            "- Optional evaluation route-adoption ready/pending/blockers: "
+            f"{payload.get('n_optional_evaluation_rows_ready_for_route_adoption')}/"
+            f"{payload.get('n_optional_evaluation_rows_pending_refinement_before_route_adoption')}/"
+            f"{payload.get('n_optional_evaluation_route_adoption_blockers')}"
+        ),
         (
             "- Optional evaluation missing realization primitives: "
             f"selected={payload.get('optional_evaluation_realization_missing_selected_formal_primitives')} "

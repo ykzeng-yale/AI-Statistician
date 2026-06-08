@@ -537,15 +537,26 @@ def _fixture_evaluation_row() -> dict[str, object]:
         "realization_coverage_complete": False,
         "realization_missing_selected_formal_primitives": ["rank_uniformity"],
         "realization_missing_delta_alignment_primitives": ["rank_uniformity"],
-        "llm_route_planner_trace_present": False,
-        "llm_route_planner_row_id": "",
-        "llm_route_planner_provider": "",
-        "llm_route_planner_model": "",
-        "llm_route_planner_model_tier": "",
-        "llm_route_planner_acceptance_status": "",
-        "llm_route_planner_model_selection_rationale": "",
-        "llm_route_planner_has_generator_metadata": False,
-        "llm_route_planner_generator_metadata_keys": [],
+        "llm_route_planner_trace_present": True,
+        "llm_route_planner_row_id": "llm-route-row:evaluation-fixture",
+        "llm_route_planner_provider": "anthropic",
+        "llm_route_planner_model": "claude-sonnet-4-6",
+        "llm_route_planner_model_tier": "sonnet",
+        "llm_route_planner_route_adoption_status": (
+            "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+        ),
+        "llm_route_planner_route_adoption_blockers": [
+            "search_requests_pending_evidence",
+            "uncertainty_flags_require_review",
+        ],
+        "llm_route_planner_acceptance_status": (
+            "ACCEPTED_SOURCE_GROUNDED_ROUTE_PLAN"
+        ),
+        "llm_route_planner_model_selection_rationale": (
+            "auto selected Sonnet for evaluation fixture"
+        ),
+        "llm_route_planner_has_generator_metadata": True,
+        "llm_route_planner_generator_metadata_keys": ["retry_count"],
         "portable_schema_id": PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_ID,
         "proof_evidence_boundary_ok": True,
         "kernel_verified_ground_truth": False,
@@ -1155,6 +1166,26 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                 "realization_missing_primitives_by_route": (
                     evaluation_realization_missing_by_route
                 ),
+                "n_rows_with_llm_route_planner_route_adoption_status": 1,
+                "n_rows_ready_for_route_adoption": 0,
+                "n_rows_pending_refinement_before_route_adoption": 1,
+                "n_rows_awaiting_llm_route_planner_response": 0,
+                "n_rows_rejected_llm_route_plan": 0,
+                "n_llm_route_adoption_blockers": 2,
+                "llm_route_adoption_blockers": [
+                    "search_requests_pending_evidence",
+                    "uncertainty_flags_require_review",
+                ],
+                "evaluation_by_llm_route_adoption_status": {
+                    "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": {
+                        "n_rows": 1,
+                        "n_ok": 1,
+                        "n_matched_ground_truth": 1,
+                        "n_route_adoption_blockers": 2,
+                        "mean_route_recall": 1.0,
+                        "mean_delta_precision": 1.0,
+                    }
+                },
                 "bundled_ground_truth_filename": (
                     "formalization_gap_planner_evaluation_ground_truth.json"
                 ),
@@ -2353,6 +2384,29 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         audit_payload["n_optional_evaluation_realization_missing_manifest_valid"]
         == 1
     )
+    assert audit_payload["n_optional_evaluation_route_adoption_row_checked"] == 1
+    assert audit_payload["n_optional_evaluation_route_adoption_row_valid"] == 1
+    assert (
+        audit_payload["n_optional_evaluation_route_adoption_manifest_checked"]
+        == 1
+    )
+    assert audit_payload["n_optional_evaluation_route_adoption_manifest_valid"] == 1
+    assert audit_payload["n_optional_evaluation_rows_with_route_adoption_status"] == 1
+    assert audit_payload["optional_evaluation_route_adoption_status_counts"] == {
+        "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
+    }
+    assert audit_payload["n_optional_evaluation_rows_ready_for_route_adoption"] == 0
+    assert (
+        audit_payload[
+            "n_optional_evaluation_rows_pending_refinement_before_route_adoption"
+        ]
+        == 1
+    )
+    assert audit_payload["n_optional_evaluation_route_adoption_blockers"] == 2
+    assert audit_payload["optional_evaluation_route_adoption_blockers"] == (
+        "search_requests_pending_evidence",
+        "uncertainty_flags_require_review",
+    )
     assert (
         audit_payload[
             "n_optional_evaluation_realization_missing_selected_formal_primitives"
@@ -2411,6 +2465,16 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     )
     assert any(
         row["check_name"] == "optional_evaluation_realization_missing_manifest"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"] == "optional_evaluation_row_0_route_adoption_fields"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"] == "optional_evaluation_route_adoption_manifest"
         and row["ok"]
         for row in audit_payload["checks"]
     )
@@ -3261,6 +3325,46 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     assert (
         rejected_evaluation_payload[
             "n_optional_evaluation_realization_missing_manifest_valid"
+        ]
+        == 0
+    )
+    evaluation_manifest_path.write_text(
+        json.dumps(evaluation_manifest_payload, indent=2),
+        encoding="utf-8",
+    )
+
+    corrupted_route_adoption_manifest = json.loads(
+        json.dumps(evaluation_manifest_payload)
+    )
+    corrupted_route_adoption_manifest[
+        "n_rows_pending_refinement_before_route_adoption"
+    ] = 0
+    corrupted_route_adoption_manifest["n_llm_route_adoption_blockers"] = 0
+    corrupted_route_adoption_manifest["llm_route_adoption_blockers"] = []
+    corrupted_route_adoption_manifest["evaluation_by_llm_route_adoption_status"] = {}
+    evaluation_manifest_path.write_text(
+        json.dumps(corrupted_route_adoption_manifest, indent=2),
+        encoding="utf-8",
+    )
+    rejected_route_adoption_evaluation_payload = (
+        audit_formalization_gap_planner_publication_bundle(
+            bundle_dir,
+            root / "audit_rejects_evaluation_route_adoption_loss",
+        )
+    )
+    route_adoption_evaluation_failed_names = {
+        row["check_name"]
+        for row in rejected_route_adoption_evaluation_payload["checks"]
+        if not row["ok"]
+    }
+    assert not rejected_route_adoption_evaluation_payload["all_ok"]
+    assert (
+        "optional_evaluation_route_adoption_manifest"
+        in route_adoption_evaluation_failed_names
+    )
+    assert (
+        rejected_route_adoption_evaluation_payload[
+            "n_optional_evaluation_route_adoption_manifest_valid"
         ]
         == 0
     )
