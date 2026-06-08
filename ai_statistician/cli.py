@@ -3408,6 +3408,11 @@ def _formalization_gap_planner_publication_bundle(args: argparse.Namespace) -> i
         )
         if args.formalization_gap_planner_minimal_delta_audit_dir
         else None,
+        formalization_gap_planner_minimal_delta_audit_feedback_adapter_dir=Path(
+            args.formalization_gap_planner_minimal_delta_audit_feedback_adapter_dir
+        )
+        if args.formalization_gap_planner_minimal_delta_audit_feedback_adapter_dir
+        else None,
         formalization_gap_planner_source_grounding_audit_dir=Path(
             args.formalization_gap_planner_source_grounding_audit_dir
         )
@@ -8622,6 +8627,10 @@ def build_parser() -> argparse.ArgumentParser:
     formalization_gap_planner_publication_bundle.add_argument(
         "--formalization-gap-planner-minimal-delta-audit-dir",
         help="optional minimal-delta audit directory to copy into the bundle",
+    )
+    formalization_gap_planner_publication_bundle.add_argument(
+        "--formalization-gap-planner-minimal-delta-audit-feedback-adapter-dir",
+        help="optional minimal-delta audit feedback-adapter response directory to copy into the bundle",
     )
     formalization_gap_planner_publication_bundle.add_argument(
         "--formalization-gap-planner-source-grounding-audit-dir",

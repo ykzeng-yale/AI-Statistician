@@ -256,6 +256,13 @@ OPTIONAL_ARTIFACT_FILES = {
         "formalization_gap_planner_minimal_delta_decision_row.schema.json",
         "formalization_gap_planner_minimal_delta_audit.md",
     ),
+    "formalization_gap_planner_minimal_delta_audit_feedback_adapter": (
+        "formalization_gap_planner_minimal_delta_audit_feedback_adapter_manifest.json",
+        "formalization_gap_planner_refinement_evidence_responses.jsonl",
+        "formalization_gap_planner_minimal_delta_audit_feedback_responses.jsonl",
+        "formalization_gap_planner_refinement_tool_response.schema.json",
+        "formalization_gap_planner_minimal_delta_audit_feedback_adapter.md",
+    ),
     "formalization_gap_planner_source_grounding_audit": (
         "formalization_gap_planner_source_grounding_audit_manifest.json",
         "formalization_gap_planner_source_grounding_audit.jsonl",
@@ -411,6 +418,8 @@ def export_formalization_gap_planner_publication_bundle(
     formalization_gap_planner_resource_request_queue_dir: Path | None = None,
     formalization_gap_planner_resource_response_ledger_dir: Path | None = None,
     formalization_gap_planner_minimal_delta_audit_dir: Path | None = None,
+    formalization_gap_planner_minimal_delta_audit_feedback_adapter_dir: Path
+    | None = None,
     formalization_gap_planner_source_grounding_audit_dir: Path | None = None,
     formalization_gap_planner_refinement_queue_dir: Path | None = None,
     formalization_gap_planner_refinement_adapter_dir: Path | None = None,
@@ -956,6 +965,10 @@ def export_formalization_gap_planner_publication_bundle(
         (
             "formalization_gap_planner_minimal_delta_audit",
             formalization_gap_planner_minimal_delta_audit_dir,
+        ),
+        (
+            "formalization_gap_planner_minimal_delta_audit_feedback_adapter",
+            formalization_gap_planner_minimal_delta_audit_feedback_adapter_dir,
         ),
         (
             "formalization_gap_planner_source_grounding_audit",
@@ -2431,6 +2444,12 @@ def _reproduction_payload(
             "primary_output": "formalization_gap_planner_primitive_action_queue_manifest.json",
         },
         {
+            "entrypoint": "formalization-gap-planner-minimal-delta-audit",
+            "purpose": "audit AND/OR route-option costs and selected primitive deltas before repair feedback",
+            "required_input": "directory containing goal_conditioned_minimal_formalization_plan_manifest.json",
+            "primary_output": "formalization_gap_planner_minimal_delta_audit_manifest.json",
+        },
+        {
             "entrypoint": "formalization-gap-planner-action-resource-plan",
             "purpose": "join primitive formalization work orders to local-first resources, frontier tools, adapters, and resource contracts",
             "required_input": "primitive action-queue directory plus component_resource_registry directory from this bundle",
@@ -2501,6 +2520,12 @@ def _reproduction_payload(
             "purpose": "emit deterministic baseline responses for refinement work items",
             "required_input": "refinement queue directory plus optional benchmark ground truth",
             "primary_output": "formalization_gap_planner_refinement_adapter_manifest.json",
+        },
+        {
+            "entrypoint": "formalization-gap-planner-minimal-delta-audit-feedback",
+            "purpose": "merge failed minimal-delta audit decisions into route-revision refinement responses",
+            "required_input": "refinement queue directory, minimal-delta audit directory, and optional base response JSONL",
+            "primary_output": "formalization_gap_planner_minimal_delta_audit_feedback_adapter_manifest.json",
         },
         {
             "entrypoint": "formalization-gap-planner-local-literature-adapter",
@@ -2717,6 +2742,16 @@ def _reproduction_payload(
             ),
         },
         {
+            "name": "run_minimal_delta_audit",
+            "command": (
+                "python3 -m ai_statistician.cli "
+                "formalization-gap-planner-minimal-delta-audit "
+                "--goal-conditioned-minimal-formalization-plan-dir "
+                "<work_dir>/goal_conditioned_minimal_formalization_plan "
+                "--out <work_dir>/formalization_gap_planner_minimal_delta_audit"
+            ),
+        },
+        {
             "name": "export_action_resource_plan",
             "command": (
                 "python3 -m ai_statistician.cli "
@@ -2782,6 +2817,21 @@ def _reproduction_payload(
             ),
         },
         {
+            "name": "run_minimal_delta_audit_feedback",
+            "command": (
+                "python3 -m ai_statistician.cli "
+                "formalization-gap-planner-minimal-delta-audit-feedback "
+                "--formalization-gap-planner-refinement-queue-dir "
+                "<work_dir>/formalization_gap_planner_refinement_queue "
+                "--formalization-gap-planner-minimal-delta-audit-dir "
+                "<work_dir>/formalization_gap_planner_minimal_delta_audit "
+                "--base-response-jsonl "
+                "<work_dir>/formalization_gap_planner_refinement_adapter/"
+                "formalization_gap_planner_refinement_evidence_responses.jsonl "
+                "--out <work_dir>/formalization_gap_planner_minimal_delta_audit_feedback_adapter"
+            ),
+        },
+        {
             "name": "run_local_literature_adapter",
             "command": (
                 "python3 -m ai_statistician.cli "
@@ -2789,7 +2839,7 @@ def _reproduction_payload(
                 "--formalization-gap-planner-refinement-queue-dir "
                 "<work_dir>/formalization_gap_planner_refinement_queue "
                 "--base-response-jsonl "
-                "<work_dir>/formalization_gap_planner_refinement_adapter/"
+                "<work_dir>/formalization_gap_planner_minimal_delta_audit_feedback_adapter/"
                 "formalization_gap_planner_refinement_evidence_responses.jsonl "
                 "--literature-root <local-paper-or-text-corpus-root> "
                 "--out <work_dir>/formalization_gap_planner_local_literature_adapter"

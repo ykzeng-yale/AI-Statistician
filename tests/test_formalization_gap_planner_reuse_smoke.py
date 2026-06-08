@@ -264,7 +264,7 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
 
     assert payload["all_ok"]
     assert payload["component_name"] == FORMALIZATION_GAP_PLANNER_REUSE_SMOKE_COMPONENT
-    assert payload["n_stages"] == 34
+    assert payload["n_stages"] == 35
     assert payload["n_failed"] == 0
     assert payload["n_proof_boundary_ok"] == payload["n_stages"]
     assert payload["target_prover_family"] == "rocq"
@@ -1189,6 +1189,11 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         == payload["n_minimal_delta_decision_rows"]
     )
     assert payload["n_minimal_delta_decision_row_schema_invalid"] == 0
+    assert (
+        payload["n_minimal_delta_audit_feedback_merged_response_schema_valid"]
+        == payload["n_minimal_delta_audit_feedback_merged_responses"]
+    )
+    assert payload["n_minimal_delta_audit_feedback_merged_response_schema_invalid"] == 0
     assert payload["n_source_grounding_unaccounted"] == 0
     assert payload["n_source_grounding_source_backed"] > 0
     assert payload["n_source_grounding_row_schema_valid"] == payload["n_source_grounding_rows"]
@@ -1390,6 +1395,7 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         "formalization_gap_planner_resource_response_ledger",
         "formalization_gap_planner_refinement_queue",
         "formalization_gap_planner_refinement_adapter_responses",
+        "formalization_gap_planner_minimal_delta_audit_feedback_adapter",
         "formalization_gap_planner_local_literature_adapter",
         "formalization_gap_planner_local_formal_source_adapter",
         "formalization_gap_planner_local_proof_state_adapter",

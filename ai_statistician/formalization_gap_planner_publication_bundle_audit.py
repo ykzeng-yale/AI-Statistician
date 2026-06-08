@@ -228,6 +228,7 @@ REQUIRED_REPRODUCTION_ENTRYPOINTS = (
     "formalization-gap-planner-portable-plan-audit",
     "formalization-gap-planner-library-coverage-map",
     "formalization-gap-planner-primitive-action-queue",
+    "formalization-gap-planner-minimal-delta-audit",
     "formalization-gap-planner-action-resource-plan",
     "formalization-gap-planner-resource-request-queue",
     "formalization-gap-planner-resource-response-ledger",
@@ -240,6 +241,7 @@ REQUIRED_REPRODUCTION_ENTRYPOINTS = (
     "formalization-gap-planner-prover-adapter-contract",
     "formalization-gap-planner-refinement-queue",
     "formalization-gap-planner-refinement-adapter-responses",
+    "formalization-gap-planner-minimal-delta-audit-feedback",
     "formalization-gap-planner-local-literature-adapter",
     "formalization-gap-planner-local-formal-source-adapter",
     "formalization-gap-planner-local-proof-state-adapter",
@@ -271,6 +273,7 @@ REQUIRED_REPRODUCTION_COMMANDS = {
     "export_primitive_action_queue": (
         "formalization-gap-planner-primitive-action-queue"
     ),
+    "run_minimal_delta_audit": "formalization-gap-planner-minimal-delta-audit",
     "export_action_resource_plan": "formalization-gap-planner-action-resource-plan",
     "export_resource_request_queue": (
         "formalization-gap-planner-resource-request-queue"
@@ -282,6 +285,9 @@ REQUIRED_REPRODUCTION_COMMANDS = {
     "run_refinement_queue": "formalization-gap-planner-refinement-queue",
     "run_refinement_adapter_responses": (
         "formalization-gap-planner-refinement-adapter-responses"
+    ),
+    "run_minimal_delta_audit_feedback": (
+        "formalization-gap-planner-minimal-delta-audit-feedback"
     ),
     "run_local_literature_adapter": "formalization-gap-planner-local-literature-adapter",
     "run_local_formal_source_adapter": (
@@ -728,6 +734,23 @@ def audit_formalization_gap_planner_publication_bundle(
             1
             for check in checks
             if check.check_name.startswith("optional_refinement_adapter_response_")
+            and check.check_name.endswith("_schema_valid")
+            and check.ok
+        ),
+        "n_optional_minimal_delta_audit_feedback_response_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith(
+                "optional_minimal_delta_audit_feedback_response_"
+            )
+            and check.check_name.endswith("_schema_valid")
+        ),
+        "n_optional_minimal_delta_audit_feedback_response_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith(
+                "optional_minimal_delta_audit_feedback_response_"
+            )
             and check.check_name.endswith("_schema_valid")
             and check.ok
         ),
@@ -3983,6 +4006,7 @@ def _reproduction_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublic
     refinement_command_names = {
         "run_refinement_queue",
         "run_refinement_adapter_responses",
+        "run_minimal_delta_audit_feedback",
         "run_refinement_evidence",
         "run_route_revision_overlay",
         "run_route_stability_audit",
@@ -4147,6 +4171,16 @@ def _reproduction_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublic
             in commands.get("export_resource_response_ledger", ""),
         ),
         _check(
+            "reproduction_minimal_delta_audit_command",
+            "reproduction",
+            "minimal-delta audit command consumes the portable planner output",
+            commands.get("run_minimal_delta_audit", ""),
+            "formalization-gap-planner-minimal-delta-audit"
+            in commands.get("run_minimal_delta_audit", "")
+            and "goal_conditioned_minimal_formalization_plan"
+            in commands.get("run_minimal_delta_audit", ""),
+        ),
+        _check(
             "reproduction_route_revision_overlay_consumes_resource_response_ledger",
             "reproduction",
             "route-revision overlay command consumes validated resource-response ledger feedback",
@@ -4223,12 +4257,26 @@ def _reproduction_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublic
             in commands.get("run_feedback_llm_route_planner", ""),
         ),
         _check(
+            "reproduction_minimal_delta_audit_feedback_command",
+            "reproduction",
+            "minimal-delta audit feedback consumes audit decisions and baseline responses before local adapters",
+            commands.get("run_minimal_delta_audit_feedback", ""),
+            "formalization-gap-planner-minimal-delta-audit-feedback"
+            in commands.get("run_minimal_delta_audit_feedback", "")
+            and "formalization_gap_planner_minimal_delta_audit"
+            in commands.get("run_minimal_delta_audit_feedback", "")
+            and "formalization_gap_planner_refinement_adapter/"
+            in commands.get("run_minimal_delta_audit_feedback", "")
+            and "formalization_gap_planner_refinement_evidence_responses.jsonl"
+            in commands.get("run_minimal_delta_audit_feedback", ""),
+        ),
+        _check(
             "reproduction_local_adapter_chain_commands",
             "reproduction",
             ",".join(sorted(local_adapter_command_names)),
             ",".join(sorted(command_names.intersection(local_adapter_command_names))),
             local_adapter_command_names.issubset(command_names)
-            and "formalization_gap_planner_refinement_adapter/"
+            and "formalization_gap_planner_minimal_delta_audit_feedback_adapter/"
             in commands.get("run_local_literature_adapter", "")
             and "formalization_gap_planner_local_literature_adapter/"
             in commands.get("run_local_formal_source_adapter", "")
@@ -4528,6 +4576,13 @@ def _optional_artifact_checks(
             checks.extend(_source_grounding_audit_optional_checks(bundle_dir))
         if artifact_name == "formalization_gap_planner_refinement_adapter":
             checks.extend(_refinement_adapter_optional_checks(bundle_dir))
+        if (
+            artifact_name
+            == "formalization_gap_planner_minimal_delta_audit_feedback_adapter"
+        ):
+            checks.extend(
+                _minimal_delta_audit_feedback_adapter_optional_checks(bundle_dir)
+            )
         if artifact_name in {
             "formalization_gap_planner_local_literature_adapter",
             "formalization_gap_planner_local_formal_source_adapter",
@@ -9113,6 +9168,133 @@ def _local_adapter_optional_checks(
                     f"optional_local_adapter_response_{slug}_{scope}_row_{idx}_schema_valid",
                     "optional_artifacts",
                     "local adapter response row satisfies published refinement-tool schema",
+                    "; ".join(schema_errors) if schema_errors else "ok",
+                    not schema_errors,
+                    errors=schema_errors,
+                )
+            )
+    return checks
+
+
+def _minimal_delta_audit_feedback_adapter_optional_checks(
+    bundle_dir: Path,
+) -> list[FormalizationGapPlannerPublicationBundleAuditCheck]:
+    artifact_dir = (
+        bundle_dir
+        / "artifacts"
+        / "formalization_gap_planner_minimal_delta_audit_feedback_adapter"
+    )
+    manifest_path = (
+        artifact_dir
+        / "formalization_gap_planner_minimal_delta_audit_feedback_adapter_manifest.json"
+    )
+    generated_rows_jsonl_path = (
+        artifact_dir
+        / "formalization_gap_planner_minimal_delta_audit_feedback_responses.jsonl"
+    )
+    merged_rows_jsonl_path = (
+        artifact_dir / "formalization_gap_planner_refinement_evidence_responses.jsonl"
+    )
+    response_schema_path = (
+        artifact_dir / "formalization_gap_planner_refinement_tool_response.schema.json"
+    )
+    manifest = _read_json_no_error(manifest_path)
+    response_schema = _read_json_no_error(response_schema_path)
+    generated_rows, generated_row_errors = _read_jsonl_dict_rows_no_error(
+        generated_rows_jsonl_path
+    )
+    merged_rows, merged_row_errors = _read_jsonl_dict_rows_no_error(
+        merged_rows_jsonl_path
+    )
+    checks = [
+        _check(
+            "optional_minimal_delta_audit_feedback_response_schema_file",
+            "optional_artifacts",
+            "optional minimal-delta audit feedback response schema exists",
+            str(response_schema_path.exists()),
+            response_schema_path.exists(),
+        ),
+        _check(
+            "optional_minimal_delta_audit_feedback_response_schema_id",
+            "optional_artifacts",
+            "urn:ai-statistician:schemas:formalization-gap-planner-refinement-tool-response:1",
+            str(response_schema.get("$id", "")),
+            response_schema.get("$id")
+            == "urn:ai-statistician:schemas:formalization-gap-planner-refinement-tool-response:1",
+        ),
+        _check(
+            "optional_minimal_delta_audit_feedback_generated_manifest_schema_valid_count",
+            "optional_artifacts",
+            "minimal-delta audit feedback manifest generated response schema-valid count matches generated response count",
+            (
+                f"{manifest.get('n_response_schema_valid', 0)}/"
+                f"{manifest.get('n_generated_feedback_responses', 0)}; "
+                f"invalid={manifest.get('n_response_schema_invalid', 0)}"
+            ),
+            int(manifest.get("n_response_schema_valid", 0) or 0)
+            == int(manifest.get("n_generated_feedback_responses", 0) or 0)
+            and int(manifest.get("n_response_schema_invalid", 0) or 0) == 0,
+        ),
+        _check(
+            "optional_minimal_delta_audit_feedback_merged_manifest_schema_valid_count",
+            "optional_artifacts",
+            "minimal-delta audit feedback manifest merged response schema-valid count matches merged response count",
+            (
+                f"{manifest.get('n_merged_response_schema_valid', 0)}/"
+                f"{manifest.get('n_merged_responses', 0)}; "
+                f"invalid={manifest.get('n_merged_response_schema_invalid', 0)}"
+            ),
+            int(manifest.get("n_merged_response_schema_valid", 0) or 0)
+            == int(manifest.get("n_merged_responses", 0) or 0)
+            and int(manifest.get("n_merged_response_schema_invalid", 0) or 0) == 0,
+        ),
+        _check(
+            "optional_minimal_delta_audit_feedback_generated_jsonl_parse",
+            "optional_artifacts",
+            "minimal-delta audit feedback generated response JSONL parses into object rows",
+            "; ".join(generated_row_errors)
+            if generated_row_errors
+            else f"rows={len(generated_rows)}",
+            not generated_row_errors,
+            errors=generated_row_errors,
+        ),
+        _check(
+            "optional_minimal_delta_audit_feedback_generated_jsonl_row_count",
+            "optional_artifacts",
+            "minimal-delta audit feedback generated response JSONL rows match manifest generated response count",
+            (
+                f"jsonl={len(generated_rows)} "
+                f"manifest={manifest.get('n_generated_feedback_responses', 0)}"
+            ),
+            len(generated_rows)
+            == int(manifest.get("n_generated_feedback_responses", 0) or 0),
+        ),
+        _check(
+            "optional_minimal_delta_audit_feedback_merged_jsonl_parse",
+            "optional_artifacts",
+            "minimal-delta audit feedback merged response JSONL parses into object rows",
+            "; ".join(merged_row_errors)
+            if merged_row_errors
+            else f"rows={len(merged_rows)}",
+            not merged_row_errors,
+            errors=merged_row_errors,
+        ),
+        _check(
+            "optional_minimal_delta_audit_feedback_merged_jsonl_row_count",
+            "optional_artifacts",
+            "minimal-delta audit feedback merged response JSONL rows match manifest merged response count",
+            f"jsonl={len(merged_rows)} manifest={manifest.get('n_merged_responses', 0)}",
+            len(merged_rows) == int(manifest.get("n_merged_responses", 0) or 0),
+        ),
+    ]
+    for scope, rows in (("generated", generated_rows), ("merged", merged_rows)):
+        for idx, row in enumerate(rows):
+            schema_errors = validate_refinement_tool_response_row(row)
+            checks.append(
+                _check(
+                    f"optional_minimal_delta_audit_feedback_response_{scope}_row_{idx}_schema_valid",
+                    "optional_artifacts",
+                    "minimal-delta audit feedback response row satisfies published refinement-tool schema",
                     "; ".join(schema_errors) if schema_errors else "ok",
                     not schema_errors,
                     errors=schema_errors,

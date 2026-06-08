@@ -67,6 +67,9 @@ from .formalization_gap_planner_cross_prover_matrix_audit import (
 from .formalization_gap_planner_minimal_delta_audit import (
     audit_formalization_gap_planner_minimal_delta,
 )
+from .formalization_gap_planner_minimal_delta_audit_feedback_adapter import (
+    export_formalization_gap_planner_minimal_delta_audit_feedback_responses,
+)
 from .formalization_gap_planner_source_grounding_audit import (
     audit_formalization_gap_planner_source_grounding,
 )
@@ -464,6 +467,21 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_response_schema_valid",
         "n_response_schema_invalid",
     ),
+    "formalization_gap_planner_minimal_delta_audit_feedback_adapter": (
+        "n_queue_rows",
+        "n_route_revision_rows",
+        "n_minimal_delta_decision_rows",
+        "n_failed_minimal_delta_decision_rows",
+        "n_generated_feedback_responses",
+        "n_merged_responses",
+        "n_matched_route_revision_rows",
+        "n_unmatched_route_revision_rows",
+        "n_route_revision_recommended",
+        "n_response_schema_valid",
+        "n_response_schema_invalid",
+        "n_merged_response_schema_valid",
+        "n_merged_response_schema_invalid",
+    ),
     "formalization_gap_planner_local_literature_adapter": (
         "n_queue_rows",
         "n_literature_discovery_rows",
@@ -795,6 +813,9 @@ def run_formalization_gap_planner_reuse_smoke(
     )
     refinement_queue_dir = out_dir / "formalization_gap_planner_refinement_queue"
     refinement_adapter_dir = out_dir / "formalization_gap_planner_refinement_adapter"
+    minimal_delta_audit_feedback_adapter_dir = (
+        out_dir / "formalization_gap_planner_minimal_delta_audit_feedback_adapter"
+    )
     local_literature_adapter_dir = (
         out_dir / "formalization_gap_planner_local_literature_adapter"
     )
@@ -973,12 +994,24 @@ def run_formalization_gap_planner_reuse_smoke(
         refinement_adapter_dir
         / "formalization_gap_planner_refinement_evidence_responses.jsonl"
     )
+    minimal_delta_audit_feedback_adapter_payload = (
+        export_formalization_gap_planner_minimal_delta_audit_feedback_responses(
+            refinement_queue_dir,
+            minimal_delta_audit_dir,
+            minimal_delta_audit_feedback_adapter_dir,
+            base_response_jsonl=refinement_response_jsonl,
+        )
+    )
+    minimal_delta_audit_feedback_response_jsonl = (
+        minimal_delta_audit_feedback_adapter_dir
+        / "formalization_gap_planner_refinement_evidence_responses.jsonl"
+    )
     local_literature_adapter_payload = (
         export_formalization_gap_planner_local_literature_adapter_responses(
             refinement_queue_dir,
             local_literature_adapter_dir,
             literature_roots=(paper_library_dir,) if paper_library_dir else tuple(),
-            base_response_jsonl=refinement_response_jsonl,
+            base_response_jsonl=minimal_delta_audit_feedback_response_jsonl,
         )
     )
     local_literature_response_jsonl = (
@@ -1135,6 +1168,9 @@ def run_formalization_gap_planner_reuse_smoke(
         formalization_gap_planner_resource_request_queue_dir=resource_request_queue_dir,
         formalization_gap_planner_resource_response_ledger_dir=resource_response_ledger_dir,
         formalization_gap_planner_minimal_delta_audit_dir=minimal_delta_audit_dir,
+        formalization_gap_planner_minimal_delta_audit_feedback_adapter_dir=(
+            minimal_delta_audit_feedback_adapter_dir
+        ),
         formalization_gap_planner_source_grounding_audit_dir=source_grounding_audit_dir,
         formalization_gap_planner_evaluation_dir=evaluation_dir,
         formalization_gap_planner_refinement_queue_dir=refinement_queue_dir,
@@ -1291,6 +1327,13 @@ def run_formalization_gap_planner_reuse_smoke(
             refinement_adapter_dir
             / "formalization_gap_planner_refinement_adapter_manifest.json",
             refinement_adapter_payload,
+        ),
+        _stage_row(
+            "formalization_gap_planner_minimal_delta_audit_feedback_adapter",
+            minimal_delta_audit_feedback_adapter_dir,
+            minimal_delta_audit_feedback_adapter_dir
+            / "formalization_gap_planner_minimal_delta_audit_feedback_adapter_manifest.json",
+            minimal_delta_audit_feedback_adapter_payload,
         ),
         _stage_row(
             "formalization_gap_planner_local_literature_adapter",
@@ -2678,6 +2721,14 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_optional_refinement_adapter_response_schema_valid",
             0,
         ),
+        "n_publication_bundle_optional_minimal_delta_audit_feedback_response_schema_checked": publication_bundle_audit_payload.get(
+            "n_optional_minimal_delta_audit_feedback_response_schema_checked",
+            0,
+        ),
+        "n_publication_bundle_optional_minimal_delta_audit_feedback_response_schema_valid": publication_bundle_audit_payload.get(
+            "n_optional_minimal_delta_audit_feedback_response_schema_valid",
+            0,
+        ),
         "n_publication_bundle_optional_local_adapter_response_schema_checked": publication_bundle_audit_payload.get(
             "n_optional_local_adapter_response_schema_checked",
             0,
@@ -3204,6 +3255,39 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_refinement_adapter_response_schema_invalid": refinement_adapter_payload.get(
             "n_response_schema_invalid",
             0,
+        ),
+        "n_minimal_delta_audit_feedback_generated_responses": (
+            minimal_delta_audit_feedback_adapter_payload.get(
+                "n_generated_feedback_responses",
+                0,
+            )
+        ),
+        "n_minimal_delta_audit_feedback_merged_responses": (
+            minimal_delta_audit_feedback_adapter_payload.get("n_merged_responses", 0)
+        ),
+        "n_minimal_delta_audit_feedback_response_schema_valid": (
+            minimal_delta_audit_feedback_adapter_payload.get(
+                "n_response_schema_valid",
+                0,
+            )
+        ),
+        "n_minimal_delta_audit_feedback_response_schema_invalid": (
+            minimal_delta_audit_feedback_adapter_payload.get(
+                "n_response_schema_invalid",
+                0,
+            )
+        ),
+        "n_minimal_delta_audit_feedback_merged_response_schema_valid": (
+            minimal_delta_audit_feedback_adapter_payload.get(
+                "n_merged_response_schema_valid",
+                0,
+            )
+        ),
+        "n_minimal_delta_audit_feedback_merged_response_schema_invalid": (
+            minimal_delta_audit_feedback_adapter_payload.get(
+                "n_merged_response_schema_invalid",
+                0,
+            )
         ),
         "n_local_literature_responses": local_literature_adapter_payload.get(
             "n_local_literature_responses",
@@ -4247,6 +4331,26 @@ def _artifact_paths(out_dir: Path) -> dict[str, str]:
             / "formalization_gap_planner_refinement_adapter"
             / "formalization_gap_planner_refinement_tool_response.schema.json"
         ),
+        "minimal_delta_audit_feedback_adapter_manifest": str(
+            out_dir
+            / "formalization_gap_planner_minimal_delta_audit_feedback_adapter"
+            / "formalization_gap_planner_minimal_delta_audit_feedback_adapter_manifest.json"
+        ),
+        "minimal_delta_audit_feedback_responses_jsonl": str(
+            out_dir
+            / "formalization_gap_planner_minimal_delta_audit_feedback_adapter"
+            / "formalization_gap_planner_minimal_delta_audit_feedback_responses.jsonl"
+        ),
+        "minimal_delta_audit_feedback_merged_responses_jsonl": str(
+            out_dir
+            / "formalization_gap_planner_minimal_delta_audit_feedback_adapter"
+            / "formalization_gap_planner_refinement_evidence_responses.jsonl"
+        ),
+        "minimal_delta_audit_feedback_response_schema": str(
+            out_dir
+            / "formalization_gap_planner_minimal_delta_audit_feedback_adapter"
+            / "formalization_gap_planner_refinement_tool_response.schema.json"
+        ),
         "local_literature_adapter_manifest": str(
             out_dir
             / "formalization_gap_planner_local_literature_adapter"
@@ -4982,6 +5086,12 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"- Minimal-delta decision schema valid: "
             f"{payload.get('n_minimal_delta_decision_row_schema_valid')}/"
             f"{payload.get('n_minimal_delta_decision_rows')}"
+        ),
+        (
+            f"- Minimal-delta audit feedback generated/merged/schema-valid: "
+            f"{payload.get('n_minimal_delta_audit_feedback_generated_responses')}/"
+            f"{payload.get('n_minimal_delta_audit_feedback_merged_responses')}/"
+            f"{payload.get('n_minimal_delta_audit_feedback_merged_response_schema_valid')}"
         ),
         f"- Source-grounding unaccounted: {payload.get('n_source_grounding_unaccounted')}",
         (

@@ -2469,6 +2469,11 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         for row in reproduction_payload["entrypoints"]
     )
     assert any(
+        row["entrypoint"]
+        == "formalization-gap-planner-minimal-delta-audit-feedback"
+        for row in reproduction_payload["entrypoints"]
+    )
+    assert any(
         row["entrypoint"] == "formalization-gap-planner-local-formal-source-adapter"
         for row in reproduction_payload["entrypoints"]
     )
@@ -2510,6 +2515,15 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     ]
     assert "formalization-gap-planner-prover-adapter-feedback" in command_by_name[
         "run_prover_adapter_feedback"
+    ]
+    assert "formalization-gap-planner-minimal-delta-audit" in command_by_name[
+        "run_minimal_delta_audit"
+    ]
+    assert "formalization-gap-planner-minimal-delta-audit-feedback" in command_by_name[
+        "run_minimal_delta_audit_feedback"
+    ]
+    assert "formalization_gap_planner_minimal_delta_audit_feedback_adapter/" in command_by_name[
+        "run_local_literature_adapter"
     ]
     assert "formalization_gap_planner_local_proof_state_adapter/" in command_by_name[
         "run_prover_adapter_feedback"
