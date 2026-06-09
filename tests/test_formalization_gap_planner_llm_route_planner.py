@@ -2446,7 +2446,7 @@ def test_llm_route_planner_stages_pending_resource_request_queue() -> None:
     ]
 
 
-def test_llm_route_planner_cli_stages_resource_request_queue() -> None:
+def test_llm_route_planner_cli_stages_resource_request_queue(capsys) -> None:
     root = Path("runs/test_formalization_gap_planner_llm_route_planner_cli_request_queue")
     out_dir = root / "llm_route_planner"
     shutil.rmtree(root, ignore_errors=True)
@@ -2467,6 +2467,8 @@ def test_llm_route_planner_cli_stages_resource_request_queue() -> None:
     )
 
     assert code == 0
+    stdout = capsys.readouterr().out
+    assert "preflight_blocks=0" in stdout
     manifest = json.loads(
         (
             out_dir / "formalization_gap_planner_llm_route_planner_manifest.json"

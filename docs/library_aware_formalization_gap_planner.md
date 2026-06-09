@@ -129,8 +129,10 @@ payload counters, and row schema IDs. That preflight checks the reusable
 payload contract and proof-evidence boundary; request-bound mode strengthens it
 to route-planning consistency against the staged request, but it still does not
 prove kernel verification. The public planner path records
-`*_provider_execution_mode` and live-call counters so staged packets are
-distinguishable from paid provider calls. For live
+`*_provider_execution_mode`, live-call counters, and generation preflight block
+counts/errors so staged packets are distinguishable from paid provider calls
+and schema/model-tier-invalid requests are visible before any live Claude call.
+For live
 AI Statistician development, the default LLM runtime is Anthropic Claude API:
 Sonnet 4.6 for theorem understanding, route planning, theory repair, and
 formalizer work; Haiku 4.5 for cheaper structured helper tasks such as intake,

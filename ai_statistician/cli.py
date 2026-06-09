@@ -2503,6 +2503,7 @@ def _formalization_gap_planner_llm_route_planner(args: argparse.Namespace) -> in
         f"accepted={payload['n_accepted_route_plans']} "
         f"awaiting={payload['n_awaiting_llm_response']} "
         f"search_requests={payload['n_search_requests']} "
+        f"preflight_blocks={payload['n_generation_preflight_blocked']} "
         f"rejected={payload['n_rejected']} "
         f"all_ok={payload['all_ok']}"
     )
