@@ -487,7 +487,11 @@ and that matched plus missing response fields exactly account for that
 resource request's response contract. Ledger rows also retain the request
 `dispatch_spec` and structured `candidate_declaration_rows`, so response
 provenance still names the adapter surface and formal-declaration target after
-the original request packet has been consumed. Present responses that echo the
+the original request packet has been consumed. They also retain the queued
+`resource_contract_ids`, `stop_conditions`, and compact `quality_controls`, so
+downstream route-revision overlays can preserve bounded tool policy from
+asynchronous resource feedback without reopening the original request queue.
+Present responses that echo the
 wrong resource, expected artifact, dispatch spec, or declaration provenance are
 rejected before they can become accepted planner feedback. When supplied to the
 route-revision overlay, accepted ledger rows with actionable feedback

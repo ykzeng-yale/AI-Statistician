@@ -667,6 +667,19 @@ def test_route_revision_overlay_applies_resource_response_ledger_feedback() -> N
                         "request_phase": "proof_state_feedback",
                         "component_ids": ["prover_feedback_loop"],
                         "resource_id": "lean_lsp_mcp",
+                        "resource_contract_ids": ["lean_lsp:proof_state_feedback"],
+                        "stop_conditions": [
+                            "residual goals or diagnostics identify route repair"
+                        ],
+                        "quality_controls": {
+                            "resource_contract_ids": ["lean_lsp:proof_state_feedback"],
+                            "response_validation_signals": [
+                                "residual_goals_or_diagnostics_present"
+                            ],
+                            "stop_conditions": [
+                                "residual goals or diagnostics identify route repair"
+                            ],
+                        },
                         "expected_response_artifact": "prover_feedback",
                         "dispatch_spec": {
                             "dispatch_kind": "frontier_mcp_or_cli",
@@ -771,11 +784,20 @@ def test_route_revision_overlay_applies_resource_response_ledger_feedback() -> N
     }
     assert overlay_row["resource_response_awaiting_request_ids"] == ()
     assert overlay_row["resource_response_rejected_request_ids"] == ()
+    assert overlay_row["quality_controls"]["resource_contract_ids"] == (
+        "lean_lsp:proof_state_feedback",
+    )
+    assert overlay_row["quality_controls"]["response_validation_signals"] == (
+        "residual_goals_or_diagnostics_present",
+    )
     assert overlay_row["applied_resource_response_traces"]
     trace = overlay_row["applied_resource_response_traces"][0]
     assert trace["resource_response_ledger_id"] == "ledger:rank_uniformity"
     assert trace["resource_request_id"] == "request:rank_uniformity"
     assert trace["resource_id"] == "lean_lsp_mcp"
+    assert trace["quality_controls"]["resource_contract_ids"] == (
+        "lean_lsp:proof_state_feedback",
+    )
     assert trace["dispatch_spec"]["adapter_surface"] == "target_prover_lsp_mcp"
     assert trace["candidate_declaration_rows"] == (
         {

@@ -275,6 +275,9 @@ def test_resource_response_ledger_accepts_adapter_feedback_without_proof_claims(
     assert payload["n_response_playbook_grounded"] == 2
     assert payload["n_response_playbook_grounding_failures"] == 0
     assert payload["n_with_dispatch_specs"] == payload["n_ledger_rows"]
+    assert payload["n_with_resource_contract_ids"] == payload["n_ledger_rows"]
+    assert payload["n_with_stop_conditions"] == payload["n_ledger_rows"]
+    assert payload["n_with_quality_controls"] == payload["n_ledger_rows"]
     assert payload["n_route_revision_recommended"] == 1
     assert payload["n_rejected"] == 0
     assert payload["resource_response_schema"]["$id"] == RESOURCE_RESPONSE_SCHEMA_ID
@@ -323,6 +326,16 @@ def test_resource_response_ledger_accepts_adapter_feedback_without_proof_claims(
     assert proof_ledger["request_playbook_present"]
     assert proof_ledger["response_playbook_grounded"]
     assert "rank_uniformity" in proof_ledger["response_playbook_grounding_terms"]
+    assert proof_ledger["resource_contract_ids"] == proof_request[
+        "resource_contract_ids"
+    ]
+    assert proof_ledger["stop_conditions"] == proof_request["stop_conditions"]
+    assert proof_ledger["quality_controls"]["resource_contract_ids"] == proof_request[
+        "resource_contract_ids"
+    ]
+    assert set(proof_request["stop_conditions"]).issubset(
+        set(proof_ledger["quality_controls"]["stop_conditions"])
+    )
     assert proof_ledger["response_contract_minimum_met"]
     assert proof_ledger["dispatch_spec"]["adapter_surface"] == "target_prover_lsp_mcp"
     assert "prover_diagnostics" in proof_ledger["matched_response_contract_fields"]

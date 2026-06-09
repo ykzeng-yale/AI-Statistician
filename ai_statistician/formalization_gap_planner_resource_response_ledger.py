@@ -16,14 +16,21 @@ from .formalization_gap_planner_resource_request_queue import (
 from .formalization_gap_planner_target_summary import target_prover_family_summary
 
 
-FORMALIZATION_GAP_PLANNER_RESOURCE_RESPONSE_LEDGER_SCHEMA_VERSION = 4
+FORMALIZATION_GAP_PLANNER_RESOURCE_RESPONSE_LEDGER_SCHEMA_VERSION = 5
+QUALITY_CONTROL_FIELDS = (
+    "resource_contract_ids",
+    "required_quality_signals",
+    "quality_gates",
+    "response_validation_signals",
+    "stop_conditions",
+)
 RESOURCE_RESPONSE_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
     "formalization-gap-planner-resource-response:1"
 )
 RESOURCE_RESPONSE_LEDGER_ROW_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
-    "formalization-gap-planner-resource-response-ledger-row:4"
+    "formalization-gap-planner-resource-response-ledger-row:5"
 )
 PROOF_EVIDENCE_STATUS = (
     "FORMALIZATION_GAP_PLANNER_RESOURCE_RESPONSE_LEDGER_NOT_PROOF_EVIDENCE"
@@ -56,6 +63,9 @@ class FormalizationGapPlannerResourceResponseLedgerRow:
     request_phase: str
     component_ids: tuple[str, ...]
     resource_id: str
+    resource_contract_ids: tuple[str, ...]
+    stop_conditions: tuple[str, ...]
+    quality_controls: dict[str, tuple[str, ...]]
     expected_response_artifact: str
     acceptance_gate: str
     dispatch_spec: dict[str, object]
@@ -209,6 +219,11 @@ def export_formalization_gap_planner_resource_response_ledger(
             0,
         ),
         "n_with_dispatch_specs": sum(1 for row in rows if row.dispatch_spec),
+        "n_with_resource_contract_ids": sum(
+            1 for row in rows if row.resource_contract_ids
+        ),
+        "n_with_stop_conditions": sum(1 for row in rows if row.stop_conditions),
+        "n_with_quality_controls": sum(1 for row in rows if row.quality_controls),
         "n_with_candidate_declaration_rows": sum(
             1 for row in rows if row.candidate_declaration_rows
         ),
@@ -380,6 +395,9 @@ def resource_response_ledger_row_json_schema() -> dict[str, object]:
         "request_phase",
         "component_ids",
         "resource_id",
+        "resource_contract_ids",
+        "stop_conditions",
+        "quality_controls",
         "expected_response_artifact",
         "acceptance_gate",
         "dispatch_spec",
@@ -449,6 +467,9 @@ def resource_response_ledger_row_json_schema() -> dict[str, object]:
             "request_phase": {"type": "string", "minLength": 1},
             "component_ids": string_array,
             "resource_id": {"type": "string", "minLength": 1},
+            "resource_contract_ids": string_array,
+            "stop_conditions": string_array,
+            "quality_controls": {"type": "object"},
             "expected_response_artifact": {"type": "string", "minLength": 1},
             "acceptance_gate": {"type": "string", "minLength": 1},
             "dispatch_spec": {"type": "object"},
@@ -549,6 +570,15 @@ def _ledger_row(
         response_values,
     )
     response_contract_fields = _str_tuple(request_row.get("response_contract_fields", []))
+    resource_contract_ids = _str_tuple(request_row.get("resource_contract_ids", []))
+    stop_conditions = _str_tuple(request_row.get("stop_conditions", []))
+    request_playbook = _dict_value(request_row, "request_playbook")
+    request_playbook_present = bool(request_playbook)
+    quality_controls = _quality_controls_for_ledger_row(
+        request_row,
+        request_playbook,
+        response_values,
+    )
     response_contract_minimum_met = bool(matched_fields)
     kernel_claimed = _kernel_verified_claimed(response or {}, response_payload)
     route_revision_reasons = _str_tuple(response_values.get("route_revision_reasons", []))
@@ -557,8 +587,6 @@ def _ledger_row(
     route_revision_recommended = bool(
         response_values.get("route_revision_recommended", False)
     ) or bool(residual_goals) or bool(route_revision_reasons)
-    request_playbook = _dict_value(request_row, "request_playbook")
-    request_playbook_present = bool(request_playbook)
     response_playbook_grounded, response_playbook_grounding_terms = (
         _response_playbook_grounding(request_playbook, response_values)
         if response_present and request_playbook_present
@@ -646,6 +674,9 @@ def _ledger_row(
         request_phase=str(request_row.get("request_phase", "")),
         component_ids=_str_tuple(request_row.get("component_ids", [])),
         resource_id=str(request_row.get("resource_id", "")),
+        resource_contract_ids=resource_contract_ids,
+        stop_conditions=stop_conditions,
+        quality_controls=quality_controls,
         expected_response_artifact=str(request_row.get("expected_response_artifact", "")),
         acceptance_gate=str(request_row.get("acceptance_gate", "")),
         dispatch_spec=_dict_value(request_row, "dispatch_spec"),
@@ -804,6 +835,47 @@ def _merged_response_values(
         if key not in values and key != "response_payload":
             values[key] = value
     return values
+
+
+def _quality_controls_for_ledger_row(
+    request_row: dict[str, Any],
+    request_playbook: dict[str, Any],
+    response_values: dict[str, Any],
+) -> dict[str, tuple[str, ...]]:
+    return _merge_quality_controls(
+        _quality_controls_from_payload(request_row),
+        _quality_controls_from_payload(request_playbook),
+        _quality_controls_from_payload(response_values),
+        _quality_controls_from_payload(response_values.get("quality_controls", {})),
+    )
+
+
+def _quality_controls_from_payload(value: Any) -> dict[str, tuple[str, ...]]:
+    if not isinstance(value, dict):
+        return {}
+    return {
+        field_name: _str_tuple(value.get(field_name, []))
+        for field_name in QUALITY_CONTROL_FIELDS
+        if _str_tuple(value.get(field_name, []))
+    }
+
+
+def _merge_quality_controls(
+    *controls: dict[str, tuple[str, ...]],
+) -> dict[str, tuple[str, ...]]:
+    merged: dict[str, list[str]] = {}
+    for control in controls:
+        if not isinstance(control, dict):
+            continue
+        for field_name in QUALITY_CONTROL_FIELDS:
+            values = _str_tuple(control.get(field_name, []))
+            if values:
+                merged.setdefault(field_name, []).extend(values)
+    return {
+        field_name: _str_tuple(values)
+        for field_name, values in merged.items()
+        if _str_tuple(values)
+    }
 
 
 def _response_playbook_grounding(
