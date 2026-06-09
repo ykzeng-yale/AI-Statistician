@@ -1655,10 +1655,13 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
                     "selected_primitives_missing_standalone_route_node",
                     "selected_primitives_with_formal_realization_node",
                     "selected_primitives_missing_formal_realization_node",
+                    "cost_hint_baseline_primitives",
+                    "omitted_cost_hint_primitives",
                     "delta_primitives_with_route_alignment_edge",
                     "delta_primitives_missing_route_alignment_edge",
                     "introduced_primitives_with_route_alignment_edge",
                     "introduced_primitives_missing_route_alignment_edge",
+                    "cost_hint_baseline_coverage_complete",
                     "selected_route_coverage_complete",
                     "selected_formal_coverage_complete",
                     "delta_alignment_complete",
@@ -1674,10 +1677,13 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
                     "selected_primitives_missing_standalone_route_node": witness_array,
                     "selected_primitives_with_formal_realization_node": witness_array,
                     "selected_primitives_missing_formal_realization_node": witness_array,
+                    "cost_hint_baseline_primitives": witness_array,
+                    "omitted_cost_hint_primitives": witness_array,
                     "delta_primitives_with_route_alignment_edge": witness_array,
                     "delta_primitives_missing_route_alignment_edge": witness_array,
                     "introduced_primitives_with_route_alignment_edge": witness_array,
                     "introduced_primitives_missing_route_alignment_edge": witness_array,
+                    "cost_hint_baseline_coverage_complete": {"type": "boolean"},
                     "selected_route_coverage_complete": {"type": "boolean"},
                     "selected_formal_coverage_complete": {"type": "boolean"},
                     "delta_alignment_complete": {"type": "boolean"},
@@ -6332,8 +6338,7 @@ def _minimal_delta_request_hint_errors(
     return errors
 
 
-def _omitted_cost_hint_primitives(
-    minimal_delta: Mapping[str, Any],
+def _cost_hint_baseline_primitives(
     request: Mapping[str, Any],
 ) -> tuple[str, ...]:
     hints = _dict_value(
@@ -6342,20 +6347,28 @@ def _omitted_cost_hint_primitives(
     )
     if not hints:
         return tuple()
+    primitives: list[str] = []
+    for hint in _dict_tuple(hints.get("route_option_hints", [])):
+        primitives.extend(
+            _primitive_key(primitive)
+            for primitive in _str_tuple(hint.get("selected_primitives", []))
+        )
+    return tuple(dict.fromkeys(primitive for primitive in primitives if primitive))
+
+
+def _omitted_cost_hint_primitives(
+    minimal_delta: Mapping[str, Any],
+    request: Mapping[str, Any],
+) -> tuple[str, ...]:
+    baseline = _cost_hint_baseline_primitives(request)
+    if not baseline:
+        return tuple()
     selected = {
         _primitive_key(primitive)
         for primitive in _str_tuple(minimal_delta.get("selected_primitives", []))
     }
     selected.discard("")
-    omitted: list[str] = []
-    for hint in _dict_tuple(hints.get("route_option_hints", [])):
-        hint_primitives = {
-            _primitive_key(primitive)
-            for primitive in _str_tuple(hint.get("selected_primitives", []))
-        }
-        hint_primitives.discard("")
-        omitted.extend(sorted(hint_primitives - selected))
-    return tuple(dict.fromkeys(primitive for primitive in omitted if primitive))
+    return tuple(primitive for primitive in baseline if primitive not in selected)
 
 
 def _minimal_delta_baseline_route_option_hint_errors(
@@ -6578,6 +6591,8 @@ def _realization_coverage_witness(
     delta_primitives = _minimal_delta_primitives(minimal_delta, selected)
     available = _available_primitive_keys_for_request(request)
     introduced = (selected | delta_primitives) - available
+    cost_hint_baseline = _cost_hint_baseline_primitives(request)
+    omitted_cost_hint = _omitted_cost_hint_primitives(minimal_delta, request)
 
     selected_missing_route = tuple(
         primitive for primitive in selected_order if primitive not in standalone
@@ -6608,6 +6623,8 @@ def _realization_coverage_witness(
         "selected_primitives_missing_formal_realization_node": list(
             selected_missing_formal
         ),
+        "cost_hint_baseline_primitives": list(cost_hint_baseline),
+        "omitted_cost_hint_primitives": list(omitted_cost_hint),
         "delta_primitives_with_route_alignment_edge": [
             primitive for primitive in sorted(delta_primitives) if primitive in aligned
         ],
@@ -6620,6 +6637,7 @@ def _realization_coverage_witness(
         "introduced_primitives_missing_route_alignment_edge": list(
             introduced_missing_alignment
         ),
+        "cost_hint_baseline_coverage_complete": not omitted_cost_hint,
         "selected_route_coverage_complete": bool(selected_order)
         and not selected_missing_route,
         "selected_formal_coverage_complete": bool(selected_order)
@@ -7605,6 +7623,8 @@ def _realization_feedback_summary(
                 witness.get("delta_primitives", []),
                 witness.get("selected_primitives_missing_formal_realization_node", []),
                 witness.get("delta_primitives_missing_route_alignment_edge", []),
+                witness.get("cost_hint_baseline_primitives", []),
+                witness.get("omitted_cost_hint_primitives", []),
                 witness.get("realization_coverage_complete", False),
             ]
         )
@@ -7649,6 +7669,8 @@ def _compact_realization_witness(value: object) -> dict[str, object]:
         "delta_primitives",
         "introduced_primitives",
         "aligned_primitives",
+        "cost_hint_baseline_primitives",
+        "omitted_cost_hint_primitives",
         "selected_primitives_missing_standalone_route_node",
         "selected_primitives_missing_formal_realization_node",
         "delta_primitives_missing_route_alignment_edge",
@@ -7662,6 +7684,14 @@ def _compact_realization_witness(value: object) -> dict[str, object]:
     compact["realization_coverage_complete"] = bool(
         witness.get("realization_coverage_complete", False)
     )
+    if (
+        "cost_hint_baseline_coverage_complete" in witness
+        or _str_tuple(witness.get("cost_hint_baseline_primitives", []))
+        or _str_tuple(witness.get("omitted_cost_hint_primitives", []))
+    ):
+        compact["cost_hint_baseline_coverage_complete"] = bool(
+            witness.get("cost_hint_baseline_coverage_complete", False)
+        )
     return compact
 
 

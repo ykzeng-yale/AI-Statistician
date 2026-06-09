@@ -3124,11 +3124,24 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     ) == set(payload["route_adoption_blocker_values"])
     witness_schema = row_schema["$defs"]["realization_coverage_witness"]
     assert "selected_primitives" in witness_schema["required"]
+    assert "cost_hint_baseline_primitives" in witness_schema["required"]
+    assert "omitted_cost_hint_primitives" in witness_schema["required"]
+    assert "cost_hint_baseline_coverage_complete" in witness_schema["required"]
     assert "delta_primitives_missing_route_alignment_edge" in witness_schema["required"]
     assert "realization_coverage_complete" in witness_schema["required"]
     assert witness_schema["properties"]["realization_coverage_complete"]["type"] == "boolean"
+    assert (
+        witness_schema["properties"]["cost_hint_baseline_coverage_complete"]["type"]
+        == "boolean"
+    )
     witness = row["realization_coverage_witness"]
     assert witness["selected_primitives"] == ["exchangeability", "rank_uniformity"]
+    assert witness["cost_hint_baseline_primitives"] == [
+        "exchangeability",
+        "rank_uniformity",
+    ]
+    assert witness["omitted_cost_hint_primitives"] == []
+    assert witness["cost_hint_baseline_coverage_complete"] is True
     assert witness["selected_primitives_missing_formal_realization_node"] == []
     assert witness["delta_primitives"] == ["rank_uniformity"]
     assert witness["delta_primitives_missing_route_alignment_edge"] == []
@@ -5694,13 +5707,43 @@ def test_llm_route_planner_blocks_route_adoption_when_cost_hint_primitive_omitte
     assert set(row["route_adoption_blockers"]) == {
         "omitted_cost_hint_primitives_require_review"
     }
+    witness = row["realization_coverage_witness"]
+    assert witness["selected_primitives"] == ["exchangeability"]
+    assert witness["cost_hint_baseline_primitives"] == [
+        "exchangeability",
+        "rank_uniformity",
+    ]
+    assert witness["omitted_cost_hint_primitives"] == ["rank_uniformity"]
+    assert witness["cost_hint_baseline_coverage_complete"] is False
     seed_route = payload["standalone_seed"]["routes"][0]
+    assert seed_route["realization_coverage_witness"][
+        "omitted_cost_hint_primitives"
+    ] == ["rank_uniformity"]
     assert seed_route["llm_route_planner_route_adoption_status"] == (
         "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
     )
     assert seed_route["replan_metadata"][
         "llm_route_planner_route_adoption_blockers"
     ] == ["omitted_cost_hint_primitives_require_review"]
+    assert seed_route["replan_metadata"][
+        "llm_route_planner_realization_coverage_witness"
+    ]["omitted_cost_hint_primitives"] == ["rank_uniformity"]
+    seed_json = root / "standalone_seed.json"
+    seed_json.write_text(json.dumps(payload["standalone_seed"]), encoding="utf-8")
+    plan_payload = export_formalization_gap_planner_standalone_plan(
+        seed_json,
+        root / "standalone_plan_from_omitted_cost_hint_seed",
+    )
+    assert plan_payload["all_ok"]
+    trace_witness = plan_payload["rows"][0]["standalone_input_trace"][
+        "realization_coverage_witness"
+    ]
+    assert trace_witness["cost_hint_baseline_primitives"] == [
+        "exchangeability",
+        "rank_uniformity",
+    ]
+    assert trace_witness["omitted_cost_hint_primitives"] == ["rank_uniformity"]
+    assert trace_witness["cost_hint_baseline_coverage_complete"] is False
 
 
 def test_llm_route_planner_rejects_missing_primitive_cost_dimensions() -> None:

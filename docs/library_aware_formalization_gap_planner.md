@@ -152,8 +152,12 @@ an explicit proof-evidence boundary; `kernel_verified=true` claims are
 rejected. Each row also carries a `realization_coverage_witness` summarizing
 whether the selected primitives have standalone-route nodes and formal
 realization nodes, whether delta primitives have route-alignment edges, and
-whether any introduced primitive lacks an alignment edge. This is a portable
-inspection aid for external prover teams. The planner publishes both the
+whether any introduced primitive lacks an alignment edge. The witness also
+records `cost_hint_baseline_primitives`, `omitted_cost_hint_primitives`, and
+`cost_hint_baseline_coverage_complete`, so repair passes can see the exact
+request-bound cost-hint primitive that kept route adoption pending instead of
+only seeing an aggregate blocker count. This is a portable inspection aid for
+external prover teams. The planner publishes both the
 wrapper response schema and
 `formalization_gap_planner_llm_route_planner_response_payload.schema.json`, so
 external prover teams can validate the exact JSON payload they return before it
@@ -212,7 +216,9 @@ minimum cost; otherwise the planner treats the omission as silent route
 weakening and rejects the response. Even with a correctly priced baseline
 option, omitting a hinted primitive keeps route adoption pending under
 `omitted_cost_hint_primitives_require_review` until that semantic route change
-has been reviewed.
+has been reviewed. The omitted primitive list is copied into
+`realization_coverage_witness`, then preserved in accepted seeds and compact
+standalone input traces for public replay.
 Each primitive cost row must use a `coverage_bucket` listed in
 `minimal_delta_cost_policy.coverage_bucket_base_cost`, with `base_cost` exactly
 equal to that published bucket cost. That bucket/base cost also cannot be
@@ -231,7 +237,8 @@ selected route and its alternatives without parsing raw LLM response rows. The
 same accepted seed also preserves `realization_coverage_witness` at the route
 level and under `replan_metadata.llm_route_planner_realization_coverage_witness`,
 so downstream standalone planning can inspect selected/delta primitive coverage
-without reopening raw LLM rows.
+and any omitted request-bound cost-hint primitives without reopening raw LLM
+rows.
 When such a seed is converted into the portable standalone plan, the planner
 copies compact cost-graph and realization-witness traces into each row's
 `standalone_input_trace`, including the effective `target_prover_family` from
@@ -1238,8 +1245,8 @@ The current implementation composes four existing AI Statistician artifacts:
    coherent but unsupported primitive invention is rejected before seed
    generation. Its public row schema defines a structured
    `realization_coverage_witness`, so bundle consumers can validate selected,
-   delta, introduced, and aligned primitive coverage without relying on
-   free-form row text. If a component-resource registry directory is supplied, request
+   delta, introduced, aligned, cost-hint baseline, and omitted cost-hint
+   primitive coverage without relying on free-form row text. If a component-resource registry directory is supplied, request
    packets also include a bounded `component_resource_registry_context` with
    compatible resources, execution plans, and response contracts. That context
    is planner guidance only; it cannot justify source-backed claims, formal
