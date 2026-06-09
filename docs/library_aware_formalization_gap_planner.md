@@ -195,6 +195,13 @@ The
 cost witness uses
 `formalization_gap_planner_minimal_delta_cost_policy:1` and must include a
 nonnegative route cost plus one `primitive_costs` row per selected primitive.
+Each staged LLM route-planner request also carries
+`context_packet.minimal_delta_cost_hints`: a deterministic table of primitive
+coverage markers, lower-bound base costs, candidate declaration provenance, and
+baseline route-option costs derived from the current standalone route, coverage
+map, and goal-plan work packets. Auto tier selection treats bridge-or-harder
+cost hints as Sonnet work even if the raw standalone route looked small enough
+for Haiku.
 Each primitive cost row must use a `coverage_bucket` listed in
 `minimal_delta_cost_policy.coverage_bucket_base_cost`, with `base_cost` exactly
 equal to that published bucket cost. That bucket/base cost also cannot be

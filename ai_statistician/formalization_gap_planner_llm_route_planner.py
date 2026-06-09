@@ -803,6 +803,35 @@ def export_formalization_gap_planner_llm_route_planner(
             )
             for packet in request_packets
         ),
+        "n_requests_with_minimal_delta_cost_hints": sum(
+            1
+            for packet in request_packets
+            if _dict_value(packet, "context_packet").get(
+                "minimal_delta_cost_hints"
+            )
+        ),
+        "n_request_primitive_cost_hints": sum(
+            len(
+                _dict_tuple(
+                    _dict_value(
+                        _dict_value(packet, "context_packet"),
+                        "minimal_delta_cost_hints",
+                    ).get("primitive_cost_hints", [])
+                )
+            )
+            for packet in request_packets
+        ),
+        "n_request_route_option_cost_hints": sum(
+            len(
+                _dict_tuple(
+                    _dict_value(
+                        _dict_value(packet, "context_packet"),
+                        "minimal_delta_cost_hints",
+                    ).get("route_option_hints", [])
+                )
+            )
+            for packet in request_packets
+        ),
         "n_requests_with_refinement_evidence_rows": sum(
             1
             for packet in request_packets
@@ -2009,6 +2038,11 @@ def _request_packet(
         )
         if str(row.get("declaration", "")).strip()
     ]
+    context_packet["minimal_delta_cost_hints"] = _minimal_delta_cost_hints(
+        route,
+        context_packet,
+        target_prover_family=target_prover_family,
+    )
     context_packet["feedback_loop_summary"] = _feedback_loop_summary(
         context_packet,
         residual_goals=residual_goals,
@@ -2136,6 +2170,7 @@ def _user_prompt(
             formal_realization_requirement,
             "Minimal delta must include selected_primitives, cost_model_version, route_cost, primitive_costs, and_or_cost_graph, and minimality_rationale.",
             "Use minimal_delta_cost_policy as the AND/OR graph cost surface; pick the route with the lowest current formalization delta cost.",
+            "When context_packet.minimal_delta_cost_hints is present, use primitive_cost_hints as lower-bound coverage evidence and do not choose route options cheaper than their minimum_route_base_cost.",
             "Every selected primitive must have exactly one primitive_costs row with base_cost, proof_difficulty_cost, import_cone_cost, definition_or_typeclass_cost, semantic_risk_cost, reuse_credit, total_cost, and cost_rationale.",
             "Every primitive_costs coverage_bucket must be listed in minimal_delta_cost_policy.coverage_bucket_base_cost, and base_cost must equal that bucket base cost.",
             "A primitive_costs coverage_bucket/base_cost must not be cheaper than the explicit coverage_bucket, coverage_status, or formalization_action markers on the corresponding formal_realization_dag_nodes or standalone_route.primitives.",
@@ -3053,6 +3088,8 @@ def _llm_route_planner_model_tier_decision(
     if bool(feedback_summary.get("replan_required", False)):
         sonnet_reasons.append("feedback-loop summary requires route repair")
     sonnet_reasons.extend(_target_intake_sonnet_reasons(context_packet))
+    cost_hint_reasons = _minimal_delta_cost_hint_sonnet_reasons(context_packet)
+    sonnet_reasons.extend(cost_hint_reasons)
     hard_markers = sorted(route_markers & complex_markers)
     if hard_markers:
         sonnet_reasons.append(
@@ -3076,6 +3113,29 @@ def _llm_route_planner_model_tier_decision(
             "and only reuse/near/wrapper-level coverage markers"
         ),
     )
+
+
+def _minimal_delta_cost_hint_sonnet_reasons(
+    context_packet: Mapping[str, Any],
+) -> list[str]:
+    hints = _dict_value(context_packet, "minimal_delta_cost_hints")
+    primitive_hints = _dict_tuple(hints.get("primitive_cost_hints", []))
+    if not primitive_hints:
+        return []
+    bridge_cost = _coverage_bucket_base_cost("bridge_needed")
+    bridge_cost = 4.0 if bridge_cost is None else bridge_cost
+    expensive = [
+        str(row.get("primitive", "")).strip()
+        for row in primitive_hints
+        if _is_nonnegative_number(row.get("minimum_base_cost"))
+        and float(row.get("minimum_base_cost", 0) or 0) >= bridge_cost
+    ]
+    if expensive:
+        return [
+            "minimal-delta cost hint requires bridge-or-harder work for "
+            + ", ".join(expensive[:6])
+        ]
+    return []
 
 
 def _target_intake_sonnet_reasons(
@@ -6211,15 +6271,19 @@ def _coverage_marker_policy_bucket(marker: str) -> str:
         "wrapper": "wrapper",
         "wrapper_needed": "wrapper_needed",
         "write_wrapper": "wrapper",
+        "add_minimal_wrapper": "wrapper",
         "bridge": "bridge",
         "bridge_needed": "bridge_needed",
         "prove_bridge": "bridge",
+        "bridge_lemma": "bridge_needed",
+        "design_bridge_lemma": "bridge_needed",
         "source_port": "source_port",
         "source_port_needed": "source_port_needed",
         "port_external_source": "source_port",
         "new_definition": "new_definition",
         "new_definition_needed": "new_definition",
         "define_new": "new_definition",
+        "formalize_assumption_interface": "new_definition",
         "new_theory": "new_theory",
         "new_theory_needed": "new_theory_needed",
         "first_principles": "new_theory",
@@ -6606,6 +6670,217 @@ def _primitive_values(value: Any) -> tuple[str, ...]:
 
 def _primitive_key(value: object) -> str:
     return str(value or "").strip().lower().replace(" ", "_").replace("-", "_")
+
+
+def _minimal_delta_cost_hints(
+    route: Mapping[str, Any],
+    context_packet: Mapping[str, Any],
+    *,
+    target_prover_family: str,
+) -> dict[str, object]:
+    rows_by_primitive: dict[str, list[tuple[str, dict[str, object]]]] = {}
+    primitive_order: list[str] = []
+
+    def add_row(source: str, row: Mapping[str, object]) -> None:
+        primitive = _primitive_key(row.get("primitive", ""))
+        if not primitive:
+            return
+        if primitive not in rows_by_primitive:
+            primitive_order.append(primitive)
+        rows_by_primitive.setdefault(primitive, []).append((source, dict(row)))
+
+    for row in _dict_tuple(route.get("primitives", [])):
+        add_row("current_route.primitives", row)
+    for row in _dict_tuple(context_packet.get("library_coverage_rows", [])):
+        add_row("library_coverage_rows", row)
+    for row in _dict_tuple(context_packet.get("current_goal_plan_rows", [])):
+        for packet in (
+            *_dict_tuple(row.get("portable_work_packets", [])),
+            *_dict_tuple(row.get("next_work_packets", [])),
+        ):
+            add_row("current_goal_plan_rows.work_packets", packet)
+
+    primitive_hints = [
+        _primitive_cost_hint(
+            primitive,
+            rows_by_primitive.get(primitive, []),
+            target_prover_family=target_prover_family,
+        )
+        for primitive in primitive_order
+    ]
+    route_option_hints: list[dict[str, object]] = []
+    if primitive_hints:
+        selected_primitives = [
+            str(hint.get("primitive", ""))
+            for hint in primitive_hints
+            if str(hint.get("primitive", "")).strip()
+        ]
+        route_option_hints.append(
+            {
+                "route_option_id": "route_option:current_route_min_delta_baseline",
+                "option_kind": "current_route_primitive_set",
+                "selected_primitives": selected_primitives,
+                "minimum_route_base_cost": sum(
+                    float(hint.get("minimum_base_cost", 0) or 0)
+                    for hint in primitive_hints
+                    if _is_nonnegative_number(hint.get("minimum_base_cost"))
+                ),
+                "cost_policy_id": MINIMAL_DELTA_COST_POLICY_ID,
+                "cost_rationale": (
+                    "Sum of per-primitive minimum_base_cost values derived from "
+                    "current route and coverage-map evidence."
+                ),
+            }
+        )
+    return {
+        "hint_kind": "minimal_delta_cost_hints",
+        "cost_policy_id": MINIMAL_DELTA_COST_POLICY_ID,
+        "primitive_cost_hints": primitive_hints,
+        "route_option_hints": route_option_hints,
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
+
+
+def _primitive_cost_hint(
+    primitive: str,
+    source_rows: list[tuple[str, dict[str, object]]],
+    *,
+    target_prover_family: str,
+) -> dict[str, object]:
+    coverage_markers = [
+        marker
+        for source, row in source_rows
+        for marker in _coverage_cost_marker_rows(row, source=source)
+    ]
+    if coverage_markers:
+        lower_bound = max(
+            coverage_markers,
+            key=lambda marker: float(marker.get("base_cost", 0) or 0),
+        )
+    else:
+        unknown_cost = _coverage_bucket_base_cost("unknown")
+        lower_bound = {
+            "source": "minimal_delta_cost_hints.default",
+            "source_field": "coverage_status",
+            "marker": "unknown",
+            "normalized_coverage_bucket": "unknown",
+            "base_cost": 20 if unknown_cost is None else unknown_cost,
+        }
+    candidate_rows = [
+        normalized
+        for _, row in source_rows
+        for normalized in _candidate_declaration_rows(
+            row.get("candidate_declaration_rows", []),
+            inherited_target_prover_family=str(
+                row.get("target_prover_family", "")
+                or target_prover_family
+            ),
+            fallback_source_field="candidate_declaration_rows",
+        )
+    ]
+    for source, row in source_rows:
+        row_target = str(row.get("target_prover_family", "") or target_prover_family)
+        candidate_rows.extend(
+            {
+                "declaration": declaration,
+                "target_prover_family": row_target,
+                "source_field": source + ".candidate_declarations",
+            }
+            for declaration in _formal_declaration_values(
+                row.get("candidate_declarations", [])
+            )
+        )
+    compact_candidate_rows = _compact_candidate_declaration_rows(candidate_rows)
+    return {
+        "primitive": primitive,
+        "evidence_sources": list(
+            dict.fromkeys(source for source, _ in source_rows if source)
+        ),
+        "coverage_markers": coverage_markers,
+        "minimum_coverage_bucket": str(
+            lower_bound.get("normalized_coverage_bucket", "unknown")
+        ),
+        "minimum_base_cost": lower_bound.get("base_cost", 20),
+        "minimum_cost_source": str(lower_bound.get("source", "")),
+        "minimum_cost_marker": str(lower_bound.get("marker", "")),
+        "candidate_declarations": [
+            str(row.get("declaration", ""))
+            for row in _target_compatible_formal_declaration_rows(
+                tuple(compact_candidate_rows),
+                target_prover_family=target_prover_family,
+            )
+            if str(row.get("declaration", "")).strip()
+        ],
+        "candidate_declaration_rows": compact_candidate_rows,
+        "has_target_compatible_declaration": bool(
+            _target_compatible_formal_declaration_rows(
+                tuple(compact_candidate_rows),
+                target_prover_family=target_prover_family,
+            )
+        ),
+    }
+
+
+def _coverage_cost_marker_rows(
+    row: Mapping[str, object],
+    *,
+    source: str,
+) -> list[dict[str, object]]:
+    markers: list[dict[str, object]] = []
+    for field_name in (
+        "coverage_bucket",
+        "coverage_status",
+        "formalization_action",
+        "alignment_status",
+        "action_class",
+    ):
+        marker = _primitive_key(row.get(field_name, ""))
+        bucket = _coverage_marker_policy_bucket(marker)
+        if not bucket:
+            continue
+        cost = _coverage_bucket_base_cost(bucket)
+        if cost is None:
+            continue
+        markers.append(
+            {
+                "source": source,
+                "source_field": field_name,
+                "marker": marker,
+                "normalized_coverage_bucket": bucket,
+                "base_cost": cost,
+            }
+        )
+    return markers
+
+
+def _compact_candidate_declaration_rows(
+    rows: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    compact: list[dict[str, object]] = []
+    seen: set[tuple[str, str, str]] = set()
+    for row in rows:
+        declaration = str(row.get("declaration", "")).strip()
+        if not declaration:
+            continue
+        target = str(row.get("target_prover_family", "")).strip()
+        source_field = str(row.get("source_field", "")).strip()
+        key = (
+            _formal_declaration_key(declaration),
+            _target_prover_key(target),
+            source_field,
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        compact.append(
+            {
+                "declaration": declaration,
+                "target_prover_family": target,
+                "source_field": source_field,
+            }
+        )
+    return compact
 
 
 def _context_payloads(

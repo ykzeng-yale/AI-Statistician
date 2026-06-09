@@ -794,6 +794,9 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert payload["n_request_packets"] == 1
     assert payload["n_requests_with_available_source_snippets"] == 1
     assert payload["n_request_available_source_snippets"] == 1
+    assert payload["n_requests_with_minimal_delta_cost_hints"] == 1
+    assert payload["n_request_primitive_cost_hints"] == 2
+    assert payload["n_request_route_option_cost_hints"] == 1
     assert payload["n_response_present"] == 0
     assert payload["n_awaiting_llm_response"] == 1
     assert payload["n_request_schema_valid"] == 1
@@ -823,9 +826,24 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert {
         (row["declaration"], row["target_prover_family"]) for row in declaration_rows
     } >= {("Probability.exchangeable", "lean4")}
+    cost_hints = request["context_packet"]["minimal_delta_cost_hints"]
+    assert cost_hints["cost_policy_id"] == (
+        "formalization_gap_planner_minimal_delta_cost_policy:1"
+    )
+    cost_by_primitive = {
+        row["primitive"]: row for row in cost_hints["primitive_cost_hints"]
+    }
+    assert cost_by_primitive["exchangeability"]["minimum_base_cost"] == 0.0
+    assert cost_by_primitive["rank_uniformity"]["minimum_base_cost"] == 4.0
+    assert cost_by_primitive["rank_uniformity"][
+        "minimum_coverage_bucket"
+    ] == "bridge_needed"
+    assert cost_hints["route_option_hints"][0]["minimum_route_base_cost"] == 4.0
     assert "available_source_refs" in request["prompt_messages"]["user"]
     assert "available_source_snippets" in request["prompt_messages"]["user"]
     assert "available_formal_declarations" in request["prompt_messages"]["user"]
+    assert "minimal_delta_cost_hints" in request["prompt_messages"]["user"]
+    assert "minimum_base_cost" in request["prompt_messages"]["user"]
     assert (
         out_dir
         / "formalization_gap_planner_llm_route_planner_manifest.json"
@@ -858,6 +876,78 @@ def test_llm_route_planner_prompt_only_remains_explicit_no_provider_mode() -> No
     request = payload["request_packets"][0]
     assert request["provider_name"] == "prompt_only"
     assert request["model"] == ""
+
+
+def test_llm_route_planner_cost_hints_use_library_coverage_lower_bound() -> None:
+    root = Path("runs/test_formalization_gap_planner_llm_route_planner_cost_hints")
+    out_dir = root / "llm_route_planner"
+    coverage_dir = root / "library_coverage_map"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    coverage_dir.mkdir(parents=True, exist_ok=True)
+    input_json = _write_light_input(root)
+    (
+        coverage_dir / "formalization_gap_planner_library_coverage_map_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "component_name": "formalization_gap_planner_library_coverage_map",
+                "rows": [
+                    {
+                        "goal_plan_id": "goal:rank_route_light",
+                        "route_id": "rank_route_light",
+                        "display_name": "distribution_free_rank_bound_light",
+                        "target_prover_family": "lean4",
+                        "library_snapshot_ref": "lean_mathlib_snapshot",
+                        "primitive": "rank_uniformity",
+                        "coverage_bucket": "bridge_needed",
+                        "coverage_status": "bridge_needed",
+                        "action_class": "design_bridge_lemma",
+                        "candidate_declaration_rows": [
+                            {
+                                "declaration": "Probability.rankUniformityBridge",
+                                "target_prover_family": "lean4",
+                                "source_field": "library_coverage_map_fixture",
+                            }
+                        ],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        formalization_gap_planner_library_coverage_map_dir=coverage_dir,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_requests_with_library_coverage_rows"] == 1
+    assert payload["n_requests_with_minimal_delta_cost_hints"] == 1
+    assert payload["n_request_primitive_cost_hints"] == 2
+    assert payload["by_request_model_tier"] == {"sonnet": 1}
+    request = payload["request_packets"][0]
+    assert request["model_tier"] == "sonnet"
+    assert "minimal-delta cost hint requires bridge-or-harder work" in request[
+        "model_selection_rationale"
+    ]
+    cost_hints = request["context_packet"]["minimal_delta_cost_hints"]
+    rank_hint = {
+        row["primitive"]: row for row in cost_hints["primitive_cost_hints"]
+    }["rank_uniformity"]
+    assert rank_hint["minimum_base_cost"] == 4.0
+    assert rank_hint["minimum_coverage_bucket"] == "bridge_needed"
+    assert rank_hint["minimum_cost_source"] == "library_coverage_rows"
+    assert "current_route.primitives" in rank_hint["evidence_sources"]
+    assert "library_coverage_rows" in rank_hint["evidence_sources"]
+    assert {
+        (row["declaration"], row["target_prover_family"])
+        for row in rank_hint["candidate_declaration_rows"]
+    } >= {("Probability.rankUniformityBridge", "lean4")}
+    assert cost_hints["route_option_hints"][0]["minimum_route_base_cost"] == 4.0
 
 
 def test_llm_route_planner_stages_target_intake_context() -> None:
