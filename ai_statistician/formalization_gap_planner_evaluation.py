@@ -28,6 +28,13 @@ ROUTE_ADOPTION_READY_STATUS = "READY_FOR_STANDALONE_REPLAY"
 ROUTE_ADOPTION_PENDING_STATUS = "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
 ROUTE_ADOPTION_AWAITING_STATUS = "AWAITING_LLM_ROUTE_PLANNER_RESPONSE"
 ROUTE_ADOPTION_REJECTED_STATUS = "REJECTED_LLM_ROUTE_PLAN"
+QUALITY_CONTROL_FIELDS = (
+    "resource_contract_ids",
+    "required_quality_signals",
+    "quality_gates",
+    "response_validation_signals",
+    "stop_conditions",
+)
 
 
 @dataclass(frozen=True)
@@ -94,6 +101,12 @@ class FormalizationGapPlannerEvaluationRow:
     llm_route_planner_model_selection_rationale: str
     llm_route_planner_has_generator_metadata: bool
     llm_route_planner_generator_metadata_keys: tuple[str, ...]
+    quality_controls_present: bool
+    quality_controls: dict[str, tuple[str, ...]]
+    quality_control_fields: tuple[str, ...]
+    quality_control_resource_contract_ids: tuple[str, ...]
+    quality_control_response_validation_signals: tuple[str, ...]
+    quality_control_stop_conditions: tuple[str, ...]
     portable_schema_id: str
     proof_evidence_boundary_ok: bool
     kernel_verified_ground_truth: bool
@@ -160,6 +173,22 @@ def evaluate_formalization_gap_planner(
     llm_route_adoption_blockers = _unique_row_attr_strings(
         evaluation_rows,
         "llm_route_planner_route_adoption_blockers",
+    )
+    quality_control_fields = _unique_row_attr_strings(
+        evaluation_rows,
+        "quality_control_fields",
+    )
+    quality_control_resource_contract_ids = _unique_row_attr_strings(
+        evaluation_rows,
+        "quality_control_resource_contract_ids",
+    )
+    quality_control_response_validation_signals = _unique_row_attr_strings(
+        evaluation_rows,
+        "quality_control_response_validation_signals",
+    )
+    quality_control_stop_conditions = _unique_row_attr_strings(
+        evaluation_rows,
+        "quality_control_stop_conditions",
     )
     realization_missing_selected = _unique_row_attr_strings(
         evaluation_rows,
@@ -264,6 +293,21 @@ def evaluate_formalization_gap_planner(
             if row.llm_route_planner_has_generator_metadata
         ),
         "evaluation_by_llm_model_tier": by_llm_model_tier,
+        "n_rows_with_quality_controls": sum(
+            1 for row in evaluation_rows if row.quality_controls_present
+        ),
+        "n_quality_control_fields": sum(
+            len(row.quality_control_fields) for row in evaluation_rows
+        ),
+        "quality_control_fields": quality_control_fields,
+        "quality_control_resource_contract_ids": quality_control_resource_contract_ids,
+        "quality_control_response_validation_signals": (
+            quality_control_response_validation_signals
+        ),
+        "quality_control_stop_conditions": quality_control_stop_conditions,
+        "evaluation_by_quality_control_field": _quality_control_field_summary(
+            evaluation_rows
+        ),
         "n_realization_missing_selected_formal_primitives": sum(
             len(row.realization_missing_selected_formal_primitives)
             for row in evaluation_rows
@@ -453,6 +497,12 @@ def evaluation_row_json_schema() -> dict[str, object]:
             "llm_route_planner_model_selection_rationale",
             "llm_route_planner_has_generator_metadata",
             "llm_route_planner_generator_metadata_keys",
+            "quality_controls_present",
+            "quality_controls",
+            "quality_control_fields",
+            "quality_control_resource_contract_ids",
+            "quality_control_response_validation_signals",
+            "quality_control_stop_conditions",
             "portable_schema_id",
             "proof_evidence_boundary_ok",
             "kernel_verified_ground_truth",
@@ -526,6 +576,12 @@ def evaluation_row_json_schema() -> dict[str, object]:
             "llm_route_planner_model_selection_rationale": {"type": "string"},
             "llm_route_planner_has_generator_metadata": {"type": "boolean"},
             "llm_route_planner_generator_metadata_keys": string_array,
+            "quality_controls_present": {"type": "boolean"},
+            "quality_controls": {"type": "object"},
+            "quality_control_fields": string_array,
+            "quality_control_resource_contract_ids": string_array,
+            "quality_control_response_validation_signals": string_array,
+            "quality_control_stop_conditions": string_array,
             "portable_schema_id": {"type": "string", "minLength": 1},
             "proof_evidence_boundary_ok": {"type": "boolean"},
             "kernel_verified_ground_truth": {"type": "boolean"},
@@ -611,6 +667,7 @@ def _evaluate_row(
     cost_graph_trace = _minimal_delta_cost_graph_trace(row)
     realization_trace = _realization_coverage_witness_trace(row)
     llm_trace = _llm_route_planner_trace(row)
+    quality_trace = _quality_control_trace(row)
     portable_schema_id = str(plan_payload.get("portable_schema_id", ""))
     proof_boundary_ok = "not theorem proof evidence" in str(
         row.get("proof_evidence_boundary", "")
@@ -725,6 +782,18 @@ def _evaluate_row(
         ),
         llm_route_planner_generator_metadata_keys=_str_tuple(
             llm_trace["generator_metadata_keys"]
+        ),
+        quality_controls_present=bool(quality_trace["present"]),
+        quality_controls=quality_trace["quality_controls"],
+        quality_control_fields=_str_tuple(quality_trace["fields"]),
+        quality_control_resource_contract_ids=_str_tuple(
+            quality_trace["resource_contract_ids"]
+        ),
+        quality_control_response_validation_signals=_str_tuple(
+            quality_trace["response_validation_signals"]
+        ),
+        quality_control_stop_conditions=_str_tuple(
+            quality_trace["stop_conditions"]
         ),
         portable_schema_id=portable_schema_id,
         proof_evidence_boundary_ok=proof_boundary_ok,
@@ -1015,6 +1084,56 @@ def _realization_coverage_witness_trace(row: dict[str, Any]) -> dict[str, object
     }
 
 
+def _quality_control_trace(row: dict[str, Any]) -> dict[str, object]:
+    trace = row.get("standalone_input_trace", {})
+    trace = trace if isinstance(trace, dict) else {}
+    replan_metadata = trace.get("replan_metadata", {})
+    replan_metadata = replan_metadata if isinstance(replan_metadata, dict) else {}
+    controls = _merge_quality_controls(
+        _quality_controls_from_payload(replan_metadata.get("quality_controls", {})),
+        _quality_controls_from_payload(trace.get("quality_controls", {})),
+    )
+    return {
+        "present": bool(controls),
+        "quality_controls": controls,
+        "fields": tuple(sorted(controls)),
+        "resource_contract_ids": controls.get("resource_contract_ids", tuple()),
+        "response_validation_signals": controls.get(
+            "response_validation_signals",
+            tuple(),
+        ),
+        "stop_conditions": controls.get("stop_conditions", tuple()),
+    }
+
+
+def _quality_controls_from_payload(value: Any) -> dict[str, tuple[str, ...]]:
+    if not isinstance(value, dict):
+        return {}
+    return {
+        field_name: _str_tuple(value.get(field_name, []))
+        for field_name in QUALITY_CONTROL_FIELDS
+        if _str_tuple(value.get(field_name, []))
+    }
+
+
+def _merge_quality_controls(
+    *controls: dict[str, tuple[str, ...]],
+) -> dict[str, tuple[str, ...]]:
+    merged: dict[str, list[str]] = {}
+    for control in controls:
+        if not isinstance(control, dict):
+            continue
+        for field_name in QUALITY_CONTROL_FIELDS:
+            values = _str_tuple(control.get(field_name, []))
+            if values:
+                merged.setdefault(field_name, []).extend(values)
+    return {
+        field_name: _str_tuple(values)
+        for field_name, values in merged.items()
+        if _str_tuple(values)
+    }
+
+
 def _llm_route_planner_trace(row: dict[str, Any]) -> dict[str, object]:
     trace = row.get("standalone_input_trace", {})
     trace = trace if isinstance(trace, dict) else {}
@@ -1136,6 +1255,38 @@ def _llm_model_tier_summary(
         for tier_rows in [
             [row for row in rows if row.llm_route_planner_model_tier == tier]
         ]
+    }
+
+
+def _quality_control_field_summary(
+    rows: list[FormalizationGapPlannerEvaluationRow],
+) -> dict[str, dict[str, object]]:
+    return {
+        field_name: {
+            "n_rows": sum(
+                1 for row in rows if field_name in row.quality_control_fields
+            ),
+            "n_values": len(
+                {
+                    value
+                    for row in rows
+                    for value in row.quality_controls.get(field_name, tuple())
+                    if value
+                }
+            ),
+            "values": tuple(
+                sorted(
+                    {
+                        value
+                        for row in rows
+                        for value in row.quality_controls.get(field_name, tuple())
+                        if value
+                    }
+                )
+            ),
+        }
+        for field_name in QUALITY_CONTROL_FIELDS
+        if any(field_name in row.quality_control_fields for row in rows)
     }
 
 
@@ -1348,6 +1499,9 @@ def _schema_property_errors(
     elif expected_type == "boolean":
         if not isinstance(value, bool):
             errors.append(f"{field_name} must be boolean")
+    elif expected_type == "object":
+        if not isinstance(value, dict):
+            errors.append(f"{field_name} must be object")
     elif expected_type == "array":
         if not isinstance(value, (list, tuple)):
             errors.append(f"{field_name} must be array")
@@ -1418,6 +1572,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Evaluation by LLM model tier: {payload.get('evaluation_by_llm_model_tier')}",
         f"- Evaluation by LLM route adoption status: {payload.get('evaluation_by_llm_route_adoption_status')}",
         f"- LLM route adoption blockers: {payload.get('llm_route_adoption_blockers')}",
+        f"- Rows with quality controls: {payload.get('n_rows_with_quality_controls')}",
+        f"- Quality control fields: {payload.get('quality_control_fields')}",
         f"- Mean selected route-option cost: {payload.get('mean_minimal_delta_selected_route_cost')}",
         f"- All OK: {payload.get('all_ok')}",
         "",

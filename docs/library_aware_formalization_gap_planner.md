@@ -232,8 +232,10 @@ Evaluation rows then surface `minimal_delta_cost_graph_present`,
 `minimal_delta_selected_route_cost`, `realization_coverage_witness_present`,
 `realization_coverage_complete`,
 `realization_missing_selected_formal_primitives`, and
-`realization_missing_delta_alignment_primitives`, making benchmark and
-publication artifacts able to inspect minimal-route and realization-coverage
+`realization_missing_delta_alignment_primitives`, plus compact
+`quality_controls` fields and aggregate counts for resource contracts, response
+validation signals, and stop conditions. Benchmark and publication artifacts can
+therefore inspect minimal-route, realization-coverage, and bounded-tool-policy
 evidence without depending on Lean-specific internals.
 The one-command reuse-smoke manifest also promotes LLM route-planner
 realization-coverage counters for both primary and feedback planner passes, so

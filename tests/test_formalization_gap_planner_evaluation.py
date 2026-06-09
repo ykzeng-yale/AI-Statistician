@@ -178,6 +178,22 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
         "introduced_primitives_missing_route_alignment_edge": [],
         "realization_coverage_complete": True,
     }
+    route_quality_controls = {
+        "resource_contract_ids": ["lean_lsp:proof_state_feedback"],
+        "quality_gates": ["residual_goals_source_grounded"],
+    }
+    metadata_quality_controls = {
+        "required_quality_signals": ["diagnostic_signature"],
+        "response_validation_signals": ["residual_goals_or_diagnostics_present"],
+        "stop_conditions": ["residual interpreted or source search requested"],
+    }
+    expected_quality_controls = {
+        field_name: tuple(values)
+        for field_name, values in {
+            **route_quality_controls,
+            **metadata_quality_controls,
+        }.items()
+    }
     input_json.write_text(
         json.dumps(
             {
@@ -188,9 +204,11 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
                         "route_id": "rank_route",
                         "display_name": "rank_route",
                         "theorem_statement": "Rank uniformity follows from exchangeability.",
+                        "quality_controls": route_quality_controls,
                         "minimal_delta_and_or_cost_graph": cost_graph,
                         "realization_coverage_witness": realization_witness,
                         "replan_metadata": {
+                            "quality_controls": metadata_quality_controls,
                             "llm_route_planner_row_id": "llm-route-row:rank",
                             "llm_route_planner_provider": "anthropic",
                             "llm_route_planner_model": "claude-sonnet-4-6",
@@ -312,6 +330,29 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
             "n_rows_with_generator_metadata": 1,
         }
     }
+    assert payload["n_rows_with_quality_controls"] == 1
+    assert payload["n_quality_control_fields"] == 5
+    assert payload["quality_control_fields"] == (
+        "quality_gates",
+        "required_quality_signals",
+        "resource_contract_ids",
+        "response_validation_signals",
+        "stop_conditions",
+    )
+    assert payload["quality_control_resource_contract_ids"] == (
+        "lean_lsp:proof_state_feedback",
+    )
+    assert payload["quality_control_response_validation_signals"] == (
+        "residual_goals_or_diagnostics_present",
+    )
+    assert payload["quality_control_stop_conditions"] == (
+        "residual interpreted or source search requested",
+    )
+    assert payload["evaluation_by_quality_control_field"]["resource_contract_ids"] == {
+        "n_rows": 1,
+        "n_values": 1,
+        "values": ("lean_lsp:proof_state_feedback",),
+    }
     assert payload["n_realization_missing_selected_formal_primitives"] == 0
     assert payload["n_realization_missing_delta_alignment_primitives"] == 0
     assert payload["realization_missing_selected_formal_primitives"] == ()
@@ -343,6 +384,18 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
     assert row["llm_route_planner_generator_metadata_keys"] == (
         "generator_only",
         "retry_count",
+    )
+    assert row["quality_controls_present"] is True
+    assert row["quality_controls"] == expected_quality_controls
+    assert row["quality_control_fields"] == tuple(sorted(expected_quality_controls))
+    assert row["quality_control_resource_contract_ids"] == (
+        "lean_lsp:proof_state_feedback",
+    )
+    assert row["quality_control_response_validation_signals"] == (
+        "residual_goals_or_diagnostics_present",
+    )
+    assert row["quality_control_stop_conditions"] == (
+        "residual interpreted or source search requested",
     )
     assert validate_evaluation_row(row) == ()
 
