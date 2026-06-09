@@ -1551,6 +1551,7 @@ def test_llm_route_planner_materializes_action_only_refinement_hooks() -> None:
         for response in adapter_payload["responses"]
         if response.get("llm_route_planner_hook_trace")
     )
+    assert tuple(adapter_response["target_primitives"]) == ("rank_uniformity",)
     assert adapter_response["llm_route_planner_hook_trace"] == hook_trace
     evidence_payload = export_formalization_gap_planner_refinement_evidence(
         refinement_queue_dir,
@@ -1559,17 +1560,20 @@ def test_llm_route_planner_materializes_action_only_refinement_hooks() -> None:
         / "formalization_gap_planner_refinement_evidence_responses.jsonl",
     )
     assert evidence_payload["all_ok"]
+    assert evidence_payload["n_rows_with_target_primitives"] >= 1
     evidence_row = next(
         row
         for row in evidence_payload["rows"]
         if row.get("llm_route_planner_hook_trace")
     )
+    assert tuple(evidence_row["target_primitives"]) == ("rank_uniformity",)
     assert evidence_row["llm_route_planner_hook_trace"] == hook_trace
     proposal = next(
         row
         for row in evidence_payload["route_revision_proposals"]
         if row.get("llm_route_planner_hook_trace")
     )
+    assert tuple(proposal["target_primitives"]) == ("rank_uniformity",)
     assert proposal["llm_route_planner_hook_trace"] == hook_trace
     overlay_dir = root / "route_revision_overlay_from_action_only_llm_seed"
     overlay_payload = export_formalization_gap_planner_route_revision_overlay(

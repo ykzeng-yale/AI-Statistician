@@ -202,6 +202,9 @@ def _base_response(
     target_prover_family = str(queue_row.get("target_prover_family", "")).strip()
     if target_prover_family:
         response["target_prover_family"] = target_prover_family
+    target_primitives = _str_tuple(queue_row.get("target_primitives", []))
+    if target_primitives:
+        response["target_primitives"] = target_primitives
     for field_name in (
         "resource_request_ids",
         "resource_ids",

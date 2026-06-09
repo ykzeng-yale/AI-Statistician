@@ -50,6 +50,7 @@ class FormalizationGapPlannerRefinementEvidenceRow:
     resource_request_bindings: tuple[dict[str, object], ...]
     quality_controls: dict[str, tuple[str, ...]]
     llm_route_planner_hook_trace: dict[str, object]
+    target_primitives: tuple[str, ...]
     source_refs: tuple[str, ...]
     route_evidence_nodes: tuple[dict[str, object], ...]
     source_snippets: tuple[dict[str, object], ...]
@@ -163,6 +164,8 @@ def export_formalization_gap_planner_refinement_evidence(
             1 for row in rows if row.acceptance_status == "AWAITING_REFINEMENT_TOOL_RESPONSE"
         ),
         "n_contract_ok": sum(1 for row in rows if row.response_contract_ok),
+        "n_rows_with_target_primitives": sum(1 for row in rows if row.target_primitives),
+        "n_target_primitives": sum(len(row.target_primitives) for row in rows),
         "n_literature_evidence": by_hook_kind.get("literature_discovery", 0),
         "n_source_snippets": sum(len(row.source_snippets) for row in rows),
         "n_literature_rows_with_source_snippets": sum(
@@ -296,6 +299,7 @@ def refinement_tool_response_json_schema() -> dict[str, object]:
             "resource_request_bindings": object_array,
             "quality_controls": quality_controls,
             "llm_route_planner_hook_trace": {"type": "object"},
+            "target_primitives": string_array,
             "source_refs": string_array,
             "source_snippets": object_array,
             "route_evidence_nodes": object_array,
@@ -372,6 +376,7 @@ def refinement_evidence_row_json_schema() -> dict[str, object]:
             "resource_request_ids",
             "resource_ids",
             "resource_request_bindings",
+            "target_primitives",
             "source_refs",
             "route_evidence_nodes",
             "formal_declaration_hits",
@@ -423,6 +428,7 @@ def refinement_evidence_row_json_schema() -> dict[str, object]:
             "resource_ids": string_array,
             "resource_request_bindings": object_array,
             "quality_controls": quality_controls,
+            "target_primitives": string_array,
             "source_refs": string_array,
             "source_snippets": object_array,
             "route_evidence_nodes": object_array,
@@ -521,6 +527,7 @@ def _evidence_row(
     resource_request_bindings = _dict_tuple(
         queue_row.get("resource_request_bindings", [])
     )
+    queue_target_primitives = _str_tuple(queue_row.get("target_primitives", []))
     quality_controls = _quality_controls_from_resource_request_bindings(
         resource_request_bindings
     )
@@ -548,6 +555,7 @@ def _evidence_row(
             resource_request_bindings=resource_request_bindings,
             quality_controls=quality_controls,
             llm_route_planner_hook_trace=llm_route_planner_hook_trace,
+            target_primitives=queue_target_primitives,
             source_refs=(),
             route_evidence_nodes=(),
             source_snippets=(),
@@ -620,6 +628,17 @@ def _evidence_row(
     expected_kinds = _expected_evidence_kinds(hook_kind)
     if evidence_kind and expected_kinds and evidence_kind not in expected_kinds:
         errors.append(f"evidence_kind {evidence_kind} does not match hook {hook_kind}")
+    response_target_primitives = _str_tuple(response.get("target_primitives", []))
+    target_primitives = response_target_primitives or queue_target_primitives
+    if queue_target_primitives and response_target_primitives:
+        extra_targets = sorted(
+            set(response_target_primitives) - set(queue_target_primitives)
+        )
+        if extra_targets:
+            errors.append(
+                "target_primitives must not expand beyond refinement queue target_primitives: "
+                + ", ".join(extra_targets[:8])
+            )
 
     source_refs = _str_tuple(response.get("source_refs", []))
     route_evidence_nodes = _dict_tuple(response.get("route_evidence_nodes", []))
@@ -751,6 +770,7 @@ def _evidence_row(
         resource_request_bindings=resource_request_bindings,
         quality_controls=quality_controls,
         llm_route_planner_hook_trace=llm_route_planner_hook_trace,
+        target_primitives=target_primitives,
         source_refs=source_refs,
         route_evidence_nodes=route_evidence_nodes,
         source_snippets=source_snippets,
@@ -796,6 +816,7 @@ def _route_revision_proposal(
         "resource_request_bindings": row.resource_request_bindings,
         "quality_controls": row.quality_controls,
         "llm_route_planner_hook_trace": row.llm_route_planner_hook_trace,
+        "target_primitives": row.target_primitives,
         "route_revision_summary": row.route_revision_summary,
         "route_revision_reasons": row.route_revision_reasons,
         "revised_selected_primitives": row.revised_selected_primitives,

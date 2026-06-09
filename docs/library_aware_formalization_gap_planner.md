@@ -182,6 +182,9 @@ instead of silently becoming tool policy. Explicit
 present in the request, selected/delta/cost-hint plan, formal realization DAG,
 standalone route, alignment edges, or residual interpretations, and accepted
 refinement hooks preserve those explicit primitive targets.
+Normalized refinement-evidence rows and route-revision proposals expose the same
+`target_primitives` field, and refinement tool responses are rejected if they
+expand beyond the queued target scope.
 Accepted controls are preserved on route hooks and resource-request bindings so
 the refinement queue can dispatch the same bounded tool contract; refinement
 adapter responses and normalized refinement-evidence rows also expose a compact
