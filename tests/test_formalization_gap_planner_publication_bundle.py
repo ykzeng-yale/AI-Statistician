@@ -874,6 +874,8 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         "llm_route_planner_provider": "",
         "llm_route_planner_model": "",
         "llm_route_planner_model_tier": "",
+        "llm_route_planner_route_adoption_status": "",
+        "llm_route_planner_route_adoption_blockers": [],
         "llm_route_planner_acceptance_status": "",
         "llm_route_planner_model_selection_rationale": "",
         "llm_route_planner_has_generator_metadata": False,
@@ -1654,6 +1656,31 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     )
     assert payload["evaluation_summary"]["realization_cost_hint_baseline_primitives"] == ()
     assert payload["evaluation_summary"]["realization_omitted_cost_hint_primitives"] == ()
+    assert (
+        payload["evaluation_summary"][
+            "n_rows_with_llm_route_planner_route_adoption_status"
+        ]
+        == 0
+    )
+    assert payload["evaluation_summary"]["n_rows_ready_for_route_adoption"] == 0
+    assert (
+        payload["evaluation_summary"][
+            "n_rows_pending_refinement_before_route_adoption"
+        ]
+        == 0
+    )
+    assert payload["evaluation_summary"]["n_llm_route_adoption_blockers"] == 0
+    assert payload["evaluation_summary"]["llm_route_adoption_blockers"] == ()
+    assert payload["evaluation_summary"]["llm_route_adoption_status_counts"] == {}
+    assert payload["evaluation_summary"]["n_rows_with_quality_controls"] == 0
+    assert payload["evaluation_summary"]["n_quality_control_fields"] == 0
+    assert payload["evaluation_summary"]["quality_control_fields"] == ()
+    assert payload["evaluation_summary"]["quality_control_resource_contract_ids"] == ()
+    assert (
+        payload["evaluation_summary"]["quality_control_response_validation_signals"]
+        == ()
+    )
+    assert payload["evaluation_summary"]["quality_control_stop_conditions"] == ()
     assert payload["adapter_registry_summary"]["n_adapters"] >= 16
     assert (
         payload["adapter_registry_summary"]["n_adapter_row_schema_valid"]

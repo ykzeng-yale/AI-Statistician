@@ -3539,6 +3539,20 @@ def _evaluation_manifest_summary(source_dir: Path | None) -> dict[str, object]:
         "realization_missing_delta_alignment_primitives": (),
         "realization_cost_hint_baseline_primitives": (),
         "realization_omitted_cost_hint_primitives": (),
+        "n_rows_with_llm_route_planner_route_adoption_status": 0,
+        "n_rows_ready_for_route_adoption": 0,
+        "n_rows_pending_refinement_before_route_adoption": 0,
+        "n_rows_awaiting_llm_route_planner_response": 0,
+        "n_rows_rejected_llm_route_plan": 0,
+        "n_llm_route_adoption_blockers": 0,
+        "llm_route_adoption_blockers": (),
+        "llm_route_adoption_status_counts": {},
+        "n_rows_with_quality_controls": 0,
+        "n_quality_control_fields": 0,
+        "quality_control_fields": (),
+        "quality_control_resource_contract_ids": (),
+        "quality_control_response_validation_signals": (),
+        "quality_control_stop_conditions": (),
         "all_ok": False,
     }
     if source_dir is None:
@@ -3622,6 +3636,110 @@ def _evaluation_manifest_summary(source_dir: Path | None) -> dict[str, object]:
             rows,
             "realization_omitted_cost_hint_primitives",
         ),
+        "n_rows_with_llm_route_planner_route_adoption_status": int(
+            payload.get(
+                "n_rows_with_llm_route_planner_route_adoption_status",
+                sum(
+                    1
+                    for row in rows
+                    if str(row.get("llm_route_planner_route_adoption_status", "")).strip()
+                ),
+            )
+            or 0
+        ),
+        "n_rows_ready_for_route_adoption": int(
+            payload.get(
+                "n_rows_ready_for_route_adoption",
+                _row_count_with_value(
+                    rows,
+                    "llm_route_planner_route_adoption_status",
+                    "READY_FOR_STANDALONE_REPLAY",
+                ),
+            )
+            or 0
+        ),
+        "n_rows_pending_refinement_before_route_adoption": int(
+            payload.get(
+                "n_rows_pending_refinement_before_route_adoption",
+                _row_count_with_value(
+                    rows,
+                    "llm_route_planner_route_adoption_status",
+                    "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION",
+                ),
+            )
+            or 0
+        ),
+        "n_rows_awaiting_llm_route_planner_response": int(
+            payload.get(
+                "n_rows_awaiting_llm_route_planner_response",
+                _row_count_with_value(
+                    rows,
+                    "llm_route_planner_route_adoption_status",
+                    "AWAITING_LLM_ROUTE_PLANNER_RESPONSE",
+                ),
+            )
+            or 0
+        ),
+        "n_rows_rejected_llm_route_plan": int(
+            payload.get(
+                "n_rows_rejected_llm_route_plan",
+                _row_count_with_value(
+                    rows,
+                    "llm_route_planner_route_adoption_status",
+                    "REJECTED_LLM_ROUTE_PLAN",
+                ),
+            )
+            or 0
+        ),
+        "n_llm_route_adoption_blockers": _manifest_count_or_rows(
+            payload,
+            rows,
+            "n_llm_route_adoption_blockers",
+            "llm_route_planner_route_adoption_blockers",
+        ),
+        "llm_route_adoption_blockers": _manifest_values_or_row_field(
+            payload,
+            rows,
+            "llm_route_adoption_blockers",
+            "llm_route_planner_route_adoption_blockers",
+        ),
+        "llm_route_adoption_status_counts": _llm_route_adoption_status_counts(
+            payload,
+            rows,
+        ),
+        "n_rows_with_quality_controls": int(
+            payload.get(
+                "n_rows_with_quality_controls",
+                sum(1 for row in rows if row.get("quality_controls_present") is True),
+            )
+            or 0
+        ),
+        "n_quality_control_fields": _manifest_count_or_rows(
+            payload,
+            rows,
+            "n_quality_control_fields",
+            "quality_control_fields",
+        ),
+        "quality_control_fields": _manifest_values_or_rows(
+            payload,
+            rows,
+            "quality_control_fields",
+        ),
+        "quality_control_resource_contract_ids": _manifest_values_or_rows(
+            payload,
+            rows,
+            "quality_control_resource_contract_ids",
+        ),
+        "quality_control_response_validation_signals": _manifest_values_or_rows(
+            payload,
+            rows,
+            "quality_control_response_validation_signals",
+        ),
+        "quality_control_stop_conditions": _manifest_values_or_rows(
+            payload,
+            rows,
+            "quality_control_stop_conditions",
+        ),
         "all_ok": bool(payload.get("all_ok", False)),
     }
 
@@ -3649,6 +3767,52 @@ def _manifest_values_or_rows(
     for row in rows:
         values.extend(_str_tuple(row.get(field_name, [])))
     return tuple(dict.fromkeys(values))
+
+
+def _manifest_values_or_row_field(
+    payload: dict[str, object],
+    rows: tuple[dict[str, Any], ...],
+    manifest_field: str,
+    row_field: str,
+) -> tuple[str, ...]:
+    manifest_values = _str_tuple(payload.get(manifest_field, []))
+    if manifest_values:
+        return manifest_values
+    values: list[str] = []
+    for row in rows:
+        values.extend(_str_tuple(row.get(row_field, [])))
+    return tuple(dict.fromkeys(values))
+
+
+def _row_count_with_value(
+    rows: tuple[dict[str, Any], ...],
+    field_name: str,
+    expected_value: str,
+) -> int:
+    return sum(
+        1
+        for row in rows
+        if str(row.get(field_name, "")).strip() == expected_value
+    )
+
+
+def _llm_route_adoption_status_counts(
+    payload: dict[str, object],
+    rows: tuple[dict[str, Any], ...],
+) -> dict[str, int]:
+    by_status = payload.get("evaluation_by_llm_route_adoption_status", {})
+    if isinstance(by_status, dict) and by_status:
+        return {
+            str(status): int(summary.get("n_rows", 0) or 0)
+            for status, summary in by_status.items()
+            if isinstance(summary, dict)
+        }
+    counts: dict[str, int] = {}
+    for row in rows:
+        status = str(row.get("llm_route_planner_route_adoption_status", "")).strip()
+        if status:
+            counts[status] = counts.get(status, 0) + 1
+    return counts
 
 
 def _str_tuple(value: Any) -> tuple[str, ...]:
@@ -3772,6 +3936,17 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('evaluation_summary', {}).get('n_realization_omitted_cost_hint_primitives')} "
             f"baseline={payload.get('evaluation_summary', {}).get('realization_cost_hint_baseline_primitives')} "
             f"omitted={payload.get('evaluation_summary', {}).get('realization_omitted_cost_hint_primitives')}"
+        ),
+        (
+            f"- Evaluation route adoption ready/pending/blockers: "
+            f"{payload.get('evaluation_summary', {}).get('n_rows_ready_for_route_adoption')}/"
+            f"{payload.get('evaluation_summary', {}).get('n_rows_pending_refinement_before_route_adoption')}/"
+            f"{payload.get('evaluation_summary', {}).get('n_llm_route_adoption_blockers')}"
+        ),
+        (
+            f"- Evaluation quality controls: "
+            f"rows={payload.get('evaluation_summary', {}).get('n_rows_with_quality_controls')} "
+            f"fields={payload.get('evaluation_summary', {}).get('quality_control_fields')}"
         ),
         (
             f"- Adapter registry row schema valid: "
