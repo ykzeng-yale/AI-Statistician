@@ -657,6 +657,7 @@ def _evaluate_row(
     plan_payload: dict[str, Any],
 ) -> FormalizationGapPlannerEvaluationRow:
     errors: list[str] = []
+    row = _row_with_manifest_target(row, plan_payload)
     goal_plan_id = str(row.get("goal_plan_id", ""))
     route_id = str(row.get("route_id", ""))
     display_name = str(row.get("display_name", ""))
@@ -1024,9 +1025,12 @@ def _all_node_dicts(row: dict[str, Any]) -> tuple[dict[str, Any], ...]:
         "minimal_additional_formalization_nodes",
         "informal_knowledge_dag_nodes",
         "formal_realization_dag_nodes",
-        "lean_realization_dag_nodes",
     ):
         for node in row.get(field_name, []):
+            if isinstance(node, dict):
+                nodes.append(node)
+    if _is_lean_target_prover(row.get("target_prover_family", "")):
+        for node in row.get("lean_realization_dag_nodes", []):
             if isinstance(node, dict):
                 nodes.append(node)
     return tuple(nodes)
@@ -1428,10 +1432,47 @@ def _alignment_contract(row: dict[str, Any]) -> tuple[bool, float, tuple[str, ..
 def _formal_realization_nodes(row: dict[str, Any]) -> tuple[dict[str, Any], ...]:
     nodes = row.get("formal_realization_dag_nodes", [])
     if not isinstance(nodes, (list, tuple)) or not nodes:
-        nodes = row.get("lean_realization_dag_nodes", [])
+        if _is_lean_target_prover(row.get("target_prover_family", "")):
+            nodes = row.get("lean_realization_dag_nodes", [])
+        else:
+            nodes = []
     if not isinstance(nodes, (list, tuple)):
         return tuple()
     return tuple(node for node in nodes if isinstance(node, dict))
+
+
+def _row_with_manifest_target(
+    row: dict[str, Any],
+    plan_payload: dict[str, Any],
+) -> dict[str, Any]:
+    row_target = str(
+        row.get("target_prover_family", "") or row.get("target_prover", "")
+    ).strip()
+    if row_target:
+        return row
+    target = str(
+        plan_payload.get("target_prover_family", "")
+        or plan_payload.get("target_prover", "")
+    ).strip()
+    if not target:
+        return row
+    updated = dict(row)
+    updated["target_prover_family"] = target
+    return updated
+
+
+def _is_lean_target_prover(value: object) -> bool:
+    key = _target_prover_key(value)
+    return key == "lean4" or key.startswith("lean4_")
+
+
+def _target_prover_key(value: object) -> str:
+    key = str(value).strip().lower().replace("-", "_")
+    aliases = {
+        "lean": "lean4",
+        "lean_4": "lean4",
+    }
+    return aliases.get(key, key)
 
 
 def _node_field_count(row: dict[str, Any], field_name: str) -> int:

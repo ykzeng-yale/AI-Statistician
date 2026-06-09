@@ -141,6 +141,90 @@ def test_evaluation_scores_route_alignment_contract() -> None:
     ).exists()
 
 
+def test_evaluation_rejects_non_lean_legacy_lean_realization_alias() -> None:
+    root = Path("runs/test_formalization_gap_planner_evaluation_rejects_lean_alias")
+    input_json = root / "standalone_input.json"
+    plan_dir = root / "plan"
+    truth_json = root / "ground_truth.json"
+    out_dir = root / "evaluation"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "component_name": "formalization_gap_planner_standalone_input",
+                "target_prover_family": "rocq",
+                "library_snapshot_ref": "rocq_alignment_fixture",
+                "routes": [
+                    {
+                        "route_id": "route:rocq_alias_fixture",
+                        "display_name": "rocq alias fixture theorem",
+                        "theorem_statement": "A rank bound follows from exchangeability.",
+                        "primitives": [
+                            {
+                                "primitive": "exchangeability",
+                                "coverage_status": "exact_exists",
+                                "candidate_declarations": [
+                                    "Probability.Exchangeable"
+                                ],
+                            },
+                            {
+                                "primitive": "rank_bound",
+                                "coverage_status": "bridge_needed",
+                            },
+                        ],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    truth_json.write_text(
+        json.dumps(
+            {
+                "routes": [
+                    {
+                        "route_id": "route:rocq_alias_fixture",
+                        "required_primitives": ["exchangeability", "rank_bound"],
+                        "actual_existing_reuse_primitives": ["exchangeability"],
+                        "actual_delta_primitives": ["rank_bound"],
+                    }
+                ]
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    export_formalization_gap_planner_standalone_plan(input_json, plan_dir)
+    manifest_path = plan_dir / "goal_conditioned_minimal_formalization_plan_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    row = manifest["rows"][0]
+    row["lean_realization_dag_nodes"] = list(row["formal_realization_dag_nodes"])
+    row["lean_realization_dag_edges"] = list(row["formal_realization_dag_edges"])
+    row["formal_realization_dag_nodes"] = []
+    row["formal_realization_dag_edges"] = []
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+    payload = evaluate_formalization_gap_planner(plan_dir, truth_json, out_dir)
+
+    assert not payload["all_ok"]
+    assert payload["n_plan_rows_with_formal_realization_dag_nodes"] == 0
+    assert payload["n_plan_rows_with_legacy_lean_realization_dag_nodes"] == 1
+    assert payload["n_formal_realization_dag_nodes"] == 0
+    assert payload["n_legacy_lean_realization_dag_nodes"] >= 1
+    assert payload["n_alignment_contract_ok"] == 0
+    assert payload["mean_alignment_coverage"] == 0.0
+    row = payload["rows"][0]
+    assert row["two_dag_contract_ok"] is False
+    assert row["alignment_contract_ok"] is False
+    assert row["alignment_coverage"] == 0.0
+    assert set(row["unaligned_primitives"]) == {"exchangeability", "rank_bound"}
+    assert "two-DAG contract is incomplete" in row["errors"]
+    assert "route alignment contract is incomplete" in row["errors"]
+
+
 def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
     root = Path("runs/test_formalization_gap_planner_evaluation_cost_graph")
     input_json = root / "standalone_input.json"
