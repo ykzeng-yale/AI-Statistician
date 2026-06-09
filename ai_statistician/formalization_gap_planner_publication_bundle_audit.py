@@ -119,12 +119,14 @@ from .formalization_gap_planner_runtime_handoff_audit import (
     validate_runtime_handoff_audit_row,
 )
 from .formalization_gap_planner_publication_bundle import (
+    FORMALIZATION_GAP_PLANNER_PUBLICATION_BUNDLE_MANIFEST_SCHEMA_ID,
     FORMALIZATION_GAP_PLANNER_SCHEMA_CATALOG_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_LEAN_LEGACY_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_TARGET_PROVER_SCHEMA_ID,
     LLM_MODEL_POLICY_COMPONENT_NAME,
     PUBLICATION_BUNDLE_COMPONENT_NAME,
     SCHEMA_CATALOG_COMPONENT_NAME,
+    publication_bundle_manifest_json_schema,
     validate_schema_catalog_payload,
 )
 from .formalization_gap_planner_proof_state_triage import (
@@ -173,6 +175,7 @@ REQUIRED_CORE_ARTIFACTS = (
     "portable_schema",
     "schema_catalog",
     "schema_catalog_schema",
+    "publication_bundle_manifest_schema",
     "portable_plan_row_schema",
     "prover_adapter_packet_schema",
     "prover_adapter_response_schema",
@@ -2299,6 +2302,11 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
     schema_catalog_schema_path = (
         bundle_dir / "contract" / "formalization_gap_planner_schema_catalog.schema.json"
     )
+    publication_bundle_manifest_schema_path = (
+        bundle_dir
+        / "contract"
+        / "formalization_gap_planner_publication_bundle_manifest.schema.json"
+    )
     adapter_schema_path = (
         bundle_dir / "contract" / "formalization_gap_planner_prover_adapter_response.schema.json"
     )
@@ -2510,6 +2518,9 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
     portable_plan_row_schema = _read_json_no_error(portable_plan_row_schema_path)
     schema_catalog = _read_json_no_error(schema_catalog_path)
     schema_catalog_schema = _read_json_no_error(schema_catalog_schema_path)
+    publication_bundle_manifest_schema = _read_json_no_error(
+        publication_bundle_manifest_schema_path
+    )
     adapter_schema = _read_json_no_error(adapter_schema_path)
     adapter_packet_schema = _read_json_no_error(adapter_packet_schema_path)
     response_validation_row_schema = _read_json_no_error(
@@ -2826,6 +2837,29 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
             == FORMALIZATION_GAP_PLANNER_SCHEMA_CATALOG_SCHEMA_ID,
         ),
         _check(
+            "publication_bundle_manifest_schema_file",
+            "contract",
+            "publication bundle manifest JSON schema exists",
+            str(publication_bundle_manifest_schema_path.exists()),
+            publication_bundle_manifest_schema_path.exists(),
+        ),
+        _check(
+            "publication_bundle_manifest_schema_id",
+            "contract",
+            FORMALIZATION_GAP_PLANNER_PUBLICATION_BUNDLE_MANIFEST_SCHEMA_ID,
+            str(publication_bundle_manifest_schema.get("$id", "")),
+            publication_bundle_manifest_schema.get("$id")
+            == FORMALIZATION_GAP_PLANNER_PUBLICATION_BUNDLE_MANIFEST_SCHEMA_ID,
+        ),
+        _check(
+            "publication_bundle_manifest_schema_matches_contract",
+            "contract",
+            publication_bundle_manifest_json_schema().get("$id", ""),
+            str(publication_bundle_manifest_schema.get("$id", "")),
+            publication_bundle_manifest_schema.get("$id")
+            == publication_bundle_manifest_json_schema().get("$id"),
+        ),
+        _check(
             "schema_catalog_file",
             "contract",
             "schema catalog exists",
@@ -2862,6 +2896,7 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
             {
                 "portable_contract",
                 "portable_schema",
+                "publication_bundle_manifest_schema",
                 "target_intake_row_schema",
                 "llm_route_planner_request_schema",
                 "llm_route_planner_response_schema",

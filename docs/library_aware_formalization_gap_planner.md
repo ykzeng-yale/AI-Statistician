@@ -40,7 +40,8 @@ triage, target-prover adapter contract, publication bundle, and
 publication-bundle audit are emitted as gated artifacts in
 `research_system_audit_manifest.json`. That system-level artifact map also
 names the route-replan standalone seed schema, the cross-prover target summary
-and schema, and the publication-bundle schema catalog and schema. It also
+and schema, the publication-bundle schema catalog and schema, and the
+publication-bundle manifest schema. It also
 reports cross-prover target-summary contract errors, publication-bundle
 schema-catalog validity counts, and optional interactive decision-policy
 resource-link check counts in the top-level audit counts.
@@ -451,7 +452,8 @@ preserve, so target-prover handoff does not hide bounded-tool policy. This
 keeps a Lean-origin route and a Rocq/Isabelle/Agda target replay
 distinguishable inside the same publication bundle. Finally, it names
 `contract/formalization_gap_planner_schema_catalog.json` and its schema from
-the publication bundle so downstream consumers can discover every reusable
+the publication bundle, plus the publication-bundle manifest schema, so
+downstream consumers can discover every reusable
 contract file from the smoke manifest. The same artifact map names
 `formalization_gap_planner_prover_adapter_response.schema.json`, so external
 prover teams can validate adapter responses before replay or promotion. The
@@ -969,8 +971,12 @@ benchmark route-row schema, evaluation row schema, benchmark,
 benchmark audit, adapter registry, docs, and optional run artifacts into a
 reusable directory for paper supplements or downstream prover adapters; it also writes
 `contract/formalization_gap_planner_schema_catalog.json` and its JSON Schema as
-a machine-readable index of the reusable contract and schema files. The Python
-API exposes `schema_catalog_json_schema()` and `validate_schema_catalog_payload()`
+a machine-readable index of the reusable contract and schema files. It also
+publishes
+`contract/formalization_gap_planner_publication_bundle_manifest.schema.json` so
+the top-level bundle manifest is itself a reusable public contract. The Python
+API exposes `schema_catalog_json_schema()`,
+`publication_bundle_manifest_json_schema()`, and `validate_schema_catalog_payload()`
 so downstream consumers can validate the index directly, including
 bundle-local relative-path resolution when they have the exported bundle, plus
 `reproduce/formalization_gap_planner_reproduction_manifest.json` with
@@ -1539,12 +1545,14 @@ The current implementation composes four existing AI Statistician artifacts:
    self-contained research
    supplement/reuse bundle. It also writes a
    machine-readable schema catalog for all reusable bundle contracts, a
-   reproduction manifest with downstream commands, including request-bound
+   publication-bundle manifest schema, a reproduction manifest with downstream
+   commands, including request-bound
    LLM route-payload validation, the local adapter/refinement loop, and
    feedback LLM route-planner rerun, and runnable example inputs. The bundle
 records the proof boundary and remains route/planning evidence only. The
-reuse-smoke manifest exposes the schema catalog and schema as top-level
-artifacts for external users. The reproduction manifest includes a
+reuse-smoke manifest exposes the schema catalog, catalog schema, and
+publication-bundle manifest schema as top-level artifacts for external users.
+The reproduction manifest includes a
 `run_evaluation` command; for bundles with optional evaluation artifacts, that
 command uses
 `artifacts/formalization_gap_planner_evaluation/formalization_gap_planner_evaluation_ground_truth.json`

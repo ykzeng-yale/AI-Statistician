@@ -112,9 +112,11 @@ from ai_statistician.formalization_gap_planner_source_grounding_audit import (
     source_grounding_row_json_schema,
 )
 from ai_statistician.formalization_gap_planner_publication_bundle import (
+    FORMALIZATION_GAP_PLANNER_PUBLICATION_BUNDLE_MANIFEST_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_LEAN_LEGACY_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_TARGET_PROVER_SCHEMA_ID,
     export_formalization_gap_planner_publication_bundle,
+    publication_bundle_manifest_json_schema,
     schema_catalog_json_schema,
     validate_schema_catalog_payload,
 )
@@ -1955,6 +1957,29 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     assert (
         out_dir / "contract" / "formalization_gap_planner_schema_catalog.schema.json"
     ).exists()
+    publication_bundle_manifest_schema_payload = json.loads(
+        (
+            out_dir
+            / "contract"
+            / "formalization_gap_planner_publication_bundle_manifest.schema.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert publication_bundle_manifest_schema_payload["$id"] == (
+        FORMALIZATION_GAP_PLANNER_PUBLICATION_BUNDLE_MANIFEST_SCHEMA_ID
+    )
+    assert (
+        publication_bundle_manifest_schema_payload["$id"]
+        == publication_bundle_manifest_json_schema()["$id"]
+    )
+    assert "path" in publication_bundle_manifest_schema_payload["properties"][
+        "core_artifacts"
+    ]["items"]["required"]
+    assert "requested" in publication_bundle_manifest_schema_payload["properties"][
+        "optional_artifacts"
+    ]["items"]["required"]
+    assert "path" not in publication_bundle_manifest_schema_payload["properties"][
+        "optional_artifacts"
+    ]["items"]["required"]
     assert (
         out_dir / "contract" / "formalization_gap_planner_benchmark_route.schema.json"
     ).exists()
@@ -2077,6 +2102,7 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         row["artifact_name"]: row for row in schema_catalog_payload["schema_entries"]
     }
     assert "portable_contract" in schema_catalog_entry_names
+    assert "publication_bundle_manifest_schema" in schema_catalog_entry_names
     assert "portable_plan_row_schema" in schema_catalog_entry_names
     assert "target_intake_row_schema" in schema_catalog_entry_names
     assert "llm_route_planner_request_schema" in schema_catalog_entry_names
@@ -2553,6 +2579,10 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     )
     assert (
         "contract/formalization_gap_planner_schema_catalog.schema.json"
+        in reproduction_payload["bundle_relative_artifacts"]
+    )
+    assert (
+        "contract/formalization_gap_planner_publication_bundle_manifest.schema.json"
         in reproduction_payload["bundle_relative_artifacts"]
     )
     assert (

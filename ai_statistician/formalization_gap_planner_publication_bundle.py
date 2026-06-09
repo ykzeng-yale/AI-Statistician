@@ -151,6 +151,9 @@ LLM_MODEL_POLICY_COMPONENT_NAME = "ai_statistician_llm_model_policy"
 FORMALIZATION_GAP_PLANNER_SCHEMA_CATALOG_SCHEMA_ID = (
     "urn:ai-statistician:schemas:formalization-gap-planner-schema-catalog:1"
 )
+FORMALIZATION_GAP_PLANNER_PUBLICATION_BUNDLE_MANIFEST_SCHEMA_ID = (
+    "urn:ai-statistician:schemas:formalization-gap-planner-publication-bundle-manifest:1"
+)
 LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_LEAN_LEGACY_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
     "formalization-gap-planner-llm-route-planner-response-payload-lean-legacy:1"
@@ -700,6 +703,10 @@ def export_formalization_gap_planner_publication_bundle(
     schema_catalog_schema_path = (
         contract_dir / "formalization_gap_planner_schema_catalog.schema.json"
     )
+    publication_bundle_manifest_schema_path = (
+        contract_dir
+        / "formalization_gap_planner_publication_bundle_manifest.schema.json"
+    )
     contract_path = contract_dir / "formalization_gap_planner_portable_contract.json"
     llm_model_policy_path = contract_dir / "ai_statistician_llm_model_policy.json"
     llm_model_policy_report_path = contract_dir / "ai_statistician_llm_model_policy.md"
@@ -894,6 +901,10 @@ def export_formalization_gap_planner_publication_bundle(
     )
     schema_catalog_schema_path.write_text(
         json.dumps(schema_catalog_json_schema(), indent=2),
+        encoding="utf-8",
+    )
+    publication_bundle_manifest_schema_path.write_text(
+        json.dumps(publication_bundle_manifest_json_schema(), indent=2),
         encoding="utf-8",
     )
     prover_adapter_schema_path.write_text(
@@ -1223,6 +1234,13 @@ def export_formalization_gap_planner_publication_bundle(
             "required": True,
             "ok": schema_catalog_json_schema().get("$id")
             == FORMALIZATION_GAP_PLANNER_SCHEMA_CATALOG_SCHEMA_ID,
+        },
+        {
+            "artifact_name": "publication_bundle_manifest_schema",
+            "path": str(publication_bundle_manifest_schema_path),
+            "required": True,
+            "ok": publication_bundle_manifest_json_schema().get("$id")
+            == FORMALIZATION_GAP_PLANNER_PUBLICATION_BUNDLE_MANIFEST_SCHEMA_ID,
         },
         {
             "artifact_name": "prover_adapter_packet_schema",
@@ -2000,6 +2018,149 @@ def schema_catalog_json_schema() -> dict[str, object]:
                     "errors": string_array,
                 },
             }
+        },
+    }
+
+
+def publication_bundle_manifest_json_schema() -> dict[str, object]:
+    string_array = {"type": "array", "items": {"type": "string"}}
+    nonnegative_integer = {"type": "integer", "minimum": 0}
+    core_artifact_schema = {
+        "type": "object",
+        "additionalProperties": True,
+        "required": ["artifact_name", "path", "ok"],
+        "properties": {
+            "artifact_name": {"type": "string", "minLength": 1},
+            "path": {"type": "string"},
+            "ok": {"type": "boolean"},
+        },
+    }
+    optional_artifact_schema = {
+        "type": "object",
+        "additionalProperties": True,
+        "required": ["artifact_name", "requested", "ok"],
+        "properties": {
+            "artifact_name": {"type": "string", "minLength": 1},
+            "requested": {"type": "boolean"},
+            "source_dir": {"type": "string"},
+            "dest_dir": {"type": "string"},
+            "n_files_copied": nonnegative_integer,
+            "copied_files": string_array,
+            "missing_files": string_array,
+            "ok": {"type": "boolean"},
+        },
+    }
+    evaluation_summary_schema = {
+        "type": "object",
+        "additionalProperties": True,
+        "required": [
+            "requested",
+            "n_evaluation_rows",
+            "n_evaluation_row_schema_valid",
+            "n_evaluation_row_schema_invalid",
+            "n_realization_missing_selected_formal_primitives",
+            "n_realization_missing_delta_alignment_primitives",
+            "n_rows_with_incomplete_cost_hint_baseline_coverage",
+            "n_realization_cost_hint_baseline_primitives",
+            "n_realization_omitted_cost_hint_primitives",
+            "realization_cost_hint_baseline_primitives",
+            "realization_omitted_cost_hint_primitives",
+            "n_rows_with_llm_route_planner_route_adoption_status",
+            "n_rows_ready_for_route_adoption",
+            "n_rows_pending_refinement_before_route_adoption",
+            "n_llm_route_adoption_blockers",
+            "llm_route_adoption_blockers",
+            "llm_route_adoption_status_counts",
+            "n_rows_with_quality_controls",
+            "n_quality_control_fields",
+            "quality_control_fields",
+            "quality_control_resource_contract_ids",
+            "quality_control_response_validation_signals",
+            "quality_control_stop_conditions",
+            "all_ok",
+        ],
+        "properties": {
+            "requested": {"type": "boolean"},
+            "manifest_path": {"type": "string"},
+            "n_evaluation_rows": nonnegative_integer,
+            "n_evaluation_row_schema_valid": nonnegative_integer,
+            "n_evaluation_row_schema_invalid": nonnegative_integer,
+            "n_matched_ground_truth": nonnegative_integer,
+            "n_missing_ground_truth": nonnegative_integer,
+            "n_alignment_contract_ok": nonnegative_integer,
+            "n_feedback_loop_ready": nonnegative_integer,
+            "n_unaligned_primitives": nonnegative_integer,
+            "n_realization_missing_selected_formal_primitives": nonnegative_integer,
+            "n_realization_missing_delta_alignment_primitives": nonnegative_integer,
+            "n_rows_with_incomplete_cost_hint_baseline_coverage": nonnegative_integer,
+            "n_realization_cost_hint_baseline_primitives": nonnegative_integer,
+            "n_realization_omitted_cost_hint_primitives": nonnegative_integer,
+            "realization_missing_selected_formal_primitives": string_array,
+            "realization_missing_delta_alignment_primitives": string_array,
+            "realization_cost_hint_baseline_primitives": string_array,
+            "realization_omitted_cost_hint_primitives": string_array,
+            "n_rows_with_llm_route_planner_route_adoption_status": nonnegative_integer,
+            "n_rows_ready_for_route_adoption": nonnegative_integer,
+            "n_rows_pending_refinement_before_route_adoption": nonnegative_integer,
+            "n_rows_awaiting_llm_route_planner_response": nonnegative_integer,
+            "n_rows_rejected_llm_route_plan": nonnegative_integer,
+            "n_llm_route_adoption_blockers": nonnegative_integer,
+            "llm_route_adoption_blockers": string_array,
+            "llm_route_adoption_status_counts": {
+                "type": "object",
+                "additionalProperties": nonnegative_integer,
+            },
+            "n_rows_with_quality_controls": nonnegative_integer,
+            "n_quality_control_fields": nonnegative_integer,
+            "quality_control_fields": string_array,
+            "quality_control_resource_contract_ids": string_array,
+            "quality_control_response_validation_signals": string_array,
+            "quality_control_stop_conditions": string_array,
+            "all_ok": {"type": "boolean"},
+        },
+    }
+    return {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": FORMALIZATION_GAP_PLANNER_PUBLICATION_BUNDLE_MANIFEST_SCHEMA_ID,
+        "title": "Formalization Gap Planner Publication Bundle Manifest",
+        "type": "object",
+        "additionalProperties": True,
+        "required": [
+            "schema_version",
+            "component_name",
+            "packaged_component",
+            "portable_schema_id",
+            "bundle_id",
+            "core_artifacts",
+            "optional_artifacts",
+            "evaluation_summary",
+            "schema_catalog_summary",
+            "all_ok",
+            "proof_evidence_status",
+            "proof_evidence_boundary",
+        ],
+        "properties": {
+            "schema_version": {
+                "type": "integer",
+                "const": FORMALIZATION_GAP_PLANNER_PUBLICATION_BUNDLE_SCHEMA_VERSION,
+            },
+            "component_name": {"const": PUBLICATION_BUNDLE_COMPONENT_NAME},
+            "packaged_component": {
+                "const": LIBRARY_AWARE_FORMALIZATION_GAP_PLANNER_NAME
+            },
+            "portable_schema_id": {"const": PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_ID},
+            "bundle_id": {"type": "string", "minLength": 1},
+            "core_artifacts": {"type": "array", "items": core_artifact_schema},
+            "optional_artifacts": {
+                "type": "array",
+                "items": optional_artifact_schema,
+            },
+            "evaluation_summary": evaluation_summary_schema,
+            "schema_catalog_summary": {"type": "object"},
+            "portable_reuse_targets": string_array,
+            "all_ok": {"type": "boolean"},
+            "proof_evidence_status": {"const": PROOF_EVIDENCE_STATUS},
+            "proof_evidence_boundary": {"type": "string", "minLength": 1},
         },
     }
 
@@ -3283,6 +3444,7 @@ def _reproduction_payload(
         "contract/ai_statistician_llm_model_policy.md",
         "contract/formalization_gap_planner_schema_catalog.json",
         "contract/formalization_gap_planner_schema_catalog.schema.json",
+        "contract/formalization_gap_planner_publication_bundle_manifest.schema.json",
         "contract/library_aware_formalization_gap_plan.schema.json",
         "contract/formalization_gap_planner_standalone_input.schema.json",
         "contract/formalization_gap_planner_target_intake.schema.json",

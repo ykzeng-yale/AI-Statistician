@@ -61,7 +61,9 @@ from ai_statistician.formalization_gap_planner_minimal_delta_audit import (
     minimal_delta_decision_row_json_schema,
 )
 from ai_statistician.formalization_gap_planner_publication_bundle import (
+    FORMALIZATION_GAP_PLANNER_PUBLICATION_BUNDLE_MANIFEST_SCHEMA_ID,
     export_formalization_gap_planner_publication_bundle,
+    publication_bundle_manifest_json_schema,
     schema_catalog_json_schema,
 )
 from ai_statistician.formalization_gap_planner_publication_bundle_audit import (
@@ -3092,6 +3094,23 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     assert any(
         row["check_name"] == "schema_catalog_schema_id"
         and row["observed"] == schema_catalog_json_schema()["$id"]
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"] == "publication_bundle_manifest_schema_file" and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"] == "publication_bundle_manifest_schema_id"
+        and row["observed"]
+        == FORMALIZATION_GAP_PLANNER_PUBLICATION_BUNDLE_MANIFEST_SCHEMA_ID
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"] == "publication_bundle_manifest_schema_matches_contract"
+        and row["expected"] == publication_bundle_manifest_json_schema()["$id"]
         and row["ok"]
         for row in audit_payload["checks"]
     )
