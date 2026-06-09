@@ -218,10 +218,15 @@ When such a seed is converted into the portable standalone plan, the planner
 copies compact cost-graph and realization-witness traces into each row's
 `standalone_input_trace`, including the effective `target_prover_family` from
 the standalone input or route metadata. It reports manifest counters for
-graph-bearing traces,
-complete realization witnesses, missing selected formal-realization primitives,
-and missing delta-alignment primitives, and uses the selected route-option and
-primitive costs when present instead of falling back to coverage-label defaults.
+graph-bearing traces, complete realization witnesses, missing selected
+formal-realization primitives, missing delta-alignment primitives, and
+quality-control fields, making bounded tool policy visible in reusable
+standalone outputs. The trace carries a compact `quality_controls` object copied
+from route-level and `replan_metadata` controls, so external prover adapters can
+inspect resource contracts, gates, validation signals, and stop conditions
+without parsing the full replan metadata blob. The selected route-option and
+primitive costs are used when present instead of falling back to coverage-label
+defaults.
 Evaluation rows then surface `minimal_delta_cost_graph_present`,
 `minimal_delta_route_option_count`, `minimal_delta_selected_route_option_id`,
 `minimal_delta_selected_route_cost`, `realization_coverage_witness_present`,

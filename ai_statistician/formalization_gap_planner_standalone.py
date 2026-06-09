@@ -43,6 +43,13 @@ FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_SCHEMA_ID = (
 FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_COMPONENT = (
     "formalization_gap_planner_standalone_input"
 )
+QUALITY_CONTROL_FIELDS = (
+    "resource_contract_ids",
+    "required_quality_signals",
+    "quality_gates",
+    "response_validation_signals",
+    "stop_conditions",
+)
 FORMALIZATION_DELTA_OBJECTIVE = (
     "Given a target theorem T and a current formal library snapshot L, find a "
     "small additional formalization Delta of existing reuse, wrappers, bridge "
@@ -296,6 +303,15 @@ def export_formalization_gap_planner_standalone_plan(
         ),
         "n_standalone_input_trace_primitive_source_refs": sum(
             len(row.standalone_input_trace.get("primitive_source_refs", []))
+            for row in rows
+        ),
+        "n_standalone_input_traces_with_quality_controls": sum(
+            1
+            for row in rows
+            if row.standalone_input_trace.get("has_quality_controls")
+        ),
+        "n_standalone_input_trace_quality_control_fields": sum(
+            len(row.standalone_input_trace.get("quality_controls", {}))
             for row in rows
         ),
         "n_primitive_source_snippets": sum(
@@ -554,6 +570,7 @@ def standalone_input_json_schema() -> dict[str, object]:
                     "recommended_action": {"type": "string"},
                     "source_refs": string_array,
                     "source_snippets": object_array,
+                    "quality_controls": {"$ref": "#/$defs/quality_controls"},
                     "informal_proof_steps": string_array,
                     "candidate_declaration_rows": candidate_declaration_rows,
                     "import_cone_size": {"type": "integer", "minimum": 0},
@@ -708,6 +725,7 @@ def standalone_input_json_schema() -> dict[str, object]:
                     "residual_goals": string_array,
                     "source_refs": string_array,
                     "source_snippets": object_array,
+                    "quality_controls": {"$ref": "#/$defs/quality_controls"},
                     "formal_declaration_hits": {
                         "type": "array",
                         "items": {"$ref": "#/$defs/formal_declaration_hit"},
@@ -754,6 +772,14 @@ def standalone_input_json_schema() -> dict[str, object]:
                     "delta_primitives_missing_route_alignment_edge": string_array,
                     "introduced_primitives_missing_route_alignment_edge": string_array,
                     "realization_coverage_complete": {"type": "boolean"},
+                },
+            },
+            "quality_controls": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    field_name: string_array
+                    for field_name in QUALITY_CONTROL_FIELDS
                 },
             },
             "minimal_delta_and_or_cost_graph": {
@@ -1070,6 +1096,7 @@ def _standalone_input_trace(
     cost_graph = _minimal_delta_and_or_cost_graph(raw_route)
     selected_cost_graph_option = _selected_cost_graph_option(cost_graph)
     realization_witness = _realization_coverage_witness(raw_route)
+    quality_controls = _quality_controls_for_trace(raw_route, metadata)
     llm_generator_metadata = _dict_value(
         metadata.get("llm_route_planner_generator_metadata", {})
     )
@@ -1145,6 +1172,9 @@ def _standalone_input_trace(
             metadata.get("source_refs", raw_route.get("source_refs", []))
         ),
         "source_snippets": source_snippets,
+        "quality_controls": quality_controls,
+        "has_quality_controls": bool(quality_controls),
+        "quality_control_fields": sorted(quality_controls),
         "primitive_source_refs": primitive_source_refs,
         "primitive_source_snippets": primitive_source_snippets,
         "primitive_candidate_declaration_rows": primitive_candidate_declaration_rows,
@@ -1210,6 +1240,28 @@ def _standalone_input_trace(
                 raw_route.get("proof_evidence_status", ""),
             )
         ),
+    }
+
+
+def _quality_controls_for_trace(
+    raw_route: dict[str, Any],
+    metadata: dict[str, Any],
+) -> dict[str, list[str]]:
+    merged: dict[str, list[str]] = {}
+    for source in (
+        raw_route.get("quality_controls", {}),
+        metadata.get("quality_controls", {}),
+    ):
+        if not isinstance(source, dict):
+            continue
+        for field_name in QUALITY_CONTROL_FIELDS:
+            values = _str_list(source.get(field_name, []))
+            if values:
+                merged.setdefault(field_name, []).extend(values)
+    return {
+        field_name: _str_list(values)
+        for field_name, values in merged.items()
+        if _str_list(values)
     }
 
 

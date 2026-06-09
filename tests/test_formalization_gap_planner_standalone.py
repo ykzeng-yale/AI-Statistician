@@ -114,6 +114,8 @@ def test_standalone_gap_planner_exports_portable_plan_for_external_prover() -> N
     assert payload["n_standalone_input_traces"] == payload["n_goal_plans"]
     assert payload["n_standalone_input_traces_with_replan_metadata"] == 0
     assert payload["n_standalone_input_trace_primitive_source_refs"] == 1
+    assert payload["n_standalone_input_traces_with_quality_controls"] == 0
+    assert payload["n_standalone_input_trace_quality_control_fields"] == 0
     assert payload["n_goal_plan_row_schema_valid"] == payload["n_goal_plans"]
     assert payload["n_goal_plan_row_schema_invalid"] == 0
     assert payload["route_alignment_edge_schema"]["$id"] == ROUTE_ALIGNMENT_EDGE_SCHEMA_ID
@@ -135,6 +137,8 @@ def test_standalone_gap_planner_exports_portable_plan_for_external_prover() -> N
     assert row["standalone_input_trace"]["source_route_id"] == row["route_id"]
     assert row["standalone_input_trace"]["target_prover_family"] == "rocq"
     assert not row["standalone_input_trace"]["has_replan_metadata"]
+    assert not row["standalone_input_trace"]["has_quality_controls"]
+    assert row["standalone_input_trace"]["quality_controls"] == {}
     assert row["standalone_input_trace"]["primitive_source_refs"] == [
         {
             "primitive": "coverage_inequality",
@@ -209,8 +213,10 @@ def test_standalone_gap_planner_exports_portable_plan_for_external_prover() -> N
         == "#/$defs/minimal_delta_and_or_cost_graph"
     )
     assert route_props["replan_metadata"]["$ref"] == "#/$defs/replan_metadata"
+    assert route_props["quality_controls"]["$ref"] == "#/$defs/quality_controls"
     metadata_props = standalone_schema["$defs"]["replan_metadata"]["properties"]
     assert metadata_props["target_prover_family"]["type"] == "string"
+    assert metadata_props["quality_controls"]["$ref"] == "#/$defs/quality_controls"
     assert (
         metadata_props["formal_declaration_hits"]["items"]["$ref"]
         == "#/$defs/formal_declaration_hit"
@@ -238,6 +244,9 @@ def test_standalone_gap_planner_exports_portable_plan_for_external_prover() -> N
         == "#/$defs/dag_node"
     )
     assert metadata_props["alignment_edge_primitives"]["items"]["type"] == "string"
+    quality_props = standalone_schema["$defs"]["quality_controls"]["properties"]
+    assert quality_props["resource_contract_ids"]["items"]["type"] == "string"
+    assert quality_props["response_validation_signals"]["items"]["type"] == "string"
 
     prover_payload = export_formalization_gap_planner_prover_adapter_contract(
         out_dir,
@@ -287,6 +296,19 @@ def test_standalone_gap_planner_preserves_llm_minimal_delta_cost_graph_trace() -
         "introduced_primitives_missing_route_alignment_edge": [],
         "realization_coverage_complete": True,
     }
+    route_quality_controls = {
+        "resource_contract_ids": ["lean_lsp:proof_state_feedback"],
+        "quality_gates": ["residual_goals_source_grounded"],
+    }
+    metadata_quality_controls = {
+        "required_quality_signals": ["diagnostic_signature"],
+        "response_validation_signals": ["residual_goals_or_diagnostics_present"],
+        "stop_conditions": ["residual interpreted or source search requested"],
+    }
+    expected_quality_controls = {
+        **route_quality_controls,
+        **metadata_quality_controls,
+    }
     input_json.write_text(
         json.dumps(
             {
@@ -300,9 +322,11 @@ def test_standalone_gap_planner_preserves_llm_minimal_delta_cost_graph_trace() -
                         "display_name": "rank_route",
                         "theorem_statement": "Rank uniformity follows from exchangeability.",
                         "source_refs": ["conformal_prediction_textbook"],
+                        "quality_controls": route_quality_controls,
                         "minimal_delta_and_or_cost_graph": cost_graph,
                         "realization_coverage_witness": realization_witness,
                         "replan_metadata": {
+                            "quality_controls": metadata_quality_controls,
                             "minimal_delta_and_or_cost_graph": cost_graph,
                             "llm_route_planner_realization_coverage_witness": (
                                 realization_witness
@@ -366,6 +390,8 @@ def test_standalone_gap_planner_preserves_llm_minimal_delta_cost_graph_trace() -
         == 0
     )
     assert payload["n_standalone_input_trace_route_options"] == 2
+    assert payload["n_standalone_input_traces_with_quality_controls"] == 1
+    assert payload["n_standalone_input_trace_quality_control_fields"] == 5
     row = payload["rows"][0]
     assert row["best_route_cost"] == 4
     action_cost_by_primitive = {
@@ -374,6 +400,14 @@ def test_standalone_gap_planner_preserves_llm_minimal_delta_cost_graph_trace() -
     }
     assert action_cost_by_primitive["rank_uniformity"] == 4
     trace = row["standalone_input_trace"]
+    trace_schema_props = portable_gap_plan_row_json_schema()["properties"][
+        "standalone_input_trace"
+    ]["properties"]
+    assert trace_schema_props["quality_controls"]["type"] == "object"
+    assert trace_schema_props["has_quality_controls"]["type"] == "boolean"
+    assert trace["quality_controls"] == expected_quality_controls
+    assert trace["has_quality_controls"] is True
+    assert trace["quality_control_fields"] == sorted(expected_quality_controls)
     assert trace["has_minimal_delta_and_or_cost_graph"] is True
     assert trace["minimal_delta_route_option_count"] == 2
     assert trace["minimal_delta_selected_route_option_id"] == "route_option:bridge_rank"

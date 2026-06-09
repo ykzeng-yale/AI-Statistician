@@ -406,6 +406,18 @@ def portable_gap_plan_json_schema() -> dict[str, object]:
                                 "items": {"type": "object"},
                             },
                             "has_source_snippets": {"type": "boolean"},
+                            "quality_controls": {
+                                "type": "object",
+                                "additionalProperties": {
+                                    "type": "array",
+                                    "items": {"type": "string"},
+                                },
+                            },
+                            "has_quality_controls": {"type": "boolean"},
+                            "quality_control_fields": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                            },
                             "realization_coverage_witness": {
                                 "type": "object",
                                 "additionalProperties": True,

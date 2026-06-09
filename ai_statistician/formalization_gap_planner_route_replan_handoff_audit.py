@@ -811,6 +811,10 @@ def _trace_metadata_fields_ok(
         trace_metadata.get("quality_controls", {})
     ) != _quality_controls_from_payload(metadata.get("quality_controls", {})):
         return False
+    if _quality_controls_from_payload(
+        trace.get("quality_controls", {})
+    ) != _quality_controls_from_payload(metadata.get("quality_controls", {})):
+        return False
     return True
 
 
