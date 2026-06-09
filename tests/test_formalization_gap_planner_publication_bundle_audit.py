@@ -6391,6 +6391,75 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         for row in audit_payload["checks"]
     )
 
+    llm_artifact_dir = (
+        bundle_dir / "artifacts" / "formalization_gap_planner_llm_route_planner"
+    )
+    rows_path = llm_artifact_dir / "formalization_gap_planner_llm_route_planner.jsonl"
+    seed_path = (
+        llm_artifact_dir
+        / "formalization_gap_planner_llm_route_planner_standalone_seed.json"
+    )
+    original_rows = [
+        json.loads(line)
+        for line in rows_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    original_seed = json.loads(seed_path.read_text(encoding="utf-8"))
+    alias_corrupted_rows = json.loads(json.dumps(original_rows))
+    alias_corrupted_seed = json.loads(json.dumps(original_seed))
+    alias_corrupted_rows[0]["target_prover_family"] = "rocq"
+    alias_corrupted_rows[0]["lean_realization_dag_nodes"] = list(
+        alias_corrupted_rows[0]["formal_realization_dag_nodes"]
+    )
+    alias_corrupted_rows[0]["formal_realization_dag_nodes"] = []
+    alias_corrupted_seed["target_prover_family"] = "rocq"
+    seed_route = alias_corrupted_seed["routes"][0]
+    seed_route["target_prover_family"] = "rocq"
+    seed_route["revised_lean_realization_dag_nodes"] = list(
+        seed_route["revised_formal_realization_dag_nodes"]
+    )
+    seed_route.pop("revised_formal_realization_dag_nodes", None)
+    seed_metadata = seed_route["replan_metadata"]
+    seed_metadata["target_prover_family"] = "rocq"
+    seed_metadata["revised_lean_realization_dag_nodes"] = list(
+        seed_metadata["revised_formal_realization_dag_nodes"]
+    )
+    seed_metadata.pop("revised_formal_realization_dag_nodes", None)
+    rows_path.write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in alias_corrupted_rows)
+        + "\n",
+        encoding="utf-8",
+    )
+    seed_path.write_text(json.dumps(alias_corrupted_seed, indent=2), encoding="utf-8")
+    rejected_alias_payload = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        root / "audit_rejects_non_lean_llm_lean_alias_seed_dag",
+    )
+    alias_failed_names = {
+        row["check_name"] for row in rejected_alias_payload["checks"] if not row["ok"]
+    }
+    assert not rejected_alias_payload["all_ok"]
+    assert (
+        "optional_llm_route_planner_row_0_seed_dag_preservation"
+        in alias_failed_names
+    )
+    assert (
+        "optional_llm_route_planner_generic_formal_dag_fields"
+        in alias_failed_names
+    )
+    assert rejected_alias_payload["n_optional_llm_route_planner_seed_dag_valid"] == 0
+    assert (
+        rejected_alias_payload[
+            "n_optional_llm_route_planner_generic_formal_dag_valid"
+        ]
+        == 0
+    )
+    rows_path.write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in original_rows) + "\n",
+        encoding="utf-8",
+    )
+    seed_path.write_text(json.dumps(original_seed, indent=2), encoding="utf-8")
+
     manifest_path = (
         bundle_dir
         / "artifacts"

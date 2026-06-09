@@ -7444,6 +7444,8 @@ def _llm_formal_realization_nodes(row: dict[str, Any]) -> tuple[dict[str, object
     nodes = _dict_tuple(row.get("formal_realization_dag_nodes", []))
     if nodes:
         return nodes
+    if _is_non_lean_target_prover(_llm_target_prover_family(row)):
+        return tuple()
     return _dict_tuple(row.get("lean_realization_dag_nodes", []))
 
 
@@ -7451,7 +7453,37 @@ def _llm_revised_formal_realization_nodes(row: dict[str, Any]) -> tuple[dict[str
     nodes = _dict_tuple(row.get("revised_formal_realization_dag_nodes", []))
     if nodes:
         return nodes
+    if _is_non_lean_target_prover(_llm_target_prover_family(row)):
+        return tuple()
     return _dict_tuple(row.get("revised_lean_realization_dag_nodes", []))
+
+
+def _llm_target_prover_family(row: dict[str, Any]) -> str:
+    candidates: list[object] = [
+        row.get("target_prover_family", ""),
+        row.get("target_prover", ""),
+    ]
+    metadata = row.get("replan_metadata", {})
+    if isinstance(metadata, dict):
+        candidates.extend(
+            [
+                metadata.get("target_prover_family", ""),
+                metadata.get("target_prover", ""),
+            ]
+        )
+    standalone_route = row.get("standalone_route", {})
+    if isinstance(standalone_route, dict):
+        candidates.extend(
+            [
+                standalone_route.get("target_prover_family", ""),
+                standalone_route.get("target_prover", ""),
+            ]
+        )
+    for candidate in candidates:
+        value = str(candidate or "").strip()
+        if value:
+            return value
+    return ""
 
 
 def _llm_request_residual_keys(request: dict[str, Any]) -> set[str]:
