@@ -5180,7 +5180,58 @@ def test_llm_route_planner_rejects_anthropic_explicit_model_tier_mismatch() -> N
     row = payload["rows"][0]
     assert row["ok"] is False
     assert row["response_present"] is False
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_REQUEST_CONTRACT"
     assert any("expected Claude haiku tier" in error for error in row["errors"])
+
+
+def test_llm_route_planner_preflight_blocks_live_provider_on_model_tier_mismatch() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_preflight_tier_block"
+    )
+    out_dir = root / "llm_route_planner"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_light_input(root)
+    calls: list[object] = []
+
+    class ShouldNotCallAnthropicBackend:
+        provider_name = "anthropic"
+
+        def generate(self, request):
+            calls.append(request)
+            raise AssertionError("preflight-invalid request should not call provider")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="anthropic",
+        model="claude-sonnet-4-6",
+        model_tier="haiku",
+        invoke_provider=True,
+        generator_backend=ShouldNotCallAnthropicBackend(),
+    )
+
+    assert calls == []
+    assert not payload["all_ok"]
+    assert payload["invoke_provider"] is True
+    assert payload["n_generation_preflight_blocked"] == 1
+    assert payload["n_raw_responses"] == 0
+    assert payload["n_awaiting_llm_response"] == 0
+    assert payload["n_rejected"] == 1
+    assert payload["n_route_adoption_rejected"] == 1
+    preflight_error = payload["generation_preflight_errors"][0]
+    assert preflight_error["model"] == "claude-sonnet-4-6"
+    assert preflight_error["model_tier"] == "haiku"
+    assert any(
+        "expected Claude haiku tier" in error
+        for error in preflight_error["errors"]
+    )
+    row = payload["rows"][0]
+    assert row["provider_failure"] is False
+    assert row["response_present"] is False
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_REQUEST_CONTRACT"
+    assert row["route_adoption_status"] == "REJECTED_LLM_ROUTE_PLAN"
+    assert "response_not_accepted" in row["route_adoption_blockers"]
 
 
 def test_llm_route_planner_rejects_outside_cost_tier_model_for_tier_request() -> None:
@@ -5211,7 +5262,7 @@ def test_llm_route_planner_rejects_outside_cost_tier_model_for_tier_request() ->
     assert packet["model"] == "claude-fable-5"
     assert packet["model_tier"] == "sonnet"
     row = payload["rows"][0]
-    assert row["acceptance_status"] == "AWAITING_LLM_ROUTE_PLANNER_RESPONSE"
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_REQUEST_CONTRACT"
     assert any("outside-tier Claude fable model" in error for error in row["errors"])
 
 

@@ -685,10 +685,19 @@ def export_formalization_gap_planner_llm_route_planner(
             raw_responses.extend(_read_response_json(static_response_json, errors))
     if invoke_provider and generator_backend is None:
         generator_backend = _provider_backend(provider)
+    generation_preflight_errors = _generation_preflight_errors(
+        request_packets,
+        request_schema_errors,
+    )
+    generation_request_packets = tuple(
+        packet
+        for packet, packet_errors in zip(request_packets, request_schema_errors)
+        if not packet_errors
+    )
     if invoke_provider and generator_backend is not None:
         raw_responses.extend(
             _generate_responses(
-                request_packets,
+                generation_request_packets,
                 generator_backend=generator_backend,
                 model=model,
                 max_tokens=max_tokens,
@@ -769,6 +778,8 @@ def export_formalization_gap_planner_llm_route_planner(
         "by_request_model_tier": dict(sorted(by_model_tier.items())),
         "n_request_model_tier_mismatches": len(request_model_tier_mismatches),
         "request_model_tier_mismatches": request_model_tier_mismatches,
+        "n_generation_preflight_blocked": len(generation_preflight_errors),
+        "generation_preflight_errors": generation_preflight_errors,
         "n_request_residual_goals": sum(
             len(_str_tuple(packet.get("residual_goals", [])))
             for packet in request_packets
@@ -3080,6 +3091,27 @@ def _request_model_tier_mismatches(
     ]
 
 
+def _generation_preflight_errors(
+    requests: tuple[dict[str, Any], ...],
+    request_schema_errors: list[list[str]],
+) -> list[dict[str, object]]:
+    errors: list[dict[str, object]] = []
+    for request, request_errors in zip(requests, request_schema_errors):
+        if not request_errors:
+            continue
+        errors.append(
+            {
+                "request_id": str(request.get("request_id", "")),
+                "route_id": str(request.get("route_id", "")),
+                "provider_name": str(request.get("provider_name", "")),
+                "model": str(request.get("model", "")),
+                "model_tier": str(request.get("model_tier", "")),
+                "errors": tuple(sorted(set(request_errors))),
+            }
+        )
+    return errors
+
+
 def _request_model_tier_mismatch(
     request: Mapping[str, Any],
 ) -> dict[str, object]:
@@ -3375,6 +3407,8 @@ def _row_for_request(
     )
     if provider_failure:
         acceptance_status = "REJECTED_LLM_ROUTE_PLANNER_PROVIDER_FAILURE"
+    elif request_errors:
+        acceptance_status = "REJECTED_LLM_ROUTE_PLANNER_REQUEST_CONTRACT"
     elif not response_present:
         acceptance_status = "AWAITING_LLM_ROUTE_PLANNER_RESPONSE"
     elif response_errors or contract_errors or response_model_tier_errors:
@@ -3405,6 +3439,7 @@ def _row_for_request(
     minimal_delta_plan = _dict_value(payload, "minimal_delta_plan")
     route_alignment_edges = _dict_tuple(payload.get("route_alignment_edges", []))
     route_adoption_status, route_adoption_blockers = _route_adoption_readiness(
+        request_errors=tuple(request_errors),
         response_present=response_present,
         provider_failure=provider_failure,
         response_contract_ok=response_contract_ok,
@@ -3492,6 +3527,7 @@ def _row_for_request(
 
 def _route_adoption_readiness(
     *,
+    request_errors: tuple[str, ...] = (),
     response_present: bool,
     provider_failure: bool,
     response_contract_ok: bool,
@@ -3503,7 +3539,11 @@ def _route_adoption_readiness(
     feedback_summary: Mapping[str, object],
     omitted_cost_hint_primitives: tuple[str, ...],
 ) -> tuple[str, tuple[str, ...]]:
-    if provider_failure or (response_present and not response_contract_ok):
+    if (
+        request_errors
+        or provider_failure
+        or (response_present and not response_contract_ok)
+    ):
         return (
             ROUTE_ADOPTION_REJECTED_STATUS,
             (ROUTE_ADOPTION_BLOCKER_RESPONSE_NOT_ACCEPTED,),
