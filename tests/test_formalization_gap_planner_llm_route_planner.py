@@ -5226,6 +5226,10 @@ def test_llm_route_planner_preflight_blocks_live_provider_on_model_tier_mismatch
         "expected Claude haiku tier" in error
         for error in preflight_error["errors"]
     )
+    report = (
+        out_dir / "formalization_gap_planner_llm_route_planner.md"
+    ).read_text(encoding="utf-8")
+    assert "- Generation preflight blocks: 1" in report
     row = payload["rows"][0]
     assert row["provider_failure"] is False
     assert row["response_present"] is False

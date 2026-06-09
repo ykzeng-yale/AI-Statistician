@@ -10554,6 +10554,7 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
         f"- Model tier mode: {payload.get('model_tier_selection_mode')}",
         f"- Request tiers: {payload.get('by_request_model_tier')}",
         f"- Request model-tier mismatches: {payload.get('n_request_model_tier_mismatches')}",
+        f"- Generation preflight blocks: {payload.get('n_generation_preflight_blocked')}",
         f"- Repair attempts: {payload.get('n_generated_response_repair_attempts')}",
         f"- Repaired responses: {payload.get('n_generated_responses_repaired')}",
         f"- Responses present: {payload.get('n_response_present')}",
