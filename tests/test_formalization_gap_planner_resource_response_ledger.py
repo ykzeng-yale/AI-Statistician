@@ -273,6 +273,129 @@ def test_resource_response_ledger_accepts_portable_formal_declaration_hits() -> 
     assert "formal_declaration_hits" in row["matched_response_contract_fields"]
 
 
+def test_resource_response_ledger_rejects_cross_prover_declaration_hit_mismatch() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_resource_response_ledger_rocq_hit_mismatch"
+    )
+    ledger_dir = root / "ledger"
+    response_jsonl = root / "resource_responses.jsonl"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    _, request_queue_dir = _build_request_queue(
+        root,
+        input_payload={
+            "schema_version": 1,
+            "component_name": "formalization_gap_planner_standalone_input",
+            "target_prover_family": "rocq",
+            "library_snapshot_ref": "rocq_conformal_snapshot",
+            "routes": [
+                {
+                    "route_id": "rocq_rank_route",
+                    "display_name": "rocq_rank_route",
+                    "theorem_statement": "A Rocq rank route.",
+                    "primitives": [
+                        {
+                            "primitive": "rank_uniformity",
+                            "coverage_status": "bridge_needed",
+                            "expected_premises": ["exchangeability"],
+                        }
+                    ],
+                }
+            ],
+        },
+    )
+    request_manifest = json.loads(
+        (
+            request_queue_dir
+            / "formalization_gap_planner_resource_request_queue_manifest.json"
+        ).read_text(encoding="utf-8")
+    )
+    formal_request = next(
+        row
+        for row in request_manifest["rows"]
+        if row["target_prover_family"] == "rocq"
+        and "formal_declaration_hits" in row["response_contract_fields"]
+    )
+    response = {
+        "resource_request_id": formal_request["resource_request_id"],
+        "resource_id": formal_request["resource_id"],
+        "expected_response_artifact": formal_request["expected_response_artifact"],
+        "response_payload": {
+            "formal_declaration_hits": [
+                {
+                    "declaration": "Mathlib.Probability.RankUniformityBridge",
+                    "target_prover_family": "lean4",
+                    "source_field": "formal_declaration_hits",
+                }
+            ],
+            "lean_declaration_hits": [
+                {
+                    "declaration": "Mathlib.Probability.RankUniformityBridge",
+                    "target_prover_family": "lean4",
+                }
+            ],
+        },
+        "formal_declaration_hits": [
+            {
+                "declaration": "Mathlib.Probability.RankUniformityBridge",
+                "target_prover_family": "lean4",
+                "source_field": "formal_declaration_hits",
+            }
+        ],
+        "lean_declaration_hits": [
+            {
+                "declaration": "Mathlib.Probability.RankUniformityBridge",
+                "target_prover_family": "lean4",
+            }
+        ],
+        "proof_evidence_boundary": "not theorem proof evidence",
+    }
+    response_jsonl.write_text(
+        json.dumps(response, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_resource_response_ledger(
+        request_queue_dir,
+        ledger_dir,
+        response_jsonl=response_jsonl,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_response_schema_valid"] == 1
+    assert payload["n_response_contract_ok"] == 0
+    assert payload["n_rejected"] == 1
+    row = next(
+        row
+        for row in payload["rows"]
+        if row["resource_request_id"] == formal_request["resource_request_id"]
+    )
+    assert row["acceptance_status"] == "REJECTED_DECLARATION_TARGET_MISMATCH"
+    assert row["response_contract_minimum_met"] is True
+    assert row["response_contract_ok"] is False
+    assert row["lean_declaration_hits"]
+    error_text = "\n".join(row["errors"])
+    assert (
+        "formal_declaration_hits[0].target_prover_family must match row target_prover_family"
+        in error_text
+    )
+    assert (
+        "lean_declaration_hits[0].target_prover_family must match row target_prover_family"
+        in error_text
+    )
+    assert "lean_declaration_hits is a Lean-only legacy alias" in error_text
+    malformed = dict(row)
+    malformed["errors"] = []
+    assert (
+        "lean_declaration_hits is a Lean-only legacy alias; non-Lean "
+        "resource response rows must use formal_declaration_hits only"
+        in validate_resource_response_ledger_row(
+            malformed,
+            resource_response_ledger_row_json_schema(),
+        )
+    )
+
+
 def test_resource_response_ledger_accepts_adapter_feedback_without_proof_claims() -> None:
     root = Path("runs/test_formalization_gap_planner_resource_response_ledger")
     ledger_dir = root / "ledger"

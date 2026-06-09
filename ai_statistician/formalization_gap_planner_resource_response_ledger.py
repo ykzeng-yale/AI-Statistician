@@ -562,6 +562,27 @@ def validate_resource_response_ledger_row(
                 "candidate_declaration_rows"
                 f"[{index}].target_prover_family must match row target_prover_family"
             )
+    errors.extend(
+        _declaration_hit_target_errors(
+            row_target,
+            _dict_tuple(row.get("formal_declaration_hits", [])),
+            field_name="formal_declaration_hits",
+        )
+    )
+    errors.extend(
+        _declaration_hit_target_errors(
+            row_target,
+            _dict_tuple(row.get("lean_declaration_hits", [])),
+            field_name="lean_declaration_hits",
+        )
+    )
+    if row_target and row_target != "lean4" and _dict_tuple(
+        row.get("lean_declaration_hits", [])
+    ):
+        errors.append(
+            "lean_declaration_hits is a Lean-only legacy alias; non-Lean "
+            "resource response rows must use formal_declaration_hits only"
+        )
     if "not theorem proof evidence" not in str(
         row.get("proof_evidence_boundary", "")
     ).lower():
@@ -598,6 +619,7 @@ def _ledger_row(
     response_contract_fields = _str_tuple(request_row.get("response_contract_fields", []))
     resource_contract_ids = _str_tuple(request_row.get("resource_contract_ids", []))
     stop_conditions = _str_tuple(request_row.get("stop_conditions", []))
+    target_prover_family = str(request_row.get("target_prover_family", ""))
     request_target_primitives = _request_target_primitives(request_row)
     request_playbook = _dict_value(request_row, "request_playbook")
     request_playbook_present = bool(request_playbook)
@@ -619,6 +641,34 @@ def _ledger_row(
     expanded_target_primitives = sorted(
         set(response_target_primitives) - set(request_target_primitives)
     )
+    formal_declaration_hits = _dict_tuple(
+        response_values.get(
+            "formal_declaration_hits",
+            response_values.get("lean_declaration_hits", []),
+        )
+    )
+    lean_declaration_hits = _dict_tuple(response_values.get("lean_declaration_hits", []))
+    declaration_hit_errors = (
+        _declaration_hit_target_errors(
+            _target_prover_key(target_prover_family),
+            formal_declaration_hits,
+            field_name="formal_declaration_hits",
+        )
+        + _declaration_hit_target_errors(
+            _target_prover_key(target_prover_family),
+            lean_declaration_hits,
+            field_name="lean_declaration_hits",
+        )
+    )
+    if (
+        _target_prover_key(target_prover_family)
+        and _target_prover_key(target_prover_family) != "lean4"
+        and lean_declaration_hits
+    ):
+        declaration_hit_errors.append(
+            "lean_declaration_hits is a Lean-only legacy alias; non-Lean "
+            "resource responses must use formal_declaration_hits only"
+        )
     response_playbook_grounded, response_playbook_grounding_terms = (
         _response_playbook_grounding(request_playbook, response_values)
         if response_present and request_playbook_present
@@ -640,6 +690,8 @@ def _ledger_row(
             "target_primitives must not expand beyond resource request target_primitives: "
             + ", ".join(expanded_target_primitives[:8])
         )
+    if response_present and declaration_hit_errors:
+        row_errors.extend(declaration_hit_errors)
     if (
         response_present
         and request_playbook_present
@@ -657,6 +709,7 @@ def _ledger_row(
         and not kernel_claimed
         and response_contract_minimum_met
         and not expanded_target_primitives
+        and not declaration_hit_errors
         and (not request_playbook_present or response_playbook_grounded)
     )
     if not response_present:
@@ -671,6 +724,8 @@ def _ledger_row(
         acceptance_status = "REJECTED_MISSING_RESPONSE_CONTRACT_FIELDS"
     elif expanded_target_primitives:
         acceptance_status = "REJECTED_RESPONSE_TARGET_SCOPE_EXPANSION"
+    elif declaration_hit_errors:
+        acceptance_status = "REJECTED_DECLARATION_TARGET_MISMATCH"
     elif request_playbook_present and not response_playbook_grounded:
         acceptance_status = "REJECTED_RESPONSE_NOT_GROUNDED_IN_REQUEST_PLAYBOOK"
     elif route_revision_recommended:
@@ -680,13 +735,6 @@ def _ledger_row(
     resource_request_id = str(request_row.get("resource_request_id", ""))
     source_refs = _str_tuple(response_values.get("source_refs", []))
     route_evidence_nodes = _dict_tuple(response_values.get("route_evidence_nodes", []))
-    formal_declaration_hits = _dict_tuple(
-        response_values.get(
-            "formal_declaration_hits",
-            response_values.get("lean_declaration_hits", []),
-        )
-    )
-    lean_declaration_hits = _dict_tuple(response_values.get("lean_declaration_hits", []))
     coverage_updates = {
         str(key): str(value)
         for key, value in _dict_value(response_values, "coverage_updates").items()
@@ -713,7 +761,7 @@ def _ledger_row(
         target_primitives=target_primitives,
         coverage_bucket=str(request_row.get("coverage_bucket", "")),
         queue_action_kind=str(request_row.get("queue_action_kind", "")),
-        target_prover_family=str(request_row.get("target_prover_family", "")),
+        target_prover_family=target_prover_family,
         library_snapshot_ref=str(request_row.get("library_snapshot_ref", "")),
         candidate_declaration_rows=_candidate_declaration_rows(
             request_row.get("candidate_declaration_rows", [])
@@ -1231,6 +1279,28 @@ def _candidate_declaration_rows(values: object) -> tuple[dict[str, object], ...]
 
 def _formal_declaration_key(value: object) -> str:
     return re.sub(r"\s+", " ", str(value).strip()).lower()
+
+
+def _declaration_hit_target_errors(
+    row_target: str,
+    rows: tuple[dict[str, object], ...],
+    *,
+    field_name: str,
+) -> list[str]:
+    errors: list[str] = []
+    if not row_target:
+        return errors
+    for index, declaration_row in enumerate(rows):
+        declaration_target = _target_prover_key(
+            declaration_row.get("target_prover_family", "")
+            or declaration_row.get("target_prover", "")
+        )
+        if declaration_target and declaration_target != row_target:
+            errors.append(
+                f"{field_name}[{index}].target_prover_family must match "
+                "row target_prover_family"
+            )
+    return errors
 
 
 def _target_prover_key(value: object) -> str:

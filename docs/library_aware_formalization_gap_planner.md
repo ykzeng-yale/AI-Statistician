@@ -563,7 +563,9 @@ responses and `kernel_verified=true` claims are rejected in this adapter layer.
 Accepted responses can add source refs, portable formal declaration hits
 (`lean_declaration_hits` remains a Lean legacy alias), coverage updates, prover
 diagnostics, residual goals, or route-revision reasons, but they remain planner
-feedback rather than theorem proof evidence. Responses that
+feedback rather than theorem proof evidence. Declaration-hit target prover
+families must match the queued request target, and non-Lean targets must use
+`formal_declaration_hits` rather than the Lean legacy alias. Responses that
 try to expand `target_primitives` beyond the queued request scope are rejected
 and cannot count as `response_contract_ok`, instead of silently broadening the
 formalization target. When bundled,
