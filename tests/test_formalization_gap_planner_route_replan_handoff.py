@@ -595,6 +595,14 @@ def test_route_replan_handoff_preserves_overlay_target_prover_family_for_rocq() 
     row = payload["rows"][0]
     assert row["revised_formal_realization_dag_nodes"]
     assert row["revised_lean_realization_dag_nodes"] == ()
+    assert row["formal_declaration_hits"] == (
+        {
+            "primitive": "rocq_exchangeability_bridge",
+            "coverage_status": "bridge_needed",
+            "declaration": "Rocq.Probability.exchangeable",
+        },
+    )
+    assert row["lean_declaration_hits"] == ()
     assert row["standalone_route"]["target_prover_family"] == "rocq"
     assert row["standalone_route"]["replan_metadata"]["target_prover_family"] == "rocq"
     assert row["standalone_route"]["revised_formal_realization_dag_nodes"]
@@ -618,6 +626,30 @@ def test_route_replan_handoff_preserves_overlay_target_prover_family_for_rocq() 
     assert seed["routes"][0]["replan_metadata"][
         "revised_lean_realization_dag_nodes"
     ] == []
+    assert seed["routes"][0]["replan_metadata"]["formal_declaration_hits"] == [
+        {
+            "primitive": "rocq_exchangeability_bridge",
+            "coverage_status": "bridge_needed",
+            "declaration": "Rocq.Probability.exchangeable",
+        }
+    ]
+    assert seed["routes"][0]["replan_metadata"]["lean_declaration_hits"] == []
+    bad_legacy_alias_row = dict(row)
+    bad_legacy_alias_row["lean_declaration_hits"] = [
+        {
+            "primitive": "rocq_exchangeability_bridge",
+            "declaration": "Rocq.Probability.exchangeable",
+            "target_prover_family": "rocq",
+        }
+    ]
+    assert (
+        "lean_declaration_hits is a Lean-only legacy alias; non-Lean route replan "
+        "handoff rows must use formal_declaration_hits only"
+        in validate_route_replan_handoff_row(
+            bad_legacy_alias_row,
+            route_replan_handoff_row_json_schema(),
+        )
+    )
 
     next_plan = export_formalization_gap_planner_standalone_plan(
         seed_path,

@@ -494,6 +494,7 @@ def validate_route_revision_overlay_row(
         and not _dict_tuple(row.get("applied_resource_response_traces", []))
     ):
         errors.append("resource_response_ledger hook missing applied_resource_response_traces")
+    errors.extend(_declaration_hit_scope_errors(row))
     return tuple(errors)
 
 
@@ -764,22 +765,24 @@ def _overlay_row(
         ),
         formal_declaration_hits=_merge_nodes(
             *(
-                _dict_tuple(
-                    proposal.get(
-                        "formal_declaration_hits",
-                        proposal.get("lean_declaration_hits", []),
-                    )
+                _formal_declaration_hits_for_target(
+                    proposal,
+                    _target_prover_family_for_overlay(
+                        plan_row,
+                        (proposal,),
+                    ),
                 )
                 for proposal in proposals
             )
         ),
         lean_declaration_hits=_merge_nodes(
             *(
-                _dict_tuple(
-                    proposal.get(
-                        "lean_declaration_hits",
-                        proposal.get("formal_declaration_hits", []),
-                    )
+                _lean_declaration_hits_for_target(
+                    proposal,
+                    _target_prover_family_for_overlay(
+                        plan_row,
+                        (proposal,),
+                    ),
                 )
                 for proposal in proposals
             )
@@ -800,7 +803,8 @@ def _overlay_row(
             for proposal in proposals
         ),
         target_prover_families=_str_tuple(
-            proposal.get("target_prover_family", "") for proposal in proposals
+            _target_prover_family_for_overlay(plan_row, (proposal,))
+            for proposal in proposals
         ),
         applied_prover_diagnostic_signatures=_str_tuple(
             proposal.get("prover_diagnostic_signature", "") for proposal in proposals
@@ -883,17 +887,13 @@ def _orphan_overlay_row(
         route_revision_summaries=_str_tuple([proposal.get("route_revision_summary", "")]),
         source_refs=_str_tuple(proposal.get("source_refs", [])),
         source_snippets=_dict_tuple(proposal.get("source_snippets", [])),
-        formal_declaration_hits=_dict_tuple(
-            proposal.get(
-                "formal_declaration_hits",
-                proposal.get("lean_declaration_hits", []),
-            )
+        formal_declaration_hits=_formal_declaration_hits_for_target(
+            proposal,
+            target_prover_family,
         ),
-        lean_declaration_hits=_dict_tuple(
-            proposal.get(
-                "lean_declaration_hits",
-                proposal.get("formal_declaration_hits", []),
-            )
+        lean_declaration_hits=_lean_declaration_hits_for_target(
+            proposal,
+            target_prover_family,
         ),
         residual_goals=_str_tuple(proposal.get("residual_goals", [])),
         applied_prover_attempt_statuses=_str_tuple(
@@ -909,7 +909,7 @@ def _orphan_overlay_row(
                 )
             ]
         ),
-        target_prover_families=_str_tuple([proposal.get("target_prover_family", "")]),
+        target_prover_families=_str_tuple([target_prover_family]),
         applied_prover_diagnostic_signatures=_str_tuple(
             [proposal.get("prover_diagnostic_signature", "")]
         ),
@@ -1066,8 +1066,9 @@ def _ledger_row_has_actionable_feedback(row: dict[str, Any]) -> bool:
             bool(_str_tuple(row.get("source_refs", []))),
             bool(_dict_tuple(row.get("route_evidence_nodes", []))),
             bool(
-                _dict_tuple(
-                    row.get("formal_declaration_hits", row.get("lean_declaration_hits", []))
+                _formal_declaration_hits_for_target(
+                    row,
+                    str(row.get("target_prover_family", "")),
                 )
             ),
             bool(_dict_value(row, "coverage_updates")),
@@ -1095,8 +1096,8 @@ def _resource_response_ledger_proposal(
         response_payload.get("revised_delta_primitives", [])
     )
     informal_nodes = _resource_response_informal_nodes(row)
-    formal_nodes = _resource_response_lean_nodes(row)
     target_prover_family = str(row.get("target_prover_family", ""))
+    formal_nodes = _resource_response_formal_nodes(row)
     lean_nodes = _lean_alias_nodes_for_target(
         target_prover_family,
         formal_nodes,
@@ -1135,11 +1136,13 @@ def _resource_response_ledger_proposal(
         "revised_lean_realization_dag_nodes": lean_nodes,
         "source_refs": _str_tuple(row.get("source_refs", [])),
         "source_snippets": _resource_response_source_snippets(row),
-        "formal_declaration_hits": _dict_tuple(
-            row.get("formal_declaration_hits", row.get("lean_declaration_hits", []))
+        "formal_declaration_hits": _formal_declaration_hits_for_target(
+            row,
+            target_prover_family,
         ),
-        "lean_declaration_hits": _dict_tuple(
-            row.get("lean_declaration_hits", row.get("formal_declaration_hits", []))
+        "lean_declaration_hits": _lean_declaration_hits_for_target(
+            row,
+            target_prover_family,
         ),
         "residual_goals": _str_tuple(row.get("residual_goals", [])),
         "prover_attempt_status": str(row.get("prover_attempt_status", "")),
@@ -1227,10 +1230,14 @@ def _resource_response_trace(row: dict[str, Any]) -> dict[str, object]:
         "candidate_declaration_rows": _dict_tuple(
             row.get("candidate_declaration_rows", [])
         ),
-        "formal_declaration_hits": _dict_tuple(
-            row.get("formal_declaration_hits", row.get("lean_declaration_hits", []))
+        "formal_declaration_hits": _formal_declaration_hits_for_target(
+            row,
+            str(row.get("target_prover_family", "")),
         ),
-        "lean_declaration_hits": _dict_tuple(row.get("lean_declaration_hits", [])),
+        "lean_declaration_hits": _lean_declaration_hits_for_target(
+            row,
+            str(row.get("target_prover_family", "")),
+        ),
         "response_present": bool(row.get("response_present", False)),
         "response_contract_fields": _str_tuple(
             row.get("response_contract_fields", [])
@@ -1394,6 +1401,58 @@ def _lean_alias_nodes_for_target(
     return nodes or fallback_nodes
 
 
+def _formal_declaration_hits_for_target(
+    row: dict[str, Any],
+    target_prover_family: str,
+) -> tuple[dict[str, object], ...]:
+    if "formal_declaration_hits" in row:
+        return _dict_tuple(row.get("formal_declaration_hits", []))
+    if _is_lean_target_prover(target_prover_family):
+        return _dict_tuple(row.get("lean_declaration_hits", []))
+    return tuple()
+
+
+def _lean_declaration_hits_for_target(
+    row: dict[str, Any],
+    target_prover_family: str,
+) -> tuple[dict[str, object], ...]:
+    if not _is_lean_target_prover(target_prover_family):
+        return tuple()
+    if "lean_declaration_hits" in row:
+        return _dict_tuple(row.get("lean_declaration_hits", []))
+    return _dict_tuple(row.get("formal_declaration_hits", []))
+
+
+def _declaration_hit_scope_errors(row: dict[str, Any]) -> tuple[str, ...]:
+    errors: list[str] = []
+    target_families = _row_target_prover_families(row)
+    target_keys = {_target_prover_key(family) for family in target_families}
+    has_non_lean_only_target = bool(target_keys) and not any(
+        _is_lean_target_prover(family) for family in target_families
+    )
+    if has_non_lean_only_target and _dict_tuple(row.get("lean_declaration_hits", [])):
+        errors.append(
+            "lean_declaration_hits is a Lean-only legacy alias; non-Lean "
+            "route revision overlay rows must use formal_declaration_hits only"
+        )
+    for field_name in ("formal_declaration_hits", "lean_declaration_hits"):
+        for index, hit in enumerate(_dict_tuple(row.get(field_name, []))):
+            hit_family = str(hit.get("target_prover_family", "") or "").strip()
+            if hit_family and target_keys and _target_prover_key(hit_family) not in target_keys:
+                errors.append(
+                    f"{field_name}[{index}].target_prover_family must match "
+                    "row target_prover_families"
+                )
+    return tuple(errors)
+
+
+def _row_target_prover_families(row: dict[str, Any]) -> tuple[str, ...]:
+    values = _str_tuple(row.get("target_prover_families", []))
+    if values:
+        return values
+    return _str_tuple(row.get("target_prover_family", ""))
+
+
 def _target_prover_family_for_overlay(
     plan_row: dict[str, Any],
     proposals: tuple[dict[str, Any], ...],
@@ -1443,14 +1502,18 @@ def _target_prover_family_values_from_proposal(
 
 
 def _is_lean_target_prover(target_prover_family: str) -> bool:
-    key = re.sub(
+    key = _target_prover_key(target_prover_family)
+    return key in {"lean", "lean4", "lean_4"} or key.startswith(
+        ("lean4_", "lean_4_", "lean_")
+    )
+
+
+def _target_prover_key(target_prover_family: object) -> str:
+    return re.sub(
         r"[^a-z0-9]+",
         "_",
         str(target_prover_family).strip().lower(),
     ).strip("_")
-    return key in {"lean", "lean4", "lean_4"} or key.startswith(
-        ("lean4_", "lean_4_", "lean_")
-    )
 
 
 def _usable_refinement_evidence_ids(
@@ -1505,8 +1568,9 @@ def _resource_response_route_revision_reasons(
         reasons.append("resource response preserved residual prover goals")
     if _dict_value(row, "coverage_updates"):
         reasons.append("resource response updated library coverage status")
-    if _dict_tuple(
-        row.get("formal_declaration_hits", row.get("lean_declaration_hits", []))
+    if _formal_declaration_hits_for_target(
+        row,
+        str(row.get("target_prover_family", "")),
     ):
         reasons.append("resource response identified reusable formal declarations")
     if _str_tuple(row.get("source_refs", [])) or _dict_tuple(
@@ -1555,14 +1619,16 @@ def _resource_response_informal_nodes(
     return _merge_nodes(tuple(nodes))
 
 
-def _resource_response_lean_nodes(
+def _resource_response_formal_nodes(
     row: dict[str, Any],
 ) -> tuple[dict[str, object], ...]:
     primitive = str(row.get("primitive", ""))
     ledger_id = str(row.get("resource_response_ledger_id", ""))
+    target_prover_family = str(row.get("target_prover_family", ""))
+    is_lean_target = _is_lean_target_prover(target_prover_family)
     coverage_updates = _dict_value(row, "coverage_updates")
     nodes: list[dict[str, object]] = []
-    hits = row.get("formal_declaration_hits", row.get("lean_declaration_hits", []))
+    hits = _formal_declaration_hits_for_target(row, target_prover_family)
     for index, hit in enumerate(_dict_tuple(hits)):
         declaration = str(
             hit.get("declaration", "")
@@ -1570,12 +1636,24 @@ def _resource_response_lean_nodes(
             or hit.get("name", "")
         )
         normalized = dict(hit)
+        hit_hash_kind = "lean_hit" if is_lean_target else "formal_hit"
         normalized.setdefault(
             "node_id",
-            "resource_response_lean:"
-            + stable_hash([ledger_id, "lean_hit", index, hit])[:16],
+            (
+                "resource_response_lean:"
+                if is_lean_target
+                else "resource_response_formal:"
+            )
+            + stable_hash([ledger_id, hit_hash_kind, index, hit])[:16],
         )
-        normalized.setdefault("kind", "resource_response_lean_declaration_hit")
+        normalized.setdefault(
+            "kind",
+            (
+                "resource_response_lean_declaration_hit"
+                if is_lean_target
+                else "resource_response_formal_declaration_hit"
+            ),
+        )
         normalized.setdefault("label", primitive)
         normalized.setdefault("primitive", primitive)
         normalized.setdefault("declaration", declaration)

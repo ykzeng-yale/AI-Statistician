@@ -407,6 +407,14 @@ def test_route_revision_overlay_accepts_generic_formal_realization_nodes() -> No
                                 "target_prover_family": "rocq",
                             }
                         ],
+                        "formal_declaration_hits": [
+                            {
+                                "primitive": "generic_rank_bridge",
+                                "declaration": "Rocq.Conformal.generic_rank_bridge",
+                                "target_prover_family": "rocq",
+                                "source_field": "formal_declaration_hits",
+                            }
+                        ],
                         "source_refs": ["fixture:rocq-route"],
                         "proof_evidence_status": (
                             "FORMALIZATION_GAP_PLANNER_REFINEMENT_EVIDENCE_NOT_PROOF_EVIDENCE"
@@ -433,9 +441,188 @@ def test_route_revision_overlay_accepts_generic_formal_realization_nodes() -> No
     assert "generic_rank_bridge" in row["revised_selected_primitives"]
     assert row["revised_formal_realization_dag_nodes"]
     assert row["revised_lean_realization_dag_nodes"] == ()
+    assert row["formal_declaration_hits"] == (
+        {
+            "primitive": "generic_rank_bridge",
+            "declaration": "Rocq.Conformal.generic_rank_bridge",
+            "target_prover_family": "rocq",
+            "source_field": "formal_declaration_hits",
+        },
+    )
+    assert row["lean_declaration_hits"] == ()
     assert {
         edge["primitive"] for edge in row["revised_route_alignment_edges"]
     } == {"existing_rank", "generic_rank_bridge"}
+    bad_legacy_alias_row = dict(row)
+    bad_legacy_alias_row["lean_declaration_hits"] = [
+        {
+            "primitive": "generic_rank_bridge",
+            "declaration": "Rocq.Conformal.generic_rank_bridge",
+            "target_prover_family": "rocq",
+        }
+    ]
+    assert (
+        "lean_declaration_hits is a Lean-only legacy alias; non-Lean route revision "
+        "overlay rows must use formal_declaration_hits only"
+        in validate_route_revision_overlay_row(
+            bad_legacy_alias_row,
+            route_revision_overlay_row_json_schema(),
+        )
+    )
+    bad_mismatch_row = dict(row)
+    bad_mismatch_row["formal_declaration_hits"] = [
+        {
+            "primitive": "generic_rank_bridge",
+            "declaration": "Mathlib.Conformal.genericRankBridge",
+            "target_prover_family": "lean4",
+        }
+    ]
+    assert (
+        "formal_declaration_hits[0].target_prover_family must match row "
+        "target_prover_families"
+        in validate_route_revision_overlay_row(
+            bad_mismatch_row,
+            route_revision_overlay_row_json_schema(),
+        )
+    )
+
+
+def test_route_revision_overlay_keeps_rocq_resource_hits_portable() -> None:
+    root = Path("runs/test_formalization_gap_planner_route_revision_overlay_rocq_ledger")
+    plan_dir = root / "plan"
+    evidence_dir = root / "evidence"
+    ledger_dir = root / "ledger"
+    overlay_dir = root / "overlay"
+    shutil.rmtree(root, ignore_errors=True)
+    plan_dir.mkdir(parents=True, exist_ok=True)
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+    ledger_dir.mkdir(parents=True, exist_ok=True)
+    (plan_dir / "goal_conditioned_minimal_formalization_plan_manifest.json").write_text(
+        json.dumps(
+            {
+                "component_name": "library_aware_formalization_gap_planner",
+                "target_prover_family": "rocq",
+                "rows": [
+                    {
+                        "goal_plan_id": "goal:rocq_ledger",
+                        "route_id": "route:rocq_ledger",
+                        "display_name": "rocq ledger route",
+                        "selected_primitives": ["exchangeability_bridge"],
+                        "minimal_additional_formalization_nodes": [],
+                        "informal_knowledge_dag": {
+                            "nodes": [
+                                {
+                                    "node_id": "informal:exchangeability_bridge",
+                                    "label": "exchangeability_bridge",
+                                }
+                            ]
+                        },
+                        "lean_realization_dag": {
+                            "nodes": [
+                                {
+                                    "node_id": "formal:exchangeability_bridge",
+                                    "label": "exchangeability_bridge",
+                                }
+                            ]
+                        },
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    (
+        evidence_dir / "formalization_gap_planner_refinement_evidence_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "component_name": "formalization_gap_planner_refinement_evidence",
+                "route_revision_proposals": [],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    (
+        ledger_dir / "formalization_gap_planner_resource_response_ledger_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "component_name": "formalization_gap_planner_resource_response_ledger",
+                "rows": [
+                    {
+                        "schema_version": 7,
+                        "resource_response_ledger_id": "ledger:rocq_exchangeability",
+                        "resource_request_id": "request:rocq_exchangeability",
+                        "goal_plan_id": "goal:rocq_ledger",
+                        "route_id": "route:rocq_ledger",
+                        "display_name": "rocq ledger route",
+                        "primitive": "exchangeability_bridge",
+                        "target_primitives": ["exchangeability_bridge"],
+                        "resource_id": "rocq_lsp_mcp",
+                        "target_prover_family": "rocq",
+                        "response_present": True,
+                        "response_contract_ok": True,
+                        "response_payload": {},
+                        "response_summary": "Rocq search found a reusable bridge",
+                        "formal_declaration_hits": [
+                            {
+                                "primitive": "exchangeability_bridge",
+                                "declaration": "Rocq.Probability.exchangeability_bridge",
+                                "target_prover_family": "rocq",
+                                "source_field": "formal_declaration_hits",
+                            }
+                        ],
+                        "matched_response_contract_fields": [
+                            "formal_declaration_hits"
+                        ],
+                        "acceptance_status": "ACCEPTED_WITH_ROUTE_REVISION",
+                        "route_revision_recommended": True,
+                        "ok": True,
+                        "proof_evidence_status": (
+                            "FORMALIZATION_GAP_PLANNER_RESOURCE_RESPONSE_LEDGER_NOT_PROOF_EVIDENCE"
+                        ),
+                        "proof_evidence_boundary": "not theorem proof evidence",
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_route_revision_overlay(
+        plan_dir,
+        evidence_dir,
+        overlay_dir,
+        formalization_gap_planner_resource_response_ledger_dir=ledger_dir,
+    )
+
+    assert payload["all_ok"]
+    row = payload["rows"][0]
+    assert row["target_prover_families"] == ("rocq",)
+    assert row["formal_declaration_hits"] == (
+        {
+            "primitive": "exchangeability_bridge",
+            "declaration": "Rocq.Probability.exchangeability_bridge",
+            "target_prover_family": "rocq",
+            "source_field": "formal_declaration_hits",
+        },
+    )
+    assert row["lean_declaration_hits"] == ()
+    assert row["revised_lean_realization_dag_nodes"] == ()
+    assert any(
+        node.get("kind") == "resource_response_formal_declaration_hit"
+        for node in row["revised_formal_realization_dag_nodes"]
+    )
+    assert not any(
+        str(node.get("node_id", "")).startswith("resource_response_lean:")
+        for node in row["revised_formal_realization_dag_nodes"]
+    )
+    trace = row["applied_resource_response_traces"][0]
+    assert trace["formal_declaration_hits"] == row["formal_declaration_hits"]
+    assert trace["lean_declaration_hits"] == ()
 
 
 def test_route_revision_overlay_ignores_rejected_refinement_evidence_proposals() -> None:

@@ -437,6 +437,7 @@ def validate_route_replan_handoff_row(
         and not _dict_tuple(row.get("applied_resource_response_traces", []))
     ):
         errors.append("resource_response_ledger hook missing applied_resource_response_traces")
+    errors.extend(_declaration_hit_scope_errors(row))
     return tuple(errors)
 
 
@@ -562,16 +563,19 @@ def _handoff_row(
     route_revision_summaries = _str_tuple(
         overlay_row.get("route_revision_summaries", [])
     )
+    target_prover_family = _target_prover_family_for_replan_route(
+        plan_row,
+        overlay_row,
+    )
     source_refs = _merged_source_refs(plan_row, overlay_row)
     source_snippets = _dict_tuple(overlay_row.get("source_snippets", []))
-    formal_declaration_hits = _dict_tuple(
-        overlay_row.get(
-            "formal_declaration_hits",
-            overlay_row.get("lean_declaration_hits", []),
-        )
+    formal_declaration_hits = _formal_declaration_hits_for_target(
+        overlay_row,
+        target_prover_family,
     )
-    lean_declaration_hits = _dict_tuple(
-        overlay_row.get("lean_declaration_hits", formal_declaration_hits)
+    lean_declaration_hits = _lean_declaration_hits_for_target(
+        overlay_row,
+        target_prover_family,
     )
     informal_nodes = _dict_tuple(
         overlay_row.get("revised_informal_knowledge_dag_nodes", [])
@@ -584,10 +588,6 @@ def _handoff_row(
     )
     alignment_edges = _dict_tuple(overlay_row.get("revised_route_alignment_edges", []))
     unaligned_primitives = _str_tuple(overlay_row.get("unaligned_primitives", []))
-    target_prover_family = _target_prover_family_for_replan_route(
-        plan_row,
-        overlay_row,
-    )
     lean_nodes = _lean_alias_nodes_for_target(
         target_prover_family,
         _dict_tuple(overlay_row.get("revised_lean_realization_dag_nodes", [])),
@@ -840,17 +840,13 @@ def _standalone_route(
             "residual_goals": _str_tuple(overlay_row.get("residual_goals", [])),
             "source_refs": source_refs,
             "source_snippets": source_snippets,
-            "formal_declaration_hits": _dict_tuple(
-                overlay_row.get(
-                    "formal_declaration_hits",
-                    overlay_row.get("lean_declaration_hits", []),
-                )
+            "formal_declaration_hits": _formal_declaration_hits_for_target(
+                overlay_row,
+                target_prover_family,
             ),
-            "lean_declaration_hits": _dict_tuple(
-                overlay_row.get(
-                    "lean_declaration_hits",
-                    overlay_row.get("formal_declaration_hits", []),
-                )
+            "lean_declaration_hits": _lean_declaration_hits_for_target(
+                overlay_row,
+                target_prover_family,
             ),
             "revised_informal_knowledge_dag_nodes": revised_informal_knowledge_dag_nodes,
             "revised_formal_realization_dag_nodes": revised_formal_realization_dag_nodes,
@@ -1082,9 +1078,9 @@ def _node_index(plan_row: dict[str, Any]) -> dict[str, dict[str, Any]]:
 
 def _lean_hit_index(overlay_row: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
     index: dict[str, list[dict[str, Any]]] = {}
-    hits = overlay_row.get(
-        "formal_declaration_hits",
-        overlay_row.get("lean_declaration_hits", []),
+    hits = _formal_declaration_hits_for_target(
+        overlay_row,
+        _target_prover_family_for_replan_route({}, overlay_row),
     )
     for hit in hits:
         if not isinstance(hit, dict):
@@ -1166,15 +1162,80 @@ def _lean_alias_nodes_for_target(
     return nodes or fallback_nodes
 
 
+def _formal_declaration_hits_for_target(
+    row: dict[str, Any],
+    target_prover_family: str,
+) -> tuple[dict[str, object], ...]:
+    if "formal_declaration_hits" in row:
+        return _dict_tuple(row.get("formal_declaration_hits", []))
+    if _is_lean_target_prover(target_prover_family):
+        return _dict_tuple(row.get("lean_declaration_hits", []))
+    return tuple()
+
+
+def _lean_declaration_hits_for_target(
+    row: dict[str, Any],
+    target_prover_family: str,
+) -> tuple[dict[str, object], ...]:
+    if not _is_lean_target_prover(target_prover_family):
+        return tuple()
+    if "lean_declaration_hits" in row:
+        return _dict_tuple(row.get("lean_declaration_hits", []))
+    return _dict_tuple(row.get("formal_declaration_hits", []))
+
+
+def _declaration_hit_scope_errors(row: dict[str, Any]) -> tuple[str, ...]:
+    errors: list[str] = []
+    target_families = _row_target_prover_families(row)
+    target_keys = {_target_prover_key(family) for family in target_families}
+    has_non_lean_only_target = bool(target_keys) and not any(
+        _is_lean_target_prover(family) for family in target_families
+    )
+    if has_non_lean_only_target and _dict_tuple(row.get("lean_declaration_hits", [])):
+        errors.append(
+            "lean_declaration_hits is a Lean-only legacy alias; non-Lean "
+            "route replan handoff rows must use formal_declaration_hits only"
+        )
+    for field_name in ("formal_declaration_hits", "lean_declaration_hits"):
+        for index, hit in enumerate(_dict_tuple(row.get(field_name, []))):
+            hit_family = str(hit.get("target_prover_family", "") or "").strip()
+            if hit_family and target_keys and _target_prover_key(hit_family) not in target_keys:
+                errors.append(
+                    f"{field_name}[{index}].target_prover_family must match "
+                    "row target_prover_family"
+                )
+    return tuple(errors)
+
+
+def _row_target_prover_families(row: dict[str, Any]) -> tuple[str, ...]:
+    families = _str_tuple(row.get("target_prover_family", ""))
+    standalone_route = _dict_value(row.get("standalone_route", {}))
+    families = _str_tuple(
+        [
+            *families,
+            standalone_route.get("target_prover_family", ""),
+            _dict_value(standalone_route.get("replan_metadata", {})).get(
+                "target_prover_family",
+                "",
+            ),
+        ]
+    )
+    return families
+
+
 def _is_lean_target_prover(target_prover_family: str) -> bool:
-    key = re.sub(
+    key = _target_prover_key(target_prover_family)
+    return key in {"lean", "lean4", "lean_4"} or key.startswith(
+        ("lean4_", "lean_4_", "lean_")
+    )
+
+
+def _target_prover_key(target_prover_family: object) -> str:
+    return re.sub(
         r"[^a-z0-9]+",
         "_",
         str(target_prover_family).strip().lower(),
     ).strip("_")
-    return key in {"lean", "lean4", "lean_4"} or key.startswith(
-        ("lean4_", "lean_4_", "lean_")
-    )
 
 
 def _row_index(rows: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
