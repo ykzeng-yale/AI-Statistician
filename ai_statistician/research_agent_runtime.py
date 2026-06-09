@@ -2441,6 +2441,13 @@ def _critic_learning_rows(
     selected_proof_obligation_ids = [
         str(row) for row in proof_control.get("selected_proof_obligation_ids", []) or []
     ]
+    deferred_proof_obligation_ids_due_to_max = [
+        str(row) for row in proof_control.get("deferred_proof_obligation_ids_due_to_max", []) or []
+    ]
+    deferred_priority_proof_obligation_ids_due_to_max = [
+        str(row)
+        for row in proof_control.get("deferred_priority_proof_obligation_ids_due_to_max", []) or []
+    ]
     kernel_verified_proof_obligation_ids = [
         str(row.get("proof_obligation_id", ""))
         for row in formal_subclaims
@@ -2471,6 +2478,8 @@ def _critic_learning_rows(
     recommended_proof_obligation_ids = (
         failed_proof_obligation_ids
         or proved_non_kernel_proof_obligation_ids
+        or deferred_priority_proof_obligation_ids_due_to_max
+        or deferred_proof_obligation_ids_due_to_max
         or selected_proof_obligation_ids
     )
     rows: list[dict[str, Any]] = []
@@ -2498,6 +2507,10 @@ def _critic_learning_rows(
                 "algorithm_n_executed": algorithm_manifest.get("n_executed", 0),
                 "formalization_counts": formalization_manifest.get("counts", {}),
                 "selected_proof_obligation_ids": selected_proof_obligation_ids,
+                "deferred_proof_obligation_ids_due_to_max": deferred_proof_obligation_ids_due_to_max,
+                "deferred_priority_proof_obligation_ids_due_to_max": (
+                    deferred_priority_proof_obligation_ids_due_to_max
+                ),
                 "kernel_verified_proof_obligation_ids": kernel_verified_proof_obligation_ids,
                 "proved_non_kernel_proof_obligation_ids": proved_non_kernel_proof_obligation_ids,
                 "failed_proof_obligation_ids": failed_proof_obligation_ids,
@@ -2505,6 +2518,10 @@ def _critic_learning_rows(
                 "recommended_proof_obligation_ids": recommended_proof_obligation_ids,
             },
             "selected_proof_obligation_ids": selected_proof_obligation_ids,
+            "deferred_proof_obligation_ids_due_to_max": deferred_proof_obligation_ids_due_to_max,
+            "deferred_priority_proof_obligation_ids_due_to_max": (
+                deferred_priority_proof_obligation_ids_due_to_max
+            ),
             "kernel_verified_proof_obligation_ids": kernel_verified_proof_obligation_ids,
             "proved_non_kernel_proof_obligation_ids": proved_non_kernel_proof_obligation_ids,
             "failed_proof_obligation_ids": failed_proof_obligation_ids,
@@ -3636,6 +3653,9 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
             "n_selected_proof_obligations": 0,
             "selected_proof_obligation_ids": [],
             "selected_priority_proof_obligation_ids": [],
+            "eligible_proof_obligation_ids_before_limit": [],
+            "deferred_proof_obligation_ids_due_to_max": [],
+            "deferred_priority_proof_obligation_ids_due_to_max": [],
             "selection_boundary": (
                 "Proof-obligation controls limit registered proof-bank subclaim verification only. "
                 "They do not remove frontier formal gaps and do not prove the full theorem."
@@ -3743,6 +3763,21 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                 proof_control["selected_priority_proof_obligation_ids"] = sorted(
                     set(proof_control.get("selected_priority_proof_obligation_ids", []) or [])
                     | {str(row) for row in control.get("selected_priority_proof_obligation_ids", []) or []}
+                )
+                proof_control["eligible_proof_obligation_ids_before_limit"] = sorted(
+                    set(proof_control.get("eligible_proof_obligation_ids_before_limit", []) or [])
+                    | {str(row) for row in control.get("eligible_proof_obligation_ids_before_limit", []) or []}
+                )
+                proof_control["deferred_proof_obligation_ids_due_to_max"] = sorted(
+                    set(proof_control.get("deferred_proof_obligation_ids_due_to_max", []) or [])
+                    | {str(row) for row in control.get("deferred_proof_obligation_ids_due_to_max", []) or []}
+                )
+                proof_control["deferred_priority_proof_obligation_ids_due_to_max"] = sorted(
+                    set(proof_control.get("deferred_priority_proof_obligation_ids_due_to_max", []) or [])
+                    | {
+                        str(row)
+                        for row in control.get("deferred_priority_proof_obligation_ids_due_to_max", []) or []
+                    }
                 )
                 for verifier in artifact.get("verifiers", []) or []:
                     if str(verifier).strip():
@@ -3873,6 +3908,8 @@ def _runtime_learning_memory_proof_obligation_ids(
             continue
         for key in (
             "recommended_proof_obligation_ids",
+            "deferred_priority_proof_obligation_ids_due_to_max",
+            "deferred_proof_obligation_ids_due_to_max",
             "selected_proof_obligation_ids",
             "proved_non_kernel_proof_obligation_ids",
             "failed_proof_obligation_ids",
@@ -3885,6 +3922,8 @@ def _runtime_learning_memory_proof_obligation_ids(
         if isinstance(input_summary, Mapping):
             for key in (
                 "recommended_proof_obligation_ids",
+                "deferred_priority_proof_obligation_ids_due_to_max",
+                "deferred_proof_obligation_ids_due_to_max",
                 "selected_proof_obligation_ids",
                 "proved_non_kernel_proof_obligation_ids",
                 "failed_proof_obligation_ids",

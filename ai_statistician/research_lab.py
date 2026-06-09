@@ -5180,6 +5180,9 @@ class FormalSubclaimProver:
         self._last_selected_obligation_ids: tuple[str, ...] = ()
         self._last_prioritized_obligation_ids: tuple[str, ...] = ()
         self._last_selected_priority_obligation_ids: tuple[str, ...] = ()
+        self._last_eligible_obligation_ids_before_limit: tuple[str, ...] = ()
+        self._last_deferred_obligation_ids_due_to_max: tuple[str, ...] = ()
+        self._last_deferred_priority_obligation_ids_due_to_max: tuple[str, ...] = ()
         self._last_requested_candidate_intersection: tuple[str, ...] = ()
         self._last_requested_non_candidate_ids: tuple[str, ...] = ()
         self._last_selection_filtered_all_candidates = False
@@ -5201,6 +5204,15 @@ class FormalSubclaimProver:
             "candidate_proof_obligation_ids": list(self._last_candidate_obligation_ids),
             "selected_proof_obligation_ids": list(self._last_selected_obligation_ids),
             "selected_priority_proof_obligation_ids": list(self._last_selected_priority_obligation_ids),
+            "eligible_proof_obligation_ids_before_limit": list(
+                self._last_eligible_obligation_ids_before_limit
+            ),
+            "deferred_proof_obligation_ids_due_to_max": list(
+                self._last_deferred_obligation_ids_due_to_max
+            ),
+            "deferred_priority_proof_obligation_ids_due_to_max": list(
+                self._last_deferred_priority_obligation_ids_due_to_max
+            ),
             "requested_candidate_intersection": list(self._last_requested_candidate_intersection),
             "requested_non_candidate_proof_obligation_ids": list(self._last_requested_non_candidate_ids),
             "proof_selection_filtered_all_candidates": self._last_selection_filtered_all_candidates,
@@ -5273,6 +5285,9 @@ class FormalSubclaimProver:
         self._last_candidate_obligation_ids = candidate_obligation_ids
         self._last_requested_candidate_intersection = ()
         self._last_requested_non_candidate_ids = ()
+        self._last_eligible_obligation_ids_before_limit = ()
+        self._last_deferred_obligation_ids_due_to_max = ()
+        self._last_deferred_priority_obligation_ids_due_to_max = ()
         self._last_selection_filtered_all_candidates = False
         obligation_ids = candidate_obligation_ids
         if self.proof_obligation_ids:
@@ -5299,10 +5314,22 @@ class FormalSubclaimProver:
             prioritized = tuple(row for row in priority_ids if row in obligation_ids)
             remaining = tuple(row for row in obligation_ids if row not in priority_set)
             obligation_ids = (*prioritized, *remaining)
+        eligible_obligation_ids = obligation_ids
         if self.max_proof_obligations:
             obligation_ids = obligation_ids[: self.max_proof_obligations]
         self._last_selected_obligation_ids = obligation_ids
-        self._last_selected_priority_obligation_ids = tuple(row for row in obligation_ids if row in set(priority_ids))
+        selected_set = set(obligation_ids)
+        priority_set = set(priority_ids)
+        self._last_eligible_obligation_ids_before_limit = eligible_obligation_ids
+        self._last_deferred_obligation_ids_due_to_max = tuple(
+            row for row in eligible_obligation_ids if row not in selected_set
+        )
+        self._last_selected_priority_obligation_ids = tuple(row for row in obligation_ids if row in priority_set)
+        self._last_deferred_priority_obligation_ids_due_to_max = tuple(
+            row
+            for row in eligible_obligation_ids
+            if row in priority_set and row not in selected_set
+        )
         proof_items = []
         for obligation_id in obligation_ids:
             obligation = get_obligation(obligation_id)

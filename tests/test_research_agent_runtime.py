@@ -522,7 +522,7 @@ def test_formal_subclaim_prover_prioritizes_agent_requested_kernel_smoke() -> No
         prover.prove(
             problem,
             theorem_goals,
-            prioritized_proof_obligation_ids=("variance_nonneg",),
+            prioritized_proof_obligation_ids=("variance_nonneg", "prob_measure_univ"),
         )
     )
     registered_rows = [row for row in subclaims if row.claim_type == "lean_obligation"]
@@ -530,8 +530,10 @@ def test_formal_subclaim_prover_prioritizes_agent_requested_kernel_smoke() -> No
 
     assert verifier.seen_obligation_ids == ["variance_nonneg"]
     assert [row.proof_obligation_id for row in registered_rows] == ["variance_nonneg"]
-    assert control["prioritized_proof_obligation_ids"] == ["variance_nonneg"]
+    assert control["prioritized_proof_obligation_ids"] == ["variance_nonneg", "prob_measure_univ"]
     assert control["selected_priority_proof_obligation_ids"] == ["variance_nonneg"]
+    assert control["deferred_priority_proof_obligation_ids_due_to_max"] == ["prob_measure_univ"]
+    assert control["deferred_proof_obligation_ids_due_to_max"]
     assert control["n_selected_proof_obligations"] == 1
 
 
@@ -1369,6 +1371,9 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert proof_control["llm_off_catalog_proof_obligation_ids"] == ["constant_estimator_unbiased"]
     assert proof_control["prioritized_proof_obligation_ids"] == ["variance_nonneg"]
     assert proof_control["selected_priority_proof_obligation_ids"] == ["variance_nonneg"]
+    assert proof_control["eligible_proof_obligation_ids_before_limit"]
+    assert proof_control["deferred_proof_obligation_ids_due_to_max"] == []
+    assert proof_control["deferred_priority_proof_obligation_ids_due_to_max"] == []
     assert evidence_summary["algorithm"]["n_algorithm_sandbox_executed"] == 4
     assert evidence_summary["algorithm"]["n_generated_code_sandbox_executed"] == 2
     assert evidence_summary["algorithm"]["n_unsafe_generated_code_rejected"] == 0
