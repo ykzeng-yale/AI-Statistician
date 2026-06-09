@@ -5634,9 +5634,18 @@ def _quality_control_context_for_request(
             absorb(row, contract_scoped=True)
     for row in _dict_tuple(context_packet.get("interactive_session_rows", [])):
         absorb(row)
+    current_route = _dict_value(context_packet, "current_route")
+    absorb(_dict_value(current_route, "quality_controls"), contract_scoped=True)
+    replan_metadata = _dict_value(context_packet, "replan_metadata")
+    absorb(_dict_value(replan_metadata, "quality_controls"), contract_scoped=True)
     feedback_summary = _dict_value(context_packet, "feedback_loop_summary")
     for row in _dict_tuple(feedback_summary.get("recommended_next_actions", [])):
         absorb(row, contract_scoped=True)
+    prior_replan_metadata = _dict_value(feedback_summary, "prior_replan_metadata")
+    absorb(
+        _dict_value(prior_replan_metadata, "quality_controls"),
+        contract_scoped=True,
+    )
 
     for row in _dict_tuple(registry_context.get("resource_rows", [])):
         absorb(row)
@@ -5754,6 +5763,18 @@ def _resource_contract_ids_for_request_context(
     ids.update(
         _resource_contract_ids_for_rows(
             _dict_tuple(feedback_summary.get("recommended_next_actions", []))
+        )
+    )
+    current_route = _dict_value(context_packet, "current_route")
+    replan_metadata = _dict_value(context_packet, "replan_metadata")
+    prior_replan_metadata = _dict_value(feedback_summary, "prior_replan_metadata")
+    ids.update(
+        _resource_contract_ids_for_rows(
+            (
+                _dict_value(current_route, "quality_controls"),
+                _dict_value(replan_metadata, "quality_controls"),
+                _dict_value(prior_replan_metadata, "quality_controls"),
+            )
         )
     )
     for row_key in (

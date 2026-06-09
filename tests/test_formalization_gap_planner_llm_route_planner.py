@@ -2451,6 +2451,55 @@ def test_llm_route_planner_accepts_policy_grounded_quality_controls() -> None:
     ) == ("residual interpreted or source search requested",)
     assert not validate_standalone_input_payload(handoff_payload["standalone_seed"])
 
+    replan_response = _llm_response_payload()
+    replan_response["source_snippets"] = []
+    for node in replan_response.get("informal_knowledge_dag_nodes", []):
+        if isinstance(node, dict):
+            node.pop("source_snippets", None)
+    standalone_replan_route = replan_response.get("standalone_route", {})
+    if isinstance(standalone_replan_route, dict):
+        standalone_replan_route.pop("source_snippets", None)
+        for primitive in standalone_replan_route.get("primitives", []):
+            if isinstance(primitive, dict):
+                primitive.pop("source_snippets", None)
+    replan_response["planner_next_actions"][0].update(
+        {
+            "resource_contract_ids": ["lean_lsp:proof_state_feedback"],
+            "required_quality_signals": ["diagnostic_signature"],
+            "quality_gates": ["response_schema_valid"],
+            "response_validation_signals": [
+                "residual_goals_or_diagnostics_present"
+            ],
+            "stop_conditions": ["residual interpreted or source search requested"],
+        }
+    )
+    replan_response_json = root / "replan_response.json"
+    replan_response_json.write_text(json.dumps(replan_response), encoding="utf-8")
+    replan_llm_dir = root / "llm_route_planner_from_quality_control_handoff"
+    replan_payload = export_formalization_gap_planner_llm_route_planner(
+        handoff_dir / "formalization_gap_planner_route_replan_standalone_seed.json",
+        replan_llm_dir,
+        provider_name="static",
+        static_response_json=replan_response_json,
+    )
+    assert replan_payload["all_ok"]
+    replan_context = replan_payload["request_packets"][0]["context_packet"]
+    prior_metadata = replan_context["feedback_loop_summary"]["prior_replan_metadata"]
+    assert tuple(
+        prior_metadata["quality_controls"]["resource_contract_ids"]
+    ) == ("lean_lsp:proof_state_feedback",)
+    assert tuple(
+        prior_metadata["quality_controls"]["response_validation_signals"]
+    ) == ("residual_goals_or_diagnostics_present",)
+    assert "prior_replan_metadata" in replan_payload["request_packets"][0][
+        "prompt_messages"
+    ]["user"]
+    replan_row = replan_payload["rows"][0]
+    assert replan_row["response_contract_ok"] is True
+    assert replan_row["planner_next_actions"][0]["quality_gates"] == [
+        "response_schema_valid"
+    ]
+
 
 def test_llm_route_planner_rejects_ungrounded_quality_controls() -> None:
     root = Path(
