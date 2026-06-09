@@ -12,6 +12,13 @@ from .fingerprint import stable_hash
 
 
 FORMALIZATION_GAP_PLANNER_ROUTE_REVISION_OVERLAY_SCHEMA_VERSION = 2
+QUALITY_CONTROL_FIELDS = (
+    "resource_contract_ids",
+    "required_quality_signals",
+    "quality_gates",
+    "response_validation_signals",
+    "stop_conditions",
+)
 PROOF_EVIDENCE_STATUS = "FORMALIZATION_GAP_PLANNER_ROUTE_REVISION_OVERLAY_NOT_PROOF_EVIDENCE"
 PROOF_EVIDENCE_BOUNDARY = (
     "Formalization gap planner route-revision overlays apply refinement "
@@ -50,6 +57,7 @@ class FormalizationGapPlannerRouteRevisionOverlayRow:
     applied_hook_kinds: tuple[str, ...]
     applied_resource_response_traces: tuple[dict[str, object], ...]
     applied_llm_route_planner_hook_traces: tuple[dict[str, object], ...]
+    quality_controls: dict[str, tuple[str, ...]]
     resource_response_summary: dict[str, int]
     resource_response_summary_by_acceptance_status: dict[str, int]
     resource_response_awaiting_request_ids: tuple[str, ...]
@@ -241,6 +249,9 @@ def export_formalization_gap_planner_route_revision_overlay(
         "n_applied_llm_route_planner_hook_traces": sum(
             len(row.applied_llm_route_planner_hook_traces) for row in rows
         ),
+        "n_routes_with_quality_controls": sum(
+            1 for row in rows if row.quality_controls
+        ),
         "n_routes_with_llm_route_planner_hook_trace": sum(
             1 for row in rows if row.applied_llm_route_planner_hook_traces
         ),
@@ -420,6 +431,7 @@ def route_revision_overlay_row_json_schema() -> dict[str, object]:
             "applied_hook_kinds": string_array,
             "applied_resource_response_traces": object_array,
             "applied_llm_route_planner_hook_traces": object_array,
+            "quality_controls": {"type": "object"},
             "resource_response_summary": {"type": "object"},
             "resource_response_summary_by_acceptance_status": {"type": "object"},
             "resource_response_awaiting_request_ids": string_array,
@@ -571,6 +583,9 @@ def _overlay_row(
     resource_response_summary_by_status = (
         _resource_response_summary_by_acceptance_status(resource_response_rows)
     )
+    quality_controls = _quality_controls_from_rows(
+        [*proposals, *resource_response_rows]
+    )
     resource_response_awaiting_request_ids = _resource_response_request_ids_by_status(
         resource_response_rows,
         awaiting=True,
@@ -613,6 +628,7 @@ def _overlay_row(
             applied_hook_kinds=(),
             applied_resource_response_traces=(),
             applied_llm_route_planner_hook_traces=(),
+            quality_controls=quality_controls,
             resource_response_summary=resource_response_summary,
             resource_response_summary_by_acceptance_status=(
                 resource_response_summary_by_status
@@ -723,6 +739,7 @@ def _overlay_row(
         applied_llm_route_planner_hook_traces=_merge_dicts(
             *(_proposal_llm_route_planner_hook_traces(proposal) for proposal in proposals)
         ),
+        quality_controls=quality_controls,
         resource_response_summary=resource_response_summary,
         resource_response_summary_by_acceptance_status=(
             resource_response_summary_by_status
@@ -814,6 +831,9 @@ def _orphan_overlay_row(
     errors = ("route revision proposal did not match any current plan row",)
     resource_response_traces = _proposal_resource_response_traces(proposal)
     resource_response_summary = _resource_response_summary(resource_response_traces)
+    quality_controls = _quality_controls_from_rows(
+        [proposal, *resource_response_traces]
+    )
     target_prover_family = _target_prover_family_for_overlay({}, (proposal,))
     formal_nodes = _proposal_formal_realization_dag_nodes(proposal)
     lean_nodes = _proposal_lean_realization_dag_nodes(
@@ -846,6 +866,7 @@ def _orphan_overlay_row(
         applied_llm_route_planner_hook_traces=_merge_dicts(
             _proposal_llm_route_planner_hook_traces(proposal)
         ),
+        quality_controls=quality_controls,
         resource_response_summary=resource_response_summary,
         resource_response_summary_by_acceptance_status=(
             _resource_response_summary_by_acceptance_status(resource_response_traces)
@@ -1102,6 +1123,7 @@ def _resource_response_ledger_proposal(
         "route_id": str(row.get("route_id", "")),
         "display_name": str(row.get("display_name", "")),
         "hook_kind": "resource_response_ledger",
+        "quality_controls": _quality_controls_from_rows([row]),
         "resource_response_trace": _resource_response_trace(row),
         "route_revision_summary": route_revision_summary,
         "route_revision_reasons": route_revision_reasons,
@@ -1199,6 +1221,7 @@ def _resource_response_trace(row: dict[str, Any]) -> dict[str, object]:
         "expected_response_artifact": str(row.get("expected_response_artifact", "")),
         "acceptance_gate": str(row.get("acceptance_gate", "")),
         "dispatch_spec": _dict_value(row, "dispatch_spec"),
+        "quality_controls": _quality_controls_from_rows([row]),
         "candidate_declaration_rows": _dict_tuple(
             row.get("candidate_declaration_rows", [])
         ),
@@ -1259,6 +1282,73 @@ def _proposal_llm_route_planner_hook_traces(
     if isinstance(single, dict) and single:
         traces = (*traces, single)
     return traces
+
+
+def _quality_controls_from_rows(
+    rows: list[dict[str, Any]] | tuple[dict[str, object], ...],
+) -> dict[str, tuple[str, ...]]:
+    controls: list[dict[str, tuple[str, ...]]] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        controls.append(_quality_controls_from_payload(row))
+        controls.append(_quality_controls_from_payload(row.get("quality_controls", {})))
+        for binding in _dict_tuple(row.get("resource_request_bindings", [])):
+            controls.append(
+                _quality_controls_from_payload(binding.get("quality_controls", {}))
+            )
+        for trace_field in (
+            "resource_response_trace",
+            "llm_route_planner_hook_trace",
+        ):
+            trace = row.get(trace_field)
+            if isinstance(trace, dict):
+                controls.append(_quality_controls_from_payload(trace))
+                controls.append(
+                    _quality_controls_from_payload(trace.get("quality_controls", {}))
+                )
+        for trace_field in (
+            "resource_response_traces",
+            "llm_route_planner_hook_traces",
+            "applied_resource_response_traces",
+            "applied_llm_route_planner_hook_traces",
+        ):
+            for trace in _dict_tuple(row.get(trace_field, [])):
+                controls.append(_quality_controls_from_payload(trace))
+                controls.append(
+                    _quality_controls_from_payload(trace.get("quality_controls", {}))
+                )
+        controls.append(_quality_controls_from_payload(_dict_value(row, "request_playbook")))
+        controls.append(_quality_controls_from_payload(_dict_value(row, "response_payload")))
+    return _merge_quality_controls(*controls)
+
+
+def _quality_controls_from_payload(value: Any) -> dict[str, tuple[str, ...]]:
+    if not isinstance(value, dict):
+        return {}
+    return {
+        field_name: _str_tuple(value.get(field_name, []))
+        for field_name in QUALITY_CONTROL_FIELDS
+        if _str_tuple(value.get(field_name, []))
+    }
+
+
+def _merge_quality_controls(
+    *controls: dict[str, tuple[str, ...]],
+) -> dict[str, tuple[str, ...]]:
+    merged: dict[str, list[str]] = {}
+    for control in controls:
+        if not isinstance(control, dict):
+            continue
+        for field_name in QUALITY_CONTROL_FIELDS:
+            values = _str_tuple(control.get(field_name, []))
+            if values:
+                merged.setdefault(field_name, []).extend(values)
+    return {
+        field_name: _str_tuple(values)
+        for field_name, values in merged.items()
+        if _str_tuple(values)
+    }
 
 
 def _proposal_formal_realization_dag_nodes(

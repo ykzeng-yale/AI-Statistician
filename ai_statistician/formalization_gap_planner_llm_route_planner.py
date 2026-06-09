@@ -7010,6 +7010,7 @@ def _feedback_loop_summary(
                 "llm_route_planner_acceptance_status",
                 "revised_selected_primitives",
                 "residual_goals",
+                "quality_controls",
                 "alignment_edge_primitives",
                 "llm_route_planner_realization_coverage_witness",
                 "realization_coverage_witness",

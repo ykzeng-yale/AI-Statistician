@@ -2376,11 +2376,31 @@ def test_llm_route_planner_accepts_policy_grounded_quality_controls() -> None:
     assert tuple(adapter_response["quality_controls"]["quality_gates"]) == (
         "response_schema_valid",
     )
+    response_rows = [dict(response) for response in adapter_payload["responses"]]
+    for response_row in response_rows:
+        if response_row.get("refinement_item_id") == adapter_response.get(
+            "refinement_item_id"
+        ):
+            response_row.update(
+                {
+                    "route_revision_recommended": True,
+                    "route_revision_reasons": [
+                        "quality-gated proof-state residual requires bounded route repair"
+                    ],
+                    "residual_goals": [
+                        "rank_uniformity: missing finite tie-breaking side condition"
+                    ],
+                }
+            )
+    response_jsonl = root / "quality_control_route_revision_responses.jsonl"
+    response_jsonl.write_text(
+        "\n".join(json.dumps(response_row) for response_row in response_rows) + "\n",
+        encoding="utf-8",
+    )
     evidence_payload = export_formalization_gap_planner_refinement_evidence(
         refinement_queue_dir,
         evidence_dir,
-        response_jsonl=adapter_dir
-        / "formalization_gap_planner_refinement_evidence_responses.jsonl",
+        response_jsonl=response_jsonl,
     )
     assert evidence_payload["all_ok"]
     evidence_row = next(
@@ -2394,6 +2414,42 @@ def test_llm_route_planner_accepts_policy_grounded_quality_controls() -> None:
     assert tuple(evidence_row["quality_controls"]["response_validation_signals"]) == (
         "residual_goals_or_diagnostics_present",
     )
+    assert evidence_payload["n_route_revision_proposals"] >= 1
+
+    overlay_dir = root / "route_revision_overlay_from_quality_controls"
+    overlay_payload = export_formalization_gap_planner_route_revision_overlay(
+        plan_dir,
+        evidence_dir,
+        overlay_dir,
+    )
+    assert overlay_payload["all_ok"]
+    overlay_row = overlay_payload["rows"][0]
+    assert tuple(overlay_row["quality_controls"]["resource_contract_ids"]) == (
+        "lean_lsp:proof_state_feedback",
+    )
+    assert tuple(overlay_row["quality_controls"]["quality_gates"]) == (
+        "response_schema_valid",
+    )
+
+    handoff_dir = root / "route_replan_handoff_from_quality_controls"
+    handoff_payload = export_formalization_gap_planner_route_replan_handoff(
+        plan_dir,
+        overlay_dir,
+        handoff_dir,
+    )
+    assert handoff_payload["all_ok"]
+    handoff_row = handoff_payload["rows"][0]
+    assert tuple(handoff_row["quality_controls"]["required_quality_signals"]) == (
+        "diagnostic_signature",
+    )
+    standalone_route = handoff_payload["standalone_seed"]["routes"][0]
+    assert tuple(standalone_route["quality_controls"]["response_validation_signals"]) == (
+        "residual_goals_or_diagnostics_present",
+    )
+    assert tuple(
+        standalone_route["replan_metadata"]["quality_controls"]["stop_conditions"]
+    ) == ("residual interpreted or source search requested",)
+    assert not validate_standalone_input_payload(handoff_payload["standalone_seed"])
 
 
 def test_llm_route_planner_rejects_ungrounded_quality_controls() -> None:

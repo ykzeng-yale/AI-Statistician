@@ -176,7 +176,11 @@ Accepted controls are preserved on route hooks and resource-request bindings so
 the refinement queue can dispatch the same bounded tool contract; refinement
 adapter responses and normalized refinement-evidence rows also expose a compact
 `quality_controls` object for downstream executors that should not have to
-parse every binding.
+parse every binding. Accepted route-revision overlays, route-replan handoff
+rows, and generated standalone replan seeds carry the same `quality_controls`
+object, so a feedback-driven LLM planning round can see the resource contracts,
+quality gates, response validation signals, and stop conditions that bounded the
+evidence it is repairing.
 The
 cost witness uses
 `formalization_gap_planner_minimal_delta_cost_policy:1` and must include a

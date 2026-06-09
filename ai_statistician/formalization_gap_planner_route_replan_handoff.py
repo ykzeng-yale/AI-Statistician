@@ -22,6 +22,13 @@ from .formalization_gap_planner_standalone import (
 
 
 FORMALIZATION_GAP_PLANNER_ROUTE_REPLAN_HANDOFF_SCHEMA_VERSION = 1
+QUALITY_CONTROL_FIELDS = (
+    "resource_contract_ids",
+    "required_quality_signals",
+    "quality_gates",
+    "response_validation_signals",
+    "stop_conditions",
+)
 PROOF_EVIDENCE_STATUS = "FORMALIZATION_GAP_PLANNER_ROUTE_REPLAN_HANDOFF_NOT_PROOF_EVIDENCE"
 PROOF_EVIDENCE_BOUNDARY = (
     "Formalization gap planner route-replan handoff rows turn accepted "
@@ -62,6 +69,7 @@ class FormalizationGapPlannerRouteReplanHandoffRow:
     applied_hook_kinds: tuple[str, ...]
     applied_resource_response_traces: tuple[dict[str, object], ...]
     applied_llm_route_planner_hook_traces: tuple[dict[str, object], ...]
+    quality_controls: dict[str, tuple[str, ...]]
     resource_response_awaiting_request_ids: tuple[str, ...]
     resource_response_rejected_request_ids: tuple[str, ...]
     applied_prover_attempt_statuses: tuple[str, ...]
@@ -199,6 +207,9 @@ def export_formalization_gap_planner_route_replan_handoff(
         ),
         "n_applied_llm_route_planner_hook_traces": sum(
             len(row.applied_llm_route_planner_hook_traces) for row in rows
+        ),
+        "n_routes_with_quality_controls": sum(
+            1 for row in rows if row.quality_controls
         ),
         "n_routes_with_llm_route_planner_hook_trace": sum(
             1 for row in rows if row.applied_llm_route_planner_hook_traces
@@ -366,6 +377,7 @@ def route_replan_handoff_row_json_schema() -> dict[str, object]:
             "applied_hook_kinds": string_array,
             "applied_resource_response_traces": object_array,
             "applied_llm_route_planner_hook_traces": object_array,
+            "quality_controls": {"type": "object"},
             "resource_response_awaiting_request_ids": string_array,
             "resource_response_rejected_request_ids": string_array,
             "applied_prover_attempt_statuses": string_array,
@@ -527,6 +539,7 @@ def _handoff_row(
     applied_llm_route_planner_hook_traces = _dict_tuple(
         overlay_row.get("applied_llm_route_planner_hook_traces", [])
     )
+    quality_controls = _quality_controls_for_handoff(overlay_row)
     resource_response_awaiting_request_ids = _str_tuple(
         _stability_or_overlay(
             "resource_response_awaiting_request_ids",
@@ -619,6 +632,7 @@ def _handoff_row(
         revised_route_alignment_edges=alignment_edges,
         requires_replan=requires_replan,
         target_prover_family=target_prover_family,
+        quality_controls=quality_controls,
     )
     if not standalone_route.get("primitives"):
         errors.append("standalone route primitives missing")
@@ -645,6 +659,7 @@ def _handoff_row(
         applied_hook_kinds=applied_hook_kinds,
         applied_resource_response_traces=applied_resource_response_traces,
         applied_llm_route_planner_hook_traces=applied_llm_route_planner_hook_traces,
+        quality_controls=quality_controls,
         resource_response_awaiting_request_ids=resource_response_awaiting_request_ids,
         resource_response_rejected_request_ids=resource_response_rejected_request_ids,
         applied_prover_attempt_statuses=attempt_statuses,
@@ -728,6 +743,7 @@ def _standalone_route(
     revised_route_alignment_edges: tuple[dict[str, object], ...],
     requires_replan: bool,
     target_prover_family: str,
+    quality_controls: dict[str, tuple[str, ...]],
 ) -> dict[str, object]:
     node_index = _node_index(plan_row)
     lean_hit_index = _lean_hit_index(overlay_row)
@@ -752,6 +768,7 @@ def _standalone_route(
         "recommended_action": _recommended_action(requires_replan, stability_row),
         "source_refs": source_refs,
         "source_snippets": source_snippets,
+        "quality_controls": quality_controls,
         "revised_informal_knowledge_dag_nodes": revised_informal_knowledge_dag_nodes,
         "revised_formal_realization_dag_nodes": revised_formal_realization_dag_nodes,
         "revised_lean_realization_dag_nodes": revised_lean_realization_dag_nodes,
@@ -793,6 +810,7 @@ def _standalone_route(
                     overlay_row.get("applied_llm_route_planner_hook_traces", [])
                 )
             ),
+            "quality_controls": quality_controls,
             "resource_response_awaiting_request_ids": _str_tuple(
                 _stability_or_overlay(
                     "resource_response_awaiting_request_ids",
@@ -994,6 +1012,53 @@ def _stability_or_overlay(
     if field_name in stability_row:
         return stability_row.get(field_name, [])
     return overlay_row.get(field_name, [])
+
+
+def _quality_controls_for_handoff(
+    overlay_row: dict[str, Any],
+) -> dict[str, tuple[str, ...]]:
+    controls: list[dict[str, tuple[str, ...]]] = [
+        _quality_controls_from_payload(overlay_row),
+        _quality_controls_from_payload(overlay_row.get("quality_controls", {})),
+    ]
+    for trace_field in (
+        "applied_resource_response_traces",
+        "applied_llm_route_planner_hook_traces",
+    ):
+        for trace in _dict_tuple(overlay_row.get(trace_field, [])):
+            controls.append(_quality_controls_from_payload(trace))
+            controls.append(
+                _quality_controls_from_payload(trace.get("quality_controls", {}))
+            )
+    return _merge_quality_controls(*controls)
+
+
+def _quality_controls_from_payload(value: Any) -> dict[str, tuple[str, ...]]:
+    if not isinstance(value, dict):
+        return {}
+    return {
+        field_name: _str_tuple(value.get(field_name, []))
+        for field_name in QUALITY_CONTROL_FIELDS
+        if _str_tuple(value.get(field_name, []))
+    }
+
+
+def _merge_quality_controls(
+    *controls: dict[str, tuple[str, ...]],
+) -> dict[str, tuple[str, ...]]:
+    merged: dict[str, list[str]] = {}
+    for control in controls:
+        if not isinstance(control, dict):
+            continue
+        for field_name in QUALITY_CONTROL_FIELDS:
+            values = _str_tuple(control.get(field_name, []))
+            if values:
+                merged.setdefault(field_name, []).extend(values)
+    return {
+        field_name: _str_tuple(values)
+        for field_name, values in merged.items()
+        if _str_tuple(values)
+    }
 
 
 def _node_index(plan_row: dict[str, Any]) -> dict[str, dict[str, Any]]:
