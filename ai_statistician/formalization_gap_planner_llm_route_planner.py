@@ -994,6 +994,17 @@ def export_formalization_gap_planner_llm_route_planner(
                 "realization_coverage",
             ).get("complete") is False
         ),
+        "n_feedback_loop_summary_incomplete_cost_hint_baseline_coverage": sum(
+            1
+            for packet in request_packets
+            if _dict_value(
+                _dict_value(
+                    _dict_value(packet, "context_packet"),
+                    "feedback_loop_summary",
+                ),
+                "realization_coverage",
+            ).get("cost_hint_baseline_coverage_complete") is False
+        ),
         "n_feedback_loop_summary_missing_selected_formal_primitives": sum(
             len(
                 _str_tuple(
@@ -1018,6 +1029,20 @@ def export_formalization_gap_planner_llm_route_planner(
                         ),
                         "realization_coverage",
                     ).get("missing_delta_alignment_primitives", [])
+                )
+            )
+            for packet in request_packets
+        ),
+        "n_feedback_loop_summary_omitted_cost_hint_primitives": sum(
+            len(
+                _str_tuple(
+                    _dict_value(
+                        _dict_value(
+                            _dict_value(packet, "context_packet"),
+                            "feedback_loop_summary",
+                        ),
+                        "realization_coverage",
+                    ).get("omitted_cost_hint_primitives", [])
                 )
             )
             for packet in request_packets
@@ -3111,6 +3136,8 @@ def _llm_route_planner_model_tier_decision(
     realization_coverage = _dict_value(feedback_summary, "realization_coverage")
     if realization_coverage.get("complete") is False:
         sonnet_reasons.append("incomplete realization-coverage witness")
+    if realization_coverage.get("cost_hint_baseline_coverage_complete") is False:
+        sonnet_reasons.append("omitted cost-hint primitive(s) require route review")
     if bool(feedback_summary.get("replan_required", False)):
         sonnet_reasons.append("feedback-loop summary requires route repair")
     sonnet_reasons.extend(_target_intake_sonnet_reasons(context_packet))
@@ -7473,7 +7500,11 @@ def _feedback_loop_summary(
     )
     realization_replan_required = (
         bool(realization_coverage)
-        and realization_coverage.get("complete") is False
+        and (
+            realization_coverage.get("complete") is False
+            or realization_coverage.get("cost_hint_baseline_coverage_complete")
+            is False
+        )
     )
     if realization_coverage:
         recommended_next_actions = _merge_dict_rows(
@@ -7648,6 +7679,20 @@ def _realization_feedback_summary(
             witness.get("delta_primitives_missing_route_alignment_edge", [])
         )
     )
+    cost_hint_baseline = _unique_strings(
+        primitive
+        for witness in deduped
+        for primitive in _str_tuple(witness.get("cost_hint_baseline_primitives", []))
+    )
+    omitted_cost_hint = _unique_strings(
+        primitive
+        for witness in deduped
+        for primitive in _str_tuple(witness.get("omitted_cost_hint_primitives", []))
+    )
+    cost_hint_complete = all(
+        bool(witness.get("cost_hint_baseline_coverage_complete", True))
+        for witness in deduped
+    )
     return {
         "witness_count": len(deduped),
         "complete": all(
@@ -7656,6 +7701,9 @@ def _realization_feedback_summary(
         ),
         "missing_selected_formal_primitives": list(missing_selected[:20]),
         "missing_delta_alignment_primitives": list(missing_delta[:20]),
+        "cost_hint_baseline_primitives": list(cost_hint_baseline[:20]),
+        "omitted_cost_hint_primitives": list(omitted_cost_hint[:20]),
+        "cost_hint_baseline_coverage_complete": cost_hint_complete,
         "witnesses": deduped[:8],
     }
 
@@ -7723,6 +7771,22 @@ def _realization_feedback_next_actions(
                 "action": "add_route_alignment_edges_for_delta_primitives",
                 "target_primitives": list(missing_delta[:12]),
                 "reason": "delta primitives lack informal-to-formal route alignment edges",
+            }
+        )
+    omitted_cost_hint = _str_tuple(
+        realization_coverage.get("omitted_cost_hint_primitives", [])
+    )
+    if omitted_cost_hint:
+        actions.append(
+            {
+                "source": "realization_coverage_witness",
+                "owner": "formalization_gap_planner",
+                "action": "review_or_restore_omitted_cost_hint_primitives",
+                "target_primitives": list(omitted_cost_hint[:12]),
+                "reason": (
+                    "request-bound minimal-delta cost hints include primitives "
+                    "omitted by the selected route"
+                ),
             }
         )
     return tuple(actions)

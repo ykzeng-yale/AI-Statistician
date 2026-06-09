@@ -218,7 +218,11 @@ option, omitting a hinted primitive keeps route adoption pending under
 `omitted_cost_hint_primitives_require_review` until that semantic route change
 has been reviewed. The omitted primitive list is copied into
 `realization_coverage_witness`, then preserved in accepted seeds and compact
-standalone input traces for public replay.
+standalone input traces for public replay. Feedback-loop summaries aggregate
+the same omitted primitive list and emit a
+`review_or_restore_omitted_cost_hint_primitives` repair action, so the next LLM
+route-planning pass treats a semantic route weakening as Sonnet-tier route
+repair even when standalone/formal realization coverage is otherwise complete.
 Each primitive cost row must use a `coverage_bucket` listed in
 `minimal_delta_cost_policy.coverage_bucket_base_cost`, with `base_cost` exactly
 equal to that published bucket cost. That bucket/base cost also cannot be

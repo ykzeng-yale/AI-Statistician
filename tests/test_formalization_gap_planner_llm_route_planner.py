@@ -1845,6 +1845,73 @@ def test_llm_route_planner_feedback_summary_uses_standalone_realization_witness(
     assert "realization_coverage" in request["prompt_messages"]["user"]
 
 
+def test_llm_route_planner_feedback_summary_repairs_omitted_cost_hint_primitives() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_omitted_cost_hint_feedback"
+    )
+    out_dir = root / "llm_route_planner"
+    plan_dir = root / "goal_plan"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    input_payload = json.loads(input_json.read_text(encoding="utf-8"))
+    input_payload["routes"][0]["realization_coverage_witness"] = {
+        "selected_primitives": ["exchangeability"],
+        "delta_primitives": [],
+        "introduced_primitives": [],
+        "aligned_primitives": ["exchangeability"],
+        "selected_primitives_missing_formal_realization_node": [],
+        "delta_primitives_missing_route_alignment_edge": [],
+        "introduced_primitives_missing_route_alignment_edge": [],
+        "cost_hint_baseline_primitives": ["exchangeability", "rank_uniformity"],
+        "omitted_cost_hint_primitives": ["rank_uniformity"],
+        "cost_hint_baseline_coverage_complete": False,
+        "realization_coverage_complete": True,
+    }
+    input_json.write_text(json.dumps(input_payload, indent=2), encoding="utf-8")
+    export_formalization_gap_planner_standalone_plan(input_json, plan_dir)
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        goal_conditioned_minimal_formalization_plan_dir=plan_dir,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_requests_with_feedback_loop_summary"] == 1
+    assert payload["n_feedback_loop_summary_realization_witnesses"] == 1
+    assert payload["n_feedback_loop_summary_incomplete_realization_coverage"] == 0
+    assert (
+        payload["n_feedback_loop_summary_incomplete_cost_hint_baseline_coverage"]
+        == 1
+    )
+    assert payload["n_feedback_loop_summary_omitted_cost_hint_primitives"] == 1
+    request = payload["request_packets"][0]
+    assert request["model_tier"] == "sonnet"
+    assert "omitted cost-hint primitive" in request["model_selection_rationale"]
+    summary = request["context_packet"]["feedback_loop_summary"]
+    assert summary["replan_required"] is True
+    assert summary["realization_coverage"]["complete"] is True
+    assert (
+        summary["realization_coverage"]["cost_hint_baseline_coverage_complete"]
+        is False
+    )
+    assert summary["realization_coverage"]["cost_hint_baseline_primitives"] == [
+        "exchangeability",
+        "rank_uniformity",
+    ]
+    assert summary["realization_coverage"]["omitted_cost_hint_primitives"] == [
+        "rank_uniformity"
+    ]
+    action_by_name = {
+        action["action"]: action for action in summary["recommended_next_actions"]
+    }
+    assert action_by_name[
+        "review_or_restore_omitted_cost_hint_primitives"
+    ]["target_primitives"] == ["rank_uniformity"]
+    assert "omitted_cost_hint_primitives" in request["prompt_messages"]["user"]
+
+
 def test_llm_route_planner_rejected_resource_response_is_status_not_repair_signal() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_rejected_resource_context"
