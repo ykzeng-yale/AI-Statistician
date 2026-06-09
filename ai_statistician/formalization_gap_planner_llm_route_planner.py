@@ -1924,7 +1924,11 @@ def _request_packet(
     library_snapshot_ref = str(
         route.get("library_snapshot_ref") or input_payload.get("library_snapshot_ref", "")
     )
-    residual_goals = _residual_goals_for_route(route_match_ids, context_payloads)
+    residual_goals = _residual_goals_for_route(
+        route_match_ids,
+        context_payloads,
+        route=route,
+    )
     context_packet = {
         "standalone_input_component": str(input_payload.get("component_name", "")),
         "target_prover_family": target_prover_family,
@@ -7936,8 +7940,15 @@ def _compact_standalone_input_trace(value: object) -> dict[str, object]:
 def _residual_goals_for_route(
     route_ids: tuple[str, ...],
     context_payloads: Mapping[str, Any],
+    *,
+    route: Mapping[str, Any] | None = None,
 ) -> tuple[str, ...]:
     residuals: list[str] = []
+    route = route or {}
+    residuals.extend(_str_tuple(route.get("residual_goals", [])))
+    residuals.extend(
+        _str_tuple(_dict_value(route, "replan_metadata").get("residual_goals", []))
+    )
     for source_name in (
         "resource_response_ledger",
         "source_grounding_audit",

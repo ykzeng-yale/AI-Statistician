@@ -2462,6 +2462,22 @@ def test_llm_route_planner_accepts_policy_grounded_quality_controls() -> None:
         for primitive in standalone_replan_route.get("primitives", []):
             if isinstance(primitive, dict):
                 primitive.pop("source_snippets", None)
+    replan_response["residual_interpretations"] = [
+        {
+            "residual_goal": (
+                "rank_uniformity: missing finite tie-breaking side condition"
+            ),
+            "interpretation": (
+                "The carried handoff residual still requires the finite tie-breaking "
+                "condition before route adoption."
+            ),
+            "route_repair": (
+                "Keep the proof-state feedback contract attached to the next "
+                "rank_uniformity bridge attempt."
+            ),
+            "source_refs": ["conformal_prediction_textbook"],
+        }
+    ]
     replan_response["planner_next_actions"][0].update(
         {
             "resource_contract_ids": ["lean_lsp:proof_state_feedback"],
@@ -2483,7 +2499,14 @@ def test_llm_route_planner_accepts_policy_grounded_quality_controls() -> None:
         static_response_json=replan_response_json,
     )
     assert replan_payload["all_ok"]
+    assert tuple(replan_payload["request_packets"][0]["residual_goals"]) == (
+        "rank_uniformity: missing finite tie-breaking side condition",
+    )
     replan_context = replan_payload["request_packets"][0]["context_packet"]
+    assert tuple(replan_context["residual_goals"]) == (
+        "rank_uniformity: missing finite tie-breaking side condition",
+    )
+    assert replan_context["feedback_loop_summary"]["residual_goal_count"] == 1
     prior_metadata = replan_context["feedback_loop_summary"]["prior_replan_metadata"]
     assert tuple(
         prior_metadata["quality_controls"]["resource_contract_ids"]

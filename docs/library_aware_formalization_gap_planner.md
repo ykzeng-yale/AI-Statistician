@@ -180,7 +180,14 @@ parse every binding. Accepted route-revision overlays, route-replan handoff
 rows, and generated standalone replan seeds carry the same `quality_controls`
 object, so a feedback-driven LLM planning round can see the resource contracts,
 quality gates, response validation signals, and stop conditions that bounded the
-evidence it is repairing.
+evidence it is repairing. Request-bound LLM response validation also treats
+route-level, replan-metadata, and `feedback_loop_summary.prior_replan_metadata`
+quality controls as grounded policy context, allowing the next route-planner
+pass to cite those contracts without inventing new tool policy.
+The same second-pass request packet carries route-level and
+`replan_metadata.residual_goals` into `request.residual_goals`, so residual
+interpretation requirements survive the standalone handoff instead of being
+hidden inside opaque metadata.
 The
 cost witness uses
 `formalization_gap_planner_minimal_delta_cost_policy:1` and must include a
