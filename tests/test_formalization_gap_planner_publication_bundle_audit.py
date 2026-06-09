@@ -715,12 +715,32 @@ def _fixture_evaluation_row() -> dict[str, object]:
         ),
         "llm_route_planner_has_generator_metadata": True,
         "llm_route_planner_generator_metadata_keys": ["retry_count"],
-        "quality_controls_present": False,
-        "quality_controls": {},
-        "quality_control_fields": [],
-        "quality_control_resource_contract_ids": [],
-        "quality_control_response_validation_signals": [],
-        "quality_control_stop_conditions": [],
+        "quality_controls_present": True,
+        "quality_controls": {
+            "resource_contract_ids": ["lean_lsp:proof_state_feedback"],
+            "required_quality_signals": ["diagnostic_signature"],
+            "response_validation_signals": [
+                "residual_goals_or_diagnostics_present"
+            ],
+            "stop_conditions": [
+                "residual interpreted or source search requested"
+            ],
+        },
+        "quality_control_fields": [
+            "required_quality_signals",
+            "resource_contract_ids",
+            "response_validation_signals",
+            "stop_conditions",
+        ],
+        "quality_control_resource_contract_ids": [
+            "lean_lsp:proof_state_feedback"
+        ],
+        "quality_control_response_validation_signals": [
+            "residual_goals_or_diagnostics_present"
+        ],
+        "quality_control_stop_conditions": [
+            "residual interpreted or source search requested"
+        ],
         "portable_schema_id": PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_ID,
         "proof_evidence_boundary_ok": True,
         "kernel_verified_ground_truth": False,
@@ -1370,6 +1390,47 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                         "mean_route_recall": 1.0,
                         "mean_delta_precision": 1.0,
                     }
+                },
+                "n_rows_with_quality_controls": 1,
+                "n_quality_control_fields": 4,
+                "quality_control_fields": [
+                    "required_quality_signals",
+                    "resource_contract_ids",
+                    "response_validation_signals",
+                    "stop_conditions",
+                ],
+                "quality_control_resource_contract_ids": [
+                    "lean_lsp:proof_state_feedback"
+                ],
+                "quality_control_response_validation_signals": [
+                    "residual_goals_or_diagnostics_present"
+                ],
+                "quality_control_stop_conditions": [
+                    "residual interpreted or source search requested"
+                ],
+                "evaluation_by_quality_control_field": {
+                    "required_quality_signals": {
+                        "n_rows": 1,
+                        "n_values": 1,
+                        "values": ["diagnostic_signature"],
+                    },
+                    "resource_contract_ids": {
+                        "n_rows": 1,
+                        "n_values": 1,
+                        "values": ["lean_lsp:proof_state_feedback"],
+                    },
+                    "response_validation_signals": {
+                        "n_rows": 1,
+                        "n_values": 1,
+                        "values": ["residual_goals_or_diagnostics_present"],
+                    },
+                    "stop_conditions": {
+                        "n_rows": 1,
+                        "n_values": 1,
+                        "values": [
+                            "residual interpreted or source search requested"
+                        ],
+                    },
                 },
                 "bundled_ground_truth_filename": (
                     "formalization_gap_planner_evaluation_ground_truth.json"
@@ -2587,6 +2648,16 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         == 1
     )
     assert audit_payload["n_optional_evaluation_route_adoption_manifest_valid"] == 1
+    assert audit_payload["n_optional_evaluation_quality_control_row_checked"] == 1
+    assert audit_payload["n_optional_evaluation_quality_control_row_valid"] == 1
+    assert (
+        audit_payload["n_optional_evaluation_quality_control_manifest_checked"]
+        == 1
+    )
+    assert (
+        audit_payload["n_optional_evaluation_quality_control_manifest_valid"]
+        == 1
+    )
     assert audit_payload["n_optional_evaluation_rows_with_route_adoption_status"] == 1
     assert audit_payload["optional_evaluation_route_adoption_status_counts"] == {
         "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
@@ -2602,6 +2673,23 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     assert audit_payload["optional_evaluation_route_adoption_blockers"] == (
         "search_requests_pending_evidence",
         "uncertainty_flags_require_review",
+    )
+    assert audit_payload["n_optional_evaluation_rows_with_quality_controls"] == 1
+    assert audit_payload["n_optional_evaluation_quality_control_fields"] == 4
+    assert audit_payload["optional_evaluation_quality_control_fields"] == (
+        "required_quality_signals",
+        "resource_contract_ids",
+        "response_validation_signals",
+        "stop_conditions",
+    )
+    assert audit_payload[
+        "optional_evaluation_quality_control_resource_contract_ids"
+    ] == ("lean_lsp:proof_state_feedback",)
+    assert audit_payload[
+        "optional_evaluation_quality_control_response_validation_signals"
+    ] == ("residual_goals_or_diagnostics_present",)
+    assert audit_payload["optional_evaluation_quality_control_stop_conditions"] == (
+        "residual interpreted or source search requested",
     )
     assert (
         audit_payload[
@@ -3707,6 +3795,51 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     assert (
         rejected_evaluation_payload[
             "n_optional_evaluation_realization_missing_manifest_valid"
+        ]
+        == 0
+    )
+    evaluation_manifest_path.write_text(
+        json.dumps(evaluation_manifest_payload, indent=2),
+        encoding="utf-8",
+    )
+
+    corrupted_quality_control_manifest = json.loads(
+        json.dumps(evaluation_manifest_payload)
+    )
+    corrupted_quality_control_manifest["n_rows_with_quality_controls"] = 0
+    corrupted_quality_control_manifest["n_quality_control_fields"] = 0
+    corrupted_quality_control_manifest["quality_control_fields"] = []
+    corrupted_quality_control_manifest[
+        "quality_control_resource_contract_ids"
+    ] = []
+    corrupted_quality_control_manifest[
+        "quality_control_response_validation_signals"
+    ] = []
+    corrupted_quality_control_manifest["quality_control_stop_conditions"] = []
+    corrupted_quality_control_manifest["evaluation_by_quality_control_field"] = {}
+    evaluation_manifest_path.write_text(
+        json.dumps(corrupted_quality_control_manifest, indent=2),
+        encoding="utf-8",
+    )
+    rejected_quality_control_evaluation_payload = (
+        audit_formalization_gap_planner_publication_bundle(
+            bundle_dir,
+            root / "audit_rejects_evaluation_quality_control_loss",
+        )
+    )
+    quality_control_evaluation_failed_names = {
+        row["check_name"]
+        for row in rejected_quality_control_evaluation_payload["checks"]
+        if not row["ok"]
+    }
+    assert not rejected_quality_control_evaluation_payload["all_ok"]
+    assert (
+        "optional_evaluation_quality_control_manifest"
+        in quality_control_evaluation_failed_names
+    )
+    assert (
+        rejected_quality_control_evaluation_payload[
+            "n_optional_evaluation_quality_control_manifest_valid"
         ]
         == 0
     )

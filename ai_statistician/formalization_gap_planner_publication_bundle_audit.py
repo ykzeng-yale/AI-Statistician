@@ -34,7 +34,10 @@ from .formalization_gap_planner_cross_prover_matrix_audit import (
     validate_cross_prover_matrix_audit_row,
     validate_cross_prover_target_summary_payload,
 )
-from .formalization_gap_planner_evaluation import validate_evaluation_row
+from .formalization_gap_planner_evaluation import (
+    QUALITY_CONTROL_FIELDS,
+    validate_evaluation_row,
+)
 from .formalization_gap_planner_interactive_session import (
     validate_interactive_decision_policy_row,
     validate_interactive_session_row,
@@ -404,6 +407,27 @@ def audit_formalization_gap_planner_publication_bundle(
     optional_evaluation_route_adoption_blockers = (
         _evaluation_route_adoption_blockers_from_rows(optional_evaluation_rows)
     )
+    optional_evaluation_quality_control_fields = (
+        _evaluation_quality_control_fields_from_rows(optional_evaluation_rows)
+    )
+    optional_evaluation_quality_control_resource_contract_ids = (
+        _evaluation_quality_control_values_from_rows(
+            optional_evaluation_rows,
+            "resource_contract_ids",
+        )
+    )
+    optional_evaluation_quality_control_response_validation_signals = (
+        _evaluation_quality_control_values_from_rows(
+            optional_evaluation_rows,
+            "response_validation_signals",
+        )
+    )
+    optional_evaluation_quality_control_stop_conditions = (
+        _evaluation_quality_control_values_from_rows(
+            optional_evaluation_rows,
+            "stop_conditions",
+        )
+    )
     optional_ablation_study_rows = _optional_ablation_study_rows_for_summary(
         bundle_dir
     )
@@ -616,6 +640,30 @@ def audit_formalization_gap_planner_publication_bundle(
             if check.check_name == "optional_evaluation_route_adoption_manifest"
             and check.ok
         ),
+        "n_optional_evaluation_quality_control_row_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_evaluation_row_")
+            and check.check_name.endswith("_quality_control_fields")
+        ),
+        "n_optional_evaluation_quality_control_row_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_evaluation_row_")
+            and check.check_name.endswith("_quality_control_fields")
+            and check.ok
+        ),
+        "n_optional_evaluation_quality_control_manifest_checked": sum(
+            1
+            for check in checks
+            if check.check_name == "optional_evaluation_quality_control_manifest"
+        ),
+        "n_optional_evaluation_quality_control_manifest_valid": sum(
+            1
+            for check in checks
+            if check.check_name == "optional_evaluation_quality_control_manifest"
+            and check.ok
+        ),
         "n_optional_evaluation_rows_with_route_adoption_status": sum(
             1
             for row in optional_evaluation_rows
@@ -642,6 +690,27 @@ def audit_formalization_gap_planner_publication_bundle(
         ),
         "optional_evaluation_route_adoption_blockers": (
             optional_evaluation_route_adoption_blockers
+        ),
+        "n_optional_evaluation_rows_with_quality_controls": sum(
+            1
+            for row in optional_evaluation_rows
+            if _quality_controls_from_evaluation_row(row)
+        ),
+        "n_optional_evaluation_quality_control_fields": sum(
+            len(_quality_controls_from_evaluation_row(row))
+            for row in optional_evaluation_rows
+        ),
+        "optional_evaluation_quality_control_fields": (
+            optional_evaluation_quality_control_fields
+        ),
+        "optional_evaluation_quality_control_resource_contract_ids": (
+            optional_evaluation_quality_control_resource_contract_ids
+        ),
+        "optional_evaluation_quality_control_response_validation_signals": (
+            optional_evaluation_quality_control_response_validation_signals
+        ),
+        "optional_evaluation_quality_control_stop_conditions": (
+            optional_evaluation_quality_control_stop_conditions
         ),
         "n_optional_evaluation_realization_missing_selected_formal_primitives": sum(
             len(_str_tuple(row.get("realization_missing_selected_formal_primitives", [])))
@@ -11598,6 +11667,10 @@ def _evaluation_optional_checks(
         manifest,
         rows,
     )
+    quality_control_manifest_errors = _evaluation_quality_control_manifest_errors(
+        manifest,
+        rows,
+    )
     checks.append(
         _check(
             "optional_evaluation_realization_missing_manifest",
@@ -11622,6 +11695,20 @@ def _evaluation_optional_checks(
             errors=route_adoption_manifest_errors,
         )
     )
+    checks.append(
+        _check(
+            "optional_evaluation_quality_control_manifest",
+            "optional_artifacts",
+            "evaluation manifest preserves quality-control policy aggregates",
+            (
+                "; ".join(quality_control_manifest_errors)
+                if quality_control_manifest_errors
+                else "ok"
+            ),
+            not quality_control_manifest_errors,
+            errors=quality_control_manifest_errors,
+        )
+    )
     for idx, row in enumerate(rows):
         schema_errors = validate_evaluation_row(row)
         matched = bool(row.get("matched_ground_truth", False))
@@ -11634,6 +11721,7 @@ def _evaluation_optional_checks(
         )
         realization_errors = _evaluation_realization_missing_row_errors(row)
         route_adoption_errors = _evaluation_route_adoption_row_errors(row)
+        quality_control_errors = _evaluation_quality_control_row_errors(row)
         checks.append(
             _check(
                 f"optional_evaluation_row_{idx}_schema_valid",
@@ -11688,6 +11776,20 @@ def _evaluation_optional_checks(
                 ),
                 not route_adoption_errors,
                 errors=route_adoption_errors,
+            )
+        )
+        checks.append(
+            _check(
+                f"optional_evaluation_row_{idx}_quality_control_fields",
+                "optional_artifacts",
+                "evaluation row preserves quality-control policy fields",
+                (
+                    "; ".join(quality_control_errors)
+                    if quality_control_errors
+                    else "ok"
+                ),
+                not quality_control_errors,
+                errors=quality_control_errors,
             )
         )
     return checks
@@ -11796,6 +11898,54 @@ def _evaluation_route_adoption_row_errors(
     return tuple(errors)
 
 
+def _evaluation_quality_control_row_errors(
+    row: dict[str, Any],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    raw_controls = row.get("quality_controls", {})
+    if not isinstance(raw_controls, dict):
+        errors.append("quality_controls is not an object")
+        controls: dict[str, tuple[str, ...]] = {}
+    else:
+        controls = _quality_controls_from_evaluation_row(row)
+        unknown_fields = sorted(set(raw_controls) - set(QUALITY_CONTROL_FIELDS))
+        if unknown_fields:
+            errors.append("unknown quality_control fields: " + ", ".join(unknown_fields))
+    expected_present = bool(controls)
+    observed_present = row.get("quality_controls_present", False)
+    if not isinstance(observed_present, bool):
+        errors.append("quality_controls_present is not a boolean")
+    elif observed_present != expected_present:
+        errors.append(
+            "quality_controls_present mismatch: "
+            f"observed={observed_present} expected={expected_present}"
+        )
+    expected_fields = tuple(sorted(controls))
+    observed_fields = _str_tuple(row.get("quality_control_fields", []))
+    if observed_fields != expected_fields:
+        errors.append(
+            "quality_control_fields mismatch: "
+            f"observed={sorted(observed_fields)} expected={sorted(expected_fields)}"
+        )
+    comparisons = (
+        ("quality_control_resource_contract_ids", "resource_contract_ids"),
+        (
+            "quality_control_response_validation_signals",
+            "response_validation_signals",
+        ),
+        ("quality_control_stop_conditions", "stop_conditions"),
+    )
+    for row_field_name, control_field_name in comparisons:
+        observed = _str_tuple(row.get(row_field_name, []))
+        expected = controls.get(control_field_name, tuple())
+        if observed != expected:
+            errors.append(
+                f"{row_field_name} mismatch: observed={sorted(observed)} "
+                f"expected={sorted(expected)}"
+            )
+    return tuple(errors)
+
+
 def _evaluation_realization_missing_manifest_errors(
     manifest: dict[str, Any],
     rows: list[dict[str, Any]],
@@ -11853,6 +12003,132 @@ def _evaluation_realization_missing_manifest_errors(
         errors.append(
             "realization_missing_primitives_by_route mismatch: "
             f"observed={sorted(observed_by_route)} expected={sorted(expected_by_route)}"
+        )
+    return tuple(errors)
+
+
+def _evaluation_quality_control_manifest_errors(
+    manifest: dict[str, Any],
+    rows: list[dict[str, Any]],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    row_tuple = _dict_tuple(rows)
+    expected_rows_with = sum(
+        1 for row in row_tuple if _quality_controls_from_evaluation_row(row)
+    )
+    expected_field_total = sum(
+        len(_quality_controls_from_evaluation_row(row)) for row in row_tuple
+    )
+    expected_fields = set(_evaluation_quality_control_fields_from_rows(row_tuple))
+    expected_resource_contract_ids = set(
+        _evaluation_quality_control_values_from_rows(
+            row_tuple,
+            "resource_contract_ids",
+        )
+    )
+    expected_response_validation_signals = set(
+        _evaluation_quality_control_values_from_rows(
+            row_tuple,
+            "response_validation_signals",
+        )
+    )
+    expected_stop_conditions = set(
+        _evaluation_quality_control_values_from_rows(row_tuple, "stop_conditions")
+    )
+    observed_rows_with = int(
+        manifest.get("n_rows_with_quality_controls", -1) or 0
+    )
+    observed_field_total = int(
+        manifest.get("n_quality_control_fields", -1) or 0
+    )
+    observed_fields = set(_str_tuple(manifest.get("quality_control_fields", [])))
+    observed_resource_contract_ids = set(
+        _str_tuple(manifest.get("quality_control_resource_contract_ids", []))
+    )
+    observed_response_validation_signals = set(
+        _str_tuple(
+            manifest.get("quality_control_response_validation_signals", [])
+        )
+    )
+    observed_stop_conditions = set(
+        _str_tuple(manifest.get("quality_control_stop_conditions", []))
+    )
+    if observed_rows_with != expected_rows_with:
+        errors.append(
+            "n_rows_with_quality_controls mismatch: "
+            f"observed={observed_rows_with} expected={expected_rows_with}"
+        )
+    if observed_field_total != expected_field_total:
+        errors.append(
+            "n_quality_control_fields mismatch: "
+            f"observed={observed_field_total} expected={expected_field_total}"
+        )
+    if observed_fields != expected_fields:
+        errors.append(
+            "quality_control_fields mismatch: "
+            f"observed={sorted(observed_fields)} expected={sorted(expected_fields)}"
+        )
+    if observed_resource_contract_ids != expected_resource_contract_ids:
+        errors.append(
+            "quality_control_resource_contract_ids mismatch: "
+            f"observed={sorted(observed_resource_contract_ids)} "
+            f"expected={sorted(expected_resource_contract_ids)}"
+        )
+    if observed_response_validation_signals != expected_response_validation_signals:
+        errors.append(
+            "quality_control_response_validation_signals mismatch: "
+            f"observed={sorted(observed_response_validation_signals)} "
+            f"expected={sorted(expected_response_validation_signals)}"
+        )
+    if observed_stop_conditions != expected_stop_conditions:
+        errors.append(
+            "quality_control_stop_conditions mismatch: "
+            f"observed={sorted(observed_stop_conditions)} "
+            f"expected={sorted(expected_stop_conditions)}"
+        )
+    observed_by_field = manifest.get("evaluation_by_quality_control_field", {})
+    observed_by_field = observed_by_field if isinstance(observed_by_field, dict) else {}
+    for field_name in expected_fields:
+        field_rows = [
+            row
+            for row in row_tuple
+            if field_name in _quality_controls_from_evaluation_row(row)
+        ]
+        expected_values = set(
+            value
+            for row in field_rows
+            for value in _quality_controls_from_evaluation_row(row).get(
+                field_name,
+                tuple(),
+            )
+        )
+        observed_summary = observed_by_field.get(field_name, {})
+        observed_summary = (
+            observed_summary if isinstance(observed_summary, dict) else {}
+        )
+        observed_n_rows = int(observed_summary.get("n_rows", -1) or 0)
+        observed_n_values = int(observed_summary.get("n_values", -1) or 0)
+        observed_values = set(_str_tuple(observed_summary.get("values", [])))
+        if observed_n_rows != len(field_rows):
+            errors.append(
+                f"evaluation_by_quality_control_field.{field_name}.n_rows "
+                f"mismatch: observed={observed_n_rows} expected={len(field_rows)}"
+            )
+        if observed_n_values != len(expected_values):
+            errors.append(
+                f"evaluation_by_quality_control_field.{field_name}.n_values "
+                f"mismatch: observed={observed_n_values} expected={len(expected_values)}"
+            )
+        if observed_values != expected_values:
+            errors.append(
+                f"evaluation_by_quality_control_field.{field_name}.values "
+                f"mismatch: observed={sorted(observed_values)} "
+                f"expected={sorted(expected_values)}"
+            )
+    if set(observed_by_field) != expected_fields:
+        errors.append(
+            "evaluation_by_quality_control_field keys mismatch: "
+            f"observed={sorted(observed_by_field)} expected={sorted(expected_fields)}"
         )
     return tuple(errors)
 
@@ -12067,6 +12343,38 @@ def _evaluation_route_adoption_blockers_from_rows(rows: Any) -> tuple[str, ...]:
             _str_tuple(row.get("llm_route_planner_route_adoption_blockers", []))
         )
     return tuple(dict.fromkeys(values))
+
+
+def _evaluation_quality_control_fields_from_rows(rows: Any) -> tuple[str, ...]:
+    fields: list[str] = []
+    for row in _dict_tuple(rows):
+        fields.extend(_quality_controls_from_evaluation_row(row).keys())
+    return tuple(dict.fromkeys(sorted(fields)))
+
+
+def _evaluation_quality_control_values_from_rows(
+    rows: Any,
+    field_name: str,
+) -> tuple[str, ...]:
+    values: list[str] = []
+    for row in _dict_tuple(rows):
+        values.extend(
+            _quality_controls_from_evaluation_row(row).get(field_name, tuple())
+        )
+    return tuple(dict.fromkeys(values))
+
+
+def _quality_controls_from_evaluation_row(
+    row: dict[str, Any],
+) -> dict[str, tuple[str, ...]]:
+    controls = row.get("quality_controls", {})
+    if not isinstance(controls, dict):
+        return {}
+    return {
+        field_name: _str_tuple(controls.get(field_name, []))
+        for field_name in QUALITY_CONTROL_FIELDS
+        if _str_tuple(controls.get(field_name, []))
+    }
 
 
 def _evaluation_realization_missing_delta_from_rows(
@@ -14165,11 +14473,18 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Optional evaluation realization-missing rows valid: {payload.get('n_optional_evaluation_realization_missing_row_valid')}/{payload.get('n_optional_evaluation_realization_missing_row_checked')}",
         f"- Optional evaluation realization-missing manifest valid: {payload.get('n_optional_evaluation_realization_missing_manifest_valid')}/{payload.get('n_optional_evaluation_realization_missing_manifest_checked')}",
         f"- Optional evaluation route-adoption manifest valid: {payload.get('n_optional_evaluation_route_adoption_manifest_valid')}/{payload.get('n_optional_evaluation_route_adoption_manifest_checked')}",
+        f"- Optional evaluation quality-control rows valid: {payload.get('n_optional_evaluation_quality_control_row_valid')}/{payload.get('n_optional_evaluation_quality_control_row_checked')}",
+        f"- Optional evaluation quality-control manifest valid: {payload.get('n_optional_evaluation_quality_control_manifest_valid')}/{payload.get('n_optional_evaluation_quality_control_manifest_checked')}",
         (
             "- Optional evaluation route-adoption ready/pending/blockers: "
             f"{payload.get('n_optional_evaluation_rows_ready_for_route_adoption')}/"
             f"{payload.get('n_optional_evaluation_rows_pending_refinement_before_route_adoption')}/"
             f"{payload.get('n_optional_evaluation_route_adoption_blockers')}"
+        ),
+        (
+            "- Optional evaluation quality controls: "
+            f"rows={payload.get('n_optional_evaluation_rows_with_quality_controls')} "
+            f"fields={payload.get('optional_evaluation_quality_control_fields')}"
         ),
         (
             "- Optional evaluation missing realization primitives: "
